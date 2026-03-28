@@ -364,7 +364,7 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
       </div>
 
       {/* Content */}
-      <div className="relative border border-gray-200 dark:border-gray-800 rounded-lg p-3 sm:p-6 bg-white dark:bg-gray-900/50 print:border-0 print:p-0 print:bg-white">
+      <div className="relative border border-gray-200 dark:border-gray-800 rounded-lg p-3 sm:p-6 bg-white dark:bg-gray-900/50 print:border-0 print:p-0 print:bg-white overflow-hidden">
         {showRaw ? (
           <>
             <CopyButton text={displayContent} label="Copy all" className="no-print absolute top-3 right-3" />

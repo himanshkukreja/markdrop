@@ -31,16 +31,30 @@
 }
 
 /* ── Mobile overflow fixes ─────────────────────────────────────────────────── */
-/* Prevent wide tables and code blocks from blowing out the layout on mobile */
+/* Code block wrapper scrolls horizontally; pre itself doesn't add extra scroll */
 .prose pre {
-  overflow-x: auto;
+  overflow-x: visible;
   max-width: 100%;
+  margin: 0;
 }
 
+/* Tables scroll horizontally on narrow screens */
 .prose table {
   display: block;
   overflow-x: auto;
   max-width: 100%;
+}
+
+/* Images never exceed container width */
+.prose img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Long unbreakable strings (URLs, hashes) wrap instead of overflowing */
+.prose p, .prose li, .prose blockquote {
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* ── Print styles ─────────────────────────────────────────────────────────── */

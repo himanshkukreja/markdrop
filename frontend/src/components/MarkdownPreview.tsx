@@ -59,8 +59,8 @@ function Pre({ children, ...props }: ComponentProps<"pre">) {
   }
 
   return (
-    <div className="relative group">
-      <pre {...props}>{children}</pre>
+    <div className="relative group overflow-x-auto">
+      <pre {...props} style={{ margin: 0 }}>{children}</pre>
       <CopyCodeButton getText={getText} />
     </div>
   );
@@ -68,7 +68,7 @@ function Pre({ children, ...props }: ComponentProps<"pre">) {
 
 export default function MarkdownPreview({ content }: { content: string }) {
   return (
-    <div className="prose prose-sm max-w-none dark:prose-invert">
+    <div className="prose prose-sm max-w-none dark:prose-invert break-words overflow-hidden">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         // Order matters: highlight FIRST, then sanitize (so classes aren't stripped)
