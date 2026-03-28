@@ -30,6 +30,19 @@
   border: 1px solid rgb(55 65 81);
 }
 
+/* ── Mobile overflow fixes ─────────────────────────────────────────────────── */
+/* Prevent wide tables and code blocks from blowing out the layout on mobile */
+.prose pre {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.prose table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 /* ── Print styles ─────────────────────────────────────────────────────────── */
 @page {
   margin: 1.5cm;

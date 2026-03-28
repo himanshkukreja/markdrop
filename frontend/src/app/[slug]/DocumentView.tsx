@@ -96,7 +96,6 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
     setSaveError("");
     try {
       await updateDocument(slug, editTitle, editContent, secretInput);
-      // Update local display state immediately
       setDisplayTitle(editTitle || null);
       setDisplayContent(editContent);
       setEditing(false);
@@ -126,12 +125,11 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
   if (editing && !secretUnlocked) {
     return (
       <div className="w-full space-y-4">
-        <div className="flex items-center gap-2 no-print">
-          <button onClick={handleCancelEdit} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-            ← Back
-          </button>
-        </div>
-        <div className="max-w-sm mx-auto mt-16 space-y-4">
+        <button onClick={handleCancelEdit} className="no-print text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          ← Back
+        </button>
+        {/* max-w-xs keeps it safe on 375px viewports (px-4 on each side = 343px usable) */}
+        <div className="w-full max-w-xs mx-auto mt-12 space-y-4">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">Enter your edit secret</h2>
           <form onSubmit={handleUnlock} className="space-y-3">
             <input
@@ -169,70 +167,71 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
     return (
       <div className="flex flex-col flex-1 min-h-0 gap-3">
 
-        {/* Top bar */}
-        <div className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 shrink-0">
+        {/* Top bar — title full-width on mobile, inline on sm+ */}
+        <div className="no-print flex flex-col gap-2 shrink-0">
           <input
             type="text"
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
             placeholder="Document title (optional)"
             maxLength={200}
-            className="flex-1 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 outline-none py-1 text-lg font-semibold text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
+            className="w-full bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
           />
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <span className={`text-xs tabular-nums ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500"}`}>
+          {/* Action row: char count + buttons, wraps on mobile */}
+          <div className="flex items-center justify-between gap-2">
+            <span className={`text-xs tabular-nums shrink-0 ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500"}`}>
               {remaining.toLocaleString()} left
             </span>
             {showDeleteConfirm ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400">Delete permanently?</span>
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Delete permanently?</span>
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
-                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-sm rounded-lg transition-colors"
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs rounded-lg transition-colors"
                 >
                   {deleting ? "Deleting…" : "Yes, delete"}
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
+                  className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
                 >
                   Cancel
                 </button>
               </div>
             ) : (
-              <>
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="px-3 py-1.5 text-sm border border-red-300 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
+                  className="px-3 py-1.5 text-xs border border-red-300 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
                 >
                   Delete
                 </button>
                 <button
                   onClick={handleCancelEdit}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
+                  className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving || !editContent.trim()}
-                  className="px-5 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white transition-colors"
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-xs font-medium text-white transition-colors"
                 >
                   {saving ? "Saving…" : "Save"}
                 </button>
-              </>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Mode tabs */}
+        {/* Mode tabs — hide Split on mobile */}
         <div className="no-print flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 shrink-0">
           {(["write", "split", "preview"] as ViewMode[]).map((m) => (
             <button
               key={m}
               onClick={() => setViewMode(m)}
-              className={`px-4 py-2 text-sm transition-colors border-b-2 -mb-px capitalize ${
+              className={`${m === "split" ? "hidden sm:block" : ""} px-3 sm:px-4 py-2 text-sm transition-colors border-b-2 -mb-px ${
                 viewMode === m
                   ? "border-blue-500 text-blue-500 dark:text-blue-400"
                   : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
@@ -250,13 +249,13 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
             onChange={(e) => setEditContent(e.target.value)}
             autoFocus
             maxLength={MAX_CHARS}
-            className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 resize-none focus:outline-none focus:border-blue-500 transition-colors"
+            className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 resize-none focus:outline-none focus:border-blue-500 transition-colors"
           />
         )}
 
-        {/* Split */}
+        {/* Split — desktop only (tab hidden on mobile so this won't render) */}
         {viewMode === "split" && (
-          <div className="flex flex-col sm:flex-row gap-3 flex-1 min-h-0">
+          <div className="flex gap-3 flex-1 min-h-0">
             <textarea
               ref={textareaRef}
               value={editContent}
@@ -264,11 +263,11 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
               onScroll={syncScroll}
               autoFocus
               maxLength={MAX_CHARS}
-              className="flex-1 sm:w-1/2 sm:flex-none h-48 sm:h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 font-mono text-sm text-gray-800 dark:text-gray-200 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
+              className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 font-mono text-sm text-gray-800 dark:text-gray-200 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
             />
             <div
               ref={previewRef}
-              className="flex-1 sm:w-1/2 sm:flex-none h-48 sm:h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-5"
+              className="w-1/2 h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-5"
             >
               {editContent.trim()
                 ? <MarkdownPreview content={editContent} />
@@ -280,7 +279,7 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
 
         {/* Preview */}
         {viewMode === "preview" && (
-          <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-6">
+          <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-6">
             {editContent.trim()
               ? <MarkdownPreview content={editContent} />
               : <p className="text-gray-400 dark:text-gray-600 text-sm">Nothing to preview yet.</p>
@@ -288,7 +287,6 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
           </div>
         )}
 
-        {/* Error */}
         {saveError && (
           <p className="shrink-0 text-red-500 text-sm">{saveError}</p>
         )}
@@ -306,7 +304,7 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
           <span className="text-green-500 mt-0.5 shrink-0">✓</span>
           <div className="min-w-0">
             <span>Published. Save your edit secret — shown once:</span>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <code className="font-mono text-gray-700 dark:text-gray-300 select-all break-all">
                 {initialSecret}
               </code>
@@ -317,10 +315,11 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
       )}
 
       {/* Document header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 no-print">
+      <div className="flex flex-col gap-2 no-print">
+        {/* Title + slug + date */}
         <div className="space-y-0.5 min-w-0">
           {displayTitle && (
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 break-words">{displayTitle}</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100 break-words">{displayTitle}</h1>
           )}
           <div className="flex items-center gap-3">
             <span className="font-mono text-xs text-gray-400 dark:text-gray-500">/{slug}</span>
@@ -329,7 +328,8 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
+        {/* Action buttons — always in a row, wraps if needed */}
+        <div className="flex items-center gap-2 flex-wrap">
           <CopyButton text={url} />
           <button
             onClick={() => setShowRaw(!showRaw)}
@@ -364,11 +364,11 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
       </div>
 
       {/* Content */}
-      <div className="relative border border-gray-200 dark:border-gray-800 rounded-lg p-4 sm:p-6 bg-white dark:bg-gray-900/50 print:border-0 print:p-0 print:bg-white">
+      <div className="relative border border-gray-200 dark:border-gray-800 rounded-lg p-3 sm:p-6 bg-white dark:bg-gray-900/50 print:border-0 print:p-0 print:bg-white">
         {showRaw ? (
           <>
             <CopyButton text={displayContent} label="Copy all" className="no-print absolute top-3 right-3" />
-            <pre className="font-mono text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+            <pre className="font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
               {displayContent}
             </pre>
           </>

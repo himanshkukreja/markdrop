@@ -54,13 +54,13 @@ export default function Home() {
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-3">
 
-      {/* Print-only content (hidden on screen, shown when printing) */}
+      {/* Print-only content */}
       <div className="hidden print-only">
         {title && <h1 className="text-2xl font-bold mb-4">{title}</h1>}
         <MarkdownPreview content={content} />
       </div>
 
-      {/* Top bar: title + char count + publish */}
+      {/* Top bar */}
       <div className="no-print flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 shrink-0">
         <input
           type="text"
@@ -68,13 +68,12 @@ export default function Home() {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Document title (optional)"
           maxLength={200}
-          className="flex-1 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 outline-none py-1 text-lg font-semibold text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
+          className="flex-1 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
         />
         <div className="flex items-center gap-2 shrink-0">
-          <span className={`text-xs tabular-nums mr-1 ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500"}`}>
+          <span className={`text-xs tabular-nums ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500"}`}>
             {remaining.toLocaleString()} left
           </span>
-          {/* Export PDF hidden on mobile — printing from mobile is rare */}
           <button
             onClick={() => window.print()}
             disabled={!content.trim()}
@@ -85,20 +84,20 @@ export default function Home() {
           <button
             onClick={handlePublish}
             disabled={loading || !content.trim()}
-            className="px-5 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white transition-colors"
+            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white transition-colors"
           >
             {loading ? "Publishing..." : "Publish"}
           </button>
         </div>
       </div>
 
-      {/* Mode tab bar */}
+      {/* Mode tab bar — on mobile, hide Split (unusable on small screens) */}
       <div className="no-print flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 shrink-0">
         {MODES.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => setMode(id)}
-            className={`px-4 py-2 text-sm transition-colors border-b-2 -mb-px ${
+            className={`${id === "split" ? "hidden sm:block" : ""} px-3 sm:px-4 py-2 text-sm transition-colors border-b-2 -mb-px ${
               mode === id
                 ? "border-blue-500 text-blue-500 dark:text-blue-400"
                 : "border-transparent text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
@@ -109,34 +108,34 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Write — full-width textarea */}
+      {/* Write */}
       {mode === "write" && (
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Paste your markdown here..."
-          className="no-print flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors"
+          className="no-print flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors"
           autoFocus
           maxLength={MAX_CHARS}
         />
       )}
 
-      {/* Split — stacked on mobile, side-by-side on sm+ */}
+      {/* Split — side-by-side on sm+, write-only on mobile */}
       {mode === "split" && (
-        <div className="no-print flex flex-col sm:flex-row gap-3 flex-1 min-h-0">
+        <div className="no-print flex gap-3 flex-1 min-h-0">
           <textarea
             ref={textareaRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onScroll={syncScroll}
             placeholder="Paste your markdown here..."
-            className="flex-1 sm:w-1/2 sm:flex-none h-48 sm:h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
+            className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
             autoFocus
             maxLength={MAX_CHARS}
           />
           <div
             ref={previewRef}
-            className="flex-1 sm:w-1/2 sm:flex-none h-48 sm:h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-5"
+            className="w-1/2 h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-5"
           >
             {content.trim() ? (
               <MarkdownPreview content={content} />
@@ -147,9 +146,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* Preview — full-width rendered output */}
+      {/* Preview */}
       {mode === "preview" && (
-        <div className="no-print flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-6">
+        <div className="no-print flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-6">
           {content.trim() ? (
             <MarkdownPreview content={content} />
           ) : (
