@@ -1,2 +1,127 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+
+/* Class-based dark mode: applies dark: utilities when .dark is on any ancestor */
+@variant dark (&:where(.dark, .dark *));
+
+/* Inline code: remove the default backtick pseudo-content and style clearly */
+.prose code:not(pre code) {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-weight: 500;
+  background-color: rgb(229 231 235); /* gray-200 */
+  color: rgb(219 39 119); /* pink-600 */
+}
+.prose code:not(pre code)::before,
+.prose code:not(pre code)::after {
+  content: none !important;
+}
+
+.dark .prose code:not(pre code) {
+  background-color: rgb(55 65 81); /* gray-700 */
+  color: rgb(249 168 212); /* pink-300 */
+}
+
+/* Code blocks always keep dark background regardless of theme */
+.prose pre {
+  background-color: #0d1117 !important;
+  border: 1px solid rgb(55 65 81);
+}
+
+/* ── Print styles ─────────────────────────────────────────────────────────── */
+@page {
+  margin: 1.5cm;
+  /* Removes browser-added page title / URL headers and footers */
+  size: auto;
+}
+
+@media print {
+  /* Hide all UI chrome */
+  .no-print { display: none !important; }
+
+  /* Show print-only content */
+  .print-only { display: block !important; }
+
+  /* Reset page to white/black regardless of dark mode */
+  html, body, * {
+    background: white !important;
+    color: black !important;
+    border-color: #ddd !important;
+  }
+
+  html, body {
+    height: auto !important;
+  }
+
+  /* Prose text colours */
+  .prose, .prose * {
+    color: black !important;
+  }
+
+  /* Headings */
+  .prose h1, .prose h2, .prose h3,
+  .prose h4, .prose h5, .prose h6 {
+    color: black !important;
+  }
+
+  /* Links: show URL so they're useful on paper */
+  .prose a {
+    color: #1d4ed8 !important;
+    text-decoration: underline !important;
+  }
+
+  /* Inline code */
+  .prose code:not(pre code) {
+    background-color: rgb(229 231 235) !important;
+    color: rgb(219 39 119) !important;
+  }
+
+  /* Code blocks: light background so text is visible */
+  .prose pre {
+    background-color: #f6f8fa !important;
+    border: 1px solid #ddd !important;
+    color: black !important;
+  }
+  .prose pre code,
+  .prose pre .hljs-keyword,
+  .prose pre .hljs-string,
+  .prose pre .hljs-comment,
+  .prose pre .hljs-number,
+  .prose pre .hljs-title,
+  .prose pre .hljs-attr,
+  .prose pre .hljs-built_in,
+  .prose pre span {
+    color: black !important;
+    background: transparent !important;
+  }
+
+  /* Blockquote */
+  .prose blockquote {
+    border-left-color: #aaa !important;
+    color: #444 !important;
+  }
+
+  /* Tables */
+  .prose table, .prose th, .prose td {
+    border-color: #ccc !important;
+  }
+  .prose th {
+    background-color: #f3f4f6 !important;
+  }
+
+  /* Strip layout padding/margin from the shell */
+  header, main {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+
+  /* No box shadows or decorative borders on containers */
+  main > * {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+}

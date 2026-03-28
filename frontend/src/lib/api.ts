@@ -3,6 +3,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 export interface DocumentCreateResponse {
   slug: string;
   url: string;
+  title: string | null;
   content: string;
   edit_secret: string;
   created_at: string;
@@ -12,16 +13,17 @@ export interface DocumentCreateResponse {
 export interface DocumentResponse {
   slug: string;
   url: string;
+  title: string | null;
   content: string;
   created_at: string;
   updated_at: string;
 }
 
-export async function createDocument(content: string): Promise<DocumentCreateResponse> {
+export async function createDocument(title: string, content: string): Promise<DocumentCreateResponse> {
   const res = await fetch(`${API_BASE}/api/v1/documents`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ title: title.trim() || null, content }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to create document" }));
@@ -43,6 +45,7 @@ export async function getDocument(slug: string): Promise<DocumentResponse> {
 
 export async function updateDocument(
   slug: string,
+  title: string,
   content: string,
   editSecret: string
 ): Promise<DocumentResponse> {
@@ -52,7 +55,7 @@ export async function updateDocument(
       "Content-Type": "application/json",
       "x-edit-secret": editSecret,
     },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ title: title.trim() || null, content }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to update" }));

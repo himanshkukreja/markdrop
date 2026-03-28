@@ -1,18 +1,32 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 from app.config import get_settings
 
 settings = get_settings()
 
-engine = create_async_engine(settings.database_url, echo=settings.debug)
-async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+_client: AsyncIOMotorClient | None = None
 
 
-class Base(DeclarativeBase):
-    pass
+def get_client() -> AsyncIOMotorClient:
+    if _client is None:
+        raise RuntimeError("MongoDB client not initialised. Call connect() first.")
+    return _client
 
 
-async def get_db() -> AsyncSession:
-    async with async_session() as session:
-        yield session
+def get_database() -> AsyncIOMotorDatabase:
+    return get_client()[settings.mongodb_db]
+
+
+async def connect() -> None:
+    global _client
+    _client = AsyncIOMotorClient(settings.mongodb_uri)
+    # Ensure the slug index exists (unique, fast lookups)
+    db = get_database()
+    await db["documents"].create_index("slug", unique=True)
+
+
+async def disconnect() -> None:
+    global _client
+    if _client is not None:
+        _client.close()
+        _client = None

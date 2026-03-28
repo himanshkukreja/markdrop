@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, Header, Request
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.database import get_db
+from app.database import get_database
 from app.schemas.document import (
     DocumentCreate,
     DocumentCreateResponse,
@@ -24,22 +24,30 @@ def _build_url(slug: str) -> str:
     return f"{BASE_URL}/{slug}"
 
 
+def _to_response(doc) -> dict:
+    return dict(
+        slug=doc.slug,
+        url=_build_url(doc.slug),
+        title=doc.title,
+        content=doc.content,
+        created_at=doc.created_at,
+        updated_at=doc.updated_at,
+    )
+
+
+def get_db() -> AsyncIOMotorDatabase:
+    return get_database()
+
+
 @router.post("", response_model=DocumentCreateResponse, status_code=201)
 @limiter.limit(settings.rate_limit_create)
 async def create_document(
     request: Request,
     data: DocumentCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     doc, raw_secret = await doc_service.create_document(db, data)
-    return DocumentCreateResponse(
-        slug=doc.slug,
-        url=_build_url(doc.slug),
-        content=doc.content,
-        created_at=doc.created_at,
-        updated_at=doc.updated_at,
-        edit_secret=raw_secret,
-    )
+    return DocumentCreateResponse(**_to_response(doc), edit_secret=raw_secret)
 
 
 @router.get("/{slug}", response_model=DocumentResponse)
@@ -47,16 +55,10 @@ async def create_document(
 async def get_document(
     request: Request,
     slug: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     doc = await doc_service.get_document(db, slug)
-    return DocumentResponse(
-        slug=doc.slug,
-        url=_build_url(doc.slug),
-        content=doc.content,
-        created_at=doc.created_at,
-        updated_at=doc.updated_at,
-    )
+    return DocumentResponse(**_to_response(doc))
 
 
 @router.put("/{slug}", response_model=DocumentResponse)
@@ -65,17 +67,11 @@ async def update_document(
     request: Request,
     slug: str,
     data: DocumentUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncIOMotorDatabase = Depends(get_db),
     x_edit_secret: str = Header(...),
 ):
     doc = await doc_service.update_document(db, slug, data, x_edit_secret)
-    return DocumentResponse(
-        slug=doc.slug,
-        url=_build_url(doc.slug),
-        content=doc.content,
-        created_at=doc.created_at,
-        updated_at=doc.updated_at,
-    )
+    return DocumentResponse(**_to_response(doc))
 
 
 @router.delete("/{slug}", status_code=204)
@@ -83,7 +79,7 @@ async def update_document(
 async def delete_document(
     request: Request,
     slug: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncIOMotorDatabase = Depends(get_db),
     x_edit_secret: str = Header(...),
 ):
     await doc_service.delete_document(db, slug, x_edit_secret)

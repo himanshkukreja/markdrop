@@ -2,18 +2,23 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+MAX_CONTENT = 20_000
+
 
 class DocumentCreate(BaseModel):
-    content: str = Field(..., min_length=1, max_length=256 * 1024)
+    title: str | None = Field(None, max_length=200)
+    content: str = Field(..., min_length=1, max_length=MAX_CONTENT)
 
 
 class DocumentUpdate(BaseModel):
-    content: str = Field(..., min_length=1, max_length=256 * 1024)
+    title: str | None = Field(None, max_length=200)
+    content: str = Field(..., min_length=1, max_length=MAX_CONTENT)
 
 
 class DocumentResponse(BaseModel):
     slug: str
     url: str
+    title: str | None
     content: str
     created_at: datetime
     updated_at: datetime

@@ -12,12 +12,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   try {
     const doc = await getDocument(slug);
+    const pageTitle = doc.title || slug;
     const preview = doc.content.slice(0, 150).replace(/[#*_`]/g, "");
     return {
-      title: `${slug} — Markdrop`,
+      title: `${pageTitle} — Markdrop`,
       description: preview || "A document on Markdrop",
       openGraph: {
-        title: `${slug} — Markdrop`,
+        title: `${pageTitle} — Markdrop`,
         description: preview || "A document on Markdrop",
         type: "article",
       },
@@ -41,6 +42,7 @@ export default async function SlugPage({ params, searchParams }: Props) {
   return (
     <DocumentView
       slug={doc.slug}
+      title={doc.title}
       content={doc.content}
       url={doc.url}
       createdAt={doc.created_at}

@@ -6,10 +6,11 @@ class Settings(BaseSettings):
     app_name: str = "Markdrop"
     debug: bool = False
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/markdrop"
+    mongodb_uri: str = "mongodb://localhost:27017"
+    mongodb_db: str = "markdrop"
+
     redis_url: str = "redis://localhost:6379"
 
-    max_document_size: int = 256 * 1024  # 256KB
     slug_length: int = 7
     slug_max_retries: int = 5
 

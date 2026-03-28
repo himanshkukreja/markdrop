@@ -7,6 +7,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import get_settings
+from app.database import connect, disconnect
 from app.routers.documents import limiter, router as documents_router
 
 settings = get_settings()
@@ -14,7 +15,9 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await connect()
     yield
+    await disconnect()
 
 
 app = FastAPI(
