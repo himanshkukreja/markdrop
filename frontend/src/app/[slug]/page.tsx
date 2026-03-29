@@ -46,6 +46,8 @@ export default async function SlugPage({ params, searchParams }: Props) {
       content={doc.content}
       url={doc.url}
       createdAt={doc.created_at}
+      expiresAt={doc.expires_at}
+      views={doc.views}
       isNew={isNew === "1"}
       editSecret={secret || undefined}
     />

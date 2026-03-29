@@ -32,11 +32,14 @@ def _to_response(doc) -> dict:
         content=doc.content,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
+        expires_at=doc.expires_at,
+        views=doc.views,
     )
 
 
 def get_db() -> AsyncIOMotorDatabase:
     return get_database()
+
 
 
 @router.post("", response_model=DocumentCreateResponse, status_code=201)

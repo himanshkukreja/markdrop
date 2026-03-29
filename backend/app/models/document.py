@@ -10,3 +10,6 @@ class Document:
     created_at: datetime
     updated_at: datetime
     title: str | None = None
+    expires_at: datetime | None = None
+    views: int = 0
+

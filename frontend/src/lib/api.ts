@@ -8,6 +8,8 @@ export interface DocumentCreateResponse {
   edit_secret: string;
   created_at: string;
   updated_at: string;
+  expires_at: string | null;
+  views: number;
 }
 
 export interface DocumentResponse {
@@ -17,13 +19,27 @@ export interface DocumentResponse {
   content: string;
   created_at: string;
   updated_at: string;
+  expires_at: string | null;
+  views: number;
 }
 
-export async function createDocument(title: string, content: string): Promise<DocumentCreateResponse> {
+export type ExpiresIn = "never" | "1d" | "7d" | "30d" | "custom";
+
+export async function createDocument(
+  title: string,
+  content: string,
+  options?: { customSlug?: string; expiresIn?: ExpiresIn; customExpiresAt?: string }
+): Promise<DocumentCreateResponse> {
   const res = await fetch(`${API_BASE}/api/v1/documents`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title: title.trim() || null, content }),
+    body: JSON.stringify({
+      title: title.trim() || null,
+      content,
+      custom_slug: options?.customSlug?.trim() || null,
+      expires_in: options?.expiresIn ?? "never",
+      custom_expires_at: options?.customExpiresAt ?? null,
+    }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to create document" }));
@@ -74,3 +90,4 @@ export async function deleteDocument(slug: string, editSecret: string): Promise<
     throw new Error(err.detail);
   }
 }
+

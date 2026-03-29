@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import CopyButton from "@/components/CopyButton";
+import MarkdownToolbar from "@/components/MarkdownToolbar";
 import { updateDocument, deleteDocument } from "@/lib/api";
 
 type ViewMode = "write" | "split" | "preview";
@@ -14,13 +15,36 @@ interface Props {
   content: string;
   url: string;
   createdAt: string;
+  expiresAt: string | null;
+  views?: number;
   isNew?: boolean;
   editSecret?: string;
 }
 
 const MAX_CHARS = 20_000;
 
-export default function DocumentView({ slug, title: initialTitle, content: initialContent, url, createdAt, isNew, editSecret: initialSecret }: Props) {
+function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
+  const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000);
+  if (days <= 0) return null;
+  const label = days === 1 ? "Expires in 1 day" : `Expires in ${days} days`;
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+      {label}
+    </span>
+  );
+}
+
+export default function DocumentView({
+  slug,
+  title: initialTitle,
+  content: initialContent,
+  url,
+  createdAt,
+  expiresAt,
+  views: initialViews,
+  isNew,
+  editSecret: initialSecret,
+}: Props) {
   const router = useRouter();
 
   // Live display state (updated on save without needing a server round-trip)
@@ -49,6 +73,7 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
 
   // Scroll sync refs for split view
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const writeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
   function syncScroll() {
@@ -120,6 +145,7 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
   }
 
   const remaining = MAX_CHARS - editContent.length;
+  const activeTextareaRef = viewMode === "split" ? textareaRef : writeTextareaRef;
 
   // ── Secret unlock screen ───────────────────────────────────────────────────
   if (editing && !secretUnlocked) {
@@ -128,7 +154,6 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
         <button onClick={handleCancelEdit} className="no-print text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
           ← Back
         </button>
-        {/* max-w-xs keeps it safe on 375px viewports (px-4 on each side = 343px usable) */}
         <div className="w-full max-w-xs mx-auto mt-12 space-y-4">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">Enter your edit secret</h2>
           <form onSubmit={handleUnlock} className="space-y-3">
@@ -167,7 +192,7 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
     return (
       <div className="flex flex-col flex-1 min-h-0 gap-3">
 
-        {/* Top bar — title full-width on mobile, inline on sm+ */}
+        {/* Top bar */}
         <div className="no-print flex flex-col gap-2 shrink-0">
           <input
             type="text"
@@ -177,7 +202,6 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
             maxLength={200}
             className="w-full bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
           />
-          {/* Action row: char count + buttons, wraps on mobile */}
           <div className="flex items-center justify-between gap-2">
             <span className={`text-xs tabular-nums shrink-0 ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500"}`}>
               {remaining.toLocaleString()} left
@@ -225,7 +249,7 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
           </div>
         </div>
 
-        {/* Mode tabs — hide Split on mobile */}
+        {/* Mode tabs */}
         <div className="no-print flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 shrink-0">
           {(["write", "split", "preview"] as ViewMode[]).map((m) => (
             <button
@@ -242,18 +266,29 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
           ))}
         </div>
 
+        {/* Toolbar */}
+        {viewMode !== "preview" && (
+          <div className="no-print shrink-0 rounded-t-lg overflow-hidden border border-b-0 border-gray-200 dark:border-gray-700">
+            <MarkdownToolbar
+              textareaRef={activeTextareaRef}
+              onChange={setEditContent}
+            />
+          </div>
+        )}
+
         {/* Write */}
         {viewMode === "write" && (
           <textarea
+            ref={writeTextareaRef}
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             autoFocus
             maxLength={MAX_CHARS}
-            className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 resize-none focus:outline-none focus:border-blue-500 transition-colors"
+            className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-b-lg rounded-t-none p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 resize-none focus:outline-none focus:border-blue-500 transition-colors"
           />
         )}
 
-        {/* Split — desktop only (tab hidden on mobile so this won't render) */}
+        {/* Split */}
         {viewMode === "split" && (
           <div className="flex gap-3 flex-1 min-h-0">
             <textarea
@@ -263,7 +298,7 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
               onScroll={syncScroll}
               autoFocus
               maxLength={MAX_CHARS}
-              className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 font-mono text-sm text-gray-800 dark:text-gray-200 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
+              className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-b-lg rounded-t-none p-4 font-mono text-sm text-gray-800 dark:text-gray-200 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
             />
             <div
               ref={previewRef}
@@ -298,7 +333,7 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
   return (
     <div className="w-full space-y-4">
 
-      {/* Subtle secret notice — shown once after publish */}
+      {/* Secret notice — shown once after publish */}
       {isNew && initialSecret && (
         <div className="no-print flex items-start gap-3 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-900/40 text-xs text-gray-500 dark:text-gray-400">
           <span className="text-green-500 mt-0.5 shrink-0">✓</span>
@@ -316,19 +351,23 @@ export default function DocumentView({ slug, title: initialTitle, content: initi
 
       {/* Document header */}
       <div className="flex flex-col gap-2 no-print">
-        {/* Title + slug + date */}
-        <div className="space-y-0.5 min-w-0">
+        <div className="space-y-1 min-w-0">
           {displayTitle && (
             <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100 break-words">{displayTitle}</h1>
           )}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-mono text-xs text-gray-400 dark:text-gray-500">/{slug}</span>
             <span className="text-xs text-gray-400 dark:text-gray-600">
               {new Date(createdAt).toLocaleDateString()}
             </span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              {(initialViews ?? 0).toLocaleString()} {(initialViews ?? 0) === 1 ? "view" : "views"}
+            </span>
+            {expiresAt && <ExpiryBadge expiresAt={expiresAt} />}
           </div>
         </div>
-        {/* Action buttons — always in a row, wraps if needed */}
+
+        {/* Action buttons */}
         <div className="flex items-center gap-2 flex-wrap">
           <CopyButton text={url} />
           <button

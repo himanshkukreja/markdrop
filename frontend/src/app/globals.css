@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* Base font size: bump from browser default 16px to 17px for better readability */
+html {
+  font-size: 17px;
+}
+
 /* Class-based dark mode: applies dark: utilities when .dark is on any ancestor */
 @variant dark (&:where(.dark, .dark *));
 

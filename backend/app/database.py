@@ -23,6 +23,8 @@ async def connect() -> None:
     # Ensure the slug index exists (unique, fast lookups)
     db = get_database()
     await db["documents"].create_index("slug", unique=True)
+    # TTL index: auto-delete documents when expires_at is reached
+    await db["documents"].create_index("expires_at", expireAfterSeconds=0, sparse=True)
 
 
 async def disconnect() -> None:
