@@ -21,6 +21,7 @@ Minimal, anonymous markdown publishing tool. Paste markdown, get a shareable lin
 - **View count** — passively tracks how many times a document has been opened
 - **3 themes** — VS Code dark grey (default), dark, and light — persisted to localStorage
 - Export to PDF (print-optimised, no UI chrome)
+- **P2P file sharing** — send any file directly to another browser, no server storage, end-to-end encrypted via WebRTC DataChannel ([technical docs →](FILESHARE.md))
 - Fully responsive — works on mobile
 - Rate-limited to prevent abuse
 
@@ -50,6 +51,8 @@ markdrop/
 │   │   ├── models/         # Plain Python dataclasses
 │   │   ├── schemas/        # Pydantic request/response schemas
 │   │   ├── routers/        # FastAPI route handlers
+│   │   │   ├── documents.py  # Document CRUD routes
+│   │   │   └── share.py      # WebSocket signaling relay for P2P file sharing
 │   │   ├── services/       # Business logic
 │   │   └── utils/          # Slug generation, bcrypt secret hashing
 │   └── requirements.txt
@@ -57,16 +60,22 @@ markdrop/
     └── src/
         ├── app/            # Pages (App Router)
         │   ├── page.tsx                  # Editor + publish page
-        │   └── [slug]/
-        │       ├── page.tsx              # Document view (SSR, handles password gate)
-        │       └── DocumentView.tsx      # Client viewer + inline editor
+        │   ├── [slug]/
+        │   │   ├── page.tsx              # Document view (SSR, handles password gate)
+        │   │   └── DocumentView.tsx      # Client viewer + inline editor
+        │   └── share/
+        │       ├── page.tsx              # P2P file uploader (WebRTC host)
+        │       └── [id]/
+        │           ├── page.tsx          # SSR wrapper — passes roomId to client
+        │           └── DownloadView.tsx  # P2P file downloader (WebRTC guest)
         ├── components/
         │   ├── MarkdownPreview.tsx       # react-markdown + syntax highlighting
         │   ├── MarkdownToolbar.tsx       # Formatting toolbar
         │   ├── CopyButton.tsx
         │   └── ThemeToggle.tsx           # 3-theme cycle (vscode → dark → light)
         └── lib/
-            └── api.ts                   # API client (create, get, update, delete)
+            ├── api.ts                   # API client (create, get, update, delete)
+            └── webrtc.ts                # WebRTC utilities, chunk streaming, room ID
 ```
 
 ---
@@ -192,7 +201,33 @@ X-Edit-Secret: sk_9f8a7b...
 
 ---
 
-## Deployment
+## P2P File Sharing
+
+Markdrop includes a zero-storage file transfer feature at `/share`. Files are streamed directly between browsers using **WebRTC DataChannels** — nothing is uploaded to the server.
+
+```
+Sender (host)  ──WS──▶  FastAPI relay  ◀──WS──  Recipient (guest)
+                         (SDP / ICE)
+     └────────────── RTCDataChannel (direct P2P) ──────────────┘
+```
+
+**How it works:**
+
+1. Sender picks a file → opens a WebSocket to `/ws/share/{roomId}?role=host`
+2. A unique share link (`markdrop.in/share/{roomId}`) is generated and displayed
+3. Recipient opens the link → joins the same room as guest → WebRTC handshake completes
+4. Sender's browser streams the file in 64 KB chunks directly to the recipient's browser
+5. Recipient's browser assembles the chunks and triggers a native browser save
+
+> The file never touches Markdrop servers. The relay only forwards ~few KB of SDP/ICE signaling JSON.
+
+**Properties:**
+- End-to-end encrypted (DTLS 1.2, mandatory in WebRTC)
+- Any file type, any size (limited only by sender's RAM for now)
+- Works across NAT/firewalls via STUN; no TURN fallback (same-network or open NAT required)
+- Real-time progress bar on both sides
+
+See [FILESHARE.md](FILESHARE.md) for full technical documentation, WebSocket API reference, and architecture diagrams.
 
 ### Backend (AWS EC2 — no Docker)
 
@@ -278,7 +313,8 @@ Configure nginx to proxy `api.markdrop.in` → `127.0.0.1:8080` with `limit_req_
 
 - [x] Phase 1 — Anonymous markdown publishing with edit/delete via secret key
 - [x] Phase 2 — Custom slugs, expiry dates, view counts, password protection, markdown toolbar, 3 themes
-- [ ] Phase 3 — User accounts, dashboard, document versioning, file uploads
+- [x] Phase 3 — P2P file sharing (WebRTC DataChannel, no server storage)
+- [ ] Phase 4 — User accounts, dashboard, document versioning, TURN server for file sharing behind strict NAT
 
 ---
 

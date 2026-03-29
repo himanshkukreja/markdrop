@@ -36,6 +36,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </a>
             </div>
             <div className="flex items-center gap-4">
+              <a href="/share" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                Share file
+              </a>
               <a href="/" className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] hover:text-gray-800 dark:hover:text-gray-200 vscode:hover:text-[#d4d4d4] transition-colors">
                 + New
               </a>
