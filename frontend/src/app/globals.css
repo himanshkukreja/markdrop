@@ -6,11 +6,14 @@ html {
   font-size: 17px;
 }
 
-/* Class-based dark mode: applies dark: utilities when .dark is on any ancestor */
-@variant dark (&:where(.dark, .dark *));
+/* Class-based dark mode: applies dark: utilities when .dark is on any ancestor.
+   Using .dark & (parent combinator) instead of :where() so dark: variants have
+   specificity (0,2,0) and reliably override base utilities like bg-white on
+   all browsers including mobile Safari. */
+@variant dark (.dark &);
 
-/* VS Code dark grey theme variant */
-@variant vscode (&:where(.vscode, .vscode *));
+/* VS Code dark grey theme variant — same specificity reasoning as above */
+@variant vscode (.vscode &);
 
 /* Inline code: remove the default backtick pseudo-content and style clearly */
 .prose code:not(pre code) {
