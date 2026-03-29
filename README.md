@@ -268,7 +268,59 @@ sudo systemctl daemon-reload && sudo systemctl enable --now markdrop
 sudo certbot --nginx -d api.markdrop.in
 ```
 
-Configure nginx to proxy `api.markdrop.in` → `127.0.0.1:8080` with `limit_req_zone` rate limiting.
+Create `/etc/nginx/sites-available/markdrop-api`:
+```nginx
+limit_req_zone $binary_remote_addr zone=api:10m rate=60r/m;
+
+server {
+    listen 80;
+    server_name api.markdrop.in;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name api.markdrop.in;
+
+    ssl_certificate     /etc/letsencrypt/live/api.markdrop.in/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.markdrop.in/privkey.pem;
+
+    # ── WebSocket (P2P signalling) ─────────────────────────────────────────
+    # MUST come before the general location block.
+    # Requires HTTP/1.1 + Upgrade header — without these nginx strips the
+    # upgrade and FastAPI returns 404.
+    location /ws/ {
+        proxy_pass         http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade    $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host       $host;
+        proxy_set_header   X-Real-IP  $remote_addr;
+        proxy_read_timeout 3600s;   # keep WS alive for up to 1 h
+    }
+
+    # ── Regular HTTP API ───────────────────────────────────────────────────
+    location / {
+        limit_req zone=api burst=20 nodelay;
+
+        proxy_pass         http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/markdrop-api /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+> **WebSocket gotcha** — the `/ws/` block **must** include `proxy_http_version 1.1` and
+> `proxy_set_header Upgrade / Connection "upgrade"`. Without them nginx defaults to HTTP/1.0,
+> strips the upgrade handshake, and FastAPI responds with 404.
 
 ### Frontend (Vercel)
 
