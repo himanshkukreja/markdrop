@@ -120,6 +120,12 @@ html {
     border: 1px solid #ddd !important;
     color: black !important;
   }
+  /* VS Code theme overrides the .prose pre background with higher specificity —
+     re-assert the light print background at the same specificity level */
+  .vscode .prose pre {
+    background-color: #f6f8fa !important;
+    border: 1px solid #ddd !important;
+  }
   .prose pre code,
   .prose pre .hljs-keyword,
   .prose pre .hljs-string,

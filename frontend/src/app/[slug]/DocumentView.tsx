@@ -104,6 +104,22 @@ export default function DocumentView({
   const writeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
+  // Set document.title to just the clean name before printing so the
+  // save-as filename in the print dialog is "{title}" or "{slug}" rather
+  // than the full "{title} — Markdrop" page title.
+  useEffect(() => {
+    const cleanName = displayTitle || slug;
+    const savedTitle = document.title;
+    function beforePrint() { document.title = cleanName; }
+    function afterPrint()  { document.title = savedTitle; }
+    window.addEventListener("beforeprint", beforePrint);
+    window.addEventListener("afterprint",  afterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", beforePrint);
+      window.removeEventListener("afterprint",  afterPrint);
+    };
+  }, [displayTitle, slug]);
+
   // On mount: auto-unlock if owner (has edit secret) or cached password
   useEffect(() => {
     if (!isPasswordProtected) return;
