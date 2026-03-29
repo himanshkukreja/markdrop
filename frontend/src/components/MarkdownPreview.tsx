@@ -68,7 +68,7 @@ function Pre({ children, ...props }: ComponentProps<"pre">) {
 
 export default function MarkdownPreview({ content }: { content: string }) {
   return (
-    <div className="prose prose-sm max-w-none dark:prose-invert break-words overflow-hidden">
+    <div className="prose prose-sm max-w-none dark:prose-invert break-words overflow-x-hidden">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         // Order matters: highlight FIRST, then sanitize (so classes aren't stripped)

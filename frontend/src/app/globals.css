@@ -43,11 +43,12 @@ html {
 }
 
 /* ── Mobile overflow fixes ─────────────────────────────────────────────────── */
-/* Code block wrapper scrolls horizontally; pre itself doesn't add extra scroll */
+/* pre scrolls horizontally inside its wrapper div — never bleeds outside */
 .prose pre {
-  overflow-x: visible;
+  overflow-x: auto;
   max-width: 100%;
   margin: 0;
+  min-width: 0;
 }
 
 /* Tables scroll horizontally on narrow screens */
