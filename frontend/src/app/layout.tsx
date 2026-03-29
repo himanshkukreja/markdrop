@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import "./globals.css";
 import "highlight.js/styles/github-dark.css";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -11,12 +10,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full dark" suppressHydrationWarning>
-      <body className="h-full flex flex-col bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-        {/* Server defaults to dark. Script removes dark class only if user chose light.
-            This prevents flash for dark-mode users (the default). */}
-        <Script id="theme-init" strategy="beforeInteractive">{`(function(){if(localStorage.getItem('theme')==='light')document.documentElement.classList.remove('dark');})();`}</Script>
-        <header className="no-print shrink-0 border-b border-gray-200 dark:border-gray-800">
+    <html lang="en" className="h-full" style={{ background: "#1e1e1e" }} suppressHydrationWarning>
+      <head>
+        {/* Inline script: runs synchronously during HTML parsing, before any paint.
+            Reads localStorage and applies the correct theme class + background. */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme')||'vscode';var bg=t==='dark'?'#030712':'#1e1e1e';document.documentElement.classList.add(t==='dark'?'dark':'vscode');document.documentElement.style.background=bg;})();` }} />
+      </head>
+      <body className="h-full flex flex-col dark:bg-gray-950 vscode:bg-[#1e1e1e] dark:text-gray-100 vscode:text-[#d4d4d4]">
+        <header className="no-print shrink-0 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] vscode:bg-[#252526]">
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <a href="/" className="text-xl font-bold tracking-tight">

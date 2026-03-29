@@ -34,12 +34,12 @@ def _to_response(doc) -> dict:
         updated_at=doc.updated_at,
         expires_at=doc.expires_at,
         views=doc.views,
+        is_password_protected=bool(doc.read_password_hash),
     )
 
 
 def get_db() -> AsyncIOMotorDatabase:
     return get_database()
-
 
 
 @router.post("", response_model=DocumentCreateResponse, status_code=201)
@@ -59,8 +59,10 @@ async def get_document(
     request: Request,
     slug: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    x_read_password: str | None = Header(None),
+    x_edit_secret: str | None = Header(None),
 ):
-    doc = await doc_service.get_document(db, slug)
+    doc = await doc_service.get_document(db, slug, x_read_password, x_edit_secret)
     return DocumentResponse(**_to_response(doc))
 
 

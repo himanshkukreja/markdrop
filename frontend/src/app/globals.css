@@ -9,6 +9,9 @@ html {
 /* Class-based dark mode: applies dark: utilities when .dark is on any ancestor */
 @variant dark (&:where(.dark, .dark *));
 
+/* VS Code dark grey theme variant */
+@variant vscode (&:where(.vscode, .vscode *));
+
 /* Inline code: remove the default backtick pseudo-content and style clearly */
 .prose code:not(pre code) {
   font-family: ui-monospace, monospace;
@@ -16,23 +19,24 @@ html {
   padding: 0.15em 0.4em;
   border-radius: 4px;
   font-weight: 500;
-  background-color: rgb(229 231 235); /* gray-200 */
-  color: rgb(219 39 119); /* pink-600 */
+  background-color: rgb(55 65 81); /* gray-700 — base for both dark themes */
+  color: rgb(249 168 212); /* pink-300 */
 }
 .prose code:not(pre code)::before,
 .prose code:not(pre code)::after {
   content: none !important;
 }
 
-.dark .prose code:not(pre code) {
-  background-color: rgb(55 65 81); /* gray-700 */
-  color: rgb(249 168 212); /* pink-300 */
-}
-
 /* Code blocks always keep dark background regardless of theme */
 .prose pre {
   background-color: #0d1117 !important;
   border: 1px solid rgb(55 65 81);
+}
+
+/* VS Code theme: use editor background instead of GitHub's dark-blue */
+.vscode .prose pre {
+  background-color: #1e1e1e !important;
+  border-color: rgb(60 60 60);
 }
 
 /* ── Mobile overflow fixes ─────────────────────────────────────────────────── */
@@ -156,4 +160,49 @@ html {
     box-shadow: none !important;
     padding: 0 !important;
   }
+}
+
+/* ── VS Code theme prose overrides ─────────────────────────────────────────── */
+.vscode .prose {
+  color: #d4d4d4;
+}
+
+.vscode .prose h1,
+.vscode .prose h2,
+.vscode .prose h3,
+.vscode .prose h4,
+.vscode .prose h5,
+.vscode .prose h6 {
+  color: #d4d4d4;
+}
+
+.vscode .prose a {
+  color: #4fc1ff;
+}
+
+.vscode .prose strong {
+  color: #d4d4d4;
+}
+
+.vscode .prose blockquote {
+  border-left-color: #3c3c3c;
+  color: #9d9d9d;
+}
+
+.vscode .prose code:not(pre code) {
+  background-color: #2d2d2d;
+  color: #ce9178;
+}
+
+.vscode .prose hr {
+  border-color: #3c3c3c;
+}
+
+.vscode .prose th {
+  color: #d4d4d4;
+  border-color: #3c3c3c;
+}
+
+.vscode .prose td {
+  border-color: #3c3c3c;
 }

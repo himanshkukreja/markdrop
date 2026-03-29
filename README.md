@@ -8,14 +8,18 @@ Minimal, anonymous markdown publishing tool. Paste markdown, get a shareable lin
 
 ## Features
 
-- Paste markdown and publish with one click
-- Shareable links (`markdrop.in/abc123`)
+- Paste markdown and publish with one click — no account needed
+- Shareable links (`markdrop.in/abc123` or a custom slug you pick)
 - Write / Split / Preview editor modes with scroll sync
+- Markdown toolbar (Bold, Italic, Heading, Code, Code Block, Link, List)
 - Document title support
-- Syntax-highlighted code blocks with copy button
-- Edit or delete via a secret key (no account needed) — edit UI built in
+- Syntax-highlighted code blocks (GitHub Dark theme)
+- Edit or delete via a secret key shown once at publish — built-in editor
 - Raw markdown view with copy-all button
-- Light / dark mode
+- **Password protection** — optionally lock a document behind a read password
+- **Document expiry** — set a TTL (1 day / 7 days / 30 days / custom date & time)
+- **View count** — passively tracks how many times a document has been opened
+- **3 themes** — VS Code dark grey (default), dark, and light — persisted to localStorage
 - Export to PDF (print-optimised, no UI chrome)
 - Fully responsive — works on mobile
 - Rate-limited to prevent abuse
@@ -27,10 +31,10 @@ Minimal, anonymous markdown publishing tool. Paste markdown, get a shareable lin
 | Backend | FastAPI (Python 3.12) |
 | Frontend | Next.js 15 + Tailwind CSS v4 |
 | Database | MongoDB (Motor async driver) |
-| Rate limiting | Redis + slowapi |
+| Rate limiting | slowapi |
 | Frontend hosting | Vercel |
-| Backend hosting | AWS EC2 |
-| CDN | Cloudflare |
+| Backend hosting | AWS EC2 + nginx + systemd |
+| CDN / DNS | Cloudflare |
 
 ---
 
@@ -42,26 +46,27 @@ markdrop/
 │   ├── app/
 │   │   ├── main.py         # App entrypoint, lifespan (DB connect/disconnect)
 │   │   ├── config.py       # Pydantic settings (env vars)
-│   │   ├── database.py     # Motor MongoDB client
+│   │   ├── database.py     # Motor MongoDB client + index setup
 │   │   ├── models/         # Plain Python dataclasses
 │   │   ├── schemas/        # Pydantic request/response schemas
 │   │   ├── routers/        # FastAPI route handlers
 │   │   ├── services/       # Business logic
 │   │   └── utils/          # Slug generation, bcrypt secret hashing
-│   ├── Dockerfile
 │   └── requirements.txt
 └── frontend/               # Next.js app
     └── src/
         ├── app/            # Pages (App Router)
-        │   ├── page.tsx            # Editor page
-        │   ├── [slug]/page.tsx     # Document view (SSR)
-        │   └── [slug]/DocumentView.tsx  # Client viewer + editor
+        │   ├── page.tsx                  # Editor + publish page
+        │   └── [slug]/
+        │       ├── page.tsx              # Document view (SSR, handles password gate)
+        │       └── DocumentView.tsx      # Client viewer + inline editor
         ├── components/
-        │   ├── MarkdownPreview.tsx  # react-markdown + syntax highlighting
+        │   ├── MarkdownPreview.tsx       # react-markdown + syntax highlighting
+        │   ├── MarkdownToolbar.tsx       # Formatting toolbar
         │   ├── CopyButton.tsx
-        │   └── ThemeToggle.tsx
+        │   └── ThemeToggle.tsx           # 3-theme cycle (vscode → dark → light)
         └── lib/
-            └── api.ts      # API client (create, get, update, delete)
+            └── api.ts                   # API client (create, get, update, delete)
 ```
 
 ---
@@ -73,28 +78,24 @@ markdrop/
 - Python 3.12+
 - Node.js 20+
 - MongoDB Atlas URI (or local MongoDB)
-- Redis (`brew install redis` on macOS)
 
 ### Backend
 
 ```bash
 cd backend
 
-# Install dependencies
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Configure environment
 cp .env.example .env
-# Edit .env — add your MongoDB URI
+# Edit .env — set MARKDROP_MONGODB_URI
 ```
 
 `.env` example:
 ```env
-MARKDROP_MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority
+MARKDROP_MONGODB_URI=mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/?retryWrites=true&w=majority
 MARKDROP_MONGODB_DB=markdrop
-MARKDROP_REDIS_URL=redis://localhost:6379
 MARKDROP_DEBUG=true
 MARKDROP_CORS_ORIGINS=["http://localhost:3000"]
 ```
@@ -104,7 +105,7 @@ MARKDROP_CORS_ORIGINS=["http://localhost:3000"]
 uvicorn app.main:app --reload --port 8080
 ```
 
-No migrations needed — indexes are created automatically on startup.
+Indexes (slug unique, TTL for expiry) are created automatically on startup. No migrations needed.
 
 Swagger docs at [http://localhost:8080/docs](http://localhost:8080/docs)
 
@@ -112,10 +113,9 @@ Swagger docs at [http://localhost:8080/docs](http://localhost:8080/docs)
 
 ```bash
 cd frontend
-
 npm install
 
-# Optional: create .env.local if backend is not on default port
+# Optional: set API base URL if not on default port
 echo "NEXT_PUBLIC_API_URL=http://localhost:8080" > .env.local
 
 npm run dev   # http://localhost:3000
@@ -134,31 +134,41 @@ POST /api/v1/documents
 Content-Type: application/json
 
 {
-  "title": "My Document",
-  "content": "# Hello\nThis is **markdown**."
+  "title": "My Document",          // optional
+  "content": "# Hello\nMarkdown.", // required, max 20 000 chars
+  "custom_slug": "my-slug",        // optional, 3-50 chars [a-zA-Z0-9_-]
+  "expires_in": "7d",              // "never" | "1d" | "7d" | "30d" | "custom"
+  "custom_expires_at": null,       // ISO 8601 datetime, required when expires_in="custom"
+  "read_password": "secret123"     // optional — password-protect the document
 }
 ```
 
 **Response `201`**
 ```json
 {
-  "slug": "abc123x",
-  "url": "https://markdrop.in/abc123x",
+  "slug": "my-slug",
+  "url": "https://markdrop.in/my-slug",
   "title": "My Document",
-  "content": "# Hello\nThis is **markdown**.",
+  "content": "# Hello\nMarkdown.",
   "edit_secret": "sk_9f8a7b...",
   "created_at": "2026-03-29T10:00:00Z",
-  "updated_at": "2026-03-29T10:00:00Z"
+  "updated_at": "2026-03-29T10:00:00Z",
+  "expires_at": "2026-04-05T10:00:00Z",
+  "views": 0,
+  "is_password_protected": true
 }
 ```
 
-> `edit_secret` is shown only once — save it to edit or delete later.
+> `edit_secret` is shown **only once** — save it to edit or delete later.
 
 ### Get a document
 
 ```http
 GET /api/v1/documents/{slug}
+X-Read-Password: secret123   # required only if password-protected
 ```
+
+Returns `401` if password is required but missing, `403` if wrong.
 
 ### Edit a document
 
@@ -184,44 +194,61 @@ X-Edit-Secret: sk_9f8a7b...
 
 ## Deployment
 
-### Backend (AWS EC2)
+### Backend (AWS EC2 — no Docker)
 
 ```bash
 # On EC2 (Ubuntu 22.04)
-sudo apt update && sudo apt install -y redis-server docker.io
-sudo systemctl enable redis-server && sudo systemctl start redis-server
+sudo apt update && sudo apt install -y python3.12 python3.12-venv python3-pip nginx certbot python3-certbot-nginx
 
-# Clone and configure
-git clone https://github.com/yourusername/markdrop.git
-cd markdrop/backend
+git clone https://github.com/himanshkukreja/markdrop.git /opt/markdrop
+cd /opt/markdrop/backend
 
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Create .env with production values
 cp .env.example .env
-# Edit .env with production values:
-#   MARKDROP_MONGODB_URI=<your-atlas-uri>
-#   MARKDROP_MONGODB_DB=markdrop
-#   MARKDROP_DEBUG=false
-#   MARKDROP_CORS_ORIGINS=["https://markdrop.in"]
-
-docker build -t markdrop-api .
-docker run -d --network host --env-file .env --restart unless-stopped markdrop-api
 ```
+
+Create `/etc/systemd/system/markdrop.service`:
+```ini
+[Unit]
+Description=Markdrop API
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/markdrop/backend
+EnvironmentFile=/opt/markdrop/backend/.env
+ExecStart=/opt/markdrop/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8080
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now markdrop
+sudo certbot --nginx -d api.markdrop.in
+```
+
+Configure nginx to proxy `api.markdrop.in` → `127.0.0.1:8080` with `limit_req_zone` rate limiting.
 
 ### Frontend (Vercel)
 
 1. Push to GitHub
-2. Import repo at [vercel.com](https://vercel.com)
-3. Set root directory to `frontend`
-4. Add environment variable: `NEXT_PUBLIC_API_URL=https://api.markdrop.in`
+2. Import repo at [vercel.com](https://vercel.com), set root directory to `frontend`
+3. Add env var: `NEXT_PUBLIC_API_URL=https://api.markdrop.in`
+4. Set ignored build step: `git diff HEAD^ HEAD --quiet -- frontend/` (only deploy on frontend changes)
 5. Deploy
 
 ### DNS (Cloudflare)
 
 | Type | Name | Value |
 |------|------|-------|
-| A | `api` | EC2 public IP (proxy OFF) |
-| CNAME | `www` | `cname.vercel-dns.com` |
-
-> Point `markdrop.in` to Vercel via their domain settings. Point `api.markdrop.in` directly to your EC2 IP.
+| A | `api` | EC2 public IP (proxy OFF for SSL passthrough) |
+| CNAME | `@` / `www` | Vercel domain |
 
 ---
 
@@ -233,26 +260,25 @@ docker run -d --network host --env-file .env --restart unless-stopped markdrop-a
 |----------|-------------|---------|
 | `MARKDROP_MONGODB_URI` | MongoDB connection string | `mongodb://localhost:27017` |
 | `MARKDROP_MONGODB_DB` | MongoDB database name | `markdrop` |
-| `MARKDROP_REDIS_URL` | Redis connection string | `redis://localhost:6379` |
 | `MARKDROP_DEBUG` | Enable debug mode | `false` |
 | `MARKDROP_CORS_ORIGINS` | Allowed CORS origins (JSON array) | — |
 | `MARKDROP_SLUG_LENGTH` | Slug character length | `7` |
-| `MARKDROP_RATE_LIMIT_CREATE` | Create rate limit | `10/minute` |
+| `MARKDROP_RATE_LIMIT_CREATE` | Create/update/delete rate limit | `10/minute` |
 | `MARKDROP_RATE_LIMIT_READ` | Read rate limit | `60/minute` |
 
 ### Frontend (`frontend/.env.local`)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NEXT_PUBLIC_API_URL` | Backend API base URL | `http://localhost:8080` |
+| `NEXT_PUBLIC_API_URL` | Backend API base URL | `https://api.markdrop.in` |
 
 ---
 
 ## Roadmap
 
 - [x] Phase 1 — Anonymous markdown publishing with edit/delete via secret key
-- [ ] Phase 2 — Expiry dates, password protection, view counts, document versioning
-- [ ] Phase 3 — User accounts, dashboard, file uploads, API access
+- [x] Phase 2 — Custom slugs, expiry dates, view counts, password protection, markdown toolbar, 3 themes
+- [ ] Phase 3 — User accounts, dashboard, document versioning, file uploads
 
 ---
 

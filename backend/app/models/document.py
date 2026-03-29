@@ -12,4 +12,5 @@ class Document:
     title: str | None = None
     expires_at: datetime | None = None
     views: int = 0
+    read_password_hash: str | None = None
 

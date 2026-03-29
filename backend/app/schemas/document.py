@@ -17,6 +17,8 @@ class DocumentCreate(BaseModel):
     )
     expires_in: Literal["never", "1d", "7d", "30d", "custom"] = "never"
     custom_expires_at: datetime | None = None
+    read_password: str | None = Field(None, min_length=1, max_length=100)
+
     @model_validator(mode="after")
     def validate_custom_expiry(self):
         if self.expires_in == "custom" and self.custom_expires_at is None:
@@ -27,6 +29,12 @@ class DocumentCreate(BaseModel):
 class DocumentUpdate(BaseModel):
     title: str | None = Field(None, max_length=200)
     content: str = Field(..., min_length=1, max_length=MAX_CONTENT)
+    # Optional: update or clear the read password. Empty string = remove password.
+    read_password: str | None = Field(None, max_length=100)
+    remove_password: bool = False
+    # Optional: update expiry. None = don't change. "never" = clear expiry.
+    expires_in: Literal["never", "1d", "7d", "30d", "custom"] | None = None
+    custom_expires_at: datetime | None = None
 
 
 class DocumentResponse(BaseModel):
@@ -38,6 +46,7 @@ class DocumentResponse(BaseModel):
     updated_at: datetime
     expires_at: datetime | None = None
     views: int = 0
+    is_password_protected: bool = False
 
     model_config = {"from_attributes": True}
 

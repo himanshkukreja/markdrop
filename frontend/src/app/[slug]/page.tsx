@@ -24,7 +24,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     };
   } catch {
-    return { title: "Not Found — Markdrop" };
+    // Password-protected or not found — return generic metadata
+    return {
+      title: `${slug} — Markdrop`,
+      description: "A document on Markdrop",
+    };
   }
 }
 
@@ -32,24 +36,31 @@ export default async function SlugPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { new: isNew, secret } = await searchParams;
 
-  let doc;
+  let doc = null;
+  let isPasswordProtected = false;
+
   try {
     doc = await getDocument(slug);
-  } catch {
-    notFound();
+  } catch (e) {
+    if (e instanceof Error && e.message === "PASSWORD_REQUIRED") {
+      isPasswordProtected = true;
+    } else {
+      notFound();
+    }
   }
 
   return (
     <DocumentView
-      slug={doc.slug}
-      title={doc.title}
-      content={doc.content}
-      url={doc.url}
-      createdAt={doc.created_at}
-      expiresAt={doc.expires_at}
-      views={doc.views}
+      slug={slug}
+      title={doc?.title ?? null}
+      content={doc?.content ?? ""}
+      url={`https://markdrop.in/${slug}`}
+      createdAt={doc?.created_at ?? new Date().toISOString()}
+      expiresAt={doc?.expires_at ?? null}
+      views={doc?.views}
       isNew={isNew === "1"}
       editSecret={secret || undefined}
+      isPasswordProtected={isPasswordProtected}
     />
   );
 }

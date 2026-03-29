@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createDocument, ExpiresIn } from "@/lib/api";
 import MarkdownPreview from "@/components/MarkdownPreview";
@@ -47,7 +47,10 @@ function CustomDatePicker({ onChange }: { onChange: (v: string) => void }) {
     onChange(iso);
   }
 
-  const selectClass = "text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 transition-colors cursor-pointer";
+  // Fire onChange on mount so parent state is always in sync with displayed defaults
+  useEffect(() => { handleChange(date, hour); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectClass = "text-xs bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] outline-none focus:border-blue-500 transition-colors cursor-pointer";
 
   return (
     <div className="flex items-center gap-1.5">
@@ -85,6 +88,8 @@ export default function Home() {
   const [customSlug, setCustomSlug] = useState("");
   const [expiresIn, setExpiresIn] = useState<ExpiresIn>("never");
   const [customExpiresAt, setCustomExpiresAt] = useState("");
+  const [readPassword, setReadPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [slugError, setSlugError] = useState("");
 
   const router = useRouter();
@@ -127,6 +132,7 @@ export default function Home() {
         customSlug: customSlug || undefined,
         expiresIn,
         customExpiresAt: expiresIn === "custom" ? new Date(customExpiresAt).toISOString() : undefined,
+        readPassword: readPassword || undefined,
       });
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);
       router.push(`/${doc.slug}?new=1&secret=${encodeURIComponent(doc.edit_secret)}`);
@@ -139,6 +145,8 @@ export default function Home() {
 
   const remaining = MAX_CHARS - content.length;
   const activeTextareaRef = mode === "split" ? textareaRef : writeTextareaRef;
+
+  const inputClass = "text-xs bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] outline-none focus:border-blue-500 transition-colors";
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-3">
@@ -157,7 +165,7 @@ export default function Home() {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Document title (optional)"
           maxLength={200}
-          className="flex-1 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
+          className="flex-1 bg-transparent border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] focus:border-blue-500 dark:focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
         />
         <div className="flex items-center gap-2 shrink-0">
           <span className={`text-xs tabular-nums ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500"}`}>
@@ -166,7 +174,7 @@ export default function Home() {
           <button
             onClick={() => window.print()}
             disabled={!content.trim()}
-            className="hidden sm:inline-flex px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300"
+            className="hidden sm:inline-flex px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
           >
             Export PDF
           </button>
@@ -182,58 +190,91 @@ export default function Home() {
 
       {/* Publish options */}
       <div className="no-print flex flex-col gap-2 shrink-0">
-        {/* Custom slug row */}
+        {/* Custom slug + password row */}
         <div className="flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 focus-within:border-blue-500 transition-colors">
-            <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">markdrop.in/</span>
+          {/* Custom URL — 50% */}
+          <div className="flex-1 flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-1.5 focus-within:border-blue-500 transition-colors min-w-0">
+            <span className="text-xs text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d] shrink-0">markdrop.in/</span>
             <input
               type="text"
               value={customSlug}
               onChange={(e) => handleSlugChange(e.target.value)}
-              placeholder="custom-url (optional)"
+              placeholder="custom-url"
               maxLength={50}
-              className="flex-1 bg-transparent outline-none text-xs font-mono text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 min-w-0"
+              className="flex-1 bg-transparent outline-none text-xs font-mono text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 min-w-0"
             />
+            {slugError && <span className="text-xs text-red-500 shrink-0">{slugError}</span>}
           </div>
-          {slugError && <span className="text-xs text-red-500 shrink-0">{slugError}</span>}
-        </div>
-
-        {/* Expiry + public toggle row */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Expires</label>
-            <select
-              value={expiresIn}
-              onChange={(e) => {
-                const val = e.target.value as ExpiresIn;
-                setExpiresIn(val);
-                // Seed a default so publish works without interaction
-                if (val === "custom") {
-                  const tomorrow = new Date();
-                  tomorrow.setDate(tomorrow.getDate() + 1);
-                  setCustomExpiresAt(`${tomorrow.toISOString().slice(0, 10)}T12:00:00`);
-                } else {
-                  setCustomExpiresAt("");
-                }
-              }}
-              className="text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 transition-colors cursor-pointer"
-            >
-              <option value="never">Never</option>
-              <option value="1d">1 Day</option>
-              <option value="7d">7 Days</option>
-              <option value="30d">30 Days</option>
-              <option value="custom">Custom…</option>
-            </select>
-            {expiresIn === "custom" && (
-              <CustomDatePicker onChange={setCustomExpiresAt} />
+          <span className="text-gray-300 dark:text-gray-700 vscode:text-[#3c3c3c] shrink-0 select-none">·</span>
+          {/* Password — 50% */}
+          <div className="flex-1 flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-1.5 focus-within:border-blue-500 transition-colors min-w-0">
+            <svg className="w-3 h-3 text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d] shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+            </svg>
+            <input
+              type={showPassword ? "text" : "password"}
+              value={readPassword}
+              onChange={(e) => setReadPassword(e.target.value)}
+              placeholder="password (optional)"
+              maxLength={100}
+              className="flex-1 bg-transparent outline-none text-xs text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 min-w-0"
+            />
+            {readPassword && (
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d] hover:text-gray-600 dark:hover:text-gray-300 vscode:hover:text-[#d4d4d4] transition-colors shrink-0"
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                )}
+              </button>
             )}
           </div>
+        </div>
 
+        {/* Expiry row */}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] shrink-0">Expires</label>
+          <select
+            value={expiresIn}
+            onChange={(e) => {
+              const val = e.target.value as ExpiresIn;
+              setExpiresIn(val);
+              if (val === "custom") {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                setCustomExpiresAt(`${tomorrow.toISOString().slice(0, 10)}T12:00:00`);
+              } else {
+                setCustomExpiresAt("");
+              }
+            }}
+            className={inputClass}
+          >
+            <option value="never">Never</option>
+            <option value="1d">1 Day</option>
+            <option value="7d">7 Days</option>
+            <option value="30d">30 Days</option>
+            <option value="custom">Custom…</option>
+          </select>
+          {expiresIn === "custom" && (
+            <CustomDatePicker onChange={setCustomExpiresAt} />
+          )}
         </div>
       </div>
 
       {/* Mode tab bar */}
-      <div className="no-print flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 shrink-0">
+      <div className="no-print flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] shrink-0">
         {MODES.map(({ id, label }) => (
           <button
             key={id}
@@ -251,7 +292,7 @@ export default function Home() {
 
       {/* Toolbar — only shown in write/split mode */}
       {mode !== "preview" && (
-        <div className="no-print shrink-0 rounded-t-lg overflow-hidden border border-b-0 border-gray-200 dark:border-gray-700">
+        <div className="no-print shrink-0 rounded-t-lg overflow-hidden border border-b-0 border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c]">
           <MarkdownToolbar
             textareaRef={activeTextareaRef}
             onChange={setContent}
@@ -266,7 +307,7 @@ export default function Home() {
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Paste or type your markdown here..."
-          className="no-print flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-b-lg rounded-t-none p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors"
+          className="no-print flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-b-lg rounded-t-none p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors"
           autoFocus
           maxLength={MAX_CHARS}
         />
@@ -281,13 +322,13 @@ export default function Home() {
             onChange={(e) => setContent(e.target.value)}
             onScroll={syncScroll}
             placeholder="Paste or type your markdown here..."
-            className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-b-lg rounded-t-none p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
+            className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-b-lg rounded-t-none p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
             autoFocus
             maxLength={MAX_CHARS}
           />
           <div
             ref={previewRef}
-            className="w-1/2 h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-5"
+            className="w-1/2 h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 vscode:bg-[#252526] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-5"
           >
             {content.trim() ? (
               <MarkdownPreview content={content} />
@@ -300,7 +341,7 @@ export default function Home() {
 
       {/* Preview */}
       {mode === "preview" && (
-        <div className="no-print flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-6">
+        <div className="no-print flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 vscode:bg-[#252526] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-6">
           {content.trim() ? (
             <MarkdownPreview content={content} />
           ) : (
