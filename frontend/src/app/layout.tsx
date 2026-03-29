@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Inline script: runs synchronously during HTML parsing, before any paint.
             Reads localStorage and applies the correct theme class + background. */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme')||'vscode';var bg=t==='dark'?'#030712':'#1e1e1e';document.documentElement.classList.add(t==='dark'?'dark':'vscode');document.documentElement.style.background=bg;})();` }} />
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme')||'vscode';var cl=t==='dark'?'dark':'vscode';var bg=t==='dark'?'#030712':'#1e1e1e';var el=document.documentElement;el.classList.add(cl);el.style.background=bg;new MutationObserver(function(){if(!el.classList.contains('vscode')&&!el.classList.contains('dark')){el.classList.add(cl);el.style.background=bg;}}).observe(el,{attributes:true,attributeFilter:['class']});})();` }} />
       </head>
       <body className="h-full flex flex-col dark:bg-gray-950 vscode:bg-[#1e1e1e] dark:text-gray-100 vscode:text-[#d4d4d4]">
         <header className="no-print shrink-0 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] vscode:bg-[#252526]">

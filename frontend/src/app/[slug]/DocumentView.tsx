@@ -576,7 +576,7 @@ export default function DocumentView({
       {pwdLocked ? (
         <div className="relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden">
           {/* Blurred skeleton */}
-          <div className="blur-sm select-none pointer-events-none p-6 space-y-3 bg-white dark:bg-gray-900/50 vscode:bg-[#252526]" aria-hidden>
+          <div className="blur-sm select-none pointer-events-none p-6 space-y-3 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526]" aria-hidden>
             {[...Array(6)].map((_, i) => (
               <div
                 key={i}
@@ -587,14 +587,14 @@ export default function DocumentView({
             ))}
           </div>
           {/* Overlay */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/70 dark:bg-gray-950/70 vscode:bg-[#1e1e1e]/80 backdrop-blur-sm">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#1e1e1e]/80 dark:bg-gray-950/70 vscode:bg-[#1e1e1e]/80 backdrop-blur-sm">
             <svg className="w-8 h-8 text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d]" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
             </svg>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d]">This document is password protected</p>
             <form onSubmit={handlePasswordUnlock} className="flex flex-col items-center gap-2 w-full max-w-xs px-4">
               <div className="flex w-full gap-2">
-                <div className="flex flex-1 items-center bg-white dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg overflow-hidden focus-within:border-blue-500 transition-colors">
+                <div className="flex flex-1 items-center bg-[#2d2d2d] dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg overflow-hidden focus-within:border-blue-500 transition-colors">
                   <input
                     type={pwdVisible ? "text" : "password"}
                     value={pwdInput}
@@ -638,7 +638,7 @@ export default function DocumentView({
           </div>
         </div>
       ) : pwdFetching ? (
-        <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-6 space-y-3 bg-white dark:bg-gray-900/50 vscode:bg-[#252526]">
+        <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-6 space-y-3 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526]">
           {[...Array(6)].map((_, i) => (
             <div
               key={i}
@@ -649,7 +649,7 @@ export default function DocumentView({
           ))}
         </div>
       ) : (
-        <div className="relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-6 bg-white dark:bg-gray-900/50 vscode:bg-[#252526] print:border-0 print:p-0 print:bg-white overflow-hidden">
+        <div className="relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-6 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526] print:border-0 print:p-0 print:bg-white overflow-hidden">
           {showRaw ? (
             <>
               <CopyButton text={displayContent} label="Copy all" className="no-print absolute top-3 right-3" />
