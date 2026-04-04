@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-MAX_CONTENT = 50_000
+MAX_CONTENT = 75_000
 
 
 class DocumentCreate(BaseModel):
