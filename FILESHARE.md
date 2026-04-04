@@ -189,27 +189,27 @@ SENDER BROWSER                   RELAY SERVER              RECIPIENT BROWSER
        │                               │                            │
        ├──── {type:"offer", sdp} ─────▶│──── {type:"offer"} ───────▶│
        │                               │                            │
-       │                               │     new RTCPeerConnection() │
-       │                               │     setRemoteDescription()  │
-       │                               │     createAnswer()          │
-       │                               │     setLocalDescription()   │
+       │                               │    new RTCPeerConnection() │
+       │                               │    setRemoteDescription()  │
+       │                               │    createAnswer()          │
+       │                               │    setLocalDescription()   │
        │                               │                            │
        │◀─── {type:"answer", sdp} ─────│◀─── {type:"answer"} ───────│
        │                               │                            │
        │  setRemoteDescription(answer) │                            │
        │                               │                            │
        │  ┌────────────── trickle ICE (both directions) ──────────┐ │
-       ├──┤── {type:"ice", cand:…} ───▶│──── {type:"ice"} ────────▶├─┤
-       │  │◀─ {type:"ice", cand:…} ────│◀─── {type:"ice"} ─────────│ │
-       │  │      (repeats for each candidate pair discovered)      │ │
-       │  └──────────────────────────────────────────────────────── ┘ │
+       ├──┤── {type:"ice", cand:…} ───▶│──── {type:"ice"} ───────▶├─┤
+       │  │◀─ {type:"ice", cand:…} ────│◀─── {type:"ice"} ────────│ │
+       │  │      (repeats for each candidate pair discovered)     │ │
+       │  └────────────────────────────────────────────────────── ┘ │
        │                               │                            │
-       │  ══════════ DTLS 1.2 handshake (encryption keys) ══════════ │
+       │  ══════════ DTLS 1.2 handshake (encryption keys) ═════════ │
        │                               │                            │
-       │  ondatachannel event fires ◀──────────────────────────────  │
-       │  channel.onopen fires         │       channel.onopen fires  │
+       │  ondatachannel event fires ◀─────────────────────────────  │
+       │  channel.onopen fires         │      channel.onopen fires  │
        │                               │                            │
-       │  ✅ DataChannel OPEN          │       ✅ DataChannel OPEN   │
+       │   DataChannel OPEN            │         DataChannel OPEN   │
        │  (server no longer needed)    │                            │
 ```
 
@@ -244,10 +244,10 @@ Everything below is **browser ↔ browser**, encrypted.
 ```
 SENDER                                                    RECIPIENT
   │                                                            │
-  │── { "type":"meta", name:"cat.mp4", size:52428800 } ──────▶│
+  │── { "type":"meta", name:"cat.mp4", size:52428800 }  ──────▶│
   │                       (file metadata, JSON string)         │
   │                                                            │
-  │◀─ { "type":"start" } ──────────────────────────────────── │
+  │◀─ { "type":"start" } ────────────────────────────────────  │
   │                       (recipient clicked "Download")       │
   │                                                            │
   │── ArrayBuffer [64 KB] ───────────────────────────────────▶ │  offset: 0
@@ -258,7 +258,7 @@ SENDER                                                    RECIPIENT
   │   if (channel.bufferedAmount > 256 KB) → PAUSE             │
   │   wait for "bufferedamountlow" event  → RESUME             │
   │                                                            │
-  │── ArrayBuffer [last partial chunk] ─────────────────────▶ │  offset: 52428800
+  │── ArrayBuffer [last partial chunk] ─────────────────────▶  │  offset: 52428800
   │                                                            │
   │                               received === meta.size ──────┤
   │                               new Blob(chunks) ────────────┤
@@ -280,7 +280,7 @@ SENDER SEND BUFFER (inside the browser):
 
   If buffer exceeds high-water mark:
   ┌─────────────────────────────────────────────────────────────┐
-  │  [▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓]   FULL ⚠️       │
+  │  [▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓]   FULL ⚠️         │
   └─────────────────────────────────────────────────────────────┘
          ↓  sender PAUSES (awaits "bufferedamountlow" event)
          ↓  browser drains buffer to recipient
@@ -321,19 +321,19 @@ You don't opt in — it's impossible to turn it off.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│  WHAT IS ENCRYPTED AND HOW                                                │
-│                                                                           │
-│  Browser ────── TLS 1.3 ──────── api.markdrop.in  (HTTPS / WSS)         │
+│  WHAT IS ENCRYPTED AND HOW                                               │
+│                                                                          │
+│  Browser ────── TLS 1.3 ──────── api.markdrop.in  (HTTPS / WSS)          │
 │  (signalling JSON: ~5–20 KB total, not the actual file)                  │
-│                                                                           │
-│  Browser ────── DTLS 1.2 ─────── Browser  (P2P file bytes)              │
+│                                                                          │
+│  Browser ────── DTLS 1.2 ─────── Browser  (P2P file bytes)               │
 │  (mandatory WebRTC transport encryption — equivalent to HTTPS)           │
-│                                                                           │
-│  ✅  File bytes:        encrypted (DTLS)                                  │
-│  ✅  File metadata:     encrypted (DTLS, sent over DataChannel)           │
-│  ✅  Signalling JSON:   encrypted (TLS)                                   │
-│  🔍  Server CAN see:    room ID, IP addresses, timing                     │
-│  🔒  Server CANNOT see: filename, file size, file contents                │
+│                                                                          │
+│  ✅  File bytes:        encrypted (DTLS)                                 │
+│  ✅  File metadata:     encrypted (DTLS, sent over DataChannel)          │
+│  ✅  Signalling JSON:   encrypted (TLS)                                  │
+│  🔍  Server CAN see:    room ID, IP addresses, timing                    │
+│  🔒  Server CANNOT see: filename, file size, file contents               │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -361,15 +361,15 @@ a direct path.
 ║  Sender (192.168.1.5)                           Recipient                 ║
 ║  behind home router                             behind mobile hotspot     ║
 ║       │                                                 │                 ║
-║       │── "what's my public IP?" ─▶ STUN SERVER ◀── same ──│             ║
-║       │                         stun.l.google.com:19302     │             ║
-║       │◀── "you are 203.0.113.1:54321"                       │            ║
+║       │── "what's my public IP?" ─▶ STUN SERVER ◀── same ──│              ║
+║       │                         stun.l.google.com:19302    │              ║
+║       │◀── "you are 203.0.113.1:54321"                     │              ║
 ║       │                                  "you are 198.51.100.5:8765" ─────│
 ║       │                                                 │                 ║
 ║       │  ICE tries these candidates (in priority order):│                 ║
 ║       │                                                 │                 ║
-║       │  1. host:   192.168.1.5:54321  ──▶  ✗  (different networks)      ║
-║       │  2. srflx:  203.0.113.1:54321  ──▶  ✓  (public IP, NAT punched!) ║
+║       │  1. host:   192.168.1.5:54321  ──▶  ✗  (different networks)       ║
+║       │  2. srflx:  203.0.113.1:54321  ──▶  ✓  (public IP, NAT punched!)  ║
 ║       │                                                 │                 ║
 ║       ╔═══════════════════════════════════════════════╗                   ║
 ║       ║      DIRECT CONNECTION ESTABLISHED  🎉        ║                   ║

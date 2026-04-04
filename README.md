@@ -144,7 +144,7 @@ Content-Type: application/json
 
 {
   "title": "My Document",          // optional
-  "content": "# Hello\nMarkdown.", // required, max 20 000 chars
+  "content": "# Hello\nMarkdown.", // required, max 50 000 chars
   "custom_slug": "my-slug",        // optional, 3-50 chars [a-zA-Z0-9_-]
   "expires_in": "7d",              // "never" | "1d" | "7d" | "30d" | "custom"
   "custom_expires_at": null,       // ISO 8601 datetime, required when expires_in="custom"

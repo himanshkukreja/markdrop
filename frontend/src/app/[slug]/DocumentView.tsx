@@ -22,7 +22,7 @@ interface Props {
   isPasswordProtected?: boolean;
 }
 
-const MAX_CHARS = 20_000;
+const MAX_CHARS = 50_000;
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
   const ms = new Date(expiresAt).getTime() - Date.now();

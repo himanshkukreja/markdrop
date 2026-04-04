@@ -14,7 +14,7 @@ const MODES: { id: Mode; label: string }[] = [
   { id: "preview", label: "Preview" },
 ];
 
-const MAX_CHARS = 20_000;
+const MAX_CHARS = 50_000;
 const SLUG_PATTERN = /^[a-zA-Z0-9_-]*$/;
 
 // Build date options: today + next 364 days
