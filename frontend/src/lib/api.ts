@@ -112,3 +112,104 @@ export async function deleteDocument(slug: string, editSecret: string): Promise<
     throw new Error(err.detail);
   }
 }
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+
+const ADMIN_TOKEN_KEY = "markdrop_admin_token";
+
+export function getAdminToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ADMIN_TOKEN_KEY);
+}
+
+export function setAdminToken(token: string): void {
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+}
+
+export function clearAdminToken(): void {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+}
+
+export interface AdminDocListItem {
+  slug: string;
+  title: string | null;
+  content_preview: string;
+  created_at: string;
+  updated_at: string;
+  expires_at: string | null;
+  views: number;
+  is_password_protected: boolean;
+  content_length: number;
+}
+
+export interface AdminDocListResponse {
+  documents: AdminDocListItem[];
+  total: number;
+  page: number;
+  pages: number;
+}
+
+export async function adminLogin(username: string, password: string): Promise<{ token: string; expires_at: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) throw new Error("Invalid credentials");
+  return res.json();
+}
+
+export async function adminListDocuments(
+  token: string,
+  page = 1,
+  limit = 20,
+  q?: string
+): Promise<AdminDocListResponse> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (q) params.set("q", q);
+  const res = await fetch(`${API_BASE}/api/v1/admin/documents?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to list documents");
+  return res.json();
+}
+
+export async function adminGetDocument(token: string, slug: string): Promise<DocumentResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/documents/${slug}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Document not found");
+  return res.json();
+}
+
+export async function adminUpdateDocument(
+  token: string,
+  slug: string,
+  title: string,
+  content: string
+): Promise<DocumentResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/documents/${slug}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ title: title.trim() || null, content }),
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to update");
+  return res.json();
+}
+
+export async function adminDeleteDocument(token: string, slug: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/documents/${slug}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to delete");
+}

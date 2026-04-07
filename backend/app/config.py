@@ -19,6 +19,11 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Admin panel — override ALL THREE in production .env
+    admin_username: str = "admin"
+    admin_password: str = "changeme"
+    admin_secret: str = "change-this-jwt-secret-in-production"  # JWT signing key
+
     model_config = {"env_file": ".env", "env_prefix": "MARKDROP_"}
 
 
