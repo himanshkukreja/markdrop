@@ -25,6 +25,8 @@ export default function DownloadView({ roomId }: { roomId: string }) {
   const receivedRef = useRef(0);
   const metaRef     = useRef<FileMeta | null>(null);
   const phaseRef    = useRef<Phase>("connecting");
+  // File System Access API writable stream (undefined = not supported / not yet open)
+  const writableRef = useRef<FileSystemWritableFileStream | undefined>(undefined);
 
   function updatePhase(p: Phase) {
     phaseRef.current = p;
@@ -94,26 +96,37 @@ export default function DownloadView({ roomId }: { roomId: string }) {
                 }
               } catch { /* ignore */ }
             } else {
-              // Binary chunk
+              // Binary chunk — write straight to disk if File System Access API
+              // is available, otherwise accumulate in memory (fallback).
               const buf = evt.data as ArrayBuffer;
-              chunksRef.current.push(buf);
+              if (writableRef.current) {
+                writableRef.current.write(buf).catch(() => {});
+              } else {
+                chunksRef.current.push(buf);
+              }
               receivedRef.current += buf.byteLength;
               setProgress(receivedRef.current);
 
               const total = metaRef.current?.size ?? 0;
               if (total > 0 && receivedRef.current >= total) {
-                // All bytes received — assemble Blob and trigger browser download
-                const blob = new Blob(chunksRef.current, {
-                  type: metaRef.current?.type ?? "application/octet-stream",
-                });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href     = url;
-                a.download = metaRef.current?.name ?? "download";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                setTimeout(() => URL.revokeObjectURL(url), 30_000);
+                if (writableRef.current) {
+                  // Close the stream — the file is already saved on disk.
+                  writableRef.current.close().catch(() => {});
+                  writableRef.current = undefined;
+                } else {
+                  // In-memory fallback: assemble Blob and trigger download.
+                  const blob = new Blob(chunksRef.current, {
+                    type: metaRef.current?.type ?? "application/octet-stream",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href     = url;
+                  a.download = metaRef.current?.name ?? "download";
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+                }
                 updatePhase("done");
                 cleanup();
               }
@@ -162,11 +175,32 @@ export default function DownloadView({ roomId }: { roomId: string }) {
     return cleanup;
   }, [roomId, cleanup]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // User clicked Download — tell host to start streaming
-  function handleStartDownload() {
+  // User clicked Download — optionally open a stream-to-disk file picker, then
+  // tell the host to start. Falls back to the in-memory approach when the File
+  // System Access API is not available (e.g. Firefox, Safari < 17).
+  async function handleStartDownload() {
     receivedRef.current = 0;
     chunksRef.current   = [];
     setProgress(0);
+
+    // Try to open a streaming file writer (skips RAM accumulation for large files).
+    if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
+      try {
+        const handle = await (window as Window & { showSaveFilePicker: (o?: object) => Promise<FileSystemFileHandle> })
+          .showSaveFilePicker({
+            suggestedName: metaRef.current?.name ?? "download",
+            types: [{
+              description: "Downloaded file",
+              accept: { [metaRef.current?.type ?? "application/octet-stream"]: [] },
+            }],
+          });
+        writableRef.current = await handle.createWritable();
+      } catch {
+        // User cancelled the picker or no support — fall back to in-memory.
+        writableRef.current = undefined;
+      }
+    }
+
     channelRef.current?.send(JSON.stringify({ type: "start" }));
     updatePhase("downloading");
   }
