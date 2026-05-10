@@ -26,7 +26,10 @@ export default function DownloadView({ roomId }: { roomId: string }) {
   const metaRef     = useRef<FileMeta | null>(null);
   const phaseRef    = useRef<Phase>("connecting");
   // File System Access API writable stream (undefined = not supported / not yet open)
-  const writableRef = useRef<FileSystemWritableFileStream | undefined>(undefined);
+  const writableRef  = useRef<FileSystemWritableFileStream | undefined>(undefined);
+  // Serialised write chain — each write awaits the previous one to prevent
+  // memory pressure from unresolved promises piling up for large files.
+  const writeChainRef = useRef<Promise<void>>(Promise.resolve());
 
   function updatePhase(p: Phase) {
     phaseRef.current = p;
@@ -100,7 +103,12 @@ export default function DownloadView({ roomId }: { roomId: string }) {
               // is available, otherwise accumulate in memory (fallback).
               const buf = evt.data as ArrayBuffer;
               if (writableRef.current) {
-                writableRef.current.write(buf).catch(() => {});
+                // Chain each write so they execute serially; prevents
+                // unbounded promise queuing and out-of-order disk writes.
+                const writable = writableRef.current;
+                writeChainRef.current = writeChainRef.current
+                  .then(() => writable.write(buf))
+                  .catch(() => {});
               } else {
                 chunksRef.current.push(buf);
               }
@@ -110,9 +118,14 @@ export default function DownloadView({ roomId }: { roomId: string }) {
               const total = metaRef.current?.size ?? 0;
               if (total > 0 && receivedRef.current >= total) {
                 if (writableRef.current) {
-                  // Close the stream — the file is already saved on disk.
-                  writableRef.current.close().catch(() => {});
+                  // Wait for all queued writes before closing the stream.
+                  const writable = writableRef.current;
                   writableRef.current = undefined;
+                  writeChainRef.current
+                    .then(() => writable.close())
+                    .catch(() => {})
+                    .finally(() => { updatePhase("done"); cleanup(); });
+                  return; // phase/cleanup handled in finally
                 } else {
                   // In-memory fallback: assemble Blob and trigger download.
                   const blob = new Blob(chunksRef.current, {
@@ -126,9 +139,9 @@ export default function DownloadView({ roomId }: { roomId: string }) {
                   a.click();
                   document.body.removeChild(a);
                   setTimeout(() => URL.revokeObjectURL(url), 30_000);
+                  updatePhase("done");
+                  cleanup();
                 }
-                updatePhase("done");
-                cleanup();
               }
             }
           };

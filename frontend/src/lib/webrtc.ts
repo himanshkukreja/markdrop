@@ -58,7 +58,7 @@ export async function sendFileOverChannel(
   file: File,
   onProgress: (bytesSent: number) => void,
 ): Promise<void> {
-  const BUFFER_HIGH = 256 * 1024; // pause above 256 KB
+  const BUFFER_HIGH = 4 * 1024 * 1024; // pause above 4 MB
   channel.bufferedAmountLowThreshold = BUFFER_HIGH;
 
   let offset = 0;
