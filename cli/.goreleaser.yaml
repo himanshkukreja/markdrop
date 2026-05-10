@@ -5,6 +5,7 @@ project_name: markdrop
 before:
   hooks:
     - go mod tidy
+    - cp ../LICENSE .
 
 builds:
   - id: markdrop
@@ -30,7 +31,7 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - LICENSE
       - README.md
@@ -89,20 +90,6 @@ brews:
     install: |
       bin.install "markdrop"
 
-# Scoop bucket — publishes a manifest to github.com/<YOUR_GITHUB_ORG>/scoop-bucket
-# SETUP: create a repo named "scoop-bucket" and a PAT with Contents: write.
-scoop:
-  bucket:
-    owner: himanshkukreja
-    name: scoop-bucket         # ← must be a real repo named exactly scoop-bucket
-    token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
-  commit_author:
-    name: himanshkukreja
-    email: hi@markdrop.in
-  homepage: "https://markdrop.in"
-  description: "Peer-to-peer file sharing from the terminal via WebRTC"
-  license: MIT
-
 changelog:
   sort: asc
   filters:
@@ -115,7 +102,7 @@ release:
   github:
     owner: himanshkukreja
     name: markdrop
-  draft: true   # change to false once you're ready to publish automatically
+  draft: false
   extra_files:
     - glob: scripts/install.sh
     - glob: scripts/install.ps1
