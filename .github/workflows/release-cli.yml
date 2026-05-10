@@ -30,7 +30,11 @@ jobs:
 
       - name: Compute semver tag
         id: ver
-        run: echo "tag=${GITHUB_REF_NAME#cli/}" >> "$GITHUB_OUTPUT"
+        run: |
+          semver="${GITHUB_REF_NAME#cli/}"
+          echo "tag=$semver" >> "$GITHUB_OUTPUT"
+          # GoReleaser requires the semver tag to exist in git on this commit
+          git tag "$semver"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
