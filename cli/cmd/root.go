@@ -17,6 +17,9 @@ const defaultServer = "https://api.markdrop.in"
 // defaultOrigin must match one of the CORS allowed origins in the backend.
 const defaultOrigin = "https://www.markdrop.in"
 
+// version is set at build time via -ldflags "-X github.com/markdrop/cli/cmd.version=<ver>".
+var version = "dev"
+
 var rootCmd = &cobra.Command{
 	Use:   "markdrop",
 	Short: "markdrop — peer-to-peer file sharing from the terminal",
@@ -29,7 +32,6 @@ Examples:
   markdrop send report.pdf
   markdrop get https://markdrop.in/share/a3f7c12e
   markdrop get a3f7c12e -o ~/Downloads`,
-	Version: "0.1.0",
 }
 
 // Execute is called from main.go.
@@ -38,6 +40,7 @@ func Execute() error {
 }
 
 func init() {
+	rootCmd.Version = version
 	rootCmd.PersistentFlags().StringVar(
 		&flagServer, "server", defaultServer,
 		"API base URL of the markdrop signalling server",
