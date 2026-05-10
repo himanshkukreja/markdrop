@@ -1,0 +1,121 @@
+version: 2
+
+project_name: markdrop
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: markdrop
+    main: .
+    binary: markdrop
+    ldflags:
+      - -s -w -X github.com/markdrop/cli/cmd.version={{.Version}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64   # remove if you want Windows/ARM64 too
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+# .deb and .rpm packages (for apt / dnf install)
+# These are uploaded to a package host (e.g. Fury.io) so users can:
+#   Ubuntu/Debian: sudo apt install markdrop
+#   Fedora/RHEL:   sudo dnf install markdrop
+nfpms:
+  - id: packages
+    package_name: markdrop
+    vendor: markdrop
+    homepage: https://markdrop.in
+    maintainer: markdrop <hi@markdrop.in>
+    description: Peer-to-peer file sharing from the terminal via WebRTC.
+    license: MIT
+    formats:
+      - deb    # Ubuntu, Debian, Raspberry Pi OS
+      - rpm    # Fedora, RHEL, CentOS, Amazon Linux
+      - apk    # Alpine Linux
+    bindir: /usr/bin
+    contents:
+      - src: scripts/install.sh
+        dst: /usr/share/doc/markdrop/install.sh
+        type: doc
+
+# Homebrew tap — GoReleaser pushes a Ruby Formula file to the repo
+# github.com/<YOUR_GITHUB_ORG>/homebrew-tap after each release.
+#
+# SETUP (one-time):
+#   1. Create a GitHub repo named exactly "homebrew-tap" under your org.
+#   2. Create a fine-grained PAT with "Contents: write" on that repo.
+#   3. Add the PAT as the HOMEBREW_TAP_TOKEN secret in your CI.
+#
+# After that, users install with:
+#   brew install <YOUR_GITHUB_ORG>/tap/markdrop
+#
+# Replace "markdrop" below with your actual GitHub org/username.
+brews:
+  - name: markdrop
+    repository:
+      owner: himanshkukreja
+      name: homebrew-tap       # ← must be a real repo named exactly homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    commit_author:
+      name: himanshkukreja
+      email: hi@markdrop.in
+    homepage: "https://markdrop.in"
+    description: "Peer-to-peer file sharing from the terminal via WebRTC"
+    license: "MIT"
+    test: |
+      system "#{bin}/markdrop --version"
+    install: |
+      bin.install "markdrop"
+
+# Scoop bucket — publishes a manifest to github.com/<YOUR_GITHUB_ORG>/scoop-bucket
+# SETUP: create a repo named "scoop-bucket" and a PAT with Contents: write.
+scoop:
+  bucket:
+    owner: himanshkukreja
+    name: scoop-bucket         # ← must be a real repo named exactly scoop-bucket
+    token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+  commit_author:
+    name: himanshkukreja
+    email: hi@markdrop.in
+  homepage: "https://markdrop.in"
+  description: "Peer-to-peer file sharing from the terminal via WebRTC"
+  license: MIT
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: himanshkukreja
+    name: markdrop
+  draft: true   # change to false once you're ready to publish automatically
+  extra_files:
+    - glob: scripts/install.sh
+    - glob: scripts/install.ps1

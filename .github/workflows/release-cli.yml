@@ -1,0 +1,56 @@
+name: Release CLI
+
+# Triggers when a tag like v0.1.0 is pushed from the cli/ directory.
+# Tag convention: cli/v0.1.0  (prefix avoids collisions with future tags)
+on:
+  push:
+    tags:
+      - "cli/v*"
+
+permissions:
+  contents: write   # create GitHub releases, upload assets
+
+jobs:
+  release:
+    name: GoReleaser
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # GoReleaser needs full git history for changelog
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache: true
+          cache-dependency-path: cli/go.sum
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --config cli/.goreleaser.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+        # GoReleaser must run from the directory containing go.mod
+        working-directory: cli
+
+      # Upload .deb / .rpm / .apk to Fury.io (enables: sudo apt install markdrop)
+      # Only runs if FURY_TOKEN secret is set.
+      - name: Push packages to Fury
+        if: ${{ secrets.FURY_TOKEN != '' }}
+        run: |
+          for pkg in cli/dist/*.deb cli/dist/*.rpm cli/dist/*.apk; do
+            [ -f "$pkg" ] || continue
+            echo "Uploading $pkg…"
+            curl -fsSL \
+              -F "package=@$pkg" \
+              "https://push.fury.io/${{ github.repository_owner }}/" \
+              -u "${{ secrets.FURY_TOKEN }}:"
+          done
