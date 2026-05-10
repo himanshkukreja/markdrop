@@ -21,17 +21,19 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
-// chunkSize matches the browser CHUNK_SIZE constant (64 KB).
-const chunkSize = 64 * 1024
+// chunkSize must not exceed math.MaxUint16 (65535).
+// pion/webrtc's internal DataChannel read goroutine allocates a buffer of
+// exactly math.MaxUint16 bytes. Sending one byte more causes pion/sctp's
+// reassembly queue to return io.ErrShortBuffer on the receiver side.
+// 64*1024 = 65536 is 1 byte over that limit — use 65535 instead.
+const chunkSize = 65535
 
-// bufferHighWater mirrors the browser's bufferedAmountLowThreshold (256 KB).
+// bufferHighWater mirrors the browser's bufferedAmountLowThreshold (4 MB).
 // Sending is paused while the DataChannel buffer exceeds this value.
-const bufferHighWater = 256 * 1024
+const bufferHighWater = 4 * 1024 * 1024
 
 // sctpReceiveBufSize overrides pion's default SCTP receive buffer (8 KB).
-// It must be larger than the biggest single message either side can receive.
-// The browser sends 64 KB chunks, so 512 KB gives 8× headroom without the
-// memory-pressure that a 16 MB allocation can cause on the SCTP state machine.
+// Must be larger than the biggest single message we can receive (65535 bytes).
 const sctpReceiveBufSize = 512 * 1024 // 512 KB
 
 // iceServers mirrors ICE_SERVERS in frontend/src/lib/webrtc.ts.
