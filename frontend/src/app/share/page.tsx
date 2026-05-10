@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import CopyButton from "@/components/CopyButton";
 import {
   ICE_SERVERS,
   getWsUrl,
@@ -9,7 +10,6 @@ import {
   formatBytes,
   sendFileOverChannel,
 } from "@/lib/webrtc";
-import CopyButton from "@/components/CopyButton";
 
 type Phase =
   | "idle"
@@ -29,6 +29,7 @@ export default function SharePage() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [showCliInstall, setShowCliInstall] = useState(false);
 
   // Refs so async WebRTC / WS closures always see the latest values
   const wsRef      = useRef<WebSocket | null>(null);
@@ -365,6 +366,82 @@ export default function SharePage() {
                 <p className="text-xs text-blue-600/70 dark:text-blue-400/70 vscode:text-[#4fc1ff]/70">
                   Send this to your recipient — they&apos;ll see the file info before downloading
                 </p>
+              </div>
+            )}
+
+            {/* CLI download instructions — shown while active */}
+            {isActive && (
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#252526] overflow-hidden">
+                {/* Header / toggle */}
+                <button
+                  onClick={() => setShowCliInstall(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800/60 vscode:hover:bg-[#2d2d2d] transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-gray-500 dark:text-gray-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
+                    </svg>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+                      Download via CLI (no browser needed)
+                    </span>
+                  </div>
+                  <svg className={`w-4 h-4 text-gray-400 transition-transform ${showCliInstall ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showCliInstall && (
+                  <div className="px-4 pb-4 space-y-4 border-t border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] pt-3">
+
+                    {/* Download command */}
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] mb-1.5">
+                        Run this command on the recipient&apos;s machine:
+                      </p>
+                      <div className="flex items-center gap-2 bg-gray-900 dark:bg-black vscode:bg-[#1e1e1e] rounded-lg px-3 py-2.5">
+                        <span className="flex-1 font-mono text-sm text-green-400 select-all">
+                          markdrop get {roomId}
+                        </span>
+                        <CopyButton text={`markdrop get ${roomId}`} label="Copy" />
+                      </div>
+                    </div>
+
+                    {/* Install instructions per OS */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] uppercase tracking-wider mb-2">
+                        Install markdrop CLI
+                      </p>
+                      <div className="space-y-2">
+                        {[
+                          {
+                            os: "macOS",
+                            icon: "",
+                            cmd: "brew install himanshkukreja/tap/markdrop",
+                          },
+                          {
+                            os: "Linux / macOS (curl)",
+                            icon: "🐧",
+                            cmd: 'curl -fsSL https://github.com/himanshkukreja/markdrop/releases/latest/download/install.sh | sh',
+                          },
+                          {
+                            os: "Windows (PowerShell)",
+                            icon: "🪟",
+                            cmd: 'irm https://github.com/himanshkukreja/markdrop/releases/latest/download/install.ps1 | iex',
+                          },
+                        ].map(({ os, icon, cmd }) => (
+                          <div key={os}>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 vscode:text-[#6e6e6e] mb-1">{icon} {os}</p>
+                            <div className="flex items-center gap-2 bg-gray-900 dark:bg-black vscode:bg-[#1e1e1e] rounded-lg px-3 py-2">
+                              <span className="flex-1 font-mono text-xs text-gray-300 break-all">{cmd}</span>
+                              <CopyButton text={cmd} label="Copy" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                  </div>
+                )}
               </div>
             )}
 
