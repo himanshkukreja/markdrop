@@ -18,11 +18,15 @@ import (
 )
 
 var sendCmd = &cobra.Command{
-	Use:   "send <file>",
-	Short: "Share a file with a recipient via a one-time share link",
-	Long: `Send a file peer-to-peer. A share URL is generated and displayed.
+	Use:   "send <file|folder>",
+	Short: "Share a file or folder with a recipient via a one-time share link",
+	Long: `Send a file or folder peer-to-peer. A share URL is generated and displayed.
   Share the URL (or the room ID) with your recipient.
-  The process stays alive until the recipient downloads the file.`,
+  The process stays alive until the recipient downloads the file.
+
+  Folders are transparently compressed (zip) on the sender side and
+  automatically extracted on the CLI receiver side. The recipient gets
+  the original folder structure, not a zip file.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runSend,
 }
@@ -30,21 +34,24 @@ var sendCmd = &cobra.Command{
 func runSend(_ *cobra.Command, args []string) error {
 	filePath := args[0]
 
-	// Validate file exists and is readable.
+	// Validate path exists and is readable.
 	fi, err := os.Stat(filePath)
 	if err != nil {
 		return fmt.Errorf("cannot access %q: %w", filePath, err)
 	}
-	if fi.IsDir() {
-		return fmt.Errorf("%q is a directory — only individual files are supported", filePath)
-	}
 
 	roomID := generateRoomID()
 	shareURL := buildShareURL(flagServer, roomID)
-	fileSize := formatBytes(fi.Size())
+
+	displayName := filepath.Base(filePath)
+	displaySize := formatBytes(fi.Size())
+	if fi.IsDir() {
+		displayName += "/"
+		displaySize = "(folder — will be compressed before sending)"
+	}
 
 	// Print info box + QR code.
-	ui.PrintSendReady(filepath.Base(filePath), fileSize, roomID, shareURL)
+	ui.PrintSendReady(displayName, displaySize, roomID, shareURL)
 	ui.PrintQR(shareURL)
 
 	// Context cancelled by SIGINT / SIGTERM.
@@ -74,9 +81,15 @@ func runSend(_ *cobra.Command, args []string) error {
 	}
 	ui.Success("Recipient connected — establishing P2P link…")
 
-	// Progress bar.
+	// For folders, RunHost compresses first; show a note.
+	if fi.IsDir() {
+		ui.Info("Compressing folder…")
+	}
+
+	// Progress bar — size is approximate for folders (zip size differs from raw).
 	bar := ui.NewProgressBar(fi.Size(), "Sending  ")
-	onProgress := func(sent, _ int64) {
+	onProgress := func(sent, total int64) {
+		bar.ChangeMax64(total)
 		_ = bar.Set64(sent)
 	}
 

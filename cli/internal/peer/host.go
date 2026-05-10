@@ -7,6 +7,7 @@
 package peer
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -51,6 +52,7 @@ type metaMsg struct {
 	Name     string `json:"name"`
 	Size     int64  `json:"size"`
 	MimeType string `json:"mimeType"`
+	IsFolder bool   `json:"isFolder,omitempty"`
 }
 
 // startMsg is sent from guest to host over the DataChannel to begin streaming.
@@ -60,6 +62,7 @@ type startMsg struct {
 
 // RunHost connects to the signalling server as a host (file sender) and sends
 // the file at filePath to the first guest that joins the room.
+// If filePath is a directory it is transparently zipped before transfer.
 //
 // onProgress is called periodically with (bytesSent, totalBytes).
 // The function blocks until the transfer completes or ctx is cancelled.
@@ -69,20 +72,43 @@ func RunHost(
 	filePath string,
 	onProgress func(sent, total int64),
 ) error {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return fmt.Errorf("open file: %w", err)
+	}
+
+	// If a directory is given, zip it to a temp file first.
+	isFolder := fi.IsDir()
+	var tmpZip string
+	// displayName is what the receiver will see (and use for the output filename).
+	displayName := filepath.Base(filePath)
+	if isFolder {
+		tmpZip, err = zipDir(filePath)
+		if err != nil {
+			return fmt.Errorf("compress folder: %w", err)
+		}
+		defer os.Remove(tmpZip)
+		filePath = tmpZip
+		fi, err = os.Stat(filePath)
+		if err != nil {
+			return fmt.Errorf("stat zip: %w", err)
+		}
+		displayName = displayName + ".zip"
+	}
+
 	f, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
 	defer f.Close()
 
-	fi, err := f.Stat()
-	if err != nil {
-		return fmt.Errorf("stat file: %w", err)
-	}
 	total := fi.Size()
-	mimeType := mime.TypeByExtension(filepath.Ext(filePath))
-	if mimeType == "" {
-		mimeType = "application/octet-stream"
+	mimeType := "application/zip"
+	if !isFolder {
+		mimeType = mime.TypeByExtension(filepath.Ext(filePath))
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
 	}
 
 	config := webrtc.Configuration{ICEServers: iceServers}
@@ -119,9 +145,10 @@ func RunHost(
 	dc.OnOpen(func() {
 		meta := metaMsg{
 			Type:     "meta",
-			Name:     filepath.Base(filePath),
+			Name:     displayName,
 			Size:     total,
 			MimeType: mimeType,
+			IsFolder: isFolder,
 		}
 		b, _ := json.Marshal(meta)
 		if serr := dc.SendText(string(b)); serr != nil {
@@ -260,4 +287,66 @@ func streamFile(
 		}
 	}
 	return nil
+}
+
+// zipDir recursively zips the directory at src into a temp file and returns
+// its path. The caller is responsible for deleting the temp file.
+func zipDir(src string) (string, error) {
+	src = filepath.Clean(src)
+	base := filepath.Base(src)
+
+	tmp, err := os.CreateTemp("", "markdrop-"+base+"-*.zip")
+	if err != nil {
+		return "", err
+	}
+	defer tmp.Close()
+
+	zw := zip.NewWriter(tmp)
+	defer zw.Close()
+
+	err = filepath.Walk(src, func(path string, info os.FileInfo, werr error) error {
+		if werr != nil {
+			return werr
+		}
+
+		// Build the in-archive path relative to src's parent so the zip
+		// contains a top-level folder named after the directory itself.
+		rel, err := filepath.Rel(filepath.Dir(src), path)
+		if err != nil {
+			return err
+		}
+		// Use forward slashes inside the zip (cross-platform).
+		rel = filepath.ToSlash(rel)
+
+		if info.IsDir() {
+			// Zip directories as entries ending with "/".
+			if rel != "." {
+				_, err = zw.Create(rel + "/")
+			}
+			return err
+		}
+
+		w, err := zw.Create(rel)
+		if err != nil {
+			return err
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = io.Copy(w, f)
+		return err
+	})
+	if err != nil {
+		os.Remove(tmp.Name())
+		return "", err
+	}
+
+	// Flush the zip writer before returning.
+	if err = zw.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return "", err
+	}
+	return tmp.Name(), nil
 }

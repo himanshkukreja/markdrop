@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"archive/zip"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -19,6 +20,7 @@ type FileMeta struct {
 	Name     string
 	Size     int64
 	MimeType string
+	IsFolder bool
 }
 
 // guestResult carries the outcome of an async guest operation.
@@ -172,11 +174,12 @@ func handleIncomingChannel(
 				Name     string `json:"name"`
 				Size     int64  `json:"size"`
 				MimeType string `json:"mimeType"`
+				IsFolder bool   `json:"isFolder"`
 			}
 			if jerr := json.Unmarshal(msg.Data, &inner); jerr != nil || inner.Type != "meta" {
 				return
 			}
-			meta = FileMeta{Name: inner.Name, Size: inner.Size, MimeType: inner.MimeType}
+			meta = FileMeta{Name: inner.Name, Size: inner.Size, MimeType: inner.MimeType, IsFolder: inner.IsFolder}
 			if onMeta != nil {
 				onMeta(meta)
 			}
@@ -265,12 +268,35 @@ func handleIncomingChannel(
 			if rerr := os.Rename(tmpPath, finalPath); rerr != nil {
 				// Rename may fail across filesystems; fall back to copy.
 				if cerr := copyFile(tmpPath, finalPath); cerr != nil {
-					done <- guestResult{fmt.Errorf("save file: %w", cerr)}
+					select {
+					case done <- guestResult{fmt.Errorf("save file: %w", cerr)}:
+					default:
+					}
 					return
 				}
 				_ = os.Remove(tmpPath)
 			}
-			done <- guestResult{nil}
+
+			// If this was a folder transfer, extract the zip then delete it.
+			if meta.IsFolder {
+				extractDir := filepath.Dir(finalPath)
+				if outputDir != "" {
+					extractDir = outputDir
+				}
+				if xerr := unzipTo(finalPath, extractDir); xerr != nil {
+					select {
+					case done <- guestResult{fmt.Errorf("extract folder: %w", xerr)}:
+					default:
+					}
+					return
+				}
+				_ = os.Remove(finalPath)
+			}
+
+			select {
+			case done <- guestResult{nil}:
+			default:
+			}
 		}
 	})
 }
@@ -307,4 +333,53 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return out.Sync()
+}
+
+// unzipTo extracts the zip archive at zipPath into destDir, preserving the
+// internal directory structure. It guards against zip-slip path traversal.
+func unzipTo(zipPath, destDir string) error {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		// Sanitise the path to prevent zip-slip.
+		rel := filepath.FromSlash(f.Name)
+		if strings.Contains(rel, "..") {
+			return fmt.Errorf("invalid path in zip: %q", f.Name)
+		}
+		target := filepath.Join(destDir, rel)
+
+		if f.FileInfo().IsDir() {
+			if err = os.MkdirAll(target, f.Mode()); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if err = os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode())
+		if err != nil {
+			rc.Close()
+			return err
+		}
+
+		_, err = io.Copy(out, rc)
+		rc.Close()
+		out.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
