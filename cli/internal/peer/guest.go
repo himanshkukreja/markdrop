@@ -150,7 +150,10 @@ func handleIncomingChannel(
 	done chan<- guestResult,
 ) {
 	dc.OnError(func(err error) {
-		done <- guestResult{fmt.Errorf("data channel error: %w", err)}
+		select {
+		case done <- guestResult{fmt.Errorf("data channel error: %w", err)}:
+		default:
+		}
 	})
 
 	var (
@@ -206,23 +209,38 @@ func handleIncomingChannel(
 				return
 			}
 
-			// Prompt user (unless -y / autoAccept).
-			if !autoAccept {
-				fmt.Printf("\n  Accept download of %q (%s)? [Y/n]: ", inner.Name, formatBytes(inner.Size))
-				reader := bufio.NewReader(os.Stdin)
-				ans, _ := reader.ReadString('\n')
-				ans = strings.TrimSpace(strings.ToLower(ans))
-				if ans == "n" || ans == "no" {
-					_ = tmpFile.Close()
-					_ = os.Remove(tmpPath)
-					done <- guestResult{fmt.Errorf("download rejected by user")}
-					return
+			// Run the user prompt and "start" signal in a separate goroutine.
+			// Blocking inside OnMessage prevents pion from processing SCTP
+			// keepalives, which closes the data channel while the user types.
+			localTmp := tmpFile
+			localTmpPath := tmpPath
+			localName := inner.Name
+			localSize := inner.Size
+			go func() {
+				if !autoAccept {
+					fmt.Printf("\n  Accept download of %q (%s)? [Y/n]: ", localName, formatBytes(localSize))
+					reader := bufio.NewReader(os.Stdin)
+					ans, _ := reader.ReadString('\n')
+					ans = strings.TrimSpace(strings.ToLower(ans))
+					if ans == "n" || ans == "no" {
+						_ = localTmp.Close()
+						_ = os.Remove(localTmpPath)
+						select {
+						case done <- guestResult{fmt.Errorf("download rejected by user")}:
+						default:
+						}
+						return
+					}
 				}
-			}
-
-			// Tell the host to start streaming.
-			start, _ := json.Marshal(startMsg{Type: "start"})
-			_ = dc.SendText(string(start))
+				// Tell the host to start streaming.
+				start, _ := json.Marshal(startMsg{Type: "start"})
+				if serr := dc.SendText(string(start)); serr != nil {
+					select {
+					case done <- guestResult{fmt.Errorf("send start signal: %w", serr)}:
+					default:
+					}
+				}
+			}()
 			return
 		}
 
