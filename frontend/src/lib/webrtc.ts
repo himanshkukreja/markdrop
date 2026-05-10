@@ -4,8 +4,11 @@ export const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun1.l.google.com:19302" },
 ];
 
-/** Each chunk sent over the DataChannel is 64 KB. */
-export const CHUNK_SIZE = 64 * 1024;
+/** Each chunk sent over the DataChannel is 65535 bytes.
+ *  This matches pion/webrtc's dataChannelBufferSize (math.MaxUint16 = 65535).
+ *  Using 64*1024 = 65536 would be 1 byte over that limit and cause
+ *  "short buffer" errors on the CLI receiver. */
+export const CHUNK_SIZE = 65535;
 
 export interface FileMeta {
   name: string;
