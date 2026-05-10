@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   ICE_SERVERS,
   getWsUrl,
@@ -335,7 +336,7 @@ export default function SharePage() {
 
             {/* Share URL box — shown while active */}
             {isActive && (
-              <div className="rounded-xl border border-blue-200 dark:border-blue-800/60 vscode:border-blue-800/60 bg-blue-50/60 dark:bg-blue-900/10 vscode:bg-blue-900/10 p-4 space-y-2">
+              <div className="rounded-xl border border-blue-200 dark:border-blue-800/60 vscode:border-blue-800/60 bg-blue-50/60 dark:bg-blue-900/10 vscode:bg-blue-900/10 p-4 space-y-3">
                 <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 vscode:text-[#4fc1ff] uppercase tracking-wider">
                   Share link
                 </p>
@@ -345,6 +346,22 @@ export default function SharePage() {
                   </span>
                   <CopyButton text={shareUrl} label="Copy" />
                 </div>
+
+                {/* QR code */}
+                <div className="flex flex-col items-center gap-2 pt-1">
+                  <div className="p-3 rounded-xl bg-white dark:bg-white shadow-sm">
+                    <QRCodeSVG
+                      value={shareUrl}
+                      size={160}
+                      level="M"
+                      includeMargin={false}
+                    />
+                  </div>
+                  <p className="text-xs text-blue-600/70 dark:text-blue-400/70 vscode:text-[#4fc1ff]/70">
+                    Scan to open on another device
+                  </p>
+                </div>
+
                 <p className="text-xs text-blue-600/70 dark:text-blue-400/70 vscode:text-[#4fc1ff]/70">
                   Send this to your recipient — they&apos;ll see the file info before downloading
                 </p>
