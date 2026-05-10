@@ -75,8 +75,7 @@ func RunGuest(
 					return
 				}
 
-				config := webrtc.Configuration{ICEServers: iceServers}
-				pc, err = webrtc.NewPeerConnection(config)
+				pc, err = newPeerConnection()
 				if err != nil {
 					done <- guestResult{fmt.Errorf("create peer connection: %w", err)}
 					return

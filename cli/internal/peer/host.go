@@ -28,10 +28,25 @@ const chunkSize = 64 * 1024
 // Sending is paused while the DataChannel buffer exceeds this value.
 const bufferHighWater = 256 * 1024
 
+// sctpReceiveBufSize is set large enough to hold any single DataChannel message
+// the browser can send (max chunk = 64 KB, but we give plenty of headroom).
+// This fixes pion's "short buffer" error when receiving chunks > default limit.
+const sctpReceiveBufSize = 16 * 1024 * 1024 // 16 MB
+
 // iceServers mirrors ICE_SERVERS in frontend/src/lib/webrtc.ts.
 var iceServers = []webrtc.ICEServer{
 	{URLs: []string{"stun:stun.l.google.com:19302"}},
 	{URLs: []string{"stun:stun1.l.google.com:19302"}},
+}
+
+// newPeerConnection creates a PeerConnection with a generous SCTP receive
+// buffer so that large DataChannel messages from the browser never hit pion's
+// "short buffer" error.
+func newPeerConnection() (*webrtc.PeerConnection, error) {
+	se := webrtc.SettingEngine{}
+	se.SetSCTPMaxReceiveBufferSize(sctpReceiveBufSize)
+	api := webrtc.NewAPI(webrtc.WithSettingEngine(se))
+	return api.NewPeerConnection(webrtc.Configuration{ICEServers: iceServers})
 }
 
 // sdpMsg is used for offer/answer JSON messages.
@@ -111,8 +126,7 @@ func RunHost(
 		}
 	}
 
-	config := webrtc.Configuration{ICEServers: iceServers}
-	pc, err := webrtc.NewPeerConnection(config)
+	pc, err := newPeerConnection()
 	if err != nil {
 		return fmt.Errorf("create peer connection: %w", err)
 	}
