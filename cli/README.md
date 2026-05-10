@@ -139,7 +139,7 @@ $ markdrop send report.pdf
   │                                                  │
   │  File    : report.pdf (2.3 MB)                   │
   │  Room    : a3f7c12e91                            │
-  │  URL     : https://markdrop.in/share/a3f7c12e91 │
+  │  URL     : https://markdrop.in/share/a3f7c12e91  │
   │                                                  │
   ╰──────────────────────────────────────────────────╯
 
