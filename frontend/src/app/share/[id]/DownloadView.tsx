@@ -25,11 +25,6 @@ export default function DownloadView({ roomId }: { roomId: string }) {
   const receivedRef = useRef(0);
   const metaRef     = useRef<FileMeta | null>(null);
   const phaseRef    = useRef<Phase>("connecting");
-  // File System Access API writable stream (undefined = not supported / not yet open)
-  const writableRef  = useRef<FileSystemWritableFileStream | undefined>(undefined);
-  // Serialised write chain — each write awaits the previous one to prevent
-  // memory pressure from unresolved promises piling up for large files.
-  const writeChainRef = useRef<Promise<void>>(Promise.resolve());
 
   function updatePhase(p: Phase) {
     phaseRef.current = p;
@@ -99,49 +94,28 @@ export default function DownloadView({ roomId }: { roomId: string }) {
                 }
               } catch { /* ignore */ }
             } else {
-              // Binary chunk — write straight to disk if File System Access API
-              // is available, otherwise accumulate in memory (fallback).
+              // Binary chunk — accumulate in memory then trigger download when complete.
               const buf = evt.data as ArrayBuffer;
-              if (writableRef.current) {
-                // Chain each write so they execute serially; prevents
-                // unbounded promise queuing and out-of-order disk writes.
-                const writable = writableRef.current;
-                writeChainRef.current = writeChainRef.current
-                  .then(() => writable.write(buf))
-                  .catch(() => {});
-              } else {
-                chunksRef.current.push(buf);
-              }
+              chunksRef.current.push(buf);
               receivedRef.current += buf.byteLength;
               setProgress(receivedRef.current);
 
               const total = metaRef.current?.size ?? 0;
               if (total > 0 && receivedRef.current >= total) {
-                if (writableRef.current) {
-                  // Wait for all queued writes before closing the stream.
-                  const writable = writableRef.current;
-                  writableRef.current = undefined;
-                  writeChainRef.current
-                    .then(() => writable.close())
-                    .catch(() => {})
-                    .finally(() => { updatePhase("done"); cleanup(); });
-                  return; // phase/cleanup handled in finally
-                } else {
-                  // In-memory fallback: assemble Blob and trigger download.
-                  const blob = new Blob(chunksRef.current, {
-                    type: metaRef.current?.type ?? "application/octet-stream",
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href     = url;
-                  a.download = metaRef.current?.name ?? "download";
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  setTimeout(() => URL.revokeObjectURL(url), 30_000);
-                  updatePhase("done");
-                  cleanup();
-                }
+                // All bytes received — assemble Blob and trigger browser download.
+                const blob = new Blob(chunksRef.current, {
+                  type: metaRef.current?.type ?? "application/octet-stream",
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href     = url;
+                a.download = metaRef.current?.name ?? "download";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 30_000);
+                updatePhase("done");
+                cleanup();
               }
             }
           };
@@ -188,32 +162,11 @@ export default function DownloadView({ roomId }: { roomId: string }) {
     return cleanup;
   }, [roomId, cleanup]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // User clicked Download — optionally open a stream-to-disk file picker, then
-  // tell the host to start. Falls back to the in-memory approach when the File
-  // System Access API is not available (e.g. Firefox, Safari < 17).
-  async function handleStartDownload() {
+  // User clicked Download — send "start" to the host so it begins streaming.
+  function handleStartDownload() {
     receivedRef.current = 0;
     chunksRef.current   = [];
     setProgress(0);
-
-    // Try to open a streaming file writer (skips RAM accumulation for large files).
-    if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
-      try {
-        const handle = await (window as Window & { showSaveFilePicker: (o?: object) => Promise<FileSystemFileHandle> })
-          .showSaveFilePicker({
-            suggestedName: metaRef.current?.name ?? "download",
-            types: [{
-              description: "Downloaded file",
-              accept: { [metaRef.current?.type ?? "application/octet-stream"]: [] },
-            }],
-          });
-        writableRef.current = await handle.createWritable();
-      } catch {
-        // User cancelled the picker or no support — fall back to in-memory.
-        writableRef.current = undefined;
-      }
-    }
-
     channelRef.current?.send(JSON.stringify({ type: "start" }));
     updatePhase("downloading");
   }

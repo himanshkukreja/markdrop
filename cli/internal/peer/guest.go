@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/markdrop/cli/internal/signaling"
 	"github.com/pion/webrtc/v3"
@@ -45,6 +46,12 @@ func RunGuest(
 	done := make(chan guestResult, 1)
 	metaCh := make(chan FileMeta, 1)
 
+	// dcEstablished is set to 1 (atomically) once the DataChannel has delivered
+	// the file metadata. After that point the signalling WebSocket is no longer
+	// critical — proxies often close idle WS connections and we must not let
+	// that abort an in-progress transfer.
+	var dcEstablished int32
+
 	// Signalling loop — runs until P2P channel takes over.
 	go func() {
 		var pc *webrtc.PeerConnection
@@ -52,7 +59,9 @@ func RunGuest(
 		for {
 			_, raw, err := sig.ReadMsg()
 			if err != nil {
-				done <- guestResult{fmt.Errorf("signalling disconnected: %w", err)}
+				if atomic.LoadInt32(&dcEstablished) == 0 {
+					done <- guestResult{fmt.Errorf("signalling disconnected: %w", err)}
+				}
 				return
 			}
 
@@ -91,7 +100,7 @@ func RunGuest(
 
 				// Host will create the DataChannel — wire up receive handlers.
 				pc.OnDataChannel(func(dc *webrtc.DataChannel) {
-					handleIncomingChannel(dc, outputDir, outputFile, autoAccept, onProgress, onMeta, metaCh, done)
+					handleIncomingChannel(dc, outputDir, outputFile, autoAccept, onProgress, onMeta, metaCh, done, &dcEstablished)
 				})
 
 				if err = pc.SetRemoteDescription(m.SDP); err != nil {
@@ -123,7 +132,9 @@ func RunGuest(
 				}
 
 			case "peer-disconnected":
-				done <- guestResult{fmt.Errorf("sender disconnected before transfer completed")}
+				if atomic.LoadInt32(&dcEstablished) == 0 {
+					done <- guestResult{fmt.Errorf("sender disconnected before transfer completed")}
+				}
 				return
 			}
 		}
@@ -149,6 +160,7 @@ func handleIncomingChannel(
 	onMeta func(FileMeta),
 	metaCh chan FileMeta,
 	done chan<- guestResult,
+	dcEstablished *int32,
 ) {
 	dc.OnError(func(err error) {
 		select {
@@ -214,6 +226,11 @@ func handleIncomingChannel(
 			// Run the user prompt and "start" signal in a separate goroutine.
 			// Blocking inside OnMessage prevents pion from processing SCTP
 			// keepalives, which closes the data channel while the user types.
+			//
+			// Mark the DataChannel as established NOW so that any subsequent
+			// signalling WS drop is silently ignored (proxies close idle WS
+			// connections; we no longer need it once P2P is up).
+			atomic.StoreInt32(dcEstablished, 1)
 			localTmp := tmpFile
 			localTmpPath := tmpPath
 			localName := inner.Name

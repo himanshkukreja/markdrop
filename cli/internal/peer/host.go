@@ -28,10 +28,11 @@ const chunkSize = 64 * 1024
 // Sending is paused while the DataChannel buffer exceeds this value.
 const bufferHighWater = 256 * 1024
 
-// sctpReceiveBufSize is set large enough to hold any single DataChannel message
-// the browser can send (max chunk = 64 KB, but we give plenty of headroom).
-// This fixes pion's "short buffer" error when receiving chunks > default limit.
-const sctpReceiveBufSize = 16 * 1024 * 1024 // 16 MB
+// sctpReceiveBufSize overrides pion's default SCTP receive buffer (8 KB).
+// It must be larger than the biggest single message either side can receive.
+// The browser sends 64 KB chunks, so 512 KB gives 8× headroom without the
+// memory-pressure that a 16 MB allocation can cause on the SCTP state machine.
+const sctpReceiveBufSize = 512 * 1024 // 512 KB
 
 // iceServers mirrors ICE_SERVERS in frontend/src/lib/webrtc.ts.
 var iceServers = []webrtc.ICEServer{
@@ -140,6 +141,9 @@ func RunHost(
 
 	// transferErr receives any error from the goroutines below.
 	transferErr := make(chan error, 1)
+	// dcOpened is closed once the DataChannel is open and meta has been sent.
+	// After that point we no longer need the signalling WS and can ignore its errors.
+	dcOpened := make(chan struct{}, 1)
 
 	// Trickle ICE candidates to the peer via the signalling relay.
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
@@ -170,6 +174,12 @@ func RunHost(
 			case transferErr <- fmt.Errorf("send meta: %w", serr):
 			default:
 			}
+			return
+		}
+		// Signal that the P2P channel is usable; signalling WS is no longer critical.
+		select {
+		case dcOpened <- struct{}{}:
+		default:
 		}
 	})
 
@@ -255,10 +265,23 @@ func RunHost(
 		}
 	}()
 
+	// Phase 1: wait until the DataChannel is open (or something fails first).
+	// The signalling WS must stay healthy until the P2P channel is established.
 	select {
+	case <-dcOpened:
+		// fall through to phase 2
 	case err = <-transferErr:
 		return err
 	case err = <-sigErr:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	// Phase 2: DataChannel is up — the signalling WS can drop without killing
+	// the transfer (proxies often close idle WS connections).
+	select {
+	case err = <-transferErr:
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
