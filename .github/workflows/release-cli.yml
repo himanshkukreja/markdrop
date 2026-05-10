@@ -34,16 +34,17 @@ jobs:
           distribution: goreleaser
           version: latest
           args: release --clean --config cli/.goreleaser.yaml
+          workdir: cli
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        # GoReleaser must run from the directory containing go.mod
-        working-directory: cli
 
       # Upload .deb / .rpm / .apk to Fury.io (enables: sudo apt install markdrop)
       # Only runs if FURY_TOKEN secret is set.
       - name: Push packages to Fury
-        if: ${{ secrets.FURY_TOKEN != '' }}
+        if: ${{ env.FURY_TOKEN != '' }}
+        env:
+          FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
         run: |
           for pkg in cli/dist/*.deb cli/dist/*.rpm cli/dist/*.apk; do
             [ -f "$pkg" ] || continue
