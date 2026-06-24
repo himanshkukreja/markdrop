@@ -3,7 +3,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-MAX_CONTENT = 75_000
+from app.config import get_settings
+
+MAX_CONTENT = get_settings().max_content_chars
 
 
 class DocumentCreate(BaseModel):
@@ -53,5 +55,4 @@ class DocumentResponse(BaseModel):
 
 class DocumentCreateResponse(DocumentResponse):
     edit_secret: str
-
 

@@ -6,6 +6,7 @@ import MarkdownPreview from "@/components/MarkdownPreview";
 import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 import { updateDocument, deleteDocument, getDocument } from "@/lib/api";
+import { MAX_CHARS } from "@/lib/limits";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -21,8 +22,6 @@ interface Props {
   editSecret?: string;
   isPasswordProtected?: boolean;
 }
-
-const MAX_CHARS = 75_000;
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
   const ms = new Date(expiresAt).getTime() - Date.now();

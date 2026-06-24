@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     slug_length: int = 7
     slug_max_retries: int = 5
+    max_content_chars: int = 500_000
 
     rate_limit_create: str = "10/minute"
     rate_limit_read: str = "60/minute"

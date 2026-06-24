@@ -144,7 +144,7 @@ Content-Type: application/json
 
 {
   "title": "My Document",          // optional
-  "content": "# Hello\nMarkdown.", // required, max 75 000 chars
+  "content": "# Hello\nMarkdown.", // required, max 500 000 chars
   "custom_slug": "my-slug",        // optional, 3-50 chars [a-zA-Z0-9_-]
   "expires_in": "7d",              // "never" | "1d" | "7d" | "30d" | "custom"
   "custom_expires_at": null,       // ISO 8601 datetime, required when expires_in="custom"
@@ -350,6 +350,7 @@ sudo nginx -t && sudo systemctl reload nginx
 | `MARKDROP_DEBUG` | Enable debug mode | `false` |
 | `MARKDROP_CORS_ORIGINS` | Allowed CORS origins (JSON array) | — |
 | `MARKDROP_SLUG_LENGTH` | Slug character length | `7` |
+| `MARKDROP_MAX_CONTENT_CHARS` | Maximum document content length | `500000` |
 | `MARKDROP_RATE_LIMIT_CREATE` | Create/update/delete rate limit | `10/minute` |
 | `MARKDROP_RATE_LIMIT_READ` | Read rate limit | `60/minute` |
 
@@ -358,6 +359,7 @@ sudo nginx -t && sudo systemctl reload nginx
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NEXT_PUBLIC_API_URL` | Backend API base URL | `https://api.markdrop.in` |
+| `NEXT_PUBLIC_MAX_CONTENT_CHARS` | Editor character limit | `500000` |
 
 ---
 

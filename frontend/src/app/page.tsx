@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createDocument, ExpiresIn } from "@/lib/api";
+import { MAX_CHARS } from "@/lib/limits";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 
@@ -14,7 +15,6 @@ const MODES: { id: Mode; label: string }[] = [
   { id: "preview", label: "Preview" },
 ];
 
-const MAX_CHARS = 75_000;
 const SLUG_PATTERN = /^[a-zA-Z0-9_-]*$/;
 
 // Build date options: today + next 364 days
