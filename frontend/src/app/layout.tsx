@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "highlight.js/styles/github-dark.css";
 import ThemeToggle from "@/components/ThemeToggle";
+import HeaderAuth from "@/components/HeaderAuth";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "Markdrop — Instant Markdown Sharing",
@@ -17,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme')||'vscode';var cl=t==='dark'?'dark':'vscode';var bg=t==='dark'?'#030712':'#1e1e1e';var el=document.documentElement;el.classList.add(cl);el.style.background=bg;new MutationObserver(function(){if(!el.classList.contains('vscode')&&!el.classList.contains('dark')){el.classList.add(cl);el.style.background=bg;}}).observe(el,{attributes:true,attributeFilter:['class']});})();` }} />
       </head>
       <body className="h-full flex flex-col dark:bg-gray-950 vscode:bg-[#1e1e1e] dark:text-gray-100 vscode:text-[#d4d4d4]">
+        <AuthProvider>
         <header className="no-print shrink-0 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] vscode:bg-[#252526]">
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -46,12 +49,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 + New
               </a>
               <ThemeToggle />
+              <HeaderAuth />
             </div>
           </div>
         </header>
         <main className="flex-1 min-h-0 flex flex-col max-w-screen-xl w-full mx-auto px-4 sm:px-6 py-4">
           {children}
         </main>
+        </AuthProvider>
       </body>
     </html>
   );

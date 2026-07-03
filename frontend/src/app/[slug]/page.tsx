@@ -61,6 +61,7 @@ export default async function SlugPage({ params, searchParams }: Props) {
       isNew={isNew === "1"}
       editSecret={secret || undefined}
       isPasswordProtected={isPasswordProtected}
+      isOwned={doc?.is_owned ?? false}
     />
   );
 }

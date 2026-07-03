@@ -1,5 +1,27 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.markdrop.in";
 
+export { API_BASE };
+
+// ── User session token ─────────────────────────────────────────────────────────
+const TOKEN_KEY = "markdrop_token";
+
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+/** Authorization header for the current session, if logged in. */
+function authHeaders(): Record<string, string> {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
 export interface DocumentCreateResponse {
   slug: string;
   url: string;
@@ -23,6 +45,8 @@ export interface DocumentResponse {
   expires_at: string | null;
   views: number;
   is_password_protected: boolean;
+  is_owned?: boolean;
+  is_owner?: boolean;
 }
 
 export type ExpiresIn = "never" | "1d" | "7d" | "30d" | "custom";
@@ -34,7 +58,7 @@ export async function createDocument(
 ): Promise<DocumentCreateResponse> {
   const res = await fetch(`${API_BASE}/api/v1/documents`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({
       title: title.trim() || null,
       content,
@@ -52,7 +76,7 @@ export async function createDocument(
 }
 
 export async function getDocument(slug: string, readPassword?: string, editSecret?: string): Promise<DocumentResponse> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...authHeaders() };
   if (readPassword) headers["x-read-password"] = readPassword;
   if (editSecret) headers["x-edit-secret"] = editSecret;
   const res = await fetch(`${API_BASE}/api/v1/documents/${slug}`, {
@@ -84,7 +108,8 @@ export async function updateDocument(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "x-edit-secret": editSecret,
+      ...authHeaders(),
+      ...(editSecret ? { "x-edit-secret": editSecret } : {}),
     },
     body: JSON.stringify({
       title: title.trim() || null,
@@ -102,15 +127,170 @@ export async function updateDocument(
   return res.json();
 }
 
-export async function deleteDocument(slug: string, editSecret: string): Promise<void> {
+export async function deleteDocument(slug: string, editSecret?: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/documents/${slug}`, {
     method: "DELETE",
-    headers: { "x-edit-secret": editSecret },
+    headers: { ...authHeaders(), ...(editSecret ? { "x-edit-secret": editSecret } : {}) },
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to delete" }));
     throw new Error(err.detail);
   }
+}
+
+// ── Analytics event beacons (fire-and-forget) ──────────────────────────────────
+
+export function recordEvent(slug: string, type: "export_pdf" | "copy_url"): void {
+  try {
+    fetch(`${API_BASE}/api/v1/documents/${slug}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* analytics must never break the UX */
+  }
+}
+
+// ── Change slug / claim (owner or secret) ──────────────────────────────────────
+
+export async function changeSlug(slug: string, newSlug: string, editSecret?: string): Promise<DocumentResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/documents/${slug}/slug`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...(editSecret ? { "x-edit-secret": editSecret } : {}),
+    },
+    body: JSON.stringify({ new_slug: newSlug }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to change URL" }));
+    throw new Error(err.detail);
+  }
+  return res.json();
+}
+
+export async function claimDocument(slug: string, editSecret: string): Promise<DocumentResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/documents/${slug}/claim`, {
+    method: "POST",
+    headers: { ...authHeaders(), "x-edit-secret": editSecret },
+  });
+  if (res.status === 401) throw new Error("Please log in to claim this document");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to claim" }));
+    throw new Error(err.detail);
+  }
+  return res.json();
+}
+
+// ── User authentication ────────────────────────────────────────────────────────
+
+export interface MeUser {
+  id: string;
+  email: string;
+  name: string | null;
+  picture: string | null;
+  providers: string[];
+  created_at: string;
+}
+
+export function googleLoginUrl(next?: string): string {
+  const q = next ? `?next=${encodeURIComponent(next)}` : "";
+  return `${API_BASE}/api/v1/auth/google/login${q}`;
+}
+
+export async function fetchMe(): Promise<MeUser> {
+  const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
+    headers: { ...authHeaders() },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("UNAUTHORIZED");
+  return res.json();
+}
+
+export async function emailRequestLogin(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/auth/email/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Could not send email" }));
+    throw new Error(err.detail);
+  }
+}
+
+export async function emailVerifyOtp(email: string, code: string): Promise<{ token: string; user: MeUser }> {
+  const res = await fetch(`${API_BASE}/api/v1/auth/email/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code }),
+  });
+  if (!res.ok) throw new Error("Invalid or expired code");
+  return res.json();
+}
+
+export async function logoutRequest(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/v1/auth/logout`, { method: "POST", headers: { ...authHeaders() } });
+  } catch {
+    /* ignore */
+  }
+}
+
+// ── Dashboard: my documents + analytics ────────────────────────────────────────
+
+export interface MyDocListItem {
+  slug: string;
+  url: string;
+  title: string | null;
+  content_preview: string;
+  created_at: string;
+  updated_at: string;
+  expires_at: string | null;
+  views: number;
+  export_pdf_count: number;
+  copy_url_count: number;
+  is_password_protected: boolean;
+}
+
+export interface MyDocListResponse {
+  documents: MyDocListItem[];
+  total: number;
+  page: number;
+  pages: number;
+}
+
+export async function listMyDocuments(page = 1, q?: string): Promise<MyDocListResponse> {
+  const params = new URLSearchParams({ page: String(page), limit: "20" });
+  if (q) params.set("q", q);
+  const res = await fetch(`${API_BASE}/api/v1/me/documents?${params}`, {
+    headers: { ...authHeaders() },
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to load documents");
+  return res.json();
+}
+
+export interface Analytics {
+  range: string;
+  totals: { views: number; unique_visitors: number; export_pdf: number; copy_url: number };
+  timeseries: { date: string; views: number }[];
+  countries: { country: string; views: number }[];
+  referrers: { referrer: string; views: number }[];
+}
+
+export async function getAnalytics(slug: string, range: "7d" | "30d" | "all" = "30d"): Promise<Analytics> {
+  const res = await fetch(`${API_BASE}/api/v1/me/documents/${slug}/analytics?range=${range}`, {
+    headers: { ...authHeaders() },
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to load analytics");
+  return res.json();
 }
 
 // ── Admin ─────────────────────────────────────────────────────────────────────

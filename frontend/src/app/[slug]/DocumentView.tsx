@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
-import { updateDocument, deleteDocument, getDocument } from "@/lib/api";
+import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
+import { useAuth } from "@/contexts/AuthContext";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -21,6 +22,7 @@ interface Props {
   isNew?: boolean;
   editSecret?: string;
   isPasswordProtected?: boolean;
+  isOwned?: boolean;
 }
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
@@ -54,8 +56,34 @@ export default function DocumentView({
   isNew,
   editSecret: initialSecret,
   isPasswordProtected = false,
+  isOwned = false,
 }: Props) {
   const router = useRouter();
+  const { user } = useAuth();
+
+  // Claim-to-account state
+  const [claimSecret, setClaimSecret] = useState<string | null>(initialSecret || null);
+  const [claimed, setClaimed] = useState(false);
+  const [claimMsg, setClaimMsg] = useState("");
+
+  useEffect(() => {
+    if (!claimSecret && typeof window !== "undefined") {
+      const stored = sessionStorage.getItem(`secret:${slug}`);
+      if (stored) setClaimSecret(stored);
+    }
+  }, [slug, claimSecret]);
+
+  async function handleClaim() {
+    if (!claimSecret) return;
+    setClaimMsg("");
+    try {
+      await claimDocument(slug, claimSecret);
+      setClaimed(true);
+      setClaimMsg("Saved to your account.");
+    } catch (e) {
+      setClaimMsg(e instanceof Error ? e.message : "Could not claim");
+    }
+  }
 
   // Live display state
   const [displayTitle, setDisplayTitle] = useState(initialTitle);
@@ -502,6 +530,23 @@ export default function DocumentView({
         </div>
       )}
 
+      {/* Claim / save-to-account bar */}
+      {!isOwned && !claimed && claimSecret && (
+        user ? (
+          <div className="no-print flex items-center justify-between gap-3 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/30 text-xs">
+            <span className="text-blue-700 dark:text-blue-300">Save this document to your account to manage it and see analytics.</span>
+            <button onClick={handleClaim} className="shrink-0 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors">
+              Save to my account
+            </button>
+          </div>
+        ) : (
+          <div className="no-print px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#252526] text-xs text-gray-500 dark:text-gray-400">
+            <a href={`/login?next=/${slug}`} className="text-blue-500 hover:underline">Log in</a> to save this document to your account and track analytics.
+          </div>
+        )
+      )}
+      {claimMsg && <p className="no-print text-xs text-gray-500 dark:text-gray-400">{claimMsg}</p>}
+
       {/* Document header */}
       <div className="flex flex-col gap-2 no-print">
         <div className="space-y-1 min-w-0">
@@ -534,7 +579,7 @@ export default function DocumentView({
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 flex-wrap">
-          <CopyButton text={url} />
+          <CopyButton text={url} onCopy={() => recordEvent(slug, "copy_url")} />
           {!pwdLocked && (
             <>
               <button
@@ -544,7 +589,7 @@ export default function DocumentView({
                 {showRaw ? "Rendered" : "Raw"}
               </button>
               <button
-                onClick={() => window.print()}
+                onClick={() => { recordEvent(slug, "export_pdf"); window.print(); }}
                 className="hidden sm:inline-flex px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
               >
                 Export PDF
