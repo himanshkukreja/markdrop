@@ -4,11 +4,14 @@ from slowapi import Limiter
 
 from app.config import get_settings
 from app.database import get_database
+from app.models.user import User
+from app.routers.auth import optional_user, require_user
 from app.schemas.document import (
     DocumentCreate,
     DocumentCreateResponse,
     DocumentResponse,
     DocumentUpdate,
+    SlugChangeRequest,
 )
 from app.services import document as doc_service
 from app.utils.net import get_client_ip
@@ -27,7 +30,7 @@ def _build_url(slug: str) -> str:
     return f"{BASE_URL}/{slug}"
 
 
-def _to_response(doc) -> dict:
+def _to_response(doc, viewer_id: str | None = None) -> dict:
     return dict(
         slug=doc.slug,
         url=_build_url(doc.slug),
@@ -38,6 +41,8 @@ def _to_response(doc) -> dict:
         expires_at=doc.expires_at,
         views=doc.views,
         is_password_protected=bool(doc.read_password_hash),
+        is_owned=bool(doc.owner_id),
+        is_owner=bool(viewer_id) and doc.owner_id == viewer_id,
     )
 
 
@@ -51,9 +56,12 @@ async def create_document(
     request: Request,
     data: DocumentCreate,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User | None = Depends(optional_user),
 ):
-    doc, raw_secret = await doc_service.create_document(db, data)
-    return DocumentCreateResponse(**_to_response(doc), edit_secret=raw_secret)
+    # Logged-in creators automatically own their document.
+    owner_id = user.id if user else None
+    doc, raw_secret = await doc_service.create_document(db, data, owner_id=owner_id)
+    return DocumentCreateResponse(**_to_response(doc, owner_id), edit_secret=raw_secret)
 
 
 @router.get("/{slug}", response_model=DocumentResponse)
@@ -64,9 +72,11 @@ async def get_document(
     db: AsyncIOMotorDatabase = Depends(get_db),
     x_read_password: str | None = Header(None),
     x_edit_secret: str | None = Header(None),
+    user: User | None = Depends(optional_user),
 ):
-    doc = await doc_service.get_document(db, slug, x_read_password, x_edit_secret)
-    return DocumentResponse(**_to_response(doc))
+    viewer_id = user.id if user else None
+    doc = await doc_service.get_document(db, slug, x_read_password, x_edit_secret, viewer_id)
+    return DocumentResponse(**_to_response(doc, viewer_id))
 
 
 @router.put("/{slug}", response_model=DocumentResponse)
@@ -76,10 +86,12 @@ async def update_document(
     slug: str,
     data: DocumentUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    x_edit_secret: str = Header(...),
+    x_edit_secret: str | None = Header(None),
+    user: User | None = Depends(optional_user),
 ):
-    doc = await doc_service.update_document(db, slug, data, x_edit_secret)
-    return DocumentResponse(**_to_response(doc))
+    viewer_id = user.id if user else None
+    doc = await doc_service.update_document(db, slug, data, x_edit_secret, viewer_id)
+    return DocumentResponse(**_to_response(doc, viewer_id))
 
 
 @router.delete("/{slug}", status_code=204)
@@ -88,6 +100,36 @@ async def delete_document(
     request: Request,
     slug: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    x_edit_secret: str = Header(...),
+    x_edit_secret: str | None = Header(None),
+    user: User | None = Depends(optional_user),
 ):
-    await doc_service.delete_document(db, slug, x_edit_secret)
+    await doc_service.delete_document(db, slug, x_edit_secret, user.id if user else None)
+
+
+@router.post("/{slug}/claim", response_model=DocumentResponse)
+@limiter.limit(settings.rate_limit_create)
+async def claim_document(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_edit_secret: str = Header(...),
+    user: User = Depends(require_user),
+):
+    """Attach an anonymous document to the logged-in account (proven via secret)."""
+    doc = await doc_service.claim_document(db, slug, x_edit_secret, user.id)
+    return DocumentResponse(**_to_response(doc, user.id))
+
+
+@router.patch("/{slug}/slug", response_model=DocumentResponse)
+@limiter.limit(settings.rate_limit_create)
+async def change_slug(
+    request: Request,
+    slug: str,
+    data: SlugChangeRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_edit_secret: str | None = Header(None),
+    user: User | None = Depends(optional_user),
+):
+    viewer_id = user.id if user else None
+    doc = await doc_service.change_slug(db, slug, data.new_slug, x_edit_secret, viewer_id)
+    return DocumentResponse(**_to_response(doc, viewer_id))

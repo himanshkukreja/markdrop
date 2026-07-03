@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.models.document import Document
 from app.schemas.document import DocumentCreate, DocumentUpdate
 from app.utils.security import generate_edit_secret, verify_edit_secret
-from app.utils.slug import generate_slug
+from app.utils.slug import generate_slug, is_reserved_slug, is_valid_slug
 
 settings = get_settings()
 
@@ -32,10 +32,27 @@ def _doc_from_mongo(raw: dict) -> Document:
         expires_at=raw.get("expires_at"),
         views=raw.get("views", 0),
         read_password_hash=raw.get("read_password_hash"),
+        owner_id=raw.get("owner_id"),
+        export_pdf_count=raw.get("export_pdf_count", 0),
+        copy_url_count=raw.get("copy_url_count", 0),
     )
 
 
-async def create_document(db: AsyncIOMotorDatabase, data: DocumentCreate) -> tuple[Document, str]:
+def _authorize(raw: dict, edit_secret: str | None, user_id: str | None) -> None:
+    """Authorize an edit/delete via EITHER document ownership OR the edit secret.
+
+    Raises 403 if neither proves authority.
+    """
+    if user_id and raw.get("owner_id") == user_id:
+        return
+    if edit_secret and verify_edit_secret(edit_secret, raw["edit_secret_hash"]):
+        return
+    raise HTTPException(status_code=403, detail="Not authorized to modify this document")
+
+
+async def create_document(
+    db: AsyncIOMotorDatabase, data: DocumentCreate, owner_id: str | None = None
+) -> tuple[Document, str]:
     raw_secret, secret_hash = generate_edit_secret()
     now = datetime.now(timezone.utc)
 
@@ -49,10 +66,8 @@ async def create_document(db: AsyncIOMotorDatabase, data: DocumentCreate) -> tup
     if data.read_password:
         read_pwd_hash = bcrypt.hashpw(data.read_password.encode(), bcrypt.gensalt()).decode()
 
-    # Custom slug path
-    if data.custom_slug:
-        slug = data.custom_slug
-        doc_dict = {
+    def _build(slug: str) -> dict:
+        return {
             "slug": slug,
             "title": data.title or None,
             "content": data.content,
@@ -61,8 +76,17 @@ async def create_document(db: AsyncIOMotorDatabase, data: DocumentCreate) -> tup
             "updated_at": now,
             "expires_at": expires_at,
             "views": 0,
+            "export_pdf_count": 0,
+            "copy_url_count": 0,
             "read_password_hash": read_pwd_hash,
+            "owner_id": owner_id,
         }
+
+    # Custom slug path
+    if data.custom_slug:
+        if is_reserved_slug(data.custom_slug):
+            raise HTTPException(status_code=409, detail="This URL is reserved. Please choose another.")
+        doc_dict = _build(data.custom_slug)
         try:
             await db["documents"].insert_one(doc_dict)
             return _doc_from_mongo(doc_dict), raw_secret
@@ -71,18 +95,7 @@ async def create_document(db: AsyncIOMotorDatabase, data: DocumentCreate) -> tup
 
     # Random slug path with retry
     for _ in range(settings.slug_max_retries):
-        slug = generate_slug(settings.slug_length)
-        doc_dict = {
-            "slug": slug,
-            "title": data.title or None,
-            "content": data.content,
-            "edit_secret_hash": secret_hash,
-            "created_at": now,
-            "updated_at": now,
-            "expires_at": expires_at,
-            "views": 0,
-            "read_password_hash": read_pwd_hash,
-        }
+        doc_dict = _build(generate_slug(settings.slug_length))
         try:
             await db["documents"].insert_one(doc_dict)
             return _doc_from_mongo(doc_dict), raw_secret
@@ -97,6 +110,7 @@ async def get_document(
     slug: str,
     read_password: str | None = None,
     edit_secret: str | None = None,
+    user_id: str | None = None,
 ) -> Document:
     # Fetch without incrementing first so we can check password
     raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
@@ -104,9 +118,10 @@ async def get_document(
         raise HTTPException(status_code=404, detail="Document not found")
 
     if raw.get("read_password_hash"):
-        # Owner can bypass read-password gate with a valid edit secret
+        # The owner (logged in, or holding a valid edit secret) bypasses the gate.
+        owner_bypasses = user_id and raw.get("owner_id") == user_id
         edit_secret_bypasses = edit_secret and verify_edit_secret(edit_secret, raw["edit_secret_hash"])
-        if not edit_secret_bypasses:
+        if not (owner_bypasses or edit_secret_bypasses):
             if not read_password:
                 raise HTTPException(status_code=401, detail="Password required")
             if not bcrypt.checkpw(read_password.encode(), raw["read_password_hash"].encode()):
@@ -123,14 +138,17 @@ async def get_document(
 
 
 async def update_document(
-    db: AsyncIOMotorDatabase, slug: str, data: DocumentUpdate, edit_secret: str
+    db: AsyncIOMotorDatabase,
+    slug: str,
+    data: DocumentUpdate,
+    edit_secret: str | None = None,
+    user_id: str | None = None,
 ) -> Document:
     raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    if not verify_edit_secret(edit_secret, raw["edit_secret_hash"]):
-        raise HTTPException(status_code=403, detail="Invalid edit secret")
+    _authorize(raw, edit_secret, user_id)
 
     now = datetime.now(timezone.utc)
     updates: dict = {"title": data.title or None, "content": data.content, "updated_at": now}
@@ -158,12 +176,97 @@ async def update_document(
     return _doc_from_mongo(raw)
 
 
-async def delete_document(db: AsyncIOMotorDatabase, slug: str, edit_secret: str) -> None:
-    raw = await db["documents"].find_one({"slug": slug}, {"_id": 0, "edit_secret_hash": 1})
+async def delete_document(
+    db: AsyncIOMotorDatabase,
+    slug: str,
+    edit_secret: str | None = None,
+    user_id: str | None = None,
+) -> None:
+    raw = await db["documents"].find_one(
+        {"slug": slug}, {"_id": 0, "edit_secret_hash": 1, "owner_id": 1}
+    )
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    _authorize(raw, edit_secret, user_id)
+
+    await db["documents"].delete_one({"slug": slug})
+
+
+async def claim_document(
+    db: AsyncIOMotorDatabase, slug: str, edit_secret: str, user_id: str
+) -> Document:
+    """Attach an (anonymous) document to a user account, proven via edit secret."""
+    raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
+    if not raw:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    existing_owner = raw.get("owner_id")
+    if existing_owner == user_id:
+        return _doc_from_mongo(raw)  # idempotent
+    if existing_owner:
+        raise HTTPException(status_code=409, detail="This document is already owned by another account")
 
     if not verify_edit_secret(edit_secret, raw["edit_secret_hash"]):
         raise HTTPException(status_code=403, detail="Invalid edit secret")
 
-    await db["documents"].delete_one({"slug": slug})
+    await db["documents"].update_one({"slug": slug}, {"$set": {"owner_id": user_id}})
+    raw["owner_id"] = user_id
+    return _doc_from_mongo(raw)
+
+
+async def change_slug(
+    db: AsyncIOMotorDatabase,
+    slug: str,
+    new_slug: str,
+    edit_secret: str | None = None,
+    user_id: str | None = None,
+) -> Document:
+    """Rename a document's slug. Analytics stay intact (events key on doc _id)."""
+    if not is_valid_slug(new_slug):
+        raise HTTPException(
+            status_code=422,
+            detail="Slug must be 3-50 chars: letters, numbers, hyphens or underscores.",
+        )
+    if is_reserved_slug(new_slug):
+        raise HTTPException(status_code=409, detail="This URL is reserved. Please choose another.")
+
+    raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
+    if not raw:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    _authorize(raw, edit_secret, user_id)
+
+    if new_slug == slug:
+        return _doc_from_mongo(raw)
+
+    now = datetime.now(timezone.utc)
+    try:
+        await db["documents"].update_one(
+            {"slug": slug}, {"$set": {"slug": new_slug, "updated_at": now}}
+        )
+    except DuplicateKeyError:
+        raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
+
+    raw["slug"] = new_slug
+    raw["updated_at"] = now
+    return _doc_from_mongo(raw)
+
+
+async def list_user_documents(
+    db: AsyncIOMotorDatabase, user_id: str, page: int, limit: int, q: str | None
+) -> tuple[list[Document], int]:
+    """Return (documents, total) owned by the user, newest first."""
+    query: dict = {"owner_id": user_id}
+    if q:
+        query["$or"] = [
+            {"slug": {"$regex": q, "$options": "i"}},
+            {"title": {"$regex": q, "$options": "i"}},
+        ]
+    total = await db["documents"].count_documents(query)
+    skip = (page - 1) * limit
+    cursor = (
+        db["documents"].find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
+    )
+    docs = [_doc_from_mongo(d) for d in await cursor.to_list(length=limit)]
+    return docs, total

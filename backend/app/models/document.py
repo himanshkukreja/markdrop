@@ -13,4 +13,7 @@ class Document:
     expires_at: datetime | None = None
     views: int = 0
     read_password_hash: str | None = None
+    owner_id: str | None = None
+    export_pdf_count: int = 0
+    copy_url_count: int = 0
 

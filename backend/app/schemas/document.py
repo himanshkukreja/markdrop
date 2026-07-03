@@ -49,10 +49,37 @@ class DocumentResponse(BaseModel):
     expires_at: datetime | None = None
     views: int = 0
     is_password_protected: bool = False
+    is_owned: bool = False   # document has been claimed by some account
+    is_owner: bool = False   # the requesting user owns this document
 
     model_config = {"from_attributes": True}
 
 
 class DocumentCreateResponse(DocumentResponse):
     edit_secret: str
+
+
+class SlugChangeRequest(BaseModel):
+    new_slug: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
+
+
+class MyDocListItem(BaseModel):
+    slug: str
+    url: str
+    title: str | None
+    content_preview: str
+    created_at: datetime
+    updated_at: datetime
+    expires_at: datetime | None = None
+    views: int = 0
+    export_pdf_count: int = 0
+    copy_url_count: int = 0
+    is_password_protected: bool = False
+
+
+class MyDocListResponse(BaseModel):
+    documents: list[MyDocListItem]
+    total: int
+    page: int
+    pages: int
 
