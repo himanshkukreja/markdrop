@@ -228,7 +228,11 @@ async function publish() {
   }
   const text = editor.document.getText();
   setBusy("$(sync~spin) Markdrop: publishing…");
-  const res = await api("POST", "/api/v1/sync", { title: deriveTitle(text, uri), content: normalize(text) });
+  const res = await api("POST", "/api/v1/sync", {
+    title: deriveTitle(text, uri),
+    content: normalize(text),
+    desired_slug: path.basename(uri.fsPath), // server slugifies + de-dupes
+  });
   if (res.status === 401) { await clearToken(); vscode.window.showErrorMessage("Session expired — sign in again."); updateStatus(); return; }
   if (!res.ok) { vscode.window.showErrorMessage("Failed to publish to Markdrop."); updateStatus(); return; }
   const doc = await res.json() as SyncDoc;

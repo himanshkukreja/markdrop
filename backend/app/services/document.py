@@ -10,7 +10,7 @@ from app.config import get_settings
 from app.models.document import Document
 from app.schemas.document import DocumentCreate, DocumentUpdate
 from app.utils.security import generate_edit_secret, verify_edit_secret
-from app.utils.slug import generate_slug, is_reserved_slug, is_valid_slug
+from app.utils.slug import generate_slug, is_reserved_slug, is_valid_slug, slugify
 
 settings = get_settings()
 
@@ -54,7 +54,10 @@ def _authorize(raw: dict, edit_secret: str | None, user_id: str | None) -> None:
 
 
 async def create_document(
-    db: AsyncIOMotorDatabase, data: DocumentCreate, owner_id: str | None = None
+    db: AsyncIOMotorDatabase,
+    data: DocumentCreate,
+    owner_id: str | None = None,
+    preferred_slug: str | None = None,
 ) -> tuple[Document, str]:
     raw_secret, secret_hash = generate_edit_secret()
     now = datetime.now(timezone.utc)
@@ -96,6 +99,22 @@ async def create_document(
             return _doc_from_mongo(doc_dict), raw_secret
         except DuplicateKeyError:
             raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
+
+    # Preferred slug path (e.g. from a filename): try it, then add a short
+    # random suffix on collision, then fall through to a fully random slug.
+    if preferred_slug:
+        base = slugify(preferred_slug)
+        if len(base) >= 3 and not is_reserved_slug(base):
+            candidates = [base] + [
+                f"{base}-{generate_slug(4)}" for _ in range(settings.slug_max_retries)
+            ]
+            for slug in candidates:
+                doc_dict = _build(slug)
+                try:
+                    await db["documents"].insert_one(doc_dict)
+                    return _doc_from_mongo(doc_dict), raw_secret
+                except DuplicateKeyError:
+                    continue
 
     # Random slug path with retry
     for _ in range(settings.slug_max_retries):

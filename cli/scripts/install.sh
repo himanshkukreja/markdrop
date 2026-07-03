@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+¸¸ǥit#!/usr/bin/env sh
 # markdrop installer — Linux & macOS
 #
 # One-liner (once hosted at markdrop.in/install.sh):

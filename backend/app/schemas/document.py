@@ -73,6 +73,8 @@ class EventRequest(BaseModel):
 class SyncCreateRequest(BaseModel):
     title: str | None = Field(None, max_length=200)
     content: str = Field(..., min_length=1, max_length=MAX_CONTENT)
+    # Preferred slug (e.g. the filename) — slugified server-side, auto-suffixed on clash.
+    desired_slug: str | None = Field(None, max_length=100)
 
 
 class SyncPushRequest(BaseModel):
