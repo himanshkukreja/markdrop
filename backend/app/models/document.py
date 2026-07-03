@@ -16,4 +16,5 @@ class Document:
     owner_id: str | None = None
     export_pdf_count: int = 0
     copy_url_count: int = 0
+    id: str | None = None  # str(_id); populated when the query includes _id
 

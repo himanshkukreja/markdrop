@@ -6,14 +6,14 @@ Phase 4 adds per-document analytics under this same prefix.
 
 import math
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
 from app.models.user import User
 from app.routers.auth import require_user
 from app.schemas.document import MyDocListItem, MyDocListResponse
-from app.services import document as doc_service
+from app.services import analytics, document as doc_service
 
 router = APIRouter(prefix="/api/v1/me", tags=["me"])
 
@@ -55,3 +55,17 @@ async def list_my_documents(
         page=page,
         pages=max(1, math.ceil(total / limit)),
     )
+
+
+@router.get("/documents/{slug}/analytics")
+async def document_analytics(
+    slug: str,
+    range: str = Query("30d", pattern="^(7d|30d|all)$"),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Aggregated analytics for a document the caller owns."""
+    doc_id = await doc_service.get_owned_doc_id(db, slug, user.id)
+    if doc_id is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return await analytics.get_analytics(db, doc_id, range)

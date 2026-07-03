@@ -63,6 +63,10 @@ class SlugChangeRequest(BaseModel):
     new_slug: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
 
 
+class EventRequest(BaseModel):
+    type: Literal["export_pdf", "copy_url"]
+
+
 class MyDocListItem(BaseModel):
     slug: str
     url: str

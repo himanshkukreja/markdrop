@@ -23,6 +23,7 @@ _EXPIRY_DELTA: dict[str, timedelta | None] = {
 
 def _doc_from_mongo(raw: dict) -> Document:
     return Document(
+        id=str(raw["_id"]) if raw.get("_id") is not None else None,
         slug=raw["slug"],
         title=raw.get("title"),
         content=raw["content"],
@@ -127,11 +128,11 @@ async def get_document(
             if not bcrypt.checkpw(read_password.encode(), raw["read_password_hash"].encode()):
                 raise HTTPException(status_code=403, detail="Incorrect password")
 
-    # Password verified (or not required) — now increment views
+    # Password verified (or not required) — now increment views.
+    # Keep _id so callers can record analytics events against a stable id.
     raw = await db["documents"].find_one_and_update(
         {"slug": slug},
         {"$inc": {"views": 1}},
-        projection={"_id": 0},
         return_document=True,
     )
     return _doc_from_mongo(raw)
@@ -270,3 +271,36 @@ async def list_user_documents(
     )
     docs = [_doc_from_mongo(d) for d in await cursor.to_list(length=limit)]
     return docs, total
+
+
+_CLICK_COUNTER = {"export_pdf": "export_pdf_count", "copy_url": "copy_url_count"}
+
+
+async def register_click(
+    db: AsyncIOMotorDatabase, slug: str, event_type: str
+) -> tuple[str, str | None] | None:
+    """Bump the click counter for a document. Returns (doc_id, owner_id) or None."""
+    field = _CLICK_COUNTER[event_type]
+    raw = await db["documents"].find_one_and_update(
+        {"slug": slug},
+        {"$inc": {field: 1}},
+        projection={"_id": 1, "owner_id": 1},
+        return_document=True,
+    )
+    if not raw:
+        return None
+    return str(raw["_id"]), raw.get("owner_id")
+
+
+async def get_owned_doc_id(
+    db: AsyncIOMotorDatabase, slug: str, user_id: str
+) -> str | None:
+    """Return the document's id if owned by the user, else None (404/403 upstream)."""
+    raw = await db["documents"].find_one(
+        {"slug": slug}, {"_id": 1, "owner_id": 1}
+    )
+    if not raw:
+        return None
+    if raw.get("owner_id") != user_id:
+        return None
+    return str(raw["_id"])

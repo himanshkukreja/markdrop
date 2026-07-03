@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
@@ -11,9 +11,11 @@ from app.schemas.document import (
     DocumentCreateResponse,
     DocumentResponse,
     DocumentUpdate,
+    EventRequest,
     SlugChangeRequest,
 )
-from app.services import document as doc_service
+from app.services import analytics, document as doc_service
+from app.utils.net import get_client_ip
 
 settings = get_settings()
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
@@ -71,6 +73,13 @@ async def get_document(
 ):
     viewer_id = user.id if user else None
     doc = await doc_service.get_document(db, slug, x_read_password, x_edit_secret, viewer_id)
+    # Record the view for analytics (geo + referrer; never stores raw IP).
+    if doc.id:
+        await analytics.record_event(
+            db, doc.id, doc.owner_id, "view",
+            ip=get_client_ip(request),
+            referrer=request.headers.get("referer"),
+        )
     return DocumentResponse(**_to_response(doc, viewer_id))
 
 
@@ -128,3 +137,24 @@ async def change_slug(
     viewer_id = user.id if user else None
     doc = await doc_service.change_slug(db, slug, data.new_slug, x_edit_secret, viewer_id)
     return DocumentResponse(**_to_response(doc, viewer_id))
+
+
+@router.post("/{slug}/events", status_code=202)
+@limiter.limit("120/minute")
+async def record_click(
+    request: Request,
+    slug: str,
+    data: EventRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Record an export-PDF or copy-URL click (called by the viewer's browser)."""
+    result = await doc_service.register_click(db, slug, data.type)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    doc_id, owner_id = result
+    await analytics.record_event(
+        db, doc_id, owner_id, data.type,
+        ip=get_client_ip(request),
+        referrer=request.headers.get("referer"),
+    )
+    return {"status": "ok"}
