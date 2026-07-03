@@ -1,0 +1,66 @@
+{
+  "name": "markdrop",
+  "displayName": "Markdrop Sync",
+  "description": "Publish and sync your Markdown files to Markdrop (markdrop.in) — no more copy-paste.",
+  "version": "0.1.0",
+  "publisher": "markdrop",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/himanshkukreja/markdrop.git"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onUri",
+    "onLanguage:markdown"
+  ],
+  "contributes": {
+    "commands": [
+      { "command": "markdrop.signIn", "title": "Markdrop: Sign in" },
+      { "command": "markdrop.signInWithToken", "title": "Markdrop: Sign in with API token" },
+      { "command": "markdrop.signOut", "title": "Markdrop: Sign out" },
+      { "command": "markdrop.publish", "title": "Markdrop: Publish / link current file" },
+      { "command": "markdrop.syncNow", "title": "Markdrop: Sync now (push)" },
+      { "command": "markdrop.openInBrowser", "title": "Markdrop: Open current document in browser" },
+      { "command": "markdrop.unlink", "title": "Markdrop: Unlink current file" }
+    ],
+    "menus": {
+      "editor/title": [
+        { "command": "markdrop.publish", "when": "resourceLangId == markdown", "group": "navigation" }
+      ]
+    },
+    "configuration": {
+      "title": "Markdrop",
+      "properties": {
+        "markdrop.apiUrl": {
+          "type": "string",
+          "default": "https://api.markdrop.in",
+          "description": "Markdrop API base URL."
+        },
+        "markdrop.webUrl": {
+          "type": "string",
+          "default": "https://markdrop.in",
+          "description": "Markdrop web base URL."
+        },
+        "markdrop.pushOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically push linked documents to Markdrop when you save."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.7.0"
+  }
+}
