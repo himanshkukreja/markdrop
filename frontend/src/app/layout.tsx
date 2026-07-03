@@ -3,6 +3,7 @@ import "./globals.css";
 import "highlight.js/styles/github-dark.css";
 import ThemeToggle from "@/components/ThemeToggle";
 import HeaderAuth from "@/components/HeaderAuth";
+import NamePrompt from "@/components/NamePrompt";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="flex-1 min-h-0 flex flex-col max-w-screen-xl w-full mx-auto px-4 sm:px-6 py-4">
           {children}
         </main>
+        <NamePrompt />
         </AuthProvider>
       </body>
     </html>

@@ -140,7 +140,7 @@ export async function deleteDocument(slug: string, editSecret?: string): Promise
 
 // ── Analytics event beacons (fire-and-forget) ──────────────────────────────────
 
-export function recordEvent(slug: string, type: "export_pdf" | "copy_url"): void {
+export function recordEvent(slug: string, type: "view" | "export_pdf" | "copy_url"): void {
   try {
     fetch(`${API_BASE}/api/v1/documents/${slug}/events`, {
       method: "POST",
@@ -232,6 +232,16 @@ export async function emailVerifyOtp(email: string, code: string): Promise<{ tok
   return res.json();
 }
 
+export async function updateMyName(name: string): Promise<MeUser> {
+  const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error("Failed to update name");
+  return res.json();
+}
+
 export async function logoutRequest(): Promise<void> {
   try {
     await fetch(`${API_BASE}/api/v1/auth/logout`, { method: "POST", headers: { ...authHeaders() } });
@@ -320,6 +330,38 @@ export interface AdminDocListItem {
   views: number;
   is_password_protected: boolean;
   content_length: number;
+  owner_id: string | null;
+  owner_email: string | null;
+}
+
+export interface AdminUserListItem {
+  id: string;
+  email: string;
+  name: string | null;
+  picture: string | null;
+  providers: string[];
+  created_at: string;
+  last_login_at: string | null;
+  document_count: number;
+}
+
+export interface AdminUserListResponse {
+  users: AdminUserListItem[];
+  total: number;
+  page: number;
+  pages: number;
+}
+
+export async function adminListUsers(token: string, page = 1, q?: string): Promise<AdminUserListResponse> {
+  const params = new URLSearchParams({ page: String(page), limit: "20" });
+  if (q) params.set("q", q);
+  const res = await fetch(`${API_BASE}/api/v1/admin/users?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to list users");
+  return res.json();
 }
 
 export interface AdminDocListResponse {

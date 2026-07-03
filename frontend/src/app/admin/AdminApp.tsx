@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import {
   AdminDocListItem,
+  AdminUserListItem,
   adminDeleteDocument,
   adminGetDocument,
   adminListDocuments,
+  adminListUsers,
   adminLogin,
   adminUpdateDocument,
   clearAdminToken,
@@ -37,6 +39,15 @@ export default function AdminApp() {
   const [dashLoading, setDashLoading] = useState(false);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  // ── Tabs + Users ──────────────────────────────────────────────────────────────
+  const [tab, setTab] = useState<"docs" | "users">("docs");
+  const [users, setUsers] = useState<AdminUserListItem[]>([]);
+  const [usersTotal, setUsersTotal] = useState(0);
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersPages, setUsersPages] = useState(1);
+  const [usersSearch, setUsersSearch] = useState("");
+  const [usersLoading, setUsersLoading] = useState(false);
 
   // ── Editor ──────────────────────────────────────────────────────────────────
   const [editSlug, setEditSlug] = useState<string | null>(null);
@@ -89,6 +100,41 @@ export default function AdminApp() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, token]);
+
+  // ── Load users ─────────────────────────────────────────────────────────────────
+  const loadUsers = useCallback(async (tok: string, pg = 1, q = "") => {
+    setUsersLoading(true);
+    try {
+      const res = await adminListUsers(tok, pg, q || undefined);
+      setUsers(res.users);
+      setUsersTotal(res.total);
+      setUsersPage(res.page);
+      setUsersPages(res.pages);
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === "UNAUTHORIZED") {
+        clearAdminToken();
+        setToken(null);
+        setPhase("login");
+      }
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (phase === "dashboard" && token && tab === "users") {
+      loadUsers(token, 1, usersSearch);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, token, tab]);
+
+  const handleUsersSearch = (val: string) => {
+    setUsersSearch(val);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      if (token) loadUsers(token, 1, val);
+    }, 400);
+  };
 
   // ── Search with debounce ──────────────────────────────────────────────────────
   const handleSearch = (val: string) => {
@@ -396,6 +442,25 @@ export default function AdminApp() {
         </button>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
+        {(["docs", "users"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors ${
+              tab === t
+                ? "border-blue-500 text-blue-500 dark:text-blue-400"
+                : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+            }`}
+          >
+            {t === "docs" ? "Documents" : "Users"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "docs" && (
+      <>
       {/* Search */}
       <div className="relative">
         <svg
@@ -507,6 +572,13 @@ export default function AdminApp() {
                           <span className="italic text-gray-400 dark:text-gray-600 vscode:text-[#6e6e6e]">
                             Untitled
                           </span>
+                        )}
+                      </p>
+                      <p className="text-[10px] mt-0.5 truncate">
+                        {doc.owner_email ? (
+                          <span className="text-emerald-600 dark:text-emerald-400" title={doc.owner_id ?? ""}>👤 {doc.owner_email}</span>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-600">anonymous</span>
                         )}
                       </p>
                     </td>
@@ -663,6 +735,88 @@ export default function AdminApp() {
             </button>
           </div>
         </div>
+      )}
+      </>
+      )}
+
+      {tab === "users" && (
+        <>
+          {/* User search */}
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search users by email or name…"
+              value={usersSearch}
+              onChange={(e) => handleUsersSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526] text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {usersLoading ? (
+            <div className="flex justify-center py-16"><div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /></div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-16 text-sm text-gray-500 dark:text-gray-400">{usersSearch ? "No users match your search." : "No users yet."}</div>
+          ) : (
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526] text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="text-left px-4 py-3">User</th>
+                    <th className="hidden sm:table-cell text-left px-4 py-3">Providers</th>
+                    <th className="text-right px-4 py-3">Docs</th>
+                    <th className="hidden md:table-cell text-left px-4 py-3">Joined</th>
+                    <th className="hidden lg:table-cell text-left px-4 py-3">Last login</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u, i) => (
+                    <tr key={u.id} className={`border-b last:border-0 border-gray-100 dark:border-gray-800 vscode:border-[#3c3c3c] ${i % 2 === 0 ? "" : "bg-gray-50/50 dark:bg-gray-900/20"}`}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {u.picture ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={u.picture} alt="" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />
+                          ) : (
+                            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center shrink-0">{(u.name || u.email).charAt(0).toUpperCase()}</span>
+                          )}
+                          <div className="min-w-0">
+                            {u.name && <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">{u.name}</p>}
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{u.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="hidden sm:table-cell px-4 py-3">
+                        <div className="flex gap-1">
+                          {u.providers.map((p) => (
+                            <span key={p} className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">{p}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs tabular-nums text-gray-500 dark:text-gray-400">{u.document_count}</td>
+                      <td className="hidden md:table-cell px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{new Date(u.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                      <td className="hidden lg:table-cell px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {usersPages > 1 && (
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Page {usersPage} of {usersPages} · {usersTotal.toLocaleString()} users</p>
+              <div className="flex items-center gap-2">
+                <button disabled={usersPage <= 1} onClick={() => { const p = usersPage - 1; if (token) loadUsers(token, p, usersSearch); }}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
+                <button disabled={usersPage >= usersPages} onClick={() => { const p = usersPage + 1; if (token) loadUsers(token, p, usersSearch); }}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

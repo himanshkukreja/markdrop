@@ -23,6 +23,7 @@ interface Props {
   editSecret?: string;
   isPasswordProtected?: boolean;
   isOwned?: boolean;
+  startInEdit?: boolean;
 }
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
@@ -57,6 +58,7 @@ export default function DocumentView({
   editSecret: initialSecret,
   isPasswordProtected = false,
   isOwned = false,
+  startInEdit = false,
 }: Props) {
   const router = useRouter();
   const { user } = useAuth();
@@ -65,6 +67,8 @@ export default function DocumentView({
   const [claimSecret, setClaimSecret] = useState<string | null>(initialSecret || null);
   const [claimed, setClaimed] = useState(false);
   const [claimMsg, setClaimMsg] = useState("");
+  const viewBeaconSent = useRef(false);
+  const editOpened = useRef(false);
 
   useEffect(() => {
     if (!claimSecret && typeof window !== "undefined") {
@@ -130,6 +134,41 @@ export default function DocumentView({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const writeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  // Fire a single view beacon from the browser so the real visitor IP (not
+  // Vercel's SSR server) drives the view count + geography.
+  useEffect(() => {
+    if (viewBeaconSent.current) return;
+    if (isPasswordProtected && pwdLocked) return; // wait until unlocked
+    viewBeaconSent.current = true;
+    recordEvent(slug, "view");
+  }, [pwdLocked, isPasswordProtected, slug]);
+
+  // If logged in, detect ownership so the owner can edit without the secret
+  // (and view their own password-protected doc without the read password).
+  useEffect(() => {
+    if (!user || secretUnlocked) return;
+    getDocument(slug)
+      .then((doc) => {
+        if (!doc.is_owner) return;
+        setSecretUnlocked(true);
+        setPwdLocked(false);
+        setDisplayTitle(doc.title);
+        setDisplayContent(doc.content);
+        setDisplayCreatedAt(doc.created_at);
+        setDisplayExpiresAt(doc.expires_at);
+        setDisplayViews(doc.views);
+      })
+      .catch(() => {});
+  }, [user, slug, secretUnlocked]);
+
+  // Open the editor directly when arriving via ?edit=1 (owner/secret ready).
+  useEffect(() => {
+    if (startInEdit && secretUnlocked && !editOpened.current && !pwdLocked) {
+      editOpened.current = true;
+      handleEditClick();
+    }
+  }, [startInEdit, secretUnlocked, pwdLocked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Set document.title to just the clean name before printing so the
   // save-as filename in the print dialog is "{title}" or "{slug}" rather
