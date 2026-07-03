@@ -25,6 +25,20 @@ async def connect() -> None:
     await db["documents"].create_index("slug", unique=True)
     # TTL index: auto-delete documents when expires_at is reached
     await db["documents"].create_index("expires_at", expireAfterSeconds=0, sparse=True)
+    # Owner lookups for the user dashboard (Phase 3)
+    await db["documents"].create_index("owner_id", sparse=True)
+
+    # Users (optional-login feature)
+    await db["users"].create_index("email", unique=True)
+    await db["users"].create_index("google_sub", unique=True, sparse=True)
+
+    # Passwordless login challenges — auto-expire via TTL (Phase 2)
+    await db["login_challenges"].create_index("expires_at", expireAfterSeconds=0)
+    await db["login_challenges"].create_index("email")
+
+    # Analytics events (Phase 4)
+    await db["events"].create_index([("doc_id", 1), ("ts", -1)])
+    await db["events"].create_index([("owner_id", 1), ("ts", -1)], sparse=True)
 
 
 async def disconnect() -> None:
