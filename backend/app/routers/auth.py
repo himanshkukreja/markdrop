@@ -9,17 +9,40 @@ Google (Phase 1) and email magic-link/OTP (Phase 2) endpoints are added to
 this same router.
 """
 
+from urllib.parse import urlencode
+
+import httpx
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.config import get_settings
 from app.database import get_database
 from app.models.user import User
 from app.schemas.auth import UserResponse
+from app.services import oauth
 from app.services import user as user_service
-from app.utils.auth import decode_access_token
+from app.utils.auth import create_access_token, decode_access_token
 
+settings = get_settings()
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+
+def _frontend_redirect(path: str, **params: str) -> RedirectResponse:
+    url = f"{settings.frontend_url.rstrip('/')}{path}"
+    if params:
+        url = f"{url}?{urlencode(params)}"
+    return RedirectResponse(url, status_code=307)
+
+
+def _login_success_redirect(token: str, next_path: str) -> RedirectResponse:
+    # Token goes in the URL fragment so it never reaches the server/logs.
+    safe_next = next_path if next_path.startswith("/") else ""
+    frag = urlencode({"token": token, "next": safe_next}) if safe_next else urlencode({"token": token})
+    return RedirectResponse(
+        f"{settings.frontend_url.rstrip('/')}/auth/callback#{frag}", status_code=307
+    )
 
 
 def get_db() -> AsyncIOMotorDatabase:
@@ -91,3 +114,52 @@ async def logout(_: User = Depends(require_user)):
     # Sessions are stateless JWTs; the client discards the token.
     # A server-side revocation list can be added in a hardening phase.
     return {"status": "ok"}
+
+
+# ── Google OAuth (Phase 1) ─────────────────────────────────────────────────────
+
+
+@router.get("/google/login")
+async def google_login(next: str | None = Query(None)):
+    """Redirect the browser to Google's consent screen."""
+    if not oauth.is_configured():
+        raise HTTPException(status_code=503, detail="Google login is not configured")
+    state = oauth.make_state(next)
+    return RedirectResponse(oauth.build_auth_url(state), status_code=307)
+
+
+@router.get("/google/callback")
+async def google_callback(
+    code: str | None = Query(None),
+    state: str | None = Query(None),
+    error: str | None = Query(None),
+):
+    """Handle Google's redirect: exchange code, upsert user, issue our session."""
+    if error or not code or not state:
+        return _frontend_redirect("/login", error="oauth_cancelled")
+
+    try:
+        next_path = oauth.verify_state(state)
+    except jwt.InvalidTokenError:
+        return _frontend_redirect("/login", error="oauth_state")
+
+    try:
+        access_token = await oauth.exchange_code(code)
+        info = await oauth.fetch_userinfo(access_token)
+    except httpx.HTTPError:
+        return _frontend_redirect("/login", error="oauth_failed")
+
+    email = info.get("email")
+    if not email or not info.get("email_verified", False):
+        return _frontend_redirect("/login", error="email_unverified")
+
+    user = await user_service.upsert_user(
+        get_database(),
+        email,
+        provider="google",
+        name=info.get("name"),
+        picture=info.get("picture"),
+        google_sub=info.get("sub"),
+    )
+    token, _ = create_access_token(user.id, user.email)
+    return _login_success_redirect(token, next_path)
