@@ -22,6 +22,8 @@ class Settings(BaseSettings):
 
     # Public URL of the frontend — used for OAuth/email redirect links.
     frontend_url: str = "http://localhost:3000"
+    # Public URL of this backend API — used to build the email magic-link.
+    api_base_url: str = "http://localhost:8080"
 
     # Admin panel — override ALL THREE in production .env
     admin_username: str = "admin"

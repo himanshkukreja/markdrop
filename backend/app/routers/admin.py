@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.database import get_database
-from app.routers.documents import limiter  # reuse the existing slowapi limiter
+from app.limiter import limiter  # shared slowapi limiter
 from app.schemas.document import MAX_CONTENT
 
 settings = get_settings()

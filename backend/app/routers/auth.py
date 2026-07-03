@@ -19,9 +19,10 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.database import get_database
+from app.limiter import limiter
 from app.models.user import User
-from app.schemas.auth import UserResponse
-from app.services import oauth
+from app.schemas.auth import EmailRequest, EmailVerifyRequest, TokenResponse, UserResponse
+from app.services import email_auth, mailer, oauth
 from app.services import user as user_service
 from app.utils.auth import create_access_token, decode_access_token
 
@@ -163,3 +164,45 @@ async def google_callback(
     )
     token, _ = create_access_token(user.id, user.email)
     return _login_success_redirect(token, next_path)
+
+
+# ── Passwordless email login: magic link + OTP (Phase 2) ────────────────────────
+
+
+@router.post("/email/request")
+@limiter.limit("5/minute")
+async def email_request(request: Request, data: EmailRequest):
+    """Email the caller a login code + magic link. Always returns {status: sent}."""
+    if not mailer.is_configured():
+        raise HTTPException(status_code=503, detail="Email login is not configured")
+
+    otp, link_token = await email_auth.create_challenge(get_database(), data.email)
+    link_url = f"{settings.api_base_url.rstrip('/')}/api/v1/auth/email/verify?token={link_token}"
+    try:
+        await mailer.send_login_email(data.email, otp, link_url)
+    except httpx.HTTPError:
+        raise HTTPException(status_code=502, detail="Could not send login email. Try again.")
+    return {"status": "sent"}
+
+
+@router.post("/email/verify", response_model=TokenResponse)
+@limiter.limit("10/minute")
+async def email_verify_otp(request: Request, data: EmailVerifyRequest):
+    """Verify a 6-digit OTP and return a session token (used by the frontend form)."""
+    email = await email_auth.verify_otp(get_database(), data.email, data.code)
+    if not email:
+        raise HTTPException(status_code=401, detail="Invalid or expired code")
+    user = await user_service.upsert_user(get_database(), email, provider="email")
+    token, exp = create_access_token(user.id, user.email)
+    return TokenResponse(token=token, expires_at=exp, user=_to_user_response(user))
+
+
+@router.get("/email/verify")
+async def email_verify_link(token: str = Query(...), next: str | None = Query(None)):
+    """Consume a magic link and redirect to the frontend with a session token."""
+    email = await email_auth.verify_link(get_database(), token)
+    if not email:
+        return _frontend_redirect("/login", error="link_invalid")
+    user = await user_service.upsert_user(get_database(), email, provider="email")
+    access, _ = create_access_token(user.id, user.email)
+    return _login_success_redirect(access, next or "")

@@ -8,9 +8,10 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import get_settings
 from app.database import connect, disconnect
+from app.limiter import limiter
 from app.routers.admin import router as admin_router
 from app.routers.auth import router as auth_router
-from app.routers.documents import limiter, router as documents_router
+from app.routers.documents import router as documents_router
 from app.routers.me import router as me_router
 from app.routers.share import router as share_router
 

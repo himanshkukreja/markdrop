@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Header, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from slowapi import Limiter
 
 from app.config import get_settings
 from app.database import get_database
+from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import optional_user, require_user
 from app.schemas.document import (
@@ -14,14 +14,9 @@ from app.schemas.document import (
     SlugChangeRequest,
 )
 from app.services import document as doc_service
-from app.utils.net import get_client_ip
 
 settings = get_settings()
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
-# Key on the real client IP (behind nginx) and share limits across workers/
-# restarts via Redis. Without this, key_func saw nginx's 127.0.0.1 for every
-# request, making limits effectively global.
-limiter = Limiter(key_func=get_client_ip, storage_uri=settings.redis_url)
 
 BASE_URL = "https://markdrop.in"
 
