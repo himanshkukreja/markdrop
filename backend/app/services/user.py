@@ -22,6 +22,19 @@ def _user_from_mongo(raw: dict) -> User:
     )
 
 
+async def update_name(db: AsyncIOMotorDatabase, user_id: str, name: str) -> User | None:
+    from datetime import datetime, timezone
+
+    if not ObjectId.is_valid(user_id):
+        return None
+    raw = await db["users"].find_one_and_update(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"name": name, "updated_at": datetime.now(timezone.utc)}},
+        return_document=True,
+    )
+    return _user_from_mongo(raw) if raw else None
+
+
 async def get_user_by_id(db: AsyncIOMotorDatabase, user_id: str) -> User | None:
     if not ObjectId.is_valid(user_id):
         return None

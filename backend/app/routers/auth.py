@@ -21,7 +21,7 @@ from app.config import get_settings
 from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
-from app.schemas.auth import EmailRequest, EmailVerifyRequest, TokenResponse, UserResponse
+from app.schemas.auth import EmailRequest, EmailVerifyRequest, NameUpdateRequest, TokenResponse, UserResponse
 from app.services import email_auth, mailer, oauth
 from app.services import user as user_service
 from app.utils.auth import create_access_token, decode_access_token
@@ -108,6 +108,13 @@ def _to_user_response(user: User) -> UserResponse:
 @router.get("/me", response_model=UserResponse)
 async def get_me(user: User = Depends(require_user)):
     return _to_user_response(user)
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(data: NameUpdateRequest, user: User = Depends(require_user)):
+    """Set the display name (used for passwordless email accounts with no name)."""
+    updated = await user_service.update_name(get_database(), user.id, data.name.strip())
+    return _to_user_response(updated or user)
 
 
 @router.post("/logout")

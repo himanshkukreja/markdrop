@@ -73,13 +73,6 @@ async def get_document(
 ):
     viewer_id = user.id if user else None
     doc = await doc_service.get_document(db, slug, x_read_password, x_edit_secret, viewer_id)
-    # Record the view for analytics (geo + referrer; never stores raw IP).
-    if doc.id:
-        await analytics.record_event(
-            db, doc.id, doc.owner_id, "view",
-            ip=get_client_ip(request),
-            referrer=request.headers.get("referer"),
-        )
     return DocumentResponse(**_to_response(doc, viewer_id))
 
 
@@ -147,8 +140,8 @@ async def record_click(
     data: EventRequest,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
-    """Record an export-PDF or copy-URL click (called by the viewer's browser)."""
-    result = await doc_service.register_click(db, slug, data.type)
+    """Record a view / export-PDF / copy-URL event (called by the viewer's browser)."""
+    result = await doc_service.register_event(db, slug, data.type)
     if result is None:
         raise HTTPException(status_code=404, detail="Document not found")
     doc_id, owner_id = result

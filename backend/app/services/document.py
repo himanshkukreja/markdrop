@@ -113,8 +113,10 @@ async def get_document(
     edit_secret: str | None = None,
     user_id: str | None = None,
 ) -> Document:
-    # Fetch without incrementing first so we can check password
-    raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
+    # Read-only fetch — NO side effects. Views are counted by a browser beacon
+    # (POST /{slug}/events type=view), so server-side rendering on Vercel does
+    # not inflate the count or poison geo with the SSR server's location.
+    raw = await db["documents"].find_one({"slug": slug})
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
 
@@ -128,13 +130,6 @@ async def get_document(
             if not bcrypt.checkpw(read_password.encode(), raw["read_password_hash"].encode()):
                 raise HTTPException(status_code=403, detail="Incorrect password")
 
-    # Password verified (or not required) — now increment views.
-    # Keep _id so callers can record analytics events against a stable id.
-    raw = await db["documents"].find_one_and_update(
-        {"slug": slug},
-        {"$inc": {"views": 1}},
-        return_document=True,
-    )
     return _doc_from_mongo(raw)
 
 
@@ -273,14 +268,18 @@ async def list_user_documents(
     return docs, total
 
 
-_CLICK_COUNTER = {"export_pdf": "export_pdf_count", "copy_url": "copy_url_count"}
+_EVENT_COUNTER = {
+    "view": "views",
+    "export_pdf": "export_pdf_count",
+    "copy_url": "copy_url_count",
+}
 
 
-async def register_click(
+async def register_event(
     db: AsyncIOMotorDatabase, slug: str, event_type: str
 ) -> tuple[str, str | None] | None:
-    """Bump the click counter for a document. Returns (doc_id, owner_id) or None."""
-    field = _CLICK_COUNTER[event_type]
+    """Bump the counter for an event type. Returns (doc_id, owner_id) or None."""
+    field = _EVENT_COUNTER[event_type]
     raw = await db["documents"].find_one_and_update(
         {"slug": slug},
         {"$inc": {field: 1}},

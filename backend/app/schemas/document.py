@@ -64,7 +64,7 @@ class SlugChangeRequest(BaseModel):
 
 
 class EventRequest(BaseModel):
-    type: Literal["export_pdf", "copy_url"]
+    type: Literal["view", "export_pdf", "copy_url"]
 
 
 class MyDocListItem(BaseModel):

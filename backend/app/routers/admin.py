@@ -23,6 +23,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
@@ -61,10 +62,30 @@ class AdminDocListItem(BaseModel):
     views: int
     is_password_protected: bool
     content_length: int
+    owner_id: str | None = None
+    owner_email: str | None = None
 
 
 class AdminDocListResponse(BaseModel):
     documents: list[AdminDocListItem]
+    total: int
+    page: int
+    pages: int
+
+
+class AdminUserListItem(BaseModel):
+    id: str
+    email: str
+    name: str | None = None
+    picture: str | None = None
+    providers: list[str] = []
+    created_at: datetime
+    last_login_at: datetime | None = None
+    document_count: int = 0
+
+
+class AdminUserListResponse(BaseModel):
+    users: list[AdminUserListItem]
     total: int
     page: int
     pages: int
@@ -122,7 +143,7 @@ async def require_admin(request: Request) -> dict:
     return _verify_token(auth.removeprefix("Bearer ").strip())
 
 
-def _to_list_item(raw: dict) -> AdminDocListItem:
+def _to_list_item(raw: dict, owner_email: str | None = None) -> AdminDocListItem:
     content: str = raw.get("content", "")
     return AdminDocListItem(
         slug=raw["slug"],
@@ -134,7 +155,21 @@ def _to_list_item(raw: dict) -> AdminDocListItem:
         views=raw.get("views", 0),
         is_password_protected=bool(raw.get("read_password_hash")),
         content_length=len(content),
+        owner_id=raw.get("owner_id"),
+        owner_email=owner_email,
     )
+
+
+async def _owner_email_map(db: AsyncIOMotorDatabase, docs: list[dict]) -> dict[str, str]:
+    """Map owner_id → email for the documents that have an owner."""
+    ids = {d["owner_id"] for d in docs if d.get("owner_id")}
+    valid = [ObjectId(i) for i in ids if ObjectId.is_valid(i)]
+    if not valid:
+        return {}
+    out: dict[str, str] = {}
+    async for u in db["users"].find({"_id": {"$in": valid}}, {"email": 1}):
+        out[str(u["_id"])] = u["email"]
+    return out
 
 
 def _to_doc_response(raw: dict) -> dict:
@@ -193,12 +228,62 @@ async def list_all_documents(
         .limit(limit)
     )
     docs = await cursor.to_list(length=limit)
+    owner_map = await _owner_email_map(db, docs)
 
     return AdminDocListResponse(
-        documents=[_to_list_item(d) for d in docs],
+        documents=[_to_list_item(d, owner_map.get(d.get("owner_id"))) for d in docs],
         total=total,
         page=page,
         pages=max(1, math.ceil(total / limit)),
+    )
+
+
+@router.get("/users", response_model=AdminUserListResponse)
+async def list_all_users(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    q: str | None = Query(None),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """List all registered users (newest first), with their document counts."""
+    query: dict = {}
+    if q:
+        query["$or"] = [
+            {"email": {"$regex": q, "$options": "i"}},
+            {"name": {"$regex": q, "$options": "i"}},
+        ]
+
+    total = await db["users"].count_documents(query)
+    skip = (page - 1) * limit
+    users = await (
+        db["users"].find(query).sort("created_at", -1).skip(skip).limit(limit)
+    ).to_list(length=limit)
+
+    # Document counts per user on this page
+    ids = [str(u["_id"]) for u in users]
+    counts: dict[str, int] = {}
+    if ids:
+        async for row in db["documents"].aggregate(
+            [{"$match": {"owner_id": {"$in": ids}}}, {"$group": {"_id": "$owner_id", "n": {"$sum": 1}}}]
+        ):
+            counts[row["_id"]] = row["n"]
+
+    items = [
+        AdminUserListItem(
+            id=str(u["_id"]),
+            email=u["email"],
+            name=u.get("name"),
+            picture=u.get("picture"),
+            providers=u.get("providers", []),
+            created_at=u["created_at"],
+            last_login_at=u.get("last_login_at"),
+            document_count=counts.get(str(u["_id"]), 0),
+        )
+        for u in users
+    ]
+    return AdminUserListResponse(
+        users=items, total=total, page=page, pages=max(1, math.ceil(total / limit))
     )
 
 

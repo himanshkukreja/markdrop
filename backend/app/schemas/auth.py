@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UserResponse(BaseModel):
@@ -25,3 +25,7 @@ class EmailRequest(BaseModel):
 class EmailVerifyRequest(BaseModel):
     email: EmailStr
     code: str
+
+
+class NameUpdateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
