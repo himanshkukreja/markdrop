@@ -67,6 +67,36 @@ class EventRequest(BaseModel):
     type: Literal["view", "export_pdf", "copy_url"]
 
 
+# ── Sync (VS Code extension) ───────────────────────────────────────────────────
+
+
+class SyncCreateRequest(BaseModel):
+    title: str | None = Field(None, max_length=200)
+    content: str = Field(..., min_length=1, max_length=MAX_CONTENT)
+
+
+class SyncPushRequest(BaseModel):
+    title: str | None = Field(None, max_length=200)
+    content: str = Field(..., min_length=1, max_length=MAX_CONTENT)
+    base_rev: int = Field(..., ge=0)
+
+
+class SyncDocResponse(BaseModel):
+    id: str
+    slug: str
+    url: str
+    title: str | None
+    content: str
+    rev: int
+    updated_at: datetime
+
+
+class SyncRevResponse(BaseModel):
+    id: str
+    rev: int
+    updated_at: datetime
+
+
 class MyDocListItem(BaseModel):
     slug: str
     url: str

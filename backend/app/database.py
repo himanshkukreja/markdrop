@@ -40,6 +40,10 @@ async def connect() -> None:
     await db["events"].create_index([("doc_id", 1), ("ts", -1)])
     await db["events"].create_index([("owner_id", 1), ("ts", -1)], sparse=True)
 
+    # API tokens (VS Code extension / sync)
+    await db["api_tokens"].create_index("token_hash", unique=True)
+    await db["api_tokens"].create_index("user_id")
+
 
 async def disconnect() -> None:
     global _client

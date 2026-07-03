@@ -29,3 +29,26 @@ class EmailVerifyRequest(BaseModel):
 
 class NameUpdateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
+
+
+# ── API tokens (VS Code extension / sync) ──────────────────────────────────────
+
+
+class TokenCreateRequest(BaseModel):
+    name: str = Field("API token", max_length=80)
+
+
+class ApiTokenItem(BaseModel):
+    id: str
+    name: str
+    prefix: str
+    created_at: datetime
+    last_used_at: datetime | None = None
+
+
+class ApiTokenCreateResponse(ApiTokenItem):
+    token: str  # raw token — shown only once
+
+
+class ApiTokenListResponse(BaseModel):
+    tokens: list[ApiTokenItem]

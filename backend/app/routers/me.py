@@ -12,8 +12,14 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.database import get_database
 from app.models.user import User
 from app.routers.auth import require_user
+from app.schemas.auth import (
+    ApiTokenCreateResponse,
+    ApiTokenItem,
+    ApiTokenListResponse,
+    TokenCreateRequest,
+)
 from app.schemas.document import MyDocListItem, MyDocListResponse
-from app.services import analytics, document as doc_service
+from app.services import analytics, api_token, document as doc_service
 
 router = APIRouter(prefix="/api/v1/me", tags=["me"])
 
@@ -69,3 +75,47 @@ async def document_analytics(
     if doc_id is None:
         raise HTTPException(status_code=404, detail="Document not found")
     return await analytics.get_analytics(db, doc_id, range)
+
+
+# ── API tokens (for the VS Code extension / sync) ───────────────────────────────
+
+
+def _token_item(rec: dict) -> ApiTokenItem:
+    return ApiTokenItem(
+        id=str(rec["_id"]),
+        name=rec["name"],
+        prefix=rec["prefix"],
+        created_at=rec["created_at"],
+        last_used_at=rec.get("last_used_at"),
+    )
+
+
+@router.post("/tokens", response_model=ApiTokenCreateResponse)
+async def create_api_token(
+    data: TokenCreateRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Create a personal API token (raw value returned once)."""
+    raw, rec = await api_token.create_token(db, user.id, data.name)
+    return ApiTokenCreateResponse(**_token_item(rec).model_dump(), token=raw)
+
+
+@router.get("/tokens", response_model=ApiTokenListResponse)
+async def list_api_tokens(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    recs = await api_token.list_tokens(db, user.id)
+    return ApiTokenListResponse(tokens=[_token_item(r) for r in recs])
+
+
+@router.delete("/tokens/{token_id}", status_code=204)
+async def revoke_api_token(
+    token_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    ok = await api_token.revoke_token(db, user.id, token_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Token not found")

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
+from bson import ObjectId
 from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo.errors import DuplicateKeyError
@@ -36,6 +37,7 @@ def _doc_from_mongo(raw: dict) -> Document:
         owner_id=raw.get("owner_id"),
         export_pdf_count=raw.get("export_pdf_count", 0),
         copy_url_count=raw.get("copy_url_count", 0),
+        rev=raw.get("rev", 1),
     )
 
 
@@ -79,6 +81,7 @@ async def create_document(
             "views": 0,
             "export_pdf_count": 0,
             "copy_url_count": 0,
+            "rev": 1,
             "read_password_hash": read_pwd_hash,
             "owner_id": owner_id,
         }
@@ -167,8 +170,9 @@ async def update_document(
             delta = _EXPIRY_DELTA.get(data.expires_in)
             updates["expires_at"] = (now + delta) if delta else None
 
-    await db["documents"].update_one({"slug": slug}, {"$set": updates})
+    await db["documents"].update_one({"slug": slug}, {"$set": updates, "$inc": {"rev": 1}})
     raw.update(updates)
+    raw["rev"] = raw.get("rev", 1) + 1
     return _doc_from_mongo(raw)
 
 
@@ -303,3 +307,53 @@ async def get_owned_doc_id(
     if raw.get("owner_id") != user_id:
         return None
     return str(raw["_id"])
+
+
+# ── Sync (VS Code extension) — operate by immutable _id, owner-scoped ────────────
+
+
+async def get_owned_document_by_id(
+    db: AsyncIOMotorDatabase, doc_id: str, user_id: str
+) -> Document | None:
+    if not ObjectId.is_valid(doc_id):
+        return None
+    raw = await db["documents"].find_one({"_id": ObjectId(doc_id)})
+    if not raw or raw.get("owner_id") != user_id:
+        return None
+    return _doc_from_mongo(raw)
+
+
+async def sync_push(
+    db: AsyncIOMotorDatabase,
+    doc_id: str,
+    user_id: str,
+    content: str,
+    title: str | None,
+    base_rev: int,
+) -> tuple[str, Document | None]:
+    """Push content with optimistic concurrency.
+
+    Returns ("ok", doc) | ("conflict", current_doc) | ("notfound", None).
+    Only content + title change — password/expiry/slug are left untouched.
+    """
+    if not ObjectId.is_valid(doc_id):
+        return ("notfound", None)
+    raw = await db["documents"].find_one({"_id": ObjectId(doc_id)})
+    if not raw or raw.get("owner_id") != user_id:
+        return ("notfound", None)
+
+    cur_rev = raw.get("rev", 1)
+    if base_rev != cur_rev:
+        return ("conflict", _doc_from_mongo(raw))
+
+    now = datetime.now(timezone.utc)
+    # Compare-and-swap on rev so a concurrent writer can't be clobbered.
+    updated = await db["documents"].find_one_and_update(
+        {"_id": ObjectId(doc_id), "rev": cur_rev},
+        {"$set": {"content": content, "title": title or None, "updated_at": now}, "$inc": {"rev": 1}},
+        return_document=True,
+    )
+    if not updated:
+        fresh = await db["documents"].find_one({"_id": ObjectId(doc_id)})
+        return ("conflict", _doc_from_mongo(fresh))
+    return ("ok", _doc_from_mongo(updated))

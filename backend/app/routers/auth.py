@@ -22,7 +22,7 @@ from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
 from app.schemas.auth import EmailRequest, EmailVerifyRequest, NameUpdateRequest, TokenResponse, UserResponse
-from app.services import email_auth, mailer, oauth
+from app.services import api_token, email_auth, mailer, oauth
 from app.services import user as user_service
 from app.utils.auth import create_access_token, decode_access_token
 
@@ -57,6 +57,20 @@ def _bearer_token(request: Request) -> str | None:
     return None
 
 
+async def _user_id_from_token(token: str) -> str | None:
+    """Resolve a bearer token (API token `mdk_…` OR session JWT) to a user id.
+
+    Never raises — returns None for anything invalid.
+    """
+    if token.startswith(api_token.TOKEN_PREFIX):
+        return await api_token.verify_token(get_database(), token)
+    try:
+        payload = decode_access_token(token)
+    except jwt.InvalidTokenError:
+        return None
+    return payload.get("sub")
+
+
 async def optional_user(request: Request) -> User | None:
     """Return the authenticated user, or None if no/invalid token is present.
 
@@ -66,11 +80,7 @@ async def optional_user(request: Request) -> User | None:
     token = _bearer_token(request)
     if not token:
         return None
-    try:
-        payload = decode_access_token(token)
-    except jwt.InvalidTokenError:
-        return None
-    user_id = payload.get("sub")
+    user_id = await _user_id_from_token(token)
     if not user_id:
         return None
     return await user_service.get_user_by_id(get_database(), user_id)
@@ -81,14 +91,21 @@ async def require_user(request: Request) -> User:
     token = _bearer_token(request)
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required")
-    try:
-        payload = decode_access_token(token)
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Session expired — please log in again")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid session token")
 
-    user = await user_service.get_user_by_id(get_database(), payload.get("sub", ""))
+    if token.startswith(api_token.TOKEN_PREFIX):
+        user_id = await api_token.verify_token(get_database(), token)
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid API token")
+    else:
+        try:
+            payload = decode_access_token(token)
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Session expired — please log in again")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid session token")
+        user_id = payload.get("sub", "")
+
+    user = await user_service.get_user_by_id(get_database(), user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="User no longer exists")
     return user
