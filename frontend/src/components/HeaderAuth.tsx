@@ -58,6 +58,9 @@ export default function HeaderAuth() {
           <a href="/dashboard" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors">
             Dashboard
           </a>
+          <a href="/settings/tokens" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors">
+            API tokens
+          </a>
           <button
             onClick={() => { setOpen(false); logout(); }}
             className="block w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors"

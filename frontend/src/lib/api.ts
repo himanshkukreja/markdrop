@@ -232,6 +232,39 @@ export async function emailVerifyOtp(email: string, code: string): Promise<{ tok
   return res.json();
 }
 
+// ── API tokens (VS Code extension / sync) ──────────────────────────────────────
+
+export interface ApiTokenItem {
+  id: string;
+  name: string;
+  prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+export async function listApiTokens(): Promise<ApiTokenItem[]> {
+  const res = await fetch(`${API_BASE}/api/v1/me/tokens`, { headers: { ...authHeaders() }, cache: "no-store" });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to load tokens");
+  return (await res.json()).tokens;
+}
+
+export async function createApiToken(name: string): Promise<ApiTokenItem & { token: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/me/tokens`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ name }),
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to create token");
+  return res.json();
+}
+
+export async function revokeApiToken(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/me/tokens/${id}`, { method: "DELETE", headers: { ...authHeaders() } });
+  if (!res.ok && res.status !== 204) throw new Error("Failed to revoke token");
+}
+
 export async function updateMyName(name: string): Promise<MeUser> {
   const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
     method: "PATCH",
