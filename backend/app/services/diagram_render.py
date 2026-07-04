@@ -41,15 +41,20 @@ MAX_DECODED = 20000    # bytes of diagram text we're willing to render
 
 
 def encode_diagram(text: str) -> str:
-    """Compress + urlsafe-base64 a diagram block for embedding in the image URL."""
-    return base64.urlsafe_b64encode(zlib.compress(text.encode("utf-8"), 9)).decode("ascii")
+    """Compress + urlsafe-base64 a diagram block for embedding in the image URL.
+
+    Padding ``=`` is stripped so the token is clean in a URL query string.
+    """
+    packed = base64.urlsafe_b64encode(zlib.compress(text.encode("utf-8"), 9))
+    return packed.rstrip(b"=").decode("ascii")
 
 
 def decode_diagram(token: str) -> str:
     """Inverse of :func:`encode_diagram`, with hard size limits (raises ValueError)."""
     if len(token) > MAX_ENCODED:
         raise ValueError("diagram token too large")
-    raw = base64.urlsafe_b64decode(token.encode("ascii"))
+    padding = "=" * (-len(token) % 4)  # restore stripped base64 padding
+    raw = base64.urlsafe_b64decode(token.encode("ascii") + padding.encode("ascii"))
     dec = zlib.decompressobj()
     text = dec.decompress(raw, MAX_DECODED)
     if dec.unconsumed_tail:

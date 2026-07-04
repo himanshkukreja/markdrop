@@ -89,25 +89,44 @@ def transform_diagrams(markdown: str, image_base_url: str | None) -> str:
     out: list[str] = []
     i = 0
     n = len(lines)
-    in_fence = False
+    def _is_diagram(block: list[str]) -> bool:
+        return sum(1 for b in block if any(ch in _DIAGRAM_GLYPHS for ch in b)) >= 2
+
     while i < n:
         line = lines[i]
         if _is_fence(line):
-            in_fence = not in_fence
+            # A fenced block: capture its body up to the closing fence. Diagrams
+            # are commonly *already* fenced (that's how they render monospaced in
+            # a normal markdown preview) — those still break in Docs, so convert
+            # the whole fenced block to an image too. Real code fences (```python
+            # etc.) almost never contain box glyphs, so they're left untouched.
+            opening = line
+            body: list[str] = []
+            i += 1
+            while i < n and not _is_fence(lines[i]):
+                body.append(lines[i])
+                i += 1
+            closing = lines[i] if i < n else None
+            if i < n:
+                i += 1  # consume the closing fence
+            if _is_diagram(body):
+                out.append(_render_diagram_block(body, image_base_url))
+            else:
+                out.append(opening)
+                out.extend(body)
+                if closing is not None:
+                    out.append(closing)
+            continue
+        if line.strip() == "":
             out.append(line)
             i += 1
             continue
-        if in_fence or line.strip() == "":
-            out.append(line)
-            i += 1
-            continue
-        # Gather one blank-line-delimited block of non-fenced text.
+        # Gather one blank-line-delimited block of unfenced text.
         block: list[str] = []
         while i < n and lines[i].strip() != "" and not _is_fence(lines[i]):
             block.append(lines[i])
             i += 1
-        diagram_lines = sum(1 for b in block if any(ch in _DIAGRAM_GLYPHS for ch in b))
-        if diagram_lines >= 2:
+        if _is_diagram(block):
             out.append(_render_diagram_block(block, image_base_url))
         else:
             out.extend(block)
