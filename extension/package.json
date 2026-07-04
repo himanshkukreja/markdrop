@@ -3,7 +3,7 @@
   "displayName": "Markdrop Sync",
   "description": "Publish and sync your Markdown files to Markdrop (markdrop.in) — no more copy-paste.",
   "version": "0.2.0",
-  "publisher": "markdrop",
+  "publisher": "HimanshuKukreja",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.85.0"
