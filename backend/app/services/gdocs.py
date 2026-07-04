@@ -30,16 +30,17 @@ MD_MIME = "text/markdown"
 _FIELDS = "id,name,webViewLink"
 
 
-# Box-drawing / arrow glyphs that signal an ASCII diagram. When several lines of
-# a block carry these, the block is a flow chart / sequence diagram whose meaning
-# lives entirely in its column alignment.
+# Box-drawing LINE glyphs that signal a real ASCII diagram. Detection keys ONLY
+# on these — they essentially never occur in prose or markdown tables (which use
+# the ASCII pipe ``|`` U+007C, not the box ``│`` U+2502). Arrows/markers (→ ▶ ●)
+# are deliberately excluded: they show up in ordinary text ("query → result"), so
+# using them for detection wrongly converts paragraphs/blockquotes into images.
+# (The renderer still draws arrows fine — they just don't *trigger* a diagram.)
 _DIAGRAM_GLYPHS = frozenset(
     "─│┌┐└┘├┤┬┴┼"          # light box drawing
     "━┃┏┓┗┛┣┫┳┻╋"          # heavy box drawing
     "═║╔╗╚╝╠╣╦╩╬"          # double box drawing
     "╭╮╯╰"                  # rounded corners
-    "▶◀▲▼►◄◆●○◦■□▪▫"        # nodes / markers
-    "→←↑↓↔↕⟶⟵⇒⇐⇔"          # arrows
 )
 
 

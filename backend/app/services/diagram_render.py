@@ -22,12 +22,18 @@ from PIL import Image, ImageDraw, ImageFont
 
 _FONT_PATH = Path(__file__).resolve().parent.parent / "assets" / "fonts" / "DejaVuSansMono.ttf"
 
-# Rendered at 2× for a crisp result inside Google Docs (it downscales cleanly).
+# Rendered large for crisp glyphs, then downscaled to fit the Doc page width.
 _FONT_SIZE = 28
 _PADDING = 20
 _LINE_SPACING = 6
 _FG = (32, 33, 36)         # near-black, matches Docs body text
 _BG = (255, 255, 255)      # opaque white — Docs has no transparency benefit here
+
+# Google embeds the PNG at its pixel width; a portrait page's content column is
+# only ~624px wide (≈468pt @ 96dpi), so anything wider overflows the page. Cap
+# the final width (supersampled downscale keeps text crisp) so diagrams always
+# fit inside the page bounds.
+MAX_IMG_WIDTH = 600
 
 # Guard rails so a pathological document can't ask us to render a huge canvas.
 MAX_LINES = 400
@@ -101,6 +107,12 @@ def render_diagram_png(text: str) -> bytes:
                 draw.text((x, y), ch, font=font, fill=_FG)
             x += char_w
         y += line_h
+
+    # Downscale to the page-safe width so the image never overflows a portrait
+    # Doc page. LANCZOS over the large render keeps the shrunk text sharp.
+    if img.width > MAX_IMG_WIDTH:
+        new_h = max(1, round(img.height * MAX_IMG_WIDTH / img.width))
+        img = img.resize((MAX_IMG_WIDTH, new_h), Image.LANCZOS)
 
     buf = BytesIO()
     img.save(buf, format="PNG", optimize=True)
