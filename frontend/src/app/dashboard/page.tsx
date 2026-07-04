@@ -197,7 +197,7 @@ export default function DashboardPage() {
           <h1 className="text-xl font-bold">Your documents</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{docs.length} document{docs.length === 1 ? "" : "s"}</p>
         </div>
-        <a href="/" className="text-sm px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors">+ New document</a>
+        <a href="/new" className="text-sm px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors">+ New document</a>
       </div>
 
       {loading ? (

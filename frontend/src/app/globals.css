@@ -6,6 +6,110 @@ html {
   font-size: 17px;
 }
 
+/* ── Landing page animations ───────────────────────────────────────────────── */
+
+@keyframes md-fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes md-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+@keyframes md-blink {
+  0%, 49%  { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* Packet travelling the direct P2P path (left peer → right peer) */
+@keyframes md-packet {
+  0%   { left: 0%;   opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+/* Slow-drifting radial glow behind the hero */
+@keyframes md-glow-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
+  50%      { transform: translate(4%, -6%) scale(1.08); opacity: 0.8; }
+}
+
+/* Progress bar fill loop for the P2P / sync demos */
+@keyframes md-progress {
+  0%   { width: 0%; }
+  90%  { width: 100%; }
+  100% { width: 100%; }
+}
+
+/* On-scroll reveal: element starts hidden, .md-in adds the animation.
+   IntersectionObserver toggles .md-in when the section enters the viewport. */
+.md-reveal {
+  opacity: 0;
+}
+.md-reveal.md-in {
+  animation: md-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.md-float       { animation: md-float 6s ease-in-out infinite; }
+.md-caret       { animation: md-blink 1.1s step-end infinite; }
+.md-glow        { animation: md-glow-drift 14s ease-in-out infinite; }
+.md-packet-anim { animation: md-packet 2.6s linear infinite; }
+.md-progress-anim { animation: md-progress 2.6s ease-in-out infinite; }
+
+/* Respect users who prefer no motion: show final state, no looping/entrance. */
+@media (prefers-reduced-motion: reduce) {
+  .md-reveal { opacity: 1; }
+  .md-reveal.md-in,
+  .md-float,
+  .md-caret,
+  .md-glow,
+  .md-packet-anim,
+  .md-progress-anim {
+    animation: none !important;
+  }
+  /* Park the reduced-motion packet mid-path so the diagram still reads. */
+  .md-packet-anim { left: 50% !important; opacity: 1 !important; }
+  .md-progress-anim { width: 100% !important; }
+  .md-aurora, .md-aurora-2, .md-gradient-text { animation: none !important; }
+}
+
+/* ── Landing visual helpers ────────────────────────────────────────────────── */
+
+/* Gradient text (blue → sky → indigo) */
+.md-gradient-text {
+  background-image: linear-gradient(100deg, #60a5fa 0%, #38bdf8 35%, #3b82f6 70%, #818cf8 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: md-shimmer 6s ease-in-out infinite;
+}
+
+@keyframes md-shimmer {
+  0%, 100% { background-position: 0% center; }
+  50%      { background-position: 100% center; }
+}
+
+/* Aurora blobs that slowly drift behind the page */
+@keyframes md-aurora-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(6%, -4%) scale(1.12); }
+  66%      { transform: translate(-5%, 5%) scale(0.95); }
+}
+.md-aurora   { animation: md-aurora-drift 22s ease-in-out infinite; }
+.md-aurora-2 { animation: md-aurora-drift 28s ease-in-out infinite reverse; }
+
+/* Faint dotted grid overlay, fades out toward the edges */
+.md-grid {
+  background-image: radial-gradient(circle, rgba(59,130,246,0.10) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 40%, transparent 100%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 40%, transparent 100%);
+}
+
 /* Class-based dark mode: applies dark: utilities when .dark is on any ancestor.
    Using .dark & (parent combinator) instead of :where() so dark: variants have
    specificity (0,2,0) and reliably override base utilities like bg-white on

@@ -346,7 +346,7 @@ export default function AdminApp() {
           </button>
 
           <div className="flex items-center gap-2">
-            <span className="hidden sm:block text-xs font-mono text-gray-400 dark:text-gray-500 vscode:text-[#6e6e6e]">
+            <span className="hidden sm:block text-xs font-mono text-gray-400 dark:text-gray-500 vscode:text-[#6a6a6a]">
               {editSlug}
             </span>
 
@@ -598,7 +598,7 @@ export default function AdminApp() {
                     <td className="px-4 py-3 max-w-xs">
                       <p className="text-xs text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] truncate">
                         {doc.title ?? (
-                          <span className="italic text-gray-400 dark:text-gray-600 vscode:text-[#6e6e6e]">
+                          <span className="italic text-gray-400 dark:text-gray-600 vscode:text-[#6a6a6a]">
                             Untitled
                           </span>
                         )}
@@ -649,7 +649,7 @@ export default function AdminApp() {
                               })}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400 dark:text-gray-600 vscode:text-[#6e6e6e]">
+                        <span className="text-xs text-gray-400 dark:text-gray-600 vscode:text-[#6a6a6a]">
                           Never
                         </span>
                       )}
@@ -657,7 +657,7 @@ export default function AdminApp() {
 
                     {/* Chars */}
                     <td className="hidden lg:table-cell px-4 py-3 text-right">
-                      <span className="text-xs tabular-nums text-gray-400 dark:text-gray-600 vscode:text-[#6e6e6e]">
+                      <span className="text-xs tabular-nums text-gray-400 dark:text-gray-600 vscode:text-[#6a6a6a]">
                         {doc.content_length.toLocaleString()}
                       </span>
                     </td>

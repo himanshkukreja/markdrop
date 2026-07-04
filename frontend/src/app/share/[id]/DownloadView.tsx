@@ -304,7 +304,7 @@ export default function DownloadView({ roomId }: { roomId: string }) {
 
             {/* Trust note */}
             {phase === "ready" && (
-              <p className="text-center text-xs text-gray-400 dark:text-gray-500 vscode:text-[#6e6e6e]">
+              <p className="text-center text-xs text-gray-400 dark:text-gray-500 vscode:text-[#6a6a6a]">
                 🔒 Encrypted peer-to-peer · no file touches Markdrop servers
               </p>
             )}

@@ -558,4 +558,3 @@ markdrop/
 ---
 
 *See also: [README.md](README.md) · [SCALING.md](SCALING.md)*
-

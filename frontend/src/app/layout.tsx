@@ -7,8 +7,9 @@ import NamePrompt from "@/components/NamePrompt";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
-  title: "Markdrop — Instant Markdown Sharing",
-  description: "Paste markdown, get a shareable link. No login required.",
+  title: "Markdrop — Publish Markdown, share files, sync from VS Code",
+  description:
+    "Paste markdown and get a shareable link instantly — no login required. Send any file peer-to-peer, end-to-end encrypted, and keep docs in sync straight from VS Code.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -46,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </svg>
                 Share file
               </a>
-              <a href="/" className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] hover:text-gray-800 dark:hover:text-gray-200 vscode:hover:text-[#d4d4d4] transition-colors">
+              <a href="/new" className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] hover:text-gray-800 dark:hover:text-gray-200 vscode:hover:text-[#d4d4d4] transition-colors">
                 + New
               </a>
               <ThemeToggle />

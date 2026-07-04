@@ -359,7 +359,7 @@ export default function DocumentView({
     setSaveError("");
     try {
       await deleteDocument(slug, secretInput);
-      router.push("/");
+      router.push("/new");
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Failed to delete");
       setDeleting(false);
