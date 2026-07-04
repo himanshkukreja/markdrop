@@ -177,6 +177,9 @@ async def export_document(
         if result is None:
             # Phase 1 (or recreate after deletion).
             result = await gdocs.create_doc(access_token, title, markdown)
+    except gdocs.ReconnectRequired as exc:
+        # e.g. the user connected without granting the Drive scope.
+        raise HTTPException(status_code=428, detail={"error": "reconnect_required", "message": str(exc)})
     except gdocs.GoogleDocsError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 

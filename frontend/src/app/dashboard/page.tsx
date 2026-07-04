@@ -127,6 +127,7 @@ export default function DashboardPage() {
   const [gStatus, setGStatus] = useState<GoogleStatus | null>(null);
   const [exportBusy, setExportBusy] = useState<string | null>(null);   // slug in progress
   const [exportError, setExportError] = useState<string | null>(null);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
   const [gNotice, setGNotice] = useState<string | null>(null);
   const [exported, setExported] = useState<{ title: string; url: string; updated: boolean } | null>(null);
   const [disconnectBusy, setDisconnectBusy] = useState(false);
@@ -180,6 +181,7 @@ export default function DashboardPage() {
     const wasLinked = !!doc.google_doc_url;
     setExportBusy(doc.slug);
     setExportError(null);
+    setNeedsReconnect(false);
     setExported(null);
     try {
       const result = await exportToGoogleDocs(doc.id);
@@ -195,12 +197,13 @@ export default function DashboardPage() {
         setExported({ title: doc.title || doc.slug, url: result.google_doc_url, updated: wasLinked });
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Export failed";
-      if (msg === "RECONNECT_REQUIRED") {
-        setGStatus((s) => (s ? { ...s, connected: false } : s));
-        setExportError("Your Google connection expired — please reconnect.");
+      if (err instanceof Error && err.name === "ReconnectRequired") {
+        // Missing scope / expired grant — show the server's message and offer
+        // a Reconnect button rather than a dead-end error.
+        setNeedsReconnect(true);
+        setExportError(err.message);
       } else {
-        setExportError(msg);
+        setExportError(err instanceof Error ? err.message : "Export failed");
       }
     } finally {
       setExportBusy(null);
@@ -292,9 +295,14 @@ export default function DashboardPage() {
         </div>
       )}
       {exportError && (
-        <div className="mb-4 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-600 dark:text-red-400 flex items-center justify-between gap-3">
+        <div className="mb-4 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-600 dark:text-red-400 flex items-center justify-between gap-3 flex-wrap">
           <span>{exportError}</span>
-          <button onClick={() => setExportError(null)} className="text-red-400 hover:text-red-600 shrink-0">✕</button>
+          <div className="flex items-center gap-3 shrink-0">
+            {needsReconnect && (
+              <button onClick={handleConnect} className="font-medium underline hover:no-underline">Reconnect Google Docs →</button>
+            )}
+            <button onClick={() => { setExportError(null); setNeedsReconnect(false); }} className="text-red-400 hover:text-red-600">✕</button>
+          </div>
         </div>
       )}
       {exported && (

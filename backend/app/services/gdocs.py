@@ -96,7 +96,20 @@ class GoogleDocsError(RuntimeError):
 
 
 class ReconnectRequired(RuntimeError):
-    """The stored refresh token is missing or was revoked — user must reconnect."""
+    """The stored refresh token is missing/revoked, or the granted scopes are
+    insufficient — either way the user must reconnect (and approve Drive)."""
+
+
+def _raise_if_insufficient_scope(resp: httpx.Response) -> None:
+    """A 403 ``insufficientPermissions`` means the user connected but didn't grant
+    the Drive scope. That's fixable only by reconnecting, so surface it as a
+    :class:`ReconnectRequired` with an actionable message rather than a raw 502.
+    """
+    if resp.status_code == 403 and "insufficient" in resp.text.lower():
+        raise ReconnectRequired(
+            "Markdrop wasn't granted permission to create Google Docs. Please "
+            "reconnect and approve the Google Drive permission when prompted."
+        )
 
 
 async def get_access_token(db: AsyncIOMotorDatabase, user: User) -> str:
@@ -144,6 +157,7 @@ async def create_doc(access_token: str, title: str, markdown: str) -> dict:
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": content_type}
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(DRIVE_UPLOAD_URL, params=params, headers=headers, content=body)
+    _raise_if_insufficient_scope(resp)
     if resp.status_code >= 400:
         raise GoogleDocsError(f"Drive create failed ({resp.status_code}): {resp.text[:300]}")
     return resp.json()
@@ -165,6 +179,7 @@ async def update_doc(access_token: str, file_id: str, title: str, markdown: str)
         )
     if resp.status_code == 404:
         return None
+    _raise_if_insufficient_scope(resp)
     if resp.status_code >= 400:
         raise GoogleDocsError(f"Drive update failed ({resp.status_code}): {resp.text[:300]}")
     result = resp.json()

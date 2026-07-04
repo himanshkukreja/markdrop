@@ -402,7 +402,17 @@ export async function exportToGoogleDocs(docId: string): Promise<GoogleExportRes
     method: "POST",
     headers: { ...authHeaders() },
   });
-  if (res.status === 428) throw new Error("RECONNECT_REQUIRED");
+  if (res.status === 428) {
+    // Reconnect required — carry the server's actionable message (e.g. missing
+    // Drive scope) so the UI can show it verbatim and offer a Reconnect button.
+    const body = await res.json().catch(() => null);
+    const message =
+      (body && typeof body.detail === "object" && body.detail?.message) ||
+      "Your Google connection needs to be renewed. Please reconnect.";
+    const err = new Error(message);
+    err.name = "ReconnectRequired";
+    throw err;
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to export to Google Docs" }));
     throw new Error(typeof err.detail === "string" ? err.detail : "Failed to export to Google Docs");
