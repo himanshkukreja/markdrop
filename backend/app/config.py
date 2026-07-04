@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:8080/api/v1/auth/google/callback"
 
+    # Google Docs integration — a SEPARATE, opt-in OAuth flow (incremental auth)
+    # that additionally requests the `drive.file` scope + offline access so we can
+    # create/update Google Docs on the user's behalf. Register this redirect URI
+    # in the same OAuth client. The encryption key protects refresh tokens at rest
+    # (generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())").
+    google_docs_redirect_uri: str = "http://localhost:8080/api/v1/google/callback"
+    token_encryption_key: str = ""  # Fernet key; REQUIRED for Google Docs in prod
+
     # Passwordless email login via Resend (Phase 2)
     resend_api_key: str = ""
     email_from: str = "login@markdrop.in"

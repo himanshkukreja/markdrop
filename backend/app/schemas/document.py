@@ -104,6 +104,7 @@ class SyncRevResponse(BaseModel):
 
 
 class MyDocListItem(BaseModel):
+    id: str
     slug: str
     url: str
     title: str | None
@@ -115,6 +116,9 @@ class MyDocListItem(BaseModel):
     export_pdf_count: int = 0
     copy_url_count: int = 0
     is_password_protected: bool = False
+    # Google Docs export state
+    google_doc_url: str | None = None
+    google_doc_stale: bool = False  # True when the doc changed since last export
 
 
 class MyDocListResponse(BaseModel):

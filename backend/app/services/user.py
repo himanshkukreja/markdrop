@@ -19,6 +19,7 @@ def _user_from_mongo(raw: dict) -> User:
         created_at=raw["created_at"],
         updated_at=raw["updated_at"],
         last_login_at=raw.get("last_login_at"),
+        google_refresh_token_enc=raw.get("google_refresh_token_enc"),
     )
 
 
@@ -33,6 +34,18 @@ async def update_name(db: AsyncIOMotorDatabase, user_id: str, name: str) -> User
         return_document=True,
     )
     return _user_from_mongo(raw) if raw else None
+
+
+async def set_google_refresh_token(
+    db: AsyncIOMotorDatabase, user_id: str, token_enc: str | None
+) -> None:
+    """Store (or clear, with None) the encrypted Google refresh token."""
+    if not ObjectId.is_valid(user_id):
+        return
+    await db["users"].update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"google_refresh_token_enc": token_enc, "updated_at": datetime.now(timezone.utc)}},
+    )
 
 
 async def get_user_by_id(db: AsyncIOMotorDatabase, user_id: str) -> User | None:

@@ -12,6 +12,7 @@ from app.limiter import limiter
 from app.routers.admin import router as admin_router
 from app.routers.auth import router as auth_router
 from app.routers.documents import router as documents_router
+from app.routers.google import router as google_router
 from app.routers.me import router as me_router
 from app.routers.share import router as share_router
 from app.routers.sync import router as sync_router
@@ -49,6 +50,7 @@ app.add_middleware(SlowAPIMiddleware)
 # Routers
 app.include_router(documents_router)
 app.include_router(share_router)
+app.include_router(google_router)
 app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(me_router)

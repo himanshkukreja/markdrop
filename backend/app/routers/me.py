@@ -33,6 +33,7 @@ def get_db() -> AsyncIOMotorDatabase:
 
 def _to_list_item(doc) -> MyDocListItem:
     return MyDocListItem(
+        id=doc.id,
         slug=doc.slug,
         url=f"{BASE_URL}/{doc.slug}",
         title=doc.title,
@@ -44,6 +45,10 @@ def _to_list_item(doc) -> MyDocListItem:
         export_pdf_count=doc.export_pdf_count,
         copy_url_count=doc.copy_url_count,
         is_password_protected=bool(doc.read_password_hash),
+        google_doc_url=doc.google_doc_url,
+        google_doc_stale=bool(
+            doc.google_doc_id and (doc.google_doc_synced_rev or 0) < doc.rev
+        ),
     )
 
 

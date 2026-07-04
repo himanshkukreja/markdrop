@@ -40,6 +40,15 @@ const FEATURES: Feature[] = [
     ),
   },
   {
+    title: "Export to Google Docs",
+    desc: "Connect your Google account and turn any markdown document into a fully-formatted Google Doc in one click — headings, tables, lists and code included. Edit later and push the update to the same Doc.",
+    href: "/dashboard",
+    cta: "Export a document",
+    icon: (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+    ),
+  },
+  {
     title: "Accounts & analytics",
     desc: "Optional passwordless login unlocks a dashboard of all your docs, view counts, and geographic analytics. Everything works fully without an account too.",
     href: "/dashboard",
@@ -57,6 +66,7 @@ const CHIPS = [
   "Live preview / split view",
   "Syntax highlighting",
   "Export to PDF",
+  "Export to Google Docs",
   "VS Code & dark themes",
   "View counts",
   "Edit & delete via secret",
@@ -68,7 +78,7 @@ export default function FeatureGrid() {
     <section className="py-16 sm:py-20">
       <Reveal className="text-center max-w-2xl mx-auto">
         <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
-          One tool, four <span className="md-gradient-text">superpowers</span>
+          One tool, five <span className="md-gradient-text">superpowers</span>
         </h2>
         <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0]">
           Markdrop started as a markdown pastebin and grew into a full sharing suite — all still no-login by default.

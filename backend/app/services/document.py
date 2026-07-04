@@ -38,6 +38,10 @@ def _doc_from_mongo(raw: dict) -> Document:
         export_pdf_count=raw.get("export_pdf_count", 0),
         copy_url_count=raw.get("copy_url_count", 0),
         rev=raw.get("rev", 1),
+        google_doc_id=raw.get("google_doc_id"),
+        google_doc_url=raw.get("google_doc_url"),
+        google_doc_synced_rev=raw.get("google_doc_synced_rev"),
+        google_doc_synced_at=raw.get("google_doc_synced_at"),
     )
 
 
@@ -284,8 +288,10 @@ async def list_user_documents(
         ]
     total = await db["documents"].count_documents(query)
     skip = (page - 1) * limit
+    # Include _id so the owner can act on the document by its stable id
+    # (e.g. the Google Docs export endpoint, which keys on _id like sync does).
     cursor = (
-        db["documents"].find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
+        db["documents"].find(query).sort("created_at", -1).skip(skip).limit(limit)
     )
     docs = [_doc_from_mongo(d) for d in await cursor.to_list(length=limit)]
     return docs, total
@@ -366,6 +372,36 @@ async def get_owned_document_by_id(
     if not raw or raw.get("owner_id") != user_id:
         return None
     return _doc_from_mongo(raw)
+
+
+async def set_google_doc_link(
+    db: AsyncIOMotorDatabase,
+    doc_id: str,
+    user_id: str,
+    *,
+    google_doc_id: str,
+    google_doc_url: str | None,
+    synced_rev: int,
+) -> Document | None:
+    """Record which Google Doc a document is exported to and at what rev.
+
+    Owner-scoped: returns None if the document isn't owned by ``user_id``.
+    """
+    if not ObjectId.is_valid(doc_id):
+        return None
+    updated = await db["documents"].find_one_and_update(
+        {"_id": ObjectId(doc_id), "owner_id": user_id},
+        {
+            "$set": {
+                "google_doc_id": google_doc_id,
+                "google_doc_url": google_doc_url,
+                "google_doc_synced_rev": synced_rev,
+                "google_doc_synced_at": datetime.now(timezone.utc),
+            }
+        },
+        return_document=True,
+    )
+    return _doc_from_mongo(updated) if updated else None
 
 
 async def sync_push(

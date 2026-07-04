@@ -295,6 +295,7 @@ export async function logoutRequest(): Promise<void> {
 // ── Dashboard: my documents + analytics ────────────────────────────────────────
 
 export interface MyDocListItem {
+  id: string;
   slug: string;
   url: string;
   title: string | null;
@@ -306,6 +307,8 @@ export interface MyDocListItem {
   export_pdf_count: number;
   copy_url_count: number;
   is_password_protected: boolean;
+  google_doc_url?: string | null;
+  google_doc_stale?: boolean;
 }
 
 export interface MyDocListResponse {
@@ -342,6 +345,68 @@ export async function getAnalytics(slug: string, range: "7d" | "30d" | "all" = "
   });
   if (res.status === 401) throw new Error("UNAUTHORIZED");
   if (!res.ok) throw new Error("Failed to load analytics");
+  return res.json();
+}
+
+// ── Google Docs integration ─────────────────────────────────────────────────────
+
+export interface GoogleStatus {
+  connected: boolean;
+  configured: boolean;
+}
+
+/** Whether this account has connected Google Docs (and the server supports it). */
+export async function getGoogleDocsStatus(): Promise<GoogleStatus> {
+  const res = await fetch(`${API_BASE}/api/v1/google/status`, {
+    headers: { ...authHeaders() },
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to load Google status");
+  return res.json();
+}
+
+/** Start the opt-in connect flow: fetch the consent URL, then redirect to it. */
+export async function connectGoogleDocs(next = "/dashboard"): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/google/connect?next=${encodeURIComponent(next)}`, {
+    headers: { ...authHeaders() },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Could not start Google connect" }));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Could not start Google connect");
+  }
+  const { auth_url } = await res.json();
+  window.location.href = auth_url;
+}
+
+export async function disconnectGoogleDocs(): Promise<GoogleStatus> {
+  const res = await fetch(`${API_BASE}/api/v1/google/disconnect`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) throw new Error("Failed to disconnect Google");
+  return res.json();
+}
+
+export interface GoogleExportResult {
+  google_doc_id: string;
+  google_doc_url: string | null;
+  synced_rev: number | null;
+  rev: number;
+}
+
+/** Create the Google Doc (first call) or refresh it from current content. */
+export async function exportToGoogleDocs(docId: string): Promise<GoogleExportResult> {
+  const res = await fetch(`${API_BASE}/api/v1/google/documents/${docId}/export`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  if (res.status === 428) throw new Error("RECONNECT_REQUIRED");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to export to Google Docs" }));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Failed to export to Google Docs");
+  }
   return res.json();
 }
 

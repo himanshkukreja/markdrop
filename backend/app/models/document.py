@@ -17,5 +17,11 @@ class Document:
     export_pdf_count: int = 0
     copy_url_count: int = 0
     rev: int = 1  # bumped on every content change; drives sync concurrency
+    # Google Docs export link (optional). synced_rev records the doc `rev` that
+    # was last pushed to Google, so the UI can tell when the Doc is stale.
+    google_doc_id: str | None = None
+    google_doc_url: str | None = None
+    google_doc_synced_rev: int | None = None
+    google_doc_synced_at: datetime | None = None
     id: str | None = None  # str(_id); populated when the query includes _id
 

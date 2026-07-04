@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   listMyDocuments, getAnalytics, deleteDocument, changeSlug,
-  MyDocListItem, Analytics,
+  getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs,
+  MyDocListItem, Analytics, GoogleStatus,
 } from "@/lib/api";
 import Modal from "@/components/Modal";
 
@@ -122,6 +123,13 @@ export default function DashboardPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
+  // Google Docs integration
+  const [gStatus, setGStatus] = useState<GoogleStatus | null>(null);
+  const [exportBusy, setExportBusy] = useState<string | null>(null);   // slug in progress
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [gNotice, setGNotice] = useState<string | null>(null);
+  const [exported, setExported] = useState<{ title: string; url: string; updated: boolean } | null>(null);
+
   // Modal state
   const [renameFor, setRenameFor] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -145,7 +153,65 @@ export default function DashboardPage() {
     if (authLoading) return;
     if (!user) { router.replace("/login?next=/dashboard"); return; }
     load();
+    getGoogleDocsStatus().then(setGStatus).catch(() => {});
   }, [authLoading, user, router, load]);
+
+  // Surface the result of the Google connect redirect (?gdocs=…).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const g = params.get("gdocs");
+    if (!g) return;
+    const messages: Record<string, string> = {
+      connected: "Google Docs connected. You can now export documents.",
+      cancelled: "Google connection was cancelled.",
+      failed: "Could not connect to Google. Please try again.",
+      state_error: "Connection expired. Please try again.",
+      no_refresh_token: "Google didn't return access. Try again and approve all prompts.",
+    };
+    setGNotice(messages[g] ?? null);
+    if (g === "connected") getGoogleDocsStatus().then(setGStatus).catch(() => {});
+    // Clean the URL so a refresh doesn't re-show the notice.
+    window.history.replaceState({}, "", "/dashboard");
+  }, []);
+
+  async function handleExport(doc: MyDocListItem) {
+    const wasLinked = !!doc.google_doc_url;
+    setExportBusy(doc.slug);
+    setExportError(null);
+    setExported(null);
+    try {
+      const result = await exportToGoogleDocs(doc.id);
+      // Reflect the new/updated link locally without a full reload.
+      setDocs((ds) => ds.map((d) =>
+        d.id === doc.id
+          ? { ...d, google_doc_url: result.google_doc_url, google_doc_stale: false }
+          : d
+      ));
+      // Show a success banner with a direct link. We don't auto-open a new tab:
+      // window.open() after an await is blocked by popup blockers (esp. Safari).
+      if (result.google_doc_url) {
+        setExported({ title: doc.title || doc.slug, url: result.google_doc_url, updated: wasLinked });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Export failed";
+      if (msg === "RECONNECT_REQUIRED") {
+        setGStatus((s) => (s ? { ...s, connected: false } : s));
+        setExportError("Your Google connection expired — please reconnect.");
+      } else {
+        setExportError(msg);
+      }
+    } finally {
+      setExportBusy(null);
+    }
+  }
+
+  async function handleConnect() {
+    try {
+      await connectGoogleDocs("/dashboard");
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Could not start Google connect");
+    }
+  }
 
   function copyUrl(url: string, slug: string) {
     navigator.clipboard.writeText(url);
@@ -200,6 +266,41 @@ export default function DashboardPage() {
         <a href="/new" className="text-sm px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors">+ New document</a>
       </div>
 
+      {gNotice && (
+        <div className="mb-4 rounded-lg border border-blue-200 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 text-sm text-blue-700 dark:text-blue-300 flex items-center justify-between gap-3">
+          <span>{gNotice}</span>
+          <button onClick={() => setGNotice(null)} className="text-blue-400 hover:text-blue-600 shrink-0">✕</button>
+        </div>
+      )}
+      {exportError && (
+        <div className="mb-4 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-600 dark:text-red-400 flex items-center justify-between gap-3">
+          <span>{exportError}</span>
+          <button onClick={() => setExportError(null)} className="text-red-400 hover:text-red-600 shrink-0">✕</button>
+        </div>
+      )}
+      {exported && (
+        <div className="mb-4 rounded-lg border border-green-200 dark:border-green-900/60 bg-green-50 dark:bg-green-950/30 px-3 py-2.5 text-sm text-green-700 dark:text-green-300 flex items-center justify-between gap-3 flex-wrap">
+          <span>✅ <span className="font-medium">{exported.title}</span> {exported.updated ? "updated in" : "exported to"} Google Docs.</span>
+          <div className="flex items-center gap-3 shrink-0">
+            <a href={exported.url} target="_blank" rel="noopener noreferrer" className="font-medium underline hover:no-underline">Open in Google Docs →</a>
+            <button onClick={() => setExported(null)} className="text-green-500 hover:text-green-700">✕</button>
+          </div>
+        </div>
+      )}
+
+      {/* Google Docs connect prompt — only when the server supports it and the account isn't linked */}
+      {gStatus?.configured && !gStatus.connected && (
+        <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Export to Google Docs</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Connect your Google account to turn any document into a formatted Google Doc. Markdrop only touches Docs it creates.</p>
+          </div>
+          <button onClick={handleConnect} className="shrink-0 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
+            Connect Google Docs
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-gray-400">Loading documents…</p>
       ) : docs.length === 0 ? (
@@ -232,6 +333,20 @@ export default function DashboardPage() {
                     {expanded === d.slug ? "Hide" : "📊 Analytics"}
                   </ActionButton>
                   <ActionButton onClick={() => copyUrl(d.url, d.slug)}>{copied === d.slug ? "Copied!" : "Copy link"}</ActionButton>
+                  {gStatus?.connected && (
+                    d.google_doc_url ? (
+                      <>
+                        <ActionButton href={d.google_doc_url}>📄 Open Doc</ActionButton>
+                        <ActionButton onClick={() => handleExport(d)}>
+                          {exportBusy === d.slug ? "Updating…" : d.google_doc_stale ? "⟳ Update Doc" : "✓ Synced"}
+                        </ActionButton>
+                      </>
+                    ) : (
+                      <ActionButton onClick={() => handleExport(d)}>
+                        {exportBusy === d.slug ? "Exporting…" : "↗ Google Docs"}
+                      </ActionButton>
+                    )
+                  )}
                   <ActionButton onClick={() => openRename(d.slug)}>Change URL</ActionButton>
                   <ActionButton href={`/${d.slug}?edit=1`}>Edit</ActionButton>
                   <ActionButton onClick={() => setDeleteFor(d.slug)} danger>Delete</ActionButton>
