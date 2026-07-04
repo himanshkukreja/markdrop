@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icon.png" width="96" height="96" alt="Markdrop" />
+  <img src="https://raw.githubusercontent.com/himanshkukreja/markdrop/main/extension/icon.png" width="96" height="96" alt="Markdrop" />
 </p>
 
 <h1 align="center">Markdrop Sync</h1>
