@@ -17,6 +17,7 @@ import httpx
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.user import User
+from app.services import diagram_render
 from app.services import oauth
 from app.services import user as user_service
 from app.utils import crypto
@@ -47,18 +48,42 @@ def _is_fence(line: str) -> bool:
     return stripped.startswith("```") or stripped.startswith("~~~")
 
 
-def fence_diagrams(markdown: str) -> str:
-    """Wrap unfenced ASCII/box-drawing diagrams in ``` code fences.
+def _is_public_https(url: str | None) -> bool:
+    """Only a public https origin is reachable by Google's image fetcher."""
+    if not url or not url.startswith("https://"):
+        return False
+    host = url[len("https://"):].split("/", 1)[0].split(":", 1)[0]
+    return host not in ("localhost", "127.0.0.1", "0.0.0.0") and not host.endswith(".local")
 
-    Drive's markdown→Doc converter renders ordinary text in a proportional font,
-    which collapses the column alignment that box-drawing diagrams depend on and
-    makes them look broken. Fenced code blocks instead import as a monospace
-    ("Courier New") block, so the alignment survives the conversion.
 
-    We only touch blank-line-delimited blocks that are already *outside* a fence
-    and where at least two lines contain diagram glyphs — this keeps prose that
-    merely mentions an arrow, and markdown tables (which use ASCII ``|``, not the
-    box-drawing ``│``), untouched.
+def _render_diagram_block(block: list[str], image_base_url: str | None) -> str:
+    """Turn a detected diagram block into embeddable markdown.
+
+    Preferred: an image URL Google fetches + embeds (pixel-perfect, font-proof).
+    Fallback (no public URL, or the diagram is too big to fit in the URL): a
+    monospace code fence — still better than proportional body text.
+    """
+    text = "\n".join(block)
+    if _is_public_https(image_base_url):
+        token = diagram_render.encode_diagram(text)
+        url = f"{image_base_url.rstrip('/')}/api/v1/google/diagram.png?d={token}"
+        if len(token) <= diagram_render.MAX_ENCODED:
+            return f"![diagram]({url})"
+    return "```text\n" + text + "\n```"
+
+
+def transform_diagrams(markdown: str, image_base_url: str | None) -> str:
+    """Replace unfenced ASCII/box-drawing diagrams with embedded images.
+
+    Drive's markdown→Doc converter renders text — even inside a code block — in a
+    font that substitutes a proportional fallback for box-drawing/arrow glyphs, so
+    the column alignment a diagram depends on collapses. We instead render each
+    diagram to a PNG (monospace, exact grid) and reference it; Google fetches and
+    embeds the image, so alignment no longer depends on Google's fonts.
+
+    Only blank-line-delimited blocks *outside* a fence, with at least two lines
+    containing diagram glyphs, are touched — prose that merely mentions an arrow
+    and markdown tables (ASCII ``|`` ≠ box ``│``) are left alone.
     """
     lines = markdown.split("\n")
     out: list[str] = []
@@ -83,9 +108,7 @@ def fence_diagrams(markdown: str) -> str:
             i += 1
         diagram_lines = sum(1 for b in block if any(ch in _DIAGRAM_GLYPHS for ch in b))
         if diagram_lines >= 2:
-            out.append("```text")
-            out.extend(block)
-            out.append("```")
+            out.append(_render_diagram_block(block, image_base_url))
         else:
             out.extend(block)
     return "\n".join(out)

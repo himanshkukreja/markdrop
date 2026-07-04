@@ -18,7 +18,8 @@ Flow
 import httpx
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import RedirectResponse, Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
@@ -27,6 +28,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import require_user
 from app.schemas.google import GoogleConnectResponse, GoogleExportResponse, GoogleStatusResponse
+from app.services import diagram_render
 from app.services import document as doc_service
 from app.services import gdocs
 from app.services import oauth
@@ -56,6 +58,30 @@ def _require_ready() -> None:
         raise HTTPException(status_code=503, detail="Google is not configured on this server")
     if not crypto.is_configured():
         raise HTTPException(status_code=503, detail="Token encryption is not configured on this server")
+
+
+# ── Diagram image rendering (public — Google's converter fetches this) ───────────
+
+
+@router.get("/diagram.png")
+@limiter.limit("120/minute")
+async def diagram_image(request: Request, d: str = Query(..., description="encoded diagram")):
+    """Render an ASCII/box-drawing diagram to PNG.
+
+    Public and unauthenticated by design: Google's markdown→Doc converter fetches
+    this URL anonymously while importing an exported document. The diagram text is
+    carried (compressed) in ``d`` — nothing is read from the database.
+    """
+    try:
+        text = diagram_render.decode_diagram(d)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid diagram token")
+    png = await run_in_threadpool(diagram_render.render_diagram_png, text)
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 # ── Connect flow ────────────────────────────────────────────────────────────────
@@ -165,9 +191,10 @@ async def export_document(
         raise HTTPException(status_code=428, detail={"error": "reconnect_required", "message": str(exc)})
 
     title = doc.title or doc.slug
-    # Keep box-drawing diagrams monospaced so Drive's converter preserves their
-    # alignment (otherwise they render in a proportional font and look broken).
-    markdown = gdocs.fence_diagrams(doc.content)
+    # Render box-drawing diagrams to embedded images so Drive's converter can't
+    # break their alignment with a proportional font (falls back to a code fence
+    # when no public image URL is available).
+    markdown = gdocs.transform_diagrams(doc.content, settings.api_base_url)
 
     try:
         result = None
