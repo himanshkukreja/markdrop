@@ -326,3 +326,33 @@ body {
 .vscode .prose td {
   border-color: #3c3c3c;
 }
+
+/* ── KaTeX math ─────────────────────────────────────────────────────────────── */
+/* KaTeX inherits `currentColor`, so on either dark theme the math takes the
+   light prose text colour automatically. Block math ($$…$$) can be wide — let
+   it scroll inside its own box instead of bleeding past the container. */
+.prose .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5em 0;
+  margin: 0.75em 0;
+}
+/* A KaTeX parse error renders as this span; make it readable on dark. */
+.prose .katex-error {
+  color: #f87171 !important;
+}
+/* Keep KaTeX HTML from picking up the pink inline-code styling if any residual
+   <code> slips through (it normally doesn't — katex replaces the element). */
+.prose .katex,
+.prose .katex * {
+  background: transparent !important;
+}
+
+/* ── Mermaid diagrams ───────────────────────────────────────────────────────── */
+/* Rendered SVG sits in a .not-prose wrapper; center it and let wide diagrams
+   scroll rather than overflow the page. */
+.prose .mermaid-diagram svg,
+.not-prose > svg {
+  max-width: 100%;
+  height: auto;
+}
