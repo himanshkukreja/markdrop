@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <rect width="128" height="128" rx="28" fill="#0f172a"/>
+  <!-- markdown "m" -->
+  <text x="20" y="94" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="76" font-weight="700" fill="#f1f5f9">m</text>
+  <!-- blue droplet ("drop") -->
+  <path d="M96 40 C 108 58, 114 66, 114 78 A 18 18 0 1 1 78 78 C 78 66, 84 58, 96 40 Z" fill="#3b82f6"/>
+  <circle cx="90" cy="80" r="5" fill="#ffffff" fill-opacity="0.85"/>
+</svg>

@@ -2,12 +2,14 @@
   "name": "markdrop",
   "displayName": "Markdrop Sync",
   "description": "Publish and sync your Markdown files to Markdrop (markdrop.in) — no more copy-paste.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "markdrop",
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": ["Other"],
+  "keywords": ["markdown", "sync", "publish", "share", "markdrop"],
   "repository": {
     "type": "git",
     "url": "https://github.com/himanshkukreja/markdrop.git"
@@ -49,6 +51,17 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically push linked documents to Markdrop when you save."
+        },
+        "markdrop.autoPull": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically pull remote changes into the local file (two-way sync)."
+        },
+        "markdrop.pollSeconds": {
+          "type": "number",
+          "default": 10,
+          "minimum": 5,
+          "description": "How often (seconds) to check Markdrop for remote changes on the active file."
         }
       }
     }

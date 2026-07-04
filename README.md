@@ -2,7 +2,7 @@
 
 Minimal, anonymous markdown publishing tool. Paste markdown, get a shareable link instantly — no login required.
 
-**Live:** [markdrop.in](https://markdrop.in) Hello
+**Live:** [markdrop.in](https://markdrop.in)
 
 ---
 

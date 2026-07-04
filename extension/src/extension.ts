@@ -36,7 +36,21 @@ function cfg() {
     apiUrl: (c.get<string>("apiUrl") || "https://api.markdrop.in").replace(/\/$/, ""),
     webUrl: (c.get<string>("webUrl") || "https://markdrop.in").replace(/\/$/, ""),
     pushOnSave: c.get<boolean>("pushOnSave") ?? true,
+    autoPull: c.get<boolean>("autoPull") ?? true,
+    pollSeconds: Math.max(5, c.get<number>("pollSeconds") ?? 10),
   };
+}
+
+// ── Remote content provider (for the conflict diff view) ──────────────────────
+const REMOTE_SCHEME = "markdrop-remote";
+const remoteCache = new Map<string, string>(); // docId -> remote content
+const remoteEmitter = new vscode.EventEmitter<vscode.Uri>();
+const remoteProvider: vscode.TextDocumentContentProvider = {
+  onDidChange: remoteEmitter.event,
+  provideTextDocumentContent: (uri) => remoteCache.get(uri.path.replace(/^\//, "")) ?? "",
+};
+function remoteUri(link: Link): vscode.Uri {
+  return vscode.Uri.parse(`${REMOTE_SCHEME}:/${link.id}/${link.slug}.md (Markdrop web)`);
 }
 
 // ── Auth token (SecretStorage) ────────────────────────────────────────────────
@@ -274,7 +288,7 @@ async function pushDocument(document: vscode.TextDocument, { silent = false } = 
   }
   if (res.status === 409) {
     const detail = (await res.json() as { detail: ConflictDetail }).detail;
-    await resolveConflict(document, link, detail, h);
+    await showConflict(document, link, detail);
     return;
   }
   if (!res.ok) {
@@ -287,22 +301,36 @@ async function pushDocument(document: vscode.TextDocument, { silent = false } = 
   updateStatus();
 }
 
-// One-way phase: give the user control instead of silently overwriting.
-// (Phase C will replace this with a proper side-by-side diff merge.)
-async function resolveConflict(
-  document: vscode.TextDocument,
-  link: Link,
-  remote: ConflictDetail,
-  localHash: string
-) {
+// Write remote content to the local file and mark it in sync.
+async function applyRemote(uri: vscode.Uri, link: Link, remote: ConflictDetail) {
+  const content = normalize(remote.content);
+  await fs.writeFile(uri.fsPath, content, "utf8");
+  await setLink(uri, { ...link, slug: remote.slug, baseRev: remote.rev, baseHash: hash(content) });
+}
+
+// Two-way conflict: both local and web changed. Open a side-by-side diff and
+// let the user choose. "Merge" rebases the local edit onto the web revision so
+// the next save pushes cleanly.
+async function showConflict(document: vscode.TextDocument, link: Link, remote: ConflictDetail) {
   statusBar.text = "$(warning) Markdrop: conflict";
+  statusBar.show();
+
+  // Show the differences (local ↔ web) in a diff editor.
+  remoteCache.set(link.id, normalize(remote.content));
+  const rUri = remoteUri({ ...link, slug: remote.slug });
+  remoteEmitter.fire(rUri);
+  await vscode.commands.executeCommand("vscode.diff", rUri, document.uri, "Markdrop (web) ↔ Local");
+
   const choice = await vscode.window.showWarningMessage(
-    "The Markdrop web copy changed since your last sync.",
-    { modal: true },
-    "Overwrite web with local",
-    "Replace local with web"
+    "This document changed both on Markdrop and locally.",
+    { modal: true, detail: "The diff shows web (left) vs local (right)." },
+    "Keep my local version",
+    "Use the web version",
+    "Merge manually"
   );
-  if (choice === "Overwrite web with local") {
+
+  if (choice === "Keep my local version") {
+    const localHash = hash(document.getText());
     const res = await api("PUT", `/api/v1/sync/${link.id}`, {
       content: normalize(document.getText()),
       title: deriveTitle(document.getText(), document.uri),
@@ -313,12 +341,16 @@ async function resolveConflict(
       await setLink(document.uri, { ...link, slug: doc.slug, baseRev: doc.rev, baseHash: localHash });
       vscode.window.showInformationMessage("Pushed your local version to Markdrop.");
     } else {
-      vscode.window.showErrorMessage("Couldn't overwrite — try again.");
+      vscode.window.showErrorMessage("Couldn't push — try again.");
     }
-  } else if (choice === "Replace local with web") {
-    await fs.writeFile(document.uri.fsPath, normalize(remote.content), "utf8");
-    await setLink(document.uri, { ...link, slug: remote.slug, baseRev: remote.rev, baseHash: hash(remote.content) });
+  } else if (choice === "Use the web version") {
+    await applyRemote(document.uri, link, remote);
     vscode.window.showInformationMessage("Replaced local file with the Markdrop version.");
+  } else if (choice === "Merge manually") {
+    // Rebase onto the web rev: keep local content (still "dirty"), but base the
+    // next push on the web revision so saving your merged result succeeds.
+    await setLink(document.uri, { ...link, slug: remote.slug, baseRev: remote.rev });
+    vscode.window.showInformationMessage("Edit to merge using the diff, then save to push your merged version.");
   }
   updateStatus();
 }
@@ -341,6 +373,44 @@ async function openInBrowser() {
   vscode.env.openExternal(vscode.Uri.parse(`${cfg().webUrl}/${link.slug}`));
 }
 
+// Poll the active linked document for remote changes (two-way pull).
+let polling = false;
+async function pollActive() {
+  if (polling) return;
+  if (!cfg().autoPull || !vscode.window.state.focused) return;
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== "markdown") return;
+  const uri = editor.document.uri;
+  const link = await getLink(uri);
+  if (!link || !(await getToken())) return;
+
+  polling = true;
+  try {
+    const res = await api("GET", `/api/v1/sync/${link.id}/rev`);
+    if (res.status === 404) { await deleteLink(uri); updateStatus(); return; }
+    if (!res.ok) return;
+    const { rev } = await res.json() as { rev: number };
+    if (rev <= link.baseRev) return; // nothing new on the server
+
+    // Remote advanced — fetch full content.
+    const full = await api("GET", `/api/v1/sync/${link.id}`);
+    if (!full.ok) return;
+    const doc = await full.json() as SyncDoc;
+    const remote: ConflictDetail = { rev: doc.rev, content: doc.content, slug: doc.slug };
+
+    if (hash(editor.document.getText()) === link.baseHash) {
+      // Local is clean → fast-forward pull.
+      await applyRemote(uri, link, remote);
+      updateStatus();
+    } else {
+      // Local also changed → conflict.
+      await showConflict(editor.document, link, remote);
+    }
+  } finally {
+    polling = false;
+  }
+}
+
 async function unlink() {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return;
@@ -350,6 +420,8 @@ async function unlink() {
 }
 
 // ── Activation ────────────────────────────────────────────────────────────────
+let pollInterval: NodeJS.Timeout | undefined;
+
 export function activate(context: vscode.ExtensionContext) {
   ctx = context;
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -362,23 +434,29 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("markdrop.publish", publish),
     vscode.commands.registerCommand("markdrop.syncNow", async () => {
       const ed = vscode.window.activeTextEditor;
-      if (ed) await pushDocument(ed.document);
+      if (ed) { await pushDocument(ed.document); await pollActive(); }
     }),
     vscode.commands.registerCommand("markdrop.openInBrowser", openInBrowser),
     vscode.commands.registerCommand("markdrop.unlink", unlink),
     vscode.window.registerUriHandler({ handleUri }),
+    vscode.workspace.registerTextDocumentContentProvider(REMOTE_SCHEME, remoteProvider),
     vscode.workspace.onDidSaveTextDocument((doc) => {
       if (doc.languageId === "markdown" && cfg().pushOnSave) schedulePush(doc);
     }),
-    vscode.window.onDidChangeActiveTextEditor(() => updateStatus()),
+    vscode.window.onDidChangeActiveTextEditor(() => { updateStatus(); pollActive(); }),
+    vscode.window.onDidChangeWindowState((s) => { if (s.focused) pollActive(); }),
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document === vscode.window.activeTextEditor?.document) updateStatus();
     })
   );
 
+  // Background poll for remote → local changes.
+  pollInterval = setInterval(() => { pollActive(); }, cfg().pollSeconds * 1000);
   updateStatus();
+  pollActive();
 }
 
 export function deactivate() {
   for (const t of debounceTimers.values()) clearTimeout(t);
+  if (pollInterval) clearInterval(pollInterval);
 }
