@@ -134,8 +134,10 @@ export default function Home() {
         customExpiresAt: expiresIn === "custom" ? new Date(customExpiresAt).toISOString() : undefined,
         readPassword: readPassword || undefined,
       });
+      // Keep the secret in sessionStorage only — never in the URL (it would
+      // leak via history, referrer headers and server logs).
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);
-      router.push(`/${doc.slug}?new=1&secret=${encodeURIComponent(doc.edit_secret)}`);
+      router.push(`/${doc.slug}?new=1`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {

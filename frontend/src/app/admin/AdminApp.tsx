@@ -36,6 +36,7 @@ export default function AdminApp() {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [search, setSearch] = useState("");
+  const [reportedOnly, setReportedOnly] = useState(false);
   const [dashLoading, setDashLoading] = useState(false);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -73,10 +74,10 @@ export default function AdminApp() {
 
   // ── Load documents ───────────────────────────────────────────────────────────
   const loadDocs = useCallback(
-    async (tok: string, pg = 1, q = "") => {
+    async (tok: string, pg = 1, q = "", reported = false) => {
       setDashLoading(true);
       try {
-        const res = await adminListDocuments(tok, pg, 20, q || undefined);
+        const res = await adminListDocuments(tok, pg, 20, q || undefined, reported);
         setDocs(res.documents);
         setTotal(res.total);
         setPage(res.page);
@@ -141,8 +142,15 @@ export default function AdminApp() {
     setSearch(val);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      if (token) loadDocs(token, 1, val);
+      if (token) loadDocs(token, 1, val, reportedOnly);
     }, 400);
+  };
+
+  const toggleReported = () => {
+    const v = !reportedOnly;
+    setReportedOnly(v);
+    setPage(1);
+    if (token) loadDocs(token, 1, search, v);
   };
 
   // ── Login ─────────────────────────────────────────────────────────────────────
@@ -461,8 +469,9 @@ export default function AdminApp() {
 
       {tab === "docs" && (
       <>
-      {/* Search */}
-      <div className="relative">
+      {/* Search + reported filter */}
+      <div className="flex items-center gap-2">
+      <div className="relative flex-1">
         <svg
           className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
           fill="none"
@@ -479,6 +488,18 @@ export default function AdminApp() {
           onChange={(e) => handleSearch(e.target.value)}
           className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526] text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+      </div>
+        <button
+          onClick={toggleReported}
+          className={`shrink-0 px-3 py-2.5 text-sm rounded-xl border transition-colors ${
+            reportedOnly
+              ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
+              : "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+          }`}
+          title="Show only reported documents"
+        >
+          ⚑ Reported
+        </button>
       </div>
 
       {/* Table */}
@@ -562,6 +583,14 @@ export default function AdminApp() {
                         >
                           {doc.slug}
                         </a>
+                        {doc.report_count > 0 && (
+                          <span
+                            title={`${doc.report_count} report(s)`}
+                            className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400"
+                          >
+                            ⚑ {doc.report_count}
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -716,7 +745,7 @@ export default function AdminApp() {
               onClick={() => {
                 const p = page - 1;
                 setPage(p);
-                if (token) loadDocs(token, p, search);
+                if (token) loadDocs(token, p, search, reportedOnly);
               }}
               className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300 vscode:text-[#d4d4d4] transition-colors"
             >
@@ -727,7 +756,7 @@ export default function AdminApp() {
               onClick={() => {
                 const p = page + 1;
                 setPage(p);
-                if (token) loadDocs(token, p, search);
+                if (token) loadDocs(token, p, search, reportedOnly);
               }}
               className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300 vscode:text-[#d4d4d4] transition-colors"
             >

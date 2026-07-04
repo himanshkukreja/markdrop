@@ -140,6 +140,15 @@ export async function deleteDocument(slug: string, editSecret?: string): Promise
 
 // ── Analytics event beacons (fire-and-forget) ──────────────────────────────────
 
+export async function reportDocument(slug: string, reason?: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/documents/${slug}/report`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason: reason || null }),
+  });
+  if (!res.ok && res.status !== 202) throw new Error("Failed to submit report");
+}
+
 export function recordEvent(slug: string, type: "view" | "export_pdf" | "copy_url"): void {
   try {
     fetch(`${API_BASE}/api/v1/documents/${slug}/events`, {
@@ -365,6 +374,7 @@ export interface AdminDocListItem {
   content_length: number;
   owner_id: string | null;
   owner_email: string | null;
+  report_count: number;
 }
 
 export interface AdminUserListItem {
@@ -418,10 +428,12 @@ export async function adminListDocuments(
   token: string,
   page = 1,
   limit = 20,
-  q?: string
+  q?: string,
+  reported = false
 ): Promise<AdminDocListResponse> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (q) params.set("q", q);
+  if (reported) params.set("reported", "1");
   const res = await fetch(`${API_BASE}/api/v1/admin/documents?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",

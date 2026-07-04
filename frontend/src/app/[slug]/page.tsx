@@ -5,7 +5,7 @@ import DocumentView from "./DocumentView";
 
 interface Props {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ new?: string; secret?: string; edit?: string }>;
+  searchParams: Promise<{ new?: string; edit?: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function SlugPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const { new: isNew, secret, edit } = await searchParams;
+  const { new: isNew, edit } = await searchParams;
 
   let doc = null;
   let isPasswordProtected = false;
@@ -59,7 +59,6 @@ export default async function SlugPage({ params, searchParams }: Props) {
       expiresAt={doc?.expires_at ?? null}
       views={doc?.views}
       isNew={isNew === "1"}
-      editSecret={secret || undefined}
       isPasswordProtected={isPasswordProtected}
       isOwned={doc?.is_owned ?? false}
       startInEdit={edit === "1"}

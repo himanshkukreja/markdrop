@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
-import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent } from "@/lib/api";
+import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
 import { useAuth } from "@/contexts/AuthContext";
+import Modal from "@/components/Modal";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -70,12 +71,48 @@ export default function DocumentView({
   const viewBeaconSent = useRef(false);
   const editOpened = useRef(false);
 
-  useEffect(() => {
-    if (!claimSecret && typeof window !== "undefined") {
-      const stored = sessionStorage.getItem(`secret:${slug}`);
-      if (stored) setClaimSecret(stored);
+  // Abuse report state
+  const [showReport, setShowReport] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportDone, setReportDone] = useState(false);
+
+  async function submitReport() {
+    setReportBusy(true);
+    try {
+      await reportDocument(slug, reportReason.trim() || undefined);
+      setReportDone(true);
+    } catch {
+      /* ignore */
+    } finally {
+      setReportBusy(false);
     }
-  }, [slug, claimSecret]);
+  }
+
+  // Source the edit secret from sessionStorage (set by the publish flow) rather
+  // than the URL — so it never leaks via history/referrer/server logs. Seeds the
+  // editor unlock and, for password-protected docs, bypasses the read-password gate.
+  useEffect(() => {
+    if (claimSecret || typeof window === "undefined") return;
+    const stored = sessionStorage.getItem(`secret:${slug}`);
+    if (!stored) return;
+    setClaimSecret(stored);
+    setSecretInput(stored);
+    setSecretUnlocked(true);
+    if (isPasswordProtected) {
+      getDocument(slug, undefined, stored)
+        .then((doc) => {
+          setDisplayTitle(doc.title);
+          setDisplayContent(doc.content);
+          setDisplayCreatedAt(doc.created_at);
+          setDisplayExpiresAt(doc.expires_at);
+          setDisplayViews(doc.views);
+          setPwdLocked(false);
+        })
+        .catch(() => {})
+        .finally(() => setPwdFetching(false));
+    }
+  }, [slug, claimSecret, isPasswordProtected]);
 
   async function handleClaim() {
     if (!claimSecret) return;
@@ -554,16 +591,16 @@ export default function DocumentView({
     <div className="w-full space-y-4">
 
       {/* Secret notice — shown once after publish */}
-      {isNew && initialSecret && (
+      {isNew && claimSecret && (
         <div className="no-print flex items-start gap-3 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#252526] text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
           <span className="text-green-500 mt-0.5 shrink-0">✓</span>
           <div className="min-w-0">
             <span>Published. Save your edit secret — shown once:</span>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <code className="font-mono text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] select-all break-all">
-                {initialSecret}
+                {claimSecret}
               </code>
-              <CopyButton text={initialSecret} label="Copy" />
+              <CopyButton text={claimSecret} label="Copy" />
             </div>
           </div>
         </div>
@@ -647,8 +684,48 @@ export default function DocumentView({
           >
             Edit
           </button>
+          {!secretUnlocked && !pwdLocked && (
+            <button
+              onClick={() => { setReportReason(""); setReportDone(false); setShowReport(true); }}
+              title="Report this document"
+              className="ml-auto px-2 py-1.5 text-xs text-gray-400 hover:text-red-500 transition-colors"
+            >
+              ⚑ Report
+            </button>
+          )}
         </div>
       </div>
+
+      {showReport && (
+        <Modal title={reportDone ? "Report submitted" : "Report this document"} onClose={() => setShowReport(false)}>
+          {reportDone ? (
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">Thanks — our team will review this document.</p>
+              <div className="flex justify-end">
+                <button onClick={() => setShowReport(false)} className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Close</button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Report spam, phishing, or abusive content. Optionally tell us why:</p>
+              <textarea
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                maxLength={500}
+                rows={3}
+                placeholder="Reason (optional)"
+                className="w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors resize-none"
+              />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setShowReport(false)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Cancel</button>
+                <button onClick={submitReport} disabled={reportBusy} className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-medium transition-colors">
+                  {reportBusy ? "Submitting…" : "Submit report"}
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
 
       {/* Print-only header */}
       <div className="hidden print-only">
