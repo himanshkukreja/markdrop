@@ -14,6 +14,7 @@ from app.routers.auth import router as auth_router
 from app.routers.documents import router as documents_router
 from app.routers.google import router as google_router
 from app.routers.me import router as me_router
+from app.routers.og import router as og_router
 from app.routers.share import router as share_router
 from app.routers.sync import router as sync_router
 
@@ -55,6 +56,7 @@ app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(me_router)
 app.include_router(sync_router)
+app.include_router(og_router)
 
 
 @app.get("/health")
