@@ -4,6 +4,12 @@
 /* Base font size: bump from browser default 16px to 17px for better readability */
 html {
   font-size: 17px;
+  /* Guard against decorative/overflowing elements creating a horizontal
+     scrollbar on mobile. Vertical scroll (document) is unaffected. */
+  overflow-x: hidden;
+}
+body {
+  overflow-x: hidden;
 }
 
 /* ── Landing page animations ───────────────────────────────────────────────── */

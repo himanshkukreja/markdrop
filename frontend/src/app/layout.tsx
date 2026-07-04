@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "highlight.js/styles/github-dark.css";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -12,19 +12,26 @@ export const metadata: Metadata = {
     "Paste markdown and get a shareable link instantly — no login required. Send any file peer-to-peer, end-to-end encrypted, and keep docs in sync straight from VS Code.",
 };
 
+// Colours the mobile browser UI (address/status bars) to match the app —
+// without it, Chrome tints those bars with the user's profile colour, which
+// showed up as a stray strip. The inline theme script keeps it in sync per theme.
+export const viewport: Viewport = {
+  themeColor: "#1e1e1e",
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full" style={{ background: "#1e1e1e" }} suppressHydrationWarning>
       <head>
         {/* Inline script: runs synchronously during HTML parsing, before any paint.
             Reads localStorage and applies the correct theme class + background. */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme')||'vscode';var cl=t==='dark'?'dark':'vscode';var bg=t==='dark'?'#030712':'#1e1e1e';var el=document.documentElement;el.classList.add(cl);el.style.background=bg;new MutationObserver(function(){if(!el.classList.contains('vscode')&&!el.classList.contains('dark')){el.classList.add(cl);el.style.background=bg;}}).observe(el,{attributes:true,attributeFilter:['class']});})();` }} />
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme')||'vscode';var cl=t==='dark'?'dark':'vscode';var bg=t==='dark'?'#030712':'#1e1e1e';var el=document.documentElement;el.classList.add(cl);el.style.background=bg;function tc(c){var m=document.querySelector('meta[name=theme-color]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',c);}tc(bg);new MutationObserver(function(){if(!el.classList.contains('vscode')&&!el.classList.contains('dark')){el.classList.add(cl);el.style.background=bg;tc(bg);}}).observe(el,{attributes:true,attributeFilter:['class']});})();` }} />
       </head>
       <body className="h-full flex flex-col dark:bg-gray-950 vscode:bg-[#1e1e1e] dark:text-gray-100 vscode:text-[#d4d4d4]">
         <AuthProvider>
         <header className="no-print shrink-0 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] vscode:bg-[#252526]">
-          <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <a href="/" className="text-xl font-bold tracking-tight">
                 mark<span className="text-blue-500 dark:text-blue-400">drop</span>
               </a>
@@ -40,14 +47,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </svg>
               </a>
             </div>
-            <div className="flex items-center gap-4">
-              <a href="/share" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+              <a href="/share" className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors" title="Share a file">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
-                Share file
+                <span className="hidden sm:inline">Share file</span>
               </a>
-              <a href="/new" className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] hover:text-gray-800 dark:hover:text-gray-200 vscode:hover:text-[#d4d4d4] transition-colors">
+              <a href="/new" className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] hover:text-gray-800 dark:hover:text-gray-200 vscode:hover:text-[#d4d4d4] transition-colors whitespace-nowrap">
                 + New
               </a>
               <ThemeToggle />

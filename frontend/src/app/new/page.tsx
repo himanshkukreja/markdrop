@@ -193,7 +193,7 @@ export default function NewDocumentPage() {
       {/* Publish options */}
       <div className="no-print flex flex-col gap-2 shrink-0">
         {/* Custom slug + password row */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           {/* Custom URL — 50% */}
           <div className="flex-1 flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-1.5 focus-within:border-blue-500 transition-colors min-w-0">
             <span className="text-xs text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d] shrink-0">markdrop.in/</span>
@@ -207,7 +207,7 @@ export default function NewDocumentPage() {
             />
             {slugError && <span className="text-xs text-red-500 shrink-0">{slugError}</span>}
           </div>
-          <span className="text-gray-300 dark:text-gray-700 vscode:text-[#3c3c3c] shrink-0 select-none">·</span>
+          <span className="hidden sm:inline text-gray-300 dark:text-gray-700 vscode:text-[#3c3c3c] shrink-0 select-none">·</span>
           {/* Password — 50% */}
           <div className="flex-1 flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-1.5 focus-within:border-blue-500 transition-colors min-w-0">
             <svg className="w-3 h-3 text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d] shrink-0" fill="currentColor" viewBox="0 0 20 20">

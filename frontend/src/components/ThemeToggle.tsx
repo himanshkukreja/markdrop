@@ -12,7 +12,10 @@ function applyTheme(theme: Theme) {
   const cl = document.documentElement.classList;
   cl.remove("vscode", "dark");
   cl.add(theme);
-  document.documentElement.style.background = theme === "dark" ? "#030712" : "#1e1e1e";
+  const bg = theme === "dark" ? "#030712" : "#1e1e1e";
+  document.documentElement.style.background = bg;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", bg);
   localStorage.setItem("theme", theme);
 }
 
