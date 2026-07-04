@@ -298,6 +298,32 @@ _EVENT_COUNTER = {
 }
 
 
+async def report_document(
+    db: AsyncIOMotorDatabase, slug: str, reason: str | None, ip: str | None
+) -> bool:
+    """Flag a document for abuse. Increments report_count + logs a report."""
+    import hashlib
+
+    raw = await db["documents"].find_one_and_update(
+        {"slug": slug}, {"$inc": {"report_count": 1}}, projection={"_id": 1}
+    )
+    if not raw:
+        return False
+    ip_hash = (
+        hashlib.sha256((settings.ip_hash_salt + ip).encode()).hexdigest() if ip else None
+    )
+    await db["reports"].insert_one(
+        {
+            "doc_id": str(raw["_id"]),
+            "slug": slug,
+            "reason": (reason or None),
+            "ip_hash": ip_hash,
+            "ts": datetime.now(timezone.utc),
+        }
+    )
+    return True
+
+
 async def register_event(
     db: AsyncIOMotorDatabase, slug: str, event_type: str
 ) -> tuple[str, str | None] | None:

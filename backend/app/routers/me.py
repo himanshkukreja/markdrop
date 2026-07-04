@@ -6,10 +6,11 @@ Phase 4 adds per-document analytics under this same prefix.
 
 import math
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
+from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import require_user
 from app.schemas.auth import (
@@ -91,7 +92,9 @@ def _token_item(rec: dict) -> ApiTokenItem:
 
 
 @router.post("/tokens", response_model=ApiTokenCreateResponse)
+@limiter.limit("20/hour")
 async def create_api_token(
+    request: Request,
     data: TokenCreateRequest,
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),

@@ -12,6 +12,7 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentUpdate,
     EventRequest,
+    ReportRequest,
     SlugChangeRequest,
 )
 from app.services import analytics, document as doc_service
@@ -21,6 +22,15 @@ settings = get_settings()
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 
 BASE_URL = "https://markdrop.in"
+
+
+import re
+
+_BOT_RE = re.compile(r"bot|crawl|spider|slurp|preview|fetch|monitor|headless|curl|wget|python-|axios|node-fetch", re.I)
+
+
+def _is_bot(user_agent: str | None) -> bool:
+    return bool(user_agent) and bool(_BOT_RE.search(user_agent or ""))
 
 
 def _build_url(slug: str) -> str:
@@ -141,6 +151,10 @@ async def record_click(
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """Record a view / export-PDF / copy-URL event (called by the viewer's browser)."""
+    # Skip obvious bots/crawlers for view counting (beacons already exclude
+    # most non-JS bots; this covers headless/preview fetchers).
+    if data.type == "view" and _is_bot(request.headers.get("user-agent")):
+        return {"status": "ignored"}
     result = await doc_service.register_event(db, slug, data.type)
     if result is None:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -150,4 +164,19 @@ async def record_click(
         ip=get_client_ip(request),
         referrer=request.headers.get("referer"),
     )
+    return {"status": "ok"}
+
+
+@router.post("/{slug}/report", status_code=202)
+@limiter.limit("5/minute")
+async def report_document(
+    request: Request,
+    slug: str,
+    data: ReportRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Flag a document for abuse (public, rate-limited)."""
+    ok = await doc_service.report_document(db, slug, data.reason, get_client_ip(request))
+    if not ok:
+        raise HTTPException(status_code=404, detail="Document not found")
     return {"status": "ok"}

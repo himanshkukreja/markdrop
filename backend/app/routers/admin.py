@@ -64,6 +64,7 @@ class AdminDocListItem(BaseModel):
     content_length: int
     owner_id: str | None = None
     owner_email: str | None = None
+    report_count: int = 0
 
 
 class AdminDocListResponse(BaseModel):
@@ -157,6 +158,7 @@ def _to_list_item(raw: dict, owner_email: str | None = None) -> AdminDocListItem
         content_length=len(content),
         owner_id=raw.get("owner_id"),
         owner_email=owner_email,
+        report_count=raw.get("report_count", 0),
     )
 
 
@@ -206,24 +208,24 @@ async def list_all_documents(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     q: str | None = Query(None),
+    reported: bool = Query(False),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
-    """List all documents with optional full-text search (slug / title / content)."""
+    """List documents. `q` uses the full-text index; `reported=1` filters flagged docs."""
     query: dict = {}
     if q:
-        query["$or"] = [
-            {"slug": {"$regex": q, "$options": "i"}},
-            {"title": {"$regex": q, "$options": "i"}},
-            {"content": {"$regex": q, "$options": "i"}},
-        ]
+        query["$text"] = {"$search": q}
+    if reported:
+        query["report_count"] = {"$gt": 0}
 
     total = await db["documents"].count_documents(query)
     skip = (page - 1) * limit
+    sort_field = "report_count" if reported else "created_at"
     cursor = (
         db["documents"]
         .find(query, {"_id": 0})
-        .sort("created_at", -1)
+        .sort(sort_field, -1)
         .skip(skip)
         .limit(limit)
     )

@@ -27,6 +27,13 @@ async def connect() -> None:
     await db["documents"].create_index("expires_at", expireAfterSeconds=0, sparse=True)
     # Owner lookups for the user dashboard (Phase 3)
     await db["documents"].create_index("owner_id", sparse=True)
+    # Full-text index for admin search (title + content + slug)
+    await db["documents"].create_index(
+        [("title", "text"), ("content", "text"), ("slug", "text")],
+        name="doc_text",
+    )
+    # Abuse reports
+    await db["reports"].create_index([("doc_id", 1), ("ts", -1)])
 
     # Users (optional-login feature)
     await db["users"].create_index("email", unique=True)

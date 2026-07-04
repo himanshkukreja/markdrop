@@ -67,6 +67,10 @@ class EventRequest(BaseModel):
     type: Literal["view", "export_pdf", "copy_url"]
 
 
+class ReportRequest(BaseModel):
+    reason: str | None = Field(None, max_length=500)
+
+
 # ── Sync (VS Code extension) ───────────────────────────────────────────────────
 
 
