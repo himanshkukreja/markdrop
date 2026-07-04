@@ -1,4 +1,4 @@
-import { getDocument } from "@/lib/api";
+import { getDocument, API_BASE } from "@/lib/api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import DocumentView from "./DocumentView";
@@ -10,24 +10,32 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  // Dynamic link-preview card, rendered server-side by the backend. The endpoint
+  // is content-safe (generic card for password-protected / unknown slugs), so we
+  // advertise it in both metadata branches.
+  const ogImage = `${API_BASE}/api/v1/og/${slug}.png`;
+  const images = [{ url: ogImage, width: 1200, height: 630, alt: "Markdrop" }];
   try {
     const doc = await getDocument(slug);
     const pageTitle = doc.title || slug;
     const preview = doc.content.slice(0, 150).replace(/[#*_`]/g, "");
+    const title = `${pageTitle} — Markdrop`;
+    const description = preview || "A document on Markdrop";
     return {
-      title: `${pageTitle} — Markdrop`,
-      description: preview || "A document on Markdrop",
-      openGraph: {
-        title: `${pageTitle} — Markdrop`,
-        description: preview || "A document on Markdrop",
-        type: "article",
-      },
+      title,
+      description,
+      openGraph: { title, description, type: "article", images },
+      twitter: { card: "summary_large_image", title, description, images: [ogImage] },
     };
   } catch {
-    // Password-protected or not found — return generic metadata
+    // Password-protected or not found — generic metadata, still a rich card.
+    const title = `${slug} — Markdrop`;
+    const description = "A document on Markdrop";
     return {
-      title: `${slug} — Markdrop`,
-      description: "A document on Markdrop",
+      title,
+      description,
+      openGraph: { title, description, type: "article", images },
+      twitter: { card: "summary_large_image", title, description, images: [ogImage] },
     };
   }
 }
