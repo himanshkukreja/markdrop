@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   listMyDocuments, getAnalytics, deleteDocument, changeSlug,
-  getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs,
+  getGoogleDocsStatus, connectGoogleDocs, disconnectGoogleDocs, exportToGoogleDocs,
   MyDocListItem, Analytics, GoogleStatus,
 } from "@/lib/api";
 import Modal from "@/components/Modal";
@@ -129,6 +129,8 @@ export default function DashboardPage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [gNotice, setGNotice] = useState<string | null>(null);
   const [exported, setExported] = useState<{ title: string; url: string; updated: boolean } | null>(null);
+  const [disconnectBusy, setDisconnectBusy] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   // Modal state
   const [renameFor, setRenameFor] = useState<string | null>(null);
@@ -210,6 +212,23 @@ export default function DashboardPage() {
       await connectGoogleDocs("/dashboard");
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "Could not start Google connect");
+    }
+  }
+
+  async function handleDisconnect() {
+    setDisconnectBusy(true);
+    setExportError(null);
+    try {
+      const status = await disconnectGoogleDocs();
+      setGStatus(status);
+      setConfirmDisconnect(false);
+      // Drop the per-doc links locally — they're stale now that we're disconnected.
+      setDocs((ds) => ds.map((d) => ({ ...d, google_doc_url: null, google_doc_stale: false })));
+      setGNotice("Google Docs disconnected. Markdrop's access has been revoked.");
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Could not disconnect Google");
+    } finally {
+      setDisconnectBusy(false);
     }
   }
 
@@ -298,6 +317,31 @@ export default function DashboardPage() {
           <button onClick={handleConnect} className="shrink-0 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
             Connect Google Docs
           </button>
+        </div>
+      )}
+
+      {/* Google Docs connected — offer a disconnect (revokes Markdrop's access at Google) */}
+      {gStatus?.configured && gStatus.connected && (
+        <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Google Docs connected</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Use the ↗ Google Docs button on any document to export it. Disconnecting revokes Markdrop's access to your Google account.</p>
+          </div>
+          {confirmDisconnect ? (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Revoke access?</span>
+              <button onClick={handleDisconnect} disabled={disconnectBusy} className="text-sm px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors font-medium disabled:opacity-50">
+                {disconnectBusy ? "Disconnecting…" : "Yes, disconnect"}
+              </button>
+              <button onClick={() => setConfirmDisconnect(false)} disabled={disconnectBusy} className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium disabled:opacity-50">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDisconnect(true)} className="shrink-0 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
+              Disconnect
+            </button>
+          )}
         </div>
       )}
 

@@ -120,6 +120,21 @@ async def disconnect(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
+    """Revoke the grant at Google, then forget the stored token.
+
+    We revoke on Google's side first so the user is fully disconnected (the app
+    loses all Drive access), then clear locally regardless of whether the revoke
+    call succeeded — a dead/network-failed token must not leave the account stuck
+    in a "connected" state.
+    """
+    if user.google_refresh_token_enc and crypto.is_configured():
+        try:
+            refresh_token = crypto.decrypt(user.google_refresh_token_enc)
+            await oauth.revoke_token(refresh_token)
+        except Exception:
+            # Already-revoked token, corrupt ciphertext, or a network hiccup —
+            # none should block clearing the local link below.
+            pass
     await user_service.set_google_refresh_token(db, user.id, None)
     return GoogleStatusResponse(connected=False, configured=oauth.is_configured() and crypto.is_configured())
 
@@ -150,15 +165,18 @@ async def export_document(
         raise HTTPException(status_code=428, detail={"error": "reconnect_required", "message": str(exc)})
 
     title = doc.title or doc.slug
+    # Keep box-drawing diagrams monospaced so Drive's converter preserves their
+    # alignment (otherwise they render in a proportional font and look broken).
+    markdown = gdocs.fence_diagrams(doc.content)
 
     try:
         result = None
         if doc.google_doc_id:
             # Phase 2: update the existing Doc. None ⇒ it was deleted in Drive.
-            result = await gdocs.update_doc(access_token, doc.google_doc_id, title, doc.content)
+            result = await gdocs.update_doc(access_token, doc.google_doc_id, title, markdown)
         if result is None:
             # Phase 1 (or recreate after deletion).
-            result = await gdocs.create_doc(access_token, title, doc.content)
+            result = await gdocs.create_doc(access_token, title, markdown)
     except gdocs.GoogleDocsError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 

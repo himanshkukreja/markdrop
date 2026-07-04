@@ -16,6 +16,7 @@ settings = get_settings()
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
+REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
 # Additional scope for the opt-in Google Docs integration. `drive.file` only
@@ -150,6 +151,24 @@ async def refresh_access_token(refresh_token: str) -> str:
         resp = await client.post(TOKEN_URL, data=data)
         resp.raise_for_status()
         return resp.json()["access_token"]
+
+
+async def revoke_token(token: str) -> None:
+    """Revoke a refresh (or access) token at Google.
+
+    Revoking a refresh token invalidates the whole grant, so the app can no
+    longer touch the user's Drive files until they reconnect. Best-effort: a
+    token that is already dead returns 400, which we treat as success.
+    """
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            REVOKE_URL,
+            data={"token": token},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        # 200 = revoked; 400 = already invalid. Anything else is a real error.
+        if resp.status_code not in (200, 400):
+            resp.raise_for_status()
 
 
 async def fetch_userinfo(access_token: str) -> dict:

@@ -29,6 +29,68 @@ MD_MIME = "text/markdown"
 _FIELDS = "id,name,webViewLink"
 
 
+# Box-drawing / arrow glyphs that signal an ASCII diagram. When several lines of
+# a block carry these, the block is a flow chart / sequence diagram whose meaning
+# lives entirely in its column alignment.
+_DIAGRAM_GLYPHS = frozenset(
+    "─│┌┐└┘├┤┬┴┼"          # light box drawing
+    "━┃┏┓┗┛┣┫┳┻╋"          # heavy box drawing
+    "═║╔╗╚╝╠╣╦╩╬"          # double box drawing
+    "╭╮╯╰"                  # rounded corners
+    "▶◀▲▼►◄◆●○◦■□▪▫"        # nodes / markers
+    "→←↑↓↔↕⟶⟵⇒⇐⇔"          # arrows
+)
+
+
+def _is_fence(line: str) -> bool:
+    stripped = line.lstrip()
+    return stripped.startswith("```") or stripped.startswith("~~~")
+
+
+def fence_diagrams(markdown: str) -> str:
+    """Wrap unfenced ASCII/box-drawing diagrams in ``` code fences.
+
+    Drive's markdown→Doc converter renders ordinary text in a proportional font,
+    which collapses the column alignment that box-drawing diagrams depend on and
+    makes them look broken. Fenced code blocks instead import as a monospace
+    ("Courier New") block, so the alignment survives the conversion.
+
+    We only touch blank-line-delimited blocks that are already *outside* a fence
+    and where at least two lines contain diagram glyphs — this keeps prose that
+    merely mentions an arrow, and markdown tables (which use ASCII ``|``, not the
+    box-drawing ``│``), untouched.
+    """
+    lines = markdown.split("\n")
+    out: list[str] = []
+    i = 0
+    n = len(lines)
+    in_fence = False
+    while i < n:
+        line = lines[i]
+        if _is_fence(line):
+            in_fence = not in_fence
+            out.append(line)
+            i += 1
+            continue
+        if in_fence or line.strip() == "":
+            out.append(line)
+            i += 1
+            continue
+        # Gather one blank-line-delimited block of non-fenced text.
+        block: list[str] = []
+        while i < n and lines[i].strip() != "" and not _is_fence(lines[i]):
+            block.append(lines[i])
+            i += 1
+        diagram_lines = sum(1 for b in block if any(ch in _DIAGRAM_GLYPHS for ch in b))
+        if diagram_lines >= 2:
+            out.append("```text")
+            out.extend(block)
+            out.append("```")
+        else:
+            out.extend(block)
+    return "\n".join(out)
+
+
 class GoogleDocsError(RuntimeError):
     """Generic failure talking to Google (surfaced as a 502 upstream)."""
 
