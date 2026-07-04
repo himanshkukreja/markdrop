@@ -20,10 +20,10 @@ function applyTheme(theme: Theme) {
 }
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("vscode");
+  const [theme, setTheme] = useState<Theme>("dark");
 
   useEffect(() => {
-    const saved = (localStorage.getItem("theme") as Theme) || "vscode";
+    const saved = (localStorage.getItem("theme") as Theme) || "dark";
     applyTheme(saved);
     setTheme(saved);
   }, []);

@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 // without it, Chrome tints those bars with the user's profile colour, which
 // showed up as a stray strip. The inline theme script keeps it in sync per theme.
 export const viewport: Viewport = {
-  themeColor: "#1e1e1e",
+  themeColor: "#030712",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -25,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Inline script: runs synchronously during HTML parsing, before any paint.
             Reads localStorage and applies the correct theme class + background. */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme')||'vscode';var cl=t==='dark'?'dark':'vscode';var bg=t==='dark'?'#030712':'#1e1e1e';var el=document.documentElement;el.classList.add(cl);el.style.background=bg;function tc(c){var m=document.querySelector('meta[name=theme-color]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',c);}tc(bg);new MutationObserver(function(){if(!el.classList.contains('vscode')&&!el.classList.contains('dark')){el.classList.add(cl);el.style.background=bg;tc(bg);}}).observe(el,{attributes:true,attributeFilter:['class']});})();` }} />
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme')||'dark';var cl=t==='dark'?'dark':'vscode';var bg=t==='dark'?'#030712':'#1e1e1e';var el=document.documentElement;el.classList.add(cl);el.style.background=bg;function tc(c){var m=document.querySelector('meta[name=theme-color]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',c);}tc(bg);new MutationObserver(function(){if(!el.classList.contains('vscode')&&!el.classList.contains('dark')){el.classList.add(cl);el.style.background=bg;tc(bg);}}).observe(el,{attributes:true,attributeFilter:['class']});})();` }} />
       </head>
       <body className="h-full flex flex-col dark:bg-gray-950 vscode:bg-[#1e1e1e] dark:text-gray-100 vscode:text-[#d4d4d4]">
         <AuthProvider>
