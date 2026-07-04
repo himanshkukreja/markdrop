@@ -45,3 +45,6 @@ Thumbs.db
 
 # ── Claude Code local settings ────────────────────────────────────────────────
 .claude/
+
+# Markdrop extension link sidecar (do not track in this repo)
+.markdrop.json
