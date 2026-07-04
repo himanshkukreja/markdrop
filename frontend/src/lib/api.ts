@@ -47,6 +47,10 @@ export interface DocumentResponse {
   is_password_protected: boolean;
   is_owned?: boolean;
   is_owner?: boolean;
+  // Owner-only fields (present when the requester owns the doc).
+  id?: string | null;
+  google_doc_url?: string | null;
+  google_doc_stale?: boolean;
 }
 
 export type ExpiresIn = "never" | "1d" | "7d" | "30d" | "custom";

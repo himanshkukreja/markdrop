@@ -5,12 +5,22 @@ import { useRouter } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
-import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument } from "@/lib/api";
+import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
 import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
 
 type ViewMode = "write" | "split" | "preview";
+
+function GoogleDocIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" fill="#4285F4" />
+      <path d="M14 2v6h6z" fill="#A1C2FA" />
+      <path d="M8 12h8M8 15h8M8 18h5" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 interface Props {
   slug: string;
@@ -71,6 +81,16 @@ export default function DocumentView({
   const viewBeaconSent = useRef(false);
   const editOpened = useRef(false);
 
+  // Google Docs sync state — populated once we confirm the viewer owns this doc
+  const [isOwner, setIsOwner] = useState(false);
+  const [docId, setDocId] = useState<string | null>(null);
+  const [gConnected, setGConnected] = useState(false);
+  const [googleDocUrl, setGoogleDocUrl] = useState<string | null>(null);
+  const [googleDocStale, setGoogleDocStale] = useState(false);
+  const [gBusy, setGBusy] = useState(false);
+  const [gError, setGError] = useState<string | null>(null);
+  const [gNeedsReconnect, setGNeedsReconnect] = useState(false);
+
   // Abuse report state
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState("");
@@ -123,6 +143,35 @@ export default function DocumentView({
       setClaimMsg("Saved to your account.");
     } catch (e) {
       setClaimMsg(e instanceof Error ? e.message : "Could not claim");
+    }
+  }
+
+  async function handleGoogleExport() {
+    if (!docId) return;
+    setGBusy(true);
+    setGError(null);
+    setGNeedsReconnect(false);
+    try {
+      const result = await exportToGoogleDocs(docId);
+      setGoogleDocUrl(result.google_doc_url);
+      setGoogleDocStale(false);
+    } catch (err) {
+      if (err instanceof Error && err.name === "ReconnectRequired") {
+        setGNeedsReconnect(true);
+        setGError(err.message);
+      } else {
+        setGError(err instanceof Error ? err.message : "Export to Google Docs failed");
+      }
+    } finally {
+      setGBusy(false);
+    }
+  }
+
+  async function handleGoogleReconnect() {
+    try {
+      await connectGoogleDocs(`/${slug}`);
+    } catch (err) {
+      setGError(err instanceof Error ? err.message : "Could not start Google reconnect");
     }
   }
 
@@ -182,22 +231,43 @@ export default function DocumentView({
   }, [pwdLocked, isPasswordProtected, slug]);
 
   // If logged in, detect ownership so the owner can edit without the secret
-  // (and view their own password-protected doc without the read password).
+  // (and view their own password-protected doc without the read password). We
+  // also capture the doc id + Google Docs link here to drive the sync button.
   useEffect(() => {
-    if (!user || secretUnlocked) return;
+    if (!user) return;
+    let cancelled = false;
     getDocument(slug)
       .then((doc) => {
-        if (!doc.is_owner) return;
-        setSecretUnlocked(true);
-        setPwdLocked(false);
-        setDisplayTitle(doc.title);
-        setDisplayContent(doc.content);
-        setDisplayCreatedAt(doc.created_at);
-        setDisplayExpiresAt(doc.expires_at);
-        setDisplayViews(doc.views);
+        if (cancelled || !doc.is_owner) return;
+        setIsOwner(true);
+        setDocId(doc.id ?? null);
+        setGoogleDocUrl(doc.google_doc_url ?? null);
+        setGoogleDocStale(!!doc.google_doc_stale);
+        // Only unlock/refresh display state on first detection — don't clobber
+        // edits the user may have unlocked via secret.
+        if (!secretUnlocked) {
+          setSecretUnlocked(true);
+          setPwdLocked(false);
+          setDisplayTitle(doc.title);
+          setDisplayContent(doc.content);
+          setDisplayCreatedAt(doc.created_at);
+          setDisplayExpiresAt(doc.expires_at);
+          setDisplayViews(doc.views);
+        }
       })
       .catch(() => {});
-  }, [user, slug, secretUnlocked]);
+    return () => { cancelled = true; };
+  }, [user, slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Whether the account has Google Docs connected (gates the sync button).
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    getGoogleDocsStatus()
+      .then((s) => { if (!cancelled) setGConnected(!!(s.configured && s.connected)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user]);
 
   // Open the editor directly when arriving via ?edit=1 (owner/secret ready).
   useEffect(() => {
@@ -684,6 +754,39 @@ export default function DocumentView({
           >
             Edit
           </button>
+
+          {/* Google Docs sync — owner + connected only */}
+          {isOwner && gConnected && !pwdLocked && (
+            googleDocUrl ? (
+              <>
+                <a
+                  href={googleDocUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+                >
+                  <GoogleDocIcon /> Open Doc
+                </a>
+                <button
+                  onClick={handleGoogleExport}
+                  disabled={gBusy}
+                  title={googleDocStale ? "Push the latest content to Google Docs" : "Up to date with Google Docs"}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] disabled:opacity-50 transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+                >
+                  {gBusy ? "Syncing…" : googleDocStale ? "⟳ Sync" : "✓ Synced"}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleGoogleExport}
+                disabled={gBusy}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] disabled:opacity-50 transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+              >
+                <GoogleDocIcon /> {gBusy ? "Publishing…" : "Publish to Google Docs"}
+              </button>
+            )
+          )}
+
           {!secretUnlocked && !pwdLocked && (
             <button
               onClick={() => { setReportReason(""); setReportDone(false); setShowReport(true); }}
@@ -694,6 +797,18 @@ export default function DocumentView({
             </button>
           )}
         </div>
+
+        {gError && (
+          <div className="flex items-center justify-between gap-3 flex-wrap px-3 py-2 rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 text-xs text-red-600 dark:text-red-400">
+            <span>{gError}</span>
+            <div className="flex items-center gap-3 shrink-0">
+              {gNeedsReconnect && (
+                <button onClick={handleGoogleReconnect} className="font-medium underline hover:no-underline">Reconnect Google Docs →</button>
+              )}
+              <button onClick={() => { setGError(null); setGNeedsReconnect(false); }} className="text-red-400 hover:text-red-600">✕</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {showReport && (

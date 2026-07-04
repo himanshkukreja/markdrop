@@ -38,6 +38,7 @@ def _build_url(slug: str) -> str:
 
 
 def _to_response(doc, viewer_id: str | None = None) -> dict:
+    is_owner = bool(viewer_id) and doc.owner_id == viewer_id
     return dict(
         slug=doc.slug,
         url=_build_url(doc.slug),
@@ -49,7 +50,13 @@ def _to_response(doc, viewer_id: str | None = None) -> dict:
         views=doc.views,
         is_password_protected=bool(doc.read_password_hash),
         is_owned=bool(doc.owner_id),
-        is_owner=bool(viewer_id) and doc.owner_id == viewer_id,
+        is_owner=is_owner,
+        # Owner-only: never expose the internal id or Google link to others.
+        id=doc.id if is_owner else None,
+        google_doc_url=doc.google_doc_url if is_owner else None,
+        google_doc_stale=bool(
+            is_owner and doc.google_doc_id and (doc.google_doc_synced_rev or 0) < doc.rev
+        ),
     )
 
 

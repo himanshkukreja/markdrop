@@ -51,6 +51,11 @@ class DocumentResponse(BaseModel):
     is_password_protected: bool = False
     is_owned: bool = False   # document has been claimed by some account
     is_owner: bool = False   # the requesting user owns this document
+    # Owner-only fields (null/false for everyone else) — power the Google Docs
+    # sync button on the document page.
+    id: str | None = None
+    google_doc_url: str | None = None
+    google_doc_stale: bool = False  # True when the doc changed since last export
 
     model_config = {"from_attributes": True}
 
