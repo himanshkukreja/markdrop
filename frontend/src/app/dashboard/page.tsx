@@ -14,9 +14,9 @@ type Range = "7d" | "30d" | "all";
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-3">
+    <div className="rounded-lg border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900/40 vscode:bg-[#252526] p-3">
       <div className="text-2xl font-bold tabular-nums text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">{value.toLocaleString()}</div>
-      <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
+      <div className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">{label}</div>
     </div>
   );
 }
@@ -25,11 +25,11 @@ function BarRow({ label, value, max }: { label: string; value: number; max: numb
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="w-28 truncate text-gray-600 dark:text-gray-300" title={label}>{label}</span>
+      <span className="w-28 truncate text-gray-600 dark:text-gray-300 vscode:text-[#cccccc]" title={label}>{label}</span>
       <div className="flex-1 h-3 rounded bg-gray-100 dark:bg-gray-800 vscode:bg-[#2d2d2d] overflow-hidden">
-        <div className="h-full bg-blue-500/70" style={{ width: `${pct}%` }} />
+        <div className="h-full bg-blue-500/70 vscode:bg-[#4daafc]/70" style={{ width: `${pct}%` }} />
       </div>
-      <span className="w-8 text-right tabular-nums text-gray-500">{value}</span>
+      <span className="w-8 text-right tabular-nums text-gray-500 vscode:text-[#9d9d9d]">{value}</span>
     </div>
   );
 }
@@ -57,7 +57,7 @@ function AnalyticsPanel({ slug }: { slug: string }) {
         <div className="flex gap-1">
           {(["7d", "30d", "all"] as Range[]).map((r) => (
             <button key={r} onClick={() => setRange(r)}
-              className={`px-2 py-0.5 text-xs rounded transition-colors ${range === r ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800"}`}>
+              className={`px-2 py-0.5 text-xs rounded transition-colors ${range === r ? "bg-blue-600 vscode:bg-[#0e639c] text-white" : "text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] hover:bg-gray-200 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d]"}`}>
               {r === "all" ? "All" : r}
             </button>
           ))}
@@ -77,7 +77,7 @@ function AnalyticsPanel({ slug }: { slug: string }) {
 
           {data.timeseries.length > 0 && (
             <div>
-              <div className="text-xs text-gray-500 mb-1.5">Views over time</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] mb-1.5">Views over time</div>
               <div className="flex items-end gap-0.5 h-20">
                 {data.timeseries.map((t) => (
                   <div key={t.date} className="flex-1 bg-blue-500/60 rounded-t hover:bg-blue-500 transition-colors" style={{ height: `${(t.views / maxDay) * 100}%` }} title={`${t.date}: ${t.views}`} />
@@ -88,13 +88,13 @@ function AnalyticsPanel({ slug }: { slug: string }) {
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <div className="text-xs text-gray-500 mb-1.5">Top countries</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] mb-1.5">Top countries</div>
               {data.countries.length ? (
                 <div className="space-y-1">{data.countries.map((c) => <BarRow key={c.country} label={c.country} value={c.views} max={maxCountry} />)}</div>
               ) : <p className="text-xs text-gray-400">No geo data yet.</p>}
             </div>
             <div>
-              <div className="text-xs text-gray-500 mb-1.5">Top referrers</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] mb-1.5">Top referrers</div>
               {data.referrers.length ? (
                 <div className="space-y-1">{data.referrers.map((r) => <BarRow key={r.referrer} label={r.referrer} value={r.views} max={maxRef} />)}</div>
               ) : <p className="text-xs text-gray-400">No referrers yet.</p>}
@@ -106,13 +106,44 @@ function AnalyticsPanel({ slug }: { slug: string }) {
   );
 }
 
-function ActionButton({ onClick, href, children, danger }: { onClick?: () => void; href?: string; children: React.ReactNode; danger?: boolean }) {
-  const cls = `inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
-    danger
-      ? "border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
-      : "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d]"
-  }`;
-  return href ? <a href={href} className={cls}>{children}</a> : <button onClick={onClick} className={cls}>{children}</button>;
+type BtnVariant = "default" | "danger" | "success";
+
+function ActionButton({
+  onClick, href, children, variant = "default", active = false, title,
+}: {
+  onClick?: () => void; href?: string; children: React.ReactNode;
+  variant?: BtnVariant; active?: boolean; title?: string;
+}) {
+  const base =
+    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors whitespace-nowrap select-none";
+  // Every variant is tuned for all three themes: light / night-blue (dark:) /
+  // VS Code grey (vscode:). Delete is a neutral ghost that only reddens on hover
+  // so the resting toolbar reads calm and professional on every theme.
+  const variants: Record<BtnVariant, string> = {
+    default:
+      "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] " +
+      "text-gray-600 dark:text-gray-300 vscode:text-[#cccccc] " +
+      "hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white vscode:hover:bg-[#2a2d2e]",
+    success:
+      "border-emerald-200 dark:border-emerald-900/50 vscode:border-[#2e4034] " +
+      "text-emerald-600 dark:text-emerald-400 vscode:text-[#4ec9b0] " +
+      "hover:bg-emerald-50 dark:hover:bg-emerald-950/30 vscode:hover:bg-[#26332b]",
+    danger:
+      "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] " +
+      "text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] " +
+      "hover:border-red-300 hover:bg-red-50 hover:text-red-600 " +
+      "dark:hover:border-red-900/60 dark:hover:bg-red-950/40 dark:hover:text-red-400 " +
+      "vscode:hover:border-[#5a3232] vscode:hover:bg-[#3a2626] vscode:hover:text-[#f48771]",
+  };
+  const activeCls = active
+    ? " bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white vscode:bg-[#2a2d2e] vscode:text-white"
+    : "";
+  const cls = `${base} ${variants[variant]}${activeCls}`;
+  return href ? (
+    <a href={href} title={title} className={cls}>{children}</a>
+  ) : (
+    <button onClick={onClick} title={title} className={cls}>{children}</button>
+  );
 }
 
 export default function DashboardPage() {
@@ -289,13 +320,13 @@ export default function DashboardPage() {
       </div>
 
       {gNotice && (
-        <div className="mb-4 rounded-lg border border-blue-200 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 text-sm text-blue-700 dark:text-blue-300 flex items-center justify-between gap-3">
+        <div className="mb-4 rounded-lg border border-blue-200 dark:border-blue-900/60 vscode:border-[#2d4a5e] bg-blue-50 dark:bg-blue-950/30 vscode:bg-[#12283a] px-3 py-2 text-sm text-blue-700 dark:text-blue-300 vscode:text-[#4daafc] flex items-center justify-between gap-3">
           <span>{gNotice}</span>
           <button onClick={() => setGNotice(null)} className="text-blue-400 hover:text-blue-600 shrink-0">✕</button>
         </div>
       )}
       {exportError && (
-        <div className="mb-4 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-600 dark:text-red-400 flex items-center justify-between gap-3 flex-wrap">
+        <div className="mb-4 rounded-lg border border-red-200 dark:border-red-900/60 vscode:border-[#5a3232] bg-red-50 dark:bg-red-950/30 vscode:bg-[#3a2626] px-3 py-2 text-sm text-red-600 dark:text-red-400 vscode:text-[#f48771] flex items-center justify-between gap-3 flex-wrap">
           <span>{exportError}</span>
           <div className="flex items-center gap-3 shrink-0">
             {needsReconnect && (
@@ -306,7 +337,7 @@ export default function DashboardPage() {
         </div>
       )}
       {exported && (
-        <div className="mb-4 rounded-lg border border-green-200 dark:border-green-900/60 bg-green-50 dark:bg-green-950/30 px-3 py-2.5 text-sm text-green-700 dark:text-green-300 flex items-center justify-between gap-3 flex-wrap">
+        <div className="mb-4 rounded-lg border border-green-200 dark:border-green-900/60 vscode:border-[#2e4034] bg-green-50 dark:bg-green-950/30 vscode:bg-[#1c2b22] px-3 py-2.5 text-sm text-green-700 dark:text-green-300 vscode:text-[#4ec9b0] flex items-center justify-between gap-3 flex-wrap">
           <span>✅ <span className="font-medium">{exported.title}</span> {exported.updated ? "updated in" : "exported to"} Google Docs.</span>
           <div className="flex items-center gap-3 shrink-0">
             <a href={exported.url} target="_blank" rel="noopener noreferrer" className="font-medium underline hover:no-underline">Open in Google Docs →</a>
@@ -338,7 +369,7 @@ export default function DashboardPage() {
           {confirmDisconnect ? (
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-xs text-gray-500 dark:text-gray-400">Revoke access?</span>
-              <button onClick={handleDisconnect} disabled={disconnectBusy} className="text-sm px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors font-medium disabled:opacity-50">
+              <button onClick={handleDisconnect} disabled={disconnectBusy} className="text-sm px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-900/60 vscode:border-[#5a3232] text-red-600 dark:text-red-400 vscode:text-[#f48771] hover:bg-red-50 dark:hover:bg-red-950/30 vscode:hover:bg-[#3a2626] transition-colors font-medium disabled:opacity-50">
                 {disconnectBusy ? "Disconnecting…" : "Yes, disconnect"}
               </button>
               <button onClick={() => setConfirmDisconnect(false)} disabled={disconnectBusy} className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium disabled:opacity-50">
@@ -363,45 +394,54 @@ export default function DashboardPage() {
       ) : (
         <div className="space-y-2.5">
           {docs.map((d) => (
-            <div key={d.slug} className="rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 hover:border-gray-300 dark:hover:border-gray-700 transition-colors">
+            <div key={d.slug} className="rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900/40 vscode:bg-[#252526] p-4 hover:border-gray-300 dark:hover:border-gray-700 vscode:hover:border-[#4c4c4c] transition-colors">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
-                  <a href={`/${d.slug}`} className="font-semibold text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] hover:text-blue-500 truncate block">
+                  <a href={`/${d.slug}`} className="font-semibold text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] hover:text-blue-600 dark:hover:text-blue-400 vscode:hover:text-[#4daafc] truncate block transition-colors">
                     {d.title || d.slug}
                   </a>
-                  <div className="text-xs text-gray-400 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="font-mono text-gray-500 dark:text-gray-400">/{d.slug}</span>
-                    <span>👁 {d.views.toLocaleString()}</span>
-                    <span>📄 {d.export_pdf_count}</span>
-                    <span>🔗 {d.copy_url_count}</span>
-                    {d.is_password_protected && <span>🔒</span>}
-                    {d.expires_at && <span className="text-amber-500">expires {new Date(d.expires_at).toLocaleDateString()}</span>}
-                    <span className="text-gray-300 dark:text-gray-600">·</span>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="font-mono text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">/{d.slug}</span>
+                    <span title="Views">👁 {d.views.toLocaleString()}</span>
+                    <span title="PDF exports">📄 {d.export_pdf_count}</span>
+                    <span title="Link copies">🔗 {d.copy_url_count}</span>
+                    {d.is_password_protected && <span title="Password protected">🔒</span>}
+                    {d.expires_at && <span className="text-amber-600 dark:text-amber-400 vscode:text-[#cca700]">expires {new Date(d.expires_at).toLocaleDateString()}</span>}
+                    <span className="text-gray-300 dark:text-gray-600 vscode:text-[#5a5a5a]">·</span>
                     <span>{new Date(d.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <ActionButton onClick={() => setExpanded(expanded === d.slug ? null : d.slug)}>
-                    {expanded === d.slug ? "Hide" : "📊 Analytics"}
+                <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                  <ActionButton onClick={() => setExpanded(expanded === d.slug ? null : d.slug)} active={expanded === d.slug}>
+                    {expanded === d.slug ? "Hide" : "Analytics"}
                   </ActionButton>
-                  <ActionButton onClick={() => copyUrl(d.url, d.slug)}>{copied === d.slug ? "Copied!" : "Copy link"}</ActionButton>
+                  <ActionButton onClick={() => copyUrl(d.url, d.slug)} active={copied === d.slug}>
+                    {copied === d.slug ? "Copied" : "Copy link"}
+                  </ActionButton>
                   {gStatus?.connected && (
                     d.google_doc_url ? (
                       <>
-                        <ActionButton href={d.google_doc_url}>📄 Open Doc</ActionButton>
-                        <ActionButton onClick={() => handleExport(d)}>
-                          {exportBusy === d.slug ? "Updating…" : d.google_doc_stale ? "⟳ Update Doc" : "✓ Synced"}
-                        </ActionButton>
+                        <ActionButton href={d.google_doc_url} title="Open in Google Docs">Open Doc</ActionButton>
+                        {d.google_doc_stale ? (
+                          <ActionButton onClick={() => handleExport(d)}>
+                            {exportBusy === d.slug ? "Syncing…" : "Sync"}
+                          </ActionButton>
+                        ) : (
+                          <ActionButton onClick={() => handleExport(d)} variant="success" title="Up to date — click to re-sync">
+                            {exportBusy === d.slug ? "Syncing…" : "Synced"}
+                          </ActionButton>
+                        )}
                       </>
                     ) : (
-                      <ActionButton onClick={() => handleExport(d)}>
-                        {exportBusy === d.slug ? "Exporting…" : "↗ Google Docs"}
+                      <ActionButton onClick={() => handleExport(d)} title="Export to Google Docs">
+                        {exportBusy === d.slug ? "Exporting…" : "Google Docs"}
                       </ActionButton>
                     )
                   )}
-                  <ActionButton onClick={() => openRename(d.slug)}>Change URL</ActionButton>
                   <ActionButton href={`/${d.slug}?edit=1`}>Edit</ActionButton>
-                  <ActionButton onClick={() => setDeleteFor(d.slug)} danger>Delete</ActionButton>
+                  <ActionButton onClick={() => openRename(d.slug)}>Change URL</ActionButton>
+                  <span className="mx-0.5 h-5 w-px bg-gray-200 dark:bg-gray-700 vscode:bg-[#3c3c3c]" aria-hidden />
+                  <ActionButton onClick={() => setDeleteFor(d.slug)} variant="danger">Delete</ActionButton>
                 </div>
               </div>
               {expanded === d.slug && <AnalyticsPanel slug={d.slug} />}
