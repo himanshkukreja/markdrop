@@ -238,6 +238,33 @@ async def claim_document(
     return _doc_from_mongo(raw)
 
 
+async def copy_document(
+    db: AsyncIOMotorDatabase,
+    slug: str,
+    user_id: str,
+    read_password: str | None = None,
+) -> tuple[Document, str]:
+    """Import a copy of a readable document into ``user_id``'s account.
+
+    The copy is a brand-new document owned by the user: fresh slug, no read
+    password, and no expiry (import = keep it). Only title + content carry over.
+    Authorization to read the source reuses ``get_document`` (public docs, or a
+    protected doc unlocked with ``read_password`` / owned by the caller).
+    """
+    source = await get_document(db, slug, read_password=read_password, user_id=user_id)
+
+    data = DocumentCreate(
+        title=source.title,
+        content=source.content,
+        custom_slug=None,
+        expires_in="never",      # drop any expiry — an imported copy is kept
+        read_password=None,      # drop any read password
+    )
+    # Prefer a slug derived from the title for a friendly URL; create_document
+    # auto-suffixes on collision and falls back to a random slug.
+    return await create_document(db, data, owner_id=user_id, preferred_slug=source.title or None)
+
+
 async def change_slug(
     db: AsyncIOMotorDatabase,
     slug: str,

@@ -443,7 +443,7 @@ export default function DashboardPage() {
                         {d.google_doc_stale ? (
                           <ActionButton onClick={() => handleExport(d)} variant="warning" title="This document changed since the last sync — click to update the Google Doc">
                             <ReloadIcon spinning={exportBusy === d.slug} />
-                            {exportBusy === d.slug ? "Syncing…" : "Sync changes"}
+                            {exportBusy === d.slug ? "Syncing…" : "Sync to Google"}
                           </ActionButton>
                         ) : (
                           <ActionButton onClick={() => handleExport(d)} variant="success" title="Up to date — click to re-sync">

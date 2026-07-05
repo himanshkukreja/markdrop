@@ -64,6 +64,12 @@ class DocumentCreateResponse(DocumentResponse):
     edit_secret: str
 
 
+class DocumentCopyRequest(BaseModel):
+    # Only needed when copying a password-protected source the caller has
+    # unlocked; the copy itself is always created WITHOUT a password.
+    read_password: str | None = Field(None, max_length=100)
+
+
 class SlugChangeRequest(BaseModel):
     new_slug: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
 

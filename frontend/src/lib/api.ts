@@ -33,6 +33,9 @@ export interface DocumentCreateResponse {
   expires_at: string | null;
   views: number;
   is_password_protected: boolean;
+  // Present when the creator owns the doc (e.g. logged-in create, or copy) —
+  // needed to trigger the Google Docs export by internal id.
+  id?: string | null;
 }
 
 export interface DocumentResponse {
@@ -181,6 +184,24 @@ export async function changeSlug(slug: string, newSlug: string, editSecret?: str
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Failed to change URL" }));
     throw new Error(err.detail);
+  }
+  return res.json();
+}
+
+/** Import a copy of a readable document into the logged-in user's account.
+ *  The copy has a fresh slug, no password, and no expiry. Requires login. */
+export async function copyDocument(slug: string, readPassword?: string): Promise<DocumentCreateResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/documents/${slug}/copy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ read_password: readPassword ?? null }),
+  });
+  if (res.status === 401) throw new Error("Please log in to save a copy");
+  if (res.status === 404) throw new Error("Document not found");
+  if (res.status === 403) throw new Error("You don't have access to copy this document");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to copy document" }));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Failed to copy document");
   }
   return res.json();
 }

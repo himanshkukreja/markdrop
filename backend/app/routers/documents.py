@@ -7,6 +7,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import optional_user, require_user
 from app.schemas.document import (
+    DocumentCopyRequest,
     DocumentCreate,
     DocumentCreateResponse,
     DocumentResponse,
@@ -132,6 +133,25 @@ async def claim_document(
     """Attach an anonymous document to the logged-in account (proven via secret)."""
     doc = await doc_service.claim_document(db, slug, x_edit_secret, user.id)
     return DocumentResponse(**_to_response(doc, user.id))
+
+
+@router.post("/{slug}/copy", response_model=DocumentCreateResponse, status_code=201)
+@limiter.limit(settings.rate_limit_create)
+async def copy_document(
+    request: Request,
+    slug: str,
+    data: DocumentCopyRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Import a copy of a readable document into the logged-in user's account.
+
+    The copy is owned by the caller with a fresh slug, no read password, and no
+    expiry. Requires login (401 otherwise); 404/401/403 if the source can't be
+    read (missing, or protected without the right password).
+    """
+    doc, raw_secret = await doc_service.copy_document(db, slug, user.id, data.read_password)
+    return DocumentCreateResponse(**_to_response(doc, user.id), edit_secret=raw_secret)
 
 
 @router.patch("/{slug}/slug", response_model=DocumentResponse)

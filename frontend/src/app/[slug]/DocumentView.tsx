@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
-import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs } from "@/lib/api";
+import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
 import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
@@ -18,6 +18,17 @@ function GoogleDocIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" fill="#4285F4" />
       <path d="M14 2v6h6z" fill="#A1C2FA" />
       <path d="M8 12h8M8 15h8M8 18h5" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Two overlapping pages — "duplicate / save a copy". */
+function CopyDocIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
     </svg>
   );
 }
@@ -105,6 +116,11 @@ export default function DocumentView({
   const [gError, setGError] = useState<string | null>(null);
   const [gNeedsReconnect, setGNeedsReconnect] = useState(false);
 
+  // "Save a copy" (import someone else's doc into your account) state
+  const [showCopy, setShowCopy] = useState(false);
+  const [copyBusy, setCopyBusy] = useState<null | "plain" | "google">(null);
+  const [copyError, setCopyError] = useState("");
+
   // Abuse report state
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState("");
@@ -178,6 +194,39 @@ export default function DocumentView({
       }
     } finally {
       setGBusy(false);
+    }
+  }
+
+  async function handleCopy(withGoogle: boolean) {
+    setCopyBusy(withGoogle ? "google" : "plain");
+    setCopyError("");
+    try {
+      // Pass the unlocked password so the server can read a protected source;
+      // the copy itself is always created without a password.
+      const cachedPwd = isPasswordProtected
+        ? sessionStorage.getItem(`pwd:${slug}`) || undefined
+        : undefined;
+      const copy = await copyDocument(slug, cachedPwd);
+
+      if (withGoogle && !gConnected) {
+        // Not connected yet: land on the new (owned) copy, then start the opt-in
+        // Google connect flow — they can sync from there once connected.
+        await connectGoogleDocs(`/${copy.slug}`);
+        return;
+      }
+      if (withGoogle && copy.id) {
+        // Best-effort sync; if it fails (e.g. reconnect needed) the copy still
+        // exists, so send them to it — the doc page surfaces the sync/reconnect UI.
+        try {
+          await exportToGoogleDocs(copy.id);
+        } catch {
+          /* fall through to the redirect below */
+        }
+      }
+      router.push(`/${copy.slug}`);
+    } catch (e) {
+      setCopyError(e instanceof Error ? e.message : "Could not save a copy");
+      setCopyBusy(null);
     }
   }
 
@@ -772,6 +821,17 @@ export default function DocumentView({
             Edit
           </button>
 
+          {/* Save a copy — authenticated viewer who isn't the owner */}
+          {user && !isOwner && !pwdLocked && (
+            <button
+              onClick={() => { setCopyError(""); setShowCopy(true); }}
+              title="Save your own editable copy of this document"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+            >
+              <CopyDocIcon /> Save a copy
+            </button>
+          )}
+
           {/* Google Docs sync — owner + connected only */}
           {isOwner && gConnected && !pwdLocked && (
             googleDocUrl ? (
@@ -791,7 +851,7 @@ export default function DocumentView({
                     title="This document changed since the last sync — push the latest content to Google Docs"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 vscode:border-[#665c33] vscode:bg-[#3a3320] vscode:text-[#e2c08d] vscode:hover:bg-[#4a4126]"
                   >
-                    <ReloadIcon spinning={gBusy} /> {gBusy ? "Syncing…" : "Sync changes"}
+                    <ReloadIcon spinning={gBusy} /> {gBusy ? "Syncing to Google…" : "Sync to Google Docs"}
                   </button>
                 ) : (
                   <button
@@ -800,7 +860,7 @@ export default function DocumentView({
                     title="Up to date with Google Docs — click to re-sync"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 vscode:border-[#2e4034] vscode:text-[#4ec9b0] vscode:hover:bg-[#26332b]"
                   >
-                    {gBusy ? <><ReloadIcon spinning /> Syncing…</> : "✓ Synced"}
+                    {gBusy ? <><ReloadIcon spinning /> Syncing to Google…</> : <><GoogleDocIcon /> Synced to Google</>}
                   </button>
                 )}
               </>
@@ -838,6 +898,66 @@ export default function DocumentView({
           </div>
         )}
       </div>
+
+      {showCopy && (
+        <Modal title="Save a copy to your account" onClose={() => { if (!copyBusy) setShowCopy(false); }}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+              This creates your own editable copy on Markdrop with a new link. The
+              copy has <span className="font-medium">no password</span> and{" "}
+              <span className="font-medium">no expiry</span>.
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => handleCopy(false)}
+                disabled={!!copyBusy}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 disabled:opacity-50 transition-colors"
+              >
+                <CopyDocIcon className="w-5 h-5 shrink-0 text-blue-500" />
+                <span>
+                  <span className="block text-sm font-medium text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
+                    {copyBusy === "plain" ? "Creating copy…" : "Copy to Markdrop"}
+                  </span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                    A new document in your dashboard.
+                  </span>
+                </span>
+              </button>
+              <button
+                onClick={() => handleCopy(true)}
+                disabled={!!copyBusy}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 disabled:opacity-50 transition-colors"
+              >
+                <GoogleDocIcon className="w-5 h-5 shrink-0" />
+                <span>
+                  <span className="block text-sm font-medium text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
+                    {copyBusy === "google"
+                      ? "Working…"
+                      : gConnected
+                        ? "Copy & sync to Google Docs"
+                        : "Copy & connect Google Docs"}
+                  </span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                    {gConnected
+                      ? "Also export the copy to a new Google Doc."
+                      : "You'll be asked to connect Google Docs first."}
+                  </span>
+                </span>
+              </button>
+            </div>
+            {copyError && <p className="text-xs text-red-500">{copyError}</p>}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowCopy(false)}
+                disabled={!!copyBusy}
+                className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {showReport && (
         <Modal title={reportDone ? "Report submitted" : "Report this document"} onClose={() => setShowReport(false)}>
