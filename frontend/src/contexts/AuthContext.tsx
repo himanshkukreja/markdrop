@@ -2,6 +2,14 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { fetchMe, getToken, setToken, clearToken, logoutRequest, MeUser } from "@/lib/api";
+import AuthModal from "@/components/AuthModal";
+
+interface AuthModalOptions {
+  next?: string;
+  title?: string;
+  message?: string;
+  onSuccess?: () => void;
+}
 
 interface AuthState {
   user: MeUser | null;
@@ -10,6 +18,8 @@ interface AuthState {
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   updateUser: (user: MeUser) => void;
+  /** Open the in-place sign-in / sign-up modal (defaults `next` to the current URL). */
+  openAuthModal: (opts?: AuthModalOptions) => void;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -56,9 +66,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateUser = useCallback((u: MeUser) => setUser(u), []);
 
+  const [authModal, setAuthModal] = useState<AuthModalOptions | null>(null);
+  const openAuthModal = useCallback((opts?: AuthModalOptions) => setAuthModal(opts ?? {}), []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refresh, updateUser, openAuthModal }}>
       {children}
+      {authModal && (
+        <AuthModal
+          next={
+            authModal.next ??
+            (typeof window !== "undefined" ? window.location.pathname + window.location.search : "/dashboard")
+          }
+          title={authModal.title}
+          message={authModal.message}
+          onSuccess={authModal.onSuccess}
+          onClose={() => setAuthModal(null)}
+        />
+      )}
     </AuthContext.Provider>
   );
 }

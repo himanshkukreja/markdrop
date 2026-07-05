@@ -10,7 +10,6 @@ import { MAX_CHARS } from "@/lib/limits";
 import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
-import AuthModal from "@/components/AuthModal";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -103,7 +102,7 @@ export default function DocumentView({
   startGoogleSync = false,
 }: Props) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, openAuthModal } = useAuth();
 
   // Claim-to-account state
   const [claimSecret, setClaimSecret] = useState<string | null>(initialSecret || null);
@@ -124,7 +123,6 @@ export default function DocumentView({
 
   // "Save a copy" (import someone else's doc into your account) state
   const [showCopy, setShowCopy] = useState(false);
-  const [showAuth, setShowAuth] = useState(false);
   const [copyBusy, setCopyBusy] = useState<null | "plain" | "google">(null);
   const [copyError, setCopyError] = useState("");
 
@@ -206,10 +204,16 @@ export default function DocumentView({
 
   function requestCopy() {
     if (!user) {
-      // Not signed in: open the sign-in modal right here (no page nav). Email
-      // sign-in resumes the copy in-place; Google redirects and resumes on
-      // return via ?copy=1.
-      setShowAuth(true);
+      // Not signed in: open the shared sign-in modal right here (no page nav).
+      // Email sign-in resumes the copy in-place; Google redirects and resumes
+      // on return via ?copy=1.
+      openAuthModal({
+        title: "Sign in to save a copy",
+        message:
+          "Saving a copy adds this document to your Markdrop account so you can edit it, track views, and sync it to Google Docs. Sign in or create a free account to continue.",
+        next: `/${slug}?copy=1`,
+        onSuccess: () => { setCopyError(""); setShowCopy(true); },
+      });
       return;
     }
     setCopyError("");
@@ -997,16 +1001,6 @@ export default function DocumentView({
           </div>
         )}
       </div>
-
-      {showAuth && (
-        <AuthModal
-          title="Sign in to save a copy"
-          message="Saving a copy adds this document to your Markdrop account so you can edit it, track views, and sync it to Google Docs. Sign in or create a free account to continue."
-          next={`/${slug}?copy=1`}
-          onClose={() => setShowAuth(false)}
-          onSuccess={() => { setShowAuth(false); setCopyError(""); setShowCopy(true); }}
-        />
-      )}
 
       {showCopy && (
         <Modal title="Save a copy to your account" onClose={() => { if (!copyBusy) setShowCopy(false); }}>

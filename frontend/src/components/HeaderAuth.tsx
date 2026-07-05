@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function HeaderAuth() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, openAuthModal } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -22,12 +22,12 @@ export default function HeaderAuth() {
 
   if (!user) {
     return (
-      <a
-        href="/login"
+      <button
+        onClick={() => openAuthModal()}
         className="text-sm text-gray-600 dark:text-gray-300 vscode:text-[#d4d4d4] hover:text-gray-900 dark:hover:text-white transition-colors"
       >
         Log in
-      </a>
+      </button>
     );
   }
 
