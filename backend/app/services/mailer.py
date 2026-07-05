@@ -52,7 +52,7 @@ _MARKETPLACE_URL = (
 # Animated product-demo hero (code-rendered GIF, hosted on ImageKit CDN — kept off
 # the app repo/bundle since it's a binary). Falls through to the static PNG hero
 # ({frontend_url}/email/hero.png) only if this is ever cleared.
-_HERO_IMAGE = "https://ik.imagekit.io/jrcgzv9vw/markdrop/email/welcome-hero.gif"
+_HERO_IMAGE = "https://ik.imagekit.io/jrcgzv9vw/markdrop/email/welcome-hero-hd.gif"
 
 # (icon filename, title, description, CTA label, CTA href-key). Icons are hosted
 # PNGs under {frontend_url}/email/ — Gmail strips inline SVG and blocks data: URIs,
