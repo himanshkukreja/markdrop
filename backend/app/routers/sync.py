@@ -22,6 +22,7 @@ from app.schemas.document import (
     SyncRevResponse,
 )
 from app.services import document as doc_service
+from app.services import live
 
 router = APIRouter(prefix="/api/v1/sync", tags=["sync"])
 
@@ -113,4 +114,6 @@ async def sync_push(
                 "content": doc.content,
             },
         )
+    # Notify any open viewers so they refresh live (best-effort, in-process).
+    live.publish(doc.slug, doc.rev)
     return _doc_response(doc)

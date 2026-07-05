@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
-import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument } from "@/lib/api";
+import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, API_BASE } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
 import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
@@ -331,6 +331,56 @@ export default function DocumentView({
       .catch(() => {});
     return () => { cancelled = true; };
   }, [user]);
+
+  // Live updates: refresh the page when the document changes elsewhere (a VS
+  // Code sync push or an in-app edit). A lightweight WebSocket receives a
+  // "changed" ping, then we refetch through the normal authorized read path.
+  // Additive + best-effort: if the socket never connects, the page behaves
+  // exactly as before (manual reload). An in-progress edit is never clobbered.
+  const editingRef = useRef(editing);
+  useEffect(() => { editingRef.current = editing; }, [editing]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isPasswordProtected && pwdLocked) return; // wait until unlocked
+    let ws: WebSocket | null = null;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
+
+    function connect() {
+      try {
+        ws = new WebSocket(`${API_BASE.replace(/^http/, "ws")}/ws/docs/${slug}`);
+      } catch {
+        return;
+      }
+      ws.onmessage = (ev) => {
+        let msg: { type?: string } | null = null;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+        if (msg?.type !== "changed" || editingRef.current) return;
+        const cachedPwd = isPasswordProtected
+          ? sessionStorage.getItem(`pwd:${slug}`) || undefined
+          : undefined;
+        getDocument(slug, cachedPwd, claimSecret || undefined)
+          .then((doc) => {
+            setDisplayTitle(doc.title);
+            setDisplayContent(doc.content);
+            setDisplayExpiresAt(doc.expires_at);
+            setDisplayViews(doc.views);
+            if (doc.is_owner) setGoogleDocStale(!!doc.google_doc_stale);
+          })
+          .catch(() => {});
+      };
+      ws.onclose = () => {
+        if (!closed) retry = setTimeout(connect, 3000); // reconnect while open
+      };
+    }
+    connect();
+    return () => {
+      closed = true;
+      if (retry) clearTimeout(retry);
+      ws?.close();
+    };
+  }, [slug, isPasswordProtected, pwdLocked, claimSecret]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Open the editor directly when arriving via ?edit=1 (owner/secret ready).
   useEffect(() => {

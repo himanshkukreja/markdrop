@@ -16,7 +16,7 @@ from app.schemas.document import (
     ReportRequest,
     SlugChangeRequest,
 )
-from app.services import analytics, document as doc_service
+from app.services import analytics, document as doc_service, live
 from app.utils.net import get_client_ip
 
 settings = get_settings()
@@ -106,6 +106,8 @@ async def update_document(
 ):
     viewer_id = user.id if user else None
     doc = await doc_service.update_document(db, slug, data, x_edit_secret, viewer_id)
+    # Notify any open viewers so they refresh live (best-effort, in-process).
+    live.publish(doc.slug, doc.rev)
     return DocumentResponse(**_to_response(doc, viewer_id))
 
 
