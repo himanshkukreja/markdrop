@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import Spinner from "@/components/Spinner";
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -37,7 +38,10 @@ export default function AuthCallback() {
           <a href="/login" className="text-sm text-blue-500 hover:underline">Back to login</a>
         </div>
       ) : (
-        <p className="text-sm text-gray-500 dark:text-gray-400">Signing you in…</p>
+        <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+          <Spinner className="w-5 h-5" />
+          <p className="text-sm">Signing you in…</p>
+        </div>
       )}
     </div>
   );
