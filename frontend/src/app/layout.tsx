@@ -54,6 +54,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </svg>
                 <span className="hidden sm:inline">Share file</span>
               </a>
+              <a href="/builder" className="hidden sm:inline text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] hover:text-gray-800 dark:hover:text-gray-200 vscode:hover:text-[#d4d4d4] transition-colors whitespace-nowrap">
+                Builder
+              </a>
               <a href="/new" className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] hover:text-gray-800 dark:hover:text-gray-200 vscode:hover:text-[#d4d4d4] transition-colors whitespace-nowrap">
                 + New
               </a>

@@ -58,6 +58,15 @@ const FEATURES: Feature[] = [
     ),
   },
   {
+    title: "README / Markdown builder",
+    desc: "Assemble a polished README from 45+ drag-and-drop section templates — titles, badges, install, API tables, Mermaid diagrams and math — then publish it to a markdrop.in link or download the .md.",
+    href: "/builder",
+    cta: "Open the builder",
+    icon: (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h16.5M3.75 9.75h16.5m-16.5 4.5h9.75m-9.75 4.5h9.75" />
+    ),
+  },
+  {
     title: "Accounts & analytics",
     desc: "Optional passwordless login unlocks a dashboard of all your docs, view counts, and geographic analytics. Everything works fully without an account too.",
     href: "/dashboard",
@@ -75,6 +84,7 @@ const CHIPS = [
   "Live preview / split view",
   "Mermaid diagrams",
   "LaTeX / KaTeX math",
+  "README builder",
   "Syntax highlighting",
   "Export to PDF",
   "Export to Google Docs",
@@ -89,7 +99,7 @@ export default function FeatureGrid() {
     <section className="py-16 sm:py-20">
       <Reveal className="text-center max-w-2xl mx-auto">
         <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
-          One tool, six <span className="md-gradient-text">superpowers</span>
+          One tool, seven <span className="md-gradient-text">superpowers</span>
         </h2>
         <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0]">
           Markdrop started as a markdown pastebin and grew into a full sharing suite — all still no-login by default.
