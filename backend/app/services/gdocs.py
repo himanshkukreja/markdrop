@@ -12,6 +12,7 @@ token; we never persist short-lived access tokens.
 """
 
 import json
+import re
 
 import httpx
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -49,6 +50,11 @@ def _is_fence(line: str) -> bool:
     return stripped.startswith("```") or stripped.startswith("~~~")
 
 
+def _fence_info(line: str) -> str:
+    """The info string after an opening fence, lowercased (e.g. ``mermaid``)."""
+    return line.strip().lstrip("`~").strip().lower()
+
+
 def _is_public_https(url: str | None) -> bool:
     """Only a public https origin is reachable by Google's image fetcher."""
     if not url or not url.startswith("https://"):
@@ -71,6 +77,22 @@ def _render_diagram_block(block: list[str], image_base_url: str | None) -> str:
         if len(token) <= diagram_render.MAX_ENCODED:
             return f"![diagram]({url})"
     return "```text\n" + text + "\n```"
+
+
+def _render_mermaid_block(body: list[str], image_base_url: str | None) -> str:
+    """Turn a ```mermaid fence into an embeddable image reference.
+
+    Google Docs can't render Mermaid, so we point at our public mermaid.png
+    endpoint (Kroki-backed); Google fetches + embeds the image. With no public
+    URL (e.g. localhost), keep the source as a plain fence.
+    """
+    source = "\n".join(body)
+    if _is_public_https(image_base_url):
+        token = diagram_render.encode_diagram(source)
+        if len(token) <= diagram_render.MAX_ENCODED:
+            url = f"{image_base_url.rstrip('/')}/api/v1/google/mermaid.png?d={token}"
+            return f"![mermaid]({url})"
+    return "```\n" + source + "\n```"
 
 
 def transform_diagrams(markdown: str, image_base_url: str | None) -> str:
@@ -110,7 +132,9 @@ def transform_diagrams(markdown: str, image_base_url: str | None) -> str:
             closing = lines[i] if i < n else None
             if i < n:
                 i += 1  # consume the closing fence
-            if _is_diagram(body):
+            if _fence_info(opening) == "mermaid":
+                out.append(_render_mermaid_block(body, image_base_url))
+            elif _is_diagram(body):
                 out.append(_render_diagram_block(body, image_base_url))
             else:
                 out.append(opening)
@@ -132,6 +156,76 @@ def transform_diagrams(markdown: str, image_base_url: str | None) -> str:
         else:
             out.extend(block)
     return "\n".join(out)
+
+
+# Block math ($$…$$, possibly multi-line) and inline math ($…$). The inline rule
+# mirrors remark-math (used by the web preview): a single-dollar span whose
+# content has no leading/trailing whitespace and no line break — so whatever
+# renders as math on markdrop.in also renders as math in the exported Doc.
+_BLOCK_MATH = re.compile(r"\$\$(.+?)\$\$", re.DOTALL)
+_INLINE_MATH = re.compile(r"(?<!\$)\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\$)")
+
+
+def _math_url(latex: str, *, display: bool, image_base_url: str) -> str | None:
+    token = diagram_render.encode_diagram(latex.strip())
+    if len(token) > diagram_render.MAX_ENCODED:
+        return None
+    flag = 1 if display else 0
+    return f"{image_base_url.rstrip('/')}/api/v1/google/math.png?d={token}&display={flag}"
+
+
+def transform_math(markdown: str, image_base_url: str | None) -> str:
+    """Replace ``$$…$$`` / ``$…$`` math with image references Google can embed.
+
+    Runs only on text *outside* fenced code blocks, so ``$`` in code (and the
+    ```mermaid blocks handled separately) are never touched. With no public URL
+    the math is left as-is (source text).
+    """
+    if not _is_public_https(image_base_url):
+        return markdown
+
+    lines = markdown.split("\n")
+    out: list[str] = []
+    i, n = 0, len(lines)
+    while i < n:
+        # Pass fenced blocks through untouched.
+        if _is_fence(lines[i]):
+            out.append(lines[i])
+            i += 1
+            while i < n and not _is_fence(lines[i]):
+                out.append(lines[i])
+                i += 1
+            if i < n:
+                out.append(lines[i])
+                i += 1
+            continue
+        # Accumulate a run of non-fence lines and convert math within it.
+        start = i
+        while i < n and not _is_fence(lines[i]):
+            i += 1
+        segment = "\n".join(lines[start:i])
+
+        def _block_sub(m: "re.Match[str]") -> str:
+            url = _math_url(m.group(1), display=True, image_base_url=image_base_url)
+            return f"\n\n![math]({url})\n\n" if url else m.group(0)
+
+        def _inline_sub(m: "re.Match[str]") -> str:
+            url = _math_url(m.group(1), display=False, image_base_url=image_base_url)
+            return f"![math]({url})" if url else m.group(0)
+
+        segment = _BLOCK_MATH.sub(_block_sub, segment)
+        segment = _INLINE_MATH.sub(_inline_sub, segment)
+        out.append(segment)
+    return "\n".join(out)
+
+
+def transform_for_gdocs(markdown: str, image_base_url: str | None) -> str:
+    """Full export transform: math → images, then diagrams/Mermaid → images.
+
+    Math runs first (fence-aware, so it skips code and ```mermaid blocks); the
+    diagram pass then converts box-drawing diagrams and ```mermaid fences.
+    """
+    return transform_diagrams(transform_math(markdown, image_base_url), image_base_url)
 
 
 class GoogleDocsError(RuntimeError):

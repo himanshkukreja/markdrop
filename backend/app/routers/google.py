@@ -31,6 +31,8 @@ from app.schemas.google import GoogleConnectResponse, GoogleExportResponse, Goog
 from app.services import diagram_render
 from app.services import document as doc_service
 from app.services import gdocs
+from app.services import math_render
+from app.services import mermaid_render
 from app.services import oauth
 from app.services import user as user_service
 from app.utils import crypto
@@ -77,6 +79,55 @@ async def diagram_image(request: Request, d: str = Query(..., description="encod
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid diagram token")
     png = await run_in_threadpool(diagram_render.render_diagram_png, text)
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/mermaid.png")
+@limiter.limit("120/minute")
+async def mermaid_image(request: Request, d: str = Query(..., description="encoded mermaid source")):
+    """Render a Mermaid diagram to PNG (public — Google's converter fetches it).
+
+    Delegates to Kroki server-side; on any failure we fall back to rendering the
+    Mermaid source as a monospace image so the export never silently loses it.
+    """
+    try:
+        source = diagram_render.decode_diagram(d)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid mermaid token")
+    try:
+        png = await mermaid_render.fetch_mermaid_png(source)
+    except Exception:
+        png = await run_in_threadpool(diagram_render.render_diagram_png, source)
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/math.png")
+@limiter.limit("120/minute")
+async def math_image(
+    request: Request,
+    d: str = Query(..., description="encoded LaTeX"),
+    display: int = Query(0, description="1 for block/display math, 0 for inline"),
+):
+    """Render a LaTeX expression to PNG (public — Google's converter fetches it)."""
+    try:
+        latex = diagram_render.decode_diagram(d)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid math token")
+    try:
+        png = await run_in_threadpool(math_render.render_math_png, latex, bool(display))
+    except Exception:
+        # matplotlib's mathtext is a stricter subset than KaTeX (e.g. no
+        # \begin{}=environments, needs \frac{}{} braces). Rather than a broken
+        # image in the Doc, fall back to the LaTeX source as a monospace image.
+        png = await run_in_threadpool(diagram_render.render_diagram_png, latex)
     return Response(
         content=png,
         media_type="image/png",
@@ -191,10 +242,10 @@ async def export_document(
         raise HTTPException(status_code=428, detail={"error": "reconnect_required", "message": str(exc)})
 
     title = doc.title or doc.slug
-    # Render box-drawing diagrams to embedded images so Drive's converter can't
-    # break their alignment with a proportional font (falls back to a code fence
-    # when no public image URL is available).
-    markdown = gdocs.transform_diagrams(doc.content, settings.api_base_url)
+    # Convert what Drive's converter can't render into embedded images: box
+    # diagrams + Mermaid → images, and $$…$$ / $…$ math → images. (Falls back to
+    # source text/code fences when no public image URL is available.)
+    markdown = gdocs.transform_for_gdocs(doc.content, settings.api_base_url)
 
     try:
         result = None
