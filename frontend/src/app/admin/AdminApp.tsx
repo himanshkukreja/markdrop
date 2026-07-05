@@ -7,13 +7,18 @@ import {
   AdminDocListItem,
   AdminUserListItem,
   AdminShareEventItem,
+  AdminFeedbackItem,
   FeatureUsage,
+  FeedbackType,
   adminDeleteDocument,
   adminGetDocument,
   adminListDocuments,
   adminListUsers,
   adminFeatureUsage,
   adminListShareEvents,
+  adminListFeedback,
+  adminSetFeedbackStatus,
+  adminDeleteFeedback,
   adminLogin,
   adminUpdateDocument,
   clearAdminToken,
@@ -23,7 +28,7 @@ import {
 
 type Phase = "init" | "login" | "dashboard" | "editing";
 type EditMode = "edit" | "split" | "preview";
-type Tab = "docs" | "users" | "usage";
+type Tab = "docs" | "users" | "usage" | "feedback";
 
 export default function AdminApp() {
   // ── Auth ────────────────────────────────────────────────────────────────────
@@ -64,6 +69,17 @@ export default function AdminApp() {
   const [sharePages, setSharePages] = useState(1);
   const [shareTotal, setShareTotal] = useState(0);
   const [shareIdentified, setShareIdentified] = useState(false);
+
+  // ── Feedback (bug reports / feature requests) ────────────────────────────────
+  const [feedback, setFeedback] = useState<AdminFeedbackItem[]>([]);
+  const [feedbackPage, setFeedbackPage] = useState(1);
+  const [feedbackPages, setFeedbackPages] = useState(1);
+  const [feedbackTotal, setFeedbackTotal] = useState(0);
+  const [feedbackOpenCount, setFeedbackOpenCount] = useState(0);
+  const [feedbackType, setFeedbackType] = useState<FeedbackType | "">("");
+  const [feedbackStatus, setFeedbackStatus] = useState<"open" | "resolved" | "">("");
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackBusyId, setFeedbackBusyId] = useState<string | null>(null);
 
   // ── Editor ──────────────────────────────────────────────────────────────────
   const [editSlug, setEditSlug] = useState<string | null>(null);
@@ -174,6 +190,63 @@ export default function AdminApp() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, token, tab]);
+
+  // ── Feedback ─────────────────────────────────────────────────────────────────
+  const loadFeedback = useCallback(
+    async (tok: string, pg = 1, type: FeedbackType | "" = "", status: "open" | "resolved" | "" = "") => {
+      setFeedbackLoading(true);
+      try {
+        const res = await adminListFeedback(tok, pg, type || undefined, status || undefined);
+        setFeedback(res.items);
+        setFeedbackTotal(res.total);
+        setFeedbackOpenCount(res.open_count);
+        setFeedbackPage(res.page);
+        setFeedbackPages(res.pages);
+      } catch (e: unknown) {
+        if (e instanceof Error && e.message === "UNAUTHORIZED") {
+          clearAdminToken();
+          setToken(null);
+          setPhase("login");
+        }
+      } finally {
+        setFeedbackLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (phase === "dashboard" && token && tab === "feedback") {
+      loadFeedback(token, 1, feedbackType, feedbackStatus);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, token, tab, feedbackType, feedbackStatus]);
+
+  const setFeedbackResolved = async (id: string, resolved: boolean) => {
+    if (!token) return;
+    setFeedbackBusyId(id);
+    try {
+      await adminSetFeedbackStatus(token, id, resolved ? "resolved" : "open");
+      await loadFeedback(token, feedbackPage, feedbackType, feedbackStatus);
+    } catch {
+      /* ignore */
+    } finally {
+      setFeedbackBusyId(null);
+    }
+  };
+
+  const removeFeedback = async (id: string) => {
+    if (!token) return;
+    setFeedbackBusyId(id);
+    try {
+      await adminDeleteFeedback(token, id);
+      await loadFeedback(token, feedbackPage, feedbackType, feedbackStatus);
+    } catch {
+      /* ignore */
+    } finally {
+      setFeedbackBusyId(null);
+    }
+  };
 
   const loadShareEventsPage = (pg: number) => {
     setSharePage(pg);
@@ -519,17 +592,22 @@ export default function AdminApp() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
-        {(["docs", "users", "usage"] as const).map((t) => (
+        {(["docs", "users", "usage", "feedback"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors ${
+            className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5 ${
               tab === t
                 ? "border-blue-500 text-blue-500 dark:text-blue-400"
                 : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
-            {t === "docs" ? "Documents" : t === "users" ? "Users" : "Feature usage"}
+            {t === "docs" ? "Documents" : t === "users" ? "Users" : t === "usage" ? "Feature usage" : "Feedback"}
+            {t === "feedback" && feedbackOpenCount > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold bg-red-500 text-white tabular-nums">
+                {feedbackOpenCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1063,6 +1141,122 @@ export default function AdminApp() {
                 </div>
               )}
             </>
+          )}
+        </>
+      )}
+
+      {tab === "feedback" && (
+        <>
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-xs">
+              {([["", "All"], ["bug", "Bugs"], ["feature", "Features"]] as const).map(([val, label]) => (
+                <button
+                  key={label}
+                  onClick={() => setFeedbackType(val as FeedbackType | "")}
+                  className={`px-3 py-1.5 transition-colors ${
+                    feedbackType === val
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-xs">
+              {([["", "All"], ["open", "Open"], ["resolved", "Resolved"]] as const).map(([val, label]) => (
+                <button
+                  key={label}
+                  onClick={() => setFeedbackStatus(val as "open" | "resolved" | "")}
+                  className={`px-3 py-1.5 transition-colors ${
+                    feedbackStatus === val
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">
+              {feedbackTotal.toLocaleString()} total · {feedbackOpenCount.toLocaleString()} open
+            </span>
+          </div>
+
+          {feedbackLoading && feedback.length === 0 ? (
+            <div className="flex justify-center py-16"><div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /></div>
+          ) : feedback.length === 0 ? (
+            <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">No feedback yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {feedback.map((f) => (
+                <div
+                  key={f.id}
+                  className={`rounded-xl border p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526] ${
+                    f.status === "open"
+                      ? "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c]"
+                      : "border-gray-100 dark:border-gray-800 opacity-70"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    {f.type === "bug" ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">🐞 Bug</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">💡 Feature</span>
+                    )}
+                    {f.status === "resolved" && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">✓ Resolved</span>
+                    )}
+                    <span className="ml-auto text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                      {new Date(f.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] whitespace-pre-wrap break-words">{f.message}</p>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
+                    {(f.user_email || f.email) && (
+                      <span className="break-all">
+                        {f.user_email ? <>👤 {f.user_email}</> : <>✉️ {f.email}</>}
+                        {f.user_email && f.email && f.email !== f.user_email && <span className="text-gray-400"> · reply-to {f.email}</span>}
+                      </span>
+                    )}
+                    {!f.user_email && !f.email && <span className="italic text-gray-400">anonymous</span>}
+                    {f.page_url && <span className="text-gray-400 break-all">on {f.page_url}</span>}
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={() => setFeedbackResolved(f.id, f.status !== "resolved")}
+                      disabled={feedbackBusyId === f.id}
+                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40 transition-colors"
+                    >
+                      {f.status === "resolved" ? "Reopen" : "Mark resolved"}
+                    </button>
+                    <button
+                      onClick={() => removeFeedback(f.id)}
+                      disabled={feedbackBusyId === f.id}
+                      className="px-3 py-1.5 text-xs rounded-lg border border-red-200 dark:border-red-900/50 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-40 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {feedbackPages > 1 && (
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Page {feedbackPage} of {feedbackPages}</p>
+              <div className="flex items-center gap-2">
+                <button disabled={feedbackPage <= 1} onClick={() => token && loadFeedback(token, feedbackPage - 1, feedbackType, feedbackStatus)}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
+                <button disabled={feedbackPage >= feedbackPages} onClick={() => token && loadFeedback(token, feedbackPage + 1, feedbackType, feedbackStatus)}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
+              </div>
+            </div>
           )}
         </>
       )}

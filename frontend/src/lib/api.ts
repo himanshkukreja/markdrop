@@ -643,3 +643,89 @@ export async function adminDeleteDocument(token: string, slug: string): Promise<
   if (res.status === 401) throw new Error("UNAUTHORIZED");
   if (!res.ok) throw new Error("Failed to delete");
 }
+
+// ── Feedback: bug reports & feature requests ──────────────────────────────────
+
+export type FeedbackType = "bug" | "feature";
+
+export async function submitFeedback(input: {
+  type: FeedbackType;
+  message: string;
+  email?: string;
+  pageUrl?: string;
+}): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      type: input.type,
+      message: input.message,
+      email: input.email || null,
+      page_url: input.pageUrl || null,
+    }),
+  });
+  if (res.status === 429) throw new Error("Too many submissions — please wait a moment and try again.");
+  if (!res.ok) throw new Error("Could not send your feedback. Please try again.");
+}
+
+export interface AdminFeedbackItem {
+  id: string;
+  type: FeedbackType;
+  message: string;
+  email: string | null;
+  user_id: string | null;
+  user_email: string | null;
+  page_url: string | null;
+  user_agent: string | null;
+  status: "open" | "resolved";
+  created_at: string;
+}
+
+export interface AdminFeedbackListResponse {
+  items: AdminFeedbackItem[];
+  total: number;
+  open_count: number;
+  page: number;
+  pages: number;
+}
+
+export async function adminListFeedback(
+  token: string,
+  page = 1,
+  type?: FeedbackType,
+  status?: "open" | "resolved"
+): Promise<AdminFeedbackListResponse> {
+  const params = new URLSearchParams({ page: String(page), limit: "20" });
+  if (type) params.set("type", type);
+  if (status) params.set("status", status);
+  const res = await fetch(`${API_BASE}/api/v1/admin/feedback?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to load feedback");
+  return res.json();
+}
+
+export async function adminSetFeedbackStatus(
+  token: string,
+  id: string,
+  status: "open" | "resolved"
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/feedback/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status }),
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to update feedback");
+}
+
+export async function adminDeleteFeedback(token: string, id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/feedback/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to delete feedback");
+}

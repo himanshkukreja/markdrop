@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import { SectionIcon } from "@/lib/readmeSectionIcons";
+import { useAuth } from "@/contexts/AuthContext";
+
+const MARKETPLACE_URL =
+  "https://marketplace.visualstudio.com/items?itemName=HimanshuKukreja.markdrop";
 
 const F = "```"; // code fence (template literals can't hold raw backticks)
 
@@ -87,13 +92,13 @@ function RotatingPhrase() {
 type SceneId = "publish" | "diagram" | "builder" | "send" | "sync" | "export";
 // `phrase` is the headline word for this scene — short + uniform so the rotating
 // line never wraps to two lines (which would jolt the headline height mid-cycle).
-const SCENES: { id: SceneId; pill: string; tab: string; phrase: string; dwell: number }[] = [
-  { id: "publish", pill: "Publish", tab: "welcome.md", phrase: "Instant links.", dwell: 6200 },
-  { id: "diagram", pill: "Diagrams & math", tab: "diagram.md", phrase: "Diagrams & math.", dwell: 5600 },
-  { id: "builder", pill: "README builder", tab: "builder", phrase: "README builder.", dwell: 5000 },
-  { id: "send", pill: "P2P file share", tab: "transfer", phrase: "Send any file.", dwell: 5000 },
-  { id: "sync", pill: "VS Code sync", tab: "notes.md", phrase: "VS Code sync.", dwell: 4600 },
-  { id: "export", pill: "Docs & analytics", tab: "README.md", phrase: "Docs & analytics.", dwell: 5400 },
+const SCENES: { id: SceneId; pill: string; tab: string; phrase: string; cta: string; dwell: number }[] = [
+  { id: "publish", pill: "Publish", tab: "welcome.md", phrase: "Instant links.", cta: "New document", dwell: 6200 },
+  { id: "diagram", pill: "Diagrams & math", tab: "diagram.md", phrase: "Diagrams & math.", cta: "Try a diagram", dwell: 5600 },
+  { id: "builder", pill: "README builder", tab: "builder", phrase: "README builder.", cta: "Open the builder", dwell: 5000 },
+  { id: "send", pill: "P2P file share", tab: "transfer", phrase: "Send any file.", cta: "Share a file", dwell: 5000 },
+  { id: "sync", pill: "VS Code sync", tab: "notes.md", phrase: "VS Code sync.", cta: "Get the extension", dwell: 4600 },
+  { id: "export", pill: "Docs & analytics", tab: "README.md", phrase: "Docs & analytics.", cta: "Open dashboard", dwell: 5400 },
 ];
 
 // Blocks shown assembling in the README-builder scene (reuse the real section icons).
@@ -158,6 +163,42 @@ function DemoWindow({
   setPaused: (p: boolean) => void;
 }) {
   const active = SCENES[scene].id;
+  const router = useRouter();
+  const { user, openAuthModal } = useAuth();
+
+  // Clicking the window opens the feature the current scene is showing.
+  function activate() {
+    switch (active) {
+      case "publish":
+        router.push("/new");
+        break;
+      case "diagram":
+        router.push("/new?sample=diagrams");
+        break;
+      case "builder":
+        router.push("/builder");
+        break;
+      case "send":
+        router.push("/share");
+        break;
+      case "sync":
+        window.open(MARKETPLACE_URL, "_blank", "noopener,noreferrer");
+        break;
+      case "export":
+        // Dashboard needs an account — sign in first, then land on it.
+        if (user) {
+          router.push("/dashboard");
+        } else {
+          openAuthModal({
+            next: "/dashboard",
+            title: "Sign in to Markdrop",
+            message: "Sign in to open your dashboard — all your docs, view counts and analytics.",
+            onSuccess: () => router.push("/dashboard"),
+          });
+        }
+        break;
+    }
+  }
 
   const pub = useTypewriter(PUBLISH_MD, active === "publish");
   const dia = useTypewriter(DIAGRAM_MD, active === "diagram");
@@ -211,7 +252,29 @@ function DemoWindow({
         ))}
       </div>
 
-      <div className="w-full rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] ring-1 ring-blue-500/10 bg-white dark:bg-[#0b0f1a] vscode:bg-[#1e1e1e] shadow-2xl shadow-blue-500/20">
+      <div
+        role="link"
+        tabIndex={0}
+        onClick={activate}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            activate();
+          }
+        }}
+        title={`${SCENES[scene].cta} →`}
+        aria-label={SCENES[scene].cta}
+        className="group/win relative w-full rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] ring-1 ring-blue-500/10 bg-white dark:bg-[#0b0f1a] vscode:bg-[#1e1e1e] shadow-2xl shadow-blue-500/20 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:ring-2 hover:ring-blue-500/50 hover:shadow-blue-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      >
+        {/* Hover hint — signals the window is clickable */}
+        <div className="no-print pointer-events-none absolute top-9 right-2 z-20 opacity-0 translate-y-1 group-hover/win:opacity-100 group-hover/win:translate-y-0 transition-all duration-200">
+          <span className="inline-flex items-center gap-1 rounded-full bg-blue-600 text-white text-[11px] font-medium px-2.5 py-1 shadow-lg">
+            {SCENES[scene].cta}
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+            </svg>
+          </span>
+        </div>
         {/* Title bar */}
         <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-900 vscode:bg-[#323233] border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
           <span className="w-3 h-3 rounded-full bg-[#ff5f57]" />

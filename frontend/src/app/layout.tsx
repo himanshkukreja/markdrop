@@ -4,6 +4,7 @@ import "highlight.js/styles/github-dark.css";
 import ThemeToggle from "@/components/ThemeToggle";
 import HeaderAuth from "@/components/HeaderAuth";
 import NamePrompt from "@/components/NamePrompt";
+import FeedbackWidget from "@/components/FeedbackWidget";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
@@ -69,6 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </main>
         <NamePrompt />
+        <FeedbackWidget />
         </AuthProvider>
       </body>
     </html>

@@ -32,6 +32,7 @@ from app.config import get_settings
 from app.database import get_database
 from app.limiter import limiter  # shared slowapi limiter
 from app.schemas.document import MAX_CONTENT
+from app.services import feedback as feedback_service
 
 settings = get_settings()
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -129,6 +130,31 @@ class AdminShareEventListResponse(BaseModel):
     total: int
     page: int
     pages: int
+
+
+class AdminFeedbackItem(BaseModel):
+    id: str
+    type: str  # "bug" | "feature"
+    message: str
+    email: str | None = None
+    user_id: str | None = None
+    user_email: str | None = None
+    page_url: str | None = None
+    user_agent: str | None = None
+    status: str  # "open" | "resolved"
+    created_at: datetime
+
+
+class AdminFeedbackListResponse(BaseModel):
+    items: list[AdminFeedbackItem]
+    total: int
+    open_count: int
+    page: int
+    pages: int
+
+
+class FeedbackStatusUpdate(BaseModel):
+    status: str  # "open" | "resolved"
 
 
 class AdminDocumentUpdate(BaseModel):
@@ -462,6 +488,79 @@ async def list_share_events(
     return AdminShareEventListResponse(
         events=events, total=total, page=page, pages=max(1, math.ceil(total / limit))
     )
+
+
+@router.get("/feedback", response_model=AdminFeedbackListResponse)
+async def list_feedback(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    type: str | None = Query(None, description="bug | feature"),
+    status: str | None = Query(None, description="open | resolved"),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """List bug reports & feature requests (newest first), with submitter emails."""
+    rows, total, open_count = await feedback_service.list_feedback(
+        db, page=page, limit=limit, type_filter=type, status_filter=status
+    )
+
+    # Resolve account emails for the signed-in submitters on this page.
+    uids = {r["user_id"] for r in rows if r.get("user_id")}
+    valid = [ObjectId(i) for i in uids if ObjectId.is_valid(i)]
+    email_map: dict[str, str] = {}
+    if valid:
+        async for u in db["users"].find({"_id": {"$in": valid}}, {"email": 1}):
+            email_map[str(u["_id"])] = u["email"]
+
+    items = [
+        AdminFeedbackItem(
+            id=str(r["_id"]),
+            type=r.get("type", "bug"),
+            message=r.get("message", ""),
+            email=r.get("email"),
+            user_id=r.get("user_id"),
+            user_email=email_map.get(r.get("user_id")) if r.get("user_id") else None,
+            page_url=r.get("page_url"),
+            user_agent=r.get("user_agent"),
+            status=r.get("status", "open"),
+            created_at=r["created_at"],
+        )
+        for r in rows
+    ]
+    return AdminFeedbackListResponse(
+        items=items,
+        total=total,
+        open_count=open_count,
+        page=page,
+        pages=max(1, math.ceil(total / limit)),
+    )
+
+
+@router.patch("/feedback/{feedback_id}", status_code=204)
+async def update_feedback_status(
+    feedback_id: str,
+    data: FeedbackStatusUpdate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Mark a report open / resolved."""
+    if data.status not in ("open", "resolved"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+    ok = await feedback_service.set_status(db, feedback_id, data.status)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+
+
+@router.delete("/feedback/{feedback_id}", status_code=204)
+async def delete_feedback(
+    feedback_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Permanently delete a feedback entry."""
+    ok = await feedback_service.delete_feedback(db, feedback_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Feedback not found")
 
 
 @router.get("/documents/{slug}", response_model=AdminDocumentResponse)

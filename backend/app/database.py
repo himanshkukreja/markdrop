@@ -55,6 +55,10 @@ async def connect() -> None:
     await db["share_events"].create_index([("ts", -1)])
     await db["share_events"].create_index([("user_id", 1), ("ts", -1)], sparse=True)
 
+    # Bug reports / feature requests
+    await db["feedback"].create_index([("created_at", -1)])
+    await db["feedback"].create_index([("status", 1), ("type", 1), ("created_at", -1)])
+
 
 async def disconnect() -> None:
     global _client

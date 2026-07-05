@@ -1,11 +1,36 @@
 """User persistence — upsert/lookup for the optional-login feature."""
 
+import asyncio
+import logging
 from datetime import datetime, timezone
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.user import User
+from app.services import mailer
+
+logger = logging.getLogger(__name__)
+
+# Hold references to fire-and-forget welcome-email tasks so they aren't
+# garbage-collected mid-flight (asyncio only keeps weak refs to tasks).
+_bg_tasks: set[asyncio.Task] = set()
+
+
+async def _send_welcome_safe(email: str, name: str | None) -> None:
+    try:
+        await mailer.send_welcome_email(email, name)
+    except Exception:  # never let a welcome-email failure affect login
+        logger.warning("welcome email failed for %s", email, exc_info=True)
+
+
+def _dispatch_welcome(email: str, name: str | None) -> None:
+    """Fire-and-forget the welcome email (best-effort, non-blocking)."""
+    if not mailer.is_configured():
+        return
+    task = asyncio.create_task(_send_welcome_safe(email, name))
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
 
 
 def _user_from_mongo(raw: dict) -> User:
@@ -95,4 +120,11 @@ async def upsert_user(
         upsert=True,
         return_document=True,
     )
+
+    # `created_at` is only written on insert (via $setOnInsert with `now`), so it
+    # equalling `now` uniquely identifies a brand-new account → send the one-time
+    # welcome / feature-tour email (best-effort, never blocks the login response).
+    if raw.get("created_at") == now:
+        _dispatch_welcome(email, raw.get("name"))
+
     return _user_from_mongo(raw)
