@@ -159,9 +159,30 @@ function Pre({ children, ...props }: ComponentProps<"pre">) {
   );
 }
 
+// A CSS colour token, on its own, inside an inline `code` span → we prepend a
+// swatch (matches GitHub's Color Reference behaviour). Regex-validated, so the
+// value is safe to hand to an inline `style` background.
+const COLOR_RE =
+  /^(#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|rgb\(\s*[\d.]+%?(?:\s*[,\s]\s*[\d.]+%?){2}\s*\)|rgba\(\s*[\d.]+%?(?:\s*[,\s]\s*[\d.]+%?){2,3}\s*[,/]?\s*[\d.]*%?\s*\)|hsla?\(\s*[\d.]+(?:deg)?(?:\s*[,\s]\s*[\d.]+%?){2,3}\s*[,/]?\s*[\d.]*%?\s*\))$/i;
+
 function Code({ className, children, ...props }: ComponentProps<"code">) {
   if (typeof className === "string" && className.split(/\s+/).includes("language-mermaid")) {
     return <MermaidDiagram code={extractText(children).replace(/\n$/, "")} />;
+  }
+  // Inline colour swatch (only for a bare inline code span — not fenced blocks).
+  if (!className) {
+    const value = extractText(children).trim();
+    if (COLOR_RE.test(value)) {
+      return (
+        <code className={className} {...props}>
+          <span
+            className="not-prose inline-block align-[-0.1em] mr-1 h-[0.85em] w-[0.85em] rounded-[3px] border border-black/25 dark:border-white/25"
+            style={{ backgroundColor: value }}
+          />
+          {children}
+        </code>
+      );
+    }
   }
   return (
     <code className={className} {...props}>

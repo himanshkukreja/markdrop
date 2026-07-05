@@ -591,11 +591,11 @@ $$`,
     icon: "🎨",
     markdown: `## Color Reference
 
-| Color         | Hex       |
-| ------------- | --------- |
-| Primary       | #1e293b   |
-| Accent        | #2563eb   |
-| Background     | #0b0f1a   |`,
+| Color      | Hex         |
+| ---------- | ----------- |
+| Primary    | \`#1e293b\` |
+| Accent     | \`#2563eb\` |
+| Background | \`#0b0f1a\` |`,
   },
 
   // ── GitHub profile ───────────────────────────────────────────────────────────

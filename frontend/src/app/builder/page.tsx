@@ -30,6 +30,7 @@ import {
   headingSlug,
   type SectionTemplate,
 } from "@/lib/readmeSections";
+import { SectionIcon } from "@/lib/readmeSectionIcons";
 
 interface SectionInstance {
   uid: string;
@@ -43,6 +44,14 @@ let _uidSeq = 0;
 function nextUid(): string {
   _uidSeq += 1;
   return `s${Date.now().toString(36)}${_uidSeq.toString(36)}`;
+}
+
+function seedSection(): SectionInstance {
+  return {
+    uid: nextUid(),
+    templateId: "title-and-description",
+    content: TEMPLATES_BY_ID["title-and-description"].markdown,
+  };
 }
 
 function assemble(sections: SectionInstance[]): string {
@@ -70,7 +79,7 @@ function generateToc(sections: SectionInstance[], selfUid: string): string {
   return "## Table of Contents\n\n" + (lines.join("\n") || "- [Section](#section)");
 }
 
-// ── Sortable row ────────────────────────────────────────────────────────────
+// ── Sortable row (a section already added to the README) ──────────────────────
 function SectionRow({
   inst,
   template,
@@ -114,7 +123,12 @@ function SectionRow({
         </svg>
       </button>
       <button onClick={onSelect} className="flex-1 min-w-0 flex items-center gap-2 py-2 text-left">
-        <span className="shrink-0">{template?.icon ?? "📄"}</span>
+        <SectionIcon
+          id={inst.templateId}
+          className={`w-4 h-4 shrink-0 ${
+            selected ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500"
+          }`}
+        />
         <span className="truncate text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
           {template?.name ?? inst.templateId}
         </span>
@@ -143,10 +157,10 @@ export default function BuilderPage() {
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
-  const [showCatalog, setShowCatalog] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [previewScope, setPreviewScope] = useState<"full" | "section">("full");
   const [pane, setPane] = useState<Pane>("sections");
+  const [showReset, setShowReset] = useState(false);
 
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
@@ -176,11 +190,7 @@ export default function BuilderPage() {
     } catch {
       /* ignore corrupt draft */
     }
-    const seed: SectionInstance = {
-      uid: nextUid(),
-      templateId: "title-and-description",
-      content: TEMPLATES_BY_ID["title-and-description"].markdown,
-    };
+    const seed = seedSection();
     setSections([seed]);
     setSelectedUid(seed.uid);
     setLoaded(true);
@@ -207,8 +217,6 @@ export default function BuilderPage() {
     const inst: SectionInstance = { uid: nextUid(), templateId: tpl.id, content: tpl.markdown };
     setSections((prev) => [...prev, inst]);
     setSelectedUid(inst.uid);
-    setShowCatalog(false);
-    setCatalogSearch("");
     setPane("edit");
   }, []);
 
@@ -234,6 +242,22 @@ export default function BuilderPage() {
     },
     [selectedUid]
   );
+
+  const resetAll = useCallback(() => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    const seed = seedSection();
+    setSections([seed]);
+    setSelectedUid(seed.uid);
+    setTitle("");
+    setError("");
+    setCatalogSearch("");
+    setShowReset(false);
+    setPane("sections");
+  }, []);
 
   function onDragEnd(e: DragEndEvent) {
     const { active, over } = e;
@@ -279,6 +303,12 @@ export default function BuilderPage() {
     }
   }
 
+  const usedCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const s of sections) m[s.templateId] = (m[s.templateId] ?? 0) + 1;
+    return m;
+  }, [sections]);
+
   const catalogGroups = useMemo(() => {
     const q = catalogSearch.trim().toLowerCase();
     return GROUP_ORDER.map((group) => ({
@@ -318,6 +348,17 @@ export default function BuilderPage() {
           className="flex-1 bg-transparent border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 transition-colors"
         />
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setShowReset(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] text-gray-600 dark:text-gray-400 hover:border-red-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+            title="Clear everything and start over"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+            Reset
+          </button>
           <button onClick={handleCopy} disabled={!assembled.trim()} className={btnGhost}>
             {copied ? "Copied ✓" : "Copy"}
           </button>
@@ -343,27 +384,22 @@ export default function BuilderPage() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0 grid gap-3 lg:grid-cols-[15rem_minmax(0,1fr)_minmax(0,1fr)]">
-        {/* Left rail — sections */}
+      <div className="flex-1 min-h-0 grid gap-3 lg:grid-cols-[17rem_minmax(0,1fr)_minmax(0,1fr)]">
+        {/* Left rail — your sections (top) + always-visible catalog (bottom) */}
         <div className={`${pane === "sections" ? "flex" : "hidden"} lg:flex flex-col min-h-0`}>
+          {/* Your README */}
           <div className="flex items-center justify-between mb-2 shrink-0">
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              Sections
+              Your README
             </span>
-            <button
-              onClick={() => setShowCatalog(true)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              Add
-            </button>
+            <span className="text-[11px] text-gray-400 dark:text-gray-500">
+              {sections.length} {sections.length === 1 ? "section" : "sections"}
+            </span>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1">
+          <div className="shrink-0 max-h-[38%] overflow-y-auto space-y-1.5 pr-1">
             {sections.length === 0 ? (
-              <p className="text-xs text-gray-400 dark:text-gray-600 py-6 text-center">
-                No sections yet. Click <span className="font-medium">Add</span> to start.
+              <p className="text-xs text-gray-400 dark:text-gray-600 py-4 text-center">
+                No sections yet. Pick one below to start.
               </p>
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -384,12 +420,64 @@ export default function BuilderPage() {
                 </SortableContext>
               </DndContext>
             )}
-            <button
-              onClick={() => setShowCatalog(true)}
-              className="w-full mt-1 py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c] text-xs text-gray-500 dark:text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
-            >
-              + Add section
-            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="my-3 border-t border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] shrink-0" />
+
+          {/* Add a section — grouped catalog, always visible */}
+          <div className="shrink-0 mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              Add a section
+            </span>
+          </div>
+          <div className="shrink-0 mb-2 relative">
+            <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="m20 20-3-3" />
+            </svg>
+            <input
+              type="text"
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+              placeholder="Search sections…"
+              className="w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg pl-8 pr-3 py-1.5 text-sm outline-none focus:border-blue-500 transition-colors"
+            />
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            {catalogGroups.map(({ group, items }) => (
+              <div key={group} className="mb-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1 px-1">
+                  {group}
+                </p>
+                <div className="space-y-0.5">
+                  {items.map((tpl) => {
+                    const count = usedCounts[tpl.id] ?? 0;
+                    return (
+                      <button
+                        key={tpl.id}
+                        onClick={() => addSection(tpl)}
+                        className="group w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[13px] text-gray-600 dark:text-gray-400 vscode:text-[#cccccc] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                        title={`Add “${tpl.name}”`}
+                      >
+                        <SectionIcon id={tpl.id} className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors" />
+                        <span className="truncate flex-1">{tpl.name}</span>
+                        {count > 0 && (
+                          <span className="shrink-0 text-[10px] tabular-nums text-gray-400 dark:text-gray-600 bg-gray-100 dark:bg-gray-800 rounded px-1">
+                            {count}
+                          </span>
+                        )}
+                        <svg className="w-3.5 h-3.5 shrink-0 text-gray-300 dark:text-gray-600 opacity-0 group-hover:opacity-100 group-hover:text-blue-500 transition-opacity" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5" />
+                        </svg>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {catalogGroups.length === 0 && (
+              <p className="text-sm text-gray-400 py-6 text-center">No sections match “{catalogSearch}”.</p>
+            )}
           </div>
         </div>
 
@@ -398,8 +486,8 @@ export default function BuilderPage() {
           {selected ? (
             <>
               <div className="flex items-center justify-between mb-2 shrink-0">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] flex items-center gap-1.5">
-                  <span>{selectedTemplate?.icon}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] flex items-center gap-2">
+                  <SectionIcon id={selected.templateId} className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                   {selectedTemplate?.name ?? "Section"}
                 </span>
                 {selectedTemplate?.autoToc && (
@@ -470,41 +558,29 @@ export default function BuilderPage() {
         and math render live.
       </p>
 
-      {/* Catalog modal */}
-      {showCatalog && (
-        <Modal title="Add a section" onClose={() => setShowCatalog(false)}>
+      {/* Reset confirmation */}
+      {showReset && (
+        <Modal title="Reset builder?" onClose={() => setShowReset(false)}>
           <div className="space-y-4">
-            <input
-              type="text"
-              value={catalogSearch}
-              onChange={(e) => setCatalogSearch(e.target.value)}
-              placeholder="Search sections…"
-              autoFocus
-              className="w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors"
-            />
-            <div className="max-h-[55vh] overflow-y-auto space-y-4 pr-1">
-              {catalogGroups.map(({ group, items }) => (
-                <div key={group}>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
-                    {group}
-                  </p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {items.map((tpl) => (
-                      <button
-                        key={tpl.id}
-                        onClick={() => addSection(tpl)}
-                        className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900/40 vscode:bg-[#252526] hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-left text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] transition-colors"
-                      >
-                        <span className="shrink-0">{tpl.icon}</span>
-                        <span className="truncate">{tpl.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              {catalogGroups.length === 0 && (
-                <p className="text-sm text-gray-400 py-6 text-center">No sections match “{catalogSearch}”.</p>
-              )}
+            <p className="text-sm text-gray-600 dark:text-gray-400 vscode:text-[#cccccc]">
+              This clears your title and all{" "}
+              <span className="font-medium text-gray-800 dark:text-gray-200">{sections.length}</span>{" "}
+              {sections.length === 1 ? "section" : "sections"}, and can’t be undone. You’ll start fresh
+              with a single title section.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowReset(false)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={resetAll}
+                className="px-3 py-1.5 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium transition-colors"
+              >
+                Reset everything
+              </button>
             </div>
           </div>
         </Modal>
