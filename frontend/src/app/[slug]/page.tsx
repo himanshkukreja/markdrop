@@ -69,6 +69,7 @@ export default async function SlugPage({ params, searchParams }: Props) {
       isNew={isNew === "1"}
       isPasswordProtected={isPasswordProtected}
       isOwned={doc?.is_owned ?? false}
+      syncedWithVscode={doc?.vscode_synced ?? false}
       startInEdit={edit === "1"}
       startCopy={copy === "1"}
       startGoogleSync={gsync === "1"}

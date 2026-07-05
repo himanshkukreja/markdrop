@@ -23,5 +23,8 @@ class Document:
     google_doc_url: str | None = None
     google_doc_synced_rev: int | None = None
     google_doc_synced_at: datetime | None = None
+    # True once the document has been published or synced from the VS Code
+    # extension — drives the "Synced with VS Code" badge on the doc + dashboard.
+    vscode_synced: bool = False
     id: str | None = None  # str(_id); populated when the query includes _id
 

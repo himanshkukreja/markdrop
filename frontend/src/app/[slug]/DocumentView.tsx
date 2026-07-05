@@ -10,6 +10,7 @@ import { MAX_CHARS } from "@/lib/limits";
 import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
+import VSCodeIcon from "@/components/VSCodeIcon";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -60,6 +61,7 @@ interface Props {
   editSecret?: string;
   isPasswordProtected?: boolean;
   isOwned?: boolean;
+  syncedWithVscode?: boolean;
   startInEdit?: boolean;
   startCopy?: boolean;
   startGoogleSync?: boolean;
@@ -97,6 +99,7 @@ export default function DocumentView({
   editSecret: initialSecret,
   isPasswordProtected = false,
   isOwned = false,
+  syncedWithVscode = false,
   startInEdit = false,
   startCopy = false,
   startGoogleSync = false,
@@ -268,6 +271,7 @@ export default function DocumentView({
   const [displayCreatedAt, setDisplayCreatedAt] = useState(initialCreatedAt);
   const [displayExpiresAt, setDisplayExpiresAt] = useState(initialExpiresAt);
   const [displayViews, setDisplayViews] = useState(initialViews);
+  const [vscodeSynced, setVscodeSynced] = useState(syncedWithVscode);
 
   // View state
   const [showRaw, setShowRaw] = useState(false);
@@ -398,6 +402,7 @@ export default function DocumentView({
             setDisplayContent(doc.content);
             setDisplayExpiresAt(doc.expires_at);
             setDisplayViews(doc.views);
+            setVscodeSynced(!!doc.vscode_synced);
             if (doc.is_owner) setGoogleDocStale(!!doc.google_doc_stale);
           })
           .catch(() => {});
@@ -887,6 +892,15 @@ export default function DocumentView({
                   <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
                 </svg>
                 Protected
+              </span>
+            )}
+            {vscodeSynced && !pwdLocked && (
+              <span
+                title="Published and synced from the VS Code extension"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[#007acc]/10 text-[#007acc] dark:text-[#4daafc] vscode:bg-[#2d2d2d] vscode:text-[#4fc1ff]"
+              >
+                <VSCodeIcon className="w-3 h-3" />
+                Synced with VS Code
               </span>
             )}
           </div>

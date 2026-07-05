@@ -56,7 +56,7 @@ async def sync_create(
     """Create + link a document from the editor (owned by the caller)."""
     payload = DocumentCreate(title=data.title, content=data.content)
     doc, _secret = await doc_service.create_document(
-        db, payload, owner_id=user.id, preferred_slug=data.desired_slug
+        db, payload, owner_id=user.id, preferred_slug=data.desired_slug, via_vscode=True
     )
     return _doc_response(doc)
 

@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
+import VSCodeIcon from "@/components/VSCodeIcon";
 
 type Range = "7d" | "30d" | "all";
 
@@ -425,6 +426,11 @@ export default function DashboardPage() {
                     <span title="PDF exports">📄 {d.export_pdf_count}</span>
                     <span title="Link copies">🔗 {d.copy_url_count}</span>
                     {d.is_password_protected && <span title="Password protected">🔒</span>}
+                    {d.vscode_synced && (
+                      <span title="Synced with VS Code" className="inline-flex items-center gap-1 text-[#007acc] dark:text-[#4daafc] vscode:text-[#4fc1ff]">
+                        <VSCodeIcon className="w-3 h-3" /> VS Code
+                      </span>
+                    )}
                     {d.expires_at && <span className="text-amber-600 dark:text-amber-400 vscode:text-[#cca700]">expires {new Date(d.expires_at).toLocaleDateString()}</span>}
                     <span className="text-gray-300 dark:text-gray-600 vscode:text-[#5a5a5a]">·</span>
                     <span>{new Date(d.created_at).toLocaleDateString()}</span>

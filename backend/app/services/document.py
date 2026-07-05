@@ -42,6 +42,7 @@ def _doc_from_mongo(raw: dict) -> Document:
         google_doc_url=raw.get("google_doc_url"),
         google_doc_synced_rev=raw.get("google_doc_synced_rev"),
         google_doc_synced_at=raw.get("google_doc_synced_at"),
+        vscode_synced=raw.get("vscode_synced", False),
     )
 
 
@@ -62,6 +63,7 @@ async def create_document(
     data: DocumentCreate,
     owner_id: str | None = None,
     preferred_slug: str | None = None,
+    via_vscode: bool = False,
 ) -> tuple[Document, str]:
     raw_secret, secret_hash = generate_edit_secret()
     now = datetime.now(timezone.utc)
@@ -91,6 +93,7 @@ async def create_document(
             "rev": 1,
             "read_password_hash": read_pwd_hash,
             "owner_id": owner_id,
+            "vscode_synced": via_vscode,
         }
 
     # Custom slug path
@@ -458,7 +461,15 @@ async def sync_push(
     # Compare-and-swap on rev so a concurrent writer can't be clobbered.
     updated = await db["documents"].find_one_and_update(
         {"_id": ObjectId(doc_id), "rev": cur_rev},
-        {"$set": {"content": content, "title": title or None, "updated_at": now}, "$inc": {"rev": 1}},
+        {
+            "$set": {
+                "content": content,
+                "title": title or None,
+                "updated_at": now,
+                "vscode_synced": True,
+            },
+            "$inc": {"rev": 1},
+        },
         return_document=True,
     )
     if not updated:

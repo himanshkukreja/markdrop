@@ -54,6 +54,7 @@ export interface DocumentResponse {
   id?: string | null;
   google_doc_url?: string | null;
   google_doc_stale?: boolean;
+  vscode_synced?: boolean;
 }
 
 export type ExpiresIn = "never" | "1d" | "7d" | "30d" | "custom";
@@ -334,6 +335,7 @@ export interface MyDocListItem {
   is_password_protected: boolean;
   google_doc_url?: string | null;
   google_doc_stale?: boolean;
+  vscode_synced?: boolean;
 }
 
 export interface MyDocListResponse {

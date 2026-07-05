@@ -49,6 +49,7 @@ def _to_list_item(doc) -> MyDocListItem:
         google_doc_stale=bool(
             doc.google_doc_id and (doc.google_doc_synced_rev or 0) < doc.rev
         ),
+        vscode_synced=doc.vscode_synced,
     )
 
 

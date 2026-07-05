@@ -56,6 +56,8 @@ class DocumentResponse(BaseModel):
     id: str | None = None
     google_doc_url: str | None = None
     google_doc_stale: bool = False  # True when the doc changed since last export
+    # Public provenance flag: published/synced from the VS Code extension.
+    vscode_synced: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -130,6 +132,7 @@ class MyDocListItem(BaseModel):
     # Google Docs export state
     google_doc_url: str | None = None
     google_doc_stale: bool = False  # True when the doc changed since last export
+    vscode_synced: bool = False
 
 
 class MyDocListResponse(BaseModel):

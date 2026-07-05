@@ -58,6 +58,7 @@ def _to_response(doc, viewer_id: str | None = None) -> dict:
         google_doc_stale=bool(
             is_owner and doc.google_doc_id and (doc.google_doc_synced_rev or 0) < doc.rev
         ),
+        vscode_synced=doc.vscode_synced,
     )
 
 
