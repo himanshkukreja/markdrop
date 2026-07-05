@@ -50,6 +50,27 @@ body {
   100% { width: 100%; }
 }
 
+/* Two-way shuttle: a dot ping-pongs along a connector (VS Code / export sync) */
+@keyframes md-shuttle {
+  0%   { left: 0%;   opacity: 0; }
+  12%  { opacity: 1; }
+  48%  { left: 100%; opacity: 1; }
+  60%  { opacity: 1; }
+  100% { left: 0%;   opacity: 0; }
+}
+
+/* Analytics equalizer bars growing from the baseline */
+@keyframes md-bar {
+  0%, 100% { transform: scaleY(0.3); }
+  50%      { transform: scaleY(1); }
+}
+
+/* Staggered entrance for lists of blocks / chips (delay set inline) */
+@keyframes md-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* On-scroll reveal: element starts hidden, .md-in adds the animation.
    IntersectionObserver toggles .md-in when the section enters the viewport. */
 .md-reveal {
@@ -64,6 +85,9 @@ body {
 .md-glow        { animation: md-glow-drift 14s ease-in-out infinite; }
 .md-packet-anim { animation: md-packet 2.6s linear infinite; }
 .md-progress-anim { animation: md-progress 2.6s ease-in-out infinite; }
+.md-shuttle-anim { animation: md-shuttle 2.4s ease-in-out infinite; }
+.md-bar-anim     { transform-origin: bottom; animation: md-bar 1.6s ease-in-out infinite; }
+.md-stagger      { animation: md-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 /* Respect users who prefer no motion: show final state, no looping/entrance. */
 @media (prefers-reduced-motion: reduce) {
@@ -73,9 +97,15 @@ body {
   .md-caret,
   .md-glow,
   .md-packet-anim,
-  .md-progress-anim {
+  .md-progress-anim,
+  .md-shuttle-anim,
+  .md-bar-anim,
+  .md-stagger {
     animation: none !important;
   }
+  /* Park the reduced-motion shuttle mid-path so the connection still reads. */
+  .md-shuttle-anim { left: 50% !important; opacity: 1 !important; }
+  .md-stagger { opacity: 1 !important; }
   /* Park the reduced-motion packet mid-path so the diagram still reads. */
   .md-packet-anim { left: 50% !important; opacity: 1 !important; }
   .md-progress-anim { width: 100% !important; }
