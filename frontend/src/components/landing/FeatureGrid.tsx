@@ -49,6 +49,15 @@ const FEATURES: Feature[] = [
     ),
   },
   {
+    title: "Diagrams, charts & math",
+    desc: "Write a ```mermaid block or LaTeX between $$ … $$ and Markdrop renders flowcharts, sequence & Gantt diagrams, pie/bar charts and typeset KaTeX math — live in the browser, no plugins.",
+    href: "/new",
+    cta: "Render a diagram",
+    icon: (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75H6A2.25 2.25 0 003.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0120.25 6v1.5m0 9V18A2.25 2.25 0 0118 20.25h-1.5m-9 0H6A2.25 2.25 0 013.75 18v-1.5M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    ),
+  },
+  {
     title: "Accounts & analytics",
     desc: "Optional passwordless login unlocks a dashboard of all your docs, view counts, and geographic analytics. Everything works fully without an account too.",
     href: "/dashboard",
@@ -64,6 +73,8 @@ const CHIPS = [
   "Password protection",
   "Expiring links",
   "Live preview / split view",
+  "Mermaid diagrams",
+  "LaTeX / KaTeX math",
   "Syntax highlighting",
   "Export to PDF",
   "Export to Google Docs",
@@ -78,7 +89,7 @@ export default function FeatureGrid() {
     <section className="py-16 sm:py-20">
       <Reveal className="text-center max-w-2xl mx-auto">
         <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
-          One tool, five <span className="md-gradient-text">superpowers</span>
+          One tool, six <span className="md-gradient-text">superpowers</span>
         </h2>
         <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0]">
           Markdrop started as a markdown pastebin and grew into a full sharing suite — all still no-login by default.

@@ -2,6 +2,7 @@ import Hero from "@/components/landing/Hero";
 import FeatureGrid from "@/components/landing/FeatureGrid";
 import P2PShowcase from "@/components/landing/P2PShowcase";
 import VSCodeShowcase from "@/components/landing/VSCodeShowcase";
+import DiagramShowcase from "@/components/landing/DiagramShowcase";
 import GoogleDocsShowcase from "@/components/landing/GoogleDocsShowcase";
 import HowItWorks from "@/components/landing/HowItWorks";
 import CallToAction from "@/components/landing/CallToAction";
@@ -25,6 +26,7 @@ export default function LandingPage() {
       <FeatureGrid />
       <P2PShowcase />
       <VSCodeShowcase />
+      <DiagramShowcase />
       <GoogleDocsShowcase />
       <HowItWorks />
       <CallToAction />
