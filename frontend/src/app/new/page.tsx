@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createDocument, ExpiresIn } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
+import { DIAGRAM_SAMPLE, DIAGRAM_SAMPLE_PARAM } from "@/lib/samples";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 
@@ -91,6 +92,17 @@ export default function NewDocumentPage() {
   const [readPassword, setReadPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [slugError, setSlugError] = useState("");
+
+  // Pre-fill from a sample when arriving via /new?sample=diagrams — and open in
+  // split view so a first-time user sees the source next to its rendered output.
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get("sample");
+    if (param === DIAGRAM_SAMPLE_PARAM) {
+      setTitle(DIAGRAM_SAMPLE.title);
+      setContent(DIAGRAM_SAMPLE.content);
+      setMode("split");
+    }
+  }, []);
 
   const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);

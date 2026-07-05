@@ -95,7 +95,7 @@ export default function DiagramShowcase() {
     <section className="py-16 sm:py-20">
       <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
         {/* Document mock — source renders to diagram + math + chart */}
-        <Reveal>
+        <Reveal className="lg:order-2">
           <div className="rounded-xl overflow-hidden border border-gray-300/70 dark:border-gray-700 vscode:border-[#3c3c3c] shadow-2xl shadow-violet-500/10 bg-white dark:bg-[#1e1e1e] vscode:bg-[#252526]">
             {/* Title bar */}
             <div className="flex items-center gap-2 px-3 py-2 bg-[#f1f3f4] dark:bg-[#2a2a2a] vscode:bg-[#333333] border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
@@ -143,7 +143,7 @@ export default function DiagramShowcase() {
         </Reveal>
 
         {/* Copy */}
-        <Reveal>
+        <Reveal className="lg:order-1">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300 vscode:text-[#c586c0]">
             Mermaid · LaTeX · Charts
           </span>
@@ -179,7 +179,7 @@ export default function DiagramShowcase() {
 
           <div className="mt-8">
             <a
-              href="/new"
+              href="/new?sample=diagrams"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
             >
               Try it in a new doc

@@ -13,7 +13,7 @@ export default function GoogleDocsShowcase() {
     <section className="py-16 sm:py-20">
       <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
         {/* Copy */}
-        <Reveal>
+        <Reveal className="lg:order-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 vscode:text-[#4fc1ff]">
             Google Docs · Export &amp; sync
           </span>
@@ -59,7 +59,7 @@ export default function GoogleDocsShowcase() {
         </Reveal>
 
         {/* Google Doc window mock — adapts to light / dark / vscode themes */}
-        <Reveal>
+        <Reveal className="lg:order-1">
           <div className="rounded-xl overflow-hidden border border-gray-300/70 dark:border-gray-700 vscode:border-[#3c3c3c] shadow-2xl shadow-blue-500/10 bg-white dark:bg-[#1e1e1e] vscode:bg-[#252526]">
             {/* Docs title bar */}
             <div className="flex items-center gap-2 px-3 py-2 bg-[#f1f3f4] dark:bg-[#2a2a2a] vscode:bg-[#333333] border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
