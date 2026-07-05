@@ -9,6 +9,7 @@ import {
   MyDocListItem, Analytics, GoogleStatus,
 } from "@/lib/api";
 import Modal from "@/components/Modal";
+import Spinner from "@/components/Spinner";
 
 type Range = "7d" | "30d" | "all";
 
@@ -453,6 +454,7 @@ export default function DashboardPage() {
                       </>
                     ) : (
                       <ActionButton onClick={() => handleExport(d)} title="Export to Google Docs">
+                        {exportBusy === d.slug && <Spinner className="w-3.5 h-3.5" />}
                         {exportBusy === d.slug ? "Exporting…" : "Google Docs"}
                       </ActionButton>
                     )

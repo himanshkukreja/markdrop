@@ -9,6 +9,7 @@ import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent
 import { MAX_CHARS } from "@/lib/limits";
 import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
+import Spinner from "@/components/Spinner";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -60,6 +61,7 @@ interface Props {
   isPasswordProtected?: boolean;
   isOwned?: boolean;
   startInEdit?: boolean;
+  startCopy?: boolean;
 }
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
@@ -95,6 +97,7 @@ export default function DocumentView({
   isPasswordProtected = false,
   isOwned = false,
   startInEdit = false,
+  startCopy = false,
 }: Props) {
   const router = useRouter();
   const { user } = useAuth();
@@ -197,6 +200,16 @@ export default function DocumentView({
     }
   }
 
+  function requestCopy() {
+    if (!user) {
+      // Not signed in: send to login, then resume the copy on return (?copy=1).
+      router.push(`/login?next=${encodeURIComponent(`/${slug}?copy=1`)}`);
+      return;
+    }
+    setCopyError("");
+    setShowCopy(true);
+  }
+
   async function handleCopy(withGoogle: boolean) {
     setCopyBusy(withGoogle ? "google" : "plain");
     setCopyError("");
@@ -297,7 +310,15 @@ export default function DocumentView({
   // (and view their own password-protected doc without the read password). We
   // also capture the doc id + Google Docs link here to drive the sync button.
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      // Signed out (or never signed in): drop any owner-only state so the
+      // Google Docs actions disappear immediately, without a page reload.
+      setIsOwner(false);
+      setDocId(null);
+      setGoogleDocUrl(null);
+      setGoogleDocStale(false);
+      return;
+    }
     let cancelled = false;
     getDocument(slug)
       .then((doc) => {
@@ -324,7 +345,7 @@ export default function DocumentView({
 
   // Whether the account has Google Docs connected (gates the sync button).
   useEffect(() => {
-    if (!user) return;
+    if (!user) { setGConnected(false); return; }
     let cancelled = false;
     getGoogleDocsStatus()
       .then((s) => { if (!cancelled) setGConnected(!!(s.configured && s.connected)); })
@@ -389,6 +410,16 @@ export default function DocumentView({
       handleEditClick();
     }
   }, [startInEdit, secretUnlocked, pwdLocked]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Resume "Save a copy" after a sign-in redirect (?copy=1), once we know the
+  // viewer isn't the owner and the content is unlocked. Opens the modal once.
+  const copyAutoOpened = useRef(false);
+  useEffect(() => {
+    if (startCopy && user && !isOwner && !pwdLocked && !copyAutoOpened.current) {
+      copyAutoOpened.current = true;
+      setShowCopy(true);
+    }
+  }, [startCopy, user, isOwner, pwdLocked]);
 
   // Set document.title to just the clean name before printing so the
   // save-as filename in the print dialog is "{title}" or "{slug}" rather
@@ -871,10 +902,10 @@ export default function DocumentView({
             Edit
           </button>
 
-          {/* Save a copy — authenticated viewer who isn't the owner */}
-          {user && !isOwner && !pwdLocked && (
+          {/* Save a copy — any viewer who isn't the owner (logged out → sign in first) */}
+          {!isOwner && !pwdLocked && (
             <button
-              onClick={() => { setCopyError(""); setShowCopy(true); }}
+              onClick={requestCopy}
               title="Save your own editable copy of this document"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
             >
@@ -920,7 +951,7 @@ export default function DocumentView({
                 disabled={gBusy}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] disabled:opacity-50 transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
               >
-                <GoogleDocIcon /> {gBusy ? "Publishing…" : "Publish to Google Docs"}
+                {gBusy ? <Spinner /> : <GoogleDocIcon />} {gBusy ? "Publishing…" : "Publish to Google Docs"}
               </button>
             )
           )}
@@ -963,7 +994,9 @@ export default function DocumentView({
                 disabled={!!copyBusy}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 disabled:opacity-50 transition-colors"
               >
-                <CopyDocIcon className="w-5 h-5 shrink-0 text-blue-500" />
+                {copyBusy === "plain"
+                  ? <Spinner className="w-5 h-5 shrink-0 text-blue-500" />
+                  : <CopyDocIcon className="w-5 h-5 shrink-0 text-blue-500" />}
                 <span>
                   <span className="block text-sm font-medium text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
                     {copyBusy === "plain" ? "Creating copy…" : "Copy to Markdrop"}
@@ -978,7 +1011,9 @@ export default function DocumentView({
                 disabled={!!copyBusy}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 disabled:opacity-50 transition-colors"
               >
-                <GoogleDocIcon className="w-5 h-5 shrink-0" />
+                {copyBusy === "google"
+                  ? <Spinner className="w-5 h-5 shrink-0 text-blue-500" />
+                  : <GoogleDocIcon className="w-5 h-5 shrink-0" />}
                 <span>
                   <span className="block text-sm font-medium text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
                     {copyBusy === "google"
