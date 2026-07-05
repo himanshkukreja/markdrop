@@ -404,6 +404,21 @@ async def get_owned_document_by_id(
     return _doc_from_mongo(raw)
 
 
+async def mark_vscode_synced(db: AsyncIOMotorDatabase, doc_id: str) -> None:
+    """Flag a document as VS Code-synced (idempotent, one-time write).
+
+    Called from the sync pull/rev endpoints so any document the extension is
+    actively tracking lights up the "Synced with VS Code" badge — including
+    docs published before the flag existed — without needing a fresh push.
+    """
+    if not ObjectId.is_valid(doc_id):
+        return
+    await db["documents"].update_one(
+        {"_id": ObjectId(doc_id), "vscode_synced": {"$ne": True}},
+        {"$set": {"vscode_synced": True}},
+    )
+
+
 async def set_google_doc_link(
     db: AsyncIOMotorDatabase,
     doc_id: str,

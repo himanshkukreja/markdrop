@@ -71,6 +71,8 @@ async def sync_pull(
     doc = await doc_service.get_owned_document_by_id(db, doc_id, user.id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.vscode_synced:
+        await doc_service.mark_vscode_synced(db, doc.id)
     return _doc_response(doc)
 
 
@@ -84,6 +86,8 @@ async def sync_rev(
     doc = await doc_service.get_owned_document_by_id(db, doc_id, user.id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.vscode_synced:
+        await doc_service.mark_vscode_synced(db, doc.id)
     return SyncRevResponse(id=doc.id, rev=doc.rev, updated_at=doc.updated_at)
 
 
