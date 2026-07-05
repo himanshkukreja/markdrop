@@ -2,13 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import MarkdownPreview from "@/components/MarkdownPreview";
+import { formatBytes } from "@/lib/webrtc";
 import {
   AdminDocListItem,
   AdminUserListItem,
+  AdminShareEventItem,
+  FeatureUsage,
   adminDeleteDocument,
   adminGetDocument,
   adminListDocuments,
   adminListUsers,
+  adminFeatureUsage,
+  adminListShareEvents,
   adminLogin,
   adminUpdateDocument,
   clearAdminToken,
@@ -18,6 +23,7 @@ import {
 
 type Phase = "init" | "login" | "dashboard" | "editing";
 type EditMode = "edit" | "split" | "preview";
+type Tab = "docs" | "users" | "usage";
 
 export default function AdminApp() {
   // ── Auth ────────────────────────────────────────────────────────────────────
@@ -42,13 +48,22 @@ export default function AdminApp() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   // ── Tabs + Users ──────────────────────────────────────────────────────────────
-  const [tab, setTab] = useState<"docs" | "users">("docs");
+  const [tab, setTab] = useState<Tab>("docs");
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
   const [usersTotal, setUsersTotal] = useState(0);
   const [usersPage, setUsersPage] = useState(1);
   const [usersPages, setUsersPages] = useState(1);
   const [usersSearch, setUsersSearch] = useState("");
   const [usersLoading, setUsersLoading] = useState(false);
+
+  // ── Feature usage ───────────────────────────────────────────────────────────
+  const [usage, setUsage] = useState<FeatureUsage | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [shareEvents, setShareEvents] = useState<AdminShareEventItem[]>([]);
+  const [sharePage, setSharePage] = useState(1);
+  const [sharePages, setSharePages] = useState(1);
+  const [shareTotal, setShareTotal] = useState(0);
+  const [shareIdentified, setShareIdentified] = useState(false);
 
   // ── Editor ──────────────────────────────────────────────────────────────────
   const [editSlug, setEditSlug] = useState<string | null>(null);
@@ -128,6 +143,58 @@ export default function AdminApp() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, token, tab]);
+
+  // ── Load feature usage ───────────────────────────────────────────────────────
+  const loadUsage = useCallback(async (tok: string, pg = 1, identified = false) => {
+    setUsageLoading(true);
+    try {
+      const [u, ev] = await Promise.all([
+        adminFeatureUsage(tok),
+        adminListShareEvents(tok, pg, identified),
+      ]);
+      setUsage(u);
+      setShareEvents(ev.events);
+      setShareTotal(ev.total);
+      setSharePage(ev.page);
+      setSharePages(ev.pages);
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === "UNAUTHORIZED") {
+        clearAdminToken();
+        setToken(null);
+        setPhase("login");
+      }
+    } finally {
+      setUsageLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (phase === "dashboard" && token && tab === "usage") {
+      loadUsage(token, 1, shareIdentified);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, token, tab]);
+
+  const loadShareEventsPage = (pg: number) => {
+    setSharePage(pg);
+    if (token) adminListShareEvents(token, pg, shareIdentified).then((ev) => {
+      setShareEvents(ev.events);
+      setShareTotal(ev.total);
+      setSharePage(ev.page);
+      setSharePages(ev.pages);
+    }).catch(() => {});
+  };
+
+  const toggleShareIdentified = () => {
+    const v = !shareIdentified;
+    setShareIdentified(v);
+    if (token) adminListShareEvents(token, 1, v).then((ev) => {
+      setShareEvents(ev.events);
+      setShareTotal(ev.total);
+      setSharePage(ev.page);
+      setSharePages(ev.pages);
+    }).catch(() => {});
+  };
 
   const handleUsersSearch = (val: string) => {
     setUsersSearch(val);
@@ -452,7 +519,7 @@ export default function AdminApp() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
-        {(["docs", "users"] as const).map((t) => (
+        {(["docs", "users", "usage"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -462,7 +529,7 @@ export default function AdminApp() {
                 : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
-            {t === "docs" ? "Documents" : "Users"}
+            {t === "docs" ? "Documents" : t === "users" ? "Users" : "Feature usage"}
           </button>
         ))}
       </div>
@@ -796,7 +863,9 @@ export default function AdminApp() {
                     <th className="text-left px-4 py-3">User</th>
                     <th className="hidden sm:table-cell text-left px-4 py-3">Providers</th>
                     <th className="text-right px-4 py-3">Docs</th>
-                    <th className="hidden md:table-cell text-left px-4 py-3">Joined</th>
+                    <th className="text-center px-4 py-3" title="VS Code sync">VS Code</th>
+                    <th className="text-center px-4 py-3" title="Google Drive connected / docs exported">Drive</th>
+                    <th className="hidden sm:table-cell text-right px-4 py-3" title="P2P files shared">Shares</th>
                     <th className="hidden lg:table-cell text-left px-4 py-3">Last login</th>
                   </tr>
                 </thead>
@@ -825,7 +894,40 @@ export default function AdminApp() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right text-xs tabular-nums text-gray-500 dark:text-gray-400">{u.document_count}</td>
-                      <td className="hidden md:table-cell px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{new Date(u.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</td>
+
+                      {/* VS Code sync */}
+                      <td className="px-4 py-3 text-center">
+                        {u.vscode_last_synced_at ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
+                            title={`Last synced ${new Date(u.vscode_last_synced_at).toLocaleString()} · ${u.vscode_token_count} token(s)`}
+                          >
+                            ✓ {new Date(u.vscode_last_synced_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                          </span>
+                        ) : u.vscode_token_count > 0 ? (
+                          <span className="text-[10px] text-amber-600 dark:text-amber-400" title={`${u.vscode_token_count} token(s), never synced`}>token, no sync</span>
+                        ) : (
+                          <span className="text-gray-300 dark:text-gray-600">—</span>
+                        )}
+                      </td>
+
+                      {/* Google Drive */}
+                      <td className="px-4 py-3 text-center">
+                        {u.google_connected ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                            title={`Drive connected · ${u.google_export_count} doc(s) exported`}
+                          >
+                            ✓{u.google_export_count > 0 ? ` ${u.google_export_count}` : ""}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 dark:text-gray-600">—</span>
+                        )}
+                      </td>
+
+                      {/* P2P shares */}
+                      <td className="hidden sm:table-cell px-4 py-3 text-right text-xs tabular-nums text-gray-500 dark:text-gray-400">{u.share_count || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+
                       <td className="hidden lg:table-cell px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
                     </tr>
                   ))}
@@ -844,6 +946,123 @@ export default function AdminApp() {
                   className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
               </div>
             </div>
+          )}
+        </>
+      )}
+
+      {tab === "usage" && (
+        <>
+          {usageLoading && !usage ? (
+            <div className="flex justify-center py-16"><div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /></div>
+          ) : (
+            <>
+              {/* Summary cards */}
+              {usage && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* VS Code sync */}
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526]">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">VS Code sync</p>
+                    <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.vscode_users_synced.toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">users have synced</p>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+                      {usage.vscode_users_with_token.toLocaleString()} created a token · {usage.vscode_tokens_total.toLocaleString()} tokens total
+                    </p>
+                  </div>
+                  {/* Google Drive */}
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526]">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">Google Drive</p>
+                    <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.google_connected_users.toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">users connected Drive</p>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+                      {usage.google_exported_docs.toLocaleString()} docs exported to Google Docs
+                    </p>
+                  </div>
+                  {/* P2P sharing */}
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526]">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400">P2P file sharing</p>
+                    <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.share_events_total.toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">files shared</p>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+                      {usage.share_users_identified.toLocaleString()} signed-in senders · {usage.share_events_anonymous.toLocaleString()} anonymous
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Share events */}
+              <div className="flex items-center justify-between pt-2">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+                  P2P share log <span className="font-normal text-gray-400">· {shareTotal.toLocaleString()}</span>
+                </h2>
+                <button
+                  onClick={toggleShareIdentified}
+                  className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                    shareIdentified
+                      ? "border-purple-300 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400"
+                      : "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  }`}
+                  title="Hide anonymous shares"
+                >
+                  👤 Signed-in only
+                </button>
+              </div>
+
+              {shareEvents.length === 0 ? (
+                <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                  {shareIdentified ? "No shares from signed-in users yet." : "No file shares recorded yet."}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526] text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        <th className="text-left px-4 py-3">File</th>
+                        <th className="hidden sm:table-cell text-right px-4 py-3">Size</th>
+                        <th className="text-left px-4 py-3">Sender</th>
+                        <th className="text-left px-4 py-3">When</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shareEvents.map((ev, i) => (
+                        <tr key={ev.id} className={`border-b last:border-0 border-gray-100 dark:border-gray-800 vscode:border-[#3c3c3c] ${i % 2 === 0 ? "" : "bg-gray-50/50 dark:bg-gray-900/20"}`}>
+                          <td className="px-4 py-3 max-w-xs">
+                            <p className="text-xs text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] truncate" title={ev.file_name ?? ""}>
+                              {ev.file_name ?? <span className="italic text-gray-400">unknown</span>}
+                            </p>
+                            {ev.mime_type && <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{ev.mime_type}</p>}
+                          </td>
+                          <td className="hidden sm:table-cell px-4 py-3 text-right text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                            {ev.file_size != null ? formatBytes(ev.file_size) : "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            {ev.user_email ? (
+                              <span className="text-xs text-emerald-600 dark:text-emerald-400 truncate" title={ev.user_id ?? ""}>👤 {ev.user_email}</span>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-gray-600">anonymous</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                            {new Date(ev.ts).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {sharePages > 1 && (
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Page {sharePage} of {sharePages} · {shareTotal.toLocaleString()} shares</p>
+                  <div className="flex items-center gap-2">
+                    <button disabled={sharePage <= 1} onClick={() => loadShareEventsPage(sharePage - 1)}
+                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
+                    <button disabled={sharePage >= sharePages} onClick={() => loadShareEventsPage(sharePage + 1)}
+                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

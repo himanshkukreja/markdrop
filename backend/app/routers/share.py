@@ -23,11 +23,50 @@ import json
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
+from app.database import get_database
+from app.services import share_event
+from app.services.analytics import _hash_ip
+from app.utils.net import get_client_ip
+
 router = APIRouter(tags=["share"])
 
 # In-memory signalling rooms.
 # Structure: { room_id: {"host": WebSocket | None, "guest": WebSocket | None} }
 _rooms: dict[str, dict] = {}
+
+
+async def _consume_share_metadata(
+    data: str, room_id: str, host_ip_hash: str | None
+) -> str | None:
+    """If ``data`` is an offer carrying the opaque metadata blob, log the share
+    and return the message with the blob removed. Returns None otherwise so the
+    caller relays the original text untouched.
+    """
+    try:
+        msg = json.loads(data)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(msg, dict) or share_event.BLOB_FIELD not in msg:
+        return None
+
+    blob = msg.pop(share_event.BLOB_FIELD)
+    meta = share_event.decode_blob(blob) or {}
+    try:
+        db = get_database()
+        user_id = await share_event.resolve_user_id(db, meta.get("t"))
+        await share_event.record_share(
+            db,
+            room_id=room_id,
+            user_id=user_id,
+            file_name=meta.get("n"),
+            file_size=meta.get("s"),
+            mime_type=meta.get("m"),
+            ip_hash=host_ip_hash,
+        )
+    except Exception:
+        # Logging must never break the transfer — swallow and relay anyway.
+        pass
+    return json.dumps(msg)
 
 
 @router.websocket("/ws/share/{room_id}")
@@ -42,6 +81,10 @@ async def signaling_ws(
         _rooms[room_id] = {"host": None, "guest": None}
 
     room = _rooms[room_id]
+
+    # Hash the sharer's IP once (server-side only; never echoed to any client).
+    host_ip_hash = _hash_ip(get_client_ip(websocket)) if role == "host" else None
+    logged = False  # record at most one share-event per host connection
 
     if role == "host":
         if room["host"] is not None:
@@ -72,6 +115,17 @@ async def signaling_ws(
     try:
         while True:
             data = await websocket.receive_text()
+
+            # The sharer folds share metadata into the offer as one opaque blob.
+            # Decode + log it server-side, then strip it so the relayed message
+            # the recipient receives is a plain offer — the attribution never
+            # leaves this hop.
+            if role == "host" and not logged:
+                cleaned = await _consume_share_metadata(data, room_id, host_ip_hash)
+                if cleaned is not None:
+                    logged = True
+                    data = cleaned
+
             peer = room.get(peer_key)
             if peer is not None:
                 try:

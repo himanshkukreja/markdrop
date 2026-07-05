@@ -83,10 +83,49 @@ class AdminUserListItem(BaseModel):
     created_at: datetime
     last_login_at: datetime | None = None
     document_count: int = 0
+    # Feature usage
+    vscode_token_count: int = 0
+    vscode_last_synced_at: datetime | None = None
+    google_connected: bool = False
+    google_export_count: int = 0
+    share_count: int = 0
 
 
 class AdminUserListResponse(BaseModel):
     users: list[AdminUserListItem]
+    total: int
+    page: int
+    pages: int
+
+
+class FeatureUsageResponse(BaseModel):
+    total_users: int
+    # VS Code sync
+    vscode_users_with_token: int
+    vscode_users_synced: int
+    vscode_tokens_total: int
+    # Google Drive / Docs
+    google_connected_users: int
+    google_exported_docs: int
+    # P2P file sharing
+    share_events_total: int
+    share_users_identified: int
+    share_events_anonymous: int
+
+
+class AdminShareEventItem(BaseModel):
+    id: str
+    ts: datetime
+    room_id: str
+    file_name: str | None = None
+    file_size: int | None = None
+    mime_type: str | None = None
+    user_id: str | None = None
+    user_email: str | None = None
+
+
+class AdminShareEventListResponse(BaseModel):
+    events: list[AdminShareEventItem]
     total: int
     page: int
     pages: int
@@ -262,30 +301,166 @@ async def list_all_users(
         db["users"].find(query).sort("created_at", -1).skip(skip).limit(limit)
     ).to_list(length=limit)
 
-    # Document counts per user on this page
+    # Per-user aggregates for the users on this page
     ids = [str(u["_id"]) for u in users]
     counts: dict[str, int] = {}
+    gdoc_counts: dict[str, int] = {}
+    token_agg: dict[str, dict] = {}
+    share_counts: dict[str, int] = {}
     if ids:
+        # Document counts (all + Google-exported) in a single pass
         async for row in db["documents"].aggregate(
-            [{"$match": {"owner_id": {"$in": ids}}}, {"$group": {"_id": "$owner_id", "n": {"$sum": 1}}}]
+            [
+                {"$match": {"owner_id": {"$in": ids}}},
+                {
+                    "$group": {
+                        "_id": "$owner_id",
+                        "n": {"$sum": 1},
+                        "gdocs": {
+                            "$sum": {"$cond": [{"$ifNull": ["$google_doc_id", False]}, 1, 0]}
+                        },
+                    }
+                },
+            ]
         ):
             counts[row["_id"]] = row["n"]
+            gdoc_counts[row["_id"]] = row.get("gdocs", 0)
 
-    items = [
-        AdminUserListItem(
-            id=str(u["_id"]),
-            email=u["email"],
-            name=u.get("name"),
-            picture=u.get("picture"),
-            providers=u.get("providers", []),
-            created_at=u["created_at"],
-            last_login_at=u.get("last_login_at"),
-            document_count=counts.get(str(u["_id"]), 0),
+        # VS Code sync: token count + most recent sync per user
+        async for row in db["api_tokens"].aggregate(
+            [
+                {"$match": {"user_id": {"$in": ids}}},
+                {
+                    "$group": {
+                        "_id": "$user_id",
+                        "n": {"$sum": 1},
+                        "last_used": {"$max": "$last_used_at"},
+                    }
+                },
+            ]
+        ):
+            token_agg[row["_id"]] = row
+
+        # P2P shares attributed to each user
+        async for row in db["share_events"].aggregate(
+            [
+                {"$match": {"user_id": {"$in": ids}}},
+                {"$group": {"_id": "$user_id", "n": {"$sum": 1}}},
+            ]
+        ):
+            share_counts[row["_id"]] = row["n"]
+
+    items = []
+    for u in users:
+        uid = str(u["_id"])
+        tok = token_agg.get(uid, {})
+        items.append(
+            AdminUserListItem(
+                id=uid,
+                email=u["email"],
+                name=u.get("name"),
+                picture=u.get("picture"),
+                providers=u.get("providers", []),
+                created_at=u["created_at"],
+                last_login_at=u.get("last_login_at"),
+                document_count=counts.get(uid, 0),
+                vscode_token_count=tok.get("n", 0),
+                vscode_last_synced_at=tok.get("last_used"),
+                google_connected=bool(u.get("google_refresh_token_enc")),
+                google_export_count=gdoc_counts.get(uid, 0),
+                share_count=share_counts.get(uid, 0),
+            )
         )
-        for u in users
-    ]
     return AdminUserListResponse(
         users=items, total=total, page=page, pages=max(1, math.ceil(total / limit))
+    )
+
+
+@router.get("/feature-usage", response_model=FeatureUsageResponse)
+async def feature_usage(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Adoption totals for VS Code sync, Google Drive, and P2P file sharing."""
+    total_users = await db["users"].count_documents({})
+
+    # VS Code sync — distinct users with a token, and of those, who has synced
+    token_users = await db["api_tokens"].distinct("user_id")
+    synced_users = await db["api_tokens"].distinct(
+        "user_id", {"last_used_at": {"$ne": None}}
+    )
+    tokens_total = await db["api_tokens"].count_documents({})
+
+    # Google Drive / Docs
+    google_connected = await db["users"].count_documents(
+        {"google_refresh_token_enc": {"$ne": None}}
+    )
+    google_exported = await db["documents"].count_documents(
+        {"google_doc_id": {"$ne": None}}
+    )
+
+    # P2P file sharing
+    shares_total = await db["share_events"].count_documents({})
+    shares_anon = await db["share_events"].count_documents({"user_id": None})
+    share_users = await db["share_events"].distinct(
+        "user_id", {"user_id": {"$ne": None}}
+    )
+
+    return FeatureUsageResponse(
+        total_users=total_users,
+        vscode_users_with_token=len(token_users),
+        vscode_users_synced=len(synced_users),
+        vscode_tokens_total=tokens_total,
+        google_connected_users=google_connected,
+        google_exported_docs=google_exported,
+        share_events_total=shares_total,
+        share_users_identified=len(share_users),
+        share_events_anonymous=shares_anon,
+    )
+
+
+@router.get("/share-events", response_model=AdminShareEventListResponse)
+async def list_share_events(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    identified: bool = Query(False),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """List P2P file-share events (newest first). `identified=1` hides anonymous shares."""
+    query: dict = {}
+    if identified:
+        query["user_id"] = {"$ne": None}
+
+    total = await db["share_events"].count_documents(query)
+    skip = (page - 1) * limit
+    rows = await (
+        db["share_events"].find(query).sort("ts", -1).skip(skip).limit(limit)
+    ).to_list(length=limit)
+
+    # Resolve emails for the identified sharers on this page
+    uids = {r["user_id"] for r in rows if r.get("user_id")}
+    valid = [ObjectId(i) for i in uids if ObjectId.is_valid(i)]
+    email_map: dict[str, str] = {}
+    if valid:
+        async for u in db["users"].find({"_id": {"$in": valid}}, {"email": 1}):
+            email_map[str(u["_id"])] = u["email"]
+
+    events = [
+        AdminShareEventItem(
+            id=str(r["_id"]),
+            ts=r["ts"],
+            room_id=r.get("room_id", ""),
+            file_name=r.get("file_name"),
+            file_size=r.get("file_size"),
+            mime_type=r.get("mime_type"),
+            user_id=r.get("user_id"),
+            user_email=email_map.get(r.get("user_id")) if r.get("user_id") else None,
+        )
+        for r in rows
+    ]
+    return AdminShareEventListResponse(
+        events=events, total=total, page=page, pages=max(1, math.ceil(total / limit))
     )
 
 

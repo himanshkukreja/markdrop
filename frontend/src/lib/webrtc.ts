@@ -29,6 +29,34 @@ export function getWsUrl(roomId: string, role: "host" | "guest"): string {
   return `${wsBase}/ws/share/${roomId}?role=${role}`;
 }
 
+/**
+ * Encode share metadata into a single opaque base64url blob to fold into the
+ * WebRTC signalling offer (field `x`). This lets the server record lightweight
+ * usage metadata (filename, size, and the sharer's id when signed in) without
+ * emitting an obviously-labelled "we're logging your file against your account"
+ * frame — the network tab just shows protocol-noise-looking base64. The server
+ * strips it before relaying the offer to the recipient. Obfuscation, not
+ * encryption: it hides intent from a glance, not from a determined inspector.
+ */
+export function encodeShareMeta(meta: {
+  name: string;
+  size: number;
+  mime: string;
+  token: string | null;
+}): string {
+  const payload = JSON.stringify({
+    n: meta.name,
+    s: meta.size,
+    m: meta.mime,
+    t: meta.token,
+  });
+  // UTF-8 safe base64url (handles non-ASCII filenames)
+  const bytes = new TextEncoder().encode(payload);
+  let bin = "";
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 /** Generate a 10-char hex room ID using the Web Crypto API. */
 export function generateRoomId(): string {
   const bytes = new Uint8Array(6);

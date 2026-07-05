@@ -486,6 +486,41 @@ export interface AdminUserListItem {
   created_at: string;
   last_login_at: string | null;
   document_count: number;
+  vscode_token_count: number;
+  vscode_last_synced_at: string | null;
+  google_connected: boolean;
+  google_export_count: number;
+  share_count: number;
+}
+
+export interface FeatureUsage {
+  total_users: number;
+  vscode_users_with_token: number;
+  vscode_users_synced: number;
+  vscode_tokens_total: number;
+  google_connected_users: number;
+  google_exported_docs: number;
+  share_events_total: number;
+  share_users_identified: number;
+  share_events_anonymous: number;
+}
+
+export interface AdminShareEventItem {
+  id: string;
+  ts: string;
+  room_id: string;
+  file_name: string | null;
+  file_size: number | null;
+  mime_type: string | null;
+  user_id: string | null;
+  user_email: string | null;
+}
+
+export interface AdminShareEventListResponse {
+  events: AdminShareEventItem[];
+  total: number;
+  page: number;
+  pages: number;
 }
 
 export interface AdminUserListResponse {
@@ -512,6 +547,32 @@ export interface AdminDocListResponse {
   total: number;
   page: number;
   pages: number;
+}
+
+export async function adminFeatureUsage(token: string): Promise<FeatureUsage> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/feature-usage`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to load feature usage");
+  return res.json();
+}
+
+export async function adminListShareEvents(
+  token: string,
+  page = 1,
+  identified = false
+): Promise<AdminShareEventListResponse> {
+  const params = new URLSearchParams({ page: String(page), limit: "20" });
+  if (identified) params.set("identified", "1");
+  const res = await fetch(`${API_BASE}/api/v1/admin/share-events?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error("Failed to load share events");
+  return res.json();
 }
 
 export async function adminLogin(username: string, password: string): Promise<{ token: string; expires_at: string }> {

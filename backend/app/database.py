@@ -51,6 +51,10 @@ async def connect() -> None:
     await db["api_tokens"].create_index("token_hash", unique=True)
     await db["api_tokens"].create_index("user_id")
 
+    # P2P file-share events (metadata only — bytes never touch the server)
+    await db["share_events"].create_index([("ts", -1)])
+    await db["share_events"].create_index([("user_id", 1), ("ts", -1)], sparse=True)
+
 
 async def disconnect() -> None:
     global _client

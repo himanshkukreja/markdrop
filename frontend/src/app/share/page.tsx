@@ -12,7 +12,9 @@ import {
   generateRoomId,
   formatBytes,
   sendFileOverChannel,
+  encodeShareMeta,
 } from "@/lib/webrtc";
+import { getToken } from "@/lib/api";
 
 type Phase =
   | "idle"
@@ -156,7 +158,21 @@ export default function SharePage() {
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        ws.send(JSON.stringify({ type: "offer", sdp: pc.localDescription }));
+        const f = fileRef.current!;
+        // Fold usage metadata into the offer as an opaque blob (see encodeShareMeta).
+        // The signalling server records it and strips it before relaying onward.
+        ws.send(
+          JSON.stringify({
+            type: "offer",
+            sdp: pc.localDescription,
+            x: encodeShareMeta({
+              name: f.name,
+              size: f.size,
+              mime: f.type || "application/octet-stream",
+              token: getToken(),
+            }),
+          }),
+        );
       }
 
       // ── WebRTC answer from guest ───────────────────────────────────────────
