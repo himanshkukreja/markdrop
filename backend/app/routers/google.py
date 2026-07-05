@@ -50,7 +50,10 @@ def _frontend_redirect(path: str, **params: str) -> RedirectResponse:
 
     url = f"{settings.frontend_url.rstrip('/')}{path}"
     if params:
-        url = f"{url}?{urlencode(params)}"
+        # `path` may already carry a query (e.g. a `next` of "/slug?gsync=1"),
+        # so join with & in that case rather than a second ?.
+        sep = "&" if "?" in path else "?"
+        url = f"{url}{sep}{urlencode(params)}"
     return RedirectResponse(url, status_code=307)
 
 

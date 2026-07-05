@@ -10,6 +10,7 @@ import { MAX_CHARS } from "@/lib/limits";
 import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
+import AuthModal from "@/components/AuthModal";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -62,6 +63,7 @@ interface Props {
   isOwned?: boolean;
   startInEdit?: boolean;
   startCopy?: boolean;
+  startGoogleSync?: boolean;
 }
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
@@ -98,6 +100,7 @@ export default function DocumentView({
   isOwned = false,
   startInEdit = false,
   startCopy = false,
+  startGoogleSync = false,
 }: Props) {
   const router = useRouter();
   const { user } = useAuth();
@@ -121,6 +124,7 @@ export default function DocumentView({
 
   // "Save a copy" (import someone else's doc into your account) state
   const [showCopy, setShowCopy] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
   const [copyBusy, setCopyBusy] = useState<null | "plain" | "google">(null);
   const [copyError, setCopyError] = useState("");
 
@@ -202,8 +206,10 @@ export default function DocumentView({
 
   function requestCopy() {
     if (!user) {
-      // Not signed in: send to login, then resume the copy on return (?copy=1).
-      router.push(`/login?next=${encodeURIComponent(`/${slug}?copy=1`)}`);
+      // Not signed in: open the sign-in modal right here (no page nav). Email
+      // sign-in resumes the copy in-place; Google redirects and resumes on
+      // return via ?copy=1.
+      setShowAuth(true);
       return;
     }
     setCopyError("");
@@ -222,9 +228,10 @@ export default function DocumentView({
       const copy = await copyDocument(slug, cachedPwd);
 
       if (withGoogle && !gConnected) {
-        // Not connected yet: land on the new (owned) copy, then start the opt-in
-        // Google connect flow — they can sync from there once connected.
-        await connectGoogleDocs(`/${copy.slug}`);
+        // Not connected yet: start the opt-in Google connect flow, returning to
+        // the new (owned) copy with ?gsync=1 so the export fires automatically
+        // once connected (no manual "Sync" click needed).
+        await connectGoogleDocs(`/${copy.slug}?gsync=1`);
         return;
       }
       if (withGoogle && copy.id) {
@@ -420,6 +427,17 @@ export default function DocumentView({
       setShowCopy(true);
     }
   }, [startCopy, user, isOwner, pwdLocked]);
+
+  // Resume Google export after the connect redirect (?gsync=1): once we know
+  // the viewer owns this (new) doc and Google is connected, and it isn't linked
+  // yet, push it to Google Docs automatically — no manual "Sync" click needed.
+  const gSyncAuto = useRef(false);
+  useEffect(() => {
+    if (startGoogleSync && isOwner && gConnected && docId && !googleDocUrl && !gBusy && !gSyncAuto.current) {
+      gSyncAuto.current = true;
+      handleGoogleExport();
+    }
+  }, [startGoogleSync, isOwner, gConnected, docId, googleDocUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Set document.title to just the clean name before printing so the
   // save-as filename in the print dialog is "{title}" or "{slug}" rather
@@ -979,6 +997,16 @@ export default function DocumentView({
           </div>
         )}
       </div>
+
+      {showAuth && (
+        <AuthModal
+          title="Sign in to save a copy"
+          message="Saving a copy adds this document to your Markdrop account so you can edit it, track views, and sync it to Google Docs. Sign in or create a free account to continue."
+          next={`/${slug}?copy=1`}
+          onClose={() => setShowAuth(false)}
+          onSuccess={() => { setShowAuth(false); setCopyError(""); setShowCopy(true); }}
+        />
+      )}
 
       {showCopy && (
         <Modal title="Save a copy to your account" onClose={() => { if (!copyBusy) setShowCopy(false); }}>
