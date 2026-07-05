@@ -49,6 +49,11 @@ _MARKETPLACE_URL = (
     "https://marketplace.visualstudio.com/items?itemName=HimanshuKukreja.markdrop"
 )
 
+# Animated product-demo hero (code-rendered GIF, hosted on ImageKit CDN — kept off
+# the app repo/bundle since it's a binary). Falls through to the static PNG hero
+# ({frontend_url}/email/hero.png) only if this is ever cleared.
+_HERO_IMAGE = "https://ik.imagekit.io/jrcgzv9vw/markdrop/email/welcome-hero.gif"
+
 # (icon filename, title, description, CTA label, CTA href-key). Icons are hosted
 # PNGs under {frontend_url}/email/ — Gmail strips inline SVG and blocks data: URIs,
 # so real raster images at absolute URLs are the only reliable option.
@@ -77,6 +82,7 @@ _FEATURES = [
 def _welcome_html(name: str | None) -> str:
     base = settings.frontend_url.rstrip("/")
     img = f"{base}/email"
+    hero = _HERO_IMAGE or f"{img}/hero.png"
     urls = {
         "new": f"{base}/new",
         "diagrams": f"{base}/new?sample=diagrams",
@@ -122,10 +128,10 @@ def _welcome_html(name: str | None) -> str:
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
              style="width:600px;max-width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
 
-        <!-- Hero graphic -->
+        <!-- Hero graphic (animated product demo) -->
         <tr><td style="padding:0;line-height:0">
           <a href="{base}" style="text-decoration:none">
-            <img src="{img}/hero.png" width="600" alt="Markdrop"
+            <img src="{hero}" width="600" alt="Markdrop — publish Markdown, render diagrams, sync, share"
                  style="display:block;width:100%;max-width:600px;height:auto;border:0;border-radius:16px 16px 0 0">
           </a>
         </td></tr>
