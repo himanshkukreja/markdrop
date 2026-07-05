@@ -68,6 +68,10 @@ function loadMermaid() {
         theme: "dark",
         securityLevel: "strict",
         fontFamily: "ui-sans-serif, system-ui, sans-serif",
+        // Don't let mermaid inject its built-in "Syntax error" bomb graphic into
+        // the DOM on a parse failure — render() still rejects, and our .catch()
+        // below shows the raw source as the fallback instead.
+        suppressErrorRendering: true,
       });
       return mermaid;
     });
