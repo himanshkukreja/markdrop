@@ -106,7 +106,21 @@ function AnalyticsPanel({ slug }: { slug: string }) {
   );
 }
 
-type BtnVariant = "default" | "danger" | "success";
+type BtnVariant = "default" | "danger" | "success" | "warning";
+
+/** Circular refresh arrow; spins while a sync is in flight. */
+function ReloadIcon({ spinning = false }: { spinning?: boolean }) {
+  return (
+    <svg
+      className={`w-3.5 h-3.5${spinning ? " animate-spin" : ""}`}
+      viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden
+    >
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </svg>
+  );
+}
 
 function ActionButton({
   onClick, href, children, variant = "default", active = false, title,
@@ -128,6 +142,10 @@ function ActionButton({
       "border-emerald-200 dark:border-emerald-900/50 vscode:border-[#2e4034] " +
       "text-emerald-600 dark:text-emerald-400 vscode:text-[#4ec9b0] " +
       "hover:bg-emerald-50 dark:hover:bg-emerald-950/30 vscode:hover:bg-[#26332b]",
+    warning:
+      "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 " +
+      "dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 " +
+      "vscode:border-[#665c33] vscode:bg-[#3a3320] vscode:text-[#e2c08d] vscode:hover:bg-[#4a4126]",
     danger:
       "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] " +
       "text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] " +
@@ -423,8 +441,9 @@ export default function DashboardPage() {
                       <>
                         <ActionButton href={d.google_doc_url} title="Open in Google Docs">Open Doc</ActionButton>
                         {d.google_doc_stale ? (
-                          <ActionButton onClick={() => handleExport(d)}>
-                            {exportBusy === d.slug ? "Syncing…" : "Sync"}
+                          <ActionButton onClick={() => handleExport(d)} variant="warning" title="This document changed since the last sync — click to update the Google Doc">
+                            <ReloadIcon spinning={exportBusy === d.slug} />
+                            {exportBusy === d.slug ? "Syncing…" : "Sync changes"}
                           </ActionButton>
                         ) : (
                           <ActionButton onClick={() => handleExport(d)} variant="success" title="Up to date — click to re-sync">

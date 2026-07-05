@@ -22,6 +22,20 @@ function GoogleDocIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
   );
 }
 
+/** Circular refresh arrow; spins while a sync is in flight. */
+function ReloadIcon({ spinning = false }: { spinning?: boolean }) {
+  return (
+    <svg
+      className={`w-3.5 h-3.5${spinning ? " animate-spin" : ""}`}
+      viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden
+    >
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </svg>
+  );
+}
+
 interface Props {
   slug: string;
   title: string | null;
@@ -417,6 +431,9 @@ export default function DocumentView({
       setDisplayContent(editContent);
       setDisplayExpiresAt(doc.expires_at);
       setEditing(false);
+      // The edit bumped the document's rev, so any linked Google Doc is now
+      // behind — flip the sync affordance to "Sync changes" without a reload.
+      if (googleDocUrl) setGoogleDocStale(true);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Failed to save");
     } finally {
@@ -767,14 +784,25 @@ export default function DocumentView({
                 >
                   <GoogleDocIcon /> Open Doc
                 </a>
-                <button
-                  onClick={handleGoogleExport}
-                  disabled={gBusy}
-                  title={googleDocStale ? "Push the latest content to Google Docs" : "Up to date with Google Docs"}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] disabled:opacity-50 transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
-                >
-                  {gBusy ? "Syncing…" : googleDocStale ? "⟳ Sync" : "✓ Synced"}
-                </button>
+                {googleDocStale ? (
+                  <button
+                    onClick={handleGoogleExport}
+                    disabled={gBusy}
+                    title="This document changed since the last sync — push the latest content to Google Docs"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 vscode:border-[#665c33] vscode:bg-[#3a3320] vscode:text-[#e2c08d] vscode:hover:bg-[#4a4126]"
+                  >
+                    <ReloadIcon spinning={gBusy} /> {gBusy ? "Syncing…" : "Sync changes"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleGoogleExport}
+                    disabled={gBusy}
+                    title="Up to date with Google Docs — click to re-sync"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 vscode:border-[#2e4034] vscode:text-[#4ec9b0] vscode:hover:bg-[#26332b]"
+                  >
+                    {gBusy ? <><ReloadIcon spinning /> Syncing…</> : "✓ Synced"}
+                  </button>
+                )}
               </>
             ) : (
               <button
