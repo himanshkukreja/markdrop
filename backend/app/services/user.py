@@ -121,10 +121,15 @@ async def upsert_user(
         return_document=True,
     )
 
-    # `created_at` is only written on insert (via $setOnInsert with `now`), so it
-    # equalling `now` uniquely identifies a brand-new account → send the one-time
-    # welcome / feature-tour email (best-effort, never blocks the login response).
-    if raw.get("created_at") == now:
+    # Detect a brand-new account to send the one-time welcome / feature-tour email.
+    # We compare two values that BOTH come back from Mongo (`created_at` written by
+    # $setOnInsert, `updated_at` by $set — from the same `now`): on an insert they
+    # are equal; on a returning login `updated_at` has advanced past `created_at`.
+    # (Comparing against the Python `now` directly is unreliable — Mongo truncates
+    # datetimes to millisecond precision and returns them timezone-naive.)
+    created_at = raw.get("created_at")
+    updated_at = raw.get("updated_at")
+    if created_at is not None and created_at == updated_at:
         _dispatch_welcome(email, raw.get("name"))
 
     return _user_from_mongo(raw)
