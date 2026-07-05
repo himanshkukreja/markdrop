@@ -49,35 +49,34 @@ _MARKETPLACE_URL = (
     "https://marketplace.visualstudio.com/items?itemName=HimanshuKukreja.markdrop"
 )
 
-# (emoji, accent bg, title, description, CTA label, CTA href-key)
-# href-key is resolved against the URL map built in _welcome_html.
+# (icon filename, title, description, CTA label, CTA href-key). Icons are hosted
+# PNGs under {frontend_url}/email/ — Gmail strips inline SVG and blocks data: URIs,
+# so real raster images at absolute URLs are the only reliable option.
 _FEATURES = [
-    ("📝", "#eff6ff", "#2563eb", "Instant Markdown publishing",
-     "Paste or write Markdown and get a clean, shareable link in one click — live preview, syntax highlighting, and PDF export.",
+    ("publish", "Instant Markdown publishing",
+     "Paste or write Markdown and get a clean, shareable link in one click — with live preview, syntax highlighting and PDF export.",
      "Create a document", "new"),
-    ("📊", "#f0fdf4", "#16a34a", "Diagrams, charts &amp; math",
-     "Drop in a <b>mermaid</b> block or LaTeX between $$…$$ and Markdrop renders flowcharts, sequence &amp; Gantt diagrams, charts and typeset math — live.",
-     "Render a diagram", "diagrams"),
-    ("🧱", "#fef3f2", "#e11d48", "README builder",
-     "Assemble a polished README from 45+ drag-and-drop section blocks — badges, install, API tables, diagrams — then publish or download the .md.",
+    ("diagram", "Diagrams, charts &amp; math",
+     "Add a mermaid block or LaTeX between $$ … $$ and Markdrop renders flowcharts, sequence &amp; Gantt diagrams, charts and typeset math, live.",
+     "Try a diagram", "diagrams"),
+    ("builder", "README builder",
+     "Assemble a README from 45+ drag-and-drop section blocks — badges, install steps, API tables, diagrams — then publish or download the .md.",
      "Open the builder", "builder"),
-    ("🔒", "#eef2ff", "#4f46e5", "Peer-to-peer file sharing",
-     "Send any file directly browser-to-browser over WebRTC. It's end-to-end encrypted and nothing is ever uploaded to a server.",
+    ("share", "Peer-to-peer file sharing",
+     "Send any file directly browser-to-browser over WebRTC. Transfers are end-to-end encrypted and never touch a server.",
      "Share a file", "share"),
-    ("🧩", "#ecfeff", "#0891b2", "Sync from VS Code",
-     "Publish and two-way sync your Markdown straight from your editor — save locally to push, edit on the web to pull back, with safe conflict diffs.",
+    ("sync", "Sync from VS Code",
+     "Publish and two-way sync your Markdown from your editor — save locally to push, edit on the web to pull back, with safe conflict diffs.",
      "Get the extension", "extension"),
-    ("📄", "#fffbeb", "#d97706", "Export to Google Docs",
-     "Turn any document into a fully-formatted Google Doc in one click — headings, tables, lists and code included — and push updates to the same Doc.",
-     "Connect Google", "dashboard"),
-    ("📈", "#faf5ff", "#9333ea", "Dashboard &amp; analytics",
-     "Your account unlocks a dashboard of all your documents, with view counts and geographic analytics. Everything still works without logging in, too.",
-     "Open dashboard", "dashboard"),
+    ("docs", "Google Docs &amp; analytics",
+     "Export any document to a fully-formatted Google Doc, and track views and geography from your dashboard. Everything works without an account, too.",
+     "Open the dashboard", "dashboard"),
 ]
 
 
 def _welcome_html(name: str | None) -> str:
     base = settings.frontend_url.rstrip("/")
+    img = f"{base}/email"
     urls = {
         "new": f"{base}/new",
         "diagrams": f"{base}/new?sample=diagrams",
@@ -88,30 +87,21 @@ def _welcome_html(name: str | None) -> str:
     }
     greeting = f"Welcome, {name}" if name else "Welcome to Markdrop"
 
-    # Feature cards — each is its own table so it stacks cleanly on mobile.
-    cards = "".join(
+    # Feature rows — hosted PNG icon + text, on the dark card.
+    rows = "".join(
         f"""
         <tr>
-          <td style="padding:0 0 14px 0">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-                   style="background:#ffffff;border:1px solid #eceef1;border-radius:14px">
-              <tr>
-                <td width="60" valign="top" style="padding:18px 0 18px 18px">
-                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                    <tr><td align="center" valign="middle"
-                        style="width:44px;height:44px;background:{bg};border-radius:11px;font-size:22px;line-height:44px">{emoji}</td></tr>
-                  </table>
-                </td>
-                <td valign="top" style="padding:18px 18px 18px 14px">
-                  <div style="font-size:16px;font-weight:700;color:#0f172a;margin:0 0 4px">{title}</div>
-                  <div style="font-size:14px;line-height:1.55;color:#5b6472;margin:0 0 10px">{desc}</div>
-                  <a href="{urls[key]}" style="font-size:13px;font-weight:600;color:{accent};text-decoration:none">{cta} &rarr;</a>
-                </td>
-              </tr>
-            </table>
+          <td width="64" valign="top" style="padding:16px 0 16px 2px">
+            <img src="{img}/{icon}.png" width="48" height="48" alt=""
+                 style="display:block;width:48px;height:48px;border:0;outline:none;text-decoration:none">
+          </td>
+          <td valign="top" style="padding:16px 2px 16px 14px;border-bottom:1px solid #1a2540">
+            <div style="font-size:16px;font-weight:600;color:#eaf1ff;margin:0 0 4px">{title}</div>
+            <div style="font-size:14px;line-height:1.55;color:#93a3c6;margin:0 0 9px">{desc}</div>
+            <a href="{urls[key]}" style="font-size:13px;font-weight:600;color:#6ba4ff;text-decoration:none">{cta} &rarr;</a>
           </td>
         </tr>"""
-        for (emoji, bg, accent, title, desc, cta, key) in _FEATURES
+        for (icon, title, desc, cta, key) in _FEATURES
     )
 
     return f"""\
@@ -120,48 +110,53 @@ def _welcome_html(name: str | None) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light">
+<meta name="color-scheme" content="dark light">
+<meta name="supported-color-schemes" content="dark light">
 <title>Welcome to Markdrop</title>
 </head>
-<body style="margin:0;padding:0;background:#f5f6f8;-webkit-font-smoothing:antialiased">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">Publish Markdown, render diagrams &amp; math, build READMEs, sync from VS Code, send files peer-to-peer — all no-login by default.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f6f8">
+<body style="margin:0;padding:0;background:#080d1a;-webkit-font-smoothing:antialiased">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">Publish Markdown, render diagrams and math, build READMEs, sync from VS Code, and send files peer-to-peer — no login required.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#080d1a" style="background:#080d1a">
   <tr>
-    <td align="center" style="padding:28px 14px">
+    <td align="center" style="padding:26px 14px">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
              style="width:600px;max-width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
 
-        <!-- Wordmark -->
-        <tr><td style="padding:4px 6px 18px">
-          <span style="font-size:22px;font-weight:800;letter-spacing:-0.3px;color:#0f172a">mark<span style="color:#2563eb">drop</span></span>
+        <!-- Hero graphic -->
+        <tr><td style="padding:0;line-height:0">
+          <a href="{base}" style="text-decoration:none">
+            <img src="{img}/hero.png" width="600" alt="Markdrop"
+                 style="display:block;width:100%;max-width:600px;height:auto;border:0;border-radius:16px 16px 0 0">
+          </a>
         </td></tr>
 
-        <!-- Hero -->
-        <tr><td style="background:#2563eb;background-image:linear-gradient(135deg,#2563eb 0%,#0ea5e9 100%);border-radius:18px;padding:36px 30px">
-          <div style="font-size:26px;line-height:1.25;font-weight:800;color:#ffffff;margin:0 0 10px">{greeting} 🎉</div>
-          <div style="font-size:15px;line-height:1.6;color:#e6f0ff;margin:0 0 22px">
-            Your account is ready. Markdrop is a whole publishing &amp; sharing suite —
-            here's everything you can do with it, all no-login by default.
+        <!-- Card -->
+        <tr><td bgcolor="#0d1428" style="background:#0d1428;border:1px solid #1a2540;border-top:0;border-radius:0 0 16px 16px;padding:30px 26px">
+          <div style="font-size:22px;line-height:1.3;font-weight:700;color:#ffffff;margin:0 0 10px">{greeting}</div>
+          <div style="font-size:15px;line-height:1.65;color:#a6b4d4;margin:0 0 22px">
+            Your account is ready. Markdrop began as a Markdown pastebin and grew into a full
+            publishing and sharing suite — here's what you can do with it.
           </div>
-          <a href="{urls['new']}" style="display:inline-block;background:#ffffff;color:#1d4ed8;text-decoration:none;font-size:14px;font-weight:700;padding:13px 26px;border-radius:10px">Create your first document</a>
-        </td></tr>
 
-        <tr><td style="padding:26px 6px 10px">
-          <div style="font-size:13px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:#94a3b8">What you can do</div>
-        </td></tr>
+          <!-- Primary CTA -->
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px">
+            <tr><td bgcolor="#2563eb" style="border-radius:10px">
+              <a href="{urls['new']}" style="display:inline-block;padding:13px 26px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none">Create your first document</a>
+            </td></tr>
+          </table>
 
-        <!-- Feature cards -->
-        <tr><td style="padding:0 0 6px">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">{cards}</table>
+          <div style="font-size:12px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#5f6f92;margin:0 0 2px">What you can do</div>
+
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">{rows}</table>
         </td></tr>
 
         <!-- Footer -->
-        <tr><td style="padding:18px 6px 8px;border-top:1px solid #e7e9ee">
-          <div style="font-size:13px;line-height:1.6;color:#8b93a1">
+        <tr><td style="padding:22px 8px 8px">
+          <div style="font-size:12px;line-height:1.65;color:#6b7699">
             You're receiving this because you signed up at
-            <a href="{base}" style="color:#2563eb;text-decoration:none">markdrop.in</a>.
+            <a href="{base}" style="color:#6ba4ff;text-decoration:none">markdrop.in</a>.
             Markdrop is open source —
-            <a href="https://github.com/himanshkukreja/markdrop" style="color:#2563eb;text-decoration:none">star it on GitHub</a>.
+            <a href="https://github.com/himanshkukreja/markdrop" style="color:#6ba4ff;text-decoration:none">star it on GitHub</a>.
           </div>
         </td></tr>
 
@@ -178,7 +173,7 @@ async def send_welcome_email(to_email: str, name: str | None = None) -> None:
     payload = {
         "from": f"{settings.email_from_name} <{settings.email_from}>",
         "to": [to_email],
-        "subject": "Welcome to Markdrop — here's everything you can do 🚀",
+        "subject": "Welcome to Markdrop — everything you can do",
         "html": _welcome_html(name),
     }
     async with httpx.AsyncClient(timeout=10) as client:
