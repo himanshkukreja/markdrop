@@ -17,6 +17,14 @@ interface Props {
 // reading searchParams here would force every request to render dynamically.
 export const revalidate = 60;
 
+// A dynamic segment only joins the full route cache when it declares
+// generateStaticParams. Returning [] prerenders nothing at build time (slugs
+// are created at runtime) while still letting each on-demand render be cached
+// and background-revalidated, instead of re-rendering for every visitor.
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   // Dynamic link-preview card, rendered server-side by the backend. The endpoint

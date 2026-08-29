@@ -8,34 +8,55 @@ Minimal, anonymous markdown publishing tool. Paste markdown, get a shareable lin
 
 ## Features
 
+### Publishing
 - Paste markdown and publish with one click — no account needed
 - Shareable links (`markdrop.in/abc123` or a custom slug you pick)
-- Write / Split / Preview editor modes with scroll sync
-- Markdown toolbar (Bold, Italic, Heading, Code, Code Block, Link, List)
-- Document title support
-- Syntax-highlighted code blocks (GitHub Dark theme)
+- Write / Split / Preview editor modes with scroll sync, and a markdown toolbar
+- Syntax-highlighted code blocks, **Mermaid diagrams**, and **KaTeX math**
 - Edit or delete via a secret key shown once at publish — built-in editor
-- Raw markdown view with copy-all button
-- **Password protection** — optionally lock a document behind a read password
-- **Document expiry** — set a TTL (1 day / 7 days / 30 days / custom date & time)
-- **View count** — passively tracks how many times a document has been opened
-- **3 themes** — VS Code dark grey (default), dark, and light — persisted to localStorage
-- Export to PDF (print-optimised, no UI chrome)
-- **P2P file sharing** — send any file directly to another browser, no server storage, end-to-end encrypted via WebRTC DataChannel ([technical docs →](FILESHARE.md))
-- Fully responsive — works on mobile
-- Rate-limited to prevent abuse
+- **Password protection**, **expiry** (1d / 7d / 30d / custom), and view counts
+- **Dynamic link previews** — pasting a link in Slack/X/LinkedIn renders a card
+- Export to PDF, raw markdown view, 3 themes, fully responsive
+
+### Artifacts — share more than markdown
+- Paste an **HTML page** or upload a **PDF**, **Word doc**, **Excel/CSV**, image,
+  or a **zipped site** (HTML + CSS + JS + assets) and get a link that *renders* it
+- Rendered on an **isolated origin**, so a published page can never reach your
+  Markdrop account — see [Artifacts](#artifacts) below
+- Same password, expiry, analytics and abuse-reporting as any document
+
+### Beyond the browser
+- **[README / markdown builder](https://markdrop.in/builder)** — assemble a doc
+  from 45+ drag-and-drop section templates, then publish or download it
+- **VS Code extension** — publish a `.md` file and two-way sync it on save
+- **Export to Google Docs** — with Mermaid, LaTeX and ASCII diagrams rendered to
+  images, since Drive's importer can't render them
+- **P2P file sharing** — send any file browser-to-browser over WebRTC, with
+  nothing stored on the server ([technical docs →](FILESHARE.md))
+- **CLI** (`markdrop`) for file sharing from a terminal
+
+### Accounts (all optional)
+- Passwordless login (Google, or email magic-link / OTP)
+- Dashboard of your documents and artifacts, with view / PDF / copy counts
+- Per-document analytics: time series, countries, referrers
+- API tokens for the extension and scripting
+- Anonymous publishing keeps working exactly as before — accounts are additive
 
 ## Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | FastAPI (Python 3.12) |
-| Frontend | Next.js 15 + Tailwind CSS v4 |
-| Database | MongoDB (Motor async driver) |
-| Rate limiting | slowapi |
-| Frontend hosting | Vercel |
-| Backend hosting | AWS EC2 + nginx + systemd |
-| CDN / DNS | Cloudflare |
+| Backend | FastAPI (Python 3.12+) |
+| Frontend | Next.js 15 (App Router) + Tailwind CSS v4 |
+| Database | MongoDB Atlas (Motor async driver) |
+| Artifact storage | Cloudflare R2 (S3-compatible) |
+| Artifact origin | Cloudflare Worker on a separate domain |
+| Rate limiting | slowapi + Redis |
+| Image rendering | Pillow (OG cards, diagrams) + matplotlib (LaTeX) |
+| Frontend hosting | Vercel (`bom1`, co-located with the API) |
+| Backend hosting | AWS EC2 (`ap-south-1`) + nginx + systemd |
+| Editor integration | VS Code extension (TypeScript) |
+| CLI | Go + GoReleaser |
 
 ---
 
@@ -45,37 +66,48 @@ Minimal, anonymous markdown publishing tool. Paste markdown, get a shareable lin
 markdrop/
 ├── backend/                # FastAPI app
 │   ├── app/
-│   │   ├── main.py         # App entrypoint, lifespan (DB connect/disconnect)
+│   │   ├── main.py         # Entrypoint, lifespan (DB connect/disconnect)
 │   │   ├── config.py       # Pydantic settings (env vars)
 │   │   ├── database.py     # Motor MongoDB client + index setup
 │   │   ├── models/         # Plain Python dataclasses
 │   │   ├── schemas/        # Pydantic request/response schemas
-│   │   ├── routers/        # FastAPI route handlers
-│   │   │   ├── documents.py  # Document CRUD routes
-│   │   │   └── share.py      # WebSocket signaling relay for P2P file sharing
-│   │   ├── services/       # Business logic
-│   │   └── utils/          # Slug generation, bcrypt secret hashing
+│   │   ├── routers/
+│   │   │   ├── documents.py  # Document CRUD, claim/copy, events, reports
+│   │   │   ├── artifacts.py  # Artifact upload (presign → confirm) + paste
+│   │   │   ├── auth.py / me.py / admin.py
+│   │   │   ├── sync.py       # VS Code two-way sync (rev-based CAS)
+│   │   │   ├── google.py     # Google Docs export + image endpoints
+│   │   │   ├── og.py         # Dynamic link-preview PNGs
+│   │   │   ├── live.py       # WebSocket: live document updates
+│   │   │   └── share.py      # WebSocket signalling for P2P file sharing
+│   │   ├── services/
+│   │   │   ├── r2.py         # Cloudflare R2 (presign, head, delete, prefix)
+│   │   │   ├── artifact.py   # Type registry, quota, signed artifact URLs
+│   │   │   ├── bundle.py     # Zip extraction (zip-bomb + traversal guards)
+│   │   │   ├── og_render.py / diagram_render.py / math_render.py
+│   │   │   └── analytics.py / gdocs.py / oauth.py / mailer.py
+│   │   └── utils/          # Slugs, bcrypt secrets, crypto, client IP
 │   └── requirements.txt
-└── frontend/               # Next.js app
-    └── src/
-        ├── app/            # Pages (App Router)
-        │   ├── page.tsx                  # Editor + publish page
-        │   ├── [slug]/
-        │   │   ├── page.tsx              # Document view (SSR, handles password gate)
-        │   │   └── DocumentView.tsx      # Client viewer + inline editor
-        │   └── share/
-        │       ├── page.tsx              # P2P file uploader (WebRTC host)
-        │       └── [id]/
-        │           ├── page.tsx          # SSR wrapper — passes roomId to client
-        │           └── DownloadView.tsx  # P2P file downloader (WebRTC guest)
-        ├── components/
-        │   ├── MarkdownPreview.tsx       # react-markdown + syntax highlighting
-        │   ├── MarkdownToolbar.tsx       # Formatting toolbar
-        │   ├── CopyButton.tsx
-        │   └── ThemeToggle.tsx           # 3-theme cycle (vscode → dark → light)
-        └── lib/
-            ├── api.ts                   # API client (create, get, update, delete)
-            └── webrtc.ts                # WebRTC utilities, chunk streaming, room ID
+├── worker/                 # Cloudflare Worker — the artifact origin
+│   ├── src/index.js        # /r/<key> raw + /v/<renderer>/<key> viewers
+│   └── wrangler.toml
+├── frontend/               # Next.js app
+│   └── src/
+│       ├── app/
+│       │   ├── page.tsx              # Landing
+│       │   ├── new/                  # Editor + publish
+│       │   ├── upload/               # Artifact upload / paste-HTML
+│       │   ├── builder/              # Drag-and-drop README builder
+│       │   ├── dashboard/            # Docs + artifacts, analytics
+│       │   ├── [slug]/
+│       │   │   ├── page.tsx          # ISR document route
+│       │   │   ├── DocumentView.tsx  # Markdown viewer + inline editor
+│       │   │   └── ArtifactView.tsx  # Sandboxed artifact viewer
+│       │   └── share/                # P2P file sharing
+│       ├── components/               # MarkdownPreview, ArtifactBadge, landing/
+│       └── lib/                      # api.ts, webrtc.ts, readmeSections.ts
+├── extension/              # VS Code extension (two-way markdown sync)
+└── cli/                    # Go CLI for P2P file sharing
 ```
 
 ---
@@ -199,6 +231,96 @@ DELETE /api/v1/documents/{slug}
 X-Edit-Secret: sk_9f8a7b...
 ```
 
+Deleting an artifact also frees its R2 storage (the whole prefix, for bundles).
+
+### Artifacts
+
+All artifact endpoints require a logged-in user (session JWT or `mdk_` API token).
+
+```http
+GET  /api/v1/artifacts/status        # feature gate + quota; safe when unconfigured
+POST /api/v1/artifacts/upload-url    # {filename, content_type, size_bytes} -> presigned PUT
+POST /api/v1/artifacts               # {blob_key, title, filename, ...} -> publishes at a slug
+POST /api/v1/artifacts/paste         # {content, title, ...} -> publish pasted HTML directly
+```
+
+`GET /api/v1/documents/{slug}` returns `kind: "artifact"` with `mime`,
+`renderer`, `type_label`, `size_bytes` and an `artifact_url` on the artifact
+origin. Password-protected artifacts get a short-lived signed token on that URL.
+
+Errors worth handling: `415` unsupported type, `413` too large, `507` quota
+exceeded, `422` bad zip bundle, `503` artifact storage not configured.
+
+---
+
+## Artifacts
+
+An artifact is any non-markdown file that gets a shareable, **rendered** URL —
+an HTML page, a PDF, a spreadsheet, a Word doc, or a zipped site. Upload at
+[`/upload`](https://markdrop.in/upload) (requires login), share the resulting
+`markdrop.in/<slug>` like any document.
+
+### Why a separate origin
+
+The session token lives in `localStorage` and edit secrets in `sessionStorage`
+on the `markdrop.in` origin. HTML served from that same origin could read both
+and take over the account. Hosting user HTML also attracts phishing, and a
+Safe Browsing blocklisting applies to the *domain* — which would take the whole
+product down with it.
+
+So artifacts render inside a sandboxed iframe pointed at a **different
+registrable site**. `markdrop.in` keeps the chrome (title, views, copy link,
+report); only the file itself is served from elsewhere.
+
+```
+markdrop.in/<slug>                    ← your chrome, analytics, actions
+   └─ <iframe sandbox>
+        markdrop-artifacts…workers.dev ← Cloudflare Worker + R2 binding
+             /r/<key>                    raw bytes (an HTML artifact IS the page)
+             /v/<renderer>/<key>         PDF / spreadsheet / docx / text viewers
+```
+
+`*.workers.dev` is on the Public Suffix List, so it counts as a separate site
+(isolated cookies, independent domain reputation) at no cost. Swapping in a
+bought domain later is one env var — artifact URLs are derived at read time,
+never stored. `MARKDROP_ARTIFACT_ALLOW_SUBDOMAIN_ORIGIN` exists for a subdomain
+of the app, but the app's own origin is refused unconditionally.
+
+### Supported types
+
+| Type | Rendered as |
+|------|-------------|
+| HTML | The page itself, sandboxed |
+| Zipped site | Exploded into one R2 prefix; assets resolve as siblings |
+| PDF | Native viewer |
+| Excel / CSV | SheetJS grid, one tab per sheet |
+| Word (.docx) | mammoth → semantic HTML (structural, not pixel-exact) |
+| Images / SVG | Direct (SVG stays sandboxed — it can carry script) |
+| JSON / text | Escaped `<pre>` |
+
+Anything outside this list is refused at upload; anything unexpected that does
+reach the Worker is served `Content-Disposition: attachment` rather than rendered.
+
+### Upload flow
+
+Bytes never pass through the API server:
+
+1. `POST /api/v1/artifacts/upload-url` — validates type + quota, returns a
+   presigned PUT. The signature binds `Content-Type`, so a client can't declare
+   CSV and upload HTML.
+2. Browser `PUT`s straight to R2.
+3. `POST /api/v1/artifacts` — the server `HEAD`s the object to learn its **real**
+   size and type before committing. A presigned PUT can't enforce a length
+   range, so the declared size from step 1 is advisory only.
+
+Object keys are random and namespaced per owner (`art/<user_id>/<token>`) —
+deliberately *not* content-addressed, because a client-supplied hash as the key
+would let one account overwrite another's artifact.
+
+Zip bundles are extracted server-side with caps on entry count, per-file size
+and total uncompressed size, and any entry escaping the prefix via `..` or an
+absolute path is refused.
+
 ---
 
 ## P2P File Sharing
@@ -299,6 +421,18 @@ server {
         proxy_read_timeout 3600s;   # keep WS alive for up to 1 h
     }
 
+    # ── Compression ────────────────────────────────────────────────────────
+    # nginx.conf ships with "gzip on" but leaves gzip_types and gzip_proxied at
+    # their defaults — text/html only, and NOTHING proxied. Both must be set or
+    # API JSON goes out uncompressed (this was worth ~62% on a real document).
+    gzip              on;
+    gzip_proxied      any;
+    gzip_vary         on;
+    gzip_comp_level   5;
+    gzip_min_length   512;
+    gzip_types        application/json application/javascript application/xml
+                      text/plain text/css text/xml image/svg+xml;
+
     # ── Regular HTTP API ───────────────────────────────────────────────────
     location / {
         limit_req zone=api burst=20 nodelay;
@@ -330,12 +464,51 @@ sudo nginx -t && sudo systemctl reload nginx
 4. Set ignored build step: `git diff HEAD^ HEAD --quiet -- frontend/` (only deploy on frontend changes)
 5. Deploy
 
-### DNS (Cloudflare)
+`frontend/vercel.json` pins functions to `bom1` (Mumbai). This matters: the
+default region is `iad1` (Washington DC), which put every server render a
+Pacific round trip away from the `ap-south-1` API. The `/[slug]` route also sets
+`revalidate = 60` so the anonymous render is served from the edge — which is
+why its `?new` / `?edit` flags are read via `useSearchParams` on the client
+rather than from server `searchParams` (reading those forces a dynamic render
+on every request, forfeiting the cache).
+
+### Artifact origin (Cloudflare Worker + R2)
+
+```bash
+cd worker
+npx wrangler login
+
+# One-time: create the bucket and claim an account workers.dev subdomain
+npx wrangler r2 bucket create markdrop-artifacts
+
+npx wrangler deploy                              # -> <name>.<subdomain>.workers.dev
+npx wrangler secret put ARTIFACT_SIGNING_KEY     # must equal MARKDROP_ARTIFACT_SIGNING_KEY
+```
+
+Then set the R2 variables in `backend/.env` (see [Environment Variables](#environment-variables))
+and redeploy the backend. Confirm with:
+
+```bash
+curl -s https://api.markdrop.in/api/v1/artifacts/status
+# {"configured": true, "origin_isolated": true, "origin_separate_site": true, ...}
+```
+
+> `origin_separate_site: false` means artifacts are running on a subdomain of the
+> app — still safe from token theft, but sharing domain reputation with
+> `markdrop.in`. Prefer a separate site.
+
+> Cloudflare's bot protection returns `403` to the default `Python-urllib` user
+> agent on `workers.dev`. Browsers, curl and `requests` are unaffected — but set
+> a real UA if you ever fetch artifact URLs server-side.
+
+### DNS
 
 | Type | Name | Value |
 |------|------|-------|
-| A | `api` | EC2 public IP (proxy OFF for SSL passthrough) |
+| A | `api` | EC2 public IP |
 | CNAME | `@` / `www` | Vercel domain |
+
+The artifact origin needs no DNS of its own while it runs on `workers.dev`.
 
 ---
 
@@ -353,6 +526,31 @@ sudo nginx -t && sudo systemctl reload nginx
 | `MARKDROP_MAX_CONTENT_CHARS` | Maximum document content length | `500000` |
 | `MARKDROP_RATE_LIMIT_CREATE` | Create/update/delete rate limit | `10/minute` |
 | `MARKDROP_RATE_LIMIT_READ` | Read rate limit | `60/minute` |
+| `MARKDROP_FRONTEND_URL` | Public frontend URL (OAuth/email redirects) | `http://localhost:3000` |
+| `MARKDROP_API_BASE_URL` | Public API URL (diagram/math image links) | `http://localhost:8080` |
+| `MARKDROP_AUTH_SECRET` | JWT signing key for user sessions | — |
+| `MARKDROP_GOOGLE_CLIENT_ID` / `_SECRET` | Google OAuth (login + Docs) | — |
+| `MARKDROP_TOKEN_ENCRYPTION_KEY` | Fernet key for Google refresh tokens | — |
+| `MARKDROP_RESEND_API_KEY` | Resend key for passwordless email login | — |
+| `MARKDROP_GEOIP_DB_PATH` | MaxMind GeoLite2 City DB (analytics geo) | — |
+| `MARKDROP_IP_HASH_SALT` | Salt for hashed visitor IPs | — |
+
+#### Artifacts (Cloudflare R2)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MARKDROP_R2_ACCOUNT_ID` | Cloudflare account ID | — |
+| `MARKDROP_R2_ACCESS_KEY_ID` | R2 S3 access key | — |
+| `MARKDROP_R2_SECRET_ACCESS_KEY` | R2 S3 secret | — |
+| `MARKDROP_R2_BUCKET` | Bucket name | — |
+| `MARKDROP_ARTIFACT_ORIGIN` | Artifact origin URL (**must be a separate site**) | — |
+| `MARKDROP_ARTIFACT_SIGNING_KEY` | HMAC key for private artifact tokens (must match the Worker secret) | — |
+| `MARKDROP_ARTIFACT_MAX_BYTES` | Per-file limit | `26214400` (25 MB) |
+| `MARKDROP_ARTIFACT_USER_QUOTA_BYTES` | Per-account total | `262144000` (250 MB) |
+| `MARKDROP_ARTIFACT_ALLOW_SUBDOMAIN_ORIGIN` | Permit a subdomain of the app (weaker — shares domain reputation) | `false` |
+
+Artifacts stay dormant until all of these are set: `/upload` shows a
+"not enabled yet" state and the endpoints return `503`.
 
 ### Frontend (`frontend/.env.local`)
 
@@ -366,9 +564,14 @@ sudo nginx -t && sudo systemctl reload nginx
 ## Roadmap
 
 - [x] Phase 1 — Anonymous markdown publishing with edit/delete via secret key
-- [x] Phase 2 — Custom slugs, expiry dates, view counts, password protection, markdown toolbar, 3 themes
+- [x] Phase 2 — Custom slugs, expiry, view counts, password protection, toolbar, themes
 - [x] Phase 3 — P2P file sharing (WebRTC DataChannel, no server storage)
-- [ ] Phase 4 — User accounts, dashboard, document versioning, TURN server for file sharing behind strict NAT
+- [x] Phase 4 — Accounts, dashboard, per-document analytics, API tokens
+- [x] Phase 5 — VS Code two-way sync, Google Docs export, live document updates
+- [x] Phase 6 — Mermaid + KaTeX rendering, dynamic OG link previews, README builder
+- [x] Phase 7 — Artifacts: HTML, PDF, Office and zipped sites on R2 + isolated origin
+- [ ] Next — Artifact screenshots for OG cards, PPTX, document version history,
+      TURN server for P2P behind strict NAT, Google Docs two-way sync
 
 ---
 
