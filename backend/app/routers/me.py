@@ -20,7 +20,7 @@ from app.schemas.auth import (
     TokenCreateRequest,
 )
 from app.schemas.document import MyDocListItem, MyDocListResponse
-from app.services import analytics, api_token, document as doc_service
+from app.services import analytics, api_token, artifact as art_service, document as doc_service
 
 router = APIRouter(prefix="/api/v1/me", tags=["me"])
 

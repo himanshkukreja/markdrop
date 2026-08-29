@@ -169,7 +169,13 @@ async def confirm_artifact(
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(status_code=507, detail="Storage quota exceeded.")
 
+    # Default to the uploaded object; only a bundle rewrites these. Assigning
+    # blob_key here matters — assigning it solely inside the branch below makes
+    # it a local that is unbound on every non-zip upload.
+    blob_key = data.blob_key
     bundle_prefix: str | None = None
+    size_bytes = meta["size"]
+
     if mime == "application/zip":
         # Explode the archive into its own prefix and point the document at the
         # entry HTML. Every asset ends up a sibling of that file, so relative
@@ -177,23 +183,32 @@ async def confirm_artifact(
         blob_key, bundle_prefix, mime, size_bytes = await _explode_bundle(
             data.blob_key, user.id
         )
-    else:
-        size_bytes = meta["size"]
 
-    doc, secret = await art_service.create_artifact(
-        db,
-        user_id=user.id,
-        blob_key=blob_key,
-        bundle_prefix=bundle_prefix,
-        mime=mime,
-        size_bytes=size_bytes,
-        title=data.title,
-        filename=data.filename,
-        custom_slug=data.custom_slug,
-        expires_in=data.expires_in,
-        custom_expires_at=data.custom_expires_at,
-        read_password=data.read_password,
-    )
+    try:
+        doc, secret = await art_service.create_artifact(
+            db,
+            user_id=user.id,
+            blob_key=blob_key,
+            bundle_prefix=bundle_prefix,
+            mime=mime,
+            size_bytes=size_bytes,
+            title=data.title,
+            filename=data.filename,
+            custom_slug=data.custom_slug,
+            expires_in=data.expires_in,
+            custom_expires_at=data.custom_expires_at,
+            read_password=data.read_password,
+        )
+    except Exception:
+        # The bytes are already in R2 but no document will reference them, so
+        # they'd sit there costing storage forever. Anything that fails here —
+        # a taken custom slug, a database blip, a bug — must not leak an object.
+        if bundle_prefix:
+            await run_in_threadpool(r2.delete_prefix, bundle_prefix)
+        else:
+            await run_in_threadpool(r2.delete, blob_key)
+        raise
+
     return ArtifactCreateResponse(
         **art_service.to_response(doc, is_owner=True), edit_secret=secret
     )
