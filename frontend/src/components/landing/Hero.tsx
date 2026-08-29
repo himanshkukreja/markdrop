@@ -89,16 +89,33 @@ function RotatingPhrase() {
 }
 
 // ── Demo scenes ───────────────────────────────────────────────────────────────
-type SceneId = "publish" | "diagram" | "builder" | "send" | "sync" | "export";
+type SceneId = "publish" | "diagram" | "artifacts" | "builder" | "send" | "sync" | "export";
 // `phrase` is the headline word for this scene — short + uniform so the rotating
 // line never wraps to two lines (which would jolt the headline height mid-cycle).
 const SCENES: { id: SceneId; pill: string; tab: string; phrase: string; cta: string; dwell: number }[] = [
   { id: "publish", pill: "Publish", tab: "welcome.md", phrase: "Instant links.", cta: "New document", dwell: 6200 },
   { id: "diagram", pill: "Diagrams & math", tab: "diagram.md", phrase: "Diagrams & math.", cta: "Try a diagram", dwell: 5600 },
+  { id: "artifacts", pill: "Artifacts", tab: "report.pdf", phrase: "HTML, PDF & sheets.", cta: "Publish an artifact", dwell: 5400 },
   { id: "builder", pill: "README builder", tab: "builder", phrase: "README builder.", cta: "Open the builder", dwell: 5000 },
   { id: "send", pill: "P2P file share", tab: "transfer", phrase: "Send any file.", cta: "Share a file", dwell: 5000 },
   { id: "sync", pill: "VS Code sync", tab: "notes.md", phrase: "VS Code sync.", cta: "Get the extension", dwell: 4600 },
   { id: "export", pill: "Docs & analytics", tab: "README.md", phrase: "Docs & analytics.", cta: "Open dashboard", dwell: 5400 },
+];
+
+// Artifact scene: the type chips, then a "rendered" chart standing in for the
+// file itself. Colours mirror components/ArtifactBadge.tsx.
+const ARTIFACT_CHIPS: { label: string; cls: string }[] = [
+  { label: "HTML", cls: "bg-orange-500/10 text-orange-500 ring-orange-500/25" },
+  { label: "PDF", cls: "bg-red-500/10 text-red-500 ring-red-500/25" },
+  { label: "Excel", cls: "bg-emerald-500/10 text-emerald-500 ring-emerald-500/25" },
+  { label: "Word", cls: "bg-blue-500/10 text-blue-500 ring-blue-500/25" },
+  { label: "Site", cls: "bg-teal-500/10 text-teal-500 ring-teal-500/25" },
+];
+const ARTIFACT_BARS = [
+  { h: "55%", l: "APAC" },
+  { h: "38%", l: "EMEA" },
+  { h: "84%", l: "AMER" },
+  { h: "62%", l: "LATAM" },
 ];
 
 // Blocks shown assembling in the README-builder scene (reuse the real section icons).
@@ -174,6 +191,9 @@ function DemoWindow({
         break;
       case "diagram":
         router.push("/new?sample=diagrams");
+        break;
+      case "artifacts":
+        router.push("/upload");
         break;
       case "builder":
         router.push("/builder");
@@ -323,6 +343,47 @@ function DemoWindow({
                 ) : (
                   <p className="text-xs text-gray-400 dark:text-gray-600">Rendering…</p>
                 )}
+              </div>
+            </div>
+          ) : active === "artifacts" ? (
+            // ── Artifacts (a file becomes a rendered page) ──────────────────
+            <div className="h-full p-4 sm:p-5 overflow-hidden flex flex-col gap-3">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {ARTIFACT_CHIPS.map((c, i) => (
+                  <span
+                    key={c.label}
+                    className={`md-stagger rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ${c.cls}`}
+                    style={{ animationDelay: `${i * 90}ms` }}
+                  >
+                    {c.label}
+                  </span>
+                ))}
+              </div>
+
+              {/* The artifact itself, rendering inside the frame */}
+              <div
+                className="md-stagger flex-1 min-h-0 rounded-lg border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-[#111c33] vscode:bg-[#1e1e1e] p-3.5 flex flex-col"
+                style={{ animationDelay: "420ms" }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+                    Revenue by region
+                  </span>
+                  <span className="text-[10px] text-gray-400">rendered · not downloaded</span>
+                </div>
+                <div className="mt-3 flex-1 min-h-0 flex items-end gap-2.5">
+                  {ARTIFACT_BARS.map((b, i) => (
+                    <div key={b.l} className="flex-1 flex flex-col items-center gap-1 h-full">
+                      <div className="w-full flex-1 flex items-end">
+                        <div
+                          className="md-bar-anim w-full rounded-t bg-gradient-to-t from-orange-600 to-orange-400"
+                          style={{ height: b.h, animationDelay: `${i * 140}ms` }}
+                        />
+                      </div>
+                      <span className="text-[9px] text-gray-400">{b.l}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           ) : active === "builder" ? (
@@ -521,6 +582,14 @@ function DemoWindow({
           <StatusBar>
             <span className="w-2 h-2 rounded-full bg-white animate-pulse mr-2" />
             Mermaid + LaTeX · rendered live in the browser
+          </StatusBar>
+        ) : active === "artifacts" ? (
+          <StatusBar>
+            <svg className="w-3.5 h-3.5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+              <path strokeLinecap="round" d="M4 9h16" />
+            </svg>
+            HTML · PDF · Excel · Word — sandboxed on an isolated domain
           </StatusBar>
         ) : active === "builder" ? (
           <StatusBar>
