@@ -58,6 +58,16 @@ class DocumentResponse(BaseModel):
     google_doc_stale: bool = False  # True when the doc changed since last export
     # Public provenance flag: published/synced from the VS Code extension.
     vscode_synced: bool = False
+    # ── Artifacts ────────────────────────────────────────────────────────────
+    # For kind="artifact" the body lives in R2 and renders on the isolated
+    # artifact origin; `content` is not the document. All null for markdown.
+    kind: str = "markdown"
+    mime: str | None = None
+    renderer: str | None = None
+    type_label: str | None = None
+    size_bytes: int | None = None
+    original_filename: str | None = None
+    artifact_url: str | None = None
 
     model_config = {"from_attributes": True}
 

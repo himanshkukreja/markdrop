@@ -32,6 +32,9 @@ async def connect() -> None:
         [("title", "text"), ("content", "text"), ("slug", "text")],
         name="doc_text",
     )
+    # Artifact quota aggregation (sum of size_bytes per owner) + admin filtering
+    await db["documents"].create_index([("owner_id", 1), ("kind", 1)], sparse=True)
+
     # Abuse reports
     await db["reports"].create_index([("doc_id", 1), ("ts", -1)])
 

@@ -26,5 +26,15 @@ class Document:
     # True once the document has been published or synced from the VS Code
     # extension — drives the "Synced with VS Code" badge on the doc + dashboard.
     vscode_synced: bool = False
+    # ── Artifacts ────────────────────────────────────────────────────────────
+    # kind="artifact" records store their bytes in R2 (`blob_key`) instead of
+    # `content`, and render on the isolated artifact origin. Everything else on
+    # this model — slug, edit secret, password, expiry, owner, counters — works
+    # identically for both kinds.
+    kind: str = "markdown"            # "markdown" | "artifact"
+    mime: str | None = None
+    blob_key: str | None = None
+    size_bytes: int | None = None
+    original_filename: str | None = None
     id: str | None = None  # str(_id); populated when the query includes _id
 

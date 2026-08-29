@@ -12,6 +12,8 @@ RESERVED_SLUGS = frozenset(
         "dashboard", "me", "new", "health", "settings", "account",
         "about", "terms", "privacy", "_next", "static", "favicon.ico",
         "robots.txt", "sitemap.xml",
+        # Artifact routes
+        "artifacts", "artifact", "upload", "builder",
     }
 )
 
