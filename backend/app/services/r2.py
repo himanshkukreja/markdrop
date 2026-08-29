@@ -117,3 +117,40 @@ def put_bytes(key: str, data: bytes, content_type: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def list_prefix(prefix: str, limit: int = 1000) -> list[str]:
+    """All object keys under ``prefix`` (bundles explode into many objects)."""
+    keys: list[str] = []
+    try:
+        paginator = _client().get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=settings.r2_bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                keys.append(obj["Key"])
+                if len(keys) >= limit:
+                    return keys
+    except Exception:
+        pass
+    return keys
+
+
+def delete_prefix(prefix: str) -> int:
+    """Delete every object under ``prefix``. Returns how many were removed.
+
+    Used when a bundle artifact is deleted — one document maps to many objects,
+    so deleting only the entry HTML would orphan every asset beside it.
+    """
+    keys = list_prefix(prefix)
+    if not keys:
+        return 0
+    try:
+        c = _client()
+        for i in range(0, len(keys), 1000):  # delete_objects caps at 1000
+            c.delete_objects(
+                Bucket=settings.r2_bucket,
+                Delete={"Objects": [{"Key": k} for k in keys[i : i + 1000]]},
+            )
+    except Exception:
+        for k in keys:  # fall back to one-by-one
+            delete(k)
+    return len(keys)

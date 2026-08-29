@@ -143,6 +143,14 @@ class MyDocListItem(BaseModel):
     google_doc_url: str | None = None
     google_doc_stale: bool = False  # True when the doc changed since last export
     vscode_synced: bool = False
+    # Artifacts (kind="artifact"): the dashboard shows type + size instead of a
+    # markdown preview, since `content_preview` is only a filename stand-in.
+    kind: str = "markdown"
+    mime: str | None = None
+    renderer: str | None = None
+    type_label: str | None = None
+    size_bytes: int | None = None
+    original_filename: str | None = None
 
 
 class MyDocListResponse(BaseModel):

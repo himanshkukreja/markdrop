@@ -14,7 +14,8 @@ import {
 
 type Tab = "paste" | "upload";
 
-const ACCEPT = ".html,.htm,.pdf,.csv,.xlsx,.xls,.json,.txt,.png,.jpg,.jpeg,.gif,.webp,.svg";
+const ACCEPT =
+  ".html,.htm,.pdf,.docx,.csv,.xlsx,.xls,.json,.txt,.zip,.png,.jpg,.jpeg,.gif,.webp,.svg";
 const SLUG_PATTERN = /^[a-zA-Z0-9_-]*$/;
 
 const SAMPLE = `<!doctype html>
@@ -204,7 +205,7 @@ export default function UploadArtifactPage() {
                 Drop a file here, or click to browse
               </p>
               <p className="text-xs text-gray-400">
-                HTML, PDF, Excel, CSV, JSON, images
+                HTML, PDF, Word, Excel, CSV, images — or a .zip bundle
                 {status && ` · up to ${formatBytes(status.max_file_bytes)}`}
               </p>
             </>

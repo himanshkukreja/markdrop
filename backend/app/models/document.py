@@ -36,5 +36,8 @@ class Document:
     blob_key: str | None = None
     size_bytes: int | None = None
     original_filename: str | None = None
+    # Set for multi-file bundles: every object lives under this R2 prefix, so
+    # deleting the document must clear the whole prefix, not just blob_key.
+    bundle_prefix: str | None = None
     id: str | None = None  # str(_id); populated when the query includes _id
 

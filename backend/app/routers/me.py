@@ -50,6 +50,12 @@ def _to_list_item(doc) -> MyDocListItem:
             doc.google_doc_id and (doc.google_doc_synced_rev or 0) < doc.rev
         ),
         vscode_synced=doc.vscode_synced,
+        kind=doc.kind,
+        mime=doc.mime,
+        renderer=art_service.renderer_for(doc.mime or "") if doc.kind == "artifact" else None,
+        type_label=art_service.label_for(doc.mime or "") if doc.kind == "artifact" else None,
+        size_bytes=doc.size_bytes,
+        original_filename=doc.original_filename,
     )
 
 
@@ -58,10 +64,11 @@ async def list_my_documents(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     q: str | None = Query(None),
+    kind: str | None = Query(None, pattern="^(markdown|artifact)$"),
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    docs, total = await doc_service.list_user_documents(db, user.id, page, limit, q)
+    docs, total = await doc_service.list_user_documents(db, user.id, page, limit, q, kind)
     return MyDocListResponse(
         documents=[_to_list_item(d) for d in docs],
         total=total,

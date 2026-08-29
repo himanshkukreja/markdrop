@@ -17,7 +17,7 @@
  * public ones are unguessable capability URLs and cache immutably at the edge.
  */
 
-const VIEWERS = new Set(["pdf", "sheet", "text"]);
+const VIEWERS = new Set(["pdf", "sheet", "text", "docx"]);
 
 // Types we are willing to hand to the browser to *render*. Anything else is
 // forced to download, so an unexpected upload can never execute as a page.
@@ -34,6 +34,7 @@ const INLINE_TYPES = new Set([
   "image/svg+xml",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
 export default {
@@ -147,7 +148,11 @@ function serveViewer(renderer, blobKey, url, env) {
   if (!blobKey.startsWith("art/")) return notFound();
   const token = url.searchParams.get("t");
   const src = `/r/${blobKey}${token ? `?t=${encodeURIComponent(token)}` : ""}`;
-  const html = renderer === "pdf" ? pdfViewer(src) : renderer === "sheet" ? sheetViewer(src) : textViewer(src);
+  const html =
+    renderer === "pdf" ? pdfViewer(src)
+    : renderer === "sheet" ? sheetViewer(src)
+    : renderer === "docx" ? docxViewer(src)
+    : textViewer(src);
   return new Response(html, {
     headers: {
       ...baseHeaders(),
@@ -189,7 +194,7 @@ function sheetViewer(src) {
 <div id="tabs" class="tabs" hidden></div>
 <div class="wrap"><div id="out" class="msg">Loading…</div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
-        integrity="sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tv7nnQrstkkJ4kVUS0Bmc+7Sm0OSpsQPcRJRerA=="
+        integrity="sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 (async () => {
@@ -213,6 +218,46 @@ function sheetViewer(src) {
     render(wb.SheetNames[0]);
   } catch (e) {
     out.textContent = 'Could not render this spreadsheet: ' + e.message;
+  }
+})();
+</script>`;
+}
+
+function docxViewer(src) {
+  // mammoth converts the docx body to semantic HTML. Fidelity is structural,
+  // not pixel-exact — Word's layout model doesn't survive the trip — so the
+  // page is styled as a clean document rather than pretending to be Word.
+  return `<!doctype html><meta charset="utf-8"><title>Document</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>${SHELL_CSS}
+  .doc{max-width:46rem;margin:0 auto;padding:3rem 1.5rem;line-height:1.7}
+  .doc h1,.doc h2,.doc h3{line-height:1.25;margin:1.6em 0 .5em;color:#f3f4f6}
+  .doc h1{font-size:1.9rem}.doc h2{font-size:1.45rem}.doc h3{font-size:1.2rem}
+  .doc p{margin:0 0 1em}
+  .doc ul,.doc ol{margin:0 0 1em 1.4em}
+  .doc img{max-width:100%;height:auto;border-radius:6px}
+  .doc table{width:100%;margin:1.5em 0}
+  .doc a{color:#60a5fa}
+  .doc blockquote{margin:1em 0;padding-left:1em;border-left:3px solid #1e293b;color:#94a3b8}
+</style>
+<div class="wrap"><div id="out" class="doc"><p class="msg">Loading document…</p></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.12.1/mammoth.browser.min.js"
+        integrity="sha512-Ri7OCzulIlV8Rp8BzgFbScplsAV4hqrES1iv1ure0AHE8IgZ39MT03jqpqsOZkP14STXplVFQwUHXetvXH87XQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+(async () => {
+  const out = document.getElementById('out');
+  try {
+    const res = await fetch(${JSON.stringify(src)});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const { value, messages } = await mammoth.convertToHtml({ arrayBuffer: await res.arrayBuffer() });
+    // mammoth's output is generated from the docx, not raw user HTML, but this
+    // page is sandboxed and cross-origin from the app regardless.
+    out.innerHTML = value || '<p class="msg">This document appears to be empty.</p>';
+    if (messages?.length) console.info('mammoth:', messages);
+  } catch (e) {
+    out.innerHTML = '';
+    out.textContent = 'Could not render this document: ' + e.message;
   }
 })();
 </script>`;

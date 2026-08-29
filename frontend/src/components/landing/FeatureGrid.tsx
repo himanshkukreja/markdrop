@@ -67,6 +67,15 @@ const FEATURES: Feature[] = [
     ),
   },
   {
+    title: "Artifacts — HTML, PDF & sheets",
+    desc: "Paste an HTML page or upload a PDF, Word doc, spreadsheet or zipped site, and get a link that renders it live. Served from an isolated domain so a page can never reach your account.",
+    href: "/upload",
+    cta: "Publish an artifact",
+    icon: (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75h16.5m-16.5 0A2.25 2.25 0 001.5 12v6a2.25 2.25 0 002.25 2.25h16.5A2.25 2.25 0 0022.5 18v-6a2.25 2.25 0 00-2.25-2.25m-16.5 0V6a2.25 2.25 0 012.25-2.25h4.5L12 6h6.75A2.25 2.25 0 0121 8.25v1.5" />
+    ),
+  },
+  {
     title: "Accounts & analytics",
     desc: "Optional passwordless login unlocks a dashboard of all your docs, view counts, and geographic analytics. Everything works fully without an account too.",
     href: "/dashboard",
@@ -78,6 +87,7 @@ const FEATURES: Feature[] = [
 ];
 
 const CHIPS = [
+  "Rendered HTML & PDF links",
   "Custom slugs",
   "Password protection",
   "Expiring links",
@@ -99,7 +109,7 @@ export default function FeatureGrid() {
     <section className="py-16 sm:py-20">
       <Reveal className="text-center max-w-2xl mx-auto">
         <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
-          One tool, seven <span className="md-gradient-text">superpowers</span>
+          One tool, eight <span className="md-gradient-text">superpowers</span>
         </h2>
         <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0]">
           Markdrop started as a markdown pastebin and grew into a full sharing suite — all still no-login by default.

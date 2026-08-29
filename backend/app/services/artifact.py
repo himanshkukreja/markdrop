@@ -58,6 +58,11 @@ _TYPES: tuple[ArtifactType, ...] = (
     ),
     ArtifactType("application/vnd.ms-excel", "sheet", "Excel spreadsheet", "xls"),
     ArtifactType("text/csv", "sheet", "CSV", "csv"),
+    ArtifactType(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "docx", "Word document", "docx",
+    ),
+    ArtifactType("application/zip", "bundle", "Web bundle", "zip"),
     ArtifactType("application/json", "text", "JSON", "json"),
     ArtifactType("text/plain", "text", "Text file", "txt"),
     ArtifactType("image/png", "image", "Image", "png"),
@@ -143,7 +148,7 @@ def build_artifact_url(blob_key: str, mime: str, *, private: bool) -> str:
     """
     origin = settings.artifact_origin.rstrip("/")
     renderer = renderer_for(mime)
-    path = f"/r/{blob_key}" if renderer in ("html", "image") else f"/v/{renderer}/{blob_key}"
+    path = f"/r/{blob_key}" if renderer in ("html", "image", "bundle") else f"/v/{renderer}/{blob_key}"
     url = f"{origin}{path}"
     if private:
         url += f"?t={sign_access_token(blob_key)}"
@@ -184,6 +189,7 @@ async def create_artifact(
     user_id: str,
     blob_key: str,
     mime: str,
+    bundle_prefix: str | None = None,
     size_bytes: int,
     title: str | None,
     filename: str | None,
@@ -223,6 +229,7 @@ async def create_artifact(
             "blob_key": blob_key,
             "size_bytes": size_bytes,
             "original_filename": filename,
+            "bundle_prefix": bundle_prefix,
         },
     )
 

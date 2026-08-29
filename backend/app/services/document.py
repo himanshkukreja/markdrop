@@ -48,6 +48,7 @@ def _doc_from_mongo(raw: dict) -> Document:
         blob_key=raw.get("blob_key"),
         size_bytes=raw.get("size_bytes"),
         original_filename=raw.get("original_filename"),
+        bundle_prefix=raw.get("bundle_prefix"),
     )
 
 
@@ -224,7 +225,7 @@ async def delete_document(
     the caller can free the object too — otherwise the bytes would linger and
     keep counting against the owner's quota."""
     raw = await db["documents"].find_one(
-        {"slug": slug}, {"_id": 0, "edit_secret_hash": 1, "owner_id": 1, "blob_key": 1}
+        {"slug": slug}, {"_id": 0, "edit_secret_hash": 1, "owner_id": 1, "blob_key": 1, "bundle_prefix": 1}
     )
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -232,7 +233,9 @@ async def delete_document(
     _authorize(raw, edit_secret, user_id)
 
     await db["documents"].delete_one({"slug": slug})
-    return raw.get("blob_key")
+    # A bundle is many objects under one prefix — hand that back in preference
+    # to the single entry key so the caller can clear all of them.
+    return raw.get("bundle_prefix") or raw.get("blob_key")
 
 
 async def claim_document(
@@ -323,10 +326,20 @@ async def change_slug(
 
 
 async def list_user_documents(
-    db: AsyncIOMotorDatabase, user_id: str, page: int, limit: int, q: str | None
+    db: AsyncIOMotorDatabase,
+    user_id: str,
+    page: int,
+    limit: int,
+    q: str | None,
+    kind: str | None = None,
 ) -> tuple[list[Document], int]:
     """Return (documents, total) owned by the user, newest first."""
     query: dict = {"owner_id": user_id}
+    if kind == "markdown":
+        # Documents created before artifacts existed have no `kind` field.
+        query["kind"] = {"$ne": "artifact"}
+    elif kind == "artifact":
+        query["kind"] = "artifact"
     if q:
         query["$or"] = [
             {"slug": {"$regex": q, "$options": "i"}},

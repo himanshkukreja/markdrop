@@ -5,6 +5,7 @@ import VSCodeShowcase from "@/components/landing/VSCodeShowcase";
 import DiagramShowcase from "@/components/landing/DiagramShowcase";
 import GoogleDocsShowcase from "@/components/landing/GoogleDocsShowcase";
 import BuilderShowcase from "@/components/landing/BuilderShowcase";
+import ArtifactShowcase from "@/components/landing/ArtifactShowcase";
 import HowItWorks from "@/components/landing/HowItWorks";
 import CallToAction from "@/components/landing/CallToAction";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -30,6 +31,7 @@ export default function LandingPage() {
       <DiagramShowcase />
       <GoogleDocsShowcase />
       <BuilderShowcase />
+      <ArtifactShowcase />
       <HowItWorks />
       <CallToAction />
       <LandingFooter />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
@@ -58,14 +58,10 @@ interface Props {
   createdAt: string;
   expiresAt: string | null;
   views?: number;
-  isNew?: boolean;
   editSecret?: string;
   isPasswordProtected?: boolean;
   isOwned?: boolean;
   syncedWithVscode?: boolean;
-  startInEdit?: boolean;
-  startCopy?: boolean;
-  startGoogleSync?: boolean;
 }
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
@@ -96,16 +92,19 @@ export default function DocumentView({
   createdAt: initialCreatedAt,
   expiresAt: initialExpiresAt,
   views: initialViews,
-  isNew,
   editSecret: initialSecret,
   isPasswordProtected = false,
   isOwned = false,
   syncedWithVscode = false,
-  startInEdit = false,
-  startCopy = false,
-  startGoogleSync = false,
 }: Props) {
   const router = useRouter();
+  // Read on the client, not from server searchParams — that would make the
+  // route dynamic and forfeit the edge cache for every visitor.
+  const params = useSearchParams();
+  const isNew = params.get("new") === "1";
+  const startInEdit = params.get("edit") === "1";
+  const startCopy = params.get("copy") === "1";
+  const startGoogleSync = params.get("gsync") === "1";
   const { user, openAuthModal } = useAuth();
 
   // Claim-to-account state

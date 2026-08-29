@@ -34,6 +34,7 @@ from app.schemas.artifact import (
     ArtifactUploadUrlResponse,
 )
 from app.services import artifact as art_service
+from app.services import bundle
 from app.services import r2
 
 settings = get_settings()
@@ -168,12 +169,24 @@ async def confirm_artifact(
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(status_code=507, detail="Storage quota exceeded.")
 
+    bundle_prefix: str | None = None
+    if mime == "application/zip":
+        # Explode the archive into its own prefix and point the document at the
+        # entry HTML. Every asset ends up a sibling of that file, so relative
+        # paths inside the page resolve with no rewriting on our side.
+        blob_key, bundle_prefix, mime, size_bytes = await _explode_bundle(
+            data.blob_key, user.id
+        )
+    else:
+        size_bytes = meta["size"]
+
     doc, secret = await art_service.create_artifact(
         db,
         user_id=user.id,
-        blob_key=data.blob_key,
+        blob_key=blob_key,
+        bundle_prefix=bundle_prefix,
         mime=mime,
-        size_bytes=meta["size"],
+        size_bytes=size_bytes,
         title=data.title,
         filename=data.filename,
         custom_slug=data.custom_slug,
@@ -184,6 +197,39 @@ async def confirm_artifact(
     return ArtifactCreateResponse(
         **art_service.to_response(doc, is_owner=True), edit_secret=secret
     )
+
+
+async def _explode_bundle(zip_key: str, user_id: str) -> tuple[str, str, str, int]:
+    """Unpack a bundle zip into R2. Returns (entry_key, prefix, mime, bytes).
+
+    The uploaded archive is removed afterwards — we serve the extracted files,
+    and keeping the zip would double the storage charged against the quota.
+    """
+    raw = await run_in_threadpool(r2.get_bytes, zip_key, settings.artifact_max_bytes)
+    if raw is None:
+        raise HTTPException(status_code=404, detail="Upload not found — please try again.")
+
+    try:
+        entry, files = await run_in_threadpool(bundle.extract, raw)
+    except bundle.BundleError as e:
+        await run_in_threadpool(r2.delete, zip_key)
+        raise HTTPException(status_code=422, detail=str(e))
+
+    # Strip the .zip extension to get a directory-shaped prefix.
+    prefix = zip_key[: -len(".zip")] if zip_key.endswith(".zip") else zip_key
+    prefix = prefix.rstrip("/") + "/"
+
+    total = 0
+    for path, content, file_mime in files:
+        ok = await run_in_threadpool(r2.put_bytes, f"{prefix}{path}", content, file_mime)
+        if not ok:
+            await run_in_threadpool(r2.delete_prefix, prefix)
+            await run_in_threadpool(r2.delete, zip_key)
+            raise HTTPException(status_code=502, detail="Could not store the bundle. Try again.")
+        total += len(content)
+
+    await run_in_threadpool(r2.delete, zip_key)  # the archive itself isn't served
+    return f"{prefix}{entry}", prefix, "text/html", total
 
 
 @router.post("/paste", response_model=ArtifactCreateResponse, status_code=201)

@@ -68,7 +68,8 @@ export interface DocumentResponse {
 }
 
 export type DocKind = "markdown" | "artifact";
-export type ArtifactRenderer = "html" | "pdf" | "sheet" | "image" | "text" | "download";
+export type ArtifactRenderer =
+  | "html" | "pdf" | "sheet" | "docx" | "bundle" | "image" | "text" | "download";
 
 export interface ArtifactStatus {
   configured: boolean;
@@ -214,12 +215,27 @@ export async function createDocument(
   return res.json();
 }
 
-export async function getDocument(slug: string, readPassword?: string, editSecret?: string): Promise<DocumentResponse> {
+export async function getDocument(
+  slug: string,
+  readPassword?: string,
+  editSecret?: string,
+  /**
+   * Server-render only. Lets the anonymous SSR fetch be cached at the edge for
+   * `revalidate` seconds instead of hitting the API on every visitor. Never
+   * pass this from the browser — a personalised or unlocked read must not be
+   * shared, and the live-update socket keeps open pages fresh anyway.
+   */
+  opts?: { revalidate?: number }
+): Promise<DocumentResponse> {
   const headers: Record<string, string> = { ...authHeaders() };
   if (readPassword) headers["x-read-password"] = readPassword;
   if (editSecret) headers["x-edit-secret"] = editSecret;
+  const cacheOpts =
+    opts?.revalidate !== undefined && !readPassword && !editSecret
+      ? { next: { revalidate: opts.revalidate } }
+      : { cache: "no-store" as const };
   const res = await fetch(`${API_BASE}/api/v1/documents/${slug}`, {
-    cache: "no-store",
+    ...cacheOpts,
     headers,
   });
   if (!res.ok) {
@@ -467,6 +483,12 @@ export interface MyDocListItem {
   google_doc_url?: string | null;
   google_doc_stale?: boolean;
   vscode_synced?: boolean;
+  kind?: DocKind;
+  mime?: string | null;
+  renderer?: ArtifactRenderer | null;
+  type_label?: string | null;
+  size_bytes?: number | null;
+  original_filename?: string | null;
 }
 
 export interface MyDocListResponse {
@@ -476,9 +498,14 @@ export interface MyDocListResponse {
   pages: number;
 }
 
-export async function listMyDocuments(page = 1, q?: string): Promise<MyDocListResponse> {
+export async function listMyDocuments(
+  page = 1,
+  q?: string,
+  kind?: DocKind
+): Promise<MyDocListResponse> {
   const params = new URLSearchParams({ page: String(page), limit: "20" });
   if (q) params.set("q", q);
+  if (kind) params.set("kind", kind);
   const res = await fetch(`${API_BASE}/api/v1/me/documents?${params}`, {
     headers: { ...authHeaders() },
     cache: "no-store",

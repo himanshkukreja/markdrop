@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import CopyButton from "@/components/CopyButton";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
+import ArtifactBadge, { formatBytes } from "@/components/ArtifactBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   deleteDocument,
@@ -34,7 +35,6 @@ interface Props {
   createdAt: string;
   views?: number;
   isPasswordProtected?: boolean;
-  isNew?: boolean;
   mime: string;
   renderer: ArtifactRenderer;
   typeLabel: string;
@@ -43,22 +43,9 @@ interface Props {
   artifactUrl: string | null;
 }
 
-function formatBytes(n: number): string {
-  if (!n) return "0 B";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
 
-function TypeIcon({ renderer }: { renderer: ArtifactRenderer }) {
-  const glyph =
-    renderer === "pdf" ? "PDF" : renderer === "sheet" ? "XLS" : renderer === "html" ? "</>" : "FILE";
-  return (
-    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide bg-blue-500/15 text-blue-500 dark:text-blue-400">
-      {glyph}
-    </span>
-  );
-}
+
+
 
 export default function ArtifactView({
   slug,
@@ -67,7 +54,6 @@ export default function ArtifactView({
   createdAt,
   views: initialViews,
   isPasswordProtected = false,
-  isNew,
   renderer: initialRenderer,
   typeLabel: initialTypeLabel,
   sizeBytes: initialSize,
@@ -76,6 +62,8 @@ export default function ArtifactView({
 }: Props) {
   const router = useRouter();
   const { user } = useAuth();
+  // Client-side so the document route stays edge-cacheable (see page.tsx).
+  const isNew = useSearchParams().get("new") === "1";
 
   const [title, setTitle] = useState(initialTitle);
   const [artifactUrl, setArtifactUrl] = useState(initialArtifactUrl);
@@ -209,7 +197,7 @@ export default function ArtifactView({
         <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4]">
           {title || originalFilename || slug}
         </h1>
-        <TypeIcon renderer={renderer} />
+        <ArtifactBadge renderer={renderer} label={typeLabel} />
         <span className="text-xs text-gray-400 dark:text-gray-500">
           {typeLabel} · {formatBytes(sizeBytes)}
           {typeof views === "number" && ` · ${views} view${views === 1 ? "" : "s"}`}

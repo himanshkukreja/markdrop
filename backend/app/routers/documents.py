@@ -138,10 +138,14 @@ async def delete_document(
     x_edit_secret: str | None = Header(None),
     user: User | None = Depends(optional_user),
 ):
-    blob_key = await doc_service.delete_document(db, slug, x_edit_secret, user.id if user else None)
-    # Free the R2 object too, or the bytes keep billing and keep eating quota.
-    if blob_key and r2.is_configured():
-        await run_in_threadpool(r2.delete, blob_key)
+    key = await doc_service.delete_document(db, slug, x_edit_secret, user.id if user else None)
+    # Free the R2 storage too, or the bytes keep billing and keep eating quota.
+    # A bundle key is a prefix (no extension) covering many objects.
+    if key and r2.is_configured():
+        if key.endswith("/"):
+            await run_in_threadpool(r2.delete_prefix, key)
+        else:
+            await run_in_threadpool(r2.delete, key)
 
 
 @router.post("/{slug}/claim", response_model=DocumentResponse)
