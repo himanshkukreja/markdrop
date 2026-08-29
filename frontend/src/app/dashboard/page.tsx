@@ -6,8 +6,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   listMyDocuments, getAnalytics, deleteDocument, changeSlug,
   getGoogleDocsStatus, connectGoogleDocs, disconnectGoogleDocs, exportToGoogleDocs,
-  MyDocListItem, Analytics, GoogleStatus,
+  MyDocListItem, Analytics, GoogleStatus, DocKind,
 } from "@/lib/api";
+import ArtifactBadge, { formatBytes } from "@/components/ArtifactBadge";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
 import VSCodeIcon from "@/components/VSCodeIcon";
@@ -170,6 +171,7 @@ export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [docs, setDocs] = useState<MyDocListItem[]>([]);
+  const [kindFilter, setKindFilter] = useState<DocKind | "all">("all");
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -194,14 +196,14 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await listMyDocuments();
+      const res = await listMyDocuments(1, undefined, kindFilter === "all" ? undefined : kindFilter);
       setDocs(res.documents);
     } catch {
       /* redirect handled below */
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [kindFilter]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -404,12 +406,47 @@ export default function DashboardPage() {
         </div>
       )}
 
+      <div className="flex items-center gap-1 mb-4 p-1 rounded-xl bg-gray-100/70 dark:bg-gray-900/50 vscode:bg-[#1e1e1e] w-fit">
+        {([
+          { id: "all", label: "All" },
+          { id: "markdown", label: "Documents" },
+          { id: "artifact", label: "Artifacts" },
+        ] as const).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => { setLoading(true); setKindFilter(t.id as DocKind | "all"); }}
+            aria-pressed={kindFilter === t.id}
+            className={`px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
+              kindFilter === t.id
+                ? "bg-white dark:bg-gray-800 vscode:bg-[#2d2d2d] text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] shadow-sm"
+                : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <p className="text-sm text-gray-400">Loading documents…</p>
       ) : docs.length === 0 ? (
         <div className="text-center py-16 text-gray-500 dark:text-gray-400 border border-dashed border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-xl">
-          <p className="mb-2 font-medium">No documents yet.</p>
-          <p className="text-sm">Create one, or open a document you made and click <span className="font-medium text-gray-700 dark:text-gray-300">Save to my account</span>.</p>
+          {kindFilter === "artifact" ? (
+            <>
+              <p className="mb-2 font-medium">No artifacts yet.</p>
+              <p className="text-sm">
+                Publish an HTML page, PDF or spreadsheet and get a link that renders it.
+              </p>
+              <a href="/upload" className="inline-block mt-3 text-sm px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors">
+                Publish an artifact
+              </a>
+            </>
+          ) : (
+            <>
+              <p className="mb-2 font-medium">No documents yet.</p>
+              <p className="text-sm">Create one, or open a document you made and click <span className="font-medium text-gray-700 dark:text-gray-300">Save to my account</span>.</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-2.5">
@@ -418,12 +455,19 @@ export default function DashboardPage() {
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <a href={`/${d.slug}`} className="font-semibold text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] hover:text-blue-600 dark:hover:text-blue-400 vscode:hover:text-[#4daafc] truncate block transition-colors">
-                    {d.title || d.slug}
+                    {d.title || d.original_filename || d.slug}
                   </a>
                   <div className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {d.kind === "artifact" && (
+                      <ArtifactBadge renderer={d.renderer} label={d.type_label} />
+                    )}
                     <span className="font-mono text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] break-all">/{d.slug}</span>
                     <span title="Views">👁 {d.views.toLocaleString()}</span>
-                    <span title="PDF exports">📄 {d.export_pdf_count}</span>
+                    {d.kind === "artifact" ? (
+                      <span title="File size">{formatBytes(d.size_bytes)}</span>
+                    ) : (
+                      <span title="PDF exports">📄 {d.export_pdf_count}</span>
+                    )}
                     <span title="Link copies">🔗 {d.copy_url_count}</span>
                     {d.is_password_protected && <span title="Password protected">🔒</span>}
                     {d.vscode_synced && (
@@ -443,7 +487,7 @@ export default function DashboardPage() {
                   <ActionButton onClick={() => copyUrl(d.url, d.slug)} active={copied === d.slug}>
                     {copied === d.slug ? "Copied" : "Copy link"}
                   </ActionButton>
-                  {gStatus?.connected && (
+                  {gStatus?.connected && d.kind !== "artifact" && (
                     d.google_doc_url ? (
                       <>
                         <ActionButton href={d.google_doc_url} title="Open in Google Docs">Open Doc</ActionButton>
@@ -465,7 +509,11 @@ export default function DashboardPage() {
                       </ActionButton>
                     )
                   )}
-                  <ActionButton href={`/${d.slug}?edit=1`}>Edit</ActionButton>
+                  {d.kind === "artifact" ? (
+                    <ActionButton href={`/${d.slug}`} title="Open the rendered artifact">Open</ActionButton>
+                  ) : (
+                    <ActionButton href={`/${d.slug}?edit=1`}>Edit</ActionButton>
+                  )}
                   <ActionButton onClick={() => openRename(d.slug)}>Change URL</ActionButton>
                   <span className="mx-0.5 h-5 w-px bg-gray-200 dark:bg-gray-700 vscode:bg-[#3c3c3c]" aria-hidden />
                   <ActionButton onClick={() => setDeleteFor(d.slug)} variant="danger">Delete</ActionButton>

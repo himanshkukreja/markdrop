@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
 import VSCodeIcon from "@/components/VSCodeIcon";
+import ArtifactView from "./ArtifactView";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -57,14 +58,10 @@ interface Props {
   createdAt: string;
   expiresAt: string | null;
   views?: number;
-  isNew?: boolean;
   editSecret?: string;
   isPasswordProtected?: boolean;
   isOwned?: boolean;
   syncedWithVscode?: boolean;
-  startInEdit?: boolean;
-  startCopy?: boolean;
-  startGoogleSync?: boolean;
 }
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
@@ -95,16 +92,19 @@ export default function DocumentView({
   createdAt: initialCreatedAt,
   expiresAt: initialExpiresAt,
   views: initialViews,
-  isNew,
   editSecret: initialSecret,
   isPasswordProtected = false,
   isOwned = false,
   syncedWithVscode = false,
-  startInEdit = false,
-  startCopy = false,
-  startGoogleSync = false,
 }: Props) {
   const router = useRouter();
+  // Read on the client, not from server searchParams — that would make the
+  // route dynamic and forfeit the edge cache for every visitor.
+  const params = useSearchParams();
+  const isNew = params.get("new") === "1";
+  const startInEdit = params.get("edit") === "1";
+  const startCopy = params.get("copy") === "1";
+  const startGoogleSync = params.get("gsync") === "1";
   const { user, openAuthModal } = useAuth();
 
   // Claim-to-account state
@@ -264,6 +264,10 @@ export default function DocumentView({
       setGError(err instanceof Error ? err.message : "Could not start Google reconnect");
     }
   }
+
+  // Set when a password unlock reveals the document is actually an artifact —
+  // the anonymous SSR fetch 401s, so kind isn't known until then.
+  const [artifactDoc, setArtifactDoc] = useState<import("@/lib/api").DocumentResponse | null>(null);
 
   // Live display state
   const [displayTitle, setDisplayTitle] = useState(initialTitle);
@@ -512,6 +516,11 @@ export default function DocumentView({
     try {
       const doc = await getDocument(slug, pwdInput);
       sessionStorage.setItem(`pwd:${slug}`, pwdInput);
+      if (doc.kind === "artifact") {
+        setArtifactDoc(doc);
+        setPwdLocked(false);
+        return;
+      }
       setDisplayTitle(doc.title);
       setDisplayContent(doc.content);
       setDisplayCreatedAt(doc.created_at);
@@ -613,6 +622,26 @@ export default function DocumentView({
 
   const remaining = MAX_CHARS - editContent.length;
   const activeTextareaRef = viewMode === "split" ? textareaRef : writeTextareaRef;
+
+  // ── Artifact discovered behind the password gate ───────────────────────────
+  if (artifactDoc) {
+    return (
+      <ArtifactView
+        slug={slug}
+        title={artifactDoc.title}
+        url={url}
+        createdAt={artifactDoc.created_at}
+        views={artifactDoc.views}
+        isPasswordProtected
+        mime={artifactDoc.mime ?? "application/octet-stream"}
+        renderer={artifactDoc.renderer ?? "download"}
+        typeLabel={artifactDoc.type_label ?? "File"}
+        sizeBytes={artifactDoc.size_bytes ?? 0}
+        originalFilename={artifactDoc.original_filename ?? null}
+        artifactUrl={artifactDoc.artifact_url ?? null}
+      />
+    );
+  }
 
   // ── Secret unlock screen ───────────────────────────────────────────────────
   if (editing && !secretUnlocked) {

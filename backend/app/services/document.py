@@ -43,6 +43,12 @@ def _doc_from_mongo(raw: dict) -> Document:
         google_doc_synced_rev=raw.get("google_doc_synced_rev"),
         google_doc_synced_at=raw.get("google_doc_synced_at"),
         vscode_synced=raw.get("vscode_synced", False),
+        kind=raw.get("kind", "markdown"),
+        mime=raw.get("mime"),
+        blob_key=raw.get("blob_key"),
+        size_bytes=raw.get("size_bytes"),
+        original_filename=raw.get("original_filename"),
+        bundle_prefix=raw.get("bundle_prefix"),
     )
 
 
@@ -64,6 +70,7 @@ async def create_document(
     owner_id: str | None = None,
     preferred_slug: str | None = None,
     via_vscode: bool = False,
+    extra: dict | None = None,
 ) -> tuple[Document, str]:
     raw_secret, secret_hash = generate_edit_secret()
     now = datetime.now(timezone.utc)
@@ -94,6 +101,7 @@ async def create_document(
             "read_password_hash": read_pwd_hash,
             "owner_id": owner_id,
             "vscode_synced": via_vscode,
+            **(extra or {}),
         }
 
     # Custom slug path
@@ -176,7 +184,12 @@ async def update_document(
     _authorize(raw, edit_secret, user_id)
 
     now = datetime.now(timezone.utc)
-    updates: dict = {"title": data.title or None, "content": data.content, "updated_at": now}
+    updates: dict = {"title": data.title or None, "updated_at": now}
+    # Artifacts keep their bytes in R2 — `content` is only a search stand-in, so
+    # never let a markdown-shaped edit overwrite it. Title, password and expiry
+    # below still apply, which is what an artifact owner actually needs.
+    if raw.get("kind") != "artifact":
+        updates["content"] = data.content
 
     # Password update: remove or set new
     if data.remove_password or data.read_password == "":
@@ -207,9 +220,12 @@ async def delete_document(
     slug: str,
     edit_secret: str | None = None,
     user_id: str | None = None,
-) -> None:
+) -> str | None:
+    """Delete a document. Returns its R2 blob key when it was an artifact, so
+    the caller can free the object too — otherwise the bytes would linger and
+    keep counting against the owner's quota."""
     raw = await db["documents"].find_one(
-        {"slug": slug}, {"_id": 0, "edit_secret_hash": 1, "owner_id": 1}
+        {"slug": slug}, {"_id": 0, "edit_secret_hash": 1, "owner_id": 1, "blob_key": 1, "bundle_prefix": 1}
     )
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -217,6 +233,9 @@ async def delete_document(
     _authorize(raw, edit_secret, user_id)
 
     await db["documents"].delete_one({"slug": slug})
+    # A bundle is many objects under one prefix — hand that back in preference
+    # to the single entry key so the caller can clear all of them.
+    return raw.get("bundle_prefix") or raw.get("blob_key")
 
 
 async def claim_document(
@@ -307,10 +326,20 @@ async def change_slug(
 
 
 async def list_user_documents(
-    db: AsyncIOMotorDatabase, user_id: str, page: int, limit: int, q: str | None
+    db: AsyncIOMotorDatabase,
+    user_id: str,
+    page: int,
+    limit: int,
+    q: str | None,
+    kind: str | None = None,
 ) -> tuple[list[Document], int]:
     """Return (documents, total) owned by the user, newest first."""
     query: dict = {"owner_id": user_id}
+    if kind == "markdown":
+        # Documents created before artifacts existed have no `kind` field.
+        query["kind"] = {"$ne": "artifact"}
+    elif kind == "artifact":
+        query["kind"] = "artifact"
     if q:
         query["$or"] = [
             {"slug": {"$regex": q, "$options": "i"}},

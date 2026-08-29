@@ -48,3 +48,7 @@ Thumbs.db
 
 # Markdrop extension link sidecar (do not track in this repo)
 .markdrop.json
+
+# Cloudflare Worker local build cache
+worker/.wrangler/
+worker/node_modules/

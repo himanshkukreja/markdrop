@@ -1,0 +1,23 @@
+name = "markdrop-artifacts"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Free default: deploying with workers_dev = true serves the artifact origin at
+# markdrop-artifacts.<account>.workers.dev. `workers.dev` is on the Public
+# Suffix List, so that host is its own registrable site — isolated cookies and
+# independent domain reputation, which is the whole point of this Worker.
+workers_dev = true
+
+# When you buy a domain, add it to Cloudflare, uncomment this, and update
+# MARKDROP_ARTIFACT_ORIGIN in the backend .env to match.
+# routes = [
+#   { pattern = "markdropusercontent.in/*", zone_name = "markdropusercontent.in" }
+# ]
+
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "markdrop-artifacts"
+
+# Secret (do NOT put it here — set it once with:
+#   wrangler secret put ARTIFACT_SIGNING_KEY
+# It must match MARKDROP_ARTIFACT_SIGNING_KEY in the backend .env).

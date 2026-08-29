@@ -10,6 +10,7 @@ from app.config import get_settings
 from app.database import connect, disconnect
 from app.limiter import limiter
 from app.routers.admin import router as admin_router
+from app.routers.artifacts import router as artifacts_router
 from app.routers.auth import router as auth_router
 from app.routers.documents import router as documents_router
 from app.routers.feedback import router as feedback_router
@@ -52,6 +53,7 @@ app.add_middleware(SlowAPIMiddleware)
 
 # Routers
 app.include_router(documents_router)
+app.include_router(artifacts_router)
 app.include_router(share_router)
 app.include_router(google_router)
 app.include_router(admin_router)

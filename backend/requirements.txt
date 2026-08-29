@@ -13,3 +13,4 @@ geoip2==5.1.0
 cryptography==44.0.0
 Pillow==12.3.0
 matplotlib==3.11.0
+boto3==1.43.83

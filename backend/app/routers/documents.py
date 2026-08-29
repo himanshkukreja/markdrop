@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
@@ -16,7 +17,7 @@ from app.schemas.document import (
     ReportRequest,
     SlugChangeRequest,
 )
-from app.services import analytics, document as doc_service, live
+from app.services import analytics, artifact as art_service, document as doc_service, live, r2
 from app.utils.net import get_client_ip
 
 settings = get_settings()
@@ -59,6 +60,22 @@ def _to_response(doc, viewer_id: str | None = None) -> dict:
             is_owner and doc.google_doc_id and (doc.google_doc_synced_rev or 0) < doc.rev
         ),
         vscode_synced=doc.vscode_synced,
+        # Artifact fields — only meaningful for kind="artifact".
+        kind=doc.kind,
+        mime=doc.mime,
+        renderer=art_service.renderer_for(doc.mime or "") if doc.kind == "artifact" else None,
+        type_label=art_service.label_for(doc.mime or "") if doc.kind == "artifact" else None,
+        size_bytes=doc.size_bytes,
+        original_filename=doc.original_filename,
+        # Built only once the reader is past the password gate (get_document
+        # raises before we get here otherwise), so the signed URL never leaks.
+        artifact_url=(
+            art_service.build_artifact_url(
+                doc.blob_key, doc.mime or "", private=bool(doc.read_password_hash)
+            )
+            if doc.kind == "artifact" and doc.blob_key and r2.is_configured()
+            else None
+        ),
     )
 
 
@@ -121,7 +138,14 @@ async def delete_document(
     x_edit_secret: str | None = Header(None),
     user: User | None = Depends(optional_user),
 ):
-    await doc_service.delete_document(db, slug, x_edit_secret, user.id if user else None)
+    key = await doc_service.delete_document(db, slug, x_edit_secret, user.id if user else None)
+    # Free the R2 storage too, or the bytes keep billing and keep eating quota.
+    # A bundle key is a prefix (no extension) covering many objects.
+    if key and r2.is_configured():
+        if key.endswith("/"):
+            await run_in_threadpool(r2.delete_prefix, key)
+        else:
+            await run_in_threadpool(r2.delete, key)
 
 
 @router.post("/{slug}/claim", response_model=DocumentResponse)
