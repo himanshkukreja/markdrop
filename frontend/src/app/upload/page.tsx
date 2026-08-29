@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Spinner from "@/components/Spinner";
+import { slugifyFilename, titleFromFilename } from "@/lib/slugify";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getArtifactStatus,
@@ -42,6 +43,8 @@ export default function UploadArtifactPage() {
   const [title, setTitle] = useState("");
   const [customSlug, setCustomSlug] = useState("");
   const [slugError, setSlugError] = useState("");
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [titleTouched, setTitleTouched] = useState(false);
   const [expiresIn, setExpiresIn] = useState<ExpiresIn>("never");
   const [readPassword, setReadPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -61,11 +64,21 @@ export default function UploadArtifactPage() {
     }
     setError("");
     setFile(f);
-    if (!title) setTitle(f.name.replace(/\.[^.]+$/, ""));
+    // Prefill from the filename so the published link reads like the file
+    // instead of a random slug — but never overwrite something typed by hand.
+    if (!titleTouched) setTitle(titleFromFilename(f.name));
+    if (!slugTouched) {
+      const derived = slugifyFilename(f.name);
+      // Under 3 chars the server would reject it; leave it blank and let the
+      // server pick instead of showing an error on a field they never touched.
+      setCustomSlug(derived.length >= 3 ? derived : "");
+      setSlugError("");
+    }
   }
 
   function handleSlug(v: string) {
     if (!SLUG_PATTERN.test(v)) return;
+    setSlugTouched(true);
     setCustomSlug(v);
     setSlugError(v && v.length < 3 ? "Minimum 3 characters" : "");
   }
@@ -218,7 +231,7 @@ export default function UploadArtifactPage() {
         <input
           type="text"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => { setTitleTouched(true); setTitle(e.target.value); }}
           placeholder="Title (optional)"
           maxLength={200}
           className={`${inputClass} flex-1 min-w-[12rem]`}
