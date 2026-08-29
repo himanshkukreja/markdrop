@@ -188,6 +188,14 @@ async def confirm_artifact(
             data.blob_key, user.id
         )
 
+    # The Worker fails closed, so an object is unreadable until it's marked
+    # public. Password-protected artifacts stay unmarked and need a signed token.
+    is_public = not data.read_password
+    if bundle_prefix:
+        await run_in_threadpool(r2.set_public_prefix, bundle_prefix, is_public)
+    else:
+        await run_in_threadpool(r2.set_public, blob_key, is_public, mime)
+
     try:
         doc, secret = await art_service.create_artifact(
             db,
@@ -281,7 +289,9 @@ async def paste_html(
         raise HTTPException(status_code=507, detail="Storage quota exceeded.")
 
     blob_key = art_service.make_blob_key(user.id, "text/html")
-    ok = await run_in_threadpool(r2.put_bytes, blob_key, payload, "text/html")
+    ok = await run_in_threadpool(
+        r2.put_bytes, blob_key, payload, "text/html", not data.read_password
+    )
     if not ok:
         raise HTTPException(status_code=502, detail="Could not store the page. Try again.")
 
@@ -331,6 +341,16 @@ async def update_artifact_settings(
     )
     if doc is None:
         raise HTTPException(status_code=404, detail="Artifact not found")
+
+    # Adding or clearing a password has to move the stored object across the
+    # Worker's fail-closed boundary. Without this the document reports itself as
+    # protected while the bytes stay readable to anyone holding the URL.
+    is_public = not doc.read_password_hash
+    if doc.bundle_prefix:
+        await run_in_threadpool(r2.set_public_prefix, doc.bundle_prefix, is_public)
+    elif doc.blob_key:
+        await run_in_threadpool(r2.set_public, doc.blob_key, is_public, doc.mime)
+
     live.publish(doc.slug, doc.rev)
     return ArtifactResponse(**art_service.to_response(doc, is_owner=True))
 
@@ -389,6 +409,14 @@ async def replace_artifact_file(
         else:
             await run_in_threadpool(r2.delete, blob_key)
         raise HTTPException(status_code=404, detail="Artifact not found")
+
+    # Inherit the artifact's privacy: a replacement file on a password-protected
+    # artifact must not come back publicly readable.
+    is_public = not doc.read_password_hash
+    if bundle_prefix:
+        await run_in_threadpool(r2.set_public_prefix, bundle_prefix, is_public)
+    else:
+        await run_in_threadpool(r2.set_public, blob_key, is_public, mime)
 
     if old_key:
         if old_key.endswith("/"):

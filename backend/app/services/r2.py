@@ -101,7 +101,7 @@ def get_bytes(key: str, max_bytes: int) -> bytes | None:
         return None
 
 
-def put_bytes(key: str, data: bytes, content_type: str) -> bool:
+def put_bytes(key: str, data: bytes, content_type: str, public: bool = True) -> bool:
     """Upload from the server. Only used for the small pasted-HTML path, where a
     presigned round trip would be pointless ceremony — real file uploads always
     go browser→R2 direct so bytes never touch this box."""
@@ -111,8 +111,9 @@ def put_bytes(key: str, data: bytes, content_type: str) -> bool:
             Key=key,
             Body=data,
             ContentType=content_type,
-            # Keys are random and never reused, so a blob is immutable.
-            CacheControl="public, max-age=31536000, immutable",
+            # The Worker fails closed — an unmarked object needs a signed token.
+            Metadata={"public": "1"} if public else {},
+            CacheControl="public, max-age=300" if public else "private, no-store",
         )
         return True
     except Exception:
@@ -153,4 +154,40 @@ def delete_prefix(prefix: str) -> int:
     except Exception:
         for k in keys:  # fall back to one-by-one
             delete(k)
+    return len(keys)
+
+
+def set_public(key: str, public: bool, content_type: str | None = None) -> bool:
+    """Mark an object public or private for the artifact Worker.
+
+    The Worker fails closed: it serves an object without a signed token only
+    when ``customMetadata.public == "1"``. R2 has no metadata-only update, so
+    this copies the object onto itself with the metadata replaced.
+    """
+    try:
+        c = _client()
+        if content_type is None:
+            head_res = c.head_object(Bucket=settings.r2_bucket, Key=key)
+            content_type = head_res.get("ContentType") or "application/octet-stream"
+        c.copy_object(
+            Bucket=settings.r2_bucket,
+            Key=key,
+            CopySource={"Bucket": settings.r2_bucket, "Key": key},
+            MetadataDirective="REPLACE",
+            ContentType=content_type,
+            Metadata={"public": "1"} if public else {},
+            # Short even when public: adding a password flips this object to
+            # private, and a long-lived edge copy would outlive that change.
+            CacheControl="public, max-age=300" if public else "private, no-store",
+        )
+        return True
+    except Exception:
+        return False
+
+
+def set_public_prefix(prefix: str, public: bool) -> int:
+    """Apply :func:`set_public` to every object of a bundle. Returns the count."""
+    keys = list_prefix(prefix)
+    for k in keys:
+        set_public(k, public)
     return len(keys)

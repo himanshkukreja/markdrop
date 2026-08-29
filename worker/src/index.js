@@ -139,11 +139,17 @@ async function serveRaw(blobKey, url, env, request) {
   const obj = await env.ARTIFACTS.get(blobKey);
   if (!obj) return notFound();
 
-  const isPrivate = obj.customMetadata?.private === "1";
+  // FAIL CLOSED. Serve without a token only when the object is explicitly
+  // marked public; anything unmarked — a partial write, a metadata update that
+  // didn't land, a bug — requires a signed token rather than being readable.
+  // The previous check was the other way round (private only when flagged), and
+  // because nothing ever set that flag, password-protected artifacts were
+  // served to anyone holding the URL.
+  const isPublic = obj.customMetadata?.public === "1";
   const token = url.searchParams.get("t");
-  if (isPrivate) {
+  if (!isPublic) {
     if (!token || !(await verifyToken(token, env.ARTIFACT_SIGNING_KEY, blobKey))) {
-      return new Response("This artifact requires an unlock link.", {
+      return new Response("This artifact is protected — open it on Markdrop.", {
         status: 403,
         headers: baseHeaders(),
       });
@@ -162,12 +168,14 @@ async function serveRaw(blobKey, url, env, request) {
     headers.set("content-disposition", "attachment");
   }
 
-  if (isPrivate) {
+  if (!isPublic) {
     // Token-gated: must not sit in a shared cache.
     headers.set("cache-control", "private, no-store");
   } else {
-    // Keys are random and never reused, so the bytes at a key never change.
-    headers.set("cache-control", "public, max-age=31536000, immutable");
+    // Deliberately minutes, not the year an immutable key would justify: adding
+    // a password flips the object to private, and a long-lived edge copy would
+    // keep serving the old public response well after that change.
+    headers.set("cache-control", "public, max-age=300");
   }
 
   if (request.method === "HEAD") return new Response(null, { headers });
