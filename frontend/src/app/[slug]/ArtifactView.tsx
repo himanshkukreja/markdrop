@@ -8,7 +8,6 @@ import Spinner from "@/components/Spinner";
 import ArtifactBadge, { formatBytes } from "@/components/ArtifactBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  getToken,
   changeSlug,
   deleteDocument,
   getDocument,
@@ -219,32 +218,17 @@ export default function ArtifactView({
     };
   }, [user, slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Visitors get the artifact full-bleed by default — they came for the content,
-  // not for Markdrop's chrome. Owners never do: their controls live in the
-  // framed view and hiding them behind Esc every visit would be hostile.
+  // Everyone lands full-bleed: a published artifact should read as the page
+  // itself, not as something sitting in a Markdrop box. The framed view — with
+  // the title, counts, owner settings and the Report control — is one Esc away
+  // and stays reachable by anyone, which is what keeps abuse reporting possible.
   //
-  // Ownership isn't known at SSR (the server render is always anonymous), so a
-  // signed-out viewer — the common case — is decided synchronously from the
-  // absence of a token, with no flash. A signed-in viewer waits the one fetch
-  // it takes to learn whether they own it.
-  const autoImmersed = useRef(false);
+  // This deliberately doesn't wait on the ownership check: ownership isn't
+  // knowable at SSR (the server render is always anonymous), so waiting would
+  // mean a visible flash of the framed view before going immersive.
   useEffect(() => {
-    if (autoImmersed.current || !artifactUrl || locked) return;
-    if (wantsFull) {
-      autoImmersed.current = true;
-      setImmersive(true);
-      return;
-    }
-    if (!getToken()) {
-      autoImmersed.current = true;
-      setImmersive(true);
-      return;
-    }
-    if (ownerChecked) {
-      autoImmersed.current = true;
-      if (!isOwner) setImmersive(true);
-    }
-  }, [wantsFull, artifactUrl, locked, ownerChecked, isOwner]);
+    if (artifactUrl && !locked) setImmersive(true);
+  }, [artifactUrl, locked]);
 
   useEffect(() => {
     if (!immersive) return;
@@ -462,9 +446,11 @@ export default function ArtifactView({
             title={title || slug}
             className="w-full h-full border-0 bg-white"
           />
-          {/* One control, bottom-right. Top-right is where PDF.js, SheetJS and
-              plenty of user pages put their own toolbars, so anchoring here
-              keeps it clear of the rendered content. Fades back until hovered. */}
+          {/* Shown to everyone, not just the owner: the framed view is where the
+              Report control lives, so a visitor who can't leave immersive mode
+              could never flag abusive content. Bottom-right because top-right is
+              where PDF.js, SheetJS and plenty of user pages put their own
+              toolbars. Fades back until hovered so it never fights the content. */}
           <button
             onClick={() => setImmersive(false)}
             aria-label="Show document details"
