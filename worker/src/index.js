@@ -39,6 +39,17 @@ const INLINE_TYPES = new Set([
 
 export default {
   async fetch(request, env) {
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          ...corsHeaders(request),
+          "access-control-allow-methods": "GET, HEAD, OPTIONS",
+          "access-control-allow-headers": "content-type",
+          "access-control-max-age": "3600",
+        },
+      });
+    }
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response("Method not allowed", { status: 405 });
     }
@@ -63,6 +74,25 @@ export default {
 
 function notFound() {
   return new Response("Not found", { status: 404, headers: baseHeaders() });
+}
+
+// The app may read artifact bytes with fetch() so it can hand the user a
+// download without navigating here — a top-level visit to this domain trips
+// Chrome's lookalike-domain interstitial, and there's nothing for a user to
+// see at this origin anyway.
+const APP_ORIGINS = new Set([
+  "https://markdrop.in",
+  "https://www.markdrop.in",
+  "http://localhost:3000",
+]);
+
+function corsHeaders(request) {
+  const origin = request.headers.get("Origin");
+  if (!origin || !APP_ORIGINS.has(origin)) return {};
+  return {
+    "access-control-allow-origin": origin,
+    "vary": "Origin",
+  };
 }
 
 function baseHeaders() {
@@ -121,7 +151,7 @@ async function serveRaw(blobKey, url, env, request) {
   }
 
   const type = obj.httpMetadata?.contentType || "application/octet-stream";
-  const headers = new Headers(baseHeaders());
+  const headers = new Headers({ ...baseHeaders(), ...corsHeaders(request) });
   headers.set("content-type", type);
   headers.set("etag", obj.httpEtag);
 
@@ -179,12 +209,64 @@ const SHELL_CSS = `
 `;
 
 function pdfViewer(src) {
-  // The browser's built-in PDF viewer is used via <embed>; no external library,
-  // so the strict CSP below can stay in place.
+  // Rendered with PDF.js to <canvas>, NOT <embed>. A sandboxed iframe blocks
+  // plugin content outright — the browser's built-in PDF viewer is a plugin, so
+  // <embed> silently fails here with "the frame into which the plugin is
+  // loading is sandboxed". Canvas rendering is plain JS and works inside the
+  // sandbox, which is non-negotiable for user-supplied files.
   return `<!doctype html><meta charset="utf-8"><title>PDF</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>${SHELL_CSS} embed{width:100%;height:100%;border:0}</style>
-<embed src="${src}" type="application/pdf">`;
+<style>${SHELL_CSS}
+  .pdf{display:flex;flex-direction:column;align-items:center;gap:14px;padding:16px}
+  .pdf canvas{max-width:100%;height:auto;border-radius:6px;box-shadow:0 4px 24px rgba(0,0,0,.45);background:#fff}
+  .bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:12px;
+       padding:.55rem .9rem;background:#111c33;border-bottom:1px solid rgba(255,255,255,.06);
+       font-size:12px;color:#94a3b8}
+  .bar a{margin-left:auto;color:#60a5fa;text-decoration:none}
+</style>
+<div class="bar"><span id="status">Loading PDF…</span><a id="dl" download>Download</a></div>
+<div class="wrap"><div id="out" class="pdf"></div></div>
+<script type="module">
+const SRC = ${JSON.stringify(src)};
+document.getElementById('dl').href = SRC;
+const status = document.getElementById('status'), out = document.getElementById('out');
+try {
+  const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');
+  // The pdf.js worker lives on another origin and a cross-origin new Worker()
+  // is forbidden, so fetch it and hand pdf.js a same-origin blob URL instead.
+  const workerCode = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs').then(r => r.text());
+  pdfjs.GlobalWorkerOptions.workerSrc =
+    URL.createObjectURL(new Blob([workerCode], { type: 'text/javascript' }));
+
+  const doc = await pdfjs.getDocument({ url: SRC }).promise;
+  status.textContent = doc.numPages + (doc.numPages === 1 ? ' page' : ' pages');
+  // Cap the work: a huge PDF shouldn't lock the tab up rendering every page.
+  const limit = Math.min(doc.numPages, 50);
+  for (let n = 1; n <= limit; n++) {
+    const page = await doc.getPage(n);
+    const scale = Math.min(2, (Math.min(window.innerWidth, 1100) - 40) / page.getViewport({ scale: 1 }).width);
+    const viewport = page.getViewport({ scale: Math.max(scale, 0.5) * (window.devicePixelRatio || 1) });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    canvas.style.width = Math.round(viewport.width / (window.devicePixelRatio || 1)) + 'px';
+    out.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  }
+  if (doc.numPages > limit) {
+    const more = document.createElement('p');
+    more.className = 'msg';
+    more.textContent = 'Showing the first ' + limit + ' of ' + doc.numPages + ' pages — download to see the rest.';
+    out.appendChild(more);
+  }
+} catch (e) {
+  status.textContent = 'Could not render this PDF';
+  out.innerHTML = '';
+  const p = document.createElement('p');
+  p.className = 'msg';
+  p.textContent = String(e && e.message || e);
+  out.appendChild(p);
+}
+</script>`;
 }
 
 function sheetViewer(src) {

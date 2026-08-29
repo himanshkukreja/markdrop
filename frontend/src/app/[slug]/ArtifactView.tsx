@@ -63,7 +63,9 @@ export default function ArtifactView({
   const router = useRouter();
   const { user } = useAuth();
   // Client-side so the document route stays edge-cacheable (see page.tsx).
-  const isNew = useSearchParams().get("new") === "1";
+  const params = useSearchParams();
+  const isNew = params.get("new") === "1";
+  const wantsFull = params.get("full") === "1";
 
   const [title, setTitle] = useState(initialTitle);
   const [artifactUrl, setArtifactUrl] = useState(initialArtifactUrl);
@@ -72,7 +74,11 @@ export default function ArtifactView({
   const [sizeBytes, setSizeBytes] = useState(initialSize);
   const [views, setViews] = useState(initialViews);
   const [isOwner, setIsOwner] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  // Immersive mode: the artifact fills the viewport with all app chrome hidden,
+  // so a published page reads as the content itself rather than something in a
+  // box. Escape exits, and body scroll is locked while it's open.
+  const [immersive, setImmersive] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // Password gate
   const [locked, setLocked] = useState(isPasswordProtected && !initialArtifactUrl);
@@ -138,6 +144,24 @@ export default function ArtifactView({
     };
   }, [user, slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ?full=1 lands directly in immersive mode — lets an owner share a link that
+  // opens as the page itself, with no Markdrop chrome around it.
+  useEffect(() => {
+    if (wantsFull && artifactUrl && !locked) setImmersive(true);
+  }, [wantsFull, artifactUrl, locked]);
+
+  useEffect(() => {
+    if (!immersive) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setImmersive(false);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [immersive]);
+
   async function handleUnlock(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!pwdInput.trim()) return;
@@ -155,6 +179,28 @@ export default function ArtifactView({
       );
     } finally {
       setUnlocking(false);
+    }
+  }
+
+  async function handleDownload() {
+    if (!artifactUrl) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(artifactUrl);
+      if (!res.ok) throw new Error();
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = originalFilename || slug;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Last resort: open it rather than silently doing nothing.
+      window.open(artifactUrl, "_blank", "noopener");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -210,11 +256,18 @@ export default function ArtifactView({
         <CopyButton text={url} label="Copy link" />
         {artifactUrl && (
           <>
-            <a href={artifactUrl} target="_blank" rel="noopener noreferrer" className={btn}>
-              Open full screen ↗
-            </a>
-            <button onClick={() => setExpanded((v) => !v)} className={btn}>
-              {expanded ? "Shrink" : "Expand"}
+            <button onClick={() => setImmersive(true)} className={btn}>
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+              </svg>
+              Full screen
+            </button>
+            {/* Fetched as a blob rather than linked. The download attribute is
+                ignored cross-origin, so an <a href> here would navigate to the
+                artifact origin — and a top-level visit there trips Chrome's
+                lookalike-domain interstitial. */}
+            <button onClick={handleDownload} disabled={downloading} className={btn}>
+              {downloading ? "Preparing…" : "Download"}
             </button>
           </>
         )}
@@ -273,11 +326,7 @@ export default function ArtifactView({
           </form>
         </div>
       ) : artifactUrl ? (
-        <div
-          className={`border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden bg-white dark:bg-[#0b1220] ${
-            expanded ? "fixed inset-2 z-50 shadow-2xl" : ""
-          }`}
-        >
+        <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden bg-white dark:bg-[#0b1220]">
           <iframe
             src={artifactUrl}
             sandbox={SANDBOX}
@@ -286,13 +335,38 @@ export default function ArtifactView({
             referrerPolicy="no-referrer"
             title={title || slug}
             className="w-full border-0 bg-white"
-            style={{ height: expanded ? "100%" : "min(78vh, 900px)" }}
+            style={{ height: "min(78vh, 900px)" }}
           />
         </div>
       ) : (
         <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-10 text-center text-sm text-gray-400">
           <Spinner className="w-5 h-5 mx-auto mb-2" />
           Preparing this artifact…
+        </div>
+      )}
+
+      {immersive && artifactUrl && (
+        <div className="fixed inset-0 z-[100] bg-white dark:bg-[#0b1220]">
+          <iframe
+            src={artifactUrl}
+            sandbox={SANDBOX}
+            referrerPolicy="no-referrer"
+            title={title || slug}
+            className="w-full h-full border-0 bg-white"
+          />
+          {/* Floating exit — the only chrome, and it fades back until hovered
+              so it never competes with the content it sits on. */}
+          <button
+            onClick={() => setImmersive(false)}
+            aria-label="Exit full screen"
+            className="group fixed top-3 right-3 z-[101] inline-flex items-center gap-1.5 rounded-full bg-black/55 hover:bg-black/80 backdrop-blur px-3 py-1.5 text-xs font-medium text-white/80 hover:text-white opacity-40 hover:opacity-100 transition-all"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+            Exit
+            <kbd className="hidden sm:inline ml-0.5 rounded border border-white/25 px-1 text-[10px] leading-4">Esc</kbd>
+          </button>
         </div>
       )}
 
