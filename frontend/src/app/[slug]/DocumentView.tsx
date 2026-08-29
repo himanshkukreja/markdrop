@@ -160,11 +160,7 @@ export default function DocumentView({
     if (isPasswordProtected) {
       getDocument(slug, undefined, stored)
         .then((doc) => {
-          setDisplayTitle(doc.title);
-          setDisplayContent(doc.content);
-          setDisplayCreatedAt(doc.created_at);
-          setDisplayExpiresAt(doc.expires_at);
-          setDisplayViews(doc.views);
+          adoptDoc(doc);
           setPwdLocked(false);
         })
         .catch(() => {})
@@ -269,6 +265,28 @@ export default function DocumentView({
   // the anonymous SSR fetch 401s, so kind isn't known until then.
   const [artifactDoc, setArtifactDoc] = useState<import("@/lib/api").DocumentResponse | null>(null);
 
+  /**
+   * Adopt a freshly fetched document into view state.
+   *
+   * Returns true when it was an artifact and has been handed off to
+   * ArtifactView. Every path that resolves a document must go through this:
+   * an artifact's `content` is only a filename stand-in, so rendering it as
+   * markdown shows a title and nothing else.
+   */
+  function adoptDoc(doc: import("@/lib/api").DocumentResponse, opts?: { created?: boolean }): boolean {
+    if (doc.kind === "artifact") {
+      setArtifactDoc(doc);
+      setPwdLocked(false);
+      return true;
+    }
+    setDisplayTitle(doc.title);
+    setDisplayContent(doc.content);
+    if (opts?.created !== false) setDisplayCreatedAt(doc.created_at);
+    setDisplayExpiresAt(doc.expires_at);
+    setDisplayViews(doc.views);
+    return false;
+  }
+
   // Live display state
   const [displayTitle, setDisplayTitle] = useState(initialTitle);
   const [displayContent, setDisplayContent] = useState(initialContent);
@@ -351,11 +369,7 @@ export default function DocumentView({
         if (!secretUnlocked) {
           setSecretUnlocked(true);
           setPwdLocked(false);
-          setDisplayTitle(doc.title);
-          setDisplayContent(doc.content);
-          setDisplayCreatedAt(doc.created_at);
-          setDisplayExpiresAt(doc.expires_at);
-          setDisplayViews(doc.views);
+          adoptDoc(doc);
         }
       })
       .catch(() => {});
@@ -402,10 +416,7 @@ export default function DocumentView({
           : undefined;
         getDocument(slug, cachedPwd, claimSecret || undefined)
           .then((doc) => {
-            setDisplayTitle(doc.title);
-            setDisplayContent(doc.content);
-            setDisplayExpiresAt(doc.expires_at);
-            setDisplayViews(doc.views);
+            if (adoptDoc(doc, { created: false })) return;
             setVscodeSynced(!!doc.vscode_synced);
             if (doc.is_owner) setGoogleDocStale(!!doc.google_doc_stale);
           })
@@ -474,13 +485,7 @@ export default function DocumentView({
     // Owner bypass: edit secret skips the read password gate
     if (initialSecret) {
       getDocument(slug, undefined, initialSecret)
-        .then((doc) => {
-          setDisplayTitle(doc.title);
-          setDisplayContent(doc.content);
-          setDisplayCreatedAt(doc.created_at);
-          setDisplayExpiresAt(doc.expires_at);
-          setDisplayViews(doc.views);
-        })
+        .then((doc) => { adoptDoc(doc); })
         .catch(() => {
           // Secret invalid — fall back to showing the password gate
           setPwdLocked(true);
@@ -495,11 +500,7 @@ export default function DocumentView({
     if (cached) {
       getDocument(slug, cached)
         .then((doc) => {
-          setDisplayTitle(doc.title);
-          setDisplayContent(doc.content);
-          setDisplayCreatedAt(doc.created_at);
-          setDisplayExpiresAt(doc.expires_at);
-          setDisplayViews(doc.views);
+          adoptDoc(doc);
           setPwdLocked(false);
         })
         .catch(() => {
@@ -516,16 +517,7 @@ export default function DocumentView({
     try {
       const doc = await getDocument(slug, pwdInput);
       sessionStorage.setItem(`pwd:${slug}`, pwdInput);
-      if (doc.kind === "artifact") {
-        setArtifactDoc(doc);
-        setPwdLocked(false);
-        return;
-      }
-      setDisplayTitle(doc.title);
-      setDisplayContent(doc.content);
-      setDisplayCreatedAt(doc.created_at);
-      setDisplayExpiresAt(doc.expires_at);
-      setDisplayViews(doc.views);
+      adoptDoc(doc);
       setPwdLocked(false);
     } catch (e) {
       if (e instanceof Error && e.message === "WRONG_PASSWORD") {
