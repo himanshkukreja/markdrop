@@ -76,6 +76,13 @@ def _to_response(doc, viewer_id: str | None = None) -> dict:
             if doc.kind == "artifact" and doc.blob_key and r2.is_configured()
             else None
         ),
+        # Always the raw object — artifact_url points at a viewer page for
+        # PDFs/sheets/docs, which would download the wrapper, not the file.
+        download_url=(
+            art_service.build_download_url(doc.blob_key, private=bool(doc.read_password_hash))
+            if doc.kind == "artifact" and doc.blob_key and r2.is_configured()
+            else None
+        ),
     )
 
 

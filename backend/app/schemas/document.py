@@ -68,6 +68,7 @@ class DocumentResponse(BaseModel):
     size_bytes: int | None = None
     original_filename: str | None = None
     artifact_url: str | None = None
+    download_url: str | None = None
 
     model_config = {"from_attributes": True}
 

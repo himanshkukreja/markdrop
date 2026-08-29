@@ -27,14 +27,18 @@ from app.models.user import User
 from app.routers.auth import optional_user, require_user
 from app.schemas.artifact import (
     ArtifactCreateRequest,
+    ArtifactReplaceRequest,
+    ArtifactSettingsRequest,
     ArtifactCreateResponse,
     ArtifactPasteRequest,
+    ArtifactResponse,
     ArtifactStatusResponse,
     ArtifactUploadUrlRequest,
     ArtifactUploadUrlResponse,
 )
 from app.services import artifact as art_service
 from app.services import bundle
+from app.services import live
 from app.services import r2
 
 settings = get_settings()
@@ -297,3 +301,100 @@ async def paste_html(
     return ArtifactCreateResponse(
         **art_service.to_response(doc, is_owner=True), edit_secret=secret
     )
+
+
+@router.patch("/{slug}", response_model=ArtifactResponse)
+@limiter.limit("30/minute")
+async def update_artifact_settings(
+    request: Request,
+    slug: str,
+    data: ArtifactSettingsRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Edit an artifact's title, password or expiry.
+
+    Separate from the markdown update route because that one requires a
+    `content` body, which an artifact doesn't have. Slug changes and deletion
+    reuse the shared document endpoints.
+    """
+    _require_configured()
+    doc = await art_service.update_settings(
+        db,
+        slug,
+        user.id,
+        title=data.title,
+        read_password=data.read_password,
+        remove_password=data.remove_password,
+        expires_in=data.expires_in,
+        custom_expires_at=data.custom_expires_at,
+    )
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    live.publish(doc.slug, doc.rev)
+    return ArtifactResponse(**art_service.to_response(doc, is_owner=True))
+
+
+@router.put("/{slug}/file", response_model=ArtifactResponse)
+@limiter.limit("20/minute")
+async def replace_artifact_file(
+    request: Request,
+    slug: str,
+    data: ArtifactReplaceRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Swap the file behind an artifact, keeping its URL and settings.
+
+    Same verify-then-commit shape as creation: the object is HEADed for its real
+    size and type before anything is written, and the previous object (or bundle
+    prefix) is freed only once the swap has succeeded.
+    """
+    _require_configured()
+    if not data.blob_key.startswith(f"art/{user.id}/"):
+        raise HTTPException(status_code=403, detail="This upload does not belong to you.")
+
+    meta = await run_in_threadpool(r2.head, data.blob_key)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Upload not found — please try again.")
+    if meta["size"] > settings.artifact_max_bytes:
+        await run_in_threadpool(r2.delete, data.blob_key)
+        raise HTTPException(status_code=413, detail="File is larger than the limit.")
+
+    mime = art_service.normalize_mime(meta["content_type"], data.filename)
+    if not mime:
+        await run_in_threadpool(r2.delete, data.blob_key)
+        raise HTTPException(status_code=415, detail="Unsupported file type.")
+
+    blob_key, bundle_prefix, size_bytes = data.blob_key, None, meta["size"]
+    if mime == "application/zip":
+        blob_key, bundle_prefix, mime, size_bytes = await _explode_bundle(
+            data.blob_key, user.id
+        )
+
+    doc, old_key = await art_service.replace_file(
+        db,
+        slug,
+        user.id,
+        blob_key=blob_key,
+        bundle_prefix=bundle_prefix,
+        mime=mime,
+        size_bytes=size_bytes,
+        filename=data.filename,
+    )
+    if doc is None:
+        # Don't leave the just-uploaded bytes orphaned when the swap is refused.
+        if bundle_prefix:
+            await run_in_threadpool(r2.delete_prefix, bundle_prefix)
+        else:
+            await run_in_threadpool(r2.delete, blob_key)
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    if old_key:
+        if old_key.endswith("/"):
+            await run_in_threadpool(r2.delete_prefix, old_key)
+        else:
+            await run_in_threadpool(r2.delete, old_key)
+
+    live.publish(doc.slug, doc.rev)
+    return ArtifactResponse(**art_service.to_response(doc, is_owner=True))

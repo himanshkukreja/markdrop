@@ -639,6 +639,7 @@ export default function DocumentView({
         sizeBytes={artifactDoc.size_bytes ?? 0}
         originalFilename={artifactDoc.original_filename ?? null}
         artifactUrl={artifactDoc.artifact_url ?? null}
+        downloadUrl={artifactDoc.download_url ?? null}
       />
     );
   }

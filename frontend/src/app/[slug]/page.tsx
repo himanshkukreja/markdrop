@@ -91,6 +91,7 @@ export default async function SlugPage({ params }: Props) {
         sizeBytes={doc.size_bytes ?? 0}
         originalFilename={doc.original_filename ?? null}
         artifactUrl={doc.artifact_url ?? null}
+        downloadUrl={doc.download_url ?? null}
       />
       </Suspense>
     );

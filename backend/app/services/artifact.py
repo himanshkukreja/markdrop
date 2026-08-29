@@ -140,6 +140,19 @@ def sign_access_token(blob_key: str) -> str:
     )
 
 
+def build_download_url(blob_key: str, *, private: bool) -> str:
+    """URL for the raw bytes, whatever the renderer is.
+
+    Distinct from :func:`build_artifact_url` on purpose: for a PDF, sheet or
+    docx that returns the *viewer page*, so downloading from it would save the
+    HTML wrapper instead of the file. This always points at /r/<key>.
+    """
+    url = f"{settings.artifact_origin.rstrip('/')}/r/{blob_key}"
+    if private:
+        url += f"?t={sign_access_token(blob_key)}"
+    return url
+
+
 def build_artifact_url(blob_key: str, mime: str, *, private: bool) -> str:
     """URL on the sandbox origin that renders this blob.
 
@@ -248,6 +261,7 @@ def to_response(doc, *, is_owner: bool) -> dict:
         size_bytes=doc.size_bytes or 0,
         original_filename=doc.original_filename,
         artifact_url=build_artifact_url(doc.blob_key or "", doc.mime or "", private=private),
+        download_url=build_download_url(doc.blob_key or "", private=private),
         created_at=doc.created_at,
         updated_at=doc.updated_at,
         expires_at=doc.expires_at,
@@ -255,3 +269,95 @@ def to_response(doc, *, is_owner: bool) -> dict:
         is_password_protected=private,
         is_owner=is_owner,
     )
+
+
+async def update_settings(
+    db: AsyncIOMotorDatabase,
+    slug: str,
+    user_id: str,
+    *,
+    title: str | None,
+    read_password: str | None,
+    remove_password: bool,
+    expires_in: str | None,
+    custom_expires_at: datetime | None,
+):
+    """Owner-scoped edit of an artifact's metadata. Returns the Document or None.
+
+    Only touches what was supplied — the blob, mime and size are never altered
+    here (see ``replace_file`` for that).
+    """
+    import bcrypt
+
+    from app.services.document import _doc_from_mongo, _EXPIRY_DELTA
+
+    raw = await db["documents"].find_one({"slug": slug})
+    if not raw or raw.get("owner_id") != user_id or raw.get("kind") != "artifact":
+        return None
+
+    now = datetime.now(timezone.utc)
+    updates: dict = {"updated_at": now}
+    if title is not None:
+        updates["title"] = title.strip() or None
+    if remove_password or read_password == "":
+        updates["read_password_hash"] = None
+    elif read_password:
+        updates["read_password_hash"] = bcrypt.hashpw(
+            read_password.encode(), bcrypt.gensalt()
+        ).decode()
+    if expires_in is not None:
+        if expires_in == "custom" and custom_expires_at:
+            updates["expires_at"] = custom_expires_at
+        else:
+            delta = _EXPIRY_DELTA.get(expires_in)
+            updates["expires_at"] = (now + delta) if delta else None
+
+    updated = await db["documents"].find_one_and_update(
+        {"_id": raw["_id"]}, {"$set": updates}, return_document=True
+    )
+    return _doc_from_mongo(updated) if updated else None
+
+
+async def replace_file(
+    db: AsyncIOMotorDatabase,
+    slug: str,
+    user_id: str,
+    *,
+    blob_key: str,
+    bundle_prefix: str | None,
+    mime: str,
+    size_bytes: int,
+    filename: str | None,
+):
+    """Point an artifact at new bytes, keeping its slug, password and expiry.
+
+    Returns ``(document, old_storage_key)``; the caller frees the old object so
+    a replaced file doesn't linger. ``rev`` is bumped so any live viewer
+    refreshes, matching how a markdown edit behaves.
+    """
+    from app.services.document import _doc_from_mongo
+
+    raw = await db["documents"].find_one({"slug": slug})
+    if not raw or raw.get("owner_id") != user_id or raw.get("kind") != "artifact":
+        return None, None
+
+    old_key = raw.get("bundle_prefix") or raw.get("blob_key")
+    updated = await db["documents"].find_one_and_update(
+        {"_id": raw["_id"]},
+        {
+            "$set": {
+                "blob_key": blob_key,
+                "bundle_prefix": bundle_prefix,
+                "mime": mime,
+                "size_bytes": size_bytes,
+                "original_filename": filename,
+                "updated_at": datetime.now(timezone.utc),
+            },
+            "$inc": {"rev": 1},
+        },
+        return_document=True,
+    )
+    if not updated:
+        return None, None
+    # Only free the old bytes if the new upload actually points somewhere else.
+    return _doc_from_mongo(updated), (old_key if old_key != blob_key else None)

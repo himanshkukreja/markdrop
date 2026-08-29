@@ -65,6 +65,8 @@ class ArtifactResponse(BaseModel):
     # Sandbox-origin URL the viewer iframes. Carries a short-lived token when
     # the document is password-protected.
     artifact_url: str
+    # Raw bytes for saving to disk — artifact_url may be a viewer page.
+    download_url: str
     created_at: datetime
     updated_at: datetime
     expires_at: datetime | None = None
@@ -90,3 +92,25 @@ class ArtifactStatusResponse(BaseModel):
     quota_bytes: int
     used_bytes: int = 0
     accepted_types: list[str] = []
+
+
+class ArtifactSettingsRequest(BaseModel):
+    """Owner-editable settings. Every field is optional — omitted means unchanged.
+
+    Separate from ``DocumentUpdate`` because that schema requires ``content``,
+    which an artifact doesn't have (its bytes live in R2).
+    """
+
+    title: str | None = Field(None, max_length=200)
+    # "" clears the password; None leaves it alone.
+    read_password: str | None = Field(None, max_length=100)
+    remove_password: bool = False
+    expires_in: Literal["never", "1d", "7d", "30d", "custom"] | None = None
+    custom_expires_at: datetime | None = None
+
+
+class ArtifactReplaceRequest(BaseModel):
+    """Swap the underlying file while keeping the slug, password and expiry."""
+
+    blob_key: str = Field(..., min_length=1, max_length=300)
+    filename: str | None = Field(None, max_length=255)

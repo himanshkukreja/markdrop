@@ -65,6 +65,8 @@ export interface DocumentResponse {
   size_bytes?: number | null;
   original_filename?: string | null;
   artifact_url?: string | null;
+  /** Raw bytes. artifact_url may be a viewer page, so never download from it. */
+  download_url?: string | null;
 }
 
 export type DocKind = "markdown" | "artifact";
@@ -886,4 +888,74 @@ export async function adminDeleteFeedback(token: string, id: string): Promise<vo
   });
   if (res.status === 401) throw new Error("UNAUTHORIZED");
   if (!res.ok) throw new Error("Failed to delete feedback");
+}
+
+
+// ── Artifact editing (owner only) ─────────────────────────────────────────────
+
+export interface ArtifactSettings {
+  title?: string | null;
+  readPassword?: string;
+  removePassword?: boolean;
+  expiresIn?: ExpiresIn;
+  customExpiresAt?: string;
+}
+
+export async function updateArtifactSettings(
+  slug: string,
+  settings: ArtifactSettings
+): Promise<DocumentResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/artifacts/${slug}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      title: settings.title ?? null,
+      read_password: settings.readPassword ?? null,
+      remove_password: settings.removePassword ?? false,
+      expires_in: settings.expiresIn ?? null,
+      custom_expires_at: settings.customExpiresAt ?? null,
+    }),
+  });
+  if (!res.ok) throw await artifactError(res, "Could not save changes");
+  return res.json();
+}
+
+/** Swap the file behind an artifact, keeping its URL and settings. */
+export async function replaceArtifactFile(
+  slug: string,
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<DocumentResponse> {
+  const urlRes = await fetch(`${API_BASE}/api/v1/artifacts/upload-url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      filename: file.name,
+      content_type: file.type || "application/octet-stream",
+      size_bytes: file.size,
+    }),
+  });
+  if (!urlRes.ok) throw await artifactError(urlRes, "Could not start the upload");
+  const { upload_url, blob_key, required_content_type } = await urlRes.json();
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", upload_url, true);
+    xhr.setRequestHeader("Content-Type", required_content_type);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`));
+    xhr.onerror = () => reject(new Error("Upload failed — check your connection"));
+    xhr.send(file);
+  });
+
+  const res = await fetch(`${API_BASE}/api/v1/artifacts/${slug}/file`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ blob_key, filename: file.name }),
+  });
+  if (!res.ok) throw await artifactError(res, "Could not replace the file");
+  return res.json();
 }

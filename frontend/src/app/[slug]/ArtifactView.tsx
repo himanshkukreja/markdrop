@@ -8,11 +8,16 @@ import Spinner from "@/components/Spinner";
 import ArtifactBadge, { formatBytes } from "@/components/ArtifactBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  getToken,
+  changeSlug,
   deleteDocument,
   getDocument,
   recordEvent,
+  replaceArtifactFile,
   reportDocument,
+  updateArtifactSettings,
   type ArtifactRenderer,
+  type ExpiresIn,
 } from "@/lib/api";
 
 /**
@@ -41,6 +46,7 @@ interface Props {
   sizeBytes: number;
   originalFilename: string | null;
   artifactUrl: string | null;
+  downloadUrl: string | null;
 }
 
 
@@ -59,6 +65,7 @@ export default function ArtifactView({
   sizeBytes: initialSize,
   originalFilename,
   artifactUrl: initialArtifactUrl,
+  downloadUrl: initialDownloadUrl,
 }: Props) {
   const router = useRouter();
   const { user } = useAuth();
@@ -69,16 +76,81 @@ export default function ArtifactView({
 
   const [title, setTitle] = useState(initialTitle);
   const [artifactUrl, setArtifactUrl] = useState(initialArtifactUrl);
+  const [downloadUrl, setDownloadUrl] = useState(initialDownloadUrl);
   const [renderer, setRenderer] = useState(initialRenderer);
   const [typeLabel, setTypeLabel] = useState(initialTypeLabel);
   const [sizeBytes, setSizeBytes] = useState(initialSize);
   const [views, setViews] = useState(initialViews);
   const [isOwner, setIsOwner] = useState(false);
+  const [ownerChecked, setOwnerChecked] = useState(false);
   // Immersive mode: the artifact fills the viewport with all app chrome hidden,
   // so a published page reads as the content itself rather than something in a
   // box. Escape exits, and body scroll is locked while it's open.
   const [immersive, setImmersive] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // Owner settings panel
+  const [showEdit, setShowEdit] = useState(false);
+  const [eTitle, setETitle] = useState("");
+  const [eSlug, setESlug] = useState("");
+  const [ePassword, setEPassword] = useState("");
+  const [eRemovePwd, setERemovePwd] = useState(false);
+  const [eExpiry, setEExpiry] = useState<ExpiresIn | "">("");
+  const [eFile, setEFile] = useState<File | null>(null);
+  const [eProgress, setEProgress] = useState(0);
+  const [eBusy, setEBusy] = useState(false);
+  const [eError, setEError] = useState("");
+  const [protectedNow, setProtectedNow] = useState(isPasswordProtected);
+  const replaceInput = useRef<HTMLInputElement>(null);
+
+  function openEdit() {
+    setETitle(title || "");
+    setESlug(slug);
+    setEPassword("");
+    setERemovePwd(false);
+    setEExpiry("");
+    setEFile(null);
+    setEProgress(0);
+    setEError("");
+    setShowEdit(true);
+  }
+
+  async function saveEdit() {
+    setEBusy(true);
+    setEError("");
+    try {
+      // File first: if it fails there's no point renaming anything.
+      if (eFile) {
+        const doc = await replaceArtifactFile(slug, eFile, setEProgress);
+        applyDoc(doc);
+      }
+      const changedSettings =
+        eTitle !== (title || "") || !!ePassword || eRemovePwd || !!eExpiry;
+      if (changedSettings) {
+        const doc = await updateArtifactSettings(slug, {
+          title: eTitle,
+          readPassword: ePassword || undefined,
+          removePassword: eRemovePwd,
+          expiresIn: eExpiry || undefined,
+        });
+        applyDoc(doc);
+        setProtectedNow(!!doc.is_password_protected);
+      }
+      // Slug last — it changes the URL, so everything else must already be saved.
+      if (eSlug && eSlug !== slug) {
+        await changeSlug(slug, eSlug);
+        router.replace(`/${eSlug}`);
+        return;
+      }
+      setShowEdit(false);
+    } catch (err) {
+      setEError(err instanceof Error ? err.message : "Could not save changes");
+    } finally {
+      setEBusy(false);
+      setEProgress(0);
+    }
+  }
+
 
   // Password gate
   const [locked, setLocked] = useState(isPasswordProtected && !initialArtifactUrl);
@@ -99,6 +171,7 @@ export default function ArtifactView({
   function applyDoc(doc: Awaited<ReturnType<typeof getDocument>>) {
     setTitle(doc.title);
     setArtifactUrl(doc.artifact_url ?? null);
+    setDownloadUrl(doc.download_url ?? null);
     if (doc.renderer) setRenderer(doc.renderer);
     if (doc.type_label) setTypeLabel(doc.type_label);
     if (doc.size_bytes) setSizeBytes(doc.size_bytes);
@@ -129,26 +202,49 @@ export default function ArtifactView({
   useEffect(() => {
     if (!user) {
       setIsOwner(false);
+      setOwnerChecked(true);
       return;
     }
     let cancelled = false;
     getDocument(slug)
       .then((doc) => {
-        if (cancelled || !doc.is_owner) return;
-        setIsOwner(true);
-        if (doc.artifact_url) applyDoc(doc);
+        if (cancelled) return;
+        setIsOwner(!!doc.is_owner);
+        if (doc.is_owner && doc.artifact_url) applyDoc(doc);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setOwnerChecked(true); });
     return () => {
       cancelled = true;
     };
   }, [user, slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ?full=1 lands directly in immersive mode — lets an owner share a link that
-  // opens as the page itself, with no Markdrop chrome around it.
+  // Visitors get the artifact full-bleed by default — they came for the content,
+  // not for Markdrop's chrome. Owners never do: their controls live in the
+  // framed view and hiding them behind Esc every visit would be hostile.
+  //
+  // Ownership isn't known at SSR (the server render is always anonymous), so a
+  // signed-out viewer — the common case — is decided synchronously from the
+  // absence of a token, with no flash. A signed-in viewer waits the one fetch
+  // it takes to learn whether they own it.
+  const autoImmersed = useRef(false);
   useEffect(() => {
-    if (wantsFull && artifactUrl && !locked) setImmersive(true);
-  }, [wantsFull, artifactUrl, locked]);
+    if (autoImmersed.current || !artifactUrl || locked) return;
+    if (wantsFull) {
+      autoImmersed.current = true;
+      setImmersive(true);
+      return;
+    }
+    if (!getToken()) {
+      autoImmersed.current = true;
+      setImmersive(true);
+      return;
+    }
+    if (ownerChecked) {
+      autoImmersed.current = true;
+      if (!isOwner) setImmersive(true);
+    }
+  }, [wantsFull, artifactUrl, locked, ownerChecked, isOwner]);
 
   useEffect(() => {
     if (!immersive) return;
@@ -183,10 +279,13 @@ export default function ArtifactView({
   }
 
   async function handleDownload() {
-    if (!artifactUrl) return;
+    // download_url, not artifact_url: the latter is a viewer *page* for PDFs,
+    // sheets and docs, so downloading it would save the HTML wrapper.
+    const src = downloadUrl || artifactUrl;
+    if (!src) return;
     setDownloading(true);
     try {
-      const res = await fetch(artifactUrl);
+      const res = await fetch(src);
       if (!res.ok) throw new Error();
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement("a");
@@ -198,7 +297,7 @@ export default function ArtifactView({
       URL.revokeObjectURL(url);
     } catch {
       // Last resort: open it rather than silently doing nothing.
-      window.open(artifactUrl, "_blank", "noopener");
+      window.open(src, "_blank", "noopener");
     } finally {
       setDownloading(false);
     }
@@ -270,6 +369,15 @@ export default function ArtifactView({
               {downloading ? "Preparing…" : "Download"}
             </button>
           </>
+        )}
+        {isOwner && (
+          <button onClick={openEdit} className={btn}>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" />
+            </svg>
+            Settings
+          </button>
         )}
         {isOwner && (
           <button
@@ -354,20 +462,159 @@ export default function ArtifactView({
             title={title || slug}
             className="w-full h-full border-0 bg-white"
           />
-          {/* Floating exit — the only chrome, and it fades back until hovered
-              so it never competes with the content it sits on. */}
+          {/* One control, bottom-right. Top-right is where PDF.js, SheetJS and
+              plenty of user pages put their own toolbars, so anchoring here
+              keeps it clear of the rendered content. Fades back until hovered. */}
           <button
             onClick={() => setImmersive(false)}
-            aria-label="Exit full screen"
-            className="group fixed top-3 right-3 z-[101] inline-flex items-center gap-1.5 rounded-full bg-black/55 hover:bg-black/80 backdrop-blur px-3 py-1.5 text-xs font-medium text-white/80 hover:text-white opacity-40 hover:opacity-100 transition-all"
+            aria-label="Show document details"
+            className="fixed bottom-4 right-4 z-[101] inline-flex items-center gap-2 rounded-full bg-black/60 hover:bg-black/85 backdrop-blur px-3.5 py-2 text-xs font-medium text-white/85 hover:text-white shadow-lg opacity-45 hover:opacity-100 focus:opacity-100 transition-all"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M18 6 6 18M6 6l12 12" />
+              <path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M9 21H5a2 2 0 0 1-2-2v-4M15 21h4a2 2 0 0 0 2-2v-4" />
             </svg>
-            Exit
-            <kbd className="hidden sm:inline ml-0.5 rounded border border-white/25 px-1 text-[10px] leading-4">Esc</kbd>
+            Show details
+            <kbd className="hidden sm:inline rounded border border-white/25 px-1 text-[10px] leading-4">Esc</kbd>
           </button>
         </div>
+      )}
+
+      {showEdit && (
+        <Modal title="Artifact settings" onClose={() => !eBusy && setShowEdit(false)}>
+          <div className="space-y-4">
+            {/* Replace the file — same link, new content */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                File
+              </label>
+              <input
+                ref={replaceInput}
+                type="file"
+                hidden
+                onChange={(e) => setEFile(e.target.files?.[0] ?? null)}
+              />
+              <button
+                onClick={() => replaceInput.current?.click()}
+                disabled={eBusy}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-dashed border-gray-300 dark:border-gray-700 hover:border-blue-400 disabled:opacity-50 transition-colors"
+              >
+                <ArtifactBadge renderer={renderer} label={typeLabel} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm text-gray-900 dark:text-gray-100 truncate">
+                    {eFile ? eFile.name : originalFilename || "Current file"}
+                  </span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">
+                    {eFile
+                      ? `${formatBytes(eFile.size)} · will replace the current file`
+                      : `${formatBytes(sizeBytes)} · click to replace, the link stays the same`}
+                  </span>
+                </span>
+              </button>
+              {eBusy && eProgress > 0 && eProgress < 100 && (
+                <div className="mt-2 h-1 w-full bg-gray-200 dark:bg-gray-800 rounded overflow-hidden">
+                  <div className="h-full bg-blue-500 transition-all" style={{ width: `${eProgress}%` }} />
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Title</label>
+              <input
+                type="text"
+                value={eTitle}
+                onChange={(e) => setETitle(e.target.value)}
+                maxLength={200}
+                placeholder="Untitled"
+                className="w-full text-sm bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Link</label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-400 shrink-0">markdrop.in/</span>
+                <input
+                  type="text"
+                  value={eSlug}
+                  onChange={(e) => /^[a-zA-Z0-9_-]*$/.test(e.target.value) && setESlug(e.target.value)}
+                  maxLength={50}
+                  className="flex-1 min-w-0 text-sm font-mono bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
+              {eSlug !== slug && (
+                <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                  The old link will stop working. Views and analytics carry over.
+                </p>
+              )}
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                  Password
+                </label>
+                {protectedNow && !ePassword ? (
+                  <label className="flex items-center gap-2 h-[38px] px-3 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer select-none">
+                    <input type="checkbox" checked={eRemovePwd} onChange={(e) => setERemovePwd(e.target.checked)} className="accent-red-500" />
+                    <span className="text-xs text-gray-600 dark:text-gray-300">Remove password</span>
+                  </label>
+                ) : (
+                  <input
+                    type="password"
+                    value={ePassword}
+                    onChange={(e) => setEPassword(e.target.value)}
+                    maxLength={100}
+                    placeholder={protectedNow ? "New password" : "Add a password"}
+                    className="w-full text-sm bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors"
+                  />
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Expiry</label>
+                <select
+                  value={eExpiry}
+                  onChange={(e) => setEExpiry(e.target.value as ExpiresIn | "")}
+                  className="w-full text-sm bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 cursor-pointer transition-colors"
+                >
+                  <option value="">Leave unchanged</option>
+                  <option value="never">Never expires</option>
+                  <option value="1d">1 day</option>
+                  <option value="7d">7 days</option>
+                  <option value="30d">30 days</option>
+                </select>
+              </div>
+            </div>
+
+            {eError && <p className="text-xs text-red-500">{eError}</p>}
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <button
+                onClick={() => { setShowEdit(false); setShowDelete(true); }}
+                disabled={eBusy}
+                className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+              >
+                Delete artifact
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowEdit(false)}
+                  disabled={eBusy}
+                  className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveEdit}
+                  disabled={eBusy}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium transition-colors"
+                >
+                  {eBusy && <Spinner className="w-4 h-4" />}
+                  {eBusy ? (eProgress > 0 && eProgress < 100 ? `Uploading ${eProgress}%` : "Saving…") : "Save changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {showDelete && (

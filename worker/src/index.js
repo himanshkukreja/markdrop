@@ -210,16 +210,28 @@ const SHELL_CSS = `
 
 function pdfViewer(src) {
   // Rendered with PDF.js to <canvas>, NOT <embed>. A sandboxed iframe blocks
-  // plugin content outright — the browser's built-in PDF viewer is a plugin, so
-  // <embed> silently fails here with "the frame into which the plugin is
-  // loading is sandboxed". Canvas rendering is plain JS and works inside the
-  // sandbox, which is non-negotiable for user-supplied files.
+  // plugin content outright, so the browser's built-in PDF viewer silently
+  // fails here. Sandboxing is non-negotiable for user files, so we draw.
+  //
+  // Canvas alone gives pixels with no selectable text, so each page also gets
+  // PDF.js's text layer: transparent, absolutely-positioned spans aligned over
+  // the render. That's what makes the content selectable and copyable.
   return `<!doctype html><meta charset="utf-8"><title>PDF</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>${SHELL_CSS}
   .pdf{display:flex;flex-direction:column;align-items:center;gap:14px;padding:16px}
-  .pdf canvas{max-width:100%;height:auto;border-radius:6px;box-shadow:0 4px 24px rgba(0,0,0,.45);background:#fff}
-  .bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:12px;
+  .page{position:relative;border-radius:6px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.45);background:#fff}
+  .page canvas{display:block;max-width:100%;height:auto}
+  /* pdf.js text layer: invisible text sitting exactly over the drawn glyphs. */
+  .textLayer{position:absolute;inset:0;overflow:hidden;line-height:1;
+    text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;
+    caret-color:#000;z-index:2}
+  .textLayer span,.textLayer br{position:absolute;white-space:pre;cursor:text;
+    transform-origin:0% 0%;color:transparent}
+  .textLayer ::selection{background:rgba(59,130,246,.45)}
+  .textLayer .endOfContent{position:absolute;inset:100% 0 0;display:block;
+    cursor:default;user-select:none}
+  .bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;
        padding:.55rem .9rem;background:#111c33;border-bottom:1px solid rgba(255,255,255,.06);
        font-size:12px;color:#94a3b8}
   .bar a{margin-left:auto;color:#60a5fa;text-decoration:none}
@@ -228,30 +240,64 @@ function pdfViewer(src) {
 <div class="wrap"><div id="out" class="pdf"></div></div>
 <script type="module">
 const SRC = ${JSON.stringify(src)};
+const V = "4.10.38";
 document.getElementById('dl').href = SRC;
 const status = document.getElementById('status'), out = document.getElementById('out');
 try {
-  const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');
+  const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V + '/pdf.min.mjs');
   // The pdf.js worker lives on another origin and a cross-origin new Worker()
   // is forbidden, so fetch it and hand pdf.js a same-origin blob URL instead.
-  const workerCode = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs').then(r => r.text());
+  const workerCode = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V + '/pdf.worker.min.mjs').then(r => r.text());
   pdfjs.GlobalWorkerOptions.workerSrc =
     URL.createObjectURL(new Blob([workerCode], { type: 'text/javascript' }));
 
   const doc = await pdfjs.getDocument({ url: SRC }).promise;
-  status.textContent = doc.numPages + (doc.numPages === 1 ? ' page' : ' pages');
-  // Cap the work: a huge PDF shouldn't lock the tab up rendering every page.
+  status.textContent = doc.numPages + (doc.numPages === 1 ? ' page' : ' pages') + ' · select text to copy';
+  const dpr = window.devicePixelRatio || 1;
   const limit = Math.min(doc.numPages, 50);
+
   for (let n = 1; n <= limit; n++) {
     const page = await doc.getPage(n);
-    const scale = Math.min(2, (Math.min(window.innerWidth, 1100) - 40) / page.getViewport({ scale: 1 }).width);
-    const viewport = page.getViewport({ scale: Math.max(scale, 0.5) * (window.devicePixelRatio || 1) });
+    const base = page.getViewport({ scale: 1 });
+    const cssScale = Math.max(0.5, Math.min(2, (Math.min(window.innerWidth, 1100) - 40) / base.width));
+    // CSS-space viewport drives layout AND the text layer; the canvas backing
+    // store is scaled by DPR on top so the render stays sharp.
+    const viewport = page.getViewport({ scale: cssScale });
+
+    const wrap = document.createElement('div');
+    wrap.className = 'page';
+    wrap.style.width = viewport.width + 'px';
+    wrap.style.height = viewport.height + 'px';
+
     const canvas = document.createElement('canvas');
-    canvas.width = viewport.width; canvas.height = viewport.height;
-    canvas.style.width = Math.round(viewport.width / (window.devicePixelRatio || 1)) + 'px';
-    out.appendChild(canvas);
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    canvas.width = Math.floor(viewport.width * dpr);
+    canvas.height = Math.floor(viewport.height * dpr);
+    canvas.style.width = viewport.width + 'px';
+    canvas.style.height = viewport.height + 'px';
+    wrap.appendChild(canvas);
+
+    const textDiv = document.createElement('div');
+    textDiv.className = 'textLayer';
+    wrap.appendChild(textDiv);
+    out.appendChild(wrap);
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    // Text layer. pdf.js 4.x exposes the TextLayer class; fall back to the
+    // older renderTextLayer helper so a CDN version bump can't blank it out.
+    const textContent = await page.getTextContent();
+    if (pdfjs.TextLayer) {
+      await new pdfjs.TextLayer({ textContentSource: textContent, container: textDiv, viewport }).render();
+    } else if (pdfjs.renderTextLayer) {
+      await pdfjs.renderTextLayer({ textContentSource: textContent, container: textDiv, viewport }).promise;
+    }
+    const end = document.createElement('div');
+    end.className = 'endOfContent';
+    textDiv.appendChild(end);
   }
+
   if (doc.numPages > limit) {
     const more = document.createElement('p');
     more.className = 'msg';
