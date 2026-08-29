@@ -1,6 +1,7 @@
 import { getDocument, API_BASE } from "@/lib/api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import ArtifactView from "./ArtifactView";
 import DocumentView from "./DocumentView";
 
 interface Props {
@@ -57,6 +58,31 @@ export default async function SlugPage({ params, searchParams }: Props) {
     }
   }
 
+  // Artifacts render their file in a sandboxed iframe on the artifact origin
+  // rather than as markdown, so they get their own viewer entirely.
+  if (doc?.kind === "artifact") {
+    return (
+      <ArtifactView
+        slug={slug}
+        title={doc.title}
+        url={`https://markdrop.in/${slug}`}
+        createdAt={doc.created_at}
+        views={doc.views}
+        isNew={isNew === "1"}
+        isPasswordProtected={false}
+        mime={doc.mime ?? "application/octet-stream"}
+        renderer={doc.renderer ?? "download"}
+        typeLabel={doc.type_label ?? "File"}
+        sizeBytes={doc.size_bytes ?? 0}
+        originalFilename={doc.original_filename ?? null}
+        artifactUrl={doc.artifact_url ?? null}
+      />
+    );
+  }
+
+  // A protected document 401s on the anonymous SSR fetch, so we can't yet tell
+  // markdown from artifact. DocumentView handles the gate and re-renders once
+  // it knows — see its `kind` check after unlock.
   return (
     <DocumentView
       slug={slug}

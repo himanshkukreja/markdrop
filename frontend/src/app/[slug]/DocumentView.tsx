@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
 import VSCodeIcon from "@/components/VSCodeIcon";
+import ArtifactView from "./ArtifactView";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -265,6 +266,10 @@ export default function DocumentView({
     }
   }
 
+  // Set when a password unlock reveals the document is actually an artifact —
+  // the anonymous SSR fetch 401s, so kind isn't known until then.
+  const [artifactDoc, setArtifactDoc] = useState<import("@/lib/api").DocumentResponse | null>(null);
+
   // Live display state
   const [displayTitle, setDisplayTitle] = useState(initialTitle);
   const [displayContent, setDisplayContent] = useState(initialContent);
@@ -512,6 +517,11 @@ export default function DocumentView({
     try {
       const doc = await getDocument(slug, pwdInput);
       sessionStorage.setItem(`pwd:${slug}`, pwdInput);
+      if (doc.kind === "artifact") {
+        setArtifactDoc(doc);
+        setPwdLocked(false);
+        return;
+      }
       setDisplayTitle(doc.title);
       setDisplayContent(doc.content);
       setDisplayCreatedAt(doc.created_at);
@@ -613,6 +623,26 @@ export default function DocumentView({
 
   const remaining = MAX_CHARS - editContent.length;
   const activeTextareaRef = viewMode === "split" ? textareaRef : writeTextareaRef;
+
+  // ── Artifact discovered behind the password gate ───────────────────────────
+  if (artifactDoc) {
+    return (
+      <ArtifactView
+        slug={slug}
+        title={artifactDoc.title}
+        url={url}
+        createdAt={artifactDoc.created_at}
+        views={artifactDoc.views}
+        isPasswordProtected
+        mime={artifactDoc.mime ?? "application/octet-stream"}
+        renderer={artifactDoc.renderer ?? "download"}
+        typeLabel={artifactDoc.type_label ?? "File"}
+        sizeBytes={artifactDoc.size_bytes ?? 0}
+        originalFilename={artifactDoc.original_filename ?? null}
+        artifactUrl={artifactDoc.artifact_url ?? null}
+      />
+    );
+  }
 
   // ── Secret unlock screen ───────────────────────────────────────────────────
   if (editing && !secretUnlocked) {

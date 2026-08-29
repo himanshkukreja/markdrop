@@ -55,6 +55,137 @@ export interface DocumentResponse {
   google_doc_url?: string | null;
   google_doc_stale?: boolean;
   vscode_synced?: boolean;
+  // ── Artifacts ──────────────────────────────────────────────────────────────
+  // kind="artifact" documents keep their bytes in R2 and render on a separate
+  // origin; `content` is only a search stand-in, not the document.
+  kind?: DocKind;
+  mime?: string | null;
+  renderer?: ArtifactRenderer | null;
+  type_label?: string | null;
+  size_bytes?: number | null;
+  original_filename?: string | null;
+  artifact_url?: string | null;
+}
+
+export type DocKind = "markdown" | "artifact";
+export type ArtifactRenderer = "html" | "pdf" | "sheet" | "image" | "text" | "download";
+
+export interface ArtifactStatus {
+  configured: boolean;
+  origin_isolated: boolean;
+  origin_separate_site: boolean;
+  max_file_bytes: number;
+  quota_bytes: number;
+  used_bytes: number;
+  accepted_types: string[];
+}
+
+export async function getArtifactStatus(): Promise<ArtifactStatus> {
+  const res = await fetch(`${API_BASE}/api/v1/artifacts/status`, {
+    cache: "no-store",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) throw new Error("Could not load artifact status");
+  return res.json();
+}
+
+export interface ArtifactCreateResponse extends DocumentResponse {
+  edit_secret: string;
+  artifact_url: string;
+  mime: string;
+  renderer: ArtifactRenderer;
+}
+
+interface ArtifactOptions {
+  customSlug?: string;
+  expiresIn?: ExpiresIn;
+  customExpiresAt?: string;
+  readPassword?: string;
+}
+
+function artifactBody(options?: ArtifactOptions) {
+  return {
+    custom_slug: options?.customSlug?.trim() || null,
+    expires_in: options?.expiresIn ?? "never",
+    custom_expires_at: options?.customExpiresAt ?? null,
+    read_password: options?.readPassword || null,
+  };
+}
+
+async function artifactError(res: Response, fallback: string): Promise<Error> {
+  const err = await res.json().catch(() => ({ detail: fallback }));
+  return new Error(typeof err.detail === "string" ? err.detail : fallback);
+}
+
+/**
+ * Upload a file as an artifact.
+ *
+ * Three legs: ask the API for a presigned PUT, send the bytes straight to R2
+ * (they never touch our server), then confirm so the API can verify the real
+ * size/type and mint the shareable slug. `onProgress` reports the upload leg,
+ * which is the only slow one.
+ */
+export async function uploadArtifact(
+  file: File,
+  title: string,
+  options?: ArtifactOptions & { onProgress?: (pct: number) => void }
+): Promise<ArtifactCreateResponse> {
+  const urlRes = await fetch(`${API_BASE}/api/v1/artifacts/upload-url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      filename: file.name,
+      content_type: file.type || "application/octet-stream",
+      size_bytes: file.size,
+    }),
+  });
+  if (!urlRes.ok) throw await artifactError(urlRes, "Could not start the upload");
+  const { upload_url, blob_key, required_content_type } = await urlRes.json();
+
+  // XHR rather than fetch: we want upload progress, which fetch can't report.
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", upload_url, true);
+    // The presigned signature binds this header — it must match exactly.
+    xhr.setRequestHeader("Content-Type", required_content_type);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) options?.onProgress?.(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error(`Upload failed (${xhr.status})`));
+    xhr.onerror = () => reject(new Error("Upload failed — check your connection"));
+    xhr.send(file);
+  });
+
+  const confirmRes = await fetch(`${API_BASE}/api/v1/artifacts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      blob_key,
+      title: title.trim() || null,
+      filename: file.name,
+      ...artifactBody(options),
+    }),
+  });
+  if (!confirmRes.ok) throw await artifactError(confirmRes, "Could not publish the artifact");
+  return confirmRes.json();
+}
+
+/** Publish pasted HTML directly — no presigned round trip for a small page. */
+export async function pasteHtmlArtifact(
+  content: string,
+  title: string,
+  options?: ArtifactOptions
+): Promise<ArtifactCreateResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/artifacts/paste`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ content, title: title.trim() || null, ...artifactBody(options) }),
+  });
+  if (!res.ok) throw await artifactError(res, "Could not publish the page");
+  return res.json();
 }
 
 export type ExpiresIn = "never" | "1d" | "7d" | "30d" | "custom";
