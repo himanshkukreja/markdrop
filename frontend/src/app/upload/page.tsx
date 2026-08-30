@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Spinner from "@/components/Spinner";
 import { slugifyFilename, titleFromFilename } from "@/lib/slugify";
 import ArtifactPreview from "./ArtifactPreview";
+import { consumePending, savePending } from "./pendingUpload";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getArtifactStatus,
@@ -58,7 +59,7 @@ function formatBytes(n: number): string {
 
 export default function UploadArtifactPage() {
   const router = useRouter();
-  const { user, openAuthModal } = useAuth();
+  const { user, loading: authLoading, openAuthModal } = useAuth();
 
   const [tab, setTab] = useState<Tab>("paste");
   const [status, setStatus] = useState<ArtifactStatus | null>(null);
@@ -70,6 +71,7 @@ export default function UploadArtifactPage() {
   const [slugError, setSlugError] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [pastePreview, setPastePreview] = useState(false);
+  const [restored, setRestored] = useState(false);
   const [titleTouched, setTitleTouched] = useState(false);
   const [expiresIn, setExpiresIn] = useState<ExpiresIn>("never");
   const [readPassword, setReadPassword] = useState("");
@@ -81,6 +83,29 @@ export default function UploadArtifactPage() {
   useEffect(() => {
     getArtifactStatus().then(setStatus).catch(() => {});
   }, [user]);
+
+  // Restore a draft left behind by the sign-in prompt. consumePending() deletes
+  // as it reads and ignores anything stale, so this fires at most once and a
+  // later visit to /upload is always a clean form.
+  const restoreTried = useRef(false);
+  useEffect(() => {
+    if (authLoading || !user || restoreTried.current) return;
+    restoreTried.current = true;
+    consumePending().then((d) => {
+      if (!d) return;
+      setTab(d.tab);
+      setHtml(d.html);
+      setFile(d.file);
+      setTitle(d.title);
+      setCustomSlug(d.customSlug);
+      setExpiresIn(d.expiresIn as ExpiresIn);
+      setReadPassword(d.readPassword);
+      // Anything they typed is theirs — don't let the filename prefill stomp it.
+      setTitleTouched(true);
+      setSlugTouched(true);
+      setRestored(true);
+    });
+  }, [authLoading, user]);
 
   function pickFile(f: File | null) {
     if (!f) return;
@@ -111,6 +136,13 @@ export default function UploadArtifactPage() {
 
   async function publish() {
     if (!user) {
+      // Google's flow navigates away and back, so hold everything they've
+      // entered. Saved only here — pressing Publish is the one moment we know
+      // the draft is worth keeping.
+      await savePending({
+        tab, html, file, title, customSlug,
+        expiresIn, readPassword,
+      });
       openAuthModal({
         title: "Sign in to publish an artifact",
         message:
@@ -424,6 +456,13 @@ export default function UploadArtifactPage() {
         <p className="text-xs text-gray-400">
           {formatBytes(status.used_bytes)} of {formatBytes(status.quota_bytes)} storage used
         </p>
+      )}
+
+      {restored && (
+        <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-xs text-emerald-700 dark:text-emerald-400">
+          <span>Signed in — everything you had is still here. Publish when you&apos;re ready.</span>
+          <button onClick={() => setRestored(false)} aria-label="Dismiss" className="shrink-0 opacity-60 hover:opacity-100">✕</button>
+        </div>
       )}
 
       {error && (
