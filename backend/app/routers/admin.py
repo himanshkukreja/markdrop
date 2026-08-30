@@ -43,7 +43,7 @@ from app.schemas.auth import (
     RenderedSample,
 )
 from app.schemas.document import MAX_CONTENT
-from app.services import campaign, mailer
+from app.services import artifact, campaign, mailer
 from app.services import feedback as feedback_service
 
 settings = get_settings()
@@ -78,6 +78,14 @@ class AdminDocListItem(BaseModel):
     owner_id: str | None = None
     owner_email: str | None = None
     report_count: int = 0
+    # Artifacts: `content_preview` is only a filename stand-in for these, so the
+    # UI needs the type and real size to say anything useful about them.
+    kind: str = "markdown"
+    mime: str | None = None
+    renderer: str | None = None
+    type_label: str | None = None
+    size_bytes: int | None = None
+    original_filename: str | None = None
 
 
 class AdminDocListResponse(BaseModel):
@@ -124,6 +132,12 @@ class FeatureUsageResponse(BaseModel):
     share_events_total: int
     share_users_identified: int
     share_events_anonymous: int
+    # Artifacts
+    artifact_total: int = 0
+    artifact_users: int = 0
+    artifact_bytes: int = 0
+    artifact_protected: int = 0
+    artifact_by_type: list[dict] = []
 
 
 class AdminShareEventItem(BaseModel):
@@ -236,6 +250,20 @@ def _to_list_item(raw: dict, owner_email: str | None = None) -> AdminDocListItem
         owner_id=raw.get("owner_id"),
         owner_email=owner_email,
         report_count=raw.get("report_count", 0),
+        kind=raw.get("kind", "markdown"),
+        mime=raw.get("mime"),
+        renderer=(
+            artifact.renderer_for(raw.get("mime") or "")
+            if raw.get("kind") == "artifact"
+            else None
+        ),
+        type_label=(
+            artifact.label_for(raw.get("mime") or "")
+            if raw.get("kind") == "artifact"
+            else None
+        ),
+        size_bytes=raw.get("size_bytes"),
+        original_filename=raw.get("original_filename"),
     )
 
 
@@ -286,6 +314,7 @@ async def list_all_documents(
     limit: int = Query(20, ge=1, le=100),
     q: str | None = Query(None),
     reported: bool = Query(False),
+    kind: str | None = Query(None, pattern="^(markdown|artifact)$"),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
@@ -295,6 +324,11 @@ async def list_all_documents(
         query["$text"] = {"$search": q}
     if reported:
         query["report_count"] = {"$gt": 0}
+    if kind == "artifact":
+        query["kind"] = "artifact"
+    elif kind == "markdown":
+        # Documents predating artifacts have no `kind` field at all.
+        query["kind"] = {"$ne": "artifact"}
 
     total = await db["documents"].count_documents(query)
     skip = (page - 1) * limit
@@ -345,6 +379,8 @@ async def list_all_users(
     gdoc_counts: dict[str, int] = {}
     token_agg: dict[str, dict] = {}
     share_counts: dict[str, int] = {}
+    artifact_counts: dict[str, int] = {}
+    artifact_bytes: dict[str, int] = {}
     if ids:
         # Document counts (all + Google-exported) in a single pass
         async for row in db["documents"].aggregate(
@@ -357,12 +393,26 @@ async def list_all_users(
                         "gdocs": {
                             "$sum": {"$cond": [{"$ifNull": ["$google_doc_id", False]}, 1, 0]}
                         },
+                        "artifacts": {
+                            "$sum": {"$cond": [{"$eq": ["$kind", "artifact"]}, 1, 0]}
+                        },
+                        "artifact_bytes": {
+                            "$sum": {
+                                "$cond": [
+                                    {"$eq": ["$kind", "artifact"]},
+                                    {"$ifNull": ["$size_bytes", 0]},
+                                    0,
+                                ]
+                            }
+                        },
                     }
                 },
             ]
         ):
             counts[row["_id"]] = row["n"]
             gdoc_counts[row["_id"]] = row.get("gdocs", 0)
+            artifact_counts[row["_id"]] = row.get("artifacts", 0)
+            artifact_bytes[row["_id"]] = row.get("artifact_bytes", 0)
 
         # VS Code sync: token count + most recent sync per user
         async for row in db["api_tokens"].aggregate(
@@ -407,6 +457,8 @@ async def list_all_users(
                 google_connected=bool(u.get("google_refresh_token_enc")),
                 google_export_count=gdoc_counts.get(uid, 0),
                 share_count=share_counts.get(uid, 0),
+                artifact_count=artifact_counts.get(uid, 0),
+                artifact_bytes=artifact_bytes.get(uid, 0),
             )
         )
     return AdminUserListResponse(
@@ -444,8 +496,45 @@ async def feature_usage(
         "user_id", {"user_id": {"$ne": None}}
     )
 
+    # Artifacts — adoption, storage footprint, and the mix of file types, which
+    # is what decides whether a renderer is worth further investment.
+    artifact_total = await db["documents"].count_documents({"kind": "artifact"})
+    artifact_users = await db["documents"].distinct(
+        "owner_id", {"kind": "artifact", "owner_id": {"$ne": None}}
+    )
+    artifact_protected = await db["documents"].count_documents(
+        {"kind": "artifact", "read_password_hash": {"$ne": None}}
+    )
+    # Bucketed by renderer, not raw mime: .xls and .xlsx are different mime
+    # types that render identically, and listing "Excel spreadsheet" twice reads
+    # as a bug rather than a distinction.
+    buckets: dict[str, dict] = {}
+    total_bytes = 0
+    async for row in db["documents"].aggregate(
+        [
+            {"$match": {"kind": "artifact"}},
+            {"$group": {"_id": "$mime", "n": {"$sum": 1},
+                        "bytes": {"$sum": {"$ifNull": ["$size_bytes", 0]}}}},
+        ]
+    ):
+        mime = row["_id"] or ""
+        renderer = artifact.renderer_for(mime)
+        total_bytes += row.get("bytes", 0)
+        b = buckets.setdefault(
+            renderer,
+            {"renderer": renderer, "label": artifact.label_for(mime), "count": 0, "bytes": 0},
+        )
+        b["count"] += row["n"]
+        b["bytes"] += row.get("bytes", 0)
+    by_type = sorted(buckets.values(), key=lambda b: -b["count"])
+
     return FeatureUsageResponse(
         total_users=total_users,
+        artifact_total=artifact_total,
+        artifact_users=len(artifact_users),
+        artifact_bytes=total_bytes,
+        artifact_protected=artifact_protected,
+        artifact_by_type=by_type,
         vscode_users_with_token=len(token_users),
         vscode_users_synced=len(synced_users),
         vscode_tokens_total=tokens_total,

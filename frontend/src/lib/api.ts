@@ -637,6 +637,12 @@ export interface AdminDocListItem {
   owner_id: string | null;
   owner_email: string | null;
   report_count: number;
+  kind?: DocKind;
+  mime?: string | null;
+  renderer?: ArtifactRenderer | null;
+  type_label?: string | null;
+  size_bytes?: number | null;
+  original_filename?: string | null;
 }
 
 export interface AdminUserListItem {
@@ -653,6 +659,8 @@ export interface AdminUserListItem {
   google_connected: boolean;
   google_export_count: number;
   share_count: number;
+  artifact_count: number;
+  artifact_bytes: number;
 }
 
 export interface FeatureUsage {
@@ -665,6 +673,11 @@ export interface FeatureUsage {
   share_events_total: number;
   share_users_identified: number;
   share_events_anonymous: number;
+  artifact_total: number;
+  artifact_users: number;
+  artifact_bytes: number;
+  artifact_protected: number;
+  artifact_by_type: { renderer: ArtifactRenderer; label: string; count: number; bytes: number }[];
 }
 
 export interface AdminShareEventItem {
@@ -752,11 +765,13 @@ export async function adminListDocuments(
   page = 1,
   limit = 20,
   q?: string,
-  reported = false
+  reported = false,
+  kind?: DocKind
 ): Promise<AdminDocListResponse> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (q) params.set("q", q);
   if (reported) params.set("reported", "1");
+  if (kind) params.set("kind", kind);
   const res = await fetch(`${API_BASE}/api/v1/admin/documents?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",

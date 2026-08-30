@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import EmailPanel from "./EmailPanel";
+import ArtifactBadge from "@/components/ArtifactBadge";
 import { formatBytes } from "@/lib/webrtc";
 import {
   AdminDocListItem,
+  DocKind,
   AdminUserListItem,
   AdminShareEventItem,
   AdminFeedbackItem,
@@ -49,6 +51,7 @@ export default function AdminApp() {
   const [pages, setPages] = useState(1);
   const [search, setSearch] = useState("");
   const [reportedOnly, setReportedOnly] = useState(false);
+  const [docKind, setDocKind] = useState<DocKind | "all">("all");
   const [dashLoading, setDashLoading] = useState(false);
   const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -106,10 +109,12 @@ export default function AdminApp() {
 
   // ── Load documents ───────────────────────────────────────────────────────────
   const loadDocs = useCallback(
-    async (tok: string, pg = 1, q = "", reported = false) => {
+    async (tok: string, pg = 1, q = "", reported = false, kind: DocKind | "all" = "all") => {
       setDashLoading(true);
       try {
-        const res = await adminListDocuments(tok, pg, 20, q || undefined, reported);
+        const res = await adminListDocuments(
+          tok, pg, 20, q || undefined, reported, kind === "all" ? undefined : kind
+        );
         setDocs(res.documents);
         setTotal(res.total);
         setPage(res.page);
@@ -283,7 +288,7 @@ export default function AdminApp() {
     setSearch(val);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      if (token) loadDocs(token, 1, val, reportedOnly);
+      if (token) loadDocs(token, 1, val, reportedOnly, docKind);
     }, 400);
   };
 
@@ -291,7 +296,7 @@ export default function AdminApp() {
     const v = !reportedOnly;
     setReportedOnly(v);
     setPage(1);
-    if (token) loadDocs(token, 1, search, v);
+    if (token) loadDocs(token, 1, search, v, docKind);
   };
 
   // ── Login ─────────────────────────────────────────────────────────────────────
@@ -635,6 +640,26 @@ export default function AdminApp() {
           className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526] text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
+        <div className="shrink-0 flex items-center gap-1 p-1 rounded-xl bg-gray-100/80 dark:bg-gray-900/60 vscode:bg-[#1e1e1e]">
+          {([
+            { id: "all" as const, label: "All" },
+            { id: "markdown" as const, label: "Docs" },
+            { id: "artifact" as const, label: "Artifacts" },
+          ]).map((k) => (
+            <button
+              key={k.id}
+              onClick={() => { setDocKind(k.id); if (token) loadDocs(token, 1, search, reportedOnly, k.id); }}
+              aria-pressed={docKind === k.id}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                docKind === k.id
+                  ? "bg-white dark:bg-gray-800 vscode:bg-[#2d2d2d] text-gray-900 dark:text-gray-100 shadow-sm"
+                  : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+              }`}
+            >
+              {k.label}
+            </button>
+          ))}
+        </div>
         <button
           onClick={toggleReported}
           className={`shrink-0 px-3 py-2.5 text-sm rounded-xl border transition-colors ${
@@ -729,6 +754,9 @@ export default function AdminApp() {
                         >
                           {doc.slug}
                         </a>
+                        {doc.kind === "artifact" && (
+                          <ArtifactBadge renderer={doc.renderer} label={doc.type_label} className="shrink-0" />
+                        )}
                         {doc.report_count > 0 && (
                           <span
                             title={`${doc.report_count} report(s)`}
@@ -749,6 +777,11 @@ export default function AdminApp() {
                           </span>
                         )}
                       </p>
+                      {doc.kind === "artifact" && doc.original_filename && (
+                        <p className="mt-0.5 text-[11px] font-mono text-gray-400 dark:text-gray-600 truncate">
+                          {doc.original_filename}
+                        </p>
+                      )}
                       <p className="text-[10px] mt-0.5 truncate">
                         {doc.owner_email ? (
                           <span className="text-emerald-600 dark:text-emerald-400" title={doc.owner_id ?? ""}>👤 {doc.owner_email}</span>
@@ -804,7 +837,9 @@ export default function AdminApp() {
                     {/* Chars */}
                     <td className="hidden lg:table-cell px-4 py-3 text-right">
                       <span className="text-xs tabular-nums text-gray-400 dark:text-gray-600 vscode:text-[#6a6a6a]">
-                        {doc.content_length.toLocaleString()}
+                        {doc.kind === "artifact"
+                          ? formatBytes(doc.size_bytes ?? 0)
+                          : doc.content_length.toLocaleString()}
                       </span>
                     </td>
 
@@ -891,7 +926,7 @@ export default function AdminApp() {
               onClick={() => {
                 const p = page - 1;
                 setPage(p);
-                if (token) loadDocs(token, p, search, reportedOnly);
+                if (token) loadDocs(token, p, search, reportedOnly, docKind);
               }}
               className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300 vscode:text-[#d4d4d4] transition-colors"
             >
@@ -902,7 +937,7 @@ export default function AdminApp() {
               onClick={() => {
                 const p = page + 1;
                 setPage(p);
-                if (token) loadDocs(token, p, search, reportedOnly);
+                if (token) loadDocs(token, p, search, reportedOnly, docKind);
               }}
               className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300 vscode:text-[#d4d4d4] transition-colors"
             >
@@ -945,6 +980,7 @@ export default function AdminApp() {
                     <th className="text-center px-4 py-3" title="VS Code sync">VS Code</th>
                     <th className="text-center px-4 py-3" title="Google Drive connected / docs exported">Drive</th>
                     <th className="hidden sm:table-cell text-right px-4 py-3" title="P2P files shared">Shares</th>
+                    <th className="hidden sm:table-cell text-right px-4 py-3" title="Artifacts published and storage used">Artifacts</th>
                     <th className="hidden lg:table-cell text-left px-4 py-3">Last login</th>
                   </tr>
                 </thead>
@@ -1007,6 +1043,20 @@ export default function AdminApp() {
                       {/* P2P shares */}
                       <td className="hidden sm:table-cell px-4 py-3 text-right text-xs tabular-nums text-gray-500 dark:text-gray-400">{u.share_count || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
 
+                      {/* Artifacts published + what they're storing */}
+                      <td className="hidden sm:table-cell px-4 py-3 text-right">
+                        {u.artifact_count ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-500/10 text-orange-600 dark:text-orange-400"
+                            title={`${u.artifact_count} artifact(s) · ${formatBytes(u.artifact_bytes)} stored`}
+                          >
+                            {u.artifact_count} · {formatBytes(u.artifact_bytes)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
+                        )}
+                      </td>
+
                       <td className="hidden lg:table-cell px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
                     </tr>
                   ))}
@@ -1037,7 +1087,17 @@ export default function AdminApp() {
             <>
               {/* Summary cards */}
               {usage && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* Artifacts */}
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526]">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">Artifacts</p>
+                    <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.artifact_total.toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">published</p>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+                      {usage.artifact_users.toLocaleString()} publisher{usage.artifact_users === 1 ? "" : "s"} · {formatBytes(usage.artifact_bytes)} stored
+                      {usage.artifact_protected > 0 && <> · {usage.artifact_protected} protected</>}
+                    </p>
+                  </div>
                   {/* VS Code sync */}
                   <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526]">
                     <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">VS Code sync</p>
@@ -1064,6 +1124,37 @@ export default function AdminApp() {
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
                       {usage.share_users_identified.toLocaleString()} signed-in senders · {usage.share_events_anonymous.toLocaleString()} anonymous
                     </p>
+                  </div>
+                </div>
+              )}
+
+              {usage && usage.artifact_by_type.length > 0 && (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526]">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+                    Artifacts by type
+                  </p>
+                  <div className="space-y-2">
+                    {usage.artifact_by_type.map((t) => {
+                      const pct = usage.artifact_total
+                        ? Math.round((t.count / usage.artifact_total) * 100)
+                        : 0;
+                      return (
+                        <div key={t.renderer} className="flex items-center gap-3">
+                          <div className="w-28 shrink-0">
+                            <ArtifactBadge renderer={t.renderer} label={t.label} />
+                          </div>
+                          <div className="flex-1 h-2 rounded bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <div className="h-full bg-orange-500/70 rounded" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="w-10 text-right text-xs tabular-nums text-gray-600 dark:text-gray-300">
+                            {t.count}
+                          </span>
+                          <span className="w-20 text-right text-xs tabular-nums text-gray-400">
+                            {formatBytes(t.bytes)}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
