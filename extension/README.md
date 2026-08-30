@@ -4,11 +4,29 @@
 
 <h1 align="center">Markdrop Sync</h1>
 
-<p align="center">Publish and two-way sync your Markdown to <a href="https://markdrop.in">Markdrop</a> — straight from VS Code.</p>
+<p align="center">Publish and two-way sync your Markdown &amp; HTML to <a href="https://markdrop.in">Markdrop</a> — straight from VS Code.</p>
 
 ---
 
-Stop copy-pasting AI-generated docs into a browser. Write Markdown in VS Code (Claude Code, Codex, your own notes), **publish once**, and share the link. When the file changes — locally *or* on the web — both stay in sync.
+Stop copy-pasting AI-generated docs into a browser. Write in VS Code (Claude Code,
+Codex, your own notes), **publish once**, and share the link. When the file
+changes — locally *or* on the web — both stay in sync.
+
+Markdown publishes as a rendered document. **HTML publishes as a live page** at
+its own link, not as escaped source — so a report, dashboard or one-off page you
+are editing locally is always current at a URL you can send anyone.
+
+## What you can sync
+
+| File | Publishes as |
+|------|--------------|
+| `.md` `.markdown` `.mdx` | A rendered Markdown document |
+| `.html` `.htm` | A **live page** at its own link |
+| `.txt` `.csv` `.json` `.svg` | An artifact, rendered for its type |
+
+Binary files — PDF, Word, Excel, zipped sites — can't be edited as text, so they
+aren't syncable from the editor. Upload those at
+[markdrop.in/upload](https://markdrop.in/upload).
 
 ## Features
 
@@ -23,7 +41,7 @@ Stop copy-pasting AI-generated docs into a browser. Write Markdown in VS Code (C
 
 1. **Sign in** — Command Palette (`Cmd/Ctrl+Shift+P`) → **Markdrop: Sign in**. Approve in the browser and you're back in VS Code.
    *(Alternatively: **Markdrop: Sign in with API token** and paste a token from markdrop.in → account menu → API tokens.)*
-2. **Publish** — open a Markdown file → **Markdrop: Publish / link current file** (or click the status-bar button). You get a link.
+2. **Publish** — open a Markdown or HTML file → **Markdrop: Publish / link current file** (or click the status-bar button). You get a link.
 3. **Edit & save** — changes sync automatically. Click the status bar to open the doc in your browser.
 
 ## Commands
