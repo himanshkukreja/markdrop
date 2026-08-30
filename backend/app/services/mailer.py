@@ -64,6 +64,9 @@ _FEATURES = [
     ("diagram", "Diagrams, charts &amp; math",
      "Add a mermaid block or LaTeX between $$ … $$ and Markdrop renders flowcharts, sequence &amp; Gantt diagrams, charts and typeset math, live.",
      "Try a diagram", "diagrams"),
+    ("artifact", "Artifacts &mdash; PDFs, sheets &amp; web pages",
+     "Upload a PDF, spreadsheet, Word doc or a zipped site &mdash; or paste raw HTML &mdash; and get a link that renders it, instead of downloading it. Rendered on an isolated domain, so a published page can never reach your account.",
+     "Publish an artifact", "upload"),
     ("builder", "README builder",
      "Assemble a README from 45+ drag-and-drop section blocks — badges, install steps, API tables, diagrams — then publish or download the .md.",
      "Open the builder", "builder"),
@@ -86,6 +89,7 @@ def _welcome_html(name: str | None) -> str:
     urls = {
         "new": f"{base}/new",
         "diagrams": f"{base}/new?sample=diagrams",
+        "upload": f"{base}/upload",
         "builder": f"{base}/builder",
         "share": f"{base}/share",
         "dashboard": f"{base}/dashboard",

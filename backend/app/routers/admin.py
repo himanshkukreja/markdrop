@@ -35,9 +35,12 @@ from app.schemas.auth import (
     AudiencePreviewRequest,
     AudiencePreviewResponse,
     CampaignCreateRequest,
+    CampaignRenderRequest,
+    CampaignRenderResponse,
     CampaignItem,
     CampaignListResponse,
     CampaignTestRequest,
+    RenderedSample,
 )
 from app.schemas.document import MAX_CONTENT
 from app.services import campaign, mailer
@@ -727,4 +730,53 @@ async def list_campaigns(
             )
             for r in rows
         ]
+    )
+
+
+@router.post("/campaigns/render", response_model=CampaignRenderResponse)
+async def render_campaign_samples(
+    data: CampaignRenderRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Render the template against real recipients before anything is sent.
+
+    Substitution bugs — a stray {{name}}, an unsubscribe link that never got
+    placed — are invisible in the raw template and permanent once the send
+    starts. This returns exactly what the first few people would receive.
+    """
+    if data.preview_email:
+        # Match send_test: a synthetic recipient, so any address previews.
+        known = await db["users"].find_one({"email": data.preview_email.strip().lower()})
+        person = {
+            "id": str(known["_id"]) if known else "preview",
+            "email": data.preview_email.strip(),
+            "name": (known or {}).get("name"),
+        }
+        return CampaignRenderResponse(
+            total=1,
+            samples=[
+                RenderedSample(
+                    email=person["email"],
+                    name=person.get("name"),
+                    html=campaign.render(data.html, person),
+                    unsubscribe_url=campaign.unsubscribe_url(person["id"]),
+                )
+            ],
+        )
+
+    people = await campaign.resolve_audience(
+        db, data.audience, recent_days=data.recent_days, emails=data.emails
+    )
+    return CampaignRenderResponse(
+        total=len(people),
+        samples=[
+            RenderedSample(
+                email=p["email"],
+                name=p.get("name"),
+                html=campaign.render(data.html, p),
+                unsubscribe_url=campaign.unsubscribe_url(p["id"]),
+            )
+            for p in people[: data.limit]
+        ],
     )

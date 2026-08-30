@@ -1048,3 +1048,40 @@ export async function listCampaigns(token: string): Promise<CampaignItem[]> {
   if (!res.ok) throw new Error("Failed to load campaigns");
   return (await res.json()).campaigns;
 }
+
+
+export interface RenderedSample {
+  email: string;
+  name: string | null;
+  html: string;
+  unsubscribe_url: string;
+}
+
+export interface CampaignRender {
+  total: number;
+  samples: RenderedSample[];
+}
+
+/** Render the template against real recipients, to check substitutions before sending. */
+export function renderCampaignSamples(
+  token: string,
+  input: {
+    subject: string;
+    html: string;
+    audience: Audience;
+    recentDays?: number;
+    emails?: string[];
+    limit?: number;
+    previewEmail?: string;
+  }
+): Promise<CampaignRender> {
+  return adminPost(token, "/campaigns/render", {
+    preview_email: input.previewEmail ?? null,
+    subject: input.subject,
+    html: input.html,
+    audience: input.audience,
+    recent_days: input.recentDays ?? 30,
+    emails: input.emails ?? [],
+    limit: input.limit ?? 3,
+  });
+}

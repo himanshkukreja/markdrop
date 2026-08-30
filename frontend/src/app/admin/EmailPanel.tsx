@@ -12,6 +12,8 @@ import {
   type CampaignItem,
 } from "@/lib/api";
 import { ARTIFACTS_ANNOUNCEMENT } from "./emailTemplates";
+import RecipientPicker from "./RecipientPicker";
+import SendPreview from "./SendPreview";
 
 const AUDIENCES: { id: Audience; label: string; hint: string }[] = [
   { id: "all", label: "Everyone", hint: "All accounts that haven't opted out" },
@@ -34,17 +36,17 @@ export default function EmailPanel({ token }: { token: string }) {
   const [sender, setSender] = useState("");
   const [audience, setAudience] = useState<Audience>("all");
   const [recentDays, setRecentDays] = useState(30);
-  const [emailList, setEmailList] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
 
   const [count, setCount] = useState<number | null>(null);
   const [sample, setSample] = useState<string[]>([]);
   const [testTo, setTestTo] = useState("");
   const [busy, setBusy] = useState<null | "test" | "send">(null);
   const [note, setNote] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [preview, setPreview] = useState<null | "send" | "test">(null);
   const [campaigns, setCampaigns] = useState<CampaignItem[]>([]);
 
-  const emails = emailList.split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean);
+  const emails = picked;
 
   const refreshCount = useCallback(async () => {
     try {
@@ -54,7 +56,7 @@ export default function EmailPanel({ token }: { token: string }) {
     } catch {
       setCount(null);
     }
-  }, [token, audience, recentDays, emailList]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, audience, recentDays, picked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const t = setTimeout(refreshCount, 300);
@@ -83,6 +85,7 @@ export default function EmailPanel({ token }: { token: string }) {
   }, [campaigns, loadCampaigns]);
 
   async function handleTest() {
+    setPreview(null);
     if (!testTo.trim()) return setNote({ kind: "err", text: "Enter an address to send the test to." });
     setBusy("test");
     setNote(null);
@@ -97,7 +100,7 @@ export default function EmailPanel({ token }: { token: string }) {
   }
 
   async function handleSend() {
-    setConfirming(false);
+    setPreview(null);
     setBusy("send");
     setNote(null);
     try {
@@ -212,12 +215,7 @@ export default function EmailPanel({ token }: { token: string }) {
         )}
 
         {audience === "custom" && (
-          <textarea
-            value={emailList}
-            onChange={(e) => setEmailList(e.target.value)}
-            placeholder="one@example.com&#10;two@example.com"
-            className={`${input} h-24 font-mono text-xs resize-none`}
-          />
+          <RecipientPicker token={token} value={picked} onChange={setPicked} />
         )}
 
         {sample.length > 0 && (
@@ -249,19 +247,19 @@ export default function EmailPanel({ token }: { token: string }) {
           className={`${input} w-56`}
         />
         <button
-          onClick={handleTest}
+          onClick={() => testTo.trim() ? setPreview("test") : setNote({ kind: "err", text: "Enter an address to send the test to." })}
           disabled={!!busy}
           className="inline-flex items-center gap-2 px-3.5 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 transition-colors"
         >
-          {busy === "test" && <Spinner className="w-4 h-4" />} Send test
+          {busy === "test" && <Spinner className="w-4 h-4" />} Preview &amp; send test
         </button>
         <button
-          onClick={() => setConfirming(true)}
+          onClick={() => setPreview("send")}
           disabled={!!busy || !count}
           className="ml-auto inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-medium transition-colors"
         >
           {busy === "send" && <Spinner className="w-4 h-4" />}
-          Send to {count ?? 0} recipient{count === 1 ? "" : "s"}
+          Preview &amp; send to {count ?? 0}
         </button>
       </div>
 
@@ -303,28 +301,21 @@ export default function EmailPanel({ token }: { token: string }) {
         </div>
       )}
 
-      {confirming && (
-        <Modal title="Send this campaign?" onClose={() => setConfirming(false)}>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              This sends <span className="font-semibold">{subject}</span> to{" "}
-              <span className="font-semibold">{count}</span> recipient{count === 1 ? "" : "s"}. Email
-              can&apos;t be recalled — send yourself a test first if you haven&apos;t.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirming(false)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">
-                Cancel
-              </button>
-              <button
-                onClick={handleSend}
-                className="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors"
-              >
-                Send now
-              </button>
-            </div>
-          </div>
-        </Modal>
+      {preview && (
+        <SendPreview
+          token={token}
+          subject={subject}
+          html={html}
+          audience={audience}
+          recentDays={recentDays}
+          emails={emails}
+          previewEmail={preview === "test" ? testTo.trim() : undefined}
+          mode={preview}
+          onClose={() => setPreview(null)}
+          onConfirm={preview === "test" ? handleTest : handleSend}
+        />
       )}
+
     </div>
   );
 }

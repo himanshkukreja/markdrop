@@ -101,3 +101,29 @@ class CampaignItem(BaseModel):
 
 class CampaignListResponse(BaseModel):
     campaigns: list[CampaignItem]
+
+
+class CampaignRenderRequest(BaseModel):
+    subject: str = Field(..., min_length=1, max_length=200)
+    html: str = Field(..., min_length=1, max_length=400_000)
+    audience: Literal["all", "with_documents", "with_artifacts", "recent", "custom"] = "all"
+    recent_days: int = Field(30, ge=1, le=3650)
+    emails: list[str] = Field(default_factory=list)
+    # How many rendered samples to return.
+    limit: int = Field(3, ge=1, le=10)
+    # Preview a single arbitrary address (the test-send path). Mirrors what
+    # send_test does, so a test address that isn't a registered user still
+    # previews instead of resolving to nobody.
+    preview_email: str | None = Field(None, max_length=200)
+
+
+class RenderedSample(BaseModel):
+    email: str
+    name: str | None = None
+    html: str
+    unsubscribe_url: str
+
+
+class CampaignRenderResponse(BaseModel):
+    total: int
+    samples: list[RenderedSample]
