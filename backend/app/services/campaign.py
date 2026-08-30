@@ -133,16 +133,23 @@ def render(html: str, recipient: dict[str, Any]) -> str:
     out = re.sub(r"\{\{\s*email\s*\}\}", recipient["email"], out, flags=re.I)
 
     if _UNSUB_MARKER.search(out):
-        out = _UNSUB_MARKER.sub(unsub, out)
-    else:
-        out += (
-            '<div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;'
-            'font:12px -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#9ca3af;'
-            'text-align:center">'
-            f'<a href="{unsub}" style="color:#9ca3af">Unsubscribe from Markdrop updates</a>'
-            "</div>"
-        )
-    return out
+        return _UNSUB_MARKER.sub(unsub, out)
+
+    footer = (
+        '<div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;'
+        'font:12px -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#9ca3af;'
+        'text-align:center">'
+        f'<a href="{unsub}" style="color:#9ca3af">Unsubscribe from Markdrop updates</a>'
+        "</div>"
+    )
+    # A template may be a full document; appending past </body> puts the footer
+    # outside the document, where some clients drop it — and a dropped footer
+    # means a send with no working opt-out.
+    lower = out.lower()
+    idx = lower.rfind("</body>")
+    if idx == -1:
+        idx = lower.rfind("</html>")
+    return out[:idx] + footer + out[idx:] if idx != -1 else out + footer
 
 
 # ── Sending ────────────────────────────────────────────────────────────────────

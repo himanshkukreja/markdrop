@@ -36,25 +36,56 @@ function feature(icon: string, title: string, body: string): string {
 
 export const ARTIFACTS_ANNOUNCEMENT: EmailTemplate = {
   subject: "New in Markdrop: share PDFs, spreadsheets and web pages",
-  html: `<div style="background:#f6f7f9;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  html: `<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Tells Gmail, Apple Mail and Outlook that this design already handles dark
+     mode. Without it they force-invert it, which is what turned the white hero
+     text dark against the blue background on Gmail mobile. -->
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<style>
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  /* Outlook.com rewrites colours and prefixes selectors with these attributes;
+     re-assert the hero text so it can't be darkened. */
+  [data-ogsc] .hero-title, [data-ogsc] .hero-word { color:#ffffff !important; }
+  [data-ogsc] .hero-sub  { color:#c7d2fe !important; }
+  [data-ogsc] .hero-cell { background-color:#12244d !important; }
+  @media (prefers-color-scheme: dark) {
+    .hero-title, .hero-word { color:#ffffff !important; }
+    .hero-sub { color:#c7d2fe !important; }
+    .hero-cell { background-color:#12244d !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0">
+<div style="background:#f6f7f9;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
     <tr><td align="center">
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
              style="width:560px;max-width:100%;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)">
 
         <tr>
-          <td style="background:linear-gradient(135deg,#0b1220,#1e3a8a);padding:34px 34px 30px">
-            <div style="font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-.02em">
-              mark<span style="color:#60a5fa">drop</span>
+          <!-- bgcolor as well as the gradient: several clients drop
+               background-image entirely, which left white text on no
+               background at all. The solid colour is the real background; the
+               gradient is only an enhancement where it survives. -->
+          <td class="hero-cell" bgcolor="#12244d"
+              style="background-color:#12244d;background-image:linear-gradient(135deg,#0b1220,#1e3a8a);padding:34px 34px 30px">
+            <div class="hero-title" style="font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-.02em">
+              mark<span class="hero-word" style="color:#8ab4ff">drop</span>
             </div>
-            <div style="display:inline-block;margin-top:18px;padding:4px 10px;border-radius:999px;
-                        background:rgba(251,191,36,.18);color:#fcd34d;font-size:11px;font-weight:700;
+            <!-- Solid amber rather than rgba: a translucent colour becomes
+                 transparent wherever rgba isn't supported. -->
+            <div style="display:inline-block;margin-top:18px;padding:5px 11px;border-radius:999px;
+                        background-color:#fbbf24;color:#3a2c05;font-size:11px;font-weight:700;
                         letter-spacing:.08em;text-transform:uppercase">Just shipped</div>
-            <div style="font-size:26px;line-height:1.25;font-weight:800;color:#ffffff;margin-top:12px">
+            <div class="hero-title" style="font-size:26px;line-height:1.25;font-weight:800;color:#ffffff;margin-top:12px">
               Share more than markdown
             </div>
-            <div style="font-size:15px;line-height:1.6;color:#c7d2fe;margin-top:8px">
-              Markdrop now hosts your files as <strong style="color:#fff">rendered</strong> pages — not downloads.
+            <div class="hero-sub" style="font-size:15px;line-height:1.6;color:#c7d2fe;margin-top:8px">
+              Markdrop now hosts your files as <strong class="hero-title" style="color:#ffffff">rendered</strong> pages — not downloads.
             </div>
           </td>
         </tr>
@@ -116,5 +147,6 @@ export const ARTIFACTS_ANNOUNCEMENT: EmailTemplate = {
       </table>
     </td></tr>
   </table>
-</div>`,
+</div>
+</body></html>`,
 };

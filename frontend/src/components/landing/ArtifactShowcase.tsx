@@ -80,17 +80,22 @@ export default function ArtifactShowcase() {
               {/* A rendered chart standing in for "your file, live" */}
               <div className="rounded-lg border border-white/5 bg-[#111c33] p-4">
                 <div className="text-xs font-semibold text-gray-300">Revenue by region</div>
-                <div className="mt-4 flex items-end gap-3 h-28">
+                {/* Bar heights are in px, not percentages. A percentage height
+                    resolves against the parent's height, and the parent here was
+                    a flex item with an indefinite height — so every bar computed
+                    to zero and the chart rendered empty. */}
+                <div className="mt-4 flex items-end gap-3">
                   {[
-                    { h: "55%", c: "bg-orange-500/80", l: "APAC" },
-                    { h: "38%", c: "bg-orange-400/70", l: "EMEA" },
-                    { h: "84%", c: "bg-orange-500", l: "AMER" },
-                    { h: "62%", c: "bg-orange-400/70", l: "LATAM" },
+                    { px: 62, c: "from-orange-500 to-orange-400", l: "APAC" },
+                    { px: 43, c: "from-orange-400 to-orange-300", l: "EMEA" },
+                    { px: 96, c: "from-orange-500 to-orange-400", l: "AMER" },
+                    { px: 70, c: "from-orange-400 to-orange-300", l: "LATAM" },
                   ].map((b) => (
                     <div key={b.l} className="flex-1 flex flex-col items-center gap-1.5">
-                      <div className="w-full flex-1 flex items-end">
-                        <div className={`w-full rounded-t ${b.c}`} style={{ height: b.h }} />
-                      </div>
+                      <div
+                        className={`w-full rounded-t bg-gradient-to-t ${b.c}`}
+                        style={{ height: `${b.px}px` }}
+                      />
                       <span className="text-[9px] text-gray-500">{b.l}</span>
                     </div>
                   ))}
