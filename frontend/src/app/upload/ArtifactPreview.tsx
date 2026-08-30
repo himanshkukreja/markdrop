@@ -101,11 +101,15 @@ function Centered({ children }: { children: React.ReactNode }) {
 export default function ArtifactPreview({
   file,
   html,
+  bare = false,
 }: {
   /** A chosen file, for the upload tab. */
   file?: File | null;
   /** Pasted markup, for the paste tab. */
   html?: string;
+  /** Render only the content, with no heading or frame — for use inside a
+   *  panel that already provides its own chrome. */
+  bare?: boolean;
 }) {
   const kind: Kind = html !== undefined ? "html" : file ? kindOf(file.name) : "none";
 
@@ -294,6 +298,8 @@ export default function ArtifactPreview({
 
     return <Centered>No preview available for this file type.</Centered>;
   })();
+
+  if (bare) return <div className="h-full">{body}</div>;
 
   return (
     <div>

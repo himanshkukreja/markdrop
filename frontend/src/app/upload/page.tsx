@@ -69,6 +69,8 @@ export default function UploadArtifactPage() {
   const [customSlug, setCustomSlug] = useState("");
   const [slugError, setSlugError] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
+  const [pastePreview, setPastePreview] = useState(false);
+  const [filePreview, setFilePreview] = useState(false);
   const [titleTouched, setTitleTouched] = useState(false);
   const [expiresIn, setExpiresIn] = useState<ExpiresIn>("never");
   const [readPassword, setReadPassword] = useState("");
@@ -208,33 +210,62 @@ export default function UploadArtifactPage() {
       </div>
 
       {tab === "paste" ? (
-        <div className="grid lg:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] overflow-hidden bg-gray-50 dark:bg-[#0d1526] vscode:bg-[#1e1e1e]">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white/60 dark:bg-white/[0.02]">
             <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
             <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
             <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
             <span className="ml-2 text-[11px] font-mono text-gray-400">index.html</span>
-            <span className="ml-auto text-[11px] tabular-nums text-gray-400">
+
+            {/* Edit and preview swap in place rather than sitting side by side,
+                so the editor keeps the full width. */}
+            <div className="ml-auto flex items-center gap-1 p-0.5 rounded-lg bg-gray-100 dark:bg-white/5">
+              {([
+                { id: false, label: "Edit" },
+                { id: true, label: "Preview" },
+              ]).map((m) => (
+                <button
+                  key={m.label}
+                  onClick={() => setPastePreview(m.id)}
+                  disabled={m.id && !html.trim()}
+                  aria-pressed={pastePreview === m.id}
+                  className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                    pastePreview === m.id
+                      ? "bg-white dark:bg-gray-800 vscode:bg-[#2d2d2d] text-gray-900 dark:text-gray-100 shadow-sm"
+                      : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] tabular-nums text-gray-400">
               {formatBytes(new Blob([html]).size)}
             </span>
           </div>
-          <textarea
-            value={html}
-            onChange={(e) => setHtml(e.target.value)}
-            placeholder={"<!doctype html>\n<html>\n  <body>\n    <h1>Hello</h1>\n  </body>\n</html>"}
-            spellCheck={false}
-            className="w-full h-72 font-mono text-xs bg-transparent p-4 outline-none text-gray-800 dark:text-gray-200 resize-none placeholder:text-gray-400/70"
-          />
-          {!html && (
-            <div className="px-4 pb-3 -mt-2">
-              <button onClick={() => setHtml(SAMPLE)} className="text-xs text-blue-500 hover:underline">
-                Insert a sample page
-              </button>
+
+          {pastePreview ? (
+            <div className="h-72">
+              <ArtifactPreview html={html} bare />
             </div>
+          ) : (
+            <>
+              <textarea
+                value={html}
+                onChange={(e) => setHtml(e.target.value)}
+                placeholder={"<!doctype html>\n<html>\n  <body>\n    <h1>Hello</h1>\n  </body>\n</html>"}
+                spellCheck={false}
+                className="w-full h-72 font-mono text-xs bg-transparent p-4 outline-none text-gray-800 dark:text-gray-200 resize-none placeholder:text-gray-400/70"
+              />
+              {!html && (
+                <div className="px-4 pb-3 -mt-2">
+                  <button onClick={() => setHtml(SAMPLE)} className="text-xs text-blue-500 hover:underline">
+                    Insert a sample page
+                  </button>
+                </div>
+              )}
+            </>
           )}
-        </div>
-        <ArtifactPreview html={html} />
         </div>
       ) : (
         <div
@@ -325,7 +356,28 @@ export default function UploadArtifactPage() {
         </div>
       )}
 
-      {tab === "upload" && file && <ArtifactPreview file={file} />}
+      {tab === "upload" && file && (
+        <div>
+          <button
+            onClick={() => setFilePreview((v) => !v)}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-500 hover:text-blue-400 transition-colors"
+          >
+            <svg
+              className={`w-3.5 h-3.5 transition-transform ${filePreview ? "rotate-90" : ""}`}
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden
+            >
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+            {filePreview ? "Hide preview" : "Preview this file"}
+          </button>
+          {filePreview && (
+            <div className="mt-2">
+              <ArtifactPreview file={file} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Options */}
       <div className="rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 sm:p-5 space-y-4">
