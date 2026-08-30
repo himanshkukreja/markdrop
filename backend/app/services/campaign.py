@@ -159,9 +159,9 @@ async def _send_batch(
             "subject": subject,
             "html": render(r["_html"], r),
             # One-click opt-out surfaced by the mail client itself.
-            # Replies land on the address people already correspond with,
-            # rather than an updates@ mailbox that may not exist.
-            "reply_to": settings.email_from,
+            # The From address is a send-only mailbox, so replies are pointed
+            # at a real inbox instead of being dropped.
+            "reply_to": settings.email_reply_to,
             "headers": {
                 "List-Unsubscribe": f"<{unsubscribe_url(r['id'])}>",
                 "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
@@ -238,7 +238,7 @@ async def send_test(to_email: str, subject: str, html: str, sender: str) -> bool
                     "from": sender,
                     "to": [to_email],
                     "subject": f"[TEST] {subject}",
-                    "reply_to": settings.email_from,
+                    "reply_to": settings.email_reply_to,
                     "html": render(html, preview_recipient),
                 },
             )

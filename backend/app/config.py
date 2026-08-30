@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     email_from: str = "login@markdrop.in"
     email_from_name: str = "Markdrop"
+    # Where replies actually land. The From addresses are send-only mailboxes
+    # with no inbox, so without this a reply — "I can't sign in", "unsubscribe
+    # me" — is silently dropped. Override per environment via
+    # MARKDROP_EMAIL_REPLY_TO.
+    email_reply_to: str = "kukreja.him@gmail.com"
     login_challenge_ttl_minutes: int = 15
     otp_length: int = 6
     login_max_attempts: int = 5

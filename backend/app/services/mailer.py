@@ -32,6 +32,7 @@ async def send_login_email(to_email: str, otp: str, link_url: str) -> None:
         "from": f"{settings.email_from_name} <{settings.email_from}>",
         "to": [to_email],
         "subject": f"Your Markdrop sign-in code: {otp}",
+        "reply_to": settings.email_reply_to,
         "html": _login_html(otp, link_url),
     }
     async with httpx.AsyncClient(timeout=10) as client:
@@ -184,6 +185,7 @@ async def send_welcome_email(to_email: str, name: str | None = None) -> None:
         "from": f"{settings.email_from_name} <{settings.email_from}>",
         "to": [to_email],
         "subject": "Welcome to Markdrop — everything you can do",
+        "reply_to": settings.email_reply_to,
         "html": _welcome_html(name),
     }
     async with httpx.AsyncClient(timeout=10) as client:
