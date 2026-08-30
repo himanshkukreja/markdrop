@@ -15,6 +15,9 @@ interface Link {
   slug: string;
   baseRev: number;
   baseHash: string;
+  /** Source file extension, so the conflict diff opens with the right syntax
+   *  highlighting. Absent on links made before artifact sync existed. */
+  ext?: string;
 }
 
 interface SyncDoc {
@@ -50,7 +53,9 @@ const remoteProvider: vscode.TextDocumentContentProvider = {
   provideTextDocumentContent: (uri) => remoteCache.get(uri.path.replace(/^\//, "")) ?? "",
 };
 function remoteUri(link: Link): vscode.Uri {
-  return vscode.Uri.parse(`${REMOTE_SCHEME}:/${link.id}/${link.slug}.md (Markdrop web)`);
+  return vscode.Uri.parse(
+    `${REMOTE_SCHEME}:/${link.id}/${link.slug}${link.ext ?? ".md"} (Markdrop web)`
+  );
 }
 
 // ── Auth token (SecretStorage) ────────────────────────────────────────────────
@@ -78,10 +83,55 @@ function normalize(text: string): string {
 function hash(text: string): string {
   return crypto.createHash("sha256").update(normalize(text)).digest("hex");
 }
+
+/**
+ * File types Markdrop can two-way sync.
+ *
+ * Markdown publishes as a document; the rest publish as *artifacts* — the file
+ * renders at its own URL rather than being shown as escaped source. Only text
+ * formats are here: a PDF or spreadsheet has no meaningful editor
+ * representation, so the server refuses those too.
+ */
+const SYNCABLE_LANGUAGES = new Set([
+  "markdown",
+  "html",
+  "plaintext",
+  "csv",
+  "json",
+  "jsonc",
+  "xml", // VS Code reports .svg as xml
+]);
+
+/** Extensions the server accepts, checked when the language id is ambiguous. */
+const SYNCABLE_EXTENSIONS = new Set([
+  ".md", ".markdown", ".mdx",
+  ".html", ".htm", ".txt", ".csv", ".json", ".svg",
+]);
+
+function isSyncable(doc: vscode.TextDocument): boolean {
+  const ext = path.extname(doc.uri.fsPath).toLowerCase();
+  // The extension is the authority — it's what the server keys the artifact
+  // type off — with the language id as a fallback for unsaved buffers.
+  if (ext) return SYNCABLE_EXTENSIONS.has(ext);
+  return SYNCABLE_LANGUAGES.has(doc.languageId);
+}
+
+/** True when this file publishes as a rendered artifact rather than markdown. */
+function isArtifact(doc: vscode.TextDocument): boolean {
+  const ext = path.extname(doc.uri.fsPath).toLowerCase();
+  return isSyncable(doc) && ![".md", ".markdown", ".mdx"].includes(ext);
+}
+
 function deriveTitle(text: string, uri: vscode.Uri): string {
-  const m = text.match(/^\s*#\s+(.+?)\s*$/m);
-  if (m) return m[1].slice(0, 200);
-  return path.basename(uri.fsPath).replace(/\.mdx?$/i, "");
+  // Markdown leads with an H1; HTML carries its name in <title> or the first
+  // heading. Either way the filename is the fallback.
+  const md = text.match(/^\s*#\s+(.+?)\s*$/m);
+  if (md) return md[1].slice(0, 200);
+  const title = text.match(/<title[^>]*>([^<]+)<\/title>/i);
+  if (title) return title[1].trim().slice(0, 200);
+  const h1 = text.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+  if (h1) return h1[1].trim().slice(0, 200);
+  return path.basename(uri.fsPath).replace(/\.[^.]+$/, "");
 }
 
 // ── Link store (.markdrop.json per workspace folder; globalState fallback) ──────
@@ -138,7 +188,7 @@ async function deleteLink(uri: vscode.Uri) {
 // ── Status bar ──────────────────────────────────────────────────────────────
 async function updateStatus() {
   const editor = vscode.window.activeTextEditor;
-  if (!editor || editor.document.languageId !== "markdown") {
+  if (!editor || !isSyncable(editor.document)) {
     statusBar.hide();
     return;
   }
@@ -228,8 +278,10 @@ async function ensureSignedIn(): Promise<boolean> {
 // ── Sync ────────────────────────────────────────────────────────────────────
 async function publish() {
   const editor = vscode.window.activeTextEditor;
-  if (!editor || editor.document.languageId !== "markdown") {
-    vscode.window.showWarningMessage("Open a Markdown file to publish.");
+  if (!editor || !isSyncable(editor.document)) {
+    vscode.window.showWarningMessage(
+      "Markdrop publishes Markdown, HTML, text, CSV, JSON and SVG files."
+    );
     return;
   }
   if (!(await ensureSignedIn())) return;
@@ -241,7 +293,8 @@ async function publish() {
     return;
   }
   const text = editor.document.getText();
-  setBusy("$(sync~spin) Markdrop: publishing…");
+  const asArtifact = isArtifact(editor.document);
+  setBusy(asArtifact ? "$(sync~spin) Markdrop: publishing artifact…" : "$(sync~spin) Markdrop: publishing…");
   const res = await api("POST", "/api/v1/sync", {
     title: deriveTitle(text, uri),
     content: normalize(text),
@@ -250,7 +303,10 @@ async function publish() {
   if (res.status === 401) { await clearToken(); vscode.window.showErrorMessage("Session expired — sign in again."); updateStatus(); return; }
   if (!res.ok) { vscode.window.showErrorMessage("Failed to publish to Markdrop."); updateStatus(); return; }
   const doc = await res.json() as SyncDoc;
-  await setLink(uri, { id: doc.id, slug: doc.slug, baseRev: doc.rev, baseHash: hash(text) });
+  await setLink(uri, {
+    id: doc.id, slug: doc.slug, baseRev: doc.rev, baseHash: hash(text),
+    ext: path.extname(uri.fsPath).toLowerCase() || ".md",
+  });
   updateStatus();
   const action = await vscode.window.showInformationMessage(`Published to ${doc.url}`, "Open in browser", "Copy link");
   if (action === "Open in browser") vscode.env.openExternal(vscode.Uri.parse(doc.url));
@@ -379,7 +435,7 @@ async function pollActive() {
   if (polling) return;
   if (!cfg().autoPull || !vscode.window.state.focused) return;
   const editor = vscode.window.activeTextEditor;
-  if (!editor || editor.document.languageId !== "markdown") return;
+  if (!editor || !isSyncable(editor.document)) return;
   const uri = editor.document.uri;
   const link = await getLink(uri);
   if (!link || !(await getToken())) return;
@@ -441,7 +497,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerUriHandler({ handleUri }),
     vscode.workspace.registerTextDocumentContentProvider(REMOTE_SCHEME, remoteProvider),
     vscode.workspace.onDidSaveTextDocument((doc) => {
-      if (doc.languageId === "markdown" && cfg().pushOnSave) schedulePush(doc);
+      if (isSyncable(doc) && cfg().pushOnSave) schedulePush(doc);
     }),
     vscode.window.onDidChangeActiveTextEditor(() => { updateStatus(); pollActive(); }),
     vscode.window.onDidChangeWindowState((s) => { if (s.focused) pollActive(); }),

@@ -1,15 +1,25 @@
 {
   "name": "markdrop",
   "displayName": "Markdrop Sync",
-  "description": "Publish and sync your Markdown files to Markdrop (markdrop.in) — no more copy-paste.",
-  "version": "0.2.0",
+  "description": "Publish and two-way sync Markdown, HTML and other text files with markdrop.in \u2014 save locally to push, edit on the web to pull back.",
+  "version": "0.3.0",
   "publisher": "HimanshuKukreja",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
-  "keywords": ["markdown", "sync", "publish", "share", "markdrop"],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "artifact",
+    "html",
+    "markdown",
+    "markdrop",
+    "publish",
+    "share",
+    "sync"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/himanshkukreja/markdrop.git"
@@ -17,21 +27,51 @@
   "main": "./out/extension.js",
   "activationEvents": [
     "onUri",
-    "onLanguage:markdown"
+    "onLanguage:markdown",
+    "onLanguage:html",
+    "onLanguage:plaintext",
+    "onLanguage:json",
+    "onLanguage:xml",
+    "onLanguage:csv"
   ],
   "contributes": {
     "commands": [
-      { "command": "markdrop.signIn", "title": "Markdrop: Sign in" },
-      { "command": "markdrop.signInWithToken", "title": "Markdrop: Sign in with API token" },
-      { "command": "markdrop.signOut", "title": "Markdrop: Sign out" },
-      { "command": "markdrop.publish", "title": "Markdrop: Publish / link current file" },
-      { "command": "markdrop.syncNow", "title": "Markdrop: Sync now (push)" },
-      { "command": "markdrop.openInBrowser", "title": "Markdrop: Open current document in browser" },
-      { "command": "markdrop.unlink", "title": "Markdrop: Unlink current file" }
+      {
+        "command": "markdrop.signIn",
+        "title": "Markdrop: Sign in"
+      },
+      {
+        "command": "markdrop.signInWithToken",
+        "title": "Markdrop: Sign in with API token"
+      },
+      {
+        "command": "markdrop.signOut",
+        "title": "Markdrop: Sign out"
+      },
+      {
+        "command": "markdrop.publish",
+        "title": "Markdrop: Publish / link current file"
+      },
+      {
+        "command": "markdrop.syncNow",
+        "title": "Markdrop: Sync now (push)"
+      },
+      {
+        "command": "markdrop.openInBrowser",
+        "title": "Markdrop: Open current document in browser"
+      },
+      {
+        "command": "markdrop.unlink",
+        "title": "Markdrop: Unlink current file"
+      }
     ],
     "menus": {
       "editor/title": [
-        { "command": "markdrop.publish", "when": "resourceLangId == markdown", "group": "navigation" }
+        {
+          "command": "markdrop.publish",
+          "when": "resourceLangId == markdown",
+          "group": "navigation"
+        }
       ]
     },
     "configuration": {

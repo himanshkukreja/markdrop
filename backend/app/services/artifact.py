@@ -361,3 +361,113 @@ async def replace_file(
         return None, None
     # Only free the old bytes if the new upload actually points somewhere else.
     return _doc_from_mongo(updated), (old_key if old_key != blob_key else None)
+
+
+# ── Two-way sync (VS Code extension) ───────────────────────────────────────────
+
+# Only artifacts whose bytes ARE their source can round-trip through an editor.
+# A PDF or spreadsheet has no meaningful text form, so syncing one would mean
+# handing the editor bytes it can't represent and writing back something corrupt.
+SYNCABLE_MIMES = frozenset({
+    "text/html",
+    "text/plain",
+    "text/csv",
+    "application/json",
+    "image/svg+xml",
+})
+
+# Sync payloads travel as JSON through the API, unlike uploads which go straight
+# to R2, so they're capped well below the artifact size limit.
+MAX_SYNC_BYTES = 2 * 1024 * 1024
+
+
+def is_syncable(mime: str | None) -> bool:
+    return (mime or "") in SYNCABLE_MIMES
+
+
+def mime_for_filename(filename: str | None) -> str | None:
+    """Artifact mime implied by a filename, for editor-initiated publishes."""
+    return normalize_mime(None, filename)
+
+
+async def read_content(doc) -> str | None:
+    """Fetch an artifact's bytes back as text, for an editor pull."""
+    from fastapi.concurrency import run_in_threadpool
+
+    from app.services import r2
+
+    if not doc.blob_key or not is_syncable(doc.mime):
+        return None
+    raw = await run_in_threadpool(r2.get_bytes, doc.blob_key, MAX_SYNC_BYTES)
+    if raw is None:
+        return None
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+async def sync_push_content(
+    db: AsyncIOMotorDatabase, doc_id: str, user_id: str, content: str, base_rev: int
+):
+    """Write editor content back to an artifact, with the same optimistic lock
+    the markdown path uses.
+
+    Returns ``("ok"|"conflict"|"notfound"|"unsupported", document | None)``.
+
+    The blob is written to a NEW key each time rather than overwritten. Public
+    artifacts are edge-cached for five minutes, so reusing the key would leave
+    an editor save invisible on the web for that long; a fresh key is a fresh
+    URL, and the document page picks it up over the live socket immediately.
+    """
+    from bson import ObjectId
+    from fastapi.concurrency import run_in_threadpool
+
+    from app.services import r2
+    from app.services.document import _doc_from_mongo
+
+    if not ObjectId.is_valid(doc_id):
+        return ("notfound", None)
+    raw = await db["documents"].find_one({"_id": ObjectId(doc_id)})
+    if not raw or raw.get("owner_id") != user_id or raw.get("kind") != "artifact":
+        return ("notfound", None)
+    if not is_syncable(raw.get("mime")) or raw.get("bundle_prefix"):
+        return ("unsupported", None)
+
+    cur_rev = raw.get("rev", 1)
+    if base_rev != cur_rev:
+        return ("conflict", _doc_from_mongo(raw))
+
+    payload = content.encode("utf-8")
+    if len(payload) > MAX_SYNC_BYTES:
+        return ("unsupported", None)
+
+    mime = raw["mime"]
+    is_public = not raw.get("read_password_hash")
+    new_key = make_blob_key(user_id, mime)
+    if not await run_in_threadpool(r2.put_bytes, new_key, payload, mime, is_public):
+        return ("notfound", None)
+
+    old_key = raw.get("blob_key")
+    updated = await db["documents"].find_one_and_update(
+        {"_id": ObjectId(doc_id), "rev": cur_rev},
+        {
+            "$set": {
+                "blob_key": new_key,
+                "size_bytes": len(payload),
+                "updated_at": datetime.now(timezone.utc),
+                "vscode_synced": True,
+            },
+            "$inc": {"rev": 1},
+        },
+        return_document=True,
+    )
+    if not updated:
+        # Someone else won the race; drop the object we just wrote.
+        await run_in_threadpool(r2.delete, new_key)
+        fresh = await db["documents"].find_one({"_id": ObjectId(doc_id)})
+        return ("conflict", _doc_from_mongo(fresh))
+
+    if old_key and old_key != new_key:
+        await run_in_threadpool(r2.delete, old_key)
+    return ("ok", _doc_from_mongo(updated))
