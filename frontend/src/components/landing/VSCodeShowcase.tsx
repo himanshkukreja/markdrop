@@ -15,7 +15,7 @@ const CODE_LINES: { n: number; parts: { t: string; c?: string }[] }[] = [
 export default function VSCodeShowcase() {
   return (
     <section className="py-16 sm:py-20">
-      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center [&>*]:min-w-0">
         {/* VS Code window mock */}
         <Reveal>
           <div className="rounded-xl overflow-hidden border border-gray-300/70 dark:border-gray-700 vscode:border-[#3c3c3c] shadow-2xl shadow-blue-500/10 bg-[#1e1e1e]">

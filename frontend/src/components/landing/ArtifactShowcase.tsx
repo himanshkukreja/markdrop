@@ -13,7 +13,7 @@ const TYPES = [
 export default function ArtifactShowcase() {
   return (
     <section className="py-16 sm:py-20">
-      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center [&>*]:min-w-0">
         {/* Copy — first on desktop, keeping the text/image alternation going */}
         <Reveal className="lg:order-1">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-orange-500/10 text-orange-500 ring-1 ring-orange-500/25">

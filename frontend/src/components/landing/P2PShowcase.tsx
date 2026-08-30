@@ -25,7 +25,7 @@ function BrowserNode({ label, side }: { label: string; side: "left" | "right" })
 export default function P2PShowcase() {
   return (
     <section className="py-16 sm:py-20">
-      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center [&>*]:min-w-0">
         {/* Copy */}
         <Reveal className="order-2 lg:order-1">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400">

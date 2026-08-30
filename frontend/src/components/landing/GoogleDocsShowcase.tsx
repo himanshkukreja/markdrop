@@ -11,7 +11,7 @@ const STEPS: [string, string][] = [
 export default function GoogleDocsShowcase() {
   return (
     <section className="py-16 sm:py-20">
-      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center [&>*]:min-w-0">
         {/* Copy */}
         <Reveal className="lg:order-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 vscode:text-[#4fc1ff]">

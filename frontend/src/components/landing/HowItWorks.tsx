@@ -32,7 +32,7 @@ export default function HowItWorks() {
         </p>
       </Reveal>
 
-      <div className="mt-12 grid sm:grid-cols-3 gap-6">
+      <div className="mt-12 grid sm:grid-cols-3 gap-6 [&>*]:min-w-0">
         {STEPS.map((s, i) => (
           <Reveal key={s.n} delay={i * 100}>
             <div className="relative h-full rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white/60 dark:bg-gray-900/40 vscode:bg-[#252526]/80 backdrop-blur-sm p-6 transition-all duration-300 hover:-translate-y-1 hover:border-blue-500/40">

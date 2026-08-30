@@ -14,7 +14,7 @@ const POINTS: [string, string][] = [
 export default function BuilderShowcase() {
   return (
     <section className="py-16 sm:py-20">
-      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center [&>*]:min-w-0">
         {/* Copy */}
         <Reveal>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-300 vscode:text-[#4ec9b0]">
@@ -68,7 +68,7 @@ export default function BuilderShowcase() {
               <span className="ml-auto text-[10px] rounded-full bg-teal-100 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300 px-2 py-0.5">Live</span>
             </div>
 
-            <div className="grid grid-cols-[5.5rem_1fr] sm:grid-cols-[7.5rem_1fr] min-h-[18rem]">
+            <div className="grid grid-cols-[5.5rem_1fr] sm:grid-cols-[7.5rem_1fr] min-h-[18rem] [&>*]:min-w-0">
               {/* Section list */}
               <div className="border-r border-gray-100 dark:border-gray-800 vscode:border-[#3c3c3c] p-2 space-y-1.5 bg-gray-50/60 dark:bg-gray-900/30 vscode:bg-[#1e1e1e]">
                 {SECTIONS.map((s, i) => (

@@ -93,7 +93,7 @@ const POINTS: [string, string][] = [
 export default function DiagramShowcase() {
   return (
     <section className="py-16 sm:py-20">
-      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+      <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center [&>*]:min-w-0">
         {/* Document mock — source renders to diagram + math + chart */}
         <Reveal className="lg:order-2">
           <div className="rounded-xl overflow-hidden border border-gray-300/70 dark:border-gray-700 vscode:border-[#3c3c3c] shadow-2xl shadow-violet-500/10 bg-white dark:bg-[#1e1e1e] vscode:bg-[#252526]">

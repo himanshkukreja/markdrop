@@ -116,7 +116,7 @@ export default function FeatureGrid() {
         </p>
       </Reveal>
 
-      <div className="mt-12 grid sm:grid-cols-2 gap-5">
+      <div className="mt-12 grid sm:grid-cols-2 gap-5 [&>*]:min-w-0">
         {FEATURES.map((f, i) => {
           const external = f.href.startsWith("http");
           return (

@@ -12,7 +12,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 
 export default function LandingPage() {
   return (
-    <div className="w-full">
+    <div className="w-full min-w-0 overflow-x-clip">
       {/* Ambient background: drifting aurora blobs + dotted grid, fixed behind everything */}
       <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <div className="md-aurora absolute -top-40 -left-32 w-[38rem] h-[38rem] rounded-full blur-3xl opacity-40 dark:opacity-50 vscode:opacity-60"

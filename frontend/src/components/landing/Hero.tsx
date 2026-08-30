@@ -247,7 +247,7 @@ function DemoWindow({
 
   return (
     <div
-      className="relative"
+      className="relative min-w-0 overflow-x-clip"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -353,7 +353,7 @@ function DemoWindow({
         <div className="h-64 sm:h-72">
           {/* Publish + Diagram: editor | live preview */}
           {split ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 h-full">
+            <div className="grid grid-cols-1 sm:grid-cols-2 h-full [&>*]:min-w-0">
               <div className="p-4 overflow-hidden font-mono text-[12.5px] leading-relaxed text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
                 <pre className="whitespace-pre-wrap break-words">
                   {active === "publish" ? pub.typed : dia.typed}
@@ -696,7 +696,7 @@ export default function Hero() {
         style={{ background: "radial-gradient(circle at center, rgba(59,130,246,0.38), rgba(14,165,233,0.15) 45%, transparent 70%)" }}
       />
 
-      <div className="relative grid lg:grid-cols-2 gap-10 lg:gap-12 items-center">
+      <div className="relative grid lg:grid-cols-2 gap-10 lg:gap-12 items-center [&>*]:min-w-0">
         {/* Copy */}
         <div className="text-center lg:text-left">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-300 vscode:text-[#4fc1ff]">
