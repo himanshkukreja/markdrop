@@ -68,7 +68,7 @@ export default function BuilderShowcase() {
               <span className="ml-auto text-[10px] rounded-full bg-teal-100 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300 px-2 py-0.5">Live</span>
             </div>
 
-            <div className="grid grid-cols-[7.5rem_1fr] min-h-[18rem]">
+            <div className="grid grid-cols-[5.5rem_1fr] sm:grid-cols-[7.5rem_1fr] min-h-[18rem]">
               {/* Section list */}
               <div className="border-r border-gray-100 dark:border-gray-800 vscode:border-[#3c3c3c] p-2 space-y-1.5 bg-gray-50/60 dark:bg-gray-900/30 vscode:bg-[#1e1e1e]">
                 {SECTIONS.map((s, i) => (

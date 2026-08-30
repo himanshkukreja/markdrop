@@ -95,7 +95,7 @@ type SceneId = "publish" | "diagram" | "artifacts" | "builder" | "send" | "sync"
 const SCENES: { id: SceneId; pill: string; tab: string; phrase: string; cta: string; dwell: number; isNew?: boolean }[] = [
   { id: "publish", pill: "Publish", tab: "welcome.md", phrase: "Instant links.", cta: "New document", dwell: 6200 },
   { id: "diagram", pill: "Diagrams & math", tab: "diagram.md", phrase: "Diagrams & math.", cta: "Try a diagram", dwell: 5600 },
-  { id: "artifacts", pill: "Artifacts", tab: "report.pdf", phrase: "HTML, PDF & sheets.", cta: "Publish an artifact", dwell: 5400, isNew: true },
+  { id: "artifacts", pill: "Artifacts", tab: "report.pdf", phrase: "Files, rendered.", cta: "Publish an artifact", dwell: 5400, isNew: true },
   { id: "builder", pill: "README builder", tab: "builder", phrase: "README builder.", cta: "Open the builder", dwell: 5000 },
   { id: "send", pill: "P2P file share", tab: "transfer", phrase: "Send any file.", cta: "Share a file", dwell: 5000 },
   { id: "sync", pill: "VS Code sync", tab: "notes.md", phrase: "VS Code sync.", cta: "Get the extension", dwell: 4600 },
@@ -704,7 +704,11 @@ export default function Hero() {
             No login. No friction. Just links.
           </span>
 
-          <h1 className="mt-5 text-4xl sm:text-5xl lg:text-[3.4rem] font-bold tracking-tight leading-[1.08] text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
+          {/* Sized so the longest rotating phrase still fits a 320px screen.
+              The phrase is nowrap (wrapping mid-cycle would jolt the headline
+              height), so anything too wide gets clipped by the page's
+              overflow-x:hidden rather than wrapping. */}
+          <h1 className="mt-5 text-3xl sm:text-4xl md:text-5xl lg:text-[3.4rem] font-bold tracking-tight leading-[1.1] text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
             Publish Markdown.
             <br />
             Share anything.
