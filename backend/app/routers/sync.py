@@ -95,7 +95,7 @@ async def _create_synced_artifact(db, user, data, mime: str):
         )
 
     blob_key = art_service.make_blob_key(user.id, mime)
-    if not await run_in_threadpool(r2.put_bytes, blob_key, payload, mime, True):
+    if not await run_in_threadpool(r2.put_bytes, blob_key, payload, mime, True, True):
         raise HTTPException(status_code=502, detail="Could not store the file. Try again.")
 
     try:

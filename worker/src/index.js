@@ -168,9 +168,17 @@ async function serveRaw(blobKey, url, env, request) {
     headers.set("content-disposition", "attachment");
   }
 
+  // An editor-synced artifact keeps a stable key while its bytes change, so it
+  // must be revalidated on every request. Without this an edit stays invisible
+  // for the life of the cache entry — and the key can't simply be rotated,
+  // because already-rendered pages hold the old URL.
+  const isLive = obj.customMetadata?.live === "1";
+
   if (!isPublic) {
     // Token-gated: must not sit in a shared cache.
     headers.set("cache-control", "private, no-store");
+  } else if (isLive) {
+    headers.set("cache-control", "no-cache, must-revalidate");
   } else {
     // Deliberately minutes, not the year an immutable key would justify: adding
     // a password flips the object to private, and a long-lived edge copy would

@@ -415,10 +415,15 @@ async def sync_push_content(
 
     Returns ``("ok"|"conflict"|"notfound"|"unsupported", document | None)``.
 
-    The blob is written to a NEW key each time rather than overwritten. Public
-    artifacts are edge-cached for five minutes, so reusing the key would leave
-    an editor save invisible on the web for that long; a fresh key is a fresh
-    URL, and the document page picks it up over the live socket immediately.
+    The blob keeps its key and is overwritten in place. Rotating the key made
+    every already-rendered page point at an object that had just been deleted —
+    the document route is ISR-cached, so a page served from cache kept the old
+    URL for up to a minute after a save. A stable key with a revalidating cache
+    header keeps those pages working and still shows the new bytes.
+
+    The compare-and-swap therefore happens BEFORE the write: winning the rev is
+    what earns the right to overwrite. Doing it the other way round would let a
+    push that then loses the race clobber the winner's bytes.
     """
     from bson import ObjectId
     from fastapi.concurrency import run_in_threadpool
@@ -444,16 +449,15 @@ async def sync_push_content(
 
     mime = raw["mime"]
     is_public = not raw.get("read_password_hash")
-    new_key = make_blob_key(user_id, mime)
-    if not await run_in_threadpool(r2.put_bytes, new_key, payload, mime, is_public):
+    key = raw.get("blob_key")
+    if not key:
         return ("notfound", None)
 
-    old_key = raw.get("blob_key")
+    # Claim the revision first — only the winner may touch the bytes.
     updated = await db["documents"].find_one_and_update(
         {"_id": ObjectId(doc_id), "rev": cur_rev},
         {
             "$set": {
-                "blob_key": new_key,
                 "size_bytes": len(payload),
                 "updated_at": datetime.now(timezone.utc),
                 "vscode_synced": True,
@@ -463,11 +467,9 @@ async def sync_push_content(
         return_document=True,
     )
     if not updated:
-        # Someone else won the race; drop the object we just wrote.
-        await run_in_threadpool(r2.delete, new_key)
         fresh = await db["documents"].find_one({"_id": ObjectId(doc_id)})
         return ("conflict", _doc_from_mongo(fresh))
 
-    if old_key and old_key != new_key:
-        await run_in_threadpool(r2.delete, old_key)
+    if not await run_in_threadpool(r2.put_bytes, key, payload, mime, is_public, True):
+        return ("notfound", None)
     return ("ok", _doc_from_mongo(updated))

@@ -101,7 +101,9 @@ def get_bytes(key: str, max_bytes: int) -> bytes | None:
         return None
 
 
-def put_bytes(key: str, data: bytes, content_type: str, public: bool = True) -> bool:
+def put_bytes(
+    key: str, data: bytes, content_type: str, public: bool = True, live: bool = False
+) -> bool:
     """Upload from the server. Only used for the small pasted-HTML path, where a
     presigned round trip would be pointless ceremony — real file uploads always
     go browser→R2 direct so bytes never touch this box."""
@@ -112,8 +114,18 @@ def put_bytes(key: str, data: bytes, content_type: str, public: bool = True) -> 
             Body=data,
             ContentType=content_type,
             # The Worker fails closed — an unmarked object needs a signed token.
-            Metadata={"public": "1"} if public else {},
-            CacheControl="public, max-age=300" if public else "private, no-store",
+            # `live` marks an editor-synced artifact, whose bytes change under a
+            # stable key; the Worker must revalidate those every time or an
+            # edit stays invisible for the life of the cache entry.
+            Metadata={
+                **({"public": "1"} if public else {}),
+                **({"live": "1"} if live else {}),
+            },
+            CacheControl=(
+                "no-cache, must-revalidate" if live
+                else "public, max-age=300" if public
+                else "private, no-store"
+            ),
         )
         return True
     except Exception:

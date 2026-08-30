@@ -17,6 +17,7 @@ import {
   updateArtifactSettings,
   type ArtifactRenderer,
   type ExpiresIn,
+  API_BASE,
 } from "@/lib/api";
 
 /**
@@ -167,9 +168,15 @@ export default function ArtifactView({
 
   const beaconSent = useRef(false);
 
+  // Bumped on every live update. The blob URL is stable now, so React would
+  // see an unchanged src and leave the iframe alone; keying on this forces it
+  // to remount and re-fetch.
+  const [reloadKey, setReloadKey] = useState(0);
+
   function applyDoc(doc: Awaited<ReturnType<typeof getDocument>>) {
     setTitle(doc.title);
     setArtifactUrl(doc.artifact_url ?? null);
+    setReloadKey((k) => k + 1);
     setDownloadUrl(doc.download_url ?? null);
     if (doc.renderer) setRenderer(doc.renderer);
     if (doc.type_label) setTypeLabel(doc.type_label);
@@ -185,6 +192,41 @@ export default function ArtifactView({
     beaconSent.current = true;
     recordEvent(slug, "view");
   }, [slug, locked]);
+
+  // Live updates. The markdown viewer has had this since the VS Code feature
+  // shipped; the artifact viewer never did, so a page left open showed nothing
+  // when the file was edited from the editor. The socket carries only a
+  // "changed" ping, so we refetch through the normal authorized read path.
+  useEffect(() => {
+    if (typeof window === "undefined" || locked) return;
+    let ws: WebSocket | null = null;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
+
+    function connect() {
+      try {
+        ws = new WebSocket(`${API_BASE.replace(/^http/, "ws")}/ws/docs/${slug}`);
+      } catch {
+        return;
+      }
+      ws.onmessage = (ev) => {
+        let msg: { type?: string } | null = null;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+        if (msg?.type !== "changed") return;
+        const cachedPwd = isPasswordProtected
+          ? sessionStorage.getItem(`pwd:${slug}`) || undefined
+          : undefined;
+        getDocument(slug, cachedPwd).then(applyDoc).catch(() => {});
+      };
+      ws.onclose = () => { if (!closed) retry = setTimeout(connect, 3000); };
+    }
+    connect();
+    return () => {
+      closed = true;
+      if (retry) clearTimeout(retry);
+      ws?.close();
+    };
+  }, [slug, locked, isPasswordProtected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cached password from a previous unlock in this tab.
   useEffect(() => {
@@ -420,6 +462,7 @@ export default function ArtifactView({
       ) : artifactUrl ? (
         <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden bg-white dark:bg-[#0b1220]">
           <iframe
+            key={reloadKey}
             src={artifactUrl}
             sandbox={SANDBOX}
             // No referrer: the artifact origin never needs to know which
@@ -440,6 +483,7 @@ export default function ArtifactView({
       {immersive && artifactUrl && (
         <div className="fixed inset-0 z-[100] bg-white dark:bg-[#0b1220]">
           <iframe
+            key={reloadKey}
             src={artifactUrl}
             sandbox={SANDBOX}
             referrerPolicy="no-referrer"
