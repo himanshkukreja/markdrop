@@ -92,10 +92,10 @@ function RotatingPhrase() {
 type SceneId = "publish" | "diagram" | "artifacts" | "builder" | "send" | "sync" | "export";
 // `phrase` is the headline word for this scene — short + uniform so the rotating
 // line never wraps to two lines (which would jolt the headline height mid-cycle).
-const SCENES: { id: SceneId; pill: string; tab: string; phrase: string; cta: string; dwell: number }[] = [
+const SCENES: { id: SceneId; pill: string; tab: string; phrase: string; cta: string; dwell: number; isNew?: boolean }[] = [
   { id: "publish", pill: "Publish", tab: "welcome.md", phrase: "Instant links.", cta: "New document", dwell: 6200 },
   { id: "diagram", pill: "Diagrams & math", tab: "diagram.md", phrase: "Diagrams & math.", cta: "Try a diagram", dwell: 5600 },
-  { id: "artifacts", pill: "Artifacts", tab: "report.pdf", phrase: "HTML, PDF & sheets.", cta: "Publish an artifact", dwell: 5400 },
+  { id: "artifacts", pill: "Artifacts", tab: "report.pdf", phrase: "HTML, PDF & sheets.", cta: "Publish an artifact", dwell: 5400, isNew: true },
   { id: "builder", pill: "README builder", tab: "builder", phrase: "README builder.", cta: "Open the builder", dwell: 5000 },
   { id: "send", pill: "P2P file share", tab: "transfer", phrase: "Send any file.", cta: "Share a file", dwell: 5000 },
   { id: "sync", pill: "VS Code sync", tab: "notes.md", phrase: "VS Code sync.", cta: "Get the extension", dwell: 4600 },
@@ -111,12 +111,9 @@ const ARTIFACT_CHIPS: { label: string; cls: string }[] = [
   { label: "Word", cls: "bg-blue-500/10 text-blue-500 ring-blue-500/25" },
   { label: "Site", cls: "bg-teal-500/10 text-teal-500 ring-teal-500/25" },
 ];
-const ARTIFACT_BARS = [
-  { h: "55%", l: "APAC" },
-  { h: "38%", l: "EMEA" },
-  { h: "84%", l: "AMER" },
-  { h: "62%", l: "LATAM" },
-];
+// Widths of the "rendered content" lines — uneven so it reads as prose rather
+// than a loading skeleton.
+const ARTIFACT_LINES = ["46%", "88%", "72%", "94%", "61%"];
 
 // Blocks shown assembling in the README-builder scene (reuse the real section icons).
 const BUILDER_BLOCKS: { id: string; name: string }[] = [
@@ -254,23 +251,58 @@ function DemoWindow({
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      {/* Feature-pill tabs — name every pillar + drive the demo */}
-      <div className="mb-3 flex flex-wrap gap-1.5 justify-center lg:justify-start">
+      {/* Feature-pill tabs — name every pillar + drive the demo.
+          Seven of these wrapped to a second row and shoved the demo down, so
+          the strip scrolls horizontally instead, with masked edges hinting
+          there's more. Tight sizing keeps all seven on one line on desktop. */}
+      <div
+        className="mb-3 -mx-1 px-1 flex flex-nowrap gap-1 overflow-x-auto md-no-scrollbar justify-start lg:justify-start"
+        style={{
+          maskImage:
+            "linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%)",
+          WebkitMaskImage:
+            "linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%)",
+        }}
+      >
         {SCENES.map((sc, i) => (
           <button
             key={sc.id}
             onClick={() => setScene(i)}
             aria-pressed={i === scene}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+            className={`relative shrink-0 whitespace-nowrap px-2 py-1 rounded-full text-[11px] font-medium border transition-colors ${
               i === scene
-                ? "border-blue-500/60 bg-blue-500/15 text-blue-600 dark:text-blue-300 vscode:text-[#4fc1ff]"
+                ? sc.isNew
+                  ? "border-amber-400/70 bg-amber-400/15 text-amber-600 dark:text-amber-300"
+                  : "border-blue-500/60 bg-blue-500/15 text-blue-600 dark:text-blue-300 vscode:text-[#4fc1ff]"
+                : sc.isNew
+                ? "border-amber-400/40 text-amber-600/90 dark:text-amber-300/80 hover:border-amber-400/70"
                 : "border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] text-gray-500 dark:text-gray-400 hover:border-blue-400/50 hover:text-blue-500"
             }`}
           >
             {sc.pill}
+            {sc.isNew && (
+              // A quiet pulsing dot rather than a shouted "NEW!" — enough to
+              // pull the eye to a pill that would otherwise read as one of six.
+              <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2" aria-hidden>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+              </span>
+            )}
+            {sc.isNew && <span className="sr-only"> (new)</span>}
           </button>
         ))}
       </div>
+
+      {SCENES[scene].isNew && (
+        // Sits on the frame rather than in the layout, so the demo doesn't
+        // shift by a row when the rotation reaches (or leaves) a new feature.
+        <span className="pointer-events-none absolute -top-2.5 left-4 z-20 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-lg shadow-amber-500/25">
+          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M12 2l2.4 6.3L21 9.3l-4.8 4.3 1.4 6.4L12 16.8 6.4 20l1.4-6.4L3 9.3l6.6-1z" />
+          </svg>
+          Just shipped
+        </span>
+      )}
 
       <div
         role="link"
@@ -346,7 +378,9 @@ function DemoWindow({
               </div>
             </div>
           ) : active === "artifacts" ? (
-            // ── Artifacts (a file becomes a rendered page) ──────────────────
+            // ── Artifacts: a file lifting into the frame and rendering ──────
+            // Bars bouncing said "chart", not "artifact". This reads as the
+            // actual promise: a file goes in, a page comes out.
             <div className="h-full p-4 sm:p-5 overflow-hidden flex flex-col gap-3">
               <div className="flex items-center gap-1.5 flex-wrap">
                 {ARTIFACT_CHIPS.map((c, i) => (
@@ -360,28 +394,40 @@ function DemoWindow({
                 ))}
               </div>
 
-              {/* The artifact itself, rendering inside the frame */}
-              <div
-                className="md-stagger flex-1 min-h-0 rounded-lg border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-[#111c33] vscode:bg-[#1e1e1e] p-3.5 flex flex-col"
-                style={{ animationDelay: "420ms" }}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
-                    Revenue by region
+              <div className="relative flex-1 min-h-0 rounded-lg border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-[#111c33] vscode:bg-[#1e1e1e] overflow-hidden">
+                {/* A render sweep passing down the page */}
+                <div
+                  className="md-art-scan pointer-events-none absolute inset-x-0 top-0 h-10 z-10"
+                  style={{
+                    background:
+                      "linear-gradient(to bottom, transparent, rgba(249,115,22,.16), transparent)",
+                  }}
+                  aria-hidden
+                />
+
+                {/* The file, lifting in */}
+                <div className="md-art-lift absolute left-4 top-4 flex items-center gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-2.5 py-1.5 shadow-sm">
+                  <svg className="h-4 w-4 text-orange-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" strokeLinejoin="round" />
+                    <path d="M14 2v6h6" strokeLinejoin="round" />
+                  </svg>
+                  <span className="text-[10px] font-semibold text-orange-600 dark:text-orange-400">
+                    report.pdf
                   </span>
-                  <span className="text-[10px] text-gray-400">rendered · not downloaded</span>
                 </div>
-                <div className="mt-3 flex-1 min-h-0 flex items-end gap-2.5">
-                  {ARTIFACT_BARS.map((b, i) => (
-                    <div key={b.l} className="flex-1 flex flex-col items-center gap-1 h-full">
-                      <div className="w-full flex-1 flex items-end">
-                        <div
-                          className="md-bar-anim w-full rounded-t bg-gradient-to-t from-orange-600 to-orange-400"
-                          style={{ height: b.h, animationDelay: `${i * 140}ms` }}
-                        />
-                      </div>
-                      <span className="text-[9px] text-gray-400">{b.l}</span>
-                    </div>
+
+                {/* …becoming rendered content */}
+                <div className="absolute inset-x-4 bottom-4 top-16 flex flex-col gap-2">
+                  {ARTIFACT_LINES.map((w, i) => (
+                    <div
+                      key={i}
+                      className={`md-art-line h-2 rounded ${
+                        i === 0
+                          ? "bg-gradient-to-r from-orange-500 to-orange-400"
+                          : "bg-gray-300/70 dark:bg-slate-600/70"
+                      }`}
+                      style={{ width: w, animationDelay: `${300 + i * 130}ms` }}
+                    />
                   ))}
                 </div>
               </div>

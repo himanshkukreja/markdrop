@@ -959,3 +959,92 @@ export async function replaceArtifactFile(
   if (!res.ok) throw await artifactError(res, "Could not replace the file");
   return res.json();
 }
+
+
+// ── Email campaigns (admin) ───────────────────────────────────────────────────
+
+export type Audience = "all" | "with_documents" | "with_artifacts" | "recent" | "custom";
+
+export interface AudiencePreview {
+  count: number;
+  sample: string[];
+}
+
+export interface CampaignItem {
+  id: string;
+  subject: string;
+  audience: string;
+  status: string;
+  total: number;
+  sent: number;
+  failed: number;
+  created_at: string;
+  finished_at: string | null;
+}
+
+async function adminPost(token: string, path: string, body: unknown) {
+  const res = await fetch(`${API_BASE}/api/v1/admin${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(typeof err.detail === "string" ? err.detail : "Request failed");
+  }
+  return res.json();
+}
+
+export function previewAudience(
+  token: string,
+  audience: Audience,
+  opts?: { recentDays?: number; emails?: string[] }
+): Promise<AudiencePreview> {
+  return adminPost(token, "/campaigns/audience", {
+    audience,
+    recent_days: opts?.recentDays ?? 30,
+    emails: opts?.emails ?? [],
+  });
+}
+
+export function sendCampaignTest(
+  token: string,
+  input: { subject: string; html: string; sender?: string; toEmail: string }
+): Promise<{ status: string }> {
+  return adminPost(token, "/campaigns/test", {
+    subject: input.subject,
+    html: input.html,
+    sender: input.sender || null,
+    to_email: input.toEmail,
+  });
+}
+
+export function createCampaign(
+  token: string,
+  input: {
+    subject: string;
+    html: string;
+    sender?: string;
+    audience: Audience;
+    recentDays?: number;
+    emails?: string[];
+  }
+): Promise<{ id: string; total: number; status: string }> {
+  return adminPost(token, "/campaigns", {
+    subject: input.subject,
+    html: input.html,
+    sender: input.sender || null,
+    audience: input.audience,
+    recent_days: input.recentDays ?? 30,
+    emails: input.emails ?? [],
+  });
+}
+
+export async function listCampaigns(token: string): Promise<CampaignItem[]> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/campaigns`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to load campaigns");
+  return (await res.json()).campaigns;
+}

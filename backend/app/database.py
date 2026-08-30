@@ -58,6 +58,10 @@ async def connect() -> None:
     await db["share_events"].create_index([("ts", -1)])
     await db["share_events"].create_index([("user_id", 1), ("ts", -1)], sparse=True)
 
+    # Email campaigns + opt-out lookups for building an audience
+    await db["campaigns"].create_index([("created_at", -1)])
+    await db["users"].create_index("unsubscribed_at", sparse=True)
+
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])
     await db["feedback"].create_index([("status", 1), ("type", 1), ("created_at", -1)])

@@ -386,3 +386,34 @@ body {
   max-width: 100%;
   height: auto;
 }
+
+/* ── Artifact hero scene ─────────────────────────────────────────────────────
+   A file lifting into a frame and rendering, rather than abstract bars — the
+   motion is meant to read as "your file becomes a page". */
+@keyframes md-art-lift {
+  0%        { opacity: 0; transform: translateY(14px) scale(.94); }
+  16%, 62%  { opacity: 1; transform: translateY(0) scale(1); }
+  78%, 100% { opacity: 0; transform: translateY(-10px) scale(.97); }
+}
+@keyframes md-art-line {
+  0%, 12%  { transform: scaleX(0); opacity: .25; }
+  38%, 74% { transform: scaleX(1); opacity: 1; }
+  92%,100% { transform: scaleX(1); opacity: .25; }
+}
+@keyframes md-art-scan {
+  0%       { transform: translateY(-10%); opacity: 0; }
+  25%      { opacity: .55; }
+  75%      { opacity: .55; }
+  100%     { transform: translateY(560%); opacity: 0; }
+}
+.md-art-lift { animation: md-art-lift 4.2s ease-in-out infinite; }
+.md-art-line { transform-origin: left center; animation: md-art-line 4.2s ease-in-out infinite; }
+.md-art-scan { animation: md-art-scan 4.2s cubic-bezier(.4,0,.2,1) infinite; }
+
+/* Horizontal pill strip that scrolls instead of wrapping to a second row. */
+.md-no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.md-no-scrollbar::-webkit-scrollbar { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .md-art-lift, .md-art-line, .md-art-scan { animation: none !important; opacity: 1; transform: none; }
+}

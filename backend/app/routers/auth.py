@@ -9,9 +9,11 @@ Google (Phase 1) and email magic-link/OTP (Phase 2) endpoints are added to
 this same router.
 """
 
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import httpx
+from bson import ObjectId
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
@@ -230,3 +232,51 @@ async def email_verify_link(token: str = Query(...), next: str | None = Query(No
     user = await user_service.upsert_user(get_database(), email, provider="email")
     access, _ = create_access_token(user.id, user.email)
     return _login_success_redirect(access, next or "")
+
+
+@router.get("/unsubscribe")
+async def unsubscribe(
+    t: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """One-click opt-out of bulk email. Public by design.
+
+    Mail clients hit this unauthenticated via List-Unsubscribe, so authority
+    comes from the signed token rather than a session. It only ever stops mail,
+    so there is nothing to escalate even if a link leaks. Transactional mail
+    (sign-in codes) is unaffected — those are never bulk sends.
+    """
+    from fastapi.responses import HTMLResponse
+
+    from app.services import campaign
+
+    user_id = campaign.verify_unsubscribe_token(t)
+    ok = False
+    if user_id and ObjectId.is_valid(user_id):
+        res = await db["users"].update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"unsubscribed_at": datetime.now(timezone.utc)}},
+        )
+        ok = res.matched_count > 0
+
+    body = (
+        "<h2>You're unsubscribed</h2><p>You won't receive Markdrop product updates "
+        "again. Sign-in emails will still work.</p>"
+        if ok
+        else "<h2>Link not recognised</h2><p>This unsubscribe link is invalid or expired.</p>"
+    )
+    return HTMLResponse(
+        f"""<!doctype html><meta charset=utf-8><title>Markdrop</title>
+<div style="font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+            max-width:460px;margin:15vh auto;padding:0 24px;color:#111;text-align:center">
+  {body}
+  <p style="margin-top:24px"><a href="{get_settings().frontend_url}" style="color:#2563eb">Back to Markdrop</a></p>
+</div>""",
+        status_code=200 if ok else 400,
+    )
+
+
+@router.post("/unsubscribe")
+async def unsubscribe_post(t: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """RFC 8058 one-click: some clients POST rather than GET."""
+    return await unsubscribe(t, db)

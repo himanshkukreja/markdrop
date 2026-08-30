@@ -24,14 +24,23 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import BackgroundTasks, APIRouter, Depends, HTTPException, Query, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.database import get_database
 from app.limiter import limiter  # shared slowapi limiter
+from app.schemas.auth import (
+    AudiencePreviewRequest,
+    AudiencePreviewResponse,
+    CampaignCreateRequest,
+    CampaignItem,
+    CampaignListResponse,
+    CampaignTestRequest,
+)
 from app.schemas.document import MAX_CONTENT
+from app.services import campaign, mailer
 from app.services import feedback as feedback_service
 
 settings = get_settings()
@@ -609,3 +618,113 @@ async def admin_delete_document(
     result = await db["documents"].delete_one({"slug": slug})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Document not found")
+
+
+# ── Email campaigns ────────────────────────────────────────────────────────────
+
+
+def _sender(custom: str | None) -> str:
+    """From address for a campaign.
+
+    Defaults to a distinct `updates@` mailbox rather than the login sender, so a
+    spam complaint about an announcement can't take the sign-in codes down with
+    it. Falls back to the configured sender if the domain can't be derived.
+    """
+    if custom:
+        return custom
+    domain = settings.email_from.split("@")[-1] if "@" in settings.email_from else ""
+    if domain:
+        return f"{settings.email_from_name} <updates@{domain}>"
+    return f"{settings.email_from_name} <{settings.email_from}>"
+
+
+@router.post("/campaigns/audience", response_model=AudiencePreviewResponse)
+async def preview_audience(
+    data: AudiencePreviewRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """How many people a campaign would reach, so a send is never a guess."""
+    people = await campaign.resolve_audience(
+        db, data.audience, recent_days=data.recent_days, emails=data.emails
+    )
+    return AudiencePreviewResponse(
+        count=len(people), sample=[p["email"] for p in people[:5]]
+    )
+
+
+@router.post("/campaigns/test", status_code=202)
+async def send_campaign_test(
+    data: CampaignTestRequest,
+    _: dict = Depends(require_admin),
+):
+    """Send one copy to a chosen address so the template can be checked first."""
+    if not mailer.is_configured():
+        raise HTTPException(status_code=503, detail="Email is not configured on this server.")
+    ok = await campaign.send_test(
+        data.to_email, data.subject, data.html, _sender(data.sender)
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail="Resend rejected the test email.")
+    return {"status": "sent"}
+
+
+@router.post("/campaigns", status_code=202)
+async def create_campaign(
+    data: CampaignCreateRequest,
+    background: BackgroundTasks,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Queue a campaign and start sending in the background."""
+    if not mailer.is_configured():
+        raise HTTPException(status_code=503, detail="Email is not configured on this server.")
+
+    people = await campaign.resolve_audience(
+        db, data.audience, recent_days=data.recent_days, emails=data.emails
+    )
+    if not people:
+        raise HTTPException(status_code=422, detail="That audience has no recipients.")
+
+    doc = {
+        "subject": data.subject,
+        "html": data.html,
+        "sender": _sender(data.sender),
+        "audience": data.audience,
+        "recent_days": data.recent_days,
+        "custom_emails": data.emails,
+        "status": "queued",
+        "total": len(people),
+        "sent": 0,
+        "failed": 0,
+        "created_at": datetime.now(timezone.utc),
+        "started_at": None,
+        "finished_at": None,
+    }
+    res = await db["campaigns"].insert_one(doc)
+    background.add_task(campaign.run_campaign, db, str(res.inserted_id))
+    return {"id": str(res.inserted_id), "total": len(people), "status": "queued"}
+
+
+@router.get("/campaigns", response_model=CampaignListResponse)
+async def list_campaigns(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    rows = await db["campaigns"].find({}, {"html": 0}).sort("created_at", -1).to_list(length=50)
+    return CampaignListResponse(
+        campaigns=[
+            CampaignItem(
+                id=str(r["_id"]),
+                subject=r["subject"],
+                audience=r.get("audience", "all"),
+                status=r.get("status", "queued"),
+                total=r.get("total", 0),
+                sent=r.get("sent", 0),
+                failed=r.get("failed", 0),
+                created_at=r["created_at"],
+                finished_at=r.get("finished_at"),
+            )
+            for r in rows
+        ]
+    )
