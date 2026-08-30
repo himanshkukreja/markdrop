@@ -70,7 +70,6 @@ export default function UploadArtifactPage() {
   const [slugError, setSlugError] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [pastePreview, setPastePreview] = useState(false);
-  const [filePreview, setFilePreview] = useState(false);
   const [titleTouched, setTitleTouched] = useState(false);
   const [expiresIn, setExpiresIn] = useState<ExpiresIn>("never");
   const [readPassword, setReadPassword] = useState("");
@@ -356,28 +355,7 @@ export default function UploadArtifactPage() {
         </div>
       )}
 
-      {tab === "upload" && file && (
-        <div>
-          <button
-            onClick={() => setFilePreview((v) => !v)}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-500 hover:text-blue-400 transition-colors"
-          >
-            <svg
-              className={`w-3.5 h-3.5 transition-transform ${filePreview ? "rotate-90" : ""}`}
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
-              strokeLinecap="round" strokeLinejoin="round" aria-hidden
-            >
-              <path d="m9 18 6-6-6-6" />
-            </svg>
-            {filePreview ? "Hide preview" : "Preview this file"}
-          </button>
-          {filePreview && (
-            <div className="mt-2">
-              <ArtifactPreview file={file} />
-            </div>
-          )}
-        </div>
-      )}
+      {tab === "upload" && file && <ArtifactPreview file={file} />}
 
       {/* Options */}
       <div className="rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 sm:p-5 space-y-4">
