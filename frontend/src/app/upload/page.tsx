@@ -244,7 +244,9 @@ export default function UploadArtifactPage() {
           </div>
 
           {pastePreview ? (
-            <div className="h-72">
+            // Taller than the editor: swapping in place means the preview isn't
+            // bound to the textarea's height, and a real page needs the room.
+            <div className="h-[34rem]">
               <ArtifactPreview html={html} bare />
             </div>
           ) : (
