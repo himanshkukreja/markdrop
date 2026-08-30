@@ -40,11 +40,15 @@ _ACCENT_BAR = 14            # slim left accent stripe
 # Artifact accents, matched to components/ArtifactBadge.tsx so a link preview
 # and the dashboard chip for the same file are visibly the same thing.
 _ARTIFACT_ACCENT: dict[str, tuple[int, int, int]] = {
-    "html":  (249, 115, 22),   # orange-500
-    "pdf":   (239, 68, 68),    # red-500
-    "sheet": (16, 185, 129),   # emerald-500
-    "image": (139, 92, 246),   # violet-500
-    "text":  (14, 165, 233),   # sky-500
+    "html":   (249, 115, 22),   # orange-500
+    "pdf":    (239, 68, 68),    # red-500
+    "sheet":  (16, 185, 129),   # emerald-500
+    # A deeper Word blue, deliberately not the brand blue — with the default
+    # accent a .docx card was indistinguishable from a plain markdown one.
+    "docx":   (43, 87, 154),
+    "bundle": (20, 184, 166),   # teal-500
+    "image":  (139, 92, 246),   # violet-500
+    "text":   (14, 165, 233),   # sky-500
 }
 
 

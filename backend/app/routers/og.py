@@ -80,6 +80,7 @@ async def og_image(request: Request, slug: str, db: AsyncIOMotorDatabase = Depen
         artifact_kind=kind,
         artifact_label=label,
         artifact_size=size,
+        artifact_filename=raw.get("original_filename") if is_artifact else None,
     )
     # 1h cache: title/snippet edits and view counts propagate within the hour
     # without hammering the renderer on every crawler hit.
