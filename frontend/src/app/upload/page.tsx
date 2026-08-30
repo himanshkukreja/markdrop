@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Spinner from "@/components/Spinner";
 import { slugifyFilename, titleFromFilename } from "@/lib/slugify";
+import ArtifactPreview from "./ArtifactPreview";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getArtifactStatus,
@@ -207,6 +208,7 @@ export default function UploadArtifactPage() {
       </div>
 
       {tab === "paste" ? (
+        <div className="grid lg:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] overflow-hidden bg-gray-50 dark:bg-[#0d1526] vscode:bg-[#1e1e1e]">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white/60 dark:bg-white/[0.02]">
             <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
@@ -231,6 +233,8 @@ export default function UploadArtifactPage() {
               </button>
             </div>
           )}
+        </div>
+        <ArtifactPreview html={html} />
         </div>
       ) : (
         <div
@@ -320,6 +324,8 @@ export default function UploadArtifactPage() {
           )}
         </div>
       )}
+
+      {tab === "upload" && file && <ArtifactPreview file={file} />}
 
       {/* Options */}
       <div className="rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 sm:p-5 space-y-4">
