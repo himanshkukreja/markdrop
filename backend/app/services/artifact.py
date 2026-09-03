@@ -208,6 +208,7 @@ async def create_artifact(
     title: str | None,
     filename: str | None,
     custom_slug: str | None = None,
+    preferred_slug: str | None = None,
     expires_in: str = "never",
     custom_expires_at: datetime | None = None,
     read_password: str | None = None,
@@ -236,7 +237,9 @@ async def create_artifact(
         db,
         payload,
         owner_id=user_id,
-        preferred_slug=None if custom_slug else (title or filename),
+        # Filename first when the caller names one — an editor publish should
+        # land on a slug matching the file, the way markdown sync already does.
+        preferred_slug=None if custom_slug else (preferred_slug or title or filename),
         extra={
             "kind": "artifact",
             "mime": mime,

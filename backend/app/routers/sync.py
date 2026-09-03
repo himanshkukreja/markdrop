@@ -127,6 +127,7 @@ async def _create_synced_artifact(db, user, data, mime: str):
             size_bytes=len(payload),
             title=data.title,
             filename=data.desired_slug,
+            preferred_slug=data.desired_slug,
         )
     except Exception:
         await run_in_threadpool(r2.delete, blob_key)
