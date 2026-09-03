@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.config import get_settings
 from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
@@ -27,6 +28,7 @@ from app.services import document as doc_service
 from app.services import live
 from app.services import r2
 
+settings = get_settings()
 router = APIRouter(prefix="/api/v1/sync", tags=["sync"])
 
 BASE_URL = "https://markdrop.in"
@@ -34,6 +36,20 @@ BASE_URL = "https://markdrop.in"
 
 def get_db() -> AsyncIOMotorDatabase:
     return get_database()
+
+
+def _require_markdown_size(content: str) -> None:
+    """Markdown documents live in MongoDB, so they keep the smaller character
+    limit even though the sync schema now accepts artifact-sized bodies."""
+    if len(content) > settings.max_content_chars:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"Markdown documents are limited to "
+                f"{settings.max_content_chars:,} characters. "
+                "Publish this as an artifact instead (rename it to .html)."
+            ),
+        )
 
 
 def _doc_response(doc, content: str | None = None) -> SyncDocResponse:
@@ -74,6 +90,10 @@ async def sync_create(
         doc = await _create_synced_artifact(db, user, data, mime)
         return _doc_response(doc, content=data.content)
 
+    # The sync schema now allows artifact-sized bodies, so the markdown limit has
+    # to be enforced here — otherwise DocumentCreate raises a validation error
+    # deep in the handler and the editor sees a 500 instead of an explanation.
+    _require_markdown_size(data.content)
     payload = DocumentCreate(title=data.title, content=data.content)
     doc, _secret = await doc_service.create_document(
         db, payload, owner_id=user.id, preferred_slug=data.desired_slug, via_vscode=True
@@ -177,6 +197,7 @@ async def sync_push(
             live.publish(doc.slug, doc.rev)
             return _doc_response(doc, content=data.content)
     else:
+        _require_markdown_size(data.content)
         status, doc = await doc_service.sync_push(
             db, doc_id, user.id, data.content, data.title, data.base_rev
         )

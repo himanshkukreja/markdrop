@@ -6,6 +6,10 @@ from pydantic import BaseModel, Field, model_validator
 from app.config import get_settings
 
 MAX_CONTENT = get_settings().max_content_chars
+# Sync carries artifacts as well as markdown, and an HTML file is routinely
+# larger than a markdown note. The markdown limit is still enforced per-document
+# in the sync handler; this only stops pydantic rejecting an artifact outright.
+MAX_SYNC_CONTENT = 10 * 1024 * 1024
 
 
 class DocumentCreate(BaseModel):
@@ -100,14 +104,14 @@ class ReportRequest(BaseModel):
 
 class SyncCreateRequest(BaseModel):
     title: str | None = Field(None, max_length=200)
-    content: str = Field(..., min_length=1, max_length=MAX_CONTENT)
+    content: str = Field(..., min_length=1, max_length=MAX_SYNC_CONTENT)
     # Preferred slug (e.g. the filename) — slugified server-side, auto-suffixed on clash.
     desired_slug: str | None = Field(None, max_length=100)
 
 
 class SyncPushRequest(BaseModel):
     title: str | None = Field(None, max_length=200)
-    content: str = Field(..., min_length=1, max_length=MAX_CONTENT)
+    content: str = Field(..., min_length=1, max_length=MAX_SYNC_CONTENT)
     base_rev: int = Field(..., ge=0)
 
 

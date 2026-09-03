@@ -45,6 +45,11 @@ function loadScript(src: string, integrity: string): Promise<void> {
 
 type Kind = "html" | "pdf" | "image" | "sheet" | "docx" | "text" | "bundle" | "none";
 
+// Above this, rendering into srcDoc or parsing in-page locks the tab up long
+// enough to look like a crash — which reads as "publishing is broken" even
+// though the upload itself is fine at far larger sizes.
+const MAX_PREVIEW_BYTES = 3 * 1024 * 1024;
+
 function kindOf(name: string): Kind {
   const ext = name.toLowerCase().split(".").pop() || "";
   if (["html", "htm"].includes(ext)) return "html";
@@ -132,7 +137,7 @@ export default function ArtifactPreview({
 
   useEffect(() => {
     setDocHtml(null); setRows(null); setSheets([]); setSheet(0); setText(null); setError("");
-    if (!file) return;
+    if (!file || file.size > MAX_PREVIEW_BYTES) return;
     let cancelled = false;
 
     (async () => {
@@ -185,6 +190,20 @@ export default function ArtifactPreview({
 
   const body = (() => {
     if (error) return <Centered><span className="text-red-500">{error}</span></Centered>;
+    if (file && file.size > MAX_PREVIEW_BYTES) {
+      return (
+        <Centered>
+          <p className="font-medium text-gray-700 dark:text-gray-300">
+            {formatBytes(file.size)} — too large to preview here
+          </p>
+          <p className="mt-1">
+            Rendering a file this size in the page would freeze the tab. It will
+            publish and render normally — previews are skipped above{" "}
+            {formatBytes(MAX_PREVIEW_BYTES)}.
+          </p>
+        </Centered>
+      );
+    }
     if (busy) return <Centered><Spinner className="w-5 h-5 mx-auto mb-2" />Preparing preview…</Centered>;
 
     if (kind === "html") {

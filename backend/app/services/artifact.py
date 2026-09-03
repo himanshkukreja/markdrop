@@ -192,8 +192,9 @@ async def check_quota(db: AsyncIOMotorDatabase, user_id: str, incoming: int) -> 
 # ── Creation ───────────────────────────────────────────────────────────────────
 
 # A pasted HTML page goes through the server rather than a presigned round trip.
-# Capped low so this stays a convenience path, not a file-upload backdoor.
-MAX_PASTE_BYTES = 2 * 1024 * 1024
+# Kept below nginx's client_max_body_size (12m) so an oversized paste is refused
+# by the app with an explanation, rather than by nginx with a bare 413.
+MAX_PASTE_BYTES = 10 * 1024 * 1024
 
 
 async def create_artifact(
@@ -377,8 +378,9 @@ SYNCABLE_MIMES = frozenset({
 })
 
 # Sync payloads travel as JSON through the API, unlike uploads which go straight
-# to R2, so they're capped well below the artifact size limit.
-MAX_SYNC_BYTES = 2 * 1024 * 1024
+# to R2, so they're capped below nginx's body limit rather than at the 25 MB
+# artifact limit.
+MAX_SYNC_BYTES = 10 * 1024 * 1024
 
 
 def is_syncable(mime: str | None) -> bool:
