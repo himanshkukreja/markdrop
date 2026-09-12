@@ -6,6 +6,7 @@ import CopyButton from "@/components/CopyButton";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
 import MarkdropLoader from "@/components/MarkdropLoader";
+import ImmersiveExit from "@/components/ImmersiveExit";
 import ArtifactBadge, { formatBytes } from "@/components/ArtifactBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -109,7 +110,11 @@ export default function ArtifactView({
   // Immersive mode: the artifact fills the viewport with all app chrome hidden,
   // so a published page reads as the content itself rather than something in a
   // box. Escape exits, and body scroll is locked while it's open.
-  const [immersive, setImmersive] = useState(false);
+  // Initial state, not an effect: everyone lands immersive anyway, and flipping
+  // it after the first commit mounts the framed iframe for one render — long
+  // enough to start a fetch that is then thrown away when it unmounts. Derived
+  // purely from props, so the server and client agree on the first paint.
+  const [immersive, setImmersive] = useState(!!initialArtifactUrl);
   const [downloading, setDownloading] = useState(false);
 
   // Owner settings panel
@@ -303,6 +308,9 @@ export default function ArtifactView({
   // This deliberately doesn't wait on the ownership check: ownership isn't
   // knowable at SSR (the server render is always anonymous), so waiting would
   // mean a visible flash of the framed view before going immersive.
+  // Still needed for the artifact URL that only arrives later — after a password
+  // unlock, or the owner's authorised re-read. Keyed on the URL, so an explicit
+  // Esc is not undone by a live update that returns the same one.
   useEffect(() => {
     if (artifactUrl && !locked) setImmersive(true);
   }, [artifactUrl, locked]);
@@ -316,7 +324,7 @@ export default function ArtifactView({
     setFrameLoading(true);
     const t = setTimeout(() => setFrameLoading(false), 15000);
     return () => clearTimeout(t);
-  }, [artifactUrl, reloadKey, locked]);
+  }, [artifactUrl, reloadKey, locked, immersive]);
 
   useEffect(() => {
     if (!immersive) return;
@@ -508,19 +516,24 @@ export default function ArtifactView({
           </form>
         </div>
       ) : artifactUrl ? (
-        <div className="relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden bg-white dark:bg-[#0b1220]">
-          <iframe
-            key={reloadKey}
-            src={artifactUrl}
-            sandbox={SANDBOX}
-            // No referrer: the artifact origin never needs to know which
-            // markdrop.in page framed it.
-            referrerPolicy="no-referrer"
-            title={title || slug}
-            onLoad={() => setFrameLoading(false)}
-            className="w-full border-0 bg-white"
-            style={{ height: "min(78vh, 900px)" }}
-          />
+        /* Not rendered while immersive, even though it would be hidden behind
+           the overlay. Two mounted iframes mean the artifact is fetched twice
+           for every viewer, and the framed one's load event would clear the
+           cover over the immersive one that is still blank. */
+        <div className="relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden bg-white dark:bg-[#0b1220]" style={{ height: "min(78vh, 900px)" }}>
+          {!immersive && (
+            <iframe
+              key={reloadKey}
+              src={artifactUrl}
+              sandbox={SANDBOX}
+              // No referrer: the artifact origin never needs to know which
+              // markdrop.in page framed it.
+              referrerPolicy="no-referrer"
+              title={title || slug}
+              onLoad={() => setFrameLoading(false)}
+              className="w-full h-full border-0 bg-white"
+            />
+          )}
           <FrameCover show={frameLoading} label={loadingLabel} />
         </div>
       ) : (
@@ -541,22 +554,7 @@ export default function ArtifactView({
             className="w-full h-full border-0 bg-white"
           />
           <FrameCover show={frameLoading} label={loadingLabel} />
-          {/* Shown to everyone, not just the owner: the framed view is where the
-              Report control lives, so a visitor who can't leave immersive mode
-              could never flag abusive content. Bottom-right because top-right is
-              where PDF.js, SheetJS and plenty of user pages put their own
-              toolbars. Fades back until hovered so it never fights the content. */}
-          <button
-            onClick={() => setImmersive(false)}
-            aria-label="Show document details"
-            className="fixed bottom-4 right-4 z-[101] inline-flex items-center gap-2 rounded-full bg-black/60 hover:bg-black/85 backdrop-blur px-3.5 py-2 text-xs font-medium text-white/85 hover:text-white shadow-lg opacity-45 hover:opacity-100 focus:opacity-100 transition-all"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M9 21H5a2 2 0 0 1-2-2v-4M15 21h4a2 2 0 0 0 2-2v-4" />
-            </svg>
-            Show details
-            <kbd className="hidden sm:inline rounded border border-white/25 px-1 text-[10px] leading-4">Esc</kbd>
-          </button>
+          <ImmersiveExit onExit={() => setImmersive(false)} />
         </div>
       )}
 

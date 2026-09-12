@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
+import ImmersiveExit from "@/components/ImmersiveExit";
 import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, API_BASE } from "@/lib/api";
@@ -82,6 +83,23 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
       {label}
     </span>
   );
+}
+
+/**
+ * Does the document already open with a heading that says what the title says?
+ *
+ * Full screen hides the chrome, so the stored title has to be drawn into the
+ * reading column or a document whose markdown starts with prose loses it
+ * entirely. But most documents *do* lead with their own H1, and printing ours
+ * above it just says the same thing twice in two different sizes.
+ */
+function opensWithOwnTitle(content: string, title: string | null): boolean {
+  if (!title) return true;
+  const firstLine = content.split("\n").find((l) => l.trim());
+  const heading = firstLine?.match(/^\s{0,3}#{1,3}\s+(.+?)\s*#*\s*$/)?.[1];
+  if (!heading) return false;
+  const norm = (v: string) => v.trim().replace(/\s+/g, " ").toLowerCase();
+  return norm(heading) === norm(title);
 }
 
 export default function DocumentView({
@@ -328,6 +346,54 @@ export default function DocumentView({
   const [pwdError, setPwdError] = useState("");
   const [pwdUnlocking, setPwdUnlocking] = useState(false);
   const [pwdVisible, setPwdVisible] = useState(false);
+
+  // Immersive mode: the document fills the viewport with all app chrome hidden,
+  // so a published page reads as the content itself rather than as something in
+  // a Markdrop box. Escape exits, and the framed view stays one key away.
+  //
+  // Derived from props alone, deliberately. The server render has no search
+  // params, so seeding this from ?new/?edit would make the server and client
+  // disagree about the very first paint. Props-only means the prerendered HTML
+  // is already full-bleed, and a reader never sees the boxed view flash past
+  // while the page hydrates.
+  const [immersive, setImmersive] = useState(
+    () => !isPasswordProtected && !!initialContent.trim()
+  );
+  const decided = useRef(false);
+
+  // Reader-only. The editor needs the chrome, a gated document has nothing to
+  // show yet, and an artifact found behind the password gate runs its own
+  // immersive mode — letting both lock body scroll would fight over restoring it.
+  const showImmersive = immersive && !editing && !pwdLocked && !pwdFetching && !artifactDoc;
+
+  // Once hydrated, the search params are readable and the decision can be made
+  // properly. It runs exactly once — a ref, not a dependency guard — so a doc
+  // still immerses after its password unlock resolves, while an explicit Esc is
+  // never undone by a later re-render.
+  //
+  // Publishing is the one flow that must *not* be full-bleed: the edit secret is
+  // shown once and lives in the chrome, so covering it would lose it for good.
+  // Same for the flags that open a chrome-level panel.
+  useEffect(() => {
+    if (decided.current) return;
+    // Not resolved yet — wait rather than deciding on a transient state.
+    if (editing || pwdLocked || pwdFetching || artifactDoc) return;
+    decided.current = true;
+    const chromeFlow = isNew || startInEdit || startCopy || startGoogleSync;
+    setImmersive(!chromeFlow && !!displayContent.trim());
+  }, [editing, pwdLocked, pwdFetching, artifactDoc, isNew, startInEdit, startCopy, startGoogleSync, displayContent]);
+
+  useEffect(() => {
+    if (!showImmersive) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setImmersive(false);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [showImmersive]);
 
   // Scroll sync refs for split view
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -934,6 +1000,15 @@ export default function DocumentView({
           {!pwdLocked && (
             <>
               <button
+                onClick={() => setImmersive(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+                </svg>
+                Full screen
+              </button>
+              <button
                 onClick={() => setShowRaw(!showRaw)}
                 className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
               >
@@ -1215,17 +1290,40 @@ export default function DocumentView({
           ))}
         </div>
       ) : (
-        <div className="relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-6 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526] print:border-0 print:p-0 print:bg-white overflow-hidden">
-          {showRaw ? (
-            <>
-              <CopyButton text={displayContent} label="Copy all" className="no-print absolute top-3 right-3" />
-              <pre className="font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] whitespace-pre-wrap break-words">
-                {displayContent}
-              </pre>
-            </>
-          ) : (
-            <MarkdownPreview content={displayContent} />
-          )}
+        /* One element in both modes — immersive only swaps its classes. Rendering
+           a second copy into an overlay would tear this subtree down and remount
+           it on every toggle, re-running every mermaid diagram and KaTeX block
+           inside it. The print variants flatten the fixed overlay back into the
+           flow so Export PDF still works from full screen. */
+        <div
+          className={
+            showImmersive
+              ? "fixed inset-0 z-[100] overflow-y-auto overscroll-contain bg-white dark:bg-gray-950 vscode:bg-[#1e1e1e] print:static print:overflow-visible print:bg-white"
+              : "relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-6 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526] print:border-0 print:p-0 print:bg-white overflow-hidden"
+          }
+        >
+          {/* Full-bleed means we supply the reading measure ourselves; edge-to-
+              edge prose on a wide monitor is worse than the box it replaced. */}
+          <div className={showImmersive ? "max-w-3xl mx-auto px-5 sm:px-8 py-10 sm:py-14 print:max-w-none print:p-0" : ""}>
+            {/* The title lives in the hidden chrome, and a document whose
+                markdown doesn't open with a heading would otherwise lose it. */}
+            {showImmersive && displayTitle && !showRaw && !opensWithOwnTitle(displayContent, displayTitle) && (
+              <h1 className="no-print mb-8 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] break-words">
+                {displayTitle}
+              </h1>
+            )}
+            {showRaw ? (
+              <>
+                <CopyButton text={displayContent} label="Copy all" className="no-print absolute top-3 right-3" />
+                <pre className="font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] whitespace-pre-wrap break-words">
+                  {displayContent}
+                </pre>
+              </>
+            ) : (
+              <MarkdownPreview content={displayContent} />
+            )}
+          </div>
+          {showImmersive && <ImmersiveExit onExit={() => setImmersive(false)} />}
         </div>
       )}
     </div>
