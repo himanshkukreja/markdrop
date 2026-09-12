@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createDocument, ExpiresIn } from "@/lib/api";
+import * as e2e from "@/lib/e2e";
 import { MAX_CHARS } from "@/lib/limits";
 import { DIAGRAM_SAMPLE, DIAGRAM_SAMPLE_PARAM } from "@/lib/samples";
 import MarkdownPreview from "@/components/MarkdownPreview";
@@ -90,6 +91,7 @@ export default function NewDocumentPage() {
   const [expiresIn, setExpiresIn] = useState<ExpiresIn>("never");
   const [customExpiresAt, setCustomExpiresAt] = useState("");
   const [readPassword, setReadPassword] = useState("");
+  const [encrypt, setEncrypt] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [slugError, setSlugError] = useState("");
 
@@ -140,16 +142,29 @@ export default function NewDocumentPage() {
     setLoading(true);
     setError("");
     try {
-      const doc = await createDocument(title, content, {
+      // Seal before anything leaves the tab. `body` is what the API stores; the
+      // key exists only here and, in a moment, in the fragment of the link.
+      let body = content;
+      let keyFragment = "";
+      if (encrypt) {
+        const key = await e2e.generateKey();
+        body = await e2e.seal(key, { title: title.trim() || null, content });
+        keyFragment = `#k=${await e2e.exportKey(key)}`;
+      }
+
+      const doc = await createDocument(title, body, {
         customSlug: customSlug || undefined,
         expiresIn,
         customExpiresAt: expiresIn === "custom" ? new Date(customExpiresAt).toISOString() : undefined,
         readPassword: readPassword || undefined,
+        encrypted: encrypt || undefined,
       });
       // Keep the secret in sessionStorage only — never in the URL (it would
       // leak via history, referrer headers and server logs).
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);
-      router.push(`/${doc.slug}?new=1`);
+      // The fragment survives a client-side push and is never sent to a server,
+      // which is the whole reason the key travels there.
+      router.push(`/${doc.slug}?new=1${keyFragment}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -255,6 +270,68 @@ export default function NewDocumentPage() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* End-to-end encryption */}
+        <div
+          className={`rounded-lg border transition-colors ${
+            encrypt
+              ? "border-emerald-300 dark:border-emerald-800/70 bg-emerald-50/60 dark:bg-emerald-950/20"
+              : "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d]"
+          }`}
+        >
+          <label className="flex items-start gap-2.5 px-3 py-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={encrypt}
+              disabled={!e2e.isSupported()}
+              onChange={(e) => setEncrypt(e.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-emerald-600 cursor-pointer disabled:cursor-not-allowed"
+            />
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+                <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+                </svg>
+                End-to-end encrypt
+              </span>
+              <span className="block mt-0.5 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                {!e2e.isSupported() ? (
+                  "Unavailable — this browser doesn't expose WebCrypto on an insecure connection."
+                ) : encrypt ? (
+                  <>
+                    Your browser encrypts the title and the text before publishing. The key goes
+                    in the <span className="font-mono">#</span> part of the link, which browsers
+                    never send to a server — so Markdrop stores bytes it cannot read.
+                  </>
+                ) : (
+                  "Encrypt in your browser so that not even Markdrop can read this document."
+                )}
+              </span>
+            </span>
+          </label>
+
+          {encrypt && (
+            <div className="border-t border-emerald-200/70 dark:border-emerald-900/50 px-3 py-2 space-y-1.5">
+              {/* This is the part people get wrong, so it is stated first and plainly. */}
+              <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
+                <span aria-hidden>⚠</span>
+                <span>
+                  <strong className="font-medium">Keep the link.</strong> It contains the only
+                  copy of the key. Nobody — including us — can recover this document without it.
+                </span>
+              </p>
+              <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                Anyone you send the link to can read it. Encryption stops the server and the
+                database from reading your document; it isn&apos;t a substitute for being careful
+                about who you send the link to.
+              </p>
+              <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                Google Docs export, VS Code sync and link previews don&apos;t work on encrypted
+                documents — all three need a server that can read the text.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Expiry row */}

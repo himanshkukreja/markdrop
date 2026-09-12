@@ -34,10 +34,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const images = [{ url: ogImage, width: 1200, height: 630, alt: "Markdrop" }];
   try {
     const doc = await getDocument(slug, undefined, undefined, { revalidate: 60 });
-    const pageTitle = doc.title || slug;
-    const preview = doc.content.slice(0, 150).replace(/[#*_`]/g, "");
+    // An encrypted document has no readable title or body on this side — its
+    // `content` is an envelope and `title` is null. Slicing it would put base64
+    // in a link preview and still say nothing.
+    const pageTitle = doc.encrypted ? slug : doc.title || slug;
+    const preview = doc.encrypted ? "" : doc.content.slice(0, 150).replace(/[#*_`]/g, "");
     const title = `${pageTitle} — Markdrop`;
-    const description = preview || "A document on Markdrop";
+    const description = doc.encrypted
+      ? "An end-to-end encrypted document on Markdrop."
+      : preview || "A document on Markdrop";
     return {
       title,
       description,
@@ -113,6 +118,7 @@ export default async function SlugPage({ params }: Props) {
       isPasswordProtected={isPasswordProtected}
       isOwned={doc?.is_owned ?? false}
       syncedWithVscode={doc?.vscode_synced ?? false}
+      encrypted={doc?.encrypted ?? false}
     />
     </Suspense>
   );

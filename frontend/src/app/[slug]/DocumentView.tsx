@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import ImmersiveExit from "@/components/ImmersiveExit";
+import MarkdropLoader from "@/components/MarkdropLoader";
+import * as e2e from "@/lib/e2e";
 import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, API_BASE } from "@/lib/api";
@@ -63,6 +65,8 @@ interface Props {
   isPasswordProtected?: boolean;
   isOwned?: boolean;
   syncedWithVscode?: boolean;
+  /** `content` is a sealed envelope; the key is in the URL fragment, not here. */
+  encrypted?: boolean;
 }
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
@@ -93,6 +97,57 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
  * entirely. But most documents *do* lead with their own H1, and printing ours
  * above it just says the same thing twice in two different sizes.
  */
+/**
+ * What an encrypted document shows before — or instead of — its text.
+ *
+ * "No key" is the interesting case and by far the most common: someone shared
+ * `markdrop.in/slug` after copying it out of the address bar of a browser that
+ * hid the fragment, or a chat app trimmed it. Nothing can be done server-side,
+ * so the screen has to explain the situation rather than look broken.
+ */
+function EncryptionGate({ state }: { state: "working" | "nokey" | "failed" }) {
+  if (state === "working") {
+    return (
+      <div className="py-14 flex justify-center">
+        <MarkdropLoader label="Decrypting in your browser…" size="sm" />
+      </div>
+    );
+  }
+  const missing = state === "nokey";
+  return (
+    <div className="py-12 px-4 flex flex-col items-center text-center gap-3">
+      <svg className="w-9 h-9 text-gray-400 dark:text-gray-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+        <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+      </svg>
+      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+        {missing ? "This document is end-to-end encrypted" : "That key doesn't open this document"}
+      </p>
+      <p className="max-w-md text-xs leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+        {missing ? (
+          <>
+            Its key lives in the part of the link after the{" "}
+            <span className="font-mono text-gray-600 dark:text-gray-300">#</span>, and this link
+            arrived without it. Ask whoever shared it for the full link — it looks like{" "}
+            <span className="font-mono break-all text-gray-600 dark:text-gray-300">
+              markdrop.in/slug#k=…
+            </span>
+          </>
+        ) : (
+          <>
+            The key is either wrong or the stored document was altered. Encrypted documents are
+            authenticated as well as encrypted, so Markdrop refuses to show anything rather than
+            show you something that may have been tampered with.
+          </>
+        )}
+      </p>
+      <p className="max-w-md text-xs leading-relaxed text-gray-400 dark:text-gray-500">
+        Markdrop cannot help recover it. The key has never been sent to our servers — that is the
+        point of the feature, and it has no exceptions.
+      </p>
+    </div>
+  );
+}
+
 function opensWithOwnTitle(content: string, title: string | null): boolean {
   if (!title) return true;
   const firstLine = content.split("\n").find((l) => l.trim());
@@ -114,6 +169,7 @@ export default function DocumentView({
   isPasswordProtected = false,
   isOwned = false,
   syncedWithVscode = false,
+  encrypted = false,
 }: Props) {
   const router = useRouter();
   // Read on the client, not from server searchParams — that would make the
@@ -297,21 +353,89 @@ export default function DocumentView({
       setPwdLocked(false);
       return true;
     }
-    setDisplayTitle(doc.title);
-    setDisplayContent(doc.content);
+    if (doc.encrypted) {
+      // Hand it to the decryption effect instead. `doc.title` is null on the
+      // wire for these — the real one is sealed inside the envelope.
+      setSealed(doc.content);
+    } else {
+      setDisplayTitle(doc.title);
+      setDisplayContent(doc.content);
+    }
     if (opts?.created !== false) setDisplayCreatedAt(doc.created_at);
     setDisplayExpiresAt(doc.expires_at);
     setDisplayViews(doc.views);
     return false;
   }
 
-  // Live display state
-  const [displayTitle, setDisplayTitle] = useState(initialTitle);
-  const [displayContent, setDisplayContent] = useState(initialContent);
+  // Live display state. For an encrypted document these start empty rather than
+  // holding the envelope: nothing should be able to render ciphertext as
+  // markdown, not even for one frame before the key arrives.
+  const [displayTitle, setDisplayTitle] = useState(encrypted ? null : initialTitle);
+  const [displayContent, setDisplayContent] = useState(encrypted ? "" : initialContent);
   const [displayCreatedAt, setDisplayCreatedAt] = useState(initialCreatedAt);
   const [displayExpiresAt, setDisplayExpiresAt] = useState(initialExpiresAt);
   const [displayViews, setDisplayViews] = useState(initialViews);
   const [vscodeSynced, setVscodeSynced] = useState(syncedWithVscode);
+
+  // ── End-to-end decryption ──────────────────────────────────────────────────
+  //
+  // The envelope arrives over the wire like any other content; the key does not,
+  // and never has. It comes out of the URL fragment, which the browser keeps to
+  // itself. Two effects: one turns the fragment into a CryptoKey, the other
+  // opens whatever envelope is currently in hand — so a live update from another
+  // tab or the editor re-decrypts on its own.
+  type DecryptState = "plain" | "working" | "ok" | "nokey" | "failed";
+  const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null);
+  const [keyFragment, setKeyFragment] = useState<string | null>(null);
+  const [sealed, setSealed] = useState<string | null>(encrypted ? initialContent : null);
+  const [decryptState, setDecryptState] = useState<DecryptState>(encrypted ? "working" : "plain");
+
+  useEffect(() => {
+    if (!encrypted) return;
+    if (!e2e.isSupported()) {
+      setDecryptState("failed");
+      return;
+    }
+    const raw = e2e.readKeyFromFragment();
+    if (!raw) {
+      setDecryptState("nokey");
+      return;
+    }
+    let cancelled = false;
+    setKeyFragment(raw);
+    e2e
+      .importKey(raw)
+      .then((key) => !cancelled && setCryptoKey(key))
+      .catch(() => !cancelled && setDecryptState("failed"));
+    return () => {
+      cancelled = true;
+    };
+  }, [encrypted]);
+
+  useEffect(() => {
+    if (!encrypted || !cryptoKey || sealed === null) return;
+    let cancelled = false;
+    // Only fall back to the "decrypting" screen when there is nothing on it yet.
+    // A live update re-decrypts in place; blanking the page for it would be a
+    // flash of nothing every time someone else typed.
+    setDecryptState((prev) => (prev === "ok" ? "ok" : "working"));
+    e2e
+      .unseal(cryptoKey, sealed)
+      .then(({ title, content }) => {
+        if (cancelled) return;
+        setDisplayTitle(title);
+        setDisplayContent(content);
+        setDecryptState("ok");
+      })
+      .catch(() => !cancelled && setDecryptState("failed"));
+    return () => {
+      cancelled = true;
+    };
+  }, [encrypted, cryptoKey, sealed]);
+
+  /** The link that actually opens this document — for an encrypted one, key and all. */
+  const shareUrl = encrypted && keyFragment ? e2e.withKey(url, keyFragment) : url;
+  const readable = !encrypted || decryptState === "ok";
 
   // View state
   const [showRaw, setShowRaw] = useState(false);
@@ -357,7 +481,7 @@ export default function DocumentView({
   // is already full-bleed, and a reader never sees the boxed view flash past
   // while the page hydrates.
   const [immersive, setImmersive] = useState(
-    () => !isPasswordProtected && !!initialContent.trim()
+    () => !isPasswordProtected && !encrypted && !!initialContent.trim()
   );
   const decided = useRef(false);
 
@@ -376,12 +500,15 @@ export default function DocumentView({
   // Same for the flags that open a chrome-level panel.
   useEffect(() => {
     if (decided.current) return;
-    // Not resolved yet — wait rather than deciding on a transient state.
+    // Not resolved yet — wait rather than deciding on a transient state. An
+    // encrypted document waits for its key too: if the key is missing or wrong,
+    // the explanation belongs next to the chrome, not alone on a blank screen.
     if (editing || pwdLocked || pwdFetching || artifactDoc) return;
+    if (encrypted && decryptState !== "ok") return;
     decided.current = true;
     const chromeFlow = isNew || startInEdit || startCopy || startGoogleSync;
     setImmersive(!chromeFlow && !!displayContent.trim());
-  }, [editing, pwdLocked, pwdFetching, artifactDoc, isNew, startInEdit, startCopy, startGoogleSync, displayContent]);
+  }, [editing, pwdLocked, pwdFetching, artifactDoc, isNew, startInEdit, startCopy, startGoogleSync, displayContent, encrypted, decryptState]);
 
   useEffect(() => {
     if (!showImmersive) return;
@@ -645,14 +772,26 @@ export default function DocumentView({
     setSaving(true);
     setSaveError("");
     try {
-      const doc = await updateDocument(slug, editTitle, editContent, secretInput, {
+      // Re-seal under the same key with a fresh IV, so the link keeps working
+      // and the server still never sees a word of it.
+      let body = editContent;
+      if (encrypted) {
+        if (!cryptoKey) throw new Error("This document can't be saved without its key.");
+        body = await e2e.seal(cryptoKey, {
+          title: editTitle.trim() || null,
+          content: editContent,
+        });
+      }
+      const doc = await updateDocument(slug, editTitle, body, secretInput, {
         readPassword: editNewPassword || undefined,
         removePassword: editRemovePassword,
         expiresIn: editExpiresIn || undefined,
         customExpiresAt: editExpiresIn === "custom" ? editCustomExpiresAt : undefined,
+        encrypted: encrypted || undefined,
       });
       setDisplayTitle(editTitle || null);
       setDisplayContent(editContent);
+      if (encrypted) setSealed(body);
       setDisplayExpiresAt(doc.expires_at);
       setEditing(false);
       // The edit bumped the document's rev, so any linked Google Doc is now
@@ -974,6 +1113,17 @@ export default function DocumentView({
                 {displayExpiresAt && <ExpiryBadge expiresAt={displayExpiresAt} />}
               </>
             )}
+            {encrypted && (
+              <span
+                title="Encrypted in the browser. Markdrop stores only ciphertext and never holds the key."
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
+              >
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+                  <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+                </svg>
+                End-to-end encrypted
+              </span>
+            )}
             {isPasswordProtected && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 vscode:bg-[#2d2d2d] vscode:text-[#9d9d9d]">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -996,7 +1146,9 @@ export default function DocumentView({
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 flex-wrap">
-          <CopyButton text={url} onCopy={() => recordEvent(slug, "copy_url")} />
+          {/* shareUrl, not url: without the fragment the link opens a document
+              nobody can read, including the person who just published it. */}
+          <CopyButton text={shareUrl} onCopy={() => recordEvent(slug, "copy_url")} />
           {!pwdLocked && (
             <>
               <button
@@ -1035,8 +1187,11 @@ export default function DocumentView({
             Edit
           </button>
 
-          {/* Save a copy — any viewer who isn't the owner (logged out → sign in first) */}
-          {!isOwner && !pwdLocked && (
+          {/* Save a copy — any viewer who isn't the owner (logged out → sign in first).
+              Hidden for encrypted documents: the copy happens server-side, which
+              would duplicate ciphertext under a slug whose link carries no key.
+              The API refuses it too, so this is the polite half of the answer. */}
+          {!isOwner && !pwdLocked && !encrypted && (
             <button
               onClick={requestCopy}
               title="Save your own editable copy of this document"
@@ -1046,8 +1201,10 @@ export default function DocumentView({
             </button>
           )}
 
-          {/* Google Docs sync — owner + connected only */}
-          {isOwner && gConnected && !pwdLocked && (
+          {/* Google Docs sync — owner + connected only. Never for encrypted
+              documents: the export renders Mermaid and LaTeX server-side, which
+              means reading the markdown. */}
+          {isOwner && gConnected && !pwdLocked && !encrypted && (
             googleDocUrl ? (
               <>
                 <a
@@ -1307,12 +1464,16 @@ export default function DocumentView({
           <div className={showImmersive ? "max-w-3xl mx-auto px-5 sm:px-8 py-10 sm:py-14 print:max-w-none print:p-0" : ""}>
             {/* The title lives in the hidden chrome, and a document whose
                 markdown doesn't open with a heading would otherwise lose it. */}
-            {showImmersive && displayTitle && !showRaw && !opensWithOwnTitle(displayContent, displayTitle) && (
+            {readable && showImmersive && displayTitle && !showRaw && !opensWithOwnTitle(displayContent, displayTitle) && (
               <h1 className="no-print mb-8 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] break-words">
                 {displayTitle}
               </h1>
             )}
-            {showRaw ? (
+            {!readable ? (
+              <EncryptionGate
+                state={decryptState === "nokey" || decryptState === "failed" ? decryptState : "working"}
+              />
+            ) : showRaw ? (
               <>
                 <CopyButton text={displayContent} label="Copy all" className="no-print absolute top-3 right-3" />
                 <pre className="font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] whitespace-pre-wrap break-words">

@@ -55,6 +55,12 @@ export interface DocumentResponse {
   google_doc_url?: string | null;
   google_doc_stale?: boolean;
   vscode_synced?: boolean;
+  /**
+   * End-to-end encrypted. `content` is an AES-GCM envelope and `title` is null —
+   * both only become readable once the client decrypts with the key from the
+   * URL fragment. See `lib/e2e.ts`.
+   */
+  encrypted?: boolean;
   // ── Artifacts ──────────────────────────────────────────────────────────────
   // kind="artifact" documents keep their bytes in R2 and render on a separate
   // origin; `content` is only a search stand-in, not the document.
@@ -196,14 +202,24 @@ export type ExpiresIn = "never" | "1d" | "7d" | "30d" | "custom";
 export async function createDocument(
   title: string,
   content: string,
-  options?: { customSlug?: string; expiresIn?: ExpiresIn; customExpiresAt?: string; readPassword?: string }
+  options?: {
+    customSlug?: string;
+    expiresIn?: ExpiresIn;
+    customExpiresAt?: string;
+    readPassword?: string;
+    /** True when `content` is already a sealed envelope and `title` must stay null. */
+    encrypted?: boolean;
+  }
 ): Promise<DocumentCreateResponse> {
   const res = await fetch(`${API_BASE}/api/v1/documents`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({
-      title: title.trim() || null,
+      // The title of an encrypted document is sealed inside the envelope, so
+      // nothing readable reaches this column.
+      title: options?.encrypted ? null : title.trim() || null,
       content,
+      encrypted: options?.encrypted ?? false,
       custom_slug: options?.customSlug?.trim() || null,
       expires_in: options?.expiresIn ?? "never",
       custom_expires_at: options?.customExpiresAt ?? null,
@@ -259,6 +275,8 @@ export async function updateDocument(
     removePassword?: boolean;
     expiresIn?: ExpiresIn;
     customExpiresAt?: string;
+    /** True when `content` is a re-sealed envelope; keeps the title column null. */
+    encrypted?: boolean;
   }
 ): Promise<DocumentResponse> {
   const res = await fetch(`${API_BASE}/api/v1/documents/${slug}`, {
@@ -269,7 +287,7 @@ export async function updateDocument(
       ...(editSecret ? { "x-edit-secret": editSecret } : {}),
     },
     body: JSON.stringify({
-      title: title.trim() || null,
+      title: options?.encrypted ? null : title.trim() || null,
       content,
       read_password: options?.readPassword ?? null,
       remove_password: options?.removePassword ?? false,
@@ -485,6 +503,8 @@ export interface MyDocListItem {
   google_doc_url?: string | null;
   google_doc_stale?: boolean;
   vscode_synced?: boolean;
+  /** End-to-end encrypted: `title` and `content_preview` come back empty. */
+  encrypted?: boolean;
   kind?: DocKind;
   mime?: string | null;
   renderer?: ArtifactRenderer | null;

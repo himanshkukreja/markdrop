@@ -469,6 +469,14 @@ export default function DashboardPage() {
                       <span title="PDF exports">📄 {d.export_pdf_count}</span>
                     )}
                     <span title="Link copies">🔗 {d.copy_url_count}</span>
+                    {d.encrypted && (
+                      <span
+                        title="End-to-end encrypted. Markdrop stores only ciphertext — the title and preview are blank here because we can't read them."
+                        className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400"
+                      >
+                        🔐 Encrypted
+                      </span>
+                    )}
                     {d.is_password_protected && <span title="Password protected">🔒</span>}
                     {d.vscode_synced && (
                       <span title="Synced with VS Code" className="inline-flex items-center gap-1 text-[#007acc] dark:text-[#4daafc] vscode:text-[#4fc1ff]">
@@ -484,10 +492,22 @@ export default function DashboardPage() {
                   <ActionButton onClick={() => setExpanded(expanded === d.slug ? null : d.slug)} active={expanded === d.slug}>
                     {expanded === d.slug ? "Hide" : "Analytics"}
                   </ActionButton>
-                  <ActionButton onClick={() => copyUrl(d.url, d.slug)} active={copied === d.slug}>
-                    {copied === d.slug ? "Copied" : "Copy link"}
-                  </ActionButton>
-                  {gStatus?.connected && d.kind !== "artifact" && (
+                  {/* No Copy link for an encrypted document: the key lives in the
+                      link's fragment and was never sent here, so this button
+                      could only ever produce a link that opens to "no key". */}
+                  {d.encrypted ? (
+                    <span
+                      title="The key is in the link you saved when you published this. It was never sent to Markdrop, so we can't rebuild the link for you."
+                      className="px-2.5 py-1 text-xs rounded-md border border-dashed border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500 cursor-help"
+                    >
+                      Link holds the key
+                    </span>
+                  ) : (
+                    <ActionButton onClick={() => copyUrl(d.url, d.slug)} active={copied === d.slug}>
+                      {copied === d.slug ? "Copied" : "Copy link"}
+                    </ActionButton>
+                  )}
+                  {gStatus?.connected && d.kind !== "artifact" && !d.encrypted && (
                     d.google_doc_url ? (
                       <>
                         <ActionButton href={d.google_doc_url} title="Open in Google Docs">Open Doc</ActionButton>
