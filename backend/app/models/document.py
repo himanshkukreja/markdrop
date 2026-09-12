@@ -26,6 +26,15 @@ class Document:
     # True once the document has been published or synced from the VS Code
     # extension — drives the "Synced with VS Code" badge on the doc + dashboard.
     vscode_synced: bool = False
+    # ── End-to-end encryption ────────────────────────────────────────────────
+    # True when `content` (and `title`, when set) hold a client-produced AES-GCM
+    # envelope instead of text. The key lives only in the URL fragment, which
+    # browsers never transmit, so nothing here or in any log can read it.
+    #
+    # Immutable after creation, deliberately: the server can neither encrypt an
+    # existing plaintext document nor decrypt an encrypted one, so a flag that
+    # could be flipped would only ever produce a corrupt record.
+    encrypted: bool = False
     # ── Artifacts ────────────────────────────────────────────────────────────
     # kind="artifact" records store their bytes in R2 (`blob_key`) instead of
     # `content`, and render on the isolated artifact origin. Everything else on

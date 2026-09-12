@@ -239,6 +239,17 @@ async def export_document(
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    # The export renders Mermaid and LaTeX to PNGs server-side, which means
+    # reading the markdown. An end-to-end encrypted document is exactly the case
+    # where the server has no way to do that — and shipping the key here to make
+    # it work would give away the whole guarantee.
+    if doc.encrypted:
+        raise HTTPException(
+            status_code=422,
+            detail="This document is end-to-end encrypted, so Markdrop can't read it "
+                   "to build a Google Doc. Export is only available for unencrypted documents.",
+        )
+
     try:
         access_token = await gdocs.get_access_token(db, user)
     except gdocs.ReconnectRequired as exc:

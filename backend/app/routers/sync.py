@@ -52,6 +52,22 @@ def _require_markdown_size(content: str) -> None:
         )
 
 
+def _reject_encrypted(doc) -> None:
+    """Sync carries plaintext in both directions.
+
+    A pull would hand the editor base64 it cannot read; a push would overwrite
+    the ciphertext with plaintext and permanently break the document for the
+    key holder. The extension has no key and no crypto, so both are refused
+    until it ships them.
+    """
+    if getattr(doc, "encrypted", False):
+        raise HTTPException(
+            status_code=409,
+            detail="This document is end-to-end encrypted and can't be synced from your "
+                   "editor yet — its key never leaves the browser that created the link.",
+        )
+
+
 def _doc_response(doc, content: str | None = None) -> SyncDocResponse:
     """Shape a document for the editor.
 
@@ -146,6 +162,7 @@ async def sync_pull(
     doc = await doc_service.get_owned_document_by_id(db, doc_id, user.id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
+    _reject_encrypted(doc)
     if not doc.vscode_synced:
         await doc_service.mark_vscode_synced(db, doc.id)
     if doc.kind == "artifact":
@@ -185,6 +202,8 @@ async def sync_push(
 ):
     """Push local content. 409 (with current content) if base_rev is stale."""
     existing = await doc_service.get_owned_document_by_id(db, doc_id, user.id)
+    if existing is not None:
+        _reject_encrypted(existing)
     if existing is not None and existing.kind == "artifact":
         status, doc = await art_service.sync_push_content(
             db, doc_id, user.id, data.content, data.base_rev

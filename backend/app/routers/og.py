@@ -40,6 +40,7 @@ async def og_image(request: Request, slug: str, db: AsyncIOMotorDatabase = Depen
         {
             "title": 1, "content": 1, "views": 1, "read_password_hash": 1,
             "kind": 1, "mime": 1, "size_bytes": 1, "original_filename": 1,
+            "encrypted": 1,
         },
     )
 
@@ -55,7 +56,10 @@ async def og_image(request: Request, slug: str, db: AsyncIOMotorDatabase = Depen
         )
         return _png(png, max_age=300)
 
-    protected = bool(raw.get("read_password_hash"))
+    # An encrypted document's title and body are both ciphertext, so it gets the
+    # same content-free card as a password-protected one. Rendering `content`
+    # here would put base64 on a social card — and leak nothing useful anyway.
+    protected = bool(raw.get("read_password_hash")) or bool(raw.get("encrypted"))
     is_artifact = raw.get("kind") == "artifact"
     title = (raw.get("title") or raw.get("original_filename") or slug) if not protected else ""
 

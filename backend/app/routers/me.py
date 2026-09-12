@@ -36,8 +36,10 @@ def _to_list_item(doc) -> MyDocListItem:
         id=doc.id,
         slug=doc.slug,
         url=f"{BASE_URL}/{doc.slug}",
-        title=doc.title,
-        content_preview=doc.content[:300],
+        # Both are ciphertext when encrypted — only the browser holding the key
+        # from the link fragment can turn them back into words.
+        title=None if doc.encrypted else doc.title,
+        content_preview="" if doc.encrypted else doc.content[:300],
         created_at=doc.created_at,
         updated_at=doc.updated_at,
         expires_at=doc.expires_at,
@@ -50,6 +52,7 @@ def _to_list_item(doc) -> MyDocListItem:
             doc.google_doc_id and (doc.google_doc_synced_rev or 0) < doc.rev
         ),
         vscode_synced=doc.vscode_synced,
+        encrypted=doc.encrypted,
         kind=doc.kind,
         mime=doc.mime,
         renderer=art_service.renderer_for(doc.mime or "") if doc.kind == "artifact" else None,

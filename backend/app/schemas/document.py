@@ -24,6 +24,11 @@ class DocumentCreate(BaseModel):
     expires_in: Literal["never", "1d", "7d", "30d", "custom"] = "never"
     custom_expires_at: datetime | None = None
     read_password: str | None = Field(None, min_length=1, max_length=100)
+    # Declares that `content`/`title` are already an AES-GCM envelope produced by
+    # the client. The server never verifies this — it cannot, having no key — it
+    # only records it so that every path which would read, render, export or
+    # overwrite plaintext refuses instead of producing garbage.
+    encrypted: bool = False
 
     @model_validator(mode="after")
     def validate_custom_expiry(self):
@@ -62,6 +67,9 @@ class DocumentResponse(BaseModel):
     google_doc_stale: bool = False  # True when the doc changed since last export
     # Public provenance flag: published/synced from the VS Code extension.
     vscode_synced: bool = False
+    # End-to-end encrypted: `content` is ciphertext and only a client holding the
+    # key from the URL fragment can render it.
+    encrypted: bool = False
     # ── Artifacts ────────────────────────────────────────────────────────────
     # For kind="artifact" the body lives in R2 and renders on the isolated
     # artifact origin; `content` is not the document. All null for markdown.
@@ -148,6 +156,9 @@ class MyDocListItem(BaseModel):
     google_doc_url: str | None = None
     google_doc_stale: bool = False  # True when the doc changed since last export
     vscode_synced: bool = False
+    # End-to-end encrypted: title and preview come back empty because the server
+    # holds only ciphertext. The dashboard shows the slug and a badge instead.
+    encrypted: bool = False
     # Artifacts (kind="artifact"): the dashboard shows type + size instead of a
     # markdown preview, since `content_preview` is only a filename stand-in.
     kind: str = "markdown"

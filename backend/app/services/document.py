@@ -43,6 +43,9 @@ def _doc_from_mongo(raw: dict) -> Document:
         google_doc_synced_rev=raw.get("google_doc_synced_rev"),
         google_doc_synced_at=raw.get("google_doc_synced_at"),
         vscode_synced=raw.get("vscode_synced", False),
+        # Absent on every document created before the feature existed, which is
+        # exactly what False means — no migration needed.
+        encrypted=raw.get("encrypted", False),
         kind=raw.get("kind", "markdown"),
         mime=raw.get("mime"),
         blob_key=raw.get("blob_key"),
@@ -101,6 +104,7 @@ async def create_document(
             "read_password_hash": read_pwd_hash,
             "owner_id": owner_id,
             "vscode_synced": via_vscode,
+            "encrypted": data.encrypted,
             **(extra or {}),
         }
 
@@ -274,6 +278,17 @@ async def copy_document(
     protected doc unlocked with ``read_password`` / owned by the caller).
     """
     source = await get_document(db, slug, read_password=read_password, user_id=user_id)
+
+    # A server-side copy would duplicate the ciphertext under a new slug whose
+    # link carries no key fragment — an unreadable document. Copying an encrypted
+    # document has to happen in the browser, which can decrypt it and re-encrypt
+    # under a fresh key.
+    if source.encrypted:
+        raise HTTPException(
+            status_code=422,
+            detail="Encrypted documents can't be copied on the server. "
+                   "Open the document and use Save a copy there.",
+        )
 
     data = DocumentCreate(
         title=source.title,

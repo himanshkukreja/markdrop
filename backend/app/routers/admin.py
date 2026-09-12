@@ -80,6 +80,9 @@ class AdminDocListItem(BaseModel):
     report_count: int = 0
     # Artifacts: `content_preview` is only a filename stand-in for these, so the
     # UI needs the type and real size to say anything useful about them.
+    # End-to-end encrypted: moderation can act on the record (delete, expire)
+    # but cannot read it. That is the guarantee, not a gap.
+    encrypted: bool = False
     kind: str = "markdown"
     mime: str | None = None
     renderer: str | None = None
@@ -236,17 +239,21 @@ async def require_admin(request: Request) -> dict:
 
 
 def _to_list_item(raw: dict, owner_email: str | None = None) -> AdminDocListItem:
-    content: str = raw.get("content", "")
+    encrypted: bool = bool(raw.get("encrypted"))
+    stored: str = raw.get("content", "")
+    # `content_length` stays the real stored size — an admin still needs to see
+    # that a record has bulk. Only the readable projections go empty.
     return AdminDocListItem(
         slug=raw["slug"],
-        title=raw.get("title"),
-        content_preview=content[:300],
+        title=None if encrypted else raw.get("title"),
+        content_preview="" if encrypted else stored[:300],
         created_at=raw["created_at"],
         updated_at=raw["updated_at"],
         expires_at=raw.get("expires_at"),
         views=raw.get("views", 0),
         is_password_protected=bool(raw.get("read_password_hash")),
-        content_length=len(content),
+        content_length=len(stored),
+        encrypted=encrypted,
         owner_id=raw.get("owner_id"),
         owner_email=owner_email,
         report_count=raw.get("report_count", 0),
@@ -280,11 +287,14 @@ async def _owner_email_map(db: AsyncIOMotorDatabase, docs: list[dict]) -> dict[s
 
 
 def _to_doc_response(raw: dict) -> dict:
+    # The single-document admin view is a moderation tool, so it must not hand
+    # back ciphertext dressed up as a document body.
+    encrypted = bool(raw.get("encrypted"))
     return {
         "slug": raw["slug"],
         "url": f"{BASE_URL}/{raw['slug']}",
-        "title": raw.get("title"),
-        "content": raw["content"],
+        "title": None if encrypted else raw.get("title"),
+        "content": "" if encrypted else raw["content"],
         "created_at": raw["created_at"],
         "updated_at": raw["updated_at"],
         "expires_at": raw.get("expires_at"),
@@ -688,6 +698,15 @@ async def admin_update_document(
     raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    # Writing plaintext into an encrypted document would destroy it: the owner's
+    # key can't decrypt it, and nothing on this side can re-encrypt. Moderation
+    # keeps delete and expiry, which don't need to read the content.
+    if raw.get("encrypted"):
+        raise HTTPException(
+            status_code=422,
+            detail="This document is end-to-end encrypted and cannot be edited here.",
+        )
 
     now = datetime.now(timezone.utc)
     updates = {
