@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import CopyButton from "@/components/CopyButton";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
+import MarkdropLoader from "@/components/MarkdropLoader";
 import ArtifactBadge, { formatBytes } from "@/components/ArtifactBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -32,6 +33,28 @@ import {
  */
 const SANDBOX =
   "allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads";
+
+/**
+ * Covers the frame until the artifact origin has painted something.
+ *
+ * The iframe carries `bg-white` so a transparent artifact reads on white — which
+ * is exactly why an *unloaded* frame looks like a broken page rather than a
+ * loading one, and why it's worst in immersive mode, where that white rectangle
+ * is the entire viewport. This sits on top and fades out on `load`. It stays
+ * mounted through the fade so the artifact is never revealed by a hard cut.
+ */
+function FrameCover({ show, label }: { show: boolean; label: string }) {
+  return (
+    <div
+      aria-hidden={!show}
+      className={`absolute inset-0 z-10 flex items-center justify-center bg-white dark:bg-[#0b1220] vscode:bg-[#1e1e1e] transition-opacity duration-500 ${
+        show ? "opacity-100" : "opacity-0 pointer-events-none"
+      }`}
+    >
+      <MarkdropLoader label={label} />
+    </div>
+  );
+}
 
 interface Props {
   slug: string;
@@ -173,10 +196,22 @@ export default function ArtifactView({
   // to remount and re-fetch.
   const [reloadKey, setReloadKey] = useState(0);
 
-  function applyDoc(doc: Awaited<ReturnType<typeof getDocument>>) {
+  // The artifact lives on another origin and everyone lands immersive, so
+  // between mount and the frame's load event the whole viewport is whatever the
+  // empty iframe paints — white. Track the load and cover it with the brand
+  // loader instead of letting that blank rectangle be the page.
+  const [frameLoading, setFrameLoading] = useState(true);
+
+  function applyDoc(
+    doc: Awaited<ReturnType<typeof getDocument>>,
+    { remount = true }: { remount?: boolean } = {}
+  ) {
     setTitle(doc.title);
     setArtifactUrl(doc.artifact_url ?? null);
-    setReloadKey((k) => k + 1);
+    // Only force a remount when the bytes may actually have changed. The owner
+    // check runs on every mount and would otherwise throw away a frame that is
+    // already loading, restarting the fetch and the loader with it.
+    if (remount) setReloadKey((k) => k + 1);
     setDownloadUrl(doc.download_url ?? null);
     if (doc.renderer) setRenderer(doc.renderer);
     if (doc.type_label) setTypeLabel(doc.type_label);
@@ -251,7 +286,7 @@ export default function ArtifactView({
       .then((doc) => {
         if (cancelled) return;
         setIsOwner(!!doc.is_owner);
-        if (doc.is_owner && doc.artifact_url) applyDoc(doc);
+        if (doc.is_owner && doc.artifact_url) applyDoc(doc, { remount: false });
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setOwnerChecked(true); });
@@ -271,6 +306,17 @@ export default function ArtifactView({
   useEffect(() => {
     if (artifactUrl && !locked) setImmersive(true);
   }, [artifactUrl, locked]);
+
+  // A new source means a new load, so the cover goes back up. The timeout is a
+  // floor under the worst case: if `load` never fires — a viewer that stalls on
+  // a subresource, a blocked fetch — revealing a half-painted artifact beats
+  // holding the brand screen over it forever.
+  useEffect(() => {
+    if (!artifactUrl || locked) return;
+    setFrameLoading(true);
+    const t = setTimeout(() => setFrameLoading(false), 15000);
+    return () => clearTimeout(t);
+  }, [artifactUrl, reloadKey, locked]);
 
   useEffect(() => {
     if (!immersive) return;
@@ -351,6 +397,8 @@ export default function ArtifactView({
       setReportBusy(false);
     }
   }
+
+  const loadingLabel = `Loading ${typeLabel}\u2026`;
 
   const btn =
     "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]";
@@ -460,7 +508,7 @@ export default function ArtifactView({
           </form>
         </div>
       ) : artifactUrl ? (
-        <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden bg-white dark:bg-[#0b1220]">
+        <div className="relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden bg-white dark:bg-[#0b1220]">
           <iframe
             key={reloadKey}
             src={artifactUrl}
@@ -469,14 +517,15 @@ export default function ArtifactView({
             // markdrop.in page framed it.
             referrerPolicy="no-referrer"
             title={title || slug}
+            onLoad={() => setFrameLoading(false)}
             className="w-full border-0 bg-white"
             style={{ height: "min(78vh, 900px)" }}
           />
+          <FrameCover show={frameLoading} label={loadingLabel} />
         </div>
       ) : (
-        <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-10 text-center text-sm text-gray-400">
-          <Spinner className="w-5 h-5 mx-auto mb-2" />
-          Preparing this artifact…
+        <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg py-16 flex items-center justify-center">
+          <MarkdropLoader label="Preparing this artifact…" />
         </div>
       )}
 
@@ -488,8 +537,10 @@ export default function ArtifactView({
             sandbox={SANDBOX}
             referrerPolicy="no-referrer"
             title={title || slug}
+            onLoad={() => setFrameLoading(false)}
             className="w-full h-full border-0 bg-white"
           />
+          <FrameCover show={frameLoading} label={loadingLabel} />
           {/* Shown to everyone, not just the owner: the framed view is where the
               Report control lives, so a visitor who can't leave immersive mode
               could never flag abusive content. Bottom-right because top-right is
