@@ -5,7 +5,7 @@ entirely additive: a user with no workspace, and a document with no
 `workspace_id`, behave exactly as they did before this existed.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
@@ -14,8 +14,11 @@ from app.models.user import User
 from app.models.workspace import Workspace
 from app.routers.auth import require_user
 from app.schemas.workspace import (
+    BrandingAssetResponse,
     BrandingPayload,
-    MemberAddRequest,
+    InviteCreateRequest,
+    InviteListResponse,
+    InviteResponse,
     MemberListResponse,
     MemberResponse,
     MemberRoleRequest,
@@ -25,6 +28,9 @@ from app.schemas.workspace import (
     WorkspaceResponse,
     WorkspaceUpdate,
 )
+from app.services import branding as branding_service
+from app.services import invitation as invite_service
+from app.services import mailer, r2
 from app.services import workspace as ws_service
 
 router = APIRouter(prefix="/api/v1/workspaces", tags=["workspaces"])
@@ -144,21 +150,140 @@ async def list_members(
     )
 
 
-@router.post("/{workspace_id}/members", response_model=MemberResponse, status_code=201)
-@limiter.limit("30/minute")
-async def add_member(
+# ── Invitations ───────────────────────────────────────────────────────────────
+#
+# There is deliberately no "add member" endpoint. Membership means your documents
+# are readable by the workspace and your name is visible to its other members, so
+# it is not something an admin can do to someone. It starts with an invitation
+# and ends when that person accepts.
+
+
+def _invite_response(inv) -> InviteResponse:
+    return InviteResponse(
+        id=inv.id,
+        email=inv.email,
+        role=inv.role,
+        status=inv.effective_status,  # type: ignore[arg-type]
+        created_at=inv.created_at,
+        expires_at=inv.expires_at,
+        invited_by_name=inv.invited_by_name,
+        responded_at=inv.responded_at,
+    )
+
+
+@router.get("/{workspace_id}/invitations", response_model=InviteListResponse)
+@limiter.limit("120/minute")
+async def list_invitations(
     request: Request,
     workspace_id: str,
-    data: MemberAddRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    # Admin, not viewer: the list is every address anyone tried to bring in,
+    # which is more than a read-only member needs to see.
+    await ws_service.require_role(db, workspace_id, user.id, "admin")
+    rows = await invite_service.list_invitations(db, workspace_id)
+    return InviteListResponse(invitations=[_invite_response(i) for i in rows])
+
+
+@router.post("/{workspace_id}/invitations", response_model=InviteResponse, status_code=201)
+@limiter.limit("20/hour")
+async def create_invitation(
+    request: Request,
+    workspace_id: str,
+    data: InviteCreateRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Invite someone by email.
+
+    Rate-limited by the hour rather than the minute, because the thing being
+    spent here is not our CPU — it is someone else's inbox, and this endpoint
+    will happily send mail to an address its caller does not own.
+    """
+    await ws_service.require_role(db, workspace_id, user.id, "admin")
+    workspace = await ws_service.get_workspace(db, workspace_id)
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    invite, token = await invite_service.create_invitation(
+        db, workspace_id, str(data.email), data.role, user
+    )
+
+    if not mailer.is_configured():
+        # Without mail there is no way for the invitee to ever learn the token,
+        # so an invitation that cannot be delivered is not one worth keeping.
+        await invite_service.revoke_invitation(db, workspace_id, invite.id)
+        raise HTTPException(
+            status_code=503, detail="Email isn't configured, so invitations can't be sent."
+        )
+    try:
+        await mailer.send_invite_email(
+            to_email=invite.email,
+            workspace_name=workspace.name,
+            inviter_name=user.name or user.email,
+            role=invite.role,
+            token=token,
+        )
+    except Exception:
+        await invite_service.revoke_invitation(db, workspace_id, invite.id)
+        raise HTTPException(
+            status_code=502,
+            detail="We couldn't send that invitation email. Check the address and try again.",
+        )
+    return _invite_response(invite)
+
+
+@router.delete("/{workspace_id}/invitations/{invite_id}", status_code=204)
+@limiter.limit("60/minute")
+async def revoke_invitation(
+    request: Request,
+    workspace_id: str,
+    invite_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
     await ws_service.require_role(db, workspace_id, user.id, "admin")
-    member = await ws_service.add_member(db, workspace_id, str(data.email), data.role)
-    return MemberResponse(
-        user_id=member.user_id, role=member.role, email=member.email,
-        name=member.name, created_at=member.created_at,
-    )
+    await invite_service.revoke_invitation(db, workspace_id, invite_id)
+
+
+# ── Branding assets ───────────────────────────────────────────────────────────
+
+
+@router.post("/{workspace_id}/branding/{kind}", response_model=BrandingAssetResponse)
+@limiter.limit("30/hour")
+async def upload_branding_asset(
+    request: Request,
+    workspace_id: str,
+    kind: str,
+    file: UploadFile = File(...),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Upload a favicon or logo.
+
+    The stored URL is returned but not saved onto the workspace here: the
+    settings form owns that, and saving a field the user hasn't confirmed would
+    make "upload, change your mind, close the tab" leave the wrong logo live.
+    """
+    from starlette.concurrency import run_in_threadpool
+
+    await ws_service.require_role(db, workspace_id, user.id, "admin")
+    if kind not in ("favicon", "logo"):
+        raise HTTPException(status_code=404, detail="Unknown branding asset.")
+    if not r2.is_configured():
+        raise HTTPException(status_code=503, detail="Uploads aren't available right now.")
+
+    # Bounded read. UploadFile would otherwise spool an arbitrarily large body to
+    # disk before we ever get to check its size.
+    raw = await file.read(branding_service.MAX_UPLOAD_BYTES + 1)
+    data, suffix = await run_in_threadpool(branding_service.process, raw, kind)
+
+    key = f"branding/{workspace_id}/{suffix}"
+    ok = await run_in_threadpool(r2.put_bytes, key, data, "image/png", True, False)
+    if not ok:
+        raise HTTPException(status_code=502, detail="That upload didn't go through. Try again.")
+    return BrandingAssetResponse(url=branding_service.public_url(key), kind=kind)  # type: ignore[arg-type]
 
 
 @router.put("/{workspace_id}/members/{member_user_id}", status_code=204)

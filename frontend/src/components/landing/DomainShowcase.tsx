@@ -1,5 +1,6 @@
 "use client";
 
+import BrandedPage from "./BrandedPage";
 import Reveal from "./Reveal";
 
 /** One tab + address bar. Two of these crossfade to show the same document
@@ -77,14 +78,8 @@ export default function DomainShowcase() {
               <TabState name="Your Company" host="docs.yourcompany.com" accent="#7c3aed" cls="md-brand-b" />
             </div>
             {/* The document underneath never changes — only whose it looks like */}
-            <div className="px-4 py-5 bg-[#0b1220] border-t border-white/5">
-              <div className="md-brand-hue h-2.5 w-1/2 rounded" />
-              <div className="mt-3 space-y-1.5">
-                <div className="h-1.5 w-full rounded bg-white/10" />
-                <div className="h-1.5 w-5/6 rounded bg-white/10" />
-                <div className="h-1.5 w-4/6 rounded bg-white/10" />
-              </div>
-              <div className="mt-4 h-14 rounded-md bg-white/[0.04]" />
+            <div className="bg-[#0b1220] border-t border-white/5">
+              <BrandedPage hueClass="md-brand-hue" />
             </div>
           </div>
           <p className="mt-3 text-center text-[11px] text-gray-500">The same document — only the host changes</p>

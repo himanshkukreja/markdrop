@@ -172,45 +172,6 @@ async def update_workspace(
     return workspace
 
 
-async def add_member(
-    db: AsyncIOMotorDatabase, workspace_id: str, email: str, role: Role
-) -> Membership:
-    if role == "owner":
-        raise HTTPException(
-            status_code=422,
-            detail="A workspace has exactly one owner. Transfer ownership instead.",
-        )
-    email = email.strip().lower()
-    user_raw = await db["users"].find_one({"email": email})
-    if not user_raw:
-        # Deliberately not an invite flow yet: silently creating an account for a
-        # stranger's address, or pretending someone was added when they weren't,
-        # are both worse than saying plainly that they need to sign up first.
-        raise HTTPException(
-            status_code=404,
-            detail="No Markdrop account uses that email yet. Ask them to sign in once, then add them.",
-        )
-
-    user_id = str(user_raw["_id"])
-    now = datetime.now(timezone.utc)
-    doc = {
-        "workspace_id": workspace_id,
-        "user_id": user_id,
-        "role": role,
-        "created_at": now,
-        "email": user_raw.get("email"),
-        "name": user_raw.get("name"),
-    }
-    # Idempotent: re-adding an existing member updates their role rather than
-    # failing on the unique index or creating a duplicate row.
-    await db["memberships"].update_one(
-        {"workspace_id": workspace_id, "user_id": user_id},
-        {"$set": doc},
-        upsert=True,
-    )
-    return _to_membership(doc)
-
-
 async def set_member_role(
     db: AsyncIOMotorDatabase, workspace_id: str, user_id: str, role: Role
 ) -> None:

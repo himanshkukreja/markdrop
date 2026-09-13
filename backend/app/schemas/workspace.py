@@ -76,10 +76,65 @@ class MemberListResponse(BaseModel):
     members: list[MemberResponse]
 
 
-class MemberAddRequest(BaseModel):
+class MemberRoleRequest(BaseModel):
+    role: Literal["admin", "member", "viewer"]
+
+
+# ── Invitations ───────────────────────────────────────────────────────────────
+
+
+class InviteCreateRequest(BaseModel):
     email: EmailStr
     role: Literal["admin", "member", "viewer"] = "member"
 
 
-class MemberRoleRequest(BaseModel):
-    role: Literal["admin", "member", "viewer"]
+class InviteResponse(BaseModel):
+    """The admin-facing view of an invitation. Deliberately has no token field:
+    the raw token exists for exactly as long as it takes to compose the email,
+    and putting it in an API response would turn any workspace admin into a
+    credential oracle for an address they do not control."""
+
+    id: str
+    email: str
+    role: Role
+    status: Literal["pending", "accepted", "declined", "revoked", "expired"]
+    created_at: datetime
+    expires_at: datetime
+    invited_by_name: str | None = None
+    responded_at: datetime | None = None
+
+
+class InviteListResponse(BaseModel):
+    invitations: list[InviteResponse]
+
+
+class InvitePreview(BaseModel):
+    """What the person holding the link is shown before deciding.
+
+    Names the workspace, the inviter and the address it was sent to, and nothing
+    else — in particular not who else is a member. The recipient already knows
+    their own address; everything here was in the email they were sent.
+    """
+
+    workspace_name: str
+    role: Role
+    email: str
+    invited_by_name: str | None = None
+    status: Literal["pending", "accepted", "declined", "revoked", "expired"]
+    expires_at: datetime
+    # Resolved server-side so the page can greet the right person without the
+    # client having to compare addresses itself.
+    signed_in_as: str | None = None
+    email_matches: bool = False
+    already_member: bool = False
+
+
+class InviteAcceptResponse(BaseModel):
+    workspace_id: str
+    workspace_name: str
+    role: Role
+
+
+class BrandingAssetResponse(BaseModel):
+    url: str
+    kind: Literal["favicon", "logo"]

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Reveal from "@/components/landing/Reveal";
 import LandingFooter from "@/components/landing/LandingFooter";
+import BrandedPage from "@/components/landing/BrandedPage";
 
 export const metadata: Metadata = {
   title: "Custom domains & white-labelling — Markdrop",
@@ -38,14 +39,8 @@ function BrowserMock({
         </div>
       </div>
       {/* Page */}
-      <div className="px-4 py-4 bg-white dark:bg-gray-900/80">
-        <div className="h-2.5 w-1/2 rounded" style={{ background: accent, opacity: 0.85 }} />
-        <div className="mt-3 space-y-1.5">
-          <div className="h-1.5 w-full rounded bg-gray-200 dark:bg-gray-700/70" />
-          <div className="h-1.5 w-5/6 rounded bg-gray-200 dark:bg-gray-700/70" />
-          <div className="h-1.5 w-4/6 rounded bg-gray-200 dark:bg-gray-700/70" />
-        </div>
-        <div className="mt-3 h-10 rounded-md bg-gray-100 dark:bg-gray-800/60" />
+      <div className="bg-white dark:bg-gray-900/80">
+        <BrandedPage accent={accent} tone="auto" />
       </div>
     </div>
   );

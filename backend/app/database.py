@@ -47,6 +47,18 @@ async def connect() -> None:
     await db["memberships"].create_index("user_id")
     # One host belongs to exactly one workspace — this index is what makes the
     # "already claimed" check a guarantee rather than a race.
+    # Invitations. The unique index is partial on `pending` so that declining
+    # and then being re-invited works, while two simultaneous invites to the
+    # same address still collapse to one row.
+    await db["invitations"].create_index(
+        [("workspace_id", 1), ("email", 1)],
+        unique=True,
+        partialFilterExpression={"status": "pending"},
+    )
+    await db["invitations"].create_index("token_hash", sparse=True)
+    await db["invitations"].create_index("workspace_id")
+    # Sweeps resolved invitations once they stop being useful history.
+    await db["invitations"].create_index("purge_at", expireAfterSeconds=0)
     await db["domains"].create_index("host", unique=True)
     await db["domains"].create_index("workspace_id")
     await db["folders"].create_index([("workspace_id", 1), ("parent_id", 1)])

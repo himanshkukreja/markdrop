@@ -121,12 +121,6 @@ export const updateWorkspace = (
 export const listMembers = (id: string) =>
   request<{ members: Member[] }>(`/api/v1/workspaces/${id}/members`).then((r) => r.members);
 
-export const addMember = (id: string, email: string, role: Exclude<Role, "owner">) =>
-  request<Member>(`/api/v1/workspaces/${id}/members`, {
-    method: "POST",
-    body: JSON.stringify({ email, role }),
-  });
-
 export const setMemberRole = (id: string, userId: string, role: Exclude<Role, "owner">) =>
   request<void>(`/api/v1/workspaces/${id}/members/${userId}`, {
     method: "PUT",
@@ -135,6 +129,86 @@ export const setMemberRole = (id: string, userId: string, role: Exclude<Role, "o
 
 export const removeMember = (id: string, userId: string) =>
   request<void>(`/api/v1/workspaces/${id}/members/${userId}`, { method: "DELETE" });
+
+// ── Invitations ───────────────────────────────────────────────────────────────
+//
+// There is no "add member" call. Joining a workspace is the invitee's decision,
+// so it always goes through an invitation they have to accept.
+
+export type InviteStatus = "pending" | "accepted" | "declined" | "revoked" | "expired";
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role: Role;
+  status: InviteStatus;
+  created_at: string;
+  expires_at: string;
+  invited_by_name: string | null;
+  responded_at: string | null;
+}
+
+export interface InvitePreview {
+  workspace_name: string;
+  role: Role;
+  email: string;
+  invited_by_name: string | null;
+  status: InviteStatus;
+  expires_at: string;
+  signed_in_as: string | null;
+  email_matches: boolean;
+  already_member: boolean;
+}
+
+export const listInvitations = (id: string) =>
+  request<{ invitations: Invitation[] }>(`/api/v1/workspaces/${id}/invitations`).then(
+    (r) => r.invitations
+  );
+
+export const inviteMember = (id: string, email: string, role: Exclude<Role, "owner">) =>
+  request<Invitation>(`/api/v1/workspaces/${id}/invitations`, {
+    method: "POST",
+    body: JSON.stringify({ email, role }),
+  });
+
+export const revokeInvitation = (id: string, inviteId: string) =>
+  request<void>(`/api/v1/workspaces/${id}/invitations/${inviteId}`, { method: "DELETE" });
+
+export const previewInvite = (token: string) =>
+  request<InvitePreview>(`/api/v1/invites/${encodeURIComponent(token)}`);
+
+export const acceptInvite = (token: string) =>
+  request<{ workspace_id: string; workspace_name: string; role: Role }>(
+    `/api/v1/invites/${encodeURIComponent(token)}/accept`,
+    { method: "POST" }
+  );
+
+export const declineInvite = (token: string) =>
+  request<void>(`/api/v1/invites/${encodeURIComponent(token)}/decline`, { method: "POST" });
+
+// ── Branding assets ───────────────────────────────────────────────────────────
+
+/** Upload a favicon or logo. The server re-encodes it to PNG and returns the
+ *  hosted URL; it is not saved onto the workspace until the form is submitted. */
+export async function uploadBrandingAsset(
+  id: string,
+  kind: "favicon" | "logo",
+  file: File
+): Promise<string> {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await fetch(`${API_BASE}/api/v1/workspaces/${id}/branding/${kind}`, {
+    method: "POST",
+    // No Content-Type: the browser has to set the multipart boundary itself.
+    headers: authHeaders(),
+    body,
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => null);
+    throw new Error(typeof b?.detail === "string" ? b.detail : "Upload failed");
+  }
+  return (await res.json()).url as string;
+}
 
 // ── Domains ───────────────────────────────────────────────────────────────────
 

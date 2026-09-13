@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import { SectionIcon } from "@/lib/readmeSectionIcons";
+import BrandedPage from "./BrandedPage";
 import { useAuth } from "@/contexts/AuthContext";
 
 const MARKETPLACE_URL =
@@ -198,6 +199,9 @@ function DemoWindow({
         break;
       case "send":
         router.push("/share");
+        break;
+      case "domains":
+        router.push("/enterprise");
         break;
       case "sync":
         window.open(MARKETPLACE_URL, "_blank", "noopener,noreferrer");
@@ -402,13 +406,8 @@ function DemoWindow({
                   </div>
                 ))}
               </div>
-              <div>
-                <div className="md-brand-hue h-2.5 w-1/2 rounded" />
-                <div className="mt-2.5 space-y-1.5">
-                  <div className="h-1.5 w-full rounded bg-gray-200 dark:bg-white/10" />
-                  <div className="h-1.5 w-5/6 rounded bg-gray-200 dark:bg-white/10" />
-                  <div className="h-1.5 w-3/5 rounded bg-gray-200 dark:bg-white/10" />
-                </div>
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] overflow-hidden">
+                <BrandedPage hueClass="md-brand-hue" tone="auto" compact />
               </div>
             </div>
           ) : active === "artifacts" ? (

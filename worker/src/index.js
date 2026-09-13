@@ -101,6 +101,7 @@ export default {
       if (!VIEWERS.has(renderer)) return notFound();
       return serveViewer(renderer, parts.slice(2).join("/"), url, env);
     }
+    if (parts[0] === "b") return serveBranding(parts.slice(1).join("/"), env, request);
     if (url.pathname === "/" || url.pathname === "/robots.txt") {
       // Nothing here should ever be indexed — it's all user content.
       return new Response("User-Agent: *\nDisallow: /\n", {
@@ -113,6 +114,41 @@ export default {
 
 function notFound() {
   return new Response("Not found", { status: 404, headers: baseHeaders() });
+}
+
+/**
+ * Workspace branding assets — uploaded favicons and logos.
+ *
+ * Unsigned, unlike every other route here, because a favicon is fetched by the
+ * browser's icon loader and a logo by Slack's and LinkedIn's card scrapers.
+ * None of them carry a token, and all of them are the point of the feature.
+ *
+ * That is safe only because of what the API guarantees about these bytes: every
+ * object under `branding/` was produced by Pillow re-encoding a decoded pixel
+ * buffer, so it is a PNG and nothing else. The content type is therefore pinned
+ * here rather than read from R2 — the response cannot become HTML even if
+ * something upstream one day stores the wrong metadata.
+ *
+ * Keys are content-addressed (the digest is in the filename), so a changed logo
+ * is a changed URL and this can be cached immutably.
+ */
+async function serveBranding(key, env, request) {
+  if (!key.startsWith("branding/") || key.includes("..")) return notFound();
+  const object = await env.ARTIFACTS.get(key);
+  if (!object) return notFound();
+  const headers = {
+    ...baseHeaders(),
+    ...corsHeaders(request),
+    "content-type": "image/png",
+    "cache-control": "public, max-age=31536000, immutable",
+    // Belt and braces: even served as an image, never let it act as a document.
+    "content-security-policy": "default-src 'none'; sandbox",
+    "content-disposition": "inline",
+  };
+  if (request.method === "HEAD") {
+    return new Response(null, { headers: { ...headers, "content-length": String(object.size) } });
+  }
+  return new Response(object.body, { headers });
 }
 
 // The app may read artifact bytes with fetch() so it can hand the user a

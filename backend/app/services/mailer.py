@@ -1,5 +1,6 @@
 """Transactional email via Resend."""
 
+import html
 import httpx
 
 from app.config import get_settings
@@ -96,7 +97,7 @@ def _welcome_html(name: str | None) -> str:
         "dashboard": f"{base}/dashboard",
         "extension": _MARKETPLACE_URL,
     }
-    greeting = f"Welcome, {name}" if name else "Welcome to Markdrop"
+    greeting = f"Welcome, {html.escape(name)}" if name else "Welcome to Markdrop"
 
     # Feature rows — hosted PNG icon + text, on the dark card.
     rows = "".join(
@@ -187,6 +188,96 @@ async def send_welcome_email(to_email: str, name: str | None = None) -> None:
         "subject": "Welcome to Markdrop — everything you can do",
         "reply_to": settings.email_reply_to,
         "html": _welcome_html(name),
+    }
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            _RESEND_URL,
+            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+            json=payload,
+        )
+        resp.raise_for_status()
+
+
+# ── Workspace invitations ──────────────────────────────────────────────────────
+
+_ROLE_BLURB = {
+    "admin": "manage members, domains and branding",
+    "member": "create and publish documents",
+    "viewer": "read what the workspace publishes",
+}
+
+
+def _invite_html(workspace_name: str, inviter_name: str, role: str, link_url: str) -> str:
+    base = settings.frontend_url.rstrip("/")
+    blurb = _ROLE_BLURB.get(role, "collaborate")
+    # Both of these are free text chosen by a user, and they are about to be
+    # interpolated into markup that lands in someone else's inbox. A workspace
+    # named `</div><a href="http://evil">` would otherwise let any workspace
+    # owner compose arbitrary HTML inside an email sent from our domain, which
+    # is a phishing kit, not a display bug.
+    workspace_name = html.escape(workspace_name)
+    inviter_name = html.escape(inviter_name)
+    return f"""\
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light"><title>Join {workspace_name} on Markdrop</title></head>
+<body style="margin:0;padding:0;background:#080d1a;-webkit-font-smoothing:antialiased">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">{inviter_name} invited you to the {workspace_name} workspace on Markdrop.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#080d1a" style="background:#080d1a">
+  <tr><td align="center" style="padding:32px 14px">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
+           style="width:560px;max-width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+      <tr><td bgcolor="#0d1428" style="background:#0d1428;border:1px solid #1a2540;border-radius:16px;padding:34px 30px">
+
+        <div style="font-size:12px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#5f6f92;margin:0 0 14px">Workspace invitation</div>
+        <div style="font-size:23px;line-height:1.3;font-weight:700;color:#ffffff;margin:0 0 14px">
+          {inviter_name} invited you to {workspace_name}
+        </div>
+        <div style="font-size:15px;line-height:1.65;color:#a6b4d4;margin:0 0 26px">
+          You've been invited as a <strong style="color:#eaf1ff">{role}</strong>, which lets you {blurb}.
+          Nothing happens until you accept &mdash; and you can decline just as easily.
+        </div>
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 26px">
+          <tr><td bgcolor="#2563eb" style="border-radius:10px">
+            <a href="{link_url}" style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none">View invitation</a>
+          </td></tr>
+        </table>
+
+        <div style="font-size:13px;line-height:1.6;color:#6b7699;border-top:1px solid #1a2540;padding-top:18px">
+          This invitation expires in 7 days. To accept it you'll need to be signed in
+          to Markdrop with this email address &mdash; if you don't have an account yet,
+          you can create one on the way through.
+        </div>
+      </td></tr>
+      <tr><td style="padding:20px 8px 8px">
+        <div style="font-size:12px;line-height:1.65;color:#6b7699">
+          Didn't expect this? You can safely ignore it &mdash; you will not be added to
+          anything unless you accept. Sent by
+          <a href="{base}" style="color:#6ba4ff;text-decoration:none">markdrop.in</a>.
+        </div>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>"""
+
+
+async def send_invite_email(
+    *, to_email: str, workspace_name: str, inviter_name: str, role: str, token: str
+) -> None:
+    """Send a workspace invitation. Raises on failure, which the caller treats as
+    grounds to withdraw the invitation -- an invite nobody can receive is worse
+    than none, because it shows as pending in the admin list forever."""
+    link_url = f"{settings.frontend_url.rstrip('/')}/invite/{token}"
+    payload = {
+        "from": f"{settings.email_from_name} <{settings.email_from}>",
+        "to": [to_email],
+        "subject": f"{inviter_name} invited you to {workspace_name} on Markdrop",
+        "reply_to": settings.email_reply_to,
+        "html": _invite_html(workspace_name, inviter_name, role, link_url),
     }
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(
