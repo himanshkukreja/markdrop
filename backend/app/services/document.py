@@ -154,12 +154,25 @@ async def get_document(
     read_password: str | None = None,
     edit_secret: str | None = None,
     user_id: str | None = None,
+    workspace_scope: str | None = None,
 ) -> Document:
     # Read-only fetch — NO side effects. Views are counted by a browser beacon
     # (POST /{slug}/events type=view), so server-side rendering on Vercel does
     # not inflate the count or poison geo with the SSR server's location.
     raw = await db["documents"].find_one({"slug": slug})
     if not raw:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # `workspace_scope` is set only when the request arrived on a workspace's own
+    # verified domain. Without it — which is every request to markdrop.in, and so
+    # every request that existed before custom domains — nothing below runs and
+    # this function behaves exactly as it always has.
+    #
+    # With it, a host may serve only its own workspace's documents. Otherwise any
+    # customer's domain would be an open window onto every document on the
+    # platform, and a slug guessed anywhere would resolve everywhere. 404 rather
+    # than 403: whether a slug exists elsewhere is not this host's business.
+    if workspace_scope is not None and raw.get("workspace_id") != workspace_scope:
         raise HTTPException(status_code=404, detail="Document not found")
 
     if raw.get("read_password_hash"):
