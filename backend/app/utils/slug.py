@@ -17,6 +17,9 @@ RESERVED_SLUGS = frozenset(
         # Tenant rewrite target (/h/<host>/<slug>). Unreachable anyway while
         # slugs are min 3 chars; reserved so that limit can change safely.
         "h",
+        # Marketing page for custom domains and white-labelling. Reserved before
+        # the page shipped, so a document can never shadow it.
+        "enterprise",
     }
 )
 
