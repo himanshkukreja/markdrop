@@ -1,6 +1,7 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 motor==3.7.0
+dnspython==2.8.0
 pydantic-settings==2.7.1
 python-dotenv==1.0.1
 bcrypt==4.2.1

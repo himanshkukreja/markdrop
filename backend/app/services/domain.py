@@ -1,0 +1,228 @@
+"""Custom domains — proving ownership, then attaching them.
+
+Two independent facts, tracked separately because they fail independently:
+
+  * **ownership** — a `_markdrop-verify` TXT record proves the claimant controls
+    DNS for the host. Nothing is served before this passes, or anyone could
+    claim a host they don't own and have us route traffic for it.
+  * **attachment** — the host is registered with the hosting project so TLS is
+    issued and requests reach us at all.
+"""
+
+import ipaddress
+import secrets
+from datetime import datetime, timezone
+from urllib.parse import urlparse
+
+from bson import ObjectId
+from fastapi import HTTPException
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
+from app.config import get_settings
+from app.models.domain import Domain, DomainKind
+
+settings = get_settings()
+
+TXT_PREFIX = "_markdrop-verify"
+MAX_DOMAINS_PER_WORKSPACE = 25
+
+# Hosts nobody may claim. Without this, registering `markdrop.in` would let a
+# stranger scope our own traffic to their workspace and rebrand the product.
+_RESERVED_SUFFIXES = ("markdrop.in", "workers.dev", "vercel.app", "localhost")
+
+
+def _to_domain(raw: dict) -> Domain:
+    return Domain(
+        id=str(raw["_id"]),
+        host=raw["host"],
+        workspace_id=raw["workspace_id"],
+        kind=raw["kind"],
+        status=raw.get("status", "pending"),
+        verification_token=raw["verification_token"],
+        created_at=raw["created_at"],
+        verified_at=raw.get("verified_at"),
+        last_checked_at=raw.get("last_checked_at"),
+        last_error=raw.get("last_error"),
+        attached=bool(raw.get("attached")),
+    )
+
+
+def normalize_host(raw: str) -> str:
+    """Reduce whatever was typed to a bare hostname, or reject it.
+
+    People paste `https://cdn.acme.com/`, `CDN.Acme.com.`, and `cdn.acme.com:443`
+    interchangeably. All three are the same host and must normalise to one
+    string, or the unique index stops meaning anything.
+    """
+    value = (raw or "").strip().lower()
+    if not value:
+        raise HTTPException(status_code=422, detail="Enter a domain.")
+    if "://" in value:
+        value = urlparse(value).hostname or ""
+    value = value.split("/")[0].split(":")[0].rstrip(".")
+    if not value:
+        raise HTTPException(status_code=422, detail="That doesn't look like a domain.")
+
+    # An IP literal can't be DNS-verified and can't get a certificate.
+    try:
+        ipaddress.ip_address(value)
+        raise HTTPException(status_code=422, detail="Use a domain name, not an IP address.")
+    except ValueError:
+        pass
+
+    labels = value.split(".")
+    if len(labels) < 2 or any(not lbl for lbl in labels):
+        raise HTTPException(status_code=422, detail="Enter a full domain, like cdn.example.com.")
+    if len(value) > 253:
+        raise HTTPException(status_code=422, detail="That domain is too long.")
+    for lbl in labels:
+        if len(lbl) > 63 or not all(c.isalnum() or c == "-" for c in lbl):
+            raise HTTPException(status_code=422, detail=f"'{lbl}' isn't a valid domain label.")
+        if lbl.startswith("-") or lbl.endswith("-"):
+            raise HTTPException(status_code=422, detail=f"'{lbl}' can't start or end with a hyphen.")
+
+    for suffix in _RESERVED_SUFFIXES:
+        if value == suffix or value.endswith("." + suffix):
+            raise HTTPException(
+                status_code=422,
+                detail=f"{value} is reserved and can't be added as a custom domain.",
+            )
+    # Also refuse whatever this deployment is actually running on, which is not
+    # necessarily markdrop.in — a self-hosted instance has its own hostnames.
+    for configured in (settings.frontend_url, settings.artifact_origin, settings.api_base_url):
+        host = (urlparse(configured).hostname or "").lower() if configured else ""
+        if host and (value == host or value.endswith("." + host)):
+            raise HTTPException(
+                status_code=422,
+                detail=f"{value} is reserved and can't be added as a custom domain.",
+            )
+    return value
+
+
+async def list_domains(db: AsyncIOMotorDatabase, workspace_id: str) -> list[Domain]:
+    rows = await db["domains"].find({"workspace_id": workspace_id}).to_list(length=100)
+    rows.sort(key=lambda r: r["created_at"])
+    return [_to_domain(r) for r in rows]
+
+
+async def add_domain(
+    db: AsyncIOMotorDatabase, workspace_id: str, raw_host: str, kind: DomainKind
+) -> Domain:
+    host = normalize_host(raw_host)
+
+    count = await db["domains"].count_documents({"workspace_id": workspace_id})
+    if count >= MAX_DOMAINS_PER_WORKSPACE:
+        raise HTTPException(
+            status_code=429,
+            detail=f"A workspace can hold at most {MAX_DOMAINS_PER_WORKSPACE} domains.",
+        )
+
+    existing = await db["domains"].find_one({"host": host})
+    if existing:
+        if existing["workspace_id"] == workspace_id:
+            raise HTTPException(status_code=409, detail=f"{host} is already in this workspace.")
+        # Deliberately vague: confirming *which* workspace holds it would leak
+        # one customer's configuration to another.
+        raise HTTPException(status_code=409, detail=f"{host} is already claimed.")
+
+    now = datetime.now(timezone.utc)
+    doc = {
+        "host": host,
+        "workspace_id": workspace_id,
+        "kind": kind,
+        "status": "pending",
+        "verification_token": f"markdrop-verify={secrets.token_urlsafe(24)}",
+        "created_at": now,
+        "attached": False,
+    }
+    result = await db["domains"].insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return _to_domain(doc)
+
+
+async def remove_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: str) -> None:
+    try:
+        oid = ObjectId(domain_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    result = await db["domains"].delete_one({"_id": oid, "workspace_id": workspace_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Domain not found")
+
+
+# ── Ownership ─────────────────────────────────────────────────────────────────
+
+
+def _txt_values(host: str) -> list[str]:
+    """Resolve the verification TXT record. Isolated for testing."""
+    import dns.resolver
+
+    resolver = dns.resolver.Resolver()
+    resolver.lifetime = 5.0
+    resolver.timeout = 5.0
+    answers = resolver.resolve(f"{TXT_PREFIX}.{host}", "TXT")
+    out: list[str] = []
+    for rdata in answers:
+        # A TXT record arrives as one or more quoted strings that must be
+        # concatenated; long tokens get split at 255 bytes by many providers.
+        joined = "".join(
+            part.decode() if isinstance(part, bytes) else str(part)
+            for part in rdata.strings  # type: ignore[attr-defined]
+        )
+        out.append(joined.strip())
+    return out
+
+
+async def verify_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: str) -> Domain:
+    try:
+        oid = ObjectId(domain_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    raw = await db["domains"].find_one({"_id": oid, "workspace_id": workspace_id})
+    if not raw:
+        raise HTTPException(status_code=404, detail="Domain not found")
+
+    domain = _to_domain(raw)
+    now = datetime.now(timezone.utc)
+    updates: dict = {"last_checked_at": now}
+
+    from starlette.concurrency import run_in_threadpool
+
+    try:
+        values = await run_in_threadpool(_txt_values, domain.host)
+    except Exception as exc:  # NXDOMAIN, timeout, no TXT record, SERVFAIL…
+        updates.update(
+            status="pending" if domain.status != "verified" else "verified",
+            last_error=f"Couldn't read {TXT_PREFIX}.{domain.host} ({type(exc).__name__}). "
+            "DNS changes can take a few minutes to propagate.",
+        )
+        await db["domains"].update_one({"_id": oid}, {"$set": updates})
+        raw.update(updates)
+        return _to_domain(raw)
+
+    if domain.verification_token in values:
+        updates.update(status="verified", verified_at=domain.verified_at or now, last_error=None)
+    else:
+        updates.update(
+            status="pending" if domain.status != "verified" else "verified",
+            last_error=(
+                f"Found {len(values)} TXT record(s) at {TXT_PREFIX}.{domain.host}, "
+                "but none matched the expected value."
+            ),
+        )
+    await db["domains"].update_one({"_id": oid}, {"$set": updates})
+    raw.update(updates)
+    return _to_domain(raw)
+
+
+# ── Resolution (what the edge asks on every request) ──────────────────────────
+
+
+async def resolve_host(db: AsyncIOMotorDatabase, raw_host: str) -> Domain | None:
+    """Which workspace, if any, owns this host. Only ever returns a *verified*
+    domain: an unverified row must not influence what anyone is served."""
+    host = (raw_host or "").strip().lower().split(":")[0].rstrip(".")
+    if not host:
+        return None
+    raw = await db["domains"].find_one({"host": host, "status": "verified"})
+    return _to_domain(raw) if raw else None

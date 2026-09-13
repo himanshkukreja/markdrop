@@ -94,6 +94,23 @@ class Settings(BaseSettings):
     # Presigned PUT validity. Short: the client uploads immediately.
     artifact_upload_ttl_seconds: int = 600
 
+    # ── Custom domains ───────────────────────────────────────────────────────
+    # Attaching a verified host to the hosting project so TLS is issued. Left
+    # blank the whole integration stays inert: domains can still be added and
+    # DNS-verified, they just aren't attached automatically and an operator
+    # completes that step by hand. Nothing here is ever invented at runtime.
+    vercel_api_token: str = ""
+    vercel_project_id: str = ""
+    vercel_team_id: str = ""
+    # What customers point their DNS at. A CNAME for a subdomain; an apex needs
+    # an A record, which is why both are configurable.
+    custom_domain_cname_target: str = "cname.vercel-dns.com"
+    custom_domain_apex_ip: str = "76.76.21.21"
+
+    @property
+    def vercel_domains_configured(self) -> bool:
+        return bool(self.vercel_api_token and self.vercel_project_id)
+
     @property
     def r2_endpoint_url(self) -> str:
         if self.r2_endpoint:
