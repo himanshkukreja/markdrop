@@ -7,6 +7,7 @@ otherwise anyone could claim a hostname they don't control.
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
 from app.database import get_database
@@ -15,11 +16,13 @@ from app.models.domain import Domain
 from app.models.user import User
 from app.routers.auth import require_user
 from app.schemas.domain import (
+    DnsProviderHint,
     DomainCreate,
     DomainListResponse,
     DomainResponse,
     HostResolution,
 )
+from app.services import dns_provider as dns_provider_service
 from app.services import domain as domain_service
 from app.services import workspace as ws_service
 
@@ -135,6 +138,58 @@ async def attach_domain(
     except domain_service.AttachUnavailable as exc:
         raise HTTPException(status_code=501, detail=str(exc))
     return _to_response(domain)
+
+
+@router.get(
+    "/workspaces/{workspace_id}/domains/{domain_id}/provider",
+    response_model=DnsProviderHint,
+)
+@limiter.limit("30/minute")
+async def dns_provider_hint(
+    request: Request,
+    workspace_id: str,
+    domain_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Which DNS panel this customer is about to open.
+
+    A separate endpoint rather than a field on the domain list, because it costs
+    a live DNS lookup and the list is rendered on every visit to the tab. The UI
+    asks for it only while the setup instructions are actually on screen.
+    """
+    await ws_service.require_role(db, workspace_id, user.id, "viewer")
+    domains = await domain_service.list_domains(db, workspace_id)
+    domain = next((d for d in domains if d.id == domain_id), None)
+    if domain is None:
+        raise HTTPException(status_code=404, detail="Domain not found")
+
+    provider, nameservers = await run_in_threadpool(dns_provider_service.detect, domain.host)
+    response = _to_response(domain)
+    if provider is None:
+        return DnsProviderHint(detected=False, nameservers=nameservers[:4])
+
+    zone = dns_provider_service.zone_of(domain.host)
+
+    def relative(name: str) -> str:
+        name = name.rstrip(".")
+        if not provider.wants_relative:
+            return name
+        if name == zone:
+            return "@"
+        return name[: -(len(zone) + 1)] if name.endswith("." + zone) else name
+
+    return DnsProviderHint(
+        detected=True,
+        provider_id=provider.id,
+        provider_name=provider.name,
+        panel_url=provider.url.replace("{domain}", zone),
+        host_field=provider.host_field,
+        record_host=relative(response.dns_record_name),
+        target_host=relative(response.dns_target_name),
+        note=provider.note or None,
+        nameservers=nameservers[:4],
+    )
 
 
 @router.delete("/workspaces/{workspace_id}/domains/{domain_id}", status_code=204)

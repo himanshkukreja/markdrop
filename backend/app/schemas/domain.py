@@ -37,6 +37,27 @@ class DomainListResponse(BaseModel):
     domains: list[DomainResponse]
 
 
+class DnsProviderHint(BaseModel):
+    """Who runs this domain's DNS, so the instructions can use their words.
+
+    Everything is optional: an unrecognised provider falls back to the generic
+    instructions, which is what every customer sees today.
+    """
+
+    detected: bool = False
+    provider_id: str | None = None
+    provider_name: str | None = None
+    panel_url: str | None = None
+    host_field: str | None = None
+    # The two record names as this provider wants them typed -- relative to the
+    # zone where that's what the panel expects, which is the single most common
+    # way a correct value still ends up in the wrong place.
+    record_host: str | None = None
+    target_host: str | None = None
+    note: str | None = None
+    nameservers: list[str] = []
+
+
 class HostResolution(BaseModel):
     """What the edge needs to render a request on a custom host."""
 

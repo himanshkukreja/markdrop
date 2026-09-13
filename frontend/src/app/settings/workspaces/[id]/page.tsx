@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import MarkdropLoader from "@/components/MarkdropLoader";
 import CopyButton from "@/components/CopyButton";
-import DnsHandoff from "@/components/workspace/DnsHandoff";
+import DnsInstructions from "@/components/workspace/DnsInstructions";
 import { downloadDnsCsv } from "@/lib/dnsCsv";
 import AssetUpload from "@/components/workspace/AssetUpload";
 import ColorPicker from "@/components/workspace/ColorPicker";
@@ -167,19 +167,6 @@ function BrandPreview({ branding, host }: { branding: Branding; host: string | n
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-/** One DNS row, formatted to be pasted into a registrar without editing. */
-function DnsRow({ label, type, name, value }: { label: string; type: string; name: string; value: string }) {
-  return (
-    <div className="flex items-start gap-2 text-[11px] py-1.5">
-      <span className="w-16 shrink-0 text-gray-400 pt-0.5">{label}</span>
-      <span className="w-12 shrink-0 font-mono text-gray-500">{type}</span>
-      <code className="flex-1 min-w-0 font-mono break-all text-gray-700 dark:text-gray-300">{name}</code>
-      <code className="flex-1 min-w-0 font-mono break-all text-gray-700 dark:text-gray-300">{value}</code>
-      <CopyButton text={value} label="Copy" />
     </div>
   );
 }
@@ -634,28 +621,11 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                         </div>
 
                         {d.status !== "verified" && (
-                          <div className="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-gray-800">
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <p className="text-[11px] text-gray-500">Add both records at your DNS provider, then Check DNS.</p>
-                              <span className="shrink-0 flex items-center gap-3">
-                                <DnsHandoff
-                                  domains={[d]}
-                                  siteName={branding.site_name || undefined}
-                                  className="text-[11px] text-gray-500 hover:text-blue-500 transition-colors"
-                                />
-                                <button
-                                  onClick={() => downloadDnsCsv([d])}
-                                  className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-blue-500 transition-colors"
-                                  title={`Download the DNS records for ${d.host} as CSV`}
-                                >
-                                  <Icon className="w-3 h-3"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></Icon>
-                                  CSV
-                                </button>
-                              </span>
-                            </div>
-                            <DnsRow label="Ownership" type={d.dns_record_type} name={d.dns_record_name} value={d.dns_record_value} />
-                            <DnsRow label="Routing" type={d.dns_target_type} name={d.dns_target_name} value={d.dns_target_value} />
-                          </div>
+                          <DnsInstructions
+                            workspaceId={id}
+                            domain={d}
+                            siteName={branding.site_name || undefined}
+                          />
                         )}
                         {d.last_error && <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2">{d.last_error}</p>}
                         {d.warning && <p className="text-[11px] text-gray-500 mt-2">{d.warning}</p>}

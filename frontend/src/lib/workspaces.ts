@@ -223,6 +223,23 @@ export async function uploadBrandingAsset(
 export const listDomains = (id: string) =>
   request<{ domains: Domain[] }>(`/api/v1/workspaces/${id}/domains`).then((r) => r.domains);
 
+export interface DnsProviderHint {
+  detected: boolean;
+  provider_id: string | null;
+  provider_name: string | null;
+  panel_url: string | null;
+  host_field: string | null;
+  record_host: string | null;
+  target_host: string | null;
+  note: string | null;
+  nameservers: string[];
+}
+
+/** Who runs this domain's DNS, so the setup steps can use their wording.
+ *  Costs a live DNS lookup, so it is fetched only while the steps are shown. */
+export const dnsProviderHint = (id: string, domainId: string) =>
+  request<DnsProviderHint>(`/api/v1/workspaces/${id}/domains/${domainId}/provider`);
+
 export const addDomain = (id: string, host: string, kind: DomainKind) =>
   request<Domain>(`/api/v1/workspaces/${id}/domains`, {
     method: "POST",
