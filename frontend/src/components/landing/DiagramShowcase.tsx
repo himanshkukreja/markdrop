@@ -87,7 +87,7 @@ const POINTS: [string, string][] = [
   ["Mermaid diagrams", "Flowcharts, sequence, Gantt, class and state diagrams — straight from a text fence."],
   ["Charts", "Pie and XY/bar charts render inline — perfect for a quick data snapshot."],
   ["LaTeX math (KaTeX)", "Inline $E = mc^2$ and display $$…$$ blocks become beautifully typeset math."],
-  ["Zero setup", "Rendered right in the browser on any document — in light, dark and VS Code themes."],
+  ["Zero setup", "Rendered right in the browser on any document — no plugins, no build step."],
 ];
 
 export default function DiagramShowcase() {

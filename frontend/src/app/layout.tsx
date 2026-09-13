@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "highlight.js/styles/github-dark.css";
-import ThemeToggle from "@/components/ThemeToggle";
 import CreateMenu from "@/components/CreateMenu";
 import HeaderAuth from "@/components/HeaderAuth";
 import NamePrompt from "@/components/NamePrompt";
@@ -23,11 +22,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full" style={{ background: "#1e1e1e" }} suppressHydrationWarning>
+    <html lang="en" className="h-full dark" style={{ background: "#030712" }} suppressHydrationWarning>
       <head>
-        {/* Inline script: runs synchronously during HTML parsing, before any paint.
-            Reads localStorage and applies the correct theme class + background. */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme')||'dark';var cl=t==='dark'?'dark':'vscode';var bg=t==='dark'?'#030712':'#1e1e1e';var el=document.documentElement;el.classList.add(cl);el.style.background=bg;function tc(c){var m=document.querySelector('meta[name=theme-color]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',c);}tc(bg);new MutationObserver(function(){if(!el.classList.contains('vscode')&&!el.classList.contains('dark')){el.classList.add(cl);el.style.background=bg;tc(bg);}}).observe(el,{attributes:true,attributeFilter:['class']});})();` }} />
+        {/* Inline script: runs synchronously during HTML parsing, before any paint,
+            so the background is right before the first frame rather than flashing.
+            One theme now, and it ignores any previously stored preference — a
+            browser still holding 'vscode' from the old toggle must not keep it.
+            `vscode:` utilities are left in the markup as dead variants; ripping
+            768 of them out is a mechanical diff with no user-visible effect. */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var bg='#030712';var el=document.documentElement;el.classList.remove('vscode');el.classList.add('dark');el.style.background=bg;localStorage.setItem('theme','dark');function tc(c){var m=document.querySelector('meta[name=theme-color]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',c);}tc(bg);new MutationObserver(function(){if(!el.classList.contains('dark')){el.classList.add('dark');el.style.background=bg;tc(bg);}}).observe(el,{attributes:true,attributeFilter:['class']});})();` }} />
       </head>
       <body className="h-full flex flex-col dark:bg-gray-950 vscode:bg-[#1e1e1e] dark:text-gray-100 vscode:text-[#d4d4d4]">
         <AuthProvider>
@@ -51,7 +54,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
               <CreateMenu />
-              <ThemeToggle />
               <HeaderAuth />
             </div>
           </div>
