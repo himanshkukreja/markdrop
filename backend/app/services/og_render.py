@@ -13,6 +13,7 @@ bold) for the title/body and — via the diagram renderer — DejaVu Sans Mono.
 """
 
 from functools import lru_cache
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 
@@ -36,6 +37,42 @@ _FOOT = (100, 116, 139)     # slate-500
 
 _MARGIN = 90
 _ACCENT_BAR = 14            # slim left accent stripe
+
+
+@dataclass
+class CardBrand:
+    """What a workspace puts on its own preview cards.
+
+    Everything is optional and every default reproduces the Markdrop card
+    exactly, so a document with no workspace renders byte-for-byte as before.
+
+    Note there is no logo image here. Drawing a remote logo would mean fetching
+    an arbitrary customer-supplied URL from inside the renderer, which is a
+    server-side request forgery hole pointed straight at the metadata endpoint
+    of whatever the API runs on. A logo belongs behind our own upload path, not
+    behind a URL field — until then the wordmark carries the brand.
+    """
+
+    site_name: str | None = None
+    accent: tuple[int, int, int] | None = None
+    footer: str | None = None
+    hide_markdrop_branding: bool = False
+
+
+def parse_hex_color(value: str | None) -> tuple[int, int, int] | None:
+    """#rgb or #rrggbb to an RGB triple. None for anything else — the card is
+    not the place to discover that a colour was malformed."""
+    if not value or not value.startswith("#"):
+        return None
+    raw = value[1:]
+    if len(raw) == 3:
+        raw = "".join(c * 2 for c in raw)
+    if len(raw) != 6:
+        return None
+    try:
+        return (int(raw[0:2], 16), int(raw[2:4], 16), int(raw[4:6], 16))
+    except ValueError:
+        return None
 
 # Artifact accents, matched to components/ArtifactBadge.tsx so a link preview
 # and the dashboard chip for the same file are visibly the same thing.
@@ -115,12 +152,22 @@ def _fmt_views(views: int) -> str:
     return f"{views:,} view" + ("" if views == 1 else "s")
 
 
-def _draw_wordmark(draw: ImageDraw.ImageDraw, x: int, y: int) -> None:
-    """'markdrop' with the 'drop' half in the accent blue."""
+def _draw_wordmark(
+    draw: ImageDraw.ImageDraw, x: int, y: int, brand: "CardBrand | None" = None
+) -> None:
+    """'markdrop' with the 'drop' half in the accent blue — or the workspace's
+    own name in its own colour, or nothing at all."""
     font = _font(bold=True, size=44)
+    if brand and brand.site_name:
+        draw.text((x, y), brand.site_name, font=font, fill=brand.accent or _TITLE)
+        return
+    if brand and brand.hide_markdrop_branding:
+        # Asked for no Markdrop and gave no name of their own: leave the slot
+        # empty rather than falling back to the thing they asked us to remove.
+        return
     draw.text((x, y), "mark", font=font, fill=_TITLE)
     w = draw.textlength("mark", font=font)
-    draw.text((x + w, y), "drop", font=font, fill=_ACCENT)
+    draw.text((x + w, y), "drop", font=font, fill=(brand.accent if brand and brand.accent else _ACCENT))
 
 
 def _draw_file_motif(img: Image.Image, accent: tuple[int, int, int]) -> None:
@@ -176,6 +223,7 @@ def render_og_png(
     artifact_label: str | None = None,
     artifact_size: int | None = None,
     artifact_filename: str | None = None,
+    brand: CardBrand | None = None,
 ) -> bytes:
     """Render the preview card to PNG bytes.
 
@@ -184,7 +232,12 @@ def render_og_png(
     the artifact layout — a type pill and file size in place of a text snippet,
     with the accent colour keyed to the file family.
     """
+    # A workspace accent overrides even the per-filetype artifact colours: a
+    # brand that has chosen its colour means it everywhere, and a card that is
+    # orange for PDFs and their blue for HTML reads as two different products.
     accent = _ARTIFACT_ACCENT.get(artifact_kind or "", _ACCENT)
+    if brand and brand.accent:
+        accent = brand.accent
 
     img = Image.new("RGB", (WIDTH, HEIGHT), _BG)
     draw = ImageDraw.Draw(img)
@@ -194,11 +247,18 @@ def render_og_png(
 
     content_w = WIDTH - _MARGIN - _MARGIN
 
-    _draw_wordmark(draw, _MARGIN, 64)
+    _draw_wordmark(draw, _MARGIN, 64, brand)
 
     if protected:
         title_text = "Password-protected document"
-        snippet_text = "This document is protected. Open it on Markdrop to unlock."
+        _where = (brand.site_name if brand and brand.site_name else None) or (
+            "" if brand and brand.hide_markdrop_branding else "Markdrop"
+        )
+        snippet_text = (
+            f"This document is protected. Open it on {_where} to unlock."
+            if _where
+            else "This document is protected. Open the link to unlock."
+        )
     else:
         title_text = title.strip() or "Untitled document"
         snippet_text = snippet.strip()
@@ -274,9 +334,15 @@ def render_og_png(
         if artifact_size:
             left = f"{_fmt_size(artifact_size)} · {left}"
         draw.text((_MARGIN, foot_y), left, font=foot_font, fill=_FOOT)
-    domain = "markdrop.in"
-    dw = draw.textlength(domain, font=foot_font)
-    draw.text((WIDTH - _MARGIN - dw, foot_y), domain, font=foot_font, fill=_FOOT)
+    # Footer host: the workspace's own domain when it has one, otherwise nothing
+    # rather than ours — a card that says markdrop.in on a customer's domain is
+    # the exact thing this feature exists to remove.
+    domain = (brand.footer if brand and brand.footer else None) or (
+        "" if brand and brand.hide_markdrop_branding else "markdrop.in"
+    )
+    if domain:
+        dw = draw.textlength(domain, font=foot_font)
+        draw.text((WIDTH - _MARGIN - dw, foot_y), domain, font=foot_font, fill=_FOOT)
 
     buf = BytesIO()
     img.save(buf, format="PNG", optimize=True)

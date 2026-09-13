@@ -289,6 +289,21 @@ async def attach_to_hosting(db: AsyncIOMotorDatabase, workspace_id: str, domain_
 # ── Resolution (what the edge asks on every request) ──────────────────────────
 
 
+async def primary_host(db: AsyncIOMotorDatabase, workspace_id: str) -> str | None:
+    """The host to print on a preview card: the workspace's oldest verified
+    document domain. `cdn` hosts are excluded — a card links to a page, and a
+    cdn host has no pages."""
+    rows = (
+        await db["domains"]
+        .find({"workspace_id": workspace_id, "status": "verified", "kind": "app"})
+        .to_list(length=25)
+    )
+    if not rows:
+        return None
+    rows.sort(key=lambda r: r["created_at"])
+    return rows[0]["host"]
+
+
 async def resolve_host(db: AsyncIOMotorDatabase, raw_host: str) -> Domain | None:
     """Which workspace, if any, owns this host. Only ever returns a *verified*
     domain: an unverified row must not influence what anyone is served."""

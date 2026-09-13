@@ -15,6 +15,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.database import get_database
 from app.limiter import limiter
 from app.services import artifact, og_render
+from app.services import domain as domain_service
+from app.services import workspace as ws_service
 
 router = APIRouter(prefix="/api/v1/og", tags=["og-image"])
 
@@ -40,7 +42,7 @@ async def og_image(request: Request, slug: str, db: AsyncIOMotorDatabase = Depen
         {
             "title": 1, "content": 1, "views": 1, "read_password_hash": 1,
             "kind": 1, "mime": 1, "size_bytes": 1, "original_filename": 1,
-            "encrypted": 1,
+            "encrypted": 1, "workspace_id": 1,
         },
     )
 
@@ -75,6 +77,22 @@ async def og_image(request: Request, slug: str, db: AsyncIOMotorDatabase = Depen
         kind = label = None
         size = None
 
+    # A document that belongs to a workspace wears that workspace's brand
+    # wherever the card is unfurled — the point of white-labelling is that the
+    # card in Slack doesn't say Markdrop, regardless of which host was linked.
+    brand = None
+    workspace_id = raw.get("workspace_id")
+    if workspace_id:
+        workspace = await ws_service.get_workspace(db, workspace_id)
+        if workspace is not None:
+            b = workspace.branding
+            brand = og_render.CardBrand(
+                site_name=b.site_name,
+                accent=og_render.parse_hex_color(b.accent_color),
+                footer=await domain_service.primary_host(db, workspace_id),
+                hide_markdrop_branding=b.hide_markdrop_branding,
+            )
+
     png = await run_in_threadpool(
         og_render.render_og_png,
         title=title,
@@ -85,6 +103,7 @@ async def og_image(request: Request, slug: str, db: AsyncIOMotorDatabase = Depen
         artifact_label=label,
         artifact_size=size,
         artifact_filename=raw.get("original_filename") if is_artifact else None,
+        brand=brand,
     )
     # 1h cache: title/snippet edits and view counts propagate within the hour
     # without hammering the renderer on every crawler hit.
