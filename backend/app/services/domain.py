@@ -153,24 +153,69 @@ async def remove_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: 
 # ── Ownership ─────────────────────────────────────────────────────────────────
 
 
+def _flatten(rdata) -> str:
+    """A TXT record arrives as one or more quoted strings that must be
+    concatenated; long tokens get split at 255 bytes by many providers."""
+    return "".join(
+        part.decode() if isinstance(part, bytes) else str(part)
+        for part in rdata.strings  # type: ignore[attr-defined]
+    ).strip()
+
+
 def _txt_values(host: str) -> list[str]:
-    """Resolve the verification TXT record. Isolated for testing."""
+    """Read the verification TXT record from the zone's own nameservers.
+
+    Deliberately not the system resolver. Verification is always run moments
+    after someone edits DNS, and a recursive resolver will happily serve the
+    previous answer for the rest of its TTL — an hour is common. The customer
+    then sees "that record doesn't match" immediately after correctly adding it,
+    concludes they got it wrong, and starts changing things that were already
+    right. Asking the authoritative servers removes the cache from the path.
+
+    Falls back to the ordinary resolver if the authoritative lookup fails, so a
+    zone we cannot introspect still verifies eventually rather than never.
+    """
+    import dns.message
+    import dns.name
+    import dns.query
+    import dns.rdatatype
     import dns.resolver
 
+    name = f"{TXT_PREFIX}.{host}"
     resolver = dns.resolver.Resolver()
     resolver.lifetime = 5.0
     resolver.timeout = 5.0
-    answers = resolver.resolve(f"{TXT_PREFIX}.{host}", "TXT")
-    out: list[str] = []
-    for rdata in answers:
-        # A TXT record arrives as one or more quoted strings that must be
-        # concatenated; long tokens get split at 255 bytes by many providers.
-        joined = "".join(
-            part.decode() if isinstance(part, bytes) else str(part)
-            for part in rdata.strings  # type: ignore[attr-defined]
-        )
-        out.append(joined.strip())
-    return out
+
+    try:
+        # zone_for_name walks up until it finds the zone actually holding this
+        # name, so a record on a delegated subdomain is found where it lives.
+        zone = dns.resolver.zone_for_name(dns.name.from_text(name), resolver=resolver)
+        nameservers = resolver.resolve(zone, "NS")
+        addresses: list[str] = []
+        for ns in nameservers:
+            try:
+                addresses.extend(str(a) for a in resolver.resolve(str(ns.target), "A"))
+            except Exception:
+                continue
+
+        query = dns.message.make_query(dns.name.from_text(name), dns.rdatatype.TXT)
+        for address in addresses[:4]:  # a couple of tries is plenty; don't hang
+            try:
+                answer = dns.query.udp(query, address, timeout=4.0)
+            except Exception:
+                continue
+            values = [
+                _flatten(rdata)
+                for rrset in answer.answer
+                if rrset.rdtype == dns.rdatatype.TXT
+                for rdata in rrset
+            ]
+            if values:
+                return values
+    except Exception:
+        pass  # fall through to the cached path rather than failing outright
+
+    return [_flatten(rdata) for rdata in resolver.resolve(name, "TXT")]
 
 
 async def verify_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: str) -> Domain:
