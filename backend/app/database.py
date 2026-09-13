@@ -35,6 +35,17 @@ async def connect() -> None:
     # Artifact quota aggregation (sum of size_bytes per owner) + admin filtering
     await db["documents"].create_index([("owner_id", 1), ("kind", 1)], sparse=True)
 
+    # Workspaces: a document with no workspace_id is an ordinary markdrop.in
+    # document, so the index is sparse and the existing corpus is untouched.
+    await db["documents"].create_index("workspace_id", sparse=True)
+    await db["workspaces"].create_index("owner_id")
+    # One membership row per person per workspace — the upsert in add_member
+    # relies on this to stay idempotent rather than duplicating rows.
+    await db["memberships"].create_index(
+        [("workspace_id", 1), ("user_id", 1)], unique=True
+    )
+    await db["memberships"].create_index("user_id")
+
     # Abuse reports
     await db["reports"].create_index([("doc_id", 1), ("ts", -1)])
 

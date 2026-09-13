@@ -14,6 +14,7 @@ from app.routers.artifacts import router as artifacts_router
 from app.routers.auth import router as auth_router
 from app.routers.documents import router as documents_router
 from app.routers.feedback import router as feedback_router
+from app.routers.workspaces import router as workspaces_router
 from app.routers.google import router as google_router
 from app.routers.live import router as live_router
 from app.routers.me import router as me_router
@@ -63,6 +64,7 @@ app.include_router(sync_router)
 app.include_router(og_router)
 app.include_router(live_router)
 app.include_router(feedback_router)
+app.include_router(workspaces_router)
 
 
 @app.get("/health")

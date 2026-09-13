@@ -46,6 +46,7 @@ def _doc_from_mongo(raw: dict) -> Document:
         # Absent on every document created before the feature existed, which is
         # exactly what False means — no migration needed.
         encrypted=raw.get("encrypted", False),
+        workspace_id=raw.get("workspace_id"),
         kind=raw.get("kind", "markdown"),
         mime=raw.get("mime"),
         blob_key=raw.get("blob_key"),

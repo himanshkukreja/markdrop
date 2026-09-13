@@ -35,6 +35,11 @@ class Document:
     # existing plaintext document nor decrypt an encrypted one, so a flag that
     # could be flipped would only ever produce a corrupt record.
     encrypted: bool = False
+    # ── Workspaces ───────────────────────────────────────────────────────────
+    # None means an ordinary markdrop.in document — which is every document that
+    # existed before workspaces did, and remains the default. Only documents that
+    # belong to a workspace can be served from that workspace's custom domains.
+    workspace_id: str | None = None
     # ── Artifacts ────────────────────────────────────────────────────────────
     # kind="artifact" records store their bytes in R2 (`blob_key`) instead of
     # `content`, and render on the isolated artifact origin. Everything else on
