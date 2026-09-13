@@ -14,6 +14,9 @@ RESERVED_SLUGS = frozenset(
         "robots.txt", "sitemap.xml",
         # Artifact routes
         "artifacts", "artifact", "upload", "builder",
+        # Tenant rewrite target (/h/<host>/<slug>). Unreachable anyway while
+        # slugs are min 3 chars; reserved so that limit can change safely.
+        "h",
     }
 )
 
