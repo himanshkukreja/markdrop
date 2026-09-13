@@ -22,6 +22,15 @@ const FEATURES: Feature[] = [
     ),
   },
   {
+    title: "End-to-end encryption",
+    desc: "Tick one box and your browser encrypts the document — title included — before it leaves the tab. The key rides in the # part of the link, which browsers never send to a server, so Markdrop stores ciphertext it holds no key to.",
+    href: "/new",
+    cta: "Publish encrypted",
+    icon: (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+    ),
+  },
+  {
     title: "Peer-to-peer file sharing",
     desc: "Send any file directly browser-to-browser over WebRTC. Nothing is uploaded to a server — the transfer is end-to-end encrypted and size is limited only by your device.",
     href: "/share",
@@ -89,6 +98,7 @@ const FEATURES: Feature[] = [
 const CHIPS = [
   "Rendered HTML & PDF links",
   "Custom slugs",
+  "End-to-end encryption",
   "Password protection",
   "Expiring links",
   "Live preview / split view",
@@ -98,7 +108,6 @@ const CHIPS = [
   "Syntax highlighting",
   "Export to PDF",
   "Export to Google Docs",
-  "VS Code & dark themes",
   "View counts",
   "Edit & delete via secret",
   "Rate-limited & abuse-reported",
@@ -109,7 +118,7 @@ export default function FeatureGrid() {
     <section className="py-16 sm:py-20">
       <Reveal className="text-center max-w-2xl mx-auto">
         <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
-          One tool, eight <span className="md-gradient-text">superpowers</span>
+          One tool, nine <span className="md-gradient-text">superpowers</span>
         </h2>
         <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0]">
           Markdrop started as a markdown pastebin and grew into a full sharing suite — all still no-login by default.

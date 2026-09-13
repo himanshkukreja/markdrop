@@ -1,5 +1,6 @@
 import Hero from "@/components/landing/Hero";
 import FeatureGrid from "@/components/landing/FeatureGrid";
+import EncryptionShowcase from "@/components/landing/EncryptionShowcase";
 import P2PShowcase from "@/components/landing/P2PShowcase";
 import VSCodeShowcase from "@/components/landing/VSCodeShowcase";
 import DiagramShowcase from "@/components/landing/DiagramShowcase";
@@ -26,6 +27,8 @@ export default function LandingPage() {
 
       <Hero />
       <FeatureGrid />
+      {/* First of the showcases: privacy is the strongest claim on this page. */}
+      <EncryptionShowcase />
       <P2PShowcase />
       <VSCodeShowcase />
       <DiagramShowcase />
