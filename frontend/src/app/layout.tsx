@@ -6,7 +6,7 @@ import HeaderAuth from "@/components/HeaderAuth";
 import NamePrompt from "@/components/NamePrompt";
 import FeedbackWidget from "@/components/FeedbackWidget";
 import { AuthProvider } from "@/contexts/AuthContext";
-import WebAnalytics from "@/components/WebAnalytics";
+import VercelInsights from "@/components/VercelInsights";
 
 export const metadata: Metadata = {
   title: "Markdrop — Publish Markdown, share files, sync from VS Code",
@@ -65,7 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <NamePrompt />
         <FeedbackWidget />
         </AuthProvider>
-        <WebAnalytics />
+        <VercelInsights />
       </body>
     </html>
   );
