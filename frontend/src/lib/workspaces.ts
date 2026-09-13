@@ -111,6 +111,14 @@ export const createWorkspace = (name: string) =>
 
 export const getWorkspace = (id: string) => request<Workspace>(`/api/v1/workspaces/${id}`);
 
+/** Delete a workspace. Owner only, and the exact name must be typed back.
+ *  Shared documents are released to their owners, never deleted. */
+export const deleteWorkspace = (id: string, confirmName: string) =>
+  request<{ documents_released: number; domains_removed: number; members_removed: number }>(
+    `/api/v1/workspaces/${id}`,
+    { method: "DELETE", body: JSON.stringify({ confirm_name: confirmName }) }
+  );
+
 export const updateWorkspace = (
   id: string,
   data: { name?: string; branding?: Branding; settings?: WorkspaceSettings }

@@ -201,6 +201,68 @@ async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
     await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id})
 
 
+async def delete_workspace(
+    db: AsyncIOMotorDatabase, workspace_id: str, user_id: str, confirm_name: str
+) -> dict:
+    """Delete a workspace. Owner only. Returns a summary of what was released.
+
+    The thing this must never do is destroy other people's work. A workspace's
+    shared library is full of documents owned by its members, not by the
+    workspace -- so deleting one *unshares* every document rather than deleting
+    any. Each returns to its owner's private library with its slug, links and
+    analytics intact, exactly as if it had been unshared one at a time.
+
+    Domains are detached from the hosting project first. Skipping that would
+    leave the host registered to our Vercel project with no Markdrop record
+    pointing at it, which makes it impossible for its actual owner to ever add
+    it again, anywhere.
+    """
+    workspace = await get_workspace(db, workspace_id)
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    # Owner, not admin. An admin can run a workspace; only the owner can end it.
+    role = await role_for(db, workspace_id, user_id)
+    if role is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    if user_id != workspace.owner_id:
+        raise HTTPException(
+            status_code=403, detail="Only the workspace owner can delete it."
+        )
+
+    # Typing the name is a guard against a mis-aimed script or a stray click on
+    # a request that cannot be undone. The UI asks for it too; this is the copy
+    # that actually enforces it.
+    if (confirm_name or "").strip() != workspace.name.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Type the workspace name exactly to confirm deletion.",
+        )
+
+    from app.services import domain as domain_service
+
+    domains = await db["domains"].find({"workspace_id": workspace_id}).to_list(length=200)
+    for d in domains:
+        if d.get("attached"):
+            await domain_service.detach_from_hosting(d["host"])
+
+    released = await db["documents"].update_many(
+        {"workspace_id": workspace_id},
+        {"$set": {"workspace_id": None, "folder_id": None}},
+    )
+    await db["domains"].delete_many({"workspace_id": workspace_id})
+    await db["folders"].delete_many({"workspace_id": workspace_id})
+    await db["invitations"].delete_many({"workspace_id": workspace_id})
+    members = await db["memberships"].delete_many({"workspace_id": workspace_id})
+    await db["workspaces"].delete_one({"_id": ObjectId(workspace_id)})
+
+    return {
+        "documents_released": released.modified_count,
+        "domains_removed": len(domains),
+        "members_removed": members.deleted_count,
+    }
+
+
 # ── The safety rule ───────────────────────────────────────────────────────────
 
 

@@ -138,3 +138,15 @@ class InviteAcceptResponse(BaseModel):
 class BrandingAssetResponse(BaseModel):
     url: str
     kind: Literal["favicon", "logo"]
+
+
+class WorkspaceDeleteRequest(BaseModel):
+    """The workspace's own name, typed back. See `services.workspace.delete_workspace`."""
+
+    confirm_name: str = Field(..., min_length=1, max_length=80)
+
+
+class WorkspaceDeleteResponse(BaseModel):
+    documents_released: int
+    domains_removed: int
+    members_removed: int

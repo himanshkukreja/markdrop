@@ -24,6 +24,8 @@ from app.schemas.workspace import (
     MemberRoleRequest,
     SettingsPayload,
     WorkspaceCreate,
+    WorkspaceDeleteRequest,
+    WorkspaceDeleteResponse,
     WorkspaceListResponse,
     WorkspaceResponse,
     WorkspaceUpdate,
@@ -148,6 +150,24 @@ async def list_members(
             for m in members
         ]
     )
+
+
+@router.delete("/{workspace_id}", response_model=WorkspaceDeleteResponse)
+@limiter.limit("10/hour")
+async def delete_workspace(
+    request: Request,
+    workspace_id: str,
+    data: WorkspaceDeleteRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Delete a workspace and everything that belongs to it.
+
+    Shared documents are released, not deleted -- they belong to their owners,
+    not to the workspace.
+    """
+    result = await ws_service.delete_workspace(db, workspace_id, user.id, data.confirm_name)
+    return WorkspaceDeleteResponse(**result)
 
 
 # ── Invitations ───────────────────────────────────────────────────────────────

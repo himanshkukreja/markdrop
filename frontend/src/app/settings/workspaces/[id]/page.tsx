@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import MarkdropLoader from "@/components/MarkdropLoader";
 import CopyButton from "@/components/CopyButton";
+import DnsHandoff from "@/components/workspace/DnsHandoff";
+import { downloadDnsCsv } from "@/lib/dnsCsv";
 import AssetUpload from "@/components/workspace/AssetUpload";
 import ColorPicker from "@/components/workspace/ColorPicker";
 import LibraryPanel from "@/components/workspace/LibraryPanel";
 import {
-  can, getWorkspace, updateWorkspace, uploadBrandingAsset,
+  can, deleteWorkspace, getWorkspace, updateWorkspace, uploadBrandingAsset,
   listDomains, addDomain, verifyDomain, attachDomain, removeDomain,
   listMembers, setMemberRole, removeMember,
   listInvitations, inviteMember, revokeInvitation,
@@ -218,6 +220,8 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
   const [newRole, setNewRole] = useState<Exclude<Role, "owner">>("member");
   const [newFolder, setNewFolder] = useState("");
   const [busy, setBusy] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteName, setDeleteName] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -493,6 +497,60 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                       </span>
                     </div>
                   )}
+
+                  {/* Owner only. An admin runs a workspace; only the owner ends it. */}
+                  {ws.role === "owner" && (
+                    <Card className="!border-red-500/25">
+                      <h2 className="text-sm font-semibold text-red-600 dark:text-red-400">
+                        Delete this workspace
+                      </h2>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed max-w-2xl">
+                        Removes the workspace, its members, folders and domains. Shared documents
+                        are <strong>not</strong> deleted — they go back to the people who own them,
+                        with the same links and analytics.
+                      </p>
+
+                      {!confirmDelete ? (
+                        <button
+                          onClick={() => { setConfirmDelete(true); setDeleteName(""); }}
+                          className="mt-3 px-4 py-2 rounded-lg border border-red-300 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-sm font-medium transition-colors"
+                        >
+                          Delete workspace
+                        </button>
+                      ) : (
+                        <div className="mt-3 space-y-2.5">
+                          <p className="text-xs text-gray-600 dark:text-gray-400">
+                            Type <strong className="font-mono">{ws.name}</strong> to confirm.
+                          </p>
+                          <input
+                            autoFocus
+                            value={deleteName}
+                            onChange={(e) => setDeleteName(e.target.value)}
+                            placeholder={ws.name}
+                            className={`${input} w-full max-w-sm`}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              disabled={busy === "delete" || deleteName.trim() !== ws.name.trim()}
+                              onClick={() => run("delete",
+                                () => deleteWorkspace(id, deleteName.trim()),
+                                () => router.push("/settings/workspaces"))}
+                              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+                            >
+                              {busy === "delete" ? "Deleting…" : "Delete permanently"}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(false)}
+                              disabled={busy === "delete"}
+                              className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  )}
                 </div>
 
                 <div className="xl:sticky xl:top-4">
@@ -508,6 +566,16 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
               <Card
                 title="Domains"
                 hint="Any hostname you control. “Documents” serves pages and sign-in; “Files only” serves uploaded artifacts and never runs the app — one host can't do both."
+                aside={domains.length > 0 ? (
+                  <button
+                    onClick={() => downloadDnsCsv(domains)}
+                    className={`${ghost} shrink-0 inline-flex items-center gap-1.5`}
+                    title="Download every DNS record for this workspace as CSV"
+                  >
+                    <Icon className="w-3.5 h-3.5"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></Icon>
+                    Download all as CSV
+                  </button>
+                ) : undefined}
               >
                 {isAdmin && (
                   <div className="flex gap-2 mb-4 flex-wrap">
@@ -567,7 +635,24 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
 
                         {d.status !== "verified" && (
                           <div className="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-gray-800">
-                            <p className="text-[11px] text-gray-500 mb-1">Add both records at your DNS provider, then Check DNS.</p>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <p className="text-[11px] text-gray-500">Add both records at your DNS provider, then Check DNS.</p>
+                              <span className="shrink-0 flex items-center gap-3">
+                                <DnsHandoff
+                                  domains={[d]}
+                                  siteName={branding.site_name || undefined}
+                                  className="text-[11px] text-gray-500 hover:text-blue-500 transition-colors"
+                                />
+                                <button
+                                  onClick={() => downloadDnsCsv([d])}
+                                  className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-blue-500 transition-colors"
+                                  title={`Download the DNS records for ${d.host} as CSV`}
+                                >
+                                  <Icon className="w-3 h-3"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></Icon>
+                                  CSV
+                                </button>
+                              </span>
+                            </div>
                             <DnsRow label="Ownership" type={d.dns_record_type} name={d.dns_record_name} value={d.dns_record_value} />
                             <DnsRow label="Routing" type={d.dns_target_type} name={d.dns_target_name} value={d.dns_target_value} />
                           </div>

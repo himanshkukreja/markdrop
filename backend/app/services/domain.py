@@ -140,14 +140,50 @@ async def add_domain(
     return _to_domain(doc)
 
 
+async def detach_from_hosting(host: str) -> bool:
+    """Release a host from the hosting project. Best effort, never raises.
+
+    Forgetting this is worse than it looks: Vercel refuses to add a domain that
+    is already on another project, so a host left attached after its Markdrop
+    domain record is gone cannot be re-added by anyone -- including the customer
+    who owns it. The record is being deleted either way, so a failure here must
+    not block that; it just leaves a host to clean up by hand.
+    """
+    if not settings.vercel_domains_configured:
+        return False
+
+    import httpx
+
+    params = {}
+    if settings.vercel_team_id:
+        params["teamId"] = settings.vercel_team_id
+    url = (
+        f"https://api.vercel.com/v9/projects/{settings.vercel_project_id}"
+        f"/domains/{host}"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.delete(
+                url, params=params,
+                headers={"Authorization": f"Bearer {settings.vercel_api_token}"},
+            )
+        # 404 means it was never there, which is the state we wanted anyway.
+        return resp.status_code in (200, 204, 404)
+    except Exception:
+        return False
+
+
 async def remove_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: str) -> None:
     try:
         oid = ObjectId(domain_id)
     except Exception:
         raise HTTPException(status_code=404, detail="Domain not found")
-    result = await db["domains"].delete_one({"_id": oid, "workspace_id": workspace_id})
-    if result.deleted_count == 0:
+    raw = await db["domains"].find_one({"_id": oid, "workspace_id": workspace_id})
+    if not raw:
         raise HTTPException(status_code=404, detail="Domain not found")
+    if raw.get("attached"):
+        await detach_from_hosting(raw["host"])
+    await db["domains"].delete_one({"_id": oid})
 
 
 # ── Ownership ─────────────────────────────────────────────────────────────────
