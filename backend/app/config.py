@@ -102,9 +102,24 @@ class Settings(BaseSettings):
     vercel_api_token: str = ""
     vercel_project_id: str = ""
     vercel_team_id: str = ""
-    # What customers point their DNS at. A CNAME for a subdomain; an apex needs
-    # an A record, which is why both are configurable.
+    # What customers point their DNS at.
+    #
+    # Set this to a host of your own (edge.markdrop.in) rather than the hosting
+    # provider's, and point that at the provider once. Two reasons, and the
+    # second is the important one:
+    #
+    #   * A customer's DNS panel then shows only your domain, instead of naming
+    #     your hosting provider in the setup instructions you hand them.
+    #   * Changing provider becomes one record on your side. Pointing customers
+    #     straight at the provider means every one of them has to edit DNS to
+    #     follow you — which for an enterprise is a change ticket, not a click.
+    #
+    # The default stays the provider's target so a fresh self-hosted install
+    # works before anyone has set up an alias.
     custom_domain_cname_target: str = "cname.vercel-dns.com"
+    # Apexes cannot be CNAMEs, so they need a literal address and there is no
+    # hiding whose it is. Some DNS providers offer ALIAS/ANAME records that
+    # behave like a CNAME at the apex; those can use the target above instead.
     custom_domain_apex_ip: str = "76.76.21.21"
 
     @property
