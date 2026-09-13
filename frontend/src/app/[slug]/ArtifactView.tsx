@@ -578,7 +578,10 @@ export default function ArtifactView({
               owner asked for it. A signed-in visitor keeps the way out, so the
               owner can still reach Report, settings and the framed view. */}
           {!(viewerChrome === "none" && !user) && (
-            <ImmersiveExit onExit={() => setImmersive(false)} />
+            <ImmersiveExit
+              onExit={() => setImmersive(false)}
+              placement={renderer === "video" ? "top-right" : "bottom-right"}
+            />
           )}
         </div>
       )}
