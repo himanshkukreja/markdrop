@@ -146,10 +146,12 @@ export default function NewDocumentPage() {
       // key exists only here and, in a moment, in the fragment of the link.
       let body = content;
       let keyFragment = "";
+      let encodedKey = "";
       if (encrypt) {
         const key = await e2e.generateKey();
         body = await e2e.seal(key, { title: title.trim() || null, content });
-        keyFragment = `#k=${await e2e.exportKey(key)}`;
+        encodedKey = await e2e.exportKey(key);
+        keyFragment = `#k=${encodedKey}`;
       }
 
       const doc = await createDocument(title, body, {
@@ -162,6 +164,9 @@ export default function NewDocumentPage() {
       // Keep the secret in sessionStorage only — never in the URL (it would
       // leak via history, referrer headers and server logs).
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);
+      // Keep a copy on this device so losing the link isn't automatically fatal.
+      // Still never leaves the browser — see lib/e2e.ts.
+      if (encodedKey) e2e.rememberKey(doc.slug, encodedKey);
       // The fragment survives a client-side push and is never sent to a server,
       // which is the whole reason the key travels there.
       router.push(`/${doc.slug}?new=1${keyFragment}`);

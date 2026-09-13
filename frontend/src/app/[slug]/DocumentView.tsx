@@ -387,6 +387,11 @@ export default function DocumentView({
   type DecryptState = "plain" | "working" | "ok" | "nokey" | "failed";
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null);
   const [keyFragment, setKeyFragment] = useState<string | null>(null);
+  const [keySource, setKeySource] = useState<"link" | "device" | null>(null);
+  const [rotated, setRotated] = useState<string | null>(null);
+  // Read after mount: localStorage doesn't exist during the server render, and
+  // deriving this during render would desync the two.
+  const [deviceKeySaved, setDeviceKeySaved] = useState(false);
   const [sealed, setSealed] = useState<string | null>(encrypted ? initialContent : null);
   const [decryptState, setDecryptState] = useState<DecryptState>(encrypted ? "working" : "plain");
 
@@ -396,13 +401,17 @@ export default function DocumentView({
       setDecryptState("failed");
       return;
     }
-    const raw = e2e.readKeyFromFragment();
+    // The link first, then whatever this browser saved when it last opened the
+    // document. The second is what makes "I lost the link" survivable at all.
+    const fromLink = e2e.readKeyFromFragment();
+    const raw = fromLink ?? e2e.recallKey(slug);
     if (!raw) {
       setDecryptState("nokey");
       return;
     }
     let cancelled = false;
     setKeyFragment(raw);
+    setKeySource(fromLink ? "link" : "device");
     e2e
       .importKey(raw)
       .then((key) => !cancelled && setCryptoKey(key))
@@ -426,12 +435,29 @@ export default function DocumentView({
         setDisplayTitle(title);
         setDisplayContent(content);
         setDecryptState("ok");
+        // Only after it demonstrably opens this document — caching a key that
+        // doesn't work would just poison later visits.
+        if (keyFragment) e2e.rememberKey(slug, keyFragment);
       })
       .catch(() => !cancelled && setDecryptState("failed"));
     return () => {
       cancelled = true;
     };
-  }, [encrypted, cryptoKey, sealed]);
+  }, [encrypted, cryptoKey, sealed, keyFragment, slug]);
+
+  useEffect(() => {
+    if (encrypted) setDeviceKeySaved(e2e.hasRememberedKey(slug));
+  }, [encrypted, slug, keyFragment, rotated]);
+
+  /**
+   * Whether the text itself can be changed — settings still can be, without a key.
+   *
+   * Deliberately requires a *finished* decrypt, not merely a key. Holding the
+   * key and having the plaintext are milliseconds apart, and in that window the
+   * editor would open on an empty document: same trap as having no key at all,
+   * just harder to reproduce.
+   */
+  const canEditContent = !encrypted || (!!cryptoKey && decryptState === "ok");
 
   /** The link that actually opens this document — for an encrypted one, key and all. */
   const shareUrl = encrypted && keyFragment ? e2e.withKey(url, keyFragment) : url;
@@ -455,6 +481,7 @@ export default function DocumentView({
   const [editNewPassword, setEditNewPassword] = useState("");
   const [editShowPassword, setEditShowPassword] = useState(false);
   const [editExpiresIn, setEditExpiresIn] = useState<import("@/lib/api").ExpiresIn | "">("");
+  const [rotateKey, setRotateKey] = useState(false);
   const [editCustomExpiresAt, setEditCustomExpiresAt] = useState("");
 
   // Save / delete state
@@ -742,6 +769,7 @@ export default function DocumentView({
     setEditShowPassword(false);
     setEditExpiresIn("");
     setEditCustomExpiresAt("");
+    setRotateKey(false);
     setEditing(true);
   }
 
@@ -772,15 +800,30 @@ export default function DocumentView({
     setSaving(true);
     setSaveError("");
     try {
-      // Re-seal under the same key with a fresh IV, so the link keeps working
-      // and the server still never sees a word of it.
       let body = editContent;
+      let nextKey: CryptoKey | null = null;
+      let nextEncoded = "";
       if (encrypted) {
-        if (!cryptoKey) throw new Error("This document can't be saved without its key.");
-        body = await e2e.seal(cryptoKey, {
-          title: editTitle.trim() || null,
-          content: editContent,
-        });
+        if (!cryptoKey) {
+          // No key, so the text can't be touched — but expiry, password and
+          // deletion don't need one. Hand the stored envelope straight back so
+          // the document survives a settings change unchanged. The API requires
+          // a content field; this satisfies it without inventing anything.
+          if (!sealed) throw new Error("This document can't be saved without its key.");
+          body = sealed;
+        } else {
+          // Rotation issues a brand-new key. Because the ciphertext changes, the
+          // old link stops opening the document — which is the point — though it
+          // cannot un-read what someone already read.
+          nextKey = rotateKey ? await e2e.generateKey() : cryptoKey;
+          if (rotateKey) nextEncoded = await e2e.exportKey(nextKey);
+          // Same key or new, always a fresh IV: reusing a nonce under one key
+          // undoes AES-GCM entirely.
+          body = await e2e.seal(nextKey, {
+            title: editTitle.trim() || null,
+            content: editContent,
+          });
+        }
       }
       const doc = await updateDocument(slug, editTitle, body, secretInput, {
         readPassword: editNewPassword || undefined,
@@ -789,9 +832,29 @@ export default function DocumentView({
         customExpiresAt: editExpiresIn === "custom" ? editCustomExpiresAt : undefined,
         encrypted: encrypted || undefined,
       });
-      setDisplayTitle(editTitle || null);
-      setDisplayContent(editContent);
+      if (canEditContent) {
+        setDisplayTitle(editTitle || null);
+        setDisplayContent(editContent);
+      }
       if (encrypted) setSealed(body);
+      // Drop the cached render so the next visitor doesn't get the previous
+      // ciphertext — which, after a rotation, the old link would still open.
+      // Best-effort: a failure here costs freshness, not correctness.
+      fetch("/api/revalidate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      }).catch(() => {});
+      if (nextKey && nextEncoded) {
+        setCryptoKey(nextKey);
+        setKeyFragment(nextEncoded);
+        setKeySource("link");
+        e2e.rememberKey(slug, nextEncoded);
+        // Put the new key in the address bar so a refresh — or a copy straight
+        // out of it — still opens the document.
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#k=${nextEncoded}`);
+        setRotated(e2e.withKey(url, nextEncoded));
+      }
       setDisplayExpiresAt(doc.expires_at);
       setEditing(false);
       // The edit bumped the document's rev, so any linked Google Doc is now
@@ -897,8 +960,9 @@ export default function DocumentView({
             type="text"
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
-            placeholder="Document title (optional)"
+            placeholder={canEditContent ? "Document title (optional)" : "Title is encrypted"}
             maxLength={200}
+            disabled={!canEditContent}
             className="w-full bg-transparent border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
           />
         </div>
@@ -961,6 +1025,24 @@ export default function DocumentView({
               className={`text-xs rounded-lg px-2 py-1 ${inputBase}`}
             />
           )}
+          {/* Rotation needs the current key: the document has to be decrypted
+              before it can be re-encrypted under a new one. */}
+          {encrypted && canEditContent && (
+            <label
+              title="Saves under a brand-new key. The old link stops opening this document — but anyone who already read it still has what they read."
+              className="flex items-center gap-1.5 cursor-pointer select-none"
+            >
+              <input
+                type="checkbox"
+                checked={rotateKey}
+                onChange={(e) => setRotateKey(e.target.checked)}
+                className="accent-amber-500"
+              />
+              <span className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                New key <span className="text-amber-600 dark:text-amber-500">(old link stops working)</span>
+              </span>
+            </label>
+          )}
         </div>
 
         {/* Action bar */}
@@ -981,15 +1063,39 @@ export default function DocumentView({
             <div className="flex items-center gap-2">
               <button onClick={() => setShowDeleteConfirm(true)} className={btnDanger}>Delete</button>
               <button onClick={handleCancelEdit} className={btnGhost}>Cancel</button>
-              <button onClick={handleSave} disabled={saving || !editContent.trim()}
+              <button onClick={handleSave} disabled={saving || (canEditContent && !editContent.trim())}
                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-xs font-medium text-white transition-colors">
-                {saving ? "Saving…" : "Save"}
+                {saving ? "Saving…" : canEditContent ? (rotateKey ? "Save with new key" : "Save") : "Save settings"}
               </button>
             </div>
           )}
         </div>
 
+        {/* No key: the editor would be an empty box, which reads as "your
+            document is gone" and invites someone to retype it over the top.
+            Say what is actually true and leave the settings above usable. */}
+        {!canEditContent && (
+          <div className="no-print flex-1 min-h-0 flex flex-col items-center justify-center gap-3 text-center px-4 py-10 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c]">
+            <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+              <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+            </svg>
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+              The text can&apos;t be edited without the key
+            </p>
+            <p className="max-w-md text-xs leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+              Your document is still here and still intact — it just can&apos;t be read or
+              rewritten from this browser. Open it with its full link, the one ending in{" "}
+              <span className="font-mono text-gray-600 dark:text-gray-300">#k=…</span>, and editing
+              comes back.
+            </p>
+            <p className="max-w-md text-xs leading-relaxed text-gray-400 dark:text-gray-500">
+              Expiry, password and deletion above don&apos;t need the key, so those still work.
+            </p>
+          </div>
+        )}
+
         {/* Mode tabs */}
+        {canEditContent && (
         <div className="no-print flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] shrink-0">
           {(["write", "split", "preview"] as ViewMode[]).map((m) => (
             <button key={m} onClick={() => setViewMode(m)}
@@ -1002,7 +1108,9 @@ export default function DocumentView({
             </button>
           ))}
         </div>
+        )}
 
+        {canEditContent && (<>
         {/* Toolbar */}
         {viewMode !== "preview" && (
           <div className="no-print shrink-0 rounded-t-lg overflow-hidden border border-b-0 border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c]">
@@ -1051,6 +1159,7 @@ export default function DocumentView({
               : <p className="text-gray-400 dark:text-gray-600 vscode:text-[#9d9d9d] text-sm">Nothing to preview yet.</p>}
           </div>
         )}
+        </>)}
 
         {saveError && <p className="shrink-0 text-red-500 text-sm">{saveError}</p>}
       </div>
@@ -1093,6 +1202,32 @@ export default function DocumentView({
         )
       )}
       {claimMsg && <p className="no-print text-xs text-gray-500 dark:text-gray-400">{claimMsg}</p>}
+
+      {/* Rotation just changed the link. Shown loudly, because every copy of the
+          old one is now dead and the user has to replace what they shared. */}
+      {rotated && (
+        <div className="no-print px-3 py-2 rounded-md border border-amber-300 dark:border-amber-800/70 bg-amber-50 dark:bg-amber-950/30 text-xs">
+          <p className="text-amber-800 dark:text-amber-300 font-medium">
+            New key generated — this is the link now. The previous one no longer opens this document.
+          </p>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <code className="font-mono text-[11px] break-all text-amber-900/80 dark:text-amber-200/80 select-all">
+              {rotated}
+            </code>
+            <CopyButton text={rotated} label="Copy" />
+          </div>
+        </div>
+      )}
+
+      {/* Opened without the link — worth saying, so nobody assumes the link they
+          have works elsewhere. It doesn't; this browser just remembered. */}
+      {keySource === "device" && !rotated && (
+        <div className="no-print px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#252526] text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+          Opened with the key saved in this browser — the link in your address bar has no key in it
+          and won&apos;t work anywhere else. Use <strong className="font-medium">Copy link</strong>{" "}
+          above to get the shareable one.
+        </div>
+      )}
 
       {/* Document header */}
       <div className="flex flex-col gap-2 no-print">
@@ -1182,10 +1317,26 @@ export default function DocumentView({
                 setEditing(true);
               }
             }}
-            className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+            disabled={encrypted && decryptState === "working"}
+            className="px-3 py-1.5 text-xs disabled:opacity-40 disabled:cursor-not-allowed border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
           >
             Edit
           </button>
+
+          {/* A shared or borrowed computer shouldn't keep the key to someone's
+              document. Only offered once there is actually one to remove. */}
+          {encrypted && deviceKeySaved && (
+            <button
+              onClick={() => {
+                e2e.forgetKey(slug);
+                setDeviceKeySaved(false);
+              }}
+              title="Removes this browser's saved copy of the key. The link still works; this device just stops remembering it."
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-dashed border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]"
+            >
+              Forget key on this device
+            </button>
+          )}
 
           {/* Save a copy — any viewer who isn't the owner (logged out → sign in first).
               Hidden for encrypted documents: the copy happens server-side, which

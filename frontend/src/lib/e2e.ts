@@ -143,3 +143,65 @@ export function readKeyFromFragment(): string | null {
 export function withKey(url: string, encodedKey: string): string {
   return `${url.split("#")[0]}#k=${encodedKey}`;
 }
+
+// ── Keys remembered on this device ────────────────────────────────────────────
+//
+// The link is the only copy of the key, which makes losing the link absolute.
+// Keeping a copy in localStorage softens the most common version of that —
+// "I still have the tab/laptop I published from, just not the link" — without
+// weakening the guarantee: this never leaves the browser, so the server's
+// position is unchanged.
+//
+// It does widen the blast radius of an XSS on markdrop.in from "this session"
+// to "every key this browser has seen". That is the same exposure class as the
+// session token already stored here, and the architecture that keeps it honest
+// is the same one: user-authored HTML is served from a separate registrable
+// site and can never run on this origin.
+
+const KEY_STORE = "markdrop_doc_keys";
+/** Old entries are evicted rather than grown forever; a lost key is recoverable from the link. */
+const KEY_STORE_LIMIT = 200;
+
+function readStore(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const parsed = JSON.parse(localStorage.getItem(KEY_STORE) || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeStore(store: Record<string, string>): void {
+  try {
+    localStorage.setItem(KEY_STORE, JSON.stringify(store));
+  } catch {
+    // A full or disabled localStorage costs us the convenience, nothing else.
+  }
+}
+
+export function rememberKey(slug: string, encodedKey: string): void {
+  const store = readStore();
+  delete store[slug]; // re-insert so rotation moves it to the newest position
+  store[slug] = encodedKey;
+  const keys = Object.keys(store);
+  for (const stale of keys.slice(0, Math.max(0, keys.length - KEY_STORE_LIMIT))) {
+    delete store[stale];
+  }
+  writeStore(store);
+}
+
+export function recallKey(slug: string): string | null {
+  return readStore()[slug] ?? null;
+}
+
+export function forgetKey(slug: string): void {
+  const store = readStore();
+  if (!(slug in store)) return;
+  delete store[slug];
+  writeStore(store);
+}
+
+export function hasRememberedKey(slug: string): boolean {
+  return recallKey(slug) !== null;
+}
