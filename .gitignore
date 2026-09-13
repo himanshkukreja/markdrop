@@ -52,3 +52,12 @@ Thumbs.db
 # Cloudflare Worker local build cache
 worker/.wrangler/
 worker/node_modules/
+
+# ── Local working notes ───────────────────────────────────────────────────────
+# Session hand-off notes. Kept out of the repo deliberately: this is a public
+# repository, and the file is a map of the running system — host names, deploy
+# paths, which limits sit where. None of that is a credential, but none of it
+# needs to be published either.
+CONTEXT.md
+*.local.md
+notes.local/
