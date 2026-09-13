@@ -106,7 +106,10 @@ class TenantCORSMiddleware(BaseHTTPMiddleware):
             # Answer the preflight here — the route itself has no OPTIONS handler.
             response = Response(status_code=200)
             _apply(response, origin)
-            response.headers["Access-Control-Max-Age"] = "600"
+            # Matches the static-origin path in main.py — 7200 is Chrome's
+            # ceiling, and a short cache doubles the request count the rate
+            # limiter sees for every authenticated page.
+            response.headers["Access-Control-Max-Age"] = "7200"
             return response
 
         response = await call_next(request)

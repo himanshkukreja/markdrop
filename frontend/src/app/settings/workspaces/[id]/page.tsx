@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import MarkdropLoader from "@/components/MarkdropLoader";
@@ -207,24 +207,21 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
   const [newRole, setNewRole] = useState<Exclude<Role, "owner">>("member");
   const [newFolder, setNewFolder] = useState("");
   const [busy, setBusy] = useState("");
+  // Tabs whose collections have been fetched, so switching back is free.
+  const fetched = useRef<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteName, setDeleteName] = useState("");
 
+  /**
+   * The workspace itself, which every tab needs. Collections are *not* fetched
+   * here — see `loadTab`.
+   */
   const load = useCallback(async () => {
     try {
       const w = await getWorkspace(id);
       setWs(w);
       setBranding(w.branding);
       setSettings(w.settings);
-      // Each of these needs a different minimum role, so a non-admin simply gets
-      // an empty list rather than an error that blanks the whole page.
-      const [d, m, i, f] = await Promise.all([
-        listDomains(id).catch(() => []),
-        listMembers(id).catch(() => []),
-        listInvitations(id).catch(() => []),
-        listFolders(id).catch(() => []),
-      ]);
-      setDomains(d); setMembers(m); setInvites(i); setFolders(f);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load this workspace");
     } finally {
@@ -232,11 +229,67 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
     }
   }, [id]);
 
+  /**
+   * Fetch what one tab needs, once.
+   *
+   * This page used to fetch domains, members, invitations, folders and the
+   * library on mount — five collections plus the workspace, each with a CORS
+   * preflight in front of it, so roughly sixteen requests before the user had
+   * clicked anything. The API sits behind a per-IP rate limit with a burst of
+   * twenty, so two page loads spent the whole budget and everything after that
+   * came back 503. Counts moved onto the workspace response so the header no
+   * longer needs three of those requests at all, and the rest load with the tab
+   * that actually displays them.
+   */
+  const loadTab = useCallback(async (which: TabId, force = false) => {
+    // Keyed on the resource rather than the tab, because two tabs want folders
+    // and fetching them twice for one page view is exactly the waste this whole
+    // change exists to remove.
+    const needs: Record<TabId, string[]> = {
+      library: ["folders"],
+      brand: [],
+      domains: ["domains"],
+      people: ["people"],
+      folders: ["folders"],
+    };
+    const wanted = needs[which].filter((r) => force || !fetched.current.has(r));
+    if (wanted.length === 0) return;
+    wanted.forEach((r) => fetched.current.add(r));
+    try {
+      await Promise.all(wanted.map(async (resource) => {
+        if (resource === "domains") setDomains(await listDomains(id));
+        else if (resource === "folders") setFolders(await listFolders(id));
+        else if (resource === "people") {
+          const [m, i] = await Promise.all([
+            listMembers(id),
+            listInvitations(id).catch(() => []),
+          ]);
+          setMembers(m);
+          setInvites(i);
+        }
+      }));
+    } catch (e) {
+      wanted.forEach((r) => fetched.current.delete(r));  // must stay retryable
+      setError(e instanceof Error ? e.message : "Could not load this workspace");
+    }
+  }, [id]);
+
+  /** After a mutation: refresh the workspace (for counts) and just this tab. */
+  const refresh = useCallback(async (which: TabId) => {
+    await Promise.all([load(), loadTab(which, true)]);
+  }, [load, loadTab]);
+
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=/settings/workspaces/${id}`); return; }
     load();
   }, [authLoading, user, router, id, load]);
+
+  // Whichever tab is showing, load only what it needs.
+  useEffect(() => {
+    if (!ws) return;
+    loadTab(tab);
+  }, [ws, tab, loadTab]);
 
   async function run(key: string, fn: () => Promise<unknown>, after?: () => void) {
     setBusy(key); setError(""); setSaved("");
@@ -309,9 +362,9 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                   </StatusPill>
                 )}
                 <span className="text-gray-400">
-                  {members.length} member{members.length === 1 ? "" : "s"}
-                  {pending.length > 0 && ` · ${pending.length} invited`}
-                  {` · ${domains.length} domain${domains.length === 1 ? "" : "s"}`}
+                  {ws.member_count} member{ws.member_count === 1 ? "" : "s"}
+                  {ws.pending_invite_count > 0 && ` · ${ws.pending_invite_count} invited`}
+                  {` · ${ws.domain_count} domain${ws.domain_count === 1 ? "" : "s"}`}
                 </span>
               </div>
             </div>
@@ -341,10 +394,10 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                 >
                   <Icon>{t.icon}</Icon>
                   {t.label}
-                  {t.id === "people" && pending.length > 0 && (
+                  {t.id === "people" && ws.pending_invite_count > 0 && (
                     <span className={`ml-auto text-[10px] px-1.5 rounded-full ${
                       active ? "bg-white/20 dark:bg-black/10" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}>
-                      {pending.length}
+                      {ws.pending_invite_count}
                     </span>
                   )}
                 </button>
@@ -576,7 +629,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                     <button className={primary} disabled={busy === "domain" || !newHost.trim()}
                       onClick={() => run("domain",
                         () => addDomain(id, newHost.trim(), newKind),
-                        () => { setNewHost(""); load(); })}>
+                        () => { setNewHost(""); refresh("domains"); })}>
                       {busy === "domain" ? "Adding…" : "Add domain"}
                     </button>
                   </div>
@@ -603,17 +656,17 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                           {isAdmin && (
                             <div className="ml-auto flex gap-1.5">
                               <button className={ghost} disabled={busy === `v${d.id}`}
-                                onClick={() => run(`v${d.id}`, () => verifyDomain(id, d.id), load)}>
+                                onClick={() => run(`v${d.id}`, () => verifyDomain(id, d.id), () => refresh("domains"))}>
                                 {busy === `v${d.id}` ? "Checking…" : "Check DNS"}
                               </button>
                               {d.status === "verified" && !d.attached && (
                                 <button className={ghost} disabled={busy === `a${d.id}`}
-                                  onClick={() => run(`a${d.id}`, () => attachDomain(id, d.id), load)}>
+                                  onClick={() => run(`a${d.id}`, () => attachDomain(id, d.id), () => refresh("domains"))}>
                                   {busy === `a${d.id}` ? "Attaching…" : "Attach"}
                                 </button>
                               )}
                               <button className={`${ghost} text-red-500 border-red-300 dark:border-red-900`}
-                                onClick={() => run(`d${d.id}`, () => removeDomain(id, d.id), load)}>
+                                onClick={() => run(`d${d.id}`, () => removeDomain(id, d.id), () => refresh("domains"))}>
                                 Remove
                               </button>
                             </div>
@@ -656,7 +709,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                       <button className={primary} disabled={busy === "invite" || !newEmail.trim()}
                         onClick={() => run("invite",
                           () => inviteMember(id, newEmail.trim(), newRole),
-                          () => { setNewEmail(""); setSaved("Invitation sent."); load(); })}>
+                          () => { setNewEmail(""); setSaved("Invitation sent."); refresh("people"); })}>
                         {busy === "invite" ? "Sending…" : "Send invitation"}
                       </button>
                     </div>
@@ -684,12 +737,12 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                               <button className={ghost} disabled={busy === `ri${i.id}`}
                                 onClick={() => run(`ri${i.id}`,
                                   () => inviteMember(id, i.email, i.role as Exclude<Role, "owner">),
-                                  () => { setSaved("Invitation resent."); load(); })}>
+                                  () => { setSaved("Invitation resent."); refresh("people"); })}>
                                 {busy === `ri${i.id}` ? "Sending…" : "Resend"}
                               </button>
                               <button className={`${ghost} text-red-500 border-red-300 dark:border-red-900`}
                                 disabled={busy === `xi${i.id}`}
-                                onClick={() => run(`xi${i.id}`, () => revokeInvitation(id, i.id), load)}>
+                                onClick={() => run(`xi${i.id}`, () => revokeInvitation(id, i.id), () => refresh("people"))}>
                                 Revoke
                               </button>
                             </div>
@@ -722,13 +775,13 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                             <select className="text-xs bg-transparent border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 cursor-pointer"
                               value={m.role}
                               onChange={(e) => run(`r${m.user_id}`,
-                                () => setMemberRole(id, m.user_id, e.target.value as Exclude<Role, "owner">), load)}>
+                                () => setMemberRole(id, m.user_id, e.target.value as Exclude<Role, "owner">), () => refresh("people"))}>
                               <option value="viewer">Viewer</option>
                               <option value="member">Member</option>
                               <option value="admin">Admin</option>
                             </select>
                             <button className="text-xs text-red-500 hover:text-red-600 px-1.5"
-                              onClick={() => run(`m${m.user_id}`, () => removeMember(id, m.user_id), load)}>
+                              onClick={() => run(`m${m.user_id}`, () => removeMember(id, m.user_id), () => refresh("people"))}>
                               Remove
                             </button>
                           </>
@@ -770,7 +823,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                     <button className={primary} disabled={busy === "folder" || !newFolder.trim()}
                       onClick={() => run("folder",
                         () => createFolder(id, newFolder.trim()),
-                        () => { setNewFolder(""); load(); })}>
+                        () => { setNewFolder(""); refresh("folders"); })}>
                       Add folder
                     </button>
                   </div>
@@ -789,7 +842,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                         <span className="text-sm flex-1 truncate">{f.name}</span>
                         {isAdmin && (
                           <button className="text-xs text-red-500 hover:text-red-600"
-                            onClick={() => run(`f${f.id}`, () => deleteFolder(id, f.id), load)}>
+                            onClick={() => run(`f${f.id}`, () => deleteFolder(id, f.id), () => refresh("folders"))}>
                             Delete
                           </button>
                         )}

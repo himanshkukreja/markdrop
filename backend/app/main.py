@@ -50,6 +50,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Starlette defaults to 600s. Every cross-origin API call the app makes is
+    # preceded by a preflight, so a short cache doubles the request count the
+    # rate limiter sees for an authenticated page. 7200 is Chrome's ceiling --
+    # asking for more is silently clamped, not honoured.
+    max_age=7200,
 )
 
 # Registered last so it runs FIRST. add_middleware prepends, and CORSMiddleware

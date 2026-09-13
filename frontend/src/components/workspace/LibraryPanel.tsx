@@ -79,7 +79,6 @@ export default function LibraryPanel({
       });
       setDocs(r.documents);
       setTotal(r.total);
-      setCounts(await libraryCounts(workspaceId).catch(() => ({})));
     } catch (e) {
       onError(e instanceof Error ? e.message : "Could not load the library");
     } finally {
@@ -93,12 +92,23 @@ export default function LibraryPanel({
     return () => clearTimeout(t);
   }, [load, q]);
 
+  // Per-folder totals don't depend on the query, so they are fetched once
+  // rather than alongside every search. Folded into `load` they turned a
+  // debounced keystroke into two requests against a rate-limited API.
+  const loadCounts = useCallback(async () => {
+    setCounts(await libraryCounts(workspaceId).catch(() => ({})));
+  }, [workspaceId]);
+
+  useEffect(() => {
+    loadCounts();
+  }, [loadCounts]);
+
   const canEdit = can(role, "member");
   const canAdmin = can(role, "admin");
 
   async function run(key: string, fn: () => Promise<unknown>) {
     setBusy(key);
-    try { await fn(); await load(); }
+    try { await fn(); await Promise.all([load(), loadCounts()]); }
     catch (e) { onError(e instanceof Error ? e.message : "Something went wrong"); }
     finally { setBusy(""); }
   }

@@ -42,7 +42,17 @@ def get_db() -> AsyncIOMotorDatabase:
     return get_database()
 
 
-def _to_response(workspace: Workspace, role: str) -> WorkspaceResponse:
+async def _counts(db: AsyncIOMotorDatabase, workspace_id: str) -> dict:
+    return {
+        "member_count": await db["memberships"].count_documents({"workspace_id": workspace_id}),
+        "pending_invite_count": await db["invitations"].count_documents(
+            {"workspace_id": workspace_id, "status": "pending"}
+        ),
+        "domain_count": await db["domains"].count_documents({"workspace_id": workspace_id}),
+    }
+
+
+def _to_response(workspace: Workspace, role: str, counts: dict | None = None) -> WorkspaceResponse:
     b = workspace.branding
     s = workspace.settings
     return WorkspaceResponse(
@@ -63,6 +73,7 @@ def _to_response(workspace: Workspace, role: str) -> WorkspaceResponse:
             require_auth_to_view=s.require_auth_to_view,
         ),
         role=role,  # type: ignore[arg-type]
+        **(counts or {}),
     )
 
 
@@ -103,7 +114,7 @@ async def get_workspace(
     workspace = await ws_service.get_workspace(db, workspace_id)
     if workspace is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
-    return _to_response(workspace, role)
+    return _to_response(workspace, role, await _counts(db, workspace_id))
 
 
 @router.put("/{workspace_id}", response_model=WorkspaceResponse)

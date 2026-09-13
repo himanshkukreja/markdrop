@@ -63,6 +63,10 @@ export interface Workspace {
   branding: Branding;
   settings: WorkspaceSettings;
   role: Role;
+  /** So the settings header is correct without fetching three collections. */
+  member_count: number;
+  pending_invite_count: number;
+  domain_count: number;
 }
 
 export interface Member {

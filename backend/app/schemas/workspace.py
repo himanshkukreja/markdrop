@@ -58,6 +58,12 @@ class WorkspaceResponse(BaseModel):
     # The caller's own role, so the UI can hide what they can't do without a
     # second request per workspace.
     role: Role
+    # Counts, so the settings header is correct without fetching three whole
+    # collections just to show three numbers. Indexed count_documents, and it
+    # replaces three list requests per page load.
+    member_count: int = 0
+    pending_invite_count: int = 0
+    domain_count: int = 0
 
 
 class WorkspaceListResponse(BaseModel):
