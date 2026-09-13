@@ -345,7 +345,13 @@ export default function DashboardPage() {
           <h1 className="text-xl font-bold">Your documents</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{docs.length} document{docs.length === 1 ? "" : "s"}</p>
         </div>
-        <a href="/new" className="text-sm px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors">+ New document</a>
+        <div className="flex items-center gap-3 shrink-0">
+          <a href="/settings/workspaces"
+             className="text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">
+            Workspaces
+          </a>
+          <a href="/new" className="text-sm px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors">+ New document</a>
+        </div>
       </div>
 
       {gNotice && (

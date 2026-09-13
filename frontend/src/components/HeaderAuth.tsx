@@ -58,6 +58,9 @@ export default function HeaderAuth() {
           <a href="/dashboard" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors">
             Dashboard
           </a>
+          <a href="/settings/workspaces" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors">
+            Workspaces &amp; domains
+          </a>
           <a href="/settings/tokens" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors">
             API tokens
           </a>

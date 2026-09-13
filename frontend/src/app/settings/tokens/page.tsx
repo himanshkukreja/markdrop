@@ -57,7 +57,10 @@ export default function TokensPage() {
     <div className="flex-1 min-h-0 overflow-y-auto max-w-2xl mx-auto w-full">
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-xl font-bold">API tokens</h1>
-        <a href="/dashboard" className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">← Dashboard</a>
+        <div className="flex items-center gap-3 shrink-0">
+          <a href="/settings/workspaces" className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Workspaces</a>
+          <a href="/dashboard" className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">← Dashboard</a>
+        </div>
       </div>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
         Tokens let the Markdrop VS Code extension sync documents to your account. Keep them secret; revoke anytime.
