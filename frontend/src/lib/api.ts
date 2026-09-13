@@ -243,11 +243,20 @@ export async function getDocument(
    * pass this from the browser — a personalised or unlocked read must not be
    * shared, and the live-update socket keeps open pages fresh anyway.
    */
-  opts?: { revalidate?: number }
+  opts?: {
+    revalidate?: number;
+    /**
+     * Set only when the request arrived on a workspace's own verified domain,
+     * so that host resolves only its own documents. It can only ever narrow
+     * what comes back, never widen it.
+     */
+    workspaceScope?: string;
+  }
 ): Promise<DocumentResponse> {
   const headers: Record<string, string> = { ...authHeaders() };
   if (readPassword) headers["x-read-password"] = readPassword;
   if (editSecret) headers["x-edit-secret"] = editSecret;
+  if (opts?.workspaceScope) headers["x-markdrop-workspace"] = opts.workspaceScope;
   const cacheOpts =
     opts?.revalidate !== undefined && !readPassword && !editSecret
       ? { next: { revalidate: opts.revalidate } }

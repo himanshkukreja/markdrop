@@ -72,6 +72,13 @@ interface Props {
   originalFilename: string | null;
   artifactUrl: string | null;
   downloadUrl: string | null;
+  /**
+   * Viewer chrome policy, set only when this is being served from a workspace's
+   * own domain — the API refuses to apply it anywhere else. "none" hides the
+   * control that leaves immersive mode, which is what turns this page into a
+   * plain CDN response rather than something wearing a viewer UI.
+   */
+  viewerChrome?: "full" | "minimal" | "none";
 }
 
 
@@ -91,6 +98,7 @@ export default function ArtifactView({
   originalFilename,
   artifactUrl: initialArtifactUrl,
   downloadUrl: initialDownloadUrl,
+  viewerChrome = "full",
 }: Props) {
   const router = useRouter();
   const { user } = useAuth();
@@ -566,7 +574,12 @@ export default function ArtifactView({
           />
           )}
           <FrameCover show={frameLoading} label={loadingLabel} />
-          <ImmersiveExit onExit={() => setImmersive(false)} />
+          {/* Withheld only from anonymous viewers, and only on a domain whose
+              owner asked for it. A signed-in visitor keeps the way out, so the
+              owner can still reach Report, settings and the framed view. */}
+          {!(viewerChrome === "none" && !user) && (
+            <ImmersiveExit onExit={() => setImmersive(false)} />
+          )}
         </div>
       )}
 

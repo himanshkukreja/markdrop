@@ -46,6 +46,8 @@ def _doc_from_mongo(raw: dict) -> Document:
         # Absent on every document created before the feature existed, which is
         # exactly what False means — no migration needed.
         encrypted=raw.get("encrypted", False),
+        workspace_id=raw.get("workspace_id"),
+        folder_id=raw.get("folder_id"),
         kind=raw.get("kind", "markdown"),
         mime=raw.get("mime"),
         blob_key=raw.get("blob_key"),
@@ -153,6 +155,7 @@ async def get_document(
     read_password: str | None = None,
     edit_secret: str | None = None,
     user_id: str | None = None,
+    workspace_scope: str | None = None,
 ) -> Document:
     # Read-only fetch — NO side effects. Views are counted by a browser beacon
     # (POST /{slug}/events type=view), so server-side rendering on Vercel does
@@ -160,6 +163,35 @@ async def get_document(
     raw = await db["documents"].find_one({"slug": slug})
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    # `workspace_scope` is set only when the request arrived on a workspace's own
+    # verified domain. Without it — which is every request to markdrop.in, and so
+    # every request that existed before custom domains — nothing below runs and
+    # this function behaves exactly as it always has.
+    #
+    # With it, a host may serve only its own workspace's documents. Otherwise any
+    # customer's domain would be an open window onto every document on the
+    # platform, and a slug guessed anywhere would resolve everywhere. 404 rather
+    # than 403: whether a slug exists elsewhere is not this host's business.
+    if workspace_scope is not None and raw.get("workspace_id") != workspace_scope:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # A workspace can require a signed-in reader. Enforced here rather than in
+    # the page, and on *every* host rather than only the workspace's own:
+    # otherwise the rule would be a UI preference that the API happily bypasses,
+    # and the markdrop.in URL for the same document would be the way around it.
+    # The lookup only happens for documents that belong to a workspace, so the
+    # ordinary path costs nothing.
+    owner_workspace = raw.get("workspace_id")
+    if owner_workspace and not user_id:
+        from app.services import workspace as ws_service
+
+        workspace = await ws_service.get_workspace(db, owner_workspace)
+        if workspace is not None and workspace.settings.require_auth_to_view:
+            raise HTTPException(
+                status_code=401,
+                detail="Sign in to view this document.",
+            )
 
     if raw.get("read_password_hash"):
         # The owner (logged in, or holding a valid edit secret) bypasses the gate.

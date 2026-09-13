@@ -113,10 +113,19 @@ async def get_document(
     db: AsyncIOMotorDatabase = Depends(get_db),
     x_read_password: str | None = Header(None),
     x_edit_secret: str | None = Header(None),
+    x_markdrop_workspace: str | None = Header(None),
     user: User | None = Depends(optional_user),
 ):
     viewer_id = user.id if user else None
-    doc = await doc_service.get_document(db, slug, x_read_password, x_edit_secret, viewer_id)
+    # Set by the edge when the request arrived on a workspace's own verified
+    # domain, so that host serves only its own documents. Unsigned on purpose:
+    # the scope can only ever *narrow* what resolves, so forging it shows the
+    # caller less, never more. Absent — every markdrop.in request — nothing
+    # changes and this behaves exactly as it always has.
+    doc = await doc_service.get_document(
+        db, slug, x_read_password, x_edit_secret, viewer_id,
+        workspace_scope=x_markdrop_workspace or None,
+    )
     return DocumentResponse(**_to_response(doc, viewer_id))
 
 
