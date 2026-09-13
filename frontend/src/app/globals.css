@@ -509,3 +509,15 @@ body {
   .md-brand-b { animation: none !important; opacity: 1 !important; }
   .md-brand-hue { animation: none !important; background-color: #7c3aed !important; }
 }
+
+
+/* Toasts. Enters from the right and slightly below, which reads as "arrived"
+   rather than "was always there". Motion is suppressed for anyone who asked. */
+@keyframes md-toast-in {
+  from { opacity: 0; transform: translate3d(-12px, 8px, 0) scale(0.97); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+.md-toast { animation: md-toast-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .md-toast { animation: none !important; }
+}

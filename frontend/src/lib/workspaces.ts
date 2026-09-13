@@ -256,6 +256,11 @@ export const verifyDomain = (id: string, domainId: string) =>
 export const attachDomain = (id: string, domainId: string) =>
   request<Domain>(`/api/v1/workspaces/${id}/domains/${domainId}/attach`, { method: "POST" });
 
+/** Take a verified domain off the air, keeping its verification so it can be
+ *  re-attached without another round of DNS. */
+export const detachDomain = (id: string, domainId: string) =>
+  request<Domain>(`/api/v1/workspaces/${id}/domains/${domainId}/detach`, { method: "POST" });
+
 export const removeDomain = (id: string, domainId: string) =>
   request<void>(`/api/v1/workspaces/${id}/domains/${domainId}`, { method: "DELETE" });
 

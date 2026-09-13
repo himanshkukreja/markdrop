@@ -10,9 +10,11 @@ import { downloadDnsCsv } from "@/lib/dnsCsv";
 import AssetUpload from "@/components/workspace/AssetUpload";
 import ColorPicker from "@/components/workspace/ColorPicker";
 import LibraryPanel from "@/components/workspace/LibraryPanel";
+import Modal from "@/components/Modal";
+import { useToast } from "@/components/Toast";
 import {
   can, deleteWorkspace, getWorkspace, updateWorkspace, uploadBrandingAsset,
-  listDomains, addDomain, verifyDomain, attachDomain, removeDomain,
+  listDomains, addDomain, verifyDomain, attachDomain, detachDomain, removeDomain,
   listMembers, setMemberRole, removeMember,
   listInvitations, inviteMember, revokeInvitation,
   listFolders, createFolder, deleteFolder,
@@ -147,7 +149,7 @@ function BrandPreview({ branding, host }: { branding: Branding; host: string | n
             {branding.logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={branding.logo_url} alt=""
-                   className="absolute inset-0 m-auto max-h-10 max-w-[55%] object-contain drop-shadow"
+                   className="absolute inset-0 m-auto max-h-12 max-w-[78%] object-contain drop-shadow-lg"
                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
             ) : (
               <span className="absolute inset-0 grid place-items-center text-white/90 text-sm font-bold tracking-tight">
@@ -187,6 +189,7 @@ function relativeDays(iso: string) {
 export default function WorkspaceDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { user, loading: authLoading } = useAuth();
+  const toast = useToast();
   const router = useRouter();
 
   const [ws, setWs] = useState<Workspace | null>(null);
@@ -196,7 +199,6 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState("");
   const [tab, setTab] = useState<TabId>("library");
 
   const [branding, setBranding] = useState<Branding | null>(null);
@@ -209,6 +211,11 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
   const [busy, setBusy] = useState("");
   // Tabs whose collections have been fetched, so switching back is free.
   const fetched = useRef<Set<string>>(new Set());
+  // Removing a domain used to happen on a single click. It throws away a
+  // verification that cost DNS propagation to earn, and on an attached host it
+  // takes the site off the air — neither belongs behind an unguarded button.
+  const [confirmDomain, setConfirmDomain] =
+    useState<{ domain: Domain; action: "detach" | "remove" } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteName, setDeleteName] = useState("");
 
@@ -292,9 +299,9 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
   }, [ws, tab, loadTab]);
 
   async function run(key: string, fn: () => Promise<unknown>, after?: () => void) {
-    setBusy(key); setError(""); setSaved("");
+    setBusy(key); setError("");
     try { await fn(); after?.(); }
-    catch (e) { setError(e instanceof Error ? e.message : "Something went wrong"); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Something went wrong"); }
     finally { setBusy(""); }
   }
 
@@ -328,9 +335,23 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
           Tinted with the workspace's own accent, so the setting is visible on
           the page that sets it rather than only out on a published link. */}
       <div className="relative overflow-hidden border-b border-gray-200 dark:border-gray-800">
+        {/* Two overlapping washes rather than one flat tint: a broad one that
+            colours the whole band and a tighter, brighter one behind the title.
+            At 10% opacity the accent was invisible against #030712, so the one
+            setting this page exists to change had no visible effect on it. */}
         <div
-          className="absolute inset-0 opacity-[0.10] pointer-events-none"
-          style={{ background: `radial-gradient(900px 200px at 12% -40%, ${accent}, transparent 70%)` }}
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              `radial-gradient(1100px 260px at 8% -30%, ${accent}55, transparent 68%),` +
+              `radial-gradient(420px 160px at 22% 120%, ${accent}33, transparent 70%)`,
+          }}
+          aria-hidden
+        />
+        {/* A hairline in the accent, so the band resolves against the page. */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-px pointer-events-none"
+          style={{ background: `linear-gradient(90deg, ${accent}, transparent 60%)` }}
           aria-hidden
         />
         <div className="relative max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6">
@@ -340,16 +361,22 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
           </a>
 
           <div className="mt-3 flex items-start gap-4 flex-wrap">
-            <div className="w-12 h-12 rounded-xl grid place-items-center overflow-hidden shrink-0 shadow-sm"
-                 style={{ background: branding.logo_url ? "transparent" : accent }}>
-              {branding.logo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={branding.logo_url} alt="" className="w-full h-full object-contain"
+            {/* Height-constrained, width-free. A logo is usually a wide wordmark,
+                and forcing one into a 48px square letterboxes it down to an
+                illegible sliver — which is what "the logo looks cut" means. */}
+            {branding.logo_url ? (
+              <div className="h-12 max-w-[200px] shrink-0 rounded-xl overflow-hidden grid place-items-center px-2 bg-white/90 dark:bg-white/[0.07] ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={branding.logo_url} alt=""
+                     className="max-h-9 max-w-full object-contain"
                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-              ) : (
+              </div>
+            ) : (
+              <div className="w-12 h-12 rounded-xl grid place-items-center shrink-0 shadow-sm"
+                   style={{ background: accent }}>
                 <span className="text-white font-bold text-sm">{initials(ws.name)}</span>
-              )}
-            </div>
+              </div>
+            )}
 
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl font-bold truncate leading-tight">{ws.name}</h1>
@@ -386,10 +413,10 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                   role="tab"
                   aria-selected={active}
                   onClick={() => setTab(t.id)}
-                  className={`shrink-0 flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors ${
+                  className={`group/tab relative shrink-0 flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left transition-colors ${
                     active
-                      ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900 font-medium"
-                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                      ? "bg-blue-500/10 text-blue-200 ring-1 ring-inset ring-blue-400/25 font-medium"
+                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.04] hover:text-gray-900 dark:hover:text-gray-200"
                   }`}
                 >
                   <Icon>{t.icon}</Icon>
@@ -409,11 +436,6 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
             {error && (
               <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-2.5 text-sm text-red-600 dark:text-red-400">
                 {error}
-              </div>
-            )}
-            {saved && (
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-2.5 text-sm text-emerald-600 dark:text-emerald-400">
-                {saved}
               </div>
             )}
             {!isAdmin && (
@@ -529,7 +551,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                       <button className={primary} disabled={busy === "save"}
                         onClick={() => run("save",
                           () => updateWorkspace(id, { branding, settings }),
-                          () => { setSaved("Saved."); load(); })}>
+                          () => { toast.success("Branding and viewer settings saved."); load(); })}>
                         {busy === "save" ? "Saving…" : "Save changes"}
                       </button>
                       <span className="text-[11px] text-gray-400">
@@ -629,7 +651,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                     <button className={primary} disabled={busy === "domain" || !newHost.trim()}
                       onClick={() => run("domain",
                         () => addDomain(id, newHost.trim(), newKind),
-                        () => { setNewHost(""); refresh("domains"); })}>
+                        () => { setNewHost(""); refresh("domains"); toast.success(`${newHost.trim()} added — add the DNS records to verify it.`); })}>
                       {busy === "domain" ? "Adding…" : "Add domain"}
                     </button>
                   </div>
@@ -661,12 +683,24 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                               </button>
                               {d.status === "verified" && !d.attached && (
                                 <button className={ghost} disabled={busy === `a${d.id}`}
-                                  onClick={() => run(`a${d.id}`, () => attachDomain(id, d.id), () => refresh("domains"))}>
+                                  onClick={() => run(`a${d.id}`, () => attachDomain(id, d.id),
+                                    () => { refresh("domains"); toast.success(`${d.host} is live.`); })}>
                                   {busy === `a${d.id}` ? "Attaching…" : "Attach"}
                                 </button>
                               )}
+                              {/* Attach had no counterpart, so the only way to stop
+                                  serving a host was to delete it — discarding a
+                                  verification that took DNS propagation to earn.
+                                  Detaching keeps the record verified. */}
+                              {d.attached && (
+                                <button className={ghost} disabled={busy === `x${d.id}`}
+                                  title="Stop serving this domain, but keep it verified"
+                                  onClick={() => setConfirmDomain({ domain: d, action: "detach" })}>
+                                  {busy === `x${d.id}` ? "Detaching…" : "Detach"}
+                                </button>
+                              )}
                               <button className={`${ghost} text-red-500 border-red-300 dark:border-red-900`}
-                                onClick={() => run(`d${d.id}`, () => removeDomain(id, d.id), () => refresh("domains"))}>
+                                onClick={() => setConfirmDomain({ domain: d, action: "remove" })}>
                                 Remove
                               </button>
                             </div>
@@ -709,7 +743,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                       <button className={primary} disabled={busy === "invite" || !newEmail.trim()}
                         onClick={() => run("invite",
                           () => inviteMember(id, newEmail.trim(), newRole),
-                          () => { setNewEmail(""); setSaved("Invitation sent."); refresh("people"); })}>
+                          () => { const to = newEmail.trim(); setNewEmail(""); refresh("people"); toast.success(`Invitation sent to ${to}.`); })}>
                         {busy === "invite" ? "Sending…" : "Send invitation"}
                       </button>
                     </div>
@@ -737,12 +771,12 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                               <button className={ghost} disabled={busy === `ri${i.id}`}
                                 onClick={() => run(`ri${i.id}`,
                                   () => inviteMember(id, i.email, i.role as Exclude<Role, "owner">),
-                                  () => { setSaved("Invitation resent."); refresh("people"); })}>
+                                  () => { refresh("people"); toast.success(`Invitation resent to ${i.email}.`); })}>
                                 {busy === `ri${i.id}` ? "Sending…" : "Resend"}
                               </button>
                               <button className={`${ghost} text-red-500 border-red-300 dark:border-red-900`}
                                 disabled={busy === `xi${i.id}`}
-                                onClick={() => run(`xi${i.id}`, () => revokeInvitation(id, i.id), () => refresh("people"))}>
+                                onClick={() => run(`xi${i.id}`, () => revokeInvitation(id, i.id), () => { refresh("people"); toast.success("Invitation revoked."); })}>
                                 Revoke
                               </button>
                             </div>
@@ -775,13 +809,13 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                             <select className="text-xs bg-transparent border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 cursor-pointer"
                               value={m.role}
                               onChange={(e) => run(`r${m.user_id}`,
-                                () => setMemberRole(id, m.user_id, e.target.value as Exclude<Role, "owner">), () => refresh("people"))}>
+                                () => setMemberRole(id, m.user_id, e.target.value as Exclude<Role, "owner">), () => { refresh("people"); toast.success("Role updated."); })}>
                               <option value="viewer">Viewer</option>
                               <option value="member">Member</option>
                               <option value="admin">Admin</option>
                             </select>
                             <button className="text-xs text-red-500 hover:text-red-600 px-1.5"
-                              onClick={() => run(`m${m.user_id}`, () => removeMember(id, m.user_id), () => refresh("people"))}>
+                              onClick={() => run(`m${m.user_id}`, () => removeMember(id, m.user_id), () => { refresh("people"); toast.success("Member removed."); })}>
                               Remove
                             </button>
                           </>
@@ -823,7 +857,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                     <button className={primary} disabled={busy === "folder" || !newFolder.trim()}
                       onClick={() => run("folder",
                         () => createFolder(id, newFolder.trim()),
-                        () => { setNewFolder(""); refresh("folders"); })}>
+                        () => { setNewFolder(""); refresh("folders"); toast.success("Folder created."); })}>
                       Add folder
                     </button>
                   </div>
@@ -842,7 +876,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                         <span className="text-sm flex-1 truncate">{f.name}</span>
                         {isAdmin && (
                           <button className="text-xs text-red-500 hover:text-red-600"
-                            onClick={() => run(`f${f.id}`, () => deleteFolder(id, f.id), () => refresh("folders"))}>
+                            onClick={() => run(`f${f.id}`, () => deleteFolder(id, f.id), () => { refresh("folders"); toast.success("Folder deleted."); })}>
                             Delete
                           </button>
                         )}
@@ -855,6 +889,78 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
           </div>
         </div>
       </div>
+
+      {/* Detach and Remove both used to fire on a single click. Detach takes a
+          live site off the air; Remove additionally discards a verification
+          that cost DNS propagation to earn. Both name the host so there is no
+          doubt which row was clicked. */}
+      {confirmDomain && (
+        <Modal
+          title={confirmDomain.action === "detach" ? "Take this domain off the air?" : "Remove this domain?"}
+          onClose={() => setConfirmDomain(null)}
+        >
+          <div className="space-y-4">
+            <code className="block text-sm font-mono text-gray-800 dark:text-gray-200">
+              {confirmDomain.domain.host}
+            </code>
+
+            {confirmDomain.action === "detach" ? (
+              <p className="text-sm text-gray-500 leading-relaxed">
+                It will stop serving immediately and links to it will fail. The domain stays
+                verified, so you can attach it again later without touching DNS.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  {confirmDomain.domain.attached
+                    ? "It will stop serving immediately and links to it will fail. "
+                    : ""}
+                  This also discards its verification, so adding it back means adding the DNS
+                  records and waiting for them to propagate again.
+                </p>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Documents are not affected — they keep working on markdrop.in.
+                  {confirmDomain.domain.attached && " If you only want to pause it, use Detach instead."}
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDomain(null)}
+                className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={busy.startsWith("x") || busy.startsWith("d")}
+                onClick={() => {
+                  const { domain, action } = confirmDomain;
+                  setConfirmDomain(null);
+                  if (action === "detach") {
+                    run(`x${domain.id}`, () => detachDomain(id, domain.id), () => {
+                      refresh("domains");
+                      toast.success(`${domain.host} is no longer serving, but stays verified.`);
+                    });
+                  } else {
+                    run(`d${domain.id}`, () => removeDomain(id, domain.id), () => {
+                      refresh("domains");
+                      toast.success(`${domain.host} removed.`);
+                    });
+                  }
+                }}
+                className={
+                  confirmDomain.action === "detach"
+                    ? "px-4 py-2 text-sm rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors"
+                    : "px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium transition-colors"
+                }
+              >
+                {confirmDomain.action === "detach" ? "Detach domain" : "Remove domain"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

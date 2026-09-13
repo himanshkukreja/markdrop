@@ -6,6 +6,7 @@ import HeaderAuth from "@/components/HeaderAuth";
 import NamePrompt from "@/components/NamePrompt";
 import FeedbackWidget from "@/components/FeedbackWidget";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ToastProvider } from "@/components/Toast";
 import VercelInsights from "@/components/VercelInsights";
 
 export const metadata: Metadata = {
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="h-full flex flex-col dark:bg-gray-950 vscode:bg-[#1e1e1e] dark:text-gray-100 vscode:text-[#d4d4d4]">
         <AuthProvider>
+          <ToastProvider>
         <header className="no-print shrink-0 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] vscode:bg-[#252526]">
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -64,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </main>
         <NamePrompt />
         <FeedbackWidget />
+          </ToastProvider>
         </AuthProvider>
         <VercelInsights />
       </body>

@@ -140,6 +140,23 @@ async def attach_domain(
     return _to_response(domain)
 
 
+@router.post(
+    "/workspaces/{workspace_id}/domains/{domain_id}/detach", response_model=DomainResponse
+)
+@limiter.limit("30/minute")
+async def detach_domain(
+    request: Request,
+    workspace_id: str,
+    domain_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Take a verified domain off the air without discarding its verification."""
+    await ws_service.require_role(db, workspace_id, user.id, "admin")
+    domain = await domain_service.detach_domain(db, workspace_id, domain_id)
+    return _to_response(domain)
+
+
 @router.get(
     "/workspaces/{workspace_id}/domains/{domain_id}/provider",
     response_model=DnsProviderHint,

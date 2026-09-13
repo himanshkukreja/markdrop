@@ -114,14 +114,21 @@ export default function AssetUpload({
               : "border-gray-300 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-500/[0.03] cursor-pointer"
         }`}
       >
+        {/* A logo is usually a wide wordmark, so it gets a landscape well with
+            room to breathe; a favicon is square by definition. Both are padded,
+            because an image flush against its container reads as cropped even
+            when `object-contain` has not cropped anything. The light backdrop is
+            what makes a dark logo visible at all — most brand marks are dark
+            ink meant for white paper. */}
         <div
-          className={`shrink-0 grid place-items-center rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 ${
-            shape === "wide" ? "w-20 h-12" : "w-12 h-12"
+          className={`shrink-0 grid place-items-center rounded-lg overflow-hidden p-1.5
+            bg-white/90 dark:bg-white/[0.07] ring-1 ring-black/5 dark:ring-white/10 ${
+            shape === "wide" ? "w-32 h-16" : "w-14 h-14"
           }`}
         >
           {shown ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={shown} alt="" className="w-full h-full object-contain" />
+            <img src={shown} alt="" className="max-w-full max-h-full object-contain" />
           ) : (
             <svg
               className="w-5 h-5 text-gray-400"

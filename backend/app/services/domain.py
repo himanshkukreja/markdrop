@@ -150,7 +150,10 @@ async def detach_from_hosting(host: str) -> bool:
     not block that; it just leaves a host to clean up by hand.
     """
     if not settings.vercel_domains_configured:
-        return False
+        # Nothing to detach from, which is the end state the caller wanted.
+        # Reporting failure here would make `detach_domain` refuse to take a
+        # host off the air on any deployment without hosting credentials.
+        return True
 
     import httpx
 
@@ -365,6 +368,44 @@ async def attach_to_hosting(db: AsyncIOMotorDatabase, workspace_id: str, domain_
         {"_id": oid}, {"$set": {"last_error": detail, "last_checked_at": now}}
     )
     raise HTTPException(status_code=502, detail=f"Hosting provider refused the domain: {detail}")
+
+
+async def detach_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: str) -> Domain:
+    """Stop serving a host, without forgetting it.
+
+    The counterpart to `attach_to_hosting`, and the reason it exists separately
+    from `remove_domain`: taking a domain off the air is routine and reversible,
+    while removing it discards a verification that took DNS propagation to earn.
+    Detaching keeps the record and its `verified` status, so re-attaching later
+    is one click rather than another round of DNS.
+
+    The hosting call is best effort. If it fails we leave `attached` alone rather
+    than claiming a detach that did not happen -- a record saying "not attached"
+    while the host still resolves to us is the worst of both.
+    """
+    try:
+        oid = ObjectId(domain_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    raw = await db["domains"].find_one({"_id": oid, "workspace_id": workspace_id})
+    if not raw:
+        raise HTTPException(status_code=404, detail="Domain not found")
+
+    if not raw.get("attached"):
+        return _to_domain(raw)  # already off the air; nothing to undo
+
+    if not await detach_from_hosting(raw["host"]):
+        raise HTTPException(
+            status_code=502,
+            detail="Couldn't take that domain off the hosting project. Try again in a moment.",
+        )
+
+    now = datetime.now(timezone.utc)
+    await db["domains"].update_one(
+        {"_id": oid}, {"$set": {"attached": False, "last_error": None, "last_checked_at": now}}
+    )
+    raw.update(attached=False, last_error=None, last_checked_at=now)
+    return _to_domain(raw)
 
 
 # ── Resolution (what the edge asks on every request) ──────────────────────────

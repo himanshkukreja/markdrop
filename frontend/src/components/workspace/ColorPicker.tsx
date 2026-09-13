@@ -2,21 +2,15 @@
 
 import { useEffect, useState } from "react";
 
-/** A spread of hues that read as brand colours rather than as a rainbow. */
-const SWATCHES = [
-  "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#ec4899",
-  "#ef4444", "#f97316", "#f59e0b", "#10b981", "#14b8a6",
-  "#06b6d4", "#0ea5e9", "#64748b", "#111827",
-];
-
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 /**
- * Accent colour, as a swatch grid plus the OS colour picker plus a hex field.
+ * Accent colour: the OS colour picker, and a hex field.
  *
- * Three affordances rather than one because they serve different people: most
- * users want a decent colour in one click, a designer wants the exact brand hex,
- * and the native picker covers everything in between.
+ * There was a grid of preset swatches here too. It was removed deliberately —
+ * anyone setting a workspace accent is matching a brand they already have, so
+ * they arrive with a hex code rather than a wish to browse. Presets only added
+ * a row of colours nobody was going to pick.
  *
  * The typed hex is held in local state while it is being edited and only pushed
  * up once it parses. Without that, typing "#1" over a selection would commit an
@@ -54,29 +48,6 @@ export default function ColorPicker({
             Reset
           </button>
         )}
-      </div>
-
-      <div className="flex flex-wrap gap-1.5 mb-2.5">
-        {SWATCHES.map((hex) => {
-          const active = value?.toLowerCase() === hex;
-          return (
-            <button
-              key={hex}
-              type="button"
-              disabled={disabled}
-              title={hex}
-              aria-label={`Use ${hex}`}
-              aria-pressed={active}
-              onClick={() => onChange(hex)}
-              style={{ background: hex }}
-              className={`w-7 h-7 rounded-lg transition-transform disabled:opacity-50 disabled:cursor-not-allowed ${
-                active
-                  ? "ring-2 ring-offset-2 ring-gray-900 dark:ring-white ring-offset-white dark:ring-offset-gray-950 scale-105"
-                  : "hover:scale-110"
-              }`}
-            />
-          );
-        })}
       </div>
 
       <div className="flex items-center gap-2">
