@@ -6,6 +6,9 @@ Optionally **end-to-end encrypted**: your browser encrypts the document before i
 leaves the tab and the key travels in the URL fragment, so Markdrop stores
 ciphertext it holds no key to.
 
+For teams, **workspaces** add custom domains, white-label branding and a shared
+library — without changing anything for the people using Markdrop on their own.
+
 **Live:** [markdrop.in](https://markdrop.in)
 
 ---
@@ -37,10 +40,27 @@ ciphertext it holds no key to.
 
 ### Artifacts — share more than markdown
 - Paste an **HTML page** or upload a **PDF**, **Word doc**, **Excel/CSV**, image,
-  or a **zipped site** (HTML + CSS + JS + assets) and get a link that *renders* it
+  **video** (mp4 / mov / webm), or a **zipped site** (HTML + CSS + JS + assets)
+  and get a link that *renders* it
+- Video streams with **HTTP Range requests**, so seeking fetches only the bytes
+  it needs, and plays in a custom player — scrubber with buffered track, speed,
+  picture-in-picture, frame stepping and keyboard control
 - Rendered on an **isolated origin**, so a published page can never reach your
   Markdrop account — see [Artifacts](#artifacts) below
 - Same password, expiry, analytics and abuse-reporting as any document
+
+### Workspaces — for teams and companies
+- **Your own domain**: point `docs.yourcompany.com` at Markdrop, verified by DNS
+  and served over TLS we issue for you
+- **White-label**: your name, uploaded favicon and logo, and accent colour on
+  page titles and link preview cards — with the option to drop Markdrop entirely
+- **View-only mode** turns a domain into a plain document CDN, and reads can be
+  gated behind sign-in
+- **Shared library** of documents and artifacts, with folders and roles
+  (owner / admin / member / viewer)
+- **Invitations by email** — nobody is added to a workspace without accepting
+- Everything here is additive: without a workspace, Markdrop behaves exactly as
+  it always has — see [Workspaces](#workspaces--custom-domains)
 
 ### Beyond the browser
 - **[README / markdown builder](https://markdrop.in/builder)** — assemble a doc
@@ -93,6 +113,11 @@ markdrop/
 │   │   │   ├── documents.py  # Document CRUD, claim/copy, events, reports
 │   │   │   ├── artifacts.py  # Artifact upload (presign → confirm) + paste
 │   │   │   ├── auth.py / me.py / admin.py
+│   │   │   ├── workspaces.py # Workspaces, invitations, branding uploads
+│   │   │   ├── invites.py    # Accept / decline an invitation (pre-auth)
+│   │   │   ├── library.py    # The shared workspace document library
+│   │   │   ├── domains.py    # Custom domains, DNS verify, provider hints
+│   │   │   ├── folders.py    # Workspace filing
 │   │   │   ├── sync.py       # VS Code two-way sync (rev-based CAS)
 │   │   │   ├── google.py     # Google Docs export + image endpoints
 │   │   │   ├── og.py         # Dynamic link-preview PNGs
@@ -102,12 +127,19 @@ markdrop/
 │   │   │   ├── r2.py         # Cloudflare R2 (presign, head, delete, prefix)
 │   │   │   ├── artifact.py   # Type registry, quota, signed artifact URLs
 │   │   │   ├── bundle.py     # Zip extraction (zip-bomb + traversal guards)
+│   │   │   ├── workspace.py  # Tenancy, roles, the viewer-chrome safety rule
+│   │   │   ├── invitation.py # Consent-based membership, hashed tokens
+│   │   │   ├── library.py    # Sharing — and the privacy boundary around it
+│   │   │   ├── domain.py     # DNS verification, hosting attach/detach
+│   │   │   ├── dns_provider.py # Who runs this zone's DNS, and its wording
+│   │   │   ├── branding.py   # Favicon/logo re-encode (the security control)
 │   │   │   ├── og_render.py / diagram_render.py / math_render.py
 │   │   │   └── analytics.py / gdocs.py / oauth.py / mailer.py
 │   │   └── utils/          # Slugs, bcrypt secrets, crypto, client IP
 │   └── requirements.txt
 ├── worker/                 # Cloudflare Worker — the artifact origin
-│   ├── src/index.js        # /r/<key> raw + /v/<renderer>/<key> viewers
+│   ├── src/index.js        # /r/<key> raw, /v/<renderer>/<key> viewers,
+│   │                       # /b/<key> branding assets
 │   └── wrangler.toml
 ├── frontend/               # Next.js app
 │   └── src/
@@ -121,9 +153,17 @@ markdrop/
 │       │   │   ├── page.tsx          # ISR document route
 │       │   │   ├── DocumentView.tsx  # Markdown viewer + inline editor
 │       │   │   └── ArtifactView.tsx  # Sandboxed artifact viewer
+│       │   ├── settings/workspaces/  # Workspace settings (library, brand,
+│       │   │                         # domains, people, folders)
+│       │   ├── invite/[token]/       # Accept or decline an invitation
+│       │   ├── enterprise/           # Custom domains / white-label page
+│       │   ├── h/[host]/             # Requests arriving on a custom domain
 │       │   └── share/                # P2P file sharing
-│       ├── components/               # MarkdownPreview, ArtifactBadge, landing/
-│       └── lib/                      # api.ts, webrtc.ts, readmeSections.ts
+│       ├── components/               # MarkdownPreview, ArtifactBadge,
+│       │                             # landing/, workspace/
+│       ├── middleware.ts             # Routes non-primary hosts to /h/<host>
+│       └── lib/                      # api.ts, workspaces.ts, e2e.ts,
+│                                     # webrtc.ts, dnsCsv.ts, readmeSections.ts
 ├── extension/              # VS Code extension (two-way markdown sync)
 └── cli/                    # Go CLI for P2P file sharing
 ```
@@ -279,6 +319,61 @@ origin. Password-protected artifacts get a short-lived signed token on that URL.
 Errors worth handling: `415` unsupported type, `413` too large, `507` quota
 exceeded, `422` bad zip bundle, `503` artifact storage not configured.
 
+### Workspaces
+
+All of these require a session. Roles are enforced per endpoint; a caller who
+isn't a member gets `404` rather than `403`.
+
+```http
+GET    /api/v1/workspaces                          # yours, with your role in each
+POST   /api/v1/workspaces                          # {name}
+GET    /api/v1/workspaces/{id}                     # viewer+
+PUT    /api/v1/workspaces/{id}                     # admin+ — branding, settings
+DELETE /api/v1/workspaces/{id}                     # owner only, {confirm_name}
+
+GET    /api/v1/workspaces/{id}/members             # viewer+
+PUT    /api/v1/workspaces/{id}/members/{user_id}   # admin+ — change role
+DELETE /api/v1/workspaces/{id}/members/{user_id}   # admin+, or leave yourself
+
+POST   /api/v1/workspaces/{id}/branding/{favicon|logo}   # admin+, multipart
+```
+
+### Invitations
+
+```http
+GET    /api/v1/workspaces/{id}/invitations   # admin+
+POST   /api/v1/workspaces/{id}/invitations   # admin+ — {email, role}; sends mail
+DELETE /api/v1/workspaces/{id}/invitations/{invite_id}   # admin+ — revoke
+
+GET    /api/v1/invites/{token}               # preview; no account needed
+POST   /api/v1/invites/{token}/accept        # requires the invited address
+POST   /api/v1/invites/{token}/decline       # no account needed
+```
+
+### Shared library
+
+```http
+GET    /api/v1/workspaces/{id}/documents          # viewer+; ?q=&kind=&folder_id=
+GET    /api/v1/workspaces/{id}/documents/counts   # per-folder totals
+POST   /api/v1/workspaces/{id}/documents          # {document_id} — owner only
+DELETE /api/v1/workspaces/{id}/documents/{doc_id} # unshare (never deletes)
+PUT    /api/v1/workspaces/{id}/documents/{doc_id}/folder
+```
+
+### Domains & folders
+
+```http
+GET    /api/v1/workspaces/{id}/domains
+POST   /api/v1/workspaces/{id}/domains            # admin+ — {host, kind}
+POST   /api/v1/workspaces/{id}/domains/{did}/verify   # checks authoritative NS
+POST   /api/v1/workspaces/{id}/domains/{did}/attach   # issues TLS
+GET    /api/v1/workspaces/{id}/domains/{did}/provider # DNS provider + wording
+DELETE /api/v1/workspaces/{id}/domains/{did}      # detaches from hosting first
+
+GET|POST /api/v1/workspaces/{id}/folders
+PUT|DELETE /api/v1/workspaces/{id}/folders/{folder_id}
+```
+
 ---
 
 ## Artifacts
@@ -324,6 +419,7 @@ of the app, but the app's own origin is refused unconditionally.
 | Excel / CSV | SheetJS grid, one tab per sheet |
 | Word (.docx) | mammoth → semantic HTML (structural, not pixel-exact) |
 | Images / SVG | Direct (SVG stays sandboxed — it can carry script) |
+| Video (mp4/mov/webm/ogg) | Custom player, served with Range support for seeking |
 | JSON / text | Escaped `<pre>` |
 
 Anything outside this list is refused at upload; anything unexpected that does
@@ -415,6 +511,121 @@ Link previews fall back to a generic card.
 
 Artifacts are **not** encrypted: their bytes live in R2 and the viewers render
 them server-side. That is a separate design.
+
+---
+
+## Workspaces & custom domains
+
+A workspace is the tenant that owns domains, branding, folders, members and a
+shared library. **It is entirely additive**: a user with no workspace, and a
+document with no workspace, behave exactly as they did before any of this
+existed.
+
+### Roles
+
+`viewer < member < admin < owner`. Authorization is a rank comparison rather
+than scattered special cases. Non-members get **404, not 403**, so the API never
+confirms that a workspace exists to someone with no access to it.
+
+| Role | Can |
+|------|-----|
+| viewer | read the shared library |
+| member | publish into it, edit shared documents, file them into folders |
+| admin | manage members, domains, branding; rename and delete shared documents |
+| owner | everything, plus delete the workspace |
+
+### The privacy boundary
+
+**A document is private until its owner shares it.**
+
+This is structural rather than a filter: the library listing matches on
+`workspace_id`, and a private document does not have one. There is no flag to
+forget and no query to get wrong — joining a workspace exposes nothing you wrote
+before joining it.
+
+- Sharing is the **owner's decision alone**. A workspace admin cannot reach into
+  someone's private library and publish from it.
+- Shared is not owned. Ownership never moves, so unsharing — or deleting the
+  entire workspace — hands the document back with its slug, links and analytics
+  intact. Deleting a workspace never deletes a member's documents.
+- Editing a shared document follows the workspace role. **Deleting and renaming
+  require admin**, because destroying someone else's work is a different act
+  from editing it.
+- A document lives in at most one workspace.
+
+### Invitations
+
+Membership begins with an invitation the recipient accepts. There is no endpoint
+that adds somebody without their say-so.
+
+- The emailed link is a bearer token, so it is **never sufficient on its own**:
+  accepting requires being signed in as the address the invitation was sent to.
+  Mail gets forwarded, shared inboxes have many readers, and archives leak.
+- Tokens are stored as SHA-256 hashes and expire after 7 days.
+- Re-inviting the same address replaces the pending invitation and invalidates
+  the old link, so it doubles as "resend".
+- **Declining never requires an account** — making someone sign up in order to
+  say no would be absurd. Declined and withdrawn links keep resolving so the
+  page can explain itself instead of returning a dead end.
+- An invitation can never lower an existing role.
+
+### Custom domains
+
+Two DNS records: a `TXT` proving ownership, then a `CNAME` (or `A` at an apex)
+routing the hostname. Ownership is always checked before a host is attached —
+otherwise anyone could point a hostname they do not control at us and have a
+certificate issued for it.
+
+Verification queries the domain's **authoritative nameservers** rather than a
+recursive resolver, because verification runs moments after someone edits DNS
+and a cached negative answer would report failure for hours.
+
+Each domain declares what it is, and the kind is never inferred from the name:
+
+| Kind | Serves |
+|------|--------|
+| **Documents** | Pages and sign-in — the full app |
+| **Files only** | Uploaded artifacts, and never runs the app |
+
+One host cannot be both. A slug belonging to another workspace returns 404 on
+your host.
+
+### Making DNS setup survivable
+
+One-click DNS setup at GoDaddy and IONOS sits behind a paid intermediary, so
+Markdrop does the free thing that removes most of the failures instead:
+
+- Detects the **DNS provider** from the zone's authoritative nameservers — keyed
+  on the nameserver, not the registrar, since a domain bought at one and pointed
+  at another is edited at the second
+- Deep-links straight to that provider's DNS page, and labels the field whatever
+  that provider calls it
+- Writes the record name **the way that panel expects it**. Most panels append
+  the zone themselves, so pasting a fully-qualified name silently creates
+  `host.example.com.example.com` — which looks correct in the form and fails
+  verification with no explanation
+- Exports every record as **CSV**, and generates a **handover message** for
+  whoever actually controls the DNS, stating what the records do and what they
+  do not touch (no MX or SPF changes, nothing at the apex)
+
+Unrecognised providers fall back to the generic instructions.
+
+### Branding assets
+
+Favicons and logos are uploaded, not linked. The bytes pass through the API
+rather than going straight to object storage, because the re-encode is the
+security control: the image is decoded and written out as a fresh PNG, so
+polyglot files, embedded markup and EXIF payloads cannot survive into a URL we
+serve. Keys are content-addressed, so replacing a logo publishes a new URL and
+no cache can serve the old one.
+
+### One rule that is not configurable
+
+View-only mode hides the control that exits full screen — which is also an
+anonymous visitor's only route to **Report**. That trade belongs to a workspace
+owner on a domain they are accountable for. It is never theirs to make on
+markdrop.in, where the liability is ours, so the setting is ignored entirely off
+their own domains.
 
 ---
 
@@ -643,6 +854,11 @@ The artifact origin needs no DNS of its own while it runs on `workers.dev`.
 | `MARKDROP_ARTIFACT_MAX_BYTES` | Per-file limit | `26214400` (25 MB) |
 | `MARKDROP_ARTIFACT_USER_QUOTA_BYTES` | Per-account total | `262144000` (250 MB) |
 | `MARKDROP_ARTIFACT_ALLOW_SUBDOMAIN_ORIGIN` | Permit a subdomain of the app (weaker — shares domain reputation) | `false` |
+| `MARKDROP_ARTIFACT_MAX_VIDEO_BYTES` | Per-file limit for video | `524288000` (500 MB) |
+| `MARKDROP_VERCEL_API_TOKEN` | Attaches verified custom domains so TLS is issued. Unset → domains verify but must be attached by hand | — |
+| `MARKDROP_VERCEL_PROJECT_ID` | Hosting project the domain is added to | — |
+| `MARKDROP_VERCEL_TEAM_ID` | Only when the project lives in a team | — |
+| `MARKDROP_CUSTOM_DOMAIN_CNAME_TARGET` | What customers point their `CNAME` at | `cname.vercel-dns.com` |
 
 Artifacts stay dormant until all of these are set: `/upload` shows a
 "not enabled yet" state and the endpoints return `503`.
@@ -666,9 +882,13 @@ Artifacts stay dormant until all of these are set: `/upload` shows a
 - [x] Phase 6 — Mermaid + KaTeX rendering, dynamic OG link previews, README builder
 - [x] Phase 7 — Artifacts: HTML, PDF, Office and zipped sites on R2 + isolated origin
 - [x] Phase 8 — Opt-in end-to-end encryption, key rotation and recovery
-- [ ] Next — Passphrase-derived keys (nothing secret in the link), encrypted
-      artifacts, artifact screenshots for OG cards, PPTX, document version
-      history, TURN server for P2P behind strict NAT, Google Docs two-way sync
+- [x] Phase 9 — Workspaces: custom domains, white-label branding, view-only CDN
+      mode, folders, roles, consent-based invitations and a shared library
+- [x] Phase 10 — Video artifacts with a custom player and Range-based seeking
+- [ ] Next — Workspace ownership transfer, passphrase-derived keys (nothing
+      secret in the link), encrypted artifacts, artifact screenshots for OG
+      cards, PPTX, document version history, TURN server for P2P behind strict
+      NAT, Google Docs two-way sync
 
 ---
 
