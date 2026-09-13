@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import ImmersiveExit from "@/components/ImmersiveExit";
+import { useQueryFlags } from "@/lib/useQueryFlags";
 import MarkdropLoader from "@/components/MarkdropLoader";
 import * as e2e from "@/lib/e2e";
 import CopyButton from "@/components/CopyButton";
@@ -172,13 +173,13 @@ export default function DocumentView({
   encrypted = false,
 }: Props) {
   const router = useRouter();
-  // Read on the client, not from server searchParams — that would make the
-  // route dynamic and forfeit the edge cache for every visitor.
-  const params = useSearchParams();
-  const isNew = params.get("new") === "1";
-  const startInEdit = params.get("edit") === "1";
-  const startCopy = params.get("copy") === "1";
-  const startGoogleSync = params.get("gsync") === "1";
+  // Not useSearchParams: on a prerendered route that would stop this whole view
+  // being server-rendered at all. See lib/useQueryFlags.
+  const { ready: flagsReady, has: hasFlag } = useQueryFlags();
+  const isNew = hasFlag("new");
+  const startInEdit = hasFlag("edit");
+  const startCopy = hasFlag("copy");
+  const startGoogleSync = hasFlag("gsync");
   const { user, openAuthModal } = useAuth();
 
   // Claim-to-account state
@@ -526,7 +527,7 @@ export default function DocumentView({
   // shown once and lives in the chrome, so covering it would lose it for good.
   // Same for the flags that open a chrome-level panel.
   useEffect(() => {
-    if (decided.current) return;
+    if (decided.current || !flagsReady) return;
     // Not resolved yet — wait rather than deciding on a transient state. An
     // encrypted document waits for its key too: if the key is missing or wrong,
     // the explanation belongs next to the chrome, not alone on a blank screen.
@@ -535,7 +536,7 @@ export default function DocumentView({
     decided.current = true;
     const chromeFlow = isNew || startInEdit || startCopy || startGoogleSync;
     setImmersive(!chromeFlow && !!displayContent.trim());
-  }, [editing, pwdLocked, pwdFetching, artifactDoc, isNew, startInEdit, startCopy, startGoogleSync, displayContent, encrypted, decryptState]);
+  }, [editing, pwdLocked, pwdFetching, artifactDoc, isNew, startInEdit, startCopy, startGoogleSync, displayContent, encrypted, decryptState, flagsReady]);
 
   useEffect(() => {
     if (!showImmersive) return;

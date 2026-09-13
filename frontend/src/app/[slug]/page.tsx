@@ -3,6 +3,7 @@ import { getDocument, API_BASE } from "@/lib/api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ArtifactView from "./ArtifactView";
+import MarkdropLoader from "@/components/MarkdropLoader";
 import DocumentView from "./DocumentView";
 
 interface Props {
@@ -13,8 +14,10 @@ interface Props {
 // Safe because this render is always anonymous (localStorage — and therefore
 // the auth header — doesn't exist server-side), the client re-fetches through
 // the authorized path on mount, and open pages live-update over the socket.
-// The ?new/?edit/?copy/?gsync flags are read client-side via useSearchParams:
-// reading searchParams here would force every request to render dynamically.
+// The ?new/?edit/?copy/?gsync flags are read from location.search after mount
+// (see lib/useQueryFlags): reading searchParams here would force every request to
+// render dynamically, and useSearchParams would stop the views being prerendered
+// at all — which left the page shipping an empty <main> until hydration.
 export const revalidate = 60;
 
 // A dynamic segment only joins the full route cache when it declares
@@ -23,6 +26,20 @@ export const revalidate = 60;
 // and background-revalidated, instead of re-rendering for every visitor.
 export async function generateStaticParams() {
   return [];
+}
+
+/**
+ * Safety net for the viewer boundaries. Nothing in them suspends today, now that
+ * neither view calls useSearchParams — but `null` is the wrong default for a
+ * boundary wrapping the entire page: it renders as app chrome around an empty
+ * hole, which reads as broken rather than as loading.
+ */
+function ViewerFallback() {
+  return (
+    <div className="flex-1 min-h-[60vh] flex items-center justify-center">
+      <MarkdropLoader label="Opening document…" />
+    </div>
+  );
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -82,7 +99,7 @@ export default async function SlugPage({ params }: Props) {
   // rather than as markdown, so they get their own viewer entirely.
   if (doc?.kind === "artifact") {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<ViewerFallback />}>
       <ArtifactView
         slug={slug}
         title={doc.title}
@@ -106,7 +123,7 @@ export default async function SlugPage({ params }: Props) {
   // markdown from artifact. DocumentView handles the gate and re-renders once
   // it knows — see its `kind` check after unlock.
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<ViewerFallback />}>
     <DocumentView
       slug={slug}
       title={doc?.title ?? null}

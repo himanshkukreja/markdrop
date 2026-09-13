@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import CopyButton from "@/components/CopyButton";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
 import MarkdropLoader from "@/components/MarkdropLoader";
 import ImmersiveExit from "@/components/ImmersiveExit";
+import { useQueryFlags } from "@/lib/useQueryFlags";
 import ArtifactBadge, { formatBytes } from "@/components/ArtifactBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -93,10 +94,10 @@ export default function ArtifactView({
 }: Props) {
   const router = useRouter();
   const { user } = useAuth();
-  // Client-side so the document route stays edge-cacheable (see page.tsx).
-  const params = useSearchParams();
-  const isNew = params.get("new") === "1";
-  const wantsFull = params.get("full") === "1";
+  // Not useSearchParams: on a prerendered route that would stop this whole view
+  // being server-rendered at all. See lib/useQueryFlags.
+  const { has: hasFlag } = useQueryFlags();
+  const isNew = hasFlag("new");
 
   const [title, setTitle] = useState(initialTitle);
   const [artifactUrl, setArtifactUrl] = useState(initialArtifactUrl);
@@ -206,6 +207,15 @@ export default function ArtifactView({
   // empty iframe paints — white. Track the load and cover it with the brand
   // loader instead of letting that blank rectangle be the page.
   const [frameLoading, setFrameLoading] = useState(true);
+
+  // The frame is mounted only after hydration. Now that this view is genuinely
+  // server-rendered, an iframe in the HTML makes the browser begin the fetch and
+  // then React begin it again as it adopts the element — two downloads of the
+  // same artifact, milliseconds apart. Rendering the cover on the server and the
+  // frame on the client keeps it to one, and costs nothing visually: the loader
+  // is in the first paint either way.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
 
   function applyDoc(
     doc: Awaited<ReturnType<typeof getDocument>>,
@@ -521,7 +531,7 @@ export default function ArtifactView({
            for every viewer, and the framed one's load event would clear the
            cover over the immersive one that is still blank. */
         <div className="relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden bg-white dark:bg-[#0b1220]" style={{ height: "min(78vh, 900px)" }}>
-          {!immersive && (
+          {!immersive && hydrated && (
             <iframe
               key={reloadKey}
               src={artifactUrl}
@@ -544,6 +554,7 @@ export default function ArtifactView({
 
       {immersive && artifactUrl && (
         <div className="fixed inset-0 z-[100] bg-white dark:bg-[#0b1220]">
+          {hydrated && (
           <iframe
             key={reloadKey}
             src={artifactUrl}
@@ -553,6 +564,7 @@ export default function ArtifactView({
             onLoad={() => setFrameLoading(false)}
             className="w-full h-full border-0 bg-white"
           />
+          )}
           <FrameCover show={frameLoading} label={loadingLabel} />
           <ImmersiveExit onExit={() => setImmersive(false)} />
         </div>
