@@ -471,7 +471,7 @@ export default function DashboardPage() {
                     <span title="Link copies">🔗 {d.copy_url_count}</span>
                     {d.encrypted && (
                       <span
-                        title="End-to-end encrypted. Markdrop stores only ciphertext — the title and preview are blank here because we can't read them."
+                        title="End-to-end encrypted. Stored as ciphertext — the title and preview aren't shown here because the key exists only in your link."
                         className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400"
                       >
                         🔐 Encrypted

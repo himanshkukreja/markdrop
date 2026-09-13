@@ -302,34 +302,69 @@ export default function NewDocumentPage() {
                   <>
                     Your browser encrypts the title and the text before publishing. The key goes
                     in the <span className="font-mono">#</span> part of the link, which browsers
-                    never send to a server — so Markdrop stores bytes it cannot read.
+                    never send to a server — so only ciphertext ever reaches Markdrop.
                   </>
                 ) : (
-                  "Encrypt in your browser so that not even Markdrop can read this document."
+                  // Describes what happens to the document, not who is kept out of
+                  // it. "So not even we can read it" quietly frames the default as
+                  // us reading them, which is both wrong and a bad thing to put in
+                  // front of someone deciding whether to trust the product.
+                  "Encrypt in your browser. Only your link can unlock it."
                 )}
               </span>
             </span>
           </label>
 
+          {/* Three facts, not three paragraphs. Someone deciding whether to tick a
+              box reads labels, not prose — so each one gets an icon, a short
+              headline and a single line. The first is the destructive one and is
+              tinted to match. */}
           {encrypt && (
-            <div className="border-t border-emerald-200/70 dark:border-emerald-900/50 px-3 py-2 space-y-1.5">
-              {/* This is the part people get wrong, so it is stated first and plainly. */}
-              <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
-                <span aria-hidden>⚠</span>
-                <span>
-                  <strong className="font-medium">Keep the link.</strong> It contains the only
-                  copy of the key. Nobody — including us — can recover this document without it.
+            <div className="border-t border-emerald-200/70 dark:border-emerald-900/50 grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-emerald-200/60 dark:divide-emerald-900/40">
+              <div className="flex items-start gap-2 px-3 py-2">
+                <svg className="w-3.5 h-3.5 mt-px shrink-0 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="7.5" cy="15.5" r="4.5" />
+                  <path d="M10.7 12.3 21 2M17.5 5.5 20 8M14 9l2.5 2.5" />
+                </svg>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                    The link is the key
+                  </span>
+                  <span className="block text-[11px] leading-snug text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                    Lose it and the document is gone — no recovery, by anyone.
+                  </span>
                 </span>
-              </p>
-              <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                Anyone you send the link to can read it. Encryption stops the server and the
-                database from reading your document; it isn&apos;t a substitute for being careful
-                about who you send the link to.
-              </p>
-              <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                Google Docs export, VS Code sync and link previews don&apos;t work on encrypted
-                documents — all three need a server that can read the text.
-              </p>
+              </div>
+
+              <div className="flex items-start gap-2 px-3 py-2">
+                <svg className="w-3.5 h-3.5 mt-px shrink-0 text-gray-400 dark:text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+                    Anyone with the link can read it
+                  </span>
+                  <span className="block text-[11px] leading-snug text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                    Share it as carefully as the document deserves.
+                  </span>
+                </span>
+              </div>
+
+              <div className="flex items-start gap-2 px-3 py-2">
+                <svg className="w-3.5 h-3.5 mt-px shrink-0 text-gray-400 dark:text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M5.6 5.6l12.8 12.8" />
+                </svg>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+                    Some features switch off
+                  </span>
+                  <span className="block text-[11px] leading-snug text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                    Google Docs export, VS Code sync and link previews.
+                  </span>
+                </span>
+              </div>
             </div>
           )}
         </div>
