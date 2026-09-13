@@ -47,6 +47,7 @@ def _doc_from_mongo(raw: dict) -> Document:
         # exactly what False means — no migration needed.
         encrypted=raw.get("encrypted", False),
         workspace_id=raw.get("workspace_id"),
+        folder_id=raw.get("folder_id"),
         kind=raw.get("kind", "markdown"),
         mime=raw.get("mime"),
         blob_key=raw.get("blob_key"),

@@ -29,7 +29,24 @@ from app.database import get_database
 settings = get_settings()
 
 _CACHE_TTL_SECONDS = 60
+# Bounded on purpose. This middleware runs *outside* rate limiting — it has to,
+# because a preflight must be answered before any route is reached — so the
+# Origin header here is attacker-controlled and unthrottled. An unbounded cache
+# would grow by one entry per distinct Origin until the process died, and every
+# miss costs a database round trip on the way.
+_CACHE_MAX_ENTRIES = 1024
 _cache: dict[str, tuple[bool, float]] = {}
+
+
+def _remember(origin: str, allowed: bool, now: float) -> None:
+    if len(_cache) >= _CACHE_MAX_ENTRIES:
+        for stale in [k for k, (_, exp) in _cache.items() if exp <= now]:
+            _cache.pop(stale, None)
+        if len(_cache) >= _CACHE_MAX_ENTRIES:
+            # Dropping everything costs a few lookups and is strictly better
+            # than growing without limit. Real origins are re-learned instantly.
+            _cache.clear()
+    _cache[origin] = (allowed, now + _CACHE_TTL_SECONDS)
 
 
 async def _is_verified_origin(origin: str) -> bool:
@@ -40,6 +57,11 @@ async def _is_verified_origin(origin: str) -> bool:
         return hit[0]
 
     allowed = False
+    # Cheap structural rejection first, so a flood of junk Origins is answered
+    # from the CPU rather than from the database.
+    if len(origin) > 260:
+        _remember(origin[:260], False, now)
+        return False
     # A bare scheme + host only. An Origin carrying a path or credentials is
     # malformed and not worth matching against anything.
     if origin.startswith(("https://", "http://")):
@@ -55,7 +77,7 @@ async def _is_verified_origin(origin: str) -> bool:
                 # A database blip must not silently widen CORS.
                 allowed = False
 
-    _cache[origin] = (allowed, now + _CACHE_TTL_SECONDS)
+    _remember(origin, allowed, now)
     return allowed
 
 

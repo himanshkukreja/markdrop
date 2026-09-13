@@ -40,6 +40,8 @@ class Document:
     # existed before workspaces did, and remains the default. Only documents that
     # belong to a workspace can be served from that workspace's custom domains.
     workspace_id: str | None = None
+    # Filing only. Never affects who can read the document.
+    folder_id: str | None = None
     # ── Artifacts ────────────────────────────────────────────────────────────
     # kind="artifact" records store their bytes in R2 (`blob_key`) instead of
     # `content`, and render on the isolated artifact origin. Everything else on
