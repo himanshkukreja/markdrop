@@ -175,6 +175,23 @@ async def get_document(
     if workspace_scope is not None and raw.get("workspace_id") != workspace_scope:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    # A workspace can require a signed-in reader. Enforced here rather than in
+    # the page, and on *every* host rather than only the workspace's own:
+    # otherwise the rule would be a UI preference that the API happily bypasses,
+    # and the markdrop.in URL for the same document would be the way around it.
+    # The lookup only happens for documents that belong to a workspace, so the
+    # ordinary path costs nothing.
+    owner_workspace = raw.get("workspace_id")
+    if owner_workspace and not user_id:
+        from app.services import workspace as ws_service
+
+        workspace = await ws_service.get_workspace(db, owner_workspace)
+        if workspace is not None and workspace.settings.require_auth_to_view:
+            raise HTTPException(
+                status_code=401,
+                detail="Sign in to view this document.",
+            )
+
     if raw.get("read_password_hash"):
         # The owner (logged in, or holding a valid edit secret) bypasses the gate.
         owner_bypasses = user_id and raw.get("owner_id") == user_id

@@ -9,6 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import get_settings
 from app.database import connect, disconnect
 from app.limiter import limiter
+from app.middleware.tenant_cors import TenantCORSMiddleware
 from app.routers.admin import router as admin_router
 from app.routers.artifacts import router as artifacts_router
 from app.routers.auth import router as auth_router
@@ -47,6 +48,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Registered last so it runs FIRST. add_middleware prepends, and CORSMiddleware
+# answers any preflight it recognises without calling further in — so a custom
+# domain's OPTIONS would be rejected before this ever saw it. Outermost, it
+# handles verified hosts itself and passes everything else straight through to
+# the static-list behaviour below.
+app.add_middleware(TenantCORSMiddleware)
 
 # Rate limiting
 app.state.limiter = limiter

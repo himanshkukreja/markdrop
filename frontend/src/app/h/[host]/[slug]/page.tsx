@@ -112,6 +112,7 @@ export default async function TenantDocumentPage({ params }: Props) {
           originalFilename={doc.original_filename ?? null}
           artifactUrl={doc.artifact_url ?? null}
           downloadUrl={doc.download_url ?? null}
+          viewerChrome={resolved.viewer_chrome}
         />
       </Suspense>
     );
@@ -131,6 +132,7 @@ export default async function TenantDocumentPage({ params }: Props) {
         isOwned={doc?.is_owned ?? false}
         syncedWithVscode={doc?.vscode_synced ?? false}
         encrypted={doc?.encrypted ?? false}
+        viewerChrome={resolved.viewer_chrome}
       />
     </Suspense>
   );

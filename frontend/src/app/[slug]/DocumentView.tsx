@@ -68,6 +68,8 @@ interface Props {
   syncedWithVscode?: boolean;
   /** `content` is a sealed envelope; the key is in the URL fragment, not here. */
   encrypted?: boolean;
+  /** See ArtifactView — only ever set on a workspace's own domain. */
+  viewerChrome?: "full" | "minimal" | "none";
 }
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
@@ -171,6 +173,7 @@ export default function DocumentView({
   isOwned = false,
   syncedWithVscode = false,
   encrypted = false,
+  viewerChrome = "full",
 }: Props) {
   const router = useRouter();
   // Not useSearchParams: on a prerendered route that would stop this whole view
@@ -1636,7 +1639,9 @@ export default function DocumentView({
               <MarkdownPreview content={displayContent} />
             )}
           </div>
-          {showImmersive && <ImmersiveExit onExit={() => setImmersive(false)} />}
+          {showImmersive && !(viewerChrome === "none" && !user) && (
+            <ImmersiveExit onExit={() => setImmersive(false)} />
+          )}
         </div>
       )}
     </div>
