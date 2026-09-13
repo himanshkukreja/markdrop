@@ -478,3 +478,34 @@ body {
   .md-drop-ripple { opacity: 0 !important; }
   .md-loader-sweep { transform: translateX(100%) !important; }
 }
+
+/* ── Domain showcase: the branding swap ────────────────────────────────────────
+   Two stacked states crossfading on one timeline, so a viewer sees the same
+   document become someone else's product without touching anything. */
+@keyframes md-brand-a {
+  0%, 42%   { opacity: 1; }
+  50%, 92%  { opacity: 0; }
+  100%      { opacity: 1; }
+}
+@keyframes md-brand-b {
+  0%, 42%   { opacity: 0; }
+  50%, 92%  { opacity: 1; }
+  100%      { opacity: 0; }
+}
+.md-brand-a { animation: md-brand-a 7s ease-in-out infinite; }
+.md-brand-b { animation: md-brand-b 7s ease-in-out infinite; }
+
+/* The accent stripe inside the mock picks up the active brand colour. */
+@keyframes md-brand-hue {
+  0%, 42%   { background-color: #3b82f6; }
+  50%, 92%  { background-color: #7c3aed; }
+  100%      { background-color: #3b82f6; }
+}
+.md-brand-hue { animation: md-brand-hue 7s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Park on the branded state — that is the one the section is about. */
+  .md-brand-a { animation: none !important; opacity: 0 !important; }
+  .md-brand-b { animation: none !important; opacity: 1 !important; }
+  .md-brand-hue { animation: none !important; background-color: #7c3aed !important; }
+}

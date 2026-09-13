@@ -111,8 +111,14 @@ export default function UploadArtifactPage() {
 
   function pickFile(f: File | null) {
     if (!f) return;
-    if (status && f.size > status.max_file_bytes) {
-      setError(`That file is ${formatBytes(f.size)} — the limit is ${formatBytes(status.max_file_bytes)}.`);
+    // Video has its own ceiling; gating every type on the document limit would
+    // refuse a recording the server would have accepted.
+    const isVideo = ["mp4", "mov", "webm", "ogv"].includes(
+      f.name.toLowerCase().split(".").pop() || ""
+    );
+    const cap = (isVideo && status?.max_video_bytes) || status?.max_file_bytes || 0;
+    if (status && cap && f.size > cap) {
+      setError(`That file is ${formatBytes(f.size)} — the limit is ${formatBytes(cap)}.`);
       return;
     }
     setError("");
@@ -376,7 +382,10 @@ export default function UploadArtifactPage() {
                 {dragging ? "Drop it here" : "Drag a file here, or click to browse"}
               </p>
               <p className="mt-1 text-xs text-gray-400">
-                {status ? `Up to ${formatBytes(status.max_file_bytes)}` : "\u00a0"}
+                {status
+                  ? `Up to ${formatBytes(status.max_file_bytes)}` +
+                    (status.max_video_bytes ? ` · ${formatBytes(status.max_video_bytes)} for video` : "")
+                  : "\u00a0"}
               </p>
 
               <div className="mt-5 flex flex-wrap justify-center gap-1.5">

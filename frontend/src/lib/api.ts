@@ -84,6 +84,8 @@ export interface ArtifactStatus {
   origin_isolated: boolean;
   origin_separate_site: boolean;
   max_file_bytes: number;
+  /** Video's own, larger ceiling — see the backend schema for why it's separate. */
+  max_video_bytes?: number;
   quota_bytes: number;
   used_bytes: number;
   accepted_types: string[];

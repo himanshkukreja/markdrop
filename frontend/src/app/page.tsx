@@ -7,6 +7,7 @@ import DiagramShowcase from "@/components/landing/DiagramShowcase";
 import GoogleDocsShowcase from "@/components/landing/GoogleDocsShowcase";
 import BuilderShowcase from "@/components/landing/BuilderShowcase";
 import ArtifactShowcase from "@/components/landing/ArtifactShowcase";
+import DomainShowcase from "@/components/landing/DomainShowcase";
 import HowItWorks from "@/components/landing/HowItWorks";
 import CallToAction from "@/components/landing/CallToAction";
 import LandingFooter from "@/components/landing/LandingFooter";
@@ -35,6 +36,8 @@ export default function LandingPage() {
       <GoogleDocsShowcase />
       <BuilderShowcase />
       <ArtifactShowcase />
+      {/* Text-left, continuing the alternation after ArtifactShowcase */}
+      <DomainShowcase />
       <HowItWorks />
       <CallToAction />
       <LandingFooter />

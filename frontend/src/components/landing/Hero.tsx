@@ -89,13 +89,14 @@ function RotatingPhrase() {
 }
 
 // ── Demo scenes ───────────────────────────────────────────────────────────────
-type SceneId = "publish" | "diagram" | "artifacts" | "builder" | "send" | "sync" | "export";
+type SceneId = "publish" | "diagram" | "artifacts" | "domains" | "builder" | "send" | "sync" | "export";
 // `phrase` is the headline word for this scene — short + uniform so the rotating
 // line never wraps to two lines (which would jolt the headline height mid-cycle).
 const SCENES: { id: SceneId; pill: string; tab: string; phrase: string; cta: string; dwell: number; isNew?: boolean }[] = [
   { id: "publish", pill: "Publish", tab: "welcome.md", phrase: "Instant links.", cta: "New document", dwell: 6200 },
   { id: "diagram", pill: "Diagrams & math", tab: "diagram.md", phrase: "Diagrams & math.", cta: "Try a diagram", dwell: 5600 },
   { id: "artifacts", pill: "Artifacts", tab: "report.pdf", phrase: "Files, rendered.", cta: "Publish an artifact", dwell: 5400, isNew: true },
+  { id: "domains", pill: "Custom domains", tab: "docs.yourcompany.com", phrase: "Your own domain.", cta: "See how it works", dwell: 5400, isNew: true },
   { id: "builder", pill: "README builder", tab: "builder", phrase: "README builder.", cta: "Open the builder", dwell: 5000 },
   { id: "send", pill: "P2P file share", tab: "transfer", phrase: "Send any file.", cta: "Share a file", dwell: 5000 },
   { id: "sync", pill: "VS Code sync", tab: "notes.md", phrase: "VS Code sync.", cta: "Get the extension", dwell: 4600 },
@@ -377,6 +378,39 @@ function DemoWindow({
                 )}
               </div>
             </div>
+          ) : active === "domains" ? (
+            // ── Custom domains: the same document, wearing someone else's brand.
+            // Two chrome states crossfade on one timeline while the page beneath
+            // stays put, which is exactly what the feature does.
+            <div className="h-full p-4 sm:p-5 overflow-hidden flex flex-col justify-center gap-4">
+              <div className="relative h-[74px] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c]">
+                {[
+                  { n: "Markdrop", h: "markdrop.in", a: "#3b82f6", c: "md-brand-a" },
+                  { n: "Your Company", h: "docs.yourcompany.com", a: "#7c3aed", c: "md-brand-b" },
+                ].map((b) => (
+                  <div key={b.n} className={`absolute inset-0 bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] ${b.c}`}>
+                    <div className="flex items-center gap-1.5 px-2.5 pt-2.5">
+                      <span className="w-3.5 h-3.5 rounded-[3px] shrink-0 flex items-center justify-center text-[8px] font-bold text-white"
+                            style={{ background: b.a }}>{b.n[0]}</span>
+                      <span className="text-[11px] truncate text-gray-600 dark:text-gray-300">Quarterly plan — {b.n}</span>
+                    </div>
+                    <div className="px-2.5 pt-2">
+                      <div className="rounded-md bg-gray-200/60 dark:bg-white/[0.07] px-2.5 py-1 text-[11px] font-mono text-gray-500 dark:text-gray-400 truncate">
+                        {b.h}<span className="opacity-50">/a7f3q2</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div className="md-brand-hue h-2.5 w-1/2 rounded" />
+                <div className="mt-2.5 space-y-1.5">
+                  <div className="h-1.5 w-full rounded bg-gray-200 dark:bg-white/10" />
+                  <div className="h-1.5 w-5/6 rounded bg-gray-200 dark:bg-white/10" />
+                  <div className="h-1.5 w-3/5 rounded bg-gray-200 dark:bg-white/10" />
+                </div>
+              </div>
+            </div>
           ) : active === "artifacts" ? (
             // ── Artifacts: a file lifting into the frame and rendering ──────
             // Bars bouncing said "chart", not "artifact". This reads as the
@@ -628,6 +662,14 @@ function DemoWindow({
           <StatusBar>
             <span className="w-2 h-2 rounded-full bg-white animate-pulse mr-2" />
             Mermaid + LaTeX · rendered live in the browser
+          </StatusBar>
+        ) : active === "domains" ? (
+          <StatusBar>
+            <svg className="w-3.5 h-3.5 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M3.6 9h16.8M3.6 15h16.8M12 3c2.5 2.4 3.75 5.4 3.75 9S14.5 18.6 12 21M12 3C9.5 5.4 8.25 8.4 8.25 12S9.5 18.6 12 21" />
+            </svg>
+            Your domain · your branding · no Markdrop anywhere
           </StatusBar>
         ) : active === "artifacts" ? (
           <StatusBar>

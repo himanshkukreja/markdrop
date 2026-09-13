@@ -89,6 +89,11 @@ class ArtifactStatusResponse(BaseModel):
     # admin UI can nudge toward a separate site.
     origin_separate_site: bool = False
     max_file_bytes: int
+    # Video is allowed to be far larger. Reported separately because the upload
+    # page refuses a file client-side against max_file_bytes, so without this a
+    # 100 MB recording is rejected before it is ever offered to the server that
+    # would happily have accepted it.
+    max_video_bytes: int = 0
     quota_bytes: int
     used_bytes: int = 0
     accepted_types: list[str] = []

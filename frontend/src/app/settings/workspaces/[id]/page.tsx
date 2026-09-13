@@ -21,13 +21,59 @@ const primary =
 const ghost =
   "px-3 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors";
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+const SECTIONS = [
+  { id: "branding", label: "Branding" },
+  { id: "viewer", label: "Viewer" },
+  { id: "domains", label: "Domains" },
+  { id: "members", label: "Members" },
+  { id: "folders", label: "Folders" },
+];
+
+function Section({
+  id, title, hint, children,
+}: { id: string; title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="mb-8">
-      <h2 className="text-sm font-semibold mb-1">{title}</h2>
-      {hint && <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">{hint}</p>}
+    // scroll-mt clears the sticky header when the rail jumps to a section.
+    <section id={id} className="scroll-mt-24 mb-10">
+      <h2 className="text-base font-semibold mb-1">{title}</h2>
+      {hint && <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 leading-relaxed max-w-xl">{hint}</p>}
       {children}
     </section>
+  );
+}
+
+/** What a visitor's browser tab will look like once branding is applied.
+ *  Updates as you type, so the effect of these fields isn't left to imagination. */
+function BrandPreview({ branding, host }: { branding: Branding; host: string | null }) {
+  const name = branding.site_name?.trim() || "Markdrop";
+  const accent = branding.accent_color || "#3b82f6";
+  return (
+    <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white/60 dark:bg-gray-900/50">
+      <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 border-b border-gray-200 dark:border-gray-800">
+        Preview
+      </div>
+      <div className="p-3">
+        <div className="flex items-center gap-1.5 rounded-t-lg px-2.5 py-1.5 bg-gray-100 dark:bg-gray-800/70 max-w-full">
+          {branding.favicon_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={branding.favicon_url} alt="" className="w-3.5 h-3.5 rounded-[3px] shrink-0 object-cover"
+                 onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} />
+          ) : (
+            <span className="w-3.5 h-3.5 rounded-[3px] shrink-0 flex items-center justify-center text-[8px] font-bold text-white"
+                  style={{ background: accent }}>{name[0]?.toUpperCase()}</span>
+          )}
+          <span className="text-[11px] truncate text-gray-700 dark:text-gray-300">Quarterly plan — {name}</span>
+        </div>
+        <div className="rounded-b-lg bg-gray-50 dark:bg-gray-900 px-2.5 py-1.5 text-[10px] font-mono text-gray-500 truncate">
+          {host || "markdrop.in"}/a7f3q2
+        </div>
+        <div className="mt-3 h-1.5 w-2/3 rounded" style={{ background: accent, opacity: 0.8 }} />
+        <div className="mt-1.5 space-y-1">
+          <div className="h-1 w-full rounded bg-gray-200 dark:bg-gray-700/70" />
+          <div className="h-1 w-4/5 rounded bg-gray-200 dark:bg-gray-700/70" />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -116,16 +162,43 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
     );
   }
 
+  const verifiedHost = domains.find((d) => d.status === "verified" && d.kind === "app")?.host ?? null;
   const isAdmin = can(ws.role, "admin");
   const isMember = can(ws.role, "member");
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto max-w-2xl mx-auto w-full pb-16">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-bold truncate">{ws.name}</h1>
-        <a href="/settings/workspaces" className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 shrink-0">← All workspaces</a>
+    <div className="flex-1 min-h-0 overflow-y-auto w-full max-w-5xl mx-auto pb-20">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 mb-6 pb-5 border-b border-gray-200 dark:border-gray-800">
+        <div className="min-w-0">
+          <a href="/settings/workspaces" className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">← All workspaces</a>
+          <h1 className="mt-1.5 text-2xl font-bold truncate">{ws.name}</h1>
+          <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 capitalize">{ws.role}</span>
+            {verifiedHost && (
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono">
+                {verifiedHost}
+              </span>
+            )}
+            <span className="text-[11px] text-gray-400">
+              {domains.length} domain{domains.length === 1 ? "" : "s"} · {members.length} member{members.length === 1 ? "" : "s"}
+            </span>
+          </div>
+        </div>
       </div>
-      <p className="text-xs text-gray-400 mb-6 capitalize">Your role: {ws.role}</p>
+
+      <div className="grid lg:grid-cols-[168px_1fr] gap-8 items-start">
+        {/* Section rail — horizontal chips on narrow screens, sticky rail on wide */}
+        <nav className="lg:sticky lg:top-4 flex lg:flex-col gap-1 overflow-x-auto pb-1 -mx-1 px-1">
+          {SECTIONS.map((sec) => (
+            <a key={sec.id} href={`#${sec.id}`}
+               className="shrink-0 px-3 py-1.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
+              {sec.label}
+            </a>
+          ))}
+        </nav>
+
+        <div className="min-w-0">
 
       {error && <p className="text-sm text-red-500 mb-4">{error}</p>}
       {saved && <p className="text-sm text-emerald-600 dark:text-emerald-400 mb-4">{saved}</p>}
@@ -137,9 +210,11 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
 
       {/* ── Branding ─────────────────────────────────────────────────────── */}
       <Section
+        id="branding"
         title="Branding"
         hint="Applied to link previews, page titles and the favicon on your own domains. Leave blank to use Markdrop's."
       >
+        <div className="grid sm:grid-cols-[1fr_220px] gap-5 items-start">
         <div className="space-y-2">
           <input className={`${input} w-full`} placeholder="Site name (replaces “Markdrop”)"
             value={branding.site_name ?? ""} disabled={!isAdmin}
@@ -161,10 +236,13 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
             Remove Markdrop from preview cards and titles
           </label>
         </div>
+        <BrandPreview branding={branding} host={verifiedHost} />
+        </div>
       </Section>
 
       {/* ── Viewer behaviour ─────────────────────────────────────────────── */}
       <Section
+        id="viewer"
         title="Viewer behaviour"
         hint="Only applies on your own verified domains — never on markdrop.in, where we stay accountable for what's served."
       >
@@ -200,6 +278,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
 
       {/* ── Domains ──────────────────────────────────────────────────────── */}
       <Section
+        id="domains"
         title="Domains"
         hint="Any hostname you control. “Documents” serves pages and sign-in; “Files only” serves uploaded artifacts and never runs the app — one host can't do both."
       >
@@ -234,11 +313,13 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500">
                     {d.kind === "app" ? "Documents" : "Files only"}
                   </span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                  <span className={`inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full ${
                     d.status === "verified"
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
-                      : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"}`}>
-                    {d.status === "verified" ? "Verified" : "Awaiting DNS"}
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400"}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      d.status === "verified" ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
+                    {d.status === "verified" ? "Live" : "Awaiting DNS"}
                   </span>
                   {d.attached && <span className="text-[10px] text-gray-400">· attached</span>}
                   {isAdmin && (
@@ -277,7 +358,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
       </Section>
 
       {/* ── Members ──────────────────────────────────────────────────────── */}
-      <Section title="Members" hint="They need a Markdrop account first — sign-in creates it.">
+      <Section id="members" title="Members" hint="They need a Markdrop account first — sign-in creates it.">
         {isAdmin && (
           <div className="flex gap-2 mb-3">
             <input className={`${input} flex-1`} placeholder="person@company.com" type="email"
@@ -329,7 +410,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
       </Section>
 
       {/* ── Folders ──────────────────────────────────────────────────────── */}
-      <Section title="Folders" hint="Filing only — folders never change who can read a document.">
+      <Section id="folders" title="Folders" hint="Filing only — folders never change who can read a document.">
         {isMember && (
           <div className="flex gap-2 mb-3">
             <input className={`${input} flex-1`} placeholder="Folder name" value={newFolder}
@@ -362,6 +443,8 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </Section>
+        </div>
+      </div>
     </div>
   );
 }

@@ -84,6 +84,7 @@ async def artifact_status(
         origin_isolated=settings.artifact_origin_is_isolated,
         origin_separate_site=settings.artifact_origin_is_separate_site,
         max_file_bytes=settings.artifact_max_bytes,
+        max_video_bytes=settings.artifact_max_video_bytes,
         quota_bytes=settings.artifact_user_quota_bytes,
         used_bytes=used,
         accepted_types=sorted(art_service.BY_MIME.keys()),

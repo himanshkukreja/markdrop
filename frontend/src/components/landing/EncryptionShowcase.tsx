@@ -35,8 +35,8 @@ export default function EncryptionShowcase() {
   return (
     <section className="py-16 sm:py-20">
       <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center [&>*]:min-w-0">
-        {/* Copy */}
-        <Reveal>
+        {/* Copy — second on desktop, so the run of showcases keeps alternating */}
+        <Reveal className="lg:order-2">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/25">
             End-to-end encryption
           </span>
@@ -77,7 +77,7 @@ export default function EncryptionShowcase() {
         </Reveal>
 
         {/* Visual */}
-        <Reveal delay={120}>
+        <Reveal delay={120} className="lg:order-1">
           <div className="rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white/60 dark:bg-gray-900/50 vscode:bg-[#252526]/80 backdrop-blur-sm overflow-hidden">
             {/* In the browser */}
             <div className="px-4 sm:px-5 py-4">
