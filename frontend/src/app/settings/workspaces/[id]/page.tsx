@@ -7,6 +7,7 @@ import MarkdropLoader from "@/components/MarkdropLoader";
 import CopyButton from "@/components/CopyButton";
 import AssetUpload from "@/components/workspace/AssetUpload";
 import ColorPicker from "@/components/workspace/ColorPicker";
+import LibraryPanel from "@/components/workspace/LibraryPanel";
 import {
   can, getWorkspace, updateWorkspace, uploadBrandingAsset,
   listDomains, addDomain, verifyDomain, attachDomain, removeDomain,
@@ -24,9 +25,13 @@ const primary =
 const ghost =
   "px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 transition-colors";
 
-type TabId = "brand" | "domains" | "people" | "folders";
+type TabId = "library" | "brand" | "domains" | "people" | "folders";
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  {
+    id: "library", label: "Library",
+    icon: <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />,
+  },
   {
     id: "brand", label: "Brand & viewer",
     icon: <path d="M12 2 2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5" />,
@@ -203,7 +208,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
-  const [tab, setTab] = useState<TabId>("brand");
+  const [tab, setTab] = useState<TabId>("library");
 
   const [branding, setBranding] = useState<Branding | null>(null);
   const [settings, setSettings] = useState<WorkspaceSettings | null>(null);
@@ -371,6 +376,22 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
               <div className="rounded-xl border border-gray-200 dark:border-gray-800 px-4 py-2.5 text-xs text-gray-500">
                 You can view this workspace. Changing branding, domains or people needs the admin role.
               </div>
+            )}
+
+            {/* ── Shared library ─────────────────────────────────────────── */}
+            {tab === "library" && (
+              <Card
+                title="Shared library"
+                hint="Documents and artifacts people have chosen to share with this workspace. Private documents never appear here — they stay private until their owner shares them."
+              >
+                <LibraryPanel
+                  workspaceId={id}
+                  role={ws.role}
+                  folders={folders}
+                  accent={accent}
+                  onError={setError}
+                />
+              </Card>
             )}
 
             {/* ── Brand & viewer ─────────────────────────────────────────── */}

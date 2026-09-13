@@ -63,6 +63,8 @@ async def connect() -> None:
     await db["domains"].create_index("workspace_id")
     await db["folders"].create_index([("workspace_id", 1), ("parent_id", 1)])
     await db["documents"].create_index([("workspace_id", 1), ("folder_id", 1)], sparse=True)
+    # The shared library lists by workspace, newest edit first.
+    await db["documents"].create_index([("workspace_id", 1), ("updated_at", -1)], sparse=True)
 
     # Abuse reports
     await db["reports"].create_index([("doc_id", 1), ("ts", -1)])

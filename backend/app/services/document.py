@@ -8,6 +8,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.config import get_settings
 from app.models.document import Document
+from app.models.workspace import role_allows
 from app.schemas.document import DocumentCreate, DocumentUpdate
 from app.utils.security import generate_edit_secret, verify_edit_secret
 from app.utils.slug import generate_slug, is_reserved_slug, is_valid_slug, slugify
@@ -67,6 +68,42 @@ def _authorize(raw: dict, edit_secret: str | None, user_id: str | None) -> None:
     if edit_secret and verify_edit_secret(edit_secret, raw["edit_secret_hash"]):
         return
     raise HTTPException(status_code=403, detail="Not authorized to modify this document")
+
+
+async def _authorize_write(
+    db: AsyncIOMotorDatabase,
+    raw: dict,
+    edit_secret: str | None,
+    user_id: str | None,
+    *,
+    required: str = "member",
+) -> None:
+    """`_authorize`, plus the shared-workspace grant.
+
+    A document with no `workspace_id` is private to its owner and this behaves
+    exactly as it always has -- which is every document that existed before
+    workspaces, and still the default for new ones. The workspace path only ever
+    opens up a document whose owner explicitly put it there.
+
+    `required` is what separates editing from destroying. Members edit, because
+    that is the point of a shared library and the owner agreed to it when they
+    added the document. Deleting somebody else's work is a different act, so it
+    asks for admin -- the owner can always delete their own by the ownership
+    branch above.
+    """
+    try:
+        _authorize(raw, edit_secret, user_id)
+        return
+    except HTTPException:
+        workspace_id = raw.get("workspace_id")
+        if not workspace_id or not user_id:
+            raise
+        from app.services import workspace as ws_service
+
+        role = await ws_service.role_for(db, workspace_id, user_id)
+        if role_allows(role, required):  # type: ignore[arg-type]
+            return
+        raise
 
 
 async def create_document(
@@ -217,7 +254,7 @@ async def update_document(
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    _authorize(raw, edit_secret, user_id)
+    await _authorize_write(db, raw, edit_secret, user_id)
 
     now = datetime.now(timezone.utc)
     updates: dict = {"title": data.title or None, "updated_at": now}
@@ -261,12 +298,15 @@ async def delete_document(
     the caller can free the object too — otherwise the bytes would linger and
     keep counting against the owner's quota."""
     raw = await db["documents"].find_one(
-        {"slug": slug}, {"_id": 0, "edit_secret_hash": 1, "owner_id": 1, "blob_key": 1, "bundle_prefix": 1}
+        {"slug": slug},
+        {"_id": 0, "edit_secret_hash": 1, "owner_id": 1, "blob_key": 1,
+         "bundle_prefix": 1, "workspace_id": 1},
     )
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    _authorize(raw, edit_secret, user_id)
+    # Admin, not member: see `_authorize_write`.
+    await _authorize_write(db, raw, edit_secret, user_id, required="admin")
 
     await db["documents"].delete_one({"slug": slug})
     # A bundle is many objects under one prefix — hand that back in preference
@@ -354,7 +394,8 @@ async def change_slug(
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    _authorize(raw, edit_secret, user_id)
+    # A rename breaks every link already shared, so it sits with delete.
+    await _authorize_write(db, raw, edit_secret, user_id, required="admin")
 
     if new_slug == slug:
         return _doc_from_mongo(raw)

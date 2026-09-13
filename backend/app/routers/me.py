@@ -59,6 +59,8 @@ def _to_list_item(doc) -> MyDocListItem:
         type_label=art_service.label_for(doc.mime or "") if doc.kind == "artifact" else None,
         size_bytes=doc.size_bytes,
         original_filename=doc.original_filename,
+        workspace_id=doc.workspace_id,
+        folder_id=doc.folder_id,
     )
 
 

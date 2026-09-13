@@ -522,6 +522,13 @@ export interface MyDocListItem {
   type_label?: string | null;
   size_bytes?: number | null;
   original_filename?: string | null;
+  /** Null on a private document, which is the default for every document. */
+  workspace_id?: string | null;
+  folder_id?: string | null;
+  /** Only present on a workspace library listing. */
+  shared_by_name?: string | null;
+  shared_by_email?: string | null;
+  is_mine?: boolean;
 }
 
 export interface MyDocListResponse {

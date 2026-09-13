@@ -13,6 +13,7 @@ import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
 import VSCodeIcon from "@/components/VSCodeIcon";
 import MarkdropLoader from "@/components/MarkdropLoader";
+import ShareToWorkspace from "@/components/workspace/ShareToWorkspace";
 
 type Range = "7d" | "30d" | "all";
 
@@ -550,6 +551,15 @@ export default function DashboardPage() {
                     <ActionButton href={`/${d.slug}?edit=1`}>Edit</ActionButton>
                   )}
                   <ActionButton onClick={() => openRename(d.slug)}>Change URL</ActionButton>
+                  {/* Private by default. This is the only route from a personal
+                      document into a shared workspace library, and it states the
+                      consequences before it does anything. */}
+                  <ShareToWorkspace
+                    documentId={d.id}
+                    title={d.title || d.original_filename || d.slug}
+                    workspaceId={d.workspace_id ?? null}
+                    onChanged={load}
+                  />
                   <span className="mx-0.5 h-5 w-px bg-gray-200 dark:bg-gray-700 vscode:bg-[#3c3c3c]" aria-hidden />
                   <ActionButton onClick={() => setDeleteFor(d.slug)} variant="danger">Delete</ActionButton>
                 </div>

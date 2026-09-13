@@ -4,7 +4,7 @@
  * Kept out of lib/api.ts: that module is loaded by every public document page,
  * and none of this is reachable without a session.
  */
-import { API_BASE } from "@/lib/api";
+import { API_BASE, type MyDocListItem, type MyDocListResponse } from "@/lib/api";
 
 const TOKEN_KEY = "markdrop_token";
 
@@ -250,6 +250,47 @@ export const renameFolder = (id: string, folderId: string, name: string) =>
 export const deleteFolder = (id: string, folderId: string) =>
   request<{ unfiled_documents: number }>(`/api/v1/workspaces/${id}/folders/${folderId}`, {
     method: "DELETE",
+  });
+
+// ── Shared library ────────────────────────────────────────────────────────────
+//
+// A document is private until its owner shares it here. Nothing in this API can
+// surface a document that was never shared: the listing matches on workspace_id,
+// which a private document does not have.
+
+export const listLibrary = (
+  id: string,
+  opts: { page?: number; limit?: number; q?: string; kind?: string; folderId?: string | null; unfiled?: boolean } = {}
+) => {
+  const p = new URLSearchParams();
+  p.set("page", String(opts.page ?? 1));
+  p.set("limit", String(opts.limit ?? 20));
+  if (opts.q) p.set("q", opts.q);
+  if (opts.kind) p.set("kind", opts.kind);
+  if (opts.folderId) p.set("folder_id", opts.folderId);
+  if (opts.unfiled) p.set("unfiled", "true");
+  return request<MyDocListResponse>(`/api/v1/workspaces/${id}/documents?${p}`);
+};
+
+export const libraryCounts = (id: string) =>
+  request<Record<string, number>>(`/api/v1/workspaces/${id}/documents/counts`);
+
+/** Share a document you own. Everyone in the workspace can then read it, and
+ *  members and admins can edit it — the UI must say so before calling this. */
+export const shareToWorkspace = (id: string, documentId: string, folderId?: string | null) =>
+  request<MyDocListItem>(`/api/v1/workspaces/${id}/documents`, {
+    method: "POST",
+    body: JSON.stringify({ document_id: documentId, folder_id: folderId ?? null }),
+  });
+
+/** Unshare. The document itself is untouched and returns to its owner. */
+export const unshareFromWorkspace = (id: string, documentId: string) =>
+  request<void>(`/api/v1/workspaces/${id}/documents/${documentId}`, { method: "DELETE" });
+
+export const fileDocument = (id: string, documentId: string, folderId: string | null) =>
+  request<void>(`/api/v1/workspaces/${id}/documents/${documentId}/folder`, {
+    method: "PUT",
+    body: JSON.stringify({ folder_id: folderId }),
   });
 
 /** Roles that can act, by capability. Mirrors ROLE_RANK on the server — the UI

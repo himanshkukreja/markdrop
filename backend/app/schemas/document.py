@@ -167,6 +167,17 @@ class MyDocListItem(BaseModel):
     type_label: str | None = None
     size_bytes: int | None = None
     original_filename: str | None = None
+    # ── Workspace library ────────────────────────────────────────────────────
+    # Null on a private document, which is every document by default. Present on
+    # the owner's own dashboard too, so it can badge what is shared and with whom.
+    workspace_id: str | None = None
+    folder_id: str | None = None
+    # Only filled in on the shared-library listing, where "whose is this?" is a
+    # question the reader actually has. Never on a private listing, where the
+    # answer is always "yours".
+    shared_by_name: str | None = None
+    shared_by_email: str | None = None
+    is_mine: bool = True
 
 
 class MyDocListResponse(BaseModel):
@@ -175,3 +186,12 @@ class MyDocListResponse(BaseModel):
     page: int
     pages: int
 
+
+
+class LibraryAddRequest(BaseModel):
+    document_id: str
+    folder_id: str | None = None
+
+
+class LibraryFolderRequest(BaseModel):
+    folder_id: str | None = None
