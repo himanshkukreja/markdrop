@@ -2,6 +2,10 @@
 
 Minimal, anonymous markdown publishing tool. Paste markdown, get a shareable link instantly — no login required.
 
+Optionally **end-to-end encrypted**: your browser encrypts the document before it
+leaves the tab and the key travels in the URL fragment, so Markdrop stores
+ciphertext it holds no key to.
+
 **Live:** [markdrop.in](https://markdrop.in)
 
 ---
@@ -16,7 +20,20 @@ Minimal, anonymous markdown publishing tool. Paste markdown, get a shareable lin
 - Edit or delete via a secret key shown once at publish — built-in editor
 - **Password protection**, **expiry** (1d / 7d / 30d / custom), and view counts
 - **Dynamic link previews** — pasting a link in Slack/X/LinkedIn renders a card
-- Export to PDF, raw markdown view, 3 themes, fully responsive
+- **Live updates** — an open document refreshes itself when it changes elsewhere
+- Documents open **full screen** by default — one keypress back to the details
+- Export to PDF, raw markdown view, fully responsive
+
+### End-to-end encryption (opt-in)
+- Tick one box on `/new` and the document — **title included** — is encrypted in
+  your browser with AES-256-GCM before it is sent
+- The key lives in the `#` fragment of the link, which browsers never transmit
+  and strip from `Referer`, so it reaches no server, log or database
+- **Rotate the key** at any time; the old link stops opening the document
+- The key is remembered in the publishing browser, so losing the link isn't
+  automatically fatal — with a control to forget it on shared machines
+- See [End-to-end encryption](#end-to-end-encryption) for the threat model and
+  what it deliberately does *not* protect against
 
 ### Artifacts — share more than markdown
 - Paste an **HTML page** or upload a **PDF**, **Word doc**, **Excel/CSV**, image,
@@ -51,6 +68,7 @@ Minimal, anonymous markdown publishing tool. Paste markdown, get a shareable lin
 | Database | MongoDB Atlas (Motor async driver) |
 | Artifact storage | Cloudflare R2 (S3-compatible) |
 | Artifact origin | Cloudflare Worker on a separate domain |
+| Encryption | AES-256-GCM via WebCrypto, in the browser only |
 | Rate limiting | slowapi + Redis |
 | Image rendering | Pillow (OG cards, diagrams) + matplotlib (LaTeX) |
 | Frontend hosting | Vercel (`bom1`, co-located with the API) |
@@ -180,9 +198,19 @@ Content-Type: application/json
   "custom_slug": "my-slug",        // optional, 3-50 chars [a-zA-Z0-9_-]
   "expires_in": "7d",              // "never" | "1d" | "7d" | "30d" | "custom"
   "custom_expires_at": null,       // ISO 8601 datetime, required when expires_in="custom"
-  "read_password": "secret123"     // optional — password-protect the document
+  "read_password": "secret123",    // optional — password-protect the document
+  "encrypted": false               // optional — see below
 }
 ```
+
+Set `encrypted: true` only when `content` is already a client-produced envelope
+(`mdx1.<iv>.<ciphertext>`) and `title` is `null`. The server never verifies it —
+it cannot, holding no key — it records it so every path that would read, render,
+export or overwrite plaintext refuses instead. The flag is **immutable after
+creation**: the server can neither encrypt an existing document nor decrypt one.
+
+Encrypted documents reject Google Docs export (`422`), VS Code sync (`409`),
+server-side copy (`422`) and admin edit (`422`).
 
 **Response `201`**
 ```json
@@ -320,6 +348,73 @@ would let one account overwrite another's artifact.
 Zip bundles are extracted server-side with caps on entry count, per-file size
 and total uncompressed size, and any entry escaping the prefix via `..` or an
 absolute path is refused.
+
+---
+
+## End-to-end encryption
+
+Opt-in per document. Everything below happens in the browser; the server is
+never given the means to undo any of it.
+
+### How it works
+
+1. The browser generates an **AES-256-GCM** key with WebCrypto.
+2. Title and body are sealed into one envelope,
+   `mdx1.<base64url iv>.<base64url ciphertext>`, over `{"t": title, "c": body}`.
+3. Only the envelope is sent. The stored `title` column is `null`.
+4. The key is appended to the link as a **fragment**: `markdrop.in/slug#k=…`.
+
+Fragments are the one part of a URL browsers do not put in the request line, and
+they are stripped from `Referer`. The key therefore never reaches nginx, Vercel,
+the API, the logs or MongoDB. You can confirm this yourself in a network tab.
+
+The title is sealed *inside* the envelope rather than encrypted into its own
+column for two reasons: a document called "Q4 layoffs" leaks the thing worth
+protecting even when the body is safe, and the ciphertext of a 200-character
+title overflows that column anyway.
+
+Because base64 costs a third, an encrypted document holds about **370,000**
+characters of text against the usual 500,000.
+
+### What this does and does not give you
+
+**It does mean:** Markdrop stores ciphertext it has no key for. A database dump,
+a subpoena, or a rogue operator yields bytes and nothing else.
+
+**It does not mean** only authorised people can read the document. *The link is
+the key.* Anyone you forward it to can read it, and so can anyone who finds it
+in your browser history. Encryption removes the server from the set of people
+who can read your document; it does not remove anyone you send the link to.
+
+For the second property you want a passphrase-derived key — on the roadmap, and
+additive to what exists.
+
+### Losing the key
+
+There is no recovery path, and being logged in does not create one. Ownership
+gives you control of the *record* — delete, expiry, analytics — never access to
+the contents. If logging in could unlock the document, the encryption would be
+theatre.
+
+Two things soften it in practice:
+
+- The key is remembered in `localStorage` on browsers that have opened the
+  document, so losing the link is survivable if you still have the machine.
+  It never leaves the browser, and **Forget key on this device** removes it.
+- **Rotation** issues a new key and invalidates the old link — useful when a
+  link has spread further than intended. It cannot un-read what was already read.
+
+### What encrypted documents give up
+
+Every server-side feature that needs to read the text is refused rather than
+silently broken: **Google Docs export** (it renders Mermaid and LaTeX
+server-side), **VS Code sync** (both directions — a push would overwrite the
+ciphertext with plaintext and destroy the document), **server-side copy**, and
+**admin edit**. Moderation keeps delete and expiry, which need no plaintext.
+Link previews fall back to a generic card.
+
+Artifacts are **not** encrypted: their bytes live in R2 and the viewers render
+them server-side. That is a separate design.
 
 ---
 
@@ -564,14 +659,16 @@ Artifacts stay dormant until all of these are set: `/upload` shows a
 ## Roadmap
 
 - [x] Phase 1 — Anonymous markdown publishing with edit/delete via secret key
-- [x] Phase 2 — Custom slugs, expiry, view counts, password protection, toolbar, themes
+- [x] Phase 2 — Custom slugs, expiry, view counts, password protection, toolbar
 - [x] Phase 3 — P2P file sharing (WebRTC DataChannel, no server storage)
 - [x] Phase 4 — Accounts, dashboard, per-document analytics, API tokens
 - [x] Phase 5 — VS Code two-way sync, Google Docs export, live document updates
 - [x] Phase 6 — Mermaid + KaTeX rendering, dynamic OG link previews, README builder
 - [x] Phase 7 — Artifacts: HTML, PDF, Office and zipped sites on R2 + isolated origin
-- [ ] Next — Artifact screenshots for OG cards, PPTX, document version history,
-      TURN server for P2P behind strict NAT, Google Docs two-way sync
+- [x] Phase 8 — Opt-in end-to-end encryption, key rotation and recovery
+- [ ] Next — Passphrase-derived keys (nothing secret in the link), encrypted
+      artifacts, artifact screenshots for OG cards, PPTX, document version
+      history, TURN server for P2P behind strict NAT, Google Docs two-way sync
 
 ---
 
