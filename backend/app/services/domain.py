@@ -215,6 +215,77 @@ async def verify_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: 
     return _to_domain(raw)
 
 
+# ── Attachment (telling the edge this host is ours to serve) ─────────────────
+
+
+class AttachUnavailable(RuntimeError):
+    """Raised when attachment is requested but no hosting credentials exist."""
+
+
+async def attach_to_hosting(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: str) -> Domain:
+    """Register a verified host with the hosting project so TLS is issued.
+
+    Ownership first, always. Attaching an unverified host would let anyone point
+    a hostname they don't control at us and have a certificate issued for it.
+    """
+    try:
+        oid = ObjectId(domain_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    raw = await db["domains"].find_one({"_id": oid, "workspace_id": workspace_id})
+    if not raw:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    domain = _to_domain(raw)
+
+    if domain.status != "verified":
+        raise HTTPException(
+            status_code=409,
+            detail="Prove ownership first — the DNS record has to be visible before "
+            "the domain can be attached.",
+        )
+    if not settings.vercel_domains_configured:
+        raise AttachUnavailable(
+            "No hosting credentials are configured, so this domain has to be attached by hand."
+        )
+
+    import httpx
+
+    params = {}
+    if settings.vercel_team_id:
+        # Only when set: an empty teamId is not the same as omitting it.
+        params["teamId"] = settings.vercel_team_id
+
+    url = f"https://api.vercel.com/v10/projects/{settings.vercel_project_id}/domains"
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            url,
+            params=params,
+            headers={"Authorization": f"Bearer {settings.vercel_api_token}"},
+            json={"name": domain.host},
+        )
+
+    now = datetime.now(timezone.utc)
+    # 409 means the host is already on the project — the desired end state, so
+    # treat it as success rather than making the customer care about the retry.
+    if resp.status_code in (200, 201) or resp.status_code == 409:
+        await db["domains"].update_one(
+            {"_id": oid}, {"$set": {"attached": True, "last_error": None, "last_checked_at": now}}
+        )
+        raw.update(attached=True, last_error=None, last_checked_at=now)
+        return _to_domain(raw)
+
+    # Surface the host's own words — "domain is already in use by another
+    # project" is far more actionable than a generic failure.
+    try:
+        detail = resp.json().get("error", {}).get("message") or resp.text[:200]
+    except Exception:
+        detail = resp.text[:200]
+    await db["domains"].update_one(
+        {"_id": oid}, {"$set": {"last_error": detail, "last_checked_at": now}}
+    )
+    raise HTTPException(status_code=502, detail=f"Hosting provider refused the domain: {detail}")
+
+
 # ── Resolution (what the edge asks on every request) ──────────────────────────
 
 

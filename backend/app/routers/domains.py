@@ -5,7 +5,7 @@ anyone is served once its `_markdrop-verify` TXT record has been seen, because
 otherwise anyone could claim a hostname they don't control.
 """
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
@@ -109,6 +109,31 @@ async def verify_domain(
 ):
     await ws_service.require_role(db, workspace_id, user.id, "admin")
     domain = await domain_service.verify_domain(db, workspace_id, domain_id)
+    return _to_response(domain)
+
+
+@router.post(
+    "/workspaces/{workspace_id}/domains/{domain_id}/attach", response_model=DomainResponse
+)
+@limiter.limit("20/minute")
+async def attach_domain(
+    request: Request,
+    workspace_id: str,
+    domain_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Attach a verified host so the edge will terminate TLS for it.
+
+    Returns 501 rather than a 500 when no hosting credentials are configured:
+    that is a deployment that hasn't enabled the integration, not a fault, and
+    the caller should be told to finish the step by hand.
+    """
+    await ws_service.require_role(db, workspace_id, user.id, "admin")
+    try:
+        domain = await domain_service.attach_to_hosting(db, workspace_id, domain_id)
+    except domain_service.AttachUnavailable as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
     return _to_response(domain)
 
 
