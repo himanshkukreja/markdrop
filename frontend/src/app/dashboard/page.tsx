@@ -12,6 +12,7 @@ import ArtifactBadge, { formatBytes } from "@/components/ArtifactBadge";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
 import VSCodeIcon from "@/components/VSCodeIcon";
+import MarkdropLoader from "@/components/MarkdropLoader";
 
 type Range = "7d" | "30d" | "all";
 
@@ -68,7 +69,9 @@ function AnalyticsPanel({ slug }: { slug: string }) {
       </div>
 
       {loading || !data ? (
-        <p className="text-xs text-gray-400 py-4 text-center">Loading…</p>
+        <div className="py-4 flex justify-center">
+          <MarkdropLoader label={null} size="sm" hideWordmark />
+        </div>
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -328,7 +331,11 @@ export default function DashboardPage() {
   }
 
   if (authLoading || (!user && loading)) {
-    return <div className="flex-1 flex items-center justify-center text-sm text-gray-400">Loading…</div>;
+    return (
+      <div className="flex-1 min-h-[60vh] flex items-center justify-center">
+        <MarkdropLoader label="Loading your dashboard…" />
+      </div>
+    );
   }
 
   return (
@@ -428,7 +435,9 @@ export default function DashboardPage() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-gray-400">Loading documents…</p>
+        <div className="py-6 flex justify-center">
+          <MarkdropLoader label="Loading documents…" size="sm" />
+        </div>
       ) : docs.length === 0 ? (
         <div className="text-center py-16 text-gray-500 dark:text-gray-400 border border-dashed border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-xl">
           {kindFilter === "artifact" ? (

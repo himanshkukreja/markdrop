@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { listApiTokens, createApiToken, revokeApiToken, ApiTokenItem } from "@/lib/api";
 import Modal from "@/components/Modal";
+import MarkdropLoader from "@/components/MarkdropLoader";
 
 export default function TokensPage() {
   const { user, loading: authLoading } = useAuth();
@@ -45,7 +46,11 @@ export default function TokensPage() {
   }
 
   if (authLoading || (!user && loading)) {
-    return <div className="flex-1 flex items-center justify-center text-sm text-gray-400">Loading…</div>;
+    return (
+      <div className="flex-1 min-h-[60vh] flex items-center justify-center">
+        <MarkdropLoader label="Loading your settings…" />
+      </div>
+    );
   }
 
   return (
@@ -70,7 +75,9 @@ export default function TokensPage() {
       </form>
 
       {loading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <div className="py-6 flex justify-center">
+          <MarkdropLoader label="Loading tokens…" size="sm" />
+        </div>
       ) : tokens.length === 0 ? (
         <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 border border-dashed border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-xl">
           No tokens yet.

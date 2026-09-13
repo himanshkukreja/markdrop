@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { createApiToken } from "@/lib/api";
+import MarkdropLoader from "@/components/MarkdropLoader";
 
 function AuthorizeInner() {
   const params = useSearchParams();
@@ -17,7 +18,11 @@ function AuthorizeInner() {
   const validRedirect = redirect.startsWith("vscode://") || redirect.startsWith("vscode-insiders://");
 
   if (loading) {
-    return <p className="text-sm text-gray-400">Loading…</p>;
+    return (
+      <div className="py-10 flex justify-center">
+        <MarkdropLoader label="Loading…" size="sm" />
+      </div>
+    );
   }
 
   if (!user) {

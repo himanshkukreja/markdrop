@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Spinner from "@/components/Spinner";
 import { formatBytes } from "@/components/ArtifactBadge";
+import MarkdropLoader from "@/components/MarkdropLoader";
 
 /**
  * Client-side preview of a file before it's published. Nothing is uploaded.
@@ -204,7 +204,7 @@ export default function ArtifactPreview({
         </Centered>
       );
     }
-    if (busy) return <Centered><Spinner className="w-5 h-5 mx-auto mb-2" />Preparing preview…</Centered>;
+    if (busy) return <Centered><MarkdropLoader label="Preparing preview…" size="sm" /></Centered>;
 
     if (kind === "html") {
       const source = html !== undefined ? html : docHtml;

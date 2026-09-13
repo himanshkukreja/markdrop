@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import EmailPanel from "./EmailPanel";
 import ArtifactBadge from "@/components/ArtifactBadge";
+import MarkdropLoader from "@/components/MarkdropLoader";
 import { formatBytes } from "@/lib/webrtc";
 import {
   AdminDocListItem,
@@ -676,7 +677,7 @@ export default function AdminApp() {
       {/* Table */}
       {dashLoading ? (
         <div className="flex justify-center py-16">
-          <div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+          <MarkdropLoader label="Loading documents…" size="sm" />
         </div>
       ) : docs.length === 0 ? (
         <div className="text-center py-16 text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
