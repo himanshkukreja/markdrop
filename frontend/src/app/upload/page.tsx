@@ -18,7 +18,7 @@ import {
 type Tab = "paste" | "upload";
 
 const ACCEPT =
-  ".html,.htm,.pdf,.docx,.csv,.xlsx,.xls,.json,.txt,.zip,.png,.jpg,.jpeg,.gif,.webp,.svg";
+  ".html,.htm,.pdf,.docx,.csv,.xlsx,.xls,.json,.txt,.zip,.png,.jpg,.jpeg,.gif,.webp,.svg,.mp4,.mov,.webm,.ogv";
 const SLUG_PATTERN = /^[a-zA-Z0-9_-]*$/;
 
 // Shown in the empty dropzone. Colours mirror components/ArtifactBadge.tsx so
@@ -30,6 +30,7 @@ const FILE_KINDS = [
   { label: "Word", cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-blue-500/25" },
   { label: "CSV", cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/25" },
   { label: "Images", cls: "bg-violet-500/10 text-violet-600 dark:text-violet-400 ring-violet-500/25" },
+  { label: "Video", cls: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400 ring-fuchsia-500/25" },
   { label: ".zip site", cls: "bg-teal-500/10 text-teal-600 dark:text-teal-400 ring-teal-500/25" },
 ];
 
@@ -42,6 +43,7 @@ function describeFile(f: File): string {
   if (ext === "docx") return "a document";
   if (ext === "zip") return "a multi-file site";
   if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) return "an image";
+  if (["mp4", "mov", "webm", "ogv"].includes(ext)) return "a playable video";
   return "";
 }
 

@@ -17,7 +17,7 @@
  * public ones are unguessable capability URLs and cache immutably at the edge.
  */
 
-const VIEWERS = new Set(["pdf", "sheet", "text", "docx"]);
+const VIEWERS = new Set(["pdf", "sheet", "text", "docx", "video"]);
 
 // Types we are willing to hand to the browser to *render*. Anything else is
 // forced to download, so an unexpected upload can never execute as a page.
@@ -35,7 +35,46 @@ const INLINE_TYPES = new Set([
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/ogg",
 ]);
+
+/**
+ * Parse a Range header into an R2 range, or null.
+ *
+ * Video is unplayable without this. A browser asks for a few hundred kilobytes
+ * at a time and expects 206 with Content-Range; handed the whole file with 200
+ * it cannot seek at all, and on a large file some browsers refuse to start.
+ *
+ * Only the single-range form is handled. Multipart ranges exist, are vanishingly
+ * rare from media elements, and answering them wrongly is worse than answering
+ * the whole object — so anything else falls back to a normal 200.
+ */
+function parseRange(header, size) {
+  if (!header) return null;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!m) return null;
+  const [, rawStart, rawEnd] = m;
+  if (rawStart === "" && rawEnd === "") return null;
+
+  let start, end;
+  if (rawStart === "") {
+    // "bytes=-500" means the final 500 bytes, not the first 500.
+    const suffix = Number(rawEnd);
+    if (!Number.isFinite(suffix) || suffix <= 0) return null;
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else {
+    start = Number(rawStart);
+    end = rawEnd === "" ? size - 1 : Number(rawEnd);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+    end = Math.min(end, size - 1);
+  }
+  if (start > end || start >= size || start < 0) return { unsatisfiable: true };
+  return { offset: start, length: end - start + 1, start, end };
+}
 
 export default {
   async fetch(request, env) {
@@ -136,8 +175,10 @@ async function verifyToken(token, key, expectedBlobKey) {
 async function serveRaw(blobKey, url, env, request) {
   if (!blobKey.startsWith("art/")) return notFound();
 
-  const obj = await env.ARTIFACTS.get(blobKey);
-  if (!obj) return notFound();
+  // HEAD first: the size is needed to resolve a Range, and fetching the body to
+  // find out how big it is would defeat the point of ranging in the first place.
+  const head = await env.ARTIFACTS.head(blobKey);
+  if (!head) return notFound();
 
   // FAIL CLOSED. Serve without a token only when the object is explicitly
   // marked public; anything unmarked — a partial write, a metadata update that
@@ -145,7 +186,7 @@ async function serveRaw(blobKey, url, env, request) {
   // The previous check was the other way round (private only when flagged), and
   // because nothing ever set that flag, password-protected artifacts were
   // served to anyone holding the URL.
-  const isPublic = obj.customMetadata?.public === "1";
+  const isPublic = head.customMetadata?.public === "1";
   const token = url.searchParams.get("t");
   if (!isPublic) {
     if (!token || !(await verifyToken(token, env.ARTIFACT_SIGNING_KEY, blobKey))) {
@@ -156,10 +197,13 @@ async function serveRaw(blobKey, url, env, request) {
     }
   }
 
-  const type = obj.httpMetadata?.contentType || "application/octet-stream";
+  const type = head.httpMetadata?.contentType || "application/octet-stream";
   const headers = new Headers({ ...baseHeaders(), ...corsHeaders(request) });
   headers.set("content-type", type);
-  headers.set("etag", obj.httpEtag);
+  headers.set("etag", head.httpEtag);
+  // Advertised unconditionally: a player checks for this before it will let
+  // anyone drag the scrubber, whatever the current request asked for.
+  headers.set("accept-ranges", "bytes");
 
   if (INLINE_TYPES.has(type)) {
     headers.set("content-disposition", "inline");
@@ -172,7 +216,7 @@ async function serveRaw(blobKey, url, env, request) {
   // must be revalidated on every request. Without this an edit stays invisible
   // for the life of the cache entry — and the key can't simply be rotated,
   // because already-rendered pages hold the old URL.
-  const isLive = obj.customMetadata?.live === "1";
+  const isLive = head.customMetadata?.live === "1";
 
   if (!isPublic) {
     // Token-gated: must not sit in a shared cache.
@@ -186,7 +230,30 @@ async function serveRaw(blobKey, url, env, request) {
     headers.set("cache-control", "public, max-age=300");
   }
 
-  if (request.method === "HEAD") return new Response(null, { headers });
+  if (request.method === "HEAD") {
+    headers.set("content-length", String(head.size));
+    return new Response(null, { headers });
+  }
+
+  const range = parseRange(request.headers.get("range"), head.size);
+  if (range?.unsatisfiable) {
+    headers.set("content-range", `bytes */${head.size}`);
+    return new Response(null, { status: 416, headers });
+  }
+
+  if (range) {
+    const part = await env.ARTIFACTS.get(blobKey, {
+      range: { offset: range.offset, length: range.length },
+    });
+    if (!part) return notFound();
+    headers.set("content-range", `bytes ${range.start}-${range.end}/${head.size}`);
+    headers.set("content-length", String(range.length));
+    return new Response(part.body, { status: 206, headers });
+  }
+
+  const obj = await env.ARTIFACTS.get(blobKey);
+  if (!obj) return notFound();
+  headers.set("content-length", String(head.size));
   return new Response(obj.body, { headers });
 }
 
@@ -198,6 +265,7 @@ function serveViewer(renderer, blobKey, url, env) {
     renderer === "pdf" ? pdfViewer(src)
     : renderer === "sheet" ? sheetViewer(src)
     : renderer === "docx" ? docxViewer(src)
+    : renderer === "video" ? videoViewer(src)
     : textViewer(src);
   return new Response(html, {
     headers: {
@@ -421,5 +489,234 @@ fetch(${JSON.stringify(src)})
       t.length > 2000000 ? t.slice(0, 2000000) + '\\n\\n… truncated' : t;
   })
   .catch(e => { document.getElementById('out').textContent = 'Could not load: ' + e.message; });
+</script>`;
+}
+
+/**
+ * Custom video player.
+ *
+ * Not <video controls>: the native chrome differs on every browser, can't be
+ * styled, and has no speed control worth the name on most of them. This is one
+ * player that looks and behaves the same everywhere, and it earns its keep with
+ * the things people actually want on a shared recording — scrubbing with a
+ * buffered indicator, speed, frame stepping and keyboard control.
+ *
+ * Everything here is inline. The page renders inside a sandboxed iframe on a
+ * throwaway origin with no build step and no network beyond the video itself.
+ */
+function videoViewer(src) {
+  return `<!doctype html><meta charset="utf-8"><title>Video</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#08090c;color:#e5e7eb;
+    font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+  #stage{position:relative;height:100%;display:flex;align-items:center;justify-content:center;background:#08090c}
+  video{max-width:100%;max-height:100%;display:block;background:#000}
+  /* Controls fade out during playback and come back on any intent to interact. */
+  #ui{position:absolute;left:0;right:0;bottom:0;padding:44px 14px 12px;
+    background:linear-gradient(transparent,rgba(0,0,0,.82) 62%);
+    opacity:0;transition:opacity .18s ease;pointer-events:none}
+  #stage.show #ui,#stage:focus-within #ui{opacity:1;pointer-events:auto}
+  #stage.idle{cursor:none}
+  /* Scrubber: buffered under played under an oversized invisible hit area. */
+  .bar{position:relative;height:16px;display:flex;align-items:center;cursor:pointer}
+  .track{position:relative;height:4px;width:100%;border-radius:99px;background:rgba(255,255,255,.22);overflow:hidden;transition:height .12s}
+  .bar:hover .track{height:7px}
+  .buffered{position:absolute;inset:0 auto 0 0;background:rgba(255,255,255,.3);width:0}
+  .played{position:absolute;inset:0 auto 0 0;background:#3b82f6;width:0}
+  .knob{position:absolute;top:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;
+    background:#fff;transform:translateY(-50%) scale(0);transition:transform .12s;pointer-events:none}
+  .bar:hover .knob{transform:translateY(-50%) scale(1)}
+  #hoverTime{position:absolute;bottom:22px;transform:translateX(-50%);background:#111827;
+    border:1px solid #263043;padding:2px 6px;border-radius:5px;font-variant-numeric:tabular-nums;
+    font-size:11px;display:none;pointer-events:none;white-space:nowrap}
+  .row{display:flex;align-items:center;gap:6px;margin-top:8px}
+  button{background:transparent;border:0;color:#e5e7eb;cursor:pointer;padding:6px;border-radius:7px;
+    display:inline-flex;align-items:center;justify-content:center;line-height:0}
+  button:hover{background:rgba(255,255,255,.12)}
+  button:focus-visible{outline:2px solid #3b82f6;outline-offset:1px}
+  .time{font-variant-numeric:tabular-nums;font-size:12px;color:#cbd5e1;padding:0 4px;white-space:nowrap}
+  .spacer{flex:1}
+  .vol{display:flex;align-items:center;gap:4px}
+  .vol input{width:0;opacity:0;transition:width .16s,opacity .16s;accent-color:#3b82f6;cursor:pointer}
+  .vol:hover input,.vol input:focus{width:72px;opacity:1}
+  .menu{position:relative}
+  .menu>div{position:absolute;bottom:38px;right:0;background:#0f1623;border:1px solid #263043;
+    border-radius:9px;padding:4px;display:none;min-width:104px;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+  .menu.open>div{display:block}
+  .menu div button{width:100%;justify-content:space-between;font-size:12px;padding:6px 9px;line-height:1.4}
+  .menu div button[aria-checked=true]{color:#60a5fa}
+  #big{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:transparent;border:0;cursor:pointer;padding:0}
+  #big span{width:66px;height:66px;border-radius:50%;background:rgba(8,9,12,.62);backdrop-filter:blur(3px);
+    display:flex;align-items:center;justify-content:center;transition:transform .16s,opacity .16s}
+  #stage.playing #big span{opacity:0;transform:scale(.86)}
+  #toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,9,12,.8);
+    padding:9px 15px;border-radius:9px;font-size:13px;opacity:0;transition:opacity .18s;pointer-events:none}
+  #toast.on{opacity:1}
+  #err{padding:2rem;color:#94a3b8;text-align:center;max-width:32rem}
+  #err code{color:#cbd5e1;font-size:12px}
+</style>
+<div id="stage" tabindex="0">
+  <video id="v" playsinline preload="metadata" src="${src}"></video>
+  <button id="big" aria-label="Play"><span><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></span></button>
+  <div id="toast"></div>
+  <div id="ui">
+    <div class="bar" id="bar">
+      <div class="track"><div class="buffered" id="buf"></div><div class="played" id="played"></div></div>
+      <div class="knob" id="knob"></div>
+      <div id="hoverTime"></div>
+    </div>
+    <div class="row">
+      <button id="play" aria-label="Play"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+      <button id="back" aria-label="Back 10 seconds" title="Back 10s (←)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9l5 4"/><path d="M6 9h7a5 5 0 0 1 0 10h-2"/></svg></button>
+      <button id="fwd" aria-label="Forward 10 seconds" title="Forward 10s (→)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m13 5 5 4-5 4"/><path d="M18 9h-7a5 5 0 0 0 0 10h2"/></svg></button>
+      <div class="vol">
+        <button id="mute" aria-label="Mute"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path id="wave" d="M16.5 12a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg></button>
+        <input id="vol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+      </div>
+      <span class="time" id="time">0:00 / 0:00</span>
+      <span class="spacer"></span>
+      <div class="menu" id="speedMenu">
+        <button id="speedBtn" aria-label="Playback speed" title="Speed">1×</button>
+        <div id="speedList"></div>
+      </div>
+      <button id="pip" aria-label="Picture in picture" title="Picture in picture"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="8" height="6" rx="1" fill="currentColor"/></svg></button>
+      <button id="fs" aria-label="Full screen" title="Full screen (f)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var v=document.getElementById('v'),stage=document.getElementById('stage');
+  var played=document.getElementById('played'),buf=document.getElementById('buf'),knob=document.getElementById('knob');
+  var bar=document.getElementById('bar'),hoverTime=document.getElementById('hoverTime');
+  var timeEl=document.getElementById('time'),toast=document.getElementById('toast');
+  var SPEEDS=[0.25,0.5,0.75,1,1.25,1.5,1.75,2];
+
+  function fmt(t){
+    if(!isFinite(t)||t<0)t=0;
+    var h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=Math.floor(t%60);
+    return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0');
+  }
+  function flash(msg){toast.textContent=msg;toast.classList.add('on');
+    clearTimeout(flash.t);flash.t=setTimeout(function(){toast.classList.remove('on')},700)}
+
+  // Controls hide while playing and return on movement or focus.
+  var idleTimer;
+  function wake(){
+    stage.classList.add('show');stage.classList.remove('idle');
+    clearTimeout(idleTimer);
+    if(!v.paused)idleTimer=setTimeout(function(){
+      stage.classList.remove('show');stage.classList.add('idle');},2200);
+  }
+  stage.addEventListener('mousemove',wake);
+  stage.addEventListener('touchstart',wake,{passive:true});
+  wake();
+
+  function setIcon(el,playing){
+    el.innerHTML = playing
+      ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>'
+      : '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+  }
+  function toggle(){ v.paused ? v.play().catch(function(){}) : v.pause(); }
+
+  document.getElementById('play').onclick=toggle;
+  document.getElementById('big').onclick=toggle;
+  v.addEventListener('play',function(){stage.classList.add('playing');setIcon(document.getElementById('play'),true);wake()});
+  v.addEventListener('pause',function(){stage.classList.remove('playing');setIcon(document.getElementById('play'),false);wake()});
+
+  document.getElementById('back').onclick=function(){v.currentTime=Math.max(0,v.currentTime-10);flash('−10s')};
+  document.getElementById('fwd').onclick=function(){v.currentTime=Math.min(v.duration||0,v.currentTime+10);flash('+10s')};
+
+  function paint(){
+    var d=v.duration||0,p=d?v.currentTime/d*100:0;
+    played.style.width=p+'%';knob.style.left=p+'%';
+    timeEl.textContent=fmt(v.currentTime)+' / '+fmt(d);
+    if(v.buffered.length){
+      // The range under the playhead, not range 0 — after a seek they differ.
+      for(var i=0;i<v.buffered.length;i++){
+        if(v.buffered.start(i)<=v.currentTime&&v.currentTime<=v.buffered.end(i)){
+          buf.style.width=(d?v.buffered.end(i)/d*100:0)+'%';break;
+        }
+      }
+    }
+  }
+  v.addEventListener('timeupdate',paint);
+  v.addEventListener('progress',paint);
+  v.addEventListener('loadedmetadata',paint);
+
+  function seekFromEvent(e){
+    var r=bar.getBoundingClientRect();
+    var x=((e.touches?e.touches[0].clientX:e.clientX)-r.left)/r.width;
+    return Math.max(0,Math.min(1,x))*(v.duration||0);
+  }
+  var scrubbing=false;
+  bar.addEventListener('pointerdown',function(e){scrubbing=true;bar.setPointerCapture(e.pointerId);v.currentTime=seekFromEvent(e);paint()});
+  bar.addEventListener('pointermove',function(e){
+    var r=bar.getBoundingClientRect(),x=(e.clientX-r.left)/r.width;
+    if(x>=0&&x<=1&&v.duration){hoverTime.style.display='block';hoverTime.style.left=(x*100)+'%';hoverTime.textContent=fmt(x*v.duration)}
+    if(scrubbing){v.currentTime=seekFromEvent(e);paint()}
+  });
+  bar.addEventListener('pointerleave',function(){hoverTime.style.display='none'});
+  bar.addEventListener('pointerup',function(e){scrubbing=false;try{bar.releasePointerCapture(e.pointerId)}catch(_){}} );
+
+  var volEl=document.getElementById('vol'),wave=document.getElementById('wave');
+  volEl.oninput=function(){v.volume=+volEl.value;v.muted=+volEl.value===0};
+  document.getElementById('mute').onclick=function(){v.muted=!v.muted;flash(v.muted?'Muted':'Unmuted')};
+  v.addEventListener('volumechange',function(){
+    volEl.value=v.muted?0:v.volume; wave.style.opacity=(v.muted||!v.volume)?0.25:1;
+  });
+
+  var menu=document.getElementById('speedMenu'),list=document.getElementById('speedList'),sBtn=document.getElementById('speedBtn');
+  SPEEDS.forEach(function(sp){
+    var b=document.createElement('button');
+    b.textContent=sp+'×';b.setAttribute('role','menuitemradio');
+    b.setAttribute('aria-checked',sp===1?'true':'false');
+    b.onclick=function(){
+      v.playbackRate=sp;sBtn.textContent=sp+'×';menu.classList.remove('open');
+      [].forEach.call(list.children,function(c){c.setAttribute('aria-checked',c===b?'true':'false')});
+      flash(sp+'× speed');
+    };
+    list.appendChild(b);
+  });
+  sBtn.onclick=function(e){e.stopPropagation();menu.classList.toggle('open')};
+  document.addEventListener('click',function(){menu.classList.remove('open')});
+
+  var pip=document.getElementById('pip');
+  if(!document.pictureInPictureEnabled)pip.style.display='none';
+  pip.onclick=function(){
+    (document.pictureInPictureElement?document.exitPictureInPicture():v.requestPictureInPicture()).catch(function(){});
+  };
+  document.getElementById('fs').onclick=function(){
+    // The stage, not the video: fullscreening the element itself would take the
+    // custom controls away and hand back the browser's.
+    (document.fullscreenElement?document.exitFullscreen():stage.requestFullscreen()).catch(function(){});
+  };
+
+  stage.addEventListener('keydown',function(e){
+    var k=e.key.toLowerCase();
+    if(k===' '||k==='k'){e.preventDefault();toggle()}
+    else if(k==='arrowleft'||k==='j'){e.preventDefault();v.currentTime=Math.max(0,v.currentTime-(k==='j'?10:5));flash('−'+(k==='j'?10:5)+'s')}
+    else if(k==='arrowright'||k==='l'){e.preventDefault();v.currentTime=Math.min(v.duration||0,v.currentTime+(k==='l'?10:5));flash('+'+(k==='l'?10:5)+'s')}
+    else if(k==='arrowup'){e.preventDefault();v.volume=Math.min(1,v.volume+.1);flash('Volume '+Math.round(v.volume*100)+'%')}
+    else if(k==='arrowdown'){e.preventDefault();v.volume=Math.max(0,v.volume-.1);flash('Volume '+Math.round(v.volume*100)+'%')}
+    else if(k==='f'){e.preventDefault();document.getElementById('fs').click()}
+    else if(k==='m'){e.preventDefault();document.getElementById('mute').click()}
+    else if(k===','){v.pause();v.currentTime=Math.max(0,v.currentTime-1/30);flash('Frame back')}
+    else if(k==='.'){v.pause();v.currentTime=v.currentTime+1/30;flash('Frame forward')}
+    else if(k>='0'&&k<='9'&&v.duration){v.currentTime=v.duration*(+k/10);flash(k*10+'%')}
+  });
+  stage.focus();
+
+  // A container the browser accepts but a codec it doesn't is the common failure
+  // for .mov, and silence would look like our bug rather than the file's.
+  v.addEventListener('error',function(){
+    stage.innerHTML='<div id="err"><p><strong>This video can\\u2019t be played here.</strong></p>'+
+      '<p>The browser accepted the file but not the codec inside it \\u2014 common with '+
+      '<code>.mov</code> recordings. Download it to play locally, or re-encode to H.264 MP4.</p></div>';
+  });
+})();
 </script>`;
 }

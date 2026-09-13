@@ -77,7 +77,7 @@ export interface DocumentResponse {
 
 export type DocKind = "markdown" | "artifact";
 export type ArtifactRenderer =
-  | "html" | "pdf" | "sheet" | "docx" | "bundle" | "image" | "text" | "download";
+  | "html" | "pdf" | "sheet" | "docx" | "bundle" | "image" | "video" | "text" | "download";
 
 export interface ArtifactStatus {
   configured: boolean;

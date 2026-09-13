@@ -90,7 +90,11 @@ class Settings(BaseSettings):
     artifact_allow_subdomain_origin: bool = False
     # Quotas — R2's free tier is 10 GB, so cap both per-file and per-account.
     artifact_max_bytes: int = 25 * 1024 * 1024
-    artifact_user_quota_bytes: int = 250 * 1024 * 1024
+    # Video gets its own ceiling: a 25 MB cap is right for a PDF and useless for
+    # a screen recording. Still bounded — R2's free tier is 10 GB in total, and
+    # one upload should not be able to consume a meaningful slice of it.
+    artifact_max_video_bytes: int = 500 * 1024 * 1024
+    artifact_user_quota_bytes: int = 2 * 1024 * 1024 * 1024
     # Presigned PUT validity. Short: the client uploads immediately.
     artifact_upload_ttl_seconds: int = 600
 

@@ -49,6 +49,7 @@ class ArtifactType:
 #   "sheet" → SheetJS grid viewer
 #   "image" → <img> (SVG included — it can carry script, so it stays sandboxed)
 #   "text"  → escaped <pre>
+#   "video" → custom player on the sandbox origin; needs range requests to seek
 _TYPES: tuple[ArtifactType, ...] = (
     ArtifactType("text/html", "html", "HTML page", "html"),
     ArtifactType("application/pdf", "pdf", "PDF", "pdf"),
@@ -70,7 +71,19 @@ _TYPES: tuple[ArtifactType, ...] = (
     ArtifactType("image/gif", "image", "Image", "gif"),
     ArtifactType("image/webp", "image", "Image", "webp"),
     ArtifactType("image/svg+xml", "image", "SVG image", "svg"),
+    # Video. quicktime covers .mov, which is what phones and screen recorders
+    # produce; whether a given .mov actually plays depends on its codec, not its
+    # container, so the player has to cope with a file the browser refuses.
+    ArtifactType("video/mp4", "video", "Video", "mp4"),
+    ArtifactType("video/quicktime", "video", "Video", "mov"),
+    ArtifactType("video/webm", "video", "Video", "webm"),
+    ArtifactType("video/ogg", "video", "Video", "ogv"),
 )
+
+# Renderers whose files are routinely far larger than a document. A 25 MB cap is
+# right for a PDF and useless for a screen recording, so the ceiling is chosen
+# per renderer rather than one number for everything.
+_LARGE_RENDERERS = frozenset({"video"})
 
 BY_MIME: dict[str, ArtifactType] = {t.mime: t for t in _TYPES}
 BY_EXT: dict[str, ArtifactType] = {t.ext: t for t in _TYPES}
@@ -98,6 +111,14 @@ def normalize_mime(mime: str | None, filename: str | None = None) -> str | None:
 def renderer_for(mime: str) -> str:
     t = BY_MIME.get(mime)
     return t.renderer if t else "download"
+
+
+def max_bytes_for(mime: str) -> int:
+    """The size ceiling that applies to this type."""
+    t = BY_MIME.get(mime)
+    if t and t.renderer in _LARGE_RENDERERS:
+        return settings.artifact_max_video_bytes
+    return settings.artifact_max_bytes
 
 
 def label_for(mime: str) -> str:

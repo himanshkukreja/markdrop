@@ -106,10 +106,12 @@ async def create_upload_url(
             status_code=415,
             detail=f"Unsupported file type. Accepted: {', '.join(sorted(art_service.BY_EXT))}.",
         )
-    if data.size_bytes > settings.artifact_max_bytes:
+    # Per-type ceiling: video is allowed to be far bigger than a document.
+    limit = art_service.max_bytes_for(mime)
+    if data.size_bytes > limit:
         raise HTTPException(
             status_code=413,
-            detail=f"File is larger than the {settings.artifact_max_bytes // (1024*1024)} MB limit.",
+            detail=f"File is larger than the {limit // (1024*1024)} MB limit for this type.",
         )
 
     allowed, used = await art_service.check_quota(db, user.id, data.size_bytes)
@@ -155,15 +157,20 @@ async def confirm_artifact(
     if not meta:
         raise HTTPException(status_code=404, detail="Upload not found — please try again.")
 
+    # Resolve the real type first: the ceiling depends on it, and a client that
+    # declared "video" to buy headroom then uploaded something else must be
+    # measured against the smaller limit, not the one it asked for.
+    mime = art_service.normalize_mime(meta["content_type"], data.filename)
+
     # Real size, not the declared one. Oversized uploads are deleted, not kept.
-    if meta["size"] > settings.artifact_max_bytes:
+    real_limit = art_service.max_bytes_for(mime) if mime else settings.artifact_max_bytes
+    if meta["size"] > real_limit:
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(
             status_code=413,
-            detail=f"File is larger than the {settings.artifact_max_bytes // (1024*1024)} MB limit.",
+            detail=f"File is larger than the {real_limit // (1024*1024)} MB limit for this type.",
         )
 
-    mime = art_service.normalize_mime(meta["content_type"], data.filename)
     if not mime:
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(status_code=415, detail="Unsupported file type.")

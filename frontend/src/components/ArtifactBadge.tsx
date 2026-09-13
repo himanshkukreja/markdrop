@@ -21,6 +21,16 @@ const STYLES: Record<
       <path d="M4 17l-3-5 3-5M20 7l3 5-3 5M14 4l-4 16" strokeLinecap="round" strokeLinejoin="round" />
     ),
   },
+  video: {
+    label: "Video",
+    ring: "ring-fuchsia-500/25",
+    text: "text-fuchsia-600 dark:text-fuchsia-400",
+    bg: "bg-fuchsia-500/10",
+    icon: (
+      <path d="M15 10l4.55-2.27A1 1 0 0121 8.62v6.76a1 1 0 01-1.45.89L15 14M5 6h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"
+        strokeLinecap="round" strokeLinejoin="round" />
+    ),
+  },
   pdf: {
     label: "PDF",
     ring: "ring-red-500/25",
