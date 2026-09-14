@@ -192,6 +192,12 @@ class MyDocListResponse(BaseModel):
     total: int
     page: int
     pages: int
+    # Totals per kind, regardless of the active filter — the sidebar shows all
+    # three at once, and three separate requests to render three numbers is
+    # exactly the fan-out that tripped the API rate limit before.
+    count_all: int = 0
+    count_markdown: int = 0
+    count_artifact: int = 0
 
 
 

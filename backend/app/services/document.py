@@ -445,6 +445,26 @@ async def list_user_documents(
     return docs, total
 
 
+async def count_user_documents(db: AsyncIOMotorDatabase, user_id: str) -> dict:
+    """How many documents and artifacts this user owns.
+
+    One grouped aggregation rather than a query per kind: the dashboard sidebar
+    renders all three counts together, and they must not cost three round trips.
+    """
+    rows = await db["documents"].aggregate([
+        {"$match": {"owner_id": user_id}},
+        {"$group": {"_id": {"$ifNull": ["$kind", "markdown"]}, "n": {"$sum": 1}}},
+    ]).to_list(length=10)
+    by_kind = {r["_id"]: r["n"] for r in rows}
+    markdown = sum(n for k, n in by_kind.items() if k != "artifact")
+    artifact = by_kind.get("artifact", 0)
+    return {
+        "count_all": markdown + artifact,
+        "count_markdown": markdown,
+        "count_artifact": artifact,
+    }
+
+
 _EVENT_COUNTER = {
     "view": "views",
     "export_pdf": "export_pdf_count",

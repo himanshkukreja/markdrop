@@ -543,6 +543,10 @@ export interface MyDocListResponse {
   total: number;
   page: number;
   pages: number;
+  /** Totals per kind regardless of the active filter, for the sidebar. */
+  count_all?: number;
+  count_markdown?: number;
+  count_artifact?: number;
 }
 
 export async function listMyDocuments(

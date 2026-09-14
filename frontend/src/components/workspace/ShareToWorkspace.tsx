@@ -26,14 +26,27 @@ export default function ShareToWorkspace({
   title,
   workspaceId,
   onChanged,
+  hideTrigger = false,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   documentId: string;
   title: string;
   /** The workspace it is currently shared with, or null when private. */
   workspaceId: string | null;
   onChanged: () => void;
+  /** Rendered without its own button, opened by the caller — used from the
+   *  dashboard's overflow menu, where the trigger is a menu item. */
+  hideTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolled, setUncontrolled] = useState(false);
+  const open = controlledOpen ?? uncontrolled;
+  const setOpen = (v: boolean) => {
+    setUncontrolled(v);
+    onOpenChange?.(v);
+  };
   const [workspaces, setWorkspaces] = useState<Workspace[] | null>(null);
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState(false);
@@ -70,6 +83,7 @@ export default function ShareToWorkspace({
 
   return (
     <>
+      {!hideTrigger && (
       <button
         onClick={() => setOpen(true)}
         title={workspaceId ? "Shared with a workspace" : "Share with a workspace"}
@@ -81,6 +95,7 @@ export default function ShareToWorkspace({
       >
         {workspaceId ? "Shared" : "Share to workspace"}
       </button>
+      )}
 
       {open && (
         <Modal

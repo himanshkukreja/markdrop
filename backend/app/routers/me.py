@@ -80,6 +80,7 @@ async def list_my_documents(
         total=total,
         page=page,
         pages=max(1, math.ceil(total / limit)),
+        **await doc_service.count_user_documents(db, user.id),
     )
 
 

@@ -10,10 +10,11 @@ import {
 } from "@/lib/api";
 import ArtifactBadge, { formatBytes } from "@/components/ArtifactBadge";
 import Modal from "@/components/Modal";
-import Spinner from "@/components/Spinner";
 import VSCodeIcon from "@/components/VSCodeIcon";
 import MarkdropLoader from "@/components/MarkdropLoader";
 import ShareToWorkspace from "@/components/workspace/ShareToWorkspace";
+import DashboardSidebar, { type Filter } from "@/components/dashboard/DashboardSidebar";
+import RowMenu, { type MenuItem } from "@/components/dashboard/RowMenu";
 
 type Range = "7d" | "30d" | "all";
 
@@ -116,61 +117,6 @@ function AnalyticsPanel({ slug }: { slug: string }) {
 type BtnVariant = "default" | "danger" | "success" | "warning";
 
 /** Circular refresh arrow; spins while a sync is in flight. */
-function ReloadIcon({ spinning = false }: { spinning?: boolean }) {
-  return (
-    <svg
-      className={`w-3.5 h-3.5${spinning ? " animate-spin" : ""}`}
-      viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden
-    >
-      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-      <path d="M21 3v6h-6" />
-    </svg>
-  );
-}
-
-function ActionButton({
-  onClick, href, children, variant = "default", active = false, title,
-}: {
-  onClick?: () => void; href?: string; children: React.ReactNode;
-  variant?: BtnVariant; active?: boolean; title?: string;
-}) {
-  const base =
-    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors whitespace-nowrap select-none";
-  // Every variant is tuned for all three themes: light / night-blue (dark:) /
-  // VS Code grey (vscode:). Delete is a neutral ghost that only reddens on hover
-  // so the resting toolbar reads calm and professional on every theme.
-  const variants: Record<BtnVariant, string> = {
-    default:
-      "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] " +
-      "text-gray-600 dark:text-gray-300 vscode:text-[#cccccc] " +
-      "hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white vscode:hover:bg-[#2a2d2e]",
-    success:
-      "border-emerald-200 dark:border-emerald-900/50 vscode:border-[#2e4034] " +
-      "text-emerald-600 dark:text-emerald-400 vscode:text-[#4ec9b0] " +
-      "hover:bg-emerald-50 dark:hover:bg-emerald-950/30 vscode:hover:bg-[#26332b]",
-    warning:
-      "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 " +
-      "dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 " +
-      "vscode:border-[#665c33] vscode:bg-[#3a3320] vscode:text-[#e2c08d] vscode:hover:bg-[#4a4126]",
-    danger:
-      "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] " +
-      "text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] " +
-      "hover:border-red-300 hover:bg-red-50 hover:text-red-600 " +
-      "dark:hover:border-red-900/60 dark:hover:bg-red-950/40 dark:hover:text-red-400 " +
-      "vscode:hover:border-[#5a3232] vscode:hover:bg-[#3a2626] vscode:hover:text-[#f48771]",
-  };
-  const activeCls = active
-    ? " bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white vscode:bg-[#2a2d2e] vscode:text-white"
-    : "";
-  const cls = `${base} ${variants[variant]}${activeCls}`;
-  return href ? (
-    <a href={href} title={title} className={cls}>{children}</a>
-  ) : (
-    <button onClick={onClick} title={title} className={cls}>{children}</button>
-  );
-}
-
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -179,6 +125,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [counts, setCounts] = useState({ all: 0, markdown: 0, artifact: 0 });
+  const [navOpen, setNavOpen] = useState(false);
+  // The share dialog is opened from a row's overflow menu, so the row holds no
+  // trigger of its own — see ShareToWorkspace's `hideTrigger`.
+  const [shareFor, setShareFor] = useState<string | null>(null);
 
   // Google Docs integration
   const [gStatus, setGStatus] = useState<GoogleStatus | null>(null);
@@ -202,6 +153,11 @@ export default function DashboardPage() {
     try {
       const res = await listMyDocuments(1, undefined, kindFilter === "all" ? undefined : kindFilter);
       setDocs(res.documents);
+      setCounts({
+        all: res.count_all ?? res.total,
+        markdown: res.count_markdown ?? 0,
+        artifact: res.count_artifact ?? 0,
+      });
     } catch {
       /* redirect handled below */
     } finally {
@@ -339,20 +295,44 @@ export default function DashboardPage() {
     );
   }
 
+  const TITLES: Record<Filter, string> = {
+    all: "All items",
+    markdown: "Documents",
+    artifact: "Artifacts",
+  };
+
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-xl font-bold">Your documents</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{docs.length} document{docs.length === 1 ? "" : "s"}</p>
+    <div className="flex-1 min-h-0 flex gap-0 lg:gap-6">
+      <DashboardSidebar
+        filter={kindFilter}
+        onFilter={(f) => { setLoading(true); setKindFilter(f); }}
+        counts={counts}
+        googleConnected={gStatus?.configured ? gStatus.connected : null}
+        open={navOpen}
+        onClose={() => setNavOpen(false)}
+      />
+
+      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-10">
+      <div className="flex items-center justify-between gap-3 mb-5">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* The rail is a drawer below lg, so it needs a way in. */}
+          <button
+            onClick={() => setNavOpen(true)}
+            aria-label="Browse"
+            className="lg:hidden grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-gray-200 dark:border-white/[0.09] text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.06]"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">{TITLES[kindFilter]}</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              {counts.markdown} document{counts.markdown === 1 ? "" : "s"} · {counts.artifact} artifact{counts.artifact === 1 ? "" : "s"}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <a href="/settings/workspaces"
-             className="text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">
-            Workspaces
-          </a>
-          <a href="/new" className="text-sm px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors">+ New document</a>
-        </div>
+        <a href="/new" className="shrink-0 text-sm px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors">
+          <span className="hidden sm:inline">+ New document</span><span className="sm:hidden">+ New</span>
+        </a>
       </div>
 
       {gNotice && (
@@ -420,27 +400,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="flex items-center gap-1 mb-4 p-1 rounded-xl bg-gray-100/70 dark:bg-gray-900/50 vscode:bg-[#1e1e1e] w-fit">
-        {([
-          { id: "all", label: "All" },
-          { id: "markdown", label: "Documents" },
-          { id: "artifact", label: "Artifacts" },
-        ] as const).map((t) => (
-          <button
-            key={t.id}
-            onClick={() => { setLoading(true); setKindFilter(t.id as DocKind | "all"); }}
-            aria-pressed={kindFilter === t.id}
-            className={`px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
-              kindFilter === t.id
-                ? "bg-white dark:bg-gray-800 vscode:bg-[#2d2d2d] text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] shadow-sm"
-                : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       {loading ? (
         <div className="py-6 flex justify-center">
           <MarkdropLoader label="Loading documents…" size="sm" />
@@ -467,31 +426,36 @@ export default function DashboardPage() {
       ) : (
         <div className="space-y-2.5">
           {docs.map((d) => (
-            <div key={d.slug} className="rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900/40 vscode:bg-[#252526] p-4 hover:border-gray-300 dark:hover:border-gray-700 vscode:hover:border-[#4c4c4c] transition-colors">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div key={d.slug} className="group rounded-xl border border-gray-200 dark:border-white/[0.07] vscode:border-[#3c3c3c] bg-white dark:bg-white/[0.02] vscode:bg-[#252526] px-3.5 py-3 hover:border-gray-300 dark:hover:border-white/[0.14] hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors">
+              <div className="flex items-center gap-3">
+                {/* Type at a glance, before the words. */}
+                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
+                  d.kind === "artifact" ? "bg-purple-500/10 text-purple-400" : "bg-blue-500/10 text-blue-400"
+                }`}>
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    {d.kind === "artifact"
+                      ? <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /><path d="M12 15V3" /></>
+                      : <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" /><path d="M14 2v6h6M8 13h8M8 17h5" /></>}
+                  </svg>
+                </span>
+
                 <div className="min-w-0 flex-1">
-                  <a href={`/${d.slug}`} className="font-semibold text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] hover:text-blue-600 dark:hover:text-blue-400 vscode:hover:text-[#4daafc] truncate block transition-colors">
+                  <a href={`/${d.slug}`} className="block truncate font-semibold text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                     {d.title || d.original_filename || d.slug}
                   </a>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    {d.kind === "artifact" && (
-                      <ArtifactBadge renderer={d.renderer} label={d.type_label} />
-                    )}
-                    <span className="font-mono text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] break-all">/{d.slug}</span>
-                    <span title="Views">👁 {d.views.toLocaleString()}</span>
-                    {d.kind === "artifact" ? (
-                      <span title="File size">{formatBytes(d.size_bytes)}</span>
-                    ) : (
-                      <span title="PDF exports">📄 {d.export_pdf_count}</span>
-                    )}
-                    <span title="Link copies">🔗 {d.copy_url_count}</span>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                    {d.kind === "artifact" && <ArtifactBadge renderer={d.renderer} label={d.type_label} />}
+                    <span className="font-mono break-all">
+                      /{[...(d.folder_path ?? []), d.slug].join("/")}
+                    </span>
+                    <span title="Views">· {d.views.toLocaleString()} view{d.views === 1 ? "" : "s"}</span>
+                    {d.kind === "artifact"
+                      ? <span title="File size">· {formatBytes(d.size_bytes)}</span>
+                      : d.export_pdf_count > 0 && <span title="PDF exports">· {d.export_pdf_count} PDF{d.export_pdf_count === 1 ? "" : "s"}</span>}
+                    {d.copy_url_count > 0 && <span title="Link copies">· {d.copy_url_count} copies</span>}
                     {d.encrypted && (
-                      <span
-                        title="End-to-end encrypted. Stored as ciphertext — the title and preview aren't shown here because the key exists only in your link."
-                        className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400"
-                      >
-                        🔐 Encrypted
-                      </span>
+                      <span title="End-to-end encrypted. Stored as ciphertext — the title and preview aren't shown here because the key exists only in your link."
+                            className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">🔐 Encrypted</span>
                     )}
                     {d.is_password_protected && <span title="Password protected">🔒</span>}
                     {d.vscode_synced && (
@@ -499,71 +463,89 @@ export default function DashboardPage() {
                         <VSCodeIcon className="w-3 h-3" /> VS Code
                       </span>
                     )}
-                    {d.expires_at && <span className="text-amber-600 dark:text-amber-400 vscode:text-[#cca700]">expires {new Date(d.expires_at).toLocaleDateString()}</span>}
-                    <span className="text-gray-300 dark:text-gray-600 vscode:text-[#5a5a5a]">·</span>
-                    <span>{new Date(d.created_at).toLocaleDateString()}</span>
+                    {d.workspace_id && (
+                      <span title="Shared with a workspace" className="text-blue-600 dark:text-blue-400">· Shared</span>
+                    )}
+                    {d.google_doc_url && (
+                      <span className={d.google_doc_stale ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}>
+                        · {d.google_doc_stale ? "Google Doc stale" : "Google Doc synced"}
+                      </span>
+                    )}
+                    {d.expires_at && <span className="text-amber-600 dark:text-amber-400">· expires {new Date(d.expires_at).toLocaleDateString()}</span>}
+                    <span>· {new Date(d.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap sm:shrink-0 sm:justify-end">
-                  <ActionButton onClick={() => setExpanded(expanded === d.slug ? null : d.slug)} active={expanded === d.slug}>
-                    {expanded === d.slug ? "Hide" : "Analytics"}
-                  </ActionButton>
-                  {/* No Copy link for an encrypted document: the key lives in the
-                      link's fragment and was never sent here, so this button
-                      could only ever produce a link that opens to "no key". */}
-                  {d.encrypted ? (
-                    <span
-                      title="The key is in the link you saved when you published this. It was never sent to Markdrop, so we can't rebuild the link for you."
-                      className="px-2.5 py-1 text-xs rounded-md border border-dashed border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500 cursor-help"
-                    >
-                      Link holds the key
-                    </span>
-                  ) : (
-                    <ActionButton onClick={() => copyUrl(d.url, d.slug)} active={copied === d.slug}>
+
+                {/* One or two quick actions appear on hover on a pointer device;
+                    everything, including these, is always in the menu, so a
+                    touch device is never short of a way in. */}
+                <div className="hidden sm:flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  {!d.encrypted && (
+                    <button onClick={() => copyUrl(d.url, d.slug)}
+                      className="rounded-lg border border-gray-200 dark:border-white/[0.09] px-2.5 py-1.5 text-[11.5px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors">
                       {copied === d.slug ? "Copied" : "Copy link"}
-                    </ActionButton>
+                    </button>
                   )}
-                  {gStatus?.connected && d.kind !== "artifact" && !d.encrypted && (
-                    d.google_doc_url ? (
-                      <>
-                        <ActionButton href={d.google_doc_url} title="Open in Google Docs">Open Doc</ActionButton>
-                        {d.google_doc_stale ? (
-                          <ActionButton onClick={() => handleExport(d)} variant="warning" title="This document changed since the last sync — click to update the Google Doc">
-                            <ReloadIcon spinning={exportBusy === d.slug} />
-                            {exportBusy === d.slug ? "Syncing…" : "Sync to Google"}
-                          </ActionButton>
-                        ) : (
-                          <ActionButton onClick={() => handleExport(d)} variant="success" title="Up to date — click to re-sync">
-                            {exportBusy === d.slug ? "Syncing…" : "Synced"}
-                          </ActionButton>
-                        )}
-                      </>
-                    ) : (
-                      <ActionButton onClick={() => handleExport(d)} title="Export to Google Docs">
-                        {exportBusy === d.slug && <Spinner className="w-3.5 h-3.5" />}
-                        {exportBusy === d.slug ? "Exporting…" : "Google Docs"}
-                      </ActionButton>
-                    )
-                  )}
-                  {d.kind === "artifact" ? (
-                    <ActionButton href={`/${d.slug}`} title="Open the rendered artifact">Open</ActionButton>
-                  ) : (
-                    <ActionButton href={`/${d.slug}?edit=1`}>Edit</ActionButton>
-                  )}
-                  <ActionButton onClick={() => openRename(d.slug)}>Change URL</ActionButton>
-                  {/* Private by default. This is the only route from a personal
-                      document into a shared workspace library, and it states the
-                      consequences before it does anything. */}
-                  <ShareToWorkspace
-                    documentId={d.id}
-                    title={d.title || d.original_filename || d.slug}
-                    workspaceId={d.workspace_id ?? null}
-                    onChanged={load}
-                  />
-                  <span className="mx-0.5 h-5 w-px bg-gray-200 dark:bg-gray-700 vscode:bg-[#3c3c3c]" aria-hidden />
-                  <ActionButton onClick={() => setDeleteFor(d.slug)} variant="danger">Delete</ActionButton>
+                  <a href={d.kind === "artifact" ? `/${d.slug}` : `/${d.slug}?edit=1`}
+                     className="rounded-lg border border-gray-200 dark:border-white/[0.09] px-2.5 py-1.5 text-[11.5px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors">
+                    {d.kind === "artifact" ? "Open" : "Edit"}
+                  </a>
                 </div>
+
+                <RowMenu
+                  label={`Actions for ${d.title || d.slug}`}
+                  items={((): MenuItem[] => {
+                    const items: MenuItem[] = [
+                      { label: expanded === d.slug ? "Hide analytics" : "Analytics",
+                        onClick: () => setExpanded(expanded === d.slug ? null : d.slug) },
+                    ];
+                    // No copy link for an encrypted document: the key lives in
+                    // the link's fragment and was never sent here, so this could
+                    // only ever produce a link that opens to "no key".
+                    if (d.encrypted) {
+                      items.push({ label: "Link holds the key", disabled: true });
+                    } else {
+                      items.push({ label: copied === d.slug ? "Copied" : "Copy link",
+                                   onClick: () => copyUrl(d.url, d.slug) });
+                    }
+                    items.push(d.kind === "artifact"
+                      ? { label: "Open artifact", href: `/${d.slug}` }
+                      : { label: "Edit", href: `/${d.slug}?edit=1` });
+
+                    if (gStatus?.connected && d.kind !== "artifact" && !d.encrypted) {
+                      if (d.google_doc_url) {
+                        items.push({ label: "Open in Google Docs", href: d.google_doc_url, external: true, separated: true });
+                        items.push({ label: exportBusy === d.slug ? "Syncing…" : d.google_doc_stale ? "Sync to Google" : "Re-sync to Google",
+                                     onClick: () => handleExport(d), busy: exportBusy === d.slug });
+                      } else {
+                        items.push({ label: exportBusy === d.slug ? "Exporting…" : "Export to Google Docs",
+                                     onClick: () => handleExport(d), busy: exportBusy === d.slug, separated: true });
+                      }
+                    }
+
+                    items.push({ label: "Change URL", onClick: () => openRename(d.slug), separated: true });
+                    items.push({ label: d.workspace_id ? "Workspace sharing" : "Share to workspace",
+                                 onClick: () => setShareFor(d.id) });
+                    items.push({ label: "Delete", onClick: () => setDeleteFor(d.slug), danger: true, separated: true });
+                    return items;
+                  })()}
+                />
               </div>
+
+              {/* Private by default. The dialog states the consequences before
+                  it does anything; the row just opens it. */}
+              {shareFor === d.id && (
+                <ShareToWorkspace
+                  hideTrigger
+                  open
+                  onOpenChange={(v) => !v && setShareFor(null)}
+                  documentId={d.id}
+                  title={d.title || d.original_filename || d.slug}
+                  workspaceId={d.workspace_id ?? null}
+                  onChanged={load}
+                />
+              )}
+
               {expanded === d.slug && <AnalyticsPanel slug={d.slug} />}
             </div>
           ))}
@@ -594,6 +576,8 @@ export default function DashboardPage() {
           </form>
         </Modal>
       )}
+
+      </div>
 
       {/* Delete confirm modal */}
       {deleteFor && (
