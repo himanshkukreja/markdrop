@@ -1,0 +1,300 @@
+<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Ask clients to render this light in dark mode too. Apple Mail, Outlook and
+     Samsung Mail honour "light only" and skip their dark transform entirely.
+     Gmail's mobile apps do NOT — they invert regardless, with no supported
+     opt-out — which is why the design below is built to survive inversion
+     rather than to depend on being obeyed. -->
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<style>
+  :root { color-scheme: light only; supported-color-schemes: light; }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#f6f7f9">
+<!--
+  TWO ANNOUNCEMENTS, NOT FOUR FEATURES.
+
+  Encryption comes first because it applies to every recipient; workspaces apply
+  to the subset with a team. A list of individual users reading an email that
+  opens with enterprise features assumes a pricing change is coming.
+
+  DELIBERATELY A LIGHT DESIGN. Gmail mobile inverts regardless of the meta above,
+  and inversion flips near-white text to dark while leaving saturated colours
+  alone. Dark text on light reads correctly either way.
+
+  No remote images anywhere, including the wordmark. Most clients block them by
+  default and Outlook desktop blocks them outright — the old logo URL had also
+  quietly started 404-ing, so the first thing anyone saw of us was a broken
+  image placeholder. Text cannot rot and cannot be blocked.
+-->
+<!-- Preheader: the grey line a client shows after the subject. Without one it
+     scrapes the first visible text — the wordmark and the word "NEW" — and
+     spends the second-most-read line in the inbox repeating the subject back. -->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all">Documents encrypted in your browser, with a key that never reaches us — and your own domain for the ones you publish. Every existing link keeps working.</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all">&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>
+
+<div style="background-color:#f6f7f9;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
+             style="width:560px;max-width:100%;background-color:#ffffff;border-radius:14px;overflow:hidden">
+
+        <!-- Accent bar: a block of colour with no text, so inversion is harmless -->
+        <tr><td bgcolor="#2563eb" style="background-color:#2563eb;height:5px;line-height:5px;font-size:0">&nbsp;</td></tr>
+
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:32px 34px 8px">
+            <div style="font-size:20px;font-weight:800;color:#0f172a;letter-spacing:-.02em">
+              mark<span style="color:#2563eb">drop</span>
+            </div>
+
+            <!-- Saturated fill, dark text: both ends survive inversion -->
+            <div style="display:inline-block;margin-top:20px;padding:5px 11px;border-radius:999px;
+                        background-color:#c7f0d8;color:#125c33;font-size:11px;font-weight:700;
+                        letter-spacing:.08em;text-transform:uppercase">Two new things</div>
+
+            <div style="font-size:27px;line-height:1.25;font-weight:800;color:#0f172a;margin-top:14px">
+              Encrypted documents, and&nbsp;your own domain
+            </div>
+            <div style="font-size:15px;line-height:1.6;color:#475569;margin-top:10px">
+              One for keeping something <strong style="color:#0f172a">private</strong>,
+              one for publishing it as <strong style="color:#0f172a">your company</strong>.
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:18px 34px 0">
+            <div style="font-size:15px;line-height:1.6;color:#111827">
+              Hi {{name}} &mdash; everything you already publish keeps working exactly as it
+              does today. Both of these are opt-in, and neither changes a single existing link.
+            </div>
+          </td>
+        </tr>
+
+        <!-- ── 1. Encryption ─────────────────────────────────────────────── -->
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:30px 34px 0">
+            <div style="font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#2563eb">
+              01 &nbsp;&mdash;&nbsp; End-to-end encryption
+            </div>
+            <div style="font-size:20px;line-height:1.3;font-weight:800;color:#0f172a;margin-top:8px">
+              We can&rsquo;t read it. Not &ldquo;won&rsquo;t&rdquo; &mdash; can&rsquo;t.
+            </div>
+            <div style="font-size:14px;line-height:1.6;color:#475569;margin-top:8px">
+              Tick one box when you publish and the document &mdash; title included &mdash; is
+              sealed in your browser with AES-256-GCM before anything is sent.
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:6px 34px 0">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+
+      <tr>
+        <td style="padding:13px 0;border-bottom:1px solid #e5e7eb">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="34" valign="top" style="font-size:19px;line-height:1.3">&#128273;</td>
+              <td valign="top">
+                <div style="font-size:14px;line-height:1.55;color:#374151">
+                  <strong style="color:#111827">The key lives in the link, after the&nbsp;#</strong>
+                  &mdash; the one part of a URL browsers never send to a server and strip from
+                  referrers. It reaches no log, no database, nothing of ours. You can watch a
+                  network tab and confirm that yourself.
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:13px 0;border-bottom:1px solid #e5e7eb">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="34" valign="top" style="font-size:19px;line-height:1.3">&#128257;</td>
+              <td valign="top">
+                <div style="font-size:14px;line-height:1.55;color:#374151">
+                  <strong style="color:#111827">Rotate the key</strong> whenever a link has
+                  travelled further than you meant it to, and the old one stops opening the
+                  document from that moment.
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:13px 0;border-bottom:1px solid #e5e7eb">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="34" valign="top" style="font-size:19px;line-height:1.3">&#128452;&#65039;</td>
+              <td valign="top">
+                <div style="font-size:14px;line-height:1.55;color:#374151">
+                  <strong style="color:#111827">A database dump yields bytes.</strong>
+                  We store ciphertext we have no key for, so a subpoena or a rogue operator
+                  gets exactly that and nothing more.
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- The part most products leave out. Saying it plainly is the only way
+             the paragraph above is worth anything. -->
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:16px 34px 0">
+            <div style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px">
+              <div style="font-size:13px;font-weight:700;color:#7c4a03;margin-bottom:4px">
+                What it does not do
+              </div>
+              <div style="font-size:13px;line-height:1.55;color:#7c5a2a">
+                The link <em>is</em> the key. Anyone you forward it to can read the document,
+                and so can anyone who finds it in your browser history. Encryption takes us
+                out of the set of people who can read your document &mdash; it doesn&rsquo;t take
+                out anyone you send it to. There&rsquo;s also no recovery: logging in gives you
+                control of the record, never the contents.
+              </div>
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td bgcolor="#ffffff" align="center" style="background-color:#ffffff;padding:22px 34px 0">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td bgcolor="#2563eb" style="background-color:#2563eb;border-radius:9px">
+                  <a href="https://markdrop.in/new"
+                     style="display:inline-block;padding:13px 30px;font-size:15px;font-weight:700;
+                            color:#ffffff;text-decoration:none;border-radius:9px">
+                    Publish something encrypted
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ── 2. Workspaces ─────────────────────────────────────────────── -->
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:30px 34px 0">
+            <div style="border-top:1px solid #e5e7eb;padding-top:28px">
+              <div style="font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#2563eb">
+                02 &nbsp;&mdash;&nbsp; Workspaces &amp; your own domain
+              </div>
+              <div style="font-size:20px;line-height:1.3;font-weight:800;color:#0f172a;margin-top:8px">
+                docs.yourcompany.com
+              </div>
+              <div style="font-size:14px;line-height:1.6;color:#475569;margin-top:8px">
+                Publish to your own domain, under your own name, with a library your team
+                shares. One DNS record and we issue the certificate.
+              </div>
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:6px 34px 0">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+
+      <tr>
+        <td style="padding:13px 0;border-bottom:1px solid #e5e7eb">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="34" valign="top" style="font-size:19px;line-height:1.3">&#127760;</td>
+              <td valign="top">
+                <div style="font-size:14px;line-height:1.55;color:#374151">
+                  <strong style="color:#111827">Your domain, your brand.</strong>
+                  Your name, logo and colour on every page and every link preview &mdash; with
+                  the option to drop Markdrop branding entirely.
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:13px 0;border-bottom:1px solid #e5e7eb">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="34" valign="top" style="font-size:19px;line-height:1.3">&#128274;</td>
+              <td valign="top">
+                <div style="font-size:14px;line-height:1.55;color:#374151">
+                  <strong style="color:#111827">Share with exactly who you mean.</strong>
+                  Anyone with the link, only the people you name, or everyone in the workspace
+                  &mdash; and you can name someone outside your company by email. Take it back
+                  whenever you like.
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:13px 0;border-bottom:1px solid #e5e7eb">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="34" valign="top" style="font-size:19px;line-height:1.3">&#128193;</td>
+              <td valign="top">
+                <div style="font-size:14px;line-height:1.55;color:#374151">
+                  <strong style="color:#111827">A shared library.</strong>
+                  Documents and files your team can all reach, in folders that nest as deep as
+                  you need, with owner / admin / member / viewer roles. Your private documents
+                  stay private &mdash; putting something in the library is always a choice.
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td bgcolor="#ffffff" align="center" style="background-color:#ffffff;padding:22px 34px 0">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td bgcolor="#ffffff" style="background-color:#ffffff;border:1px solid #cbd5e1;border-radius:9px">
+                  <a href="https://markdrop.in/settings/workspaces"
+                     style="display:inline-block;padding:12px 28px;font-size:15px;font-weight:700;
+                            color:#1e293b;text-decoration:none;border-radius:9px">
+                    Create a workspace
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <div style="font-size:13px;line-height:1.55;color:#94a3b8;margin-top:12px">
+              Free, and it takes about a minute. A domain is optional.
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:24px 34px 30px">
+            <div style="border-top:1px solid #e5e7eb;padding-top:18px;font-size:12px;line-height:1.6;color:#94a3b8">
+              You're getting this because you have a Markdrop account.
+              <a href="{{unsubscribe_url}}" style="color:#64748b">Unsubscribe</a>
+            </div>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</div>
+</body></html>
