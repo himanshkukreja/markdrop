@@ -6,6 +6,7 @@ import { resolveAppHost } from "@/lib/hostResolution";
 import ArtifactView from "@/app/[slug]/ArtifactView";
 import DocumentView from "@/app/[slug]/DocumentView";
 import MarkdropLoader from "@/components/MarkdropLoader";
+import { signInUrlFor } from "@/lib/hosts";
 
 /**
  * A document as served on a workspace's own domain.
@@ -184,6 +185,7 @@ export default async function TenantDocumentPage({ params }: Props) {
         views={doc?.views}
         isPasswordProtected={isPasswordProtected}
         gate={gate}
+        signInUrl={signInUrlFor(slug)}
         isOwned={doc?.is_owned ?? false}
         syncedWithVscode={doc?.vscode_synced ?? false}
         encrypted={doc?.encrypted ?? false}

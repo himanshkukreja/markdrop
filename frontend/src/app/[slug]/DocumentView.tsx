@@ -11,11 +11,6 @@ import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, API_BASE } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
-
-/** The only host that serves `/login`; every custom domain rewrites to the
- *  document route and has no auth pages of its own. */
-const PRIMARY_HOST =
-  process.env.NEXT_PUBLIC_PRIMARY_HOST || "www.markdrop.in";
 import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
@@ -77,6 +72,9 @@ interface Props {
    * asked with the same box.
    */
   gate?: "password" | "signin" | null;
+  /** Absolute sign-in URL. Set only on a workspace domain, which has no
+   *  `/login` of its own. */
+  signInUrl?: string | null;
   isOwned?: boolean;
   syncedWithVscode?: boolean;
   /** `content` is a sealed envelope; the key is in the URL fragment, not here. */
@@ -184,6 +182,7 @@ export default function DocumentView({
   editSecret: initialSecret,
   isPasswordProtected = false,
   gate = null,
+  signInUrl = null,
   isOwned = false,
   syncedWithVscode = false,
   encrypted = false,
@@ -194,29 +193,16 @@ export default function DocumentView({
   // on a workspace's own domain that is not `/${slug}`.
   const pathname = usePathname();
 
-  // Where "Sign in" actually goes.
+  // Where "Sign in" goes. Supplied by the route when the reader is on a
+  // workspace's own domain, because that host rewrites *every* path to the
+  // document route and has no `/login` — a relative link would 404 at the exact
+  // moment they were trying to identify themselves.
   //
-  // A workspace's own domain rewrites *every* path to the document route, so it
-  // has no `/login` at all — a relative link would send the reader to a 404 at
-  // the exact moment they were trying to identify themselves. Sign-in lives on
-  // the primary host, and the document answers there too, at `/<slug>`.
-  //
-  // Resolved after mount rather than during render: the host is a browser fact,
-  // and branching on it while rendering would make the server and the client
-  // disagree about the same anchor.
-  const [signInHref, setSignInHref] = useState(
-    () => `/login?next=${encodeURIComponent(`/${slug}`)}`
-  );
-  useEffect(() => {
-    const onPrimary = window.location.host === PRIMARY_HOST
-      || window.location.hostname === "localhost"
-      || window.location.hostname === "127.0.0.1";
-    setSignInHref(
-      onPrimary
-        ? `/login?next=${encodeURIComponent(pathname || `/${slug}`)}`
-        : `https://${PRIMARY_HOST}/login?next=${encodeURIComponent(`/${slug}`)}`
-    );
-  }, [pathname, slug]);
+  // Decided by the server, not sniffed from `window` after mount: the anchor is
+  // then right in the HTML itself, rather than briefly wrong and corrected once
+  // hydration runs.
+  const signInHref =
+    signInUrl || `/login?next=${encodeURIComponent(pathname || `/${slug}`)}`;
   // Not useSearchParams: on a prerendered route that would stop this whole view
   // being server-rendered at all. See lib/useQueryFlags.
   const { ready: flagsReady, has: hasFlag } = useQueryFlags();
