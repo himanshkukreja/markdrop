@@ -7,7 +7,7 @@ public — but it reads only non-sensitive fields (title, a snippet, view count)
 and renders a generic, content-free card for password-protected documents.
 """
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -33,9 +33,31 @@ def _png(data: bytes, *, max_age: int) -> Response:
     )
 
 
+async def _card_host(db: AsyncIOMotorDatabase, workspace_id: str, host: str | None) -> str | None:
+    """Which address to print on the card.
+
+    A workspace can have several domains, and a card unfurled from one of them
+    should name that one — being linked content.senseloaf.ai and shown a card
+    reading cdn.senseloaf.ai reads as the wrong company's link.
+
+    The host is validated against the workspace's verified domains before it is
+    drawn. It arrives as a query parameter on a public, unauthenticated image
+    endpoint, so untrusted text rendered straight onto an image we serve would
+    let anyone put any brand they liked on somebody else's preview card.
+    """
+    if host and await domain_service.host_belongs_to(db, workspace_id, host):
+        return host.strip().lower()
+    return await domain_service.primary_host(db, workspace_id)
+
+
 @router.get("/{slug}.png")
 @limiter.limit("120/minute")
-async def og_image(request: Request, slug: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+async def og_image(
+    request: Request, slug: str,
+    # The domain the card was unfurled from. Validated in `_card_host`.
+    host: str | None = Query(None, max_length=253),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
     # Read-only, only the fields we render — never the password hash content.
     raw = await db["documents"].find_one(
         {"slug": slug},
@@ -89,7 +111,7 @@ async def og_image(request: Request, slug: str, db: AsyncIOMotorDatabase = Depen
             brand = og_render.CardBrand(
                 site_name=b.site_name,
                 accent=og_render.parse_hex_color(b.accent_color),
-                footer=await domain_service.primary_host(db, workspace_id),
+                footer=await _card_host(db, workspace_id, host),
                 hide_markdrop_branding=b.hide_markdrop_branding,
             )
 

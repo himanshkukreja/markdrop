@@ -21,6 +21,7 @@ class DomainResponse(BaseModel):
     last_checked_at: datetime | None = None
     last_error: str | None = None
     attached: bool = False
+    is_primary: bool = False
     # Everything the customer needs to paste into their DNS panel.
     dns_record_name: str
     dns_record_type: str = "TXT"

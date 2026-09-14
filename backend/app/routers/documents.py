@@ -6,7 +6,7 @@ from app.config import get_settings
 from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
-from app.routers.auth import optional_user, require_user
+from app.routers.auth import optional_user, tenant_workspace, require_user
 from app.schemas.document import (
     DocumentCopyRequest,
     DocumentCreate,
@@ -138,9 +138,15 @@ async def get_document(
     # the scope can only ever *narrow* what resolves, so forging it shows the
     # caller less, never more. Absent — every markdrop.in request — nothing
     # changes and this behaves exactly as it always has.
+    # A tenant token is only valid for the workspace it was minted for, and that
+    # is enforced here rather than on trust: the read is pinned to that
+    # workspace, so a token issued for one customer's domain cannot resolve
+    # another customer's document even though the route is the same. It wins
+    # over the header, which is unsigned.
+    scope = tenant_workspace(request) or x_markdrop_workspace or None
     doc = await doc_service.get_document(
         db, slug, x_read_password, x_edit_secret, viewer_id,
-        workspace_scope=x_markdrop_workspace or None,
+        workspace_scope=scope,
         # Access grants key on the address, not the account id — see
         # services/access.py — so the reader's email is what resolves them.
         user_email=user.email if user else None,

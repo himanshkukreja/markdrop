@@ -36,3 +36,7 @@ class Domain:
     # TLS is issued. Separate from `status`: DNS ownership and edge routing are
     # different facts and fail independently.
     attached: bool = False
+    # Which of a workspace's verified app domains is *the* one: the host printed
+    # on preview cards and used for the links the library hands out. A workspace
+    # with several domains otherwise had its oldest one silently chosen for it.
+    is_primary: bool = False

@@ -15,6 +15,7 @@ import { useToast } from "@/components/Toast";
 import {
   can, deleteWorkspace, getWorkspace, updateWorkspace, uploadBrandingAsset,
   listDomains, addDomain, verifyDomain, attachDomain, detachDomain, removeDomain,
+  setPrimaryDomain,
   listMembers, setMemberRole, removeMember,
   listInvitations, inviteMember, revokeInvitation,
   listFolders, createFolder, deleteFolder,
@@ -355,7 +356,12 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const verifiedHost = domains.find((d) => d.status === "verified" && d.kind === "app")?.host ?? null;
+  // The workspace's chosen address, falling back to the oldest verified one —
+  // the same order the server uses, so the link shown here is the link sent.
+  const verifiedHost =
+    domains.find((d) => d.status === "verified" && d.kind === "app" && d.is_primary)?.host
+    ?? domains.find((d) => d.status === "verified" && d.kind === "app")?.host
+    ?? null;
   const isAdmin = can(ws.role, "admin");
   const isMember = can(ws.role, "member");
   const accent = branding.accent_color || "#3b82f6";
@@ -719,6 +725,9 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                             {d.status === "verified" ? "Live" : d.status === "failed" ? "Failed" : "Awaiting DNS"}
                           </StatusPill>
                           {d.attached && <span className="text-[10px] text-gray-400">· attached</span>}
+                          {d.is_primary && (
+                            <StatusPill tone="ok">Primary</StatusPill>
+                          )}
                           {isAdmin && (
                             <div className="ml-auto flex gap-1.5">
                               <button className={ghost} disabled={busy === `v${d.id}`}
@@ -741,6 +750,17 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                                   title="Stop serving this domain, but keep it verified"
                                   onClick={() => setConfirmDomain({ domain: d, action: "detach" })}>
                                   {busy === `x${d.id}` ? "Detaching…" : "Detach"}
+                                </button>
+                              )}
+                              {/* With several domains the oldest one was silently
+                                  chosen, so a newer one could never become the
+                                  address the product hands out. */}
+                              {d.status === "verified" && d.kind === "app" && !d.is_primary && (
+                                <button className={ghost} disabled={busy === `p${d.id}`}
+                                  title="Use this domain for shared links and preview cards"
+                                  onClick={() => run(`p${d.id}`, () => setPrimaryDomain(id, d.id),
+                                    () => { refresh("domains"); toast.success(`${d.host} is now the primary domain.`); })}>
+                                  {busy === `p${d.id}` ? "Setting…" : "Make primary"}
                                 </button>
                               )}
                               <button className={`${ghost} text-red-500 border-red-300 dark:border-red-900`}

@@ -1182,3 +1182,18 @@ export function renderCampaignSamples(
     limit: input.limit ?? 3,
   });
 }
+
+
+/**
+ * Exchange this browser's markdrop.in session for one scoped to a workspace's
+ * own domain. Only callable from the primary host, where the session lives.
+ */
+export async function mintTenantToken(host: string): Promise<{ token: string; expires_at: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/auth/tenant-token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ host }),
+  });
+  if (!res.ok) throw new Error("Could not sign in to that domain");
+  return res.json();
+}
