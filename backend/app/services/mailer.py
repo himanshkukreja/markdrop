@@ -12,7 +12,24 @@ _RESEND_URL = "https://api.resend.com/emails"
 # Hosted on the CDN rather than inlined: Gmail strips inline SVG and blocks
 # data: URIs, so a real raster image at an absolute URL is the only thing that
 # reliably renders in an inbox.
-_LOGO = "https://ik.imagekit.io/jrcgzv9vw/markdrop/email/markdrop-logo.png"
+def _wordmark(size: int = 20, on_dark: bool = False) -> str:
+    """The Markdrop wordmark, as text rather than an image.
+
+    It used to be a PNG on a third-party CDN, and that URL now 404s — so every
+    system email has been showing a broken image. Rehosting it would fix today's
+    symptom and leave the real one: most clients block remote images by default,
+    and Outlook desktop blocks them outright, so the *first* thing a recipient
+    saw of us was reliably a placeholder.
+
+    Text always renders. It cannot rot, cannot be blocked, costs no request, and
+    is what the wordmark already is — two words and a colour change.
+    """
+    dark = "#e8ecf7" if on_dark else "#0f172a"
+    return (
+        f'<span style="font-size:{size}px;font-weight:800;color:{dark};'
+        f'letter-spacing:-.02em">mark'
+        f'<span style="color:#2563eb">drop</span></span>'
+    )
 
 
 def _sender(purpose: str) -> str:
@@ -38,10 +55,7 @@ def _masthead(tagline: str = "") -> str:
            if tagline else "")
     return f"""\
         <tr><td style="padding:0 0 18px">
-          <a href="{base}" style="text-decoration:none">
-            <img src="{_LOGO}" width="132" alt="Markdrop"
-                 style="display:block;width:132px;height:auto;border:0;outline:none">
-          </a>{sub}
+          <a href="{base}" style="text-decoration:none">{_wordmark(21)}</a>{sub}
         </td></tr>"""
 
 
@@ -52,9 +66,7 @@ def is_configured() -> bool:
 def _login_html(otp: str, link_url: str) -> str:
     return f"""\
 <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111">
-  <a href="{settings.frontend_url.rstrip("/")}" style="text-decoration:none">
-    <img src="{_LOGO}" width="124" alt="Markdrop" style="display:block;width:124px;height:auto;border:0;margin-bottom:18px">
-  </a>
+  <a href="{settings.frontend_url.rstrip("/")}" style="text-decoration:none;display:block;margin-bottom:18px">{_wordmark(21)}</a>
   <h2 style="margin:0 0 8px">Sign in to Markdrop</h2>
   <p style="color:#555;margin:0 0 20px">Use the code below, or click the button. This expires in {settings.login_challenge_ttl_minutes} minutes.</p>
   <div style="font-size:32px;font-weight:700;letter-spacing:8px;background:#f4f4f5;border-radius:10px;padding:16px;text-align:center;margin-bottom:20px">{otp}</div>
@@ -99,7 +111,7 @@ _HERO_IMAGE = "https://ik.imagekit.io/jrcgzv9vw/markdrop/email/welcome-hero-hd.g
 # so real raster images at absolute URLs are the only reliable option.
 _FEATURES = [
     ("publish", "Instant Markdown publishing",
-     "Paste or write Markdown and get a clean, shareable link in one click — with live preview, syntax highlighting and PDF export.",
+     "Paste or write Markdown and get a clean, shareable link in one click — with live preview, syntax highlighting and PDF export. Choose who can open it: anyone with the link, only people you name, or your whole team.",
      "Create a document", "new"),
     ("diagram", "Diagrams, charts &amp; math",
      "Add a mermaid block or LaTeX between $$ … $$ and Markdrop renders flowcharts, sequence &amp; Gantt diagrams, charts and typeset math, live.",
@@ -117,7 +129,7 @@ _FEATURES = [
      "Publish and two-way sync your Markdown from your editor — save locally to push, edit on the web to pull back, with safe conflict diffs.",
      "Get the extension", "extension"),
     ("docs", "Google Docs &amp; analytics",
-     "Export any document to a fully-formatted Google Doc, and track views and geography from your dashboard. Everything works without an account, too.",
+     "Export any document to a fully-formatted Google Doc — Mermaid, LaTeX and ASCII diagrams rendered to images, since Drive&rsquo;s importer can&rsquo;t draw them — and track views, countries and referrers from your dashboard.",
      "Open the dashboard", "dashboard"),
 ]
 
@@ -134,6 +146,7 @@ def _welcome_html(name: str | None) -> str:
         "share": f"{base}/share",
         "dashboard": f"{base}/dashboard",
         "extension": _MARKETPLACE_URL,
+        "workspaces": f"{base}/settings/workspaces",
     }
     greeting = f"Welcome, {html.escape(name)}" if name else "Welcome to Markdrop"
 
@@ -165,7 +178,7 @@ def _welcome_html(name: str | None) -> str:
 <title>Welcome to Markdrop</title>
 </head>
 <body style="margin:0;padding:0;background:#080d1a;-webkit-font-smoothing:antialiased">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">Publish Markdown, render diagrams and math, build READMEs, sync from VS Code, and send files peer-to-peer — no login required.</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">Publish Markdown, render diagrams and math, host PDFs and pages, sync from VS Code — and share it on your own domain with exactly who you choose.</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#080d1a" style="background:#080d1a">
   <tr>
     <td align="center" style="padding:26px 14px">
@@ -184,8 +197,9 @@ def _welcome_html(name: str | None) -> str:
         <tr><td bgcolor="#0d1428" style="background:#0d1428;border:1px solid #1a2540;border-top:0;border-radius:0 0 16px 16px;padding:30px 26px">
           <div style="font-size:22px;line-height:1.3;font-weight:700;color:#ffffff;margin:0 0 10px">{greeting}</div>
           <div style="font-size:15px;line-height:1.65;color:#a6b4d4;margin:0 0 22px">
-            Your account is ready. Markdrop began as a Markdown pastebin and grew into a full
-            publishing and sharing suite — here's what you can do with it.
+            Your account is ready. Markdrop began as a Markdown pastebin and grew into a
+            publishing and sharing suite — for one person, or a whole team on its own domain.
+            Here&rsquo;s what you can do with it.
           </div>
 
           <!-- Primary CTA -->
@@ -198,6 +212,33 @@ def _welcome_html(name: str | None) -> str:
           <div style="font-size:12px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#5f6f92;margin:0 0 2px">What you can do</div>
 
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">{rows}</table>
+
+          <!-- The team half of the product, which this email predates entirely.
+               A block rather than another icon row: it is a different mode of
+               using Markdrop, not an eighth feature. -->
+          <div style="margin:26px 0 0;padding:18px 18px 16px;background:#0a1020;border:1px solid #1a2540;border-radius:12px">
+            <div style="font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#5f6f92;margin:0 0 10px">
+              Working with a team
+            </div>
+            <div style="font-size:15px;font-weight:600;color:#eaf1ff;margin:0 0 4px">Your own domain, your own brand</div>
+            <div style="font-size:14px;line-height:1.55;color:#93a3c6;margin:0 0 12px">
+              Point <span style="color:#c7d4ee">docs.yourcompany.com</span> at Markdrop and we issue the
+              certificate. Your name, logo and colour on every page and link preview &mdash; with the
+              option to drop Markdrop branding entirely.
+            </div>
+            <div style="font-size:15px;font-weight:600;color:#eaf1ff;margin:0 0 4px">A shared library</div>
+            <div style="font-size:14px;line-height:1.55;color:#93a3c6;margin:0 0 12px">
+              Documents and artifacts your team can all reach, in folders, with roles.
+              Your private documents stay private &mdash; sharing into a workspace is always
+              something you choose.
+            </div>
+            <div style="font-size:15px;font-weight:600;color:#eaf1ff;margin:0 0 4px">Share with exactly who you mean</div>
+            <div style="font-size:14px;line-height:1.55;color:#93a3c6;margin:0 0 14px">
+              Anyone with the link, only the people you name, or everyone in the workspace &mdash;
+              and you can name someone outside your company by email.
+            </div>
+            <a href="{urls['workspaces']}" style="font-size:13px;font-weight:600;color:#6ba4ff;text-decoration:none">Create a workspace &rarr;</a>
+          </div>
         </td></tr>
 
         <!-- Footer -->
@@ -268,7 +309,7 @@ def _invite_html(workspace_name: str, inviter_name: str, role: str, link_url: st
            style="width:560px;max-width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
       <tr><td bgcolor="#0d1428" style="background:#0d1428;border:1px solid #1a2540;border-radius:16px;padding:34px 30px">
 
-        <img src="{_LOGO}" width="124" alt="Markdrop" style="display:block;width:124px;height:auto;border:0;margin:0 0 20px">
+        <div style="margin:0 0 20px">{_wordmark(21, on_dark=True)}</div>
         <div style="font-size:12px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#5f6f92;margin:0 0 14px">Workspace invitation</div>
         <div style="font-size:23px;line-height:1.3;font-weight:700;color:#ffffff;margin:0 0 14px">
           {inviter_name} invited you to {workspace_name}

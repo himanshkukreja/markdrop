@@ -1,0 +1,181 @@
+<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Ask clients to render this light in dark mode too. Apple Mail, Outlook and
+     Samsung Mail honour "light only" and skip their dark transform entirely.
+     Gmail's mobile apps do NOT — they invert regardless, with no supported
+     opt-out — which is why the design below is built to survive inversion
+     rather than to depend on being obeyed. -->
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<style>
+  :root { color-scheme: light only; supported-color-schemes: light; }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#f6f7f9">
+<!--
+  DELIBERATELY A LIGHT DESIGN. Same rules as the artifacts announcement:
+  never rely on light text, because Gmail mobile inverts it regardless of the
+  meta above. Dark text on light reads correctly either way, and saturated
+  accents pass through inversion untouched.
+
+  No remote images anywhere, including the wordmark. Most clients block them by
+  default and Outlook desktop blocks them outright — the previous logo URL had
+  also quietly started 404-ing, so the first thing anyone saw of us was a broken
+  image placeholder. Text cannot rot and cannot be blocked.
+-->
+<div style="background-color:#f6f7f9;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
+             style="width:560px;max-width:100%;background-color:#ffffff;border-radius:14px;overflow:hidden">
+
+        <!-- Accent bar: a block of colour with no text, so inversion is harmless -->
+        <tr><td bgcolor="#2563eb" style="background-color:#2563eb;height:5px;line-height:5px;font-size:0">&nbsp;</td></tr>
+
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:32px 34px 8px">
+            <div style="font-size:20px;font-weight:800;color:#0f172a;letter-spacing:-.02em">
+              mark<span style="color:#2563eb">drop</span>
+            </div>
+
+            <!-- Saturated fill, dark text: both ends survive inversion -->
+            <div style="display:inline-block;margin-top:20px;padding:5px 11px;border-radius:999px;
+                        background-color:#c7f0d8;color:#125c33;font-size:11px;font-weight:700;
+                        letter-spacing:.08em;text-transform:uppercase">New</div>
+
+            <div style="font-size:27px;line-height:1.25;font-weight:800;color:#0f172a;margin-top:14px">
+              Your docs, on your domain
+            </div>
+            <div style="font-size:15px;line-height:1.6;color:#475569;margin-top:10px">
+              Markdrop now works for a whole team &mdash; with
+              <strong style="color:#0f172a">your domain</strong>, your brand, and
+              control over who opens what.
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:20px 34px 0">
+            <div style="font-size:15px;line-height:1.6;color:#111827">
+              Hi {{name}}, everything you already publish keeps working exactly as it does
+              today &mdash; nothing below changes a single existing link. It's all additive,
+              and all optional.
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:8px 34px 0">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+
+      <tr>
+        <td style="padding:14px 0;border-bottom:1px solid #e5e7eb">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="40" valign="top" style="font-size:22px;line-height:1">&#127760;</td>
+              <td valign="top">
+                <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:3px">Your own domain</div>
+                <div style="font-size:14px;line-height:1.55;color:#6b7280">Point <span style="color:#111827">docs.yourcompany.com</span> at Markdrop, verify it with one DNS record, and we issue the certificate. Your name, logo and colour on every page &mdash; and you can drop Markdrop branding entirely.</div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:14px 0;border-bottom:1px solid #e5e7eb">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="40" valign="top" style="font-size:22px;line-height:1">&#128274;</td>
+              <td valign="top">
+                <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:3px">Share with exactly who you mean</div>
+                <div style="font-size:14px;line-height:1.55;color:#6b7280">Anyone with the link, only the people you name, or everyone in your workspace. Name someone by email &mdash; inside your company or outside it &mdash; and they'll get a message with the link. Take it back whenever you like.</div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:14px 0;border-bottom:1px solid #e5e7eb">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="40" valign="top" style="font-size:22px;line-height:1">&#128193;</td>
+              <td valign="top">
+                <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:3px">A shared library</div>
+                <div style="font-size:14px;line-height:1.55;color:#6b7280">Documents and artifacts your whole team can reach, in folders that nest as deep as you need, with owner / admin / member / viewer roles. Your private documents stay private &mdash; putting something in the library is always a choice you make.</div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding:14px 0;border-bottom:1px solid #e5e7eb">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td width="40" valign="top" style="font-size:22px;line-height:1">&#9997;&#65039;</td>
+              <td valign="top">
+                <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:3px">Write where you already write</div>
+                <div style="font-size:14px;line-height:1.55;color:#6b7280">Publish a <span style="color:#111827">.md</span> from VS Code and keep it in sync both ways on save. Export any document to a formatted Google Doc &mdash; with diagrams and math rendered to images, since Drive's importer can't draw them.</div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- Bulletproof button: colour on the cell, not a styled anchor -->
+        <tr>
+          <td bgcolor="#ffffff" align="center" style="background-color:#ffffff;padding:28px 34px 6px">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td bgcolor="#2563eb" style="background-color:#2563eb;border-radius:9px">
+                  <a href="https://markdrop.in/settings/workspaces"
+                     style="display:inline-block;padding:13px 30px;font-size:15px;font-weight:700;
+                            color:#ffffff;text-decoration:none;border-radius:9px">
+                    Create a workspace
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <div style="font-size:13px;line-height:1.55;color:#94a3b8;margin-top:12px">
+              Free, and it takes about a minute. A domain is optional.
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:18px 34px 30px">
+            <div style="background-color:#f1f5f9;border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px">
+              <div style="font-size:13px;font-weight:700;color:#111827;margin-bottom:4px">
+                &#128272; Nothing you publish today changes
+              </div>
+              <div style="font-size:13px;line-height:1.55;color:#6b7280">
+                Every existing link keeps working, publicly, exactly as it did. Without a
+                workspace Markdrop behaves as it always has &mdash; and anonymous publishing,
+                end-to-end encryption and password links are all still there, untouched.
+              </div>
+            </div>
+          </td>
+        </tr>
+
+        <tr>
+          <td bgcolor="#ffffff" style="background-color:#ffffff;padding:0 34px 30px">
+            <div style="border-top:1px solid #e5e7eb;padding-top:18px;font-size:12px;line-height:1.6;color:#94a3b8">
+              You're getting this because you have a Markdrop account.
+              <a href="{{unsubscribe_url}}" style="color:#64748b">Unsubscribe</a>
+            </div>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</div>
+</body></html>
