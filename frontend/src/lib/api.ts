@@ -292,7 +292,18 @@ export async function getDocument(
   });
   if (!res.ok) {
     if (res.status === 404) throw new Error("Document not found");
-    if (res.status === 401) throw new Error("PASSWORD_REQUIRED");
+    if (res.status === 401) {
+      // 401 means two different things — "this has a password" and "this is
+      // not public and you are nobody yet" — and they need opposite UI. The
+      // server says which in `X-Markdrop-Gate`; treating every 401 as a
+      // password prompt, as this used to, asks the reader of a private
+      // document for a password that was never set.
+      //
+      // Defaults to the password gate when the header is absent, so an older
+      // API keeps behaving exactly as it did.
+      const gate = res.headers.get("x-markdrop-gate");
+      throw new Error(gate === "signin" ? "SIGNIN_REQUIRED" : "PASSWORD_REQUIRED");
+    }
     if (res.status === 403) throw new Error("WRONG_PASSWORD");
     throw new Error("Failed to fetch document");
   }

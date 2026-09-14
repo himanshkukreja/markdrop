@@ -84,12 +84,23 @@ export default async function SlugPage({ params }: Props) {
 
   let doc = null;
   let isPasswordProtected = false;
+  // Which gate the anonymous render hit. A private document with no password
+  // must not be presented as "password protected" — there is no password to
+  // type, and the reader is left with a box that can never open.
+  let gate: "password" | "signin" | null = null;
 
   try {
     doc = await getDocument(slug, undefined, undefined, { revalidate: 60 });
   } catch (e) {
     if (e instanceof Error && e.message === "PASSWORD_REQUIRED") {
       isPasswordProtected = true;
+      gate = "password";
+    } else if (e instanceof Error && e.message === "SIGNIN_REQUIRED") {
+      // Gated, but not by a password. The view still renders locked — a reader
+      // who is already signed in may well have access, and the client retries
+      // with their token before showing anyone a door.
+      isPasswordProtected = true;
+      gate = "signin";
     } else {
       notFound();
     }
@@ -133,6 +144,7 @@ export default async function SlugPage({ params }: Props) {
       expiresAt={doc?.expires_at ?? null}
       views={doc?.views}
       isPasswordProtected={isPasswordProtected}
+      gate={gate}
       isOwned={doc?.is_owned ?? false}
       syncedWithVscode={doc?.vscode_synced ?? false}
       encrypted={doc?.encrypted ?? false}

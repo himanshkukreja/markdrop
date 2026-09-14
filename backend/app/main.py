@@ -51,6 +51,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # `allow_headers` governs what the browser may *send*; a response header is
+    # invisible to JavaScript unless it is named here. Without this the gate
+    # header arrives and is silently unreadable, and the page falls back to
+    # guessing which kind of 401 it got — which is the bug it exists to fix.
+    expose_headers=["X-Markdrop-Gate"],
     # Starlette defaults to 600s. Every cross-origin API call the app makes is
     # preceded by a preflight, so a short cache doubles the request count the
     # rate limiter sees for an authenticated page. 7200 is Chrome's ceiling --

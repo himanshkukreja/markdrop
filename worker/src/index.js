@@ -746,12 +746,29 @@ function videoViewer(src) {
   });
   stage.focus();
 
-  // A container the browser accepts but a codec it doesn't is the common failure
-  // for .mov, and silence would look like our bug rather than the file's.
+  // Two very different failures reach this handler looking identical: a codec
+  // the browser cannot decode, and a file it was never allowed to fetch. A
+  // guarded artifact answers /r/ with 403, the <video> element reports the same
+  // generic error, and blaming the codec sends someone off to re-encode a file
+  // that was never the problem. So ask the source what actually happened before
+  // saying anything about it.
   v.addEventListener('error',function(){
-    stage.innerHTML='<div id="err"><p><strong>This video can\\u2019t be played here.</strong></p>'+
-      '<p>The browser accepted the file but not the codec inside it \\u2014 common with '+
-      '<code>.mov</code> recordings. Download it to play locally, or re-encode to H.264 MP4.</p></div>';
+    var say=function(h,b){
+      stage.innerHTML='<div id="err"><p><strong>'+h+'</strong></p><p>'+b+'</p></div>';
+    };
+    var codec='The browser accepted the file but not the codec inside it \\u2014 common with '+
+      '<code>.mov</code> recordings. Download it to play locally, or re-encode to H.264 MP4.';
+    // One byte is enough to learn the status, and costs nothing if it succeeds.
+    fetch(v.currentSrc||v.src,{headers:{Range:'bytes=0-0'}}).then(function(r){
+      if(r.status===401||r.status===403)
+        say('You don\\u2019t have access to this video.',
+            'Open it from the document page while signed in with the address it was shared with.');
+      else if(r.status===404)
+        say('This video is no longer available.','The file may have been deleted.');
+      else say('This video can\\u2019t be played here.',codec);
+    }).catch(function(){
+      say('This video can\\u2019t be played here.',codec);
+    });
   });
 })();
 </script>`;

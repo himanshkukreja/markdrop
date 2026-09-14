@@ -8,7 +8,7 @@ import {
   type AccessLevel, type AccessState,
 } from "@/lib/access";
 import { useWorkspaceTargets, type PublishTargetValue } from "@/lib/useWorkspaceTargets";
-import { listMembers, shareToWorkspace, type Member } from "@/lib/workspaces";
+import { listMembers, purgeDocument, shareToWorkspace, type Member } from "@/lib/workspaces";
 
 /**
  * Who can open this document, and who has been named on it.
@@ -137,7 +137,17 @@ export default function ShareDialog({
 
   async function run(key: string, fn: () => Promise<unknown>, after?: () => void) {
     setBusy(key); setError("");
-    try { await fn(); await load(); onChanged?.(); after?.(); }
+    try {
+      await fn();
+      // Everything in this dialog changes who may read the document, and the
+      // page is served from a cached *anonymous* render. Without this, tightening
+      // access leaves that render in place: for a full minute — longer, since a
+      // stale entry is served while it revalidates — the public copy keeps
+      // handing out the title and the artifact URL of a document that is no
+      // longer public. Narrowing access has to take effect when it is narrowed.
+      purgeDocument(slug);
+      await load(); onChanged?.(); after?.();
+    }
     catch (e) { toast.error(e instanceof Error ? e.message : "Something went wrong"); }
     finally { setBusy(""); }
   }
