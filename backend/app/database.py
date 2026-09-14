@@ -105,6 +105,20 @@ async def connect() -> None:
     await db["feedback"].create_index([("created_at", -1)])
     await db["feedback"].create_index([("status", 1), ("type", 1), ("created_at", -1)])
 
+    # Folders created before slugs existed have none, and fall back to their
+    # ObjectId in URLs. Idempotent and a no-op once done, so it runs on every
+    # start rather than needing anyone to remember a migration step. Never fatal:
+    # ugly URLs are worth far less than a backend that starts.
+    try:
+        from app.services import folder as _folder_service
+
+        filled = await _folder_service.backfill_slugs(db)
+        if filled["folders"]:
+            print(f"[startup] gave slugs to {filled['folders']} folder(s) "
+                  f"across {filled['workspaces']} workspace(s)")
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] folder slug backfill skipped: {exc}")
+
 
 async def disconnect() -> None:
     global _client

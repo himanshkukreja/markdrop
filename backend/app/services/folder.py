@@ -108,6 +108,63 @@ async def _unique_slug(
             )
 
 
+async def backfill_slugs(db: AsyncIOMotorDatabase) -> dict:
+    """Give a slug to every folder created before slugs existed.
+
+    Folders predate this feature, and `_to_folder` falls back to the ObjectId so
+    a path always has a segment. That fallback keeps URLs *working*, but it makes
+    them look like ``/6aa72082ae17a8a365f50a7b/video-test`` — which is not what
+    anyone filed a folder called "Data" expecting to get.
+
+    Idempotent, so it is safe to run on every start: it only touches folders with
+    no slug, and only reindexes workspaces that actually changed.
+
+    Unlike `_unique_slug`, a reserved top-level name is suffixed rather than
+    refused. Refusing is right when someone is typing a name and can pick
+    another; at startup there is nobody to tell, and failing would leave the
+    folder with an ObjectId for a slug forever.
+    """
+    rows = await db["folders"].find(
+        {"$or": [{"slug": {"$exists": False}}, {"slug": None}, {"slug": ""}]},
+        {"name": 1, "workspace_id": 1, "parent_id": 1},
+    ).to_list(length=10_000)
+    if not rows:
+        return {"folders": 0, "workspaces": 0}
+
+    touched: set[str] = set()
+    for raw in rows:
+        workspace_id = raw["workspace_id"]
+        parent_id = raw.get("parent_id")
+        base = slugify(raw.get("name") or "")[:MAX_SLUG].strip("-") or "folder"
+        if parent_id is None and is_reserved_slug(base):
+            base = f"{base}-folder"
+
+        candidate, n = base, 1
+        while await db["folders"].find_one(
+            {"workspace_id": workspace_id, "parent_id": parent_id,
+             "slug": candidate, "_id": {"$ne": raw["_id"]}},
+            {"_id": 1},
+        ):
+            n += 1
+            candidate = f"{base}-{n}"
+            if n > 200:
+                candidate = str(raw["_id"])  # give up gracefully rather than spin
+                break
+
+        await db["folders"].update_one({"_id": raw["_id"]}, {"$set": {"slug": candidate}})
+        touched.add(workspace_id)
+
+    # Documents carry a denormalised copy of the path, so it has to be rewritten
+    # too — otherwise the folders look right and the URLs stay wrong.
+    for workspace_id in touched:
+        for root in await db["folders"].find(
+            {"workspace_id": workspace_id, "parent_id": None}, {"_id": 1}
+        ).to_list(length=MAX_FOLDERS_PER_WORKSPACE):
+            await _reindex_subtree(db, workspace_id, str(root["_id"]))
+
+    return {"folders": len(rows), "workspaces": len(touched)}
+
+
 async def path_of(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: str | None) -> list[str]:
     """Folder slugs from the root down, e.g. ``["data", "reports"]``.
 
