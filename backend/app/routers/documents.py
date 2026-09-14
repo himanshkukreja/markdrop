@@ -126,6 +126,9 @@ async def get_document(
     doc = await doc_service.get_document(
         db, slug, x_read_password, x_edit_secret, viewer_id,
         workspace_scope=x_markdrop_workspace or None,
+        # Access grants key on the address, not the account id — see
+        # services/access.py — so the reader's email is what resolves them.
+        user_email=user.email if user else None,
     )
     return DocumentResponse(**_to_response(doc, viewer_id))
 
@@ -141,7 +144,10 @@ async def update_document(
     user: User | None = Depends(optional_user),
 ):
     viewer_id = user.id if user else None
-    doc = await doc_service.update_document(db, slug, data, x_edit_secret, viewer_id)
+    doc = await doc_service.update_document(
+        db, slug, data, x_edit_secret, viewer_id,
+        user_email=user.email if user else None,
+    )
     # Notify any open viewers so they refresh live (best-effort, in-process).
     live.publish(doc.slug, doc.rev)
     return DocumentResponse(**_to_response(doc, viewer_id))

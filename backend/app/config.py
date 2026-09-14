@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     # Passwordless email login via Resend (Phase 2)
     resend_api_key: str = ""
     email_from: str = "login@markdrop.in"
+    # Per-purpose senders. Keeping sign-in on its own address matters: if a
+    # welcome or share email ever gets someone's domain to filter "markdrop",
+    # the login code must not go with it. Each falls back to `email_from`, so an
+    # unverified address in Resend degrades to a working send rather than a
+    # bounce — set them only once the domain is verified.
+    email_from_login: str = ""
+    email_from_welcome: str = ""
+    email_from_share: str = ""
     email_from_name: str = "Markdrop"
     # Where replies actually land. The From addresses are send-only mailboxes
     # with no inbox, so without this a reply — "I can't sign in", "unsubscribe

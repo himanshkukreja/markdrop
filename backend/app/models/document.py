@@ -48,6 +48,13 @@ class Document:
     # `services.folder`. Here so a page view costs one query instead of walking
     # up to MAX_DEPTH parents on every read.
     folder_path: list[str] = field(default_factory=list)
+    # ── Access control ───────────────────────────────────────────────────────
+    # "link" is what every document has always been and remains the default:
+    # anyone holding the URL can read it. See `services.access` for the rest.
+    access_level: str = "link"
+    # Whether people the owner shared with may share it onward. Owner-only
+    # switch; a delegate can never grant above their own level regardless.
+    allow_resharing: bool = True
     # ── Artifacts ────────────────────────────────────────────────────────────
     # kind="artifact" records store their bytes in R2 (`blob_key`) instead of
     # `content`, and render on the isolated artifact origin. Everything else on

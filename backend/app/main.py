@@ -20,6 +20,7 @@ from app.routers.domains import router as domains_router
 from app.routers.folders import router as folders_router
 from app.routers.invites import router as invites_router
 from app.routers.library import router as library_router
+from app.routers.access import router as access_router
 from app.routers.google import router as google_router
 from app.routers.live import router as live_router
 from app.routers.me import router as me_router
@@ -86,6 +87,7 @@ app.include_router(domains_router)
 app.include_router(folders_router)
 app.include_router(invites_router)
 app.include_router(library_router)
+app.include_router(access_router)
 
 
 @app.get("/health")

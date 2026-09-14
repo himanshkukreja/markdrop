@@ -15,6 +15,7 @@ import MarkdropLoader from "@/components/MarkdropLoader";
 import ShareToWorkspace from "@/components/workspace/ShareToWorkspace";
 import DashboardSidebar, { type Filter } from "@/components/dashboard/DashboardSidebar";
 import RowMenu, { type MenuItem } from "@/components/dashboard/RowMenu";
+import ShareDialog from "@/components/access/ShareDialog";
 
 type Range = "7d" | "30d" | "all";
 
@@ -130,6 +131,8 @@ export default function DashboardPage() {
   // The share dialog is opened from a row's overflow menu, so the row holds no
   // trigger of its own — see ShareToWorkspace's `hideTrigger`.
   const [shareFor, setShareFor] = useState<string | null>(null);
+  // Per-document access (who can open it), distinct from workspace sharing.
+  const [accessFor, setAccessFor] = useState<MyDocListItem | null>(null);
 
   // Google Docs integration
   const [gStatus, setGStatus] = useState<GoogleStatus | null>(null);
@@ -523,7 +526,8 @@ export default function DashboardPage() {
                       }
                     }
 
-                    items.push({ label: "Change URL", onClick: () => openRename(d.slug), separated: true });
+                    items.push({ label: "Share…", onClick: () => setAccessFor(d), separated: true });
+                    items.push({ label: "Change URL", onClick: () => openRename(d.slug) });
                     items.push({ label: d.workspace_id ? "Workspace sharing" : "Share to workspace",
                                  onClick: () => setShareFor(d.id) });
                     items.push({ label: "Delete", onClick: () => setDeleteFor(d.slug), danger: true, separated: true });
@@ -578,6 +582,15 @@ export default function DashboardPage() {
       )}
 
       </div>
+
+      {accessFor && (
+        <ShareDialog
+          slug={accessFor.slug}
+          title={accessFor.title || accessFor.original_filename || accessFor.slug}
+          onClose={() => setAccessFor(null)}
+          onChanged={load}
+        />
+      )}
 
       {/* Delete confirm modal */}
       {deleteFor && (

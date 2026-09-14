@@ -75,6 +75,14 @@ async def connect() -> None:
     await db["documents"].create_index([("workspace_id", 1), ("updated_at", -1)], sparse=True)
 
     # Abuse reports
+    # One grant per person per document; re-sharing updates the role rather
+    # than stacking rows.
+    await db["document_grants"].create_index(
+        [("document_id", 1), ("email", 1)], unique=True
+    )
+    # "which documents am I shared on?" — answered by address, since a grant
+    # exists before its recipient has an account.
+    await db["document_grants"].create_index("email")
     await db["reports"].create_index([("doc_id", 1), ("ts", -1)])
 
     # Users (optional-login feature)

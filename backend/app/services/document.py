@@ -54,6 +54,8 @@ def _doc_from_mongo(raw: dict) -> Document:
         blob_key=raw.get("blob_key"),
         size_bytes=raw.get("size_bytes"),
         folder_path=raw.get("folder_path") or [],
+        access_level=raw.get("access_level") or "link",
+        allow_resharing=raw.get("allow_resharing", True),
         original_filename=raw.get("original_filename"),
         bundle_prefix=raw.get("bundle_prefix"),
     )
@@ -78,8 +80,9 @@ async def _authorize_write(
     user_id: str | None,
     *,
     required: str = "member",
+    user_email: str | None = None,
 ) -> None:
-    """`_authorize`, plus the shared-workspace grant.
+    """`_authorize`, plus the shared-workspace and named-editor grants.
 
     A document with no `workspace_id` is private to its owner and this behaves
     exactly as it always has -- which is every document that existed before
@@ -96,14 +99,26 @@ async def _authorize_write(
         _authorize(raw, edit_secret, user_id)
         return
     except HTTPException:
-        workspace_id = raw.get("workspace_id")
-        if not workspace_id or not user_id:
+        if not user_id:
             raise
-        from app.services import workspace as ws_service
 
-        role = await ws_service.role_for(db, workspace_id, user_id)
-        if role_allows(role, required):  # type: ignore[arg-type]
-            return
+        workspace_id = raw.get("workspace_id")
+        if workspace_id:
+            from app.services import workspace as ws_service
+
+            role = await ws_service.role_for(db, workspace_id, user_id)
+            if role_allows(role, required):  # type: ignore[arg-type]
+                return
+
+        # A named editor may change the text, but never rename or delete: those
+        # ask for "admin" here and a grant tops out at editor. Destroying or
+        # re-addressing someone else's document stays with its owner.
+        if user_email and required == "member" and raw.get("_id") is not None:
+            from app.services import access as access_service
+
+            grant = await access_service.grant_for(db, str(raw["_id"]), user_email)
+            if grant is not None and grant.role == "editor":
+                return
         raise
 
 
@@ -194,6 +209,7 @@ async def get_document(
     edit_secret: str | None = None,
     user_id: str | None = None,
     workspace_scope: str | None = None,
+    user_email: str | None = None,
 ) -> Document:
     # Read-only fetch — NO side effects. Views are counted by a browser beacon
     # (POST /{slug}/events type=view), so server-side rendering on Vercel does
@@ -231,6 +247,32 @@ async def get_document(
                 detail="Sign in to view this document.",
             )
 
+    # ── Access level ─────────────────────────────────────────────────────────
+    # `link` — every document that has ever existed here, and still the default
+    # — short-circuits without a database lookup, so the ordinary read pays
+    # nothing for a check it cannot fail. Anything narrower asks who this is.
+    #
+    # The edit secret bypasses, because holding it already proves authorship;
+    # without that, publishing a private document anonymously would lock the
+    # publisher out of their own document.
+    level = raw.get("access_level") or "link"
+    if level != "link":
+        from app.services import access as access_service
+
+        secret_proves_authorship = bool(edit_secret) and verify_edit_secret(
+            edit_secret, raw["edit_secret_hash"]
+        )
+        if not secret_proves_authorship and not await access_service.can_read(
+            db, raw, user_id, user_email
+        ):
+            # 404, not 403: a private document should not confirm that it exists
+            # to someone with no claim on it. 401 when nobody is signed in, so
+            # the page can offer a sign-in rather than a dead end.
+            raise HTTPException(
+                status_code=401 if not user_id else 404,
+                detail="Sign in to view this document." if not user_id else "Document not found",
+            )
+
     if raw.get("read_password_hash"):
         # The owner (logged in, or holding a valid edit secret) bypasses the gate.
         owner_bypasses = user_id and raw.get("owner_id") == user_id
@@ -250,12 +292,13 @@ async def update_document(
     data: DocumentUpdate,
     edit_secret: str | None = None,
     user_id: str | None = None,
+    user_email: str | None = None,
 ) -> Document:
-    raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
+    raw = await db["documents"].find_one({"slug": slug})
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    await _authorize_write(db, raw, edit_secret, user_id)
+    await _authorize_write(db, raw, edit_secret, user_id, user_email=user_email)
 
     now = datetime.now(timezone.utc)
     updates: dict = {"title": data.title or None, "updated_at": now}
