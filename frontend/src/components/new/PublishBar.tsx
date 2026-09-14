@@ -22,7 +22,7 @@ import { useWorkspaceTargets, type PublishTargetValue } from "@/lib/useWorkspace
  * sheet is the same content given the width it needs.
  */
 
-type PanelId = "destination" | "link" | "password" | "encrypt" | "expiry";
+type PanelId = "destination" | "access" | "link" | "password" | "encrypt" | "expiry";
 
 export interface PublishBarProps {
   target: PublishTargetValue;
@@ -37,6 +37,11 @@ export interface PublishBarProps {
   encryptSupported: boolean;
   expiresIn: string;
   onExpiresIn: (v: string) => void;
+  /** Who can open it once published. Only meaningful when signed in — there is
+   *  nobody to be "only me" for otherwise. */
+  accessLevel: "private" | "link";
+  onAccessLevel: (v: "private" | "link") => void;
+  signedIn: boolean;
   /** Rendered inside the expiry panel when a custom date is selected. */
   customDatePicker?: React.ReactNode;
   disabled?: boolean;
@@ -170,6 +175,10 @@ export default function PublishBar(p: PublishBarProps) {
               </span>
             ) : "Just me")}
 
+        {p.signedIn &&
+          chip("access", p.accessLevel === "private", ICONS.lock,
+            p.accessLevel === "private" ? "Only me" : "Anyone with link")}
+
         {chip("link", !!p.customSlug, ICONS.link,
           p.customSlug
             ? <span className="font-mono max-w-[150px] truncate">/{p.customSlug}</span>
@@ -227,6 +236,39 @@ export default function PublishBar(p: PublishBarProps) {
               </p>
             </>
           )}
+        </div>
+      ))}
+
+      {panel("access", "Who can open it", (
+        <div className="space-y-2">
+          {([
+            ["link", "Anyone with the link",
+             "No sign-in needed. This is how Markdrop links have always worked."],
+            ["private", "Only me",
+             "Nobody else can open it. You can add people once it's published."],
+          ] as const).map(([id, label, hint]) => (
+            <button
+              key={id}
+              onClick={() => p.onAccessLevel(id)}
+              className={`flex w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                p.accessLevel === id
+                  ? "border-blue-500/45 bg-blue-500/10"
+                  : "border-gray-200 dark:border-white/[0.08] hover:bg-gray-50 dark:hover:bg-white/[0.04]"
+              }`}
+            >
+              <span className="min-w-0">
+                <span className={`block text-[13px] font-medium ${
+                  p.accessLevel === id ? "text-blue-700 dark:text-blue-200" : "text-gray-800 dark:text-gray-200"
+                }`}>{label}</span>
+                <span className="mt-0.5 block text-[11.5px] leading-snug text-gray-500 dark:text-gray-400">{hint}</span>
+              </span>
+              {p.accessLevel === id && <span className="ml-auto mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-400" />}
+            </button>
+          ))}
+          <p className="pt-1 text-[11.5px] leading-relaxed text-gray-400">
+            Naming specific people, and workspace-only access, are set from Share
+            once the document exists.
+          </p>
         </div>
       ))}
 

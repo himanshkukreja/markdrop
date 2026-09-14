@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import { createDocument, ExpiresIn } from "@/lib/api";
 import * as e2e from "@/lib/e2e";
 import { MAX_CHARS } from "@/lib/limits";
@@ -132,6 +133,8 @@ export default function NewDocumentPage() {
   }
 
   const [target, setTarget] = useState<PublishTargetValue>({ workspaceId: null, folderId: null });
+  const { user } = useAuth();
+  const [accessLevel, setAccessLevel] = useState<"private" | "link">("link");
 
   async function handlePublish() {
     if (!content.trim()) return;
@@ -164,6 +167,7 @@ export default function NewDocumentPage() {
         customExpiresAt: expiresIn === "custom" ? new Date(customExpiresAt).toISOString() : undefined,
         readPassword: readPassword || undefined,
         encrypted: encrypt || undefined,
+        accessLevel,
       });
       // Keep the secret in sessionStorage only — never in the URL (it would
       // leak via history, referrer headers and server logs).
@@ -271,6 +275,9 @@ export default function NewDocumentPage() {
             setCustomExpiresAt("");
           }
         }}
+        accessLevel={accessLevel}
+        onAccessLevel={setAccessLevel}
+        signedIn={!!user}
         customDatePicker={<CustomDatePicker onChange={setCustomExpiresAt} />}
         disabled={loading}
       />

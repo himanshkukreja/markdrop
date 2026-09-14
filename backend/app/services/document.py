@@ -160,6 +160,11 @@ async def create_document(
             "owner_id": owner_id,
             "vscode_synced": via_vscode,
             "encrypted": data.encrypted,
+            # Private at creation is only meaningful for a signed-in author:
+            # there is nobody to be "only me" for otherwise, and it would lock
+            # an anonymous publisher out of the document they just made. The
+            # edit secret still opens it either way.
+            "access_level": data.access_level if owner_id else "link",
             **(extra or {}),
         }
 

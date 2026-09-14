@@ -12,7 +12,6 @@ import { artifactStyle, formatBytes } from "@/components/ArtifactBadge";
 import Modal from "@/components/Modal";
 import VSCodeIcon from "@/components/VSCodeIcon";
 import MarkdropLoader from "@/components/MarkdropLoader";
-import ShareToWorkspace from "@/components/workspace/ShareToWorkspace";
 import DashboardSidebar, { type Filter, type Scope } from "@/components/dashboard/DashboardSidebar";
 import RowMenu, { type MenuItem } from "@/components/dashboard/RowMenu";
 import ShareDialog from "@/components/access/ShareDialog";
@@ -133,8 +132,6 @@ export default function DashboardPage() {
   const [navOpen, setNavOpen] = useState(false);
   // The share dialog is opened from a row's overflow menu, so the row holds no
   // trigger of its own — see ShareToWorkspace's `hideTrigger`.
-  const [shareFor, setShareFor] = useState<string | null>(null);
-  // Per-document access (who can open it), distinct from workspace sharing.
   const [accessFor, setAccessFor] = useState<MyDocListItem | null>(null);
 
   // Google Docs integration
@@ -509,6 +506,11 @@ export default function DashboardPage() {
                       </span>
                     )}
                     {d.expires_at && <span className="text-amber-600 dark:text-amber-400">· expires {new Date(d.expires_at).toLocaleDateString()}</span>}
+                    {scope.kind === "workspace" && (d.shared_by_name || d.shared_by_email) && (
+                      <span className="inline-flex items-center gap-1">
+                        · {d.is_mine ? "You" : d.shared_by_name || d.shared_by_email}
+                      </span>
+                    )}
                     <span>· {new Date(d.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
@@ -566,8 +568,6 @@ export default function DashboardPage() {
 
                     items.push({ label: "Share…", onClick: () => setAccessFor(d), separated: true });
                     items.push({ label: "Change URL", onClick: () => openRename(d.slug) });
-                    items.push({ label: d.workspace_id ? "Workspace sharing" : "Share to workspace",
-                                 onClick: () => setShareFor(d.id) });
                     items.push({ label: "Delete", onClick: () => setDeleteFor(d.slug), danger: true, separated: true });
                     return items;
                   })()}
@@ -576,18 +576,6 @@ export default function DashboardPage() {
 
               {/* Private by default. The dialog states the consequences before
                   it does anything; the row just opens it. */}
-              {shareFor === d.id && (
-                <ShareToWorkspace
-                  hideTrigger
-                  open
-                  onOpenChange={(v) => !v && setShareFor(null)}
-                  documentId={d.id}
-                  title={d.title || d.original_filename || d.slug}
-                  workspaceId={d.workspace_id ?? null}
-                  onChanged={load}
-                />
-              )}
-
               {expanded === d.slug && <AnalyticsPanel slug={d.slug} />}
             </div>
           ))}
@@ -624,6 +612,7 @@ export default function DashboardPage() {
       {accessFor && (
         <ShareDialog
           slug={accessFor.slug}
+          documentId={accessFor.id}
           title={accessFor.title || accessFor.original_filename || accessFor.slug}
           onClose={() => setAccessFor(null)}
           onChanged={load}

@@ -37,6 +37,10 @@ class ArtifactCreateRequest(BaseModel):
     expires_in: Literal["never", "1d", "7d", "30d", "custom"] = "never"
     custom_expires_at: datetime | None = None
     read_password: str | None = Field(None, min_length=1, max_length=100)
+    access_level: Literal["private", "link"] = "link"
+    # Who can open it, chosen at upload. "link" is the default and is what every
+    # artifact has always been.
+    access_level: Literal["private", "link"] = "link"
 
 
 class ArtifactPasteRequest(BaseModel):

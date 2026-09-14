@@ -29,6 +29,11 @@ class DocumentCreate(BaseModel):
     # only records it so that every path which would read, render, export or
     # overwrite plaintext refuses instead of producing garbage.
     encrypted: bool = False
+    # Who can open it, chosen at creation. "link" is the default and is what
+    # every document has always been, so an unset field changes nothing.
+    # "workspace" is only meaningful once the document is in one, which happens
+    # after creation — the client sends it with the share step, not here.
+    access_level: Literal["private", "link"] = "link"
 
     @model_validator(mode="after")
     def validate_custom_expiry(self):

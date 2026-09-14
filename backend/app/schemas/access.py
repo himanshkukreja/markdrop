@@ -38,7 +38,16 @@ class AccessResponse(BaseModel):
     # must say that sharing the address is what actually unlocks it.
     encrypted: bool
     in_workspace: bool
+    # Which workspace, so the share box can suggest its members rather than
+    # making someone remember and retype addresses they already have.
+    workspace_id: str | None = None
     your_role: Literal["owner", "editor", "viewer"]
+    # Who owns it, so the share list can name a person rather than guessing from
+    # whatever string the caller happened to pass as a title.
+    owner_name: str | None = None
+    owner_email: str | None = None
+    # The viewer's own address, so a grantee can find their row to leave.
+    your_email: str | None = None
     # Derived server-side so the client never re-implements the rules and gets
     # them subtly different.
     can_manage: bool

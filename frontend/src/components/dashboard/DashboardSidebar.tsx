@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { DocKind } from "@/lib/api";
-import { createWorkspace, listFolders, listWorkspaces, type Folder, type Workspace } from "@/lib/workspaces";
+import { listFolders, listWorkspaces, type Folder, type Workspace } from "@/lib/workspaces";
 
 /**
  * Navigation for the dashboard.
@@ -148,27 +148,7 @@ export default function DashboardSidebar({
   googleBusy, open, onClose,
 }: Props) {
   const [workspaces, setWorkspaces] = useState<Workspace[] | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
   const [confirmOff, setConfirmOff] = useState(false);
-
-  async function create() {
-    const n = name.trim();
-    if (!n) return;
-    setBusy(true);
-    try {
-      const ws = await createWorkspace(n);
-      setWorkspaces((w) => [...(w ?? []), ws]);
-      setName("");
-      setCreating(false);
-    } catch {
-      /* surfaced by the settings page; the rail stays quiet rather than
-         growing an error state for a two-field form */
-    } finally {
-      setBusy(false);
-    }
-  }
 
   useEffect(() => {
     listWorkspaces().then(setWorkspaces).catch(() => setWorkspaces([]));
@@ -224,42 +204,25 @@ export default function DashboardSidebar({
 
         {workspaces !== null && (
           <>
-            <div className="flex items-center justify-between pr-1">
+            <div className="flex items-center justify-between pr-2">
               {heading("Workspaces")}
-              {!creating && (
-                <button onClick={() => setCreating(true)} title="New workspace"
-                        className="mt-3 grid h-5 w-5 place-items-center rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-                  +
-                </button>
-              )}
+              {/* Links to the page that already does this properly — creating a
+                  workspace means naming it, branding it and inviting people,
+                  which is a page, not a text field in a rail. */}
+              <a href="/settings/workspaces"
+                 title="Manage workspaces"
+                 className="mt-3 text-[11px] text-gray-400 hover:text-blue-500 transition-colors">
+                Manage
+              </a>
             </div>
-            {creating && (
-              <div className="mb-1 flex gap-1.5 px-1">
-                <input
-                  autoFocus
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") create();
-                    if (e.key === "Escape") { setCreating(false); setName(""); }
-                  }}
-                  placeholder="Workspace name"
-                  maxLength={80}
-                  className="min-w-0 flex-1 rounded-md border border-gray-200 dark:border-white/[0.1] bg-gray-50 dark:bg-white/[0.04] px-2 py-1.5 text-[12.5px] outline-none focus:border-blue-500"
-                />
-                <button onClick={create} disabled={busy || !name.trim()}
-                        className="shrink-0 rounded-md bg-blue-600 px-2 text-[12px] font-medium text-white disabled:opacity-40">
-                  {busy ? "…" : "Add"}
-                </button>
-              </div>
-            )}
             {workspaces.map((w) => (
               <WorkspaceNode key={w.id} ws={w} scope={scope} onScope={onScope} onClose={onClose} />
             ))}
-            {workspaces.length === 0 && !creating && (
-              <p className="px-3 py-1 text-[12px] text-gray-400 dark:text-gray-600">
-                None yet
-              </p>
+            {workspaces.length === 0 && (
+              <a href="/settings/workspaces"
+                 className="block px-3 py-1 text-[12px] text-gray-400 dark:text-gray-600 hover:text-blue-500 transition-colors">
+                Create one →
+              </a>
             )}
           </>
         )}
@@ -267,37 +230,38 @@ export default function DashboardSidebar({
         {googleConnected !== null && (
           <>
             {heading("Integrations")}
-            <div className="rounded-lg px-3 py-2">
-              <div className="flex items-center gap-2.5 text-sm text-gray-600 dark:text-gray-400">
-                <Icon d={ICONS.google} />
-                Google Docs
-                <span className={`ml-auto text-[11px] ${googleConnected ? "text-emerald-500" : "text-gray-400 dark:text-gray-600"}`}>
-                  {googleConnected ? "Connected" : "Off"}
-                </span>
-              </div>
+            {/* One row, not a label with a stray link hanging under it. The
+                name truncates rather than wrapping to two lines, and the action
+                is a real control on the right where the status was. */}
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2">
+              <Icon d={ICONS.google} className="w-4 h-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-sm text-gray-600 dark:text-gray-400">
+                Google&nbsp;Docs
+              </span>
               {googleConnected ? (
                 confirmOff ? (
-                  <div className="mt-2 flex gap-1.5">
+                  <span className="flex shrink-0 items-center gap-1">
                     <button onClick={() => { setConfirmOff(false); onGoogleDisconnect(); }}
                             disabled={googleBusy}
-                            className="flex-1 rounded-md border border-red-300 dark:border-red-900/60 px-2 py-1 text-[11.5px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50">
+                            className="rounded px-1.5 py-0.5 text-[11px] font-medium text-red-500 hover:bg-red-500/10 disabled:opacity-50">
                       {googleBusy ? "…" : "Revoke"}
                     </button>
                     <button onClick={() => setConfirmOff(false)}
-                            className="rounded-md border border-gray-200 dark:border-white/[0.1] px-2 py-1 text-[11.5px] text-gray-500">
-                      Cancel
+                            className="rounded px-1 py-0.5 text-[11px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      ✕
                     </button>
-                  </div>
+                  </span>
                 ) : (
-                  <button onClick={() => setConfirmOff(true)}
-                          className="mt-1.5 text-[11.5px] text-gray-400 hover:text-red-500 transition-colors">
-                    Disconnect
+                  <button onClick={() => setConfirmOff(true)} title="Disconnect Google Docs"
+                          className="group/g shrink-0 rounded px-1.5 py-0.5 text-[11px] text-emerald-500 hover:bg-red-500/10 hover:text-red-500 transition-colors">
+                    <span className="group-hover/g:hidden">Connected</span>
+                    <span className="hidden group-hover/g:inline">Disconnect</span>
                   </button>
                 )
               ) : (
                 <button onClick={onGoogleConnect}
-                        className="mt-1.5 text-[11.5px] text-blue-600 dark:text-blue-400 hover:underline">
-                  Connect to export documents
+                        className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 transition-colors">
+                  Connect
                 </button>
               )}
             </div>

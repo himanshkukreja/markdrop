@@ -218,6 +218,7 @@ async def confirm_artifact(
             expires_in=data.expires_in,
             custom_expires_at=data.custom_expires_at,
             read_password=data.read_password,
+            access_level=data.access_level,
         )
     except Exception:
         # The bytes are already in R2 but no document will reference them, so
@@ -315,6 +316,7 @@ async def paste_html(
         expires_in=data.expires_in,
         custom_expires_at=data.custom_expires_at,
         read_password=data.read_password,
+        access_level=data.access_level,
     )
     return ArtifactCreateResponse(
         **art_service.to_response(doc, is_owner=True), edit_secret=secret

@@ -66,13 +66,30 @@ async def get_access(
 
     is_owner = role == "owner"
     grants = await access_service.list_grants(db, str(raw["_id"]))
+
+    owner_name = owner_email = None
+    if raw.get("owner_id"):
+        from bson import ObjectId
+
+        try:
+            owner = await db["users"].find_one(
+                {"_id": ObjectId(raw["owner_id"])}, {"name": 1, "email": 1}
+            )
+        except Exception:
+            owner = None
+        if owner:
+            owner_name, owner_email = owner.get("name"), owner.get("email")
     return AccessResponse(
         level=raw.get("access_level") or "link",
         allow_resharing=raw.get("allow_resharing", True),
         is_password_protected=bool(raw.get("read_password_hash")),
         encrypted=bool(raw.get("encrypted")),
         in_workspace=bool(raw.get("workspace_id")),
+        workspace_id=raw.get("workspace_id"),
         your_role=role or "viewer",
+        owner_name=owner_name,
+        owner_email=owner_email,
+        your_email=user.email,
         can_manage=is_owner,
         can_share=is_owner or (raw.get("allow_resharing", True) and role is not None),
         grants=[_to_grant(g) for g in grants],

@@ -7,6 +7,8 @@ import {
   addPerson, getAccess, removePerson, setAccessLevel, setResharing,
   type AccessLevel, type AccessState,
 } from "@/lib/access";
+import { useWorkspaceTargets, type PublishTargetValue } from "@/lib/useWorkspaceTargets";
+import { listMembers, shareToWorkspace, type Member } from "@/lib/workspaces";
 
 /**
  * Who can open this document, and who has been named on it.
@@ -48,14 +50,18 @@ function Icon({ d, className = "w-4 h-4" }: { d: React.ReactNode; className?: st
 }
 
 function initials(s: string) {
-  return s.trim().slice(0, 2).toUpperCase() || "?";
+  const words = s.trim().split(/[\s@._-]+/).filter(Boolean);
+  return (words.slice(0, 2).map((w) => w[0]).join("") || "?").toUpperCase();
 }
 
 export default function ShareDialog({
-  slug, title, onClose, onChanged,
+  slug, title, documentId, onClose, onChanged,
 }: {
   slug: string;
   title: string;
+  /** Needed to put the document into a workspace from here. Without it the
+   *  workspace option is hidden rather than shown and then failing. */
+  documentId?: string | null;
   onClose: () => void;
   onChanged?: () => void;
 }) {
@@ -67,6 +73,16 @@ export default function ShareDialog({
   const [notify, setNotify] = useState(true);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
+  // Putting a document *into* a workspace used to be a separate modal reached
+  // from a different menu item, which meant "everyone in the workspace" was an
+  // option you could only pick if you had already used the other one. It lives
+  // here now, where the question is asked.
+  const [wsTarget, setWsTarget] = useState<PublishTargetValue>({ workspaceId: null, folderId: null });
+  const ws = useWorkspaceTargets(wsTarget);
+  // Teammates, offered as suggestions. Sharing with a colleague should not
+  // require remembering how their address is spelled.
+  const [members, setMembers] = useState<Member[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const load = useCallback(async () => {
     try { setState(await getAccess(slug)); }
@@ -74,6 +90,18 @@ export default function ShareDialog({
   }, [slug]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Only for a document that lives in a workspace — that is the only set of
+  // people we can name without leaking who else uses Markdrop.
+  useEffect(() => {
+    const id = state?.workspace_id;
+    if (!id) return;
+    let cancelled = false;
+    listMembers(id)
+      .then((m) => { if (!cancelled) setMembers(m); })
+      .catch(() => { /* suggestions are a convenience, never a blocker */ });
+    return () => { cancelled = true; };
+  }, [state?.workspace_id]);
 
   async function run(key: string, fn: () => Promise<unknown>, after?: () => void) {
     setBusy(key); setError("");
@@ -98,9 +126,28 @@ export default function ShareDialog({
     });
   }
 
+  const already = new Set((state?.grants ?? []).map((g) => g.email));
+  const q = email.trim().toLowerCase();
+  const suggestions = members
+    .filter((m) => m.email && !already.has(m.email.toLowerCase()))
+    .filter((m) => !q || (m.email ?? "").toLowerCase().includes(q)
+                      || (m.name ?? "").toLowerCase().includes(q))
+    .slice(0, 6);
+
   const canManage = state?.can_manage ?? false;
   const canShare = state?.can_share ?? false;
-  const levels = LEVELS.filter((l) => l.id !== "workspace" || state?.in_workspace);
+  // Shown once the document is in a workspace, or once one can be chosen.
+  const canOfferWorkspace = state?.in_workspace || (canManage && !!documentId && ws.available);
+  const levels = LEVELS.filter((l) => l.id !== "workspace" || canOfferWorkspace);
+
+  async function moveIntoWorkspace() {
+    if (!documentId || !wsTarget.workspaceId) return;
+    await run("workspace", async () => {
+      await shareToWorkspace(wsTarget.workspaceId!, documentId, wsTarget.folderId);
+      await setAccessLevel(slug, "workspace");
+      toast.success("Shared with the workspace.");
+    });
+  }
 
   return (
     <Modal title="Share" onClose={onClose}>
@@ -160,6 +207,51 @@ export default function ShareDialog({
                   );
                 })}
               </div>
+              {/* Not in a workspace yet: choose one here rather than being sent
+                  to another menu item to do it first. */}
+              {canManage && !state.in_workspace && ws.available && (
+                <div className="mt-2 rounded-xl border border-gray-200 dark:border-white/[0.08] p-3">
+                  <p className="mb-2 text-[11.5px] text-gray-500 dark:text-gray-400">
+                    To use workspace access, put this document in one:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      value={wsTarget.workspaceId ?? ""}
+                      onChange={(e) => setWsTarget({ workspaceId: e.target.value || null, folderId: null })}
+                      className="min-w-0 flex-1 cursor-pointer rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1.5 text-[13px] outline-none focus:border-blue-500"
+                    >
+                      <option value="">Choose a workspace…</option>
+                      {ws.workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                    {wsTarget.workspaceId && ws.folders.length > 0 && (
+                      <select
+                        value={wsTarget.folderId ?? ""}
+                        onChange={(e) => setWsTarget({ ...wsTarget, folderId: e.target.value || null })}
+                        className="min-w-0 flex-1 cursor-pointer rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1.5 text-[13px] outline-none focus:border-blue-500"
+                      >
+                        <option value="">No folder</option>
+                        {ws.folders.map((f) => (
+                          <option key={f.id} value={f.id}>{f.path.join(" / ") || f.name}</option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      onClick={moveIntoWorkspace}
+                      disabled={!wsTarget.workspaceId || busy === "workspace"}
+                      className="shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-40"
+                    >
+                      {busy === "workspace" ? "Adding…" : "Add"}
+                    </button>
+                  </div>
+                  {wsTarget.workspaceId && (
+                    <p className="mt-2 text-[11.5px] leading-relaxed text-gray-500 dark:text-gray-400">
+                      Everyone in {ws.workspace?.name} will be able to read it; members and
+                      admins can edit it.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {state.is_password_protected && (
                 <p className="mt-2 text-[11.5px] text-gray-500 dark:text-gray-400">
                   A password is also set, so readers are asked for it either way.
@@ -180,15 +272,49 @@ export default function ShareDialog({
 
               {canShare && (
                 <div className="mb-3 space-y-2">
-                  <div className="flex gap-2">
+                  <div className="relative flex gap-2">
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") invite(); }}
-                      placeholder="name@company.com"
+                      onChange={(e) => { setEmail(e.target.value); setPickerOpen(true); }}
+                      onFocus={() => setPickerOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { setPickerOpen(false); invite(); }
+                        if (e.key === "Escape") setPickerOpen(false);
+                      }}
+                      placeholder={suggestions.length ? "Name or email…" : "name@company.com"}
+                      autoComplete="off"
                       className="min-w-0 flex-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors"
                     />
+                    {pickerOpen && suggestions.length > 0 && (
+                      <ul
+                        role="listbox"
+                        className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-52 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 py-1 shadow-2xl"
+                      >
+                        {suggestions.map((m) => (
+                          <li key={m.user_id}>
+                            <button
+                              type="button"
+                              onClick={() => { setEmail(m.email ?? ""); setPickerOpen(false); }}
+                              className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-white/[0.06]"
+                            >
+                              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gray-200 dark:bg-white/[0.09] text-[9px] font-bold text-gray-600 dark:text-gray-300">
+                                {initials(m.name || m.email || "?")}
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block truncate text-[13px] text-gray-800 dark:text-gray-200">
+                                  {m.name || m.email}
+                                </span>
+                                {m.name && (
+                                  <span className="block truncate text-[11px] text-gray-400">{m.email}</span>
+                                )}
+                              </span>
+                              <span className="ml-auto shrink-0 text-[10.5px] capitalize text-gray-400">{m.role}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                     <select
                       value={role}
                       onChange={(e) => setRole(e.target.value as "viewer" | "editor")}
@@ -229,10 +355,18 @@ export default function ShareDialog({
               <div className="divide-y divide-gray-100 dark:divide-white/[0.06] rounded-xl border border-gray-200 dark:border-white/[0.08]">
                 <div className="flex items-center gap-2.5 px-3 py-2.5">
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
-                    {initials(title)}
+                    {initials(state.owner_name || state.owner_email || "?")}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-gray-800 dark:text-gray-200">
-                    Owner
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] text-gray-800 dark:text-gray-200">
+                      {state.owner_name || state.owner_email || "Owner"}
+                      {state.your_role === "owner" && (
+                        <span className="text-gray-400 font-normal"> · you</span>
+                      )}
+                    </span>
+                    {state.owner_name && state.owner_email && (
+                      <span className="block truncate text-[11px] text-gray-400">{state.owner_email}</span>
+                    )}
                   </span>
                   <span className="shrink-0 text-[11.5px] text-gray-400">Full access</span>
                 </div>

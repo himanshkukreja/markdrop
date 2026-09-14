@@ -16,6 +16,7 @@ import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
 import VSCodeIcon from "@/components/VSCodeIcon";
 import ArtifactView from "./ArtifactView";
+import ShareDialog from "@/components/access/ShareDialog";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -208,6 +209,7 @@ export default function DocumentView({
   const [copyError, setCopyError] = useState("");
 
   // Abuse report state
+  const [showShare, setShowShare] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
@@ -1342,6 +1344,24 @@ export default function DocumentView({
             </button>
           )}
 
+          {/* Share — owner only. Access control that lives only on the
+              dashboard is access control you cannot reach from the thing it
+              governs. */}
+          {isOwner && !pwdLocked && (
+            <button
+              onClick={() => setShowShare(true)}
+              title="Choose who can open this document"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9.5" cy="7" r="4" />
+                <path d="M20 8v6M23 11h-6" />
+              </svg>
+              Share
+            </button>
+          )}
+
           {/* Save a copy — any viewer who isn't the owner (logged out → sign in first).
               Hidden for encrypted documents: the copy happens server-side, which
               would duplicate ciphertext under a slug whose link carries no key.
@@ -1487,6 +1507,10 @@ export default function DocumentView({
             </div>
           </div>
         </Modal>
+      )}
+
+      {showShare && (
+        <ShareDialog slug={slug} title={displayTitle || slug} onClose={() => setShowShare(false)} />
       )}
 
       {showReport && (

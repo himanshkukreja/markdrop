@@ -50,12 +50,16 @@ export interface AccessState {
   /** The key is in the link's fragment, so a grant alone cannot decrypt it. */
   encrypted: boolean;
   in_workspace: boolean;
+  /** Which workspace, so the share box can suggest its members. */
+  workspace_id?: string | null;
   your_role: "owner" | "editor" | "viewer";
+  owner_name?: string | null;
+  owner_email?: string | null;
   can_manage: boolean;
   can_share: boolean;
   grants: Grant[];
-  /** Filled in client-side so a grantee can find their own row to leave. */
-  your_email?: string;
+  /** The viewer's own address, so a grantee can find their row to leave. */
+  your_email?: string | null;
 }
 
 export const getAccess = (slug: string) =>

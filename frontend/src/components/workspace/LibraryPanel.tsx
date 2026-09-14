@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useState as useShareState } from "react";
 import type { MyDocListItem } from "@/lib/api";
+import ShareDialog from "@/components/access/ShareDialog";
 import {
   can, fileDocument, libraryCounts, listLibrary, unshareFromWorkspace,
   type Folder, type Role,
@@ -80,6 +82,7 @@ export default function LibraryPanel({
   const [kind, setKind] = useState<"" | "markdown" | "artifact">("");
   const [folder, setFolder] = useState<string>("");   // "" = all, "unfiled", or an id
   const [busy, setBusy] = useState("");
+  const [shareFor, setShareFor] = useShareState<MyDocListItem | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -261,6 +264,15 @@ export default function LibraryPanel({
                     {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
                   </select>
                 )}
+                {d.is_mine && (
+                  <button
+                    onClick={() => setShareFor(d)}
+                    title="Choose who can open this"
+                    className="text-[11px] px-2 py-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-500/5 transition-colors"
+                  >
+                    Share
+                  </button>
+                )}
                 {(d.is_mine || canAdmin) && (
                   <button
                     disabled={busy === `u${d.id}`}
@@ -282,6 +294,16 @@ export default function LibraryPanel({
             </div>
           ))}
         </div>
+      )}
+
+      {shareFor && (
+        <ShareDialog
+          slug={shareFor.slug}
+          documentId={shareFor.id}
+          title={shareFor.title || shareFor.slug}
+          onClose={() => setShareFor(null)}
+          onChanged={load}
+        />
       )}
 
       {docs.length > 0 && (

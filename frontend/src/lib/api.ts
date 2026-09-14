@@ -116,6 +116,8 @@ interface ArtifactOptions {
   expiresIn?: ExpiresIn;
   customExpiresAt?: string;
   readPassword?: string;
+  /** Who can open it. Ignored for an anonymous author. */
+  accessLevel?: "private" | "link";
 }
 
 function artifactBody(options?: ArtifactOptions) {
@@ -124,6 +126,7 @@ function artifactBody(options?: ArtifactOptions) {
     expires_in: options?.expiresIn ?? "never",
     custom_expires_at: options?.customExpiresAt ?? null,
     read_password: options?.readPassword || null,
+    access_level: options?.accessLevel ?? "link",
   };
 }
 
@@ -215,6 +218,9 @@ export async function createDocument(
     readPassword?: string;
     /** True when `content` is already a sealed envelope and `title` must stay null. */
     encrypted?: boolean;
+    /** Who can open it. Ignored server-side for an anonymous author — there is
+     *  nobody to be "only me" for. */
+    accessLevel?: "private" | "link";
   }
 ): Promise<DocumentCreateResponse> {
   const res = await fetch(`${API_BASE}/api/v1/documents`, {
@@ -230,6 +236,7 @@ export async function createDocument(
       expires_in: options?.expiresIn ?? "never",
       custom_expires_at: options?.customExpiresAt ?? null,
       read_password: options?.readPassword ?? null,
+      access_level: options?.accessLevel ?? "link",
     }),
   });
   if (!res.ok) {

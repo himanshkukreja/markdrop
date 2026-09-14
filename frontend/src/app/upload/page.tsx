@@ -81,6 +81,7 @@ export default function UploadArtifactPage() {
   const [readPassword, setReadPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [target, setTarget] = useState<PublishTargetValue>({ workspaceId: null, folderId: null });
+  const [accessLevel, setAccessLevel] = useState<"private" | "link">("link");
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
@@ -171,6 +172,7 @@ export default function UploadArtifactPage() {
       customSlug: customSlug || undefined,
       expiresIn,
       readPassword: readPassword || undefined,
+      accessLevel,
     };
     try {
       const doc =
@@ -418,6 +420,33 @@ export default function UploadArtifactPage() {
       <div className="rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 sm:p-5 space-y-4">
         {/* Renders nothing for anyone without a workspace they can publish into. */}
         <PublishTarget value={target} onChange={setTarget} disabled={busy} />
+
+        {/* Who can open it, chosen here rather than only after publishing. */}
+        {user && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500 dark:text-gray-400">Who can open it</span>
+            <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {([["link", "Anyone with the link"], ["private", "Only me"]] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setAccessLevel(id)}
+                  className={`px-3 py-1.5 text-xs transition-colors disabled:opacity-50 ${
+                    accessLevel === id
+                      ? "bg-blue-500/15 text-blue-600 dark:text-blue-300"
+                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.05]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] text-gray-400">
+              Add specific people from Share once it&apos;s published.
+            </span>
+          </div>
+        )}
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Title</label>

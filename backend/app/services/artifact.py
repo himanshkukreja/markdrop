@@ -233,6 +233,7 @@ async def create_artifact(
     expires_in: str = "never",
     custom_expires_at: datetime | None = None,
     read_password: str | None = None,
+    access_level: str = "link",
 ):
     """Mint the shareable document record for an already-uploaded blob.
 
@@ -253,6 +254,7 @@ async def create_artifact(
         expires_in=expires_in,
         custom_expires_at=custom_expires_at,
         read_password=read_password,
+        access_level=access_level,  # type: ignore[arg-type]
     )
     return await doc_service.create_document(
         db,
