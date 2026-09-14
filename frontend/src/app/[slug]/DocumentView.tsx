@@ -8,6 +8,7 @@ import { useQueryFlags } from "@/lib/useQueryFlags";
 import MarkdropLoader from "@/components/MarkdropLoader";
 import * as e2e from "@/lib/e2e";
 import CopyButton from "@/components/CopyButton";
+import AccessGate from "@/components/access/AccessGate";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, API_BASE } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
@@ -541,6 +542,11 @@ export default function DocumentView({
   const [pwdError, setPwdError] = useState("");
   const [pwdUnlocking, setPwdUnlocking] = useState(false);
   const [pwdVisible, setPwdVisible] = useState(false);
+  // Set when the retry ran *with* a token and was still refused. That is a
+  // different fact from "nobody is signed in", and it needs a different screen:
+  // telling someone to sign in when they already are is how a working link
+  // starts looking broken.
+  const [accessDenied, setAccessDenied] = useState(false);
 
   // Immersive mode: the document fills the viewport with all app chrome hidden,
   // so a published page reads as the content itself rather than as something in
@@ -778,10 +784,14 @@ export default function DocumentView({
         adoptDoc(doc);
         setPwdLocked(false);
       })
-      .catch(() => {
-        // Still refused: they are signed in but this is not theirs, or a
-        // password is genuinely required. Fall back to whichever gate applies.
-        if (!cancelled) setPwdLocked(true);
+      .catch((e) => {
+        if (cancelled) return;
+        // A password gate is not a denial — they simply have not typed it yet.
+        // Anything else, with a token in hand, means this account was checked
+        // and refused.
+        const needsPassword = e instanceof Error && e.message === "PASSWORD_REQUIRED";
+        setAccessDenied(!needsPassword);
+        setPwdLocked(true);
       })
       .finally(() => { if (!cancelled) setPwdFetching(false); });
     return () => { cancelled = true; };
@@ -1348,11 +1358,15 @@ export default function DocumentView({
               </span>
             )}
             {isPasswordProtected && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 vscode:bg-[#2d2d2d] vscode:text-[#9d9d9d]">
+              <span
+                title={gate === "signin"
+                  ? "Shared with specific people"
+                  : "Opens with a password"}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 vscode:bg-[#2d2d2d] vscode:text-[#9d9d9d]">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
                 </svg>
-                Protected
+                {gate === "signin" ? "Private" : "Protected"}
               </span>
             )}
             {vscodeSynced && !pwdLocked && (
@@ -1367,8 +1381,11 @@ export default function DocumentView({
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* Action buttons.
+            Hidden entirely while the document is gated: every one of them acts
+            on a document this reader cannot open, and offering "Copy Link" and
+            "Edit" to somebody being told they have no access reads as a bug. */}
+        <div className={`flex items-center gap-2 flex-wrap ${pwdLocked || pwdFetching ? "hidden" : ""}`}>
           {/* shareUrl, not url: without the fragment the link opens a document
               nobody can read, including the person who just published it. */}
           <CopyButton text={shareUrl} onCopy={() => recordEvent(slug, "copy_url")} />
@@ -1649,87 +1666,18 @@ export default function DocumentView({
           ))}
         </div>
       ) : pwdLocked ? (
-        <div className="relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden">
-          {/* Blurred skeleton */}
-          <div className="blur-sm select-none pointer-events-none p-6 space-y-3 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526]" aria-hidden>
-            {[...Array(6)].map((_, i) => (
-              <div
-                key={i}
-                className={`h-3 bg-gray-200 dark:bg-gray-700 vscode:bg-[#3c3c3c] rounded ${
-                  i % 3 === 0 ? "w-3/4" : i % 3 === 1 ? "w-full" : "w-5/6"
-                }`}
-              />
-            ))}
-          </div>
-          {/* Overlay */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#1e1e1e]/80 dark:bg-gray-950/70 vscode:bg-[#1e1e1e]/80 backdrop-blur-sm">
-            <svg className="w-8 h-8 text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d]" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
-            </svg>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d]">
-              {gate === "signin"
-                ? "This document isn't public"
-                : "This document is password protected"}
-            </p>
-            {gate === "signin" ? (
-              <div className="flex flex-col items-center gap-2.5 px-4 text-center">
-                <p className="max-w-xs text-xs leading-relaxed text-gray-500 dark:text-gray-500">
-                  Sign in with the address it was shared with and it will open.
-                </p>
-                <a
-                  href={signInHref}
-                  className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-500"
-                >
-                  Sign in
-                </a>
-              </div>
-            ) : (
-            <form onSubmit={handlePasswordUnlock} className="flex flex-col items-center gap-2 w-full max-w-xs px-4">
-              <div className="flex w-full gap-2">
-                <div className="flex flex-1 items-center bg-[#2d2d2d] dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg overflow-hidden focus-within:border-blue-500 transition-colors">
-                  <input
-                    type={pwdVisible ? "text" : "password"}
-                    value={pwdInput}
-                    onChange={(e) => setPwdInput(e.target.value)}
-                    placeholder="Enter password"
-                    autoFocus
-                    className="flex-1 text-sm bg-transparent px-3 py-1.5 outline-none text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400"
-                  />
-                  {pwdInput && (
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      onClick={() => setPwdVisible((v) => !v)}
-                      className="px-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 vscode:hover:text-[#d4d4d4] shrink-0"
-                      aria-label={pwdVisible ? "Hide password" : "Show password"}
-                    >
-                      {pwdVisible ? (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                          <line x1="1" y1="1" x2="23" y2="23"/>
-                        </svg>
-                      ) : (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                          <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                      )}
-                    </button>
-                  )}
-                </div>
-                <button
-                  type="submit"
-                  disabled={pwdUnlocking || !pwdInput.trim()}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors shrink-0"
-                >
-                  {pwdUnlocking ? "…" : "Unlock"}
-                </button>
-              </div>
-              {pwdError && <p className="text-xs text-red-500 self-start">{pwdError}</p>}
-            </form>
-            )}
-          </div>
-        </div>
+        <AccessGate
+          mode={accessDenied ? "denied" : gate === "signin" ? "signin" : "password"}
+          signInHref={signInHref}
+          email={user?.email}
+          value={pwdInput}
+          onValue={setPwdInput}
+          onSubmit={handlePasswordUnlock}
+          submitting={pwdUnlocking}
+          error={pwdError}
+          visible={pwdVisible}
+          onToggleVisible={() => setPwdVisible((v) => !v)}
+        />
       ) : (
         /* One element in both modes — immersive only swaps its classes. Rendering
            a second copy into an overlay would tear this subtree down and remount
