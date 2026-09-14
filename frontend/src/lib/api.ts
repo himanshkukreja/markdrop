@@ -246,6 +246,18 @@ export async function createDocument(
   return res.json();
 }
 
+/**
+ * Cache tag for one document's API response.
+ *
+ * Tagging rather than only revalidating `/${slug}` because the same document is
+ * rendered by two routes — the public path and a workspace's own domain — and
+ * `revalidatePath` on one of them leaves the other holding the stale body. What
+ * goes stale that actually matters is `folder_path`: refile a document and the
+ * tenant route keeps redirecting to where it used to live until the entry
+ * expires on its own.
+ */
+export const documentTag = (slug: string) => `doc:${slug}`;
+
 export async function getDocument(
   slug: string,
   readPassword?: string,
@@ -272,7 +284,7 @@ export async function getDocument(
   if (opts?.workspaceScope) headers["x-markdrop-workspace"] = opts.workspaceScope;
   const cacheOpts =
     opts?.revalidate !== undefined && !readPassword && !editSecret
-      ? { next: { revalidate: opts.revalidate } }
+      ? { next: { revalidate: opts.revalidate, tags: [documentTag(slug)] } }
       : { cache: "no-store" as const };
   const res = await fetch(`${API_BASE}/api/v1/documents/${slug}`, {
     ...cacheOpts,

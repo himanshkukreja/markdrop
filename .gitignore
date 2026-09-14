@@ -68,3 +68,4 @@ notes.local/
 # a megabyte of binaries that would live in a public repo forever to settle one
 # decision that is made once.
 design/
+frontend/tsconfig.tsbuildinfo

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getDocument, API_BASE } from "@/lib/api";
 import { resolveAppHost } from "@/lib/hostResolution";
@@ -127,11 +127,17 @@ export default async function TenantDocumentPage({ params }: Props) {
 
   // A password prompt reveals nothing about filing, so it is allowed through on
   // any path. Everything else is served only at its canonical address, and any
-  // other spelling is redirected there — permanently, because the canonical
-  // path is stable and caches and crawlers should learn it.
+  // other spelling is redirected there.
+  //
+  // Temporary (307), never permanent. A document's canonical path is whatever
+  // folder it currently sits in, and refiling moves it. A 308 is cached by the
+  // browser indefinitely, so a single redirect served from a not-yet-expired
+  // render would pin the *old* path in that reader's browser for good — the
+  // document would keep bouncing them to its previous home long after the
+  // server had stopped saying so, with nothing we could do to take it back.
   if (doc && !pathMatches(doc, folders)) {
     const canonical = [...(doc.folder_path ?? []), slug].join("/");
-    permanentRedirect(`/${canonical}`);
+    redirect(`/${canonical}`);
   }
 
   if (doc?.kind === "artifact") {

@@ -130,8 +130,8 @@ export default function DashboardPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [counts, setCounts] = useState({ all: 0, markdown: 0, artifact: 0 });
   const [navOpen, setNavOpen] = useState(false);
-  // The share dialog is opened from a row's overflow menu, so the row holds no
-  // trigger of its own — see ShareToWorkspace's `hideTrigger`.
+  // The share dialog is opened from a row's overflow menu, so the row holds
+  // no trigger of its own.
   const [accessFor, setAccessFor] = useState<MyDocListItem | null>(null);
 
   // Google Docs integration

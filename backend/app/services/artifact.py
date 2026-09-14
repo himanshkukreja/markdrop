@@ -274,9 +274,27 @@ async def create_artifact(
     )
 
 
+def is_guarded(*, has_password: bool, access_level: str | None) -> bool:
+    """Whether this artifact's bytes must require a signed token.
+
+    The Worker fails closed: an object marked public in R2 is served to anyone
+    holding its (unguessable) key, with no token and no idea who is asking. That
+    is exactly right for "anyone with the link" and exactly wrong for everything
+    else — a document can be made private in the API while its bytes stay
+    readable from the edge forever, because R2 never heard about the change.
+
+    So publicity is derived from *both* gates, in one place, and every path that
+    writes an object or changes a document's access has to come through here.
+    """
+    return has_password or (access_level or "link") != "link"
+
+
 def to_response(doc, *, is_owner: bool) -> dict:
     """Shape an artifact Document for the API, including its sandbox URL."""
-    private = bool(doc.read_password_hash)
+    private = is_guarded(
+        has_password=bool(doc.read_password_hash),
+        access_level=getattr(doc, "access_level", "link"),
+    )
     return dict(
         slug=doc.slug,
         url=f"{settings.frontend_url.rstrip('/')}/{doc.slug}",

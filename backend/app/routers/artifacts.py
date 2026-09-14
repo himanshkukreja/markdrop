@@ -197,8 +197,11 @@ async def confirm_artifact(
         )
 
     # The Worker fails closed, so an object is unreadable until it's marked
-    # public. Password-protected artifacts stay unmarked and need a signed token.
-    is_public = not data.read_password
+    # public. Anything with a password *or* narrower-than-link access stays
+    # unmarked and needs a signed token — see `artifact.is_guarded`.
+    is_public = not art_service.is_guarded(
+        has_password=bool(data.read_password), access_level=data.access_level
+    )
     if bundle_prefix:
         await run_in_threadpool(r2.set_public_prefix, bundle_prefix, is_public)
     else:
@@ -355,7 +358,9 @@ async def update_artifact_settings(
     # Adding or clearing a password has to move the stored object across the
     # Worker's fail-closed boundary. Without this the document reports itself as
     # protected while the bytes stay readable to anyone holding the URL.
-    is_public = not doc.read_password_hash
+    is_public = not art_service.is_guarded(
+        has_password=bool(doc.read_password_hash), access_level=doc.access_level
+    )
     if doc.bundle_prefix:
         await run_in_threadpool(r2.set_public_prefix, doc.bundle_prefix, is_public)
     elif doc.blob_key:
@@ -422,7 +427,9 @@ async def replace_artifact_file(
 
     # Inherit the artifact's privacy: a replacement file on a password-protected
     # artifact must not come back publicly readable.
-    is_public = not doc.read_password_hash
+    is_public = not art_service.is_guarded(
+        has_password=bool(doc.read_password_hash), access_level=doc.access_level
+    )
     if bundle_prefix:
         await run_in_threadpool(r2.set_public_prefix, bundle_prefix, is_public)
     else:

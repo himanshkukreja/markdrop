@@ -315,23 +315,55 @@ export const listLibrary = (
 export const libraryCounts = (id: string) =>
   request<Record<string, number>>(`/api/v1/workspaces/${id}/documents/counts`);
 
+/**
+ * Drop the cached render of a document whose folder just moved.
+ *
+ * Filing changes the document's canonical URL, and the cached copy still names
+ * the old one — so the new address redirects back to the old address until the
+ * entry expires a minute later. That minute is the whole of the "I moved it but
+ * the link doesn't work yet" complaint, and it is entirely avoidable: we know
+ * the moment it moved.
+ *
+ * Best-effort. A failure costs a minute of staleness, never correctness, so it
+ * must not fail the move that prompted it.
+ */
+export function purgeDocument(slug: string | null | undefined): void {
+  if (!slug) return;
+  fetch("/api/revalidate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slug }),
+  }).catch(() => {});
+}
+
 /** Share a document you own. Everyone in the workspace can then read it, and
  *  members and admins can edit it — the UI must say so before calling this. */
-export const shareToWorkspace = (id: string, documentId: string, folderId?: string | null) =>
-  request<MyDocListItem>(`/api/v1/workspaces/${id}/documents`, {
+export const shareToWorkspace = async (
+  id: string, documentId: string, folderId?: string | null, slug?: string | null
+) => {
+  const doc = await request<MyDocListItem>(`/api/v1/workspaces/${id}/documents`, {
     method: "POST",
     body: JSON.stringify({ document_id: documentId, folder_id: folderId ?? null }),
   });
+  purgeDocument(slug ?? doc?.slug);
+  return doc;
+};
 
 /** Unshare. The document itself is untouched and returns to its owner. */
-export const unshareFromWorkspace = (id: string, documentId: string) =>
-  request<void>(`/api/v1/workspaces/${id}/documents/${documentId}`, { method: "DELETE" });
+export const unshareFromWorkspace = async (id: string, documentId: string, slug?: string | null) => {
+  await request<void>(`/api/v1/workspaces/${id}/documents/${documentId}`, { method: "DELETE" });
+  purgeDocument(slug);
+};
 
-export const fileDocument = (id: string, documentId: string, folderId: string | null) =>
-  request<void>(`/api/v1/workspaces/${id}/documents/${documentId}/folder`, {
+export const fileDocument = async (
+  id: string, documentId: string, folderId: string | null, slug?: string | null
+) => {
+  await request<void>(`/api/v1/workspaces/${id}/documents/${documentId}/folder`, {
     method: "PUT",
     body: JSON.stringify({ folder_id: folderId }),
   });
+  purgeDocument(slug);
+};
 
 /** Roles that can act, by capability. Mirrors ROLE_RANK on the server — the UI
  *  hides what the API would refuse, rather than inventing its own rules. */
