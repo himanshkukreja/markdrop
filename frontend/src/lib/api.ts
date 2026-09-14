@@ -533,6 +533,9 @@ export interface MyDocListItem {
    *  workspace's own domain is these segments followed by the slug. */
   folder_path?: string[];
   /** Only present on a workspace library listing. */
+  /** How the document is reachable, and how many people are named on it. */
+  access_level?: "private" | "link" | "workspace";
+  shared_with_count?: number;
   shared_by_name?: string | null;
   shared_by_email?: string | null;
   is_mine?: boolean;

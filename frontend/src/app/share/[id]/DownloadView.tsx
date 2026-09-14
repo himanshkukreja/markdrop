@@ -304,8 +304,8 @@ export default function DownloadView({ roomId }: { roomId: string }) {
 
             {/* Trust note */}
             {phase === "ready" && (
-              <p className="text-center text-xs text-gray-400 dark:text-gray-500 vscode:text-[#6a6a6a]">
-                🔒 Encrypted peer-to-peer · no file touches Markdrop servers
+              <p className="flex items-center justify-center gap-1.5 text-center text-xs text-gray-400 dark:text-gray-500 vscode:text-[#6a6a6a]">
+                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="4" y="10" width="16" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>Encrypted peer-to-peer · no file touches Markdrop servers
               </p>
             )}
           </div>

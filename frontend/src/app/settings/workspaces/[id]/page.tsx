@@ -330,7 +330,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
   const accent = branding.accent_color || "#3b82f6";
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto w-full">
+    <div className="md-noscroll flex-1 min-h-0 overflow-y-auto w-full">
       {/* ── Hero ──────────────────────────────────────────────────────────
           Tinted with the workspace's own accent, so the setting is visible on
           the page that sets it rather than only out on a published link. */}

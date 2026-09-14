@@ -521,3 +521,21 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .md-toast { animation: none !important; }
 }
+
+
+/* Scrollbars.
+   The broad default bar is a chunk of OS chrome sitting inside a dark, quiet
+   layout, and on a document list it runs the full height of the page. Hidden
+   where we own the surface; the page still scrolls by wheel, trackpad, keyboard
+   and touch, and `overflow` is untouched so nothing becomes unreachable.
+
+   Deliberately NOT applied to `pre`/`code` or the artifact iframe: a horizontal
+   scrollbar on a wide code block is the only signal that there is more to the
+   right, and removing it hides content rather than chrome. */
+html, body, .md-noscroll {
+  scrollbar-width: none;              /* Firefox */
+  -ms-overflow-style: none;           /* old Edge */
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.md-noscroll::-webkit-scrollbar { width: 0; height: 0; }

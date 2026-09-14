@@ -182,6 +182,10 @@ class MyDocListItem(BaseModel):
     # Only filled in on the shared-library listing, where "whose is this?" is a
     # question the reader actually has. Never on a private listing, where the
     # answer is always "yours".
+    # How the document is reachable, and how many people are named on it, so a
+    # list row can state its access without a request per row.
+    access_level: str = "link"
+    shared_with_count: int = 0
     shared_by_name: str | None = None
     shared_by_email: str | None = None
     is_mine: bool = True

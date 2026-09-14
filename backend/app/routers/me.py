@@ -62,6 +62,7 @@ def _to_list_item(doc) -> MyDocListItem:
         workspace_id=doc.workspace_id,
         folder_id=doc.folder_id,
         folder_path=doc.folder_path,
+        access_level=doc.access_level,
     )
 
 
@@ -75,8 +76,18 @@ async def list_my_documents(
     user: User = Depends(require_user),
 ):
     docs, total = await doc_service.list_user_documents(db, user.id, page, limit, q, kind)
+    items = [_to_list_item(d) for d in docs]
+    # One grouped count for the whole page rather than a query per row.
+    if items:
+        rows = await db["document_grants"].aggregate([
+            {"$match": {"document_id": {"$in": [d.id for d in docs if d.id]}}},
+            {"$group": {"_id": "$document_id", "n": {"$sum": 1}}},
+        ]).to_list(length=len(items))
+        by_doc = {r["_id"]: r["n"] for r in rows}
+        for item in items:
+            item.shared_with_count = by_doc.get(item.id, 0)
     return MyDocListResponse(
-        documents=[_to_list_item(d) for d in docs],
+        documents=items,
         total=total,
         page=page,
         pages=max(1, math.ceil(total / limit)),

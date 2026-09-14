@@ -8,14 +8,15 @@ import {
   getGoogleDocsStatus, connectGoogleDocs, disconnectGoogleDocs, exportToGoogleDocs,
   MyDocListItem, Analytics, GoogleStatus, DocKind,
 } from "@/lib/api";
-import ArtifactBadge, { formatBytes } from "@/components/ArtifactBadge";
+import { artifactStyle, formatBytes } from "@/components/ArtifactBadge";
 import Modal from "@/components/Modal";
 import VSCodeIcon from "@/components/VSCodeIcon";
 import MarkdropLoader from "@/components/MarkdropLoader";
 import ShareToWorkspace from "@/components/workspace/ShareToWorkspace";
-import DashboardSidebar, { type Filter } from "@/components/dashboard/DashboardSidebar";
+import DashboardSidebar, { type Filter, type Scope } from "@/components/dashboard/DashboardSidebar";
 import RowMenu, { type MenuItem } from "@/components/dashboard/RowMenu";
 import ShareDialog from "@/components/access/ShareDialog";
+import { listLibrary } from "@/lib/workspaces";
 
 type Range = "7d" | "30d" | "all";
 
@@ -122,7 +123,9 @@ export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [docs, setDocs] = useState<MyDocListItem[]>([]);
-  const [kindFilter, setKindFilter] = useState<DocKind | "all">("all");
+  // One value, so the list can never be browsing a workspace folder while a
+  // personal kind filter is also somehow active.
+  const [scope, setScope] = useState<Scope>({ kind: "own", filter: "all" });
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -142,7 +145,6 @@ export default function DashboardPage() {
   const [gNotice, setGNotice] = useState<string | null>(null);
   const [exported, setExported] = useState<{ title: string; url: string; updated: boolean } | null>(null);
   const [disconnectBusy, setDisconnectBusy] = useState(false);
-  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   // Modal state
   const [renameFor, setRenameFor] = useState<string | null>(null);
@@ -154,19 +156,32 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await listMyDocuments(1, undefined, kindFilter === "all" ? undefined : kindFilter);
-      setDocs(res.documents);
-      setCounts({
-        all: res.count_all ?? res.total,
-        markdown: res.count_markdown ?? 0,
-        artifact: res.count_artifact ?? 0,
-      });
+      if (scope.kind === "workspace") {
+        // The workspace's shared library, browsable here rather than only from
+        // workspace settings — the documents are the point, and the dashboard
+        // is where people look for documents.
+        const res = await listLibrary(scope.workspaceId, {
+          folderId: scope.folderId ?? undefined,
+          limit: 50,
+        });
+        setDocs(res.documents);
+      } else {
+        const res = await listMyDocuments(
+          1, undefined, scope.filter === "all" ? undefined : scope.filter
+        );
+        setDocs(res.documents);
+        setCounts({
+          all: res.count_all ?? res.total,
+          markdown: res.count_markdown ?? 0,
+          artifact: res.count_artifact ?? 0,
+        });
+      }
     } catch {
       /* redirect handled below */
     } finally {
       setLoading(false);
     }
-  }, [kindFilter]);
+  }, [scope]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -240,7 +255,6 @@ export default function DashboardPage() {
     try {
       const status = await disconnectGoogleDocs();
       setGStatus(status);
-      setConfirmDisconnect(false);
       // Drop the per-doc links locally — they're stale now that we're disconnected.
       setDocs((ds) => ds.map((d) => ({ ...d, google_doc_url: null, google_doc_stale: false })));
       setGNotice("Google Docs disconnected. Markdrop's access has been revoked.");
@@ -303,19 +317,27 @@ export default function DashboardPage() {
     markdown: "Documents",
     artifact: "Artifacts",
   };
+  const heading = scope.kind === "workspace" ? scope.workspaceName : TITLES[scope.filter];
+  const subheading =
+    scope.kind === "workspace"
+      ? scope.label
+      : `${counts.markdown} document${counts.markdown === 1 ? "" : "s"} · ${counts.artifact} artifact${counts.artifact === 1 ? "" : "s"}`;
 
   return (
     <div className="flex-1 min-h-0 flex gap-0 lg:gap-6">
       <DashboardSidebar
-        filter={kindFilter}
-        onFilter={(f) => { setLoading(true); setKindFilter(f); }}
+        scope={scope}
+        onScope={(sc) => { setLoading(true); setScope(sc); }}
         counts={counts}
         googleConnected={gStatus?.configured ? gStatus.connected : null}
+        onGoogleConnect={handleConnect}
+        onGoogleDisconnect={handleDisconnect}
+        googleBusy={disconnectBusy}
         open={navOpen}
         onClose={() => setNavOpen(false)}
       />
 
-      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-10">
+      <div className="md-noscroll min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-10">
       <div className="flex items-center justify-between gap-3 mb-5">
         <div className="flex items-center gap-3 min-w-0">
           {/* The rail is a drawer below lg, so it needs a way in. */}
@@ -327,15 +349,10 @@ export default function DashboardPage() {
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">{TITLES[kindFilter]}</h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              {counts.markdown} document{counts.markdown === 1 ? "" : "s"} · {counts.artifact} artifact{counts.artifact === 1 ? "" : "s"}
-            </p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">{heading}</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{subheading}</p>
           </div>
         </div>
-        <a href="/new" className="shrink-0 text-sm px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors">
-          <span className="hidden sm:inline">+ New document</span><span className="sm:hidden">+ New</span>
-        </a>
       </div>
 
       {gNotice && (
@@ -357,49 +374,14 @@ export default function DashboardPage() {
       )}
       {exported && (
         <div className="mb-4 rounded-lg border border-green-200 dark:border-green-900/60 vscode:border-[#2e4034] bg-green-50 dark:bg-green-950/30 vscode:bg-[#1c2b22] px-3 py-2.5 text-sm text-green-700 dark:text-green-300 vscode:text-[#4ec9b0] flex items-center justify-between gap-3 flex-wrap">
-          <span>✅ <span className="font-medium">{exported.title}</span> {exported.updated ? "updated in" : "exported to"} Google Docs.</span>
+          <span className="inline-flex items-center gap-1.5">
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6 9 17l-5-5" /></svg>
+            <span><span className="font-medium">{exported.title}</span> {exported.updated ? "updated in" : "exported to"} Google Docs.</span>
+          </span>
           <div className="flex items-center gap-3 shrink-0">
             <a href={exported.url} target="_blank" rel="noopener noreferrer" className="font-medium underline hover:no-underline">Open in Google Docs →</a>
             <button onClick={() => setExported(null)} className="text-green-500 hover:text-green-700">✕</button>
           </div>
-        </div>
-      )}
-
-      {/* Google Docs connect prompt — only when the server supports it and the account isn't linked */}
-      {gStatus?.configured && !gStatus.connected && (
-        <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 flex items-center justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Export to Google Docs</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Connect your Google account to turn any document into a formatted Google Doc. Markdrop only touches Docs it creates.</p>
-          </div>
-          <button onClick={handleConnect} className="shrink-0 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
-            Connect Google Docs
-          </button>
-        </div>
-      )}
-
-      {/* Google Docs connected — offer a disconnect (revokes Markdrop's access at Google) */}
-      {gStatus?.configured && gStatus.connected && (
-        <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 flex items-center justify-between gap-3 flex-wrap">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Google Docs connected</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Use the ↗ Google Docs button on any document to export it. Disconnecting revokes Markdrop's access to your Google account.</p>
-          </div>
-          {confirmDisconnect ? (
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Revoke access?</span>
-              <button onClick={handleDisconnect} disabled={disconnectBusy} className="text-sm px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-900/60 vscode:border-[#5a3232] text-red-600 dark:text-red-400 vscode:text-[#f48771] hover:bg-red-50 dark:hover:bg-red-950/30 vscode:hover:bg-[#3a2626] transition-colors font-medium disabled:opacity-50">
-                {disconnectBusy ? "Disconnecting…" : "Yes, disconnect"}
-              </button>
-              <button onClick={() => setConfirmDisconnect(false)} disabled={disconnectBusy} className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium disabled:opacity-50">
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button onClick={() => setConfirmDisconnect(true)} className="shrink-0 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-medium">
-              Disconnect
-            </button>
-          )}
         </div>
       )}
 
@@ -409,7 +391,7 @@ export default function DashboardPage() {
         </div>
       ) : docs.length === 0 ? (
         <div className="text-center py-16 text-gray-500 dark:text-gray-400 border border-dashed border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-xl">
-          {kindFilter === "artifact" ? (
+          {scope.kind === "own" && scope.filter === "artifact" ? (
             <>
               <p className="mb-2 font-medium">No artifacts yet.</p>
               <p className="text-sm">
@@ -432,22 +414,35 @@ export default function DashboardPage() {
             <div key={d.slug} className="group rounded-xl border border-gray-200 dark:border-white/[0.07] vscode:border-[#3c3c3c] bg-white dark:bg-white/[0.02] vscode:bg-[#252526] px-3.5 py-3 hover:border-gray-300 dark:hover:border-white/[0.14] hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors">
               <div className="flex items-center gap-3">
                 {/* Type at a glance, before the words. */}
-                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
-                  d.kind === "artifact" ? "bg-purple-500/10 text-purple-400" : "bg-blue-500/10 text-blue-400"
-                }`}>
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    {d.kind === "artifact"
-                      ? <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /><path d="M12 15V3" /></>
-                      : <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" /><path d="M14 2v6h6M8 13h8M8 17h5" /></>}
-                  </svg>
-                </span>
+                {/* The file's own icon and colour, not a generic download
+                    arrow: a mixed list stays scannable only if a video, a
+                    spreadsheet and an HTML page look different at a glance. */}
+                {(() => {
+                  const art = d.kind === "artifact" ? artifactStyle(d.renderer) : null;
+                  return (
+                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
+                      art ? `${art.bg} ${art.text}` : "bg-blue-500/10 text-blue-400"
+                    }`}>
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                           strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        {art ? art.icon
+                          : <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" /><path d="M14 2v6h6M8 13h8M8 17h5" /></>}
+                      </svg>
+                    </span>
+                  );
+                })()}
 
                 <div className="min-w-0 flex-1">
                   <a href={`/${d.slug}`} className="block truncate font-semibold text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                     {d.title || d.original_filename || d.slug}
                   </a>
                   <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                    {d.kind === "artifact" && <ArtifactBadge renderer={d.renderer} label={d.type_label} />}
+                    {/* The type as plain text, not a second tinted chip: the
+                        avatar already carries the icon and the colour, and
+                        saying it twice is noise rather than emphasis. */}
+                    {d.kind === "artifact" && d.type_label && (
+                      <span className="text-gray-500 dark:text-gray-400">{d.type_label}</span>
+                    )}
                     <span className="font-mono break-all">
                       /{[...(d.folder_path ?? []), d.slug].join("/")}
                     </span>
@@ -456,19 +451,58 @@ export default function DashboardPage() {
                       ? <span title="File size">· {formatBytes(d.size_bytes)}</span>
                       : d.export_pdf_count > 0 && <span title="PDF exports">· {d.export_pdf_count} PDF{d.export_pdf_count === 1 ? "" : "s"}</span>}
                     {d.copy_url_count > 0 && <span title="Link copies">· {d.copy_url_count} copies</span>}
+                    {/* Drawn icons, not emoji: an emoji renders in the system
+                        font at its own weight and colour, which reads as
+                        pasted-in next to a row of 1.8px stroked glyphs — and it
+                        looks different on every platform. */}
                     {d.encrypted && (
                       <span title="End-to-end encrypted. Stored as ciphertext — the title and preview aren't shown here because the key exists only in your link."
-                            className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">🔐 Encrypted</span>
+                            className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <rect x="4" y="10" width="16" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /><circle cx="12" cy="15.5" r="1.2" fill="currentColor" stroke="none" />
+                        </svg>
+                        Encrypted
+                      </span>
                     )}
-                    {d.is_password_protected && <span title="Password protected">🔒</span>}
+                    {d.is_password_protected && (
+                      <span title="Password protected" className="inline-flex items-center gap-1">
+                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <rect x="4" y="10" width="16" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                        </svg>
+                        Password
+                      </span>
+                    )}
                     {d.vscode_synced && (
                       <span title="Synced with VS Code" className="inline-flex items-center gap-1 text-[#007acc] dark:text-[#4daafc] vscode:text-[#4fc1ff]">
                         <VSCodeIcon className="w-3 h-3" /> VS Code
                       </span>
                     )}
-                    {d.workspace_id && (
-                      <span title="Shared with a workspace" className="text-blue-600 dark:text-blue-400">· Shared</span>
-                    )}
+                    {/* Who can open it, stated on the row. Access control that
+                        only appears inside an overflow menu is access control
+                        nobody checks. */}
+                    <button
+                      onClick={() => setAccessFor(d)}
+                      title="Change who can open this"
+                      className={`inline-flex items-center gap-1 rounded px-1 -mx-1 transition-colors hover:bg-gray-100 dark:hover:bg-white/[0.07] ${
+                        d.access_level === "private"
+                          ? "text-amber-600 dark:text-amber-400"
+                          : d.access_level === "workspace"
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-gray-500 dark:text-gray-400"
+                      }`}
+                    >
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        {d.access_level === "private"
+                          ? <><rect x="4" y="10" width="16" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>
+                          : d.access_level === "workspace"
+                            ? <><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9.5" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /></>
+                            : <><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></>}
+                      </svg>
+                      {d.access_level === "private" ? "Private"
+                        : d.access_level === "workspace" ? "Workspace"
+                        : "Anyone with link"}
+                      {(d.shared_with_count ?? 0) > 0 && ` +${d.shared_with_count}`}
+                    </button>
                     {d.google_doc_url && (
                       <span className={d.google_doc_stale ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}>
                         · {d.google_doc_stale ? "Google Doc stale" : "Google Doc synced"}
@@ -493,6 +527,10 @@ export default function DashboardPage() {
                      className="rounded-lg border border-gray-200 dark:border-white/[0.09] px-2.5 py-1.5 text-[11.5px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors">
                     {d.kind === "artifact" ? "Open" : "Edit"}
                   </a>
+                  <button onClick={() => setAccessFor(d)}
+                    className="rounded-lg border border-gray-200 dark:border-white/[0.09] px-2.5 py-1.5 text-[11.5px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors">
+                    Share
+                  </button>
                 </div>
 
                 <RowMenu

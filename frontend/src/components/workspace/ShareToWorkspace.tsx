@@ -158,15 +158,26 @@ export default function ShareToWorkspace({
                   </select>
                 </div>
 
-                {/* The consequences, before the click — not after it. */}
-                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5">
-                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1.5">
+                {/* The consequences, before the click — not after it. Slate
+                    rather than amber: this is information, not a warning, and a
+                    caution colour on a routine action trains people to ignore
+                    the colour. Bullets are flex rows so a wrapped second line
+                    aligns under the first instead of under the marker. */}
+                <div className="rounded-lg border border-gray-200 dark:border-white/[0.1] bg-gray-50 dark:bg-white/[0.03] px-3 py-2.5">
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                     What sharing means
                   </p>
-                  <ul className="text-xs text-amber-700/90 dark:text-amber-400/90 space-y-1 leading-relaxed">
-                    <li>· Everyone in the workspace can read this document.</li>
-                    <li>· Members and admins can edit it, and admins can rename or delete it.</li>
-                    <li>· It stays yours — you can take it back out at any time.</li>
+                  <ul className="space-y-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                    {[
+                      "Everyone in the workspace can read this document.",
+                      "Members and admins can edit it, and admins can rename or delete it.",
+                      "It stays yours — you can take it back out at any time.",
+                    ].map((line) => (
+                      <li key={line} className="flex gap-2">
+                        <span aria-hidden className="select-none text-gray-400 dark:text-gray-600">·</span>
+                        <span className="min-w-0">{line}</span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
 
