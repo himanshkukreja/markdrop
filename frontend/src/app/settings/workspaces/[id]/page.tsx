@@ -29,6 +29,10 @@ const primary =
 const ghost =
   "px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 transition-colors";
 
+/** Mirrors MAX_DEPTH in services/folder.py. The UI stops offering a parent at
+ *  the limit rather than letting the server refuse the create. */
+const MAX_FOLDER_DEPTH = 8;
+
 type TabId = "library" | "brand" | "domains" | "people" | "folders";
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
@@ -208,6 +212,10 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
   const [newEmail, setNewEmail] = useState("");
   const [newRole, setNewRole] = useState<Exclude<Role, "owner">>("member");
   const [newFolder, setNewFolder] = useState("");
+  // "" is the root. Kept next to the name because "where" is half of creating a
+  // folder, and a tree you can only build at the top level is a list.
+  const [newFolderParent, setNewFolderParent] = useState("");
+  const folderNameRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState("");
   // Tabs whose collections have been fetched, so switching back is free.
   const fetched = useRef<Set<string>>(new Set());
@@ -303,6 +311,29 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
     try { await fn(); after?.(); }
     catch (e) { toast.error(e instanceof Error ? e.message : "Something went wrong"); }
     finally { setBusy(""); }
+  }
+
+  // Depth-first order, so a child always follows its parent and the indentation
+  // in the list means what it looks like it means. `path` is the folder's slugs
+  // from the root, so sorting on it is the traversal — no tree to build.
+  const sortedFolders = useMemo(
+    () => [...folders].sort((a, b) => a.path.join("/").localeCompare(b.path.join("/"))),
+    [folders]
+  );
+
+  function addFolder() {
+    const name = newFolder.trim();
+    if (!name) return;
+    run("folder",
+      () => createFolder(id, name, newFolderParent || null),
+      () => {
+        setNewFolder("");
+        // The parent is deliberately kept: making several folders in the same
+        // place is the common case, and re-picking it every time is the kind of
+        // small tax that stops people organising anything.
+        refresh("folders");
+        toast.success(newFolderParent ? "Subfolder created." : "Folder created.");
+      });
   }
 
   const pending = useMemo(() => invites.filter((i) => i.status === "pending"), [invites]);
@@ -864,13 +895,38 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
             {tab === "folders" && (
               <Card title="Folders" hint="Filing only — folders never change who can read a document.">
                 {isMember && (
-                  <div className="flex gap-2 mb-4">
-                    <input className={`${input} flex-1`} placeholder="Folder name" value={newFolder}
-                      onChange={(e) => setNewFolder(e.target.value)} />
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    <input ref={folderNameRef} className={`${input} min-w-0 flex-1`}
+                      placeholder={newFolderParent ? "Subfolder name" : "Folder name"} value={newFolder}
+                      onChange={(e) => setNewFolder(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && newFolder.trim()) addFolder();
+                      }} />
+                    {folders.length > 0 && (
+                      <select
+                        className={`${input} min-w-0 flex-1 cursor-pointer sm:flex-none sm:w-56`}
+                        value={newFolderParent}
+                        onChange={(e) => setNewFolderParent(e.target.value)}
+                      >
+                        <option value="">Top level</option>
+                        {sortedFolders.map((f) => (
+                          <option
+                            key={f.id}
+                            value={f.id}
+                            // A folder at the limit cannot hold another one, so
+                            // it is offered greyed rather than accepted and then
+                            // refused by the server.
+                            disabled={f.path.length >= MAX_FOLDER_DEPTH}
+                          >
+                            {"\u00a0\u00a0".repeat(Math.max(0, f.path.length - 1))}
+                            {f.name}
+                            {f.path.length >= MAX_FOLDER_DEPTH ? " (full)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <button className={primary} disabled={busy === "folder" || !newFolder.trim()}
-                      onClick={() => run("folder",
-                        () => createFolder(id, newFolder.trim()),
-                        () => { setNewFolder(""); refresh("folders"); toast.success("Folder created."); })}>
+                      onClick={addFolder}>
                       Add folder
                     </button>
                   </div>
@@ -881,12 +937,35 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                   </p>
                 ) : (
                   <div className="rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] divide-y divide-gray-100 dark:divide-gray-800">
-                    {folders.map((f) => (
-                      <div key={f.id} className="flex items-center gap-3 px-3.5 py-2.5">
-                        <Icon className="w-4 h-4 text-gray-400">
+                    {sortedFolders.map((f) => (
+                      <div key={f.id} className="flex items-center gap-3 px-3.5 py-2.5"
+                           // Indented by its real depth, so the shape of the
+                           // tree is visible rather than implied by a path
+                           // string nobody reads.
+                           style={{ paddingLeft: `${14 + (f.path.length - 1) * 20}px` }}>
+                        <Icon className="w-4 h-4 shrink-0 text-gray-400">
                           <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
                         </Icon>
-                        <span className="text-sm flex-1 truncate">{f.name}</span>
+                        <span className="min-w-0 flex-1 truncate text-sm">
+                          {f.name}
+                          {f.path.length > 1 && (
+                            <span className="ml-1.5 text-[11px] text-gray-400">
+                              in {f.path.slice(0, -1).join(" / ")}
+                            </span>
+                          )}
+                        </span>
+                        {isMember && f.path.length < MAX_FOLDER_DEPTH && (
+                          <button
+                            className="shrink-0 text-xs text-gray-400 transition-colors hover:text-blue-500"
+                            onClick={() => {
+                              setNewFolderParent(f.id);
+                              folderNameRef.current?.focus();
+                            }}
+                            title={`Add a folder inside ${f.name}`}
+                          >
+                            Subfolder
+                          </button>
+                        )}
                         {isAdmin && (
                           <button className="text-xs text-red-500 hover:text-red-600"
                             onClick={() => run(`f${f.id}`, () => deleteFolder(id, f.id), () => { refresh("folders"); toast.success("Folder deleted."); })}>

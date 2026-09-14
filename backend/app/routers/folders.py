@@ -39,6 +39,17 @@ def _to_response(f: Folder, path: list[str] | None = None) -> FolderResponse:
     )
 
 
+async def _with_path(db: AsyncIOMotorDatabase, f: Folder) -> FolderResponse:
+    """One folder, including the path a client needs to draw or address it.
+
+    A create or rename returns a folder whose depth the caller cannot know from
+    the response alone, and `path` is what every list, picker and URL is built
+    from. Returning it empty here made a freshly created subfolder look like a
+    root one until the next full refresh.
+    """
+    return _to_response(f, await folder_service.path_of(db, f.workspace_id, f.id))
+
+
 def _paths_for(folders: list[Folder]) -> dict[str, list[str]]:
     """Full slug path for every folder, built from the set already in hand.
 
@@ -70,8 +81,14 @@ async def list_folders(
     await ws_service.require_role(db, workspace_id, user.id, "viewer")
     folders = await folder_service.list_folders(db, workspace_id)
     paths = _paths_for(folders)
+    # Depth-first, by the path itself. The service sorts by (parent_id, name),
+    # which groups siblings but says nothing about where a group belongs — so a
+    # child could be listed before the parent it hangs off, and any client that
+    # indents by depth draws a tree that isn't the tree. Ordering here means
+    # every client gets it right without each one re-deriving it.
+    ordered = sorted(folders, key=lambda f: [s.lower() for s in (paths.get(f.id) or [])])
     return FolderListResponse(
-        folders=[_to_response(f, paths.get(f.id)) for f in folders]
+        folders=[_to_response(f, paths.get(f.id)) for f in ordered]
     )
 
 
@@ -84,7 +101,7 @@ async def create_folder(
     # Filing is ordinary work, so member rather than admin.
     await ws_service.require_role(db, workspace_id, user.id, "member")
     folder = await folder_service.create_folder(db, workspace_id, data.name, data.parent_id)
-    return _to_response(folder)
+    return await _with_path(db, folder)
 
 
 @router.put("/{workspace_id}/folders/{folder_id}", response_model=FolderResponse)
@@ -98,7 +115,7 @@ async def update_folder(
         db, workspace_id, folder_id,
         name=data.name, parent_id=data.parent_id, reparent=data.reparent,
     )
-    return _to_response(folder)
+    return await _with_path(db, folder)
 
 
 @router.delete("/{workspace_id}/folders/{folder_id}", response_model=FolderDeleteResponse)
