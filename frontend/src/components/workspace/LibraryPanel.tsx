@@ -257,7 +257,7 @@ export default function LibraryPanel({
                   <select
                     value={d.folder_id || ""}
                     onChange={(e) => run(`f${d.id}`,
-                      () => fileDocument(workspaceId, d.id, e.target.value || null))}
+                      () => fileDocument(workspaceId, d.id, e.target.value || null, d.slug))}
                     className="text-[11px] bg-transparent border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 cursor-pointer max-w-[120px]"
                   >
                     <option value="">Unfiled</option>
@@ -282,7 +282,7 @@ export default function LibraryPanel({
                           ? "Remove this from the shared library? It stays in your own documents, with the same link."
                           : "Remove this from the shared library? It goes back to its owner — nothing is deleted."
                       )) return;
-                      run(`u${d.id}`, () => unshareFromWorkspace(workspaceId, d.id));
+                      run(`u${d.id}`, () => unshareFromWorkspace(workspaceId, d.id, d.slug));
                     }}
                     title="Remove from the shared library"
                     className="text-[11px] px-2 py-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-500/5 transition-colors disabled:opacity-50"
