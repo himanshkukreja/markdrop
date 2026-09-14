@@ -153,7 +153,6 @@ async def add_person(
                 to_email=grant.email,
                 document_title=raw.get("title") or f"/{slug}",
                 slug=slug,
-                folder_path=raw.get("folder_path") or [],
                 sharer_name=user.name or user.email or "Someone",
                 role=grant.role,
                 encrypted=bool(raw.get("encrypted")),

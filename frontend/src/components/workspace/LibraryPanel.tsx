@@ -133,7 +133,15 @@ export default function LibraryPanel({
   const filters = [
     { id: "", label: "All", n: total },
     { id: "unfiled", label: "Unfiled", n: counts["unfiled"] },
-    ...folders.map((f) => ({ id: f.id, label: f.name, n: counts[f.id] })),
+    // Depth-first, and labelled by path: two folders can legitimately both be
+    // called "Drafts", and a bare name gives no way to tell them apart.
+    ...[...folders]
+      .sort((a, b) => a.path.join("/").localeCompare(b.path.join("/")))
+      .map((f) => ({
+        id: f.id,
+        label: f.path.length > 1 ? f.path.slice(0, -1).join(" / ") + " / " + f.name : f.name,
+        n: counts[f.id],
+      })),
   ];
 
   return (
@@ -261,7 +269,13 @@ export default function LibraryPanel({
                     className="text-[11px] bg-transparent border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 cursor-pointer max-w-[120px]"
                   >
                     <option value="">Unfiled</option>
-                    {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    {[...folders]
+                      .sort((a, b) => a.path.join("/").localeCompare(b.path.join("/")))
+                      .map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.path.length > 1 ? f.path.slice(0, -1).join(" / ") + " / " : ""}{f.name}
+                        </option>
+                      ))}
                   </select>
                 )}
                 {d.is_mine && (

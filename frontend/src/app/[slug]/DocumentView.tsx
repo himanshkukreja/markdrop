@@ -11,6 +11,11 @@ import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, API_BASE } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
+
+/** The only host that serves `/login`; every custom domain rewrites to the
+ *  document route and has no auth pages of its own. */
+const PRIMARY_HOST =
+  process.env.NEXT_PUBLIC_PRIMARY_HOST || "www.markdrop.in";
 import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
@@ -188,6 +193,30 @@ export default function DocumentView({
   // Sign-in has to come back to the exact address the reader was refused at —
   // on a workspace's own domain that is not `/${slug}`.
   const pathname = usePathname();
+
+  // Where "Sign in" actually goes.
+  //
+  // A workspace's own domain rewrites *every* path to the document route, so it
+  // has no `/login` at all — a relative link would send the reader to a 404 at
+  // the exact moment they were trying to identify themselves. Sign-in lives on
+  // the primary host, and the document answers there too, at `/<slug>`.
+  //
+  // Resolved after mount rather than during render: the host is a browser fact,
+  // and branching on it while rendering would make the server and the client
+  // disagree about the same anchor.
+  const [signInHref, setSignInHref] = useState(
+    () => `/login?next=${encodeURIComponent(`/${slug}`)}`
+  );
+  useEffect(() => {
+    const onPrimary = window.location.host === PRIMARY_HOST
+      || window.location.hostname === "localhost"
+      || window.location.hostname === "127.0.0.1";
+    setSignInHref(
+      onPrimary
+        ? `/login?next=${encodeURIComponent(pathname || `/${slug}`)}`
+        : `https://${PRIMARY_HOST}/login?next=${encodeURIComponent(`/${slug}`)}`
+    );
+  }, [pathname, slug]);
   // Not useSearchParams: on a prerendered route that would stop this whole view
   // being server-rendered at all. See lib/useQueryFlags.
   const { ready: flagsReady, has: hasFlag } = useQueryFlags();
@@ -1617,7 +1646,7 @@ export default function DocumentView({
                   Sign in with the address it was shared with and it will open.
                 </p>
                 <a
-                  href={`/login?next=${encodeURIComponent(pathname || `/${slug}`)}`}
+                  href={signInHref}
                   className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-500"
                 >
                   Sign in

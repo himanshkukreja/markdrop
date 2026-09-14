@@ -423,7 +423,7 @@ def _share_html(
 
 
 async def send_document_share_email(
-    *, to_email: str, document_title: str, slug: str, folder_path: list[str],
+    *, to_email: str, document_title: str, slug: str,
     sharer_name: str, role: str, encrypted: bool, message: str | None = None,
 ) -> None:
     """Tell someone a document was shared with them. Raises on failure.
@@ -432,8 +432,19 @@ async def send_document_share_email(
     the email arrived, and revoking someone's access because a mail server was
     slow would be the worse outcome.
     """
+    # `/<slug>`, never `/<folder>/<slug>`.
+    #
+    # Folders are part of a document's address only on a workspace's own
+    # domain. markdrop.in serves every document at `/<slug>` and has no folder
+    # routes at all, so a link like markdrop.in/data/video-test 404s — which is
+    # what the person you just shared with saw.
+    #
+    # It has to be the primary host rather than the prettier branded one,
+    # because a custom host rewrites *every* path to the document route: it has
+    # no `/login`. Someone who has to sign in to read this — which is everybody
+    # a share email reaches — would arrive somewhere with no way to do it.
     base = settings.frontend_url.rstrip("/")
-    url = f"{base}/{'/'.join([*folder_path, slug])}"
+    url = f"{base}/{slug}"
     payload = {
         "from": _sender("share"),
         "to": [to_email],
