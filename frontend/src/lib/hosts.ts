@@ -9,7 +9,23 @@
 export const PRIMARY_HOST =
   process.env.NEXT_PUBLIC_PRIMARY_HOST || "www.markdrop.in";
 
-/** Where to send someone who has to identify themselves to read `slug`. */
-export function signInUrlFor(slug: string): string {
-  return `https://${PRIMARY_HOST}/login?next=${encodeURIComponent(`/${slug}`)}`;
+/**
+ * Where to send someone on a workspace domain who has to identify themselves.
+ *
+ * Not straight to `/login`: their session already exists on the primary host,
+ * it just isn't visible from this origin — browsers scope storage per origin,
+ * and that is the whole problem. The handoff page reads it there, exchanges it
+ * for a token scoped to this one workspace, and sends them back *here*, to the
+ * address they were already on. Bouncing them to markdrop.in instead would
+ * work and would also strand them: the folder path they arrived at only exists
+ * on this domain.
+ */
+export function signInUrlFor(host: string, path: string): string {
+  const params = new URLSearchParams({ host, next: path });
+  return `https://${PRIMARY_HOST}/auth/handoff?${params}`;
 }
+
+/** The fragment a completed handoff comes back on. A fragment, never a query:
+ *  it is a credential, and fragments are not sent to servers, logged by
+ *  proxies, or put in a Referer header. */
+export const HANDOFF_FRAGMENT = "mdt";

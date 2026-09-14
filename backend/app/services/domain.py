@@ -44,6 +44,7 @@ def _to_domain(raw: dict) -> Domain:
         last_checked_at=raw.get("last_checked_at"),
         last_error=raw.get("last_error"),
         attached=bool(raw.get("attached")),
+        is_primary=bool(raw.get("is_primary")),
     )
 
 
@@ -422,8 +423,62 @@ async def primary_host(db: AsyncIOMotorDatabase, workspace_id: str) -> str | Non
     )
     if not rows:
         return None
+    # An explicit choice wins. Oldest-first is only the fallback, for the
+    # workspaces that have never made one — including every workspace that
+    # existed before this was choosable.
+    chosen = next((r for r in rows if r.get("is_primary")), None)
+    if chosen:
+        return chosen["host"]
     rows.sort(key=lambda r: r["created_at"])
     return rows[0]["host"]
+
+
+async def set_primary(
+    db: AsyncIOMotorDatabase, workspace_id: str, domain_id: str
+) -> None:
+    """Choose which verified domain a workspace is addressed by.
+
+    Only a verified `app` domain can be it: an unverified host serves nothing,
+    and a `cdn` host has no pages, so printing either on a preview card would
+    advertise an address that does not answer.
+    """
+    try:
+        oid = ObjectId(domain_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    raw = await db["domains"].find_one({"_id": oid, "workspace_id": workspace_id})
+    if raw is None:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    if raw.get("status") != "verified" or raw.get("kind") != "app":
+        raise HTTPException(
+            status_code=422,
+            detail="Only a verified document domain can be the primary one.",
+        )
+    # Exactly one at a time: clear the rest first, so a failure between the two
+    # writes leaves none chosen (and the oldest-first fallback still answers)
+    # rather than two claiming it.
+    await db["domains"].update_many(
+        {"workspace_id": workspace_id, "is_primary": True}, {"$set": {"is_primary": False}}
+    )
+    await db["domains"].update_one({"_id": raw["_id"]}, {"$set": {"is_primary": True}})
+
+
+async def host_belongs_to(
+    db: AsyncIOMotorDatabase, workspace_id: str, host: str
+) -> bool:
+    """Is this a verified document domain of this workspace?
+
+    Used to decide whether a caller-supplied host may be printed on a preview
+    card. Without the check, the host is attacker-chosen text rendered into an
+    image we serve — an open invitation to put somebody else's brand on it.
+    """
+    if not host:
+        return False
+    return bool(await db["domains"].find_one(
+        {"workspace_id": workspace_id, "host": host.strip().lower(),
+         "status": "verified", "kind": "app"},
+        {"_id": 1},
+    ))
 
 
 async def resolve_host(db: AsyncIOMotorDatabase, raw_host: str) -> Domain | None:

@@ -11,6 +11,7 @@ import CopyButton from "@/components/CopyButton";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, API_BASE } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
+import { HANDOFF_FRAGMENT } from "@/lib/hosts";
 import { useAuth } from "@/contexts/AuthContext";
 import Modal from "@/components/Modal";
 import Spinner from "@/components/Spinner";
@@ -524,7 +525,18 @@ export default function DocumentView({
 
   // Password gate state — skip gate immediately if owner has edit secret
   const [pwdLocked, setPwdLocked] = useState(isPasswordProtected && !initialSecret);
+  // True from the very first client render when there is something to try, so
+  // the reader sees "opening…" rather than a denial that is about to be undone.
+  // `false` on the server, which has no storage to look in — that is also the
+  // only value the prerendered HTML can honestly carry.
   const [pwdFetching, setPwdFetching] = useState(isPasswordProtected && !!initialSecret);
+  useEffect(() => {
+    if (!isPasswordProtected) return;
+    if (window.location.hash.startsWith(`#${HANDOFF_FRAGMENT}=`)
+        || localStorage.getItem("markdrop_token")) {
+      setPwdFetching(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [pwdInput, setPwdInput] = useState("");
   const [pwdError, setPwdError] = useState("");
   const [pwdUnlocking, setPwdUnlocking] = useState(false);
@@ -731,6 +743,22 @@ export default function DocumentView({
     };
   }, [displayTitle, slug]);
 
+  // A completed handoff arrives with the token on the fragment. Take it before
+  // anything else runs, so the retry below is already carrying it — otherwise
+  // the first thing a reader sees after signing in is the gate they just came
+  // back from. Stored for this origin only, and stripped from the address bar
+  // straight away so it is not left sitting in a URL people copy and paste.
+  const [handoffDone, setHandoffDone] = useState(false);
+  useEffect(() => {
+    const hash = window.location.hash;
+    const marker = `#${HANDOFF_FRAGMENT}=`;
+    if (!hash.startsWith(marker)) { setHandoffDone(true); return; }
+    const token = decodeURIComponent(hash.slice(marker.length));
+    if (token) localStorage.setItem("markdrop_token", token);
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    setHandoffDone(true);
+  }, []);
+
   // On mount: the server render is deliberately anonymous so it can be cached,
   // which means it hits the gate for *everyone* — including the people who were
   // given access by name and are signed in right now. Retry once from the
@@ -738,6 +766,7 @@ export default function DocumentView({
   // API decides; this only stops us showing a locked door to someone holding
   // the key.
   useEffect(() => {
+    if (!handoffDone) return;
     if (!pwdLocked && !pwdFetching) return;
     if (typeof window === "undefined") return;
     if (!localStorage.getItem("markdrop_token")) return;
@@ -756,7 +785,7 @@ export default function DocumentView({
       })
       .finally(() => { if (!cancelled) setPwdFetching(false); });
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [handoffDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // On mount: auto-unlock if owner (has edit secret) or cached password
   useEffect(() => {
@@ -1603,7 +1632,23 @@ export default function DocumentView({
       </div>
 
       {/* Content — password gate or actual content */}
-      {pwdLocked ? (
+      {/* The loading state wins over the gate, not the other way round. The
+          server render is anonymous, so a reader who *does* have access still
+          arrives locked and is only let in once the client retries with their
+          token — and showing "this isn't public" for that second tells them
+          something untrue about a document they can read. */}
+      {pwdFetching ? (
+        <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-6 space-y-3 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526]">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className={`h-3 bg-gray-100 dark:bg-gray-800 vscode:bg-[#2d2d2d] rounded animate-pulse ${
+                i % 3 === 0 ? "w-3/4" : i % 3 === 1 ? "w-full" : "w-5/6"
+              }`}
+            />
+          ))}
+        </div>
+      ) : pwdLocked ? (
         <div className="relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden">
           {/* Blurred skeleton */}
           <div className="blur-sm select-none pointer-events-none p-6 space-y-3 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526]" aria-hidden>
@@ -1684,17 +1729,6 @@ export default function DocumentView({
             </form>
             )}
           </div>
-        </div>
-      ) : pwdFetching ? (
-        <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-6 space-y-3 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526]">
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
-              className={`h-3 bg-gray-100 dark:bg-gray-800 vscode:bg-[#2d2d2d] rounded animate-pulse ${
-                i % 3 === 0 ? "w-3/4" : i % 3 === 1 ? "w-full" : "w-5/6"
-              }`}
-            />
-          ))}
         </div>
       ) : (
         /* One element in both modes — immersive only swaps its classes. Rendering

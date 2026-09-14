@@ -61,6 +61,7 @@ def _to_response(domain: Domain) -> DomainResponse:
         last_checked_at=domain.last_checked_at,
         last_error=domain.last_error,
         attached=domain.attached,
+        is_primary=domain.is_primary,
         dns_record_name=f"{domain_service.TXT_PREFIX}.{domain.host}",
         dns_record_value=domain.verification_token,
         dns_target_name=domain.host,
@@ -207,6 +208,25 @@ async def dns_provider_hint(
         note=provider.note or None,
         nameservers=nameservers[:4],
     )
+
+
+@router.put("/workspaces/{workspace_id}/domains/{domain_id}/primary", status_code=204)
+@limiter.limit("20/minute")
+async def set_primary_domain(
+    request: Request,
+    workspace_id: str,
+    domain_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Choose the domain this workspace is addressed by.
+
+    Admin, because it changes the address printed on every preview card and
+    handed out by the library — the workspace's public face, not one person's
+    preference.
+    """
+    await ws_service.require_role(db, workspace_id, user.id, "admin")
+    await domain_service.set_primary(db, workspace_id, domain_id)
 
 
 @router.delete("/workspaces/{workspace_id}/domains/{domain_id}", status_code=204)

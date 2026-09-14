@@ -89,6 +89,7 @@ export interface Domain {
   last_checked_at: string | null;
   last_error: string | null;
   attached: boolean;
+  is_primary: boolean;
   dns_record_name: string;
   dns_record_type: string;
   dns_record_value: string;
@@ -280,6 +281,11 @@ export const createFolder = (id: string, name: string, parentId?: string | null)
     method: "POST",
     body: JSON.stringify({ name, parent_id: parentId ?? null }),
   });
+
+/** Choose the domain this workspace is addressed by: the host on preview cards
+ *  and in the links the library hands out. */
+export const setPrimaryDomain = (id: string, domainId: string) =>
+  request<void>(`/api/v1/workspaces/${id}/domains/${domainId}/primary`, { method: "PUT" });
 
 export const renameFolder = (id: string, folderId: string, name: string) =>
   request<Folder>(`/api/v1/workspaces/${id}/folders/${folderId}`, {

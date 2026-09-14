@@ -15,7 +15,10 @@ from urllib.parse import urlencode
 import httpx
 from bson import ObjectId
 import jwt
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from fastapi.responses import RedirectResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -24,9 +27,9 @@ from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
 from app.schemas.auth import EmailRequest, EmailVerifyRequest, NameUpdateRequest, TokenResponse, UserResponse
-from app.services import api_token, email_auth, mailer, oauth
+from app.services import api_token, domain as domain_service, email_auth, mailer, oauth
 from app.services import user as user_service
-from app.utils.auth import create_access_token, decode_access_token
+from app.utils.auth import create_tenant_token, create_access_token, decode_access_token
 
 settings = get_settings()
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -73,15 +76,89 @@ async def _user_id_from_token(token: str) -> str | None:
     return payload.get("sub")
 
 
+
+class TenantTokenRequest(BaseModel):
+    """The workspace domain a scoped session is wanted for."""
+    host: str = Field(..., min_length=3, max_length=253)
+
+
+# ── Tenant tokens ─────────────────────────────────────────────────────────────
+#
+# A tenant token is the only Markdrop credential that ever sits on an origin we
+# do not control (a workspace's own domain, whose DNS its owner can repoint at
+# will). Everything below exists to make a captured one nearly worthless.
+#
+# One allowlist, checked in the one function every authenticated request passes
+# through. An allowlist rather than a denylist because the failure modes are not
+# symmetric: forgetting to *allow* a route breaks a feature visibly, forgetting
+# to *deny* one hands a customer's domain a capability nobody intended.
+_TENANT_ALLOWED = (
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+$")),      # read one document
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/events$")),  # the view beacon
+    # Reading one's own profile. Not a convenience: the app clears a token whose
+    # /me call fails, so without this the credential deletes itself the moment
+    # it arrives. It returns nothing but the caller's own name and address, and
+    # anyone positioned to capture a tenant token is the owner of that domain —
+    # who already knows the addresses they shared with.
+    ("GET", re.compile(r"^/api/v1/auth/me$")),
+)
+
+
+def _tenant_scope_ok(request: Request, payload: dict) -> bool:
+    """May this tenant token be used for this request at all?
+
+    The workspace itself is enforced separately and deeper: the document read
+    runs with `workspace_scope` pinned to the token's workspace, so a token for
+    one customer's domain cannot resolve another customer's document even on an
+    allowed route.
+    """
+    path = request.url.path
+    method = request.method.upper()
+    return any(m == method and rx.match(path) for m, rx in _TENANT_ALLOWED)
+
+
+def tenant_workspace(request: Request) -> str | None:
+    """The workspace a tenant token pins this request to, if any.
+
+    Set by `optional_user`/`require_user` while decoding. Read by the document
+    router, which passes it down as the read scope — reusing the narrowing that
+    custom domains already rely on rather than inventing a second rule.
+    """
+    return getattr(request.state, "tenant_workspace", None)
+
+
 async def optional_user(request: Request) -> User | None:
     """Return the authenticated user, or None if no/invalid token is present.
 
-    Never raises — for endpoints that behave differently when logged in
-    (e.g. auto-claiming a document on create).
+    Treats a missing or unreadable token as "not signed in" — for endpoints that
+    behave differently when logged in (e.g. auto-claiming a document on create).
+
+    The one thing it does raise on is a *valid* tenant token used somewhere it
+    was not minted for: that is a credential being used out of scope, and
+    answering it as though nobody had presented anything would hide the misuse.
     """
     token = _bearer_token(request)
     if not token:
         return None
+    if not token.startswith(api_token.TOKEN_PREFIX):
+        try:
+            payload = decode_access_token(token)
+        except jwt.InvalidTokenError:
+            return None
+        if payload.get("typ") == "tenant":
+            # Rejected, not quietly downgraded to anonymous. Ignoring a
+            # credential that was presented means the caller gets whatever an
+            # anonymous visitor would get, which is harmless on the routes that
+            # exist today and is exactly the kind of thing that stops being
+            # harmless when someone adds a route where anonymous is the more
+            # permissive path. `require_user` already refuses these outright;
+            # this keeps the two dependencies saying the same thing.
+            if not _tenant_scope_ok(request, payload):
+                raise HTTPException(
+                    status_code=401,
+                    detail="This session only works for documents on that workspace's domain.",
+                )
+            request.state.tenant_workspace = payload.get("ws")
     user_id = await _user_id_from_token(token)
     if not user_id:
         return None
@@ -105,6 +182,13 @@ async def require_user(request: Request) -> User:
             raise HTTPException(status_code=401, detail="Session expired — please log in again")
         except jwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid session token")
+        if payload.get("typ") == "tenant":
+            if not _tenant_scope_ok(request, payload):
+                raise HTTPException(
+                    status_code=401,
+                    detail="This session only works for documents on that workspace's domain.",
+                )
+            request.state.tenant_workspace = payload.get("ws")
         user_id = payload.get("sub", "")
 
     user = await user_service.get_user_by_id(get_database(), user_id)
@@ -134,6 +218,37 @@ async def update_me(data: NameUpdateRequest, user: User = Depends(require_user))
     """Set the display name (used for passwordless email accounts with no name)."""
     updated = await user_service.update_name(get_database(), user.id, data.name.strip())
     return _to_user_response(updated or user)
+
+
+@router.post("/tenant-token")
+@limiter.limit("30/minute")
+async def mint_tenant_token(
+    request: Request,
+    data: TenantTokenRequest,
+    user: User = Depends(require_user),
+):
+    """Exchange a full session for one scoped to a workspace's own domain.
+
+    Called only from markdrop.in, where the reader's real session lives, and the
+    result is handed to the custom domain so they can keep reading there instead
+    of being bounced back here for every document.
+
+    Any signed-in reader may mint one for any verified domain, and that is
+    deliberate: the token grants *nothing by itself*. Every document read still
+    runs the full access check for that person, so a token for a workspace they
+    have no claim on resolves exactly nothing. Requiring membership here would
+    also lock out the case this exists for — somebody outside the workspace who
+    was named on a single document.
+    """
+    host = (data.host or "").strip().lower()
+    domain = await domain_service.resolve_host(get_database(), host)
+    # Unverified, unknown, or a cdn host — none of which serve documents, and
+    # none of which should ever receive a credential.
+    if domain is None or domain.kind != "app":
+        raise HTTPException(status_code=404, detail="Unknown domain.")
+
+    token, exp = create_tenant_token(user.id, user.email, domain.workspace_id, host)
+    return {"token": token, "expires_at": exp, "host": host}
 
 
 @router.post("/logout")

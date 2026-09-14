@@ -83,7 +83,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
   }
 
-  const ogImage = `${API_BASE}/api/v1/og/${slug}.png`;
+  // Named with the host this card was unfurled from, not the workspace's
+  // default one. A link to content.senseloaf.ai whose card reads
+  // cdn.senseloaf.ai looks like somebody else's link. The server validates the
+  // host against that workspace's verified domains before drawing it.
+  const ogImage = `${API_BASE}/api/v1/og/${slug}.png?host=${encodeURIComponent(host)}`;
   const title = siteName ? `${pageTitle} — ${siteName}` : pageTitle;
   return {
     title,
@@ -93,6 +97,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title,
       description,
       type: "article",
+      url: `https://${host}/${path.filter(Boolean).join("/")}`,
       ...(siteName ? { siteName } : {}),
       images: [{ url: ogImage, width: 1200, height: 630, alt: pageTitle }],
     },
@@ -185,7 +190,7 @@ export default async function TenantDocumentPage({ params }: Props) {
         views={doc?.views}
         isPasswordProtected={isPasswordProtected}
         gate={gate}
-        signInUrl={signInUrlFor(slug)}
+        signInUrl={signInUrlFor(host, `/${[...folders, slug].join('/')}`)}
         isOwned={doc?.is_owned ?? false}
         syncedWithVscode={doc?.vscode_synced ?? false}
         encrypted={doc?.encrypted ?? false}
