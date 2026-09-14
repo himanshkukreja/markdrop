@@ -64,7 +64,12 @@ class Settings(BaseSettings):
     # with no inbox, so without this a reply — "I can't sign in", "unsubscribe
     # me" — is silently dropped. Override per environment via
     # MARKDROP_EMAIL_REPLY_TO.
-    email_reply_to: str = "kukreja.him@gmail.com"
+    #
+    # On the product's own domain, deliberately. Every share notification an
+    # enterprise customer receives carries this address, and inviting them to
+    # reply to a personal mailbox is a different thing to be than the one the
+    # rest of these emails are dressed as.
+    email_reply_to: str = "himanshu@markdrop.in"
     login_challenge_ttl_minutes: int = 15
     otp_length: int = 6
     login_max_attempts: int = 5
