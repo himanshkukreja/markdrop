@@ -23,6 +23,10 @@ class FolderResponse(BaseModel):
     parent_id: str | None = None
     created_at: datetime
     updated_at: datetime
+    # The URL segment for this folder, and the full path from the root. `path`
+    # is what a link is built from, so callers never have to walk the tree.
+    slug: str = ""
+    path: list[str] = []
 
 
 class FolderListResponse(BaseModel):

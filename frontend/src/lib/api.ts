@@ -40,6 +40,10 @@ export interface DocumentCreateResponse {
 
 export interface DocumentResponse {
   slug: string;
+  /** Folder slugs from the root down; empty unless the document is filed in a
+   *  workspace folder. The document's address on that workspace's own domain is
+   *  these segments followed by the slug. */
+  folder_path?: string[];
   url: string;
   title: string | null;
   content: string;
@@ -525,6 +529,9 @@ export interface MyDocListItem {
   /** Null on a private document, which is the default for every document. */
   workspace_id?: string | null;
   folder_id?: string | null;
+  /** Folder slugs from the root down — the document's address on its
+   *  workspace's own domain is these segments followed by the slug. */
+  folder_path?: string[];
   /** Only present on a workspace library listing. */
   shared_by_name?: string | null;
   shared_by_email?: string | null;

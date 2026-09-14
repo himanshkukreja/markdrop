@@ -31,11 +31,34 @@ def get_db() -> AsyncIOMotorDatabase:
     return get_database()
 
 
-def _to_response(f: Folder) -> FolderResponse:
+def _to_response(f: Folder, path: list[str] | None = None) -> FolderResponse:
     return FolderResponse(
         id=f.id, workspace_id=f.workspace_id, name=f.name,
         parent_id=f.parent_id, created_at=f.created_at, updated_at=f.updated_at,
+        slug=f.slug, path=path or [],
     )
+
+
+def _paths_for(folders: list[Folder]) -> dict[str, list[str]]:
+    """Full slug path for every folder, built from the set already in hand.
+
+    One pass over the list rather than a database walk per folder: a workspace
+    can hold 500 of them, and the tree is right here.
+    """
+    by_id = {f.id: f for f in folders}
+    cache: dict[str, list[str]] = {}
+
+    def walk(fid: str, depth: int = 0) -> list[str]:
+        if fid in cache:
+            return cache[fid]
+        f = by_id.get(fid)
+        if f is None or depth > folder_service.MAX_DEPTH + 1:
+            return []
+        parent = walk(f.parent_id, depth + 1) if f.parent_id else []
+        cache[fid] = parent + [f.slug]
+        return cache[fid]
+
+    return {f.id: walk(f.id) for f in folders}
 
 
 @router.get("/{workspace_id}/folders", response_model=FolderListResponse)
@@ -46,7 +69,10 @@ async def list_folders(
 ):
     await ws_service.require_role(db, workspace_id, user.id, "viewer")
     folders = await folder_service.list_folders(db, workspace_id)
-    return FolderListResponse(folders=[_to_response(f) for f in folders])
+    paths = _paths_for(folders)
+    return FolderListResponse(
+        folders=[_to_response(f, paths.get(f.id)) for f in folders]
+    )
 
 
 @router.post("/{workspace_id}/folders", response_model=FolderResponse, status_code=201)

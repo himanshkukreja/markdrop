@@ -51,6 +51,10 @@ class DocumentUpdate(BaseModel):
 class DocumentResponse(BaseModel):
     slug: str
     url: str
+    # Folder slugs from the root down, empty for anything not filed. A reader
+    # arriving at /data/reports/<slug> is checked against this, so a document
+    # answers only at the address that actually describes where it is filed.
+    folder_path: list[str] = []
     title: str | None
     content: str
     created_at: datetime
@@ -172,6 +176,9 @@ class MyDocListItem(BaseModel):
     # the owner's own dashboard too, so it can badge what is shared and with whom.
     workspace_id: str | None = None
     folder_id: str | None = None
+    # Folder slugs from the root down. The document's address on its workspace's
+    # own domain is these segments followed by the slug.
+    folder_path: list[str] = []
     # Only filled in on the shared-library listing, where "whose is this?" is a
     # question the reader actually has. Never on a private listing, where the
     # answer is always "yours".

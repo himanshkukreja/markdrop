@@ -43,7 +43,10 @@ def get_db() -> AsyncIOMotorDatabase:
 
 
 async def _counts(db: AsyncIOMotorDatabase, workspace_id: str) -> dict:
+    from app.services import domain as domain_service
+
     return {
+        "primary_host": await domain_service.primary_host(db, workspace_id),
         "member_count": await db["memberships"].count_documents({"workspace_id": workspace_id}),
         "pending_invite_count": await db["invitations"].count_documents(
             {"workspace_id": workspace_id, "status": "pending"}
@@ -84,9 +87,19 @@ async def list_workspaces(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
+    from app.services import domain as domain_service
+
     pairs = await ws_service.list_for_user(db, user.id)
+    # The host, but not the counts: callers of this list want to know where a
+    # workspace publishes (to preview a URL), and paying three count queries per
+    # workspace for numbers nobody renders here would be waste. MAX_WORKSPACES
+    # caps this at ten lookups.
     return WorkspaceListResponse(
-        workspaces=[_to_response(w, role) for w, role in pairs]
+        workspaces=[
+            _to_response(w, role,
+                         {"primary_host": await domain_service.primary_host(db, w.id)})
+            for w, role in pairs
+        ]
     )
 
 

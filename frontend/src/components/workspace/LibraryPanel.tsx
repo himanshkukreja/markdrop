@@ -32,6 +32,17 @@ function when(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/** Where this document answers, and on which host.
+ *
+ *  Folders are path segments, so a document filed under Data/Reports lives at
+ *  `/data/reports/<slug>`. On a workspace with its own verified domain that is
+ *  the address worth showing — it is the one people will actually share, and
+ *  until now nothing in the UI said it existed. */
+function addressOf(d: MyDocListItem, host: string | null) {
+  const path = [...(d.folder_path ?? []), d.slug].join("/");
+  return { href: host ? `https://${host}/${path}` : `/${path}`, label: `${host ?? "markdrop.in"}/${path}` };
+}
+
 function initials(s: string) {
   return s.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
 }
@@ -50,12 +61,15 @@ export default function LibraryPanel({
   role,
   folders,
   accent,
+  primaryHost,
   onError,
 }: {
   workspaceId: string;
   role: Role;
   folders: Folder[];
   accent: string;
+  /** The workspace's own document host, when it has a verified one. */
+  primaryHost: string | null;
   onError: (msg: string) => void;
 }) {
   const [docs, setDocs] = useState<MyDocListItem[]>([]);
@@ -201,7 +215,7 @@ export default function LibraryPanel({
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <a href={`/${d.slug}`} target="_blank" rel="noreferrer"
+                  <a href={addressOf(d, primaryHost).href} target="_blank" rel="noreferrer"
                      className="text-sm font-medium truncate hover:text-blue-500 transition-colors">
                     {d.encrypted ? d.slug : d.title || d.slug}
                   </a>
@@ -216,6 +230,9 @@ export default function LibraryPanel({
                     </span>
                   )}
                 </div>
+                <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                  {addressOf(d, primaryHost).label}
+                </p>
                 <p className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
                   <span className="inline-flex items-center gap-1">
                     <span className="w-4 h-4 rounded-full grid place-items-center text-[7px] font-bold text-white"

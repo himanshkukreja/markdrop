@@ -61,6 +61,9 @@ class WorkspaceResponse(BaseModel):
     # Counts, so the settings header is correct without fetching three whole
     # collections just to show three numbers. Indexed count_documents, and it
     # replaces three list requests per page load.
+    # The workspace's own document host, when it has a verified one. Lets the UI
+    # show where a document is reachable without fetching the domain list.
+    primary_host: str | None = None
     member_count: int = 0
     pending_invite_count: int = 0
     domain_count: int = 0

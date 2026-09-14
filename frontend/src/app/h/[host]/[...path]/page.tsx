@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getDocument, API_BASE } from "@/lib/api";
 import { resolveAppHost } from "@/lib/hostResolution";
@@ -10,8 +10,23 @@ import MarkdropLoader from "@/components/MarkdropLoader";
 /**
  * A document as served on a workspace's own domain.
  *
- * Reached only by rewrite from middleware, never linked: `/h/<host>/<slug>` is
- * what `cdn.acme.com/<slug>` becomes. Kept as its own route so `/[slug]` can
+ * Reached only by rewrite from middleware, never linked: `/h/<host>/<path>` is
+ * what `docs.acme.com/<path>` becomes.
+ *
+ * A catch-all rather than a single segment, because folders are part of the
+ * address here: a document filed under Data/Reports answers at
+ * `/data/reports/<slug>`. The last segment is always the slug — it is the
+ * document's identity and is globally unique — and the segments before it must
+ * match the folder path the document is actually filed under.
+ *
+ * A mismatch redirects to the canonical path rather than 404-ing. Filing a
+ * document changes its address, and links to the old one are already out in the
+ * world — someone who shared `/<slug>` before it was filed should not discover
+ * that filing it quietly broke their link. So the slug remains the identity and
+ * always resolves; the folder path is how the document is *addressed*, and any
+ * other spelling of it is a redirect to the real one.
+ *
+ * Kept as its own route so `/[slug]` can
  * stay statically prerendered for markdrop.in — reading the host inside that
  * shared route would make it dynamic for every visitor.
  *
@@ -20,14 +35,27 @@ import MarkdropLoader from "@/components/MarkdropLoader";
  */
 
 interface Props {
-  params: Promise<{ host: string; slug: string }>;
+  params: Promise<{ host: string; path: string[] }>;
 }
 
 /** Custom hosts are per-tenant and low volume, so they render on demand. */
 export const dynamic = "force-dynamic";
 
+/** Split a tenant URL into its folder path and the document slug. */
+function splitPath(path: string[]): { folders: string[]; slug: string } {
+  const segments = (path || []).filter(Boolean);
+  return { folders: segments.slice(0, -1), slug: segments[segments.length - 1] || "" };
+}
+
+/** Does this document actually live where the URL says it does? */
+function pathMatches(doc: { folder_path?: string[] } | null, folders: string[]): boolean {
+  const actual = doc?.folder_path ?? [];
+  return actual.length === folders.length && actual.every((seg, i) => seg === folders[i]);
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { host, slug } = await params;
+  const { host, path } = await params;
+  const { slug } = splitPath(path);
   // resolveAppHost, not resolveHost: this runs independently of the page
   // component, so it must apply the kind check itself or it will describe a
   // document the page is about to refuse to serve.
@@ -72,7 +100,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function TenantDocumentPage({ params }: Props) {
-  const { host, slug } = await params;
+  const { host, path } = await params;
+  const { folders, slug } = splitPath(path);
+  if (!slug) notFound();
 
   // Null for an unknown host, an unverified one, or one declared for artifacts.
   // Unknown or unverified must serve nothing, or pointing a CNAME at us would be
@@ -95,13 +125,22 @@ export default async function TenantDocumentPage({ params }: Props) {
     else notFound();
   }
 
+  // A password prompt reveals nothing about filing, so it is allowed through on
+  // any path. Everything else is served only at its canonical address, and any
+  // other spelling is redirected there — permanently, because the canonical
+  // path is stable and caches and crawlers should learn it.
+  if (doc && !pathMatches(doc, folders)) {
+    const canonical = [...(doc.folder_path ?? []), slug].join("/");
+    permanentRedirect(`/${canonical}`);
+  }
+
   if (doc?.kind === "artifact") {
     return (
       <Suspense fallback={<TenantFallback />}>
         <ArtifactView
           slug={slug}
           title={doc.title}
-          url={`https://${host}/${slug}`}
+          url={`https://${host}/${[...folders, slug].join("/")}`}
           createdAt={doc.created_at}
           views={doc.views}
           isPasswordProtected={false}
@@ -124,7 +163,7 @@ export default async function TenantDocumentPage({ params }: Props) {
         slug={slug}
         title={doc?.title ?? null}
         content={doc?.content ?? ""}
-        url={`https://${host}/${slug}`}
+        url={`https://${host}/${[...folders, slug].join("/")}`}
         createdAt={doc?.created_at ?? new Date().toISOString()}
         expiresAt={doc?.expires_at ?? null}
         views={doc?.views}

@@ -8,6 +8,8 @@ import { MAX_CHARS } from "@/lib/limits";
 import { DIAGRAM_SAMPLE, DIAGRAM_SAMPLE_PARAM } from "@/lib/samples";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
+import PublishTarget, { type PublishTargetValue } from "@/components/workspace/PublishTarget";
+import { shareToWorkspace } from "@/lib/workspaces";
 
 type Mode = "write" | "split" | "preview";
 
@@ -129,6 +131,8 @@ export default function NewDocumentPage() {
     }
   }
 
+  const [target, setTarget] = useState<PublishTargetValue>({ workspaceId: null, folderId: null });
+
   async function handlePublish() {
     if (!content.trim()) return;
     if (customSlug && customSlug.length < 3) {
@@ -164,6 +168,19 @@ export default function NewDocumentPage() {
       // Keep the secret in sessionStorage only — never in the URL (it would
       // leak via history, referrer headers and server logs).
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);
+
+      // Share as a second step rather than a field on create: sharing is the
+      // library's rule to enforce (owner-only, role-checked), and duplicating it
+      // into the create path would be a second place for it to drift. A failure
+      // here must not lose the document, which is already published — so it
+      // surfaces as a warning on a page the author is about to land on.
+      if (target.workspaceId && doc.id) {
+        try {
+          await shareToWorkspace(target.workspaceId, doc.id, target.folderId);
+        } catch {
+          setError("Published, but couldn't add it to the workspace. You can share it from your dashboard.");
+        }
+      }
       // Keep a copy on this device so losing the link isn't automatically fatal.
       // Still never leaves the browser — see lib/e2e.ts.
       if (encodedKey) e2e.rememberKey(doc.slug, encodedKey);
@@ -224,6 +241,8 @@ export default function NewDocumentPage() {
 
       {/* Publish options */}
       <div className="no-print flex flex-col gap-2 shrink-0">
+        {/* Renders nothing for anyone without a workspace they can publish into. */}
+        <PublishTarget value={target} onChange={setTarget} disabled={loading} />
         {/* Custom slug + password row */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           {/* Custom URL — 50% */}

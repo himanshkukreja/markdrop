@@ -448,13 +448,16 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
             {tab === "library" && (
               <Card
                 title="Shared library"
-                hint="Documents and artifacts people have chosen to share with this workspace. Private documents never appear here — they stay private until their owner shares them."
+                hint={ws.primary_host
+                  ? `Shared with this workspace, and served from ${ws.primary_host}. Folders are part of the address — a document filed under Data/Reports lives at /data/reports/… Private documents never appear here.`
+                  : "Documents and artifacts people have chosen to share with this workspace. Private documents never appear here — they stay private until their owner shares them."}
               >
                 <LibraryPanel
                   workspaceId={id}
                   role={ws.role}
                   folders={folders}
                   accent={accent}
+                  primaryHost={ws.primary_host}
                   onError={setError}
                 />
               </Card>
@@ -627,7 +630,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
             {tab === "domains" && (
               <Card
                 title="Domains"
-                hint="Any hostname you control. “Documents” serves pages and sign-in; “Files only” serves uploaded artifacts and never runs the app — one host can't do both."
+                hint="Any hostname you control. “Documents” is the usual choice — it serves everything, markdown and uploaded files alike. “Files only” is a plain file host with no app on it at all."
                 aside={domains.length > 0 ? (
                   <button
                     onClick={() => downloadDnsCsv(domains)}
@@ -645,7 +648,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                       value={newHost} onChange={(e) => setNewHost(e.target.value)} />
                     <select className={`${input} cursor-pointer`} value={newKind}
                       onChange={(e) => setNewKind(e.target.value as DomainKind)}>
-                      <option value="app">Documents</option>
+                      <option value="app">Documents &amp; files</option>
                       <option value="cdn">Files only</option>
                     </select>
                     <button className={primary} disabled={busy === "domain" || !newHost.trim()}
@@ -657,6 +660,14 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                   </div>
                 )}
 
+                <p className="text-[11px] text-gray-400 leading-relaxed mb-4 max-w-3xl">
+                  Uploaded files always stream from an isolated file origin, whichever kind you
+                  pick — that is what stops a published HTML page from reaching anyone&apos;s
+                  session. A <strong>Documents &amp; files</strong> host renders them in a page on
+                  your domain; a <strong>Files only</strong> host serves the raw bytes and runs no
+                  app, which is why it can&apos;t also show document pages.
+                </p>
+
                 {domains.length === 0 ? (
                   <p className="text-xs text-gray-400 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl px-3 py-10 text-center">
                     No domains yet. Add one to serve documents from your own hostname.
@@ -667,7 +678,9 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                       <div key={d.id} className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-xl p-3.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <code className="text-sm font-mono">{d.host}</code>
-                          <StatusPill tone="mute">{d.kind === "app" ? "Documents" : "Files only"}</StatusPill>
+                          <StatusPill tone="mute">
+                            {d.kind === "app" ? "Documents & files" : "Files only"}
+                          </StatusPill>
                           <StatusPill tone={d.status === "verified" ? "ok" : d.status === "failed" ? "bad" : "wait"}>
                             <span className={`w-1.5 h-1.5 rounded-full ${
                               d.status === "verified" ? "bg-emerald-500"

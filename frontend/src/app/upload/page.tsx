@@ -14,6 +14,8 @@ import {
   type ArtifactStatus,
   type ExpiresIn,
 } from "@/lib/api";
+import PublishTarget, { type PublishTargetValue } from "@/components/workspace/PublishTarget";
+import { shareToWorkspace } from "@/lib/workspaces";
 
 type Tab = "paste" | "upload";
 
@@ -78,6 +80,7 @@ export default function UploadArtifactPage() {
   const [expiresIn, setExpiresIn] = useState<ExpiresIn>("never");
   const [readPassword, setReadPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [target, setTarget] = useState<PublishTargetValue>({ workspaceId: null, folderId: null });
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
@@ -175,6 +178,15 @@ export default function UploadArtifactPage() {
           ? await pasteHtmlArtifact(html, title, opts)
           : await uploadArtifact(file!, title, { ...opts, onProgress: setProgress });
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);
+      // Share as a second step — see the same note in /new. The artifact is
+      // already published; a sharing failure must not read as an upload failure.
+      if (target.workspaceId && doc.id) {
+        try {
+          await shareToWorkspace(target.workspaceId, doc.id, target.folderId);
+        } catch {
+          setError("Uploaded, but couldn't add it to the workspace. You can share it from your dashboard.");
+        }
+      }
       router.push(`/${doc.slug}?new=1`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -404,6 +416,8 @@ export default function UploadArtifactPage() {
 
       {/* Options */}
       <div className="rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 sm:p-5 space-y-4">
+        {/* Renders nothing for anyone without a workspace they can publish into. */}
+        <PublishTarget value={target} onChange={setTarget} disabled={busy} />
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Title</label>

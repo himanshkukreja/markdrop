@@ -119,16 +119,24 @@ async def add_document(
     if folder_id:
         await _require_folder(db, workspace_id, folder_id)
 
+    # `folder_path` is the denormalised copy the read path serves URLs from —
+    # see `services.folder._reindex_subtree`. Every write of `folder_id`
+    # anywhere must set it too, or a document answers on a stale address.
+    from app.services import folder as folder_service
+
+    path = await folder_service.path_of(db, workspace_id, folder_id) if folder_id else []
     await db["documents"].update_one(
         {"_id": raw["_id"]},
         {"$set": {
             "workspace_id": workspace_id,
             "folder_id": folder_id,
+            "folder_path": path,
             "updated_at": datetime.now(timezone.utc),
         }},
     )
     raw["workspace_id"] = workspace_id
     raw["folder_id"] = folder_id
+    raw["folder_path"] = path
     return _doc_from_mongo(raw)
 
 
@@ -153,7 +161,7 @@ async def remove_document(
 
     await db["documents"].update_one(
         {"_id": raw["_id"]},
-        {"$set": {"workspace_id": None, "folder_id": None,
+        {"$set": {"workspace_id": None, "folder_id": None, "folder_path": [],
                   "updated_at": datetime.now(timezone.utc)}},
     )
 
@@ -188,9 +196,13 @@ async def set_folder(
     await ws_service.require_role(db, workspace_id, user.id, "member")
     if folder_id:
         await _require_folder(db, workspace_id, folder_id)
+    from app.services import folder as folder_service
+
+    path = await folder_service.path_of(db, workspace_id, folder_id) if folder_id else []
     await db["documents"].update_one(
         {"_id": raw["_id"]},
-        {"$set": {"folder_id": folder_id, "updated_at": datetime.now(timezone.utc)}},
+        {"$set": {"folder_id": folder_id, "folder_path": path,
+                  "updated_at": datetime.now(timezone.utc)}},
     )
 
 

@@ -64,6 +64,8 @@ export interface Workspace {
   settings: WorkspaceSettings;
   role: Role;
   /** So the settings header is correct without fetching three collections. */
+  /** The workspace's own document host, when it has a verified one. */
+  primary_host: string | null;
   member_count: number;
   pending_invite_count: number;
   domain_count: number;
@@ -101,6 +103,10 @@ export interface Folder {
   workspace_id: string;
   name: string;
   parent_id: string | null;
+  /** URL segment, and the full path from the root. A document filed here is
+   *  addressed at `/<path...>/<slug>` on the workspace's own domain. */
+  slug: string;
+  path: string[];
   created_at: string;
   updated_at: string;
 }

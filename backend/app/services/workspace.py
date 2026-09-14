@@ -248,7 +248,7 @@ async def delete_workspace(
 
     released = await db["documents"].update_many(
         {"workspace_id": workspace_id},
-        {"$set": {"workspace_id": None, "folder_id": None}},
+        {"$set": {"workspace_id": None, "folder_id": None, "folder_path": []}},
     )
     await db["domains"].delete_many({"workspace_id": workspace_id})
     await db["folders"].delete_many({"workspace_id": workspace_id})

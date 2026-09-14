@@ -62,6 +62,14 @@ async def connect() -> None:
     await db["domains"].create_index("host", unique=True)
     await db["domains"].create_index("workspace_id")
     await db["folders"].create_index([("workspace_id", 1), ("parent_id", 1)])
+    # Folder slugs are URL segments, so siblings must differ or one of them is
+    # unreachable. Partial on `slug` so folders created before slugs existed
+    # (which have none) don't collide with each other on a missing field.
+    await db["folders"].create_index(
+        [("workspace_id", 1), ("parent_id", 1), ("slug", 1)],
+        unique=True,
+        partialFilterExpression={"slug": {"$exists": True}},
+    )
     await db["documents"].create_index([("workspace_id", 1), ("folder_id", 1)], sparse=True)
     # The shared library lists by workspace, newest edit first.
     await db["documents"].create_index([("workspace_id", 1), ("updated_at", -1)], sparse=True)

@@ -53,6 +53,7 @@ def _doc_from_mongo(raw: dict) -> Document:
         mime=raw.get("mime"),
         blob_key=raw.get("blob_key"),
         size_bytes=raw.get("size_bytes"),
+        folder_path=raw.get("folder_path") or [],
         original_filename=raw.get("original_filename"),
         bundle_prefix=raw.get("bundle_prefix"),
     )

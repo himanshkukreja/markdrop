@@ -61,6 +61,7 @@ def _to_list_item(doc) -> MyDocListItem:
         original_filename=doc.original_filename,
         workspace_id=doc.workspace_id,
         folder_id=doc.folder_id,
+        folder_path=doc.folder_path,
     )
 
 

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -40,8 +40,14 @@ class Document:
     # existed before workspaces did, and remains the default. Only documents that
     # belong to a workspace can be served from that workspace's custom domains.
     workspace_id: str | None = None
-    # Filing only. Never affects who can read the document.
+    # Filing. Never affects who can read the document — but it does decide the
+    # document's address: a document filed under Data/Reports is served at
+    # /data/reports/<slug> on its workspace's own domain.
     folder_id: str | None = None
+    # Denormalised copy of the folder chain's slugs, maintained by
+    # `services.folder`. Here so a page view costs one query instead of walking
+    # up to MAX_DEPTH parents on every read.
+    folder_path: list[str] = field(default_factory=list)
     # ── Artifacts ────────────────────────────────────────────────────────────
     # kind="artifact" records store their bytes in R2 (`blob_key`) instead of
     # `content`, and render on the isolated artifact origin. Everything else on

@@ -44,6 +44,7 @@ def _to_response(doc, viewer_id: str | None = None) -> dict:
     return dict(
         slug=doc.slug,
         url=_build_url(doc.slug),
+        folder_path=doc.folder_path,
         title=doc.title,
         content=doc.content,
         created_at=doc.created_at,
