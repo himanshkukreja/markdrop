@@ -253,6 +253,7 @@ async def get_document(
             raise HTTPException(
                 status_code=401,
                 detail="Sign in to view this document.",
+                headers={"X-Markdrop-Gate": "signin"},
             )
 
     # ── Access level ─────────────────────────────────────────────────────────
@@ -276,18 +277,48 @@ async def get_document(
             # 404, not 403: a private document should not confirm that it exists
             # to someone with no claim on it. 401 when nobody is signed in, so
             # the page can offer a sign-in rather than a dead end.
+            #
+            # `X-Markdrop-Gate` says *which* 401 this is. Without it the two
+            # are indistinguishable on the wire, and the reader of a private
+            # document with no password on it is shown a password box asking
+            # for a password that does not exist — a dead end dressed up as a
+            # solvable one.
             raise HTTPException(
                 status_code=401 if not user_id else 404,
                 detail="Sign in to view this document." if not user_id else "Document not found",
+                headers={"X-Markdrop-Gate": "signin"} if not user_id else None,
             )
 
     if raw.get("read_password_hash"):
-        # The owner (logged in, or holding a valid edit secret) bypasses the gate.
-        owner_bypasses = user_id and raw.get("owner_id") == user_id
-        edit_secret_bypasses = edit_secret and verify_edit_secret(edit_secret, raw["edit_secret_hash"])
-        if not (owner_bypasses or edit_secret_bypasses):
+        # A password gates *strangers* — the people a link reaches who were
+        # never named. Anyone who has been given access deliberately (the owner,
+        # a named person, a member of the workspace it was shared into) is not a
+        # stranger, and asking them for a shared secret on top of the access
+        # they were granted by name is friction that protects nothing: they can
+        # already read it, and the password is not what is keeping anyone else
+        # out. So any effective role opens the document.
+        #
+        # The edit secret still bypasses on its own, because holding it proves
+        # authorship without proving identity.
+        edit_secret_bypasses = bool(edit_secret) and verify_edit_secret(
+            edit_secret, raw["edit_secret_hash"]
+        )
+        granted_bypasses = False
+        if not edit_secret_bypasses and user_id:
+            # Only for a signed-in reader: an anonymous one can hold no role, so
+            # the ordinary password-on-a-link read pays for no extra lookup.
+            from app.services import access as access_service
+
+            granted_bypasses = await access_service.effective_role(
+                db, raw, user_id, user_email
+            ) is not None
+
+        if not (granted_bypasses or edit_secret_bypasses):
             if not read_password:
-                raise HTTPException(status_code=401, detail="Password required")
+                raise HTTPException(
+                    status_code=401, detail="Password required",
+                    headers={"X-Markdrop-Gate": "password"},
+                )
             if not bcrypt.checkpw(read_password.encode(), raw["read_password_hash"].encode()):
                 raise HTTPException(status_code=403, detail="Incorrect password")
 

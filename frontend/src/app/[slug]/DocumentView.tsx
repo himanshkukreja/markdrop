@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import ImmersiveExit from "@/components/ImmersiveExit";
 import { useQueryFlags } from "@/lib/useQueryFlags";
@@ -65,6 +65,13 @@ interface Props {
   views?: number;
   editSecret?: string;
   isPasswordProtected?: boolean;
+  /**
+   * Which gate the anonymous server render hit, if any. "password" is a shared
+   * secret anyone may type; "signin" means the document is not public and the
+   * reader has to be somebody. They are different questions and must not be
+   * asked with the same box.
+   */
+  gate?: "password" | "signin" | null;
   isOwned?: boolean;
   syncedWithVscode?: boolean;
   /** `content` is a sealed envelope; the key is in the URL fragment, not here. */
@@ -171,12 +178,16 @@ export default function DocumentView({
   views: initialViews,
   editSecret: initialSecret,
   isPasswordProtected = false,
+  gate = null,
   isOwned = false,
   syncedWithVscode = false,
   encrypted = false,
   viewerChrome = "full",
 }: Props) {
   const router = useRouter();
+  // Sign-in has to come back to the exact address the reader was refused at —
+  // on a workspace's own domain that is not `/${slug}`.
+  const pathname = usePathname();
   // Not useSearchParams: on a prerendered route that would stop this whole view
   // being server-rendered at all. See lib/useQueryFlags.
   const { ready: flagsReady, has: hasFlag } = useQueryFlags();
@@ -704,6 +715,33 @@ export default function DocumentView({
       window.removeEventListener("afterprint",  afterPrint);
     };
   }, [displayTitle, slug]);
+
+  // On mount: the server render is deliberately anonymous so it can be cached,
+  // which means it hits the gate for *everyone* — including the people who were
+  // given access by name and are signed in right now. Retry once from the
+  // browser, where the token exists. Whoever the reader turns out to be, the
+  // API decides; this only stops us showing a locked door to someone holding
+  // the key.
+  useEffect(() => {
+    if (!pwdLocked && !pwdFetching) return;
+    if (typeof window === "undefined") return;
+    if (!localStorage.getItem("markdrop_token")) return;
+    let cancelled = false;
+    setPwdFetching(true);
+    getDocument(slug)
+      .then((doc) => {
+        if (cancelled) return;
+        adoptDoc(doc);
+        setPwdLocked(false);
+      })
+      .catch(() => {
+        // Still refused: they are signed in but this is not theirs, or a
+        // password is genuinely required. Fall back to whichever gate applies.
+        if (!cancelled) setPwdLocked(true);
+      })
+      .finally(() => { if (!cancelled) setPwdFetching(false); });
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // On mount: auto-unlock if owner (has edit secret) or cached password
   useEffect(() => {
@@ -1568,7 +1606,24 @@ export default function DocumentView({
             <svg className="w-8 h-8 text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d]" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
             </svg>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d]">This document is password protected</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d]">
+              {gate === "signin"
+                ? "This document isn't public"
+                : "This document is password protected"}
+            </p>
+            {gate === "signin" ? (
+              <div className="flex flex-col items-center gap-2.5 px-4 text-center">
+                <p className="max-w-xs text-xs leading-relaxed text-gray-500 dark:text-gray-500">
+                  Sign in with the address it was shared with and it will open.
+                </p>
+                <a
+                  href={`/login?next=${encodeURIComponent(pathname || `/${slug}`)}`}
+                  className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+                >
+                  Sign in
+                </a>
+              </div>
+            ) : (
             <form onSubmit={handlePasswordUnlock} className="flex flex-col items-center gap-2 w-full max-w-xs px-4">
               <div className="flex w-full gap-2">
                 <div className="flex flex-1 items-center bg-[#2d2d2d] dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg overflow-hidden focus-within:border-blue-500 transition-colors">
@@ -1612,6 +1667,7 @@ export default function DocumentView({
               </div>
               {pwdError && <p className="text-xs text-red-500 self-start">{pwdError}</p>}
             </form>
+            )}
           </div>
         </div>
       ) : pwdFetching ? (

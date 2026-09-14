@@ -115,14 +115,23 @@ export default async function TenantDocumentPage({ params }: Props) {
 
   let doc = null;
   let isPasswordProtected = false;
+  // Which gate the anonymous render hit. A private document with no password
+  // must not be presented as "password protected" — there is no password to
+  // type, and the reader is left with a box that can never open.
+  let gate: "password" | "signin" | null = null;
   try {
     doc = await getDocument(slug, undefined, undefined, {
       revalidate: 60,
       workspaceScope: resolved.workspace_id,
     });
   } catch (e) {
-    if (e instanceof Error && e.message === "PASSWORD_REQUIRED") isPasswordProtected = true;
-    else notFound();
+    if (e instanceof Error && e.message === "PASSWORD_REQUIRED") {
+      isPasswordProtected = true;
+      gate = "password";
+    } else if (e instanceof Error && e.message === "SIGNIN_REQUIRED") {
+      isPasswordProtected = true;
+      gate = "signin";
+    } else notFound();
   }
 
   // A password prompt reveals nothing about filing, so it is allowed through on
@@ -174,6 +183,7 @@ export default async function TenantDocumentPage({ params }: Props) {
         expiresAt={doc?.expires_at ?? null}
         views={doc?.views}
         isPasswordProtected={isPasswordProtected}
+        gate={gate}
         isOwned={doc?.is_owned ?? false}
         syncedWithVscode={doc?.vscode_synced ?? false}
         encrypted={doc?.encrypted ?? false}
