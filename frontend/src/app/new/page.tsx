@@ -8,7 +8,8 @@ import { MAX_CHARS } from "@/lib/limits";
 import { DIAGRAM_SAMPLE, DIAGRAM_SAMPLE_PARAM } from "@/lib/samples";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
-import PublishTarget, { type PublishTargetValue } from "@/components/workspace/PublishTarget";
+import PublishBar from "@/components/new/PublishBar";
+import { type PublishTargetValue } from "@/lib/useWorkspaceTargets";
 import { shareToWorkspace } from "@/lib/workspaces";
 
 type Mode = "write" | "split" | "preview";
@@ -94,7 +95,6 @@ export default function NewDocumentPage() {
   const [customExpiresAt, setCustomExpiresAt] = useState("");
   const [readPassword, setReadPassword] = useState("");
   const [encrypt, setEncrypt] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [slugError, setSlugError] = useState("");
 
   // Pre-fill from a sample when arriving via /new?sample=diagrams — and open in
@@ -225,7 +225,7 @@ export default function NewDocumentPage() {
           <button
             onClick={() => window.print()}
             disabled={!content.trim()}
-            className="hidden sm:inline-flex px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+            className="inline-flex px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
           >
             Export PDF
           </button>
@@ -239,189 +239,35 @@ export default function NewDocumentPage() {
         </div>
       </div>
 
-      {/* Publish options */}
-      <div className="no-print flex flex-col gap-2 shrink-0">
-        {/* Renders nothing for anyone without a workspace they can publish into. */}
-        <PublishTarget value={target} onChange={setTarget} disabled={loading} />
-        {/* Custom slug + password row */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-          {/* Custom URL — 50% */}
-          <div className="flex-1 flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-1.5 focus-within:border-blue-500 transition-colors min-w-0">
-            <span className="text-xs text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d] shrink-0">markdrop.in/</span>
-            <input
-              type="text"
-              value={customSlug}
-              onChange={(e) => handleSlugChange(e.target.value)}
-              placeholder="custom-url"
-              maxLength={50}
-              className="flex-1 bg-transparent outline-none text-xs font-mono text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 min-w-0"
-            />
-            {slugError && <span className="text-xs text-red-500 shrink-0">{slugError}</span>}
-          </div>
-          <span className="hidden sm:inline text-gray-300 dark:text-gray-700 vscode:text-[#3c3c3c] shrink-0 select-none">·</span>
-          {/* Password — 50% */}
-          <div className="flex-1 flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-1.5 focus-within:border-blue-500 transition-colors min-w-0">
-            <svg className="w-3 h-3 text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d] shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
-            </svg>
-            <input
-              type={showPassword ? "text" : "password"}
-              value={readPassword}
-              onChange={(e) => setReadPassword(e.target.value)}
-              placeholder="password (optional)"
-              maxLength={100}
-              className="flex-1 bg-transparent outline-none text-xs text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 min-w-0"
-            />
-            {readPassword && (
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d] hover:text-gray-600 dark:hover:text-gray-300 vscode:hover:text-[#d4d4d4] transition-colors shrink-0"
-                tabIndex={-1}
-              >
-                {showPassword ? (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
-                ) : (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* End-to-end encryption */}
-        <div
-          className={`rounded-lg border transition-colors ${
-            encrypt
-              ? "border-emerald-300 dark:border-emerald-800/70 bg-emerald-50/60 dark:bg-emerald-950/20"
-              : "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d]"
-          }`}
-        >
-          <label className="flex items-start gap-2.5 px-3 py-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={encrypt}
-              disabled={!e2e.isSupported()}
-              onChange={(e) => setEncrypt(e.target.checked)}
-              className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-emerald-600 cursor-pointer disabled:cursor-not-allowed"
-            />
-            <span className="min-w-0">
-              <span className="flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
-                <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                  <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
-                </svg>
-                End-to-end encrypt
-              </span>
-              <span className="block mt-0.5 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                {!e2e.isSupported() ? (
-                  "Unavailable — this browser doesn't expose WebCrypto on an insecure connection."
-                ) : encrypt ? (
-                  <>
-                    Your browser encrypts the title and the text before publishing. The key goes
-                    in the <span className="font-mono">#</span> part of the link, which browsers
-                    never send to a server — so only ciphertext ever reaches Markdrop.
-                  </>
-                ) : (
-                  // Describes what happens to the document, not who is kept out of
-                  // it. "So not even we can read it" quietly frames the default as
-                  // us reading them, which is both wrong and a bad thing to put in
-                  // front of someone deciding whether to trust the product.
-                  "Encrypt in your browser. Only your link can unlock it."
-                )}
-              </span>
-            </span>
-          </label>
-
-          {/* Three facts, not three paragraphs. Someone deciding whether to tick a
-              box reads labels, not prose — so each one gets an icon, a short
-              headline and a single line. The first is the destructive one and is
-              tinted to match. */}
-          {encrypt && (
-            <div className="border-t border-emerald-200/70 dark:border-emerald-900/50 grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-emerald-200/60 dark:divide-emerald-900/40">
-              <div className="flex items-start gap-2 px-3 py-2">
-                <svg className="w-3.5 h-3.5 mt-px shrink-0 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <circle cx="7.5" cy="15.5" r="4.5" />
-                  <path d="M10.7 12.3 21 2M17.5 5.5 20 8M14 9l2.5 2.5" />
-                </svg>
-                <span className="min-w-0">
-                  <span className="block text-[11px] font-medium text-amber-700 dark:text-amber-400">
-                    The link is the key
-                  </span>
-                  <span className="block text-[11px] leading-snug text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                    Lose it and the document is gone — no recovery, by anyone.
-                  </span>
-                </span>
-              </div>
-
-              <div className="flex items-start gap-2 px-3 py-2">
-                <svg className="w-3.5 h-3.5 mt-px shrink-0 text-gray-400 dark:text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                <span className="min-w-0">
-                  <span className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
-                    Anyone with the link can read it
-                  </span>
-                  <span className="block text-[11px] leading-snug text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                    Share it as carefully as the document deserves.
-                  </span>
-                </span>
-              </div>
-
-              <div className="flex items-start gap-2 px-3 py-2">
-                <svg className="w-3.5 h-3.5 mt-px shrink-0 text-gray-400 dark:text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M5.6 5.6l12.8 12.8" />
-                </svg>
-                <span className="min-w-0">
-                  <span className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
-                    Some features switch off
-                  </span>
-                  <span className="block text-[11px] leading-snug text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                    Google Docs export, VS Code sync and link previews.
-                  </span>
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Expiry row */}
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] shrink-0">Expires</label>
-          <select
-            value={expiresIn}
-            onChange={(e) => {
-              const val = e.target.value as ExpiresIn;
-              setExpiresIn(val);
-              if (val === "custom") {
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                setCustomExpiresAt(`${tomorrow.toISOString().slice(0, 10)}T12:00:00`);
-              } else {
-                setCustomExpiresAt("");
-              }
-            }}
-            className={inputClass}
-          >
-            <option value="never">Never</option>
-            <option value="1d">1 Day</option>
-            <option value="7d">7 Days</option>
-            <option value="30d">30 Days</option>
-            <option value="custom">Custom…</option>
-          </select>
-          {expiresIn === "custom" && (
-            <CustomDatePicker onChange={setCustomExpiresAt} />
-          )}
-        </div>
-      </div>
+      {/* Publish options — one row of chips, each opening a popover (a bottom
+          sheet on a phone). Replaces a stack that took roughly a third of the
+          page before anyone had typed anything. */}
+      <PublishBar
+        target={target}
+        onTarget={setTarget}
+        customSlug={customSlug}
+        onSlug={handleSlugChange}
+        slugError={slugError}
+        password={readPassword}
+        onPassword={setReadPassword}
+        encrypt={encrypt}
+        onEncrypt={setEncrypt}
+        encryptSupported={e2e.isSupported()}
+        expiresIn={expiresIn}
+        onExpiresIn={(v) => {
+          const val = v as ExpiresIn;
+          setExpiresIn(val);
+          if (val === "custom") {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            setCustomExpiresAt(`${tomorrow.toISOString().slice(0, 10)}T12:00:00`);
+          } else {
+            setCustomExpiresAt("");
+          }
+        }}
+        customDatePicker={<CustomDatePicker onChange={setCustomExpiresAt} />}
+        disabled={loading}
+      />
 
       {/* Mode tab bar */}
       <div className="no-print flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] shrink-0">
