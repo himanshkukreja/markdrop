@@ -84,18 +84,26 @@ async def effective_role(
 ) -> str | None:
     """What this viewer may do: "owner", "editor", "viewer", or None.
 
-    Ordered most-privileged first so the strongest claim wins. A workspace member
-    and a named viewer on the same document get the better of the two, never the
-    worse — otherwise being *added* to a document could take access away.
+    Ordered most-privileged first so the strongest claim wins between two routes
+    that both apply — a workspace member who is also named gets the better of
+    the two, never the worse, since being *added* to a document must not take
+    access away.
+
+    **Workspace membership does not survive `private`.** A document can sit in a
+    workspace and still be marked private, and when it is, the owner has said
+    something narrower than "the team": only they and the people they named. If
+    membership kept working here, "private" would silently mean "private unless
+    it happens to be filed somewhere", which is not what anyone reads it as and
+    is exactly the kind of gap nobody discovers until it matters.
     """
     document_id = str(raw_doc["_id"]) if raw_doc.get("_id") is not None else None
+    level = raw_doc.get("access_level") or "link"
 
     if user_id and raw_doc.get("owner_id") == user_id:
         return "owner"
 
-    # Workspace membership, if the document was shared into one.
     workspace_id = raw_doc.get("workspace_id")
-    if workspace_id and user_id:
+    if workspace_id and user_id and level != "private":
         from app.services import workspace as ws_service
 
         ws_role = await ws_service.role_for(db, workspace_id, user_id)
@@ -159,6 +167,50 @@ async def set_level(
         {"_id": raw_doc["_id"]},
         {"$set": {"access_level": level, "updated_at": datetime.now(timezone.utc)}},
     )
+    await _sync_artifact_visibility(db, {**raw_doc, "access_level": level})
+
+
+async def _sync_artifact_visibility(db: AsyncIOMotorDatabase, raw_doc: dict) -> None:
+    """Keep the stored bytes' publicity in step with the document's access.
+
+    Markdown lives in Mongo and is only ever read through this API, so changing
+    a level is enough. An artifact's bytes live in R2 and are served by a Worker
+    that has never heard of any of this: it decides purely on whether the object
+    is marked public. Flip a document to private and skip this, and the API
+    starts refusing while the edge keeps serving the same file to anyone who
+    ever saw its URL.
+    """
+    if raw_doc.get("kind") != "artifact":
+        return
+
+    from starlette.concurrency import run_in_threadpool
+
+    from app.services import artifact as art_service
+    from app.services import r2
+
+    if not r2.is_configured():
+        return
+
+    public = not art_service.is_guarded(
+        has_password=bool(raw_doc.get("read_password_hash")),
+        access_level=raw_doc.get("access_level"),
+    )
+    try:
+        if raw_doc.get("bundle_prefix"):
+            await run_in_threadpool(r2.set_public_prefix, raw_doc["bundle_prefix"], public)
+        elif raw_doc.get("blob_key"):
+            await run_in_threadpool(
+                r2.set_public, raw_doc["blob_key"], public, raw_doc.get("mime")
+            )
+    except Exception:
+        # Never leave the document *more* open than the API believes. Failing to
+        # re-open a public object is a nuisance; failing to close a private one
+        # is a leak, so a failure on the closing direction is raised.
+        if not public:
+            raise HTTPException(
+                status_code=502,
+                detail="Couldn't secure the stored file. Nothing was changed — try again.",
+            )
 
 
 async def add_grant(

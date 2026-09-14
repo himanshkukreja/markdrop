@@ -102,8 +102,11 @@ async def _authorize_write(
         if not user_id:
             raise
 
+        # Mirrors `access.effective_role`: a private document is not the
+        # workspace's, even when it is filed in one. Without this a member could
+        # edit a document they are not allowed to read.
         workspace_id = raw.get("workspace_id")
-        if workspace_id:
+        if workspace_id and (raw.get("access_level") or "link") != "private":
             from app.services import workspace as ws_service
 
             role = await ws_service.role_for(db, workspace_id, user_id)
@@ -332,6 +335,15 @@ async def update_document(
             updates["expires_at"] = (now + delta) if delta else None
 
     await db["documents"].update_one({"slug": slug}, {"$set": updates, "$inc": {"rev": 1}})
+
+    # A password is one of the two gates that decide whether an artifact's bytes
+    # may be served unauthenticated. Changing it here without telling R2 leaves
+    # the edge serving a file the API has just started guarding — the same class
+    # of bug as changing the access level and forgetting. One helper owns both.
+    if raw.get("kind") == "artifact" and "read_password_hash" in updates:
+        from app.services import access as access_service
+
+        await access_service._sync_artifact_visibility(db, {**raw, **updates})
     raw.update(updates)
     raw["rev"] = raw.get("rev", 1) + 1
     return _doc_from_mongo(raw)

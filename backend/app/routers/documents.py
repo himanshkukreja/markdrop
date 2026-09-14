@@ -69,11 +69,20 @@ def _to_response(doc, viewer_id: str | None = None) -> dict:
         type_label=art_service.label_for(doc.mime or "") if doc.kind == "artifact" else None,
         size_bytes=doc.size_bytes,
         original_filename=doc.original_filename,
-        # Built only once the reader is past the password gate (get_document
-        # raises before we get here otherwise), so the signed URL never leaks.
+        # Built only once the reader is past every gate (get_document raises
+        # before we get here otherwise), so the signed URL never leaks.
+        #
+        # `private` must come from the same helper the uploader and the access
+        # service use. Deriving it from the password alone here — as this did —
+        # hands back an unsigned URL for a document whose bytes R2 is no longer
+        # serving publicly, which looks like the file has vanished.
         artifact_url=(
             art_service.build_artifact_url(
-                doc.blob_key, doc.mime or "", private=bool(doc.read_password_hash)
+                doc.blob_key, doc.mime or "",
+                private=art_service.is_guarded(
+                    has_password=bool(doc.read_password_hash),
+                    access_level=doc.access_level,
+                ),
             )
             if doc.kind == "artifact" and doc.blob_key and r2.is_configured()
             else None
@@ -81,7 +90,13 @@ def _to_response(doc, viewer_id: str | None = None) -> dict:
         # Always the raw object — artifact_url points at a viewer page for
         # PDFs/sheets/docs, which would download the wrapper, not the file.
         download_url=(
-            art_service.build_download_url(doc.blob_key, private=bool(doc.read_password_hash))
+            art_service.build_download_url(
+                doc.blob_key,
+                private=art_service.is_guarded(
+                    has_password=bool(doc.read_password_hash),
+                    access_level=doc.access_level,
+                ),
+            )
             if doc.kind == "artifact" and doc.blob_key and r2.is_configured()
             else None
         ),
