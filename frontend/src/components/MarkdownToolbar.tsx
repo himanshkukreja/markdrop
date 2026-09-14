@@ -24,9 +24,11 @@ const ACTIONS: ToolbarAction[] = [
 interface Props {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   onChange: (value: string) => void;
+  /** Inline on the tab row: no background, border or padding of its own. */
+  bare?: boolean;
 }
 
-export default function MarkdownToolbar({ textareaRef, onChange }: Props) {
+export default function MarkdownToolbar({ textareaRef, onChange, bare = false }: Props) {
   function applyAction(action: ToolbarAction) {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -58,7 +60,11 @@ export default function MarkdownToolbar({ textareaRef, onChange }: Props) {
   }
 
   return (
-    <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526]">
+    // `bare` drops the bar's own background and border so it can sit inline on
+    // the mode-tab row rather than occupying a full-width strip of its own.
+    <div className={bare
+      ? "flex items-center gap-1"
+      : "flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526]"}>
       {ACTIONS.map((action) => (
         <button
           key={action.title}

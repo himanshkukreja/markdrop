@@ -100,16 +100,23 @@ export default function PublishBar(p: PublishBarProps) {
       aria-expanded={open === id}
       aria-haspopup="dialog"
       onClick={() => setOpen(open === id ? null : id)}
-      className={`shrink-0 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors disabled:opacity-50 ${
+      className={`group/chip shrink-0 inline-flex items-center gap-2 rounded-full border px-3.5 py-[7px] text-[12.5px] font-medium
+        transition-all duration-150 disabled:opacity-50 ${
         open === id
-          ? "border-blue-500/60 bg-blue-500/15 text-blue-200"
+          ? "border-blue-500/70 bg-blue-500/20 text-blue-100 shadow-[0_0_0_3px_rgba(59,130,246,.12)]"
           : set
-            ? "border-blue-500/35 bg-blue-500/10 text-blue-300 hover:bg-blue-500/[0.14]"
-            : "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/60 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/70"
+            ? "border-blue-500/40 bg-blue-500/[0.13] text-blue-200 hover:border-blue-500/60 hover:bg-blue-500/[0.18]"
+            : "border-gray-200 dark:border-white/[0.09] vscode:border-[#3c3c3c] bg-gray-50 dark:bg-white/[0.03] text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20 hover:bg-gray-100 dark:hover:bg-white/[0.06] hover:text-gray-800 dark:hover:text-gray-200"
       }`}
     >
-      <Icon d={icon} />
+      <Icon d={icon} className="w-3.5 h-3.5 shrink-0 opacity-80" />
       {label}
+      {set ? (
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" aria-hidden />
+      ) : (
+        <Icon className="w-3 h-3 shrink-0 opacity-40 transition-opacity group-hover/chip:opacity-70"
+              d={<path d="m6 9 6 6 6-6" />} />
+      )}
     </button>
   );
 
@@ -149,8 +156,11 @@ export default function PublishBar(p: PublishBarProps) {
       {/* Scrolls sideways on a phone instead of wrapping to three rows and
           eating the editor. `-mx-4 px-4` lets it bleed to the screen edge so the
           last chip doesn't look cut off. */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-0.5 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible
                       [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <span className="hidden sm:inline shrink-0 pr-0.5 text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-600">
+          Settings
+        </span>
         {ws.available &&
           chip("destination", !!p.target.workspaceId, ICONS.folder,
             p.target.workspaceId ? (

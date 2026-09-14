@@ -208,34 +208,40 @@ export default function NewDocumentPage() {
         <MarkdownPreview content={content} />
       </div>
 
-      {/* Top bar */}
-      <div className="no-print flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 shrink-0">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Document title (optional)"
-          maxLength={200}
-          className="flex-1 bg-transparent border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] focus:border-blue-500 dark:focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
-        />
-        <div className="flex items-center gap-2 shrink-0">
-          <span className={`text-xs tabular-nums ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500"}`}>
+      {/* Header — the rule runs under the whole row, not just the input. A
+          border that stops halfway across reads as a broken underline rather
+          than as a divider. */}
+      <div className="no-print shrink-0 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] pb-3">
+        {/* Stacked on a phone. Sharing one row with two buttons left the title
+            about 150px wide, so it truncated to "Untitled docume". */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Untitled document"
+            maxLength={200}
+            className="w-full min-w-0 sm:flex-1 bg-transparent outline-none text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-50 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600"
+          />
+          <div className="flex items-center gap-2 sm:contents">
+          <span className={`text-xs tabular-nums shrink-0 mr-auto sm:mr-0 ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500"}`}>
             {remaining.toLocaleString()} left
           </span>
           <button
             onClick={() => window.print()}
             disabled={!content.trim()}
-            className="inline-flex px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+            className="shrink-0 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Export PDF
           </button>
           <button
             onClick={handlePublish}
             disabled={loading || !content.trim()}
-            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-medium text-white transition-colors"
+            className="shrink-0 px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-semibold text-white transition-colors"
           >
-            {loading ? "Publishing..." : "Publish"}
+            {loading ? "Publishing…" : "Publish"}
           </button>
+          </div>
         </div>
       </div>
 
@@ -269,30 +275,35 @@ export default function NewDocumentPage() {
         disabled={loading}
       />
 
-      {/* Mode tab bar */}
-      <div className="no-print flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] shrink-0">
+      {/* Mode tabs, with the markdown toolbar on the same row. It used to be a
+          full-width strip of its own that the parent's `gap-3` then detached
+          from the editor it belongs to — a bar floating between two boxes. */}
+      <div className="no-print shrink-0 flex items-center gap-2 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
         {MODES.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => setMode(id)}
             className={`${id === "split" ? "hidden sm:block" : ""} px-3 sm:px-4 py-2 text-sm transition-colors border-b-2 -mb-px ${
               mode === id
-                ? "border-blue-500 text-blue-500 dark:text-blue-400"
+                ? "border-blue-500 text-blue-600 dark:text-blue-400 font-medium"
                 : "border-transparent text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
             {label}
           </button>
         ))}
+        {mode !== "preview" && (
+          <div className="ml-auto hidden sm:block">
+            <MarkdownToolbar textareaRef={activeTextareaRef} onChange={setContent} bare />
+          </div>
+        )}
       </div>
 
-      {/* Toolbar — only shown in write/split mode */}
+      {/* On a phone the toolbar gets its own scrollable row: sharing one with
+          the mode tabs left it clipped at the screen edge. */}
       {mode !== "preview" && (
-        <div className="no-print shrink-0 rounded-t-lg overflow-hidden border border-b-0 border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c]">
-          <MarkdownToolbar
-            textareaRef={activeTextareaRef}
-            onChange={setContent}
-          />
+        <div className="no-print sm:hidden shrink-0 -mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <MarkdownToolbar textareaRef={activeTextareaRef} onChange={setContent} bare />
         </div>
       )}
 
@@ -303,7 +314,7 @@ export default function NewDocumentPage() {
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Paste or type your markdown here..."
-          className="no-print flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-b-lg rounded-t-none p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors"
+          className="no-print flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors"
           autoFocus
           maxLength={MAX_CHARS}
         />
@@ -318,7 +329,7 @@ export default function NewDocumentPage() {
             onChange={(e) => setContent(e.target.value)}
             onScroll={syncScroll}
             placeholder="Paste or type your markdown here..."
-            className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-b-lg rounded-t-none p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
+            className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
             autoFocus
             maxLength={MAX_CHARS}
           />
