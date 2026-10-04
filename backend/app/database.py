@@ -104,6 +104,10 @@ async def connect() -> None:
     # P2P file-share events (metadata only — bytes never touch the server)
     await db["share_events"].create_index([("ts", -1)])
     await db["share_events"].create_index([("user_id", 1), ("ts", -1)], sparse=True)
+    # Per-connection ICE outcomes. Only worth keeping while it describes the
+    # networks people are on now; 90 days, then Mongo drops them itself.
+    await db["share_diagnostics"].create_index("ts", expireAfterSeconds=90 * 24 * 3600)
+    await db["share_diagnostics"].create_index([("room_id", 1)])
 
     # Email campaigns + opt-out lookups for building an audience
     await db["campaigns"].create_index([("created_at", -1)])

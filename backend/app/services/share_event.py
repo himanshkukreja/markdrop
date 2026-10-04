@@ -35,7 +35,9 @@ BLOB_FIELD = "x"
 def decode_blob(blob: str) -> dict | None:
     """Decode the opaque base64url metadata blob attached to an offer.
 
-    Expected shape: {"n": name, "s": size, "m": mime, "t": token｜null}.
+    Expected shape: {"n": name, "s": size, "m": mime, "t": token｜null,
+    "c": file count}. For a multi-file share ``n``/``m`` describe the first file
+    and ``s`` is the total; ``c`` is absent on clients that predate it (= 1).
     Returns None for anything malformed.
     """
     if not isinstance(blob, str) or not blob:
@@ -71,6 +73,7 @@ async def record_share(
     file_size: int | None,
     mime_type: str | None,
     ip_hash: str | None,
+    file_count: int | None = None,
 ) -> None:
     """Insert one share-event document."""
     size: int | None = None
@@ -78,6 +81,9 @@ async def record_share(
         size = None
     elif isinstance(file_size, (int, float)):
         size = int(file_size)
+    count = 1
+    if isinstance(file_count, int) and not isinstance(file_count, bool) and file_count > 0:
+        count = min(file_count, 100_000)
     await db["share_events"].insert_one(
         {
             "room_id": room_id,
@@ -85,6 +91,7 @@ async def record_share(
             "file_name": ((file_name or "").strip()[:260]) or None,
             "file_size": size,
             "mime_type": ((mime_type or "").strip()[:120]) or None,
+            "file_count": count,
             "ip_hash": ip_hash,
             "ts": datetime.now(timezone.utc),
         }

@@ -203,6 +203,26 @@ class Settings(BaseSettings):
             and self.artifact_signing_key
         )
 
+    # ── P2P file share: TURN relay (Cloudflare Realtime) ─────────────────────
+    # A direct WebRTC path fails on networks that isolate clients from each
+    # other, lack NAT hairpinning, or only let 80/443 out. TURN is the fallback
+    # that always works: both peers dial *out* to the relay, over TLS on 443 if
+    # that is all the network allows. ICE still prefers a direct path, so the
+    # relay only carries the transfers that would otherwise fail.
+    #
+    # Create a key in the Cloudflare dashboard (Realtime → TURN Server). Left
+    # blank, peers get STUN only — today's behaviour, nothing breaks.
+    cf_turn_key_id: str = ""
+    cf_turn_api_token: str = ""
+    # Lifetime of the credentials handed to browsers. Long enough to outlast a
+    # big transfer (an allocation can't refresh on an expired credential); short
+    # enough that a harvested one stops being a free relay soon.
+    cf_turn_credential_ttl_seconds: int = 6 * 3600
+
+    @property
+    def turn_configured(self) -> bool:
+        return bool(self.cf_turn_key_id and self.cf_turn_api_token)
+
     # Analytics geo-IP (Phase 4) — MaxMind GeoLite2 City DB
     geoip_db_path: str = ""  # e.g. /opt/markdrop/geoip/GeoLite2-City.mmdb
     ip_hash_salt: str = "change-this-ip-hash-salt-in-production"
