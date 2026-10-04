@@ -169,7 +169,10 @@ writes the exact same bytes to the other. It never parses the SDP or ICE content
 | `ice` | Either → relay | The other | A network address candidate (IP/port/protocol) to try |
 | `config` | Server itself | Both, first | The STUN/TURN servers to use (TURN credentials are short-lived) |
 | `no-host` | Server itself | Recipient | "Nobody is sharing on this link right now" |
-| `room-busy` | Server itself | A second recipient | "Someone else is receiving — one at a time" |
+| `guest-joined {gid}` | Server itself | Sender | In a multi-recipient room, which recipient this is about |
+| `room-busy` | Server itself | A 2nd recipient of a **v1** sender | "Someone else is receiving" — the Go CLI serves one at a time |
+| `room-full` | Server itself | An 11th recipient | The room is at its limit of 10 at once |
+| `bye` → `room-closed` | Sender → server → every recipient | All | The sender ended the share; recipients are told at once |
 | `peer-disconnected` | Server itself | The other side | "The other side's *signalling* dropped" — not proof they left; see liveness |
 | `ping` | Either → server | Nobody | Keep-alive every 25 s so nginx's idle timeout never strands a waiting sender |
 
@@ -292,6 +295,19 @@ But a peer that truly vanished (tab killed, laptop shut) leaves the channel look
 fails ~30 s later. So on `peer-disconnected` with an open channel, a v2 peer sends `ping` over the channel and
 declares the other side gone if **nothing at all** arrives within 6 s. Chunks in flight count as an answer.
 
+### Several recipients, and what the sender sees
+
+Each recipient is its own `RTCPeerConnection` and queue on the sender's side, so a phone taking three photos
+doesn't wait behind a laptop taking a video. Recipients send `hello {device}` ("iPhone · Safari", from their
+own user agent, over the encrypted channel) and `progress {id, received}` ~5 times a second. The sender's list
+shows each person's state — connecting, looking at the files, downloading *n of m* with a percentage and
+rate, downloaded, left — and each file shows how many people have it. Progress is the recipient's own count,
+not how much the sender has queued (which runs megabytes ahead).
+
+**Ending the share.** *End sharing*, or closing the tab (`pagehide`), sends `bye` over every open channel and
+over signalling; the server turns the latter into `room-closed` for every guest, including those still
+connecting. Recipients are told immediately and keep whatever they already saved.
+
 ### Receiver saving
 
 Each file becomes a `Blob` when its `file-end` arrives and is handed to the page:
@@ -377,7 +393,7 @@ Streaming to disk via `showSaveFilePicker` was tried and reverted (it starved We
 | # | Limitation | Notes |
 |---|-----------|-------|
 | 1 | **Sender tab must stay open** | The files live on the sender's device. |
-| 2 | **One recipient at a time** | A second visitor sees "someone else is receiving"; the next can come once they leave. |
+| 2 | **Up to 10 recipients at once** | Each is a separate connection sharing the sender's upload. An 11th is told to retry; a Go CLI *sender* still serves one at a time. |
 | 3 | **No resume within a file** | A dropped connection restarts the interrupted file; finished files are kept. |
 | 4 | **Recipient holds files in memory** | See [File Size Limits](#8-file-size-limits). |
 | 5 | **No integrity hash** | SCTP is reliable and DTLS authenticates every record; a byte-count check guards each file. |
@@ -409,8 +425,12 @@ cli/internal/peer/            Go CLI host/guest (protocol v1)
 
 ## 11. WebSocket API Reference
 
-**Endpoint:** `wss://api.markdrop.in/ws/share/{room_id}?role={host|guest}` — `room_id` must match
+**Endpoint:** `wss://api.markdrop.in/ws/share/{room_id}?role={host|guest}[&v=2]` — `room_id` must match
 `[A-Za-z0-9_-]{6,64}`.
+
+A host connecting with `v=2` gets a **multi-recipient room**: each guest is assigned a `gid`; guest → host
+messages arrive tagged with it, and host → guest messages must carry it (the server routes on it and strips
+it). A host without `v=2` — the Go CLI — gets the original one-guest room, untagged.
 
 > **nginx requirement:** the `/ws/` location needs `proxy_http_version 1.1` and the `Upgrade`/`Connection`
 > headers, or FastAPI returns 404. Its `proxy_read_timeout 3600s` is why clients ping every 25 s.
@@ -421,10 +441,11 @@ cli/internal/peer/            Go CLI host/guest (protocol v1)
 |------|-----------|
 | `host`, room empty | Room created; sent `config`. |
 | `host`, host present | Closed `4000` (a reconnecting client retries — the old socket may not be reaped yet). |
-| `host`, guest waiting | Sent `config`, then `guest-joined` so it renegotiates. |
+| `host`, guests waiting | Sent `config`, then `guest-joined` for each so it renegotiates. |
 | `guest`, host present | Sent `config`; host sent `guest-joined`. |
 | `guest`, no host | Sent `no-host`, closed `4001`. |
-| `guest`, guest present | Sent `room-busy`, closed `4003`. |
+| `guest`, v1 host, guest present | Sent `room-busy`, closed `4003`. |
+| `guest`, v2 host, 10 guests present | Sent `room-full`, closed `4006`. |
 
 ### Close codes
 
@@ -433,9 +454,10 @@ cli/internal/peer/            Go CLI host/guest (protocol v1)
 | `4000` | Duplicate host |
 | `4001` | No host in the room |
 | `4002` | Invalid `role` |
-| `4003` | Room busy — one recipient at a time |
+| `4003` | Room busy — a v1 sender already has its one recipient |
 | `4004` | Invalid room id |
 | `4005` | Server at its room limit |
+| `4006` | Room full — 10 recipients already connected |
 
 ### Diagnostics
 
