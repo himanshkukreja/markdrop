@@ -7,16 +7,15 @@ import AmbientBackground from "@/components/AmbientBackground";
 import TransferExplainer from "@/components/share/TransferExplainer";
 import CliGuide from "@/components/share/CliGuide";
 import BulkGuide from "@/components/share/BulkGuide";
-import FileIcon, { RouteBadge } from "@/components/share/FileIcon";
+import FileIcon from "@/components/share/FileIcon";
+import Recipients from "@/components/share/Recipients";
 import { generateRoomId, formatBytes, formatRate } from "@/lib/webrtc";
 import { getToken } from "@/lib/api";
 import { FAILURE_COPY } from "@/lib/p2p/protocol";
 import { filesFromDrop } from "@/lib/p2p/dropped";
-import { ShareSender, type SenderSnapshot, type SenderFile } from "@/lib/p2p/sender";
+import { ShareSender, type SenderSnapshot, type SenderFileView } from "@/lib/p2p/sender";
 
-const EMPTY: SenderSnapshot = {
-  status: "idle", files: [], notice: null, failure: null, route: null, rate: 0, recipients: 0,
-};
+const EMPTY: SenderSnapshot = { status: "idle", files: [], recipients: [], failure: null, rate: 0 };
 
 const TRUST = [
   { label: "End-to-end encrypted", d: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" },
@@ -38,6 +37,14 @@ export default function SharePage() {
 
   useEffect(() => setOrigin(window.location.origin), []);
   useEffect(() => () => senderRef.current?.stop(), []);
+
+  // Closing the tab ends the share: say goodbye so every recipient hears it
+  // at once, instead of after a liveness timeout.
+  useEffect(() => {
+    const bye = () => senderRef.current?.stop();
+    window.addEventListener("pagehide", bye);
+    return () => window.removeEventListener("pagehide", bye);
+  }, []);
 
   const active = snap.status !== "idle" && snap.status !== "failed";
 
@@ -83,11 +90,8 @@ export default function SharePage() {
   const shareUrl = `${origin}/share/${roomId}`;
   const files = snap.files;
   const totalBytes = files.reduce((n, f) => n + f.file.size, 0);
-  const inFlight = files.filter((f) => f.status === "queued" || f.status === "sending");
-  const delivered = files.filter((f) => f.status === "delivered").length;
-  const batchBytes = inFlight.reduce((n, f) => n + f.file.size, 0);
-  const batchSent = inFlight.reduce((n, f) => n + f.sent, 0);
-  const etaSec = snap.rate > 0 ? (batchBytes - batchSent) / snap.rate : 0;
+  const connected = snap.recipients.filter((r) => r.state !== "left" && r.state !== "failed" && r.state !== "connecting");
+  const downloading = snap.recipients.filter((r) => r.state === "downloading");
 
   return (
     <div className="relative flex-1 min-h-0 overflow-y-auto">
@@ -187,13 +191,10 @@ export default function SharePage() {
 
             {snap.status !== "idle" && (
               <div className="space-y-4">
-                <SessionStatus snap={snap} delivered={delivered} />
+                <SessionStatus snap={snap} connected={connected.length} downloading={downloading.length} />
 
                 {snap.status === "failed" && snap.failure && (
                   <Banner tone="error" title={FAILURE_COPY[snap.failure].title} detail={FAILURE_COPY[snap.failure].detail} />
-                )}
-                {snap.notice && snap.status !== "failed" && (
-                  <Banner tone="warn" title={FAILURE_COPY[snap.notice].title} detail={FAILURE_COPY[snap.notice].detail} />
                 )}
 
                 {/* Link + QR */}
@@ -206,7 +207,7 @@ export default function SharePage() {
                         <CopyButton text={shareUrl} label="Copy" />
                       </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        They see every file before choosing what to download. The link works while this tab stays open — one recipient at a time.
+                        Anyone with the link can open it — up to 10 people at once, each choosing what to download. It works while this tab stays open.
                       </p>
                     </div>
                     <div className="flex flex-col items-center gap-1.5 mx-auto">
@@ -217,6 +218,8 @@ export default function SharePage() {
                     </div>
                   </div>
                 )}
+
+                {active && <Recipients recipients={snap.recipients} totalFiles={files.length} />}
 
                 {/* Files */}
                 <div
@@ -234,11 +237,9 @@ export default function SharePage() {
                         {files.length} {files.length === 1 ? "file" : "files"}
                         <span className="font-normal text-gray-500 dark:text-gray-400"> · {formatBytes(totalBytes)}</span>
                       </p>
-                      {inFlight.length > 0 && (
+                      {downloading.length > 0 && snap.rate > 0 && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums mt-0.5">
-                          Sending {formatBytes(batchSent)} of {formatBytes(batchBytes)}
-                          {snap.rate > 0 && <> · {formatRate(snap.rate)}</>}
-                          {etaSec > 1 && <> · {formatEta(etaSec)} left</>}
+                          Sending {formatRate(snap.rate)} to {downloading.length === 1 ? "1 person" : `${downloading.length} people`}
                         </p>
                       )}
                     </div>
@@ -254,15 +255,9 @@ export default function SharePage() {
                       </>
                     )}
                   </div>
-                  {inFlight.length > 0 && (
-                    <div className="h-1 bg-gray-200 dark:bg-gray-800">
-                      <div className="h-full bg-gradient-to-r from-blue-500 to-sky-400 transition-[width] duration-200"
-                        style={{ width: `${batchBytes ? (batchSent / batchBytes) * 100 : 0}%` }} />
-                    </div>
-                  )}
                   <ul className="max-h-[22rem] overflow-y-auto divide-y divide-gray-200 dark:divide-gray-800">
                     {files.map((f) => (
-                      <SenderRow key={f.id} f={f} canRemove={active && (f.status === "ready" || f.status === "unreadable")}
+                      <SenderRow key={f.id} f={f} canRemove={active && !f.busy}
                         onRemove={() => senderRef.current?.removeFile(f.id)} />
                     ))}
                   </ul>
@@ -270,13 +265,13 @@ export default function SharePage() {
                     <p className="px-4 py-2.5 border-t border-gray-200 dark:border-gray-700/70 text-[11px] text-gray-500 dark:text-gray-400">
                       {listDragging
                         ? "Drop to add these to the share"
-                        : <>Forgot something? Drop more files here or use <span className="font-medium text-gray-700 dark:text-gray-300">Add files</span> — they appear on your recipient&apos;s list right away.</>}
+                        : <>Forgot something? Drop more files here or use <span className="font-medium text-gray-700 dark:text-gray-300">Add files</span> — everyone connected sees them right away.</>}
                     </p>
                   )}
                 </div>
 
-                {/* CLI hint — the current CLI receives one file at a time */}
-                {active && files.length === 1 && (
+                {/* CLI hint — the CLI gets one file, or several as an auto-extracted folder */}
+                {active && (
                   <div className="rounded-2xl border border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-900/40 overflow-hidden">
                     <button onClick={() => setShowCli((v) => !v)}
                       className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors">
@@ -334,40 +329,30 @@ export default function SharePage() {
   );
 }
 
-function SessionStatus({ snap, delivered }: { snap: SenderSnapshot; delivered: number }) {
-  const total = snap.files.length;
-  const sending = snap.files.some((f) => f.status === "sending" || f.status === "queued");
+function SessionStatus({ snap, connected, downloading }: { snap: SenderSnapshot; connected: number; downloading: number }) {
   let dot = "bg-amber-400 animate-pulse";
   let text = "Waiting for someone to open the link…";
-  if (snap.status === "connecting") text = "Recipient opened the link — connecting…";
-  else if (snap.status === "reconnecting") text = "Reconnecting to Markdrop…";
+  if (snap.status === "reconnecting") text = "Reconnecting to Markdrop…";
   else if (snap.status === "failed") { dot = "bg-red-500"; text = "Sharing stopped"; }
-  else if (snap.status === "connected") {
+  else if (downloading > 0) {
+    dot = "bg-blue-500 animate-pulse";
+    text = downloading === 1 ? "Sending to 1 person" : `Sending to ${downloading} people`;
+  } else if (connected > 0) {
     dot = "bg-emerald-500";
-    text = sending
-      ? "Sending…"
-      : delivered === total && total > 0
-        ? (total === 1 ? "Delivered" : `All ${total} files delivered`)
-        : "Connected — recipient is choosing files";
+    text = "Link is live — recipients are connected";
+  } else if (snap.recipients.some((r) => r.state === "connecting")) {
+    text = "Someone opened the link — connecting…";
   }
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-      <div className="flex items-center gap-2.5 min-w-0">
-        <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{text}</p>
-      </div>
-      <div className="flex items-center gap-2">
-        {snap.status === "connected" && <RouteBadge route={snap.route} />}
-        {snap.recipients > 1 && (
-          <span className="text-[11px] text-gray-500 dark:text-gray-400">{snap.recipients} recipients so far</span>
-        )}
-      </div>
+    <div className="flex items-center gap-2.5 min-w-0 px-1">
+      <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+      <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{text}</p>
     </div>
   );
 }
 
-function SenderRow({ f, canRemove, onRemove }: { f: SenderFile; canRemove: boolean; onRemove: () => void }) {
-  const pct = f.file.size ? Math.min(100, Math.round((f.sent / f.file.size) * 100)) : 100;
+function SenderRow({ f, canRemove, onRemove }: { f: SenderFileView; canRemove: boolean; onRemove: () => void }) {
+  const pct = Math.round(f.progress * 100);
   return (
     <li className="flex items-center gap-3 px-4 py-2.5">
       <div className="w-9 h-9 rounded-lg bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 flex items-center justify-center shrink-0">
@@ -375,7 +360,7 @@ function SenderRow({ f, canRemove, onRemove }: { f: SenderFile; canRemove: boole
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm text-gray-900 dark:text-gray-100 truncate">{f.file.name}</p>
-        {f.status === "sending" ? (
+        {f.sending > 0 ? (
           <div className="mt-1.5 h-1 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
             <div className="h-full bg-blue-500 transition-[width] duration-200" style={{ width: `${pct}%` }} />
           </div>
@@ -384,17 +369,21 @@ function SenderRow({ f, canRemove, onRemove }: { f: SenderFile; canRemove: boole
         )}
       </div>
       <div className="shrink-0 flex items-center gap-1.5">
-        {f.status === "sending" && <span className="text-xs tabular-nums text-blue-600 dark:text-blue-300 w-9 text-right">{pct}%</span>}
-        {f.status === "queued" && <span className="text-xs text-gray-500 dark:text-gray-400">Queued</span>}
-        {f.status === "unreadable" && (
+        {f.sending > 0 && (
+          <span className="text-xs tabular-nums text-blue-600 dark:text-blue-300">
+            {f.sending > 1 ? `to ${f.sending}` : `${pct}%`}
+          </span>
+        )}
+        {f.unreadable && (
           <span className="text-xs text-amber-600 dark:text-amber-400" title="The file was moved, deleted or couldn't be read. Remove it and add it again.">
             Couldn&apos;t read
           </span>
         )}
-        {f.status === "delivered" && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+        {f.delivered > 0 && f.sending === 0 && (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+            title={`${f.delivered} ${f.delivered === 1 ? "person has" : "people have"} this file`}>
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 13l4 4L19 7" /></svg>
-            Delivered
+            {f.delivered === 1 ? "Delivered" : `Delivered to ${f.delivered}`}
           </span>
         )}
         {canRemove && (
@@ -418,11 +407,4 @@ function Banner({ tone, title, detail }: { tone: "warn" | "error"; title: string
       <p className="text-xs mt-0.5 opacity-90">{detail}</p>
     </div>
   );
-}
-
-function formatEta(sec: number): string {
-  if (sec < 60) return `${Math.ceil(sec)}s`;
-  const m = Math.floor(sec / 60);
-  if (m < 60) return `${m}m ${Math.round(sec % 60)}s`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
 }

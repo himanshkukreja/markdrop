@@ -364,7 +364,7 @@ function FailureCard({ reason }: { reason: keyof typeof FAILURE_COPY }) {
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-sm">{copy.detail}</p>
       </div>
       <div className="flex gap-2">
-        {(reason === "ice" || reason === "signalling" || reason === "room-busy") && (
+        {(reason === "ice" || reason === "signalling" || reason === "room-busy" || reason === "room-full") && (
           <button onClick={() => window.location.reload()}
             className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Try again

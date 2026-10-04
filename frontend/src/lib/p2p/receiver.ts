@@ -7,6 +7,7 @@ import {
   type ManifestFile,
 } from "./protocol";
 import { CLOSE, SignalSocket } from "./signal";
+import { deviceLabel } from "./device";
 
 export type ReceiverStatus =
   | "connecting"        // finding the sender / ICE in progress
@@ -80,6 +81,7 @@ export class ShareReceiver {
       onMessage: (m) => void this.onSignal(m),
       onFatal: (code) => {
         if (code === CLOSE.ROOM_BUSY) this.fail("room-busy");
+        else if (code === CLOSE.ROOM_FULL) this.fail("room-full");
         else if (code === CLOSE.NO_HOST) this.fail("no-host");
         else this.fail("signalling");
       },
@@ -146,6 +148,14 @@ export class ShareReceiver {
       case "room-busy":
         this.fail("room-busy");
         break;
+      case "room-full":
+        this.fail("room-full");
+        break;
+      case "room-closed":
+        // The sender pressed End sharing (or closed the tab cleanly). Say so
+        // now rather than after a liveness timeout.
+        this.fail("sender-ended");
+        break;
       case "offer":
         // A sender whose signalling reconnected renegotiates from scratch.
         if (this.graceTimer) clearTimeout(this.graceTimer);
@@ -209,6 +219,10 @@ export class ShareReceiver {
         channel.onclose = () => {
           if (this.channel === channel) this.channelClosed();
         };
+        // Introduce ourselves so the sender's list can say who this is.
+        const hello = () => channel.send(JSON.stringify({ type: "hello", device: deviceLabel() }));
+        if (channel.readyState === "open") hello();
+        else channel.onopen = hello;
       },
     });
     this.link = link;
@@ -234,7 +248,7 @@ export class ShareReceiver {
     const ch = this.channel;
     this.channel = null;
     if (ch) {
-      ch.onmessage = ch.onclose = null;
+      ch.onmessage = ch.onclose = ch.onopen = null;
       try { ch.close(); } catch { /* closed */ }
     }
     this.link?.close();
@@ -266,6 +280,9 @@ export class ShareReceiver {
     switch (msg.type) {
       case "ping":
         this.channel?.send(JSON.stringify({ type: "pong" }));
+        break;
+      case "bye":
+        this.fail("sender-ended");
         break;
 
       case "meta": // version 1 sender: one file, starts on our "start"
@@ -363,7 +380,15 @@ export class ShareReceiver {
     this.emit();
   }
 
+  private reported = -1;
+
   private tick() {
+    // Tell the sender how far we've got, so their list shows our progress
+    // rather than how much they've queued (which runs megabytes ahead).
+    if (this.current && this.protocol === 2 && this.channelOpen && this.current.file.received !== this.reported) {
+      this.reported = this.current.file.received;
+      this.channel!.send(JSON.stringify({ type: "progress", id: this.current.file.id, received: this.reported }));
+    }
     const now = performance.now();
     const got = this.files.reduce((n, f) => n + f.received, 0);
     if (this.rateAt) {
