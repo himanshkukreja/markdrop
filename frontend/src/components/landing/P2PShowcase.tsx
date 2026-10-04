@@ -35,14 +35,15 @@ export default function P2PShowcase() {
             The server never sees your file.
           </h2>
           <p className="mt-4 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0] leading-relaxed">
-            Drop a file and get a link. When your recipient opens it, the file streams
-            straight from your browser to theirs over an encrypted WebRTC channel.
-            Markdrop only relays a few kilobytes of connection setup — never a single byte of your file.
+            Drop a file — or a hundred photos — and get a link. When your recipient opens it,
+            the files stream straight from your device to theirs over an encrypted WebRTC channel.
+            On networks that block a direct path, they pass through an encrypted relay that
+            can&apos;t read them. Nothing is ever stored.
           </p>
           <ul className="mt-6 space-y-3">
             {[
               ["End-to-end encrypted", "DTLS 1.2 is mandatory in WebRTC — it can't be turned off."],
-              ["No upload, no size cap", "Bytes go peer-to-peer; limited only by your device, not our disk."],
+              ["Many files, one link", "Send a whole album at once; they choose what to download."],
               ["Nothing persisted", "Rooms live in memory for the transfer, then vanish. No database."],
             ].map(([t, d]) => (
               <li key={t} className="flex gap-3">
