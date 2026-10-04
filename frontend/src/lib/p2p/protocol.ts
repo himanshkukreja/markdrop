@@ -18,6 +18,12 @@
  *   guest → ack {id}                   (only once the file is stored — this is
  *                                       what "Delivered" means on the sender)
  *   either → ping · other → pong       (liveness probe, see below)
+ *   guest → hello {device}             (how the sender's list labels this recipient)
+ *   guest → progress {id, received}    (~5/s while a file arrives, for the sender's view)
+ *   host → bye                         (the sender ended the share)
+ *
+ * One sender, many recipients: each recipient is its own RTCPeerConnection on
+ * the sender's side, addressed in signalling by the `gid` the server assigns.
  *
  * The guest advertises its version as `v` on its signalling `answer`. A peer that
  * says nothing is version 1, so an old CLI on either end still works: the sender
@@ -62,6 +68,7 @@ export type HostMessage =
   | { type: "manifest"; v: number; files: ManifestFile[] }
   | { type: "file-start"; id: string }
   | { type: "file-end"; id: string }
+  | { type: "bye" }
   | { type: "ping" }
   | { type: "pong" };
 
@@ -69,6 +76,8 @@ export type GuestMessage =
   | { type: "start" }
   | { type: "request"; ids: string[] }
   | { type: "ack"; id: string }
+  | { type: "hello"; device: string }
+  | { type: "progress"; id: string; received: number }
   | { type: "ping" }
   | { type: "pong" };
 
@@ -90,7 +99,9 @@ export function parseControl<T>(data: unknown): T | null {
 export type FailureReason =
   | "signalling"     // could not reach api.markdrop.in at all
   | "no-host"        // nobody is sharing on this link
-  | "room-busy"      // someone else is already receiving
+  | "room-busy"      // an old (v1) sender already has its one recipient
+  | "room-full"      // the sender's room is at its recipient limit
+  | "sender-ended"   // the sender pressed End sharing
   | "ice"            // no network path between the two devices
   | "sender-left"
   | "recipient-left"
@@ -108,7 +119,15 @@ export const FAILURE_COPY: Record<FailureReason, { title: string; detail: string
   },
   "room-busy": {
     title: "Someone else is receiving right now",
-    detail: "This link serves one recipient at a time. Try again once they're done, or ask the sender for a new link.",
+    detail: "This sender's app serves one recipient at a time. Try again once they're done, or ask the sender for a new link.",
+  },
+  "room-full": {
+    title: "Too many people are downloading right now",
+    detail: "This link serves up to 10 people at once. Try again in a moment, once someone has finished.",
+  },
+  "sender-ended": {
+    title: "The sender stopped sharing",
+    detail: "This link is closed now. Anything you already saved is yours to keep — ask the sender if you need the rest.",
   },
   ice: {
     title: "Couldn't connect the two devices",

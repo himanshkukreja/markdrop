@@ -13,7 +13,7 @@ const STEPS = [
   },
   {
     title: "Share one link",
-    body: <>One link and one QR code for the whole lot. Forgot something? Add more files while it&apos;s open — they appear on the recipient&apos;s list right away.</>,
+    body: <>One link and one QR code for the whole lot — send it to one person or ten; they can all download at once. Forgot something? Add it while the link is open.</>,
     d: "M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244",
   },
   {

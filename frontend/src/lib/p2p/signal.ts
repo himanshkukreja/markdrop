@@ -8,6 +8,7 @@ export const CLOSE = {
   ROOM_BUSY: 4003,
   BAD_ROOM: 4004,
   SERVER_FULL: 4005,
+  ROOM_FULL: 4006,
 } as const;
 
 const PING_MS = 25_000;
@@ -59,7 +60,9 @@ export class SignalSocket {
   }
 
   private open(): void {
-    const ws = new WebSocket(getWsUrl(this.roomId, this.role));
+    // Hosts ask for a multi-recipient room (v=2); the server keeps the old
+    // one-recipient rule for senders that don't, like the Go CLI.
+    const ws = new WebSocket(getWsUrl(this.roomId, this.role) + (this.role === "host" ? "&v=2" : ""));
     this.ws = ws;
     let opened = false;
 
@@ -93,6 +96,7 @@ export class SignalSocket {
       if (
         evt.code === CLOSE.NO_HOST ||
         evt.code === CLOSE.ROOM_BUSY ||
+        evt.code === CLOSE.ROOM_FULL ||
         evt.code === CLOSE.BAD_ROOM ||
         evt.code === CLOSE.BAD_ROLE
       ) {

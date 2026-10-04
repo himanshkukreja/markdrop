@@ -655,7 +655,8 @@ Sender (host)  ──WS──▶  FastAPI relay  ◀──WS──  Recipient (g
 - End-to-end encrypted (DTLS, mandatory in WebRTC) — on direct and relayed paths alike
 - Many files per link, any type; the recipient holds received files in memory until saved
 - Direct when possible (STUN), relayed when not (TURN over UDP, TCP or TLS/443)
-- One recipient at a time per link; a second visitor is told the link is busy
+- Up to 10 recipients at once on one link; the sender sees each one's device, progress and status
+- Ending the share (or closing the tab) tells every recipient immediately
 - Per-connection diagnostics (candidate types only, never IPs) feed the admin dashboard
 - Compatible with the Go CLI: an old CLI receives several files as a folder
 

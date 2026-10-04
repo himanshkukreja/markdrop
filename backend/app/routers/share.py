@@ -14,11 +14,15 @@ Room lifecycle
 4. Offer, answer and ICE candidates are relayed verbatim until a DataChannel
    opens; from then on every file byte flows peer-to-peer (or through the TURN
    relay when no direct path exists — still DTLS-encrypted end to end).
-5. A room holds one guest at a time. A second guest is told ``room-busy``
-   rather than replacing the first — replacing it used to make the sender
-   renegotiate with the newcomer and kill the transfer already in flight.
-6. Either peer disconnects → the other receives ``peer-disconnected``; the
-   room is deleted when both slots are empty.
+5. A sender that connects with ``v=2`` gets a multi-guest room: up to
+   MAX_GUESTS recipients at once, each given a ``gid``. Guest → host messages
+   are tagged with it; host → guest messages carry it and are routed by it
+   (and stripped of it). A version-1 sender (the Go CLI) keeps one guest at a
+   time — a second is told ``room-busy`` rather than replacing the first,
+   which used to make the sender renegotiate and kill the transfer in flight.
+6. Host sends ``bye`` → every guest is told ``room-closed`` immediately.
+   A guest leaving → host gets ``peer-disconnected`` (with its gid); the host
+   leaving → every guest does. The room goes when it is empty.
 
 Clients send ``{"type": "ping"}`` every ~25 s so nginx's idle timeout never
 closes a sender who is still waiting for someone to open the link. Pings are
@@ -27,6 +31,7 @@ answered by nothing and relayed to no one.
 
 import json
 import re
+import secrets
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -51,6 +56,10 @@ _rooms: dict[str, dict] = {}
 _ROOM_ID = re.compile(r"^[A-Za-z0-9_-]{6,64}$")
 # One process holds every room; bound it so a loop of fresh room ids cannot.
 MAX_ROOMS = 5000
+# Recipients downloading at once from one sender. Each is a separate peer
+# connection on the sender's device sharing its upload; past this the sender's
+# browser and bandwidth, not the protocol, are the limit.
+MAX_GUESTS = 10
 
 # Close codes (4000-4999 are application-defined).
 CLOSE_DUPLICATE_HOST = 4000
@@ -59,6 +68,7 @@ CLOSE_BAD_ROLE = 4002
 CLOSE_ROOM_BUSY = 4003
 CLOSE_BAD_ROOM = 4004
 CLOSE_SERVER_FULL = 4005
+CLOSE_ROOM_FULL = 4006
 
 
 async def _consume_share_metadata(
@@ -120,6 +130,7 @@ async def signaling_ws(
     websocket: WebSocket,
     room_id: str,
     role: str = Query("host"),
+    v: int = Query(1),
 ) -> None:
     await websocket.accept()
 
@@ -133,41 +144,49 @@ async def signaling_ws(
         await websocket.close(code=CLOSE_SERVER_FULL)
         return
 
-    room = _rooms.setdefault(room_id, {"host": None, "guest": None})
+    room = _rooms.setdefault(room_id, {"host": None, "multi": False, "guests": {}})
+    guests: dict[str, WebSocket] = room["guests"]
 
     # Hash the sharer's IP once (server-side only; never echoed to any client).
     host_ip_hash = _hash_ip(get_client_ip(websocket)) if role == "host" else None
     logged = False  # record at most one share-event per host connection
+    gid = ""
 
     if role == "host":
         if room["host"] is not None:
             await websocket.close(code=CLOSE_DUPLICATE_HOST)
             return
         room["host"] = websocket
+        room["multi"] = v >= 2
         await _send(websocket, {"type": "config", "iceServers": await turn.get_ice_servers()})
-        # A guest that survived the host's signalling reconnect is still
-        # waiting; tell the returning host so it can renegotiate.
-        if room["guest"] is not None:
-            await _send(websocket, {"type": "guest-joined"})
+        # Guests that survived the host's signalling reconnect are still
+        # waiting; tell the returning host so it can renegotiate with each.
+        for g in list(guests):
+            await _send(websocket, _addressed({"type": "guest-joined"}, g, room))
 
     else:  # guest
         if room["host"] is None:
             await _send(websocket, {"type": "no-host"})
             await websocket.close(code=CLOSE_NO_HOST)
-            if room["guest"] is None:
+            if not guests:
                 _rooms.pop(room_id, None)
             return
-        if room["guest"] is not None:
+        if guests and not room["multi"]:
+            # A version-1 sender (the Go CLI) talks to one peer and can't tell
+            # two apart.
             await _send(websocket, {"type": "room-busy"})
             await websocket.close(code=CLOSE_ROOM_BUSY)
             return
-        room["guest"] = websocket
+        if len(guests) >= MAX_GUESTS:
+            await _send(websocket, {"type": "room-full"})
+            await websocket.close(code=CLOSE_ROOM_FULL)
+            return
+        gid = secrets.token_hex(4)
+        guests[gid] = websocket
         # Config strictly before guest-joined: the host answers guest-joined
         # with an offer, and the guest needs its ICE servers to answer that.
         await _send(websocket, {"type": "config", "iceServers": await turn.get_ice_servers()})
-        await _send(room["host"], {"type": "guest-joined"})
-
-    peer_key = "guest" if role == "host" else "host"
+        await _send(room["host"], _addressed({"type": "guest-joined"}, gid, room))
 
     try:
         while True:
@@ -175,17 +194,36 @@ async def signaling_ws(
             if _is_ping(data):
                 continue
 
+            if role == "guest":
+                host = room["host"]
+                if host is not None:
+                    if room["multi"]:
+                        data = _with_gid(data, gid)
+                    try:
+                        await host.send_text(data)
+                    except Exception:
+                        pass
+                continue
+
+            # ── host ──
             # The sharer folds share metadata into the offer as one opaque blob.
             # Decode + log it server-side, then strip it so the relayed message
             # the recipient receives is a plain offer — the attribution never
             # leaves this hop.
-            if role == "host" and not logged:
+            if not logged:
                 cleaned = await _consume_share_metadata(data, room_id, host_ip_hash)
                 if cleaned is not None:
                     logged = True
                     data = cleaned
 
-            peer = room.get(peer_key)
+            target, data, bye = _route_from_host(data, room)
+            if bye:
+                # The sender ended the share. Everyone still waiting or
+                # downloading hears it now, not when a timeout runs out.
+                for g in list(guests.values()):
+                    await _send(g, {"type": "room-closed"})
+                continue
+            peer = guests.get(target) if target else None
             if peer is not None:
                 try:
                     await peer.send_text(data)
@@ -194,13 +232,53 @@ async def signaling_ws(
     except WebSocketDisconnect:
         pass
     finally:
-        # Only vacate the slot if it is still ours. A socket that was refused
-        # or replaced must not evict whoever holds the slot now.
-        if room.get(role) is websocket:
-            room[role] = None
-            await _send(room.get(peer_key), {"type": "peer-disconnected"})
-        if not room["host"] and not room["guest"]:
+        # Only vacate a slot if it is still ours. A socket that was refused or
+        # replaced must not evict whoever holds the slot now.
+        if role == "host":
+            if room["host"] is websocket:
+                room["host"] = None
+                for g in list(guests.values()):
+                    await _send(g, {"type": "peer-disconnected"})
+        elif guests.get(gid) is websocket:
+            del guests[gid]
+            await _send(room["host"], _addressed({"type": "peer-disconnected"}, gid, room))
+        if room["host"] is None and not guests:
             _rooms.pop(room_id, None)
+
+
+def _addressed(msg: dict, gid: str, room: dict) -> dict:
+    """Tag a message for the host with the guest it concerns — only in a
+    multi-guest room; a version-1 host has no use for (or idea of) the tag."""
+    return {**msg, "gid": gid} if room["multi"] else msg
+
+
+def _with_gid(data: str, gid: str) -> str:
+    try:
+        msg = json.loads(data)
+    except ValueError:
+        return data
+    if not isinstance(msg, dict):
+        return data
+    msg["gid"] = gid
+    return json.dumps(msg)
+
+
+def _route_from_host(data: str, room: dict) -> tuple[str | None, str, bool]:
+    """Which guest a host message is for, the message as that guest should get
+    it, and whether it was the host's goodbye."""
+    try:
+        msg = json.loads(data)
+    except ValueError:
+        msg = None
+    if isinstance(msg, dict) and msg.get("type") == "bye":
+        return None, data, True
+    if not room["multi"]:
+        # Version 1: there is at most one guest; everything goes to it.
+        return next(iter(room["guests"]), None), data, False
+    if not isinstance(msg, dict):
+        return None, data, False
+    target = msg.pop("gid", None)
+    return (target if isinstance(target, str) else None), json.dumps(msg), False
 
 
 # ── Connection diagnostics ────────────────────────────────────────────────────
