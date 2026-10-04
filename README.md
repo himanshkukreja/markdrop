@@ -631,7 +631,7 @@ their own domains.
 
 ## P2P File Sharing
 
-Markdrop includes a zero-storage file transfer feature at `/share`. Files are streamed directly between browsers using **WebRTC DataChannels** — nothing is uploaded to the server.
+Markdrop includes a zero-storage file transfer feature at `/share`. Files — one or hundreds — are streamed directly between devices using **WebRTC DataChannels**; nothing is uploaded or stored.
 
 ```
 Sender (host)  ──WS──▶  FastAPI relay  ◀──WS──  Recipient (guest)
@@ -641,19 +641,23 @@ Sender (host)  ──WS──▶  FastAPI relay  ◀──WS──  Recipient (g
 
 **How it works:**
 
-1. Sender picks a file → opens a WebSocket to `/ws/share/{roomId}?role=host`
-2. A unique share link (`markdrop.in/share/{roomId}`) is generated and displayed
-3. Recipient opens the link → joins the same room as guest → WebRTC handshake completes
-4. Sender's browser streams the file in 64 KB chunks directly to the recipient's browser
-5. Recipient's browser assembles the chunks and triggers a native browser save
+1. Sender picks files → opens a WebSocket to `/ws/share/{roomId}?role=host` and receives its STUN/TURN servers
+2. A share link (`markdrop.in/share/{roomId}`) and QR code are shown; the link stays live while the tab is open
+3. Recipient opens the link → sees the file list → downloads all or some; files can be added mid-session
+4. Files stream one after another over the DataChannel; each is saved as it lands and acknowledged back
+5. On iPhone, received photos save to Photos through the share sheet
 
-> The file never touches Markdrop servers. The relay only forwards ~few KB of SDP/ICE signaling JSON.
+> Markdrop's server only forwards a few KB of signalling. If two networks can't reach each other directly
+> (client-isolated Wi-Fi, no NAT hairpinning, UDP blocked), the bytes go through a Cloudflare TURN relay
+> instead — still DTLS-encrypted end to end, so the relay can't read them.
 
 **Properties:**
-- End-to-end encrypted (DTLS 1.2, mandatory in WebRTC)
-- Any file type, any size (limited only by sender's RAM for now)
-- Works across NAT/firewalls via STUN; no TURN fallback (same-network or open NAT required)
-- Real-time progress bar on both sides
+- End-to-end encrypted (DTLS, mandatory in WebRTC) — on direct and relayed paths alike
+- Many files per link, any type; the recipient holds received files in memory until saved
+- Direct when possible (STUN), relayed when not (TURN over UDP, TCP or TLS/443)
+- One recipient at a time per link; a second visitor is told the link is busy
+- Per-connection diagnostics (candidate types only, never IPs) feed the admin dashboard
+- Compatible with the Go CLI: an old CLI receives several files as a folder
 
 See [FILESHARE.md](FILESHARE.md) for full technical documentation, WebSocket API reference, and architecture diagrams.
 
@@ -887,8 +891,7 @@ Artifacts stay dormant until all of these are set: `/upload` shows a
 - [x] Phase 10 — Video artifacts with a custom player and Range-based seeking
 - [ ] Next — Workspace ownership transfer, passphrase-derived keys (nothing
       secret in the link), encrypted artifacts, artifact screenshots for OG
-      cards, PPTX, document version history, TURN server for P2P behind strict
-      NAT, Google Docs two-way sync
+      cards, PPTX, document version history, Google Docs two-way sync
 
 ---
 

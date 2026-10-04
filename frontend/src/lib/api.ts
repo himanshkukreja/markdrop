@@ -755,6 +755,16 @@ export interface FeatureUsage {
   share_events_total: number;
   share_users_identified: number;
   share_events_anonymous: number;
+  /** Last 30 days, one row per room. Absent on an older backend. */
+  share_connections?: {
+    rooms: number;
+    connected: number;
+    relayed: number;
+    failed: number;
+    failed_no_stun: number;
+    failed_with_stun: number;
+    turn_offered: number;
+  };
   artifact_total: number;
   artifact_users: number;
   artifact_bytes: number;

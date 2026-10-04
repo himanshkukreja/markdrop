@@ -325,7 +325,37 @@ func streamFile(
 			return fmt.Errorf("read file: %w", err)
 		}
 	}
-	return nil
+	return waitDelivered(dc)
+}
+
+// waitDelivered blocks until every queued byte has been acknowledged by the
+// receiver. Send() only queues: returning as soon as the last chunk is queued
+// let the caller print "Transfer complete" and exit, and closing the peer
+// connection on exit discarded up to bufferHighWater of unsent data — the
+// receiver got a truncated file. pion lowers BufferedAmount only as SCTP
+// acknowledges data, so zero means the receiver has it all.
+func waitDelivered(dc *webrtc.DataChannel) error {
+	const stallLimit = 60 * time.Second
+	last := dc.BufferedAmount()
+	lastProgress := time.Now()
+	for {
+		n := dc.BufferedAmount()
+		if n == 0 {
+			// Let the receiver's SCTP stack hand the tail to the application
+			// before our close tears the association down.
+			time.Sleep(250 * time.Millisecond)
+			return nil
+		}
+		if dc.ReadyState() != webrtc.DataChannelStateOpen {
+			return fmt.Errorf("connection closed with %d bytes undelivered", n)
+		}
+		if n < last {
+			last, lastProgress = n, time.Now()
+		} else if time.Since(lastProgress) > stallLimit {
+			return fmt.Errorf("receiver stopped acknowledging data (%d bytes undelivered)", n)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 // zipDir recursively zips the directory at src into a temp file and returns

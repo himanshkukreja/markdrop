@@ -135,6 +135,9 @@ class FeatureUsageResponse(BaseModel):
     share_events_total: int
     share_users_identified: int
     share_events_anonymous: int
+    # P2P connection health, last 30 days, one row per room (both peers report;
+    # a room counts as connected if either side got a working pair).
+    share_connections: dict = {}
     # Artifacts
     artifact_total: int = 0
     artifact_users: int = 0
@@ -506,6 +509,41 @@ async def feature_usage(
         "user_id", {"user_id": {"$ne": None}}
     )
 
+    # P2P connection health. The split among failures is the diagnosis:
+    # no server-reflexive candidate means STUN itself was unreachable (UDP or
+    # its port blocked); one present means a public address was found but no
+    # pair worked — client isolation or no hairpin NAT, which only TURN fixes.
+    since = datetime.now(timezone.utc) - timedelta(days=30)
+    share_connections = {"rooms": 0, "connected": 0, "relayed": 0,
+                         "failed": 0, "failed_no_stun": 0, "failed_with_stun": 0,
+                         "turn_offered": 0}
+    async for row in db["share_diagnostics"].aggregate(
+        [
+            {"$match": {"ts": {"$gte": since}}},
+            {"$group": {
+                "_id": "$room_id",
+                "ok": {"$max": {"$cond": [{"$eq": ["$outcome", "connected"]}, 1, 0]}},
+                "relay": {"$max": {"$cond": [{"$or": [
+                    {"$eq": ["$route.local", "relay"]},
+                    {"$eq": ["$route.remote", "relay"]}]}, 1, 0]}},
+                "stun": {"$max": {"$cond": [
+                    {"$gt": [{"$ifNull": ["$local_candidates.srflx", 0]}, 0]}, 1, 0]}},
+                "turn": {"$max": {"$cond": ["$turn_offered", 1, 0]}},
+            }},
+            {"$group": {
+                "_id": None,
+                "rooms": {"$sum": 1},
+                "connected": {"$sum": "$ok"},
+                "relayed": {"$sum": {"$cond": [{"$and": ["$ok", "$relay"]}, 1, 0]}},
+                "failed_no_stun": {"$sum": {"$cond": [{"$or": ["$ok", "$stun"]}, 0, 1]}},
+                "failed_with_stun": {"$sum": {"$cond": [{"$and": [{"$not": ["$ok"]}, "$stun"]}, 1, 0]}},
+                "turn_offered": {"$sum": "$turn"},
+            }},
+        ]
+    ):
+        share_connections.update({k: v for k, v in row.items() if k != "_id"})
+        share_connections["failed"] = row["rooms"] - row["connected"]
+
     # Artifacts — adoption, storage footprint, and the mix of file types, which
     # is what decides whether a renderer is worth further investment.
     artifact_total = await db["documents"].count_documents({"kind": "artifact"})
@@ -553,6 +591,7 @@ async def feature_usage(
         share_events_total=shares_total,
         share_users_identified=len(share_users),
         share_events_anonymous=shares_anon,
+        share_connections=share_connections,
     )
 
 

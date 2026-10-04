@@ -1,20 +1,12 @@
-/** Free public STUN servers used to discover public IP/port for WebRTC. */
-export const ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
+/**
+ * Used only if the signalling server never sends its `config` (an older
+ * backend). The real list — STUN plus short-lived Cloudflare TURN credentials —
+ * comes from the server, so the relay can change without redeploying clients.
+ */
+export const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.cloudflare.com:3478" },
+  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
 ];
-
-/** Each chunk sent over the DataChannel is 65535 bytes.
- *  This matches pion/webrtc's dataChannelBufferSize (math.MaxUint16 = 65535).
- *  Using 64*1024 = 65536 would be 1 byte over that limit and cause
- *  "short buffer" errors on the CLI receiver. */
-export const CHUNK_SIZE = 65535;
-
-export interface FileMeta {
-  name: string;
-  size: number;
-  type: string;
-}
 
 /**
  * Derive the WebSocket signalling URL from the configured API base URL.
@@ -37,18 +29,22 @@ export function getWsUrl(roomId: string, role: "host" | "guest"): string {
  * frame — the network tab just shows protocol-noise-looking base64. The server
  * strips it before relaying the offer to the recipient. Obfuscation, not
  * encryption: it hides intent from a glance, not from a determined inspector.
+ *
+ * For several files `name`/`mime` describe the first and `size` is the total.
  */
 export function encodeShareMeta(meta: {
   name: string;
   size: number;
   mime: string;
   token: string | null;
+  count: number;
 }): string {
   const payload = JSON.stringify({
     n: meta.name,
     s: meta.size,
     m: meta.mime,
     t: meta.token,
+    c: meta.count,
   });
   // UTF-8 safe base64url (handles non-ASCII filenames)
   const bytes = new TextEncoder().encode(payload);
@@ -76,38 +72,8 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / 1_073_741_824).toFixed(2)} GB`;
 }
 
-/**
- * Stream a File over an open RTCDataChannel in 64 KB chunks.
- *
- * Uses `bufferedAmountLowThreshold` for backpressure: if the channel's
- * internal send buffer exceeds 256 KB we pause and wait for it to drain
- * before sending the next chunk. This prevents memory issues and dropped
- * messages on slow connections.
- */
-export async function sendFileOverChannel(
-  channel: RTCDataChannel,
-  file: File,
-  onProgress: (bytesSent: number) => void,
-): Promise<void> {
-  const BUFFER_HIGH = 4 * 1024 * 1024; // pause above 4 MB
-  channel.bufferedAmountLowThreshold = BUFFER_HIGH;
-
-  let offset = 0;
-  while (offset < file.size) {
-    // Wait if the send buffer is saturated
-    if (channel.bufferedAmount > BUFFER_HIGH) {
-      await new Promise<void>((resolve) => {
-        channel.onbufferedamountlow = () => {
-          channel.onbufferedamountlow = null;
-          resolve();
-        };
-      });
-    }
-
-    const slice = file.slice(offset, Math.min(offset + CHUNK_SIZE, file.size));
-    const buffer = await slice.arrayBuffer();
-    channel.send(buffer);
-    offset += buffer.byteLength;
-    onProgress(offset);
-  }
+/** Human-readable throughput, e.g. "12.4 MB/s". */
+export function formatRate(bytesPerSecond: number): string {
+  if (!isFinite(bytesPerSecond) || bytesPerSecond <= 0) return "";
+  return `${formatBytes(bytesPerSecond)}/s`;
 }

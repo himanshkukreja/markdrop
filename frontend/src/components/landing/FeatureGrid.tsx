@@ -32,7 +32,7 @@ const FEATURES: Feature[] = [
   },
   {
     title: "Peer-to-peer file sharing",
-    desc: "Send any file directly browser-to-browser over WebRTC. Nothing is uploaded to a server — the transfer is end-to-end encrypted and size is limited only by your device.",
+    desc: "Send one file or a hundred photos device-to-device over WebRTC, from a single link. Nothing is uploaded or stored — the transfer is end-to-end encrypted, and works even on strict networks.",
     href: "/share",
     cta: "Share a file",
     icon: (

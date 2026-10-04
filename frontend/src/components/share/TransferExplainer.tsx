@@ -50,7 +50,7 @@ export default function TransferExplainer() {
       <div className="mt-5 grid sm:grid-cols-3 gap-4">
         {[
           ["1", "Handshake", "Our server only relays a few KB of connection details (WebRTC SDP/ICE), then steps out of the way."],
-          ["2", "Direct & encrypted", "File bytes stream browser-to-browser over a DataChannel, encrypted end-to-end with DTLS."],
+          ["2", "Encrypted, direct when possible", "Files stream device-to-device, encrypted end-to-end with DTLS. If a network blocks that, an encrypted relay carries them — it can't read them."],
           ["3", "Zero storage", "Nothing is uploaded or saved. Close the tab and the room disappears — no copy to leak."],
         ].map(([n, t, d]) => (
           <div key={t} className="rounded-lg border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-white/50 dark:bg-gray-900/40 vscode:bg-[#1e1e1e] p-3">

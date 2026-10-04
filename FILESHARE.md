@@ -2,8 +2,10 @@
 
 > **Part of the Markdrop project** · [← Back to README](README.md) · [Scaling notes](SCALING.md)
 
-Markdrop lets you send any file directly to another browser — **no upload, no cloud storage, no size limit imposed by us**.
-The file travels straight from your browser to theirs, encrypted end-to-end, using a web technology called **WebRTC**.
+Markdrop lets you send files — one, or a whole album — directly to another device, from a single link.
+**No upload, no cloud storage, no size limit imposed by us.** The files travel straight from your device to
+theirs, encrypted end-to-end, using a web technology called **WebRTC**. When two networks can't reach each other
+directly, an encrypted relay (TURN) carries the bytes instead — it forwards ciphertext it cannot read.
 
 ---
 
@@ -13,9 +15,9 @@ The file travels straight from your browser to theirs, encrypted end-to-end, usi
 2. [The Big Picture — all pieces at once](#2-the-big-picture--all-pieces-at-once)
 3. [Phase 1 — Connecting (Signalling)](#3-phase-1--connecting-signalling)
 4. [Phase 2 — Handshake (WebRTC negotiation)](#4-phase-2--handshake-webrtc-negotiation)
-5. [Phase 3 — Transfer (pure P2P)](#5-phase-3--transfer-pure-p2p)
+5. [Phase 3 — Transfer](#5-phase-3--transfer)
 6. [Encryption & Privacy](#6-encryption--privacy)
-7. [NAT Traversal — punching through firewalls](#7-nat-traversal--punching-through-firewalls)
+7. [NAT Traversal — STUN, then TURN](#7-nat-traversal--stun-then-turn)
 8. [File Size Limits](#8-file-size-limits)
 9. [Limitations](#9-limitations)
 10. [Project Files — where the code lives](#10-project-files--where-the-code-lives)
@@ -46,15 +48,16 @@ That's exactly what this feature does:
 
 | Step | What you see | What's actually happening |
 |------|--------------|--------------------------|
-| 1 | You drop a file on `/share` | Browser opens a WebSocket to the Markdrop server and says "I'm a host in room `abc123`" |
+| 1 | You drop files on `/share` | Browser opens a WebSocket to the Markdrop server, says "I'm a host in room `abc123`", and is told which STUN/TURN servers to use |
 | 2 | A link appears: `markdrop.in/share/abc123` | That 10-character room ID is your rendezvous point |
 | 3 | Your friend opens the link | Their browser connects to the same room as a "guest" |
 | 4 | Both browsers exchange small setup messages | ~5–20 KB of JSON goes through the server — just enough to agree on connection details |
 | 5 | "Establishing connection…" | Both browsers try to reach each other directly (using STUN to discover public IPs) |
-| 6 | Transfer bar appears | A direct encrypted tunnel is open. The server is completely out of the picture |
-| 7 | Bar fills up, file saved | 64 KB chunks fly peer-to-peer; recipient's browser assembles and saves the file |
+| 6 | File list appears | An encrypted channel is open — direct, or via the relay. Your friend picks what to download |
+| 7 | Files arrive one by one | 64 KB chunks stream across; each file is saved the moment it lands and acknowledged back |
 
-> **The server never sees your file.** Not one byte. It only sees ~20 KB of connection setup JSON.
+> **Markdrop's server never sees your file's bytes.** It forwards ~20 KB of connection setup JSON. (It does
+> log a share's file name, size and count for usage stats — see [Encryption & Privacy](#6-encryption--privacy).)
 
 ---
 
@@ -164,8 +167,11 @@ writes the exact same bytes to the other. It never parses the SDP or ICE content
 | `offer` | Sender → relay | Recipient | Sender's WebRTC session description (contains codec info, ports, etc.) |
 | `answer` | Recipient → relay | Sender | Recipient's matching session description |
 | `ice` | Either → relay | The other | A network address candidate (IP/port/protocol) to try |
-| `no-host` | Server itself | Recipient | "Nobody is in this room — the link is expired" |
-| `peer-disconnected` | Server itself | The other side | "The other person closed their tab" |
+| `config` | Server itself | Both, first | The STUN/TURN servers to use (TURN credentials are short-lived) |
+| `no-host` | Server itself | Recipient | "Nobody is sharing on this link right now" |
+| `room-busy` | Server itself | A second recipient | "Someone else is receiving — one at a time" |
+| `peer-disconnected` | Server itself | The other side | "The other side's *signalling* dropped" — not proof they left; see liveness |
+| `ping` | Either → server | Nobody | Keep-alive every 25 s so nginx's idle timeout never strands a waiting sender |
 
 ---
 
@@ -231,329 +237,218 @@ The two browsers try all candidate pairs and pick the best one that actually wor
 
 ---
 
-## 5. Phase 3 — Transfer (pure P2P)
+## 5. Phase 3 — Transfer
 
 > **Analogy:** A highway opened between two cities. The city planner (server) helped build it,
-> but now trucks (file chunks) drive on it directly with no toll booth.
+> but now trucks (file chunks) drive on it directly with no toll booth. If the cities have no road between
+> them, a sealed ferry (TURN) carries the trucks — it can't open them.
 
-Once the DataChannel is open the Markdrop server is completely out of the loop.
-Everything below is **browser ↔ browser**, encrypted.
+Code: [`frontend/src/lib/p2p/`](frontend/src/lib/p2p/) — `protocol.ts` (messages), `signal.ts` (WebSocket),
+`peer.ts` (RTCPeerConnection + diagnostics), `sender.ts`, `receiver.ts`, `zip.ts` (old-CLI fallback).
 
-### Protocol
+### Protocol versions
 
-```
-SENDER                                                    RECIPIENT
-  │                                                            │
-  │── { "type":"meta", name:"cat.mp4", size:52428800 }  ──────▶│
-  │                       (file metadata, JSON string)         │
-  │                                                            │
-  │◀─ { "type":"start" } ────────────────────────────────────  │
-  │                       (recipient clicked "Download")       │
-  │                                                            │
-  │── ArrayBuffer [64 KB] ───────────────────────────────────▶ │  offset: 0
-  │── ArrayBuffer [64 KB] ───────────────────────────────────▶ │  offset: 65536
-  │── ArrayBuffer [64 KB] ───────────────────────────────────▶ │  ...
-  │       ↑                                                    │
-  │   backpressure check:                                      │
-  │   if (channel.bufferedAmount > 256 KB) → PAUSE             │
-  │   wait for "bufferedamountlow" event  → RESUME             │
-  │                                                            │
-  │── ArrayBuffer [last partial chunk] ─────────────────────▶  │  offset: 52428800
-  │                                                            │
-  │                               received === meta.size ──────┤
-  │                               new Blob(chunks) ────────────┤
-  │                               URL.createObjectURL() ───────┤
-  │                               <a>.click() ─────────────────┤ ← browser save dialog
-```
+The recipient advertises its version as `v` on its signalling `answer`. A peer that says nothing is v1.
 
-### Chunking and backpressure (visualised)
+| | Version 1 — single file | Version 2 — many files, one session |
+|---|---|---|
+| Spoken by | Go CLI (current release) | Browser |
+| Host → guest | `meta {name,size,mimeType,isFolder?}` | `manifest {files:[{id,name,size,mime}]}`, re-sent when files change |
+| Guest → host | `start` | `request {ids}` (queued, sent in order) |
+| Bytes | raw chunks until `size` reached | `file-start {id}` · chunks · `file-end {id}` |
+| Completion | byte count | guest sends `ack {id}` once the file is stored — that is what "Delivered" means |
+
+Compatibility, all four directions:
+- **Browser → browser**: v2.
+- **CLI → browser**: the browser accepts v1 `meta`.
+- **Browser → CLI, one file**: the browser falls back to v1 `meta`.
+- **Browser → CLI, several files**: v1 can carry one file, but the CLI unpacks one marked `isFolder`. So the
+  browser streams a store-only ZIP (`zip.ts`, CRC-32 computed on the fly, exact size known up front) named
+  `markdrop-files.zip`; the CLI extracts it to `markdrop-files/` and deletes the archive.
 
 ```
-FILE  [████████████████████████████████████████████████████]  50 MB
-        ↓ split into 64 KB slices
-      [▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓]...  ×  800 chunks
-
-SENDER SEND BUFFER (inside the browser):
-  ┌────────────────────────────────────────────┐ 256 KB HIGH-WATER MARK
-  │  [▓▓][▓▓][▓▓]                              │  ← buffer low, keep sending
-  └────────────────────────────────────────────┘
-
-  If buffer exceeds high-water mark:
-  ┌─────────────────────────────────────────────────────────────┐
-  │  [▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓][▓▓]   FULL ⚠️         │
-  └─────────────────────────────────────────────────────────────┘
-         ↓  sender PAUSES (awaits "bufferedamountlow" event)
-         ↓  browser drains buffer to recipient
-  ┌──────────────────────────────┐
-  │  [▓▓]  buffer drained ✅     │
-  └──────────────────────────────┘
-         ↓  sender RESUMES
-
-Why this matters: without backpressure the sender would queue gigabytes
-into the browser's internal buffer → tab crash / OOM on slow connections.
+SENDER                                                     RECIPIENT
+  │── manifest {files:[f0,f1,f2]} ───────────────────────────▶│  list shown
+  │◀───────────────────────────────── request {ids:[f0,f1,f2]}│  "Download all"
+  │── file-start {f0} · ▓▓▓▓▓▓ · file-end {f0} ─────────────▶│  f0 saved
+  │◀──────────────────────────────────────────── ack {f0} ────│
+  │── file-start {f1} · ▓▓▓▓▓▓▓▓▓▓ · file-end {f1} ─────────▶│  …
 ```
 
-### Receiver assembly
+### Chunking and backpressure
 
-```
-RECIPIENT MEMORY DURING DOWNLOAD:
-  chunks: [ ArrayBuffer, ArrayBuffer, ArrayBuffer, ... ]
-  received counter: 0 → 65536 → 131072 → ... → 52428800
+- Chunks are **65 535 bytes**, not 65 536: pion (the CLI's WebRTC stack) reads into a `MaxUint16` buffer.
+- The sender reads the file ~1 MiB at a time and slices chunks from memory.
+- It pauses above **8 MiB** queued in the channel and resumes below **2 MiB**. (Chrome closes a channel
+  whose queue passes 16 MiB.)
 
-  When received >= meta.size:
-  ┌──────────────────────────────────────────────────────────┐
-  │  blob = new Blob(chunks, { type: "video/mp4" })          │
-  │  url  = URL.createObjectURL(blob)                        │
-  │  <a href=url download="cat.mp4">.click()                 │  ← OS save dialog
-  │  setTimeout(() => URL.revokeObjectURL(url), 30000)       │  ← free memory
-  └──────────────────────────────────────────────────────────┘
-```
+Measured in headless Chromium on loopback, the raw DataChannel ceiling is ~31 MB/s regardless of chunk size
+(16 KB–256 KB) — the limit is the browser's SCTP stack, not this code. Real transfers are bound by the network.
 
-> ⚠️ **The entire file is held in RAM** on the recipient's side until the last byte arrives.
-> This is the main practical size limit. See [File Size Limits](#8-file-size-limits).
+### Liveness
+
+`peer-disconnected` only means the other side's WebSocket closed — the data channel can be perfectly healthy.
+But a peer that truly vanished (tab killed, laptop shut) leaves the channel looking open until ICE consent
+fails ~30 s later. So on `peer-disconnected` with an open channel, a v2 peer sends `ping` over the channel and
+declares the other side gone if **nothing at all** arrives within 6 s. Chunks in flight count as an answer.
+
+### Receiver saving
+
+Each file becomes a `Blob` when its `file-end` arrives and is handed to the page:
+- **Desktop / Android**: downloads immediately (the browser may ask once to allow multiple downloads).
+- **iOS**: Safari can't put a downloaded image in Photos, so files collect in the page and one tap opens the
+  share sheet ("Save N Images"). Received images show thumbnails.
 
 ---
 
 ## 6. Encryption & Privacy
 
-Every byte of file data is encrypted **automatically and mandatorily** by the WebRTC spec.
-You don't opt in — it's impossible to turn it off.
-
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│  WHAT IS ENCRYPTED AND HOW                                               │
-│                                                                          │
-│  Browser ────── TLS 1.3 ──────── api.markdrop.in  (HTTPS / WSS)          │
-│  (signalling JSON: ~5–20 KB total, not the actual file)                  │
-│                                                                          │
-│  Browser ────── DTLS 1.2 ─────── Browser  (P2P file bytes)               │
-│  (mandatory WebRTC transport encryption — equivalent to HTTPS)           │
-│                                                                          │
-│  ✅  File bytes:        encrypted (DTLS)                                 │
-│  ✅  File metadata:     encrypted (DTLS, sent over DataChannel)          │
-│  ✅  Signalling JSON:   encrypted (TLS)                                  │
-│  🔍  Server CAN see:    room ID, IP addresses, timing                    │
-│  🔒  Server CANNOT see: filename, file size, file contents               │
-└──────────────────────────────────────────────────────────────────────────┘
+  Browser ── TLS 1.3 ──▶ api.markdrop.in          signalling JSON (~5–20 KB)
+  Browser ═══ DTLS ═══▶ Browser                    file bytes, direct path
+  Browser ═══ DTLS ═══▶ TURN relay ═══▶ Browser    file bytes, relayed path (relay sees ciphertext)
 ```
 
 | Property | Detail |
 |----------|--------|
-| **Transport encryption** | DTLS 1.2 mandatory by WebRTC spec — equivalent to HTTPS for all P2P traffic |
-| **Server visibility** | Server only sees WebSocket connect/disconnect and relayed JSON (~20 KB). Zero file bytes. |
-| **Room ID entropy** | 10 hex chars = 40 bits ≈ 1 trillion possible IDs. Not guessable by brute force. |
-| **No persistence** | Rooms live only in Python process RAM. No database. Server restart kills all rooms. |
-| **No authentication** | Anyone with the exact link can connect as guest — don't share publicly for sensitive files |
+| **Transport encryption** | DTLS, mandatory in WebRTC, end to end between the two browsers on both paths. A TURN relay forwards packets it cannot decrypt. |
+| **What Markdrop's server sees** | Room id, connect/disconnect timing, and the relayed SDP/ICE (which contain IP addresses). |
+| **What it records** | One `share_events` row per share: file name, total size, file count, MIME type, and the sender's user id when signed in (folded into the offer as an opaque blob, stripped before relaying). One `share_diagnostics` row per connection attempt: candidate *types* and the winning route — never IPs; expires after 90 days. |
+| **Trust in signalling** | The DTLS fingerprints travel through our signalling server, so "end-to-end" assumes it relays them honestly. |
+| **Room ID entropy** | 10 hex chars = 40 bits. Not guessable by brute force, but anyone *holding* the link can open it. |
+| **No persistence** | Rooms live only in process memory. |
 
 ---
 
-## 7. NAT Traversal — punching through firewalls
+## 7. NAT Traversal — STUN, then TURN
 
-Most devices sit behind a **NAT** (Network Address Translation) — a router that hides
-your real IP. WebRTC uses **ICE + STUN** to discover public IPs and establish
-a direct path.
+ICE gathers three kinds of candidate and tries pairs in priority order:
 
 ```
-╔═══════════════════════════════════════════════════════════════════════════╗
-║                        HOW ICE FINDS A PATH                               ║
-╠═══════════════════════════════════════════════════════════════════════════╣
-║                                                                           ║
-║  Sender (192.168.1.5)                           Recipient                 ║
-║  behind home router                             behind mobile hotspot     ║
-║       │                                                 │                 ║
-║       │── "what's my public IP?" ─▶ STUN SERVER ◀── same ──│              ║
-║       │                         stun.l.google.com:19302    │              ║
-║       │◀── "you are 203.0.113.1:54321"                     │              ║
-║       │                                  "you are 198.51.100.5:8765" ─────│
-║       │                                                 │                 ║
-║       │  ICE tries these candidates (in priority order):│                 ║
-║       │                                                 │                 ║
-║       │  1. host:   192.168.1.5:54321  ──▶  ✗  (different networks)       ║
-║       │  2. srflx:  203.0.113.1:54321  ──▶  ✓  (public IP, NAT punched!)  ║
-║       │                                                 │                 ║
-║       ╔═══════════════════════════════════════════════╗                   ║
-║       ║      DIRECT CONNECTION ESTABLISHED  🎉        ║                   ║
-║       ╚═══════════════════════════════════════════════╝                   ║
-╚═══════════════════════════════════════════════════════════════════════════╝
-
-  What about symmetric NAT (strict corporate / university networks)?
-
-  Both sides are behind symmetric NAT → neither can reach the other directly.
-  A TURN relay server is needed as a fallback — not currently configured.
-  Connection will fail in this scenario (~5–10% of real-world cases).
+1. host   — the device's own address (same network; Chrome hides it behind an mDNS name)
+2. srflx  — public address learned from STUN
+3. relay  — an address on the TURN relay (only used when nothing above works)
 ```
 
-**ICE candidate priority:**
-```
-1. host candidate   — direct LAN  (fastest, no relay)
-2. srflx candidate  — STUN-reflexive public IP
-3. relay candidate  — TURN relay  (fallback, not configured)
-```
+Why "it fails on some Wi-Fi, works on mobile data":
 
-**Currently configured STUN servers** (`frontend/src/lib/webrtc.ts`):
-- `stun:stun.l.google.com:19302`
-- `stun:stun1.l.google.com:19302`
+| Network trait | Breaks | Common on |
+|---|---|---|
+| Client isolation (devices can't see each other) | host↔host | office, hotel, campus, guest Wi-Fi |
+| No NAT hairpinning | srflx↔srflx behind the same router | many home routers, carrier-grade NAT |
+| UDP blocked except 53/443 | STUN itself, so no srflx at all | strict corporate firewalls |
 
-To add TURN fallback (fixes symmetric NAT):
-```ts
-// frontend/src/lib/webrtc.ts
-export const ICE_SERVERS: RTCIceServer[] = [
-  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
-  // Add a TURN server:
-  { urls: "turn:your-turn.example.com:3478", username: "user", credential: "pass" },
-];
-```
+Switching one device to mobile data puts the two on different networks, which sidesteps the first two. TURN
+fixes all three, because both sides dial **out** to the relay — over UDP 3478, TCP 3478/80, or TLS on 443.
+
+**Configured servers** come from the backend (`app/services/turn.py`), sent as the first signalling message:
+- STUN: `stun.cloudflare.com:3478`, `stun.l.google.com:19302`
+- TURN: Cloudflare Realtime, when `MARKDROP_CF_TURN_KEY_ID` / `MARKDROP_CF_TURN_API_TOKEN` are set. One credential
+  set is minted per ~3 h (half its 6 h TTL), port-53 URLs are dropped (browsers block them), and a Cloudflare
+  outage degrades to STUN-only rather than failing. Pricing: $0.05/GB after 1,000 GB/month free; ~50–100 Mbps
+  per allocation.
+
+**Debugging:** append `?relay=1` to `/share` or a receive link to force the relayed path.
+
+**Diagnosing a network:** the admin *Feature usage* tab shows, for the last 30 days, how many rooms connected,
+how many needed the relay, and how failures split — *no srflx candidate* (STUN unreachable) vs *srflx present but
+no pair* (isolation / hairpin; only TURN fixes these).
 
 ---
 
 ## 8. File Size Limits
 
-The code imposes **no limit**. Practical limits come from the recipient's browser RAM:
+The sender reads files ~1 MiB at a time, so sending is not memory-bound. The **recipient** holds each file in
+memory until it is assembled, and keeps received files available for re-saving until the page closes:
 
-```
-SENDER memory usage:    tiny  ──  one 64 KB chunk at a time  (File.slice())
-RECIPIENT memory usage:  BIG  ──  entire file in RAM until last byte arrives
+| Device | Comfortable total | Why |
+|---|---|---|
+| Desktop Chrome/Firefox | ~2 GB | Blob storage may spill to disk |
+| Desktop Safari | ~1 GB | More conservative |
+| iOS Safari | ~200–500 MB | Aggressive tab killing |
+| Android Chrome | ~300–700 MB | Depends on device RAM |
 
-┌────────────────────────────────────────────────────────────────────────┐
-│  Device                  │  Safe limit    │  Why                       │
-├────────────────────────────────────────────────────────────────────────┤
-│  Desktop Chrome/Firefox  │  ~2 GB         │  V8/SpiderMonkey heap      │
-│  Desktop Safari          │  ~1 GB         │  More conservative GC      │
-│  iOS Safari              │  ~200–500 MB   │  Aggressive tab killing    │
-│  Android Chrome          │  ~300–700 MB   │  Depends on device RAM     │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-**Future improvement:** The [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API)
-(`showSaveFilePicker()` + `createWritable()`) would stream chunks directly to disk,
-removing the RAM limit entirely — but that API is unavailable on iOS Safari.
+Streaming to disk via `showSaveFilePicker` was tried and reverted (it starved WebRTC keepalives in Chrome).
 
 ---
 
 ## 9. Limitations
 
-| # | Limitation | Impact | Workaround |
-|---|-----------|--------|-----------|
-| 1 | **Sender tab must stay open** | Transfer dies if sender closes tab | Keep the tab open until bar completes |
-| 2 | **One recipient at a time** | Second opener gets "link expired" | Reload `/share` to generate a new room for the next person |
-| 3 | **No resume** | Connection drop = restart from byte 0 | Rare on stable connections |
-| 4 | **Recipient buffers file in RAM** | Max file size ≈ device RAM | See [File Size Limits](#8-file-size-limits) |
-| 5 | **No TURN server** | Symmetric NAT (~5–10% of networks) fails | Add TURN to `ICE_SERVERS` in `webrtc.ts` |
-| 6 | **One file per session** | No folder / multi-file support | Share files one at a time |
-| 7 | **Link is single-use** | Room cleaned up after transfer | Reload `/share` for a new link |
-| 8 | **Rooms lost on server restart** | Active transfers interrupted | EC2 systemd restarts are infrequent |
+| # | Limitation | Notes |
+|---|-----------|-------|
+| 1 | **Sender tab must stay open** | The files live on the sender's device. |
+| 2 | **One recipient at a time** | A second visitor sees "someone else is receiving"; the next can come once they leave. |
+| 3 | **No resume within a file** | A dropped connection restarts the interrupted file; finished files are kept. |
+| 4 | **Recipient holds files in memory** | See [File Size Limits](#8-file-size-limits). |
+| 5 | **No integrity hash** | SCTP is reliable and DTLS authenticates every record; a byte-count check guards each file. |
+| 6 | **Rooms live in one process** | A restart drops live connections; senders and waiting recipients reconnect on their own. |
+| 7 | **Room squatting** | Once a sender leaves, anyone holding the link could open it as a new sender. |
 
 ---
 
 ## 10. Project Files — where the code lives
 
 ```
-markdrop/
-│
-├── backend/
-│   └── app/
-│       ├── main.py                     ← registers share_router at startup
-│       └── routers/
-│           └── share.py                ← WebSocket signalling relay
-│                                          _rooms dict, relay logic, cleanup
-│
-└── frontend/src/
-    ├── lib/
-    │   └── webrtc.ts                   ← shared utilities
-    │                                      ICE_SERVERS config
-    │                                      generateRoomId()  (crypto.getRandomValues)
-    │                                      formatBytes()
-    │                                      getWsUrl()        (wss in prod, ws in dev)
-    │                                      sendFileOverChannel()  (chunker + backpressure)
-    │
-    └── app/
-        ├── layout.tsx                  ← "Share file" button in nav header
-        └── share/
-            ├── page.tsx                ← Sender UI
-            │                              phases: idle → waiting → connecting →
-            │                                      awaiting-start → transferring → done → error
-            │                              opens WS as host
-            │                              creates RTCPeerConnection on "guest-joined"
-            │                              calls sendFileOverChannel() on "start"
-            └── [id]/
-                ├── page.tsx            ← SSR wrapper, passes roomId as prop
-                └── DownloadView.tsx    ← Recipient UI
-                                           phases: connecting → ready → downloading →
-                                                   done → no-host → error
-                                           opens WS as guest
-                                           ondatachannel → receives chunks
-                                           assembles Blob → browser save dialog
+backend/app/
+├── routers/share.py          signalling relay, room rules, POST /api/v1/share/diagnostics
+├── services/turn.py          STUN/TURN list, Cloudflare credential minting + cache
+├── services/share_event.py   usage logging (opaque blob on the offer)
+└── routers/admin.py          feature-usage: share_connections health summary
+
+frontend/src/
+├── lib/webrtc.ts             ws URL, room id, formatting, fallback STUN list
+├── lib/p2p/                  protocol, signalling socket, peer link, sender, receiver, zip
+├── app/share/page.tsx        sender UI (multi-file session)
+├── app/share/[id]/DownloadView.tsx   recipient UI
+└── components/share/         FileIcon + RouteBadge, explainer, CLI guide
+
+cli/internal/peer/            Go CLI host/guest (protocol v1)
 ```
 
 ---
 
 ## 11. WebSocket API Reference
 
-**Endpoint:** `wss://api.markdrop.in/ws/share/{room_id}?role={host|guest}`
+**Endpoint:** `wss://api.markdrop.in/ws/share/{room_id}?role={host|guest}` — `room_id` must match
+`[A-Za-z0-9_-]{6,64}`.
 
-> **nginx requirement:** The `/ws/` location block must include `proxy_http_version 1.1`
-> and `proxy_set_header Upgrade $http_upgrade` — without these, nginx defaults to HTTP/1.0,
-> strips the upgrade header, and FastAPI returns 404. Full nginx config in
-> [README.md → Deployment](README.md#deployment).
+> **nginx requirement:** the `/ws/` location needs `proxy_http_version 1.1` and the `Upgrade`/`Connection`
+> headers, or FastAPI returns 404. Its `proxy_read_timeout 3600s` is why clients ping every 25 s.
 
 ### Connection rules
 
 | Role | Behaviour |
 |------|-----------|
-| `host` (first to connect) | Room created. WS stays open waiting for a guest. |
-| `host` (room already has a host) | WS closed immediately with code `4000`. |
-| `guest` (host present) | `{"type":"guest-joined"}` sent to host. Relay mode begins. |
-| `guest` (no host in room) | `{"type":"no-host"}` sent to guest, WS closed with code `4001`. |
+| `host`, room empty | Room created; sent `config`. |
+| `host`, host present | Closed `4000` (a reconnecting client retries — the old socket may not be reaped yet). |
+| `host`, guest waiting | Sent `config`, then `guest-joined` so it renegotiates. |
+| `guest`, host present | Sent `config`; host sent `guest-joined`. |
+| `guest`, no host | Sent `no-host`, closed `4001`. |
+| `guest`, guest present | Sent `room-busy`, closed `4003`. |
 
-### All message types
-
-```jsonc
-// ── Sent by the SERVER itself ─────────────────────────────────────────────
-
-// → host: a recipient has arrived
-{ "type": "guest-joined" }
-
-// → guest: room has no host (link expired / sender closed tab)
-{ "type": "no-host" }
-
-// → either peer: the other side disconnected
-{ "type": "peer-disconnected" }
-
-
-// ── Relayed through the server (sender ↔ recipient) ───────────────────────
-
-// host → guest: WebRTC session description (offer)
-{ "type": "offer",  "sdp": { "type": "offer",  "sdp": "v=0\r\n…" } }
-
-// guest → host: WebRTC session description (answer)
-{ "type": "answer", "sdp": { "type": "answer", "sdp": "v=0\r\n…" } }
-
-// either → other: ICE network address candidate (trickle ICE)
-{ "type": "ice", "candidate": { "candidate": "candidate:…", "sdpMid": "0", "sdpMLineIndex": 0 } }
-
-
-// ── Sent over the DataChannel (P2P — server never sees these) ─────────────
-
-// host → guest: file metadata (JSON string)
-{ "type": "meta", "name": "video.mp4", "size": 104857600, "mimeType": "video/mp4" }
-
-// guest → host: recipient clicked "Download"
-{ "type": "start" }
-
-// host → guest: file content (binary ArrayBuffer frames)
-// <ArrayBuffer: 65536 bytes>  ← chunk 1
-// <ArrayBuffer: 65536 bytes>  ← chunk 2
-// …
-// <ArrayBuffer: N bytes>      ← last partial chunk  (N = size % 65536)
-```
-
-### WebSocket close codes
+### Close codes
 
 | Code | Meaning |
 |------|---------|
-| `4000` | Duplicate host tried to connect |
-| `4001` | Guest connected but no host was present |
-| `4002` | Invalid `role` query parameter |
+| `4000` | Duplicate host |
+| `4001` | No host in the room |
+| `4002` | Invalid `role` |
+| `4003` | Room busy — one recipient at a time |
+| `4004` | Invalid room id |
+| `4005` | Server at its room limit |
+
+### Diagnostics
+
+`POST /api/v1/share/diagnostics` (30/min) — one per connection attempt from each browser:
+
+```jsonc
+{ "room_id": "abc123def4", "role": "guest", "outcome": "connected",   // | "failed" | "timeout"
+  "elapsed_ms": 1840,
+  "local_candidates": { "host": 2, "srflx": 1, "relay": 3 },
+  "remote_candidates": { "host": 1, "srflx": 1 },
+  "route": { "local": "relay", "remote": "srflx", "protocol": "udp", "relay_protocol": "tls", "rtt_ms": 42 },
+  "turn_offered": true, "states": ["310:connecting", "1840:connected"], "protocol": 2 }
+```
 
 ---
 

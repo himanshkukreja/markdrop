@@ -1125,6 +1125,24 @@ export default function AdminApp() {
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
                       {usage.share_users_identified.toLocaleString()} signed-in senders · {usage.share_events_anonymous.toLocaleString()} anonymous
                     </p>
+                    {usage.share_connections && usage.share_connections.rooms > 0 && (() => {
+                      const c = usage.share_connections;
+                      const pct = (n: number) => `${Math.round((n / c.rooms) * 100)}%`;
+                      return (
+                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-1">
+                          <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Connections, last 30 days</p>
+                          <p className="text-xs text-gray-700 dark:text-gray-300 tabular-nums">
+                            {pct(c.connected)} connected of {c.rooms.toLocaleString()} · {c.relayed.toLocaleString()} via relay
+                          </p>
+                          {c.failed > 0 && (
+                            <p className="text-[11px] text-gray-400 dark:text-gray-500 tabular-nums"
+                              title="No public address found = STUN blocked. Address found but no pair = client isolation or no hairpin NAT; only TURN fixes these.">
+                              {c.failed} failed: {c.failed_no_stun} STUN blocked · {c.failed_with_stun} no direct path
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
