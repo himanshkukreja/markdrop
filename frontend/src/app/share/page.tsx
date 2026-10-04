@@ -1,257 +1,93 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import CopyButton from "@/components/CopyButton";
 import AmbientBackground from "@/components/AmbientBackground";
 import TransferExplainer from "@/components/share/TransferExplainer";
 import CliGuide from "@/components/share/CliGuide";
-import {
-  ICE_SERVERS,
-  getWsUrl,
-  generateRoomId,
-  formatBytes,
-  sendFileOverChannel,
-  encodeShareMeta,
-} from "@/lib/webrtc";
+import BulkGuide from "@/components/share/BulkGuide";
+import FileIcon, { RouteBadge } from "@/components/share/FileIcon";
+import { generateRoomId, formatBytes, formatRate } from "@/lib/webrtc";
 import { getToken } from "@/lib/api";
+import { FAILURE_COPY } from "@/lib/p2p/protocol";
+import { filesFromDrop } from "@/lib/p2p/dropped";
+import { ShareSender, type SenderSnapshot, type SenderFile } from "@/lib/p2p/sender";
 
-type Phase =
-  | "idle"
-  | "waiting"         // WS open as host, no guest yet
-  | "connecting"      // Guest arrived, doing WebRTC handshake
-  | "awaiting-start"  // Channel open, meta sent, waiting for guest to click Download
-  | "transferring"    // Chunks flying
-  | "done"
-  | "error";
+const EMPTY: SenderSnapshot = {
+  status: "idle", files: [], notice: null, failure: null, route: null, rate: 0, recipients: 0,
+};
 
-const ACTIVE_PHASES: Phase[] = ["waiting", "connecting", "awaiting-start", "transferring"];
+const TRUST = [
+  { label: "End-to-end encrypted", d: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" },
+  { label: "Device to device", d: "M13 10V3L4 14h7v7l9-11h-7z" },
+  { label: "Zero server storage", d: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" },
+  { label: "Many files at once", isNew: true, d: "M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" },
+];
 
 export default function SharePage() {
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [file, setFile] = useState<File | null>(null);
-  const [roomId] = useState<string>(generateRoomId);
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState("");
+  const [roomId, setRoomId] = useState<string>(generateRoomId);
+  const [snap, setSnap] = useState<SenderSnapshot>(EMPTY);
   const [dragging, setDragging] = useState(false);
-  const [showCliInstall, setShowCliInstall] = useState(false);
+  const [listDragging, setListDragging] = useState(false);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const [showCli, setShowCli] = useState(false);
+  const senderRef = useRef<ShareSender | null>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
+  const [origin, setOrigin] = useState("https://markdrop.in");
 
-  // Refs so async WebRTC / WS closures always see the latest values
-  const wsRef      = useRef<WebSocket | null>(null);
-  const pcRef      = useRef<RTCPeerConnection | null>(null);
-  const channelRef = useRef<RTCDataChannel | null>(null);
-  const fileRef    = useRef<File | null>(null);
-  const phaseRef   = useRef<Phase>("idle");
+  useEffect(() => setOrigin(window.location.origin), []);
+  useEffect(() => () => senderRef.current?.stop(), []);
 
-  function updatePhase(p: Phase) {
-    phaseRef.current = p;
-    setPhase(p);
-  }
+  const active = snap.status !== "idle" && snap.status !== "failed";
 
-  const shareUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/share/${roomId}`
-      : `https://markdrop.in/share/${roomId}`;
-
-  const cleanup = useCallback(() => {
-    channelRef.current?.close();
-    pcRef.current?.close();
-    wsRef.current?.close();
-    channelRef.current = null;
-    pcRef.current      = null;
-    wsRef.current      = null;
-  }, []);
-
-  // Cleanup on unmount
-  useEffect(() => () => cleanup(), [cleanup]);
-
-  // Warn the user if they try to close the tab mid-transfer
+  // Leaving the page ends the share — say so before it happens.
   useEffect(() => {
-    if (!ACTIVE_PHASES.includes(phase)) return;
+    if (!active) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [phase]);
+  }, [active]);
 
-  async function startSharing(selectedFile: File) {
-    fileRef.current = selectedFile;
-    setFile(selectedFile);
-    setProgress(0);
-    updatePhase("waiting");
-
-    const ws = new WebSocket(getWsUrl(roomId, "host"));
-    wsRef.current = ws;
-
-    ws.onmessage = async (evt) => {
-      let msg: Record<string, unknown>;
-      try {
-        msg = JSON.parse(evt.data as string);
-      } catch {
-        return;
-      }
-
-      // ── Guest has opened the link ──────────────────────────────────────────
-      if (msg.type === "guest-joined") {
-        updatePhase("connecting");
-
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-        pcRef.current = pc;
-
-        const channel = pc.createDataChannel("file", { ordered: true });
-        channelRef.current = channel;
-
-        // Channel is open → send file metadata and wait for "start" signal
-        channel.onopen = () => {
-          const f = fileRef.current!;
-          channel.send(
-            JSON.stringify({
-              type:     "meta",
-              name:     f.name,
-              size:     f.size,
-              mimeType: f.type || "application/octet-stream",
-            }),
-          );
-          updatePhase("awaiting-start");
-        };
-
-        // Guest clicked Download → start streaming
-        channel.onmessage = async (e) => {
-          try {
-            const inner = JSON.parse(e.data as string);
-            if (inner.type === "start") {
-              updatePhase("transferring");
-              try {
-                await sendFileOverChannel(channel, fileRef.current!, (sent) =>
-                  setProgress(sent),
-                );
-                updatePhase("done");
-              } catch {
-                if (phaseRef.current !== "done") {
-                  updatePhase("error");
-                  setError("Transfer failed — the recipient may have disconnected.");
-                }
-              }
-            }
-          } catch {
-            /* non-JSON message — ignore */
-          }
-        };
-
-        channel.onerror = () => {
-          if (phaseRef.current !== "done") {
-            updatePhase("error");
-            setError("Connection error during transfer.");
-          }
-        };
-
-        // Trickle ICE candidates to the guest via the signalling relay
-        pc.onicecandidate = (e) => {
-          if (e.candidate && ws.readyState === WebSocket.OPEN) {
-            ws.send(
-              JSON.stringify({ type: "ice", candidate: e.candidate.toJSON() }),
-            );
-          }
-        };
-
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        const f = fileRef.current!;
-        // Fold usage metadata into the offer as an opaque blob (see encodeShareMeta).
-        // The signalling server records it and strips it before relaying onward.
-        ws.send(
-          JSON.stringify({
-            type: "offer",
-            sdp: pc.localDescription,
-            x: encodeShareMeta({
-              name: f.name,
-              size: f.size,
-              mime: f.type || "application/octet-stream",
-              token: getToken(),
-            }),
-          }),
-        );
-      }
-
-      // ── WebRTC answer from guest ───────────────────────────────────────────
-      if (msg.type === "answer") {
-        await pcRef.current?.setRemoteDescription(
-          new RTCSessionDescription(msg.sdp as RTCSessionDescriptionInit),
-        );
-      }
-
-      // ── ICE candidate from guest ──────────────────────────────────────────
-      if (msg.type === "ice") {
-        try {
-          await pcRef.current?.addIceCandidate(
-            new RTCIceCandidate(msg.candidate as RTCIceCandidateInit),
-          );
-        } catch {
-          /* stale candidate — safe to ignore */
-        }
-      }
-
-      // ── Guest disconnected ────────────────────────────────────────────────
-      if (msg.type === "peer-disconnected") {
-        if (phaseRef.current !== "done") {
-          updatePhase("error");
-          setError("Recipient disconnected before the transfer completed.");
-        }
-      }
-    };
-
-    ws.onerror = () => {
-      updatePhase("error");
-      setError("Could not connect to the signalling server.");
-    };
+  function addFiles(list: FileList | File[] | null | undefined) {
+    if (!list || !list.length) return;
+    if (!senderRef.current) {
+      senderRef.current = new ShareSender(roomId, {
+        onChange: setSnap,
+        getToken,
+        forceRelay: new URLSearchParams(window.location.search).get("relay") === "1",
+      });
+    }
+    senderRef.current.addFiles(list);
   }
 
-  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (f) startSharing(f);
+  function endSharing() {
+    senderRef.current?.stop();
+    senderRef.current = null;
+    setSnap(EMPTY);
+    setRoomId(generateRoomId()); // a fresh link; the old one is dead now
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragging(false);
-    const f = e.dataTransfer.files?.[0];
-    if (f) startSharing(f);
+    setListDragging(false);
+    // Collect synchronously (the DataTransfer empties after this handler), then
+    // expand any folders.
+    void filesFromDrop(e.dataTransfer).then(addFiles);
   }
 
-  function handleReset() {
-    cleanup();
-    setPhase("idle");
-    setFile(null);
-    setProgress(0);
-    setError("");
-    fileRef.current = null;
-  }
-
-  const pct =
-    file && file.size > 0 ? Math.round((progress / file.size) * 100) : 0;
-
-  const isActive = ACTIVE_PHASES.includes(phase);
-
-  // File type icon colour based on extension
-  function fileIconColor(name: string) {
-    const ext = name.split(".").pop()?.toLowerCase() ?? "";
-    if (["jpg","jpeg","png","gif","svg","webp"].includes(ext)) return "text-pink-400";
-    if (["mp4","mov","avi","mkv","webm"].includes(ext)) return "text-purple-400";
-    if (["mp3","wav","ogg","flac"].includes(ext)) return "text-yellow-400";
-    if (["zip","tar","gz","rar","7z"].includes(ext)) return "text-orange-400";
-    if (["pdf"].includes(ext)) return "text-red-400";
-    if (["js","ts","tsx","jsx","py","go","rs"].includes(ext)) return "text-green-400";
-    return "text-blue-400";
-  }
-
-  const TRUST = [
-    { label: "End-to-end encrypted", d: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" },
-    { label: "Direct peer-to-peer", d: "M13 10V3L4 14h7v7l9-11h-7z" },
-    { label: "Zero server storage", d: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" },
-    { label: "Any size, any type", d: "M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" },
-  ];
+  const shareUrl = `${origin}/share/${roomId}`;
+  const files = snap.files;
+  const totalBytes = files.reduce((n, f) => n + f.file.size, 0);
+  const inFlight = files.filter((f) => f.status === "queued" || f.status === "sending");
+  const delivered = files.filter((f) => f.status === "delivered").length;
+  const batchBytes = inFlight.reduce((n, f) => n + f.file.size, 0);
+  const batchSent = inFlight.reduce((n, f) => n + f.sent, 0);
+  const etaSec = snap.rate > 0 ? (batchBytes - batchSent) / snap.rate : 0;
 
   return (
     <div className="relative flex-1 min-h-0 overflow-y-auto">
@@ -260,270 +96,235 @@ export default function SharePage() {
       <div className="mx-auto w-full max-w-5xl px-1 sm:px-4 py-8 sm:py-12">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <header className="text-center max-w-2xl mx-auto">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-300 vscode:text-[#4fc1ff]">
+        <header className="text-center max-w-3xl mx-auto">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-300">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
             WebRTC · nothing uploaded
           </span>
-          <h1 className="mt-4 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
-            Send a file{" "}
-            <span className="md-gradient-text">straight to their browser</span>
+          <h1 className="mt-4 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">
+            Send files{" "}
+            <span className="md-gradient-text">straight to their device</span>
           </h1>
-          <p className="mt-3 text-sm sm:text-base text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d]">
-            Drop a file, share the link, and the bytes stream directly from your device to theirs —
-            encrypted, with no copy left on any server.
+          <p className="mt-3 max-w-2xl mx-auto text-sm sm:text-base text-gray-600 dark:text-gray-400">
+            Drop one file or a hundred photos, share the link, and they stream directly from your
+            device to theirs — encrypted, with no copy left on any server.
           </p>
-
-          {/* Trust pills */}
           <div className="mt-5 flex flex-wrap justify-center gap-2">
             {TRUST.map((t) => (
-              <span key={t.label} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white/60 dark:bg-gray-900/50 vscode:bg-[#252526] text-gray-600 dark:text-gray-300 vscode:text-[#c8c8c8]">
-                <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+              <span key={t.label} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-800 bg-white/60 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300">
+                <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d={t.d} />
                 </svg>
                 {t.label}
+                {"isNew" in t && t.isNew && (
+                  <span className="ml-0.5 px-1 rounded text-[9px] font-bold uppercase tracking-wider bg-blue-500/15 text-blue-600 dark:text-blue-300">New</span>
+                )}
               </span>
             ))}
           </div>
         </header>
 
-        {/* ── Main share card ─────────────────────────────────────────────── */}
+        {/* ── Main card ───────────────────────────────────────────────────── */}
         <div className="relative mt-8 sm:mt-10 mx-auto max-w-2xl">
-          {/* Soft glow behind the card */}
-          <div
-            aria-hidden
-            className="md-glow pointer-events-none absolute -inset-4 rounded-[2rem] blur-2xl opacity-60"
-            style={{ background: "radial-gradient(60% 55% at 50% 30%, rgba(59,130,246,0.22), transparent 75%)" }}
-          />
-          <div className="relative rounded-3xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white/80 dark:bg-gray-900/60 vscode:bg-[#252526]/90 backdrop-blur-xl shadow-2xl shadow-blue-500/10 p-5 sm:p-7">
+          <div aria-hidden className="md-glow pointer-events-none absolute -inset-4 rounded-[2rem] blur-2xl opacity-60"
+            style={{ background: "radial-gradient(60% 55% at 50% 30%, rgba(59,130,246,0.22), transparent 75%)" }} />
+          <div className="relative rounded-3xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl shadow-2xl shadow-blue-500/10 p-4 sm:p-7">
 
-            {/* ── Idle: drop zone ──────────────────────────────────────────── */}
-            {phase === "idle" && (
+            {snap.status === "idle" && (
               <div
                 onDrop={handleDrop}
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
-                className={`group relative rounded-2xl border-2 border-dashed transition-all duration-200 cursor-pointer
-                  ${ dragging
+                className={`group relative rounded-2xl border-2 border-dashed transition-all duration-200 cursor-pointer ${
+                  dragging
                     ? "border-blue-500 bg-blue-500/10 scale-[1.01]"
-                    : "border-gray-300 dark:border-gray-700 vscode:border-[#444] hover:border-blue-400 dark:hover:border-blue-500 vscode:hover:border-blue-500 hover:bg-blue-500/5"
-                  }`}
+                    : "border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-500/5"
+                }`}
               >
-                <input
-                  type="file"
-                  onChange={handleFileInput}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
+                <input type="file" multiple onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" aria-label="Choose files to send" />
                 <div className="pointer-events-none select-none flex flex-col items-center gap-4 py-14 sm:py-16 px-6">
                   <div className={`md-float w-20 h-20 rounded-2xl flex items-center justify-center bg-gradient-to-br from-blue-500 to-sky-500 shadow-lg shadow-blue-500/30 transition-transform duration-200 ${dragging ? "scale-110" : "group-hover:scale-105"}`}>
-                    <svg className="w-9 h-9 text-white" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                    <svg className="w-9 h-9 text-white" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" aria-hidden>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                     </svg>
                   </div>
                   <div className="text-center">
-                    <p className="text-lg font-semibold text-gray-900 dark:text-gray-50 vscode:text-[#e8e8e8]">
-                      {dragging ? "Drop to start sharing" : "Drop your file here"}
+                    <p className="text-lg font-semibold text-gray-900 dark:text-gray-50">
+                      {dragging ? "Drop to start sharing" : (
+                        <>
+                          <span className="sm:hidden">Tap to choose files or photos</span>
+                          <span className="hidden sm:inline">Drop files or a whole folder</span>
+                        </>
+                      )}
                     </p>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                      or <span className="text-blue-500 font-medium">click to browse</span>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      <span className="sm:hidden">Pick as many as you like</span>
+                      <span className="hidden sm:inline">or <span className="text-blue-500 font-medium">choose files</span> — pick as many as you like</span>
                     </p>
-                    <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 vscode:text-[#6a6a6a]">
-                      Any file type · Any size · It never leaves your device until a recipient connects
+                    <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+                      Any type · Any size · Nothing leaves your device until a recipient connects
                     </p>
                   </div>
                 </div>
               </div>
             )}
+            {snap.status === "idle" && (
+              <p className="mt-3 text-center text-xs text-gray-500 dark:text-gray-400">
+                <span className="sm:hidden">On your phone, choose <strong className="font-semibold text-gray-700 dark:text-gray-300">Photo Library</strong> and tap <strong className="font-semibold text-gray-700 dark:text-gray-300">Select</strong> to send many photos at once.</span>
+                <span className="hidden sm:inline">
+                  Sending a folder?{" "}
+                  <button onClick={() => folderInputRef.current?.click()} className="font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                    Choose a folder
+                  </button>
+                  {" "}— every file inside is added.
+                </span>
+                <input ref={folderInputRef} type="file" multiple className="hidden"
+                  {...({ webkitdirectory: "" } as Record<string, string>)}
+                  onChange={(e) => { addFiles(Array.from(e.target.files ?? []).filter((f) => !f.name.startsWith("."))); e.target.value = ""; }} />
+              </p>
+            )}
 
-            {/* ── Active / done / error ────────────────────────────────────── */}
-            {phase !== "idle" && (
-              <div className="space-y-5">
+            {snap.status !== "idle" && (
+              <div className="space-y-4">
+                <SessionStatus snap={snap} delivered={delivered} />
 
-                {/* File card */}
-                {file && (
-                  <div className="flex items-center gap-4 p-4 rounded-2xl border border-gray-200 dark:border-gray-700/70 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/60 vscode:bg-[#1e1e1e]">
-                    <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-800 vscode:bg-[#2d2d2d] flex items-center justify-center shrink-0">
-                      <svg className={`w-6 h-6 ${fileIconColor(file.name)}`} fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] truncate">{file.name}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] mt-0.5">{formatBytes(file.size)}</p>
-                    </div>
-                    <span className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                      phase === "done"        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 vscode:bg-green-900/30 vscode:text-green-400"
-                      : phase === "error"     ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 vscode:bg-red-900/30 vscode:text-red-400"
-                      : phase === "transferring" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 vscode:bg-blue-900/30 vscode:text-blue-400"
-                      : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 vscode:bg-amber-900/30 vscode:text-amber-400"
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        phase === "done"          ? "bg-green-500"
-                        : phase === "error"       ? "bg-red-500"
-                        : phase === "transferring" ? "bg-blue-500 animate-pulse"
-                        : "bg-amber-400 animate-pulse"
-                      }`} />
-                      {phase === "done" ? "Sent" : phase === "error" ? "Failed"
-                        : phase === "transferring" ? `${pct}%`
-                        : phase === "awaiting-start" ? "Ready" : "Waiting"}
-                    </span>
-                  </div>
+                {snap.status === "failed" && snap.failure && (
+                  <Banner tone="error" title={FAILURE_COPY[snap.failure].title} detail={FAILURE_COPY[snap.failure].detail} />
+                )}
+                {snap.notice && snap.status !== "failed" && (
+                  <Banner tone="warn" title={FAILURE_COPY[snap.notice].title} detail={FAILURE_COPY[snap.notice].detail} />
                 )}
 
-                {/* Share link + QR (two columns) */}
-                {isActive && (
-                  <div className="grid sm:grid-cols-[1fr_auto] gap-4 items-start rounded-2xl border border-blue-200/70 dark:border-blue-800/50 vscode:border-[#3c3c3c] bg-blue-50/50 dark:bg-blue-900/10 vscode:bg-[#1e1e1e] p-4">
+                {/* Link + QR */}
+                {active && (
+                  <div className="grid sm:grid-cols-[1fr_auto] gap-4 items-start rounded-2xl border border-blue-200/70 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-900/10 p-4">
                     <div className="min-w-0 space-y-3">
-                      <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 vscode:text-[#4fc1ff] uppercase tracking-wider">
-                        Share this link
-                      </p>
-                      <div className="flex items-center gap-2 bg-white dark:bg-gray-900 vscode:bg-[#252526] rounded-lg px-3 py-2 border border-blue-100 dark:border-blue-900/50 vscode:border-[#3c3c3c]">
-                        <span className="flex-1 font-mono text-xs text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] truncate">{shareUrl}</span>
+                      <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wider">Share this link</p>
+                      <div className="flex items-center gap-2 bg-white dark:bg-gray-900 rounded-lg px-3 py-2 border border-blue-100 dark:border-blue-900/50">
+                        <span className="flex-1 font-mono text-xs text-gray-700 dark:text-gray-300 truncate">{shareUrl}</span>
                         <CopyButton text={shareUrl} label="Copy" />
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                        Your recipient opens it on any device and sees the file details before downloading.
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        They see every file before choosing what to download. The link works while this tab stays open — one recipient at a time.
                       </p>
                     </div>
                     <div className="flex flex-col items-center gap-1.5 mx-auto">
                       <div className="p-2.5 rounded-xl bg-white shadow-sm">
                         <QRCodeSVG value={shareUrl} size={124} level="M" />
                       </div>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 vscode:text-[#6a6a6a]">Scan to open</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500">Scan to open</p>
                     </div>
                   </div>
                 )}
 
-                {/* CLI download hint */}
-                {isActive && (
-                  <div className="rounded-2xl border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#1e1e1e] overflow-hidden">
-                    <button
-                      onClick={() => setShowCliInstall(v => !v)}
-                      className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800/60 vscode:hover:bg-[#2d2d2d] transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4 text-gray-500 dark:text-gray-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
-                        </svg>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
-                          Recipient prefers the terminal?
-                        </span>
-                      </div>
-                      <svg className={`w-4 h-4 text-gray-400 transition-transform ${showCliInstall ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                {/* Files */}
+                <div
+                  onDragOver={active ? (e) => { e.preventDefault(); setListDragging(true); } : undefined}
+                  onDragLeave={active ? () => setListDragging(false) : undefined}
+                  onDrop={active ? handleDrop : undefined}
+                  className={`rounded-2xl border overflow-hidden transition-colors ${
+                    listDragging
+                      ? "border-blue-500 bg-blue-500/10"
+                      : "border-gray-200 dark:border-gray-700/70 bg-gray-50/80 dark:bg-gray-900/50"
+                  }`}>
+                  <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700/70">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {files.length} {files.length === 1 ? "file" : "files"}
+                        <span className="font-normal text-gray-500 dark:text-gray-400"> · {formatBytes(totalBytes)}</span>
+                      </p>
+                      {inFlight.length > 0 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums mt-0.5">
+                          Sending {formatBytes(batchSent)} of {formatBytes(batchBytes)}
+                          {snap.rate > 0 && <> · {formatRate(snap.rate)}</>}
+                          {etaSec > 1 && <> · {formatEta(etaSec)} left</>}
+                        </p>
+                      )}
+                    </div>
+                    {active && (
+                      <>
+                        <input ref={addInputRef} type="file" multiple className="hidden"
+                          onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+                        <button onClick={() => addInputRef.current?.click()}
+                          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 dark:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 ring-1 ring-blue-500/25 transition-colors">
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden><path d="M12 5v14M5 12h14" /></svg>
+                          Add files
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {inFlight.length > 0 && (
+                    <div className="h-1 bg-gray-200 dark:bg-gray-800">
+                      <div className="h-full bg-gradient-to-r from-blue-500 to-sky-400 transition-[width] duration-200"
+                        style={{ width: `${batchBytes ? (batchSent / batchBytes) * 100 : 0}%` }} />
+                    </div>
+                  )}
+                  <ul className="max-h-[22rem] overflow-y-auto divide-y divide-gray-200 dark:divide-gray-800">
+                    {files.map((f) => (
+                      <SenderRow key={f.id} f={f} canRemove={active && (f.status === "ready" || f.status === "unreadable")}
+                        onRemove={() => senderRef.current?.removeFile(f.id)} />
+                    ))}
+                  </ul>
+                  {active && (
+                    <p className="px-4 py-2.5 border-t border-gray-200 dark:border-gray-700/70 text-[11px] text-gray-500 dark:text-gray-400">
+                      {listDragging
+                        ? "Drop to add these to the share"
+                        : <>Forgot something? Drop more files here or use <span className="font-medium text-gray-700 dark:text-gray-300">Add files</span> — they appear on your recipient&apos;s list right away.</>}
+                    </p>
+                  )}
+                </div>
+
+                {/* CLI hint — the current CLI receives one file at a time */}
+                {active && files.length === 1 && (
+                  <div className="rounded-2xl border border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-900/40 overflow-hidden">
+                    <button onClick={() => setShowCli((v) => !v)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Recipient prefers the terminal?</span>
+                      <svg className={`w-4 h-4 text-gray-400 transition-transform ${showCli ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    {showCliInstall && (
-                      <div className="px-4 pb-4 space-y-2 border-t border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] pt-3">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                          They can download it without a browser:
-                        </p>
-                        <div className="flex items-center gap-2 bg-gray-900 dark:bg-black vscode:bg-[#252526] rounded-lg px-3 py-2.5">
+                    {showCli && (
+                      <div className="px-4 pb-4 pt-3 space-y-2 border-t border-gray-200 dark:border-gray-700/60">
+                        <div className="flex items-center gap-2 bg-gray-900 dark:bg-black rounded-lg px-3 py-2.5">
                           <span className="text-green-500 select-none">$</span>
                           <span className="flex-1 font-mono text-sm text-green-400 select-all">markdrop get {roomId}</span>
                           <CopyButton text={`markdrop get ${roomId}`} label="Copy" />
                         </div>
-                        <p className="text-[11px] text-gray-400 dark:text-gray-500 vscode:text-[#6a6a6a]">
-                          Install: <span className="font-mono">brew install himanshkukreja/tap/markdrop</span> · see all options below.
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                          Install: <span className="font-mono">brew install himanshkukreja/tap/markdrop</span>
                         </p>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Status strip */}
-                {(phase === "waiting" || phase === "connecting" || phase === "awaiting-start") && (
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c]">
-                    <svg className={`w-4 h-4 shrink-0 ${phase === "awaiting-start" ? "text-green-500" : "text-blue-500 animate-spin"}`} fill="none" viewBox="0 0 24 24">
-                      {phase === "awaiting-start" ? (
-                        <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      ) : (
-                        <>
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
-                        </>
-                      )}
-                    </svg>
-                    <p className="text-sm text-gray-600 dark:text-gray-300 vscode:text-[#c8c8c8]">
-                      {phase === "waiting"        && "Waiting for recipient to open the link…"}
-                      {phase === "connecting"     && "Establishing encrypted peer connection…"}
-                      {phase === "awaiting-start" && "Connected — waiting for recipient to click Download"}
-                    </p>
-                  </div>
-                )}
-
-                {/* Transfer progress */}
-                {(phase === "transferring" || phase === "done") && file && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
-                        {phase === "done" ? "Transfer complete ✓" : `Sending… ${pct}%`}
-                      </span>
-                      <span className="text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d] tabular-nums">
-                        {formatBytes(progress)} / {formatBytes(file.size)}
-                      </span>
-                    </div>
-                    <div className="w-full h-3 rounded-full bg-gray-200 dark:bg-gray-800 vscode:bg-[#3c3c3c] overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-200 ${phase === "done" ? "bg-green-500" : "bg-gradient-to-r from-blue-500 to-sky-500"}`}
-                        style={{ width: `${phase === "done" ? 100 : pct}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Keep-open warning */}
-                {isActive && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/10 vscode:bg-amber-900/10 border border-amber-200 dark:border-amber-800/40 vscode:border-amber-800/40">
-                    <svg className="w-4 h-4 shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                {active && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/40">
+                    <svg className="w-4 h-4 shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
                       <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                     </svg>
-                    <p className="text-xs text-amber-700 dark:text-amber-400 vscode:text-amber-400">
-                      Keep this tab open until the transfer completes
-                    </p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400">Keep this tab open — files are sent from your device, so closing it ends the share.</p>
                   </div>
                 )}
 
-                {/* Success banner */}
-                {phase === "done" && (
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-green-50 dark:bg-green-900/15 vscode:bg-green-900/15 border border-green-200 dark:border-green-800/50 vscode:border-green-800/50">
-                    <div className="w-7 h-7 rounded-full bg-green-100 dark:bg-green-900/40 vscode:bg-green-900/40 flex items-center justify-center shrink-0">
-                      <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-green-700 dark:text-green-400 vscode:text-green-400">File sent successfully!</p>
-                      <p className="text-xs text-green-600/80 dark:text-green-500/80 vscode:text-green-500/80">The recipient saved the file on their device.</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Reset button */}
-                {(phase === "done" || phase === "error") && (
-                  <button onClick={handleReset}
-                    className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors">
-                    {phase === "done" ? "Share another file" : "Try again"}
-                  </button>
-                )}
-
-                {/* Error banner */}
-                {phase === "error" && (
-                  <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/10 vscode:bg-red-900/10 border border-red-200 dark:border-red-800/40 vscode:border-red-800/40">
-                    <svg className="w-4 h-4 shrink-0 mt-0.5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
-                    </svg>
-                    <p className="text-sm text-red-700 dark:text-red-400 vscode:text-red-400">{error}</p>
-                  </div>
-                )}
+                <button onClick={endSharing}
+                  className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    active
+                      ? "border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      : "bg-blue-600 hover:bg-blue-500 text-white"
+                  }`}>
+                  {active ? "End sharing" : "Start over"}
+                </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* ── Informative sections (idle only) ────────────────────────────── */}
-        {phase === "idle" && (
+        {snap.status === "idle" && (
           <div className="mt-12 sm:mt-14 space-y-5 max-w-2xl mx-auto">
+            <BulkGuide />
             <TransferExplainer />
             <CliGuide />
           </div>
@@ -531,4 +332,97 @@ export default function SharePage() {
       </div>
     </div>
   );
+}
+
+function SessionStatus({ snap, delivered }: { snap: SenderSnapshot; delivered: number }) {
+  const total = snap.files.length;
+  const sending = snap.files.some((f) => f.status === "sending" || f.status === "queued");
+  let dot = "bg-amber-400 animate-pulse";
+  let text = "Waiting for someone to open the link…";
+  if (snap.status === "connecting") text = "Recipient opened the link — connecting…";
+  else if (snap.status === "reconnecting") text = "Reconnecting to Markdrop…";
+  else if (snap.status === "failed") { dot = "bg-red-500"; text = "Sharing stopped"; }
+  else if (snap.status === "connected") {
+    dot = "bg-emerald-500";
+    text = sending
+      ? "Sending…"
+      : delivered === total && total > 0
+        ? (total === 1 ? "Delivered" : `All ${total} files delivered`)
+        : "Connected — recipient is choosing files";
+  }
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{text}</p>
+      </div>
+      <div className="flex items-center gap-2">
+        {snap.status === "connected" && <RouteBadge route={snap.route} />}
+        {snap.recipients > 1 && (
+          <span className="text-[11px] text-gray-500 dark:text-gray-400">{snap.recipients} recipients so far</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SenderRow({ f, canRemove, onRemove }: { f: SenderFile; canRemove: boolean; onRemove: () => void }) {
+  const pct = f.file.size ? Math.min(100, Math.round((f.sent / f.file.size) * 100)) : 100;
+  return (
+    <li className="flex items-center gap-3 px-4 py-2.5">
+      <div className="w-9 h-9 rounded-lg bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 flex items-center justify-center shrink-0">
+        <FileIcon name={f.file.name} mime={f.file.type} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-gray-900 dark:text-gray-100 truncate">{f.file.name}</p>
+        {f.status === "sending" ? (
+          <div className="mt-1.5 h-1 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
+            <div className="h-full bg-blue-500 transition-[width] duration-200" style={{ width: `${pct}%` }} />
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{formatBytes(f.file.size)}</p>
+        )}
+      </div>
+      <div className="shrink-0 flex items-center gap-1.5">
+        {f.status === "sending" && <span className="text-xs tabular-nums text-blue-600 dark:text-blue-300 w-9 text-right">{pct}%</span>}
+        {f.status === "queued" && <span className="text-xs text-gray-500 dark:text-gray-400">Queued</span>}
+        {f.status === "unreadable" && (
+          <span className="text-xs text-amber-600 dark:text-amber-400" title="The file was moved, deleted or couldn't be read. Remove it and add it again.">
+            Couldn&apos;t read
+          </span>
+        )}
+        {f.status === "delivered" && (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 13l4 4L19 7" /></svg>
+            Delivered
+          </span>
+        )}
+        {canRemove && (
+          <button onClick={onRemove} aria-label={`Remove ${f.file.name}`}
+            className="p-1.5 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-gray-800 transition-colors">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function Banner({ tone, title, detail }: { tone: "warn" | "error"; title: string; detail: string }) {
+  const c = tone === "error"
+    ? "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-400"
+    : "bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/40 text-amber-800 dark:text-amber-300";
+  return (
+    <div className={`px-4 py-3 rounded-xl border ${c}`} role={tone === "error" ? "alert" : "status"}>
+      <p className="text-sm font-semibold">{title}</p>
+      <p className="text-xs mt-0.5 opacity-90">{detail}</p>
+    </div>
+  );
+}
+
+function formatEta(sec: number): string {
+  if (sec < 60) return `${Math.ceil(sec)}s`;
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m}m ${Math.round(sec % 60)}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
