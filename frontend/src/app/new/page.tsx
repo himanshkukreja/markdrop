@@ -12,6 +12,7 @@ import MarkdownToolbar from "@/components/MarkdownToolbar";
 import PublishBar from "@/components/new/PublishBar";
 import { type PublishTargetValue } from "@/lib/useWorkspaceTargets";
 import { shareToWorkspace } from "@/lib/workspaces";
+import { track } from "@/lib/track";
 
 type Mode = "write" | "split" | "preview";
 
@@ -169,6 +170,7 @@ export default function NewDocumentPage() {
         encrypted: encrypt || undefined,
         accessLevel,
       });
+      track("doc_published", { encrypted: !!encrypt, access: accessLevel, password: !!readPassword, expires: !!expiresIn, workspace: !!target.workspaceId });
       // Keep the secret in sessionStorage only — never in the URL (it would
       // leak via history, referrer headers and server logs).
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);

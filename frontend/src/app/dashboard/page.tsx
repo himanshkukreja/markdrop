@@ -16,6 +16,7 @@ import DashboardSidebar, { type Filter, type Scope } from "@/components/dashboar
 import RowMenu, { type MenuItem } from "@/components/dashboard/RowMenu";
 import ShareDialog from "@/components/access/ShareDialog";
 import { listLibrary } from "@/lib/workspaces";
+import { track } from "@/lib/track";
 
 type Range = "7d" | "30d" | "all";
 
@@ -213,6 +214,7 @@ export default function DashboardPage() {
     setExported(null);
     try {
       const result = await exportToGoogleDocs(doc.id);
+      track("google_docs_export", { from: "dashboard" });
       // Reflect the new/updated link locally without a full reload.
       setDocs((ds) => ds.map((d) =>
         d.id === doc.id

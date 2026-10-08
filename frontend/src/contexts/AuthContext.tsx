@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { fetchMe, getToken, setToken, clearToken, logoutRequest, MeUser } from "@/lib/api";
 import AuthModal from "@/components/AuthModal";
+import { track } from "@/lib/track";
 
 interface AuthModalOptions {
   next?: string;
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (token: string, u?: MeUser) => {
     setToken(token);
+    track("logged_in");
     if (u) {
       setUser(u);
       setLoading(false);

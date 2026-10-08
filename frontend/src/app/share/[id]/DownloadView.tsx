@@ -5,6 +5,7 @@ import FileIcon, { RouteBadge, isImage } from "@/components/share/FileIcon";
 import { formatBytes, formatRate } from "@/lib/webrtc";
 import { FAILURE_COPY } from "@/lib/p2p/protocol";
 import { ShareReceiver, type ReceivedFile, type ReceiverSnapshot } from "@/lib/p2p/receiver";
+import { track } from "@/lib/track";
 
 const INITIAL: ReceiverSnapshot = {
   status: "connecting", files: [], failure: null, route: null, rate: 0, protocol: 2, slow: false,
@@ -87,6 +88,7 @@ export default function DownloadView({ roomId }: { roomId: string }) {
   const canShare = typeof navigator !== "undefined" && "share" in navigator;
 
   function fetchFiles(ids: string[]) {
+    track("share_download", { files: ids.length, of: files.length });
     if (!working.length) batchIds.current = new Set();
     for (const id of ids) {
       autoSave.current.add(id);

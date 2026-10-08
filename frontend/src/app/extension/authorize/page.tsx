@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { createApiToken } from "@/lib/api";
 import MarkdropLoader from "@/components/MarkdropLoader";
+import { track } from "@/lib/track";
 
 function AuthorizeInner() {
   const params = useSearchParams();
@@ -37,6 +38,7 @@ function AuthorizeInner() {
     setBusy(true); setError("");
     try {
       const tok = await createApiToken("VS Code");
+      track("vscode_connected");
       const sep = redirect.includes("?") ? "&" : "?";
       const url = `${redirect}${sep}token=${encodeURIComponent(tok.token)}&state=${encodeURIComponent(state)}`;
       setDone(true);

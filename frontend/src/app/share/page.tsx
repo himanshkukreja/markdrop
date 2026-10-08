@@ -14,6 +14,7 @@ import { getToken } from "@/lib/api";
 import { FAILURE_COPY } from "@/lib/p2p/protocol";
 import { filesFromDrop } from "@/lib/p2p/dropped";
 import { ShareSender, type SenderSnapshot, type SenderFileView } from "@/lib/p2p/sender";
+import { track } from "@/lib/track";
 
 const EMPTY: SenderSnapshot = { status: "idle", files: [], recipients: [], failure: null, rate: 0 };
 
@@ -61,6 +62,8 @@ export default function SharePage() {
 
   function addFiles(list: FileList | File[] | null | undefined) {
     if (!list || !list.length) return;
+    const mb = Math.round(Array.from(list).reduce((n, f) => n + f.size, 0) / 1048576);
+    track(senderRef.current ? "share_files_added" : "share_started", { files: list.length, mb });
     if (!senderRef.current) {
       senderRef.current = new ShareSender(roomId, {
         onChange: setSnap,
