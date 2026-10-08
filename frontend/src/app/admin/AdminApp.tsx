@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import EmailPanel from "./EmailPanel";
+import AnalyticsPanel from "./analytics/AnalyticsPanel";
 import ArtifactBadge from "@/components/ArtifactBadge";
 import MarkdropLoader from "@/components/MarkdropLoader";
 import { formatBytes } from "@/lib/webrtc";
@@ -32,7 +33,7 @@ import {
 
 type Phase = "init" | "login" | "dashboard" | "editing";
 type EditMode = "edit" | "split" | "preview";
-type Tab = "docs" | "users" | "usage" | "feedback" | "email";
+type Tab = "analytics" | "docs" | "users" | "usage" | "feedback" | "email";
 
 export default function AdminApp() {
   // ── Auth ────────────────────────────────────────────────────────────────────
@@ -58,7 +59,7 @@ export default function AdminApp() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   // ── Tabs + Users ──────────────────────────────────────────────────────────────
-  const [tab, setTab] = useState<Tab>("docs");
+  const [tab, setTab] = useState<Tab>("analytics");
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
   const [usersTotal, setUsersTotal] = useState(0);
   const [usersPage, setUsersPage] = useState(1);
@@ -599,7 +600,7 @@ export default function AdminApp() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
-        {(["docs", "users", "usage", "feedback", "email"] as const).map((t) => (
+        {(["analytics", "docs", "users", "usage", "feedback", "email"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -609,7 +610,7 @@ export default function AdminApp() {
                 : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
-            {t === "docs" ? "Documents" : t === "users" ? "Users" : t === "usage" ? "Feature usage" : t === "feedback" ? "Feedback" : "Email"}
+            {t === "analytics" ? "Analytics" : t === "docs" ? "Documents" : t === "users" ? "Users" : t === "usage" ? "Feature usage" : t === "feedback" ? "Feedback" : "Email"}
             {t === "feedback" && feedbackOpenCount > 0 && (
               <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold bg-red-500 text-white tabular-nums">
                 {feedbackOpenCount}
@@ -1257,6 +1258,7 @@ export default function AdminApp() {
       )}
 
       {tab === "email" && token && <EmailPanel token={token} />}
+      {tab === "analytics" && token && <AnalyticsPanel token={token} />}
 
       {tab === "feedback" && (
         <>

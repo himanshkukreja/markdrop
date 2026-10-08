@@ -19,6 +19,7 @@ import Spinner from "@/components/Spinner";
 import VSCodeIcon from "@/components/VSCodeIcon";
 import ArtifactView from "./ArtifactView";
 import ShareDialog from "@/components/access/ShareDialog";
+import { track } from "@/lib/track";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -295,6 +296,7 @@ export default function DocumentView({
     setGNeedsReconnect(false);
     try {
       const result = await exportToGoogleDocs(docId);
+      track("google_docs_export", { from: "document" });
       setGoogleDocUrl(result.google_doc_url);
       setGoogleDocStale(false);
     } catch (err) {
@@ -1388,7 +1390,7 @@ export default function DocumentView({
         <div className={`flex items-center gap-2 flex-wrap ${pwdLocked || pwdFetching ? "hidden" : ""}`}>
           {/* shareUrl, not url: without the fragment the link opens a document
               nobody can read, including the person who just published it. */}
-          <CopyButton text={shareUrl} onCopy={() => recordEvent(slug, "copy_url")} />
+          <CopyButton text={shareUrl} onCopy={() => { recordEvent(slug, "copy_url"); track("doc_copy_link"); }} />
           {!pwdLocked && (
             <>
               <button
@@ -1407,7 +1409,7 @@ export default function DocumentView({
                 {showRaw ? "Rendered" : "Raw"}
               </button>
               <button
-                onClick={() => { recordEvent(slug, "export_pdf"); window.print(); }}
+                onClick={() => { recordEvent(slug, "export_pdf"); track("doc_export_pdf"); window.print(); }}
                 className="hidden sm:inline-flex px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
               >
                 Export PDF

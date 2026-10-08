@@ -20,7 +20,10 @@ const APP_ROUTES = new Set([
   "auth",
   "builder",
   "dashboard",
+  "enterprise",
   "extension",
+  "h",
+  "invite",
   "login",
   "new",
   "settings",
@@ -35,6 +38,11 @@ export function redactPath(pathname: string): string {
 
   // /share/<roomId> — an ephemeral P2P room, no more shareable than a document.
   if (segments[0] === "share" && segments.length > 1) return "/share/[id]";
+  // /invite/<token> — the token is a bearer secret for joining a workspace.
+  if (segments[0] === "invite" && segments.length > 1) return "/invite/[token]";
+  // /h/<host>/<path> — the internal route a workspace domain is served from;
+  // the path below the host is a document.
+  if (segments[0] === "h") return "/h/[workspace-doc]";
 
   if (segments.length === 1 && !APP_ROUTES.has(segments[0])) return "/[slug]";
   return pathname;

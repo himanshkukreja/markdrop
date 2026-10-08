@@ -8,6 +8,7 @@ import FeedbackWidget from "@/components/FeedbackWidget";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/components/Toast";
 import VercelInsights from "@/components/VercelInsights";
+import SiteTracker from "@/components/SiteTracker";
 
 export const metadata: Metadata = {
   title: "Markdrop — Publish Markdown, share files, sync from VS Code",
@@ -69,6 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </ToastProvider>
         </AuthProvider>
         <VercelInsights />
+        <SiteTracker />
       </body>
     </html>
   );

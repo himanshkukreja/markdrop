@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import MarkdropLoader from "@/components/MarkdropLoader";
 import { createWorkspace, listWorkspaces, type Workspace } from "@/lib/workspaces";
+import { track } from "@/lib/track";
 
 export default function WorkspacesPage() {
   const { user, loading: authLoading } = useAuth();
@@ -35,6 +36,7 @@ export default function WorkspacesPage() {
     setError("");
     try {
       const w = await createWorkspace(name.trim());
+      track("workspace_created");
       router.push(`/settings/workspaces/${w.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create the workspace");

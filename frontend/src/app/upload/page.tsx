@@ -16,6 +16,7 @@ import {
 } from "@/lib/api";
 import PublishTarget, { type PublishTargetValue } from "@/components/workspace/PublishTarget";
 import { shareToWorkspace } from "@/lib/workspaces";
+import { track } from "@/lib/track";
 
 type Tab = "paste" | "upload";
 
@@ -180,6 +181,7 @@ export default function UploadArtifactPage() {
           ? await pasteHtmlArtifact(html, title, opts)
           : await uploadArtifact(file!, title, { ...opts, onProgress: setProgress });
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);
+      track("artifact_uploaded", { source: tab, access: accessLevel, workspace: !!target.workspaceId });
       // Share as a second step — see the same note in /new. The artifact is
       // already published; a sharing failure must not read as an upload failure.
       if (target.workspaceId && doc.id) {

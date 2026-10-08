@@ -31,6 +31,7 @@ import {
   type SectionTemplate,
 } from "@/lib/readmeSections";
 import { SectionIcon } from "@/lib/readmeSectionIcons";
+import { track } from "@/lib/track";
 
 interface SectionInstance {
   uid: string;
@@ -275,6 +276,7 @@ export default function BuilderPage() {
     setError("");
     try {
       const doc = await createDocument(title, assembled);
+      track("builder_published", { sections: sections.length });
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);
       router.push(`/${doc.slug}?new=1`);
     } catch (e) {
