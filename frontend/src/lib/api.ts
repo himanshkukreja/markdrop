@@ -369,12 +369,30 @@ export async function reportDocument(slug: string, reason?: string): Promise<voi
   if (!res.ok && res.status !== 202) throw new Error("Failed to submit report");
 }
 
+/**
+ * Where the visitor came from — but only on the page they landed on.
+ * `document.referrer` survives client-side navigation, so without this check a
+ * visitor who arrived from Twitter and then clicked into three more documents
+ * would credit all four to Twitter. The navigation entry names the URL that
+ * was actually loaded; if we're still on it, this is the landing page.
+ */
+function landingReferrer(): string | null {
+  if (typeof window === "undefined" || !document.referrer) return null;
+  try {
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (nav && new URL(nav.name).pathname !== window.location.pathname) return null;
+  } catch {
+    /* no Navigation Timing: assume this is the landing page */
+  }
+  return document.referrer;
+}
+
 export function recordEvent(slug: string, type: "view" | "export_pdf" | "copy_url"): void {
   try {
     fetch(`${API_BASE}/api/v1/documents/${slug}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type }),
+      body: JSON.stringify({ type, referrer: type === "view" ? landingReferrer() : null }),
       keepalive: true,
     }).catch(() => {});
   } catch {
