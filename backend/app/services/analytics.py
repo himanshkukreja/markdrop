@@ -6,6 +6,7 @@ never orphans history. Raw visitor IPs are never stored — only a salted hash
 """
 
 import hashlib
+from urllib.parse import urlsplit
 from datetime import datetime, timedelta, timezone
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -27,6 +28,30 @@ def _hash_ip(ip: str | None) -> str | None:
     return hashlib.sha256((settings.ip_hash_salt + ip).encode()).hexdigest()
 
 
+def clean_referrer(raw: str | None) -> str | None:
+    """Origin + path of an external referrer, or None.
+
+    The query string and fragment are dropped: they can carry search terms,
+    tracking ids or tokens, and none of that is needed to answer "where did
+    this visitor come from". Our own hosts are dropped too — moving between
+    Markdrop pages is not a referral, and counting it would bury the real ones.
+    """
+    if not raw:
+        return None
+    try:
+        u = urlsplit(raw.strip())
+    except ValueError:
+        return None
+    host = (u.hostname or "").lower()
+    if u.scheme not in ("http", "https") or not host:
+        return None
+    own = (urlsplit(settings.frontend_url).hostname or "").lower().removeprefix("www.")
+    if own and (host == own or host.endswith("." + own)):
+        return None
+    path = u.path if u.path not in ("", "/") else "/"
+    return f"{u.scheme}://{host}{path}"[:500]
+
+
 async def record_event(
     db: AsyncIOMotorDatabase,
     doc_id: str,
@@ -45,7 +70,7 @@ async def record_event(
             "country": location["country"],
             "region": location["region"],
             "city": location["city"],
-            "referrer": (referrer or None),
+            "referrer": clean_referrer(referrer),
             "ip_hash": _hash_ip(ip),
         }
     )
@@ -107,17 +132,25 @@ async def get_analytics(db: AsyncIOMotorDatabase, doc_id: str, range_key: str) -
         )
     ]
 
-    # Top referrers
+    # Top referrers. Views recorded before the beacon sent document.referrer
+    # carry the beacon's own Referer — always markdrop.in — so run stored
+    # values back through clean_referrer, which drops those and merges any
+    # that differ only in query string.
+    counts: dict[str, int] = {}
+    async for row in db["events"].aggregate(
+        [
+            {"$match": {**view_match, "referrer": {"$ne": None}}},
+            {"$group": {"_id": "$referrer", "n": {"$sum": 1}}},
+            {"$sort": {"n": -1}},
+            {"$limit": 200},
+        ]
+    ):
+        ref = clean_referrer(row["_id"])
+        if ref:
+            counts[ref] = counts.get(ref, 0) + row["n"]
     referrers = [
-        {"referrer": row["_id"], "views": row["n"]}
-        async for row in db["events"].aggregate(
-            [
-                {"$match": {**view_match, "referrer": {"$ne": None}}},
-                {"$group": {"_id": "$referrer", "n": {"$sum": 1}}},
-                {"$sort": {"n": -1}},
-                {"$limit": 10},
-            ]
-        )
+        {"referrer": ref, "views": n}
+        for ref, n in sorted(counts.items(), key=lambda kv: -kv[1])[:10]
     ]
 
     return {

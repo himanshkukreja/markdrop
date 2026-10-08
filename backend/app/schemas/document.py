@@ -110,6 +110,10 @@ class SlugChangeRequest(BaseModel):
 
 class EventRequest(BaseModel):
     type: Literal["view", "export_pdf", "copy_url"]
+    # The page's own document.referrer, sent by the browser. The request's
+    # Referer header can't be used: this beacon is fired *from* markdrop.in,
+    # so that header only ever names markdrop.in.
+    referrer: str | None = Field(None, max_length=2048)
 
 
 class ReportRequest(BaseModel):

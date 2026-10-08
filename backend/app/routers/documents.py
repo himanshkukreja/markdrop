@@ -261,7 +261,7 @@ async def record_click(
     await analytics.record_event(
         db, doc_id, owner_id, data.type,
         ip=get_client_ip(request),
-        referrer=request.headers.get("referer"),
+        referrer=data.referrer,
     )
     return {"status": "ok"}
 
