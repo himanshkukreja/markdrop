@@ -29,6 +29,49 @@ function StatCard({ label, value }: { label: string; value: number }) {
   );
 }
 
+function readTime(s: number) {
+  if (!s) return "—";
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
+}
+
+/** How far readers got and how long they read (recorded by lib/readDepth.ts). */
+function ReadingBlock({ r }: { r: NonNullable<Analytics["reading"]> }) {
+  return (
+    <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/40 p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+        <div className="text-xs font-medium text-gray-600 dark:text-gray-300">How people read it</div>
+        <div className="text-[11px] text-gray-400">{r.reads ? `${r.reads.toLocaleString()} reading sessions` : "Nobody has read it since tracking began"}</div>
+      </div>
+      {r.reads > 0 && (
+        <div className="grid sm:grid-cols-[auto_1fr] gap-x-6 gap-y-4 items-center">
+          <div className="flex gap-6">
+            <div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{readTime(r.avg_seconds)}</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Average read time</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{Math.round(r.finished)}%</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Read to the end</div>
+            </div>
+          </div>
+          <div className="space-y-1.5" aria-label="Share of readers who reached each point of the document">
+            {r.reached.map((x) => (
+              <div key={x.at} className="flex items-center gap-2 text-xs">
+                <span className="w-16 shrink-0 text-gray-500 dark:text-gray-400">{x.at === 100 ? "The end" : `${x.at}% in`}</span>
+                <div className="flex-1 h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                  <div className="h-full rounded-full bg-blue-500" style={{ width: `${x.pct}%` }} />
+                </div>
+                <span className="w-10 text-right tabular-nums text-gray-700 dark:text-gray-300">{Math.round(x.pct)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BarRow({ label, value, max }: { label: string; value: number; max: number }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
@@ -85,12 +128,14 @@ function AnalyticsPanel({ slug }: { slug: string }) {
             <StatCard label="URL copies" value={data.totals.copy_url} />
           </div>
 
+          {data.reading && <ReadingBlock r={data.reading} />}
+
           {data.timeseries.length > 0 && (
             <div>
               <div className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] mb-1.5">Views over time</div>
               <div className="flex items-end gap-0.5 h-20">
                 {data.timeseries.map((t) => (
-                  <div key={t.date} className="flex-1 bg-blue-500/60 rounded-t hover:bg-blue-500 transition-colors" style={{ height: `${(t.views / maxDay) * 100}%` }} title={`${t.date}: ${t.views}`} />
+                  <div key={t.date} className="flex-1 max-w-6 bg-blue-500/60 rounded-t hover:bg-blue-500 transition-colors" style={{ height: `${(t.views / maxDay) * 100}%` }} title={`${t.date}: ${t.views}`} />
                 ))}
               </div>
             </div>

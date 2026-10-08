@@ -623,6 +623,16 @@ export interface Analytics {
   timeseries: { date: string; views: number }[];
   countries: { country: string; views: number }[];
   referrers: { referrer: string; views: number }[];
+  /** Absent on an older backend. */
+  reading?: {
+    reads: number;
+    avg_seconds: number;
+    median_seconds: number;
+    /** % of readers who reached the end. */
+    finished: number;
+    /** % of readers who got at least `at`% of the way through. */
+    reached: { at: number; pct: number }[];
+  };
 }
 
 export async function getAnalytics(slug: string, range: "7d" | "30d" | "all" = "30d"): Promise<Analytics> {

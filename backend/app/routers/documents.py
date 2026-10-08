@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -264,6 +266,43 @@ async def record_click(
         referrer=data.referrer,
     )
     return {"status": "ok"}
+
+
+@router.post("/{slug}/read", status_code=204)
+@limiter.limit("60/minute")
+async def record_read(
+    slug: str,
+    request: Request,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> None:
+    """How far a reader got and how long they spent (see analytics.record_read).
+
+    Takes a raw body rather than a model so the page can send it with
+    navigator.sendBeacon as text/plain while it unloads — a JSON content type
+    would need a CORS preflight, which a closing page can't wait for.
+    """
+    if _is_bot(request.headers.get("user-agent")):
+        return
+    raw = await request.body()
+    if len(raw) > 512:
+        return
+    try:
+        body = json.loads(raw)
+        rid = body["rid"]
+        depth = int(body["depth"])
+        seconds = int(body["seconds"])
+    except (ValueError, KeyError, TypeError):
+        return
+    if not (isinstance(rid, str) and re.fullmatch(r"[A-Za-z0-9_-]{8,64}", rid)):
+        return
+    doc = await db["documents"].find_one({"slug": slug}, {"_id": 1, "owner_id": 1})
+    if not doc:
+        return
+    await analytics.record_read(
+        db, str(doc["_id"]), doc.get("owner_id"), rid,
+        depth=max(0, min(100, depth)), seconds=max(0, min(7200, seconds)),
+        ip=get_client_ip(request),
+    )
 
 
 @router.post("/{slug}/report", status_code=202)

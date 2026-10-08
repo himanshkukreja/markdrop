@@ -108,6 +108,9 @@ async def connect() -> None:
     # networks people are on now; 90 days, then Mongo drops them itself.
     await db["share_diagnostics"].create_index("ts", expireAfterSeconds=90 * 24 * 3600)
     await db["share_diagnostics"].create_index([("room_id", 1)])
+    await db["share_transfers"].create_index("ts", expireAfterSeconds=90 * 24 * 3600)
+    # Reading sessions update one row in place (analytics.record_read).
+    await db["events"].create_index([("rid", 1), ("doc_id", 1)], sparse=True)
 
     # First-party site analytics (services/traffic.py). Raw rows are kept 13
     # months — long enough for year-over-year — then Mongo drops them itself.
