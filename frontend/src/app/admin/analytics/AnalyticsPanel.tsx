@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { setTrackingDisabled, trackingDisabled } from "@/lib/track";
 import { ACCENT, FUNNEL_RAMP, Sparkline, TrendChart, bucketLabel, compact, heat } from "./charts";
+import { Card, CardTitle, Delta, Segmented, Stat } from "./ui";
+import { GrowthCard, ShareHealthCard, type Growth, type Shares } from "./sections";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "https://api.markdrop.in";
 
@@ -22,7 +24,7 @@ type Overview = {
 };
 type Metric = { total: number; prev?: number; series?: { t: string; n: number }[] };
 type Product = { range: { unit: string }; metrics: Record<string, Metric> };
-type Doc = { doc_id: string; slug: string | null; title: string | null; encrypted: boolean; kind: string; views: number; visitors: number; referrers: { host: string; views: number }[] };
+type Doc = { doc_id: string; slug: string | null; title: string | null; encrypted: boolean; kind: string; views: number; visitors: number; referrers: { host: string; views: number }[]; reads: number; avg_seconds: number; finished: number };
 type Docs = { documents: Doc[]; referrers: { host: string; views: number }[] };
 type Realtime = { visitors: number; pages: { key: string; n: number }[]; sources: { key: string; n: number }[]; recent: { path: string; country: string | null; city: string | null; device: string | null; channel: string | null; ts: string }[] };
 type EventsRes = { events: { name: string; count: number; visitors: number }[]; props?: Record<string, { value: string; n: number }[]> };
@@ -116,6 +118,8 @@ export default function AnalyticsPanel({ token }: { token: string }) {
   const [events, setEvents] = useState<EventsRes | null>(null);
   const [retention, setRetention] = useState<Retention | null>(null);
   const [live, setLive] = useState<Realtime | null>(null);
+  const [growth, setGrowth] = useState<Growth | null>(null);
+  const [shares, setShares] = useState<Shares | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [excluded, setExcluded] = useState(false);
@@ -139,9 +143,11 @@ export default function AnalyticsPanel({ token }: { token: string }) {
       get<Product>("product", unfiltered),
       get<Docs>("documents", unfiltered),
       get<EventsRes>("events", params),
-    ]).then(([o, p, d, e]) => {
+      get<Growth>("growth", unfiltered),
+      get<Shares>("shares", unfiltered),
+    ]).then(([o, p, d, e, g, sh]) => {
       if (cancelled) return;
-      setOverview(o); setProduct(p); setDocs(d); setEvents(e);
+      setOverview(o); setProduct(p); setDocs(d); setEvents(e); setGrowth(g); setShares(sh);
     }).catch((err) => !cancelled && setError(err.message))
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
@@ -245,10 +251,14 @@ export default function AnalyticsPanel({ token }: { token: string }) {
 
           {product && <ProductSection product={product} tz={tz} />}
 
+          <GrowthCard data={growth} tz={tz} />
+
           <div className="grid lg:grid-cols-2 gap-5 [&>*]:min-w-0">
             <FunnelCard get={get} params={params} events={events} pages={o.breakdowns.pages} />
             <RetentionCard data={retention} tz={tz} />
           </div>
+
+          <ShareHealthCard data={shares} tz={tz} />
 
           <div className="grid lg:grid-cols-2 gap-5 [&>*]:min-w-0">
             <EventsCard data={events} get={get} params={params} />
@@ -361,76 +371,6 @@ function Toolbar({ range, custom, setRange, setCustom, filters, removeFilter, cl
 }
 
 // ── Building blocks ───────────────────────────────────────────────────────────
-
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`min-w-0 rounded-2xl border border-gray-800/80 bg-gray-900/40 p-4 sm:p-5 ${className}`}>{children}</div>;
-}
-
-function CardTitle({ title, sub, right }: { title: string; sub?: string; right?: React.ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
-      <div>
-        <h3 className="text-sm font-semibold text-gray-100">{title}</h3>
-        {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
-      </div>
-      {right}
-    </div>
-  );
-}
-
-function Segmented({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: [string, string][] }) {
-  return (
-    <div className="inline-flex min-w-0 max-w-full p-0.5 rounded-lg bg-gray-950 border border-gray-800 overflow-x-auto [scrollbar-width:none]">
-      {options.map(([k, l]) => (
-        <button key={k} onClick={() => onChange(k)}
-          className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${value === k ? "bg-gray-800 text-gray-50" : "text-gray-400 hover:text-gray-200"}`}>
-          {l}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Delta({ now, prev, lowerIsBetter }: { now: number; prev: number; lowerIsBetter?: boolean }) {
-  if (!prev && !now) return null;
-  if (!prev) return <span className="text-[11px] font-medium text-gray-400">New</span>;
-  const pct = Math.round(((now - prev) / prev) * 100);
-  if (pct === 0) return <span className="text-[11px] font-medium text-gray-500">0%</span>;
-  const up = pct > 0;
-  const good = lowerIsBetter ? !up : up;
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${good ? "text-[#0ca30c]" : "text-[#e66767]"}`}
-      title={`${up ? "Up" : "Down"} ${Math.abs(pct)}% vs the previous period`}>
-      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d={up ? "M7 14l5-5 5 5" : "M7 10l5 5 5-5"} />
-      </svg>
-      {Math.abs(pct)}%
-    </span>
-  );
-}
-
-function Stat({ label, value, now, prev, foot, active, onClick, lowerIsBetter, live }: {
-  label: string; value: string; now?: number; prev?: number; foot?: string; active?: boolean;
-  onClick?: () => void; lowerIsBetter?: boolean; live?: boolean;
-}) {
-  const Tag = onClick ? "button" : "div";
-  return (
-    <Tag onClick={onClick}
-      className={`text-left rounded-2xl border p-4 transition-colors ${active
-        ? "border-blue-500/60 bg-blue-500/[0.07] ring-1 ring-blue-500/30"
-        : "border-gray-800/80 bg-gray-900/40"} ${onClick ? "hover:border-gray-700 cursor-pointer" : ""}`}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
-          {live && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-          {label}
-        </p>
-        {now !== undefined && prev !== undefined && <Delta now={now} prev={prev} lowerIsBetter={lowerIsBetter} />}
-      </div>
-      <p className="mt-1.5 text-2xl font-semibold tracking-tight text-gray-50">{value}</p>
-      {foot && <p className="mt-1 text-[11px] text-gray-500 truncate">{foot}</p>}
-    </Tag>
-  );
-}
 
 type Tab = {
   key: string; label: string; filter: string; rows: Row[]; none?: string; mono?: boolean;
@@ -781,6 +721,8 @@ function DocumentsCard({ docs }: { docs: Docs }) {
                   <th className="text-left font-semibold pb-2">Document</th>
                   <th className="text-right font-semibold pb-2 px-2">Views</th>
                   <th className="text-right font-semibold pb-2 px-2">Readers</th>
+                  <th className="text-right font-semibold pb-2 px-2" title="Average active reading time">Read time</th>
+                  <th className="text-right font-semibold pb-2 px-2" title="Readers who reached the end">Finished</th>
                   <th className="text-left font-semibold pb-2 pl-3">Came from</th>
                 </tr>
               </thead>
@@ -797,6 +739,8 @@ function DocumentsCard({ docs }: { docs: Docs }) {
                     </td>
                     <td className="py-2 px-2 text-right tabular-nums font-semibold text-gray-100">{compact(d.views)}</td>
                     <td className="py-2 px-2 text-right tabular-nums text-gray-400">{compact(d.visitors)}</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-gray-300">{d.reads ? duration(d.avg_seconds) : <span className="text-gray-600">—</span>}</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-gray-300">{d.reads ? `${Math.round(d.finished)}%` : <span className="text-gray-600">—</span>}</td>
                     <td className="py-2 pl-3">
                       <div className="flex flex-wrap gap-1">
                         {d.referrers.length ? d.referrers.slice(0, 3).map((r) => (
