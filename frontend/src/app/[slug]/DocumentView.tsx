@@ -20,6 +20,7 @@ import VSCodeIcon from "@/components/VSCodeIcon";
 import ArtifactView from "./ArtifactView";
 import ShareDialog from "@/components/access/ShareDialog";
 import { track } from "@/lib/track";
+import { useReadDepth } from "@/lib/readDepth";
 
 type ViewMode = "write" | "split" | "preview";
 
@@ -605,6 +606,11 @@ export default function DocumentView({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const writeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  // How far readers get and how long they read (lib/readDepth.ts). Only while
+  // the document is actually on screen: not locked, not being edited.
+  const readRef = useRef<HTMLDivElement>(null);
+  useReadDepth(slug, readRef, readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked));
 
   // Fire a single view beacon from the browser so the real visitor IP (not
   // Vercel's SSR server) drives the view count + geography.
@@ -1695,7 +1701,7 @@ export default function DocumentView({
         >
           {/* Full-bleed means we supply the reading measure ourselves; edge-to-
               edge prose on a wide monitor is worse than the box it replaced. */}
-          <div className={showImmersive ? "max-w-3xl mx-auto px-5 sm:px-8 py-10 sm:py-14 print:max-w-none print:p-0" : ""}>
+          <div ref={readRef} className={showImmersive ? "max-w-3xl mx-auto px-5 sm:px-8 py-10 sm:py-14 print:max-w-none print:p-0" : ""}>
             {/* The title lives in the hidden chrome, and a document whose
                 markdown doesn't open with a heading would otherwise lose it. */}
             {readable && showImmersive && displayTitle && !showRaw && !opensWithOwnTitle(displayContent, displayTitle) && (

@@ -11,6 +11,7 @@ numbers on screen always describe the same slice.
 from __future__ import annotations
 
 import json
+from bisect import bisect_right
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
@@ -21,7 +22,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.routers.admin import get_db, require_admin
-from app.services.analytics import clean_referrer
+from app.services.analytics import clean_referrer, reading_stats
+from app.services.traffic import parse_ua
 
 router = APIRouter(prefix="/api/v1/admin/analytics", tags=["admin"])
 
@@ -333,9 +335,17 @@ async def top_documents(
     ]):
         refs[r["_id"]["d"]].append({"referrer": r["_id"]["r"], "views": r["n"]})
 
+    reads: dict[str, list] = defaultdict(list)
+    async for e in db["events"].find(
+        {"type": "read", "doc_id": {"$in": [r["_id"] for r in rows]}, "ts": {"$gte": w.since, "$lt": w.until}},
+        {"doc_id": 1, "depth": 1, "seconds": 1},
+    ):
+        reads[e["doc_id"]].append(e)
+
     out = []
     for r in rows:
         d = docs.get(r["_id"], {})
+        rs = reading_stats(reads.get(r["_id"], []))
         hosts: dict[str, int] = defaultdict(int)
         for ref in refs.get(r["_id"], []):
             c = clean_referrer(ref["referrer"])
@@ -350,6 +360,9 @@ async def top_documents(
             "views": r["views"],
             "visitors": r["visitors"],
             "referrers": sorted(({"host": h, "views": n} for h, n in hosts.items()), key=lambda x: -x["views"])[:5],
+            "reads": rs["reads"],
+            "avg_seconds": rs["avg_seconds"],
+            "finished": rs["finished"],
         })
 
     # All document-view referrers in the window, by host.
@@ -536,3 +549,220 @@ async def retention(
             cells.append({"n": n, "pct": round(100 * n / size, 1) if size else 0})
         rows.append({"week": iso((week0 + timedelta(weeks=c)).astimezone(timezone.utc)), "size": size, "cells": cells})
     return {"cohorts": rows}
+
+
+def _bucket_index(w: Window, buckets: list[datetime], d: datetime) -> int:
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=timezone.utc)
+    return max(0, bisect_right(buckets, d) - 1)
+
+
+def _median(xs: list[float]) -> float:
+    xs = sorted(xs)
+    return xs[len(xs) // 2] if xs else 0
+
+
+# ── Growth loop ───────────────────────────────────────────────────────────────
+
+CREATE_EVENTS = ("doc_published", "artifact_uploaded", "builder_published")
+ARRIVALS = {
+    "shared_doc": "A shared document",
+    "shared_files": "A shared file link",
+    "homepage": "The homepage",
+    "other": "Another page",
+}
+
+
+def _arrival(entry: str | None) -> str:
+    if entry in ("/[slug]", "/[workspace-doc]", "/h/[workspace-doc]"):
+        return "shared_doc"
+    if entry == "/share/[id]":
+        return "shared_files"
+    if entry == "/":
+        return "homepage"
+    return "other"
+
+
+@router.get("/growth")
+async def growth(
+    range_: str = Query("30d", alias="range"),
+    start: str | None = None,
+    end: str | None = None,
+    tz: str = "UTC",
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Does Markdrop spread itself? Of the people who first arrived in the
+    window, grouped by what they arrived on: how many went on to publish
+    something, how many did so in that first session, and how long it took.
+    A shared document or file link is someone else's work reaching a new
+    person — creators who arrived that way are the loop working."""
+    w = Window(range_, start, end, tz)
+    first_seen = {v["_id"]: v["first_seen"] async for v in db["traffic_visitors"].find(
+        {"first_seen": {"$gte": w.since, "$lt": w.until}}, {"first_seen": 1})}
+    vids = list(first_seen)
+
+    first_session: dict[str, dict] = {}
+    async for sess in db["traffic_sessions"].find(
+        {"vid": {"$in": vids}}, {"vid": 1, "started_at": 1, "entry_path": 1},
+    ).sort("started_at", 1):
+        first_session.setdefault(sess["vid"], sess)
+
+    first_create: dict[str, dict] = {}
+    async for e in db["traffic_events"].find(
+        {"vid": {"$in": vids}, "name": {"$in": list(CREATE_EVENTS)}}, {"vid": 1, "ts": 1, "sid": 1, "name": 1},
+    ).sort("ts", 1):
+        first_create.setdefault(e["vid"], e)
+
+    groups = {k: {"key": k, "label": v, "visitors": 0, "creators": 0, "first_session": 0} for k, v in ARRIVALS.items()}
+    buckets = w.buckets()
+    series = [{"t": iso(b), "loop": 0, "other": 0} for b in buckets]
+    delays: list[float] = []
+    for vid, fs in first_seen.items():
+        sess = first_session.get(vid)
+        g = groups[_arrival(sess.get("entry_path") if sess else None)]
+        g["visitors"] += 1
+        c = first_create.get(vid)
+        if not c:
+            continue
+        g["creators"] += 1
+        if sess and c.get("sid") == sess["_id"]:
+            g["first_session"] += 1
+        ts, f = c["ts"], fs
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if f.tzinfo is None:
+            f = f.replace(tzinfo=timezone.utc)
+        delays.append(max(0.0, (ts - f).total_seconds()))
+        if buckets:
+            series[_bucket_index(w, buckets, ts)]["loop" if g["key"] in ("shared_doc", "shared_files") else "other"] += 1
+
+    for g in groups.values():
+        g["conversion"] = round(100 * g["creators"] / g["visitors"], 1) if g["visitors"] else 0
+        g["activation"] = round(100 * g["first_session"] / g["visitors"], 1) if g["visitors"] else 0
+    visitors = len(first_seen)
+    creators = sum(g["creators"] for g in groups.values())
+    via_loop = groups["shared_doc"]["creators"] + groups["shared_files"]["creators"]
+    return {
+        "new_visitors": visitors,
+        "creators": creators,
+        "conversion": round(100 * creators / visitors, 1) if visitors else 0,
+        "activation": round(100 * sum(g["first_session"] for g in groups.values()) / visitors, 1) if visitors else 0,
+        "median_to_create_s": round(_median(delays)),
+        "loop_share": round(100 * via_loop / creators, 1) if creators else 0,
+        "groups": list(groups.values()),
+        "series": series,
+        "unit": w.unit,
+    }
+
+
+# ── File-share health ─────────────────────────────────────────────────────────
+
+def _route_label(route: dict | None) -> str:
+    if not route:
+        return "Unknown"
+    if route.get("local") == "relay" or route.get("remote") == "relay":
+        return f"Relayed · {(route.get('relay_protocol') or 'udp').upper()}"
+    if route.get("local") == "host" and route.get("remote") == "host":
+        return "Direct · same network"
+    return "Direct · over the internet"
+
+
+@router.get("/shares")
+async def shares(
+    range_: str = Query("30d", alias="range"),
+    start: str | None = None,
+    end: str | None = None,
+    tz: str = "UTC",
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Peer-to-peer file sharing, seen from the network: does it connect, by
+    which route, how fast, how much, and — for relayed bytes — what it costs."""
+    w = Window(range_, start, end, tz)
+    window = {"ts": {"$gte": w.since, "$lt": w.until}}
+
+    rooms: dict[str, dict] = {}
+    async for d in db["share_diagnostics"].find(window).sort("ts", 1):
+        r = rooms.setdefault(d["room_id"], {"ts": d["ts"], "ok": False, "relay": False, "stun": False,
+                                            "timeout": False, "connect_ms": None, "rtt": None,
+                                            "route": None, "browsers": set()})
+        if (d.get("local_candidates") or {}).get("srflx"):
+            r["stun"] = True
+        r["browsers"].add(parse_ua(d.get("user_agent") or "")["browser"])
+        if d.get("outcome") == "connected":
+            r["ok"] = True
+            route = d.get("route") or {}
+            if route.get("local") == "relay" or route.get("remote") == "relay":
+                r["relay"] = True
+            r["route"] = r["route"] or route
+            ms = d.get("elapsed_ms")
+            r["connect_ms"] = ms if r["connect_ms"] is None else min(r["connect_ms"], ms)
+            if route.get("rtt_ms") is not None:
+                r["rtt"] = route["rtt_ms"]
+        elif d.get("outcome") == "timeout":
+            r["timeout"] = True
+
+    buckets = w.buckets()
+    series = [{"t": iso(b), "attempts": 0, "connected": 0, "relayed": 0} for b in buckets]
+    routes: dict[str, int] = defaultdict(int)
+    fail_browsers: dict[str, int] = defaultdict(int)
+    for r in rooms.values():
+        if buckets:
+            row = series[_bucket_index(w, buckets, r["ts"])]
+            row["attempts"] += 1
+            row["connected"] += r["ok"]
+            row["relayed"] += r["ok"] and r["relay"]
+        if r["ok"]:
+            routes[_route_label(r["route"])] += 1
+        else:
+            for b in r["browsers"]:
+                fail_browsers[b] += 1
+    n = len(rooms)
+    ok = sum(r["ok"] for r in rooms.values())
+
+    transfers = await db["share_transfers"].find(window).to_list(50_000)
+    def mbps(t):  # noqa: E306
+        return t["bytes"] / 1_048_576 / (t["ms"] / 1000)
+    direct = [mbps(t) for t in transfers if t.get("route") == "direct" and t["bytes"] >= 1_048_576]
+    relay = [mbps(t) for t in transfers if t.get("route") == "relay" and t["bytes"] >= 1_048_576]
+    relay_bytes = sum(t["bytes"] for t in transfers if t.get("route") == "relay")
+
+    sizes = {"< 1 MB": 0, "1–10 MB": 0, "10–100 MB": 0, "100 MB–1 GB": 0, "> 1 GB": 0}
+    counts = {"1 file": 0, "2–5 files": 0, "6–20 files": 0, "21+ files": 0}
+    shares_n = 0
+    async for e in db["share_events"].find(window, {"file_size": 1, "file_count": 1}):
+        shares_n += 1
+        b = e.get("file_size") or 0
+        sizes["< 1 MB" if b < 2**20 else "1–10 MB" if b < 10 * 2**20 else "10–100 MB" if b < 100 * 2**20
+              else "100 MB–1 GB" if b < 2**30 else "> 1 GB"] += 1
+        c = e.get("file_count") or 1
+        counts["1 file" if c == 1 else "2–5 files" if c <= 5 else "6–20 files" if c <= 20 else "21+ files"] += 1
+
+    return {
+        "unit": w.unit,
+        "attempts": n,
+        "connected": ok,
+        "success_rate": round(100 * ok / n, 1) if n else 0,
+        "relayed_pct": round(100 * sum(r["ok"] and r["relay"] for r in rooms.values()) / ok, 1) if ok else 0,
+        "failed_no_stun": sum(1 for r in rooms.values() if not r["ok"] and not r["stun"]),
+        "failed_with_stun": sum(1 for r in rooms.values() if not r["ok"] and r["stun"]),
+        "median_connect_ms": round(_median([r["connect_ms"] for r in rooms.values() if r["connect_ms"] is not None])),
+        "median_rtt_ms": round(_median([r["rtt"] for r in rooms.values() if r["rtt"] is not None])),
+        "series": series,
+        "routes": sorted(({"key": k, "n": v} for k, v in routes.items()), key=lambda x: -x["n"]),
+        "fail_browsers": sorted(({"key": k, "n": v} for k, v in fail_browsers.items()), key=lambda x: -x["n"])[:6],
+        "transfers": {
+            "count": len(transfers),
+            "files": sum(t["files"] for t in transfers),
+            "bytes": sum(t["bytes"] for t in transfers),
+            "relay_bytes": relay_bytes,
+            "direct_mbps": round(_median(direct), 1),
+            "relay_mbps": round(_median(relay), 1),
+            "direct_n": len(direct),
+            "relay_n": len(relay),
+        },
+        "shares": shares_n,
+        "sizes": [{"key": k, "n": v} for k, v in sizes.items()],
+        "file_counts": [{"key": k, "n": v} for k, v in counts.items()],
+    }
