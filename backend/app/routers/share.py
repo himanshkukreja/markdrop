@@ -325,3 +325,29 @@ async def report_diagnostic(request: Request, body: ShareDiagnostic) -> None:
         )
     except Exception:
         pass  # telemetry must never surface as an error to the person sharing
+
+
+# ── Transfer speed ────────────────────────────────────────────────────────────
+# Reported by the recipient once a batch of files has landed: how many bytes,
+# how long, and whether the bytes went direct or through the TURN relay. It is
+# the number that says whether "relayed" is fast enough, and what relaying
+# costs (Cloudflare bills relayed bytes).
+
+class ShareTransfer(BaseModel):
+    room_id: str = Field(..., pattern=_ROOM_ID.pattern)
+    bytes: int = Field(..., ge=0, le=10**13)
+    ms: int = Field(..., ge=1, le=24 * 3600 * 1000)
+    files: int = Field(..., ge=1, le=100_000)
+    route: Literal["direct", "relay"] | None = None
+    protocol: int = Field(1, ge=1, le=99)
+
+
+@router.post("/api/v1/share/transfer", status_code=204)
+@limiter.limit("60/minute")
+async def report_transfer(request: Request, body: ShareTransfer) -> None:
+    try:
+        await get_database()["share_transfers"].insert_one(
+            {**body.model_dump(), "ts": datetime.now(timezone.utc)}
+        )
+    except Exception:
+        pass

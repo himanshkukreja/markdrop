@@ -60,6 +60,9 @@ export class ShareReceiver {
 
   private current: { file: ReceivedFile; chunks: ArrayBuffer[] } | null = null;
   private lastRx = 0;
+  /** The files asked for together, timed so the sender-side admin can see real
+   *  transfer speeds (direct vs relayed). */
+  private batch: { ids: Set<string>; t0: number } | null = null;
   private probeTimer: ReturnType<typeof setTimeout> | null = null;
   private graceTimer: ReturnType<typeof setTimeout> | null = null;
   private slowTimer: ReturnType<typeof setTimeout> | null = null;
@@ -118,9 +121,11 @@ export class ShareReceiver {
       (f) => ids.includes(f.id) && (f.status === "available" || f.status === "failed"),
     );
     if (!wanted.length) return;
+    if (!this.batch) this.batch = { ids: new Set(), t0: performance.now() };
     for (const f of wanted) {
       f.status = "requested";
       f.received = 0;
+      this.batch.ids.add(f.id);
     }
     if (this.protocol === 1) this.channel!.send(JSON.stringify({ type: "start" }));
     else this.channel!.send(JSON.stringify({ type: "request", ids: wanted.map((f) => f.id) }));
@@ -257,6 +262,7 @@ export class ShareReceiver {
       this.current.file.status = "failed";
       this.current = null;
     }
+    this.batch = null; // a broken connection's timing would mislead
     // Requested-but-not-started files can be asked for again.
     for (const f of this.files) if (f.status === "requested") f.status = "available";
   }
@@ -355,6 +361,7 @@ export class ShareReceiver {
     if (f.received !== f.size) {
       f.status = "failed";
       this.emit();
+      this.maybeReportBatch();
       return;
     }
     f.blob = new Blob(cur.chunks, { type: f.mime || "application/octet-stream" });
@@ -362,6 +369,30 @@ export class ShareReceiver {
     if (ack && this.channelOpen) this.channel!.send(JSON.stringify({ type: "ack", id: f.id }));
     this.emit();
     this.opts.onFileReady({ ...f });
+    this.maybeReportBatch();
+  }
+
+  private maybeReportBatch() {
+    const b = this.batch;
+    if (!b) return;
+    const files = this.files.filter((f) => b.ids.has(f.id));
+    if (files.some((f) => f.status === "requested" || f.status === "receiving")) return;
+    this.batch = null;
+    const done = files.filter((f) => f.status === "done");
+    const bytes = done.reduce((n, f) => n + f.size, 0);
+    const ms = Math.max(1, Math.round(performance.now() - b.t0));
+    if (!done.length) return;
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "https://api.markdrop.in";
+    try {
+      void fetch(`${apiBase}/api/v1/share/transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({ room_id: this.roomId, bytes, ms, files: done.length, route: this.route, protocol: this.protocol }),
+      }).catch(() => {});
+    } catch {
+      /* telemetry is best-effort */
+    }
   }
 
   // ── State ─────────────────────────────────────────────────────────────────
