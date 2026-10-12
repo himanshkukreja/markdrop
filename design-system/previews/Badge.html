@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<title>Markdrop · Badge</title>
+<link rel="stylesheet" href="../tokens/tokens.css">
+<link rel="stylesheet" href="../tokens/type-classes.css">
+<link rel="stylesheet" href="../bundle/markdrop.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "dark";</script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../bundle/markdrop.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;min-height:100vh}.pad{padding:24px}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.col{display:flex;flex-direction:column;gap:16px}.stack{display:grid;gap:16px}</style></head>
+<body class="md-root">
+<div id="root"></div>
+<script>
+const h = React.createElement, M = window.Markdrop, F = React.Fragment;
+const mount = (el) => ReactDOM.createRoot(document.getElementById("root")).render(el);
+const noop = () => {};
+const T=["neutral","info","success","warning","danger"];
+mount(h("div",{className:"pad col"},
+  h("div",{className:"row"}, T.map(t=>h(M.Badge,{key:t,tone:t},t))),
+  h("div",{className:"row"}, T.map(t=>h(M.Badge,{key:t,tone:t,variant:"solid"},t))),
+  h("div",{className:"row"}, h(M.Badge,{tone:"success",dot:true},"Live"), h(M.Badge,{tone:"warning",icon:"clock"},"Expires in 2 days"), h(M.Badge,{tone:"info",icon:"lock"},"Encrypted"), h(M.Badge,{variant:"outline"},"Draft"), h(M.Badge,{tone:"warning",size:"sm",upper:true},"New"), h(M.Badge,{tone:"info",size:"sm",upper:true},"Beta"))));
+</script>
+</body>
+</html>

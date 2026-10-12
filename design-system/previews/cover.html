@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<title>Markdrop · Cover</title>
+<link rel="stylesheet" href="../tokens/tokens.css">
+<link rel="stylesheet" href="../tokens/type-classes.css">
+<link rel="stylesheet" href="../bundle/markdrop.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "dark";</script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../bundle/markdrop.js"></script>
+
+<style>
+  body { margin: 0; background: var(--bg); font-family: var(--font-sans); }
+  .cover { position: relative; width: 960px; height: 288px; overflow: hidden; }
+  .cover svg { position: absolute; inset: 0; }
+  .accent { fill: var(--accent); } .tint { fill: var(--blue-300); } .ink { fill: var(--surface-active); } .dot { fill: var(--logo-dot); } .drop { fill: var(--logo-drop); }
+  .r-xl { rx: var(--radius-xl); } .r-pill { rx: var(--space-2); }
+  .name { position: absolute; left: 48px; bottom: 44px; margin: 0; font-size: 88px; line-height: .95; font-weight: 800; letter-spacing: -0.035em; color: var(--text); max-width: 440px; }
+  .name em { font-style: normal; color: var(--accent-text); }
+  .tag { position: absolute; left: 50px; bottom: 22px; margin: 0; font-size: 13px; line-height: 16px; color: var(--text-muted); max-width: 440px; }
+</style></head>
+<body>
+<div class="cover">
+<!--
+  blocks: accent slab 160×288 (space-10 ×4 wide, full height, bleeds top+bottom) at x=560; blue-300 band 224×112 (space-14×space-7… from the 4px grid: 56×28 steps) bleeding off the right at y=48; surface-active block 128×112 at y=176 — the three the brand is known by: the one blue, its tint, and the neutral ground; the logo dot as the only small accent.
+  arrangement: one tall slab with two satellites stepping down to the right, a staggered stack like a page and its drop.
+  pattern: discs and pills from radius-full — the "drop" is the brand's motif (the logo's dot, the loader's falling drop): a column of 7 drops descending the slab in blue-300, three pills of blue-600 crossing the tint band; chosen over a dot grid because the README leads with the drop, not with precision.
+  scales: disc diameters space-4/6/8 (16/24/32), pill heights space-4, gaps space-6, corners radius-xl on blocks; pills are 16px tall so rx = space-2 (half the short side), discs are circles.
+-->
+<svg viewBox="0 0 960 288" width="960" height="288" aria-hidden>
+  <rect class="accent r-xl" x="560" y="-24" width="160" height="336" />
+  <rect class="tint r-xl" x="736" y="48" width="260" height="112" />
+  <rect class="ink r-xl" x="736" y="176" width="128" height="112" />
+  <!-- the drops: a column descending the slab -->
+  <circle class="tint" cx="640" cy="28" r="8" />
+  <circle class="tint" cx="640" cy="68" r="8" />
+  <circle class="tint" cx="640" cy="112" r="12" />
+  <circle class="tint" cx="640" cy="164" r="12" />
+  <circle class="tint" cx="640" cy="224" r="16" />
+  <circle class="tint" cx="608" cy="264" r="8" />
+  <circle class="tint" cx="672" cy="264" r="8" />
+  <!-- pills crossing the tint band -->
+  <rect class="accent r-pill" x="768" y="72" width="96" height="16" />
+  <rect class="accent r-pill" x="768" y="104" width="160" height="16" />
+  <rect class="accent r-pill" x="768" y="136" width="64" height="16" />
+  <!-- one drop resting on the neutral block -->
+  <circle class="dot" cx="800" cy="232" r="16" />
+</svg>
+<h1 class="name">mark<em>drop</em></h1>
+<p class="tag">No login. No friction. Just links.</p>
+</div>
+</body>
+</html>

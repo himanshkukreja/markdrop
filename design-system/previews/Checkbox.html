@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<title>Markdrop · Checkbox</title>
+<link rel="stylesheet" href="../tokens/tokens.css">
+<link rel="stylesheet" href="../tokens/type-classes.css">
+<link rel="stylesheet" href="../bundle/markdrop.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "dark";</script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../bundle/markdrop.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;min-height:100vh}.pad{padding:24px}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.col{display:flex;flex-direction:column;gap:16px}.stack{display:grid;gap:16px}</style></head>
+<body class="md-root">
+<div id="root"></div>
+<script>
+const h = React.createElement, M = window.Markdrop, F = React.Fragment;
+const mount = (el) => ReactDOM.createRoot(document.getElementById("root")).render(el);
+const noop = () => {};
+function D(){ const [v,setV]=React.useState([true,false,true]); const all=v.every(Boolean), some=v.some(Boolean);
+  return h("div",{className:"pad col"},
+    h(M.Checkbox,{label:"Select all",checked:all,indeterminate:some&&!all,onChange:e=>setV([e.target.checked,e.target.checked,e.target.checked])}),
+    h("div",{className:"col",style:{paddingLeft:28,gap:10}},
+      h(M.Checkbox,{label:"End-to-end encrypt",description:"The key stays in the link; we store ciphertext only.",checked:v[0],onChange:e=>setV([e.target.checked,v[1],v[2]])}),
+      h(M.Checkbox,{label:"Allow comments",checked:v[1],onChange:e=>setV([v[0],e.target.checked,v[2]])}),
+      h(M.Checkbox,{label:"Show view counts",checked:v[2],onChange:e=>setV([v[0],v[1],e.target.checked])}),
+      h(M.Checkbox,{label:"Disabled option",disabled:true}))); }
+mount(h(D));
+</script>
+</body>
+</html>

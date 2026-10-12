@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<title>Markdrop · Dashboard</title>
+<link rel="stylesheet" href="../tokens/tokens.css">
+<link rel="stylesheet" href="../tokens/type-classes.css">
+<link rel="stylesheet" href="../bundle/markdrop.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "dark";</script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../bundle/markdrop.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;min-height:100vh}.pad{padding:24px}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.col{display:flex;flex-direction:column;gap:16px}.stack{display:grid;gap:16px}</style></head>
+<body class="md-root">
+<div id="root"></div>
+<script>
+const h = React.createElement, M = window.Markdrop, F = React.Fragment;
+const mount = (el) => ReactDOM.createRoot(document.getElementById("root")).render(el);
+const noop = () => {};
+const acts=[{label:"Copy link",icon:"copy"},{label:"Rename",icon:"edit"},{label:"Delete",icon:"trash",danger:true,separated:true}];
+function D(){ const [tab,setTab]=React.useState("all"); const [t,setT]=React.useState(document.documentElement.dataset.theme||"dark");
+  return h("div",{style:{minHeight:560,background:"var(--bg)"}},
+    h(M.AppHeader,{theme:t,onToggleTheme:()=>{const n=t==="dark"?"light":"dark";setT(n);document.documentElement.dataset.theme=n;},nav:[{label:"Dashboard",href:"#",current:true},{label:"Library",href:"#"}],user:{name:"Himanshu Kukreja"}}),
+    h("main",{style:{maxWidth:880,margin:"0 auto",padding:"24px"}},
+      h(M.Breadcrumb,{items:[{label:"Acme Docs",href:"#"},{label:"Engineering"}]}),
+      h("div",{style:{display:"flex",alignItems:"flex-end",justifyContent:"space-between",margin:"12px 0 20px"}}, h("div",null,h("h1",{className:"h1",style:{margin:0}},"Engineering"),h("p",{style:{margin:"4px 0 0",fontSize:14,color:"var(--text-muted)"}},"24 documents · 5 artifacts · shared with 12 people")), h("div",{className:"row"},h(M.Input,{prefix:"search",placeholder:"Search…",size:"sm",style:{width:220}}),h(M.Button,{size:"sm",variant:"secondary",iconLeft:"folder"},"New folder"))),
+      h(M.Tabs,{variant:"pill",value:tab,onChange:setTab,"aria-label":"Filter",items:[{value:"all",label:"All",count:29},{value:"docs",label:"Documents",count:24},{value:"art",label:"Artifacts",count:5}]}),
+      h("div",{className:"stack",style:{gap:8,marginTop:16}},
+        h(M.DocumentRow,{title:"Q3 roadmap",meta:"markdrop.in/q3-roadmap · 142 views · 2 minutes ago",badges:h(M.Badge,{tone:"success",dot:true,size:"sm"},"Live"),actions:acts}),
+        h(M.DocumentRow,{title:"Release notes v2.4",meta:"Encrypted · 1,204 views · 3 days ago",badges:h(M.Badge,{tone:"info",icon:"lock",size:"sm"},"E2E"),actions:acts}),
+        h(M.DocumentRow,{title:"Onboarding deck.pdf",meta:"Artifact · expires in 2 days",badges:h(M.Badge,{tone:"warning",size:"sm"},"Expiring"),actions:acts})),
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16}}, h("span",{style:{fontSize:12,color:"var(--text-muted)"}},"Showing 3 of 29"), h(M.Pagination,{page:1,pageCount:10,onChange:noop})))); }
+mount(h(D));
+</script>
+</body>
+</html>

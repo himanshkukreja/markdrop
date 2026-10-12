@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<title>Markdrop · Table</title>
+<link rel="stylesheet" href="../tokens/tokens.css">
+<link rel="stylesheet" href="../tokens/type-classes.css">
+<link rel="stylesheet" href="../bundle/markdrop.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "dark";</script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../bundle/markdrop.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;min-height:100vh}.pad{padding:24px}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.col{display:flex;flex-direction:column;gap:16px}.stack{display:grid;gap:16px}</style></head>
+<body class="md-root">
+<div id="root"></div>
+<script>
+const h = React.createElement, M = window.Markdrop, F = React.Fragment;
+const mount = (el) => ReactDOM.createRoot(document.getElementById("root")).render(el);
+const noop = () => {};
+const rows=[{id:"1",title:"Q3 roadmap",kind:"Document",views:142,status:"live",updated:"2 min ago"},{id:"2",title:"Design assets.zip",kind:"Artifact",views:18,status:"expiring",updated:"Yesterday"},{id:"3",title:"Release notes v2.4",kind:"Document",views:1204,status:"live",updated:"3 days ago"},{id:"4",title:"Onboarding deck.pdf",kind:"Artifact",views:0,status:"draft",updated:"Last week"}];
+const tone={live:"success",expiring:"warning",draft:"neutral"};
+mount(h("div",{className:"pad"}, h(M.Table,{rowKey:r=>r.id,rows,selected:r=>r.id==="3",columns:[
+  {key:"title",header:"Title",primary:true,render:r=>h("span",{style:{display:"inline-flex",alignItems:"center",gap:8}},h(M.FileIcon,{name:r.kind==="Document"?"x.md":r.title,mime:""}),r.title)},
+  {key:"kind",header:"Type"},{key:"status",header:"Status",render:r=>h(M.Badge,{tone:tone[r.status],dot:true},r.status)},
+  {key:"views",header:"Views",align:"right"},{key:"updated",header:"Updated"},
+  {key:"a",header:"",render:r=>h(M.RowMenu,{items:[{label:"Open",icon:"external"},{label:"Delete",icon:"trash",danger:true,separated:true}]})}]})));
+</script>
+</body>
+</html>
