@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<title>Markdrop · Dialog</title>
+<link rel="stylesheet" href="../tokens/tokens.css">
+<link rel="stylesheet" href="../tokens/type-classes.css">
+<link rel="stylesheet" href="../bundle/markdrop.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "dark";</script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../bundle/markdrop.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;min-height:100vh}.pad{padding:24px}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.col{display:flex;flex-direction:column;gap:16px}.stack{display:grid;gap:16px}</style></head>
+<body class="md-root">
+<div id="root"></div>
+<script>
+const h = React.createElement, M = window.Markdrop, F = React.Fragment;
+const mount = (el) => ReactDOM.createRoot(document.getElementById("root")).render(el);
+const noop = () => {};
+function D(){ const [o,setO]=React.useState(true);
+  return h("div",{className:"pad"}, h(M.Button,{onClick:()=>setO(true)},"Open dialog"),
+    h(M.Dialog,{open:o,onClose:()=>setO(false),title:"Rotate the encryption key?",description:"The current link will stop opening this document.",footer:h(F,null,h(M.Button,{variant:"ghost",onClick:()=>setO(false)},"Cancel"),h(M.Button,{variant:"danger",onClick:()=>setO(false)},"Rotate key"))},
+      h("p",{style:{margin:0}},"Anyone holding the old link will see an access error. You'll get a new link to share, and the publishing browser remembers the new key."))); }
+mount(h(D));
+</script>
+</body>
+</html>

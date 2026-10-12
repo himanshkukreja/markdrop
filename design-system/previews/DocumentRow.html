@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<title>Markdrop · DocumentRow</title>
+<link rel="stylesheet" href="../tokens/tokens.css">
+<link rel="stylesheet" href="../tokens/type-classes.css">
+<link rel="stylesheet" href="../bundle/markdrop.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "dark";</script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../bundle/markdrop.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;min-height:100vh}.pad{padding:24px}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.col{display:flex;flex-direction:column;gap:16px}.stack{display:grid;gap:16px}</style></head>
+<body class="md-root">
+<div id="root"></div>
+<script>
+const h = React.createElement, M = window.Markdrop, F = React.Fragment;
+const mount = (el) => ReactDOM.createRoot(document.getElementById("root")).render(el);
+const noop = () => {};
+const acts=[{label:"Copy link",icon:"copy"},{label:"Rename",icon:"edit"},{label:"Delete",icon:"trash",danger:true,separated:true}];
+mount(h("div",{className:"pad stack",style:{gap:8,maxWidth:720}},
+  h(M.DocumentRow,{title:"Q3 roadmap",meta:"markdrop.in/q3-roadmap · 142 views · updated 2 minutes ago",badges:h(M.Badge,{tone:"success",dot:true,size:"sm"},"Live"),actions:acts}),
+  h(M.DocumentRow,{title:"Release notes v2.4",meta:"Encrypted · 1,204 views · 3 days ago",badges:h(M.Badge,{tone:"info",icon:"lock",size:"sm"},"E2E"),actions:acts}),
+  h(M.DocumentRow,{title:"Onboarding deck.pdf",icon:"doc",meta:"Artifact · expires in 2 days",badges:h(M.Badge,{tone:"warning",size:"sm"},"Expiring"),actions:acts})));
+</script>
+</body>
+</html>

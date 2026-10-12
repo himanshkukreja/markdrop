@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<title>Markdrop · Field</title>
+<link rel="stylesheet" href="../tokens/tokens.css">
+<link rel="stylesheet" href="../tokens/type-classes.css">
+<link rel="stylesheet" href="../bundle/markdrop.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "dark";</script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../bundle/markdrop.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;min-height:100vh}.pad{padding:24px}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.col{display:flex;flex-direction:column;gap:16px}.stack{display:grid;gap:16px}</style></head>
+<body class="md-root">
+<div id="root"></div>
+<script>
+const h = React.createElement, M = window.Markdrop, F = React.Fragment;
+const mount = (el) => ReactDOM.createRoot(document.getElementById("root")).render(el);
+const noop = () => {};
+mount(h("div",{className:"pad stack",style:{maxWidth:420}},
+  h(M.Field,{label:"Custom slug",hint:"Letters, numbers and dashes. Shown in the link.",required:true}, h(M.Input,{prefix:"link",mono:true,placeholder:"release-notes"})),
+  h(M.Field,{label:"Password",error:"That password is already used by another document."}, h(M.Input,{type:"password",defaultValue:"hunter2"})),
+  h(M.Field,{label:"Expiry"}, h(M.Select,{options:[{value:"7d",label:"7 days"},{value:"30d",label:"30 days"}]}))));
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<title>Markdrop · MarkdownToolbar</title>
+<link rel="stylesheet" href="../tokens/tokens.css">
+<link rel="stylesheet" href="../tokens/type-classes.css">
+<link rel="stylesheet" href="../bundle/markdrop.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "dark";</script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../bundle/markdrop.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;min-height:100vh}.pad{padding:24px}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.col{display:flex;flex-direction:column;gap:16px}.stack{display:grid;gap:16px}</style></head>
+<body class="md-root">
+<div id="root"></div>
+<script>
+const h = React.createElement, M = window.Markdrop, F = React.Fragment;
+const mount = (el) => ReactDOM.createRoot(document.getElementById("root")).render(el);
+const noop = () => {};
+function D(){ const ref=React.useRef(null); const [v,setV]=React.useState("# Release notes\n\nSelect some text and press B.");
+  return h("div",{className:"pad"}, h("div",{style:{maxWidth:600,border:"1px solid var(--code-border)",borderRadius:12,overflow:"hidden",background:"var(--code-bg)"}},
+    h(M.MarkdownToolbar,{textareaRef:ref,onChange:setV}),
+    h("textarea",{ref,value:v,onChange:e=>setV(e.target.value),rows:5,className:"code",style:{width:"100%",padding:12,border:0,background:"transparent",color:"var(--text)",resize:"none",outline:"none"}}))); }
+mount(h(D));
+</script>
+</body>
+</html>

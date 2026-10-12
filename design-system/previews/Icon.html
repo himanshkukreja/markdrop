@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8">
+<title>Markdrop · Icon</title>
+<link rel="stylesheet" href="../tokens/tokens.css">
+<link rel="stylesheet" href="../tokens/type-classes.css">
+<link rel="stylesheet" href="../bundle/markdrop.css">
+<script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "dark";</script>
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../bundle/markdrop.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;min-height:100vh}.pad{padding:24px}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.col{display:flex;flex-direction:column;gap:16px}.stack{display:grid;gap:16px}</style></head>
+<body class="md-root">
+<div id="root"></div>
+<script>
+const h = React.createElement, M = window.Markdrop, F = React.Fragment;
+const mount = (el) => ReactDOM.createRoot(document.getElementById("root")).render(el);
+const noop = () => {};
+const names=Object.keys(M.ICONS||{});
+mount(h("div",{className:"pad",style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(88px,1fr))",gap:8}}, names.map(n=>h("div",{key:n,style:{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"8px 4px",borderRadius:8,background:"var(--surface)",border:"1px solid var(--border)"}}, h(M.Icon,{name:n,size:20,style:{color:"var(--text-secondary)"}}), h("span",{style:{fontSize:10,color:"var(--text-muted)",fontFamily:"var(--font-mono)"}},n)))));
+</script>
+</body>
+</html>
