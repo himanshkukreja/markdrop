@@ -3,6 +3,8 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/components/Toast";
+import { NextLinkProvider } from "@/components/theme/NextLinkProvider";
+import { StatusRegion } from "@/components/ui";
 import VercelInsights from "@/components/VercelInsights";
 import SiteTracker from "@/components/SiteTracker";
 import { themeScript } from "@/lib/themeScript";
@@ -62,10 +64,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             headers or the URL fragment (which carries E2E keys). See lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: themeScript() }} />
       </head>
-      <body className="min-h-dvh flex flex-col">
-        <AuthProvider>
-          <ToastProvider>{children}</ToastProvider>
-        </AuthProvider>
+      <body className="min-h-dvh flex flex-col bg-bg text-text">
+        {/* NextLinkProvider: design-system links use next/link for in-app hrefs. StatusRegion: the
+            one polite live region announce() writes to. Group layouts render the chrome. */}
+        <NextLinkProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <StatusRegion />
+              {children}
+            </ToastProvider>
+          </AuthProvider>
+        </NextLinkProvider>
         <VercelInsights />
         <SiteTracker />
       </body>

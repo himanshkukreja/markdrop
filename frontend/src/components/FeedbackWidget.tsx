@@ -1,50 +1,80 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Modal from "@/components/Modal";
+import { useEffect, useId, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { Button, Dialog, Field, Icon, IconButton, Input, Tabs, Textarea, announce } from "@/components/ui";
 import { submitFeedback, type FeedbackType } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
+/**
+ * Feedback (REVAMP_PLAN 7.19).
+ *
+ * - `FeedbackDialog`: the "Send feedback" dialog (Bug / Idea, message, optional email). Same API
+ *   call and payload as before: `submitFeedback({ type, message, email, pageUrl })`.
+ * - `FeedbackWidget`: mounts one dialog for the page, listens for `openFeedback()`, and on marketing
+ *   and tool pages shows a quiet 40px launcher bottom-right (`launcher={false}` in the app shell,
+ *   where the rail and the account menu carry "Send feedback" instead).
+ * - `openFeedback()`: opens the mounted widget's dialog. Returns false when no widget is mounted, so
+ *   the caller (account menu) can render its own `FeedbackDialog`.
+ */
+
+const OPEN_EVENT = "md:feedback";
+
+export function openFeedback(): boolean {
+  if (typeof window === "undefined") return false;
+  const ev = new Event(OPEN_EVENT, { cancelable: true });
+  window.dispatchEvent(ev);
+  return ev.defaultPrevented;
+}
+
+const NETWORK_ERROR = "Couldn't send — check your connection and try again.";
+
 type Phase = "form" | "sending" | "done";
 
-export default function FeedbackWidget() {
+export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
   const [type, setType] = useState<FeedbackType>("bug");
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
   const [phase, setPhase] = useState<Phase>("form");
   const [error, setError] = useState("");
+  const [fieldError, setFieldError] = useState("");
+  const messageRef = useRef<HTMLTextAreaElement>(null);
+  const doneRef = useRef<HTMLButtonElement>(null);
+  const ids = useId();
 
   // Prefill the email with the signed-in account (still editable).
   useEffect(() => {
-    if (user?.email) setEmail(user.email);
+    if (user?.email) setEmail((e) => e || user.email);
   }, [user]);
 
-  function openForm() {
+  // A fresh form on every open.
+  useEffect(() => {
+    if (!open) return;
     setPhase("form");
     setError("");
-    setOpen(true);
-  }
+    setFieldError("");
+  }, [open]);
 
   function close() {
-    setOpen(false);
-    // Reset shortly after the modal closes so the next open is clean.
-    setTimeout(() => {
-      setPhase("form");
+    onClose();
+    if (phase === "done") {
       setMessage("");
-      setError("");
       setType("bug");
-    }, 200);
+    }
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (phase === "sending") return;
     if (message.trim().length < 3) {
-      setError("Please add a little more detail.");
+      setFieldError("Add a little more detail so we can act on it.");
+      messageRef.current?.focus();
       return;
     }
     setPhase("sending");
     setError("");
+    setFieldError("");
     try {
       await submitFeedback({
         type,
@@ -53,130 +83,134 @@ export default function FeedbackWidget() {
         pageUrl: typeof window !== "undefined" ? window.location.pathname + window.location.search : undefined,
       });
       setPhase("done");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      announce("Thanks. We read every one.");
+      requestAnimationFrame(() => doneRef.current?.focus());
+    } catch (err) {
+      // The API's own 429 copy names the fix; anything else is treated as a connection problem.
+      const msg = err instanceof Error && /^Too many/.test(err.message) ? err.message : NETWORK_ERROR;
+      setError(msg);
       setPhase("form");
     }
   }
 
-  const seg = (t: FeedbackType, label: string, icon: React.ReactNode) => (
-    <button
-      type="button"
-      onClick={() => setType(t)}
-      className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-        type === t
-          ? "border-blue-500/60 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300"
-          : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600"
-      }`}
+  const done = phase === "done";
+
+  return (
+    <Dialog
+      open={open}
+      onClose={close}
+      title="Send feedback"
+      description={done ? undefined : "Tell us what broke or what you'd like Markdrop to do."}
+      initialFocus={done ? doneRef : messageRef}
+      dismissible={phase !== "sending"}
+      footer={
+        done ? (
+          <Button ref={doneRef} variant="primary" onClick={close}>Done</Button>
+        ) : (
+          <>
+            <Button variant="secondary" onClick={close} disabled={phase === "sending"}>Cancel</Button>
+            <Button variant="primary" type="submit" form={`${ids}-form`} loading={phase === "sending"}>
+              Send feedback
+            </Button>
+          </>
+        )
+      }
     >
-      {icon}
-      {label}
-    </button>
+      {done ? (
+        <div className="flex flex-col items-center gap-3 py-4 text-center" role="status">
+          <span className="grid size-12 place-items-center rounded-full bg-success-soft text-success" aria-hidden>
+            <Icon name="check" size={24} />
+          </span>
+          <p className="text-body-lg text-text">Thanks. We read every one.</p>
+        </div>
+      ) : (
+        <form id={`${ids}-form`} onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+          <Tabs
+            variant="pill"
+            aria-label="Kind of feedback"
+            value={type}
+            onChange={(v) => setType(v as FeedbackType)}
+            items={[
+              { value: "bug", label: "Bug", icon: "bug" },
+              { value: "feature", label: "Idea", icon: "sparkle" },
+            ]}
+          />
+          <Field label={type === "bug" ? "What went wrong?" : "What would you like Markdrop to do?"} error={fieldError || undefined}>
+            <Textarea
+              ref={messageRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={5}
+              maxLength={4000}
+              invalid={!!fieldError}
+              placeholder={type === "bug" ? "Steps to reproduce, and what you expected instead" : "Describe the idea and what it would help you do"}
+              className="resize-y"
+            />
+          </Field>
+          <Field label="Email (optional, so we can reply)">
+            <Input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+          </Field>
+          {error && (
+            <p role="alert" className="flex items-start gap-2 text-body text-danger">
+              <Icon name="alert" size={16} className="mt-0.5" />
+              <span>{error}</span>
+            </p>
+          )}
+        </form>
+      )}
+    </Dialog>
   );
+}
+
+/** Marks the launcher hidden while something it would sit on is open (a bottom sheet, immersive). */
+function useCovered(): boolean {
+  const [covered, setCovered] = useState(false);
+  useEffect(() => {
+    const check = () =>
+      setCovered(!!document.querySelector(".md-drawer--bottom, .md-immersive, [data-md-immersive], [data-md-sheet-open]"));
+    check();
+    const mo = new MutationObserver(check);
+    mo.observe(document.body, { childList: true });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-md-sheet-open", "data-md-immersive"] });
+    return () => mo.disconnect();
+  }, []);
+  return covered;
+}
+
+export default function FeedbackWidget({ launcher = true }: { launcher?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const pathname = usePathname() || "/";
+  const covered = useCovered();
+
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      e.preventDefault();
+      setOpen(true);
+    };
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_EVENT, onOpen);
+  }, []);
+
+  // Never over a document or a tenant page (the layouts that mount this already exclude them).
+  const hiddenRoute = pathname.startsWith("/h/");
+  const showLauncher = launcher && !hiddenRoute && !covered;
 
   return (
     <>
-      {/* Floating launcher — visible on every page, for anyone */}
-      <button
-        onClick={openForm}
-        title="Report a bug or request a feature"
-        aria-label="Send feedback"
-        className="no-print fixed bottom-4 right-4 z-[90] inline-flex items-center gap-2 rounded-full pl-3 pr-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-colors"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M21 12a8 8 0 01-11.3 7.3L3 21l1.7-6.7A8 8 0 1121 12z" />
-        </svg>
-        <span className="text-sm font-medium">Feedback</span>
-      </button>
-
-      {open && (
-        <Modal title={phase === "done" ? "Thank you!" : "Send feedback"} onClose={close}>
-          {phase === "done" ? (
-            <div className="text-center py-4">
-              <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-                <svg className="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                {type === "bug"
-                  ? "Thanks for the report — we'll look into it."
-                  : "Thanks for the idea — we appreciate it!"}
-              </p>
-              <button
-                onClick={close}
-                className="mt-5 px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors"
-              >
-                Done
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                {seg(
-                  "bug",
-                  "Bug",
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 6a3 3 0 016 0M5 12h14M6 9a6 6 0 0112 0v3a6 6 0 01-12 0V9zM4 10l2 1M4 16l2.5-1M20 10l-2 1M20 16l-2.5-1M12 15v6" />
-                  </svg>
-                )}
-                {seg(
-                  "feature",
-                  "Feature request",
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0012 2z" />
-                  </svg>
-                )}
-              </div>
-
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                autoFocus
-                rows={5}
-                maxLength={4000}
-                placeholder={
-                  type === "bug"
-                    ? "What went wrong? Steps to reproduce, what you expected…"
-                    : "What would you like Markdrop to do?"
-                }
-                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-200 resize-none outline-none focus:border-blue-500 transition-colors"
-              />
-
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Email <span className="font-normal text-gray-400">(optional — so we can follow up)</span>
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500 transition-colors"
-                />
-              </div>
-
-              {error && <p className="text-red-500 text-sm">{error}</p>}
-
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  onClick={close}
-                  className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={phase === "sending"}
-                  className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium transition-colors"
-                >
-                  {phase === "sending" ? "Sending…" : "Send"}
-                </button>
-              </div>
-            </div>
-          )}
-        </Modal>
+      {showLauncher && (
+        // Desktop and tablet only: on phones the tool pages own the bottom edge (sticky action bars),
+        // so feedback lives in the Menu drawer and the account menu there.
+        <div className="no-print fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-(--z-sticky) hidden md:block">
+          <IconButton
+            icon="message"
+            label="Send feedback"
+            variant="secondary"
+            className="size-10 rounded-full"
+            onClick={() => setOpen(true)}
+          />
+        </div>
       )}
+      <FeedbackDialog open={open} onClose={() => setOpen(false)} />
     </>
   );
 }

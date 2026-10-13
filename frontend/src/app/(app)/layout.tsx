@@ -1,15 +1,19 @@
-import SiteHeader from "@/components/shell/SiteHeader";
+import { SiteHeader } from "@/components/shell/SiteHeader";
+import { AppShell } from "@/components/shell/AppShell";
 import FeedbackWidget from "@/components/FeedbackWidget";
-import NamePrompt from "@/components/NamePrompt";
 
-/** Account pages (/dashboard, /settings/*): header + AppShell rail (K1 adds the rail). */
+/**
+ * Account pages (/dashboard, /settings/*): the full-width header (Create is primary on /dashboard),
+ * then the AppShell rail beside an 880px column holding <main id="main">. Feedback lives in the rail
+ * and the account menu here, so the floating launcher is off. The global NamePrompt modal is gone:
+ * the dashboard shows an inline name card instead (REVAMP_PLAN 7.10).
+ */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <SiteHeader />
-      <main id="main" className="flex-1 min-h-0 min-w-0 flex flex-col w-full mx-auto max-w-screen-xl px-4 sm:px-6 py-4">{children}</main>
-      <NamePrompt />
-      <FeedbackWidget />
+      <SiteHeader width="full" />
+      <AppShell>{children}</AppShell>
+      <FeedbackWidget launcher={false} />
     </>
   );
 }

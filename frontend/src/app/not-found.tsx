@@ -1,14 +1,28 @@
+import { SiteHeader } from "@/components/shell/SiteHeader";
+import { MissedDropMark, AttemptedPath } from "@/components/shell/NotFound";
+import { Button } from "@/components/ui";
+
+/**
+ * 404 (REVAMP_PLAN 7.9; D41: one page for expired and missing, since the TTL deletes expired rows).
+ * Rendered inside the root layout only, so it brings its own header. The attempted path is read
+ * after mount, so this HTML stays identical for every missing address.
+ */
 export default function NotFound() {
   return (
-    <div className="flex flex-col items-center justify-center py-12 sm:py-20 space-y-4">
-      <h1 className="text-3xl sm:text-4xl font-bold text-gray-400 dark:text-gray-500">404</h1>
-      <p className="text-gray-500 dark:text-gray-400">This link doesn&apos;t exist, or what it pointed to has been deleted.</p>
-      <a
-        href="/new"
-        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
-      >
-        Start writing
-      </a>
-    </div>
+    <>
+      <SiteHeader />
+      <main id="main" tabIndex={-1} className="flex w-full min-w-0 flex-1 flex-col items-center justify-center px-4 py-16 outline-none sm:py-24">
+        <div className="flex w-full max-w-[30rem] flex-col items-center gap-5 text-center">
+          <MissedDropMark size={88} />
+          <h1 className="text-h1 text-text">Nothing at this link</h1>
+          <p className="text-body-lg text-text-secondary">It may have expired or been deleted, or the address has a typo.</p>
+          <AttemptedPath />
+          <div className="mt-2 flex w-full flex-col items-stretch justify-center gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Button variant="primary" size="lg" href="/new">Publish a document</Button>
+            <Button variant="secondary" size="lg" href="/">Go to the home page</Button>
+          </div>
+        </div>
+      </main>
+    </>
   );
 }
