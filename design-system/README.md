@@ -16,7 +16,7 @@ design-system/
 │   └── tailwind-theme.css    generated: Tailwind v4 @theme (bg-surface, text-text-muted, text-h1 …)
 ├── fonts/                    Manrope + JetBrains Mono, variable woff2, SIL OFL 1.1 licences
 ├── assets/logos/             the mark (favicon), the VS Code extension icon (svg + png)
-├── src/                      React components (TSX, React 18/19, no dependencies besides react)
+├── (components)              live in frontend/src/components/ui/ (canonical; React only, no other deps)
 │   ├── primitives.tsx        Button, Input, Field, Checkbox, Switch, Badge, Card, Tabs, Dialog, Drawer,
 │   │                         Dropdown, Tooltip, Toast, Alert, Progress, Table, Pagination, EmptyState, Icon …
 │   ├── markdrop.tsx          AppHeader, CreateMenu, DocumentRow, AccessGate, MarkdropLoader, CopyButton …
@@ -38,7 +38,7 @@ Open <http://localhost:4000/previews/> for the gallery and switch Dark / Light a
 
 ## Change it
 
-Edit `tokens/tokens.json` or `src/`, then:
+Edit `tokens/tokens.json` (or a component in `frontend/src/components/ui/`), then:
 
 ```bash
 npm install              # once: esbuild, typescript, @types/react
@@ -78,7 +78,13 @@ Radii (`rounded-lg` …) and the 4px spacing scale already match Tailwind's, so 
 
 **3. Theme switching.** Themes are `data-theme="dark"` / `"light"` on `<html>`. Replace the inline script in `frontend/src/app/layout.tsx` that forces `.dark` with one that reads the saved choice, falling back to `prefers-color-scheme`, and sets `data-theme` before first paint. Keep `dark` the default until the light theme has been checked page by page.
 
-**4. Components.** `src/*.tsx` are plain React components with no dependencies besides `react`. Next.js doesn't compile TypeScript from outside `frontend/` by default, so when a page starts using them, copy `src/` (with `markdrop.css`) into `frontend/src/components/ui/` and import from there. From then on that copy is the source; point `scripts/build-bundle.mjs` at it so the previews stay in sync.
+**4. Components (done: the app copy is canonical).** The components were vendored into `frontend/src/components/ui/`, and that folder is now the only source; `design-system/src/` is gone. `scripts/build-bundle.mjs` builds `bundle/markdrop.js` + `bundle/markdrop.css` for the previews from `frontend/src/components/ui/index.ts`, and `npm run build:types` writes `bundle/types/` from the same barrel, so editing a component means editing it in `frontend/` and running `npm run build` here.
+
+- **Dependencies:** `components/ui/*` imports `react` and `react-dom` only (no `@/…`, no `next/*`), so the bundle can build from it. Modules that use hooks start with `"use client"`; `icons.ts` is plain data for server components.
+- **Links:** DS components render links through `LinkProvider` / `useLinkComponent()` (`link.tsx`; default a plain `<a>`). The app mounts `components/theme/NextLinkProvider.tsx` once at the root so internal hrefs use `next/link`.
+- **Theme islands:** `ThemeScope` (`scope.tsx`) pins a subtree to dark or light; Dialog, Drawer and portalled menus stamp the nearest scope on their portal root. Toasts follow the page.
+- **Screen readers:** mount `StatusRegion` (`status.tsx`) once; `announce(text)` speaks through it (CopyButton uses it).
+- **Theme controls:** `components/theme/ThemeToggle.tsx` and `ThemeSegmented.tsx` bind to `useTheme()` in `frontend/src/lib/theme.ts`; they live outside `ui/` because they import app code.
 
 ## Provenance
 

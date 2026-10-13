@@ -2,7 +2,7 @@
 
 Markdrop turns documents and files into links that render: write or paste markdown and AI write-ups, or upload HTML pages, PDFs, spreadsheets, Word docs, video and zipped sites, and each one opens in any browser. It also sends files device to device and syncs from VS Code. The line is *Drop it. It renders.* The product promise is *no login, no friction, just links*, and the interface should feel the same way: quiet, fast, mostly ink on a dark or light ground, with one blue that means "go".
 
-This system is the revamp target. Its dark values are the palette the app ships today; the light theme, the type scale and the component library are new. Build every new screen on the semantic tokens and the components in `src/`; never reach for a raw hex or a Tailwind palette class in product code. How to wire it into the app is in [README.md](README.md).
+This system is the revamp target. Its dark values are the palette the app ships today; the light theme, the type scale and the component library are new. Build every new screen on the semantic tokens and the components in `frontend/src/components/ui/`; never reach for a raw hex or a Tailwind palette class in product code. How to wire it into the app is in [README.md](README.md).
 
 ## Voice and content
 

@@ -8,9 +8,11 @@
     "build": "npm run build:tokens && npm run check:contrast && npm run build:bundle && npm run build:types",
     "build:tokens": "node scripts/build-tokens.mjs",
     "build:bundle": "node scripts/build-bundle.mjs",
-    "build:types": "tsc src/index.ts --declaration --emitDeclarationOnly --jsx react-jsx --skipLibCheck --esModuleInterop --moduleResolution node --target es2019 --lib es2019,dom --outDir bundle/types",
+    "build:types": "tsc ../frontend/src/components/ui/index.ts --declaration --emitDeclarationOnly --jsx react-jsx --skipLibCheck --esModuleInterop --moduleResolution node --target es2019 --lib es2019,dom --outDir bundle/types",
     "preview": "npx --yes serve@14.2.4 -l 4000 .",
-    "check:contrast": "node scripts/check-contrast.mjs"
+    "check:contrast": "node scripts/check-contrast.mjs",
+    "sync:frontend": "node scripts/sync-frontend.mjs",
+    "check:frontend": "node scripts/sync-frontend.mjs --check"
   },
   "devDependencies": {
     "@types/react": "18.3.12",
