@@ -1,0 +1,284 @@
+/* KeyAnatomy: tokens only. Base styles are the END state; the ring animation plays from its start. */
+
+/* ── Full layout ────────────────────────────────────────────────────────── */
+.full {
+  margin: 0;
+  container-type: inline-size;
+  min-width: 0;
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "capP capF"
+    "urlP urlF"
+    "conP conF"
+    "server browser";
+  column-gap: 24px;
+  min-width: 0;
+}
+
+.cap {
+  padding-bottom: 10px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+}
+.capPath { grid-area: capP; text-align: right; color: var(--text-muted); }
+.capFrag { grid-area: capF; color: var(--accent-text); }
+
+.urlPath,
+.urlFrag {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 52px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 24px;
+}
+.urlPath {
+  grid-area: urlP;
+  justify-content: flex-end;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+}
+.urlPathText,
+.ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.urlFrag {
+  grid-area: urlF;
+  position: relative;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+/* The split at the #: a dashed rule through the middle of the gap. */
+.urlFrag::before {
+  content: "";
+  position: absolute;
+  left: -13px;
+  top: -6px;
+  bottom: -6px;
+  border-left: 1.5px dashed var(--border-strong);
+}
+.urlFragText {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.urlFrag[data-missing] { border: 1.5px dashed var(--border-strong); }
+.hole { display: inline-block; width: 6ch; }
+
+.conn {
+  grid-area: conP;
+  display: flex;
+  justify-content: center;
+  height: 32px;
+}
+.conn span { width: 1px; height: 100%; background: var(--border-strong); }
+.connFrag { grid-area: conF; }
+.full:not([data-mode="missing"]) .connFrag span { background: var(--accent-text); }
+
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+.server { grid-area: server; }
+.browser { grid-area: browser; background: var(--bg); }
+:global([data-theme="light"]) .server { border-color: var(--border); }
+:global([data-theme="light"]) .browser { background: var(--surface-raised); border-color: var(--border); box-shadow: var(--shadow-sm); }
+
+.boxHead { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.boxTitle { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--text); }
+.serverIcon { color: var(--text-secondary); }
+.browserIcon { color: var(--accent-text); }
+.boxCaption { margin: 0; font-size: 12px; line-height: 16px; color: var(--text-muted); }
+
+.ribbon {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-secondary);
+}
+.ribbonLine { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.micro { font-size: 11px; line-height: 16px; font-weight: 500; color: var(--text-muted); }
+
+.keyBlock,
+.missingBlock { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.missingBlock { gap: 2px; align-self: stretch; }
+.missingBlock .slotWrap { margin-bottom: 6px; }
+
+.decrypted {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+.decrypted strong { font-weight: 600; color: var(--text); }
+.ok { color: var(--success); flex: none; }
+
+.foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 20px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+.foot svg { flex: none; margin-top: 0; }
+.hash {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--code-inline-bg);
+  color: var(--code-inline);
+}
+
+/* Stacked (≈ 390 phones): the URL keeps one line, boxes stack, connectors drop. */
+@container (max-width: 520px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "capP capF"
+      "urlP urlF"
+      "server server"
+      "browser browser";
+    column-gap: 16px;
+    row-gap: 0;
+  }
+  .cap { padding-bottom: 6px; }
+  .urlPath, .urlFrag { height: 44px; padding: 0 10px; font-size: 13px; line-height: 20px; }
+  .urlFrag::before { left: -9px; }
+  .urlFragText .ellipsis { max-width: 11ch; }
+  .conn { display: none; }
+  .server { margin-top: 16px; }
+  .browser { margin-top: 12px; }
+  .box { padding: 16px; }
+}
+
+/* ── The missing slot and its ring ─────────────────────────────────────── */
+.slotWrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.ring {
+  position: absolute;
+  inset: -5px;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--accent-text);
+  opacity: 0.3;
+  pointer-events: none;
+  animation: ka-breathe 1.6s var(--ease-out) 400ms 3;
+}
+@keyframes ka-breathe {
+  from { opacity: 0.7; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.25); }
+}
+
+/* ── Callout (missing) ──────────────────────────────────────────────────── */
+.callout {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+/* The callout's pointer hangs from the slot, so it always sits under it (gap above the callout = 8px). */
+.slotWrap[data-pointer]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 2px);
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid var(--surface-active);
+}
+.calloutText {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-active);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+/* ── Compact layout ─────────────────────────────────────────────────────── */
+.compact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  font-family: var(--font-sans);
+}
+.compact[data-mode="missing"] { align-items: center; gap: 8px; padding: 14px 12px 12px; }
+.cLine {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+}
+.cPath {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.cLabels {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+}
+.cSent { color: var(--text-muted); }
+.cStays { color: var(--accent-text); }
+.compact .callout { align-self: stretch; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ring { animation: none; }
+}

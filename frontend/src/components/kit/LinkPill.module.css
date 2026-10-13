@@ -1,0 +1,147 @@
+/* LinkPill: mono host/slug, the key-fragment chip, optional copy. Tokens only. */
+
+.pill {
+  --lp-h: 36px;
+  --lp-fs: 13px;
+  --lp-pad: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  height: var(--lp-h);
+  padding: 0 4px 0 var(--lp-pad);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--lp-fs);
+  line-height: 20px;
+  vertical-align: middle;
+}
+.pill[data-size="sm"] { --lp-h: 28px; --lp-fs: 12px; --lp-pad: 10px; gap: 6px; padding-right: 2px; }
+.pill[data-size="lg"] { --lp-h: 48px; --lp-fs: 15px; --lp-pad: 8px; gap: 10px; padding-right: 6px; }
+
+/* Address bar inside BrowserFrame: an inset well, no border. Host goes text-secondary (never muted on inset). */
+.pill[data-variant="address"] {
+  border-color: transparent;
+  background: var(--surface-inset);
+  padding-right: var(--lp-pad);
+}
+.pill[data-variant="address"] .host { color: var(--text-secondary); }
+.pill[data-variant="address"] .lead { background: transparent; width: auto; height: auto; }
+
+/* Without a copy control, the right padding matches the left. */
+.pill:not(:has(.copy)) { padding-right: var(--lp-pad); }
+
+.lead {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  color: var(--accent-text);
+}
+.pill[data-size="lg"] .lead {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+}
+
+.url {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  /* room for the link's focus ring inside the clip */
+  padding: 4px 0 4px 4px;
+  margin: -4px 0 -4px -4px;
+}
+
+/* Path and key chip shrink in proportion to their length; the chip stops at ~7 characters. */
+.path {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--text);
+}
+.pathLink {
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+.pathLink:hover .slugHead,
+.pathLink:hover .slugTail { text-decoration: underline; text-underline-offset: 3px; }
+
+/* The host never shrinks; the slug gives way (down to ~2 characters + "…"); then the chip shrinks to
+   its minimum; only past that is the end clipped. */
+.host {
+  flex: none;
+  color: var(--text-muted);
+}
+.slugHead {
+  flex: 0 1 auto;
+  min-width: 2ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.slugHead:empty { min-width: 0; }
+.slugTail { flex: none; }
+
+/* ── The key-fragment chip (one treatment everywhere) ───────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 1 auto;
+  box-sizing: border-box;
+  min-width: calc(7ch + 34px);
+  max-width: 16ch;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: inherit;
+  white-space: nowrap;
+}
+.chip[data-size="sm"] { height: 20px; padding: 0 6px; border-radius: var(--radius-sm); max-width: 14ch; font-size: 12px; }
+.chip[data-size="lg"] { height: 28px; padding: 0 10px; max-width: 20ch; }
+.chipIcon { flex: none; }
+.chipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chipEmpty {
+  max-width: none;
+  border: 1.5px dashed var(--border-strong);
+}
+.chipHole {
+  display: inline-block;
+  width: 3ch;
+}
+
+.label {
+  flex: none;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.copy { flex: none; font-family: var(--font-sans); }
+
+/* Narrow containers: the label is the first thing to go. */
+@media (max-width: 480px) {
+  .label { display: none; }
+  .chip, .chip[data-size="lg"] { max-width: 13ch; }
+  .chip[data-size="sm"] { max-width: 12ch; }
+}

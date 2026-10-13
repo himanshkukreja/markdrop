@@ -1,0 +1,22 @@
+.bare {
+  display: inline-flex;
+  flex: none;
+  color: inherit;
+}
+
+.node {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.node[data-tone="accent"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}

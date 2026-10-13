@@ -1,0 +1,140 @@
+/* StatTile + Delta. Values are tabular-nums; a new value crossfades (no count-up). */
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset);
+  color: var(--text);
+  font-family: var(--font-sans);
+  text-align: left;
+}
+:global([data-theme="light"]) .tile[data-size="sm"] { background: var(--bg); }
+
+.tile[data-size="md"] {
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+:global([data-theme="light"]) .tile[data-size="md"] { box-shadow: var(--shadow-sm); }
+
+button.tile {
+  appearance: none;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+button.tile:hover { background: var(--surface-hover); }
+
+.tile[data-selected] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+button.tile[data-selected]:hover { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.tile[data-selected] .label { color: var(--accent-text); }
+.tile[data-selected] .caption { color: var(--text-secondary); }
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+.tile[data-size="md"] .label { font-size: 14px; line-height: 20px; font-weight: 600; }
+
+.main {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.figures { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.value {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  animation: st-fade var(--duration-fast) var(--ease-out);
+}
+.tile[data-size="md"] .value { font-size: 30px; line-height: 36px; letter-spacing: -0.02em; }
+@keyframes st-fade { from { opacity: 0; } }
+
+.caption { font-size: 12px; line-height: 16px; color: var(--text-muted); }
+.chart { display: inline-flex; flex: none; color: var(--text-muted); }
+.tile[data-selected] .chart { color: var(--accent); }
+
+.skel { width: 64px; height: 28px; margin: 0; border-radius: var(--radius-md); }
+.tile[data-size="md"] .skel { width: 96px; height: 36px; }
+
+.error {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+/* ── Delta ─────────────────────────────────────────────────────────────── */
+.delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.delta[data-tone="success"] { color: var(--success); }
+.delta[data-tone="warning"] { color: var(--warning); }
+.delta[data-tone="danger"] { color: var(--danger); }
+.delta[data-tone="neutral"] { color: var(--text-secondary); }
+.deltaIcon { flex: none; }
+.delta[data-variant="inline"] { align-items: flex-start; white-space: normal; }
+.delta[data-variant="inline"] .deltaIcon { margin-top: 2px; }
+
+.delta[data-variant="badge"] {
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+}
+/* Soft tints laid over surface-raised, so the badge keeps AA on any tile ground (incl. a selected tile). */
+.delta[data-variant="badge"][data-tone="success"] { background: linear-gradient(var(--success-soft), var(--success-soft)), var(--surface-raised); }
+.delta[data-variant="badge"][data-tone="warning"] { background: linear-gradient(var(--warning-soft), var(--warning-soft)), var(--surface-raised); }
+.delta[data-variant="badge"][data-tone="danger"] { background: linear-gradient(var(--danger-soft), var(--danger-soft)), var(--surface-raised); }
+.delta[data-variant="badge"][data-tone="neutral"] { background: var(--surface-inset); }
+
+@media (prefers-reduced-motion: reduce) {
+  .value { animation: none; }
+  button.tile { transition: none; }
+}
