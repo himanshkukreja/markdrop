@@ -45,9 +45,10 @@ function ViewerFallback() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   // Dynamic link-preview card, rendered server-side by the backend. The endpoint
-  // is content-safe (generic card for password-protected / unknown slugs), so we
-  // advertise it in both metadata branches.
-  const ogImage = `${API_BASE}/api/v1/og/${slug}.png`;
+  // is content-safe (a content-free card for anything an anonymous reader can't
+  // open, and for unknown slugs), so we advertise it in both metadata branches.
+  // `v` busts unfurl caches when the card itself changes.
+  const ogImage = `${API_BASE}/api/v1/og/${slug}.png?v=2`;
   const images = [{ url: ogImage, width: 1200, height: 630, alt: "Markdrop" }];
   try {
     const doc = await getDocument(slug, undefined, undefined, { revalidate: 60 });

@@ -6,7 +6,8 @@ This module renders that 1200×630 card server-side with Pillow (the same
 approach already used for diagram images): document title + a short snippet +
 view count + Markdrop branding.
 
-Password-protected documents render a generic card that leaks no content.
+Documents an anonymous reader can't open render a generic card that leaks no
+content.
 
 Bundled fonts (``app/assets/fonts``): DejaVu Sans (proportional, regular +
 bold) for the title/body and — via the diagram renderer — DejaVu Sans Mono.
@@ -213,12 +214,26 @@ def _fmt_size(n: int) -> str:
     return f"{n / (1024 * 1024):.1f} MB"
 
 
+# Content-free cards, keyed by the gate that stops an anonymous reader.
+_PROTECTED_COPY = {
+    "password": (
+        "Password-protected document",
+        "Open the link and enter the password to read it.",
+    ),
+    "encrypted": (
+        "Encrypted document",
+        "The key is in the link. Markdrop stores ciphertext it has no key for.",
+    ),
+    "private": ("Private document", "Only people with access can open it."),
+}
+
+
 def render_og_png(
     *,
     title: str,
     snippet: str,
     views: int,
-    protected: bool,
+    protected: str | None,
     artifact_kind: str | None = None,
     artifact_label: str | None = None,
     artifact_size: int | None = None,
@@ -227,7 +242,8 @@ def render_og_png(
 ) -> bytes:
     """Render the preview card to PNG bytes.
 
-    ``protected`` renders a generic, content-free card. Passing
+    ``protected`` names the gate ("password", "encrypted" or "private") and
+    renders a content-free card for it; None renders the full card. Passing
     ``artifact_kind`` (the renderer name: html/pdf/sheet/image/text) switches to
     the artifact layout — a type pill and file size in place of a text snippet,
     with the accent colour keyed to the file family.
@@ -250,15 +266,9 @@ def render_og_png(
     _draw_wordmark(draw, _MARGIN, 64, brand)
 
     if protected:
-        title_text = "Password-protected document"
-        _where = (brand.site_name if brand and brand.site_name else None) or (
-            "" if brand and brand.hide_markdrop_branding else "Markdrop"
-        )
-        snippet_text = (
-            f"This document is protected. Open it on {_where} to unlock."
-            if _where
-            else "This document is protected. Open the link to unlock."
-        )
+        title_text, snippet_text = _PROTECTED_COPY.get(protected, _PROTECTED_COPY["private"])
+        if brand and brand.hide_markdrop_branding:
+            snippet_text = snippet_text.replace("Markdrop stores", "The server stores")
     else:
         title_text = title.strip() or "Untitled document"
         snippet_text = snippet.strip()
