@@ -57,7 +57,8 @@ The light theme is **Mist**: a dimmed slate ground (`bg` #E3E7ED, `surface` #EBE
 - Loading is the brand: `MarkdropLoader`'s drop falls into the mark on a 1.9s cycle; indeterminate `Progress` and the loader bar share one 1.4s sweep.
 - Every animation has a `prefers-reduced-motion` rest state that still reads (the drop parked mid-fall, the packet mid-path).
 - Durations are tokens: `duration-instant` 100, `fast` 150, `menu` 150, `dialog` 180, `panel` 220, `exit` 120, `progress` 300, `reveal` 400; `ease-out` everywhere. Nothing moves for longer than 400ms except loaders, the landing hero and toys, the publish moment, hover/focus demos, and transfer packets driven by real bytes.
-- No motion library: CSS, the Web Animations API and View Transitions only. At most one autoplaying sequence per page region; loops pause offscreen, in hidden tabs and on the page's pause control.
+- No motion library: CSS, the Web Animations API and View Transitions only.
+- **One autoplaying sequence at a time**: the landing hero autoplays; section toys run their demo only while they are the most visible toy, and every one has a Pause control. Loops pause offscreen, in hidden tabs and on the page's pause control.
 
 ## Iconography
 

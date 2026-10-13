@@ -33,9 +33,11 @@ for (const f of t.type.fonts ?? []) {
 }
 css += `\n:root, [data-theme="${first}"] {\n  color-scheme: ${first};\n${decls(themed, first)}\n}\n`;
 for (const th of themes.slice(1)) css += `\n[data-theme="${th}"] {\n  color-scheme: ${th};\n${decls(themed, th)}\n}\n`;
-// No-JS readers follow the OS. With JS, the head script always sets data-theme before paint,
-// so this block only applies when scripts are off (REVAMP_PLAN 5.3).
-if (themes.includes("light")) css += `\n@media (prefers-color-scheme: light) {\n  :root:not([data-theme]) {\n    color-scheme: light;\n${decls(themed, "light").replace(/^/gm, "  ")}\n  }\n}\n`;
+// No-JS readers follow the OS once light launches (REVAMP_PLAN 5.3). Off by default: until then a
+// JS-disabled visitor must get dark, like everyone else. Build with --no-js-light (or NO_JS_LIGHT=1) at launch.
+// With JS, the head script always sets data-theme before paint, so this block never applies.
+const noJsLight = process.argv.includes("--no-js-light") || process.env.NO_JS_LIGHT === "1";
+if (noJsLight && themes.includes("light")) css += `\n@media (prefers-color-scheme: light) {\n  :root:not([data-theme]) {\n    color-scheme: light;\n${decls(themed, "light").replace(/^/gm, "  ")}\n  }\n}\n`;
 const motion = t.motion?.tokens ?? [];
 const layout = t.layout?.tokens ?? [];
 css += `\n:root {\n${decls([...flat, ...motion, ...layout], first)}\n  --motion-scale: 1;\n${Object.entries(t.type.families).map(([k, v]) => `  --font-${k}: ${v};`).join("\n")}\n}\n`;
