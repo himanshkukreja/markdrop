@@ -29,7 +29,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.models.document import Document
 from app.models.user import User
 from app.services import workspace as ws_service
-from app.services.document import _doc_from_mongo
+from app.services.document import _doc_from_mongo, search_clause
 
 
 async def _load(db: AsyncIOMotorDatabase, document_id: str) -> dict:
@@ -60,7 +60,7 @@ async def list_documents(
     the reader's role first.
     """
     query: dict = {"workspace_id": workspace_id}
-    if kind == "markdown":
+    if kind in ("markdown", "document"):
         query["kind"] = {"$ne": "artifact"}
     elif kind == "artifact":
         query["kind"] = "artifact"
@@ -68,11 +68,10 @@ async def list_documents(
         query["folder_id"] = None
     elif folder_id:
         query["folder_id"] = folder_id
-    if q:
-        query["$or"] = [
-            {"slug": {"$regex": q, "$options": "i"}},
-            {"title": {"$regex": q, "$options": "i"}},
-        ]
+    # Escaped: `q` is literal text, never a pattern. See `search_clause`.
+    search = search_clause(q)
+    if search:
+        query["$or"] = search
 
     total = await db["documents"].count_documents(query)
     cursor = (

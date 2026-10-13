@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -505,6 +506,29 @@ async def change_slug(
     return _doc_from_mongo(raw)
 
 
+# Long enough for any title anyone types into a search box; bounded because the
+# pattern runs against every row the owner (or workspace) has.
+MAX_SEARCH_LEN = 200
+
+
+def search_clause(q: str | None) -> list[dict] | None:
+    """A case-insensitive substring match on slug or title, as an `$or` list.
+
+    `q` is the user's text, not a pattern: it is escaped, so "c++", "(draft" or
+    "a.b" search for exactly those characters instead of erroring (an unbalanced
+    bracket is a 500 from Mongo) or turning into a catastrophic-backtracking
+    regex that pins the database. Returns None for a blank query.
+    """
+    q = (q or "").strip()[:MAX_SEARCH_LEN]
+    if not q:
+        return None
+    pattern = re.escape(q)
+    return [
+        {"slug": {"$regex": pattern, "$options": "i"}},
+        {"title": {"$regex": pattern, "$options": "i"}},
+    ]
+
+
 async def list_user_documents(
     db: AsyncIOMotorDatabase,
     user_id: str,
@@ -515,16 +539,14 @@ async def list_user_documents(
 ) -> tuple[list[Document], int]:
     """Return (documents, total) owned by the user, newest first."""
     query: dict = {"owner_id": user_id}
-    if kind == "markdown":
+    if kind in ("markdown", "document"):
         # Documents created before artifacts existed have no `kind` field.
         query["kind"] = {"$ne": "artifact"}
     elif kind == "artifact":
         query["kind"] = "artifact"
-    if q:
-        query["$or"] = [
-            {"slug": {"$regex": q, "$options": "i"}},
-            {"title": {"$regex": q, "$options": "i"}},
-        ]
+    search = search_clause(q)
+    if search:
+        query["$or"] = search
     total = await db["documents"].count_documents(query)
     skip = (page - 1) * limit
     # Include _id so the owner can act on the document by its stable id

@@ -19,6 +19,7 @@ from app.schemas.auth import (
     ApiTokenListResponse,
     TokenCreateRequest,
 )
+from app.schemas.access import ContactItem, ContactListResponse
 from app.schemas.document import MyDocListItem, MyDocListResponse
 from app.services import analytics, api_token, artifact as art_service, document as doc_service
 
@@ -70,11 +71,17 @@ def _to_list_item(doc) -> MyDocListItem:
 async def list_my_documents(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    # Alias for `limit` in the revamped dashboard's vocabulary; wins when sent.
+    per_page: int | None = Query(None, ge=1, le=50),
+    # Title/slug substring. Literal text, escaped server-side.
     q: str | None = Query(None),
-    kind: str | None = Query(None, pattern="^(markdown|artifact)$"),
+    # "document" is the new name for "markdown"; both mean "not an artifact".
+    kind: str | None = Query(None, pattern="^(markdown|document|artifact)$"),
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
+    if per_page is not None:
+        limit = per_page
     docs, total = await doc_service.list_user_documents(db, user.id, page, limit, q, kind)
     items = [_to_list_item(d) for d in docs]
     # One grouped count for the whole page rather than a query per row.
@@ -91,6 +98,7 @@ async def list_my_documents(
         total=total,
         page=page,
         pages=max(1, math.ceil(total / limit)),
+        per_page=limit,
         **await doc_service.count_user_documents(db, user.id),
     )
 
@@ -107,6 +115,79 @@ async def document_analytics(
     if doc_id is None:
         raise HTTPException(status_code=404, detail="Document not found")
     return await analytics.get_analytics(db, doc_id, range)
+
+
+# ── Share-dialog suggestions ────────────────────────────────────────────────────
+
+MAX_CONTACTS = 50
+
+
+@router.get("/contacts", response_model=ContactListResponse)
+@limiter.limit("60/minute")
+async def list_contacts(
+    request: Request,
+    q: str | None = Query(None, max_length=200),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Up to 50 people to suggest in the share dialog.
+
+    Only two sources, both people the caller already has a relationship with:
+    addresses they have granted document access to themselves, and members of
+    workspaces they belong to (whom any member can already list). It is never a
+    search over all users -- that would turn the share box into an oracle for
+    "does this address have an account here". For the same reason a grant-only
+    contact carries no name: the share list never showed one either.
+
+    `q` narrows by case-insensitive substring of email or name. Most recently
+    shared-with first, then co-members by name. The caller is never included.
+    """
+    me = (user.email or "").strip().lower()
+    needle = (q or "").strip().lower()
+    out: dict[str, ContactItem] = {}
+
+    # Co-members first, into a lookup, so a grant row can borrow a real name.
+    member_names: dict[str, str | None] = {}
+    mine = await db["memberships"].find(
+        {"user_id": user.id}, {"workspace_id": 1}
+    ).to_list(length=100)
+    workspace_ids = [m["workspace_id"] for m in mine if m.get("workspace_id")]
+    if workspace_ids:
+        # Bounded: at most 100 memberships x MAX_MEMBERS (200) each in theory,
+        # far fewer in practice; the projection keeps every row tiny.
+        rows = await db["memberships"].find(
+            {"workspace_id": {"$in": workspace_ids}, "user_id": {"$ne": user.id}},
+            {"email": 1, "name": 1},
+        ).to_list(length=5000)
+        for r in rows:
+            email = (r.get("email") or "").strip().lower()
+            if email and (email not in member_names or not member_names[email]):
+                member_names[email] = r.get("name") or None
+
+    if user.email:
+        grants = await db["document_grants"].find(
+            {"granted_by_email": {"$in": list({user.email, me})}},
+            {"email": 1, "created_at": 1},
+        ).sort("created_at", -1).to_list(length=1000)
+        for g in grants:
+            email = (g.get("email") or "").strip().lower()
+            if email and email not in out:
+                out[email] = ContactItem(
+                    email=email, name=member_names.get(email), source="shared"
+                )
+
+    for email, name in sorted(
+        member_names.items(), key=lambda kv: ((kv[1] or kv[0]).lower(), kv[0])
+    ):
+        if email not in out:
+            out[email] = ContactItem(email=email, name=name, source="workspace")
+
+    contacts = [
+        c for c in out.values()
+        if c.email != me
+        and (not needle or needle in c.email or needle in (c.name or "").lower())
+    ]
+    return ContactListResponse(contacts=contacts[:MAX_CONTACTS])
 
 
 # ── API tokens (for the VS Code extension / sync) ───────────────────────────────

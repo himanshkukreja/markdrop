@@ -53,3 +53,25 @@ class AccessResponse(BaseModel):
     can_manage: bool
     can_share: bool
     grants: list[GrantResponse]
+
+
+# ── Share-dialog suggestions ──────────────────────────────────────────────────
+
+
+class ContactItem(BaseModel):
+    """Someone the signed-in user may be offered as a share suggestion.
+
+    Only ever drawn from people the user already has a relationship with — see
+    `routers.me.list_contacts`. Never a global user search.
+    """
+
+    email: str
+    name: str | None = None
+    # Why they are suggested: "shared" = you granted them access to a document;
+    # "workspace" = they are in a workspace you belong to. When both are true,
+    # "shared" wins (it is the more recent, more specific relationship).
+    source: Literal["shared", "workspace"]
+
+
+class ContactListResponse(BaseModel):
+    contacts: list[ContactItem]

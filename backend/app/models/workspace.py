@@ -7,6 +7,10 @@ from typing import Literal
 Role = Literal["owner", "admin", "member", "viewer"]
 ROLE_RANK: dict[str, int] = {"viewer": 0, "member": 1, "admin": 2, "owner": 3}
 
+# Background a workspace logo is drawn on. See `Branding.logo_well`.
+LogoWell = Literal["light", "dark", "checker"]
+LOGO_WELLS: tuple[str, ...] = ("light", "dark", "checker")
+
 
 def role_allows(actual: str | None, required: Role) -> bool:
     """Whether ``actual`` carries at least the authority of ``required``."""
@@ -25,6 +29,10 @@ class Branding:
     logo_url: str | None = None           # preview cards
     accent_color: str | None = None       # hex, e.g. "#3b82f6"
     hide_markdrop_branding: bool = False  # drop the wordmark from preview cards
+    # The surface the logo sits on. None means automatic: follow the reader's
+    # theme. A fixed well exists for logos drawn for one background only (a
+    # white wordmark disappears on Mist). Older rows have no key and read None.
+    logo_well: LogoWell | None = None
 
     @classmethod
     def from_dict(cls, raw: dict | None) -> "Branding":
@@ -35,6 +43,7 @@ class Branding:
             logo_url=raw.get("logo_url"),
             accent_color=raw.get("accent_color"),
             hide_markdrop_branding=bool(raw.get("hide_markdrop_branding")),
+            logo_well=raw.get("logo_well") if raw.get("logo_well") in LOGO_WELLS else None,
         )
 
 

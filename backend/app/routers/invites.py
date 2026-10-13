@@ -64,6 +64,11 @@ async def preview_invitation(
         signed_in_as=user.email if user else None,
         email_matches=signed_in == invite.email,
         already_member=already_member,
+        # Brand tile only. Public already (preview cards, the workspace's own
+        # domain); never the member list or anything else about the workspace.
+        logo_url=workspace.branding.logo_url,
+        accent_color=workspace.branding.accent_color,
+        logo_well=workspace.branding.logo_well,
     )
 
 

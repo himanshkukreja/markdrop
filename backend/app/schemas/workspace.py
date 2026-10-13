@@ -4,6 +4,8 @@ from typing import Literal
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 Role = Literal["owner", "admin", "member", "viewer"]
+# The surface a workspace logo is drawn on; None = automatic (follow the theme).
+LogoWell = Literal["light", "dark", "checker"]
 
 
 class BrandingPayload(BaseModel):
@@ -14,6 +16,10 @@ class BrandingPayload(BaseModel):
     logo_url: str | None = Field(None, max_length=500)
     accent_color: str | None = Field(None, pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
     hide_markdrop_branding: bool = False
+    # Optional and additive: a client that never sends it keeps whatever is
+    # stored (see `services.workspace.update_workspace`); sending null resets it
+    # to automatic. Anything outside the enum is a 422.
+    logo_well: LogoWell | None = None
 
     @field_validator("favicon_url", "logo_url")
     @classmethod
@@ -136,6 +142,12 @@ class InvitePreview(BaseModel):
     signed_in_as: str | None = None
     email_matches: bool = False
     already_member: bool = False
+    # The workspace's brand tile, so the card can look like the workspace that
+    # sent it. Both are already public (they render on its preview cards and
+    # its own domain); null when unset. Still no member list, nothing else.
+    logo_url: str | None = None
+    accent_color: str | None = None
+    logo_well: LogoWell | None = None
 
 
 class InviteAcceptResponse(BaseModel):
