@@ -1,6 +1,10 @@
 # Markdrop
 
-Minimal, anonymous markdown publishing tool. Paste markdown, get a shareable link instantly — no login required.
+**Drop it. It renders.** Docs and files as links that render — no login, no friction, just links.
+
+Markdrop turns documents and files into links that render. Write or paste markdown and AI write-ups, or upload HTML pages, PDFs, spreadsheets, Word docs, video and whole zipped sites — each one opens in any browser, no download, no app. Encrypt documents end to end, sync from VS Code, send files device to device, and put it all on your own domain.
+
+Writing a document needs no account; uploading a file needs a free one.
 
 Optionally **end-to-end encrypted**: your browser encrypts the document before it
 leaves the tab and the key travels in the URL fragment, so Markdrop stores
@@ -38,10 +42,10 @@ library — without changing anything for the people using Markdrop on their own
 - See [End-to-end encryption](#end-to-end-encryption) for the threat model and
   what it deliberately does *not* protect against
 
-### Artifacts — share more than markdown
-- Paste an **HTML page** or upload a **PDF**, **Word doc**, **Excel/CSV**, image,
+### Artifacts — files that render
+- Upload an **HTML page**, a **PDF**, **Word doc**, **Excel/CSV**, image,
   **video** (mp4 / mov / webm), or a **zipped site** (HTML + CSS + JS + assets)
-  and get a link that *renders* it
+  and get a link that *renders* it (free account)
 - Video streams with **HTTP Range requests**, so seeking fetches only the bytes
   it needs, and plays in a custom player — scrubber with buffered track, speed,
   picture-in-picture, frame stepping and keyboard control
@@ -66,10 +70,10 @@ library — without changing anything for the people using Markdrop on their own
 - **[README / markdown builder](https://markdrop.in/builder)** — assemble a doc
   from 45+ drag-and-drop section templates, then publish or download it
 - **VS Code extension** — publish a `.md` file and two-way sync it on save
-- **Export to Google Docs** — with Mermaid, LaTeX and ASCII diagrams rendered to
+- **Export to Google Docs** (coming soon on markdrop.in) — with Mermaid, LaTeX and ASCII diagrams rendered to
   images, since Drive's importer can't render them
-- **P2P file sharing** — send any file browser-to-browser over WebRTC, with
-  nothing stored on the server ([technical docs →](FILESHARE.md))
+- **P2P file sharing** — send any file browser-to-browser over WebRTC; the
+  files are never stored on the server ([technical docs →](FILESHARE.md))
 - **CLI** (`markdrop`) for file sharing from a terminal
 
 ### Accounts (all optional)
@@ -649,10 +653,10 @@ Sender (host)  ──WS──▶  FastAPI relay  ◀──WS──  Recipient (g
 
 > Markdrop's server only forwards a few KB of signalling. If two networks can't reach each other directly
 > (client-isolated Wi-Fi, no NAT hairpinning, UDP blocked), the bytes go through a Cloudflare TURN relay
-> instead — still DTLS-encrypted end to end, so the relay can't read them.
+> instead — still DTLS-encrypted device to device, so the relay can't read them.
 
 **Properties:**
-- End-to-end encrypted (DTLS, mandatory in WebRTC) — on direct and relayed paths alike
+- Encrypted device to device (DTLS, mandatory in WebRTC) — on direct and relayed paths alike
 - Many files per link, any type; the recipient holds received files in memory until saved
 - Direct when possible (STUN), relayed when not (TURN over UDP, TCP or TLS/443)
 - Up to 10 recipients at once on one link; the sender sees each one's device, progress and status

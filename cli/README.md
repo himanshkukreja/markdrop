@@ -9,7 +9,7 @@ The signalling server only ever sees tiny handshake messages — never your file
 ## Features
 
 - **Zero server storage** — files go straight from sender to receiver
-- **End-to-end encrypted** — WebRTC DTLS encryption by default
+- **Encrypted device to device** — WebRTC DTLS encryption by default
 - **QR code** — scan from any phone instead of typing the URL
 - **Browser compatible** — receiver can download from `markdrop.in` in a browser without installing anything
 - **Cross-platform** — single statically linked binary for macOS, Linux, and Windows (amd64 + arm64)
