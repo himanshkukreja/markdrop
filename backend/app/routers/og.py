@@ -2,9 +2,14 @@
 
 ``GET /api/v1/og/{slug}.png`` renders a 1200×630 preview card for a document so
 that pasting a ``markdrop.in/<slug>`` link into Slack, Twitter/X, LinkedIn, etc.
-shows a rich card. Social crawlers fetch this anonymously, so the endpoint is
-public — but it reads only non-sensitive fields (title, a snippet, view count)
-and renders a generic, content-free card for password-protected documents.
+shows a rich card.
+
+Social crawlers fetch this anonymously, so **the card shows only what an
+anonymous reader of the document itself could see.** Anything an anonymous
+visitor cannot open — a private or workspace-only document, a document in a
+workspace that requires sign-in, a password-protected one, an end-to-end
+encrypted one — gets a content-free card: no title, no opening text, nothing
+derived from the document beyond the address the link already shows.
 """
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -14,6 +19,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
 from app.limiter import limiter
+from app.services import access as access_service
 from app.services import artifact, og_render
 from app.services import domain as domain_service
 from app.services import workspace as ws_service
@@ -50,83 +56,126 @@ async def _card_host(db: AsyncIOMotorDatabase, workspace_id: str, host: str | No
     return await domain_service.primary_host(db, workspace_id)
 
 
+async def _anonymous_gate(db: AsyncIOMotorDatabase, raw: dict, workspace) -> str | None:
+    """Which gate stops an anonymous reader, or None if they can read it.
+
+    Mirrors ``services.document.get_document`` called with no user, no edit
+    secret and no password — the exact position a link crawler is in — using
+    the same rules rather than a second copy of them:
+
+    - ``access.can_read`` with no identity: only ``link`` (or no level, the
+      historical default) is readable; ``private`` and ``workspace`` are not.
+    - the workspace's ``require_auth_to_view`` closes every document in it to
+      anonymous readers, on every host.
+    - a read password gates every stranger.
+    - an encrypted document is ciphertext to the server; its title and body
+      are meaningless here and the owner chose to keep them off the wire.
+    """
+    if workspace is not None and workspace.settings.require_auth_to_view:
+        return "private"
+    if not await access_service.can_read(db, raw, None, None):
+        return "private"
+    if raw.get("read_password_hash"):
+        return "password"
+    if raw.get("encrypted"):
+        return "encrypted"
+    return None
+
+
+def _brand(workspace, footer: str | None) -> og_render.CardBrand:
+    b = workspace.branding
+    return og_render.CardBrand(
+        site_name=b.site_name,
+        accent=og_render.parse_hex_color(b.accent_color),
+        footer=footer,
+        hide_markdrop_branding=b.hide_markdrop_branding,
+    )
+
+
 @router.get("/{slug}.png")
 @limiter.limit("120/minute")
 async def og_image(
     request: Request, slug: str,
-    # The domain the card was unfurled from. Validated in `_card_host`.
+    # The domain the card was unfurled from. Validated before it is drawn.
     host: str | None = Query(None, max_length=253),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
-    # Read-only, only the fields we render — never the password hash content.
+    # Read-only, only the fields the gate and the card need — never a hash's
+    # content, only whether one exists.
     raw = await db["documents"].find_one(
         {"slug": slug},
         {
-            "title": 1, "content": 1, "views": 1, "read_password_hash": 1,
+            "title": 1, "content": 1, "read_password_hash": 1, "access_level": 1,
             "kind": 1, "mime": 1, "size_bytes": 1, "original_filename": 1,
             "encrypted": 1, "workspace_id": 1,
         },
     )
 
     if not raw:
-        # Unknown/expired slug: a generic branded card (200) keeps the preview
-        # from breaking and leaks nothing.
-        png = await run_in_threadpool(
-            og_render.render_og_png,
-            title="Markdrop",
-            snippet="Publish markdown, share files, sync from VS Code.",
-            views=0,
-            protected=False,
-        )
+        # Unknown/expired slug: the generic branded card (200) keeps the preview
+        # from breaking and says nothing about the slug.
+        png = await run_in_threadpool(og_render.render_og_png, og_render.Card(kind="generic"))
         return _png(png, max_age=300)
 
-    # An encrypted document's title and body are both ciphertext, so it gets the
-    # same content-free card as a password-protected one. Rendering `content`
-    # here would put base64 on a social card — and leak nothing useful anyway.
-    protected = bool(raw.get("read_password_hash")) or bool(raw.get("encrypted"))
-    is_artifact = raw.get("kind") == "artifact"
-    title = (raw.get("title") or raw.get("original_filename") or slug) if not protected else ""
+    workspace_id = raw.get("workspace_id")
+    workspace = await ws_service.get_workspace(db, workspace_id) if workspace_id else None
 
-    if is_artifact:
-        # `content` is only a filename stand-in for artifacts, so a text snippet
-        # would be noise. The type pill and size carry the information instead.
-        snippet = ""
-        kind = artifact.renderer_for(raw.get("mime") or "")
-        label = artifact.label_for(raw.get("mime") or "")
-        size = int(raw.get("size_bytes") or 0)
-    else:
-        snippet = "" if protected else og_render.make_snippet(raw.get("content") or "")
-        kind = label = None
-        size = None
+    gate = await _anonymous_gate(db, raw, workspace)
+    if gate is not None:
+        # Content-free card. Even the workspace's branding is withheld unless
+        # the card was unfurled from one of that workspace's own verified
+        # domains: on markdrop.in/<slug>, the site name of a private document's
+        # workspace is itself something an anonymous visitor could not learn.
+        brand = None
+        if workspace is not None and host and await domain_service.host_belongs_to(
+            db, workspace_id, host
+        ):
+            brand = _brand(workspace, host.strip().lower())
+        card = og_render.Card(kind=gate, slug=slug, brand=brand)
+        png = await run_in_threadpool(og_render.render_og_png, card)
+        return _png(png, max_age=3600)
 
+    # Readable by anyone with the link: the full card.
     # A document that belongs to a workspace wears that workspace's brand
     # wherever the card is unfurled — the point of white-labelling is that the
     # card in Slack doesn't say Markdrop, regardless of which host was linked.
-    brand = None
-    workspace_id = raw.get("workspace_id")
-    if workspace_id:
-        workspace = await ws_service.get_workspace(db, workspace_id)
-        if workspace is not None:
-            b = workspace.branding
-            brand = og_render.CardBrand(
-                site_name=b.site_name,
-                accent=og_render.parse_hex_color(b.accent_color),
-                footer=await _card_host(db, workspace_id, host),
-                hide_markdrop_branding=b.hide_markdrop_branding,
-            )
+    brand = _brand(workspace, await _card_host(db, workspace_id, host)) if workspace else None
 
-    png = await run_in_threadpool(
-        og_render.render_og_png,
-        title=title,
-        snippet=snippet,
-        views=int(raw.get("views", 0) or 0),
-        protected=protected,
-        artifact_kind=kind,
-        artifact_label=label,
-        artifact_size=size,
-        artifact_filename=raw.get("original_filename") if is_artifact else None,
-        brand=brand,
-    )
-    # 1h cache: title/snippet edits and view counts propagate within the hour
-    # without hammering the renderer on every crawler hit.
+    title = (raw.get("title") or "").strip()
+    if raw.get("kind") == "artifact":
+        mime = raw.get("mime") or ""
+        filename = (raw.get("original_filename") or "").strip()
+        title = title or filename or slug
+        size = int(raw.get("size_bytes") or 0)
+        card = og_render.Card(
+            kind="artifact",
+            title=title,
+            # `content` is only a filename stand-in for artifacts; the original
+            # filename is the useful second line, when it says something new.
+            snippet=filename if filename and filename != title else "",
+            slug=slug,
+            meta=og_render.fmt_size(size) if size else "",
+            artifact_renderer=artifact.renderer_for(mime),
+            artifact_label=artifact.label_for(mime),
+            brand=brand,
+        )
+    else:
+        content = raw.get("content") or ""
+        heading = og_render.lead_heading(content)
+        # Most documents store no title and name themselves with an opening
+        # heading; use it before falling back to the slug, and don't repeat it
+        # as the first words of the snippet.
+        skip_heading = bool(heading) and (not title or title == heading)
+        card = og_render.Card(
+            kind="document",
+            title=title or heading or slug,
+            snippet=og_render.make_snippet(content, skip_heading=skip_heading),
+            slug=slug,
+            meta=og_render.reading_time(content),
+            brand=brand,
+        )
+
+    png = await run_in_threadpool(og_render.render_og_png, card)
+    # 1h cache: title/snippet edits and access changes propagate within the
+    # hour without hammering the renderer on every crawler hit.
     return _png(png, max_age=3600)
