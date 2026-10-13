@@ -356,14 +356,19 @@ export function VSCodeIcon({ size = 14, className }: { size?: number; className?
 /* ── Explainers ───────────────────────────────────────────────────────── */
 const XFER_STEPS: Array<[string, string]> = [
   ["Handshake", "Our server only relays a few KB of connection details (WebRTC SDP/ICE), then steps out of the way."],
-  ["Encrypted, direct when possible", "Files stream device to device, encrypted with DTLS. If a network blocks a direct path, an encrypted relay forwards the bytes and can't read them."],
+  ["Encrypted, direct when possible", "Files stream device to device, encrypted with DTLS."],
   ["Never stored", "Files are never stored on our servers. We keep the file names, sizes and count, a hashed IP, your account if you're signed in, and connection details."],
 ];
 function Peer({ who }: { who: "you" | "them" }) {
   return <div className={cx("md-explainer__peer", `md-explainer__peer--${who}`)}><div><Icon name="globe" /></div>{who === "you" ? "You" : "Recipient"}</div>;
 }
 /** `relayAvailable` adds the relayed path (only when the relay is confirmed live). */
-export function TransferExplainer({ href = "#", relayAvailable }: { href?: string; relayAvailable?: boolean }) {
+const RELAY_SENTENCE = " If a network blocks a direct path, an encrypted relay forwards the bytes and can't read them.";
+/**
+ * `relayAvailable` draws the relayed route; `discloseRelay` (default true) adds the relay sentence to step 2.
+ * The packet rests mid-path and only travels while the explainer is hovered or focused (no endless loop).
+ */
+export function TransferExplainer({ href = "#", relayAvailable, discloseRelay = true }: { href?: string; relayAvailable?: boolean; discloseRelay?: boolean }) {
   const hid = useId();
   return (
     <section className="md-explainer" aria-labelledby={hid}>
@@ -383,7 +388,7 @@ export function TransferExplainer({ href = "#", relayAvailable }: { href?: strin
         </div>
       )}
       <div className="md-explainer__steps">
-        {XFER_STEPS.map(([t, b], i) => <div key={t} className="md-explainer__step"><h3><span>{i + 1}</span>{t}</h3><p>{b}</p></div>)}
+        {XFER_STEPS.map(([t, b], i) => <div key={t} className="md-explainer__step"><h3><span>{i + 1}</span>{t}</h3><p>{b}{i === 1 && discloseRelay ? RELAY_SENTENCE : ""}</p></div>)}
       </div>
       <a className="md-explainer__link" href={href}>Read the full technical breakdown <Icon name="arrowRight" /></a>
     </section>
