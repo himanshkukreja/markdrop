@@ -20,18 +20,19 @@ export default function ArtifactShowcase() {
             Artifacts
           </span>
           <h2 className="mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
-            Share more than markdown
+            Files that render
           </h2>
           <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d] leading-relaxed">
-            Paste an HTML page or drop in a PDF, spreadsheet, Word doc — even a
-            zipped site with its own CSS and JS. You get one clean link that
+            Upload an HTML page, a PDF, a spreadsheet, a Word doc, a video — or a
+            zipped site with its own CSS and JS. You get one link that
             <span className="text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] font-medium"> renders </span>
-            the file, instead of downloading it.
+            the file in any browser, instead of downloading it. Uploading needs a free
+            account; opening the link needs nothing.
           </p>
           <ul className="mt-5 space-y-2.5 text-sm text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d]">
             {[
-              "Rendered live — not a download prompt",
-              "Runs on an isolated domain, so a page can never touch your account",
+              "Rendered in the browser — not a download prompt",
+              "Served from a separate, sandboxed domain, so a page can't reach your account",
               "Password, expiry and view counts, same as any document",
             ].map((t) => (
               <li key={t} className="flex items-start gap-2.5">
@@ -46,7 +47,7 @@ export default function ArtifactShowcase() {
             href="/upload"
             className="mt-7 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-sm font-medium transition-colors"
           >
-            Publish an artifact
+            Upload a file
             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
               <path fillRule="evenodd" d="M7.3 14.7a1 1 0 010-1.4L10.58 10 7.3 6.7a1 1 0 111.4-1.4l4 4a1 1 0 010 1.4l-4 4a1 1 0 01-1.4 0z" clipRule="evenodd" />
             </svg>

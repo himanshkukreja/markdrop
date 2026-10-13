@@ -29,22 +29,22 @@ export default function P2PShowcase() {
         {/* Copy */}
         <Reveal className="order-2 lg:order-1">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400">
-            WebRTC · zero storage
+            WebRTC · never stored
           </span>
           <h2 className="mt-4 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
-            The server never sees your file.
+            Files go device to device.
           </h2>
           <p className="mt-4 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0] leading-relaxed">
             Drop a file — or a hundred photos — and get a link. When your recipient opens it,
-            the files stream straight from your device to theirs over an encrypted WebRTC channel.
-            On networks that block a direct path, they pass through an encrypted relay that
-            can&apos;t read them. Nothing is ever stored.
+            the files stream from your device to theirs over an encrypted WebRTC channel. If a
+            network blocks a direct path, an encrypted relay may forward bytes it cannot read.
+            The files are never stored on our servers.
           </p>
           <ul className="mt-6 space-y-3">
             {[
-              ["End-to-end encrypted", "DTLS 1.2 is mandatory in WebRTC — it can't be turned off."],
+              ["Encrypted device to device", "DTLS is mandatory in WebRTC — it can't be turned off."],
               ["Many files, one link", "Send a whole album at once; they choose what to download."],
-              ["Nothing persisted", "Rooms live in memory for the transfer, then vanish. No database."],
+              ["What we keep", "The name, type and size of the files, how many there were, a hashed IP, your account if you're signed in, and connection details. Never the files."],
             ].map(([t, d]) => (
               <li key={t} className="flex gap-3">
                 <svg className="w-5 h-5 mt-0.5 shrink-0 text-green-500" viewBox="0 0 20 20" fill="currentColor">
@@ -58,7 +58,7 @@ export default function P2PShowcase() {
           </ul>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a href="/share" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors">
-              Try file sharing
+              Send a file
             </a>
             <a
               href="https://github.com/himanshkukreja/markdrop/blob/main/FILESHARE.md"

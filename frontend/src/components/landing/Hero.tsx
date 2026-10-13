@@ -77,6 +77,7 @@ function RotatingPhrase() {
   }, []);
   return (
     <span
+      aria-hidden
       className="md-gradient-text inline-block whitespace-nowrap"
       style={{
         opacity: show ? 1 : 0,
@@ -94,14 +95,14 @@ type SceneId = "publish" | "diagram" | "artifacts" | "domains" | "builder" | "se
 // `phrase` is the headline word for this scene — short + uniform so the rotating
 // line never wraps to two lines (which would jolt the headline height mid-cycle).
 const SCENES: { id: SceneId; pill: string; tab: string; phrase: string; cta: string; dwell: number; isNew?: boolean }[] = [
-  { id: "publish", pill: "Publish", tab: "welcome.md", phrase: "Instant links.", cta: "New document", dwell: 6200 },
+  { id: "publish", pill: "Publish", tab: "welcome.md", phrase: "Markdown docs.", cta: "Start writing", dwell: 6200 },
   { id: "diagram", pill: "Diagrams & math", tab: "diagram.md", phrase: "Diagrams & math.", cta: "Try a diagram", dwell: 5600 },
-  { id: "artifacts", pill: "Artifacts", tab: "report.pdf", phrase: "Files, rendered.", cta: "Publish an artifact", dwell: 5400, isNew: true },
+  { id: "artifacts", pill: "Artifacts", tab: "report.pdf", phrase: "Files, rendered.", cta: "Upload a file", dwell: 5400, isNew: true },
   { id: "domains", pill: "Custom domains", tab: "docs.yourcompany.com", phrase: "Your own domain.", cta: "See how it works", dwell: 5400, isNew: true },
   { id: "builder", pill: "README builder", tab: "builder", phrase: "README builder.", cta: "Open the builder", dwell: 5000 },
-  { id: "send", pill: "P2P file share", tab: "transfer", phrase: "Send any file.", cta: "Share a file", dwell: 5000 },
+  { id: "send", pill: "P2P file share", tab: "transfer", phrase: "Send to a device.", cta: "Send a file", dwell: 5000 },
   { id: "sync", pill: "VS Code sync", tab: "notes.md", phrase: "VS Code sync.", cta: "Get the extension", dwell: 4600 },
-  { id: "export", pill: "Docs & analytics", tab: "README.md", phrase: "Docs & analytics.", cta: "Open dashboard", dwell: 5400 },
+  { id: "export", pill: "PDF & analytics", tab: "README.md", phrase: "PDF & analytics.", cta: "Open dashboard", dwell: 5400 },
 ];
 
 // Artifact scene: the type chips, then a "rendered" chart standing in for the
@@ -548,7 +549,7 @@ function DemoWindow({
                   <rect x="5" y="11" width="14" height="9" rx="2" />
                   <path strokeLinecap="round" d="M8 11V8a4 4 0 018 0v3" />
                 </svg>
-                End-to-end encrypted · never touches a server
+                Encrypted device to device · never stored
               </span>
             </div>
           ) : active === "sync" ? (
@@ -609,9 +610,9 @@ function DemoWindow({
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
-                    Google Docs
+                    PDF export
                   </span>
-                  <span className={`md-stagger ${chip} border-gray-300/50 dark:border-gray-700 text-gray-500 dark:text-gray-400`} style={{ animationDelay: "130ms" }}>PDF export</span>
+                  <span className={`md-stagger ${chip} border-gray-300/50 dark:border-gray-700 text-gray-500 dark:text-gray-400`} style={{ animationDelay: "130ms" }}>Password &amp; expiry</span>
                   <span className={`md-stagger ${chip} border-gray-300/50 dark:border-gray-700 text-gray-500 dark:text-gray-400`} style={{ animationDelay: "260ms" }}>Public link</span>
                 </div>
               </div>
@@ -691,7 +692,7 @@ function DemoWindow({
               <rect x="5" y="11" width="14" height="9" rx="2" />
               <path strokeLinecap="round" d="M8 11V8a4 4 0 018 0v3" />
             </svg>
-            Sending peer-to-peer · end-to-end encrypted
+            Sending device to device · encrypted
           </StatusBar>
         ) : active === "sync" ? (
           <StatusBar>
@@ -705,7 +706,7 @@ function DemoWindow({
             <svg className="w-3.5 h-3.5 text-green-300 mr-2" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
-            Exported to Google Docs · PDF ready
+            PDF ready · view counts on your dashboard
           </StatusBar>
         )}
       </div>
@@ -750,17 +751,16 @@ export default function Hero() {
               height), so anything too wide gets clipped by the page's
               overflow-x:hidden rather than wrapping. */}
           <h1 className="mt-5 text-3xl sm:text-4xl md:text-5xl lg:text-[3.4rem] font-bold tracking-tight leading-[1.1] text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
-            Publish Markdown.
+            Drop it.
             <br />
-            Share anything.
+            It renders.
             <br />
             <RotatingPhrase />
           </h1>
 
           <p className="mt-5 text-base sm:text-lg text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0] max-w-xl mx-auto lg:mx-0">
-            Paste markdown for a shareable link — no account required. Render Mermaid
-            diagrams &amp; LaTeX live, build a README from 45+ blocks, sync two-way from
-            VS Code, export to Google Docs, or send any file peer-to-peer.
+            Markdown, AI write-ups, HTML pages, PDFs, spreadsheets, Word docs, video and
+            zipped sites become links that open rendered in any browser.
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
@@ -771,21 +771,21 @@ export default function Hero() {
               <svg className="w-4 h-4 transition-transform group-hover:rotate-90" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
-              New document
+              Start writing
             </a>
             <a
-              href="/share"
+              href="/upload"
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] text-sm font-semibold transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
               </svg>
-              Share a file
+              Upload a file
             </a>
           </div>
 
           <p className="mt-5 text-xs text-gray-500 dark:text-gray-500 vscode:text-[#6a6a6a]">
-            No account required · Instant links · End-to-end encrypted transfers · Open source
+            No account to write · Free account to upload files · Open source
           </p>
         </div>
 

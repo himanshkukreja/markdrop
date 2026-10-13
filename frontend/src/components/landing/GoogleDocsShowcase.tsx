@@ -15,13 +15,13 @@ export default function GoogleDocsShowcase() {
         {/* Copy */}
         <Reveal className="lg:order-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 vscode:text-[#4fc1ff]">
-            Google Docs · Export &amp; sync
+            Google Docs export · Coming soon
           </span>
           <h2 className="mt-4 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
             Turn your markdown into a Google Doc.
           </h2>
           <p className="mt-4 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0] leading-relaxed">
-            Write in markdown, share it as a polished{" "}
+            Not available yet. When it is: write in markdown, share it as a polished{" "}
             <span className="font-medium text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4]">Google Doc</span> in one click —
             ready to comment on, hand off, or drop into a report. Change the markdown and push
             the update to the same Doc anytime.
@@ -50,7 +50,7 @@ export default function GoogleDocsShowcase() {
               href="/dashboard"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
             >
-              Export from your dashboard
+              Open your dashboard
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
               </svg>
@@ -105,15 +105,15 @@ export default function GoogleDocsShowcase() {
                 <tbody>
                   <tr>
                     <td className="border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] px-2 py-1">Docs export</td>
-                    <td className="border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] px-2 py-1 text-green-700 dark:text-green-400">Shipped</td>
+                    <td className="border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] px-2 py-1 text-amber-600 dark:text-amber-400">Coming soon</td>
                   </tr>
                   <tr>
                     <td className="border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] px-2 py-1">Live sync</td>
-                    <td className="border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] px-2 py-1 text-amber-600 dark:text-amber-400">Coming soon</td>
+                    <td className="border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] px-2 py-1 text-gray-500 dark:text-gray-400">Planned</td>
                   </tr>
                 </tbody>
               </table>
-              <pre className="mt-4 rounded-md bg-[#f6f8fa] dark:bg-[#161616] vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] px-3 py-2 text-[12px] font-mono text-gray-700 dark:text-gray-300 vscode:text-[#c8c8c8] overflow-hidden">npx markdrop publish notes.md</pre>
+              <pre className="mt-4 rounded-md bg-[#f6f8fa] dark:bg-[#161616] vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] px-3 py-2 text-[12px] font-mono text-gray-700 dark:text-gray-300 vscode:text-[#c8c8c8] overflow-hidden">markdrop.in/release-notes</pre>
             </div>
           </div>
         </Reveal>

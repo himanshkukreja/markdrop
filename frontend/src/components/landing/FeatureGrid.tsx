@@ -13,12 +13,21 @@ type Feature = {
 
 const FEATURES: Feature[] = [
   {
-    title: "Instant Markdown publishing",
-    desc: "Paste or write markdown and get a clean markdrop.in link in one click. Live preview, formatting toolbar, syntax highlighting, and PDF export.",
+    title: "Publish markdown",
+    desc: "Write or paste markdown, or an AI write-up, and get a markdrop.in link in one click. No account. Live preview, formatting toolbar, syntax highlighting and PDF export.",
     href: "/new",
-    cta: "Create a document",
+    cta: "Start writing",
     icon: (
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    ),
+  },
+  {
+    title: "Files that render: HTML, PDF, sheets, video",
+    desc: "Upload an HTML page, PDF, spreadsheet, Word doc, video or zipped site and get a link that opens it rendered in any browser, with nothing to download. Needs a free account. Served from a separate, sandboxed domain so a page can't reach your account.",
+    href: "/upload",
+    cta: "Upload a file",
+    icon: (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75h16.5m-16.5 0A2.25 2.25 0 001.5 12v6a2.25 2.25 0 002.25 2.25h16.5A2.25 2.25 0 0022.5 18v-6a2.25 2.25 0 00-2.25-2.25m-16.5 0V6a2.25 2.25 0 012.25-2.25h4.5L12 6h6.75A2.25 2.25 0 0121 8.25v1.5" />
     ),
   },
   {
@@ -32,9 +41,9 @@ const FEATURES: Feature[] = [
   },
   {
     title: "Peer-to-peer file sharing",
-    desc: "Send one file or a hundred photos device-to-device over WebRTC, from a single link. Nothing is uploaded or stored — the transfer is end-to-end encrypted, and works even on strict networks.",
+    desc: "Send one file or a hundred photos device to device over WebRTC, from a single link. Encrypted device to device, and the files are never stored on our servers.",
     href: "/share",
-    cta: "Share a file",
+    cta: "Send a file",
     icon: (
       <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
     ),
@@ -49,10 +58,10 @@ const FEATURES: Feature[] = [
     ),
   },
   {
-    title: "Export to Google Docs",
-    desc: "Connect your Google account and turn any markdown document into a fully-formatted Google Doc in one click — headings, tables, lists and code included. Edit later and push the update to the same Doc.",
+    title: "Google Docs export (coming soon)",
+    desc: "Turn a markdown document into a formatted Google Doc — headings, tables, lists and code included — and push later edits to the same Doc. Not available yet; PDF export works today.",
     href: "/dashboard",
-    cta: "Export a document",
+    cta: "Open your dashboard",
     icon: (
       <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
     ),
@@ -76,15 +85,6 @@ const FEATURES: Feature[] = [
     ),
   },
   {
-    title: "Artifacts — HTML, PDF & sheets",
-    desc: "Paste an HTML page or upload a PDF, Word doc, spreadsheet or zipped site, and get a link that renders it live. Served from an isolated domain so a page can never reach your account.",
-    href: "/upload",
-    cta: "Publish an artifact",
-    icon: (
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75h16.5m-16.5 0A2.25 2.25 0 001.5 12v6a2.25 2.25 0 002.25 2.25h16.5A2.25 2.25 0 0022.5 18v-6a2.25 2.25 0 00-2.25-2.25m-16.5 0V6a2.25 2.25 0 012.25-2.25h4.5L12 6h6.75A2.25 2.25 0 0121 8.25v1.5" />
-    ),
-  },
-  {
     title: "Your domain, your brand",
     desc: "Serve documents from docs.yourcompany.com with your own name, favicon and preview cards — no Markdrop anywhere. Add view-only mode to use it as a plain CDN, and folders and roles to keep a team tidy.",
     href: "/enterprise",
@@ -95,7 +95,7 @@ const FEATURES: Feature[] = [
   },
   {
     title: "Accounts & analytics",
-    desc: "Optional passwordless login unlocks a dashboard of all your docs, view counts, and geographic analytics. Everything works fully without an account too.",
+    desc: "Optional passwordless login unlocks a dashboard of all your docs, view counts, and geographic analytics. Writing and sharing documents works without one.",
     href: "/dashboard",
     cta: "Open dashboard",
     icon: (
@@ -118,7 +118,6 @@ const CHIPS = [
   "README builder",
   "Syntax highlighting",
   "Export to PDF",
-  "Export to Google Docs",
   "View counts",
   "Edit & delete via secret",
   "Rate-limited & abuse-reported",
@@ -129,10 +128,10 @@ export default function FeatureGrid() {
     <section className="py-16 sm:py-20">
       <Reveal className="text-center max-w-2xl mx-auto">
         <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
-          One tool, ten <span className="md-gradient-text">superpowers</span>
+          Docs and files, <span className="md-gradient-text">as links that render</span>
         </h2>
         <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0]">
-          Markdrop started as a markdown pastebin and grew into a full sharing suite — all still no-login by default.
+          Write or paste markdown and AI write-ups with no account, or upload HTML pages, PDFs, spreadsheets, Word docs, video and zipped sites with a free one. Encryption, VS Code sync, device-to-device send and your own domain build on those two.
         </p>
       </Reveal>
 

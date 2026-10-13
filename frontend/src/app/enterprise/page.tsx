@@ -6,7 +6,17 @@ import BrandedPage from "@/components/landing/BrandedPage";
 export const metadata: Metadata = {
   title: "Custom domains & white-labelling — Markdrop",
   description:
-    "Serve documents from your own domain with your own branding. Custom domains, white-label preview cards, view-only CDN mode, folders and team roles.",
+    "Serve your docs and files from your own domain with your own branding. Custom domains, white-label preview cards, view-only CDN mode, folders and team roles.",
+  // Override the site-wide card from the root layout so this page previews as itself.
+  openGraph: {
+    title: "Custom domains & white-labelling — Markdrop",
+    description: "Serve your docs and files from your own domain with your own branding.",
+  },
+  twitter: {
+    card: "summary",
+    title: "Custom domains & white-labelling — Markdrop",
+    description: "Serve your docs and files from your own domain with your own branding.",
+  },
 };
 
 /** A browser window, drawn rather than described — the fastest way to show
@@ -92,7 +102,7 @@ export default function EnterprisePage() {
               <span className="md-gradient-text">Your brand.</span>
             </h1>
             <p className="mt-5 text-lg text-gray-600 dark:text-gray-400 leading-relaxed">
-              Publish from your own domain, under your own name. Nobody sees Markdrop.
+              Publish docs and files from your own domain, under your own name. Nobody sees Markdrop.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <a href="/settings/workspaces"
@@ -224,7 +234,7 @@ export default function EnterprisePage() {
         <Reveal>
           <div className="rounded-2xl border border-blue-500/25 bg-gradient-to-br from-blue-500/10 to-sky-500/5 p-8 sm:p-10 text-center">
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Put your name on it</h2>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">Free to set up. No login required to try Markdrop itself.</p>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">Write and share documents on markdrop.in with no account. A workspace needs an account.</p>
             <a href="/settings/workspaces"
                className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
               Create a workspace
