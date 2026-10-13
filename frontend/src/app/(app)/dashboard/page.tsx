@@ -1,284 +1,250 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Alert, Anchor, Breadcrumb, Button, ConfirmDialog, EmptyState, Icon, Input, Kbd, MarkdropLoader,
+  Tabs, VSCodeIcon, copyText, cx, type MenuEntry,
+} from "@/components/ui";
+import { useToast } from "@/components/Toast";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { useLocationSearch, useMounted } from "@/components/shell/useLocation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  listMyDocuments, getAnalytics, deleteDocument, changeSlug,
-  getGoogleDocsStatus, connectGoogleDocs, disconnectGoogleDocs, exportToGoogleDocs,
-  MyDocListItem, Analytics, GoogleStatus, DocKind,
+  listMyDocuments, getGoogleDocsStatus, connectGoogleDocs, disconnectGoogleDocs, exportToGoogleDocs,
+  type MyDocListItem, type GoogleStatus,
 } from "@/lib/api";
-import { artifactStyle, formatBytes } from "@/components/ArtifactBadge";
-import Modal from "@/components/Modal";
-import VSCodeIcon from "@/components/VSCodeIcon";
-import MarkdropLoader from "@/components/MarkdropLoader";
-import DashboardSidebar, { type Filter, type Scope } from "@/components/dashboard/DashboardSidebar";
-import RowMenu, { type MenuItem } from "@/components/dashboard/RowMenu";
-import ShareDialog from "@/components/access/ShareDialog";
-import { listLibrary } from "@/lib/workspaces";
+import { recallKey, withKey } from "@/lib/e2e";
+import { listFolders, listWorkspaces, can, type Folder, type Workspace } from "@/lib/workspaces";
 import { track } from "@/lib/track";
+import ShareDialog from "@/components/access/ShareDialog";
+import LibraryPanel, { type LibraryAnalyticsTarget } from "@/components/workspace/LibraryPanel";
+import AnalyticsDrawer from "@/components/dashboard/AnalyticsDrawer";
+import NameCard from "@/components/dashboard/NameCard";
+import { DocRow, rowStatuses } from "@/components/dashboard/DocRow";
+import { ListFooter, ListSkeleton } from "@/components/dashboard/ListParts";
+import { ChangeUrlDialog, DeleteDocDialog, MoveFolderDialog, NewFolderDialog } from "@/components/dashboard/DocDialogs";
+import { addressOf, displayTitle, plural } from "@/components/dashboard/format";
+import { shouldHandleSlash, usePhone } from "@/components/dashboard/hooks";
+import styles from "@/components/dashboard/dashboard.module.css";
 
-type Range = "7d" | "30d" | "all";
+const PER_PAGE = 20;
+type KindTab = "all" | "document" | "artifact";
 
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/40 p-3">
-      <div className="text-2xl font-bold tabular-nums text-gray-900 dark:text-gray-100">{value.toLocaleString()}</div>
-      <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
-    </div>
-  );
+const TITLES: Record<KindTab, string> = { all: "All items", document: "Documents", artifact: "Artifacts" };
+
+const GDOCS_NOTICES: Record<string, { kind: "success" | "info" | "error"; text: string }> = {
+  connected: { kind: "success", text: "Google Docs connected. You can now export documents." },
+  cancelled: { kind: "info", text: "Google connection was cancelled." },
+  failed: { kind: "error", text: "Couldn't connect to Google. Try again." },
+  state_error: { kind: "error", text: "The connection expired. Try again." },
+  no_refresh_token: { kind: "error", text: "Google didn't return access. Try again and approve all prompts." },
+};
+
+/** Scope lives in the URL (REVAMP_PLAN 4.3): ?kind=document|artifact, ?ws=<id>&folder=<id|unfiled>, ?q=, ?page=. */
+function readScope(search: string) {
+  const p = new URLSearchParams(search);
+  const k = p.get("kind");
+  const kind: KindTab = k === "document" || k === "markdown" ? "document" : k === "artifact" ? "artifact" : "all";
+  const page = Math.max(1, parseInt(p.get("page") || "1", 10) || 1);
+  return { ws: p.get("ws"), folder: p.get("folder"), kind, q: (p.get("q") || "").trim(), page };
 }
 
-function readTime(s: number) {
-  if (!s) return "—";
-  if (s < 60) return `${s}s`;
-  return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
-}
+type Analyzed = LibraryAnalyticsTarget;
 
-/** How far readers got and how long they read (recorded by lib/readDepth.ts). */
-function ReadingBlock({ r }: { r: NonNullable<Analytics["reading"]> }) {
-  return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/40 p-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-        <div className="text-xs font-medium text-gray-600 dark:text-gray-300">How people read it</div>
-        <div className="text-[11px] text-gray-400">{r.reads ? `${r.reads.toLocaleString()} reading sessions` : "Nobody has read it since tracking began"}</div>
-      </div>
-      {r.reads > 0 && (
-        <div className="grid sm:grid-cols-[auto_1fr] gap-x-6 gap-y-4 items-center">
-          <div className="flex gap-6">
-            <div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{readTime(r.avg_seconds)}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Average read time</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{Math.round(r.finished)}%</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Read to the end</div>
-            </div>
-          </div>
-          <div className="space-y-1.5" aria-label="Share of readers who reached each point of the document">
-            {r.reached.map((x) => (
-              <div key={x.at} className="flex items-center gap-2 text-xs">
-                <span className="w-16 shrink-0 text-gray-500 dark:text-gray-400">{x.at === 100 ? "The end" : `${x.at}% in`}</span>
-                <div className="flex-1 h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                  <div className="h-full rounded-full bg-blue-500" style={{ width: `${x.pct}%` }} />
-                </div>
-                <span className="w-10 text-right tabular-nums text-gray-700 dark:text-gray-300">{Math.round(x.pct)}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BarRow({ label, value, max }: { label: string; value: number; max: number }) {
-  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="w-28 truncate text-gray-600 dark:text-gray-300" title={label}>{label}</span>
-      <div className="flex-1 h-3 rounded bg-gray-100 dark:bg-gray-800 overflow-hidden">
-        <div className="h-full bg-blue-500/70" style={{ width: `${pct}%` }} />
-      </div>
-      <span className="w-8 text-right tabular-nums text-gray-500">{value}</span>
-    </div>
-  );
-}
-
-function AnalyticsPanel({ slug }: { slug: string }) {
-  const [range, setRange] = useState<Range>("30d");
-  const [data, setData] = useState<Analytics | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    getAnalytics(slug, range).then((d) => { if (active) { setData(d); setLoading(false); } }).catch(() => setLoading(false));
-    return () => { active = false; };
-  }, [slug, range]);
-
-  const maxDay = data ? Math.max(1, ...data.timeseries.map((t) => t.views)) : 1;
-  const maxCountry = data ? Math.max(1, ...data.countries.map((c) => c.views)) : 1;
-  const maxRef = data ? Math.max(1, ...data.referrers.map((r) => r.views)) : 1;
-
-  return (
-    <div className="mt-3 rounded-lg bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-semibold">Analytics</h4>
-        <div className="flex gap-1">
-          {(["7d", "30d", "all"] as Range[]).map((r) => (
-            <button key={r} onClick={() => setRange(r)}
-              className={`px-2 py-0.5 text-xs rounded transition-colors ${range === r ? "bg-blue-600 text-white" : "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800"}`}>
-              {r === "all" ? "All" : r}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {loading || !data ? (
-        <div className="py-4 flex justify-center">
-          <MarkdropLoader label={null} size="sm" hideWordmark />
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatCard label="Views" value={data.totals.views} />
-            <StatCard label="Unique visitors" value={data.totals.unique_visitors} />
-            <StatCard label="PDF exports" value={data.totals.export_pdf} />
-            <StatCard label="URL copies" value={data.totals.copy_url} />
-          </div>
-
-          {data.reading && <ReadingBlock r={data.reading} />}
-
-          {data.timeseries.length > 0 && (
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Views over time</div>
-              <div className="flex items-end gap-0.5 h-20">
-                {data.timeseries.map((t) => (
-                  <div key={t.date} className="flex-1 max-w-6 bg-blue-500/60 rounded-t hover:bg-blue-500 transition-colors" style={{ height: `${(t.views / maxDay) * 100}%` }} title={`${t.date}: ${t.views}`} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Top countries</div>
-              {data.countries.length ? (
-                <div className="space-y-1">{data.countries.map((c) => <BarRow key={c.country} label={c.country} value={c.views} max={maxCountry} />)}</div>
-              ) : <p className="text-xs text-gray-400">No geo data yet.</p>}
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Top referrers</div>
-              {data.referrers.length ? (
-                <div className="space-y-1">{data.referrers.map((r) => <BarRow key={r.referrer} label={r.referrer} value={r.views} max={maxRef} />)}</div>
-              ) : <p className="text-xs text-gray-400">No referrers yet.</p>}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-type BtnVariant = "default" | "danger" | "success" | "warning";
-
-/** Circular refresh arrow; spins while a sync is in flight. */
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const toast = useToast();
+  const phone = usePhone();
+  const mounted = useMounted();
+  const search = useLocationSearch();
+  // The URL is only trusted once it has been read on the client (the server snapshot is "").
+  const urlReady = mounted && typeof window !== "undefined" && search === window.location.search;
+  const scope = useMemo(() => readScope(search), [search]);
+  const inWorkspace = !!scope.ws;
+
+  /** Update the query string. Push for scope/page changes (Back works), replace while typing. */
+  const navigate = useCallback((patch: Record<string, string | null>, replace = false) => {
+    const p = new URLSearchParams(window.location.search);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null || v === "") p.delete(k);
+      else p.set(k, v);
+    }
+    if (!("page" in patch)) p.delete("page");
+    const qs = p.toString();
+    const url = `/dashboard${qs ? `?${qs}` : ""}`;
+    if (replace) router.replace(url, { scroll: false });
+    else router.push(url, { scroll: false });
+  }, [router]);
+
+  /* ── Search box (debounced 300ms into ?q=) ─────────────────────────── */
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [qInput, setQInput] = useState("");
+  const typing = useRef(false);
+  useEffect(() => {
+    if (!urlReady) return;
+    if (document.activeElement !== searchRef.current || !typing.current) setQInput(scope.q);
+  }, [urlReady, scope.q]);
+  useEffect(() => {
+    if (!urlReady || !typing.current) return;
+    const t = setTimeout(() => {
+      typing.current = false;
+      if (qInput.trim() !== scope.q) navigate({ q: qInput.trim() || null }, true);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [qInput, urlReady, scope.q, navigate]);
+  const clearSearch = useCallback(() => {
+    typing.current = false;
+    setQInput("");
+    navigate({ q: null }, true);
+  }, [navigate]);
+
+  // "/" focuses search (single-key rules: not in a field, no dialog or menu open, no modifiers).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!shouldHandleSlash(e)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  /* ── Auth gate ──────────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (authLoading || !mounted || user) return;
+    const next = `/dashboard${window.location.search}`;
+    router.replace(`/login?next=${encodeURIComponent(next)}`);
+  }, [authLoading, mounted, user, router]);
+
+  /* ── Workspaces (names for the workspace scope and Move to folder) ─── */
+  const [workspaces, setWorkspaces] = useState<Workspace[] | null>(null);
+  const [wsError, setWsError] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    let live = true;
+    listWorkspaces()
+      .then((w) => { if (live) { setWorkspaces(w); setWsError(false); } })
+      .catch(() => { if (live) { setWorkspaces([]); setWsError(true); } });
+    return () => { live = false; };
+  }, [user]);
+  const workspace = scope.ws ? workspaces?.find((w) => w.id === scope.ws) ?? null : null;
+  const wsMissing = !!scope.ws && workspaces !== null && !workspace && !wsError;
+
+  const [folders, setFolders] = useState<Folder[] | null>(null);
+  const [folderTick, setFolderTick] = useState(0);
+  useEffect(() => {
+    if (!user || !scope.ws) { setFolders(null); return; }
+    let live = true;
+    listFolders(scope.ws).then((f) => live && setFolders(f)).catch(() => live && setFolders([]));
+    return () => { live = false; };
+  }, [user, scope.ws, folderTick]);
+  const folder = scope.folder && scope.folder !== "unfiled" ? folders?.find((f) => f.id === scope.folder) ?? null : null;
+
+  /* ── Personal list ──────────────────────────────────────────────────── */
   const [docs, setDocs] = useState<MyDocListItem[]>([]);
-  // One value, so the list can never be browsing a workspace folder while a
-  // personal kind filter is also somehow active.
-  const [scope, setScope] = useState<Scope>({ kind: "own", filter: "all" });
-  const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
-  const [counts, setCounts] = useState({ all: 0, markdown: 0, artifact: 0 });
-  const [navOpen, setNavOpen] = useState(false);
-  // The share dialog is opened from a row's overflow menu, so the row holds
-  // no trigger of its own.
-  const [accessFor, setAccessFor] = useState<MyDocListItem | null>(null);
-
-  // Google Docs integration
-  const [gStatus, setGStatus] = useState<GoogleStatus | null>(null);
-  const [exportBusy, setExportBusy] = useState<string | null>(null);   // slug in progress
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [needsReconnect, setNeedsReconnect] = useState(false);
-  const [gNotice, setGNotice] = useState<string | null>(null);
-  const [exported, setExported] = useState<{ title: string; url: string; updated: boolean } | null>(null);
-  const [disconnectBusy, setDisconnectBusy] = useState(false);
-
-  // Modal state
-  const [renameFor, setRenameFor] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const [renameError, setRenameError] = useState("");
-  const [renameBusy, setRenameBusy] = useState(false);
-  const [deleteFor, setDeleteFor] = useState<string | null>(null);
-  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
+  const [counts, setCounts] = useState<{ all: number; document: number; artifact: number } | null>(null);
+  const [listState, setListState] = useState<"loading" | "ok" | "error">("loading");
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  /** The scope the rows on screen were loaded for: the list crossfades when it changes. */
+  const [dataKey, setDataKey] = useState("");
+  /** Rows rise with a stagger on the first load only (REVAMP_PLAN 7.10 motion). */
+  const firstPaint = useRef(true);
+  const seq = useRef(0);
 
   const load = useCallback(async () => {
+    if (!user || !urlReady || inWorkspace) return;
+    const id = ++seq.current;
+    setListState((s) => (s === "error" ? "loading" : s));
     try {
-      if (scope.kind === "workspace") {
-        // The workspace's shared library, browsable here rather than only from
-        // workspace settings — the documents are the point, and the dashboard
-        // is where people look for documents.
-        const res = await listLibrary(scope.workspaceId, {
-          folderId: scope.folderId ?? undefined,
-          limit: 50,
-        });
-        setDocs(res.documents);
-      } else {
-        const res = await listMyDocuments(
-          1, undefined, scope.filter === "all" ? undefined : scope.filter
-        );
-        setDocs(res.documents);
-        setCounts({
-          all: res.count_all ?? res.total,
-          markdown: res.count_markdown ?? 0,
-          artifact: res.count_artifact ?? 0,
-        });
+      const res = await listMyDocuments(
+        scope.page,
+        scope.q || undefined,
+        scope.kind === "document" ? "markdown" : scope.kind === "artifact" ? "artifact" : undefined,
+      );
+      if (id !== seq.current) return;
+      if (res.documents.length === 0 && scope.page > 1 && res.total > 0) {
+        navigate({ page: String(Math.max(1, res.pages)) }, true);
+        return;
       }
-    } catch {
-      /* redirect handled below */
-    } finally {
-      setLoading(false);
+      setDocs(res.documents);
+      setTotal(res.total);
+      setPages(Math.max(1, res.pages));
+      setCounts({
+        all: res.count_all ?? res.total,
+        document: res.count_markdown ?? 0,
+        artifact: res.count_artifact ?? 0,
+      });
+      setListState("ok");
+      setLoadedOnce(true);
+      setDataKey(`${scope.kind}|${scope.q}|${scope.page}`);
+    } catch (e) {
+      if (id !== seq.current) return;
+      if (e instanceof Error && e.message === "UNAUTHORIZED") {
+        router.replace(`/login?next=${encodeURIComponent(`/dashboard${window.location.search}`)}`);
+        return;
+      }
+      setListState("error");
     }
-  }, [scope]);
+  }, [user, urlReady, inWorkspace, scope.page, scope.q, scope.kind, navigate, router]);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (listState !== "ok" || !loadedOnce) return;
+    const t = setTimeout(() => { firstPaint.current = false; }, 0);
+    return () => clearTimeout(t);
+  }, [listState, loadedOnce]);
+
+  /* ── Google Docs (logic unchanged: 428 → reconnect; track on success) ── */
+  const [gStatus, setGStatus] = useState<GoogleStatus | null>(null);
+  const [exportBusy, setExportBusy] = useState<string | null>(null);
+  const [reconnect, setReconnect] = useState<string | null>(null);
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) { router.replace("/login?next=/dashboard"); return; }
-    load();
+    if (!user) return;
     getGoogleDocsStatus().then(setGStatus).catch(() => {});
-  }, [authLoading, user, router, load]);
+  }, [user]);
 
-  // Surface the result of the Google connect redirect (?gdocs=…).
+  // The result of the Google connect redirect (?gdocs=…) becomes a toast; the param is removed.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const g = params.get("gdocs");
+    if (!urlReady) return;
+    const p = new URLSearchParams(window.location.search);
+    const g = p.get("gdocs");
     if (!g) return;
-    const messages: Record<string, string> = {
-      connected: "Google Docs connected. You can now export documents.",
-      cancelled: "Google connection was cancelled.",
-      failed: "Could not connect to Google. Please try again.",
-      state_error: "Connection expired. Please try again.",
-      no_refresh_token: "Google didn't return access. Try again and approve all prompts.",
-    };
-    setGNotice(messages[g] ?? null);
+    const n = GDOCS_NOTICES[g];
+    if (n) toast.toast(n.text, n.kind);
     if (g === "connected") getGoogleDocsStatus().then(setGStatus).catch(() => {});
-    // Clean the URL so a refresh doesn't re-show the notice.
-    window.history.replaceState({}, "", "/dashboard");
-  }, []);
+    p.delete("gdocs");
+    const qs = p.toString();
+    window.history.replaceState(window.history.state, "", `/dashboard${qs ? `?${qs}` : ""}`);
+  }, [urlReady, toast]);
 
   async function handleExport(doc: MyDocListItem) {
     const wasLinked = !!doc.google_doc_url;
     setExportBusy(doc.slug);
-    setExportError(null);
-    setNeedsReconnect(false);
-    setExported(null);
+    setReconnect(null);
     try {
       const result = await exportToGoogleDocs(doc.id);
       track("google_docs_export", { from: "dashboard" });
-      // Reflect the new/updated link locally without a full reload.
-      setDocs((ds) => ds.map((d) =>
-        d.id === doc.id
-          ? { ...d, google_doc_url: result.google_doc_url, google_doc_stale: false }
-          : d
-      ));
-      // Show a success banner with a direct link. We don't auto-open a new tab:
-      // window.open() after an await is blocked by popup blockers (esp. Safari).
-      if (result.google_doc_url) {
-        setExported({ title: doc.title || doc.slug, url: result.google_doc_url, updated: wasLinked });
-      }
+      setDocs((ds) => ds.map((d) => (d.id === doc.id ? { ...d, google_doc_url: result.google_doc_url, google_doc_stale: false } : d)));
+      // No auto-open: window.open() after an await is blocked by popup blockers. The toast's
+      // action runs inside a click, so it may open the tab.
+      const url = result.google_doc_url;
+      toast.toast({
+        message: `${displayTitle(doc)} ${wasLinked ? "updated in" : "exported to"} Google Docs`,
+        kind: "success",
+        action: url ? { label: "Open", onClick: () => window.open(url, "_blank", "noopener,noreferrer") } : undefined,
+      });
     } catch (err) {
       if (err instanceof Error && err.name === "ReconnectRequired") {
-        // Missing scope / expired grant — show the server's message and offer
-        // a Reconnect button rather than a dead-end error.
-        setNeedsReconnect(true);
-        setExportError(err.message);
+        setReconnect(err.message);
       } else {
-        setExportError(err instanceof Error ? err.message : "Export failed");
+        toast.error(err instanceof Error ? err.message : "Export failed. Try again.");
       }
     } finally {
       setExportBusy(null);
@@ -289,397 +255,408 @@ export default function DashboardPage() {
     try {
       await connectGoogleDocs("/dashboard");
     } catch (err) {
-      setExportError(err instanceof Error ? err.message : "Could not start Google connect");
+      toast.error(err instanceof Error ? err.message : "Couldn't start the Google connection. Try again.");
     }
   }
 
-  async function handleDisconnect() {
-    setDisconnectBusy(true);
-    setExportError(null);
-    try {
-      const status = await disconnectGoogleDocs();
-      setGStatus(status);
-      // Drop the per-doc links locally — they're stale now that we're disconnected.
-      setDocs((ds) => ds.map((d) => ({ ...d, google_doc_url: null, google_doc_stale: false })));
-      setGNotice("Google Docs disconnected. Markdrop's access has been revoked.");
-    } catch (err) {
-      setExportError(err instanceof Error ? err.message : "Could not disconnect Google");
-    } finally {
-      setDisconnectBusy(false);
+  /* ── Dialog state ───────────────────────────────────────────────────── */
+  const [shareFor, setShareFor] = useState<MyDocListItem | null>(null);
+  const [renameFor, setRenameFor] = useState<MyDocListItem | null>(null);
+  const [deleteFor, setDeleteFor] = useState<MyDocListItem | null>(null);
+  const [moveFor, setMoveFor] = useState<MyDocListItem | null>(null);
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [analytics, setAnalytics] = useState<Analyzed | null>(null);
+  const [libraryTotal, setLibraryTotal] = useState<number | null>(null);
+  const [libraryTick, setLibraryTick] = useState(0);
+  useEffect(() => setLibraryTotal(null), [scope.ws, scope.folder]);
+
+  function rowCopy(d: MyDocListItem): { text: string; hint?: string } | null {
+    if (!d.encrypted) return { text: d.url };
+    const key = recallKey(d.slug);
+    return key ? { text: withKey(d.url, key), hint: "Key saved on this device" } : null;
+  }
+
+  function menuFor(d: MyDocListItem, title: string, address: string, copy: { text: string } | null): MenuEntry[] {
+    const isArtifact = d.kind === "artifact";
+    const items: MenuEntry[] = [{ label: "Open", icon: "external", href: `/${d.slug}` }];
+    if (phone && copy) {
+      items.push({
+        label: "Copy link", icon: "copy",
+        onClick: () => { void copyText(copy.text).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy the link"))); },
+      });
     }
-  }
-
-  function copyUrl(url: string, slug: string) {
-    navigator.clipboard.writeText(url);
-    setCopied(slug);
-    setTimeout(() => setCopied((c) => (c === slug ? null : c)), 1500);
-  }
-
-  function openRename(slug: string) {
-    setRenameFor(slug); setRenameValue(slug); setRenameError("");
-  }
-
-  async function submitRename(e: React.FormEvent) {
-    e.preventDefault();
-    if (!renameFor || !renameValue.trim() || renameValue === renameFor) { setRenameFor(null); return; }
-    setRenameBusy(true); setRenameError("");
-    try {
-      await changeSlug(renameFor, renameValue.trim());
-      setRenameFor(null);
-      load();
-    } catch (err) {
-      setRenameError(err instanceof Error ? err.message : "Failed to change URL");
-    } finally {
-      setRenameBusy(false);
+    if (!isArtifact) {
+      if (d.encrypted && !recallKey(d.slug)) {
+        items.push({ label: "Edit", icon: "edit", disabled: true, description: "The key lives in your link, which was never sent to us" });
+      } else {
+        items.push({ label: "Edit", icon: "edit", href: `/${d.slug}?edit=1` });
+      }
     }
-  }
+    items.push({ label: "Analytics", icon: "chart", onClick: () => setAnalytics({ doc: d, title, address, copyText: copy?.text ?? null }) });
 
-  async function confirmDelete() {
-    if (!deleteFor) return;
-    setDeleteBusy(true);
-    try {
-      await deleteDocument(deleteFor);
-      setDocs((d) => d.filter((x) => x.slug !== deleteFor));
-      setDeleteFor(null);
-    } catch {
-      /* leave modal open */
-    } finally {
-      setDeleteBusy(false);
+    // Google actions: product actions stay on the dashboard (D7); they need a connected account.
+    if (gStatus?.configured && !isArtifact && !d.encrypted) {
+      if (gStatus.connected && d.google_doc_url) {
+        items.push({ label: "Open in Google Docs", icon: "google", href: d.google_doc_url, external: true, separated: true });
+        items.push({
+          label: exportBusy === d.slug ? "Syncing…" : d.google_doc_stale ? "Sync to Google Docs" : "Re-sync to Google Docs",
+          icon: "refresh", busy: exportBusy === d.slug, onClick: () => void handleExport(d),
+        });
+      } else if (gStatus.connected) {
+        items.push({ label: exportBusy === d.slug ? "Exporting…" : "Export to Google Docs", icon: "google", busy: exportBusy === d.slug, separated: true, onClick: () => void handleExport(d) });
+      } else {
+        items.push({ label: "Export to Google Docs", icon: "google", separated: true, caption: "Connects your Google account first", onClick: () => void handleConnect() });
+      }
     }
+
+    items.push({ label: "Share…", icon: "user", separated: true, onClick: () => setShareFor(d) });
+    items.push({ label: "Change URL", icon: "link", onClick: () => setRenameFor(d) });
+    if (d.workspace_id) {
+      items.push({ label: "Move to folder…", icon: "folder", onClick: () => setMoveFor(d) });
+    } else {
+      items.push({ label: "Move to folder…", icon: "folder", disabled: true, description: "Folders belong to workspaces. Share it with a workspace first." });
+    }
+    items.push({ label: "Delete", icon: "trash", danger: true, separated: true, onClick: () => setDeleteFor(d) });
+    return items;
   }
 
-  if (authLoading || (!user && loading)) {
+  /* ── Header ─────────────────────────────────────────────────────────── */
+  const heading = inWorkspace ? workspace?.name ?? (wsMissing ? "Workspace" : " ") : TITLES[scope.kind];
+  let summary: React.ReactNode = null;
+  if (inWorkspace) {
+    const where = scope.folder === "unfiled" ? "Unfiled" : folder ? `/${folder.path.join("/")}` : null;
+    const n = libraryTotal !== null ? plural(libraryTotal, "shared item") : null;
+    summary = [where, n].filter(Boolean).join(" · ") || null;
+  } else if (counts) {
+    summary = counts.all === 0 ? "Nothing published from this account yet" : `${plural(counts.document, "document")} · ${plural(counts.artifact, "artifact")}`;
+  }
+
+  const crumbs = inWorkspace
+    ? [
+        { label: workspace?.name ?? "Workspace", href: `/dashboard?ws=${encodeURIComponent(scope.ws!)}` },
+        { label: "Library", href: `/dashboard?ws=${encodeURIComponent(scope.ws!)}` },
+        ...(scope.folder === "unfiled" ? [{ label: "Unfiled" }] : folder ? [{ label: `/${folder.path.join("/")}` }] : []),
+      ]
+    : [{ label: "Your documents", href: "/dashboard" }, { label: TITLES[scope.kind] }];
+
+  const searchBox = (
+    <div className={cx("min-w-0", phone ? "w-full" : "w-60")} role="search">
+      <Input
+        ref={searchRef}
+        size={phone ? "md" : "sm"}
+        iconPrefix="search"
+        iconSuffix={!phone && !qInput ? <Kbd>/</Kbd> : undefined}
+        type="search"
+        value={qInput}
+        onChange={(e) => { typing.current = true; setQInput(e.target.value); }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && qInput) { e.preventDefault(); clearSearch(); }
+        }}
+        placeholder="Search by title or link"
+        aria-label="Search by title or link"
+        aria-keyshortcuts="/"
+        maxLength={200}
+        className="w-full"
+        wrapClassName="w-full"
+      />
+    </div>
+  );
+
+  const canNewFolder = inWorkspace && workspace && can(workspace.role, "member");
+  const headerActions = (
+    <>
+      {!phone && searchBox}
+      {canNewFolder && <Button variant="secondary" size={phone ? "md" : "sm"} iconLeft="folder" onClick={() => setNewFolderOpen(true)} className="max-sm:h-11">New folder</Button>}
+    </>
+  );
+
+  const tabItems = [
+    { value: "all", label: "All", count: !inWorkspace ? counts?.all : undefined },
+    { value: "document", label: "Documents", count: !inWorkspace ? counts?.document : undefined },
+    { value: "artifact", label: "Artifacts", count: !inWorkspace ? counts?.artifact : undefined },
+  ];
+
+  /* ── Render ─────────────────────────────────────────────────────────── */
+  if (authLoading || !user) {
     return (
-      <div className="flex-1 min-h-[60vh] flex items-center justify-center">
-        <MarkdropLoader label="Loading your dashboard…" />
+      <div className="flex flex-col gap-6" aria-busy="true">
+        <ListSkeleton label="Loading your dashboard" />
+        <div className="flex justify-center"><MarkdropLoader label="Loading your dashboard" size="sm" delay={2000} /></div>
       </div>
     );
   }
 
-  const TITLES: Record<Filter, string> = {
-    all: "All items",
-    markdown: "Documents",
-    artifact: "Artifacts",
-  };
-  const heading = scope.kind === "workspace" ? scope.workspaceName : TITLES[scope.filter];
-  const subheading =
-    scope.kind === "workspace"
-      ? scope.label
-      : `${counts.markdown} document${counts.markdown === 1 ? "" : "s"} · ${counts.artifact} artifact${counts.artifact === 1 ? "" : "s"}`;
+  const showList = !inWorkspace;
+  const personalEmpty = showList && listState === "ok" && docs.length === 0;
 
   return (
-    <div className="flex-1 min-h-0 flex gap-0 lg:gap-6">
-      <DashboardSidebar
-        scope={scope}
-        onScope={(sc) => { setLoading(true); setScope(sc); }}
-        counts={counts}
-        googleConnected={gStatus?.configured ? gStatus.connected : null}
-        onGoogleConnect={handleConnect}
-        onGoogleDisconnect={handleDisconnect}
-        googleBusy={disconnectBusy}
-        open={navOpen}
-        onClose={() => setNavOpen(false)}
+    <div className="flex min-w-0 flex-col gap-5">
+      <PageHeader
+        breadcrumb={<Breadcrumb items={crumbs} />}
+        title={heading}
+        description={summary ? <span className="text-text-muted">{summary}</span> : undefined}
+        actions={headerActions}
       />
 
-      <div className="md-noscroll min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-10">
-      <div className="flex items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-3 min-w-0">
-          {/* The rail is a drawer below lg, so it needs a way in. */}
-          <button
-            onClick={() => setNavOpen(true)}
-            aria-label="Browse"
-            className="lg:hidden grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-gray-200 dark:border-white/[0.09] text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.06]"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-          </button>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">{heading}</h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{subheading}</p>
-          </div>
-        </div>
-      </div>
+      {phone && searchBox}
 
-      {gNotice && (
-        <div className="mb-4 rounded-lg border border-blue-200 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 text-sm text-blue-700 dark:text-blue-300 flex items-center justify-between gap-3">
-          <span>{gNotice}</span>
-          <button onClick={() => setGNotice(null)} className="text-blue-400 hover:text-blue-600 shrink-0">✕</button>
-        </div>
-      )}
-      {exportError && (
-        <div className="mb-4 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-600 dark:text-red-400 flex items-center justify-between gap-3 flex-wrap">
-          <span>{exportError}</span>
-          <div className="flex items-center gap-3 shrink-0">
-            {needsReconnect && (
-              <button onClick={handleConnect} className="font-medium underline hover:no-underline">Reconnect Google Docs →</button>
-            )}
-            <button onClick={() => { setExportError(null); setNeedsReconnect(false); }} className="text-red-400 hover:text-red-600">✕</button>
-          </div>
-        </div>
-      )}
-      {exported && (
-        <div className="mb-4 rounded-lg border border-green-200 dark:border-green-900/60 bg-green-50 dark:bg-green-950/30 px-3 py-2.5 text-sm text-green-700 dark:text-green-300 flex items-center justify-between gap-3 flex-wrap">
-          <span className="inline-flex items-center gap-1.5">
-            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6 9 17l-5-5" /></svg>
-            <span><span className="font-medium">{exported.title}</span> {exported.updated ? "updated in" : "exported to"} Google Docs.</span>
-          </span>
-          <div className="flex items-center gap-3 shrink-0">
-            <a href={exported.url} target="_blank" rel="noopener noreferrer" className="font-medium underline hover:no-underline">Open in Google Docs →</a>
-            <button onClick={() => setExported(null)} className="text-green-500 hover:text-green-700">✕</button>
-          </div>
-        </div>
+      <NameCard />
+
+      {reconnect && (
+        <Alert
+          tone="danger"
+          title="Google Docs needs reconnecting"
+          onDismiss={() => setReconnect(null)}
+          actions={<Button size="sm" variant="secondary" iconLeft="google" onClick={() => void handleConnect()}>Reconnect Google Docs</Button>}
+        >
+          {reconnect}
+        </Alert>
       )}
 
-      {loading ? (
-        <div className="py-6 flex justify-center">
-          <MarkdropLoader label="Loading documents…" size="sm" />
-        </div>
-      ) : docs.length === 0 ? (
-        <div className="text-center py-16 text-gray-500 dark:text-gray-400 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
-          {scope.kind === "own" && scope.filter === "artifact" ? (
-            <>
-              <p className="mb-2 font-medium">No artifacts yet.</p>
-              <p className="text-sm">
-                Publish an HTML page, PDF or spreadsheet and get a link that renders it.
-              </p>
-              <a href="/upload" className="inline-block mt-3 text-sm px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors">
-                Publish an artifact
-              </a>
-            </>
-          ) : (
-            <>
-              <p className="mb-2 font-medium">No documents yet.</p>
-              <p className="text-sm">Create one, or open a document you made and click <span className="font-medium text-gray-700 dark:text-gray-300">Save to my account</span>.</p>
-            </>
-          )}
-        </div>
+      <Tabs
+        variant="pill"
+        size="sm"
+        aria-label="Kind"
+        items={tabItems}
+        value={scope.kind}
+        onChange={(v) => navigate({ kind: v === "all" ? null : v })}
+        className="max-w-full min-w-0 self-start"
+      />
+
+      {/* ── Workspace library ── */}
+      {inWorkspace && (wsMissing ? (
+        <EmptyState
+          icon="users"
+          title="This workspace isn't available"
+          description="It may have been deleted, or you're no longer a member."
+          actions={<Button variant="secondary" href="/dashboard">Go to your documents</Button>}
+        />
+      ) : workspace && folders !== null && urlReady ? (
+        <LibraryPanel
+          key={`${workspace.id}|${libraryTick}`}
+          workspaceId={workspace.id}
+          workspaceName={workspace.name}
+          role={workspace.role}
+          folders={folders}
+          primaryHost={workspace.primary_host}
+          folderId={scope.folder}
+          q={scope.q}
+          kind={scope.kind === "document" ? "markdown" : scope.kind === "artifact" ? "artifact" : ""}
+          page={scope.page}
+          onPage={(p) => navigate({ page: p > 1 ? String(p) : null })}
+          onClearSearch={clearSearch}
+          onAnalytics={setAnalytics}
+          onTotal={setLibraryTotal}
+        />
+      ) : wsError ? (
+        <Alert tone="danger" title="Couldn't load this workspace" actions={<Button size="sm" variant="secondary" iconLeft="refresh" onClick={() => { setWorkspaces(null); setWsError(false); listWorkspaces().then(setWorkspaces).catch(() => { setWorkspaces([]); setWsError(true); }); }}>Try again</Button>}>
+          Check your connection and try again.
+        </Alert>
       ) : (
-        <div className="space-y-2.5">
-          {docs.map((d) => (
-            <div key={d.slug} className="group rounded-xl border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-white/[0.02] px-3.5 py-3 hover:border-gray-300 dark:hover:border-white/[0.14] hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors">
-              <div className="flex items-center gap-3">
-                {/* Type at a glance, before the words. */}
-                {/* The file's own icon and colour, not a generic download
-                    arrow: a mixed list stays scannable only if a video, a
-                    spreadsheet and an HTML page look different at a glance. */}
-                {(() => {
-                  const art = d.kind === "artifact" ? artifactStyle(d.renderer) : null;
-                  return (
-                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
-                      art ? `${art.bg} ${art.text}` : "bg-blue-500/10 text-blue-400"
-                    }`}>
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                           strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        {art ? art.icon
-                          : <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" /><path d="M14 2v6h6M8 13h8M8 17h5" /></>}
-                      </svg>
-                    </span>
-                  );
-                })()}
+        <ListSkeleton label="Loading the library" />
+      ))}
 
-                <div className="min-w-0 flex-1">
-                  <a href={`/${d.slug}`} className="block truncate font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                    {d.title || d.original_filename || d.slug}
-                  </a>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] text-gray-500 dark:text-gray-400">
-                    {/* The type as plain text, not a second tinted chip: the
-                        avatar already carries the icon and the colour, and
-                        saying it twice is noise rather than emphasis. */}
-                    {d.kind === "artifact" && d.type_label && (
-                      <span className="text-gray-500 dark:text-gray-400">{d.type_label}</span>
-                    )}
-                    <span className="font-mono break-all">
-                      /{[...(d.folder_path ?? []), d.slug].join("/")}
-                    </span>
-                    <span title="Views">· {d.views.toLocaleString()} view{d.views === 1 ? "" : "s"}</span>
-                    {d.kind === "artifact"
-                      ? <span title="File size">· {formatBytes(d.size_bytes)}</span>
-                      : d.export_pdf_count > 0 && <span title="PDF exports">· {d.export_pdf_count} PDF{d.export_pdf_count === 1 ? "" : "s"}</span>}
-                    {d.copy_url_count > 0 && <span title="Link copies">· {d.copy_url_count} copies</span>}
-                    {/* Drawn icons, not emoji: an emoji renders in the system
-                        font at its own weight and colour, which reads as
-                        pasted-in next to a row of 1.8px stroked glyphs — and it
-                        looks different on every platform. */}
-                    {d.encrypted && (
-                      <span title="End-to-end encrypted. Stored as ciphertext — the title and preview aren't shown here because the key exists only in your link."
-                            className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                          <rect x="4" y="10" width="16" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /><circle cx="12" cy="15.5" r="1.2" fill="currentColor" stroke="none" />
-                        </svg>
-                        Encrypted
-                      </span>
-                    )}
-                    {d.is_password_protected && (
-                      <span title="Password protected" className="inline-flex items-center gap-1">
-                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                          <rect x="4" y="10" width="16" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" />
-                        </svg>
-                        Password
-                      </span>
-                    )}
-                    {d.vscode_synced && (
-                      <span title="Synced with VS Code" className="inline-flex items-center gap-1 text-[#007acc] dark:text-[#4daafc]">
-                        <VSCodeIcon className="w-3 h-3" /> VS Code
-                      </span>
-                    )}
-                    {/* Who can open it, stated on the row. Access control that
-                        only appears inside an overflow menu is access control
-                        nobody checks. */}
-                    <button
-                      onClick={() => setAccessFor(d)}
-                      title="Change who can open this"
-                      className={`inline-flex items-center gap-1 rounded px-1 -mx-1 transition-colors hover:bg-gray-100 dark:hover:bg-white/[0.07] ${
-                        d.access_level === "private"
-                          ? "text-amber-600 dark:text-amber-400"
-                          : d.access_level === "workspace"
-                            ? "text-blue-600 dark:text-blue-400"
-                            : "text-gray-500 dark:text-gray-400"
-                      }`}
-                    >
-                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        {d.access_level === "private"
-                          ? <><rect x="4" y="10" width="16" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>
-                          : d.access_level === "workspace"
-                            ? <><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9.5" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /></>
-                            : <><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></>}
-                      </svg>
-                      {d.access_level === "private" ? "Private"
-                        : d.access_level === "workspace" ? "Workspace"
-                        : "Anyone with link"}
-                      {(d.shared_with_count ?? 0) > 0 && ` +${d.shared_with_count}`}
-                    </button>
-                    {d.google_doc_url && (
-                      <span className={d.google_doc_stale ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}>
-                        · {d.google_doc_stale ? "Google Doc stale" : "Google Doc synced"}
-                      </span>
-                    )}
-                    {d.expires_at && <span className="text-amber-600 dark:text-amber-400">· expires {new Date(d.expires_at).toLocaleDateString()}</span>}
-                    {scope.kind === "workspace" && (d.shared_by_name || d.shared_by_email) && (
-                      <span className="inline-flex items-center gap-1">
-                        · {d.is_mine ? "You" : d.shared_by_name || d.shared_by_email}
-                      </span>
-                    )}
-                    <span>· {new Date(d.created_at).toLocaleDateString()}</span>
-                  </div>
-                </div>
+      {/* ── Your documents ── */}
+      {showList && listState === "error" && (
+        <Alert
+          tone="danger"
+          title="Couldn't load your documents"
+          actions={<Button size="sm" variant="secondary" iconLeft="refresh" onClick={() => void load()}>Try again</Button>}
+        >
+          Check your connection and try again.
+        </Alert>
+      )}
 
-                {/* One or two quick actions appear on hover on a pointer device;
-                    everything, including these, is always in the menu, so a
-                    touch device is never short of a way in. */}
-                <div className="hidden sm:flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                  {!d.encrypted && (
-                    <button onClick={() => copyUrl(d.url, d.slug)}
-                      className="rounded-lg border border-gray-200 dark:border-white/[0.09] px-2.5 py-1.5 text-[11.5px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors">
-                      {copied === d.slug ? "Copied" : "Copy link"}
-                    </button>
-                  )}
-                  <a href={d.kind === "artifact" ? `/${d.slug}` : `/${d.slug}?edit=1`}
-                     className="rounded-lg border border-gray-200 dark:border-white/[0.09] px-2.5 py-1.5 text-[11.5px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors">
-                    {d.kind === "artifact" ? "Open" : "Edit"}
-                  </a>
-                  <button onClick={() => setAccessFor(d)}
-                    className="rounded-lg border border-gray-200 dark:border-white/[0.09] px-2.5 py-1.5 text-[11.5px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors">
-                    Share
-                  </button>
-                </div>
+      {showList && listState === "loading" && <ListSkeleton />}
 
-                <RowMenu
-                  label={`Actions for ${d.title || d.slug}`}
-                  items={((): MenuItem[] => {
-                    const items: MenuItem[] = [
-                      { label: expanded === d.slug ? "Hide analytics" : "Analytics",
-                        onClick: () => setExpanded(expanded === d.slug ? null : d.slug) },
-                    ];
-                    // No copy link for an encrypted document: the key lives in
-                    // the link's fragment and was never sent here, so this could
-                    // only ever produce a link that opens to "no key".
-                    if (d.encrypted) {
-                      items.push({ label: "Link holds the key", disabled: true });
-                    } else {
-                      items.push({ label: copied === d.slug ? "Copied" : "Copy link",
-                                   onClick: () => copyUrl(d.url, d.slug) });
-                    }
-                    items.push(d.kind === "artifact"
-                      ? { label: "Open artifact", href: `/${d.slug}` }
-                      : { label: "Edit", href: `/${d.slug}?edit=1` });
-
-                    if (gStatus?.connected && d.kind !== "artifact" && !d.encrypted) {
-                      if (d.google_doc_url) {
-                        items.push({ label: "Open in Google Docs", href: d.google_doc_url, external: true, separated: true });
-                        items.push({ label: exportBusy === d.slug ? "Syncing…" : d.google_doc_stale ? "Sync to Google" : "Re-sync to Google",
-                                     onClick: () => handleExport(d), busy: exportBusy === d.slug });
-                      } else {
-                        items.push({ label: exportBusy === d.slug ? "Exporting…" : "Export to Google Docs",
-                                     onClick: () => handleExport(d), busy: exportBusy === d.slug, separated: true });
-                      }
-                    }
-
-                    items.push({ label: "Share…", onClick: () => setAccessFor(d), separated: true });
-                    items.push({ label: "Change URL", onClick: () => openRename(d.slug) });
-                    items.push({ label: "Delete", onClick: () => setDeleteFor(d.slug), danger: true, separated: true });
-                    return items;
-                  })()}
-                />
-              </div>
-
-              {/* Private by default. The dialog states the consequences before
-                  it does anything; the row just opens it. */}
-              {expanded === d.slug && <AnalyticsPanel slug={d.slug} />}
-            </div>
-          ))}
+      {personalEmpty && (scope.q ? (
+        <EmptyState
+          icon="search"
+          title={`Nothing matches “${scope.q}”`}
+          description="Search looks at titles and links."
+          actions={<Button variant="secondary" onClick={clearSearch}>Clear search</Button>}
+        />
+      ) : scope.kind === "artifact" ? (
+        <EmptyState
+          icon="layers"
+          title="No artifacts yet"
+          description="Publish an HTML page, PDF or spreadsheet and get a link that renders it."
+          actions={<Button variant="secondary" iconLeft="upload" href="/upload">Publish an artifact</Button>}
+        />
+      ) : (
+        <div className="flex flex-col gap-4">
+          <EmptyState
+            icon="lines"
+            title="Publish your first document"
+            description="Paste markdown and get a shareable link instantly. Documents you publish while signed in appear here."
+            actions={<Button variant="secondary" iconLeft="lines" href="/new">New document</Button>}
+          />
+          <p className="text-center text-caption text-text-muted">
+            Saved one while signed out? Open it and choose <span className="font-semibold text-text-secondary">Save to my account</span>.
+          </p>
+          {scope.kind === "all" && <OtherWays />}
         </div>
+      ))}
+
+      {showList && listState === "ok" && docs.length > 0 && (
+        <>
+          <ul key={dataKey} className={cx("flex min-w-0 flex-col gap-2", !firstPaint.current && styles.fade)} aria-label={scope.q ? "Matching items" : TITLES[scope.kind]}>
+            {docs.map((d, i) => {
+              const title = displayTitle(d);
+              const addr = addressOf(d);
+              const copy = rowCopy(d);
+              return (
+                <DocRow
+                  key={d.id}
+                  doc={d}
+                  title={title}
+                  href={`/${d.slug}`}
+                  address={addr.label}
+                  statuses={rowStatuses(d, !!gStatus?.connected)}
+                  onAccess={() => setShareFor(d)}
+                  copy={copy}
+                  menu={menuFor(d, title, addr.label, copy)}
+                  phone={phone}
+                  riseDelay={firstPaint.current ? Math.min(i, 8) * 20 : null}
+                  menuLabel={`Actions for ${title}`}
+                />
+              );
+            })}
+          </ul>
+          <ListFooter
+            page={scope.page}
+            pages={pages}
+            shown={docs.length}
+            total={total}
+            perPage={PER_PAGE}
+            onPage={(p) => { navigate({ page: p > 1 ? String(p) : null }); window.scrollTo({ top: 0 }); }}
+            phone={phone}
+          />
+        </>
       )}
 
-      {/* Change URL modal */}
-      {renameFor && (
-        <Modal title="Change document URL" onClose={() => setRenameFor(null)}>
-          <form onSubmit={submitRename} className="space-y-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Existing links to the old URL will stop working. Analytics are preserved.</p>
-            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 focus-within:border-blue-500 transition-colors">
-              <span className="text-sm text-gray-400 shrink-0">markdrop.in/</span>
-              <input
-                autoFocus value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
-                maxLength={50}
-                className="flex-1 bg-transparent outline-none text-sm font-mono text-gray-800 dark:text-gray-200 min-w-0"
-              />
-            </div>
-            {renameError && <p className="text-xs text-red-500">{renameError}</p>}
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setRenameFor(null)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Cancel</button>
-              <button type="submit" disabled={renameBusy || renameValue.length < 3} className="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium transition-colors">
-                {renameBusy ? "Saving…" : "Change URL"}
-              </button>
-            </div>
-          </form>
-        </Modal>
+      {gStatus?.configured && gStatus.connected && !inWorkspace && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border pt-4 text-caption text-text-muted">
+          <Icon name="google" size={14} />
+          Google Docs is connected.
+          <Button variant="link" size="sm" onClick={() => setDisconnectOpen(true)}>Disconnect</Button>
+        </p>
       )}
 
-      </div>
-
-      {accessFor && (
+      {/* ── Overlays ── */}
+      {shareFor && (
         <ShareDialog
-          slug={accessFor.slug}
-          documentId={accessFor.id}
-          title={accessFor.title || accessFor.original_filename || accessFor.slug}
-          onClose={() => setAccessFor(null)}
-          onChanged={load}
+          slug={shareFor.slug}
+          documentId={shareFor.id}
+          title={displayTitle(shareFor)}
+          onClose={() => setShareFor(null)}
+          onChanged={() => void load()}
         />
       )}
 
-      {/* Delete confirm modal */}
-      {deleteFor && (
-        <Modal title="Delete document?" onClose={() => setDeleteFor(null)}>
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            Permanently delete <span className="font-mono text-gray-800 dark:text-gray-100">/{deleteFor}</span>? This cannot be undone.
-          </p>
-          <div className="flex justify-end gap-2">
-            <button onClick={() => setDeleteFor(null)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Cancel</button>
-            <button onClick={confirmDelete} disabled={deleteBusy} className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-medium transition-colors">
-              {deleteBusy ? "Deleting…" : "Delete"}
-            </button>
-          </div>
-        </Modal>
+      <ChangeUrlDialog
+        doc={renameFor}
+        onClose={() => setRenameFor(null)}
+        onChanged={(_old, next) => {
+          setRenameFor(null);
+          toast.success(`Link changed to /${next}`);
+          void load();
+        }}
+      />
+
+      <DeleteDocDialog
+        doc={deleteFor}
+        onClose={() => setDeleteFor(null)}
+        onDeleted={(slug) => {
+          setDeleteFor(null);
+          setDocs((ds) => ds.filter((x) => x.slug !== slug));
+          toast.success(`Deleted /${slug}`);
+          void load();
+        }}
+      />
+
+      <MoveFolderDialog
+        doc={moveFor}
+        workspaceId={moveFor?.workspace_id ?? null}
+        workspaceName={workspaces?.find((w) => w.id === moveFor?.workspace_id)?.name}
+        onClose={() => setMoveFor(null)}
+        onMoved={(d, label) => {
+          setMoveFor(null);
+          toast.success(`Moved “${displayTitle(d)}” to ${label}`);
+          void load();
+        }}
+      />
+
+      {workspace && (
+        <NewFolderDialog
+          open={newFolderOpen}
+          workspaceId={workspace.id}
+          parent={folder}
+          onClose={() => setNewFolderOpen(false)}
+          onCreated={(f) => {
+            setNewFolderOpen(false);
+            setFolderTick((t) => t + 1);
+            setLibraryTick((t) => t + 1);
+            toast.toast({
+              message: `Folder “${f.name}” created`,
+              kind: "success",
+              action: { label: "Open", onClick: () => navigate({ ws: workspace.id, folder: f.id, q: null }) },
+            });
+          }}
+        />
       )}
+
+      <AnalyticsDrawer
+        doc={analytics?.doc ?? null}
+        title={analytics?.title ?? ""}
+        address={analytics?.address ?? ""}
+        copyText={analytics?.copyText ?? null}
+        onClose={() => setAnalytics(null)}
+      />
+
+      <ConfirmDialog
+        open={disconnectOpen}
+        onClose={() => setDisconnectOpen(false)}
+        title="Disconnect Google Docs?"
+        body={<p className="text-body text-text-secondary">Markdrop's access to your Google account is revoked. Docs you already exported stay in your Google Drive but stop syncing.</p>}
+        confirmLabel="Disconnect"
+        onConfirm={async () => {
+          const status = await disconnectGoogleDocs();
+          setGStatus(status);
+          setDocs((ds) => ds.map((d) => ({ ...d, google_doc_url: null, google_doc_stale: false })));
+          setDisconnectOpen(false);
+          toast.success("Google Docs disconnected");
+        }}
+      />
     </div>
+  );
+}
+
+/** Below the first-run empty state: the other ways in (Dashboard board, empty state). */
+function OtherWays() {
+  const rows = [
+    { href: "/upload", icon: "upload", tint: "var(--cat-artifact)", title: "Upload a file", desc: "HTML page, PDF, sheet, Word doc, video or site" },
+    { href: "/builder", icon: "lines", tint: "var(--cat-builder)", title: "Build a README", desc: "Assemble a README from ready-made blocks" },
+    { href: "/settings/tokens", icon: "vscode", tint: "var(--cat-sync)", title: "Sync from VS Code", desc: "Install Markdrop Sync, run Markdrop: Sign in, and approve in the browser. We create the token for you." },
+  ];
+  return (
+    <section aria-labelledby="md-other-ways" className="flex flex-col gap-2">
+      <h2 id="md-other-ways" className="text-eyebrow text-text-muted uppercase">Other ways to publish</h2>
+      <ul className="grid gap-2 sm:grid-cols-3">
+        {rows.map((r) => (
+          <li key={r.href} className="min-w-0">
+            <Anchor href={r.href} className="md-focus flex h-full min-w-0 items-start gap-3 rounded-xl border border-border bg-surface p-3 transition-colors hover:border-border-strong hover:bg-surface-hover">
+              <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg" style={{ color: r.tint, background: "color-mix(in srgb, currentColor 12%, transparent)" }}>
+                {r.icon === "vscode" ? <VSCodeIcon size={16} /> : <Icon name={r.icon} size={16} />}
+              </span>
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-body-strong text-text">{r.title}</span>
+                <span className="text-caption text-text-muted">{r.desc}</span>
+              </span>
+            </Anchor>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

@@ -1,0 +1,45 @@
+/* Dashboard motion (REVAMP_PLAN 7.10): rows rise 4px with a 20ms stagger on first load (capped at 8,
+   delay set inline); tab and filter changes crossfade the list in 120ms with no re-stagger; the
+   analytics chart draws in over 400ms and bars grow with a 20ms stagger. Reduced motion: rest frames. */
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.rise { animation: rise var(--duration-panel) var(--ease-out) both; }
+.fade { animation: fade var(--duration-exit) var(--ease-out) both; }
+
+.line { stroke-dasharray: 1; stroke-dashoffset: 0; animation: draw var(--duration-reveal) var(--ease-out) both; }
+.area { animation: fade var(--duration-reveal) var(--ease-out) 120ms both; }
+.bar { transform-origin: left center; animation: grow 300ms var(--ease-out) both; }
+
+/* Light: rows sit on bg as raised cards with a soft navy shadow (Dashboard board). */
+:global([data-theme="light"]) .row { box-shadow: var(--shadow-sm); transition: border-color var(--duration-fast), box-shadow var(--duration-fast); }
+:global([data-theme="light"]) .row:hover { box-shadow: var(--shadow-md); }
+
+.row { position: relative; }
+/* Rows are stacking contexts (the rise animation); the row whose menu is open must sit above the
+   rows after it, or the menu renders underneath them. */
+.row:focus-within { border-color: var(--border-strong); z-index: 2; }
+
+/* The analytics drawer's chart crosshair dot. */
+.dot { transition: cx var(--duration-fast) var(--ease-out), cy var(--duration-fast) var(--ease-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, .fade, .area, .bar { animation: none; }
+  .line { animation: none; stroke-dashoffset: 0; }
+  .dot { transition: none; }
+}

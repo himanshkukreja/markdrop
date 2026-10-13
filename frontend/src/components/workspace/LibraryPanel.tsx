@@ -1,333 +1,383 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useState as useShareState } from "react";
-import type { MyDocListItem } from "@/lib/api";
-import ShareDialog from "@/components/access/ShareDialog";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  can, fileDocument, libraryCounts, listLibrary, unshareFromWorkspace,
-  type Folder, type Role,
+  Alert, Button, ConfirmDialog, EmptyState, Input, SegmentedControl, Tabs, copyText, cx, type MenuEntry,
+} from "@/components/ui";
+import { useToast } from "@/components/Toast";
+import ShareDialog from "@/components/access/ShareDialog";
+import { DocRow, rowStatuses } from "@/components/dashboard/DocRow";
+import { ListFooter, ListSkeleton } from "@/components/dashboard/ListParts";
+import { MoveFolderDialog, folderOptions } from "@/components/dashboard/DocDialogs";
+import { addressOf, displayTitle, plural } from "@/components/dashboard/format";
+import { usePhone } from "@/components/dashboard/hooks";
+import styles from "@/components/dashboard/dashboard.module.css";
+import type { MyDocListItem } from "@/lib/api";
+import { recallKey, withKey } from "@/lib/e2e";
+import {
+  can, libraryCounts, listLibrary, unshareFromWorkspace, type Folder, type Role,
 } from "@/lib/workspaces";
 
-function Icon({ children, className = "w-4 h-4" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      {children}
-    </svg>
-  );
-}
+const PER_PAGE = 20;
+type Kind = "" | "markdown" | "artifact";
 
-function bytes(n?: number | null) {
-  if (!n) return "";
-  const u = ["B", "KB", "MB", "GB"];
-  let i = 0, v = n;
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
-  return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${u[i]}`;
-}
-
-function when(iso: string) {
-  const d = Math.round((Date.now() - new Date(iso).getTime()) / 86_400_000);
-  if (d <= 0) return "today";
-  if (d === 1) return "yesterday";
-  if (d < 30) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-/** Where this document answers, and on which host.
- *
- *  Folders are path segments, so a document filed under Data/Reports lives at
- *  `/data/reports/<slug>`. On a workspace with its own verified domain that is
- *  the address worth showing — it is the one people will actually share, and
- *  until now nothing in the UI said it existed. */
-function addressOf(d: MyDocListItem, host: string | null) {
-  const path = [...(d.folder_path ?? []), d.slug].join("/");
-  return { href: host ? `https://${host}/${path}` : `/${path}`, label: `${host ?? "markdrop.in"}/${path}` };
-}
-
-function initials(s: string) {
-  return s.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
+export interface LibraryAnalyticsTarget {
+  doc: MyDocListItem;
+  title: string;
+  address: string;
+  copyText: string | null;
 }
 
 /**
- * The workspace's shared documents and artifacts.
+ * The workspace's shared documents and artifacts (D11: the library lives on the dashboard, at
+ * /dashboard?ws=<id>[&folder=<id|unfiled>]).
  *
- * Everything listed here was put here deliberately by the person who owns it.
- * Private documents are not filtered out of this view — they were never in the
- * result set, because the server matches on `workspace_id` and a private
- * document has none. That distinction is worth keeping in mind when changing
- * this component: there is no "show only shared" flag to accidentally drop.
+ * Library privacy invariant: everything listed here was put here deliberately by the person who
+ * owns it. Private documents are not filtered out of this view; they were never in the result set,
+ * because the server matches on `workspace_id` and a private document has none. There is no "show
+ * only shared" flag to accidentally drop, and nothing here may add one.
+ *
+ * Two modes. Controlled (the dashboard passes `q`): search, kind, folder and page come from the URL
+ * and the dashboard header owns the search box. Uncontrolled (the legacy workspace-settings tab):
+ * the panel shows its own search, kind and folder filters.
  */
 export default function LibraryPanel({
   workspaceId,
   role,
   folders,
-  accent,
   primaryHost,
   onError,
+  workspaceName,
+  folderId,
+  q: qProp,
+  kind: kindProp,
+  page: pageProp,
+  onPage,
+  onClearSearch,
+  onAnalytics,
+  onTotal,
+  animateFirst = true,
 }: {
   workspaceId: string;
   role: Role;
   folders: Folder[];
-  accent: string;
+  /** Unused since the revamp (rows use category colours); kept so existing callers compile. */
+  accent?: string;
   /** The workspace's own document host, when it has a verified one. */
   primaryHost: string | null;
-  onError: (msg: string) => void;
+  onError?: (msg: string) => void;
+  workspaceName?: string;
+  /** Controlled: the folder in view (`"unfiled"`, a folder id, or null for the whole library). */
+  folderId?: string | null;
+  /** Presence switches the panel to controlled mode. */
+  q?: string;
+  kind?: Kind;
+  page?: number;
+  onPage?: (p: number) => void;
+  onClearSearch?: () => void;
+  onAnalytics?: (t: LibraryAnalyticsTarget) => void;
+  onTotal?: (total: number) => void;
+  animateFirst?: boolean;
 }) {
+  const controlled = qProp !== undefined;
+  const phone = usePhone();
+  const toast = useToast();
+
+  // Uncontrolled filters (legacy settings tab).
+  const [qLocal, setQLocal] = useState("");
+  const [qDebounced, setQDebounced] = useState("");
+  const [kindLocal, setKindLocal] = useState<Kind>("");
+  const [folderLocal, setFolderLocal] = useState<string>("");
+  const [pageLocal, setPageLocal] = useState(1);
+
+  const q = controlled ? qProp ?? "" : qDebounced;
+  const kind = controlled ? kindProp ?? "" : kindLocal;
+  const folder = controlled ? folderId ?? "" : folderLocal;
+  const page = controlled ? pageProp ?? 1 : pageLocal;
+  const setPage = controlled ? (p: number) => onPage?.(p) : setPageLocal;
+
+  useEffect(() => {
+    if (controlled) return;
+    const t = setTimeout(() => { setQDebounced(qLocal.trim()); setPageLocal(1); }, 300);
+    return () => clearTimeout(t);
+  }, [qLocal, controlled]);
+
   const [docs, setDocs] = useState<MyDocListItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState("");
-  const [kind, setKind] = useState<"" | "markdown" | "artifact">("");
-  const [folder, setFolder] = useState<string>("");   // "" = all, "unfiled", or an id
-  const [busy, setBusy] = useState("");
-  const [shareFor, setShareFor] = useShareState<MyDocListItem | null>(null);
+  const [state, setState] = useState<"loading" | "ok" | "error">("loading");
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const [dataKey, setDataKey] = useState("");
+  const firstPaint = useRef(true);
+  const [shareFor, setShareFor] = useState<MyDocListItem | null>(null);
+  const [moveFor, setMoveFor] = useState<MyDocListItem | null>(null);
+  const [unshareFor, setUnshareFor] = useState<MyDocListItem | null>(null);
+  const seq = useRef(0);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  const onTotalRef = useRef(onTotal);
+  onTotalRef.current = onTotal;
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const id = ++seq.current;
+    setState((s) => (s === "ok" ? "ok" : "loading"));
     try {
       const r = await listLibrary(workspaceId, {
+        page,
+        limit: PER_PAGE,
         q: q || undefined,
         kind: kind || undefined,
         folderId: folder && folder !== "unfiled" ? folder : undefined,
         unfiled: folder === "unfiled",
-        limit: 50,
       });
+      if (id !== seq.current) return;
+      // A page that emptied (last item removed) steps back one.
+      if (r.documents.length === 0 && page > 1 && r.total > 0) { setPage(Math.max(1, r.pages)); return; }
       setDocs(r.documents);
       setTotal(r.total);
+      setPages(Math.max(1, r.pages));
+      setState("ok");
+      setLoadedOnce(true);
+      setDataKey(`${folder}|${kind}|${q}|${page}`);
+      onTotalRef.current?.(r.total);
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Could not load the library");
-    } finally {
-      setLoading(false);
+      if (id !== seq.current) return;
+      setState("error");
+      onErrorRef.current?.(e instanceof Error ? e.message : "Couldn't load the library");
     }
-  }, [workspaceId, q, kind, folder, onError]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, q, kind, folder, page]);
 
-  // Debounced so typing in the search box doesn't fire a request per keystroke.
+  // Reset to a loading state when the scope itself changes, so old rows don't linger.
   useEffect(() => {
-    const t = setTimeout(load, q ? 300 : 0);
+    setState("loading");
+  }, [workspaceId, folder]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+  useEffect(() => {
+    if (state !== "ok") return;
+    const t = setTimeout(() => { firstPaint.current = false; }, 0);
     return () => clearTimeout(t);
-  }, [load, q]);
+  }, [state]);
 
-  // Per-folder totals don't depend on the query, so they are fetched once
-  // rather than alongside every search. Folded into `load` they turned a
-  // debounced keystroke into two requests against a rate-limited API.
   const loadCounts = useCallback(async () => {
+    if (controlled) return;
     setCounts(await libraryCounts(workspaceId).catch(() => ({})));
-  }, [workspaceId]);
+  }, [workspaceId, controlled]);
 
   useEffect(() => {
-    loadCounts();
+    void loadCounts();
   }, [loadCounts]);
 
   const canEdit = can(role, "member");
   const canAdmin = can(role, "admin");
+  const wsName = workspaceName || "the workspace";
 
-  async function run(key: string, fn: () => Promise<unknown>) {
-    setBusy(key);
-    try { await fn(); await Promise.all([load(), loadCounts()]); }
-    catch (e) { onError(e instanceof Error ? e.message : "Something went wrong"); }
-    finally { setBusy(""); }
+  function rowCopy(d: MyDocListItem, href: string, external: boolean): { text: string; hint?: string } | null {
+    const url = external ? href : d.url;
+    if (!d.encrypted) return { text: url };
+    const key = recallKey(d.slug);
+    return key ? { text: withKey(url, key), hint: "Key saved on this device" } : null;
+  }
+
+  function menuFor(d: MyDocListItem, t: string, href: string, external: boolean, address: string, copy: { text: string } | null): MenuEntry[] {
+    const items: MenuEntry[] = [{ label: "Open", icon: "external", href, external }];
+    if (phone && copy) {
+      items.push({ label: "Copy link", icon: "copy", onClick: () => { void copyText(copy.text).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy the link"))); } });
+    }
+    if (d.is_mine && onAnalytics) {
+      items.push({ label: "Analytics", icon: "chart", onClick: () => onAnalytics({ doc: d, title: t, address, copyText: copy?.text ?? null }) });
+    }
+    const second: MenuEntry[] = [];
+    if (d.is_mine) second.push({ label: "Share…", icon: "user", onClick: () => setShareFor(d) });
+    if (canEdit && folders.length > 0) second.push({ label: "Move to folder…", icon: "folder", onClick: () => setMoveFor(d) });
+    if (second.length) items.push({ ...second[0]!, separated: true } as MenuEntry, ...second.slice(1));
+    if (d.is_mine || canAdmin) {
+      items.push({ label: "Remove from library", icon: "x", danger: true, separated: true, onClick: () => setUnshareFor(d) });
+    }
+    return items;
   }
 
   const filters = [
-    { id: "", label: "All", n: total },
-    { id: "unfiled", label: "Unfiled", n: counts["unfiled"] },
-    // Depth-first, and labelled by path: two folders can legitimately both be
-    // called "Drafts", and a bare name gives no way to tell them apart.
-    ...[...folders]
-      .sort((a, b) => a.path.join("/").localeCompare(b.path.join("/")))
-      .map((f) => ({
-        id: f.id,
-        label: f.path.length > 1 ? f.path.slice(0, -1).join(" / ") + " / " + f.name : f.name,
-        n: counts[f.id],
-      })),
+    { value: "", label: "All", count: controlled ? undefined : total },
+    { value: "unfiled", label: "Unfiled", count: counts["unfiled"] },
+    ...folderOptions(folders).map((o) => ({ value: o.value, label: o.label, count: counts[o.value] })),
   ];
 
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-2 flex-wrap items-center">
-        <div className="relative flex-1 min-w-[200px]">
-          <Icon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-            <><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></>
-          </Icon>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search shared documents"
-            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg pl-9 pr-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors"
-          />
-        </div>
-        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          {([["", "All"], ["markdown", "Docs"], ["artifact", "Files"]] as const).map(([v, l]) => (
-            <button key={v} onClick={() => setKind(v)}
-              className={`px-3 py-2 text-xs transition-colors ${
-                kind === v
-                  ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                  : "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"}`}>
-              {l}
-            </button>
-          ))}
-        </div>
-      </div>
+  const activeFolder = folder && folder !== "unfiled" ? folders.find((f) => f.id === folder) : null;
+  const filtered = !!(q || kind || folder);
 
-      {filters.length > 2 && (
-        <div className="flex gap-1.5 flex-wrap">
-          {filters.map((f) => (
-            <button key={f.id} onClick={() => setFolder(f.id)}
-              className={`px-2.5 py-1 rounded-full text-xs transition-colors ${
-                folder === f.id
-                  ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/30"
-                  : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
-              {f.label}
-              {typeof f.n === "number" && <span className="ml-1 opacity-60">{f.n}</span>}
-            </button>
-          ))}
+  let empty: React.ReactNode = null;
+  if (state === "ok" && docs.length === 0) {
+    if (q) {
+      empty = (
+        <EmptyState
+          icon="search"
+          title={`Nothing matches “${q}”`}
+          description="Search looks at titles and links in this library."
+          actions={<Button variant="secondary" onClick={() => (controlled ? onClearSearch?.() : (setQLocal(""), setQDebounced("")))}>Clear search</Button>}
+        />
+      );
+    } else if (folder) {
+      empty = (
+        <EmptyState
+          icon="folder"
+          title={folder === "unfiled" ? "No unfiled documents" : `Nothing in ${activeFolder?.name ?? "this folder"} yet`}
+          description="File a shared document here from its menu: Move to folder…"
+        />
+      );
+    } else {
+      empty = (
+        <EmptyState
+          icon="inbox"
+          title={kind === "artifact" ? "No artifacts shared yet" : kind === "markdown" ? "No documents shared yet" : "Nothing shared yet"}
+          description="Documents stay private until their owner shares them here. Open Share on any document and choose Everyone in the workspace."
+          actions={<Button variant="secondary" href="/dashboard">Go to your documents</Button>}
+        />
+      );
+    }
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      {!controlled && (
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Input
+              iconPrefix="search"
+              value={qLocal}
+              onChange={(e) => setQLocal(e.target.value)}
+              placeholder="Search shared documents"
+              aria-label="Search shared documents"
+              wrapClassName="min-w-0 flex-1 basis-52"
+              className="min-w-0 flex-1 basis-52"
+            />
+            <SegmentedControl<Kind>
+              aria-label="Kind"
+              size="sm"
+              value={kindLocal}
+              onChange={(v) => { setKindLocal(v); setPageLocal(1); }}
+              options={[{ value: "", label: "All" }, { value: "markdown", label: "Documents" }, { value: "artifact", label: "Artifacts" }]}
+            />
+          </div>
+          {filters.length > 2 && (
+            <Tabs
+              variant="pill"
+              size="sm"
+              aria-label="Folder"
+              items={filters}
+              value={folderLocal}
+              onChange={(v) => { setFolderLocal(v); setPageLocal(1); }}
+            />
+          )}
         </div>
       )}
 
-      {loading ? (
-        <div className="space-y-2">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-16 rounded-xl bg-gray-100 dark:bg-gray-800/50 animate-pulse" />
-          ))}
-        </div>
-      ) : docs.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-800 px-4 py-12 text-center">
-          <Icon className="w-8 h-8 mx-auto text-gray-300 dark:text-gray-700 mb-3">
-            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-          </Icon>
-          <p className="text-sm text-gray-500">
-            {q || kind || folder ? "Nothing matches that." : "Nothing shared yet."}
+      {state === "error" && (
+        <Alert
+          tone="danger"
+          title="Couldn't load the library"
+          actions={<Button size="sm" variant="secondary" iconLeft="refresh" onClick={() => void load()}>Try again</Button>}
+        >
+          Check your connection and try again.
+        </Alert>
+      )}
+
+      {state === "loading" && !loadedOnce && <ListSkeleton label="Loading the library" />}
+      {state === "loading" && loadedOnce && <ListSkeleton rows={Math.min(5, Math.max(1, docs.length))} label="Loading the library" />}
+
+      {empty}
+
+      {state === "ok" && docs.length > 0 && (
+        <ul
+          key={dataKey}
+          className={cx("flex min-w-0 flex-col gap-2", !firstPaint.current && styles.fade)}
+          aria-label={filtered ? "Matching shared items" : "Shared items"}
+        >
+          {docs.map((d, i) => {
+            const t = displayTitle(d);
+            const addr = addressOf(d, primaryHost);
+            const copy = rowCopy(d, addr.href, addr.external);
+            const by = d.is_mine ? "You" : d.shared_by_name || d.shared_by_email;
+            return (
+              <DocRow
+                key={d.id}
+                doc={d}
+                title={t}
+                href={addr.href}
+                external={addr.external}
+                address={addr.label}
+                extraMeta={by ? <><span aria-hidden> · </span><span>{by}</span></> : null}
+                statuses={rowStatuses(d, false)}
+                onAccess={d.is_mine ? () => setShareFor(d) : null}
+                copy={copy}
+                menu={menuFor(d, t, addr.href, addr.external, addr.label, copy)}
+                phone={phone}
+                riseDelay={animateFirst && firstPaint.current ? Math.min(i, 8) * 20 : null}
+                menuLabel={`Actions for ${t}`}
+              />
+            );
+          })}
+        </ul>
+      )}
+
+      {state === "ok" && docs.length > 0 && (
+        <>
+          <ListFooter page={page} pages={pages} shown={docs.length} total={total} perPage={PER_PAGE} onPage={setPage} phone={phone} />
+          <p className="text-caption text-text-muted">
+            {plural(total, "shared item")}.{" "}
+            {canEdit ? "Everyone here can read these; members and admins can edit them." : "You have read-only access."}
           </p>
-          {!q && !kind && !folder && (
-            <p className="text-xs text-gray-400 mt-1.5 max-w-sm mx-auto leading-relaxed">
-              Documents stay private until someone shares them here. Open your dashboard and use
-              “Share to workspace” on anything the team should have.
-            </p>
-          )}
-          {!q && !kind && !folder && (
-            <a href="/dashboard" className="inline-block mt-4 text-sm text-blue-500 hover:underline">
-              Go to your documents
-            </a>
-          )}
-        </div>
-      ) : (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
-          {docs.map((d) => (
-            <div key={d.id} className="flex items-start gap-3 px-3.5 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 transition-colors">
-              <span className="w-8 h-8 rounded-lg grid place-items-center shrink-0 mt-0.5 bg-gray-100 dark:bg-gray-800">
-                <Icon className="w-4 h-4 text-gray-500">
-                  {d.kind === "artifact"
-                    ? <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6ZM14 2v6h6" />
-                    : <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" /><path d="M8 13h8M8 17h5" /></>}
-                </Icon>
-              </span>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <a href={addressOf(d, primaryHost).href} target="_blank" rel="noreferrer"
-                     className="text-sm font-medium truncate hover:text-blue-500 transition-colors">
-                    {d.encrypted ? d.slug : d.title || d.slug}
-                  </a>
-                  {d.encrypted && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                      Encrypted
-                    </span>
-                  )}
-                  {d.type_label && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-500/10 text-gray-500">
-                      {d.type_label}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 truncate mt-0.5">
-                  {addressOf(d, primaryHost).label}
-                </p>
-                <p className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                  <span className="inline-flex items-center gap-1">
-                    <span className="w-4 h-4 rounded-full grid place-items-center text-[7px] font-bold text-white"
-                          style={{ background: accent }}>
-                      {initials(d.shared_by_name || d.shared_by_email || "?")}
-                    </span>
-                    {d.is_mine ? "You" : d.shared_by_name || d.shared_by_email}
-                  </span>
-                  <span>·</span>
-                  <span>{when(d.updated_at)}</span>
-                  {d.size_bytes ? <><span>·</span><span>{bytes(d.size_bytes)}</span></> : null}
-                  <span>·</span>
-                  <span>{d.views} view{d.views === 1 ? "" : "s"}</span>
-                </p>
-              </div>
-
-              <div className="flex items-center gap-1.5 shrink-0">
-                {canEdit && folders.length > 0 && (
-                  <select
-                    value={d.folder_id || ""}
-                    onChange={(e) => run(`f${d.id}`,
-                      () => fileDocument(workspaceId, d.id, e.target.value || null, d.slug))}
-                    className="text-[11px] bg-transparent border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 cursor-pointer max-w-[120px]"
-                  >
-                    <option value="">Unfiled</option>
-                    {[...folders]
-                      .sort((a, b) => a.path.join("/").localeCompare(b.path.join("/")))
-                      .map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.path.length > 1 ? f.path.slice(0, -1).join(" / ") + " / " : ""}{f.name}
-                        </option>
-                      ))}
-                  </select>
-                )}
-                {d.is_mine && (
-                  <button
-                    onClick={() => setShareFor(d)}
-                    title="Choose who can open this"
-                    className="text-[11px] px-2 py-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-500/5 transition-colors"
-                  >
-                    Share
-                  </button>
-                )}
-                {(d.is_mine || canAdmin) && (
-                  <button
-                    disabled={busy === `u${d.id}`}
-                    onClick={() => {
-                      if (!confirm(
-                        d.is_mine
-                          ? "Remove this from the shared library? It stays in your own documents, with the same link."
-                          : "Remove this from the shared library? It goes back to its owner — nothing is deleted."
-                      )) return;
-                      run(`u${d.id}`, () => unshareFromWorkspace(workspaceId, d.id, d.slug));
-                    }}
-                    title="Remove from the shared library"
-                    className="text-[11px] px-2 py-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-500/5 transition-colors disabled:opacity-50"
-                  >
-                    {busy === `u${d.id}` ? "…" : "Unshare"}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+        </>
       )}
 
       {shareFor && (
         <ShareDialog
           slug={shareFor.slug}
           documentId={shareFor.id}
-          title={shareFor.title || shareFor.slug}
+          title={displayTitle(shareFor)}
           onClose={() => setShareFor(null)}
-          onChanged={load}
+          onChanged={() => void load()}
         />
       )}
 
-      {docs.length > 0 && (
-        <p className="text-[11px] text-gray-400">
-          {total} shared {total === 1 ? "item" : "items"}.
-          {can(role, "member")
-            ? " Everyone here can read these; members and admins can edit them."
-            : " You have read-only access."}
-        </p>
-      )}
+      <MoveFolderDialog
+        doc={moveFor}
+        workspaceId={workspaceId}
+        workspaceName={workspaceName}
+        folders={folders}
+        onClose={() => setMoveFor(null)}
+        onMoved={(d, label) => {
+          setMoveFor(null);
+          toast.success(`Moved “${displayTitle(d)}” to ${label}`);
+          void load();
+          void loadCounts();
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!unshareFor}
+        onClose={() => setUnshareFor(null)}
+        title={unshareFor ? `Remove “${displayTitle(unshareFor)}” from ${wsName}?` : "Remove from the library?"}
+        body={<p className="text-body text-text-secondary">People in the workspace lose access through the library. The document itself isn&apos;t deleted.</p>}
+        confirmLabel="Remove"
+        onConfirm={async () => {
+          const d = unshareFor;
+          if (!d) return;
+          try {
+            await unshareFromWorkspace(workspaceId, d.id, d.slug);
+          } catch (e) {
+            throw new Error(e instanceof Error && e.message ? e.message : "Couldn't remove it. Check your connection and try again.");
+          }
+          setUnshareFor(null);
+          toast.success(`Removed “${displayTitle(d)}” from ${wsName}`);
+          void load();
+          void loadCounts();
+        }}
+      />
     </div>
   );
 }
