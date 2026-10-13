@@ -72,11 +72,11 @@ CLOSE_ROOM_FULL = 4006
 
 
 async def _consume_share_metadata(
-    data: str, room_id: str, host_ip_hash: str | None
+    data: str, room_id: str, host_ip_hash: str | None, *, record: bool
 ) -> str | None:
-    """If ``data`` is an offer carrying the opaque metadata blob, log the share
-    and return the message with the blob removed. Returns None otherwise so the
-    caller relays the original text untouched.
+    """If ``data`` carries the opaque metadata blob, return the message with the
+    blob removed, logging the share first when ``record`` is set. Returns None
+    otherwise so the caller relays the original text untouched.
     """
     try:
         msg = json.loads(data)
@@ -86,6 +86,8 @@ async def _consume_share_metadata(
         return None
 
     blob = msg.pop(share_event.BLOB_FIELD)
+    if not record:
+        return json.dumps(msg)
     meta = share_event.decode_blob(blob) or {}
     try:
         db = get_database()
@@ -209,12 +211,14 @@ async def signaling_ws(
             # The sharer folds share metadata into the offer as one opaque blob.
             # Decode + log it server-side, then strip it so the relayed message
             # the recipient receives is a plain offer — the attribution never
-            # leaves this hop.
-            if not logged:
-                cleaned = await _consume_share_metadata(data, room_id, host_ip_hash)
-                if cleaned is not None:
-                    logged = True
-                    data = cleaned
+            # leaves this hop. Every host message is stripped; only the first
+            # blob is logged.
+            cleaned = await _consume_share_metadata(
+                data, room_id, host_ip_hash, record=not logged
+            )
+            if cleaned is not None:
+                logged = True
+                data = cleaned
 
             target, data, bye = _route_from_host(data, room)
             if bye:
