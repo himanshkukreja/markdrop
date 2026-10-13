@@ -451,7 +451,9 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-docrow:hover { border-color: var(--border-strong); }
 .md-docrow__icon { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: var(--radius-lg); background: var(--accent-soft); color: var(--cat-document); font-size: 18px; }
 .md-docrow__main { flex: 1; min-width: 0; }
-.md-docrow__title { font-size: 14px; font-weight: 600; color: var(--text); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: var(--space-2); border-radius: var(--radius-sm); }
+.md-docrow__title { font-size: 14px; font-weight: 600; color: var(--text); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: var(--space-2); border-radius: var(--radius-sm); min-width: 0; }
+.md-docrow__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-docrow__title > :not(.md-docrow__text) { flex: none; }
 .md-docrow__meta { font-size: 12px; line-height: 16px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .md-docrow__actions { display: flex; align-items: center; gap: var(--space-1); }
 .md-docrow--skeleton:hover { border-color: var(--border); }

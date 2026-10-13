@@ -123,7 +123,8 @@ export function RowMenu({ items, label = "More actions", defaultOpen, portal, al
   return <Dropdown defaultOpen={defaultOpen} portal={portal} align={align} trigger={<IconButton icon="more" label={label} size="sm" />} items={items} />;
 }
 export interface DocumentRowProps {
-  title: string; meta: React.ReactNode; href?: string; icon?: string; badges?: React.ReactNode; actions?: MenuItem[]; onOpen?: () => void; className?: string;
+  /** A string or a node (e.g. the slug in mono for an untitled or encrypted document). Ellipsised on one line. */
+  title: React.ReactNode; meta: React.ReactNode; href?: string; icon?: string; badges?: React.ReactNode; actions?: MenuItem[]; onOpen?: () => void; className?: string;
   /** Replaces the icon tile (e.g. a FileIcon tile keyed by renderer). */
   tile?: React.ReactNode;
   /** A quiet trailing control before the row menu (e.g. the access button). */
@@ -135,7 +136,7 @@ export function DocumentRow({ title, meta, href = "#", icon = "doc", badges, act
   return (
     <div className={cx("md-docrow", className)}>
       {tile ?? <span className="md-docrow__icon"><Icon name={icon} /></span>}
-      <div className="md-docrow__main"><L href={href} className="md-docrow__title" onClick={onOpen}>{title}{badges}</L><div className="md-docrow__meta">{meta}</div></div>
+      <div className="md-docrow__main"><L href={href} className="md-docrow__title" onClick={onOpen}><span className="md-docrow__text" dir="auto">{title}</span>{badges}</L><div className="md-docrow__meta">{meta}</div></div>
       <div className="md-docrow__actions">{trailing}{!hideOpen && <Button size="sm" variant="secondary" href={href} iconLeft="external" onClick={onOpen}>{openLabel}</Button>}{actions && <RowMenu items={actions} />}</div>
     </div>
   );
