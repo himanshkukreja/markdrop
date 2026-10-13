@@ -61,7 +61,7 @@ worker/node_modules/
 # needs to be published either.
 CONTEXT.md
 PROJECT_CONTEXT.md
-# Revamp plan names open security issues; keep it private until they are fixed.
+# Private planning notes.
 design-system/REVAMP_PLAN.md
 *.local.md
 notes.local/
