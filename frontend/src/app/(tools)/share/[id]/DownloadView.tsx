@@ -1,15 +1,39 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import FileIcon, { RouteBadge, isImage } from "@/components/share/FileIcon";
+/**
+ * /share/[id]: receive files (REVAMP_PLAN 7.17, boards Share recipient / MobileShare 4–7).
+ *
+ * UI only around ShareReceiver, used exactly as before: autoSave / batchIds refs, every file saved
+ * the moment it lands (desktop) or collected for one share-sheet tap (iOS, navigator.share called
+ * directly in the tap with nothing awaited before it), object URLs revoked, and the share_download
+ * event unchanged. "Try again" builds a fresh ShareReceiver through the same public API (start()
+ * can't be re-run on a stopped instance), so no page reload is needed.
+ */
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Button, Icon, Progress, Skeleton, VisuallyHidden, cx, isImage } from "@/components/ui";
+import TransferStage from "@/components/share/TransferStage";
+import ReceivedFileRow from "@/components/share/ReceivedFileRow";
+import WhatWeRecord from "@/components/share/WhatWeRecord";
+import { PHONE_LARGE_BYTES, etaText, plural, useActivity, useSnapshotState } from "@/components/share/live";
+import ui from "@/components/share/share.module.css";
 import { formatBytes, formatRate } from "@/lib/webrtc";
-import { FAILURE_COPY } from "@/lib/p2p/protocol";
+import { FAILURE_COPY, type FailureReason } from "@/lib/p2p/protocol";
 import { ShareReceiver, type ReceivedFile, type ReceiverSnapshot } from "@/lib/p2p/receiver";
 import { track } from "@/lib/track";
 
 const INITIAL: ReceiverSnapshot = {
   status: "connecting", files: [], failure: null, route: null, rate: 0, protocol: 2, slow: false,
 };
+
+/** Failures where opening the link again can help. */
+const RETRYABLE: FailureReason[] = ["ice", "signalling", "room-busy", "room-full", "no-host", "sender-left"];
+
+function receiverUrgent(a: ReceiverSnapshot, b: ReceiverSnapshot): boolean {
+  if (a.status !== b.status || a.failure !== b.failure || a.route !== b.route || a.slow !== b.slow) return true;
+  if (a.files.length !== b.files.length) return true;
+  for (let i = 0; i < b.files.length; i++) if (a.files[i].status !== b.files[i].status || a.files[i].id !== b.files[i].id) return true;
+  return false;
+}
 
 /**
  * iOS can't put a downloaded image into Photos — only the share sheet's
@@ -43,7 +67,8 @@ function downloadBlob(f: ReceivedFile) {
 }
 
 export default function DownloadView({ roomId }: { roomId: string }) {
-  const [snap, setSnap] = useState<ReceiverSnapshot>(INITIAL);
+  const [attempt, setAttempt] = useState(0);
+  const [snap, pushSnap, resetSnap] = useSnapshotState<ReceiverSnapshot>(INITIAL, receiverUrgent);
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [shareError, setShareError] = useState("");
   const receiverRef = useRef<ShareReceiver | null>(null);
@@ -60,7 +85,7 @@ export default function DownloadView({ roomId }: { roomId: string }) {
 
   useEffect(() => {
     const r = new ShareReceiver(roomId, {
-      onChange: setSnap,
+      onChange: pushSnap,
       onFileReady: (f) => {
         if (!iosRef.current && autoSave.current.has(f.id)) {
           downloadBlob(f);
@@ -72,7 +97,16 @@ export default function DownloadView({ roomId }: { roomId: string }) {
     receiverRef.current = r;
     r.start();
     return () => r.stop();
-  }, [roomId, markSaved]);
+  }, [roomId, markSaved, pushSnap, attempt]);
+
+  function tryAgain() {
+    autoSave.current = new Set();
+    batchIds.current = new Set();
+    setSaved(new Set());
+    setShareError("");
+    resetSnap(INITIAL);
+    setAttempt((n) => n + 1);
+  }
 
   const files = snap.files;
   const total = files.reduce((n, f) => n + f.size, 0);
@@ -86,6 +120,9 @@ export default function DownloadView({ roomId }: { roomId: string }) {
   const batchTotal = working.length + done.filter((f) => batchIds.current.has(f.id)).length;
   const batchDone = batchTotal - working.length;
   const canShare = typeof navigator !== "undefined" && "share" in navigator;
+
+  const activity = useActivity([{ id: "batch", bytes: busyGot, rate: snap.rate }], working.length > 0);
+  const act = activity("batch");
 
   function fetchFiles(ids: string[]) {
     track("share_download", { files: ids.length, of: files.length });
@@ -124,258 +161,185 @@ export default function DownloadView({ roomId }: { roomId: string }) {
     }
   }
 
-  // ── Full-screen states (nothing to show yet) ──────────────────────────────
+  // Rows get stable callbacks so React.memo can skip the ones whose numbers didn't move.
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  const fetchRef = useRef(fetchFiles);
+  fetchRef.current = fetchFiles;
+  const saveRef = useRef(saveOne);
+  saveRef.current = saveOne;
+  const onFetch = useCallback((id: string) => fetchRef.current([id]), []);
+  const onSave = useCallback((id: string) => {
+    const f = filesRef.current.find((x) => x.id === id);
+    if (f) saveRef.current(f);
+  }, []);
+
+  const footer = (
+    <footer className="mt-auto flex items-start gap-2.5 border-t border-border pt-4">
+      <Icon name="key" size={16} className="mt-0.5 shrink-0 text-accent-text" />
+      <div className="text-caption text-text-muted">
+        Files come straight from the sender&apos;s device and are never stored on our servers.{" "}
+        <WhatWeRecord placement="top-start" />
+      </div>
+    </footer>
+  );
+
+  /* ── Nothing to show yet: connecting, sender away, failed early ─────────────────────────────── */
   if (!files.length) {
-    if (snap.status === "failed" && snap.failure) {
-      return <Centered><FailureCard reason={snap.failure} /></Centered>;
-    }
+    const failure = snap.status === "failed" ? snap.failure : null;
+    const away = snap.status === "sender-away";
+    const title = failure ? FAILURE_COPY[failure].title : away ? "Waiting for the sender to reconnect" : "Connecting to the sender";
     return (
-      <Centered>
-        <div className="flex flex-col items-center gap-5 py-12">
-          <div className="relative flex items-center justify-center">
-            <span className="absolute w-16 h-16 rounded-full bg-blue-500/20 animate-ping" />
-            <span className="absolute w-12 h-12 rounded-full bg-blue-500/30 animate-ping [animation-delay:150ms]" />
-            <div className="relative z-10 w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 015.656 0l4-4a4 4 0 01-5.656-5.656l-1.102 1.101" />
-              </svg>
-            </div>
-          </div>
-          <div className="text-center max-w-xs">
-            <p className="text-base font-semibold text-gray-800 dark:text-gray-100">
-              {snap.status === "sender-away" ? "Waiting for the sender to reconnect…" : "Connecting to sender…"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {snap.slow
-                ? "This network is making it hard — trying a relayed route. This can take up to half a minute."
-                : "Setting up an encrypted connection between your devices"}
-            </p>
-          </div>
+      <div className="mx-auto flex w-full min-w-0 max-w-[640px] flex-1 flex-col gap-5 pb-6 pt-2 sm:pt-6">
+        <TransferStage mode="pair" state={failure ? "failed" : "connecting"} route={null}
+          pending={failure ? undefined : away ? "Waiting for the sender…" : "Finding a route…"}
+          ariaLabel={failure ? "Their device and this device: not connected" : "Their device and this device: connecting"} />
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-h1 text-text">{title}</h1>
+          <VisuallyHidden role="status" aria-live="polite">{title}</VisuallyHidden>
+          <p className="text-body text-text-secondary">
+            {failure
+              ? FAILURE_COPY[failure].detail
+              : away
+                ? "Their tab lost its connection. If they're back within a minute, this picks up on its own."
+                : "Setting up an encrypted connection between your devices."}
+          </p>
         </div>
-      </Centered>
+
+        {failure ? (
+          <div className="flex flex-wrap gap-2">
+            {RETRYABLE.includes(failure) && <Button variant="primary" iconLeft="refresh" onClick={tryAgain}>Try again</Button>}
+            <Button variant={RETRYABLE.includes(failure) ? "ghost" : "primary"} href="/share">Send your own files</Button>
+          </div>
+        ) : (
+          <>
+            <Progress size="sm" indeterminate label={away ? "Waiting" : "Connecting"} />
+            {snap.slow && !away && (
+              <Alert tone="info" live>This network is making it hard. This can take up to half a minute.</Alert>
+            )}
+            <section aria-label="Files" aria-busy="true" className={cx("overflow-hidden rounded-xl border border-border bg-surface", ui.card)}>
+              {[["62%", "28%"], ["48%", "22%"], ["70%", "30%"]].map(([a, b], i) => (
+                <div key={i} className="grid grid-cols-[48px_minmax(0,1fr)] items-center gap-3 border-b border-border px-3.5 py-3">
+                  <Skeleton variant="rect" width={48} height={48} />
+                  <div className="flex flex-col gap-2">
+                    <Skeleton width={a} height={12} />
+                    <Skeleton width={b} height={10} />
+                  </div>
+                </div>
+              ))}
+              <p className="px-3.5 py-3 text-caption text-text-secondary">The file list appears once your devices are connected.</p>
+            </section>
+            <div className="text-caption text-text-muted">
+              <WhatWeRecord label="What is this?" />{" "}
+              Files come straight from the sender&apos;s device while their Markdrop tab is open.
+            </div>
+          </>
+        )}
+        {footer}
+      </div>
     );
   }
 
-  // ── File list ─────────────────────────────────────────────────────────────
+  /* ── File list ──────────────────────────────────────────────────────────────────────────────── */
   const allDone = done.length === files.length;
   const ended = snap.status === "failed";
+  const one = files.length === 1;
+  const allSaved = allDone && unsaved.length === 0;
+
+  let h1: string;
+  if (working.length) h1 = batchTotal === 1 ? "Receiving a file" : `Receiving ${Math.min(batchDone + 1, batchTotal)} of ${batchTotal}`;
+  else if (allDone) h1 = one ? (allSaved && !ios ? "File saved" : "File received") : (allSaved && !ios ? `All ${files.length} saved` : `All ${files.length} received`);
+  else if (done.length) h1 = `${done.length} of ${files.length} received`;
+  else h1 = one ? `A file is ready: ${files[0].name}` : `${files.length} files are ready`;
+
+  const pct = busyBytes ? (busyGot / busyBytes) * 100 : 0;
+  const eta = act.etaReady && snap.rate > 0 ? etaText((busyBytes - busyGot) / snap.rate) : "";
+  const batchText = [`${formatBytes(busyGot)} of ${formatBytes(busyBytes)}`, snap.rate > 0 ? formatRate(snap.rate) : "", eta].filter(Boolean).join(" · ");
+  const stageState = ended ? (allDone ? "done" : "failed") : working.length ? (act.active ? "active" : "stalled") : allDone ? "done" : "waiting";
+
+  const downloadLabel = available.length === files.length
+    ? (one ? `Download (${formatBytes(total)})` : `Download all ${files.length} (${formatBytes(total)})`)
+    : `Download remaining ${available.length}`;
+  const showDownload = !ended && available.length > 0 && working.length === 0;
+  const showIosSave = ios && canShare && unsaved.length > 0;
+  const iosSaveLabel = unsaved.every((f) => isImage(f.name, f.mime))
+    ? `Save ${unsaved.length === 1 ? "photo" : `${unsaved.length} photos`} to your phone`
+    : `Save ${unsaved.length === 1 ? "file" : `${unsaved.length} files`} to your phone`;
+
+  const batchProgress = (
+    <Progress label={batchTotal === 1 ? "Receiving" : `Receiving ${Math.min(batchDone + 1, batchTotal)} of ${batchTotal}`}
+      value={pct} showValue valueText={batchText} />
+  );
+  const dockContent = working.length > 0
+    ? <div className="flex flex-col gap-1">{batchProgress}<span className="text-caption tabular-nums text-text-muted" aria-hidden>{batchText}</span></div>
+    : showIosSave
+      ? <Button variant="primary" size="lg" block iconLeft="share" onClick={() => void shareFiles(unsaved)}>{iosSaveLabel}</Button>
+      : showDownload
+        ? <Button variant="primary" size="lg" block iconLeft="download" onClick={() => fetchFiles(available.map((f) => f.id))}>{downloadLabel}</Button>
+        : null;
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="mx-auto w-full max-w-xl px-1 sm:px-4 py-6 sm:py-10 space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-50">
-              {allDone ? "All received" : files.length === 1 ? "You received a file" : `You received ${files.length} files`}
-            </h1>
-            <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-              {formatBytes(total)} · end-to-end encrypted, straight from the sender&apos;s device
-            </p>
-          </div>
-          {!ended && <RouteBadge route={snap.route} />}
+    <div className={cx("mx-auto flex w-full min-w-0 max-w-[640px] flex-1 flex-col gap-5 pt-2 sm:pb-6 sm:pt-6", dockContent ? "pb-32" : "pb-6")}>
+      <TransferStage mode="pair" state={stageState} route={ended ? null : snap.route}
+        progress={working.length ? pct / 100 : allDone ? 1 : 0} rate={snap.rate}
+        dropKey={allDone ? `done-${attempt}` : null}
+        ariaLabel={`Their device to this device${snap.route ? `, ${snap.route === "relay" ? "relayed" : "direct"}` : ""}`} />
+
+      <div className="flex flex-col gap-1.5">
+        <h1 className="break-words text-h1 text-text">{h1}</h1>
+        <VisuallyHidden role="status" aria-live="polite">{h1}</VisuallyHidden>
+        <p className="text-body text-text-secondary">{plural(files.length, "file")} · {formatBytes(total)}</p>
+      </div>
+
+      {ended && snap.failure && (
+        allDone ? (
+          <Alert tone="neutral" title="The sender has closed Markdrop">Everything arrived — your files are below.</Alert>
+        ) : (
+          <Alert tone="warning" title={FAILURE_COPY[snap.failure].title}>{FAILURE_COPY[snap.failure].detail}</Alert>
+        )
+      )}
+
+      {ios && total > PHONE_LARGE_BYTES && !allDone && (
+        <Alert tone="warning">This is a lot for an iPhone to hold at once — download a few at a time.</Alert>
+      )}
+
+      {/* Primary action / batch progress: inline from 640px, docked at the bottom on phones */}
+      {dockContent && (
+        <div className={cx("hidden sm:block", working.length > 0 && cx("rounded-xl border border-border bg-surface p-4", ui.card))}>
+          {dockContent}
         </div>
+      )}
+      {showIosSave && working.length > 0 && (
+        <Button variant="primary" size="lg" block iconLeft="share" onClick={() => void shareFiles(unsaved)}>{iosSaveLabel}</Button>
+      )}
+      {shareError && <Alert tone="warning" live>{shareError}</Alert>}
 
-        {ended && snap.failure && (
-          <div className={`px-4 py-3 rounded-xl border ${allDone
-            ? "bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300"
-            : "bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/40 text-amber-800 dark:text-amber-300"}`}>
-            <p className="text-sm font-semibold">{allDone ? "The sender has closed Markdrop" : FAILURE_COPY[snap.failure].title}</p>
-            <p className="text-xs mt-0.5 opacity-90">
-              {allDone ? "Everything arrived — your files are below." : FAILURE_COPY[snap.failure].detail}
-            </p>
-          </div>
-        )}
+      {!ios && !ended && files.length > 1 && (available.length > 0 || working.length > 0) && (
+        <Alert tone="info">
+          Each file saves to your Downloads as it arrives. If your browser asks to download multiple files, choose Allow.
+          {available.length > 1 && " Or use the download button next to a file to take just the ones you want."}
+        </Alert>
+      )}
+      {ios && !working.length && available.length > 0 && done.length === 0 && (
+        <p className="text-center text-caption text-text-secondary">
+          {available.length > 1 && "Want only some? Tap the download button next to each one. "}
+          Once they arrive, one tap saves them to Photos or Files.
+        </p>
+      )}
 
-        {/* Primary actions */}
-        <div className="space-y-2">
-          {!ended && available.length > 0 && working.length === 0 && (
-            <button onClick={() => fetchFiles(available.map((f) => f.id))}
-              className="w-full py-3 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm shadow-blue-500/20">
-              <DownloadGlyph />
-              {available.length === files.length
-                ? (files.length === 1 ? `Download (${formatBytes(total)})` : `Download all ${files.length} (${formatBytes(total)})`)
-                : `Download remaining ${available.length}`}
-            </button>
-          )}
-
-          {working.length > 0 && (
-            <div className="rounded-xl border border-gray-200 dark:border-gray-700/70 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 space-y-2">
-              <div className="flex justify-between text-xs tabular-nums">
-                <span className="font-medium text-gray-700 dark:text-gray-300">
-                  {batchTotal === 1 ? "Receiving" : `Receiving ${Math.min(batchDone + 1, batchTotal)} of ${batchTotal}`}
-                </span>
-                <span className="text-gray-500 dark:text-gray-400">
-                  {formatBytes(busyGot)} / {formatBytes(busyBytes)}{snap.rate > 0 && <> · {formatRate(snap.rate)}</>}
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-sky-400 transition-[width] duration-200"
-                  style={{ width: `${busyBytes ? (busyGot / busyBytes) * 100 : 0}%` }} />
-              </div>
-            </div>
-          )}
-
-          {ios && canShare && unsaved.length > 0 && (
-            <button onClick={() => void shareFiles(unsaved)}
-              className="w-full py-3 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-colors">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M12 3v12m0-12L8 7m4-4l4 4M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6" />
-              </svg>
-              {unsaved.every((f) => isImage(f.name, f.mime))
-                ? `Save ${unsaved.length === 1 ? "photo" : `${unsaved.length} photos`} to your phone`
-                : `Save ${unsaved.length === 1 ? "file" : `${unsaved.length} files`} to your phone`}
-            </button>
-          )}
-          {shareError && <p className="text-xs text-amber-600 dark:text-amber-400">{shareError}</p>}
-          {!ios && !ended && files.length > 1 && (available.length > 0 || working.length > 0) && (
-            <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-blue-500/5 ring-1 ring-blue-500/15 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400">
-              <svg className="w-3.5 h-3.5 mt-px shrink-0 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" />
-              </svg>
-              <span>
-                Each file saves to your Downloads as it arrives. If your browser asks to{" "}
-                <strong className="font-semibold text-gray-800 dark:text-gray-200">download multiple files</strong>, choose{" "}
-                <strong className="font-semibold text-gray-800 dark:text-gray-200">Allow</strong>
-                {available.length > 1 && <> — or use <span className="inline-block align-[-2px]"><MiniDownload /></span> to take just the ones you want</>}.
-              </span>
-            </div>
-          )}
-          {ios && !working.length && available.length > 1 && done.length === 0 && (
-            <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              Want only some? Tap <span className="inline-block align-[-2px]"><MiniDownload /></span> next to each one.
-            </p>
-          )}
-          {ios && !working.length && available.length > 0 && done.length === 0 && (
-            <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              Once they arrive, one tap saves them to Photos or Files.
-            </p>
-          )}
-        </div>
-
-        {/* Files */}
-        <ul className="rounded-2xl border border-gray-200 dark:border-gray-700/70 bg-white/70 dark:bg-gray-900/40 divide-y divide-gray-200 dark:divide-gray-800 overflow-hidden">
+      <section aria-label="Files" className={cx("overflow-hidden rounded-xl border border-border bg-surface", ui.card)}>
+        <ul>
           {files.map((f) => (
-            <ReceiverRow key={f.id} f={f} saved={saved.has(f.id)} ended={ended}
-              onFetch={() => fetchFiles([f.id])} onSave={() => saveOne(f)} />
+            <ReceivedFileRow key={f.id} id={f.id} name={f.name} mime={f.mime} size={f.size} status={f.status}
+              received={f.received} blob={f.blob} saved={saved.has(f.id)} ended={ended}
+              savedWhere={ios ? "saved" : "saved to Downloads"} onFetch={onFetch} onSave={onSave} />
           ))}
         </ul>
+      </section>
 
-        <p className="flex items-center justify-center gap-1.5 text-center text-xs text-gray-400 dark:text-gray-500">
-          <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="4" y="10" width="16" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
-          No file is stored on Markdrop&apos;s servers
-        </p>
-      </div>
-    </div>
-  );
-}
+      {footer}
 
-function ReceiverRow({ f, saved, ended, onFetch, onSave }: {
-  f: ReceivedFile; saved: boolean; ended: boolean; onFetch: () => void; onSave: () => void;
-}) {
-  const thumb = useMemo(
-    () => (f.blob && isImage(f.name, f.mime) ? URL.createObjectURL(f.blob) : null),
-    [f.blob, f.name, f.mime],
-  );
-  useEffect(() => () => { if (thumb) URL.revokeObjectURL(thumb); }, [thumb]);
-  const pct = f.size ? Math.min(100, Math.round((f.received / f.size) * 100)) : 100;
-
-  return (
-    <li className="flex items-center gap-3 px-3 sm:px-4 py-2.5">
-      <div className="w-11 h-11 rounded-lg bg-gray-100 dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
-        {thumb
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={thumb} alt="" className="w-full h-full object-cover" />
-          : <FileIcon name={f.name} mime={f.mime} />}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm text-gray-900 dark:text-gray-100 truncate">{f.name}</p>
-        {f.status === "receiving" ? (
-          <div className="mt-1.5 h-1 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-            <div className="h-full bg-blue-500 transition-[width] duration-200" style={{ width: `${pct}%` }} />
-          </div>
-        ) : (
-          <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-            {formatBytes(f.size)}
-            {f.status === "failed" && <span className="text-amber-600 dark:text-amber-400"> · interrupted</span>}
-          </p>
-        )}
-      </div>
-      <div className="shrink-0">
-        {f.status === "receiving" && <span className="text-xs tabular-nums text-blue-600 dark:text-blue-300">{pct}%</span>}
-        {f.status === "requested" && <span className="text-xs text-gray-500 dark:text-gray-400">Queued</span>}
-        {(f.status === "available" || f.status === "failed") && !ended && (
-          <button onClick={onFetch} aria-label={`Download ${f.name}`}
-            className="p-2 rounded-lg text-blue-600 dark:text-blue-300 hover:bg-blue-500/10 transition-colors">
-            <DownloadGlyph />
-          </button>
-        )}
-        {f.status === "done" && (
-          <button onClick={onSave}
-            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              saved
-                ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
-                : "text-blue-600 dark:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20"
-            }`}>
-            {saved
-              ? <><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 13l4 4L19 7" /></svg>Saved</>
-              : "Save"}
-          </button>
-        )}
-      </div>
-    </li>
-  );
-}
-
-function MiniDownload() {
-  return (
-    <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-label="download">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-    </svg>
-  );
-}
-
-function DownloadGlyph() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" aria-hidden>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-    </svg>
-  );
-}
-
-function Centered({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col items-center justify-center flex-1 min-h-0 px-4 py-6">
-      <div className="w-full max-w-lg">{children}</div>
-    </div>
-  );
-}
-
-function FailureCard({ reason }: { reason: keyof typeof FAILURE_COPY }) {
-  const copy = FAILURE_COPY[reason];
-  return (
-    <div className="flex flex-col items-center gap-4 py-10 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-        <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" aria-hidden>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m1-5.657l4-4a4 4 0 015.656 5.656l-4 4a4 4 0 01-5.656 0" />
-          <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      </div>
-      <div>
-        <p className="text-base font-semibold text-gray-800 dark:text-gray-100">{copy.title}</p>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-sm">{copy.detail}</p>
-      </div>
-      <div className="flex gap-2">
-        {(reason === "ice" || reason === "signalling" || reason === "room-busy" || reason === "room-full") && (
-          <button onClick={() => window.location.reload()}
-            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            Try again
-          </button>
-        )}
-        <a href="/share" className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
-          Send your own files
-        </a>
-      </div>
+      {dockContent && <div className={cx(ui.dock, "sm:hidden")}>{dockContent}</div>}
     </div>
   );
 }

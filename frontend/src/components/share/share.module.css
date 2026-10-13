@@ -1,0 +1,45 @@
+/* Shared surfaces for /share and /share/[id] (Share.dc.html). Tokens only. */
+
+/* Light only: border-only panels read flat on the Mist ground, so lift them (board .sh-card). */
+:global([data-theme="light"]) .card {
+  box-shadow: var(--shadow-sm);
+}
+
+/* The "Right now" stage well: a dot grid on surface-inset. */
+.well {
+  background:
+    radial-gradient(var(--border) 1px, transparent 1.4px) 0 0 / 16px 16px,
+    var(--surface-inset);
+}
+:global([data-theme="light"]) .well {
+  background:
+    radial-gradient(var(--border-strong) 1px, transparent 1.4px) 0 0 / 16px 16px,
+    var(--surface-inset);
+}
+
+/* A drop target that is also a list: the dragover wash. */
+.dropping {
+  border-color: var(--border-focus);
+  background: var(--accent-soft);
+}
+
+/* Phone action bar, docked over the safe area. */
+.dock {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: var(--z-sticky);
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+/* Received-file thumbnail crossfades over the file icon when it lands. */
+.thumb {
+  animation: thumb var(--duration-fast) var(--ease-out) both;
+}
+@keyframes thumb {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thumb { animation: none; }
+}
