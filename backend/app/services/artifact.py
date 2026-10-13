@@ -494,7 +494,10 @@ async def sync_push_content(
         return ("unsupported", None)
 
     mime = raw["mime"]
-    is_public = not raw.get("read_password_hash")
+    is_public = not is_guarded(
+        has_password=bool(raw.get("read_password_hash")),
+        access_level=raw.get("access_level"),
+    )
     key = raw.get("blob_key")
     if not key:
         return ("notfound", None)
