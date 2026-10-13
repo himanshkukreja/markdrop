@@ -74,7 +74,7 @@ export default function RowMenu({ items, label = "More actions" }: { items: Menu
       {open && (
         <div
           role="menu"
-          className={`absolute right-0 z-40 w-56 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900 vscode:bg-[#252526] py-1 shadow-2xl ${
+          className={`absolute right-0 z-40 w-56 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 py-1 shadow-2xl ${
             flip ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"
           }`}
         >

@@ -65,8 +65,8 @@ export default function FeedbackWidget() {
       onClick={() => setType(t)}
       className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
         type === t
-          ? "border-blue-500/60 bg-blue-50 dark:bg-blue-950/30 vscode:bg-[#264f78]/30 text-blue-700 dark:text-blue-300"
-          : "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600"
+          ? "border-blue-500/60 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300"
+          : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600"
       }`}
     >
       {icon}
@@ -98,7 +98,7 @@ export default function FeedbackWidget() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-300 vscode:text-[#cccccc]">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
                 {type === "bug"
                   ? "Thanks for the report — we'll look into it."
                   : "Thanks for the idea — we appreciate it!"}
@@ -140,7 +140,7 @@ export default function FeedbackWidget() {
                     ? "What went wrong? Steps to reproduce, what you expected…"
                     : "What would you like Markdrop to do?"
                 }
-                className="w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] resize-none outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-200 resize-none outline-none focus:border-blue-500 transition-colors"
               />
 
               <div>
@@ -152,7 +152,7 @@ export default function FeedbackWidget() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
 
@@ -161,7 +161,7 @@ export default function FeedbackWidget() {
               <div className="flex justify-end gap-2 pt-1">
                 <button
                   onClick={close}
-                  className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                   Cancel
                 </button>

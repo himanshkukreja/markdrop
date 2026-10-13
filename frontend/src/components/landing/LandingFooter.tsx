@@ -20,13 +20,13 @@ export default function LandingFooter() {
   ];
 
   return (
-    <footer className="mt-8 border-t border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] pt-10 pb-8">
+    <footer className="mt-8 border-t border-gray-200 dark:border-gray-800 pt-10 pb-8">
       <div className="flex flex-col sm:flex-row gap-8 sm:justify-between">
         <div className="max-w-xs">
-          <a href="/" className="text-xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
-            mark<span className="text-blue-500 dark:text-blue-400 vscode:text-[#4fc1ff]">drop</span>
+          <a href="/" className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
+            mark<span className="text-blue-500 dark:text-blue-400">drop</span>
           </a>
-          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
             Docs and files as links that render. Write with no account, upload with a free one, open in any browser.
           </p>
         </div>
@@ -40,7 +40,7 @@ export default function LandingFooter() {
                     <a
                       href={l.href}
                       {...(l.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                      className="text-sm text-gray-600 dark:text-gray-400 vscode:text-[#b0b0b0] hover:text-blue-600 dark:hover:text-blue-400 vscode:hover:text-[#4fc1ff] transition-colors"
+                      className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                     >
                       {l.label}
                     </a>
@@ -51,7 +51,7 @@ export default function LandingFooter() {
           ))}
         </div>
       </div>
-      <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] text-xs text-gray-400 dark:text-gray-600 vscode:text-[#6a6a6a]">
+      <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-800 text-xs text-gray-400 dark:text-gray-600">
         © {new Date().getFullYear()} Markdrop · MIT licensed · Made for people who hate friction.
       </div>
     </footer>

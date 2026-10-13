@@ -188,7 +188,7 @@ export default function DashboardSidebar({
       )}
 
       <aside
-        className={`no-print md-noscroll flex w-[224px] shrink-0 flex-col gap-0.5 overflow-y-auto border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white dark:bg-[#070c16] p-3
+        className={`no-print md-noscroll flex w-[224px] shrink-0 flex-col gap-0.5 overflow-y-auto border-gray-200 dark:border-gray-800 bg-white dark:bg-[#070c16] p-3
           fixed inset-y-0 left-0 z-[100] border-r transition-transform duration-200
           lg:static lg:z-auto lg:translate-x-0 lg:bg-transparent lg:dark:bg-transparent lg:border-r lg:p-0 lg:pr-4
           ${open ? "translate-x-0" : "-translate-x-full"}`}

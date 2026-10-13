@@ -24,11 +24,11 @@ import {
 } from "@/lib/workspaces";
 
 const input =
-  "bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors";
+  "bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors";
 const primary =
   "px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors";
 const ghost =
-  "px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 transition-colors";
+  "px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 transition-colors";
 
 /** Mirrors MAX_DEPTH in services/folder.py. The UI stops offering a parent at
  *  the limit rather than letting the server refuse the create. */
@@ -77,7 +77,7 @@ function Card({
 }) {
   return (
     <section
-      className={`rounded-2xl border border-gray-200/80 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white/70 dark:bg-gray-900/40 backdrop-blur-sm ${className}`}
+      className={`rounded-2xl border border-gray-200/80 dark:border-gray-800 bg-white/70 dark:bg-gray-900/40 backdrop-blur-sm ${className}`}
     >
       {title && (
         <header className="flex items-start justify-between gap-4 px-5 pt-4 pb-3">
@@ -712,7 +712,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                 ) : (
                   <div className="space-y-3">
                     {domains.map((d) => (
-                      <div key={d.id} className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-xl p-3.5">
+                      <div key={d.id} className="border border-gray-200 dark:border-gray-800 rounded-xl p-3.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <code className="text-sm font-mono">{d.host}</code>
                           <StatusPill tone="mute">
@@ -852,7 +852,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                 )}
 
                 <Card title="Members" hint="Everyone who accepted. Roles take effect immediately.">
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] divide-y divide-gray-100 dark:divide-gray-800">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
                     {members.map((m) => (
                       <div key={m.user_id} className="flex items-center gap-3 px-3.5 py-2.5">
                         <span className="w-8 h-8 rounded-full grid place-items-center shrink-0 text-[11px] font-semibold text-white"
@@ -956,7 +956,7 @@ export default function WorkspaceDetail({ params }: { params: Promise<{ id: stri
                     No folders yet.
                   </p>
                 ) : (
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] divide-y divide-gray-100 dark:divide-gray-800">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
                     {sortedFolders.map((f) => (
                       <div key={f.id} className="flex items-center gap-3 px-3.5 py-2.5"
                            // Indented by its real depth, so the shape of the

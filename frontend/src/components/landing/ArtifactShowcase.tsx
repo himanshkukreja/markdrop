@@ -19,17 +19,17 @@ export default function ArtifactShowcase() {
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-orange-500/10 text-orange-500 ring-1 ring-orange-500/25">
             Artifacts
           </span>
-          <h2 className="mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
+          <h2 className="mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
             Files that render
           </h2>
-          <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d] leading-relaxed">
+          <p className="mt-3 text-gray-600 dark:text-gray-400 leading-relaxed">
             Upload an HTML page, a PDF, a spreadsheet, a Word doc, a video — or a
             zipped site with its own CSS and JS. You get one link that
-            <span className="text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] font-medium"> renders </span>
+            <span className="text-gray-800 dark:text-gray-200 font-medium"> renders </span>
             the file in any browser, instead of downloading it. Uploading needs a free
             account; opening the link needs nothing.
           </p>
-          <ul className="mt-5 space-y-2.5 text-sm text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d]">
+          <ul className="mt-5 space-y-2.5 text-sm text-gray-600 dark:text-gray-400">
             {[
               "Rendered in the browser — not a download prompt",
               "Served from a separate, sandboxed domain, so a page can't reach your account",
@@ -56,7 +56,7 @@ export default function ArtifactShowcase() {
 
         {/* Browser mock showing a rendered artifact */}
         <Reveal className="lg:order-1">
-          <div className="rounded-xl overflow-hidden border border-gray-300/70 dark:border-gray-700 vscode:border-[#3c3c3c] shadow-2xl shadow-orange-500/10 bg-[#0b1220]">
+          <div className="rounded-xl overflow-hidden border border-gray-300/70 dark:border-gray-700 shadow-2xl shadow-orange-500/10 bg-[#0b1220]">
             <div className="flex items-center gap-2 px-3 py-2.5 bg-[#161f33] border-b border-white/5">
               <span className="w-3 h-3 rounded-full bg-[#ff5f57]" />
               <span className="w-3 h-3 rounded-full bg-[#febc2e]" />

@@ -69,7 +69,7 @@ export default function PublishTarget({
     : null;
 
   const select =
-    "text-xs bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 transition-colors cursor-pointer disabled:opacity-50";
+    "text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 transition-colors cursor-pointer disabled:opacity-50";
 
   return (
     <div className="flex items-center gap-2 flex-wrap">

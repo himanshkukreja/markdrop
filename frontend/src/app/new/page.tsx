@@ -57,7 +57,7 @@ function CustomDatePicker({ onChange }: { onChange: (v: string) => void }) {
   // Fire onChange on mount so parent state is always in sync with displayed defaults
   useEffect(() => { handleChange(date, hour); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectClass = "text-xs bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] outline-none focus:border-blue-500 transition-colors cursor-pointer";
+  const selectClass = "text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 transition-colors cursor-pointer";
 
   return (
     <div className="flex items-center gap-1.5">
@@ -203,7 +203,7 @@ export default function NewDocumentPage() {
   const remaining = MAX_CHARS - content.length;
   const activeTextareaRef = mode === "split" ? textareaRef : writeTextareaRef;
 
-  const inputClass = "text-xs bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] outline-none focus:border-blue-500 transition-colors";
+  const inputClass = "text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 transition-colors";
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-3">
@@ -217,7 +217,7 @@ export default function NewDocumentPage() {
       {/* Header — the rule runs under the whole row, not just the input. A
           border that stops halfway across reads as a broken underline rather
           than as a divider. */}
-      <div className="no-print shrink-0 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] pb-3">
+      <div className="no-print shrink-0 border-b border-gray-200 dark:border-gray-800 pb-3">
         {/* Stacked on a phone. Sharing one row with two buttons left the title
             about 150px wide, so it truncated to "Untitled docume". */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
@@ -227,7 +227,7 @@ export default function NewDocumentPage() {
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Untitled document"
             maxLength={200}
-            className="w-full min-w-0 sm:flex-1 bg-transparent outline-none text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-50 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600"
+            className="w-full min-w-0 sm:flex-1 bg-transparent outline-none text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-50 placeholder-gray-400 dark:placeholder-gray-600"
           />
           <div className="flex items-center gap-2 sm:contents">
           <span className={`text-xs tabular-nums shrink-0 mr-auto sm:mr-0 ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500"}`}>
@@ -236,7 +236,7 @@ export default function NewDocumentPage() {
           <button
             onClick={() => window.print()}
             disabled={!content.trim()}
-            className="shrink-0 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="shrink-0 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Export PDF
           </button>
@@ -287,7 +287,7 @@ export default function NewDocumentPage() {
       {/* Mode tabs, with the markdown toolbar on the same row. It used to be a
           full-width strip of its own that the parent's `gap-3` then detached
           from the editor it belongs to — a bar floating between two boxes. */}
-      <div className="no-print shrink-0 flex items-center gap-2 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
+      <div className="no-print shrink-0 flex items-center gap-2 border-b border-gray-200 dark:border-gray-800">
         {MODES.map(({ id, label }) => (
           <button
             key={id}
@@ -323,7 +323,7 @@ export default function NewDocumentPage() {
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Paste or type your markdown here..."
-          className="no-print flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors"
+          className="no-print flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors"
           autoFocus
           maxLength={MAX_CHARS}
         />
@@ -338,13 +338,13 @@ export default function NewDocumentPage() {
             onChange={(e) => setContent(e.target.value)}
             onScroll={syncScroll}
             placeholder="Paste or type your markdown here..."
-            className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
+            className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
             autoFocus
             maxLength={MAX_CHARS}
           />
           <div
             ref={previewRef}
-            className="w-1/2 h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 vscode:bg-[#252526] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-5"
+            className="w-1/2 h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-5"
           >
             {content.trim() ? (
               <MarkdownPreview content={content} />
@@ -357,7 +357,7 @@ export default function NewDocumentPage() {
 
       {/* Preview */}
       {mode === "preview" && (
-        <div className="no-print flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 vscode:bg-[#252526] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-6">
+        <div className="no-print flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-6">
           {content.trim() ? (
             <MarkdownPreview content={content} />
           ) : (

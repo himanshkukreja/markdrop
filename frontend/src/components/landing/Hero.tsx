@@ -150,7 +150,7 @@ Energy: $E = mc^2$`;
 function PeerBox({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-800/60 vscode:bg-[#2d2d2d] text-blue-600 dark:text-blue-400 vscode:text-[#4fc1ff]">
+      <div className="w-11 h-11 rounded-xl flex items-center justify-center border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 text-blue-600 dark:text-blue-400">
         {children}
       </div>
       <span className="text-[11px] text-gray-500 dark:text-gray-400">{label}</span>
@@ -160,7 +160,7 @@ function PeerBox({ label, children }: { label: string; children: React.ReactNode
 
 function StatusBar({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative h-9 flex items-center px-3 text-xs font-mono border-t border-gray-200 dark:border-gray-800 vscode:border-transparent bg-gradient-to-r from-blue-600 to-sky-600 text-white overflow-hidden">
+    <div className="relative h-9 flex items-center px-3 text-xs font-mono border-t border-gray-200 dark:border-gray-800 bg-gradient-to-r from-blue-600 to-sky-600 text-white overflow-hidden">
       {children}
     </div>
   );
@@ -279,10 +279,10 @@ function DemoWindow({
               i === scene
                 ? sc.isNew
                   ? "border-amber-400/70 bg-amber-400/15 text-amber-600 dark:text-amber-300"
-                  : "border-blue-500/60 bg-blue-500/15 text-blue-600 dark:text-blue-300 vscode:text-[#4fc1ff]"
+                  : "border-blue-500/60 bg-blue-500/15 text-blue-600 dark:text-blue-300"
                 : sc.isNew
                 ? "border-amber-400/40 text-amber-600/90 dark:text-amber-300/80 hover:border-amber-400/70"
-                : "border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] text-gray-500 dark:text-gray-400 hover:border-blue-400/50 hover:text-blue-500"
+                : "border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:border-blue-400/50 hover:text-blue-500"
             }`}
           >
             {sc.pill}
@@ -322,7 +322,7 @@ function DemoWindow({
         }}
         title={`${SCENES[scene].cta} →`}
         aria-label={SCENES[scene].cta}
-        className="group/win relative w-full rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] ring-1 ring-blue-500/10 bg-white dark:bg-[#0b0f1a] vscode:bg-[#1e1e1e] shadow-2xl shadow-blue-500/20 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:ring-2 hover:ring-blue-500/50 hover:shadow-blue-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="group/win relative w-full rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 ring-1 ring-blue-500/10 bg-white dark:bg-[#0b0f1a] shadow-2xl shadow-blue-500/20 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:ring-2 hover:ring-blue-500/50 hover:shadow-blue-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
         {/* Hover hint — signals the window is clickable */}
         <div className="no-print pointer-events-none absolute top-9 right-2 z-20 opacity-0 translate-y-1 group-hover/win:opacity-100 group-hover/win:translate-y-0 transition-all duration-200">
@@ -334,22 +334,22 @@ function DemoWindow({
           </span>
         </div>
         {/* Title bar */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-900 vscode:bg-[#323233] border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
+        <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
           <span className="w-3 h-3 rounded-full bg-[#ff5f57]" />
           <span className="w-3 h-3 rounded-full bg-[#febc2e]" />
           <span className="w-3 h-3 rounded-full bg-[#28c840]" />
-          <span className="ml-2 text-xs font-mono text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+          <span className="ml-2 text-xs font-mono text-gray-500 dark:text-gray-400">
             {SCENES[scene].tab} — markdrop
           </span>
         </div>
 
         {/* Tab strip */}
-        <div className="flex items-stretch text-xs border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-950 vscode:bg-[#252526]">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 border-r border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white dark:bg-[#0b0f1a] vscode:bg-[#1e1e1e] text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
-            <span className="text-blue-500 vscode:text-[#4fc1ff]">◆</span> {SCENES[scene].tab}
+        <div className="flex items-stretch text-xs border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-[#0b0f1a] text-gray-700 dark:text-gray-300">
+            <span className="text-blue-500">◆</span> {SCENES[scene].tab}
           </div>
           {split && (
-            <div className="hidden sm:flex items-center px-3 py-1.5 text-gray-400 dark:text-gray-600 vscode:text-[#6a6a6a]">
+            <div className="hidden sm:flex items-center px-3 py-1.5 text-gray-400 dark:text-gray-600">
               Preview
             </div>
           )}
@@ -360,7 +360,7 @@ function DemoWindow({
           {/* Publish + Diagram: editor | live preview */}
           {split ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 h-full [&>*]:min-w-0">
-              <div className="p-4 overflow-hidden font-mono text-[12.5px] leading-relaxed text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
+              <div className="p-4 overflow-hidden font-mono text-[12.5px] leading-relaxed text-gray-700 dark:text-gray-300 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-gray-800">
                 <pre className="whitespace-pre-wrap break-words">
                   {active === "publish" ? pub.typed : dia.typed}
                   {((active === "publish" && !pub.done) ||
@@ -369,7 +369,7 @@ function DemoWindow({
                   )}
                 </pre>
               </div>
-              <div className="p-4 overflow-hidden bg-gray-50/50 dark:bg-gray-900/40 vscode:bg-[#252526]">
+              <div className="p-4 overflow-hidden bg-gray-50/50 dark:bg-gray-900/40">
                 {active === "publish" ? (
                   pub.typed.trim() ? (
                     <MarkdownPreview content={pub.typed} />
@@ -388,12 +388,12 @@ function DemoWindow({
             // Two chrome states crossfade on one timeline while the page beneath
             // stays put, which is exactly what the feature does.
             <div className="h-full p-4 sm:p-5 overflow-hidden flex flex-col justify-center gap-4">
-              <div className="relative h-[74px] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c]">
+              <div className="relative h-[74px] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
                 {[
                   { n: "Markdrop", h: "markdrop.in", a: "#3b82f6", c: "md-brand-a" },
                   { n: "Your Company", h: "docs.yourcompany.com", a: "#7c3aed", c: "md-brand-b" },
                 ].map((b) => (
-                  <div key={b.n} className={`absolute inset-0 bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] ${b.c}`}>
+                  <div key={b.n} className={`absolute inset-0 bg-gray-50 dark:bg-gray-900 ${b.c}`}>
                     <div className="flex items-center gap-1.5 px-2.5 pt-2.5">
                       <span className="w-3.5 h-3.5 rounded-[3px] shrink-0 flex items-center justify-center text-[8px] font-bold text-white"
                             style={{ background: b.a }}>{b.n[0]}</span>
@@ -407,7 +407,7 @@ function DemoWindow({
                   </div>
                 ))}
               </div>
-              <div className="rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] overflow-hidden">
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <BrandedPage hueClass="md-brand-hue" tone="auto" compact />
               </div>
             </div>
@@ -428,7 +428,7 @@ function DemoWindow({
                 ))}
               </div>
 
-              <div className="relative flex-1 min-h-0 rounded-lg border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-[#111c33] vscode:bg-[#1e1e1e] overflow-hidden">
+              <div className="relative flex-1 min-h-0 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#111c33] overflow-hidden">
                 {/* A render sweep passing down the page */}
                 <div
                   className="md-art-scan pointer-events-none absolute inset-x-0 top-0 h-10 z-10"
@@ -488,8 +488,8 @@ function DemoWindow({
                       key={b.id}
                       className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-xs transition-colors ${
                         lifted
-                          ? "md-float relative z-10 border-blue-500/60 bg-white dark:bg-gray-900 vscode:bg-[#2d2d2d] shadow-lg shadow-blue-500/20 ring-1 ring-blue-500/40"
-                          : "md-stagger border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-gray-50/70 dark:bg-gray-900/40 vscode:bg-[#252526]"
+                          ? "md-float relative z-10 border-blue-500/60 bg-white dark:bg-gray-900 shadow-lg shadow-blue-500/20 ring-1 ring-blue-500/40"
+                          : "md-stagger border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/40"
                       }`}
                       style={lifted ? undefined : { animationDelay: `${idx * 90}ms` }}
                     >
@@ -504,7 +504,7 @@ function DemoWindow({
                         id={b.id}
                         className={`w-4 h-4 shrink-0 ${lifted ? "text-blue-500 dark:text-blue-400" : "text-gray-400 dark:text-gray-500"}`}
                       />
-                      <span className="truncate text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+                      <span className="truncate text-gray-700 dark:text-gray-300">
                         {b.name}
                       </span>
                     </div>
@@ -595,7 +595,7 @@ function DemoWindow({
             // ── Export: Docs + PDF + builder + analytics ────────────────────
             <div className="flex flex-col items-center justify-center h-full gap-5 p-6">
               <div className="flex items-center gap-2">
-                <div className="w-12 h-14 rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center text-gray-400">
+                <div className="w-12 h-14 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center text-gray-400">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
                     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                     <path d="M14 2v6h6M8 13h8M8 17h5" />
@@ -741,7 +741,7 @@ export default function Hero() {
       <div className="relative grid lg:grid-cols-2 gap-10 lg:gap-12 items-center [&>*]:min-w-0">
         {/* Copy */}
         <div className="text-center lg:text-left">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-300 vscode:text-[#4fc1ff]">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-300">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
             No login. No friction. Just links.
           </span>
@@ -750,7 +750,7 @@ export default function Hero() {
               The phrase is nowrap (wrapping mid-cycle would jolt the headline
               height), so anything too wide gets clipped by the page's
               overflow-x:hidden rather than wrapping. */}
-          <h1 className="mt-5 text-3xl sm:text-4xl md:text-5xl lg:text-[3.4rem] font-bold tracking-tight leading-[1.1] text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
+          <h1 className="mt-5 text-3xl sm:text-4xl md:text-5xl lg:text-[3.4rem] font-bold tracking-tight leading-[1.1] text-gray-900 dark:text-white">
             Drop it.
             <br />
             It renders.
@@ -758,7 +758,7 @@ export default function Hero() {
             <RotatingPhrase />
           </h1>
 
-          <p className="mt-5 text-base sm:text-lg text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0] max-w-xl mx-auto lg:mx-0">
+          <p className="mt-5 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto lg:mx-0">
             Markdown, AI write-ups, HTML pages, PDFs, spreadsheets, Word docs, video and
             zipped sites become links that open rendered in any browser.
           </p>
@@ -775,7 +775,7 @@ export default function Hero() {
             </a>
             <a
               href="/upload"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] text-sm font-semibold transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 text-sm font-semibold transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
@@ -784,7 +784,7 @@ export default function Hero() {
             </a>
           </div>
 
-          <p className="mt-5 text-xs text-gray-500 dark:text-gray-500 vscode:text-[#6a6a6a]">
+          <p className="mt-5 text-xs text-gray-500 dark:text-gray-500">
             No account to write · Free account to upload files · Open source
           </p>
         </div>

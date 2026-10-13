@@ -29,11 +29,11 @@ export default function Modal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900 vscode:bg-[#252526] shadow-2xl p-5"
+        className="w-full max-w-md rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">{title}</h3>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"

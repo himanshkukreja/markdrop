@@ -152,8 +152,6 @@ body {
    all browsers including mobile Safari. */
 @variant dark (.dark &);
 
-/* VS Code dark grey theme variant — same specificity reasoning as above */
-@variant vscode (.vscode &);
 
 /* Inline code: remove the default backtick pseudo-content and style clearly */
 .prose code:not(pre code) {
@@ -174,12 +172,6 @@ body {
 .prose pre {
   background-color: #0d1117 !important;
   border: 1px solid rgb(55 65 81);
-}
-
-/* VS Code theme: use editor background instead of GitHub's dark-blue */
-.vscode .prose pre {
-  background-color: #1e1e1e !important;
-  border-color: rgb(60 60 60);
 }
 
 /* ── Mobile overflow fixes ─────────────────────────────────────────────────── */
@@ -264,12 +256,6 @@ body {
     border: 1px solid #ddd !important;
     color: black !important;
   }
-  /* VS Code theme overrides the .prose pre background with higher specificity —
-     re-assert the light print background at the same specificity level */
-  .vscode .prose pre {
-    background-color: #f6f8fa !important;
-    border: 1px solid #ddd !important;
-  }
   .prose pre code,
   .prose pre .hljs-keyword,
   .prose pre .hljs-string,
@@ -310,51 +296,6 @@ body {
     box-shadow: none !important;
     padding: 0 !important;
   }
-}
-
-/* ── VS Code theme prose overrides ─────────────────────────────────────────── */
-.vscode .prose {
-  color: #d4d4d4;
-}
-
-.vscode .prose h1,
-.vscode .prose h2,
-.vscode .prose h3,
-.vscode .prose h4,
-.vscode .prose h5,
-.vscode .prose h6 {
-  color: #d4d4d4;
-}
-
-.vscode .prose a {
-  color: #4fc1ff;
-}
-
-.vscode .prose strong {
-  color: #d4d4d4;
-}
-
-.vscode .prose blockquote {
-  border-left-color: #3c3c3c;
-  color: #9d9d9d;
-}
-
-.vscode .prose code:not(pre code) {
-  background-color: #2d2d2d;
-  color: #ce9178;
-}
-
-.vscode .prose hr {
-  border-color: #3c3c3c;
-}
-
-.vscode .prose th {
-  color: #d4d4d4;
-  border-color: #3c3c3c;
-}
-
-.vscode .prose td {
-  border-color: #3c3c3c;
 }
 
 /* ── KaTeX math ─────────────────────────────────────────────────────────────── */

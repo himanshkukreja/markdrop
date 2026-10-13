@@ -200,7 +200,7 @@ export default function UploadArtifactPage() {
 
   const canPublish = tab === "paste" ? html.trim().length > 0 : !!file;
   const inputClass =
-    "w-full text-sm bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] outline-none focus:border-blue-500 transition-colors";
+    "w-full text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 transition-colors";
   const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5";
 
   if (status && !status.configured) {
@@ -229,10 +229,10 @@ export default function UploadArtifactPage() {
           </span>
           Artifacts
         </span>
-        <h1 className="mt-3 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
+        <h1 className="mt-3 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
           Publish a file, get a page
         </h1>
-        <p className="mt-2 text-sm sm:text-base text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] max-w-xl mx-auto sm:mx-0">
+        <p className="mt-2 text-sm sm:text-base text-gray-500 dark:text-gray-400 max-w-xl mx-auto sm:mx-0">
           Drop in a PDF, spreadsheet, Word doc or a zipped site — or paste raw HTML.
           You get one link that <span className="text-gray-800 dark:text-gray-200 font-medium">renders</span> it,
           instead of downloading it.
@@ -241,7 +241,7 @@ export default function UploadArtifactPage() {
 
       {/* Mode switch — a segmented control reads as a choice, where the old
           underlined tabs read as navigation away from the page. */}
-      <div className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-gray-100/80 dark:bg-gray-900/60 vscode:bg-[#1e1e1e]">
+      <div className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-gray-100/80 dark:bg-gray-900/60">
         {([
           { id: "upload" as Tab, label: "Upload a file", d: "M12 16V4m0 0L8 8m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" },
           { id: "paste" as Tab, label: "Paste HTML", d: "M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2M9 4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1H9z" },
@@ -252,7 +252,7 @@ export default function UploadArtifactPage() {
             aria-pressed={tab === t.id}
             className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
               tab === t.id
-                ? "bg-white dark:bg-gray-800 vscode:bg-[#2d2d2d] text-gray-900 dark:text-gray-100 shadow-sm"
+                ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm"
                 : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
             }`}
           >
@@ -265,8 +265,8 @@ export default function UploadArtifactPage() {
       </div>
 
       {tab === "paste" ? (
-        <div className="rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] overflow-hidden bg-gray-50 dark:bg-[#0d1526] vscode:bg-[#1e1e1e]">
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white/60 dark:bg-white/[0.02]">
+        <div className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-gray-50 dark:bg-[#0d1526]">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-800 bg-white/60 dark:bg-white/[0.02]">
             <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
             <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
             <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
@@ -286,7 +286,7 @@ export default function UploadArtifactPage() {
                   aria-pressed={pastePreview === m.id}
                   className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     pastePreview === m.id
-                      ? "bg-white dark:bg-gray-800 vscode:bg-[#2d2d2d] text-gray-900 dark:text-gray-100 shadow-sm"
+                      ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm"
                       : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
                   }`}
                 >
@@ -342,7 +342,7 @@ export default function UploadArtifactPage() {
               ? "border-blue-500 bg-blue-50/60 dark:bg-blue-950/25 scale-[1.01]"
               : file
               ? "border-emerald-400/60 bg-emerald-50/40 dark:bg-emerald-950/15"
-              : "border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c] hover:border-blue-400 hover:bg-blue-50/30 dark:hover:bg-blue-950/10 cursor-pointer"
+              : "border-gray-300 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50/30 dark:hover:bg-blue-950/10 cursor-pointer"
           }`}
         >
           <input
@@ -387,7 +387,7 @@ export default function UploadArtifactPage() {
           ) : (
             <div className="px-6 py-12 flex flex-col items-center text-center">
               <div className={`grid place-items-center w-14 h-14 rounded-2xl mb-4 transition-colors ${
-                dragging ? "bg-blue-500/15 text-blue-500" : "bg-gray-100 dark:bg-gray-800 vscode:bg-[#2d2d2d] text-gray-400"
+                dragging ? "bg-blue-500/15 text-blue-500" : "bg-gray-100 dark:bg-gray-800 text-gray-400"
               }`}>
                 <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M12 16V4m0 0L8 8m4-4 4 4" />
@@ -419,7 +419,7 @@ export default function UploadArtifactPage() {
       {tab === "upload" && file && <ArtifactPreview file={file} />}
 
       {/* Options */}
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 sm:p-5 space-y-4">
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 sm:p-5 space-y-4">
         {/* Renders nothing for anyone without a workspace they can publish into. */}
         <PublishTarget value={target} onChange={setTarget} disabled={busy} />
 
@@ -463,7 +463,7 @@ export default function UploadArtifactPage() {
           </div>
           <div>
             <label className={labelClass}>Link</label>
-            <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] focus-within:border-blue-500 transition-colors overflow-hidden">
+            <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 focus-within:border-blue-500 transition-colors overflow-hidden">
               <span className="pl-3 pr-0.5 text-xs text-gray-400 shrink-0 select-none">markdrop.in/</span>
               <input
                 type="text"
@@ -536,7 +536,7 @@ export default function UploadArtifactPage() {
         </div>
       )}
 
-      <div className="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 py-3 bg-gradient-to-t from-white via-white dark:from-gray-950 dark:via-gray-950 vscode:from-[#1e1e1e] vscode:via-[#1e1e1e] to-transparent">
+      <div className="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 py-3 bg-gradient-to-t from-white via-white dark:from-gray-950 dark:via-gray-950 to-transparent">
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={publish}

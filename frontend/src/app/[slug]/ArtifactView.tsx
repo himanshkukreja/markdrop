@@ -49,7 +49,7 @@ function FrameCover({ show, label }: { show: boolean; label: string }) {
   return (
     <div
       aria-hidden={!show}
-      className={`absolute inset-0 z-10 flex items-center justify-center bg-white dark:bg-[#0b1220] vscode:bg-[#1e1e1e] transition-opacity duration-500 ${
+      className={`absolute inset-0 z-10 flex items-center justify-center bg-white dark:bg-[#0b1220] transition-opacity duration-500 ${
         show ? "opacity-100" : "opacity-0 pointer-events-none"
       }`}
     >
@@ -427,7 +427,7 @@ export default function ArtifactView({
   const loadingLabel = `Loading ${typeLabel}\u2026`;
 
   const btn =
-    "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]";
+    "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300";
 
   return (
     <div className="w-full space-y-3">
@@ -439,7 +439,7 @@ export default function ArtifactView({
 
       {/* Header */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4]">
+        <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
           {title || originalFilename || slug}
         </h1>
         <ArtifactBadge renderer={renderer} label={typeLabel} />
@@ -503,7 +503,7 @@ export default function ArtifactView({
 
       {/* Content */}
       {locked ? (
-        <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-10 flex flex-col items-center gap-3 bg-[#252526] dark:bg-gray-900/50">
+        <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-10 flex flex-col items-center gap-3 bg-[#252526] dark:bg-gray-900/50">
           <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
             <path
               fillRule="evenodd"
@@ -520,7 +520,7 @@ export default function ArtifactView({
                 onChange={(e) => setPwdInput(e.target.value)}
                 placeholder="Enter password"
                 autoFocus
-                className="flex-1 text-sm bg-[#2d2d2d] dark:bg-gray-900 border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg px-3 py-1.5 outline-none focus:border-blue-500 text-gray-200"
+                className="flex-1 text-sm bg-[#2d2d2d] dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 outline-none focus:border-blue-500 text-gray-200"
               />
               <button
                 type="submit"
@@ -538,7 +538,7 @@ export default function ArtifactView({
            the overlay. Two mounted iframes mean the artifact is fetched twice
            for every viewer, and the framed one's load event would clear the
            cover over the immersive one that is still blank. */
-        <div className="relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg overflow-hidden bg-white dark:bg-[#0b1220]" style={{ height: "min(78vh, 900px)" }}>
+        <div className="relative border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-[#0b1220]" style={{ height: "min(78vh, 900px)" }}>
           {!immersive && hydrated && (
             <iframe
               key={reloadKey}
@@ -555,7 +555,7 @@ export default function ArtifactView({
           <FrameCover show={frameLoading} label={loadingLabel} />
         </div>
       ) : (
-        <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg py-16 flex items-center justify-center">
+        <div className="border border-gray-200 dark:border-gray-800 rounded-lg py-16 flex items-center justify-center">
           <MarkdropLoader label="Preparing this artifact…" />
         </div>
       )}
@@ -632,7 +632,7 @@ export default function ArtifactView({
                 onChange={(e) => setETitle(e.target.value)}
                 maxLength={200}
                 placeholder="Untitled"
-                className="w-full text-sm bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors"
+                className="w-full text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors"
               />
             </div>
 
@@ -645,7 +645,7 @@ export default function ArtifactView({
                   value={eSlug}
                   onChange={(e) => /^[a-zA-Z0-9_-]*$/.test(e.target.value) && setESlug(e.target.value)}
                   maxLength={50}
-                  className="flex-1 min-w-0 text-sm font-mono bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors"
+                  className="flex-1 min-w-0 text-sm font-mono bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
               {eSlug !== slug && (
@@ -672,7 +672,7 @@ export default function ArtifactView({
                     onChange={(e) => setEPassword(e.target.value)}
                     maxLength={100}
                     placeholder={protectedNow ? "New password" : "Add a password"}
-                    className="w-full text-sm bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors"
+                    className="w-full text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors"
                   />
                 )}
               </div>
@@ -681,7 +681,7 @@ export default function ArtifactView({
                 <select
                   value={eExpiry}
                   onChange={(e) => setEExpiry(e.target.value as ExpiresIn | "")}
-                  className="w-full text-sm bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 cursor-pointer transition-colors"
+                  className="w-full text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 cursor-pointer transition-colors"
                 >
                   <option value="">Leave unchanged</option>
                   <option value="never">Never expires</option>
@@ -781,7 +781,7 @@ export default function ArtifactView({
                 maxLength={500}
                 rows={3}
                 placeholder="Reason (optional)"
-                className="w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 resize-none"
+                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 resize-none"
               />
               <div className="flex justify-end gap-2">
                 <button

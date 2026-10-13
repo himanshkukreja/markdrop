@@ -404,9 +404,9 @@ export default function AdminApp() {
         <div className="w-full max-w-sm">
           {/* Icon + title */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-800 vscode:bg-[#2d2d2d] mb-4">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-800 mb-4">
               <svg
-                className="w-7 h-7 text-gray-600 dark:text-gray-300 vscode:text-[#d4d4d4]"
+                className="w-7 h-7 text-gray-600 dark:text-gray-300"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.8"
@@ -419,20 +419,20 @@ export default function AdminApp() {
                 />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50 vscode:text-[#d4d4d4]">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
               Admin
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] mt-1">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Sign in to manage documents
             </p>
           </div>
 
           <form
             onSubmit={handleLogin}
-            className="space-y-4 p-6 rounded-2xl border border-gray-200 dark:border-gray-700/70 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900/40 vscode:bg-[#252526]"
+            className="space-y-4 p-6 rounded-2xl border border-gray-200 dark:border-gray-700/70 bg-white dark:bg-gray-900/40"
           >
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] mb-1.5">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Username
               </label>
               <input
@@ -441,11 +441,11 @@ export default function AdminApp() {
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
                 required
-                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900 vscode:bg-[#1e1e1e] text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] mb-1.5">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Password
               </label>
               <input
@@ -454,7 +454,7 @@ export default function AdminApp() {
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
                 required
-                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900 vscode:bg-[#1e1e1e] text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -485,7 +485,7 @@ export default function AdminApp() {
         <div className="flex items-center justify-between gap-4 shrink-0">
           <button
             onClick={handleBackToDashboard}
-            className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] hover:text-gray-800 dark:hover:text-gray-200 vscode:hover:text-[#d4d4d4] transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -494,12 +494,12 @@ export default function AdminApp() {
           </button>
 
           <div className="flex items-center gap-2">
-            <span className="hidden sm:block text-xs font-mono text-gray-400 dark:text-gray-500 vscode:text-[#6a6a6a]">
+            <span className="hidden sm:block text-xs font-mono text-gray-400 dark:text-gray-500">
               {editSlug}
             </span>
 
             {/* Mode toggle */}
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-xs">
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
               {(["edit", "split", "preview"] as const).map((m) => (
                 <button
                   key={m}
@@ -507,7 +507,7 @@ export default function AdminApp() {
                   className={`px-3 py-1.5 capitalize transition-colors ${
                     editMode === m
                       ? "bg-blue-600 text-white"
-                      : "text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d]"
+                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                   }`}
                 >
                   {m}
@@ -520,7 +520,7 @@ export default function AdminApp() {
               href={`/${editSlug}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-1.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 vscode:hover:text-[#d4d4d4] transition-colors"
+              className="p-1.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
               title="Open document"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -552,7 +552,7 @@ export default function AdminApp() {
           value={editTitle}
           onChange={(e) => setEditTitle(e.target.value)}
           placeholder="Untitled"
-          className="shrink-0 w-full px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-transparent text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="shrink-0 w-full px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
         {/* Editor panes */}
@@ -561,12 +561,12 @@ export default function AdminApp() {
             <textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
-              className="flex-1 h-full resize-none p-3 text-sm font-mono rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#1e1e1e] text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 h-full resize-none p-3 text-sm font-mono rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               spellCheck={false}
             />
           )}
           {(editMode === "preview" || editMode === "split") && (
-            <div className="flex-1 overflow-y-auto p-4 rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900/20 vscode:bg-[#1e1e1e]">
+            <div className="flex-1 overflow-y-auto p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/20">
               <MarkdownPreview content={editContent} />
             </div>
           )}
@@ -583,23 +583,23 @@ export default function AdminApp() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50 vscode:text-[#d4d4d4]">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">
             Admin Dashboard
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] mt-0.5">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             {total.toLocaleString()} document{total !== 1 ? "s" : ""} total
           </p>
         </div>
         <button
           onClick={handleLogout}
-          className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] hover:text-red-500 dark:hover:text-red-400 transition-colors"
+          className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
         >
           Sign out
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c]">
+      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800">
         {(["analytics", "docs", "users", "usage", "feedback", "email"] as const).map((t) => (
           <button
             key={t}
@@ -639,10 +639,10 @@ export default function AdminApp() {
           placeholder="Search by slug, title, or content…"
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526] text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
-        <div className="shrink-0 flex items-center gap-1 p-1 rounded-xl bg-gray-100/80 dark:bg-gray-900/60 vscode:bg-[#1e1e1e]">
+        <div className="shrink-0 flex items-center gap-1 p-1 rounded-xl bg-gray-100/80 dark:bg-gray-900/60">
           {([
             { id: "all" as const, label: "All" },
             { id: "markdown" as const, label: "Docs" },
@@ -654,7 +654,7 @@ export default function AdminApp() {
               aria-pressed={docKind === k.id}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                 docKind === k.id
-                  ? "bg-white dark:bg-gray-800 vscode:bg-[#2d2d2d] text-gray-900 dark:text-gray-100 shadow-sm"
+                  ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm"
                   : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
               }`}
             >
@@ -667,7 +667,7 @@ export default function AdminApp() {
           className={`shrink-0 px-3 py-2.5 text-sm rounded-xl border transition-colors ${
             reportedOnly
               ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
-              : "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+              : "border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
           }`}
           title="Show only reported documents"
         >
@@ -681,30 +681,30 @@ export default function AdminApp() {
           <MarkdropLoader label="Loading documents…" size="sm" />
         </div>
       ) : docs.length === 0 ? (
-        <div className="text-center py-16 text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+        <div className="text-center py-16 text-sm text-gray-500 dark:text-gray-400">
           {search ? "No documents match your search." : "No documents yet."}
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] overflow-hidden">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526]">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] uppercase tracking-wider">
+              <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Slug
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Title
                 </th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] uppercase tracking-wider">
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Views
                 </th>
-                <th className="hidden md:table-cell text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] uppercase tracking-wider">
+                <th className="hidden md:table-cell text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Created
                 </th>
-                <th className="hidden lg:table-cell text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] uppercase tracking-wider">
+                <th className="hidden lg:table-cell text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Expiry
                 </th>
-                <th className="hidden lg:table-cell text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] uppercase tracking-wider">
+                <th className="hidden lg:table-cell text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Chars
                 </th>
                 <th className="px-4 py-3 w-20" />
@@ -725,10 +725,10 @@ export default function AdminApp() {
                         setConfirmDelete(null);
                       }
                     }}
-                    className={`border-b last:border-0 border-gray-100 dark:border-gray-800 vscode:border-[#3c3c3c] ${
+                    className={`border-b last:border-0 border-gray-100 dark:border-gray-800 ${
                       i % 2 === 0
-                        ? "bg-white dark:bg-transparent vscode:bg-transparent"
-                        : "bg-gray-50/50 dark:bg-gray-900/20 vscode:bg-[#252526]/40"
+                        ? "bg-white dark:bg-transparent"
+                        : "bg-gray-50/50 dark:bg-gray-900/20"
                     }`}
                   >
                     {/* Slug */}
@@ -751,7 +751,7 @@ export default function AdminApp() {
                           href={`/${doc.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-mono text-xs text-blue-500 dark:text-blue-400 vscode:text-[#4fc1ff] hover:underline"
+                          className="font-mono text-xs text-blue-500 dark:text-blue-400 hover:underline"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {doc.slug}
@@ -772,9 +772,9 @@ export default function AdminApp() {
 
                     {/* Title */}
                     <td className="px-4 py-3 max-w-xs">
-                      <p className="text-xs text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] truncate">
+                      <p className="text-xs text-gray-800 dark:text-gray-200 truncate">
                         {doc.title ?? (
-                          <span className="italic text-gray-400 dark:text-gray-600 vscode:text-[#6a6a6a]">
+                          <span className="italic text-gray-400 dark:text-gray-600">
                             Untitled
                           </span>
                         )}
@@ -795,14 +795,14 @@ export default function AdminApp() {
 
                     {/* Views */}
                     <td className="px-4 py-3 text-right">
-                      <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                      <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
                         {doc.views.toLocaleString()}
                       </span>
                     </td>
 
                     {/* Created */}
                     <td className="hidden md:table-cell px-4 py-3">
-                      <span className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
                         {new Date(doc.created_at).toLocaleDateString("en-GB", {
                           day: "2-digit",
                           month: "short",
@@ -830,7 +830,7 @@ export default function AdminApp() {
                               })}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400 dark:text-gray-600 vscode:text-[#6a6a6a]">
+                        <span className="text-xs text-gray-400 dark:text-gray-600">
                           Never
                         </span>
                       )}
@@ -838,7 +838,7 @@ export default function AdminApp() {
 
                     {/* Chars */}
                     <td className="hidden lg:table-cell px-4 py-3 text-right">
-                      <span className="text-xs tabular-nums text-gray-400 dark:text-gray-600 vscode:text-[#6a6a6a]">
+                      <span className="text-xs tabular-nums text-gray-400 dark:text-gray-600">
                         {doc.kind === "artifact"
                           ? formatBytes(doc.size_bytes ?? 0)
                           : doc.content_length.toLocaleString()}
@@ -854,7 +854,7 @@ export default function AdminApp() {
                             e.stopPropagation();
                             handleEdit(doc.slug);
                           }}
-                          className="p-1.5 rounded text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 vscode:hover:bg-blue-900/20 transition-colors"
+                          className="p-1.5 rounded text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                           title="Edit document"
                         >
                           <svg
@@ -882,7 +882,7 @@ export default function AdminApp() {
                           className={`p-1.5 rounded transition-colors ${
                             isConfirming
                               ? "bg-red-500 hover:bg-red-600 text-white"
-                              : "text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 vscode:hover:bg-red-900/20"
+                              : "text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                           }`}
                           title={isConfirming ? "Click again to confirm" : "Delete document"}
                         >
@@ -919,7 +919,7 @@ export default function AdminApp() {
       {/* Pagination */}
       {pages > 1 && (
         <div className="flex items-center justify-between pt-1">
-          <p className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             Page {page} of {pages} · {total.toLocaleString()} documents
           </p>
           <div className="flex items-center gap-2">
@@ -930,7 +930,7 @@ export default function AdminApp() {
                 setPage(p);
                 if (token) loadDocs(token, p, search, reportedOnly, docKind);
               }}
-              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300 vscode:text-[#d4d4d4] transition-colors"
+              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
             >
               ← Prev
             </button>
@@ -941,7 +941,7 @@ export default function AdminApp() {
                 setPage(p);
                 if (token) loadDocs(token, p, search, reportedOnly, docKind);
               }}
-              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300 vscode:text-[#d4d4d4] transition-colors"
+              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
             >
               Next →
             </button>
@@ -963,7 +963,7 @@ export default function AdminApp() {
               placeholder="Search users by email or name…"
               value={usersSearch}
               onChange={(e) => handleUsersSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526] text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -972,10 +972,10 @@ export default function AdminApp() {
           ) : users.length === 0 ? (
             <div className="text-center py-16 text-sm text-gray-500 dark:text-gray-400">{usersSearch ? "No users match your search." : "No users yet."}</div>
           ) : (
-            <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] overflow-hidden">
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526] text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     <th className="text-left px-4 py-3">User</th>
                     <th className="hidden sm:table-cell text-left px-4 py-3">Providers</th>
                     <th className="text-right px-4 py-3">Docs</th>
@@ -988,7 +988,7 @@ export default function AdminApp() {
                 </thead>
                 <tbody>
                   {users.map((u, i) => (
-                    <tr key={u.id} className={`border-b last:border-0 border-gray-100 dark:border-gray-800 vscode:border-[#3c3c3c] ${i % 2 === 0 ? "" : "bg-gray-50/50 dark:bg-gray-900/20"}`}>
+                    <tr key={u.id} className={`border-b last:border-0 border-gray-100 dark:border-gray-800 ${i % 2 === 0 ? "" : "bg-gray-50/50 dark:bg-gray-900/20"}`}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           {u.picture ? (
@@ -1072,9 +1072,9 @@ export default function AdminApp() {
               <p className="text-xs text-gray-500 dark:text-gray-400">Page {usersPage} of {usersPages} · {usersTotal.toLocaleString()} users</p>
               <div className="flex items-center gap-2">
                 <button disabled={usersPage <= 1} onClick={() => { const p = usersPage - 1; if (token) loadUsers(token, p, usersSearch); }}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
+                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
                 <button disabled={usersPage >= usersPages} onClick={() => { const p = usersPage + 1; if (token) loadUsers(token, p, usersSearch); }}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
+                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
               </div>
             </div>
           )}
@@ -1091,7 +1091,7 @@ export default function AdminApp() {
               {usage && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {/* Artifacts */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526]">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900/30">
                     <p className="text-xs font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">Artifacts</p>
                     <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.artifact_total.toLocaleString()}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">published</p>
@@ -1101,7 +1101,7 @@ export default function AdminApp() {
                     </p>
                   </div>
                   {/* VS Code sync */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526]">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900/30">
                     <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">VS Code sync</p>
                     <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.vscode_users_synced.toLocaleString()}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">users have synced</p>
@@ -1110,7 +1110,7 @@ export default function AdminApp() {
                     </p>
                   </div>
                   {/* Google Drive */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526]">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900/30">
                     <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">Google Drive</p>
                     <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.google_connected_users.toLocaleString()}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">users connected Drive</p>
@@ -1119,7 +1119,7 @@ export default function AdminApp() {
                     </p>
                   </div>
                   {/* P2P sharing */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526]">
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900/30">
                     <p className="text-xs font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400">P2P file sharing</p>
                     <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.share_events_total.toLocaleString()}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">files shared</p>
@@ -1149,7 +1149,7 @@ export default function AdminApp() {
               )}
 
               {usage && usage.artifact_by_type.length > 0 && (
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526]">
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900/30">
                   <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
                     Artifacts by type
                   </p>
@@ -1181,7 +1181,7 @@ export default function AdminApp() {
 
               {/* Share events */}
               <div className="flex items-center justify-between pt-2">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                   P2P share log <span className="font-normal text-gray-400">· {shareTotal.toLocaleString()}</span>
                 </h2>
                 <button
@@ -1189,7 +1189,7 @@ export default function AdminApp() {
                   className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
                     shareIdentified
                       ? "border-purple-300 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400"
-                      : "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      : "border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
                   }`}
                   title="Hide anonymous shares"
                 >
@@ -1198,14 +1198,14 @@ export default function AdminApp() {
               </div>
 
               {shareEvents.length === 0 ? (
-                <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400">
                   {shareIdentified ? "No shares from signed-in users yet." : "No file shares recorded yet."}
                 </div>
               ) : (
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] overflow-hidden">
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526] text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         <th className="text-left px-4 py-3">File</th>
                         <th className="hidden sm:table-cell text-right px-4 py-3">Size</th>
                         <th className="text-left px-4 py-3">Sender</th>
@@ -1214,9 +1214,9 @@ export default function AdminApp() {
                     </thead>
                     <tbody>
                       {shareEvents.map((ev, i) => (
-                        <tr key={ev.id} className={`border-b last:border-0 border-gray-100 dark:border-gray-800 vscode:border-[#3c3c3c] ${i % 2 === 0 ? "" : "bg-gray-50/50 dark:bg-gray-900/20"}`}>
+                        <tr key={ev.id} className={`border-b last:border-0 border-gray-100 dark:border-gray-800 ${i % 2 === 0 ? "" : "bg-gray-50/50 dark:bg-gray-900/20"}`}>
                           <td className="px-4 py-3 max-w-xs">
-                            <p className="text-xs text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] truncate" title={ev.file_name ?? ""}>
+                            <p className="text-xs text-gray-800 dark:text-gray-200 truncate" title={ev.file_name ?? ""}>
                               {ev.file_name ?? <span className="italic text-gray-400">unknown</span>}
                             </p>
                             {ev.mime_type && <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{ev.mime_type}</p>}
@@ -1246,9 +1246,9 @@ export default function AdminApp() {
                   <p className="text-xs text-gray-500 dark:text-gray-400">Page {sharePage} of {sharePages} · {shareTotal.toLocaleString()} shares</p>
                   <div className="flex items-center gap-2">
                     <button disabled={sharePage <= 1} onClick={() => loadShareEventsPage(sharePage - 1)}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
+                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
                     <button disabled={sharePage >= sharePages} onClick={() => loadShareEventsPage(sharePage + 1)}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
+                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
                   </div>
                 </div>
               )}
@@ -1264,7 +1264,7 @@ export default function AdminApp() {
         <>
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-xs">
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
               {([["", "All"], ["bug", "Bugs"], ["feature", "Features"]] as const).map(([val, label]) => (
                 <button
                   key={label}
@@ -1279,7 +1279,7 @@ export default function AdminApp() {
                 </button>
               ))}
             </div>
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-xs">
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
               {([["", "All"], ["open", "Open"], ["resolved", "Resolved"]] as const).map(([val, label]) => (
                 <button
                   key={label}
@@ -1302,15 +1302,15 @@ export default function AdminApp() {
           {feedbackLoading && feedback.length === 0 ? (
             <div className="flex justify-center py-16"><div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /></div>
           ) : feedback.length === 0 ? (
-            <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">No feedback yet.</div>
+            <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400">No feedback yet.</div>
           ) : (
             <div className="space-y-3">
               {feedback.map((f) => (
                 <div
                   key={f.id}
-                  className={`rounded-xl border p-4 bg-white dark:bg-gray-900/30 vscode:bg-[#252526] ${
+                  className={`rounded-xl border p-4 bg-white dark:bg-gray-900/30 ${
                     f.status === "open"
-                      ? "border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c]"
+                      ? "border-gray-200 dark:border-gray-700"
                       : "border-gray-100 dark:border-gray-800 opacity-70"
                   }`}
                 >
@@ -1328,7 +1328,7 @@ export default function AdminApp() {
                     </span>
                   </div>
 
-                  <p className="text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] whitespace-pre-wrap break-words">{f.message}</p>
+                  <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">{f.message}</p>
 
                   <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
                     {(f.user_email || f.email) && (
@@ -1345,7 +1345,7 @@ export default function AdminApp() {
                     <button
                       onClick={() => setFeedbackResolved(f.id, f.status !== "resolved")}
                       disabled={feedbackBusyId === f.id}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40 transition-colors"
+                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40 transition-colors"
                     >
                       {f.status === "resolved" ? "Reopen" : "Mark resolved"}
                     </button>
@@ -1367,9 +1367,9 @@ export default function AdminApp() {
               <p className="text-xs text-gray-500 dark:text-gray-400">Page {feedbackPage} of {feedbackPages}</p>
               <div className="flex items-center gap-2">
                 <button disabled={feedbackPage <= 1} onClick={() => token && loadFeedback(token, feedbackPage - 1, feedbackType, feedbackStatus)}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
+                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
                 <button disabled={feedbackPage >= feedbackPages} onClick={() => token && loadFeedback(token, feedbackPage + 1, feedbackType, feedbackStatus)}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
+                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
               </div>
             </div>
           )}

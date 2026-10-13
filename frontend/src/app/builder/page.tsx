@@ -106,8 +106,8 @@ function SectionRow({
       style={style}
       className={`group flex items-center gap-1 rounded-lg border text-sm transition-colors ${
         selected
-          ? "border-blue-500/60 bg-blue-50 dark:bg-blue-950/30 vscode:bg-[#264f78]/30"
-          : "border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900/40 vscode:bg-[#252526] hover:border-gray-300 dark:hover:border-gray-700"
+          ? "border-blue-500/60 bg-blue-50 dark:bg-blue-950/30"
+          : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/40 hover:border-gray-300 dark:hover:border-gray-700"
       }`}
     >
       <button
@@ -130,7 +130,7 @@ function SectionRow({
             selected ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500"
           }`}
         />
-        <span className="truncate text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+        <span className="truncate text-gray-700 dark:text-gray-300">
           {template?.name ?? inst.templateId}
         </span>
       </button>
@@ -322,7 +322,7 @@ export default function BuilderPage() {
   }, [catalogSearch]);
 
   const btnGhost =
-    "px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] transition-colors disabled:opacity-40";
+    "px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors disabled:opacity-40";
 
   const paneToggle = (p: Pane, label: string) => (
     <button
@@ -347,12 +347,12 @@ export default function BuilderPage() {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="README title (optional)"
           maxLength={200}
-          className="flex-1 bg-transparent border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 transition-colors"
+          className="flex-1 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 placeholder-gray-400 transition-colors"
         />
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => setShowReset(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] text-gray-600 dark:text-gray-400 hover:border-red-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-red-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
             title="Clear everything and start over"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
@@ -379,7 +379,7 @@ export default function BuilderPage() {
       {error && <p className="no-print text-red-500 text-sm shrink-0">{error}</p>}
 
       {/* Mobile pane switcher */}
-      <div className="no-print flex lg:hidden border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] shrink-0">
+      <div className="no-print flex lg:hidden border-b border-gray-200 dark:border-gray-800 shrink-0">
         {paneToggle("sections", "Sections")}
         {paneToggle("edit", "Edit")}
         {paneToggle("preview", "Preview")}
@@ -425,7 +425,7 @@ export default function BuilderPage() {
           </div>
 
           {/* Divider */}
-          <div className="my-3 border-t border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] shrink-0" />
+          <div className="my-3 border-t border-gray-200 dark:border-gray-800 shrink-0" />
 
           {/* Add a section — grouped catalog, always visible */}
           <div className="shrink-0 mb-2">
@@ -442,7 +442,7 @@ export default function BuilderPage() {
               value={catalogSearch}
               onChange={(e) => setCatalogSearch(e.target.value)}
               placeholder="Search sections…"
-              className="w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg pl-8 pr-3 py-1.5 text-sm outline-none focus:border-blue-500 transition-colors"
+              className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-sm outline-none focus:border-blue-500 transition-colors"
             />
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto pr-1">
@@ -458,7 +458,7 @@ export default function BuilderPage() {
                       <button
                         key={tpl.id}
                         onClick={() => addSection(tpl)}
-                        className="group w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[13px] text-gray-600 dark:text-gray-400 vscode:text-[#cccccc] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                        className="group w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[13px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
                         title={`Add “${tpl.name}”`}
                       >
                         <SectionIcon id={tpl.id} className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors" />
@@ -488,7 +488,7 @@ export default function BuilderPage() {
           {selected ? (
             <>
               <div className="flex items-center justify-between mb-2 shrink-0">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
                   <SectionIcon id={selected.templateId} className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                   {selectedTemplate?.name ?? "Section"}
                 </span>
@@ -502,19 +502,19 @@ export default function BuilderPage() {
                   </button>
                 )}
               </div>
-              <div className="shrink-0 rounded-t-lg overflow-hidden border border-b-0 border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c]">
+              <div className="shrink-0 rounded-t-lg overflow-hidden border border-b-0 border-gray-200 dark:border-gray-700">
                 <MarkdownToolbar textareaRef={editorRef} onChange={updateSelected} />
               </div>
               <textarea
                 ref={editorRef}
                 value={selected.content}
                 onChange={(e) => updateSelected(e.target.value)}
-                className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-b-lg p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] resize-none focus:outline-none focus:border-blue-500 transition-colors"
+                className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-b-lg p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 resize-none focus:outline-none focus:border-blue-500 transition-colors"
                 spellCheck={false}
               />
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-sm text-gray-400 dark:text-gray-600 border border-dashed border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg">
+            <div className="flex-1 flex items-center justify-center text-sm text-gray-400 dark:text-gray-600 border border-dashed border-gray-200 dark:border-gray-800 rounded-lg">
               Select a section to edit, or add one.
             </div>
           )}
@@ -526,7 +526,7 @@ export default function BuilderPage() {
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
               Preview
             </span>
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-[11px]">
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-[11px]">
               {(["full", "section"] as const).map((s) => (
                 <button
                   key={s}
@@ -542,7 +542,7 @@ export default function BuilderPage() {
               ))}
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 vscode:bg-[#252526] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-4 sm:p-6">
+          <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4 sm:p-6">
             {(() => {
               const md = previewScope === "full" ? assembled : selected?.content ?? "";
               return md.trim() ? (
@@ -564,7 +564,7 @@ export default function BuilderPage() {
       {showReset && (
         <Modal title="Reset builder?" onClose={() => setShowReset(false)}>
           <div className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400 vscode:text-[#cccccc]">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               This clears your title and all{" "}
               <span className="font-medium text-gray-800 dark:text-gray-200">{sections.length}</span>{" "}
               {sections.length === 1 ? "section" : "sections"}, and can’t be undone. You’ll start fresh
@@ -573,7 +573,7 @@ export default function BuilderPage() {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowReset(false)}
-                className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
                 Cancel
               </button>

@@ -18,7 +18,7 @@ export default function VSCodeShowcase() {
       <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center [&>*]:min-w-0">
         {/* VS Code window mock */}
         <Reveal>
-          <div className="rounded-xl overflow-hidden border border-gray-300/70 dark:border-gray-700 vscode:border-[#3c3c3c] shadow-2xl shadow-blue-500/10 bg-[#1e1e1e]">
+          <div className="rounded-xl overflow-hidden border border-gray-300/70 dark:border-gray-700 shadow-2xl shadow-blue-500/10 bg-[#1e1e1e]">
             {/* Title bar */}
             <div className="flex items-center gap-2 px-3 py-2 bg-[#323233]">
               <span className="w-3 h-3 rounded-full bg-[#ff5f57]" />
@@ -78,15 +78,15 @@ export default function VSCodeShowcase() {
 
         {/* Copy */}
         <Reveal>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-300 vscode:text-[#4fc1ff]">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-300">
             Markdrop Sync · VS Code extension
           </span>
-          <h2 className="mt-4 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
+          <h2 className="mt-4 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">
             Stop copy-pasting docs into a browser.
           </h2>
-          <p className="mt-4 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0] leading-relaxed">
+          <p className="mt-4 text-gray-600 dark:text-gray-400 leading-relaxed">
             Write markdown in VS Code — from Claude Code, Codex, or your own notes — hit save,
-            and it publishes to a <span className="font-mono text-blue-600 dark:text-blue-400 vscode:text-[#4fc1ff]">markdrop.in</span> link.
+            and it publishes to a <span className="font-mono text-blue-600 dark:text-blue-400">markdrop.in</span> link.
             Edit it on the web and the change flows back into your file.
           </p>
           <ul className="mt-6 space-y-3">
@@ -100,8 +100,8 @@ export default function VSCodeShowcase() {
                 <svg className="w-5 h-5 mt-0.5 shrink-0 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 011.4-1.4l3.3 3.3 6.8-6.8a1 1 0 011.4 0z" clipRule="evenodd" />
                 </svg>
-                <span className="text-sm text-gray-700 dark:text-gray-300 vscode:text-[#c8c8c8]">
-                  <strong className="font-semibold text-gray-900 dark:text-white vscode:text-[#e8e8e8]">{t}.</strong> {d}
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  <strong className="font-semibold text-gray-900 dark:text-white">{t}.</strong> {d}
                 </span>
               </li>
             ))}

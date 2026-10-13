@@ -69,7 +69,7 @@ export default function WorkspacesPage() {
           onChange={(e) => setName(e.target.value)}
           maxLength={80}
           placeholder="Workspace name (e.g. Senseloaf)"
-          className="flex-1 bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors"
+          className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors"
         />
         <button
           type="submit"
@@ -87,11 +87,11 @@ export default function WorkspacesPage() {
           <MarkdropLoader label="Loading workspaces…" size="sm" />
         </div>
       ) : workspaces.length === 0 ? (
-        <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 border border-dashed border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-xl">
+        <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
           No workspaces yet. Create one to use your own domain and branding.
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] divide-y divide-gray-100 dark:divide-gray-800 vscode:divide-[#3c3c3c]">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
           {workspaces.map((w) => (
             <a
               key={w.id}
@@ -105,7 +105,7 @@ export default function WorkspacesPage() {
                   Created {new Date(w.created_at).toLocaleDateString()}
                 </p>
               </div>
-              <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 vscode:bg-[#2d2d2d] text-gray-500 dark:text-gray-400 capitalize">
+              <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 capitalize">
                 {w.role}
               </span>
             </a>

@@ -64,13 +64,13 @@ export default function AuthModal({
   }
 
   const inputClass =
-    "w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2.5 text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] outline-none focus:border-blue-500 transition-colors";
+    "w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500 transition-colors";
 
   return (
     <Modal title={title} onClose={() => { if (!busy && !googleBusy) onClose(); }}>
       <div className="space-y-4">
         {message && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">{message}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{message}</p>
         )}
 
         {error && (
@@ -83,7 +83,7 @@ export default function AuthModal({
           href={googleLoginUrl(next)}
           onClick={() => setGoogleBusy(true)}
           aria-disabled={googleBusy}
-          className={`flex items-center justify-center gap-2 w-full border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-200 vscode:text-[#d4d4d4] ${googleBusy ? "opacity-70 pointer-events-none" : ""}`}
+          className={`flex items-center justify-center gap-2 w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-200 ${googleBusy ? "opacity-70 pointer-events-none" : ""}`}
         >
           {googleBusy ? (
             <Spinner className="w-4 h-4" />
@@ -94,9 +94,9 @@ export default function AuthModal({
         </a>
 
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800 vscode:bg-[#3c3c3c]" />
+          <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800" />
           <span className="text-xs text-gray-400">or</span>
-          <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800 vscode:bg-[#3c3c3c]" />
+          <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800" />
         </div>
 
         {stage === "email" ? (

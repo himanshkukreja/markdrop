@@ -99,7 +99,7 @@ export default function RecipientPicker({
     <div ref={wrap} className="relative">
       <div
         onClick={() => wrap.current?.querySelector("input")?.focus()}
-        className="flex flex-wrap items-center gap-1.5 min-h-[42px] rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] px-2 py-1.5 focus-within:border-blue-500 transition-colors cursor-text"
+        className="flex flex-wrap items-center gap-1.5 min-h-[42px] rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-1.5 focus-within:border-blue-500 transition-colors cursor-text"
       >
         {value.map((email) => (
           <span
@@ -129,7 +129,7 @@ export default function RecipientPicker({
       </div>
 
       {open && suggestions.length > 0 && (
-        <div className="absolute z-30 mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900 vscode:bg-[#252526] shadow-xl overflow-hidden">
+        <div className="absolute z-30 mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl overflow-hidden">
           {suggestions.map((u, i) => (
             <button
               key={u.id}

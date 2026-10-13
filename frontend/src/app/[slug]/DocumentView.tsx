@@ -137,10 +137,10 @@ function EncryptionGate({ state }: { state: "working" | "nokey" | "failed" }) {
       <svg className="w-9 h-9 text-gray-400 dark:text-gray-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
         <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
       </svg>
-      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
         {missing ? "This document is end-to-end encrypted" : "That key doesn't open this document"}
       </p>
-      <p className="max-w-md text-xs leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+      <p className="max-w-md text-xs leading-relaxed text-gray-500 dark:text-gray-400">
         {missing ? (
           <>
             Its key lives in the part of the link after the{" "}
@@ -1014,11 +1014,11 @@ export default function DocumentView({
   if (editing && !secretUnlocked) {
     return (
       <div className="w-full space-y-4">
-        <button onClick={handleCancelEdit} className="no-print text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 vscode:hover:text-[#d4d4d4] transition-colors">
+        <button onClick={handleCancelEdit} className="no-print text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
           ← Back
         </button>
         <div className="w-full max-w-xs mx-auto mt-12 space-y-4">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4]">Enter your edit secret</h2>
+          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">Enter your edit secret</h2>
           <form onSubmit={handleUnlock} className="space-y-3">
             <input
               type="text"
@@ -1026,7 +1026,7 @@ export default function DocumentView({
               onChange={(e) => setSecretInput(e.target.value)}
               placeholder="Paste your edit secret…"
               autoFocus
-              className="w-full font-mono text-sm bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400"
+              className="w-full font-mono text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors text-gray-800 dark:text-gray-200 placeholder-gray-400"
             />
             {secretError && <p className="text-red-500 text-xs">{secretError}</p>}
             <div className="flex gap-2">
@@ -1039,7 +1039,7 @@ export default function DocumentView({
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+                className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
               >
                 Cancel
               </button>
@@ -1053,9 +1053,9 @@ export default function DocumentView({
   // ── Edit mode ──────────────────────────────────────────────────────────────
   if (editing && secretUnlocked) {
     const btnBase = "px-3 py-1.5 text-xs border rounded-lg transition-colors";
-    const btnGhost = `${btnBase} border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]`;
-    const btnDanger = `${btnBase} border-red-300 dark:border-red-800 vscode:border-red-900 hover:bg-red-50 dark:hover:bg-red-900/20 vscode:hover:bg-red-900/30 text-red-600 dark:text-red-400 vscode:text-red-400`;
-    const inputBase = "bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] outline-none focus:border-blue-500 transition-colors";
+    const btnGhost = `${btnBase} border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300`;
+    const btnDanger = `${btnBase} border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400`;
+    const inputBase = "bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 transition-colors";
 
     return (
       <div className="flex flex-col flex-1 min-h-0 gap-3">
@@ -1069,7 +1069,7 @@ export default function DocumentView({
             placeholder={canEditContent ? "Document title (optional)" : "Title is encrypted"}
             maxLength={200}
             disabled={!canEditContent}
-            className="w-full bg-transparent border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
+            className="w-full bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
           />
         </div>
 
@@ -1084,11 +1084,11 @@ export default function DocumentView({
                 onChange={(e) => setEditRemovePassword(e.target.checked)}
                 className="accent-red-500"
               />
-              <span className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">Remove password</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Remove password</span>
             </label>
           ) : (
             <div className={`flex items-center gap-1.5 rounded-lg px-2 py-1 ${inputBase} focus-within:border-blue-500`}>
-              <svg className="w-3 h-3 text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d] shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-3 h-3 text-gray-400 dark:text-gray-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
               </svg>
               <input
@@ -1101,7 +1101,7 @@ export default function DocumentView({
               />
               {editNewPassword && (
                 <button type="button" tabIndex={-1} onClick={() => setEditShowPassword(v => !v)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 vscode:hover:text-[#d4d4d4] shrink-0">
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
                   {editShowPassword
                     ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                     : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -1144,7 +1144,7 @@ export default function DocumentView({
                 onChange={(e) => setRotateKey(e.target.checked)}
                 className="accent-amber-500"
               />
-              <span className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
                 New key <span className="text-amber-600 dark:text-amber-500">(old link stops working)</span>
               </span>
             </label>
@@ -1153,12 +1153,12 @@ export default function DocumentView({
 
         {/* Action bar */}
         <div className="no-print flex items-center justify-between gap-2 shrink-0">
-          <span className={`text-xs tabular-nums shrink-0 ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d]"}`}>
+          <span className={`text-xs tabular-nums shrink-0 ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500"}`}>
             {remaining.toLocaleString()} left
           </span>
           {showDeleteConfirm ? (
             <div className="flex items-center gap-2 flex-wrap justify-end">
-              <span className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] shrink-0">Delete permanently?</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Delete permanently?</span>
               <button onClick={handleDelete} disabled={deleting}
                 className="px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs rounded-lg transition-colors">
                 {deleting ? "Deleting…" : "Yes, delete"}
@@ -1181,14 +1181,14 @@ export default function DocumentView({
             document is gone" and invites someone to retype it over the top.
             Say what is actually true and leave the settings above usable. */}
         {!canEditContent && (
-          <div className="no-print flex-1 min-h-0 flex flex-col items-center justify-center gap-3 text-center px-4 py-10 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c]">
+          <div className="no-print flex-1 min-h-0 flex flex-col items-center justify-center gap-3 text-center px-4 py-10 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
             <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
               <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
             </svg>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
               The text can&apos;t be edited without the key
             </p>
-            <p className="max-w-md text-xs leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+            <p className="max-w-md text-xs leading-relaxed text-gray-500 dark:text-gray-400">
               Your document is still here and still intact — it just can&apos;t be read or
               rewritten from this browser. Open it with its full link, the one ending in{" "}
               <span className="font-mono text-gray-600 dark:text-gray-300">#k=…</span>, and editing
@@ -1202,13 +1202,13 @@ export default function DocumentView({
 
         {/* Mode tabs */}
         {canEditContent && (
-        <div className="no-print flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] shrink-0">
+        <div className="no-print flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 shrink-0">
           {(["write", "split", "preview"] as ViewMode[]).map((m) => (
             <button key={m} onClick={() => setViewMode(m)}
               className={`${m === "split" ? "hidden sm:block" : ""} px-3 sm:px-4 py-2 text-sm transition-colors border-b-2 -mb-px ${
                 viewMode === m
                   ? "border-blue-500 text-blue-500 dark:text-blue-400"
-                  : "border-transparent text-gray-500 dark:text-gray-500 vscode:text-[#9d9d9d] hover:text-gray-700 dark:hover:text-gray-300 vscode:hover:text-[#d4d4d4]"
+                  : "border-transparent text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               }`}>
               {m.charAt(0).toUpperCase() + m.slice(1)}
             </button>
@@ -1219,7 +1219,7 @@ export default function DocumentView({
         {canEditContent && (<>
         {/* Toolbar */}
         {viewMode !== "preview" && (
-          <div className="no-print shrink-0 rounded-t-lg overflow-hidden border border-b-0 border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c]">
+          <div className="no-print shrink-0 rounded-t-lg overflow-hidden border border-b-0 border-gray-200 dark:border-gray-700">
             <MarkdownToolbar textareaRef={activeTextareaRef} onChange={setEditContent} />
           </div>
         )}
@@ -1232,7 +1232,7 @@ export default function DocumentView({
             onChange={(e) => setEditContent(e.target.value)}
             autoFocus
             maxLength={MAX_CHARS}
-            className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-b-lg rounded-t-none p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 resize-none focus:outline-none focus:border-blue-500 transition-colors"
+            className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-b-lg rounded-t-none p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 resize-none focus:outline-none focus:border-blue-500 transition-colors"
           />
         )}
 
@@ -1246,23 +1246,23 @@ export default function DocumentView({
               onScroll={syncScroll}
               autoFocus
               maxLength={MAX_CHARS}
-              className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-b-lg rounded-t-none p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
+              className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-b-lg rounded-t-none p-4 font-mono text-sm text-gray-800 dark:text-gray-200 resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
             />
             <div ref={previewRef}
-              className="w-1/2 h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 vscode:bg-[#252526] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-5">
+              className="w-1/2 h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
               {editContent.trim()
                 ? <MarkdownPreview content={editContent} />
-                : <p className="text-gray-400 dark:text-gray-600 vscode:text-[#9d9d9d] text-sm">Preview will appear here.</p>}
+                : <p className="text-gray-400 dark:text-gray-600 text-sm">Preview will appear here.</p>}
             </div>
           </div>
         )}
 
         {/* Preview */}
         {viewMode === "preview" && (
-          <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 vscode:bg-[#252526] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-6">
+          <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-6">
             {editContent.trim()
               ? <MarkdownPreview content={editContent} />
-              : <p className="text-gray-400 dark:text-gray-600 vscode:text-[#9d9d9d] text-sm">Nothing to preview yet.</p>}
+              : <p className="text-gray-400 dark:text-gray-600 text-sm">Nothing to preview yet.</p>}
           </div>
         )}
         </>)}
@@ -1278,12 +1278,12 @@ export default function DocumentView({
 
       {/* Secret notice — shown once after publish */}
       {isNew && claimSecret && (
-        <div className="no-print flex items-start gap-3 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#252526] text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+        <div className="no-print flex items-start gap-3 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-900/40 text-xs text-gray-500 dark:text-gray-400">
           <span className="text-green-500 mt-0.5 shrink-0">✓</span>
           <div className="min-w-0">
             <span>Published. Save your edit secret — shown once:</span>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <code className="font-mono text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] select-all break-all">
+              <code className="font-mono text-gray-700 dark:text-gray-300 select-all break-all">
                 {claimSecret}
               </code>
               <CopyButton text={claimSecret} label="Copy" />
@@ -1302,7 +1302,7 @@ export default function DocumentView({
             </button>
           </div>
         ) : (
-          <div className="no-print px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#252526] text-xs text-gray-500 dark:text-gray-400">
+          <div className="no-print px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-900/40 text-xs text-gray-500 dark:text-gray-400">
             <a href={`/login?next=/${slug}`} className="text-blue-500 hover:underline">Log in</a> to save this document to your account and track analytics.
           </div>
         )
@@ -1328,7 +1328,7 @@ export default function DocumentView({
       {/* Opened without the link — worth saying, so nobody assumes the link they
           have works elsewhere. It doesn't; this browser just remembered. */}
       {keySource === "device" && !rotated && (
-        <div className="no-print px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#252526] text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+        <div className="no-print px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-900/40 text-xs text-gray-500 dark:text-gray-400">
           Opened with the key saved in this browser — the link in your address bar has no key in it
           and won&apos;t work anywhere else. Use <strong className="font-medium">Copy link</strong>{" "}
           above to get the shareable one.
@@ -1339,7 +1339,7 @@ export default function DocumentView({
       <div className="flex flex-col gap-2 no-print">
         <div className="space-y-1 min-w-0">
           {displayTitle && !pwdLocked && (
-            <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] break-words">{displayTitle}</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100 break-words">{displayTitle}</h1>
           )}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-mono text-xs text-gray-400 dark:text-gray-500">/{slug}</span>
@@ -1370,7 +1370,7 @@ export default function DocumentView({
                 title={gate === "signin"
                   ? "Shared with specific people"
                   : "Opens with a password"}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 vscode:bg-[#2d2d2d] vscode:text-[#9d9d9d]">
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
                 </svg>
@@ -1380,7 +1380,7 @@ export default function DocumentView({
             {vscodeSynced && !pwdLocked && (
               <span
                 title="Published and synced from the VS Code extension"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[#007acc]/10 text-[#007acc] dark:text-[#4daafc] vscode:bg-[#2d2d2d] vscode:text-[#4fc1ff]"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[#007acc]/10 text-[#007acc] dark:text-[#4daafc]"
               >
                 <VSCodeIcon className="w-3 h-3" />
                 Synced with VS Code
@@ -1401,7 +1401,7 @@ export default function DocumentView({
             <>
               <button
                 onClick={() => setImmersive(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
@@ -1410,13 +1410,13 @@ export default function DocumentView({
               </button>
               <button
                 onClick={() => setShowRaw(!showRaw)}
-                className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+                className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
               >
                 {showRaw ? "Rendered" : "Raw"}
               </button>
               <button
                 onClick={() => { recordEvent(slug, "export_pdf"); track("doc_export_pdf"); window.print(); }}
-                className="hidden sm:inline-flex px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+                className="hidden sm:inline-flex px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
               >
                 Export PDF
               </button>
@@ -1431,7 +1431,7 @@ export default function DocumentView({
               }
             }}
             disabled={encrypted && decryptState === "working"}
-            className="px-3 py-1.5 text-xs disabled:opacity-40 disabled:cursor-not-allowed border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+            className="px-3 py-1.5 text-xs disabled:opacity-40 disabled:cursor-not-allowed border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
           >
             Edit
           </button>
@@ -1445,7 +1445,7 @@ export default function DocumentView({
                 setDeviceKeySaved(false);
               }}
               title="Removes this browser's saved copy of the key. The link still works; this device just stops remembering it."
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-dashed border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-dashed border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-500 dark:text-gray-400"
             >
               Forget key on this device
             </button>
@@ -1458,7 +1458,7 @@ export default function DocumentView({
             <button
               onClick={() => setShowShare(true)}
               title="Choose who can open this document"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
             >
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1477,7 +1477,7 @@ export default function DocumentView({
             <button
               onClick={requestCopy}
               title="Save your own editable copy of this document"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
             >
               <CopyDocIcon /> Save a copy
             </button>
@@ -1493,7 +1493,7 @@ export default function DocumentView({
                   href={googleDocUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
                 >
                   <GoogleDocIcon /> Open Doc
                 </a>
@@ -1502,7 +1502,7 @@ export default function DocumentView({
                     onClick={handleGoogleExport}
                     disabled={gBusy}
                     title="This document changed since the last sync — push the latest content to Google Docs"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 vscode:border-[#665c33] vscode:bg-[#3a3320] vscode:text-[#e2c08d] vscode:hover:bg-[#4a4126]"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
                   >
                     <ReloadIcon spinning={gBusy} /> {gBusy ? "Syncing to Google…" : "Sync to Google Docs"}
                   </button>
@@ -1511,7 +1511,7 @@ export default function DocumentView({
                     onClick={handleGoogleExport}
                     disabled={gBusy}
                     title="Up to date with Google Docs — click to re-sync"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 vscode:border-[#2e4034] vscode:text-[#4ec9b0] vscode:hover:bg-[#26332b]"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
                   >
                     {gBusy ? <><ReloadIcon spinning /> Syncing to Google…</> : <><GoogleDocIcon /> Synced to Google</>}
                   </button>
@@ -1521,7 +1521,7 @@ export default function DocumentView({
               <button
                 onClick={handleGoogleExport}
                 disabled={gBusy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] disabled:opacity-50 transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 transition-colors text-gray-700 dark:text-gray-300"
               >
                 {gBusy ? <Spinner /> : <GoogleDocIcon />} {gBusy ? "Publishing…" : "Publish to Google Docs"}
               </button>
@@ -1555,7 +1555,7 @@ export default function DocumentView({
       {showCopy && (
         <Modal title="Save a copy to your account" onClose={() => { if (!copyBusy) setShowCopy(false); }}>
           <div className="space-y-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               This creates your own editable copy on Markdrop with a new link. The
               copy has <span className="font-medium">no password</span> and{" "}
               <span className="font-medium">no expiry</span>.
@@ -1564,16 +1564,16 @@ export default function DocumentView({
               <button
                 onClick={() => handleCopy(false)}
                 disabled={!!copyBusy}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 disabled:opacity-50 transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 disabled:opacity-50 transition-colors"
               >
                 {copyBusy === "plain"
                   ? <Spinner className="w-5 h-5 shrink-0 text-blue-500" />
                   : <CopyDocIcon className="w-5 h-5 shrink-0 text-blue-500" />}
                 <span>
-                  <span className="block text-sm font-medium text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
+                  <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">
                     {copyBusy === "plain" ? "Creating copy…" : "Copy to Markdrop"}
                   </span>
-                  <span className="block text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">
                     A new document in your dashboard.
                   </span>
                 </span>
@@ -1581,20 +1581,20 @@ export default function DocumentView({
               <button
                 onClick={() => handleCopy(true)}
                 disabled={!!copyBusy}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 disabled:opacity-50 transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 disabled:opacity-50 transition-colors"
               >
                 {copyBusy === "google"
                   ? <Spinner className="w-5 h-5 shrink-0 text-blue-500" />
                   : <GoogleDocIcon className="w-5 h-5 shrink-0" />}
                 <span>
-                  <span className="block text-sm font-medium text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
+                  <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">
                     {copyBusy === "google"
                       ? "Working…"
                       : gConnected
                         ? "Copy & sync to Google Docs"
                         : "Copy & connect Google Docs"}
                   </span>
-                  <span className="block text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">
                     {gConnected
                       ? "Also export the copy to a new Google Doc."
                       : "You'll be asked to connect Google Docs first."}
@@ -1638,7 +1638,7 @@ export default function DocumentView({
                 maxLength={500}
                 rows={3}
                 placeholder="Reason (optional)"
-                className="w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors resize-none"
+                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors resize-none"
               />
               <div className="flex justify-end gap-2">
                 <button onClick={() => setShowReport(false)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Cancel</button>
@@ -1663,11 +1663,11 @@ export default function DocumentView({
           token — and showing "this isn't public" for that second tells them
           something untrue about a document they can read. */}
       {pwdFetching ? (
-        <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-6 space-y-3 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526]">
+        <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-6 space-y-3 bg-[#252526] dark:bg-gray-900/50">
           {[...Array(6)].map((_, i) => (
             <div
               key={i}
-              className={`h-3 bg-gray-100 dark:bg-gray-800 vscode:bg-[#2d2d2d] rounded animate-pulse ${
+              className={`h-3 bg-gray-100 dark:bg-gray-800 rounded animate-pulse ${
                 i % 3 === 0 ? "w-3/4" : i % 3 === 1 ? "w-full" : "w-5/6"
               }`}
             />
@@ -1695,8 +1695,8 @@ export default function DocumentView({
         <div
           className={
             showImmersive
-              ? "fixed inset-0 z-[100] overflow-y-auto overscroll-contain bg-white dark:bg-gray-950 vscode:bg-[#1e1e1e] print:static print:overflow-visible print:bg-white"
-              : "relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-6 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526] print:border-0 print:p-0 print:bg-white overflow-hidden"
+              ? "fixed inset-0 z-[100] overflow-y-auto overscroll-contain bg-white dark:bg-gray-950 print:static print:overflow-visible print:bg-white"
+              : "relative border border-gray-200 dark:border-gray-800 rounded-lg p-3 sm:p-6 bg-[#252526] dark:bg-gray-900/50 print:border-0 print:p-0 print:bg-white overflow-hidden"
           }
         >
           {/* Full-bleed means we supply the reading measure ourselves; edge-to-
@@ -1705,7 +1705,7 @@ export default function DocumentView({
             {/* The title lives in the hidden chrome, and a document whose
                 markdown doesn't open with a heading would otherwise lose it. */}
             {readable && showImmersive && displayTitle && !showRaw && !opensWithOwnTitle(displayContent, displayTitle) && (
-              <h1 className="no-print mb-8 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] break-words">
+              <h1 className="no-print mb-8 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 break-words">
                 {displayTitle}
               </h1>
             )}
@@ -1716,7 +1716,7 @@ export default function DocumentView({
             ) : showRaw ? (
               <>
                 <CopyButton text={displayContent} label="Copy all" className="no-print absolute top-3 right-3" />
-                <pre className="font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] whitespace-pre-wrap break-words">
+                <pre className="font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
                   {displayContent}
                 </pre>
               </>

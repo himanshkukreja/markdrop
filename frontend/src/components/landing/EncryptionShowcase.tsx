@@ -40,17 +40,17 @@ export default function EncryptionShowcase() {
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/25">
             End-to-end encryption
           </span>
-          <h2 className="mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
+          <h2 className="mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
             The key lives in the link
           </h2>
-          <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d] leading-relaxed">
+          <p className="mt-3 text-gray-600 dark:text-gray-400 leading-relaxed">
             Tick one box and your browser encrypts the document — title and all — before it
             leaves the tab. The key travels in the
-            <span className="text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] font-medium"> # </span>
+            <span className="text-gray-800 dark:text-gray-200 font-medium"> # </span>
             part of the link, which browsers never send to a server. Markdrop stores
             ciphertext and holds no key to it.
           </p>
-          <ul className="mt-5 space-y-2.5 text-sm text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d]">
+          <ul className="mt-5 space-y-2.5 text-sm text-gray-600 dark:text-gray-400">
             {[
               "AES-256-GCM, generated and applied in your browser",
               "The title is encrypted too — not just the body",
@@ -78,13 +78,13 @@ export default function EncryptionShowcase() {
 
         {/* Visual */}
         <Reveal delay={120} className="lg:order-1">
-          <div className="rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white/60 dark:bg-gray-900/50 vscode:bg-[#252526]/80 backdrop-blur-sm overflow-hidden">
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/60 dark:bg-gray-900/50 backdrop-blur-sm overflow-hidden">
             {/* In the browser */}
             <div className="px-4 sm:px-5 py-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 In your browser
               </p>
-              <div className="mt-2.5 space-y-1 font-mono text-[11px] sm:text-xs text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
+              <div className="mt-2.5 space-y-1 font-mono text-[11px] sm:text-xs text-gray-700 dark:text-gray-300">
                 {PLAINTEXT.map((line) => (
                   <p key={line} className="truncate">{line}</p>
                 ))}
@@ -98,7 +98,7 @@ export default function EncryptionShowcase() {
             </div>
 
             {/* What leaves the tab */}
-            <div className="border-t border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] px-4 sm:px-5 py-4 bg-gray-50/70 dark:bg-gray-950/40 vscode:bg-[#1e1e1e]/60">
+            <div className="border-t border-gray-200 dark:border-gray-800 px-4 sm:px-5 py-4 bg-gray-50/70 dark:bg-gray-950/40">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 What Markdrop stores
               </p>
@@ -108,16 +108,16 @@ export default function EncryptionShowcase() {
             </div>
 
             {/* The part that actually explains it */}
-            <div className="border-t border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] px-4 sm:px-5 py-4">
+            <div className="border-t border-gray-200 dark:border-gray-800 px-4 sm:px-5 py-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 Your link
               </p>
               <p className="mt-2.5 font-mono text-[11px] sm:text-xs break-all">
-                <span className="text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">markdrop.in/a7f3q2</span>
+                <span className="text-gray-700 dark:text-gray-300">markdrop.in/a7f3q2</span>
                 <span className="text-emerald-600 dark:text-emerald-400">#k=iM-tyYaQvDVjtkfW3Z_4ql</span>
               </p>
               <div className="mt-2 grid grid-cols-2 gap-3 text-[11px]">
-                <div className="flex items-start gap-1.5 text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
+                <div className="flex items-start gap-1.5 text-gray-500 dark:text-gray-400">
                   <span className="mt-1 h-px w-4 shrink-0 bg-gray-400 dark:bg-gray-600" />
                   <span>sent to the server</span>
                 </div>

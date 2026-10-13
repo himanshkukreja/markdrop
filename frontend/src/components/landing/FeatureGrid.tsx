@@ -127,10 +127,10 @@ export default function FeatureGrid() {
   return (
     <section className="py-16 sm:py-20">
       <Reveal className="text-center max-w-2xl mx-auto">
-        <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
+        <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">
           Docs and files, <span className="md-gradient-text">as links that render</span>
         </h2>
-        <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0]">
+        <p className="mt-3 text-gray-600 dark:text-gray-400">
           Write or paste markdown and AI write-ups with no account, or upload HTML pages, PDFs, spreadsheets, Word docs, video and zipped sites with a free one. Encryption, VS Code sync, device-to-device send and your own domain build on those two.
         </p>
       </Reveal>
@@ -143,20 +143,20 @@ export default function FeatureGrid() {
               <a
                 href={f.href}
                 {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                className="group block h-full rounded-2xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white/60 dark:bg-gray-900/40 vscode:bg-[#252526]/80 backdrop-blur-sm p-6 transition-all duration-300 hover:-translate-y-1 hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/20"
+                className="group block h-full rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/60 dark:bg-gray-900/40 backdrop-blur-sm p-6 transition-all duration-300 hover:-translate-y-1 hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/20"
               >
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-500/15 to-sky-500/15 text-blue-600 dark:text-blue-400 vscode:text-[#4fc1ff] group-hover:from-blue-600 group-hover:to-sky-600 group-hover:text-white transition-all">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-500/15 to-sky-500/15 text-blue-600 dark:text-blue-400 group-hover:from-blue-600 group-hover:to-sky-600 group-hover:text-white transition-all">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.7" viewBox="0 0 24 24">
                     {f.icon}
                   </svg>
                 </div>
-                <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
+                <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">
                   {f.title}
                 </h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0]">
+                <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                   {f.desc}
                 </p>
-                <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400 vscode:text-[#4fc1ff]">
+                <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400">
                   {f.cta}
                   <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
@@ -173,7 +173,7 @@ export default function FeatureGrid() {
         {CHIPS.map((c) => (
           <span
             key={c}
-            className="px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#2d2d2d] text-gray-600 dark:text-gray-400 vscode:text-[#b0b0b0]"
+            className="px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 text-gray-600 dark:text-gray-400"
           >
             {c}
           </span>

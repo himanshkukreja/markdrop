@@ -38,15 +38,15 @@ export default function DomainShowcase() {
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-500/25">
             Custom domains
           </span>
-          <h2 className="mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
+          <h2 className="mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
             Publish under your own name
           </h2>
-          <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d] leading-relaxed">
+          <p className="mt-3 text-gray-600 dark:text-gray-400 leading-relaxed">
             Point a domain you own at Markdrop and documents serve from{" "}
             <span className="font-mono text-gray-800 dark:text-gray-200">docs.yourcompany.com</span>{" "}
             — your name in the title, your favicon in the tab, your branding on every link preview.
           </p>
-          <ul className="mt-5 space-y-2.5 text-sm text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d]">
+          <ul className="mt-5 space-y-2.5 text-sm text-gray-600 dark:text-gray-400">
             {[
               "Two DNS records, then we issue the certificate",
               "View-only mode turns it into a plain CDN for docs",
@@ -71,7 +71,7 @@ export default function DomainShowcase() {
         </Reveal>
 
         <Reveal delay={120}>
-          <div className="rounded-xl overflow-hidden border border-gray-300/70 dark:border-gray-700 vscode:border-[#3c3c3c] shadow-2xl shadow-indigo-500/10 bg-[#161f33]">
+          <div className="rounded-xl overflow-hidden border border-gray-300/70 dark:border-gray-700 shadow-2xl shadow-indigo-500/10 bg-[#161f33]">
             {/* Crossfading chrome: same page, different owner */}
             <div className="relative h-[86px]">
               <TabState name="Markdrop" host="markdrop.in" accent="#3b82f6" cls="md-brand-a" />

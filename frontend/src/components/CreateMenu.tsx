@@ -85,14 +85,14 @@ export default function CreateMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-[19rem] max-w-[calc(100vw-2rem)] z-50 rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900 vscode:bg-[#252526] shadow-xl shadow-black/10 dark:shadow-black/40 overflow-hidden p-1.5"
+          className="absolute right-0 mt-2 w-[19rem] max-w-[calc(100vw-2rem)] z-50 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl shadow-black/10 dark:shadow-black/40 overflow-hidden p-1.5"
         >
           {ITEMS.map((it) => (
             <a
               key={it.href}
               href={it.href}
               role="menuitem"
-              className="flex items-start gap-3 rounded-lg px-2.5 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors"
+              className="flex items-start gap-3 rounded-lg px-2.5 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               <span className={`shrink-0 grid place-items-center w-8 h-8 rounded-lg ${it.tint}`}>
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -101,7 +101,7 @@ export default function CreateMenu() {
               </span>
               <span className="min-w-0">
                 <span className="flex items-center gap-1.5">
-                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
                     {it.label}
                   </span>
                   {it.isNew && (
@@ -110,7 +110,7 @@ export default function CreateMenu() {
                     </span>
                   )}
                 </span>
-                <span className="block text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] leading-snug">
+                <span className="block text-xs text-gray-500 dark:text-gray-400 leading-snug">
                   {it.desc}
                 </span>
               </span>

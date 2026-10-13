@@ -43,7 +43,7 @@ export default function NamePrompt() {
           onChange={(e) => setName(e.target.value)}
           maxLength={80}
           placeholder="Your name"
-          className="w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2.5 text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] outline-none focus:border-blue-500 transition-colors"
+          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500 transition-colors"
         />
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => setDismissed(true)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">

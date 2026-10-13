@@ -89,7 +89,7 @@ function parseCsv(text: string, maxRows = 200): string[][] {
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] overflow-hidden bg-white dark:bg-[#0b1220] h-[26rem]">
+    <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-[#0b1220] h-[26rem]">
       {children}
     </div>
   );

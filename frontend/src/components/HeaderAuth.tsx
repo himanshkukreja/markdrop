@@ -17,14 +17,14 @@ export default function HeaderAuth() {
   }, []);
 
   if (loading) {
-    return <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 vscode:bg-[#3c3c3c] animate-pulse" />;
+    return <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />;
   }
 
   if (!user) {
     return (
       <button
         onClick={() => openAuthModal()}
-        className="text-sm text-gray-600 dark:text-gray-300 vscode:text-[#d4d4d4] hover:text-gray-900 dark:hover:text-white transition-colors"
+        className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
       >
         Log in
       </button>
@@ -50,23 +50,23 @@ export default function HeaderAuth() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900 vscode:bg-[#252526] shadow-lg py-1 z-50">
-          <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-800 vscode:border-[#3c3c3c]">
-            <p className="text-sm font-medium text-gray-800 dark:text-gray-100 vscode:text-[#d4d4d4] truncate">{user.name || "Signed in"}</p>
+        <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg py-1 z-50">
+          <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-800">
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{user.name || "Signed in"}</p>
             <p className="text-xs text-gray-400 truncate">{user.email}</p>
           </div>
-          <a href="/dashboard" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors">
+          <a href="/dashboard" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Dashboard
           </a>
-          <a href="/settings/workspaces" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors">
+          <a href="/settings/workspaces" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Workspaces &amp; domains
           </a>
-          <a href="/settings/tokens" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors">
+          <a href="/settings/tokens" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             API tokens
           </a>
           <button
             onClick={() => { setOpen(false); logout(); }}
-            className="block w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors"
+            className="block w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           >
             Log out
           </button>

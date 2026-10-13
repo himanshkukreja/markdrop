@@ -48,7 +48,7 @@ export interface PublishBarProps {
 }
 
 const field =
-  "w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500 transition-colors";
+  "w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-200 outline-none focus:border-blue-500 transition-colors";
 const legend =
   "block text-[10.5px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5";
 
@@ -111,7 +111,7 @@ export default function PublishBar(p: PublishBarProps) {
           ? "border-blue-500/70 bg-blue-500/20 text-blue-100 shadow-[0_0_0_3px_rgba(59,130,246,.12)]"
           : set
             ? "border-blue-500/40 bg-blue-500/[0.13] text-blue-200 hover:border-blue-500/60 hover:bg-blue-500/[0.18]"
-            : "border-gray-200 dark:border-white/[0.09] vscode:border-[#3c3c3c] bg-gray-50 dark:bg-white/[0.03] text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20 hover:bg-gray-100 dark:hover:bg-white/[0.06] hover:text-gray-800 dark:hover:text-gray-200"
+            : "border-gray-200 dark:border-white/[0.09] bg-gray-50 dark:bg-white/[0.03] text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20 hover:bg-gray-100 dark:hover:bg-white/[0.06] hover:text-gray-800 dark:hover:text-gray-200"
       }`}
     >
       <Icon d={icon} className="w-3.5 h-3.5 shrink-0 opacity-80" />
@@ -141,8 +141,8 @@ export default function PublishBar(p: PublishBarProps) {
           className="fixed inset-x-0 bottom-0 z-[100] max-h-[80vh] overflow-y-auto rounded-t-2xl border-t
                      sm:absolute sm:inset-x-auto sm:bottom-auto sm:top-[calc(100%+6px)] sm:left-0 sm:z-30
                      sm:w-[340px] sm:max-h-none sm:rounded-xl sm:border
-                     border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c]
-                     bg-white dark:bg-gray-900 vscode:bg-[#252526] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-4 shadow-2xl"
+                     border-gray-200 dark:border-gray-700
+                     bg-white dark:bg-gray-900 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-4 shadow-2xl"
         >
           <div className="sm:hidden mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-700" />
           <div className="flex items-center justify-between gap-3 mb-3">
@@ -274,7 +274,7 @@ export default function PublishBar(p: PublishBarProps) {
 
       {panel("link", "Custom link", (
         <div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900 px-3 py-2 focus-within:border-blue-500 transition-colors">
+          <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 focus-within:border-blue-500 transition-colors">
             <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">markdrop.in/</span>
             <input
               autoFocus

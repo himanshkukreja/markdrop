@@ -16,7 +16,7 @@ function AuthorizeInner() {
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
 
-  const validRedirect = redirect.startsWith("vscode://") || redirect.startsWith("vscode-insiders://");
+  const validRedirect = redirect.startsWith("") || redirect.startsWith("vscode-insiders://");
 
   if (loading) {
     return (

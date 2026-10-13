@@ -115,18 +115,18 @@ export default function MarkdropLoader({
       </svg>
 
       {!hideWordmark && (
-        <div className={`font-bold tracking-tight ${s.word} text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]`}>
+        <div className={`font-bold tracking-tight ${s.word} text-gray-900 dark:text-gray-100`}>
           mark<span className="text-blue-500 dark:text-blue-400">drop</span>
         </div>
       )}
 
       {/* Indeterminate sweep: nothing here knows a real percentage. */}
-      <div className={`${s.bar} h-[2px] rounded-full overflow-hidden bg-gray-200 dark:bg-gray-800 vscode:bg-[#3c3c3c]`}>
+      <div className={`${s.bar} h-[2px] rounded-full overflow-hidden bg-gray-200 dark:bg-gray-800`}>
         <div className="md-loader-sweep h-full w-1/3 rounded-full bg-blue-500 dark:bg-blue-400" />
       </div>
 
       {label && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">{label}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
       )}
     </div>
   );

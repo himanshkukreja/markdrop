@@ -70,7 +70,7 @@ export default function TokensPage() {
         <input
           value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={80}
           placeholder="Token name (e.g. My laptop)"
-          className="flex-1 bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors"
+          className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors"
         />
         <button type="submit" disabled={creating} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors">
           {creating ? "Creating…" : "Create token"}
@@ -82,11 +82,11 @@ export default function TokensPage() {
           <MarkdropLoader label="Loading tokens…" size="sm" />
         </div>
       ) : tokens.length === 0 ? (
-        <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 border border-dashed border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-xl">
+        <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
           No tokens yet.
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] divide-y divide-gray-100 dark:divide-gray-800 vscode:divide-[#3c3c3c]">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
           {tokens.map((t) => (
             <div key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
               <div className="min-w-0">
@@ -109,8 +109,8 @@ export default function TokensPage() {
       {freshToken && (
         <Modal title="Copy your token now" onClose={() => setFreshToken(null)}>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">This is the only time the full token is shown. Paste it into the VS Code extension.</p>
-          <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2.5">
-            <code className="flex-1 text-xs font-mono break-all text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4]">{freshToken}</code>
+          <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5">
+            <code className="flex-1 text-xs font-mono break-all text-gray-800 dark:text-gray-200">{freshToken}</code>
             <button
               onClick={() => { navigator.clipboard.writeText(freshToken); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
               className="shrink-0 px-2.5 py-1 text-xs rounded-md bg-blue-600 hover:bg-blue-500 text-white transition-colors"

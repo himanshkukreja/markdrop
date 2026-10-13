@@ -64,7 +64,7 @@ export default function MarkdownToolbar({ textareaRef, onChange, bare = false }:
     // the mode-tab row rather than occupying a full-width strip of its own.
     <div className={bare
       ? "flex items-center gap-1"
-      : "flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526]"}>
+      : "flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50"}>
       {ACTIONS.map((action) => (
         <button
           key={action.title}
@@ -75,7 +75,7 @@ export default function MarkdownToolbar({ textareaRef, onChange, bare = false }:
             e.preventDefault();
             applyAction(action);
           }}
-          className={`px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:bg-gray-200 dark:hover:bg-gray-700 vscode:hover:bg-[#3c3c3c] transition-colors text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d] hover:text-gray-900 dark:hover:text-gray-100 vscode:hover:text-[#d4d4d4] select-none ${
+          className={`px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 select-none ${
             action.label === "B" ? "font-bold" : ""
           } ${action.label === "I" ? "italic" : ""}`}
         >

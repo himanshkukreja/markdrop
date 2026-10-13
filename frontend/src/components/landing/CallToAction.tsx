@@ -13,17 +13,17 @@ export default function CallToAction() {
             style={{ background: "radial-gradient(circle at center, rgba(59,130,246,0.42), rgba(14,165,233,0.15) 45%, transparent 70%)" }}
           />
           <div className="relative">
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white vscode:text-[#e8e8e8]">
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">
               Ready when you are.
             </h2>
-            <p className="mt-3 text-gray-600 dark:text-gray-300 vscode:text-[#a0a0a0] max-w-lg mx-auto">
+            <p className="mt-3 text-gray-600 dark:text-gray-300 max-w-lg mx-auto">
               Write a document with no account, or upload a file with a free one. Either way you get a link that renders.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
               <a href="/new" className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-500 hover:to-sky-500 text-white text-sm font-semibold transition-all shadow-lg shadow-blue-600/30">
                 Start writing
               </a>
-              <a href="/upload" className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] text-sm font-semibold transition-colors">
+              <a href="/upload" className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 text-sm font-semibold transition-colors">
                 Upload a file
               </a>
             </div>

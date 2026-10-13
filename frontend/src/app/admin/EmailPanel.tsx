@@ -115,7 +115,7 @@ export default function EmailPanel({ token }: { token: string }) {
   }
 
   const input =
-    "w-full text-sm bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors";
+    "w-full text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors";
   const label = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5";
 
   return (
@@ -167,7 +167,7 @@ export default function EmailPanel({ token }: { token: string }) {
         {/* ── Live preview ────────────────────────────────────────────── */}
         <div>
           <label className={label}>Preview</label>
-          <div className="rounded-lg border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] overflow-hidden bg-white h-[27rem]">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden bg-white h-[27rem]">
             <iframe
               // Sandboxed with no allow-scripts: this is pasted markup and the
               // admin session lives on this origin.
@@ -181,7 +181,7 @@ export default function EmailPanel({ token }: { token: string }) {
       </div>
 
       {/* ── Audience ──────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] p-4 space-y-3">
+      <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           {AUDIENCES.map((a) => (
             <button
@@ -265,7 +265,7 @@ export default function EmailPanel({ token }: { token: string }) {
 
       {/* ── History ───────────────────────────────────────────────────── */}
       {campaigns.length > 0 && (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] overflow-hidden">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900/50 text-xs text-gray-500">
               <tr>
