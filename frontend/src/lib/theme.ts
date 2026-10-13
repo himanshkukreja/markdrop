@@ -1,9 +1,9 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { LIGHT_ENABLED, THEME_COLOR, THEME_KEY, type ResolvedTheme, type ThemeChoice } from "./themeScript";
+import { BETA_KEY, LIGHT_ENABLED, THEME_COLOR, THEME_KEY, type ResolvedTheme, type ThemeChoice } from "./themeScript";
 
-export { LIGHT_ENABLED, THEME_KEY, themeScript, type ResolvedTheme, type ThemeChoice } from "./themeScript";
+export { BETA_KEY, LIGHT_ENABLED, THEME_KEY, themeScript, type ResolvedTheme, type ThemeChoice } from "./themeScript";
 
 /**
  * Theme plumbing (REVAMP_PLAN 5.1–5.3).
@@ -17,8 +17,18 @@ export { LIGHT_ENABLED, THEME_KEY, themeScript, type ResolvedTheme, type ThemeCh
  * reads or writes `location.hash` (it carries E2E keys and tenant tokens).
  */
 
+/** Light is available when the build launched it or this browser joined the beta. */
+export function lightAvailable(): boolean {
+  if (LIGHT_ENABLED) return true;
+  try {
+    return localStorage.getItem(BETA_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 function readChoice(): ThemeChoice {
-  if (!LIGHT_ENABLED) return "dark";
+  if (!lightAvailable()) return "dark";
   try {
     const v = localStorage.getItem(THEME_KEY);
     return v === "light" || v === "dark" ? v : "system";
@@ -32,7 +42,7 @@ function systemTheme(): ResolvedTheme {
 }
 
 export function resolveTheme(choice: ThemeChoice): ResolvedTheme {
-  if (!LIGHT_ENABLED) return "dark";
+  if (!lightAvailable()) return "dark";
   return choice === "system" ? systemTheme() : choice;
 }
 
@@ -72,7 +82,7 @@ function wire() {
   });
   // Keep tabs in step.
   window.addEventListener("storage", (e) => {
-    if (e.key !== THEME_KEY) return;
+    if (e.key !== THEME_KEY && e.key !== BETA_KEY) return;
     apply(resolveTheme(readChoice()));
     emit();
   });
@@ -89,18 +99,36 @@ export function setTheme(choice: ThemeChoice) {
   emit();
 }
 
+/** Join or leave the light-theme beta in this browser (the /settings/account switch). */
+export function setLightBeta(on: boolean) {
+  try {
+    if (on) localStorage.setItem(BETA_KEY, "1");
+    else localStorage.removeItem(BETA_KEY);
+  } catch {
+    /* private mode */
+  }
+  apply(resolveTheme(readChoice()));
+  emit();
+}
+
 function subscribe(cb: () => void) {
   wire();
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
 
-type Snapshot = { choice: ThemeChoice; resolved: ResolvedTheme };
+type Snapshot = { choice: ThemeChoice; resolved: ResolvedTheme; available: boolean; beta: boolean };
 let cache: Snapshot | undefined;
 function snapshot(): Snapshot {
   const choice = readChoice();
   const resolved = (document.documentElement.getAttribute("data-theme") as ResolvedTheme) || resolveTheme(choice);
-  if (!cache || cache.choice !== choice || cache.resolved !== resolved) cache = { choice, resolved };
+  const available = lightAvailable();
+  let beta = false;
+  try {
+    beta = localStorage.getItem(BETA_KEY) === "1";
+  } catch {}
+  if (!cache || cache.choice !== choice || cache.resolved !== resolved || cache.available !== available || cache.beta !== beta)
+    cache = { choice, resolved, available, beta };
   return cache;
 }
 
@@ -109,9 +137,28 @@ function snapshot(): Snapshot {
  * renders into shared HTML. Components that must render both states (the toggle's sun and moon)
  * render both and let CSS pick by `[data-theme]`.
  */
-export function useTheme(): { choice: ThemeChoice | undefined; resolved: ResolvedTheme | undefined; setTheme: typeof setTheme; lightEnabled: boolean } {
+export function useTheme(): {
+  choice: ThemeChoice | undefined;
+  resolved: ResolvedTheme | undefined;
+  setTheme: typeof setTheme;
+  /** Light can be chosen here: launched (NEXT_PUBLIC_LIGHT_THEME=true) or this browser is in the beta. */
+  lightEnabled: boolean;
+  /** This browser joined the light beta (only meaningful while light isn't launched). */
+  lightBeta: boolean;
+  /** The build launched light for everyone. */
+  lightLaunched: boolean;
+  setLightBeta: typeof setLightBeta;
+} {
   const snap = useSyncExternalStore(subscribe, snapshot, () => undefined);
-  return { choice: snap?.choice, resolved: snap?.resolved, setTheme, lightEnabled: LIGHT_ENABLED };
+  return {
+    choice: snap?.choice,
+    resolved: snap?.resolved,
+    setTheme,
+    lightEnabled: snap?.available ?? LIGHT_ENABLED,
+    lightBeta: snap?.beta ?? false,
+    lightLaunched: LIGHT_ENABLED,
+    setLightBeta,
+  };
 }
 
 /** Reads a CSS custom property from the current theme (charts, Mermaid). Client only. */
