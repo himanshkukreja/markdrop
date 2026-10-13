@@ -41,7 +41,7 @@ export default function EncryptionShowcase() {
             End-to-end encryption
           </span>
           <h2 className="mt-4 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
-            Publish documents we can&apos;t read
+            The key lives in the link
           </h2>
           <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d] leading-relaxed">
             Tick one box and your browser encrypts the document — title and all — before it

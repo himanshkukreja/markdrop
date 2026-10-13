@@ -35,7 +35,7 @@ function feature(icon: string, title: string, body: string): string {
 }
 
 export const ARTIFACTS_ANNOUNCEMENT: EmailTemplate = {
-  subject: "New in Markdrop: share PDFs, spreadsheets and web pages",
+  subject: "New in Markdrop: PDFs, spreadsheets and web pages as links that render",
   html: `<!doctype html>
 <html><head>
 <meta charset="utf-8">
@@ -86,11 +86,11 @@ export const ARTIFACTS_ANNOUNCEMENT: EmailTemplate = {
                         letter-spacing:.08em;text-transform:uppercase">Just shipped</div>
 
             <div style="font-size:27px;line-height:1.25;font-weight:800;color:#0f172a;margin-top:14px">
-              Share more than markdown
+              Drop it. It renders.
             </div>
             <div style="font-size:15px;line-height:1.6;color:#475569;margin-top:10px">
-              Markdrop now hosts your files as
-              <strong style="color:#0f172a">rendered</strong> pages &mdash; not downloads.
+              Markdrop now turns your files into links that open
+              <strong style="color:#0f172a">rendered</strong> &mdash; not downloads.
             </div>
           </td>
         </tr>
@@ -107,7 +107,7 @@ export const ARTIFACTS_ANNOUNCEMENT: EmailTemplate = {
         <tr>
           <td bgcolor="#ffffff" style="background-color:#ffffff;padding:8px 34px 0">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              ${feature("&#127760;", "HTML pages", "Paste a page or upload a zipped site with its own CSS and JS. It renders exactly as built.")}
+              ${feature("&#127760;", "HTML pages", "Upload an HTML page, or a zipped site with its own CSS and JS. It renders exactly as built.")}
               ${feature("&#128196;", "PDFs", "Read in the browser with selectable, copyable text &mdash; no plugin, no download.")}
               ${feature("&#128202;", "Spreadsheets", "Excel and CSV open as a clean table, one tab per sheet.")}
               ${feature("&#128221;", "Word documents", "A .docx renders as a readable page anyone can open.")}
@@ -124,7 +124,7 @@ export const ARTIFACTS_ANNOUNCEMENT: EmailTemplate = {
                   <a href="https://markdrop.in/upload"
                      style="display:inline-block;padding:13px 30px;font-size:15px;font-weight:700;
                             color:#ffffff;text-decoration:none;border-radius:9px">
-                    Publish an artifact
+                    Upload a file
                   </a>
                 </td>
               </tr>
