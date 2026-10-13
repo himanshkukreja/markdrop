@@ -1,16 +1,19 @@
-/* Code highlighting on tokens (REVAMP_PLAN 5.4, 8.1). Replaces the global highlight.js
-   github-dark.css import: colours come from syntax-* tokens, so code follows the theme (D14) and
-   every pair is >= 4.5:1 on code-bg in both themes (design-system/scripts/check-contrast.mjs). */
+/* Code highlighting on tokens (REVAMP_PLAN 5.4, 8.1; owned by the reading layer). Replaces the global
+   highlight.js github-dark.css import: colours come from syntax-* tokens, which flip with data-theme,
+   so code follows the theme (D14). Every pair is >= 4.5:1 on code-bg in both themes, and on the
+   light CodeBlock ground (surface) too (design-system/scripts/check-contrast.mjs; ratios in the K4
+   report). No backgrounds here: the block (CodeBlock) owns code-bg and the code-border hairline. */
 
 .hljs { color: var(--syntax-punct); background: transparent; }
 .hljs-doctag, .hljs-keyword, .hljs-meta .hljs-keyword, .hljs-template-tag, .hljs-template-variable,
 .hljs-type, .hljs-variable.language_ { color: var(--syntax-keyword); }
 .hljs-title, .hljs-title.class_, .hljs-title.class_.inherited__, .hljs-title.function_ { color: var(--syntax-title); }
-.hljs-attr, .hljs-attribute, .hljs-literal, .hljs-meta, .hljs-number, .hljs-operator, .hljs-variable,
+.hljs-attr, .hljs-attribute, .hljs-literal, .hljs-number, .hljs-operator, .hljs-variable,
 .hljs-selector-attr, .hljs-selector-class, .hljs-selector-id { color: var(--syntax-number); }
+.hljs-meta, .hljs-meta .hljs-meta { color: var(--syntax-meta); }
 .hljs-regexp, .hljs-string, .hljs-meta .hljs-string { color: var(--syntax-string); }
 .hljs-built_in, .hljs-symbol, .hljs-bullet { color: var(--syntax-builtin); }
-.hljs-comment, .hljs-code, .hljs-formula { color: var(--syntax-comment); }
+.hljs-comment, .hljs-code, .hljs-formula { color: var(--syntax-comment); font-style: italic; }
 .hljs-name, .hljs-quote, .hljs-selector-tag, .hljs-selector-pseudo, .hljs-tag { color: var(--syntax-attr); }
 .hljs-subst, .hljs-params, .hljs-punctuation, .hljs-property { color: var(--syntax-punct); }
 .hljs-section { color: var(--syntax-number); font-weight: 700; }

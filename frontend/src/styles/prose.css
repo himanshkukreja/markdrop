@@ -1,82 +1,486 @@
-/* Reading layer: markdown prose, KaTeX, Mermaid. Owned by the reading-layer work package;
-   rebuilt on tokens in REVAMP_PLAN phase 1. */
+/* Reading layer (REVAMP_PLAN 5.4, 7.6, phase 1): prose type, code blocks, Mermaid frames, KaTeX,
+   tables, task lists, heading anchors, Contents (rail, sheet, ticks) and the reading progress line.
+   Components: components/reading/*, components/MarkdownPreview.tsx. Every colour is a token, so the
+   layer follows data-theme (dark default, light "Mist") with no dark: variants.
 
-/* Inline code: remove the default backtick pseudo-content and style clearly */
-.prose code:not(pre code) {
-  font-family: ui-monospace, monospace;
-  font-size: 0.85em;
-  padding: 0.15em 0.4em;
-  border-radius: 4px;
+   This file is unlayered, so it wins over the typography plugin and DS components. Element rules
+   are scoped with :not(:where(.not-prose, .not-prose *)) so they never reach DS components
+   (CodeBlock, DiagramFrame, tables and the copy buttons carry .not-prose).
+
+   "Nearest theme" selectors: [data-theme="light"] X:not([data-theme="light"] [data-theme="dark"] *)
+   means "X whose closest theme scope is light", so a dark ThemeScope island inside a light page
+   (admin) keeps the dark treatment. */
+
+/* ── Prose: the typography plugin's variables, on tokens ─────────────────────── */
+
+.md-prose {
+  --tw-prose-body: var(--text-secondary);
+  --tw-prose-headings: var(--text);
+  --tw-prose-lead: var(--text-secondary);
+  --tw-prose-links: var(--accent-text);
+  --tw-prose-bold: var(--text);
+  --tw-prose-counters: var(--text-muted);
+  --tw-prose-bullets: var(--text-muted);
+  --tw-prose-hr: var(--border);
+  --tw-prose-quotes: var(--text-secondary);
+  --tw-prose-quote-borders: var(--border-strong);
+  --tw-prose-captions: var(--text-muted);
+  --tw-prose-kbd: var(--text);
+  --tw-prose-kbd-shadows: var(--border-strong);
+  --tw-prose-code: var(--code-inline);
+  --tw-prose-pre-code: var(--text);
+  --tw-prose-pre-bg: var(--code-bg);
+  --tw-prose-th-borders: var(--border-strong);
+  --tw-prose-td-borders: var(--border);
+  /* The invert set is identical: the tokens already flip with the theme. */
+  --tw-prose-invert-body: var(--text-secondary);
+  --tw-prose-invert-headings: var(--text);
+  --tw-prose-invert-lead: var(--text-secondary);
+  --tw-prose-invert-links: var(--accent-text);
+  --tw-prose-invert-bold: var(--text);
+  --tw-prose-invert-counters: var(--text-muted);
+  --tw-prose-invert-bullets: var(--text-muted);
+  --tw-prose-invert-hr: var(--border);
+  --tw-prose-invert-quotes: var(--text-secondary);
+  --tw-prose-invert-quote-borders: var(--border-strong);
+  --tw-prose-invert-captions: var(--text-muted);
+  --tw-prose-invert-kbd: var(--text);
+  --tw-prose-invert-kbd-shadows: var(--border-strong);
+  --tw-prose-invert-code: var(--code-inline);
+  --tw-prose-invert-pre-code: var(--text);
+  --tw-prose-invert-pre-bg: var(--code-bg);
+  --tw-prose-invert-th-borders: var(--border-strong);
+  --tw-prose-invert-td-borders: var(--border);
+
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  max-width: none;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.md-prose--measure { max-width: var(--layout-reading); margin-inline: auto; }
+
+/* Sizes. reading = 17/28 (D12); compact = 14/22 (previews, builder, admin editor). */
+.md-prose--reading { font-size: 17px; line-height: 28px; }
+.md-prose--compact { font-size: 14px; line-height: 22px; overflow-x: hidden; }
+
+.md-prose :where(h1, h2, h3, h4, h5, h6):not(:where(.not-prose, .not-prose *)) { color: var(--text); }
+
+.md-prose--reading :where(h1):not(:where(.not-prose, .not-prose *)) { font-size: 32px; line-height: 40px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 24px; }
+.md-prose--reading :where(h2):not(:where(.not-prose, .not-prose *)) { font-size: 24px; line-height: 32px; font-weight: 700; letter-spacing: -0.015em; margin: 48px 0 16px; }
+.md-prose--reading :where(h3):not(:where(.not-prose, .not-prose *)) { font-size: 19px; line-height: 28px; font-weight: 600; margin: 32px 0 12px; }
+.md-prose--reading :where(h4):not(:where(.not-prose, .not-prose *)) { font-size: 16px; line-height: 24px; font-weight: 600; margin: 24px 0 8px; }
+.md-prose--reading :where(h5, h6):not(:where(.not-prose, .not-prose *)) { font-size: 15px; line-height: 24px; font-weight: 600; margin: 24px 0 8px; }
+.md-prose--reading :where(p, ul, ol, dl):not(:where(.not-prose, .not-prose *)) { margin: 16px 0; }
+.md-prose--reading :where(li):not(:where(.not-prose, .not-prose *)) { margin: 6px 0; }
+.md-prose--reading :where(li > p, li > ul, li > ol):not(:where(.not-prose, .not-prose *)) { margin: 8px 0; }
+.md-prose--reading :where(blockquote):not(:where(.not-prose, .not-prose *)) { margin: 24px 0; padding: 2px 0 2px 20px; }
+.md-prose--reading :where(hr):not(:where(.not-prose, .not-prose *)) { margin: 40px 0; }
+.md-prose--reading :where(.md-codeblock, .md-diagram-wrap, .md-diagram-error, .md-scrollbox) { margin: 24px 0; }
+
+.md-prose--compact :where(h1):not(:where(.not-prose, .not-prose *)) { font-size: 22px; line-height: 30px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 16px; }
+.md-prose--compact :where(h2):not(:where(.not-prose, .not-prose *)) { font-size: 18px; line-height: 26px; font-weight: 700; letter-spacing: -0.01em; margin: 28px 0 10px; }
+.md-prose--compact :where(h3):not(:where(.not-prose, .not-prose *)) { font-size: 15px; line-height: 22px; font-weight: 600; margin: 20px 0 8px; }
+.md-prose--compact :where(h4, h5, h6):not(:where(.not-prose, .not-prose *)) { font-size: 14px; line-height: 22px; font-weight: 600; margin: 16px 0 6px; }
+.md-prose--compact :where(p, ul, ol, dl):not(:where(.not-prose, .not-prose *)) { margin: 10px 0; }
+.md-prose--compact :where(li):not(:where(.not-prose, .not-prose *)) { margin: 4px 0; }
+.md-prose--compact :where(li > p, li > ul, li > ol):not(:where(.not-prose, .not-prose *)) { margin: 6px 0; }
+.md-prose--compact :where(blockquote):not(:where(.not-prose, .not-prose *)) { margin: 16px 0; padding: 0 0 0 14px; }
+.md-prose--compact :where(hr):not(:where(.not-prose, .not-prose *)) { margin: 24px 0; }
+.md-prose--compact :where(.md-codeblock, .md-diagram-wrap, .md-diagram-error, .md-scrollbox) { margin: 16px 0; }
+
+/* The first and last block sit flush (a heading wrapper counts through to its heading). */
+.md-prose > :first-child,
+.md-prose > .md-heading-wrap:first-child > :first-child { margin-top: 0; }
+.md-prose > :last-child,
+.md-prose > .md-heading-wrap:last-child > :first-child { margin-bottom: 0; }
+
+/* Links: the underline is the cue (link vs body is under 3:1, WCAG 1.4.1), so it is full strength. */
+.md-prose :where(a):not(:where(.not-prose, .not-prose *)) {
+  color: var(--accent-text);
+  font-weight: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  border-radius: 2px;
+}
+.md-prose :where(a):not(:where(.not-prose, .not-prose *)):hover { color: var(--accent-text-hover); text-decoration-thickness: 2px; }
+.md-prose :where(a):not(:where(.not-prose, .not-prose *)):focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+.md-prose :where(strong, b):not(:where(.not-prose, .not-prose *)) { color: var(--text); font-weight: 600; }
+
+/* Blockquote: a 3px border-strong bar, text-secondary, no italics, no quote marks. */
+.md-prose :where(blockquote):not(:where(.not-prose, .not-prose *)) {
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-style: normal;
+  font-weight: inherit;
+  quotes: none;
+}
+.md-prose :where(blockquote p):not(:where(.not-prose, .not-prose *))::before,
+.md-prose :where(blockquote p):not(:where(.not-prose, .not-prose *))::after { content: none; }
+
+.md-prose :where(hr):not(:where(.not-prose, .not-prose *)) { border: 0; border-top: 1px solid var(--border); }
+.md-prose :where(ul > li, ol > li):not(:where(.not-prose, .not-prose *))::marker { color: var(--text-muted); }
+
+/* Inline code: code-inline on code-inline-bg, no backticks. */
+.md-prose :where(code):not(:where(.not-prose, .not-prose *, pre code)) {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
   font-weight: 500;
-  background-color: rgb(55 65 81); /* gray-700 — base for both dark themes */
-  color: rgb(249 168 212); /* pink-300 */
+  padding: 0.125em 0.375em;
+  border-radius: var(--radius-sm);
+  background: var(--code-inline-bg);
+  color: var(--code-inline);
+  overflow-wrap: anywhere;
 }
-.prose code:not(pre code)::before,
-.prose code:not(pre code)::after {
-  content: none !important;
+.md-prose :where(code):not(:where(.not-prose, .not-prose *))::before,
+.md-prose :where(code):not(:where(.not-prose, .not-prose *))::after { content: none; }
+.md-prose :where(h1, h2, h3, h4) :where(code):not(:where(.not-prose, .not-prose *)) { font-size: 0.85em; }
+
+/* Inline colour swatch (author content: the colour is shown as written). */
+.md-swatch {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.3em;
+  vertical-align: -0.1em;
+  border-radius: 3px;
+  border: 1px solid var(--border-strong);
 }
 
-/* Code blocks always keep dark background regardless of theme */
-.prose pre {
-  background-color: #0d1117 !important;
-  border: 1px solid rgb(55 65 81);
+.md-prose :where(kbd):not(:where(.not-prose, .not-prose *)) {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  padding: 0.05em 0.35em;
 }
 
-/* ── Mobile overflow fixes ─────────────────────────────────────────────────── */
-/* pre scrolls horizontally inside its wrapper div — never bleeds outside */
-.prose pre {
-  overflow-x: auto;
-  max-width: 100%;
+/* Images: never wider than the column. An image alone in its paragraph gets the frame
+   (radius-lg + border hairline); inline badges in a row of text don't. */
+.md-prose :where(img):not(:where(.not-prose, .not-prose *)) { max-width: 100%; height: auto; }
+.md-prose :where(.md-img-block) img { display: block; margin: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.md-prose :where(.md-img-block) a:has(> img) { display: inline-block; }
+
+/* GitHub's theme suffixes (D15): #gh-dark-mode-only shows only in dark, #gh-light-mode-only only in light. */
+[data-theme="light"] .md-prose img[src$="#gh-dark-mode-only"]:not([data-theme="light"] [data-theme="dark"] *),
+[data-theme="dark"] .md-prose img[src$="#gh-light-mode-only"]:not([data-theme="dark"] [data-theme="light"] *) { display: none; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) .md-prose img[src$="#gh-dark-mode-only"] { display: none; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .md-prose img[src$="#gh-light-mode-only"] { display: none; } }
+
+/* Task lists: disabled checkbox visuals (DS Checkbox look) over the real disabled input. */
+.md-prose ul.contains-task-list,
+.md-prose ol.contains-task-list { list-style: none; padding-left: 0; }
+.md-prose li.contains-task-list ul.contains-task-list,
+.md-prose li ul.contains-task-list { padding-left: 1.75em; }
+.md-prose li.task-list-item { padding-left: 0; }
+.md-prose li.task-list-item::marker { content: none; }
+.md-task-check { position: relative; display: inline-flex; vertical-align: -3px; margin-right: 10px; }
+.md-task-check input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; pointer-events: none; }
+.md-task-check__box {
+  width: 18px; height: 18px; flex: none; display: grid; place-items: center;
+  border: 1.5px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--on-accent);
+}
+.md-task-check__box .md-icon { font-size: 12px; stroke-width: 3; opacity: 0; }
+.md-task-check input:checked + .md-task-check__box { background: var(--accent); border-color: var(--accent); }
+.md-task-check input:checked + .md-task-check__box .md-icon { opacity: 1; }
+
+/* Footnotes (GFM). */
+.md-prose :where(section[data-footnotes], .footnotes) {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border);
+  font-size: 0.875em; line-height: 1.6; color: var(--text-secondary);
+}
+
+/* ── KaTeX ───────────────────────────────────────────────────────────────────── */
+/* KaTeX inherits currentColor. Display math scrolls in its own box instead of overflowing. */
+.md-prose .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; margin: 24px 0; }
+.md-prose--compact .katex-display { margin: 16px 0; }
+.md-prose .katex { color: var(--text); }
+/* A parse error renders as this span (errorColor is also var(--danger) via rehype-katex options). */
+.md-prose .katex-error { color: var(--danger) !important; }
+
+/* ── Heading anchors ─────────────────────────────────────────────────────────── */
+.md-heading-wrap { position: relative; --md-hl: 32px; }
+.md-heading-wrap:has(> h1) { --md-hl: 40px; }
+.md-heading-wrap:has(> h3) { --md-hl: 28px; }
+.md-heading-wrap:has(> h4) { --md-hl: 24px; }
+.md-prose--compact .md-heading-wrap { --md-hl: 26px; }
+.md-anchor {
+  position: absolute;
+  top: calc((var(--md-hl) - 28px) / 2);
+  left: -36px;
+  width: 28px; height: 28px;
+  display: inline-grid; place-items: center;
+  padding: 0; border: 0; border-radius: var(--radius-md);
+  background: transparent; color: var(--text-muted);
+  cursor: pointer; opacity: 0;
+  transition: opacity var(--duration-fast), color var(--duration-fast), background-color var(--duration-fast);
+}
+.md-anchor .md-icon { font-size: 16px; }
+.md-heading-wrap:hover .md-anchor,
+.md-anchor:focus-visible { opacity: 1; }
+.md-anchor:hover { color: var(--text); background: var(--surface-hover); }
+.md-anchor:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+/* No left margin on phones: the control sits at the heading's end and shows on focus. */
+@media (max-width: 767px) {
+  .md-anchor { left: auto; right: 0; background: var(--bg); }
+}
+/* Programmatic focus after a jump lands on the heading; it is not a control, so no ring. */
+.md-prose [tabindex="-1"]:focus { outline: none; }
+
+/* ── Scroll boxes (tables) ───────────────────────────────────────────────────── */
+.md-scrollbox { position: relative; min-width: 0; }
+.md-scrollbox__scroller { overflow-x: auto; }
+.md-scrollbox__scroller:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.md-scrollbox__fade {
+  position: absolute; top: 1px; right: 1px; bottom: 1px; width: 40px;
+  pointer-events: none; opacity: 0;
+  border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+  background: linear-gradient(to right, transparent, var(--surface));
+  transition: opacity var(--duration-fast);
+}
+.md-scrollbox[data-more] > .md-scrollbox__fade { opacity: 1; }
+.md-table-box .md-table { min-width: max-content; }
+.md-table-box .md-table td, .md-table-box .md-table th { min-width: 96px; }
+.md-table-box .md-table td { white-space: normal; }
+[data-theme="light"] .md-table-box .md-table-wrap:not([data-theme="light"] [data-theme="dark"] *) { box-shadow: var(--shadow-sm); }
+
+/* ── CodeBlock ──────────────────────────────────────────────────────────────── */
+.md-codeblock {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-xl);
+  background: var(--code-bg);
+  color: var(--text);
+}
+/* Light: the block lifts off the slate page (Viewer board): surface ground + soft elevation.
+   Every syntax-* pair stays >= 4.5:1 on it (lighter than code-bg). */
+[data-theme="light"] .md-codeblock:not([data-theme="light"] [data-theme="dark"] *) { --code-bg: var(--surface); box-shadow: var(--shadow-sm); }
+.md-codeblock__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  height: 32px; padding: 0 2px 0 16px;
+  border-bottom: 1px solid var(--code-border);
+}
+.md-codeblock__lang {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary);
+}
+.md-codeblock__copy { flex: none; }
+/* Copy is 28px tall in a 32px strip; on touch its hit area grows to 44px without moving it. */
+@media (pointer: coarse) {
+  .md-codeblock__copy::after { content: ""; position: absolute; inset: -8px -4px; }
+}
+.md-codeblock__body { position: relative; overflow: hidden; border-radius: 0 0 var(--radius-xl) var(--radius-xl); }
+.md-codeblock__pre {
+  margin: 0; padding: 12px 16px; overflow-x: auto;
+  background: transparent; color: var(--text);
+  font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 400;
+  white-space: pre; tab-size: 4;
+}
+.md-codeblock__pre code { display: block; width: max-content; min-width: 100%; font: inherit; color: inherit; background: none; padding: 0; }
+.md-codeblock__pre:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: 0 0 var(--radius-xl) var(--radius-xl); }
+.md-codeblock__fade {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 48px;
+  pointer-events: none; opacity: 0;
+  background: linear-gradient(to right, transparent, var(--code-bg));
+  transition: opacity var(--duration-fast);
+}
+.md-codeblock__body[data-more] > .md-codeblock__fade { opacity: 1; }
+
+/* ── DiagramFrame (Mermaid) ─────────────────────────────────────────────────── */
+.md-diagram-wrap { min-width: 0; }
+.md-diagram {
   margin: 0;
+  padding: 16px 24px 24px;
+  display: flex; flex-direction: column; gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
   min-width: 0;
 }
-
-/* Tables scroll horizontally on narrow screens */
-.prose table {
-  display: block;
-  overflow-x: auto;
-  max-width: 100%;
+[data-theme="light"] .md-diagram:not([data-theme="light"] [data-theme="dark"] *) { box-shadow: var(--shadow-sm); }
+.md-diagram__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; }
+.md-diagram__caption { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 12px; line-height: 16px; color: var(--text-muted); }
+.md-diagram__kind { flex: none; font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.md-diagram__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-diagram__tools { display: flex; gap: 4px; flex: none; }
+/* Toolbar: visible on hover or focus with a fine pointer, always visible on touch; always in the tab order. */
+@media (hover: hover) and (pointer: fine) {
+  .md-diagram__tools { opacity: 0; transition: opacity var(--duration-fast); }
+  .md-diagram:hover .md-diagram__tools,
+  .md-diagram[data-source] .md-diagram__tools,
+  .md-diagram__tools:focus-within { opacity: 1; }
+}
+.md-diagram__canvas { display: flex; justify-content: center; overflow-x: auto; min-width: 0; }
+.md-diagram__canvas svg { max-width: 100%; height: auto; }
+/* Board: nodes carry a small radius (mermaid draws square boxes). */
+.md-diagram__canvas .node rect:not(.label-container[rx]) { rx: 6px; ry: 6px; }
+.md-diagram__canvas--large svg { width: 100%; max-width: 100% !important; height: auto; }
+.md-diagram__loading { position: relative; }
+.md-diagram__loading-text {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 13px; line-height: 20px; font-weight: 500; color: var(--text-secondary);
+}
+.md-diagram__source:not([hidden]) { display: block; }
+.md-diagram__source .md-codeblock { margin: 0; }
+.md-diagram-error { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.md-diagram-error .md-codeblock { margin: 0; }
+@media (max-width: 639px) {
+  .md-diagram { padding: 12px 16px 16px; }
+  /* Icon-only buttons on phones (MobileReading board); the label stays for assistive tech. */
+  .md-diagram__btn-label {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+  }
+  .md-diagram__tools .md-btn { width: 32px; padding: 0; }
 }
 
-/* Images never exceed container width */
-.prose img {
-  max-width: 100%;
-  height: auto;
+/* ── Contents rail (Toc) ────────────────────────────────────────────────────── */
+.md-toc { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.md-toc__title {
+  margin: 0; font-size: 11px; line-height: 16px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted);
+}
+.md-toc__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); }
+.md-toc__item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; margin-left: -1px; padding: 6px 8px 6px 14px;
+  border: 0; border-left: 2px solid transparent; border-radius: 0;
+  background: none; text-align: left; cursor: pointer;
+  font-family: var(--font-sans); font-size: 13px; line-height: 20px; font-weight: 500;
+  color: var(--text-secondary);
+  transition: color var(--duration-fast);
+}
+.md-toc__item[data-level="1"] { padding-left: 28px; color: var(--text-muted); }
+.md-toc__item:hover { color: var(--text); }
+.md-toc__item[aria-current] { color: var(--accent-text); border-left-color: var(--accent-text); font-weight: 600; }
+.md-toc__item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.md-toc__text { min-width: 0; overflow-wrap: anywhere; }
+.md-toc__footer { display: flex; align-items: center; gap: 6px; padding-top: 4px; font-size: 12px; line-height: 16px; color: var(--text-muted); }
+
+/* Sheet variant (mobile Contents sheet): 44px rows, the current one on accent-soft. */
+.md-toc--sheet { gap: 8px; }
+.md-toc--sheet .md-toc__title {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+.md-toc--sheet .md-toc__list { border-left: 0; gap: 2px; }
+.md-toc--sheet .md-toc__item {
+  min-height: 44px; margin-left: 0; padding: 10px 12px 10px 16px;
+  border-left: 0; border-radius: var(--radius-lg);
+  font-size: 14px; line-height: 20px; color: var(--text-secondary);
+}
+.md-toc--sheet .md-toc__item[data-level="1"] { padding-left: 32px; color: var(--text-secondary); }
+.md-toc--sheet .md-toc__item:hover { background: var(--surface-hover); }
+.md-toc--sheet .md-toc__item[aria-current] { background: var(--accent-soft); color: var(--accent-text); }
+.md-toc__here { flex: none; font-size: 11px; line-height: 16px; font-weight: 600; color: var(--accent-text); }
+
+/* ── TocTicks (immersive) ───────────────────────────────────────────────────── */
+.md-ticks {
+  position: fixed; left: 32px; top: 50%; transform: translateY(-50%);
+  z-index: var(--z-sticky);
+  max-width: min(320px, calc(100vw - 64px));
+}
+@media (max-width: 767px) { .md-ticks { display: none; } }
+.md-ticks__list {
+  list-style: none; margin: 0; padding: 8px;
+  display: flex; flex-direction: column;
+  max-height: 70vh; overflow-y: auto; scrollbar-width: none;
+  border: 1px solid transparent; border-radius: var(--radius-xl);
+  background: transparent;
+  transition: background-color var(--duration-fast), border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+.md-ticks:hover .md-ticks__list,
+.md-ticks:focus-within .md-ticks__list { background: var(--surface-raised); border-color: var(--border); box-shadow: var(--shadow-lg); }
+.md-ticks__item {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; height: 20px; padding: 0 4px 0 0;
+  border: 0; border-radius: var(--radius-sm);
+  background: none; cursor: pointer; text-align: left;
+  font-family: var(--font-sans); font-size: 13px; line-height: 20px; font-weight: 500;
+  color: var(--text-secondary);
+}
+.md-ticks:hover .md-ticks__item,
+.md-ticks:focus-within .md-ticks__item { height: 28px; }
+.md-ticks__tick { flex: none; position: relative; width: 20px; height: 2px; }
+.md-ticks__tick::before {
+  content: ""; position: absolute; left: 0; top: 0; height: 2px; width: 12px;
+  border-radius: 1px; background: var(--border-strong);
+  transition: width var(--duration-fast) var(--ease-out), background-color var(--duration-fast);
+}
+.md-ticks__item:hover .md-ticks__tick::before { background: var(--text-muted); }
+.md-ticks__item[aria-current] .md-ticks__tick::before { width: 20px; background: var(--accent-text); }
+.md-ticks__label {
+  min-width: 0; max-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  opacity: 0; transition: opacity var(--duration-fast);
+}
+.md-ticks:hover .md-ticks__label,
+.md-ticks:focus-within .md-ticks__label { max-width: 260px; opacity: 1; }
+.md-ticks__item[data-level="1"] .md-ticks__label { padding-left: 12px; color: var(--text-muted); }
+.md-ticks__item:hover .md-ticks__label { color: var(--text); }
+.md-ticks__item[aria-current] .md-ticks__label { color: var(--accent-text); font-weight: 600; }
+.md-ticks__item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+/* ── ReadingProgress ────────────────────────────────────────────────────────── */
+.md-reading-progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 2px;
+  z-index: var(--z-dropdown); pointer-events: none;
+}
+.md-reading-progress__bar {
+  display: block; height: 100%; background: var(--accent);
+  transform-origin: 0 50%; transform: scaleX(0);
+}
+@keyframes md-reading-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@supports (animation-timeline: scroll()) {
+  .md-reading-progress--timeline .md-reading-progress__bar {
+    animation: md-reading-progress auto linear both;
+    animation-timeline: scroll(root block);
+  }
 }
 
-/* Long unbreakable strings (URLs, hashes) wrap instead of overflowing */
-.prose p, .prose li, .prose blockquote {
-  overflow-wrap: break-word;
-  word-break: break-word;
+/* ── Reduced motion: rest states (the progress line tracks scroll, so it keeps working) ── */
+@media (prefers-reduced-motion: reduce) {
+  .md-anchor, .md-scrollbox__fade, .md-codeblock__fade, .md-diagram__tools, .md-toc__item,
+  .md-ticks__list, .md-ticks__tick::before, .md-ticks__label { transition: none !important; }
 }
 
-/* ── KaTeX math ─────────────────────────────────────────────────────────────── */
-/* KaTeX inherits `currentColor`, so on either dark theme the math takes the
-   light prose text colour automatically. Block math ($$…$$) can be wide — let
-   it scroll inside its own box instead of bleeding past the container. */
-.prose .katex-display {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 0.5em 0;
-  margin: 0.75em 0;
-}
-/* A KaTeX parse error renders as this span; make it readable on dark. */
-.prose .katex-error {
-  color: #f87171 !important;
-}
-/* Keep KaTeX HTML from picking up the pink inline-code styling if any residual
-   <code> slips through (it normally doesn't — katex replaces the element). */
-.prose .katex,
-.prose .katex * {
-  background: transparent !important;
+/* ── Forced colours ─────────────────────────────────────────────────────────── */
+@media (forced-colors: active) {
+  .md-ticks__tick::before { background: CanvasText; }
+  .md-ticks__item[aria-current] .md-ticks__tick::before,
+  .md-reading-progress__bar { background: Highlight; }
+  .md-toc__item[aria-current] { border-left-color: Highlight; color: Highlight; }
+  .md-task-check__box { border-color: CanvasText; }
+  .md-task-check input:checked + .md-task-check__box { background: Highlight; border-color: Highlight; }
 }
 
-/* ── Mermaid diagrams ───────────────────────────────────────────────────────── */
-/* Rendered SVG sits in a .not-prose wrapper; center it and let wide diagrams
-   scroll rather than overflow the page. */
-.prose .mermaid-diagram svg,
-.not-prose > svg {
-  max-width: 100%;
-  height: auto;
+/* ── Print: the theme is ignored (print.css forces ink on white); keep everything readable. ── */
+@media print {
+  .md-anchor, .md-ticks, .md-reading-progress, .md-diagram__tools,
+  .md-codeblock__copy, .md-codeblock__fade, .md-scrollbox__fade { display: none !important; }
+  .md-prose--reading { font-size: 11pt; line-height: 1.6; }
+  .md-codeblock { box-shadow: none !important; }
+  .md-codeblock__pre { overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .md-codeblock__pre code { width: auto; }
+  .md-scrollbox__scroller, .md-diagram__canvas, .md-prose .katex-display { overflow: visible; }
+  .md-codeblock, .md-diagram, .md-scrollbox, .md-prose img, .md-prose .katex-display { break-inside: avoid; }
+  .md-heading-wrap, .md-prose h1, .md-prose h2, .md-prose h3, .md-prose h4 { break-after: avoid; }
+  .md-diagram { box-shadow: none !important; }
+  /* A dark-theme diagram prints inverted (light fills, dark ink). The SVG's own ground goes black
+     first so the inversion lands on white; label text stays light so it inverts to dark. */
+  [data-theme="dark"] .md-prose .md-diagram__canvas svg { filter: invert(1) hue-rotate(180deg); background: black !important; }
+  [data-theme="dark"] .md-prose .md-diagram__canvas svg * { background: transparent !important; color: white !important; }
+  /* Both theme-suffixed images print (the page is light): drop the dark-only one. */
+  .md-prose img[src$="#gh-dark-mode-only"] { display: none !important; }
+  .md-prose img[src$="#gh-light-mode-only"] { display: revert !important; }
 }
-
