@@ -15,6 +15,7 @@ from app.routers.admin_analytics import router as admin_analytics_router
 from app.routers.beat import router as beat_router
 from app.routers.artifacts import router as artifacts_router
 from app.routers.auth import router as auth_router
+from app.routers.auth import unsubscribe_alias_router
 from app.routers.documents import router as documents_router
 from app.routers.feedback import router as feedback_router
 from app.routers.workspaces import router as workspaces_router
@@ -86,6 +87,8 @@ app.include_router(admin_router)
 app.include_router(admin_analytics_router)
 app.include_router(beat_router)
 app.include_router(auth_router)
+# Old campaign unsubscribe links (/api/v1/unsubscribe); see routers/auth.py.
+app.include_router(unsubscribe_alias_router)
 app.include_router(me_router)
 app.include_router(sync_router)
 app.include_router(og_router)

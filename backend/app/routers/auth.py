@@ -351,21 +351,25 @@ async def email_verify_link(token: str = Query(...), next: str | None = Query(No
 
 @router.get("/unsubscribe")
 async def unsubscribe(
-    t: str,
+    t: str = "",
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """One-click opt-out of bulk email. Public by design.
 
     Mail clients hit this unauthenticated via List-Unsubscribe, so authority
-    comes from the signed token rather than a session. It only ever stops mail,
-    so there is nothing to escalate even if a link leaks. Transactional mail
-    (sign-in codes) is unaffected — those are never bulk sends.
+    comes from the signed token (HMAC(AUTH_SECRET, "unsub:{uid}")) rather than a
+    session. It only ever stops mail, so there is nothing to escalate even if a
+    link leaks. Transactional mail (sign-in codes, invitations) is unaffected:
+    those are never bulk sends.
+
+    Also served at /api/v1/unsubscribe (``unsubscribe_alias_router`` below):
+    campaigns sent before the URL fix link there.
     """
     from fastapi.responses import HTMLResponse
 
     from app.services import campaign
 
-    user_id = campaign.verify_unsubscribe_token(t)
+    user_id = campaign.verify_unsubscribe_token(t) if t else None
     ok = False
     if user_id and ObjectId.is_valid(user_id):
         res = await db["users"].update_one(
@@ -374,24 +378,32 @@ async def unsubscribe(
         )
         ok = res.matched_count > 0
 
-    body = (
-        "<h2>You're unsubscribed</h2><p>You won't receive Markdrop product updates "
-        "again. Sign-in emails will still work.</p>"
-        if ok
-        else "<h2>Link not recognised</h2><p>This unsubscribe link is invalid or expired.</p>"
-    )
     return HTMLResponse(
-        f"""<!doctype html><meta charset=utf-8><title>Markdrop</title>
-<div style="font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-            max-width:460px;margin:15vh auto;padding:0 24px;color:#111;text-align:center">
-  {body}
-  <p style="margin-top:24px"><a href="{get_settings().frontend_url}" style="color:#2563eb">Back to Markdrop</a></p>
-</div>""",
+        mailer.unsubscribe_page_html(ok),
         status_code=200 if ok else 400,
+        headers={
+            # The token is in this page's URL: keep it out of caches and out of
+            # the Referer sent when someone follows the link back to the site.
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+        },
     )
 
 
 @router.post("/unsubscribe")
-async def unsubscribe_post(t: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+async def unsubscribe_post(t: str = "", db: AsyncIOMotorDatabase = Depends(get_db)):
     """RFC 8058 one-click: some clients POST rather than GET."""
     return await unsubscribe(t, db)
+
+
+# Campaigns sent before the fix built their links (and List-Unsubscribe headers)
+# as /api/v1/unsubscribe, a path that 404'd. Those emails stay in inboxes
+# forever, so the old path is served by the same handlers, with the same HMAC
+# check and the same one-click POST. Registered in main.py. Never remove it.
+unsubscribe_alias_router = APIRouter(prefix="/api/v1", tags=["auth"])
+unsubscribe_alias_router.add_api_route(
+    "/unsubscribe", unsubscribe, methods=["GET"], include_in_schema=False
+)
+unsubscribe_alias_router.add_api_route(
+    "/unsubscribe", unsubscribe_post, methods=["POST"], include_in_schema=False
+)
