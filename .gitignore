@@ -59,6 +59,9 @@ worker/node_modules/
 # paths, which limits sit where. None of that is a credential, but none of it
 # needs to be published either.
 CONTEXT.md
+PROJECT_CONTEXT.md
+# Revamp plan names open security issues; keep it private until they are fixed.
+design-system/REVAMP_PLAN.md
 *.local.md
 notes.local/
 
