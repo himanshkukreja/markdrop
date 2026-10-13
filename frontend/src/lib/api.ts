@@ -299,12 +299,17 @@ export async function getDocument(
     opts?.revalidate !== undefined && !readPassword && !editSecret
       ? { next: { revalidate: opts.revalidate, tags: [documentTag(slug)] } }
       : { cache: "no-store" as const };
-  const res = await fetch(`${API_BASE}/api/v1/documents/${slug}`, {
-    ...cacheOpts,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/v1/documents/${slug}`, {
+      ...cacheOpts,
+      headers,
+    });
+  } catch {
+    throw new ApiError("Failed to fetch document", 0);
+  }
   if (!res.ok) {
-    if (res.status === 404) throw new Error("Document not found");
+    if (res.status === 404) throw new ApiError("Document not found", 404);
     if (res.status === 401) {
       // 401 means two different things — "this has a password" and "this is
       // not public and you are nobody yet" — and they need opposite UI. The
@@ -315,10 +320,10 @@ export async function getDocument(
       // Defaults to the password gate when the header is absent, so an older
       // API keeps behaving exactly as it did.
       const gate = res.headers.get("x-markdrop-gate");
-      throw new Error(gate === "signin" ? "SIGNIN_REQUIRED" : "PASSWORD_REQUIRED");
+      throw new ApiError(gate === "signin" ? "SIGNIN_REQUIRED" : "PASSWORD_REQUIRED", 401);
     }
-    if (res.status === 403) throw new Error("WRONG_PASSWORD");
-    throw new Error("Failed to fetch document");
+    if (res.status === 403) throw new ApiError("WRONG_PASSWORD", 403);
+    throw new ApiError("Failed to fetch document", res.status);
   }
   return res.json();
 }

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getDocument, API_BASE } from "@/lib/api";
+import { ApiError, getDocument, API_BASE } from "@/lib/api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ArtifactView from "./ArtifactView";
@@ -102,8 +102,12 @@ export default async function SlugPage({ params }: Props) {
       // with their token before showing anyone a door.
       isPasswordProtected = true;
       gate = "signin";
-    } else {
+    } else if (e instanceof ApiError && e.status === 404) {
       notFound();
+    } else {
+      // An outage, not an answer: let the error boundary render it, and let
+      // ISR keep serving the last good copy instead of caching a 404.
+      throw e;
     }
   }
 
