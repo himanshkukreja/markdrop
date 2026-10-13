@@ -15,9 +15,23 @@
  *
  * Private (password-protected) artifacts carry ?t=<HS256 JWT> minted by the API;
  * public ones are unguessable capability URLs and cache immutably at the edge.
+ *
+ * Theme: viewer pages (and the "file isn't available" page) accept
+ * ?theme=dark|light. The iframe cannot read the app's theme, so the app passes
+ * it. Anything else (absent, misspelt, hostile) is ignored and the page follows
+ * prefers-color-scheme instead. Only the token `t` is ever forwarded to /r/.
  */
 
 const VIEWERS = new Set(["pdf", "sheet", "text", "docx", "video"]);
+
+// The only two strings that can ever reach the data-theme attribute.
+const THEMES = new Set(["dark", "light"]);
+
+/** "dark" | "light" | null. null means "follow the OS". */
+function readTheme(url) {
+  const t = url.searchParams.get("theme");
+  return THEMES.has(t) ? t : null;
+}
 
 // Types we are willing to hand to the browser to *render*. Anything else is
 // forced to download, so an unexpected upload can never execute as a page.
@@ -98,7 +112,8 @@ export default {
     if (parts[0] === "r") return serveRaw(parts.slice(1).join("/"), url, env, request);
     if (parts[0] === "v") {
       const renderer = parts[1];
-      if (!VIEWERS.has(renderer)) return notFound();
+      // A viewer URL is always a page, so it always gets the page.
+      if (!VIEWERS.has(renderer)) return unavailablePage(readTheme(url), 404);
       return serveViewer(renderer, parts.slice(2).join("/"), url, env);
     }
     if (parts[0] === "b") return serveBranding(parts.slice(1).join("/"), env, request);
@@ -108,12 +123,25 @@ export default {
         headers: { "content-type": "text/plain", "x-robots-tag": "noindex, nofollow" },
       });
     }
-    return notFound();
+    return notFound(request, url);
   },
 };
 
-function notFound() {
+/**
+ * 404. A frame or a document navigation gets the themed "This file isn't
+ * available" page; everything else (fetch() from a viewer or the app's blob
+ * download, a <video> range request, an image loader) keeps the plain body, so
+ * callers that check res.ok / res.status see exactly what they saw before.
+ */
+function notFound(request, url) {
+  if (request && url && wantsPage(request)) return unavailablePage(readTheme(url), 404);
   return new Response("Not found", { status: 404, headers: baseHeaders() });
+}
+
+function wantsPage(request) {
+  const dest = request.headers.get("sec-fetch-dest");
+  if (dest) return dest === "document" || dest === "iframe" || dest === "frame";
+  return (request.headers.get("accept") || "").includes("text/html");
 }
 
 /**
@@ -209,12 +237,12 @@ async function verifyToken(token, key, expectedBlobKey) {
 }
 
 async function serveRaw(blobKey, url, env, request) {
-  if (!blobKey.startsWith("art/")) return notFound();
+  if (!blobKey.startsWith("art/")) return notFound(request, url);
 
   // HEAD first: the size is needed to resolve a Range, and fetching the body to
   // find out how big it is would defeat the point of ranging in the first place.
   const head = await env.ARTIFACTS.head(blobKey);
-  if (!head) return notFound();
+  if (!head) return notFound(request, url);
 
   // FAIL CLOSED. Serve without a token only when the object is explicitly
   // marked public; anything unmarked — a partial write, a metadata update that
@@ -226,6 +254,10 @@ async function serveRaw(blobKey, url, env, request) {
   const token = url.searchParams.get("t");
   if (!isPublic) {
     if (!token || !(await verifyToken(token, env.ARTIFACT_SIGNING_KEY, blobKey))) {
+      // An HTML artifact's frame whose 15-minute token lapsed lands here on
+      // reload: show the page, still with 403 and still without a byte of the
+      // object. Non-page callers get the plain body exactly as before.
+      if (wantsPage(request)) return unavailablePage(readTheme(url), 403);
       return new Response("This artifact is protected — open it on Markdrop.", {
         status: 403,
         headers: baseHeaders(),
@@ -294,15 +326,17 @@ async function serveRaw(blobKey, url, env, request) {
 }
 
 function serveViewer(renderer, blobKey, url, env) {
-  if (!blobKey.startsWith("art/")) return notFound();
+  const theme = readTheme(url);
+  if (!blobKey.startsWith("art/")) return unavailablePage(theme, 404);
+  // Only `t` is forwarded to /r/. `theme` styles this page and goes no further.
   const token = url.searchParams.get("t");
   const src = `/r/${blobKey}${token ? `?t=${encodeURIComponent(token)}` : ""}`;
   const html =
-    renderer === "pdf" ? pdfViewer(src)
-    : renderer === "sheet" ? sheetViewer(src)
-    : renderer === "docx" ? docxViewer(src)
+    renderer === "pdf" ? pdfViewer(src, theme)
+    : renderer === "sheet" ? sheetViewer(src, theme)
+    : renderer === "docx" ? docxViewer(src, theme)
     : renderer === "video" ? videoViewer(src)
-    : textViewer(src);
+    : textViewer(src, theme);
   return new Response(html, {
     headers: {
       ...baseHeaders(),
@@ -312,23 +346,154 @@ function serveViewer(renderer, blobKey, url, env) {
   });
 }
 
+/*
+ * Design tokens, mirrored from the app's design system
+ * (frontend/src/styles/ds/tokens.css; dark = the shipped palette, light = Mist).
+ * The values are resolved hex because this origin has no build step and must
+ * not load the app's CSS. Keep the two in step by hand when the palette moves.
+ *
+ * Fonts: the app's Manrope is not served from this origin, so the viewers use
+ * the platform's system stack instead of adding font files here.
+ */
+const TOKENS_DARK = `color-scheme:dark;
+  --bg:#030712;--surface:#101828;--surface-raised:#1e2939;--surface-hover:#1e2939;
+  --surface-active:#364153;--surface-inset:#0b1220;--border:#1e2939;--border-strong:#364153;
+  --border-focus:#2b7fff;--text:#f3f4f6;--text-secondary:#d1d5dc;--text-muted:#99a1af;
+  --accent:#155dfc;--accent-hover:#2b7fff;--accent-text:#51a2ff;--accent-soft:#2b7fff26;
+  --on-accent:#ffffff;--danger:#ff6467;--code-bg:#0d1117;--code-inline-bg:#1e2939;--code-inline:#fda5d5;
+  --shadow-page:0 4px 8px -2px rgb(0 0 0 / .5),0 2px 4px -2px rgb(0 0 0 / .4);`;
+const TOKENS_LIGHT = `color-scheme:light;
+  --bg:#E3E7ED;--surface:#EBEEF2;--surface-raised:#F2F4F7;--surface-hover:#E3E7EC;
+  --surface-active:#D4DAE2;--surface-inset:#D9DEE6;--border:#CDD4DE;--border-strong:#B2BCCA;
+  --border-focus:#2F6FEB;--text:#111A2C;--text-secondary:#2B3546;--text-muted:#4A5567;
+  --accent:#2150D8;--accent-hover:#1C46C0;--accent-text:#1C46C0;--accent-soft:#2150D81F;
+  --on-accent:#ffffff;--danger:#B41C1C;--code-bg:#E6EAEF;--code-inline-bg:#D9DEE6;--code-inline:#A3114F;
+  --shadow-page:0 6px 16px -6px rgb(17 26 44 / .16),0 2px 4px -2px rgb(17 26 44 / .08);`;
+
 const SHELL_CSS = `
+  :root,[data-theme=dark]{${TOKENS_DARK}}
+  @media (prefers-color-scheme:light){:root:not([data-theme]){${TOKENS_LIGHT}}}
+  [data-theme=light]{${TOKENS_LIGHT}}
+  :root{
+    /* Paper is paper: a PDF page is white in either theme. */
+    --paper:#ffffff;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --r-md:6px;--r-lg:8px;--r-xl:12px;--r-full:9999px;
+    --ease-out:cubic-bezier(.16,1,.3,1);--fast:150ms;
+  }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:#0b1220;color:#e5e7eb;
-    font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-  .msg{padding:2rem;color:#94a3b8}
-  table{border-collapse:collapse;width:max-content;min-width:100%}
-  th,td{border:1px solid #1e293b;padding:6px 10px;white-space:pre;font-variant-numeric:tabular-nums}
-  th{background:#111c33;position:sticky;top:0;font-weight:600;text-align:left}
-  tr:nth-child(even) td{background:#0e1729}
-  .tabs{display:flex;gap:.25rem;padding:.5rem;background:#111c33;position:sticky;top:0;z-index:2;overflow-x:auto}
-  .tabs button{background:#1e293b;color:#cbd5e1;border:0;border-radius:6px;padding:.35rem .75rem;cursor:pointer;white-space:nowrap}
-  .tabs button[aria-selected=true]{background:#3b82f6;color:#fff}
-  .wrap{overflow:auto;height:100%}
-  pre{margin:0;padding:1rem;white-space:pre-wrap;word-break:break-word}
+  html,body{margin:0;height:100%}
+  body{display:flex;flex-direction:column;background:var(--surface);color:var(--text);
+    font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  :focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+  .wrap{flex:1;min-height:0;overflow:auto;position:relative}
+  .msg{margin:0;padding:24px;color:var(--text-muted)}
+  .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+  /* Toolbar */
+  .bar{flex:none;display:flex;align-items:center;gap:4px;min-height:48px;padding:4px 8px 4px 16px;
+    background:var(--surface);border-bottom:1px solid var(--border);position:relative;z-index:20}
+  .grow{flex:1;min-width:8px}
+  .status{min-width:0;font-size:13px;line-height:20px;color:var(--text-secondary);
+    font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .group{display:flex;align-items:center}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;min-width:40px;
+    padding:0 10px;border:0;border-radius:var(--r-md);background:transparent;color:var(--text-secondary);
+    font:600 13px/1 var(--sans);text-decoration:none;white-space:nowrap;cursor:pointer;
+    transition:background-color var(--fast) var(--ease-out),color var(--fast) var(--ease-out)}
+  .btn svg{flex:none;width:18px;height:18px}
+  .btn.icon{width:40px;padding:0}
+  .btn:hover{background:var(--surface-hover);color:var(--text)}
+  .btn:active{background:var(--surface-active)}
+  .btn[aria-pressed=true]{background:var(--accent-soft);color:var(--accent-text)}
+  .btn:disabled{opacity:.45;cursor:default;background:transparent;color:var(--text-secondary)}
+  .pct{width:44px;text-align:center;font-size:13px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+  @media (pointer:coarse),(max-width:600px){
+    .btn{height:44px;min-width:44px}.btn.icon{width:44px}
+  }
+  @media (max-width:520px){
+    .lbl{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+    .btn.has-lbl{width:44px;padding:0}
+    .bar{padding-left:12px}
+  }
+  @media (max-width:359px){ .pct{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)} }
+
+  /* "This file isn't available" — server-rendered, and swapped in by a viewer
+     whose /r/ fetch answers 403 or 404. */
+  .na-body{flex:1;display:flex;align-items:center;justify-content:center;padding:32px 16px;background:var(--surface)}
+  .na{max-width:480px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px}
+  .na-icon{display:grid;place-items:center;width:48px;height:48px;margin-bottom:8px;border-radius:var(--r-xl);
+    background:var(--surface-inset);border:1px solid var(--border);color:var(--text-muted)}
+  .na-icon svg{width:24px;height:24px}
+  .na h1{margin:0;font-size:20px;line-height:28px;font-weight:700;letter-spacing:-.01em;color:var(--text)}
+  .na p{margin:0;font-size:15px;line-height:24px;color:var(--text-secondary)}
+  .na .na-host{margin-top:16px;font-size:12px;line-height:16px;font-weight:600;letter-spacing:.02em;color:var(--text-muted)}
+
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 `;
 
-function pdfViewer(src) {
+const ICONS = {
+  minus: '<path d="M5 12h14"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  fit: '<path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/>',
+  download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  wrap: '<path d="M4 6h16M4 12h13a3 3 0 0 1 0 6h-4M15 16l-2 2 2 2M4 18h5"/>',
+  gone: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m10 12 4 4m0-4-4 4"/>',
+};
+const icon = (name) =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name]}</svg>`;
+
+// Plain text, never a link: a top-level navigation from this origin is exactly
+// what trips Chrome's lookalike-domain warning, and it isn't ours to send.
+const NA_MARKUP = `<div class="na" role="status">
+<span class="na-icon">${icon("gone")}</span>
+<h1>This file isn't available</h1>
+<p>It may have expired or been deleted.</p>
+<p class="na-host">markdrop.in</p>
+</div>`;
+
+/**
+ * Page skeleton. `theme` is null or one of THEMES — never request text — and
+ * `title`/`css`/`body` are this file's own constants plus JSON-encoded values.
+ */
+function page({ title, theme, css = "", body }) {
+  return `<!doctype html><html lang="en"${theme ? ` data-theme="${theme}"` : ""}><head><meta charset="utf-8">
+<title>${title}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<style>${SHELL_CSS}${css}</style></head><body>
+${body}
+</body></html>`;
+}
+
+/** The Worker-origin "not found / expired" page (§7.22). No script at all. */
+function unavailablePage(theme, status) {
+  const html = page({
+    title: "File unavailable",
+    theme,
+    body: `<main class="na-body">${NA_MARKUP}</main>`,
+  });
+  return new Response(html, {
+    status,
+    headers: {
+      ...baseHeaders(),
+      "content-type": "text/html; charset=utf-8",
+      "content-security-policy":
+        "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+      // The body depends on how the request was made (page vs fetch).
+      "vary": "Accept, Sec-Fetch-Dest",
+    },
+  });
+}
+
+// Shared by the viewers: swap the whole page for the unavailable state.
+const NA_SCRIPT = `
+function showUnavailable(){
+  document.body.innerHTML = '<main class="na-body">' + ${JSON.stringify(NA_MARKUP)} + '</main>';
+}`;
+
+function pdfViewer(src, theme) {
   // Rendered with PDF.js to <canvas>, NOT <embed>. A sandboxed iframe blocks
   // plugin content outright, so the browser's built-in PDF viewer silently
   // fails here. Sandboxing is non-negotiable for user files, so we draw.
@@ -336,167 +501,421 @@ function pdfViewer(src) {
   // Canvas alone gives pixels with no selectable text, so each page also gets
   // PDF.js's text layer: transparent, absolutely-positioned spans aligned over
   // the render. That's what makes the content selectable and copyable.
-  return `<!doctype html><meta charset="utf-8"><title>PDF</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>${SHELL_CSS}
-  .pdf{display:flex;flex-direction:column;align-items:center;gap:14px;padding:16px}
-  .page{position:relative;border-radius:6px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.45);background:#fff}
-  .page canvas{display:block;max-width:100%;height:auto}
-  /* pdf.js text layer: invisible text sitting exactly over the drawn glyphs. */
-  .textLayer{position:absolute;inset:0;overflow:hidden;line-height:1;
-    text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;
-    caret-color:#000;z-index:2}
-  .textLayer span,.textLayer br{position:absolute;white-space:pre;cursor:text;
-    transform-origin:0% 0%;color:transparent}
-  .textLayer ::selection{background:rgba(59,130,246,.45)}
-  .textLayer .endOfContent{position:absolute;inset:100% 0 0;display:block;
-    cursor:default;user-select:none}
-  .bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;
-       padding:.55rem .9rem;background:#111c33;border-bottom:1px solid rgba(255,255,255,.06);
-       font-size:12px;color:#94a3b8}
-  .bar a{margin-left:auto;color:#60a5fa;text-decoration:none}
-</style>
-<div class="bar"><span id="status">Loading PDF…</span><a id="dl" download>Download</a></div>
-<div class="wrap"><div id="out" class="pdf"></div></div>
+  //
+  // Pages are laid out at once (sized boxes) and drawn lazily as they come near
+  // the viewport, so zooming re-draws only what is on screen.
+  const css = `
+  .wrap{background:var(--surface-inset)}
+  .pdf{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px;min-width:min-content}
+  .page{position:relative;flex:none;border-radius:2px;overflow:hidden;background:var(--paper);box-shadow:var(--shadow-page)}
+  .page canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  /* pdf.js 4.x text layer: invisible text sitting exactly over the drawn glyphs. */
+  .textLayer{position:absolute;text-align:initial;inset:0;overflow:clip;opacity:1;line-height:1;
+    -webkit-text-size-adjust:none;text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;
+    caret-color:#000;z-index:2;color-scheme:only light;
+    --min-font-size:1;--text-scale-factor:calc(var(--scale-factor) * var(--min-font-size));
+    --min-font-size-inv:calc(1 / var(--min-font-size))}
+  .textLayer :is(span,br){color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0% 0%}
+  .textLayer > :not(.markedContent),.textLayer .markedContent span:not(.markedContent){z-index:1;
+    --font-height:0;font-size:calc(var(--text-scale-factor) * var(--font-height));--scale-x:1;--rotate:0deg;
+    transform:rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv))}
+  .textLayer .markedContent{display:contents}
+  .textLayer ::selection{background:rgb(33 80 216 / .35)}
+  .textLayer .endOfContent{display:block;position:absolute;inset:100% 0 0;z-index:0;cursor:default;user-select:none}
+  .pdf .msg{text-align:center}
+  @media (max-width:520px){.pdf{padding:12px;gap:12px}}`;
+  const body = `<header class="bar" role="toolbar" aria-label="PDF controls">
+<span id="status" class="status">Loading PDF…</span>
+<span class="grow"></span>
+<div class="group">
+<button type="button" class="btn icon" id="zout" aria-label="Zoom out" disabled>${icon("minus")}</button>
+<span id="pct" class="pct">100%</span>
+<button type="button" class="btn icon" id="zin" aria-label="Zoom in" disabled>${icon("plus")}</button>
+</div>
+<button type="button" class="btn has-lbl" id="fit" aria-pressed="true" disabled>${icon("fit")}<span class="lbl">Fit width</span></button>
+<a class="btn has-lbl" id="dl" download>${icon("download")}<span class="lbl">Download</span></a>
+</header>
+<main class="wrap" id="scroller"><div id="out" class="pdf"></div></main>
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
 <script type="module">
 const SRC = ${JSON.stringify(src)};
 const V = "4.10.38";
-document.getElementById('dl').href = SRC;
-const status = document.getElementById('status'), out = document.getElementById('out');
+${NA_SCRIPT}
+const $ = (id) => document.getElementById(id);
+const status = $('status'), out = $('out'), scroller = $('scroller'), live = $('live');
+const pct = $('pct'), zin = $('zin'), zout = $('zout'), fitBtn = $('fit');
+$('dl').href = SRC;
+
+// 100% is the page's printed size: PDF points (1/72 in) to CSS px (1/96 in).
+const CSS_UNITS = 96 / 72, LIMIT = 50, FIT_MAX_PX = 1100;
+const STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+let pdfjs, doc, pages = [], fit = true, zoom = 1, busy = false, current = 0;
+const visible = new Set();
+const say = (m) => { live.textContent = m; };
+
+function fitZoom() {
+  const avail = Math.min(scroller.clientWidth - 32, FIT_MAX_PX);
+  const widest = Math.max.apply(null, pages.map((p) => p.base.width));
+  return Math.max(0.25, Math.min(3, avail / (widest * CSS_UNITS)));
+}
+const zoomNow = () => (fit ? fitZoom() : zoom);
+const scaleNow = () => zoomNow() * CSS_UNITS;
+
+function layout() {
+  const ratio = scroller.scrollHeight ? scroller.scrollTop / scroller.scrollHeight : 0;
+  const s = scaleNow();
+  for (const p of pages) {
+    p.wrap.style.width = Math.floor(p.base.width * s) + 'px';
+    p.wrap.style.height = Math.floor(p.base.height * s) + 'px';
+    // The text layer is sized in CSS from this, so an already-drawn page stays
+    // selectable and aligned (canvas stretched) until its sharp re-draw lands.
+    p.wrap.style.setProperty('--scale-factor', String(s));
+    p.wrap.style.setProperty('--total-scale-factor', String(s));
+  }
+  const z = zoomNow();
+  pct.textContent = Math.round(z * 100) + '%';
+  zout.disabled = z <= STEPS[0] + 1e-3;
+  zin.disabled = z >= STEPS[STEPS.length - 1] - 1e-3;
+  fitBtn.setAttribute('aria-pressed', String(fit));
+  scroller.scrollTop = ratio * scroller.scrollHeight;
+  pump();
+}
+
+async function draw(p, s) {
+  const viewport = p.page.getViewport({ scale: s });
+  // Sharp on high-DPI screens, but capped: mobile Safari refuses canvases over
+  // ~16.7M pixels and silently draws nothing.
+  let dpr = window.devicePixelRatio || 1;
+  const area = viewport.width * viewport.height;
+  if (area * dpr * dpr > 16e6) dpr = Math.max(0.5, Math.sqrt(16e6 / area));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.floor(viewport.width * dpr);
+  canvas.height = Math.floor(viewport.height * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  await p.page.render({ canvasContext: ctx, viewport }).promise;
+  if (scaleNow() !== s) return;            // zoom moved on mid-draw; redo later
+
+  const textDiv = document.createElement('div');
+  textDiv.className = 'textLayer';
+  p.wrap.replaceChildren(canvas, textDiv);
+  // Text layer. pdf.js 4.x exposes the TextLayer class; fall back to the
+  // older renderTextLayer helper so a CDN version bump can't blank it out.
+  const textContent = await p.page.getTextContent();
+  if (pdfjs.TextLayer) {
+    await new pdfjs.TextLayer({ textContentSource: textContent, container: textDiv, viewport }).render();
+  } else if (pdfjs.renderTextLayer) {
+    await pdfjs.renderTextLayer({ textContentSource: textContent, container: textDiv, viewport }).promise;
+  }
+  const end = document.createElement('div');
+  end.className = 'endOfContent';
+  textDiv.appendChild(end);
+  p.drawn = s;
+}
+
+async function pump() {
+  if (busy) return;
+  busy = true;
+  try {
+    for (;;) {
+      const s = scaleNow();
+      const next = [...visible].sort((a, b) => a.n - b.n).find((p) => p.drawn !== s);
+      if (!next) break;
+      await draw(next, s);
+    }
+  } finally {
+    busy = false;
+  }
+}
+
+function track() {
+  const line = scroller.getBoundingClientRect().top + scroller.clientHeight * 0.3;
+  let n = 1;
+  for (const p of pages) {
+    if (p.wrap.getBoundingClientRect().top <= line) n = p.n; else break;
+  }
+  if (n !== current) {
+    current = n;
+    status.textContent = 'Page ' + n + ' of ' + doc.numPages;
+  }
+}
+
+function step(dir) {
+  const z = zoomNow();
+  const next = dir > 0
+    ? STEPS.find((v) => v > z + 1e-3)
+    : STEPS.slice().reverse().find((v) => v < z - 1e-3);
+  if (next == null) return;
+  fit = false;
+  zoom = next;
+  layout();
+  say('Zoom ' + Math.round(next * 100) + '%');
+}
+
 try {
-  const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V + '/pdf.min.mjs');
+  pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V + '/pdf.min.mjs');
   // The pdf.js worker lives on another origin and a cross-origin new Worker()
   // is forbidden, so fetch it and hand pdf.js a same-origin blob URL instead.
   const workerCode = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V + '/pdf.worker.min.mjs').then(r => r.text());
   pdfjs.GlobalWorkerOptions.workerSrc =
     URL.createObjectURL(new Blob([workerCode], { type: 'text/javascript' }));
 
-  const doc = await pdfjs.getDocument({ url: SRC }).promise;
-  status.textContent = doc.numPages + (doc.numPages === 1 ? ' page' : ' pages') + ' · select text to copy';
-  const dpr = window.devicePixelRatio || 1;
-  const limit = Math.min(doc.numPages, 50);
-
+  doc = await pdfjs.getDocument({ url: SRC }).promise;
+  const limit = Math.min(doc.numPages, LIMIT);
   for (let n = 1; n <= limit; n++) {
-    const page = await doc.getPage(n);
-    const base = page.getViewport({ scale: 1 });
-    const cssScale = Math.max(0.5, Math.min(2, (Math.min(window.innerWidth, 1100) - 40) / base.width));
-    // CSS-space viewport drives layout AND the text layer; the canvas backing
-    // store is scaled by DPR on top so the render stays sharp.
-    const viewport = page.getViewport({ scale: cssScale });
-
+    const pg = await doc.getPage(n);
     const wrap = document.createElement('div');
     wrap.className = 'page';
-    wrap.style.width = viewport.width + 'px';
-    wrap.style.height = viewport.height + 'px';
-
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.floor(viewport.width * dpr);
-    canvas.height = Math.floor(viewport.height * dpr);
-    canvas.style.width = viewport.width + 'px';
-    canvas.style.height = viewport.height + 'px';
-    wrap.appendChild(canvas);
-
-    const textDiv = document.createElement('div');
-    textDiv.className = 'textLayer';
-    wrap.appendChild(textDiv);
+    wrap.dataset.i = String(n - 1);
     out.appendChild(wrap);
-
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    // Text layer. pdf.js 4.x exposes the TextLayer class; fall back to the
-    // older renderTextLayer helper so a CDN version bump can't blank it out.
-    const textContent = await page.getTextContent();
-    if (pdfjs.TextLayer) {
-      await new pdfjs.TextLayer({ textContentSource: textContent, container: textDiv, viewport }).render();
-    } else if (pdfjs.renderTextLayer) {
-      await pdfjs.renderTextLayer({ textContentSource: textContent, container: textDiv, viewport }).promise;
-    }
-    const end = document.createElement('div');
-    end.className = 'endOfContent';
-    textDiv.appendChild(end);
+    pages.push({ n, page: pg, base: pg.getViewport({ scale: 1 }), wrap, drawn: 0 });
   }
-
   if (doc.numPages > limit) {
     const more = document.createElement('p');
     more.className = 'msg';
-    more.textContent = 'Showing the first ' + limit + ' of ' + doc.numPages + ' pages — download to see the rest.';
+    more.textContent = 'Showing the first ' + limit + ' of ' + doc.numPages + ' pages. Download to see the rest.';
     out.appendChild(more);
   }
+
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      const p = pages[+e.target.dataset.i];
+      if (e.isIntersecting) visible.add(p); else visible.delete(p);
+    }
+    pump();
+  }, { root: scroller, rootMargin: '800px 0px' });
+  pages.forEach((p) => io.observe(p.wrap));
+
+  zin.onclick = () => step(1);
+  zout.onclick = () => step(-1);
+  fitBtn.onclick = () => { fit = true; layout(); say('Fit width, zoom ' + pct.textContent); };
+  fitBtn.disabled = false;
+  layout();
+  track();
+  say(doc.numPages + (doc.numPages === 1 ? ' page' : ' pages'));
+
+  let raf = 0;
+  scroller.addEventListener('scroll', () => {
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; track(); });
+  }, { passive: true });
+  let lastW = scroller.clientWidth;
+  new ResizeObserver(() => {
+    if (scroller.clientWidth === lastW) return;
+    lastW = scroller.clientWidth;
+    if (fit) layout();
+  }).observe(scroller);
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); step(1); }
+    else if (e.key === '-') { e.preventDefault(); step(-1); }
+  });
 } catch (e) {
-  status.textContent = 'Could not render this PDF';
-  out.innerHTML = '';
-  const p = document.createElement('p');
-  p.className = 'msg';
-  p.textContent = String(e && e.message || e);
-  out.appendChild(p);
+  // Ask the source what happened: an expired token (403) or a deleted file
+  // (404) is "isn't available", not "could not render".
+  let gone = false;
+  try {
+    const r = await fetch(SRC, { headers: { Range: 'bytes=0-0' } });
+    gone = r.status === 403 || r.status === 404;
+  } catch (_) {}
+  if (gone) {
+    showUnavailable();
+  } else {
+    status.textContent = 'Could not render this PDF';
+    out.innerHTML = '';
+    const p = document.createElement('p');
+    p.className = 'msg';
+    p.textContent = String(e && e.message || e);
+    out.appendChild(p);
+  }
 }
 </script>`;
+  return page({ title: "PDF", theme, css, body });
 }
 
-function sheetViewer(src) {
-  return `<!doctype html><meta charset="utf-8"><title>Spreadsheet</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>${SHELL_CSS}</style>
-<div id="tabs" class="tabs" hidden></div>
-<div class="wrap"><div id="out" class="msg">Loading…</div></div>
+function sheetViewer(src, theme) {
+  const css = `
+  .bar{gap:8px}
+  .pills{display:flex;align-items:center;gap:2px;min-width:0;overflow-x:auto;scrollbar-width:thin}
+  .pill{flex:none;height:40px;padding:0 2px;border:0;background:none;color:var(--text-secondary);
+    font:500 13px/1 var(--sans);cursor:pointer;border-radius:var(--r-full)}
+  .pill span{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:var(--r-full);
+    transition:background-color var(--fast) var(--ease-out),color var(--fast) var(--ease-out)}
+  .pill:hover span{background:var(--surface-hover);color:var(--text)}
+  .pill[aria-selected=true]{color:var(--accent-text);font-weight:600}
+  .pill[aria-selected=true] span{background:var(--accent-soft);color:var(--accent-text)}
+  .pill:focus-visible{outline:none}
+  .pill:focus-visible span{outline:2px solid var(--border-focus);outline-offset:1px}
+  @media (pointer:coarse),(max-width:600px){.pill{height:44px}}
+  .bar .status{flex:none}
+  @media (max-width:520px){.bar.has-tabs .status{display:none}}
+  table.grid{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:13px}
+  .grid td,.grid th{height:26px;padding:3px 10px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+    white-space:pre;vertical-align:middle;font-variant-numeric:tabular-nums;text-align:left}
+  .grid td{color:var(--text-secondary);background:var(--surface)}
+  .grid td[data-t=n]{text-align:right}
+  .grid tbody tr:hover td{background:var(--surface-raised)}
+  .grid thead th{position:sticky;top:0;z-index:2;height:24px;padding:0 10px;background:var(--surface-inset);
+    color:var(--text-muted);font-size:11px;font-weight:600;letter-spacing:.02em}
+  .grid th.rn{position:sticky;left:0;z-index:1;min-width:44px;padding:0 8px;text-align:center;
+    background:var(--surface-inset);color:var(--text-muted);font-size:11px;font-weight:500}
+  .grid thead th.rn{z-index:3}`;
+  const body = `<header class="bar" id="bar">
+<div id="tabs" class="pills" role="tablist" aria-label="Sheets" hidden></div>
+<span class="grow"></span>
+<span id="status" class="status">Loading spreadsheet…</span>
+</header>
+<main class="wrap" id="scroller"><div id="out" role="tabpanel"><p class="msg">Loading…</p></div></main>
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
         integrity="sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
+${NA_SCRIPT}
 (async () => {
-  const out = document.getElementById('out'), tabsEl = document.getElementById('tabs');
+  const $ = (id) => document.getElementById(id);
+  const out = $('out'), tabsEl = $('tabs'), status = $('status'), scroller = $('scroller'), live = $('live');
   try {
     const res = await fetch(${JSON.stringify(src)});
+    if (res.status === 403 || res.status === 404) return showUnavailable();
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const wb = XLSX.read(await res.arrayBuffer(), { type: 'array' });
-    const render = (name) => {
-      out.innerHTML = XLSX.utils.sheet_to_html(wb.Sheets[name]);
-      [...tabsEl.children].forEach(b =>
-        b.setAttribute('aria-selected', String(b.textContent === name)));
-    };
-    if (wb.SheetNames.length > 1) {
-      tabsEl.hidden = false;
-      wb.SheetNames.forEach(n => {
-        const b = document.createElement('button');
-        b.textContent = n; b.onclick = () => render(n); tabsEl.appendChild(b);
+    const names = wb.SheetNames, tabs = [];
+    const plural = (n, one, many) => n.toLocaleString() + ' ' + (n === 1 ? one : many);
+
+    const render = (i) => {
+      const ws = wb.Sheets[names[i]];
+      const ref = ws && ws['!ref'];
+      out.replaceChildren();
+      let summary = 'Empty sheet';
+      if (!ref) {
+        const p = document.createElement('p');
+        p.className = 'msg';
+        p.textContent = 'This sheet is empty.';
+        out.appendChild(p);
+      } else {
+        const r = XLSX.utils.decode_range(ref);
+        const holder = document.createElement('div');
+        holder.innerHTML = XLSX.utils.sheet_to_html(ws, { header: '', footer: '' });
+        const table = holder.querySelector('table');
+        if (table) {
+          table.className = 'grid';
+          // Row-number gutter: SheetJS emits one <tr> per row of the range.
+          [...table.rows].forEach((tr, k) => {
+            const th = document.createElement('th');
+            th.scope = 'row';
+            th.className = 'rn';
+            th.textContent = String(r.s.r + k + 1);
+            tr.insertBefore(th, tr.firstChild);
+          });
+          // Column letters.
+          const hr = table.createTHead().insertRow();
+          const corner = document.createElement('th');
+          corner.className = 'rn';
+          corner.setAttribute('aria-hidden', 'true');
+          hr.appendChild(corner);
+          for (let c = r.s.c; c <= r.e.c; c++) {
+            const th = document.createElement('th');
+            th.scope = 'col';
+            th.textContent = XLSX.utils.encode_col(c);
+            hr.appendChild(th);
+          }
+          out.appendChild(table);
+        }
+        summary = plural(r.e.r - r.s.r + 1, 'row', 'rows') + ' · ' + plural(r.e.c - r.s.c + 1, 'column', 'columns');
+      }
+      status.textContent = summary;
+      tabs.forEach((b, j) => {
+        b.setAttribute('aria-selected', String(j === i));
+        b.tabIndex = j === i ? 0 : -1;
       });
+      if (tabs[i]) out.setAttribute('aria-labelledby', tabs[i].id);
+      scroller.scrollTo(0, 0);
+      return summary;
+    };
+
+    if (names.length > 1) {
+      tabsEl.hidden = false;
+      $('bar').classList.add('has-tabs');
+      names.forEach((n, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'pill';
+        b.id = 'tab-' + i;
+        b.setAttribute('role', 'tab');
+        b.setAttribute('aria-controls', 'out');
+        const s = document.createElement('span');
+        s.textContent = n;
+        b.appendChild(s);
+        b.onclick = () => { live.textContent = n + ', ' + render(i); };
+        tabsEl.appendChild(b);
+        tabs.push(b);
+      });
+      // Arrow keys move between sheets (roving tabindex).
+      tabsEl.addEventListener('keydown', (e) => {
+        const i = tabs.indexOf(document.activeElement);
+        if (i < 0) return;
+        const to = e.key === 'ArrowRight' ? (i + 1) % tabs.length
+          : e.key === 'ArrowLeft' ? (i - 1 + tabs.length) % tabs.length
+          : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -1;
+        if (to < 0) return;
+        e.preventDefault();
+        tabs[to].focus();
+        tabs[to].click();
+      });
+    } else {
+      out.removeAttribute('role');
     }
-    render(wb.SheetNames[0]);
+    render(0);
   } catch (e) {
-    out.textContent = 'Could not render this spreadsheet: ' + e.message;
+    status.textContent = 'Could not render';
+    out.replaceChildren();
+    const p = document.createElement('p');
+    p.className = 'msg';
+    p.textContent = 'Could not render this spreadsheet: ' + e.message;
+    out.appendChild(p);
   }
 })();
 </script>`;
+  return page({ title: "Spreadsheet", theme, css, body });
 }
 
-function docxViewer(src) {
+function docxViewer(src, theme) {
   // mammoth converts the docx body to semantic HTML. Fidelity is structural,
   // not pixel-exact — Word's layout model doesn't survive the trip — so the
-  // page is styled as a clean document rather than pretending to be Word.
-  return `<!doctype html><meta charset="utf-8"><title>Document</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>${SHELL_CSS}
-  .doc{max-width:46rem;margin:0 auto;padding:3rem 1.5rem;line-height:1.7}
-  .doc h1,.doc h2,.doc h3{line-height:1.25;margin:1.6em 0 .5em;color:#f3f4f6}
-  .doc h1{font-size:1.9rem}.doc h2{font-size:1.45rem}.doc h3{font-size:1.2rem}
-  .doc p{margin:0 0 1em}
-  .doc ul,.doc ol{margin:0 0 1em 1.4em}
-  .doc img{max-width:100%;height:auto;border-radius:6px}
-  .doc table{width:100%;margin:1.5em 0}
-  .doc a{color:#60a5fa}
-  .doc blockquote{margin:1em 0;padding-left:1em;border-left:3px solid #1e293b;color:#94a3b8}
-</style>
-<div class="wrap"><div id="out" class="doc"><p class="msg">Loading document…</p></div></div>
+  // page is styled as a clean document rather than pretending to be Word,
+  // with the app's reading typography (17/28 on a 680px measure).
+  const css = `
+  .doc{max-width:680px;margin:0 auto;padding:48px 24px 96px;font-size:17px;line-height:28px;
+    color:var(--text-secondary);overflow-wrap:break-word}
+  .doc h1,.doc h2,.doc h3,.doc h4,.doc h5,.doc h6{color:var(--text)}
+  .doc h1{font-size:32px;line-height:40px;font-weight:800;letter-spacing:-.02em;margin:0 0 24px}
+  .doc h2{font-size:24px;line-height:32px;font-weight:700;letter-spacing:-.015em;margin:48px 0 16px}
+  .doc h3{font-size:19px;line-height:28px;font-weight:600;margin:32px 0 12px}
+  .doc h4,.doc h5,.doc h6{font-size:16px;line-height:24px;font-weight:600;margin:24px 0 8px}
+  .doc p{margin:0 0 20px}
+  .doc strong{color:var(--text)}
+  .doc ul,.doc ol{margin:0 0 20px;padding-left:1.5em}
+  .doc li{margin:4px 0}
+  .doc img{max-width:100%;height:auto;border-radius:var(--r-lg)}
+  .doc a{color:var(--accent-text);text-decoration:underline;text-underline-offset:3px}
+  .doc blockquote{margin:24px 0;padding:2px 0 2px 20px;border-left:3px solid var(--border-strong);color:var(--text-secondary)}
+  .doc table{border-collapse:collapse;width:100%;margin:24px 0;font-size:15px;line-height:24px;display:block;overflow-x:auto}
+  .doc th,.doc td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+  .doc th{background:var(--surface-inset);color:var(--text)}
+  .doc code{font-family:var(--mono);font-size:.875em;background:var(--code-inline-bg);color:var(--code-inline);padding:1px 5px;border-radius:var(--r-md)}
+  .doc .msg{padding:0}
+  @media (max-width:520px){.doc{padding:32px 16px 64px}.doc h1{font-size:28px;line-height:36px}}`;
+  const body = `<main class="wrap"><article id="out" class="doc"><p class="msg">Loading document…</p></article></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.12.1/mammoth.browser.min.js"
         integrity="sha512-Ri7OCzulIlV8Rp8BzgFbScplsAV4hqrES1iv1ure0AHE8IgZ39MT03jqpqsOZkP14STXplVFQwUHXetvXH87XQ=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
+${NA_SCRIPT}
 (async () => {
   const out = document.getElementById('out');
   try {
     const res = await fetch(${JSON.stringify(src)});
+    if (res.status === 403 || res.status === 404) return showUnavailable();
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const { value, messages } = await mammoth.convertToHtml({ arrayBuffer: await res.arrayBuffer() });
     // mammoth's output is generated from the docx, not raw user HTML, but this
@@ -505,27 +924,96 @@ function docxViewer(src) {
     if (messages?.length) console.info('mammoth:', messages);
   } catch (e) {
     out.innerHTML = '';
-    out.textContent = 'Could not render this document: ' + e.message;
+    const p = document.createElement('p');
+    p.className = 'msg';
+    p.textContent = 'Could not render this document: ' + e.message;
+    out.appendChild(p);
   }
 })();
 </script>`;
+  return page({ title: "Document", theme, css, body });
 }
 
-function textViewer(src) {
-  return `<!doctype html><meta charset="utf-8"><title>File</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>${SHELL_CSS}</style>
-<div class="wrap"><pre id="out">Loading…</pre></div>
+function textViewer(src, theme) {
+  // One element per line so the line numbers stay attached when long lines
+  // wrap. The numbers are CSS counters: never selected, never copied.
+  const css = `
+  .code{font:13px/20px var(--mono);counter-reset:ln;width:max-content;min-width:100%;padding-bottom:16px}
+  .code .l{display:flex;min-height:20px}
+  .code .l::before{counter-increment:ln;content:counter(ln);content:counter(ln) / "";flex:none;
+    position:sticky;left:0;width:calc(var(--gw, 3ch) + 28px);padding:0 12px 0 16px;margin-right:16px;
+    text-align:right;color:var(--text-muted);background:var(--surface-inset);border-right:1px solid var(--border);
+    user-select:none;box-shadow:12px 0 0 var(--surface)}
+  .code .l>span{white-space:pre;padding-right:24px;color:var(--text)}
+  .code .l:first-child::before,.code .l:first-child>span{padding-top:12px}
+  .code.wrapped{width:auto}
+  .code.wrapped .l>span{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+  /* The gutter's colour runs on past the last line; same ch as the lines. */
+  .wrap{font:13px/20px var(--mono);
+    background:linear-gradient(to right,var(--surface-inset) calc(var(--gw, 3ch) + 27px),
+      var(--border) 0 calc(var(--gw, 3ch) + 28px),transparent 0)}
+  .wrap .msg{font-family:var(--sans);font-size:14px}
+  .wrap.plain{background:none}`;
+  const body = `<header class="bar" role="toolbar" aria-label="File controls">
+<span id="status" class="status">Loading…</span>
+<span class="grow"></span>
+<button type="button" class="btn has-lbl" id="wrapBtn" aria-pressed="true" disabled>${icon("wrap")}<span class="lbl">Wrap lines</span></button>
+</header>
+<main class="wrap plain" id="scroller"><div id="out" class="code wrapped"><p class="msg">Loading…</p></div></main>
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
 <script>
-fetch(${JSON.stringify(src)})
-  .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
-  .then(t => {
-    // textContent, never innerHTML — this file is untrusted input.
-    document.getElementById('out').textContent =
-      t.length > 2000000 ? t.slice(0, 2000000) + '\\n\\n… truncated' : t;
-  })
-  .catch(e => { document.getElementById('out').textContent = 'Could not load: ' + e.message; });
+${NA_SCRIPT}
+(function () {
+  var out = document.getElementById('out'), status = document.getElementById('status');
+  var btn = document.getElementById('wrapBtn'), scroller = document.getElementById('scroller');
+  var MAX_CHARS = 2000000, MAX_LINES = 100000;
+  fetch(${JSON.stringify(src)})
+    .then(function (r) {
+      if (r.status === 403 || r.status === 404) { showUnavailable(); return null; }
+      return r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status));
+    })
+    .then(function (t) {
+      if (t == null) return;
+      var cut = t.length > MAX_CHARS;
+      if (cut) t = t.slice(0, MAX_CHARS);
+      var lines = t.split(/\\r\\n|\\r|\\n/);
+      if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+      if (lines.length > MAX_LINES) { lines = lines.slice(0, MAX_LINES); cut = true; }
+      out.style.setProperty('--gw', String(lines.length).length + 'ch');
+      scroller.style.setProperty('--gw', String(lines.length).length + 'ch');
+      // textContent, never innerHTML — this file is untrusted input.
+      var frag = document.createDocumentFragment();
+      for (var i = 0; i < lines.length; i++) {
+        var d = document.createElement('div');
+        d.className = 'l';
+        var s = document.createElement('span');
+        s.textContent = lines[i];
+        d.appendChild(s);
+        frag.appendChild(d);
+      }
+      out.replaceChildren(frag);
+      scroller.classList.remove('plain');
+      status.textContent = lines.length.toLocaleString() + (lines.length === 1 ? ' line' : ' lines') +
+        (cut ? ' · truncated, download to see the rest' : '');
+      btn.disabled = false;
+    })
+    .catch(function (e) {
+      status.textContent = 'Could not load';
+      out.replaceChildren();
+      var p = document.createElement('p');
+      p.className = 'msg';
+      p.textContent = 'Could not load: ' + e.message;
+      out.appendChild(p);
+    });
+  btn.onclick = function () {
+    var on = !out.classList.contains('wrapped');
+    out.classList.toggle('wrapped', on);
+    btn.setAttribute('aria-pressed', String(on));
+    document.getElementById('live').textContent = on ? 'Lines wrap' : 'Lines do not wrap';
+  };
+})();
 </script>`;
+  return page({ title: "File", theme, css, body });
 }
 
 /**
@@ -541,59 +1029,77 @@ fetch(${JSON.stringify(src)})
  * throwaway origin with no build step and no network beyond the video itself.
  */
 function videoViewer(src) {
-  return `<!doctype html><meta charset="utf-8"><title>Video</title>
+  // Dark in both app themes, on purpose: a light frame around moving pictures
+  // fights the picture. It still takes the design tokens (dark set) and the
+  // accent, so it reads as the same product as the other viewers.
+  return `<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8"><title>Video</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <style>
+  :root{${TOKENS_DARK}
+    --stage:#000000;--scrim:rgb(3 7 18 / .82);
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:#08090c;color:#e5e7eb;
-    font:13px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
-  #stage{position:relative;height:100%;display:flex;align-items:center;justify-content:center;background:#08090c}
-  video{max-width:100%;max-height:100%;display:block;background:#000}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font:13px/1.5 var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased}
+  #stage{position:relative;height:100%;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+  /* The stage takes focus on load for keyboard control; its focus indicator
+     is the controls appearing (focus-within below), not a ring round the frame. */
+  #stage:focus{outline:none}
+  video{max-width:100%;max-height:100%;display:block;background:var(--stage)}
   /* Controls fade out during playback and come back on any intent to interact. */
   #ui{position:absolute;left:0;right:0;bottom:0;padding:44px 14px 12px;
-    background:linear-gradient(transparent,rgba(0,0,0,.82) 62%);
+    background:linear-gradient(transparent,var(--scrim) 62%);
     opacity:0;transition:opacity .18s ease;pointer-events:none}
   #stage.show #ui,#stage:focus-within #ui{opacity:1;pointer-events:auto}
   #stage.idle{cursor:none}
   /* Scrubber: buffered under played under an oversized invisible hit area. */
   .bar{position:relative;height:16px;display:flex;align-items:center;cursor:pointer}
-  .track{position:relative;height:4px;width:100%;border-radius:99px;background:rgba(255,255,255,.22);overflow:hidden;transition:height .12s}
+  .track{position:relative;height:4px;width:100%;border-radius:99px;background:rgb(255 255 255 / .22);overflow:hidden;transition:height .12s}
   .bar:hover .track{height:7px}
-  .buffered{position:absolute;inset:0 auto 0 0;background:rgba(255,255,255,.3);width:0}
-  .played{position:absolute;inset:0 auto 0 0;background:#3b82f6;width:0}
+  .buffered{position:absolute;inset:0 auto 0 0;background:rgb(255 255 255 / .3);width:0}
+  .played{position:absolute;inset:0 auto 0 0;background:var(--accent-hover);width:0}
   .knob{position:absolute;top:50%;width:12px;height:12px;margin-left:-6px;border-radius:50%;
-    background:#fff;transform:translateY(-50%) scale(0);transition:transform .12s;pointer-events:none}
+    background:var(--text);transform:translateY(-50%) scale(0);transition:transform .12s;pointer-events:none}
   .bar:hover .knob{transform:translateY(-50%) scale(1)}
-  #hoverTime{position:absolute;bottom:22px;transform:translateX(-50%);background:#111827;
-    border:1px solid #263043;padding:2px 6px;border-radius:5px;font-variant-numeric:tabular-nums;
+  #hoverTime{position:absolute;bottom:22px;transform:translateX(-50%);background:var(--surface);
+    border:1px solid var(--border-strong);padding:2px 6px;border-radius:5px;font-variant-numeric:tabular-nums;
     font-size:11px;display:none;pointer-events:none;white-space:nowrap}
   .row{display:flex;align-items:center;gap:6px;margin-top:8px}
-  button{background:transparent;border:0;color:#e5e7eb;cursor:pointer;padding:6px;border-radius:7px;
-    display:inline-flex;align-items:center;justify-content:center;line-height:0}
-  button:hover{background:rgba(255,255,255,.12)}
-  button:focus-visible{outline:2px solid #3b82f6;outline-offset:1px}
-  .time{font-variant-numeric:tabular-nums;font-size:12px;color:#cbd5e1;padding:0 4px;white-space:nowrap}
+  button{background:transparent;border:0;color:var(--text);cursor:pointer;padding:6px;border-radius:7px;
+    min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;line-height:0}
+  button:hover{background:rgb(255 255 255 / .12)}
+  button:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+  .time{font-variant-numeric:tabular-nums;font-size:12px;color:var(--text-secondary);padding:0 4px;white-space:nowrap}
   .spacer{flex:1}
   .vol{display:flex;align-items:center;gap:4px}
-  .vol input{width:0;opacity:0;transition:width .16s,opacity .16s;accent-color:#3b82f6;cursor:pointer}
+  .vol input{width:0;opacity:0;transition:width .16s,opacity .16s;accent-color:var(--accent-hover);cursor:pointer}
   .vol:hover input,.vol input:focus{width:72px;opacity:1}
   .menu{position:relative}
-  .menu>div{position:absolute;bottom:38px;right:0;background:#0f1623;border:1px solid #263043;
-    border-radius:9px;padding:4px;display:none;min-width:104px;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+  .menu>div{position:absolute;bottom:42px;right:0;background:var(--surface);border:1px solid var(--border-strong);
+    border-radius:9px;padding:4px;display:none;min-width:104px;box-shadow:0 8px 28px rgb(0 0 0 / .5)}
   .menu.open>div{display:block}
   .menu div button{width:100%;justify-content:space-between;font-size:12px;padding:6px 9px;line-height:1.4}
-  .menu div button[aria-checked=true]{color:#60a5fa}
+  .menu div button[aria-checked=true]{color:var(--accent-text)}
   #big{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:transparent;border:0;cursor:pointer;padding:0}
-  #big span{width:66px;height:66px;border-radius:50%;background:rgba(8,9,12,.62);backdrop-filter:blur(3px);
-    display:flex;align-items:center;justify-content:center;transition:transform .16s,opacity .16s}
+  #big:hover{background:transparent}
+  #big span{width:66px;height:66px;border-radius:50%;background:rgb(3 7 18 / .62);backdrop-filter:blur(3px);
+    display:flex;align-items:center;justify-content:center;transition:transform .16s,opacity .16s,background-color .16s}
+  #big:hover span{background:var(--accent)}
   #stage.playing #big span{opacity:0;transform:scale(.86)}
-  #toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,9,12,.8);
+  #toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgb(3 7 18 / .8);
     padding:9px 15px;border-radius:9px;font-size:13px;opacity:0;transition:opacity .18s;pointer-events:none}
   #toast.on{opacity:1}
-  #err{padding:2rem;color:#94a3b8;text-align:center;max-width:32rem}
-  #err code{color:#cbd5e1;font-size:12px}
-</style>
+  #err{padding:2rem;color:var(--text-muted);text-align:center;max-width:32rem;font-size:14px}
+  #err strong{color:var(--text)}
+  #err code{color:var(--text-secondary);font-size:12px}
+  @media (pointer:coarse),(max-width:600px){button{min-width:44px;min-height:44px}}
+  /* Narrow frames: keep play, scrub, volume, time, speed and full screen; the
+     ±10s and picture-in-picture buttons stay on the keyboard (← → j l). */
+  @media (max-width:480px){#back,#fwd,#pip{display:none!important}.row{gap:2px}#ui{padding:40px 8px 8px}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+</style></head><body>
 <div id="stage" tabindex="0">
   <video id="v" playsinline preload="metadata" src="${src}"></video>
   <button id="big" aria-label="Play"><span><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></span></button>
@@ -771,5 +1277,6 @@ function videoViewer(src) {
     });
   });
 })();
-</script>`;
+</script>
+</body></html>`;
 }
