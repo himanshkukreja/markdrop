@@ -1,14 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
-import "highlight.js/styles/github-dark.css";
-import CreateMenu from "@/components/CreateMenu";
-import HeaderAuth from "@/components/HeaderAuth";
-import NamePrompt from "@/components/NamePrompt";
-import FeedbackWidget from "@/components/FeedbackWidget";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/components/Toast";
 import VercelInsights from "@/components/VercelInsights";
 import SiteTracker from "@/components/SiteTracker";
+import { themeScript } from "@/lib/themeScript";
 
 const SITE_DESCRIPTION =
   "Publish markdown and AI docs with no account, or upload HTML, PDFs, sheets, Word docs, video and zipped sites. One link that opens in any browser.";
@@ -29,58 +26,45 @@ export const metadata: Metadata = {
   },
 };
 
-// Colours the mobile browser UI (address/status bars) to match the app —
-// without it, Chrome tints those bars with the user's profile colour, which
-// showed up as a stray strip. The inline theme script keeps it in sync per theme.
+// The no-JS default: a media-query pair. The head script replaces it with one meta for the
+// resolved theme (a meta that carries `media` can't be overridden when OS and choice disagree).
 export const viewport: Viewport = {
-  themeColor: "#030712",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#E3E7ED" },
+    { media: "(prefers-color-scheme: dark)", color: "#030712" },
+  ],
 };
+
+// Manrope is the UI and reading face, so it is preloaded (it is on the LCP path of every page);
+// JetBrains Mono is only for code, slugs and keys, so it loads when first used.
+const manrope = localFont({
+  src: "./fonts/Manrope-Variable.woff2",
+  variable: "--font-manrope",
+  weight: "200 800",
+  display: "swap",
+  preload: true,
+  adjustFontFallback: "Arial",
+});
+const jetbrains = localFont({
+  src: "./fonts/JetBrainsMono-Variable.woff2",
+  variable: "--font-jetbrains",
+  weight: "100 800",
+  display: "swap",
+  preload: false,
+  adjustFontFallback: false,
+});
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full dark" style={{ background: "#030712" }} suppressHydrationWarning>
+    <html lang="en" className={`${manrope.variable} ${jetbrains.variable}`} suppressHydrationWarning>
       <head>
-        {/* Inline script: runs synchronously during HTML parsing, before any paint,
-            so the background is right before the first frame rather than flashing.
-            One theme now, and it ignores any previously stored preference — a
-            browser still holding 'vscode' from the old toggle must not keep it.
-            `vscode:` utilities are left in the markup as dead variants; ripping
-            768 of them out is a mechanical diff with no user-visible effect. */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var bg='#030712';var el=document.documentElement;el.classList.remove('vscode');el.classList.add('dark');el.style.background=bg;localStorage.setItem('theme','dark');function tc(c){var m=document.querySelector('meta[name=theme-color]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',c);}tc(bg);new MutationObserver(function(){if(!el.classList.contains('dark')){el.classList.add('dark');el.style.background=bg;tc(bg);}}).observe(el,{attributes:true,attributeFilter:['class']});})();` }} />
+        {/* Resolves the theme before first paint. Static, so ISR-safe: it never reads cookies,
+            headers or the URL fragment (which carries E2E keys). See lib/theme.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript() }} />
       </head>
-      <body className="h-full flex flex-col dark:bg-gray-950 dark:text-gray-100">
+      <body className="min-h-dvh flex flex-col">
         <AuthProvider>
-          <ToastProvider>
-        <header className="no-print shrink-0 border-b border-gray-200 dark:border-gray-800">
-          <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <a href="/" className="text-xl font-bold tracking-tight">
-                mark<span className="text-blue-500 dark:text-blue-400">drop</span>
-              </a>
-              <a
-                href="https://github.com/himanshkukreja/markdrop"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="View on GitHub"
-                className="text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                  <path d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.184 6.839 9.504.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.342-3.369-1.342-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844a9.59 9.59 0 012.504.337c1.909-1.296 2.747-1.026 2.747-1.026.546 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0022 12.021C22 6.484 17.522 2 12 2z" />
-                </svg>
-              </a>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-              <CreateMenu />
-              <HeaderAuth />
-            </div>
-          </div>
-        </header>
-        <main className="flex-1 min-h-0 min-w-0 flex flex-col max-w-screen-xl w-full mx-auto px-4 sm:px-6 py-4">
-          {children}
-        </main>
-        <NamePrompt />
-        <FeedbackWidget />
-          </ToastProvider>
+          <ToastProvider>{children}</ToastProvider>
         </AuthProvider>
         <VercelInsights />
         <SiteTracker />

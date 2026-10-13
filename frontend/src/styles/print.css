@@ -1,0 +1,99 @@
+/* Print layer: the theme is ignored in print (REVAMP_PLAN 5.4). Keep .print-only, .no-print,
+   print:* and the beforeprint title swap working. */
+
+/* ── Print styles ─────────────────────────────────────────────────────────── */
+@page {
+  margin: 1.5cm;
+  /* Removes browser-added page title / URL headers and footers */
+  size: auto;
+}
+
+@media print {
+  /* Hide all UI chrome */
+  .no-print { display: none !important; }
+
+  /* Show print-only content */
+  .print-only { display: block !important; }
+
+  /* Reset page to white/black regardless of dark mode */
+  html, body, * {
+    background: white !important;
+    color: black !important;
+    border-color: #ddd !important;
+  }
+
+  html, body {
+    height: auto !important;
+  }
+
+  /* Prose text colours */
+  .prose, .prose * {
+    color: black !important;
+  }
+
+  /* Headings */
+  .prose h1, .prose h2, .prose h3,
+  .prose h4, .prose h5, .prose h6 {
+    color: black !important;
+  }
+
+  /* Links: show URL so they're useful on paper */
+  .prose a {
+    color: #1d4ed8 !important;
+    text-decoration: underline !important;
+  }
+
+  /* Inline code */
+  .prose code:not(pre code) {
+    background-color: rgb(229 231 235) !important;
+    color: rgb(219 39 119) !important;
+  }
+
+  /* Code blocks: light background so text is visible */
+  .prose pre {
+    background-color: #f6f8fa !important;
+    border: 1px solid #ddd !important;
+    color: black !important;
+  }
+  .prose pre code,
+  .prose pre .hljs-keyword,
+  .prose pre .hljs-string,
+  .prose pre .hljs-comment,
+  .prose pre .hljs-number,
+  .prose pre .hljs-title,
+  .prose pre .hljs-attr,
+  .prose pre .hljs-built_in,
+  .prose pre span {
+    color: black !important;
+    background: transparent !important;
+  }
+
+  /* Blockquote */
+  .prose blockquote {
+    border-left-color: #aaa !important;
+    color: #444 !important;
+  }
+
+  /* Tables */
+  .prose table, .prose th, .prose td {
+    border-color: #ccc !important;
+  }
+  .prose th {
+    background-color: #f3f4f6 !important;
+  }
+
+  /* Strip layout padding/margin from the shell */
+  header, main {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+
+  /* No box shadows or decorative borders on containers */
+  main > * {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+}
+
