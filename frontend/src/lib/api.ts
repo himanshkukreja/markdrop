@@ -22,6 +22,19 @@ function authHeaders(): Record<string, string> {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
+/**
+ * A failed API call that callers need to tell apart by status: a 401 or 404 is
+ * an answer, while a network error (`status` 0) or a 5xx is an outage.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export interface DocumentCreateResponse {
   slug: string;
   url: string;
@@ -467,11 +480,18 @@ export function googleLoginUrl(next?: string): string {
 }
 
 export async function fetchMe(): Promise<MeUser> {
-  const res = await fetch(`${API_BASE}/api/v1/auth/me`, {
-    headers: { ...authHeaders() },
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error("UNAUTHORIZED");
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/v1/auth/me`, {
+      headers: { ...authHeaders() },
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError("NETWORK_ERROR", 0);
+  }
+  if (!res.ok) {
+    throw new ApiError(res.status === 401 ? "UNAUTHORIZED" : "Could not load your account", res.status);
+  }
   return res.json();
 }
 
