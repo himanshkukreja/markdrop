@@ -824,10 +824,20 @@ export function Popover({ trigger, children, open: openProp, onOpenChange, defau
   const uid = useId(); const panelId = `${uid}-pop`, titleId = `${uid}-title`;
   const tp = (trigger as React.ReactElement<any>).props;
   const triggerEl = () => (wrap.current?.firstElementChild ?? null) as HTMLElement | null;
-  const close = useCallback((returnFocus = true) => { setOpen(false); if (returnFocus) triggerEl()?.focus(); }, [setOpen]);
+  // Focus returns to the trigger only after the panel's overlay layer has unregistered: focusing it
+  // while the layer is live made the modal focus guard pull focus back into the closing panel, which
+  // then unmounted and dropped focus to <body>.
+  const returnFocus = useRef(false);
+  const close = useCallback((back = true) => { returnFocus.current = back; setOpen(false); }, [setOpen]);
   const [side, alignSide] = placement.split("-") as ["bottom" | "top", "start" | "end"];
   const { up, style } = useAnchored(isOpen, wrap, panel, { placement: side === "top" ? "top" : "auto", align: alignSide === "end" ? "right" : "left", portal });
   useOverlayLayer(isOpen, () => close(true), () => panel.current, !!trap);
+  useEffect(() => {
+    if (isOpen || !returnFocus.current) return;
+    returnFocus.current = false;
+    triggerEl()?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
   useEffect(() => {
     if (!isOpen) return;
     const down = (e: MouseEvent) => { const t = e.target as Node; if (wrap.current?.contains(t) || panel.current?.contains(t)) return; setOpen(false); };
