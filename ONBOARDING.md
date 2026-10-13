@@ -4,6 +4,10 @@
 > `github.com/himanshkukreja/markdrop`. You have **no production access**, and you don't need it:
 > everything below runs on your machine against your own local services.
 > Written 2026-10-13. If this file disagrees with the code, trust the code and tell the owner.
+>
+> **Setup for Claude Code:** this file is committed at the repo root. So that Claude loads it every session,
+> create `CLAUDE.local.md` in the repo root (personal, git-ignored via `*.local.md`) containing the single
+> line `@ONBOARDING.md`.
 
 ---
 
@@ -29,12 +33,23 @@ and 8 (gotchas) are the ones you'll come back to. Section 3 maps the repo, so yo
 - **Found a security problem?** Tell the owner privately. Don't describe it in a public issue, PR, commit
   message or code comment.
 - **Never run `backend/deploy.sh`** or any release command (`vsce publish`, `wrangler deploy`, `cli/v*` tags).
+- **No `Co-Authored-By` trailer** in commits. Override Claude Code's default commit attribution.
+
+### Quick start (about 15 minutes)
+1. Start MongoDB and Redis (5.1).
+2. Backend: venv, `.env` from the 5.2 template, `uvicorn`, then `curl localhost:8080/health`.
+3. Frontend: `cp .env.local.example .env.local && npm run dev` (5.3).
+4. **Success check:** open http://localhost:3000/new and publish. The link must be
+   `http://localhost:3000/<slug>` (not markdrop.in) and must render. Then paste `sample-mermaid-katex.md`
+   to check diagrams and math.
+
+Everything else (extension, CLI, design system, external accounts) is optional.
 
 ---
 
 ## 2. What Markdrop is
 
-**Drop it. It renders.** Markdrop turns documents and files into links that render in any browser.
+**Drop it. It renders.** (new positioning, not on `main` yet; see section 9.) Markdrop turns documents and files into links that render in any browser.
 It is **not** a markdown-only tool. There are two headline pillars:
 
 1. **Documents.** Write or paste markdown (including AI write-ups) and get `markdrop.in/<slug>`, rendered with
@@ -77,6 +92,8 @@ markdrop/
 │   ├── app/config.py        Settings: every env var, prefix MARKDROP_, reads backend/.env
 │   ├── app/database.py      Motor client; ALL indexes and TTLs are created here at startup
 │   ├── app/limiter.py       shared slowapi limiter (Redis-backed)
+│   ├── app/middleware/      tenant_cors.py: custom-domain CORS (outermost middleware, in-process cache)
+│   ├── app/assets/          fonts for server-side image rendering
 │   ├── app/routers/         HTTP + WS endpoints: documents, artifacts, access, sync, me, auth, google,
 │   │                        og, live, share, beat, feedback, workspaces, folders, library, domains,
 │   │                        invites, admin, admin_analytics
@@ -88,6 +105,7 @@ markdrop/
 │   ├── app/emails/          hand-pasted campaign HTML templates
 │   ├── requirements.txt     direct deps pinned
 │   ├── tests/               empty: there is no test suite yet
+│   ├── scripts/             one-off ops scripts (owner-only; don't run them)
 │   ├── deploy.sh            owner-only production deploy script. Don't run or edit.
 │   └── Dockerfile           stale, unused
 ├── frontend/                Next.js 15 App Router, React 19, Tailwind 4 (CSS-first, no config file)
@@ -112,7 +130,10 @@ markdrop/
 └── sample-mermaid-katex.md  handy render test document
 ```
 
-Git-ignored on purpose: `.env*`, `.claude/`, `.vscode/`, `.markdrop.json`, `design/`, `*.local.md`, build output.
+Git-ignored on purpose: `.env`, `.env.local`, `.env.production`, `.env.*.local` (other names such as
+`.env.development` are **not** ignored, so don't create them), `.claude/`, `.vscode/`, `.markdrop.json`,
+`design/`, `CONTEXT.md`, `*.local.md`, build output. `backend/.env.example` and `frontend/.env.local.example`
+are tracked on purpose.
 
 ---
 
@@ -166,14 +187,17 @@ token if locked, sends a view beacon, and opens the live-refresh socket.
 
 ## 5. Local development setup
 
-**Prerequisites:** Python 3.12+, Node.js 20+ (22 works), Docker (or native MongoDB 7 + Redis), Go 1.25
-(CLI only), VS Code (extension only).
+**Prerequisites:** Python 3.12 or 3.13 (recommended; 3.14 may need source builds for some pins),
+Node.js 20+ (22 works), Docker (or native MongoDB 7 + Redis), Go 1.25+ (CLI only; `cli/go.mod` requires
+go 1.25.0, and an older Go auto-downloads it when `GOTOOLCHAIN=auto`), VS Code (extension only).
 
 ### 5.1 MongoDB and Redis
 ```bash
 docker run -d --name markdrop-mongo -p 27017:27017 mongo:7
 docker run -d --name markdrop-redis -p 6379:6379 redis:7
 ```
+Next time: `docker start markdrop-mongo markdrop-redis`. To reset local data: `docker rm -f markdrop-mongo`
+and re-run the command above.
 
 ### 5.2 Backend
 ```bash
@@ -211,7 +235,8 @@ import time: **restart the server after any `.env` change**. List values such as
 **What works without any external account:** markdown publish/view/edit/delete, passwords, expiry,
 E2E encryption, live refresh, OG cards, the README builder, P2P share (direct connections, STUN only),
 workspaces and folders (without automatic domain attach), per-document analytics (without geo), and the
-admin panel at `/admin` (log in with your local `MARKDROP_ADMIN_*` values).
+admin panel at `/admin` (log in with your local `MARKDROP_ADMIN_*` values; the password is the
+`MARKDROP_ADMIN_PASSWORD` line in `backend/.env`, e.g. `grep ADMIN_PASSWORD backend/.env`).
 
 **What needs your OWN test accounts** (never ask for or use the owner's). Unconfigured, the app degrades cleanly:
 | Feature | Needs (env vars in `config.py`) | Without it |
@@ -229,6 +254,7 @@ If you set up artifacts: point your Worker's R2 binding at **your** bucket in a 
 
 **Signing in locally without email or Google.** Mint a session for a local user with your own local secret:
 ```bash
+# from the repo root, in a second terminal (uvicorn keeps running in the first)
 cd backend && source .venv/bin/activate
 python - <<'EOF'
 import asyncio
@@ -243,7 +269,9 @@ asyncio.run(main())
 EOF
 ```
 Then, in the browser console on `http://localhost:3000`: `localStorage.setItem("markdrop_token", "<token>")`
-and reload. Use `@example.com` addresses (`.test`/`.invalid` are rejected by the email validator).
+and reload. MongoDB must be running; the API doesn't need to be. After the reload the header should show
+you signed in and `/dashboard` should load. Use `@example.com` addresses (`.test`/`.invalid` are rejected
+by the email validator).
 
 ### 5.3 Frontend
 ```bash
@@ -255,6 +283,12 @@ npm run dev                            # http://localhost:3000
 > **WARNING: if `NEXT_PUBLIC_API_URL` is unset, the frontend talks to the PRODUCTION API.** The default in
 > `lib/api.ts` and several other modules is the production URL. Check `.env.local` exists before every
 > `npm run dev` or `npm run build`. `NEXT_PUBLIC_*` values are inlined at build time, so restart or rebuild after changing them.
+> Likewise `NEXT_PUBLIC_PRIMARY_HOST` defaults to `www.markdrop.in`. If you test custom-domain/tenant
+> sign-in locally, set `NEXT_PUBLIC_PRIMARY_HOST=localhost:3000` in `.env.local`.
+
+Optional: `NEXT_PUBLIC_PRIMARY_HOSTS` (the comma-separated list of non-tenant hosts; see section 8) and
+`NEXT_PUBLIC_MAX_CONTENT_CHARS`. The defaults are fine for localhost. After running `tsc` or `npm run build`,
+`git checkout frontend/tsconfig.tsbuildinfo` before committing (it's tracked by mistake).
 
 ### 5.4 VS Code extension
 ```bash
@@ -269,7 +303,8 @@ Open `extension/` as its own VS Code window and press F5. `.vscode/` is git-igno
 ```
 In the dev host, **set `markdrop.apiUrl` to `http://localhost:8080` and `markdrop.webUrl` to
 `http://localhost:3000`** (they default to production). The `vscode://` deep link opens your normal VS Code,
-not the F5 host, so sign in by pasting an API token from `http://localhost:3000/settings/tokens`.
+not the F5 host. Instead, run the command **"Markdrop: Sign in with API token"** (`markdrop.signInWithToken`)
+and paste a token created at `http://localhost:3000/settings/tokens`.
 Don't publish this repo's own files with the extension.
 
 ### 5.5 Go CLI
@@ -391,7 +426,7 @@ throwaway local database, or a small frontend test setup) is a good contribution
 | 429s in a test right after restarting the API | Rate-limit counters live in Redis and survive restarts | `redis-cli --scan --pattern 'LIMITS:*' \| xargs redis-cli del` (local only) |
 | "Restarted" server still runs old code | Previous uvicorn still holds the port | Wait until `lsof -ti tcp:8080` is empty before starting again |
 | Browser shows a CORS error on an API call | Often an unhandled 500 (the exception skips CORS headers) | Read the uvicorn log first |
-| Every page 404s when opened from a phone on your LAN | The middleware treats a LAN IP as a custom (tenant) domain | Use `localhost`, or a tunnel whose host you add to `NEXT_PUBLIC_PRIMARY_HOSTS` (and to backend `CORS_ORIGINS`) |
+| Every page 404s when opened from a phone on your LAN | The middleware treats a LAN IP as a custom (tenant) domain | Use `localhost`, or set `NEXT_PUBLIC_PRIMARY_HOSTS=markdrop.in,www.markdrop.in,localhost,<LAN-IP-or-tunnel-host>` (it *replaces* the default list, so keep `localhost`), point `NEXT_PUBLIC_API_URL` at an address the phone can reach, add that origin to backend `MARKDROP_CORS_ORIGINS`, and restart both |
 | E2E encryption fails on `http://192.168…` | WebCrypto needs a secure context | `localhost` or https only |
 | Email validation rejects your test address | `.test` / `.invalid` TLDs are refused | Use `@example.com` |
 | A just-edited doc looks stale in a production build | ISR caches `/[slug]` for 60 s | `POST /api/revalidate {"slug":"…"}` on the frontend, or wait |
@@ -407,21 +442,25 @@ throwaway local database, or a small frontend test setup) is a good contribution
 
 - **UI revamp onto the design system.** `design-system/` holds the target: semantic tokens, Manrope +
   JetBrains Mono, 31 primitives and 17 Markdrop components, with **two equal themes**: dark (today's palette)
-  and a new light theme called **Mist** (a dimmed slate with no pure white anywhere; every text token passes AA).
+  and a new light theme (called "Light" in the committed tokens; the owner is refining it as "Mist", a dimmed
+  slate with no pure white, in work not yet merged to `main`).
   **Nothing in `frontend/` uses it yet.** Wiring it in (tokens + Tailwind theme in `globals.css`, fonts,
-  a no-flash theme switch, the 16px root) is "Phase 0" of the plan. If present, `design-system/REVAMP_PLAN.md`
-  is the full phased plan (IA, theming, page-by-page redesign, codemod, QA). The owner is driving the revamp,
+  a no-flash theme switch, the 16px root) is "Phase 0" of the plan. `design-system/REVAMP_PLAN.md` (not in
+  the repo yet; ask the owner for a copy) is the full phased plan (IA, theming, page-by-page redesign,
+  codemod, QA). The owner is driving the revamp,
   so **coordinate before touching `design-system/` or doing app-wide restyling**.
 - **Positioning change.** The product moved from "paste markdown, get a link" to **"Drop it. It renders."**,
-  with documents and artifacts as equal pillars. If present, `design-system/POSITIONING.md` has the full
-  copy kit (headline, subhead, title, meta description, CTAs "Start writing" / "Upload a file" / "Send a file").
-  New copy should follow it.
+  with documents and artifacts as equal pillars. `design-system/POSITIONING.md` (not in the repo yet; ask the
+  owner for a copy) has the full copy kit (headline, subhead, title, meta description, CTAs "Start writing" /
+  "Upload a file" / "Send a file"). New copy should follow it. **This copy sweep is not on `main` yet.** A fresh
+  clone still shows the old landing copy. Don't redo the sweep yourself.
 - **In flight at a high level:** the revamp foundations, the brand kit (`brand/`) not yet wired into the app,
   extension and CLI releases, and continued P2P reliability work. Ask the owner what's current before
   picking any of these up.
 
-**How to pick work:** ask the owner. Don't start on something large uninvited. Good first areas, low-risk and
-well-contained:
+**How to pick work:** ask the owner. Don't start on something large uninvited. Tell the owner which item you're
+taking before you start (or open a draft PR early) so two people don't do the same work. Good first areas,
+low-risk and well-contained:
 - Tests for a backend service you're touching (there are none yet).
 - Completing `backend/.env.example` with every var from `config.py`, using local-safe placeholder values.
 - Dashboard pagination (it shows only the first 20 documents).
@@ -436,13 +475,17 @@ well-contained:
 
 **Owner:** Himanshu Kukreja, the sole maintainer. Ask him about scope, product and design decisions, anything
 needing production (deploys, data, real accounts, secrets), and before any "ask first" change from section 1.
+Reach him on GitHub (@himanshkukreja) or your usual private chat. For security issues, use only the private
+channel, never GitHub.
 
 **Handing work back**
-1. Branch from an up-to-date `main` (fork the repo if you don't have push access).
+1. Fork `himanshkukreja/markdrop` on GitHub, clone your fork, then
+   `git remote add upstream https://github.com/himanshkukreja/markdrop.git`. Start each branch with
+   `git fetch upstream && git switch -c feat/<thing> upstream/main`.
 2. Make focused commits following section 7.
 3. Run the checks from section 6 that apply; make sure `git status` shows no `.env`, secrets, rebuilt
    binaries or `tsbuildinfo`.
-4. Open a PR against `main` with:
+4. Open a PR from your fork to `himanshkukreja/markdrop:main` with:
    - **What and why** (the root cause for fixes);
    - **How you verified it** (commands run, manual steps, what you did *not* test);
    - **Screenshots** for UI changes (desktop and phone; both themes once the light theme exists);
