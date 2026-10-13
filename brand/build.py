@@ -151,7 +151,7 @@ def social_banner() -> str:
     block_h = 128 * s + 56 + 30
     y0 = (H - block_h) / 2
     ws = LOCKUP_SCALE
-    tag = shape_text_paths("Publish Markdown. Share anything.", 30, SNOW, opacity=0.62)
+    tag = shape_text_paths("Drop it. It renders.", 30, SNOW, opacity=0.62)
     return svg(W, H,
                f'<rect width="{W}" height="{H}" fill="{PAGE_DARK}"/>'
                f'<radialGradient id="g" cx="50%" cy="38%" r="60%"><stop offset="0" stop-color="{BLUE}" stop-opacity="0.22"/><stop offset="1" stop-color="{BLUE}" stop-opacity="0"/></radialGradient>'

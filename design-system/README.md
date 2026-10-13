@@ -1,6 +1,6 @@
 # Markdrop design system
 
-Tokens, fonts, logos and React components for the Markdrop UI revamp: two equal themes (dark, as shipped today, and a new light theme), Manrope + JetBrains Mono, 31 primitives and 17 Markdrop components.
+Markdrop turns docs and files into links that render (*Drop it. It renders.*). This folder holds the tokens, fonts, logos and React components for the Markdrop UI revamp: two equal themes (dark, as shipped today, and a new light theme), Manrope + JetBrains Mono, 31 primitives and 17 Markdrop components.
 
 The rules for using them — voice, colour, type, spacing, motion, layout — are in **[BRAND.md](BRAND.md)**. Per-component guidelines are in [`docs/components/`](docs/components/).
 

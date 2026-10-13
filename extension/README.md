@@ -4,7 +4,7 @@
 
 <h1 align="center">Markdrop Sync</h1>
 
-<p align="center">Publish and two-way sync your Markdown &amp; HTML to <a href="https://markdrop.in">Markdrop</a> — straight from VS Code.</p>
+<p align="center">Docs and files as links that render. Publish your Markdown &amp; HTML to <a href="https://markdrop.in">Markdrop</a> and keep them in two-way sync — straight from VS Code.</p>
 
 ---
 
