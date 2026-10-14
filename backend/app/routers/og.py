@@ -3,8 +3,9 @@
 ``GET /api/v1/og/{slug}.png`` renders a 1200×630 preview card for a document so
 that pasting a ``markdrop.in/<slug>`` link into Slack, Twitter/X, LinkedIn, etc.
 shows a rich card. Social crawlers fetch this anonymously, so the endpoint is
-public — but it reads only non-sensitive fields (title, a snippet, view count)
-and renders a generic, content-free card for password-protected documents.
+public — but it reads only non-sensitive fields (title, a snippet, view count),
+and only for documents an anonymous reader could open. Everything else gets a
+content-free card.
 """
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -14,6 +15,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
 from app.limiter import limiter
+from app.services import access as access_service
 from app.services import artifact, og_render
 from app.services import domain as domain_service
 from app.services import workspace as ws_service
@@ -50,6 +52,35 @@ async def _card_host(db: AsyncIOMotorDatabase, workspace_id: str, host: str | No
     return await domain_service.primary_host(db, workspace_id)
 
 
+async def _anonymous_gate(db: AsyncIOMotorDatabase, raw: dict, workspace) -> str | None:
+    """Which gate stops an anonymous reader, or None if they can read it.
+
+    The same rules ``services.document.get_document`` applies to a reader with
+    no identity, edit secret or password, which is where a link crawler stands:
+    the workspace's ``require_auth_to_view``, the access level, the read
+    password, and the encrypted flag (the server holds only ciphertext).
+    """
+    if workspace is not None and workspace.settings.require_auth_to_view:
+        return "private"
+    if not await access_service.can_read(db, raw, None, None):
+        return "private"
+    if raw.get("read_password_hash"):
+        return "password"
+    if raw.get("encrypted"):
+        return "encrypted"
+    return None
+
+
+def _brand(workspace, footer: str | None) -> og_render.CardBrand:
+    b = workspace.branding
+    return og_render.CardBrand(
+        site_name=b.site_name,
+        accent=og_render.parse_hex_color(b.accent_color),
+        footer=footer,
+        hide_markdrop_branding=b.hide_markdrop_branding,
+    )
+
+
 @router.get("/{slug}.png")
 @limiter.limit("120/minute")
 async def og_image(
@@ -64,7 +95,7 @@ async def og_image(
         {
             "title": 1, "content": 1, "views": 1, "read_password_hash": 1,
             "kind": 1, "mime": 1, "size_bytes": 1, "original_filename": 1,
-            "encrypted": 1, "workspace_id": 1,
+            "encrypted": 1, "workspace_id": 1, "access_level": 1,
         },
     )
 
@@ -76,16 +107,30 @@ async def og_image(
             title="Markdrop",
             snippet="Publish markdown, share files, sync from VS Code.",
             views=0,
-            protected=False,
+            protected=None,
         )
         return _png(png, max_age=300)
 
-    # An encrypted document's title and body are both ciphertext, so it gets the
-    # same content-free card as a password-protected one. Rendering `content`
-    # here would put base64 on a social card — and leak nothing useful anyway.
-    protected = bool(raw.get("read_password_hash")) or bool(raw.get("encrypted"))
+    workspace_id = raw.get("workspace_id")
+    workspace = await ws_service.get_workspace(db, workspace_id) if workspace_id else None
+
+    gate = await _anonymous_gate(db, raw, workspace)
+    if gate is not None:
+        # Content-free card. The workspace's branding is drawn only when the
+        # card was unfurled from one of that workspace's verified domains.
+        brand = None
+        if workspace is not None and host and await domain_service.host_belongs_to(
+            db, workspace_id, host
+        ):
+            brand = _brand(workspace, host.strip().lower())
+        png = await run_in_threadpool(
+            og_render.render_og_png,
+            title="", snippet="", views=0, protected=gate, brand=brand,
+        )
+        return _png(png, max_age=3600)
+
     is_artifact = raw.get("kind") == "artifact"
-    title = (raw.get("title") or raw.get("original_filename") or slug) if not protected else ""
+    title = raw.get("title") or raw.get("original_filename") or slug
 
     if is_artifact:
         # `content` is only a filename stand-in for artifacts, so a text snippet
@@ -95,7 +140,7 @@ async def og_image(
         label = artifact.label_for(raw.get("mime") or "")
         size = int(raw.get("size_bytes") or 0)
     else:
-        snippet = "" if protected else og_render.make_snippet(raw.get("content") or "")
+        snippet = og_render.make_snippet(raw.get("content") or "")
         kind = label = None
         size = None
 
@@ -103,24 +148,15 @@ async def og_image(
     # wherever the card is unfurled — the point of white-labelling is that the
     # card in Slack doesn't say Markdrop, regardless of which host was linked.
     brand = None
-    workspace_id = raw.get("workspace_id")
-    if workspace_id:
-        workspace = await ws_service.get_workspace(db, workspace_id)
-        if workspace is not None:
-            b = workspace.branding
-            brand = og_render.CardBrand(
-                site_name=b.site_name,
-                accent=og_render.parse_hex_color(b.accent_color),
-                footer=await _card_host(db, workspace_id, host),
-                hide_markdrop_branding=b.hide_markdrop_branding,
-            )
+    if workspace is not None:
+        brand = _brand(workspace, await _card_host(db, workspace_id, host))
 
     png = await run_in_threadpool(
         og_render.render_og_png,
         title=title,
         snippet=snippet,
         views=int(raw.get("views", 0) or 0),
-        protected=protected,
+        protected=None,
         artifact_kind=kind,
         artifact_label=label,
         artifact_size=size,

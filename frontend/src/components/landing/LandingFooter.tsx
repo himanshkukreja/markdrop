@@ -4,7 +4,8 @@ export default function LandingFooter() {
       heading: "Product",
       links: [
         { label: "New document", href: "/new" },
-        { label: "Share a file", href: "/share" },
+        { label: "Upload a file", href: "/upload" },
+        { label: "Send a file", href: "/share" },
         { label: "Dashboard", href: "/dashboard" },
       ],
     },
@@ -26,7 +27,7 @@ export default function LandingFooter() {
             mark<span className="text-blue-500 dark:text-blue-400 vscode:text-[#4fc1ff]">drop</span>
           </a>
           <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-            Anonymous markdown publishing, peer-to-peer file sharing, and VS Code sync — no login required.
+            Docs and files as links that render. Write with no account, upload with a free one, open in any browser.
           </p>
         </div>
         <div className="flex gap-12">

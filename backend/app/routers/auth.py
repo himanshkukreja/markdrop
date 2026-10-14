@@ -395,3 +395,10 @@ async def unsubscribe(
 async def unsubscribe_post(t: str, db: AsyncIOMotorDatabase = Depends(get_db)):
     """RFC 8058 one-click: some clients POST rather than GET."""
     return await unsubscribe(t, db)
+
+
+# Campaign emails sent before the URL fix link to /api/v1/unsubscribe; serve
+# that path from the same handlers so those links keep working.
+unsubscribe_alias_router = APIRouter(prefix="/api/v1", tags=["auth"])
+unsubscribe_alias_router.add_api_route("/unsubscribe", unsubscribe, methods=["GET"])
+unsubscribe_alias_router.add_api_route("/unsubscribe", unsubscribe_post, methods=["POST"])

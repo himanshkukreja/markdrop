@@ -87,7 +87,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // default one. A link to content.senseloaf.ai whose card reads
   // cdn.senseloaf.ai looks like somebody else's link. The server validates the
   // host against that workspace's verified domains before drawing it.
-  const ogImage = `${API_BASE}/api/v1/og/${slug}.png?host=${encodeURIComponent(host)}`;
+  const ogImage = `${API_BASE}/api/v1/og/${slug}.png?host=${encodeURIComponent(host)}&v=2`;
   const title = siteName ? `${pageTitle} — ${siteName}` : pageTitle;
   return {
     title,

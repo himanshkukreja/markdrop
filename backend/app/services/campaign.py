@@ -62,7 +62,7 @@ def verify_unsubscribe_token(token: str) -> str | None:
 
 def unsubscribe_url(user_id: str) -> str:
     return (
-        f"{settings.api_base_url.rstrip('/')}/api/v1/unsubscribe"
+        f"{settings.api_base_url.rstrip('/')}/api/v1/auth/unsubscribe"
         f"?t={unsubscribe_token(user_id)}"
     )
 

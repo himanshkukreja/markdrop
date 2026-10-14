@@ -110,26 +110,26 @@ _HERO_IMAGE = "https://ik.imagekit.io/jrcgzv9vw/markdrop/email/welcome-hero-hd.g
 # PNGs under {frontend_url}/email/ — Gmail strips inline SVG and blocks data: URIs,
 # so real raster images at absolute URLs are the only reliable option.
 _FEATURES = [
-    ("publish", "Instant Markdown publishing",
-     "Paste or write Markdown and get a clean, shareable link in one click — with live preview, syntax highlighting and PDF export. Choose who can open it: anyone with the link, only people you name, or your whole team.",
+    ("publish", "Documents that render",
+     "Write or paste markdown and AI write-ups and get a link that opens rendered in any browser — with live preview, syntax highlighting and PDF export. Choose who can open it: anyone with the link, only people you name, or your whole team.",
      "Create a document", "new"),
     ("diagram", "Diagrams, charts &amp; math",
      "Add a mermaid block or LaTeX between $$ … $$ and Markdrop renders flowcharts, sequence &amp; Gantt diagrams, charts and typeset math, live.",
      "Try a diagram", "diagrams"),
-    ("artifact", "Artifacts &mdash; PDFs, sheets &amp; web pages",
-     "Upload a PDF, spreadsheet, Word doc or a zipped site &mdash; or paste raw HTML &mdash; and get a link that renders it, instead of downloading it. Rendered on an isolated domain, so a published page can never reach your account.",
-     "Publish an artifact", "upload"),
+    ("artifact", "Files that render &mdash; HTML, PDFs, sheets &amp; video",
+     "Upload an HTML page, a PDF, a spreadsheet, a Word doc, a video or a zipped site and get a link that opens it rendered, instead of a download. Rendered on an isolated domain, so a published page can never reach your account.",
+     "Upload a file", "upload"),
     ("builder", "README builder",
      "Assemble a README from 45+ drag-and-drop section blocks — badges, install steps, API tables, diagrams — then publish or download the .md.",
      "Open the builder", "builder"),
     ("share", "Peer-to-peer file sharing",
-     "Send any file directly browser-to-browser over WebRTC. Transfers are end-to-end encrypted and never touch a server.",
-     "Share a file", "share"),
+     "Send any file browser to browser over WebRTC, encrypted device to device. An encrypted relay may forward bytes it cannot read.",
+     "Send a file", "share"),
     ("sync", "Sync from VS Code",
-     "Publish and two-way sync your Markdown from your editor — save locally to push, edit on the web to pull back, with safe conflict diffs.",
+     "Publish and two-way sync your markdown from your editor — save locally to push, edit on the web to pull back, with safe conflict diffs.",
      "Get the extension", "extension"),
-    ("docs", "Google Docs &amp; analytics",
-     "Export any document to a fully-formatted Google Doc — Mermaid, LaTeX and ASCII diagrams rendered to images, since Drive&rsquo;s importer can&rsquo;t draw them — and track views, countries and referrers from your dashboard.",
+    ("docs", "Analytics",
+     "See views, countries and referrers for every link you publish, from your dashboard.",
      "Open the dashboard", "dashboard"),
 ]
 
@@ -178,7 +178,7 @@ def _welcome_html(name: str | None) -> str:
 <title>Welcome to Markdrop</title>
 </head>
 <body style="margin:0;padding:0;background:#080d1a;-webkit-font-smoothing:antialiased">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">Publish Markdown, render diagrams and math, host PDFs and pages, sync from VS Code — and share it on your own domain with exactly who you choose.</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">Drop it. It renders. Markdown, AI write-ups, HTML pages, PDFs, spreadsheets, Word docs, video and zipped sites become links that open in any browser.</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#080d1a" style="background:#080d1a">
   <tr>
     <td align="center" style="padding:26px 14px">
@@ -188,7 +188,7 @@ def _welcome_html(name: str | None) -> str:
         <!-- Hero graphic (animated product demo) -->
         <tr><td style="padding:0;line-height:0">
           <a href="{base}" style="text-decoration:none">
-            <img src="{hero}" width="600" alt="Markdrop — publish Markdown, render diagrams, sync, share"
+            <img src="{hero}" width="600" alt="Markdrop — docs and files as links that render"
                  style="display:block;width:100%;max-width:600px;height:auto;border:0;border-radius:16px 16px 0 0">
           </a>
         </td></tr>
@@ -197,15 +197,16 @@ def _welcome_html(name: str | None) -> str:
         <tr><td bgcolor="#0d1428" style="background:#0d1428;border:1px solid #1a2540;border-top:0;border-radius:0 0 16px 16px;padding:30px 26px">
           <div style="font-size:22px;line-height:1.3;font-weight:700;color:#ffffff;margin:0 0 10px">{greeting}</div>
           <div style="font-size:15px;line-height:1.65;color:#a6b4d4;margin:0 0 22px">
-            Your account is ready. Markdrop began as a Markdown pastebin and grew into a
-            publishing and sharing suite — for one person, or a whole team on its own domain.
-            Here&rsquo;s what you can do with it.
+            Your account is ready. Markdrop turns documents and files into links that render:
+            write or paste markdown and AI write-ups, or upload HTML pages, PDFs, spreadsheets,
+            Word docs, video and zipped sites &mdash; each one opens in any browser, no download,
+            no app. For one person, or a whole team on its own domain.
           </div>
 
           <!-- Primary CTA -->
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px">
             <tr><td bgcolor="#2563eb" style="border-radius:10px">
-              <a href="{urls['new']}" style="display:inline-block;padding:13px 26px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none">Create your first document</a>
+              <a href="{urls['new']}" style="display:inline-block;padding:13px 26px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none">Start writing</a>
             </td></tr>
           </table>
 

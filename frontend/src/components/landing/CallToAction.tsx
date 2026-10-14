@@ -17,14 +17,14 @@ export default function CallToAction() {
               Ready when you are.
             </h2>
             <p className="mt-3 text-gray-600 dark:text-gray-300 vscode:text-[#a0a0a0] max-w-lg mx-auto">
-              No sign-up, no credit card, no catch. Publish your first document right now.
+              Write a document with no account, or upload a file with a free one. Either way you get a link that renders.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
               <a href="/new" className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-500 hover:to-sky-500 text-white text-sm font-semibold transition-all shadow-lg shadow-blue-600/30">
-                Create a document
+                Start writing
               </a>
-              <a href="/share" className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] text-sm font-semibold transition-colors">
-                Share a file
+              <a href="/upload" className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] text-sm font-semibold transition-colors">
+                Upload a file
               </a>
             </div>
           </div>

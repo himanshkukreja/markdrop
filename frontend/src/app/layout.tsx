@@ -10,10 +10,23 @@ import { ToastProvider } from "@/components/Toast";
 import VercelInsights from "@/components/VercelInsights";
 import SiteTracker from "@/components/SiteTracker";
 
+const SITE_DESCRIPTION =
+  "Publish markdown and AI docs with no account, or upload HTML, PDFs, sheets, Word docs, video and zipped sites. One link that opens in any browser.";
+
 export const metadata: Metadata = {
-  title: "Markdrop — Publish Markdown, share files, sync from VS Code",
-  description:
-    "Paste markdown and get a shareable link instantly — no login required. Send any file peer-to-peer, end-to-end encrypted, and keep docs in sync straight from VS Code.",
+  title: "Markdrop — Docs and files as links that render",
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: "Drop it. It renders.",
+    description: SITE_DESCRIPTION,
+    siteName: "Markdrop",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Drop it. It renders.",
+    description: SITE_DESCRIPTION,
+  },
 };
 
 // Colours the mobile browser UI (address/status bars) to match the app —

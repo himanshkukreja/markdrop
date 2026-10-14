@@ -15,14 +15,14 @@ const ITEMS = [
   {
     href: "/new",
     label: "Markdown document",
-    desc: "Write or paste markdown, publish a link",
+    desc: "Write or paste markdown or an AI write-up. No account.",
     tint: "text-blue-500 bg-blue-500/10",
     d: "M4 6h16M4 12h10M4 18h13",
   },
   {
     href: "/upload",
     label: "Artifact",
-    desc: "PDF, spreadsheet, Word doc or web page",
+    desc: "Upload HTML, a PDF, sheet, Word doc, video or zipped site",
     tint: "text-orange-500 bg-orange-500/10",
     d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",
     isNew: true,
@@ -37,7 +37,7 @@ const ITEMS = [
   {
     href: "/share",
     label: "Send a file",
-    desc: "Peer-to-peer, nothing stored on our servers",
+    desc: "Encrypted device to device, up to 10 people per link",
     tint: "text-violet-500 bg-violet-500/10",
     d: "M12 16V4m0 0L8 8m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2",
   },

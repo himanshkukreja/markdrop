@@ -5,13 +5,13 @@ import Reveal from "./Reveal";
 const STEPS = [
   {
     n: "01",
-    title: "Write or paste",
-    desc: "Drop markdown into the editor, or send a file — no account, no setup, nothing to install.",
+    title: "Write or upload",
+    desc: "Write or paste markdown, or upload a file to render. Documents need no account; files need a free one. Nothing to install.",
   },
   {
     n: "02",
     title: "Publish in one click",
-    desc: "Get a clean markdrop.in link instantly. Add a custom slug, password, or expiry if you like.",
+    desc: "Get a markdrop.in link that opens rendered in any browser. Add a custom slug, password or expiry if you like.",
   },
   {
     n: "03",
@@ -28,7 +28,7 @@ export default function HowItWorks() {
           Live in <span className="md-gradient-text">three steps</span>
         </h2>
         <p className="mt-3 text-gray-600 dark:text-gray-400 vscode:text-[#a0a0a0]">
-          From blank page to shareable link in seconds.
+          From a blank page or a file to a link that renders.
         </p>
       </Reveal>
 

@@ -301,26 +301,34 @@ async def paste_html(
         raise HTTPException(status_code=507, detail="Storage quota exceeded.")
 
     blob_key = art_service.make_blob_key(user.id, "text/html")
+    is_public = not art_service.is_guarded(
+        has_password=bool(data.read_password), access_level=data.access_level
+    )
     ok = await run_in_threadpool(
-        r2.put_bytes, blob_key, payload, "text/html", not data.read_password
+        r2.put_bytes, blob_key, payload, "text/html", is_public
     )
     if not ok:
         raise HTTPException(status_code=502, detail="Could not store the page. Try again.")
 
-    doc, secret = await art_service.create_artifact(
-        db,
-        user_id=user.id,
-        blob_key=blob_key,
-        mime="text/html",
-        size_bytes=len(payload),
-        title=data.title,
-        filename=None,
-        custom_slug=data.custom_slug,
-        expires_in=data.expires_in,
-        custom_expires_at=data.custom_expires_at,
-        read_password=data.read_password,
-        access_level=data.access_level,
-    )
+    try:
+        doc, secret = await art_service.create_artifact(
+            db,
+            user_id=user.id,
+            blob_key=blob_key,
+            mime="text/html",
+            size_bytes=len(payload),
+            title=data.title,
+            filename=None,
+            custom_slug=data.custom_slug,
+            expires_in=data.expires_in,
+            custom_expires_at=data.custom_expires_at,
+            read_password=data.read_password,
+            access_level=data.access_level,
+        )
+    except Exception:
+        # No document will reference the stored page; don't leave it in R2.
+        await run_in_threadpool(r2.delete, blob_key)
+        raise
     return ArtifactCreateResponse(
         **art_service.to_response(doc, is_owner=True), edit_secret=secret
     )

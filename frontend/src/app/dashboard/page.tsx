@@ -175,6 +175,9 @@ export default function DashboardPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [counts, setCounts] = useState({ all: 0, markdown: 0, artifact: 0 });
+  // Page of the personal list (the API returns 20 per page).
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
   const [navOpen, setNavOpen] = useState(false);
   // The share dialog is opened from a row's overflow menu, so the row holds
   // no trigger of its own.
@@ -210,9 +213,10 @@ export default function DashboardPage() {
         setDocs(res.documents);
       } else {
         const res = await listMyDocuments(
-          1, undefined, scope.filter === "all" ? undefined : scope.filter
+          page, undefined, scope.filter === "all" ? undefined : scope.filter
         );
         setDocs(res.documents);
+        setPages(res.pages ?? 1);
         setCounts({
           all: res.count_all ?? res.total,
           markdown: res.count_markdown ?? 0,
@@ -224,7 +228,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [scope]);
+  }, [scope, page]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -371,7 +375,7 @@ export default function DashboardPage() {
     <div className="flex-1 min-h-0 flex gap-0 lg:gap-6">
       <DashboardSidebar
         scope={scope}
-        onScope={(sc) => { setLoading(true); setScope(sc); }}
+        onScope={(sc) => { setLoading(true); setPage(1); setScope(sc); }}
         counts={counts}
         googleConnected={gStatus?.configured ? gStatus.connected : null}
         onGoogleConnect={handleConnect}
@@ -626,6 +630,27 @@ export default function DashboardPage() {
               {expanded === d.slug && <AnalyticsPanel slug={d.slug} />}
             </div>
           ))}
+          {scope.kind === "own" && pages > 1 && (
+            <nav aria-label="Pages" className="flex items-center justify-between pt-2 text-sm text-gray-500 dark:text-gray-400">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => { setLoading(true); setPage(page - 1); }}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/[0.1] hover:bg-gray-50 dark:hover:bg-white/[0.04] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              >
+                Previous
+              </button>
+              <span>Page {page} of {pages}</span>
+              <button
+                type="button"
+                disabled={page >= pages}
+                onClick={() => { setLoading(true); setPage(page + 1); }}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/[0.1] hover:bg-gray-50 dark:hover:bg-white/[0.04] disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              >
+                Next
+              </button>
+            </nav>
+          )}
         </div>
       )}
 
