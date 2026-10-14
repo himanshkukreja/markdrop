@@ -87,7 +87,8 @@ export declare function RowMenu({ items, label, defaultOpen, portal, align }: {
     align?: "left" | "right";
 }): import("react/jsx-runtime").JSX.Element;
 export interface DocumentRowProps {
-    title: string;
+    /** A string or a node (e.g. the slug in mono for an untitled or encrypted document). Ellipsised on one line. */
+    title: React.ReactNode;
     meta: React.ReactNode;
     href?: string;
     icon?: string;
@@ -201,10 +202,14 @@ export declare function VSCodeIcon({ size, className }: {
     size?: number;
     className?: string;
 }): import("react/jsx-runtime").JSX.Element;
-/** `relayAvailable` adds the relayed path (only when the relay is confirmed live). */
-export declare function TransferExplainer({ href, relayAvailable }: {
+/**
+ * `relayAvailable` draws the relayed route; `discloseRelay` (default true) adds the relay sentence to step 2.
+ * The packet rests mid-path and only travels while the explainer is hovered or focused (no endless loop).
+ */
+export declare function TransferExplainer({ href, relayAvailable, discloseRelay }: {
     href?: string;
     relayAvailable?: boolean;
+    discloseRelay?: boolean;
 }): import("react/jsx-runtime").JSX.Element;
 export declare function BulkGuide(): import("react/jsx-runtime").JSX.Element;
 export {};
