@@ -587,6 +587,8 @@ export default function NewEditor() {
 
       {/* ── Document bar ── */}
       <div className="no-print flex shrink-0 flex-col gap-1.5">
+        {/* The title is an input, so the page's heading for assistive tech is a hidden h1. */}
+        <h1 className="md-visually-hidden">New document</h1>
         <div className="flex min-w-0 items-center gap-2 text-caption text-text-muted max-sm:hidden">
           <Badge size="sm" dot>Draft</Badge>
           <span className="truncate">{workspaceName ?? "Personal"} · not published yet</span>

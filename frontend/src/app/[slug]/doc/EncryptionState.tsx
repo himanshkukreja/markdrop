@@ -54,7 +54,7 @@ export function EncryptionState({ state, url }: { state: EncryptionScreen; url: 
           {tile("key")}
           <div className="flex flex-col gap-1.5">
             <p className="text-eyebrow text-accent-text">End-to-end encrypted</p>
-            <h2 className="text-h3 text-text">This document is end-to-end encrypted</h2>
+            <h1 className="text-h3 text-text">This document is end-to-end encrypted</h1>
           </div>
           <KeyAnatomy url={url} mode="missing" className="w-full text-left" />
           <p className="text-body text-text-secondary">Ask whoever shared it for the full link.</p>
@@ -69,7 +69,7 @@ export function EncryptionState({ state, url }: { state: EncryptionScreen; url: 
       <Card className="mx-auto my-8 max-w-[520px] text-center">
         <div className="flex flex-col items-center gap-3 py-2">
           {tile("alert")}
-          <h2 className="text-h3 text-text">This browser can&apos;t decrypt documents</h2>
+          <h1 className="text-h3 text-text">This browser can&apos;t decrypt documents</h1>
           <p className="text-body text-text-secondary">Open the link in an up-to-date browser over https.</p>
         </div>
       </Card>
@@ -80,7 +80,7 @@ export function EncryptionState({ state, url }: { state: EncryptionScreen; url: 
     <Card className="mx-auto my-8 max-w-[520px] text-center">
       <div className="flex flex-col items-center gap-3 py-2">
         {tile("alertCircle", true)}
-        <h2 className="text-h3 text-text">That key doesn&apos;t open this document</h2>
+        <h1 className="text-h3 text-text">That key doesn&apos;t open this document</h1>
         <p className="text-body text-text-secondary">
           The key is either wrong or the stored document was altered. Encrypted documents are
           authenticated as well as encrypted, so Markdrop refuses to show anything rather than

@@ -23,6 +23,10 @@ export function useWorkspaceTargets(value: PublishTargetValue) {
 
   useEffect(() => {
     let cancelled = false;
+    // Signed out there is nothing to list; asking anyway only produced a 401 on every visit.
+    let signedIn = false;
+    try { signedIn = !!localStorage.getItem("markdrop_token"); } catch {}
+    if (!signedIn) { setWorkspaces([]); return; }
     listWorkspaces()
       // A viewer reads a shared library; they don't add to it. Offering a
       // workspace the server would refuse is a slower way to show an error.
