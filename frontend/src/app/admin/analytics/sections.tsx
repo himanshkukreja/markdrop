@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ACCENT, TrendChart, bucketLabel, compact } from "./charts";
-import { Card, CardTitle } from "./ui";
-
-const GRAY = "#4b5563";
+import { Badge, Meter } from "@/components/ui";
+import { RELAY_PRICING, relayPricingCopy } from "../shared";
+import { C, SeriesTable, TableToggle, TrendChart, bucketLabel, compact } from "./charts";
+import { Card, CardTitle, Eyebrow, Figure } from "./ui";
 
 export type Growth = {
   new_visitors: number; creators: number; conversion: number; activation: number;
@@ -37,139 +37,145 @@ function span(s: number) {
   return `${(s / 86400).toFixed(1)} days`;
 }
 
-/** A labelled number; `accent` marks the one figure a section is about. */
-function Figure({ label, value, foot, accent }: { label: string; value: string; foot?: string; accent?: boolean }) {
-  return (
-    <div className={`rounded-xl border p-3.5 ${accent ? "border-blue-500/40 bg-blue-500/[0.06]" : "border-gray-800/80 bg-gray-950/40"}`}>
-      <p className="text-[11px] font-medium text-gray-400">{label}</p>
-      <p className="mt-1 text-xl font-semibold tracking-tight text-gray-50">{value}</p>
-      {foot && <p className="mt-0.5 text-[11px] text-gray-500 leading-snug">{foot}</p>}
-    </div>
-  );
-}
-
-/** Horizontal bars for a short ranked list (single series, one hue). */
-export function BarList({ rows, format = compact, empty = "No data yet." }: { rows: { key: string; n: number }[]; format?: (n: number) => string; empty?: string }) {
+/** Horizontal bars for a short ranked list (single series, one hue); the value is always printed. */
+export function BarList({ rows, format = compact, empty = "No data yet.", label }: {
+  rows: { key: string; n: number; icon?: React.ReactNode }[]; format?: (n: number) => string; empty?: string; label?: string;
+}) {
   const max = Math.max(1, ...rows.map((r) => r.n));
-  if (!rows.some((r) => r.n)) return <p className="py-4 text-xs text-gray-500">{empty}</p>;
+  if (!rows.some((r) => r.n)) return <p className="py-4 text-caption text-text-secondary">{empty}</p>;
   return (
-    <ul className="space-y-1">
+    <ul className="flex flex-col gap-1" aria-label={label}>
       {rows.map((r) => (
-        <li key={r.key} className="relative flex items-center justify-between h-7 px-2 text-xs">
-          <span aria-hidden className="absolute inset-y-0.5 left-0 rounded-[4px]" style={{ width: `${(r.n / max) * 100}%`, background: ACCENT, opacity: 0.16 }} />
-          <span className="relative truncate text-gray-200">{r.key}</span>
-          <span className="relative tabular-nums font-semibold text-gray-100">{format(r.n)}</span>
+        <li key={r.key} className="relative flex h-8 min-w-0 items-center justify-between gap-3 px-2 text-caption">
+          <span aria-hidden className="absolute inset-y-0.5 left-0 rounded-sm" style={{ width: `${(r.n / max) * 100}%`, background: C.wash }} />
+          <span className="relative flex min-w-0 items-center gap-2 truncate text-text">{r.icon}<span className="truncate">{r.key}</span></span>
+          <span className="relative shrink-0 font-semibold tabular-nums text-text">{format(r.n)}</span>
         </li>
       ))}
     </ul>
   );
 }
 
-/** Two-series stacked columns — the emphasis series in the accent, the rest
- *  in gray — with a 2px surface gap, rounded data ends, and per-column hover. */
+/** Two-series stacked columns (the emphasis series in `chart-1`, the rest `chart-other`), with a
+ *  legend, per-column hover/focus and a table view. */
 function StackedColumns({ series, unit, tz, labels }: {
   series: { t: string; a: number; b: number }[]; unit: string; tz: string; labels: [string, string];
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  const [table, setTable] = useState(false);
   const H = 120;
   const max = Math.max(1, ...series.map((s) => s.a + s.b));
   const every = Math.max(1, Math.ceil(series.length / 6));
   return (
     <div>
-      <div className="flex items-center gap-4 mb-2 text-[11px] text-gray-400">
-        <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: ACCENT }} />{labels[0]}</span>
-        <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: GRAY }} />{labels[1]}</span>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-4 text-micro text-text-secondary">
+          <span className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rounded-xs" style={{ background: C.series }} />{labels[0]}</span>
+          <span className="inline-flex items-center gap-1.5"><span aria-hidden className="size-2.5 rounded-xs" style={{ background: C.other }} />{labels[1]}</span>
+        </div>
+        <TableToggle table={table} onToggle={() => setTable((t) => !t)} />
       </div>
-      <div className="relative">
-        <div className="flex items-end gap-[2px] border-b border-gray-800" style={{ height: H }} onPointerLeave={() => setHover(null)}>
-          {series.map((s, i) => {
-            const ha = (s.a / max) * (H - 4);
-            const hb = (s.b / max) * (H - 4);
-            return (
-              <div key={s.t} className="relative flex-1 h-full flex flex-col justify-end items-center cursor-default"
-                onPointerEnter={() => setHover(i)} tabIndex={0} onFocus={() => setHover(i)} onBlur={() => setHover(null)}
-                aria-label={`${bucketLabel(s.t, unit, tz, true)}: ${s.a} ${labels[0]}, ${s.b} ${labels[1]}`}>
-                <div className="w-full max-w-[24px] flex flex-col justify-end gap-[2px]" style={{ opacity: hover === null || hover === i ? 1 : 0.55 }}>
-                  {s.a > 0 && <div className="w-full rounded-t-[4px]" style={{ height: ha, background: ACCENT }} />}
-                  {s.b > 0 && <div className={`w-full ${s.a > 0 ? "" : "rounded-t-[4px]"}`} style={{ height: hb, background: GRAY }} />}
+      {table ? (
+        <SeriesTable label={labels.map((l) => l.charAt(0).toUpperCase() + l.slice(1))}
+          rows={series.map((s) => ({ period: bucketLabel(s.t, unit, tz, true), values: [String(s.a), String(s.b)] }))} />
+      ) : (
+        <div className="relative">
+          <div className="flex items-end gap-0.5 border-b border-border" style={{ height: H }} onPointerLeave={() => setHover(null)}>
+            {series.map((s, i) => {
+              const ha = (s.a / max) * (H - 4);
+              const hb = (s.b / max) * (H - 4);
+              return (
+                <div key={s.t} className="md-focus relative flex h-full flex-1 cursor-default flex-col items-center justify-end rounded-xs"
+                  onPointerEnter={() => setHover(i)} tabIndex={0} onFocus={() => setHover(i)} onBlur={() => setHover(null)}
+                  role="img" aria-label={`${bucketLabel(s.t, unit, tz, true)}: ${s.a} ${labels[0]}, ${s.b} ${labels[1]}`}>
+                  <div className="flex w-full max-w-6 flex-col justify-end gap-0.5" style={{ opacity: hover === null || hover === i ? 1 : 0.55 }}>
+                    {s.a > 0 && <div className="w-full rounded-t-sm" style={{ height: ha, background: C.series }} />}
+                    {s.b > 0 && <div className={`w-full ${s.a > 0 ? "" : "rounded-t-sm"}`} style={{ height: hb, background: C.other }} />}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="flex gap-[2px] mt-1">
-          {series.map((s, i) => (
-            <div key={s.t} className="flex-1 text-center text-[10px] text-gray-500 whitespace-nowrap overflow-visible">
-              {i % every === 0 ? bucketLabel(s.t, unit, tz) : ""}
-            </div>
-          ))}
-        </div>
-        {hover !== null && series[hover] && (
-          <div className="pointer-events-none absolute -top-2 z-10 rounded-lg border border-gray-700 bg-gray-950/95 px-2.5 py-1.5 shadow-lg text-[11px]"
-            style={{ left: `${Math.min(80, (hover / Math.max(1, series.length - 1)) * 100)}%` }}>
-            <p className="text-gray-400 mb-0.5">{bucketLabel(series[hover].t, unit, tz, true)}</p>
-            <p className="flex items-center gap-1.5 text-gray-200"><span className="w-3 h-0.5" style={{ background: ACCENT }} /><b className="text-gray-50">{series[hover].a}</b> {labels[0]}</p>
-            <p className="flex items-center gap-1.5 text-gray-200"><span className="w-3 h-0.5" style={{ background: GRAY }} /><b className="text-gray-50">{series[hover].b}</b> {labels[1]}</p>
+              );
+            })}
           </div>
-        )}
-      </div>
+          <div className="mt-1 flex gap-0.5" aria-hidden>
+            {series.map((s, i) => (
+              <div key={s.t} className="flex-1 overflow-visible whitespace-nowrap text-center text-micro text-text-muted">
+                {i % every === 0 ? bucketLabel(s.t, unit, tz) : ""}
+              </div>
+            ))}
+          </div>
+          {hover !== null && series[hover] && (
+            <div aria-hidden className="pointer-events-none absolute -top-2 rounded-lg border border-border-strong bg-surface-raised px-2.5 py-1.5 text-micro shadow-md"
+              style={{ left: `${Math.min(70, (hover / Math.max(1, series.length - 1)) * 100)}%` }}>
+              <p className="mb-0.5 text-text-secondary">{bucketLabel(series[hover].t, unit, tz, true)}</p>
+              <p className="flex items-center gap-1.5 text-text"><span className="h-0.5 w-3" style={{ background: C.series }} /><b>{series[hover].a}</b> {labels[0]}</p>
+              <p className="flex items-center gap-1.5 text-text"><span className="h-0.5 w-3" style={{ background: C.other }} /><b>{series[hover].b}</b> {labels[1]}</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Growth loop ───────────────────────────────────────────────────────────────
 
-export function GrowthCard({ data, tz }: { data: Growth | null; tz: string }) {
-  if (!data) return null;
-  const loopKeys = new Set(["shared_doc", "shared_files"]);
+const LOOP_KEYS = new Set(["shared_doc", "shared_files"]);
+
+export function GrowthCard({ data, tz }: { data: Growth; tz: string }) {
   const maxConv = Math.max(1, ...data.groups.map((g) => g.conversion));
   return (
-    <Card>
-      <CardTitle title="Growth loop"
-        sub="Do readers become writers? Everyone who first arrived in this range, by what they arrived on — not affected by filters" />
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+    <Card aria-labelledby="growth-h">
+      <CardTitle id="growth-h" title="Growth loop"
+        sub="Do readers become writers? Everyone who first arrived in this range, by what they arrived on. Not affected by filters." />
+      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4">
         <Figure accent label="Creators who arrived via someone's link" value={`${data.loop_share}%`}
-          foot={`${data.groups.filter((g) => loopKeys.has(g.key)).reduce((n, g) => n + g.creators, 0)} of ${data.creators} new creators`} />
+          foot={`${data.groups.filter((g) => LOOP_KEYS.has(g.key)).reduce((n, g) => n + g.creators, 0)} of ${data.creators} new creators`} />
         <Figure label="New visitors who published" value={`${data.conversion}%`} foot={`${compact(data.creators)} of ${compact(data.new_visitors)}`} />
         <Figure label="Published on their first visit" value={`${data.activation}%`} foot="Activation" />
         <Figure label="Typical time to first publish" value={span(data.median_to_create_s)} foot="Median, from first visit" />
       </div>
 
-      <div className="mt-5 grid lg:grid-cols-[1.1fr_1fr] gap-6 [&>*]:min-w-0">
+      <div className="mt-5 grid gap-6 lg:grid-cols-[1.1fr_1fr] [&>*]:min-w-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-caption">
+            <caption className="md-visually-hidden">New visitors by what they arrived on</caption>
             <thead>
-              <tr className="text-[10px] uppercase tracking-wider text-gray-500">
-                <th className="text-left font-semibold pb-2">Arrived on</th>
-                <th className="text-right font-semibold pb-2 px-2">New</th>
-                <th className="text-left font-semibold pb-2 pl-3 w-[45%]">Went on to publish</th>
-                <th className="text-right font-semibold pb-2 pl-2">1st visit</th>
+              <tr className="text-left text-text-secondary">
+                <th scope="col" className="pb-2 font-medium">Arrived on</th>
+                <th scope="col" className="px-2 pb-2 text-right font-medium">New</th>
+                <th scope="col" className="w-[45%] pb-2 pl-3 font-medium">Went on to publish</th>
+                <th scope="col" className="pb-2 pl-2 text-right font-medium">1st visit</th>
               </tr>
             </thead>
             <tbody className="tabular-nums">
-              {data.groups.map((g) => (
-                <tr key={g.key} className="border-t border-gray-800/70">
-                  <td className="py-2.5 text-gray-200 whitespace-nowrap">{g.label}</td>
-                  <td className="py-2.5 px-2 text-right text-gray-400">{compact(g.visitors)}</td>
-                  <td className="py-2.5 pl-3">
-                    <div className="flex items-center gap-2">
-                      <div className="hidden sm:block flex-1 h-2 rounded-full bg-gray-800/70 overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${(g.conversion / maxConv) * 100}%`, background: loopKeys.has(g.key) ? ACCENT : GRAY }} />
+              {data.groups.map((g) => {
+                const loop = LOOP_KEYS.has(g.key);
+                return (
+                  <tr key={g.key} className="border-t border-border">
+                    <td className="whitespace-nowrap py-2.5 text-text">
+                      {g.label}{loop && <Badge size="sm" tone="info" className="ml-2">Loop</Badge>}
+                    </td>
+                    <td className="px-2 py-2.5 text-right text-text-secondary">{compact(g.visitors)}</td>
+                    <td className="py-2.5 pl-3">
+                      <div className="flex items-center gap-2">
+                        <div aria-hidden className="hidden h-2 flex-1 overflow-hidden rounded-full sm:block" style={{ background: C.track }}>
+                          <div className="h-full rounded-full" style={{ width: `${(g.conversion / maxConv) * 100}%`, background: loop ? C.series : C.other }} />
+                        </div>
+                        <span className="ml-auto w-24 shrink-0 whitespace-nowrap text-right"><b className="text-text">{g.conversion}%</b> <span className="text-text-secondary">({g.creators})</span></span>
                       </div>
-                      <span className="ml-auto w-24 shrink-0 text-right whitespace-nowrap"><b className="text-gray-100">{g.conversion}%</b> <span className="text-gray-500">({g.creators})</span></span>
-                    </div>
-                  </td>
-                  <td className="py-2.5 pl-2 text-right text-gray-400">{g.activation}%</td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="py-2.5 pl-2 text-right text-text-secondary">{g.activation}%</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          <p className="mt-2 text-[11px] text-gray-500 leading-relaxed">
-            Blue rows are the loop: someone else&apos;s document or file link reaching a new person.
+          <p className="mt-2 text-micro text-text-secondary">
+            Rows marked Loop are someone else&apos;s document or file link reaching a new person.
           </p>
         </div>
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">New creators</p>
+          <Eyebrow>New creators</Eyebrow>
           <StackedColumns series={data.series.map((s) => ({ t: s.t, a: s.loop, b: s.other }))} unit={data.unit} tz={tz}
             labels={["via a shared link", "other"]} />
         </div>
@@ -178,17 +184,16 @@ export function GrowthCard({ data, tz }: { data: Growth | null; tz: string }) {
   );
 }
 
-// ── File sharing ──────────────────────────────────────────────────────────────
+// ── File sharing (Product health) ─────────────────────────────────────────────
 
-export function ShareHealthCard({ data, tz }: { data: Shares | null; tz: string }) {
-  if (!data) return null;
+export function ShareHealthCard({ data, tz, right }: { data: Shares; tz: string; right?: React.ReactNode }) {
   const t = data.transfers;
   const relayGB = t.relay_bytes / 2 ** 30;
   const points = data.series.map((s) => ({ t: s.t, v: s.attempts ? Math.round((100 * s.connected) / s.attempts) : 0 }));
   return (
-    <Card>
-      <CardTitle title="File sharing" sub="Peer-to-peer connections and transfers — not affected by filters" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <Card aria-labelledby="sharing-h">
+      <CardTitle id="sharing-h" title="File sharing" sub="Peer-to-peer connections and transfers in this range. Not affected by filters." right={right} />
+      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-4">
         <Figure accent label="Connections that succeeded" value={data.attempts ? `${data.success_rate}%` : "—"}
           foot={`${compact(data.connected)} of ${compact(data.attempts)} attempts`} />
         <Figure label="Needed the relay" value={data.connected ? `${data.relayed_pct}%` : "—"} foot="Of successful connections" />
@@ -197,53 +202,54 @@ export function ShareHealthCard({ data, tz }: { data: Shares | null; tz: string 
         <Figure label="Moved" value={bytes(t.bytes)} foot={`${compact(t.files)} files in ${compact(t.count)} transfers`} />
       </div>
 
-      <div className="mt-5 grid lg:grid-cols-2 gap-6 [&>*]:min-w-0">
+      <div className="mt-5 grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1">Connection success rate</p>
+          <Eyebrow>Connection success rate</Eyebrow>
           <TrendChart points={points} unit={data.unit} tz={tz} label="Success rate" height={180} format={(n) => `${n}%`} />
         </div>
-        <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-3">
-            <Figure label="Direct speed" value={t.direct_n ? `${t.direct_mbps} MB/s` : "—"} foot={`Median of ${t.direct_n} transfers ≥1 MB`} />
-            <Figure label="Relayed speed" value={t.relay_n ? `${t.relay_mbps} MB/s` : "—"} foot={`Median of ${t.relay_n} transfers ≥1 MB`} />
+        <div className="flex flex-col gap-5">
+          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+            <Figure label="Direct speed" value={t.direct_n ? `${t.direct_mbps} MB/s` : "—"} foot={`Median of ${t.direct_n} transfers of 1 MB or more`} />
+            <Figure label="Relayed speed" value={t.relay_n ? `${t.relay_mbps} MB/s` : "—"} foot={`Median of ${t.relay_n} transfers of 1 MB or more`} />
           </div>
           <div>
-            <div className="flex items-baseline justify-between mb-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Relayed data this range</p>
-              <p className="text-[11px] text-gray-500">Cloudflare: 1,000 GB/month free, then $0.05/GB</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-2 rounded-full bg-blue-950/60 overflow-hidden" title={`${relayGB.toFixed(2)} GB of 1,000 GB`}>
-                <div className="h-full rounded-full" style={{ width: `${Math.min(100, relayGB / 10)}%`, minWidth: relayGB > 0 ? 4 : 0, background: ACCENT }} />
-              </div>
-              <span className="text-xs tabular-nums text-gray-200">{bytes(t.relay_bytes)}</span>
-            </div>
+            <Meter
+              label="Relayed data this range"
+              value={Math.min(relayGB, RELAY_PRICING.freeGbPerMonth)}
+              max={RELAY_PRICING.freeGbPerMonth}
+              threshold={RELAY_PRICING.warnAt}
+              meta={<span className="tabular-nums">{bytes(t.relay_bytes)} of {RELAY_PRICING.freeGbPerMonth.toLocaleString("en")} GB</span>}
+              valueText={`${relayGB.toFixed(2)} GB of the ${RELAY_PRICING.freeGbPerMonth.toLocaleString("en")} GB monthly allowance`}
+            />
+            <p className="mt-1.5 text-micro text-text-secondary">
+              {relayPricingCopy()}. Warning tone from {Math.round(RELAY_PRICING.warnAt * 100)}% of the allowance.
+            </p>
           </div>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">How peers connected</p>
-            <BarList rows={data.routes} empty="No successful connections yet." />
+            <Eyebrow>How peers connected</Eyebrow>
+            <BarList rows={data.routes} empty="No successful connections yet." label="How peers connected" />
           </div>
         </div>
       </div>
 
-      <div className="mt-5 grid sm:grid-cols-3 gap-6 [&>*]:min-w-0">
+      <div className="mt-5 grid gap-6 sm:grid-cols-3 [&>*]:min-w-0">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Why connections failed</p>
-          <BarList rows={[
-            { key: "No direct path (relay fixes)", n: data.failed_with_stun },
+          <Eyebrow>Why connections failed</Eyebrow>
+          <BarList label="Why connections failed" rows={[
+            { key: "No direct path (the relay fixes these)", n: data.failed_with_stun },
             { key: "STUN unreachable", n: data.failed_no_stun },
           ]} empty="No failures in this range." />
           {data.fail_browsers.length > 0 && (
-            <p className="mt-2 text-[11px] text-gray-500">Failed on: {data.fail_browsers.map((b) => `${b.key} (${b.n})`).join(", ")}</p>
+            <p className="mt-2 text-micro text-text-secondary">Failed on: {data.fail_browsers.map((b) => `${b.key} (${b.n})`).join(", ")}</p>
           )}
         </div>
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Share size</p>
-          <BarList rows={data.sizes} empty="No shares yet." />
+          <Eyebrow>Share size</Eyebrow>
+          <BarList rows={data.sizes} empty="No shares yet." label="Share size" />
         </div>
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Files per share</p>
-          <BarList rows={data.file_counts} empty="No shares yet." />
+          <Eyebrow>Files per share</Eyebrow>
+          <BarList rows={data.file_counts} empty="No shares yet." label="Files per share" />
         </div>
       </div>
     </Card>

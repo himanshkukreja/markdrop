@@ -1,1380 +1,163 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import MarkdownPreview from "@/components/MarkdownPreview";
+import { useCallback, useEffect, useState } from "react";
+import { MarkdropLoader, ThemeScope } from "@/components/ui";
+import { adminListDocuments, adminListFeedback, clearAdminToken, getAdminToken } from "@/lib/api";
+import AnalyticsPanel, { type Filters } from "./analytics/AnalyticsPanel";
+import { parseRange, serializeRange, type RangeValue } from "./analytics/controls";
+import { AdminLogin } from "./AdminLogin";
+import { AdminShell } from "./AdminShell";
+import { DEFAULT_DOC_FILTERS, DocumentsPanel, type DocFilters } from "./DocumentsPanel";
+import { DocEditor } from "./DocEditor";
 import EmailPanel from "./EmailPanel";
-import AnalyticsPanel from "./analytics/AnalyticsPanel";
-import ArtifactBadge from "@/components/ArtifactBadge";
-import MarkdropLoader from "@/components/MarkdropLoader";
-import { formatBytes } from "@/lib/webrtc";
-import {
-  AdminDocListItem,
-  DocKind,
-  AdminUserListItem,
-  AdminShareEventItem,
-  AdminFeedbackItem,
-  FeatureUsage,
-  FeedbackType,
-  adminDeleteDocument,
-  adminGetDocument,
-  adminListDocuments,
-  adminListUsers,
-  adminFeatureUsage,
-  adminListShareEvents,
-  adminListFeedback,
-  adminSetFeedbackStatus,
-  adminDeleteFeedback,
-  adminLogin,
-  adminUpdateDocument,
-  clearAdminToken,
-  getAdminToken,
-  setAdminToken,
-} from "@/lib/api";
+import { FeedbackPanel } from "./FeedbackPanel";
+import { ProductHealthPanel } from "./ProductHealthPanel";
+import { UnauthorizedContext, readQuery, sectionFrom, writeQuery, type Section } from "./shared";
+import { UsersPanel } from "./UsersPanel";
 
-type Phase = "init" | "login" | "dashboard" | "editing";
-type EditMode = "edit" | "split" | "preview";
-type Tab = "analytics" | "docs" | "users" | "usage" | "feedback" | "email";
+type Phase = "init" | "login" | "app";
 
+function parseFilters(raw: string | null): Filters {
+  if (!raw) return {};
+  try {
+    const v = JSON.parse(raw);
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      return Object.fromEntries(Object.entries(v).filter(([, x]) => typeof x === "string")) as Filters;
+    }
+  } catch { /* a hand-edited URL: ignore it */ }
+  return {};
+}
+
+/**
+ * The admin console. A permanent dark island (D3): everything, portals included, renders inside a
+ * dark ThemeScope whatever the site theme is. URL state (`?tab=&range=&f=`) is read after mount,
+ * never with useSearchParams. The admin JWT stays in localStorage `markdrop_admin_token`.
+ * /admin* is excluded from analytics (lib/analyticsPath).
+ */
 export default function AdminApp() {
-  // ── Auth ────────────────────────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>("init");
   const [token, setToken] = useState<string | null>(null);
+  const [section, setSection] = useState<Section>("overview");
+  const [range, setRange] = useState<RangeValue>(() => parseRange(null));
+  const [filters, setFilters] = useState<Filters>({});
+  const [docFilters, setDocFilters] = useState<DocFilters>(DEFAULT_DOC_FILTERS);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [counts, setCounts] = useState<{ reports?: number; feedback?: number }>({});
 
-  // ── Login ───────────────────────────────────────────────────────────────────
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [loginLoading, setLoginLoading] = useState(false);
-
-  // ── Dashboard ───────────────────────────────────────────────────────────────
-  const [docs, setDocs] = useState<AdminDocListItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pages, setPages] = useState(1);
-  const [search, setSearch] = useState("");
-  const [reportedOnly, setReportedOnly] = useState(false);
-  const [docKind, setDocKind] = useState<DocKind | "all">("all");
-  const [dashLoading, setDashLoading] = useState(false);
-  const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-
-  // ── Tabs + Users ──────────────────────────────────────────────────────────────
-  const [tab, setTab] = useState<Tab>("analytics");
-  const [users, setUsers] = useState<AdminUserListItem[]>([]);
-  const [usersTotal, setUsersTotal] = useState(0);
-  const [usersPage, setUsersPage] = useState(1);
-  const [usersPages, setUsersPages] = useState(1);
-  const [usersSearch, setUsersSearch] = useState("");
-  const [usersLoading, setUsersLoading] = useState(false);
-
-  // ── Feature usage ───────────────────────────────────────────────────────────
-  const [usage, setUsage] = useState<FeatureUsage | null>(null);
-  const [usageLoading, setUsageLoading] = useState(false);
-  const [shareEvents, setShareEvents] = useState<AdminShareEventItem[]>([]);
-  const [sharePage, setSharePage] = useState(1);
-  const [sharePages, setSharePages] = useState(1);
-  const [shareTotal, setShareTotal] = useState(0);
-  const [shareIdentified, setShareIdentified] = useState(false);
-
-  // ── Feedback (bug reports / feature requests) ────────────────────────────────
-  const [feedback, setFeedback] = useState<AdminFeedbackItem[]>([]);
-  const [feedbackPage, setFeedbackPage] = useState(1);
-  const [feedbackPages, setFeedbackPages] = useState(1);
-  const [feedbackTotal, setFeedbackTotal] = useState(0);
-  const [feedbackOpenCount, setFeedbackOpenCount] = useState(0);
-  const [feedbackType, setFeedbackType] = useState<FeedbackType | "">("");
-  const [feedbackStatus, setFeedbackStatus] = useState<"open" | "resolved" | "">("");
-  const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [feedbackBusyId, setFeedbackBusyId] = useState<string | null>(null);
-
-  // ── Editor ──────────────────────────────────────────────────────────────────
-  const [editSlug, setEditSlug] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editContent, setEditContent] = useState("");
-  const [editMode, setEditMode] = useState<EditMode>("split");
-  const [saveLoading, setSaveLoading] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveDone, setSaveDone] = useState(false);
-
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Init ─────────────────────────────────────────────────────────────────────
+  // Init: token and URL state, after mount.
   useEffect(() => {
+    const q = readQuery();
+    setSection(sectionFrom(q.get("tab")));
+    setRange(parseRange(q.get("range")));
+    setFilters(parseFilters(q.get("f")));
     const stored = getAdminToken();
-    if (stored) {
-      setToken(stored);
-      setPhase("dashboard");
-    } else {
-      setPhase("login");
-    }
+    setToken(stored);
+    setPhase(stored ? "app" : "login");
   }, []);
 
-  // ── Load documents ───────────────────────────────────────────────────────────
-  const loadDocs = useCallback(
-    async (tok: string, pg = 1, q = "", reported = false, kind: DocKind | "all" = "all") => {
-      setDashLoading(true);
-      try {
-        const res = await adminListDocuments(
-          tok, pg, 20, q || undefined, reported, kind === "all" ? undefined : kind
-        );
-        setDocs(res.documents);
-        setTotal(res.total);
-        setPage(res.page);
-        setPages(res.pages);
-      } catch (e: unknown) {
-        if (e instanceof Error && e.message === "UNAUTHORIZED") {
-          clearAdminToken();
-          setToken(null);
-          setPhase("login");
-        }
-      } finally {
-        setDashLoading(false);
-      }
-    },
-    []
-  );
-
+  // Back/forward between tabs.
   useEffect(() => {
-    if (phase === "dashboard" && token) {
-      loadDocs(token, 1, search);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, token]);
-
-  // ── Load users ─────────────────────────────────────────────────────────────────
-  const loadUsers = useCallback(async (tok: string, pg = 1, q = "") => {
-    setUsersLoading(true);
-    try {
-      const res = await adminListUsers(tok, pg, q || undefined);
-      setUsers(res.users);
-      setUsersTotal(res.total);
-      setUsersPage(res.page);
-      setUsersPages(res.pages);
-    } catch (e: unknown) {
-      if (e instanceof Error && e.message === "UNAUTHORIZED") {
-        clearAdminToken();
-        setToken(null);
-        setPhase("login");
-      }
-    } finally {
-      setUsersLoading(false);
-    }
+    const onPop = () => {
+      const q = readQuery();
+      setSection(sectionFrom(q.get("tab")));
+      setRange(parseRange(q.get("range")));
+      setFilters(parseFilters(q.get("f")));
+      setEditing(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  useEffect(() => {
-    if (phase === "dashboard" && token && tab === "users") {
-      loadUsers(token, 1, usersSearch);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, token, tab]);
-
-  // ── Load feature usage ───────────────────────────────────────────────────────
-  const loadUsage = useCallback(async (tok: string, pg = 1, identified = false) => {
-    setUsageLoading(true);
-    try {
-      const [u, ev] = await Promise.all([
-        adminFeatureUsage(tok),
-        adminListShareEvents(tok, pg, identified),
-      ]);
-      setUsage(u);
-      setShareEvents(ev.events);
-      setShareTotal(ev.total);
-      setSharePage(ev.page);
-      setSharePages(ev.pages);
-    } catch (e: unknown) {
-      if (e instanceof Error && e.message === "UNAUTHORIZED") {
-        clearAdminToken();
-        setToken(null);
-        setPhase("login");
-      }
-    } finally {
-      setUsageLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (phase === "dashboard" && token && tab === "usage") {
-      loadUsage(token, 1, shareIdentified);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, token, tab]);
-
-  // ── Feedback ─────────────────────────────────────────────────────────────────
-  const loadFeedback = useCallback(
-    async (tok: string, pg = 1, type: FeedbackType | "" = "", status: "open" | "resolved" | "" = "") => {
-      setFeedbackLoading(true);
-      try {
-        const res = await adminListFeedback(tok, pg, type || undefined, status || undefined);
-        setFeedback(res.items);
-        setFeedbackTotal(res.total);
-        setFeedbackOpenCount(res.open_count);
-        setFeedbackPage(res.page);
-        setFeedbackPages(res.pages);
-      } catch (e: unknown) {
-        if (e instanceof Error && e.message === "UNAUTHORIZED") {
-          clearAdminToken();
-          setToken(null);
-          setPhase("login");
-        }
-      } finally {
-        setFeedbackLoading(false);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    if (phase === "dashboard" && token && tab === "feedback") {
-      loadFeedback(token, 1, feedbackType, feedbackStatus);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, token, tab, feedbackType, feedbackStatus]);
-
-  const setFeedbackResolved = async (id: string, resolved: boolean) => {
-    if (!token) return;
-    setFeedbackBusyId(id);
-    try {
-      await adminSetFeedbackStatus(token, id, resolved ? "resolved" : "open");
-      await loadFeedback(token, feedbackPage, feedbackType, feedbackStatus);
-    } catch {
-      /* ignore */
-    } finally {
-      setFeedbackBusyId(null);
-    }
-  };
-
-  const removeFeedback = async (id: string) => {
-    if (!token) return;
-    setFeedbackBusyId(id);
-    try {
-      await adminDeleteFeedback(token, id);
-      await loadFeedback(token, feedbackPage, feedbackType, feedbackStatus);
-    } catch {
-      /* ignore */
-    } finally {
-      setFeedbackBusyId(null);
-    }
-  };
-
-  const loadShareEventsPage = (pg: number) => {
-    setSharePage(pg);
-    if (token) adminListShareEvents(token, pg, shareIdentified).then((ev) => {
-      setShareEvents(ev.events);
-      setShareTotal(ev.total);
-      setSharePage(ev.page);
-      setSharePages(ev.pages);
-    }).catch(() => {});
-  };
-
-  const toggleShareIdentified = () => {
-    const v = !shareIdentified;
-    setShareIdentified(v);
-    if (token) adminListShareEvents(token, 1, v).then((ev) => {
-      setShareEvents(ev.events);
-      setShareTotal(ev.total);
-      setSharePage(ev.page);
-      setSharePages(ev.pages);
-    }).catch(() => {});
-  };
-
-  const handleUsersSearch = (val: string) => {
-    setUsersSearch(val);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => {
-      if (token) loadUsers(token, 1, val);
-    }, 400);
-  };
-
-  // ── Search with debounce ──────────────────────────────────────────────────────
-  const handleSearch = (val: string) => {
-    setSearch(val);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => {
-      if (token) loadDocs(token, 1, val, reportedOnly, docKind);
-    }, 400);
-  };
-
-  const toggleReported = () => {
-    const v = !reportedOnly;
-    setReportedOnly(v);
-    setPage(1);
-    if (token) loadDocs(token, 1, search, v, docKind);
-  };
-
-  // ── Login ─────────────────────────────────────────────────────────────────────
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginLoading(true);
-    setLoginError(null);
-    try {
-      const { token: tok } = await adminLogin(username, password);
-      setAdminToken(tok);
-      setToken(tok);
-      setPhase("dashboard");
-    } catch {
-      setLoginError("Invalid username or password");
-    } finally {
-      setLoginLoading(false);
-    }
-  };
-
-  // ── Logout ────────────────────────────────────────────────────────────────────
-  const handleLogout = () => {
+  const signOut = useCallback(() => {
     clearAdminToken();
     setToken(null);
-    setUsername("");
-    setPassword("");
+    setEditing(null);
+    setCounts({});
     setPhase("login");
-  };
+  }, []);
 
-  // ── Open editor ───────────────────────────────────────────────────────────────
-  const handleEdit = async (slug: string) => {
+  const refreshCounts = useCallback(() => {
     if (!token) return;
-    try {
-      const doc = await adminGetDocument(token, slug);
-      setEditSlug(doc.slug);
-      setEditTitle(doc.title ?? "");
-      setEditContent(doc.content);
-      setSaveError(null);
-      setSaveDone(false);
-      setPhase("editing");
-    } catch (e: unknown) {
-      if (e instanceof Error && e.message === "UNAUTHORIZED") handleLogout();
-    }
+    adminListDocuments(token, 1, 1, undefined, true).then((r) => setCounts((c) => ({ ...c, reports: r.total }))).catch(() => {});
+    adminListFeedback(token, 1, undefined, "open").then((r) => setCounts((c) => ({ ...c, feedback: r.open_count }))).catch(() => {});
+  }, [token]);
+  useEffect(() => { if (phase === "app") refreshCounts(); }, [phase, refreshCounts]);
+
+  const select = (s: Section) => {
+    setEditing(null);
+    if (s !== section) setDocFilters((f) => ({ ...f, page: 1 }));
+    setSection(s);
+    writeQuery({ tab: s === "overview" ? null : s }, true);
+    document.getElementById("main")?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0 });
+  };
+  const changeRange = (r: RangeValue) => {
+    setRange(r);
+    writeQuery({ range: serializeRange(r) === "30d" ? null : serializeRange(r) });
+  };
+  const changeFilters = (f: Filters) => {
+    setFilters(f);
+    writeQuery({ f: Object.keys(f).length ? JSON.stringify(f) : null });
   };
 
-  // ── Save ──────────────────────────────────────────────────────────────────────
-  const handleSave = async () => {
-    if (!token || !editSlug) return;
-    setSaveLoading(true);
-    setSaveError(null);
-    setSaveDone(false);
-    try {
-      await adminUpdateDocument(token, editSlug, editTitle, editContent);
-      setSaveDone(true);
-      setTimeout(() => setSaveDone(false), 2500);
-    } catch {
-      setSaveError("Failed to save — please try again");
-    } finally {
-      setSaveLoading(false);
-    }
-  };
-
-  // ── Delete ────────────────────────────────────────────────────────────────────
-  const handleDelete = async (slug: string) => {
-    if (!token) return;
-    if (confirmDelete !== slug) {
-      setConfirmDelete(slug);
-      return;
-    }
-    setDeletingSlug(slug);
-    setConfirmDelete(null);
-    try {
-      await adminDeleteDocument(token, slug);
-      if (token) loadDocs(token, page, search);
-    } catch {
-      // silently ignore
-    } finally {
-      setDeletingSlug(null);
-    }
-  };
-
-  const handleBackToDashboard = () => {
-    setPhase("dashboard");
-    if (token) loadDocs(token, page, search);
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Render: Init spinner
-  // ─────────────────────────────────────────────────────────────────────────────
+  let body: React.ReactNode = null;
   if (phase === "init") {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+    body = (
+      <div className="flex min-h-dvh flex-1 items-center justify-center">
+        <MarkdropLoader size="sm" label="Opening the admin console" />
       </div>
     );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Render: Login
-  // ─────────────────────────────────────────────────────────────────────────────
-  if (phase === "login") {
-    return (
-      <div className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm">
-          {/* Icon + title */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-800 mb-4">
-              <svg
-                className="w-7 h-7 text-gray-600 dark:text-gray-300"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-                />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
-              Admin
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Sign in to manage documents
-            </p>
-          </div>
-
-          <form
-            onSubmit={handleLogin}
-            className="space-y-4 p-6 rounded-2xl border border-gray-200 dark:border-gray-700/70 bg-white dark:bg-gray-900/40"
-          >
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Username
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                required
-                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                required
-                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {loginError && (
-              <p className="text-xs text-red-500 dark:text-red-400">{loginError}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loginLoading}
-              className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
-            >
-              {loginLoading ? "Signing in…" : "Sign in"}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Render: Editor
-  // ─────────────────────────────────────────────────────────────────────────────
-  if (phase === "editing") {
-    return (
-      <div className="flex flex-col flex-1 min-h-0 gap-3 py-4">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between gap-4 shrink-0">
-          <button
-            onClick={handleBackToDashboard}
-            className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
-            Dashboard
-          </button>
-
-          <div className="flex items-center gap-2">
-            <span className="hidden sm:block text-xs font-mono text-gray-400 dark:text-gray-500">
-              {editSlug}
-            </span>
-
-            {/* Mode toggle */}
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
-              {(["edit", "split", "preview"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setEditMode(m)}
-                  className={`px-3 py-1.5 capitalize transition-colors ${
-                    editMode === m
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-
-            {/* Open in new tab */}
-            <a
-              href={`/${editSlug}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-              title="Open document"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-              </svg>
-            </a>
-
-            <button
-              onClick={handleSave}
-              disabled={saveLoading}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                saveDone
-                  ? "bg-green-600 hover:bg-green-500 text-white"
-                  : "bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white"
-              }`}
-            >
-              {saveLoading ? "Saving…" : saveDone ? "Saved ✓" : "Save"}
-            </button>
-          </div>
-        </div>
-
-        {saveError && (
-          <p className="text-xs text-red-500 dark:text-red-400 shrink-0">{saveError}</p>
-        )}
-
-        {/* Title */}
-        <input
-          type="text"
-          value={editTitle}
-          onChange={(e) => setEditTitle(e.target.value)}
-          placeholder="Untitled"
-          className="shrink-0 w-full px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-
-        {/* Editor panes */}
-        <div className="flex-1 min-h-0 flex gap-3">
-          {(editMode === "edit" || editMode === "split") && (
-            <textarea
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              className="flex-1 h-full resize-none p-3 text-sm font-mono rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              spellCheck={false}
+  } else if (phase === "login" || !token) {
+    body = <AdminLogin onSignedIn={(t) => { setToken(t); setPhase("app"); }} />;
+  } else {
+    let page: React.ReactNode;
+    if (editing && (section === "documents" || section === "reports")) {
+      page = <DocEditor token={token} slug={editing} onBack={() => setEditing(null)} />;
+    } else {
+      switch (section) {
+        case "overview":
+          page = <AnalyticsPanel token={token} range={range} onRange={changeRange} filters={filters} onFilters={changeFilters} onOpenHealth={() => select("health")} />;
+          break;
+        case "health":
+          page = <ProductHealthPanel token={token} range={range} onRange={changeRange} />;
+          break;
+        case "documents":
+        case "reports":
+          page = (
+            <DocumentsPanel
+              key={section}
+              token={token}
+              reportsView={section === "reports"}
+              filters={docFilters}
+              setFilters={setDocFilters}
+              onEdit={setEditing}
+              onChanged={refreshCounts}
             />
-          )}
-          {(editMode === "preview" || editMode === "split") && (
-            <div className="flex-1 overflow-y-auto p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/20">
-              <MarkdownPreview content={editContent} />
-            </div>
-          )}
-        </div>
-      </div>
+          );
+          break;
+        case "users":
+          page = <UsersPanel token={token} />;
+          break;
+        case "feedback":
+          page = <FeedbackPanel token={token} onChanged={refreshCounts} />;
+          break;
+        case "email":
+          page = <EmailPanel token={token} />;
+          break;
+      }
+    }
+    body = (
+      <AdminShell section={section} counts={counts} onSelect={select} onSignOut={signOut}>
+        {page}
+      </AdminShell>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Render: Dashboard
-  // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="py-4 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">
-            Admin Dashboard
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            {total.toLocaleString()} document{total !== 1 ? "s" : ""} total
-          </p>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-        >
-          Sign out
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800">
-        {(["analytics", "docs", "users", "usage", "feedback", "email"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5 ${
-              tab === t
-                ? "border-blue-500 text-blue-500 dark:text-blue-400"
-                : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-            }`}
-          >
-            {t === "analytics" ? "Analytics" : t === "docs" ? "Documents" : t === "users" ? "Users" : t === "usage" ? "Feature usage" : t === "feedback" ? "Feedback" : "Email"}
-            {t === "feedback" && feedbackOpenCount > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold bg-red-500 text-white tabular-nums">
-                {feedbackOpenCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {tab === "docs" && (
-      <>
-      {/* Search + reported filter */}
-      <div className="flex items-center gap-2">
-      <div className="relative flex-1">
-        <svg
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-        </svg>
-        <input
-          type="text"
-          placeholder="Search by slug, title, or content…"
-          value={search}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-        <div className="shrink-0 flex items-center gap-1 p-1 rounded-xl bg-gray-100/80 dark:bg-gray-900/60">
-          {([
-            { id: "all" as const, label: "All" },
-            { id: "markdown" as const, label: "Docs" },
-            { id: "artifact" as const, label: "Artifacts" },
-          ]).map((k) => (
-            <button
-              key={k.id}
-              onClick={() => { setDocKind(k.id); if (token) loadDocs(token, 1, search, reportedOnly, k.id); }}
-              aria-pressed={docKind === k.id}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                docKind === k.id
-                  ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm"
-                  : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
-              }`}
-            >
-              {k.label}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={toggleReported}
-          className={`shrink-0 px-3 py-2.5 text-sm rounded-xl border transition-colors ${
-            reportedOnly
-              ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
-              : "border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-          }`}
-          title="Show only reported documents"
-        >
-          ⚑ Reported
-        </button>
-      </div>
-
-      {/* Table */}
-      {dashLoading ? (
-        <div className="flex justify-center py-16">
-          <MarkdropLoader label="Loading documents…" size="sm" />
-        </div>
-      ) : docs.length === 0 ? (
-        <div className="text-center py-16 text-sm text-gray-500 dark:text-gray-400">
-          {search ? "No documents match your search." : "No documents yet."}
-        </div>
-      ) : (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Slug
-                </th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Title
-                </th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Views
-                </th>
-                <th className="hidden md:table-cell text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Created
-                </th>
-                <th className="hidden lg:table-cell text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Expiry
-                </th>
-                <th className="hidden lg:table-cell text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Chars
-                </th>
-                <th className="px-4 py-3 w-20" />
-              </tr>
-            </thead>
-            <tbody>
-              {docs.map((doc, i) => {
-                const isExpired =
-                  doc.expires_at != null && new Date(doc.expires_at) < new Date();
-                const isConfirming = confirmDelete === doc.slug;
-                const isDeleting = deletingSlug === doc.slug;
-
-                return (
-                  <tr
-                    key={doc.slug}
-                    onClick={() => {
-                      if (confirmDelete && confirmDelete !== doc.slug) {
-                        setConfirmDelete(null);
-                      }
-                    }}
-                    className={`border-b last:border-0 border-gray-100 dark:border-gray-800 ${
-                      i % 2 === 0
-                        ? "bg-white dark:bg-transparent"
-                        : "bg-gray-50/50 dark:bg-gray-900/20"
-                    }`}
-                  >
-                    {/* Slug */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        {doc.is_password_protected && (
-                          <svg
-                            className="w-3 h-3 text-amber-500 shrink-0"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        )}
-                        <a
-                          href={`/${doc.slug}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono text-xs text-blue-500 dark:text-blue-400 hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {doc.slug}
-                        </a>
-                        {doc.kind === "artifact" && (
-                          <ArtifactBadge renderer={doc.renderer} label={doc.type_label} className="shrink-0" />
-                        )}
-                        {doc.report_count > 0 && (
-                          <span
-                            title={`${doc.report_count} report(s)`}
-                            className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400"
-                          >
-                            ⚑ {doc.report_count}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Title */}
-                    <td className="px-4 py-3 max-w-xs">
-                      <p className="text-xs text-gray-800 dark:text-gray-200 truncate">
-                        {doc.title ?? (
-                          <span className="italic text-gray-400 dark:text-gray-600">
-                            Untitled
-                          </span>
-                        )}
-                      </p>
-                      {doc.kind === "artifact" && doc.original_filename && (
-                        <p className="mt-0.5 text-[11px] font-mono text-gray-400 dark:text-gray-600 truncate">
-                          {doc.original_filename}
-                        </p>
-                      )}
-                      <p className="text-[10px] mt-0.5 truncate">
-                        {doc.owner_email ? (
-                          <span className="text-emerald-600 dark:text-emerald-400" title={doc.owner_id ?? ""}>👤 {doc.owner_email}</span>
-                        ) : (
-                          <span className="text-gray-400 dark:text-gray-600">anonymous</span>
-                        )}
-                      </p>
-                    </td>
-
-                    {/* Views */}
-                    <td className="px-4 py-3 text-right">
-                      <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
-                        {doc.views.toLocaleString()}
-                      </span>
-                    </td>
-
-                    {/* Created */}
-                    <td className="hidden md:table-cell px-4 py-3">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(doc.created_at).toLocaleDateString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </span>
-                    </td>
-
-                    {/* Expiry */}
-                    <td className="hidden lg:table-cell px-4 py-3">
-                      {doc.expires_at ? (
-                        <span
-                          className={`text-xs font-medium ${
-                            isExpired
-                              ? "text-red-500 dark:text-red-400"
-                              : "text-green-600 dark:text-green-400"
-                          }`}
-                        >
-                          {isExpired
-                            ? "Expired"
-                            : new Date(doc.expires_at).toLocaleDateString("en-GB", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400 dark:text-gray-600">
-                          Never
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Chars */}
-                    <td className="hidden lg:table-cell px-4 py-3 text-right">
-                      <span className="text-xs tabular-nums text-gray-400 dark:text-gray-600">
-                        {doc.kind === "artifact"
-                          ? formatBytes(doc.size_bytes ?? 0)
-                          : doc.content_length.toLocaleString()}
-                      </span>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        {/* Edit */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEdit(doc.slug);
-                          }}
-                          className="p-1.5 rounded text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                          title="Edit document"
-                        >
-                          <svg
-                            className="w-3.5 h-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"
-                            />
-                          </svg>
-                        </button>
-
-                        {/* Delete */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(doc.slug);
-                          }}
-                          disabled={isDeleting}
-                          className={`p-1.5 rounded transition-colors ${
-                            isConfirming
-                              ? "bg-red-500 hover:bg-red-600 text-white"
-                              : "text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                          }`}
-                          title={isConfirming ? "Click again to confirm" : "Delete document"}
-                        >
-                          {isDeleting ? (
-                            <div className="w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                          ) : isConfirming ? (
-                            <span className="text-[10px] font-semibold px-0.5 leading-none">Sure?</span>
-                          ) : (
-                            <svg
-                              className="w-3.5 h-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                              />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Pagination */}
-      {pages > 1 && (
-        <div className="flex items-center justify-between pt-1">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Page {page} of {pages} · {total.toLocaleString()} documents
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              disabled={page <= 1}
-              onClick={() => {
-                const p = page - 1;
-                setPage(p);
-                if (token) loadDocs(token, p, search, reportedOnly, docKind);
-              }}
-              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
-            >
-              ← Prev
-            </button>
-            <button
-              disabled={page >= pages}
-              onClick={() => {
-                const p = page + 1;
-                setPage(p);
-                if (token) loadDocs(token, p, search, reportedOnly, docKind);
-              }}
-              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
-            >
-              Next →
-            </button>
-          </div>
-        </div>
-      )}
-      </>
-      )}
-
-      {tab === "users" && (
-        <>
-          {/* User search */}
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search users by email or name…"
-              value={usersSearch}
-              onChange={(e) => handleUsersSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {usersLoading ? (
-            <div className="flex justify-center py-16"><div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /></div>
-          ) : users.length === 0 ? (
-            <div className="text-center py-16 text-sm text-gray-500 dark:text-gray-400">{usersSearch ? "No users match your search." : "No users yet."}</div>
-          ) : (
-            <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <th className="text-left px-4 py-3">User</th>
-                    <th className="hidden sm:table-cell text-left px-4 py-3">Providers</th>
-                    <th className="text-right px-4 py-3">Docs</th>
-                    <th className="text-center px-4 py-3" title="VS Code sync">VS Code</th>
-                    <th className="text-center px-4 py-3" title="Google Drive connected / docs exported">Drive</th>
-                    <th className="hidden sm:table-cell text-right px-4 py-3" title="P2P files shared">Shares</th>
-                    <th className="hidden sm:table-cell text-right px-4 py-3" title="Artifacts published and storage used">Artifacts</th>
-                    <th className="hidden lg:table-cell text-left px-4 py-3">Last login</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u, i) => (
-                    <tr key={u.id} className={`border-b last:border-0 border-gray-100 dark:border-gray-800 ${i % 2 === 0 ? "" : "bg-gray-50/50 dark:bg-gray-900/20"}`}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {u.picture ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={u.picture} alt="" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />
-                          ) : (
-                            <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center shrink-0">{(u.name || u.email).charAt(0).toUpperCase()}</span>
-                          )}
-                          <div className="min-w-0">
-                            {u.name && <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">{u.name}</p>}
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{u.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="hidden sm:table-cell px-4 py-3">
-                        <div className="flex gap-1">
-                          {u.providers.map((p) => (
-                            <span key={p} className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">{p}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right text-xs tabular-nums text-gray-500 dark:text-gray-400">{u.document_count}</td>
-
-                      {/* VS Code sync */}
-                      <td className="px-4 py-3 text-center">
-                        {u.vscode_last_synced_at ? (
-                          <span
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
-                            title={`Last synced ${new Date(u.vscode_last_synced_at).toLocaleString()} · ${u.vscode_token_count} token(s)`}
-                          >
-                            ✓ {new Date(u.vscode_last_synced_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
-                          </span>
-                        ) : u.vscode_token_count > 0 ? (
-                          <span className="text-[10px] text-amber-600 dark:text-amber-400" title={`${u.vscode_token_count} token(s), never synced`}>token, no sync</span>
-                        ) : (
-                          <span className="text-gray-300 dark:text-gray-600">—</span>
-                        )}
-                      </td>
-
-                      {/* Google Drive */}
-                      <td className="px-4 py-3 text-center">
-                        {u.google_connected ? (
-                          <span
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                            title={`Drive connected · ${u.google_export_count} doc(s) exported`}
-                          >
-                            ✓{u.google_export_count > 0 ? ` ${u.google_export_count}` : ""}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300 dark:text-gray-600">—</span>
-                        )}
-                      </td>
-
-                      {/* P2P shares */}
-                      <td className="hidden sm:table-cell px-4 py-3 text-right text-xs tabular-nums text-gray-500 dark:text-gray-400">{u.share_count || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
-
-                      {/* Artifacts published + what they're storing */}
-                      <td className="hidden sm:table-cell px-4 py-3 text-right">
-                        {u.artifact_count ? (
-                          <span
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-500/10 text-orange-600 dark:text-orange-400"
-                            title={`${u.artifact_count} artifact(s) · ${formatBytes(u.artifact_bytes)} stored`}
-                          >
-                            {u.artifact_count} · {formatBytes(u.artifact_bytes)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
-                        )}
-                      </td>
-
-                      <td className="hidden lg:table-cell px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {usersPages > 1 && (
-            <div className="flex items-center justify-between pt-1">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Page {usersPage} of {usersPages} · {usersTotal.toLocaleString()} users</p>
-              <div className="flex items-center gap-2">
-                <button disabled={usersPage <= 1} onClick={() => { const p = usersPage - 1; if (token) loadUsers(token, p, usersSearch); }}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
-                <button disabled={usersPage >= usersPages} onClick={() => { const p = usersPage + 1; if (token) loadUsers(token, p, usersSearch); }}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {tab === "usage" && (
-        <>
-          {usageLoading && !usage ? (
-            <div className="flex justify-center py-16"><div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /></div>
-          ) : (
-            <>
-              {/* Summary cards */}
-              {usage && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {/* Artifacts */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900/30">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">Artifacts</p>
-                    <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.artifact_total.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">published</p>
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
-                      {usage.artifact_users.toLocaleString()} publisher{usage.artifact_users === 1 ? "" : "s"} · {formatBytes(usage.artifact_bytes)} stored
-                      {usage.artifact_protected > 0 && <> · {usage.artifact_protected} protected</>}
-                    </p>
-                  </div>
-                  {/* VS Code sync */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900/30">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">VS Code sync</p>
-                    <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.vscode_users_synced.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">users have synced</p>
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
-                      {usage.vscode_users_with_token.toLocaleString()} created a token · {usage.vscode_tokens_total.toLocaleString()} tokens total
-                    </p>
-                  </div>
-                  {/* Google Drive */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900/30">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">Google Drive</p>
-                    <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.google_connected_users.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">users connected Drive</p>
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
-                      {usage.google_exported_docs.toLocaleString()} docs exported to Google Docs
-                    </p>
-                  </div>
-                  {/* P2P sharing */}
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900/30">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-purple-600 dark:text-purple-400">P2P file sharing</p>
-                    <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-50 tabular-nums">{usage.share_events_total.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">files shared</p>
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
-                      {usage.share_users_identified.toLocaleString()} signed-in senders · {usage.share_events_anonymous.toLocaleString()} anonymous
-                    </p>
-                    {usage.share_connections && usage.share_connections.rooms > 0 && (() => {
-                      const c = usage.share_connections;
-                      const pct = (n: number) => `${Math.round((n / c.rooms) * 100)}%`;
-                      return (
-                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-1">
-                          <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Connections, last 30 days</p>
-                          <p className="text-xs text-gray-700 dark:text-gray-300 tabular-nums">
-                            {pct(c.connected)} connected of {c.rooms.toLocaleString()} · {c.relayed.toLocaleString()} via relay
-                          </p>
-                          {c.failed > 0 && (
-                            <p className="text-[11px] text-gray-400 dark:text-gray-500 tabular-nums"
-                              title="No public address found = STUN blocked. Address found but no pair = client isolation or no hairpin NAT; only TURN fixes these.">
-                              {c.failed} failed: {c.failed_no_stun} STUN blocked · {c.failed_with_stun} no direct path
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
-
-              {usage && usage.artifact_by_type.length > 0 && (
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900/30">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
-                    Artifacts by type
-                  </p>
-                  <div className="space-y-2">
-                    {usage.artifact_by_type.map((t) => {
-                      const pct = usage.artifact_total
-                        ? Math.round((t.count / usage.artifact_total) * 100)
-                        : 0;
-                      return (
-                        <div key={t.renderer} className="flex items-center gap-3">
-                          <div className="w-28 shrink-0">
-                            <ArtifactBadge renderer={t.renderer} label={t.label} />
-                          </div>
-                          <div className="flex-1 h-2 rounded bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                            <div className="h-full bg-orange-500/70 rounded" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="w-10 text-right text-xs tabular-nums text-gray-600 dark:text-gray-300">
-                            {t.count}
-                          </span>
-                          <span className="w-20 text-right text-xs tabular-nums text-gray-400">
-                            {formatBytes(t.bytes)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Share events */}
-              <div className="flex items-center justify-between pt-2">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  P2P share log <span className="font-normal text-gray-400">· {shareTotal.toLocaleString()}</span>
-                </h2>
-                <button
-                  onClick={toggleShareIdentified}
-                  className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                    shareIdentified
-                      ? "border-purple-300 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400"
-                      : "border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-                  }`}
-                  title="Hide anonymous shares"
-                >
-                  👤 Signed-in only
-                </button>
-              </div>
-
-              {shareEvents.length === 0 ? (
-                <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400">
-                  {shareIdentified ? "No shares from signed-in users yet." : "No file shares recorded yet."}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        <th className="text-left px-4 py-3">File</th>
-                        <th className="hidden sm:table-cell text-right px-4 py-3">Size</th>
-                        <th className="text-left px-4 py-3">Sender</th>
-                        <th className="text-left px-4 py-3">When</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {shareEvents.map((ev, i) => (
-                        <tr key={ev.id} className={`border-b last:border-0 border-gray-100 dark:border-gray-800 ${i % 2 === 0 ? "" : "bg-gray-50/50 dark:bg-gray-900/20"}`}>
-                          <td className="px-4 py-3 max-w-xs">
-                            <p className="text-xs text-gray-800 dark:text-gray-200 truncate" title={ev.file_name ?? ""}>
-                              {ev.file_name ?? <span className="italic text-gray-400">unknown</span>}
-                            </p>
-                            {ev.mime_type && <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{ev.mime_type}</p>}
-                          </td>
-                          <td className="hidden sm:table-cell px-4 py-3 text-right text-xs tabular-nums text-gray-500 dark:text-gray-400">
-                            {ev.file_size != null ? formatBytes(ev.file_size) : "—"}
-                          </td>
-                          <td className="px-4 py-3">
-                            {ev.user_email ? (
-                              <span className="text-xs text-emerald-600 dark:text-emerald-400 truncate" title={ev.user_id ?? ""}>👤 {ev.user_email}</span>
-                            ) : (
-                              <span className="text-xs text-gray-400 dark:text-gray-600">anonymous</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                            {new Date(ev.ts).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {sharePages > 1 && (
-                <div className="flex items-center justify-between pt-1">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Page {sharePage} of {sharePages} · {shareTotal.toLocaleString()} shares</p>
-                  <div className="flex items-center gap-2">
-                    <button disabled={sharePage <= 1} onClick={() => loadShareEventsPage(sharePage - 1)}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
-                    <button disabled={sharePage >= sharePages} onClick={() => loadShareEventsPage(sharePage + 1)}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
-
-      {tab === "email" && token && <EmailPanel token={token} />}
-      {tab === "analytics" && token && <AnalyticsPanel token={token} />}
-
-      {tab === "feedback" && (
-        <>
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
-              {([["", "All"], ["bug", "Bugs"], ["feature", "Features"]] as const).map(([val, label]) => (
-                <button
-                  key={label}
-                  onClick={() => setFeedbackType(val as FeedbackType | "")}
-                  className={`px-3 py-1.5 transition-colors ${
-                    feedbackType === val
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
-              {([["", "All"], ["open", "Open"], ["resolved", "Resolved"]] as const).map(([val, label]) => (
-                <button
-                  key={label}
-                  onClick={() => setFeedbackStatus(val as "open" | "resolved" | "")}
-                  className={`px-3 py-1.5 transition-colors ${
-                    feedbackStatus === val
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">
-              {feedbackTotal.toLocaleString()} total · {feedbackOpenCount.toLocaleString()} open
-            </span>
-          </div>
-
-          {feedbackLoading && feedback.length === 0 ? (
-            <div className="flex justify-center py-16"><div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" /></div>
-          ) : feedback.length === 0 ? (
-            <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400">No feedback yet.</div>
-          ) : (
-            <div className="space-y-3">
-              {feedback.map((f) => (
-                <div
-                  key={f.id}
-                  className={`rounded-xl border p-4 bg-white dark:bg-gray-900/30 ${
-                    f.status === "open"
-                      ? "border-gray-200 dark:border-gray-700"
-                      : "border-gray-100 dark:border-gray-800 opacity-70"
-                  }`}
-                >
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    {f.type === "bug" ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">🐞 Bug</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">💡 Feature</span>
-                    )}
-                    {f.status === "resolved" && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">✓ Resolved</span>
-                    )}
-                    <span className="ml-auto text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                      {new Date(f.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </div>
-
-                  <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">{f.message}</p>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
-                    {(f.user_email || f.email) && (
-                      <span className="break-all">
-                        {f.user_email ? <>👤 {f.user_email}</> : <>✉️ {f.email}</>}
-                        {f.user_email && f.email && f.email !== f.user_email && <span className="text-gray-400"> · reply-to {f.email}</span>}
-                      </span>
-                    )}
-                    {!f.user_email && !f.email && <span className="italic text-gray-400">anonymous</span>}
-                    {f.page_url && <span className="text-gray-400 break-all">on {f.page_url}</span>}
-                  </div>
-
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      onClick={() => setFeedbackResolved(f.id, f.status !== "resolved")}
-                      disabled={feedbackBusyId === f.id}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40 transition-colors"
-                    >
-                      {f.status === "resolved" ? "Reopen" : "Mark resolved"}
-                    </button>
-                    <button
-                      onClick={() => removeFeedback(f.id)}
-                      disabled={feedbackBusyId === f.id}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-red-200 dark:border-red-900/50 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-40 transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {feedbackPages > 1 && (
-            <div className="flex items-center justify-between pt-1">
-              <p className="text-xs text-gray-500 dark:text-gray-400">Page {feedbackPage} of {feedbackPages}</p>
-              <div className="flex items-center gap-2">
-                <button disabled={feedbackPage <= 1} onClick={() => token && loadFeedback(token, feedbackPage - 1, feedbackType, feedbackStatus)}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">← Prev</button>
-                <button disabled={feedbackPage >= feedbackPages} onClick={() => token && loadFeedback(token, feedbackPage + 1, feedbackType, feedbackStatus)}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Next →</button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
+    <UnauthorizedContext.Provider value={signOut}>
+      <ThemeScope theme="dark" className="flex min-h-dvh w-full min-w-0 flex-1 flex-col">
+        {body}
+      </ThemeScope>
+    </UnauthorizedContext.Provider>
   );
 }

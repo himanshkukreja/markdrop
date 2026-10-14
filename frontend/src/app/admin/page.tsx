@@ -1,7 +1,7 @@
 import AdminApp from "./AdminApp";
 
 export const metadata = {
-  title: "Admin — Markdrop",
+  title: "Admin console — Markdrop",
   robots: "noindex, nofollow",
 };
 
