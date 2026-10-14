@@ -70,6 +70,7 @@ def _to_response(workspace: Workspace, role: str, counts: dict | None = None) ->
             logo_url=b.logo_url,
             accent_color=b.accent_color,
             hide_markdrop_branding=b.hide_markdrop_branding,
+            logo_well=b.logo_well,
         ),
         settings=SettingsPayload(
             viewer_chrome=s.viewer_chrome,
@@ -78,6 +79,18 @@ def _to_response(workspace: Workspace, role: str, counts: dict | None = None) ->
         role=role,  # type: ignore[arg-type]
         **(counts or {}),
     )
+
+
+def _branding_update(payload: BrandingPayload | None) -> dict | None:
+    """The branding dict to store. `logo_well` is left out when the client did
+    not send it, so a settings form that predates the field doesn't silently
+    reset it to automatic on every save."""
+    if payload is None:
+        return None
+    out = payload.model_dump()
+    if "logo_well" not in payload.model_fields_set:
+        out.pop("logo_well", None)
+    return out
 
 
 @router.get("", response_model=WorkspaceListResponse)
@@ -146,7 +159,7 @@ async def update_workspace(
         db,
         workspace_id,
         name=data.name,
-        branding=data.branding.model_dump() if data.branding is not None else None,
+        branding=_branding_update(data.branding),
         settings=data.settings.model_dump() if data.settings is not None else None,
     )
     return _to_response(workspace, role)

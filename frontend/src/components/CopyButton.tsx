@@ -1,23 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { CopyButton as DSCopyButton, type CopyButtonProps as DSCopyButtonProps } from "@/components/ui";
 
-export default function CopyButton({ text, label = "Copy Link", className, onCopy }: { text: string; label?: string; className?: string; onCopy?: () => void }) {
-  const [copied, setCopied] = useState(false);
+/**
+ * Compatibility wrapper over the design-system CopyButton (Clipboard API with a fallback, "Copied"
+ * for 1.6s, announced through the shared status region). Keeps the old default export and props
+ * (`text`, `label`, `className`, `onCopy`); the old "Copy Link" / "Copied!" read "Copy link" /
+ * "Copied" now. Every DS prop (size, variant, iconOnly, block, copiedLabel…) passes through.
+ */
+export type CopyButtonProps = DSCopyButtonProps;
 
-  async function handleCopy() {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    onCopy?.();
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <button
-      onClick={handleCopy}
-      className={`px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]${className ? ` ${className}` : ""}`}
-    >
-      {copied ? "Copied!" : label}
-    </button>
-  );
+export default function CopyButton({ label = "Copy link", ...rest }: CopyButtonProps) {
+  return <DSCopyButton label={label} {...rest} />;
 }

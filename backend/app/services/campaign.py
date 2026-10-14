@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import html as html_lib
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -60,9 +61,17 @@ def verify_unsubscribe_token(token: str) -> str | None:
     return user_id if hmac.compare_digest(sig, expected) else None
 
 
+# The route lives on the auth router, at /api/v1/auth/unsubscribe. Campaigns
+# sent before this fix carry /api/v1/unsubscribe, which used to 404; main.py now
+# registers that path as an alias of the same handler, so those links work too.
+# Never remove the alias: those emails sit in inboxes indefinitely.
+UNSUBSCRIBE_PATH = "/api/v1/auth/unsubscribe"
+LEGACY_UNSUBSCRIBE_PATH = "/api/v1/unsubscribe"
+
+
 def unsubscribe_url(user_id: str) -> str:
     return (
-        f"{settings.api_base_url.rstrip('/')}/api/v1/auth/unsubscribe"
+        f"{settings.api_base_url.rstrip('/')}{UNSUBSCRIBE_PATH}"
         f"?t={unsubscribe_token(user_id)}"
     )
 
@@ -125,21 +134,26 @@ def render(html: str, recipient: dict[str, Any]) -> str:
     template never references the unsubscribe URL, a plain footer is appended —
     a bulk send must not be able to go out without one.
     """
-    unsub = unsubscribe_url(recipient["id"])
-    name = (recipient.get("name") or "").strip() or "there"
+    unsub = html_lib.escape(unsubscribe_url(recipient["id"]), quote=True)
+    # Names and addresses are user-controlled text going into HTML that lands in
+    # an inbox, so they are escaped. The replacement is a function, not a string:
+    # re.sub would otherwise read a backslash in someone's name as a group
+    # reference and raise.
+    name = html_lib.escape((recipient.get("name") or "").strip() or "there")
+    email = html_lib.escape(recipient["email"])
 
     out = html
-    out = re.sub(r"\{\{\s*name\s*\}\}", name, out, flags=re.I)
-    out = re.sub(r"\{\{\s*email\s*\}\}", recipient["email"], out, flags=re.I)
+    out = re.sub(r"\{\{\s*name\s*\}\}", lambda _m: name, out, flags=re.I)
+    out = re.sub(r"\{\{\s*email\s*\}\}", lambda _m: email, out, flags=re.I)
 
     if _UNSUB_MARKER.search(out):
-        return _UNSUB_MARKER.sub(unsub, out)
+        return _UNSUB_MARKER.sub(lambda _m: unsub, out)
 
     footer = (
         '<div style="margin-top:28px;padding-top:16px;border-top:1px solid #e5e7eb;'
-        'font:12px -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#9ca3af;'
-        'text-align:center">'
-        f'<a href="{unsub}" style="color:#9ca3af">Unsubscribe from Markdrop updates</a>'
+        "font:12px/1.6 'Manrope',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"
+        'color:#6a7282;text-align:center">'
+        f'<a href="{unsub}" style="color:#6a7282">Unsubscribe from Markdrop updates</a>'
         "</div>"
     )
     # A template may be a full document; appending past </body> puts the footer

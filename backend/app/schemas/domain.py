@@ -69,6 +69,8 @@ class HostResolution(BaseModel):
     favicon_url: str | None = None
     logo_url: str | None = None
     accent_color: str | None = None
+    # Which well the tenant header puts the logo on (D38); None = follow the reader's theme.
+    logo_well: Literal["light", "dark", "checker"] | None = None
     hide_markdrop_branding: bool = False
     viewer_chrome: Literal["full", "minimal", "none"] = "full"
     require_auth_to_view: bool = False

@@ -1,5 +1,29 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.markdrop.in";
 
+/**
+ * An API error that keeps the HTTP status and, on a rate limit, the server's Retry-After (seconds), so
+ * screens can show "Too many tries… wait 42 seconds" with a live countdown (REVAMP_PLAN 7.22). Its
+ * message is the server's `detail` (or the rate limiter's `error`), so existing `e.message` checks hold.
+ * `status` 0 means a network error; a 401 or 404 is an answer, while 0 or a 5xx is an outage (F7).
+ */
+export class ApiError extends Error {
+  status: number;
+  retryAfter: number | null;
+  constructor(message: string, status: number, retryAfter: number | null = null) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.retryAfter = retryAfter;
+  }
+}
+
+async function apiError(res: Response, fallback: string): Promise<ApiError> {
+  const body = (await res.json().catch(() => null)) as { detail?: unknown; error?: unknown } | null;
+  const message = typeof body?.detail === "string" ? body.detail : typeof body?.error === "string" ? body.error : fallback;
+  const ra = Number(res.headers.get("Retry-After"));
+  return new ApiError(message, res.status, Number.isFinite(ra) && ra > 0 ? ra : null);
+}
+
 export { API_BASE };
 
 // ── User session token ─────────────────────────────────────────────────────────
@@ -20,19 +44,6 @@ export function clearToken(): void {
 function authHeaders(): Record<string, string> {
   const t = getToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
-}
-
-/**
- * A failed API call that callers need to tell apart by status: a 401 or 404 is
- * an answer, while a network error (`status` 0) or a 5xx is an outage.
- */
-export class ApiError extends Error {
-  readonly status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-  }
 }
 
 export interface DocumentCreateResponse {
@@ -253,8 +264,7 @@ export async function createDocument(
     }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Failed to create document" }));
-    throw new Error(err.detail);
+    throw await apiError(res, "Failed to create document");
   }
   return res.json();
 }
@@ -359,8 +369,7 @@ export async function updateDocument(
     }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Failed to update" }));
-    throw new Error(err.detail);
+    throw await apiError(res, "Failed to update");
   }
   return res.json();
 }
@@ -371,8 +380,7 @@ export async function deleteDocument(slug: string, editSecret?: string): Promise
     headers: { ...authHeaders(), ...(editSecret ? { "x-edit-secret": editSecret } : {}) },
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Failed to delete" }));
-    throw new Error(err.detail);
+    throw await apiError(res, "Failed to delete");
   }
 }
 
@@ -431,8 +439,7 @@ export async function changeSlug(slug: string, newSlug: string, editSecret?: str
     body: JSON.stringify({ new_slug: newSlug }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Failed to change URL" }));
-    throw new Error(err.detail);
+    throw await apiError(res, "Failed to change URL");
   }
   return res.json();
 }
@@ -462,8 +469,7 @@ export async function claimDocument(slug: string, editSecret: string): Promise<D
   });
   if (res.status === 401) throw new Error("Please log in to claim this document");
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Failed to claim" }));
-    throw new Error(err.detail);
+    throw await apiError(res, "Failed to claim");
   }
   return res.json();
 }
@@ -507,8 +513,7 @@ export async function emailRequestLogin(email: string): Promise<void> {
     body: JSON.stringify({ email }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Could not send email" }));
-    throw new Error(err.detail);
+    throw await apiError(res, "Could not send email");
   }
 }
 

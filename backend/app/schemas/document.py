@@ -205,6 +205,8 @@ class MyDocListResponse(BaseModel):
     total: int
     page: int
     pages: int
+    # The page size actually applied (`per_page`, else `limit`).
+    per_page: int = 20
     # Totals per kind, regardless of the active filter — the sidebar shows all
     # three at once, and three separate requests to render three numbers is
     # exactly the fan-out that tripped the API rate limit before.

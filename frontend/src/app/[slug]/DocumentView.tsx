@@ -1,111 +1,40 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import ImmersiveExit from "@/components/ImmersiveExit";
-import { useQueryFlags } from "@/lib/useQueryFlags";
-import MarkdropLoader from "@/components/MarkdropLoader";
-import * as e2e from "@/lib/e2e";
-import CopyButton from "@/components/CopyButton";
 import AccessGate from "@/components/access/AccessGate";
-import MarkdownToolbar from "@/components/MarkdownToolbar";
-import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, API_BASE } from "@/lib/api";
-import { MAX_CHARS } from "@/lib/limits";
-import { HANDOFF_FRAGMENT } from "@/lib/hosts";
-import { useAuth } from "@/contexts/AuthContext";
-import Modal from "@/components/Modal";
-import Spinner from "@/components/Spinner";
-import VSCodeIcon from "@/components/VSCodeIcon";
-import ArtifactView from "./ArtifactView";
-import ShareDialog from "@/components/access/ShareDialog";
+import { Alert, Button, CopyButton, Drawer, EmptyState, Skeleton, type MenuEntry } from "@/components/ui";
+import { SiteHeader } from "@/components/shell/SiteHeader";
+import { TenantHeader, useTenant } from "@/components/tenant";
+import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
+import { ReadingProgress, Toc, TocTicks, tocHeadings, useReadingProgress, type Heading } from "@/components/reading";
+import * as e2e from "@/lib/e2e";
+import { recordEvent } from "@/lib/api";
 import { track } from "@/lib/track";
-import { useReadDepth } from "@/lib/readDepth";
+import { useDocumentViewer } from "./doc/useDocumentViewer";
+import type { DocumentViewProps } from "./doc/types";
+import { DocumentActionBar, DocumentBar } from "./doc/DocumentBar";
+import { DetailsPanel, readingMinutes } from "./doc/DetailsPanel";
+import { DeviceKeyNotice, EncryptionState, RotatedNotice } from "./doc/EncryptionState";
+import { LeaveGuard } from "./doc/LeaveGuard";
+import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
+import { Colophon } from "./doc/Colophon";
+import vs from "./doc/viewer.module.css";
 
-type ViewMode = "write" | "split" | "preview";
-
-function GoogleDocIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" fill="#4285F4" />
-      <path d="M14 2v6h6z" fill="#A1C2FA" />
-      <path d="M8 12h8M8 15h8M8 18h5" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-/** Two overlapping pages — "duplicate / save a copy". */
-function CopyDocIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="9" y="9" width="11" height="11" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
-}
-
-/** Circular refresh arrow; spins while a sync is in flight. */
-function ReloadIcon({ spinning = false }: { spinning?: boolean }) {
-  return (
-    <svg
-      className={`w-3.5 h-3.5${spinning ? " animate-spin" : ""}`}
-      viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden
-    >
-      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-      <path d="M21 3v6h-6" />
-    </svg>
-  );
-}
-
-interface Props {
-  slug: string;
-  title: string | null;
-  content: string;
-  url: string;
-  createdAt: string;
-  expiresAt: string | null;
-  views?: number;
-  editSecret?: string;
-  isPasswordProtected?: boolean;
-  /**
-   * Which gate the anonymous server render hit, if any. "password" is a shared
-   * secret anyone may type; "signin" means the document is not public and the
-   * reader has to be somebody. They are different questions and must not be
-   * asked with the same box.
-   */
-  gate?: "password" | "signin" | null;
-  /** Absolute sign-in URL. Set only on a workspace domain, which has no
-   *  `/login` of its own. */
-  signInUrl?: string | null;
-  isOwned?: boolean;
-  syncedWithVscode?: boolean;
-  /** `content` is a sealed envelope; the key is in the URL fragment, not here. */
-  encrypted?: boolean;
-  /** See ArtifactView — only ever set on a workspace's own domain. */
-  viewerChrome?: "full" | "minimal" | "none";
-}
-
-function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
-  const ms = new Date(expiresAt).getTime() - Date.now();
-  if (ms <= 0) return null;
-  const hours = Math.ceil(ms / 3_600_000);
-  const days = Math.ceil(ms / 86_400_000);
-  const label =
-    hours <= 24
-      ? hours === 1
-        ? "Expires in 1 hour"
-        : `Expires in ${hours} hours`
-      : days === 1
-      ? "Expires in 1 day"
-      : `Expires in ${days} days`;
-  return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-      {label}
-    </span>
-  );
-}
+// Code that only runs after an interaction or in a specific state loads on demand, so a reader's first
+// load carries the reading view only (REVAMP_BUILD §8.5 budget for /[slug]). Each still renders on the
+// server when the state calls for it (dynamic() keeps SSR), so artifact pages and gates are unchanged.
+const ArtifactView = dynamic(() => import("./ArtifactView"));
+const ShareDialog = dynamic(() => import("@/components/access/ShareDialog"));
+const PublishedPanel = dynamic(() => import("@/components/kit/PublishedPanel").then((m) => m.PublishedPanel));
+const GoogleDocsCard = dynamic(() => import("./doc/GoogleDocsCard").then((m) => m.GoogleDocsCard));
+const EditorScreen = dynamic(() => import("./doc/EditorScreen").then((m) => m.EditorScreen));
+const SecretUnlock = dynamic(() => import("./doc/EditorScreen").then((m) => m.SecretUnlock));
+const ReportDialog = dynamic(() => import("./doc/ReportDialog").then((m) => m.ReportDialog));
+const SaveCopyDialog = dynamic(() => import("./doc/SaveCopyDialog").then((m) => m.SaveCopyDialog));
 
 /**
  * Does the document already open with a heading that says what the title says?
@@ -115,57 +44,6 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string }) {
  * entirely. But most documents *do* lead with their own H1, and printing ours
  * above it just says the same thing twice in two different sizes.
  */
-/**
- * What an encrypted document shows before — or instead of — its text.
- *
- * "No key" is the interesting case and by far the most common: someone shared
- * `markdrop.in/slug` after copying it out of the address bar of a browser that
- * hid the fragment, or a chat app trimmed it. Nothing can be done server-side,
- * so the screen has to explain the situation rather than look broken.
- */
-function EncryptionGate({ state }: { state: "working" | "nokey" | "failed" }) {
-  if (state === "working") {
-    return (
-      <div className="py-14 flex justify-center">
-        <MarkdropLoader label="Decrypting in your browser…" size="sm" />
-      </div>
-    );
-  }
-  const missing = state === "nokey";
-  return (
-    <div className="py-12 px-4 flex flex-col items-center text-center gap-3">
-      <svg className="w-9 h-9 text-gray-400 dark:text-gray-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
-        <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
-      </svg>
-      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
-        {missing ? "This document is end-to-end encrypted" : "That key doesn't open this document"}
-      </p>
-      <p className="max-w-md text-xs leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-        {missing ? (
-          <>
-            Its key lives in the part of the link after the{" "}
-            <span className="font-mono text-gray-600 dark:text-gray-300">#</span>, and this link
-            arrived without it. Ask whoever shared it for the full link — it looks like{" "}
-            <span className="font-mono break-all text-gray-600 dark:text-gray-300">
-              markdrop.in/slug#k=…
-            </span>
-          </>
-        ) : (
-          <>
-            The key is either wrong or the stored document was altered. Encrypted documents are
-            authenticated as well as encrypted, so Markdrop refuses to show anything rather than
-            show you something that may have been tampered with.
-          </>
-        )}
-      </p>
-      <p className="max-w-md text-xs leading-relaxed text-gray-400 dark:text-gray-500">
-        Markdrop cannot help recover it. The key has never been sent to our servers — that is the
-        point of the feature, and it has no exceptions.
-      </p>
-    </div>
-  );
-}
-
 function opensWithOwnTitle(content: string, title: string | null): boolean {
   if (!title) return true;
   const firstLine = content.split("\n").find((l) => l.trim());
@@ -175,819 +53,74 @@ function opensWithOwnTitle(content: string, title: string | null): boolean {
   return norm(heading) === norm(title);
 }
 
-export default function DocumentView({
-  slug,
-  title: initialTitle,
-  content: initialContent,
-  url,
-  createdAt: initialCreatedAt,
-  expiresAt: initialExpiresAt,
-  views: initialViews,
-  editSecret: initialSecret,
-  isPasswordProtected = false,
-  gate = null,
-  signInUrl = null,
-  isOwned = false,
-  syncedWithVscode = false,
-  encrypted = false,
-  viewerChrome = "full",
-}: Props) {
-  const router = useRouter();
-  // Sign-in has to come back to the exact address the reader was refused at —
-  // on a workspace's own domain that is not `/${slug}`.
+/**
+ * The document viewer (REVAMP_PLAN 7.6; REVAMP_BUILD R12/R13).
+ *
+ * All state, effects and handlers live in `useDocumentViewer` (moved there
+ * verbatim in R12); this file only lays the screens out:
+ *
+ *  - **Immersive** (the default for a readable document): the reading column
+ *    alone on `bg`, ReadingProgress, TocTicks, the colophon and ImmersiveExit.
+ *    No header — the server HTML of an immersive document has none (§4.1).
+ *  - **Framed**: SiteHeader (TenantHeader on a workspace domain), the sticky
+ *    DocumentBar, Contents rail · reading column · Details rail at ≥1280px; a
+ *    Contents dropdown and a Details drawer below that; bottom sheets and a
+ *    bottom action bar on phones.
+ *  - **Gates**, **encryption states**, **edit flow**, **?new=1** PublishedPanel.
+ *
+ * One content element serves both reading modes — immersive only swaps its
+ * classes. Rendering a second copy into an overlay would tear the subtree down
+ * and remount it on every toggle, re-running every Mermaid diagram and KaTeX
+ * block inside it. Everything around it sits in fixed slots so React never
+ * re-parents it.
+ */
+export default function DocumentView(props: DocumentViewProps) {
+  const { slug, url, isPasswordProtected = false, gate = null, isOwned = false, encrypted = false, viewerChrome = "full" } = props;
+  const v = useDocumentViewer(props);
+  const {
+    accessDenied, artifactDoc, claimed, claimMsg, claimSecret, decryptState, deviceKeySaved,
+    displayContent, displayCreatedAt, displayExpiresAt, displayTitle, displayViews, editing, gConnected,
+    handleClaim, handleEditClick, handleGoogleExport, handleGoogleReconnect, handlePasswordUnlock, isNew,
+    isOwner, keyFragment, keySource, pwdError, pwdFetching, pwdInput, pwdLocked, pwdUnlocking, pwdVisible,
+    readable, readRef, requestCopy, rotated, secretUnlocked, setDeviceKeySaved, setEditing, setPwdInput,
+    setPwdVisible, setShowCopy, setShowRaw, setShowReport, setShowShare, setReportDone, setReportReason,
+    shareUrl, showCopy, showImmersive, showRaw, showReport, showShare, signInHref, user, vscodeSynced,
+  } = v;
+
+  const tenant = useTenant();
   const pathname = usePathname();
+  const phone = useMediaQuery(PHONE_QUERY);
+  const layerRef = useRef<HTMLDivElement>(null);
+  const [headings, setHeadings] = useState<Heading[]>([]);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [contentsOpen, setContentsOpen] = useState(false);
+  const [panelDismissed, setPanelDismissed] = useState(false);
+  const [secretCopied, setSecretCopied] = useState(false);
+  const [wsShareFailed, setWsShareFailed] = useState(false);
 
-  // Where "Sign in" goes. Supplied by the route when the reader is on a
-  // workspace's own domain, because that host rewrites *every* path to the
-  // document route and has no `/login` — a relative link would 404 at the exact
-  // moment they were trying to identify themselves.
-  //
-  // Decided by the server, not sniffed from `window` after mount: the anchor is
-  // then right in the HTML itself, rather than briefly wrong and corrected once
-  // hydration runs.
-  const signInHref =
-    signInUrl || `/login?next=${encodeURIComponent(pathname || `/${slug}`)}`;
-  // Not useSearchParams: on a prerendered route that would stop this whole view
-  // being server-rendered at all. See lib/useQueryFlags.
-  const { ready: flagsReady, has: hasFlag } = useQueryFlags();
-  const isNew = hasFlag("new");
-  const startInEdit = hasFlag("edit");
-  const startCopy = hasFlag("copy");
-  const startGoogleSync = hasFlag("gsync");
-  const { user, openAuthModal } = useAuth();
-
-  // Claim-to-account state
-  const [claimSecret, setClaimSecret] = useState<string | null>(initialSecret || null);
-  const [claimed, setClaimed] = useState(false);
-  const [claimMsg, setClaimMsg] = useState("");
-  const viewBeaconSent = useRef(false);
-  const editOpened = useRef(false);
-
-  // Google Docs sync state — populated once we confirm the viewer owns this doc
-  const [isOwner, setIsOwner] = useState(false);
-  const [docId, setDocId] = useState<string | null>(null);
-  const [gConnected, setGConnected] = useState(false);
-  const [googleDocUrl, setGoogleDocUrl] = useState<string | null>(null);
-  const [googleDocStale, setGoogleDocStale] = useState(false);
-  const [gBusy, setGBusy] = useState(false);
-  const [gError, setGError] = useState<string | null>(null);
-  const [gNeedsReconnect, setGNeedsReconnect] = useState(false);
-
-  // "Save a copy" (import someone else's doc into your account) state
-  const [showCopy, setShowCopy] = useState(false);
-  const [copyBusy, setCopyBusy] = useState<null | "plain" | "google">(null);
-  const [copyError, setCopyError] = useState("");
-
-  // Abuse report state
-  const [showShare, setShowShare] = useState(false);
-  const [showReport, setShowReport] = useState(false);
-  const [reportReason, setReportReason] = useState("");
-  const [reportBusy, setReportBusy] = useState(false);
-  const [reportDone, setReportDone] = useState(false);
-
-  async function submitReport() {
-    setReportBusy(true);
-    try {
-      await reportDocument(slug, reportReason.trim() || undefined);
-      setReportDone(true);
-    } catch {
-      /* ignore */
-    } finally {
-      setReportBusy(false);
-    }
-  }
-
-  // Source the edit secret from sessionStorage (set by the publish flow) rather
-  // than the URL — so it never leaks via history/referrer/server logs. Seeds the
-  // editor unlock and, for password-protected docs, bypasses the read-password gate.
+  // /new leaves this flag when publishing worked but adding the document to a
+  // workspace didn't (REVAMP_PLAN 7.6 "Workspace share failure").
   useEffect(() => {
-    if (claimSecret || typeof window === "undefined") return;
-    const stored = sessionStorage.getItem(`secret:${slug}`);
-    if (!stored) return;
-    setClaimSecret(stored);
-    setSecretInput(stored);
-    setSecretUnlocked(true);
-    if (isPasswordProtected) {
-      getDocument(slug, undefined, stored)
-        .then((doc) => {
-          adoptDoc(doc);
-          setPwdLocked(false);
-        })
-        .catch(() => {})
-        .finally(() => setPwdFetching(false));
-    }
-  }, [slug, claimSecret, isPasswordProtected]);
-
-  async function handleClaim() {
-    if (!claimSecret) return;
-    setClaimMsg("");
+    if (!isNew) return;
+    // Read once after mount, then removed, so a reload doesn't repeat the warning.
     try {
-      await claimDocument(slug, claimSecret);
-      setClaimed(true);
-      setClaimMsg("Saved to your account.");
-    } catch (e) {
-      setClaimMsg(e instanceof Error ? e.message : "Could not claim");
-    }
-  }
-
-  async function handleGoogleExport() {
-    if (!docId) return;
-    setGBusy(true);
-    setGError(null);
-    setGNeedsReconnect(false);
-    try {
-      const result = await exportToGoogleDocs(docId);
-      track("google_docs_export", { from: "document" });
-      setGoogleDocUrl(result.google_doc_url);
-      setGoogleDocStale(false);
-    } catch (err) {
-      if (err instanceof Error && err.name === "ReconnectRequired") {
-        setGNeedsReconnect(true);
-        setGError(err.message);
-      } else {
-        setGError(err instanceof Error ? err.message : "Export to Google Docs failed");
+      const key = `md_ws_share_failed:${slug}`;
+      if (sessionStorage.getItem(key) !== null) {
+        setWsShareFailed(true);
+        sessionStorage.removeItem(key);
       }
-    } finally {
-      setGBusy(false);
-    }
-  }
+    } catch { /* storage off */ }
+  }, [isNew, slug]);
 
-  function requestCopy() {
-    if (!user) {
-      // Not signed in: open the shared sign-in modal right here (no page nav).
-      // Email sign-in resumes the copy in-place; Google redirects and resumes
-      // on return via ?copy=1.
-      openAuthModal({
-        title: "Sign in to save a copy",
-        message:
-          "Saving a copy adds this document to your Markdrop account so you can edit it, track views, and sync it to Google Docs. Sign in or create a free account to continue.",
-        next: `/${slug}?copy=1`,
-        onSuccess: () => { setCopyError(""); setShowCopy(true); },
-      });
-      return;
-    }
-    setCopyError("");
-    setShowCopy(true);
-  }
-
-  async function handleCopy(withGoogle: boolean) {
-    setCopyBusy(withGoogle ? "google" : "plain");
-    setCopyError("");
-    try {
-      // Pass the unlocked password so the server can read a protected source;
-      // the copy itself is always created without a password.
-      const cachedPwd = isPasswordProtected
-        ? sessionStorage.getItem(`pwd:${slug}`) || undefined
-        : undefined;
-      const copy = await copyDocument(slug, cachedPwd);
-
-      if (withGoogle && !gConnected) {
-        // Not connected yet: start the opt-in Google connect flow, returning to
-        // the new (owned) copy with ?gsync=1 so the export fires automatically
-        // once connected (no manual "Sync" click needed).
-        await connectGoogleDocs(`/${copy.slug}?gsync=1`);
-        return;
-      }
-      if (withGoogle && copy.id) {
-        // Best-effort sync; if it fails (e.g. reconnect needed) the copy still
-        // exists, so send them to it — the doc page surfaces the sync/reconnect UI.
-        try {
-          await exportToGoogleDocs(copy.id);
-        } catch {
-          /* fall through to the redirect below */
-        }
-      }
-      router.push(`/${copy.slug}`);
-    } catch (e) {
-      setCopyError(e instanceof Error ? e.message : "Could not save a copy");
-      setCopyBusy(null);
-    }
-  }
-
-  async function handleGoogleReconnect() {
-    try {
-      await connectGoogleDocs(`/${slug}`);
-    } catch (err) {
-      setGError(err instanceof Error ? err.message : "Could not start Google reconnect");
-    }
-  }
-
-  // Set when a password unlock reveals the document is actually an artifact —
-  // the anonymous SSR fetch 401s, so kind isn't known until then.
-  const [artifactDoc, setArtifactDoc] = useState<import("@/lib/api").DocumentResponse | null>(null);
-
-  /**
-   * Adopt a freshly fetched document into view state.
-   *
-   * Returns true when it was an artifact and has been handed off to
-   * ArtifactView. Every path that resolves a document must go through this:
-   * an artifact's `content` is only a filename stand-in, so rendering it as
-   * markdown shows a title and nothing else.
-   */
-  function adoptDoc(doc: import("@/lib/api").DocumentResponse, opts?: { created?: boolean }): boolean {
-    if (doc.kind === "artifact") {
-      setArtifactDoc(doc);
-      setPwdLocked(false);
-      return true;
-    }
-    if (doc.encrypted) {
-      // Hand it to the decryption effect instead. `doc.title` is null on the
-      // wire for these — the real one is sealed inside the envelope.
-      setSealed(doc.content);
-    } else {
-      setDisplayTitle(doc.title);
-      setDisplayContent(doc.content);
-    }
-    if (opts?.created !== false) setDisplayCreatedAt(doc.created_at);
-    setDisplayExpiresAt(doc.expires_at);
-    setDisplayViews(doc.views);
-    return false;
-  }
-
-  // Live display state. For an encrypted document these start empty rather than
-  // holding the envelope: nothing should be able to render ciphertext as
-  // markdown, not even for one frame before the key arrives.
-  const [displayTitle, setDisplayTitle] = useState(encrypted ? null : initialTitle);
-  const [displayContent, setDisplayContent] = useState(encrypted ? "" : initialContent);
-  const [displayCreatedAt, setDisplayCreatedAt] = useState(initialCreatedAt);
-  const [displayExpiresAt, setDisplayExpiresAt] = useState(initialExpiresAt);
-  const [displayViews, setDisplayViews] = useState(initialViews);
-  const [vscodeSynced, setVscodeSynced] = useState(syncedWithVscode);
-
-  // ── End-to-end decryption ──────────────────────────────────────────────────
-  //
-  // The envelope arrives over the wire like any other content; the key does not,
-  // and never has. It comes out of the URL fragment, which the browser keeps to
-  // itself. Two effects: one turns the fragment into a CryptoKey, the other
-  // opens whatever envelope is currently in hand — so a live update from another
-  // tab or the editor re-decrypts on its own.
-  type DecryptState = "plain" | "working" | "ok" | "nokey" | "failed";
-  const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null);
-  const [keyFragment, setKeyFragment] = useState<string | null>(null);
-  const [keySource, setKeySource] = useState<"link" | "device" | null>(null);
-  const [rotated, setRotated] = useState<string | null>(null);
-  // Read after mount: localStorage doesn't exist during the server render, and
-  // deriving this during render would desync the two.
-  const [deviceKeySaved, setDeviceKeySaved] = useState(false);
-  const [sealed, setSealed] = useState<string | null>(encrypted ? initialContent : null);
-  const [decryptState, setDecryptState] = useState<DecryptState>(encrypted ? "working" : "plain");
-
-  useEffect(() => {
-    if (!encrypted) return;
-    if (!e2e.isSupported()) {
-      setDecryptState("failed");
-      return;
-    }
-    // The link first, then whatever this browser saved when it last opened the
-    // document. The second is what makes "I lost the link" survivable at all.
-    const fromLink = e2e.readKeyFromFragment();
-    const raw = fromLink ?? e2e.recallKey(slug);
-    if (!raw) {
-      setDecryptState("nokey");
-      return;
-    }
-    let cancelled = false;
-    setKeyFragment(raw);
-    setKeySource(fromLink ? "link" : "device");
-    e2e
-      .importKey(raw)
-      .then((key) => !cancelled && setCryptoKey(key))
-      .catch(() => !cancelled && setDecryptState("failed"));
-    return () => {
-      cancelled = true;
-    };
-  }, [encrypted]);
-
-  useEffect(() => {
-    if (!encrypted || !cryptoKey || sealed === null) return;
-    let cancelled = false;
-    // Only fall back to the "decrypting" screen when there is nothing on it yet.
-    // A live update re-decrypts in place; blanking the page for it would be a
-    // flash of nothing every time someone else typed.
-    setDecryptState((prev) => (prev === "ok" ? "ok" : "working"));
-    e2e
-      .unseal(cryptoKey, sealed)
-      .then(({ title, content }) => {
-        if (cancelled) return;
-        setDisplayTitle(title);
-        setDisplayContent(content);
-        setDecryptState("ok");
-        // Only after it demonstrably opens this document — caching a key that
-        // doesn't work would just poison later visits.
-        if (keyFragment) e2e.rememberKey(slug, keyFragment);
-      })
-      .catch(() => !cancelled && setDecryptState("failed"));
-    return () => {
-      cancelled = true;
-    };
-  }, [encrypted, cryptoKey, sealed, keyFragment, slug]);
-
-  useEffect(() => {
-    if (encrypted) setDeviceKeySaved(e2e.hasRememberedKey(slug));
-  }, [encrypted, slug, keyFragment, rotated]);
-
-  /**
-   * Whether the text itself can be changed — settings still can be, without a key.
-   *
-   * Deliberately requires a *finished* decrypt, not merely a key. Holding the
-   * key and having the plaintext are milliseconds apart, and in that window the
-   * editor would open on an empty document: same trap as having no key at all,
-   * just harder to reproduce.
-   */
-  const canEditContent = !encrypted || (!!cryptoKey && decryptState === "ok");
-
-  /** The link that actually opens this document — for an encrypted one, key and all. */
-  const shareUrl = encrypted && keyFragment ? e2e.withKey(url, keyFragment) : url;
-  const readable = !encrypted || decryptState === "ok";
-
-  // View state
-  const [showRaw, setShowRaw] = useState(false);
-
-  // Edit mode state
-  const [editing, setEditing] = useState(false);
-  const [secretInput, setSecretInput] = useState(initialSecret || "");
-  const [secretUnlocked, setSecretUnlocked] = useState(!!initialSecret);
-  const [secretError, setSecretError] = useState("");
-
-  // Editor state
-  const [editTitle, setEditTitle] = useState(initialTitle || "");
-  const [editContent, setEditContent] = useState(initialContent);
-  const [viewMode, setViewMode] = useState<ViewMode>("write");
-  // Edit options: password + expiry
-  const [editRemovePassword, setEditRemovePassword] = useState(false);
-  const [editNewPassword, setEditNewPassword] = useState("");
-  const [editShowPassword, setEditShowPassword] = useState(false);
-  const [editExpiresIn, setEditExpiresIn] = useState<import("@/lib/api").ExpiresIn | "">("");
-  const [rotateKey, setRotateKey] = useState(false);
-  const [editCustomExpiresAt, setEditCustomExpiresAt] = useState("");
-
-  // Save / delete state
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  // Password gate state — skip gate immediately if owner has edit secret
-  const [pwdLocked, setPwdLocked] = useState(isPasswordProtected && !initialSecret);
-  // True from the very first client render when there is something to try, so
-  // the reader sees "opening…" rather than a denial that is about to be undone.
-  // `false` on the server, which has no storage to look in — that is also the
-  // only value the prerendered HTML can honestly carry.
-  const [pwdFetching, setPwdFetching] = useState(isPasswordProtected && !!initialSecret);
-  useEffect(() => {
-    if (!isPasswordProtected) return;
-    if (window.location.hash.startsWith(`#${HANDOFF_FRAGMENT}=`)
-        || localStorage.getItem("markdrop_token")) {
-      setPwdFetching(true);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [pwdInput, setPwdInput] = useState("");
-  const [pwdError, setPwdError] = useState("");
-  const [pwdUnlocking, setPwdUnlocking] = useState(false);
-  const [pwdVisible, setPwdVisible] = useState(false);
-  // Set when the retry ran *with* a token and was still refused. That is a
-  // different fact from "nobody is signed in", and it needs a different screen:
-  // telling someone to sign in when they already are is how a working link
-  // starts looking broken.
-  const [accessDenied, setAccessDenied] = useState(false);
-
-  // Immersive mode: the document fills the viewport with all app chrome hidden,
-  // so a published page reads as the content itself rather than as something in
-  // a Markdrop box. Escape exits, and the framed view stays one key away.
-  //
-  // Derived from props alone, deliberately. The server render has no search
-  // params, so seeding this from ?new/?edit would make the server and client
-  // disagree about the very first paint. Props-only means the prerendered HTML
-  // is already full-bleed, and a reader never sees the boxed view flash past
-  // while the page hydrates.
-  const [immersive, setImmersive] = useState(
-    () => !isPasswordProtected && !encrypted && !!initialContent.trim()
-  );
-  const decided = useRef(false);
-
-  // Reader-only. The editor needs the chrome, a gated document has nothing to
-  // show yet, and an artifact found behind the password gate runs its own
-  // immersive mode — letting both lock body scroll would fight over restoring it.
-  const showImmersive = immersive && !editing && !pwdLocked && !pwdFetching && !artifactDoc;
-
-  // Once hydrated, the search params are readable and the decision can be made
-  // properly. It runs exactly once — a ref, not a dependency guard — so a doc
-  // still immerses after its password unlock resolves, while an explicit Esc is
-  // never undone by a later re-render.
-  //
-  // Publishing is the one flow that must *not* be full-bleed: the edit secret is
-  // shown once and lives in the chrome, so covering it would lose it for good.
-  // Same for the flags that open a chrome-level panel.
-  useEffect(() => {
-    if (decided.current || !flagsReady) return;
-    // Not resolved yet — wait rather than deciding on a transient state. An
-    // encrypted document waits for its key too: if the key is missing or wrong,
-    // the explanation belongs next to the chrome, not alone on a blank screen.
-    if (editing || pwdLocked || pwdFetching || artifactDoc) return;
-    if (encrypted && decryptState !== "ok") return;
-    decided.current = true;
-    const chromeFlow = isNew || startInEdit || startCopy || startGoogleSync;
-    setImmersive(!chromeFlow && !!displayContent.trim());
-  }, [editing, pwdLocked, pwdFetching, artifactDoc, isNew, startInEdit, startCopy, startGoogleSync, displayContent, encrypted, decryptState, flagsReady]);
-
+  // Tell the feedback launcher (and anything else) that the reader is full-bleed.
   useEffect(() => {
     if (!showImmersive) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setImmersive(false);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener("keydown", onKey);
-    };
+    document.documentElement.setAttribute("data-md-immersive", "");
+    return () => document.documentElement.removeAttribute("data-md-immersive");
   }, [showImmersive]);
 
-  // Scroll sync refs for split view
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const writeTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
-
-  // How far readers get and how long they read (lib/readDepth.ts). Only while
-  // the document is actually on screen: not locked, not being edited.
-  const readRef = useRef<HTMLDivElement>(null);
-  useReadDepth(slug, readRef, readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked));
-
-  // Fire a single view beacon from the browser so the real visitor IP (not
-  // Vercel's SSR server) drives the view count + geography.
-  useEffect(() => {
-    if (viewBeaconSent.current) return;
-    if (isPasswordProtected && pwdLocked) return; // wait until unlocked
-    viewBeaconSent.current = true;
-    recordEvent(slug, "view");
-  }, [pwdLocked, isPasswordProtected, slug]);
-
-  // If logged in, detect ownership so the owner can edit without the secret
-  // (and view their own password-protected doc without the read password). We
-  // also capture the doc id + Google Docs link here to drive the sync button.
-  useEffect(() => {
-    if (!user) {
-      // Signed out (or never signed in): drop any owner-only state so the
-      // Google Docs actions disappear immediately, without a page reload.
-      setIsOwner(false);
-      setDocId(null);
-      setGoogleDocUrl(null);
-      setGoogleDocStale(false);
-      return;
-    }
-    let cancelled = false;
-    getDocument(slug)
-      .then((doc) => {
-        if (cancelled || !doc.is_owner) return;
-        setIsOwner(true);
-        setDocId(doc.id ?? null);
-        setGoogleDocUrl(doc.google_doc_url ?? null);
-        setGoogleDocStale(!!doc.google_doc_stale);
-        // Only unlock/refresh display state on first detection — don't clobber
-        // edits the user may have unlocked via secret.
-        if (!secretUnlocked) {
-          setSecretUnlocked(true);
-          setPwdLocked(false);
-          adoptDoc(doc);
-        }
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [user, slug]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Whether the account has Google Docs connected (gates the sync button).
-  useEffect(() => {
-    if (!user) { setGConnected(false); return; }
-    let cancelled = false;
-    getGoogleDocsStatus()
-      .then((s) => { if (!cancelled) setGConnected(!!(s.configured && s.connected)); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [user]);
-
-  // Live updates: refresh the page when the document changes elsewhere (a VS
-  // Code sync push or an in-app edit). A lightweight WebSocket receives a
-  // "changed" ping, then we refetch through the normal authorized read path.
-  // Additive + best-effort: if the socket never connects, the page behaves
-  // exactly as before (manual reload). An in-progress edit is never clobbered.
-  const editingRef = useRef(editing);
-  useEffect(() => { editingRef.current = editing; }, [editing]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (isPasswordProtected && pwdLocked) return; // wait until unlocked
-    let ws: WebSocket | null = null;
-    let retry: ReturnType<typeof setTimeout> | null = null;
-    let closed = false;
-
-    function connect() {
-      try {
-        ws = new WebSocket(`${API_BASE.replace(/^http/, "ws")}/ws/docs/${slug}`);
-      } catch {
-        return;
-      }
-      ws.onmessage = (ev) => {
-        let msg: { type?: string } | null = null;
-        try { msg = JSON.parse(ev.data); } catch { return; }
-        if (msg?.type !== "changed" || editingRef.current) return;
-        const cachedPwd = isPasswordProtected
-          ? sessionStorage.getItem(`pwd:${slug}`) || undefined
-          : undefined;
-        getDocument(slug, cachedPwd, claimSecret || undefined)
-          .then((doc) => {
-            if (adoptDoc(doc, { created: false })) return;
-            setVscodeSynced(!!doc.vscode_synced);
-            if (doc.is_owner) setGoogleDocStale(!!doc.google_doc_stale);
-          })
-          .catch(() => {});
-      };
-      ws.onclose = () => {
-        if (!closed) retry = setTimeout(connect, 3000); // reconnect while open
-      };
-    }
-    connect();
-    return () => {
-      closed = true;
-      if (retry) clearTimeout(retry);
-      ws?.close();
-    };
-  }, [slug, isPasswordProtected, pwdLocked, claimSecret]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Open the editor directly when arriving via ?edit=1 (owner/secret ready).
-  useEffect(() => {
-    if (startInEdit && secretUnlocked && !editOpened.current && !pwdLocked) {
-      editOpened.current = true;
-      handleEditClick();
-    }
-  }, [startInEdit, secretUnlocked, pwdLocked]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Resume "Save a copy" after a sign-in redirect (?copy=1), once we know the
-  // viewer isn't the owner and the content is unlocked. Opens the modal once.
-  const copyAutoOpened = useRef(false);
-  useEffect(() => {
-    if (startCopy && user && !isOwner && !pwdLocked && !copyAutoOpened.current) {
-      copyAutoOpened.current = true;
-      setShowCopy(true);
-    }
-  }, [startCopy, user, isOwner, pwdLocked]);
-
-  // Resume Google export after the connect redirect (?gsync=1): once we know
-  // the viewer owns this (new) doc and Google is connected, and it isn't linked
-  // yet, push it to Google Docs automatically — no manual "Sync" click needed.
-  const gSyncAuto = useRef(false);
-  useEffect(() => {
-    if (startGoogleSync && isOwner && gConnected && docId && !googleDocUrl && !gBusy && !gSyncAuto.current) {
-      gSyncAuto.current = true;
-      handleGoogleExport();
-    }
-  }, [startGoogleSync, isOwner, gConnected, docId, googleDocUrl]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Set document.title to just the clean name before printing so the
-  // save-as filename in the print dialog is "{title}" or "{slug}" rather
-  // than the full "{title} — Markdrop" page title.
-  useEffect(() => {
-    const cleanName = displayTitle || slug;
-    const savedTitle = document.title;
-    function beforePrint() { document.title = cleanName; }
-    function afterPrint()  { document.title = savedTitle; }
-    window.addEventListener("beforeprint", beforePrint);
-    window.addEventListener("afterprint",  afterPrint);
-    return () => {
-      window.removeEventListener("beforeprint", beforePrint);
-      window.removeEventListener("afterprint",  afterPrint);
-    };
-  }, [displayTitle, slug]);
-
-  // A completed handoff arrives with the token on the fragment. Take it before
-  // anything else runs, so the retry below is already carrying it — otherwise
-  // the first thing a reader sees after signing in is the gate they just came
-  // back from. Stored for this origin only, and stripped from the address bar
-  // straight away so it is not left sitting in a URL people copy and paste.
-  const [handoffDone, setHandoffDone] = useState(false);
-  useEffect(() => {
-    const hash = window.location.hash;
-    const marker = `#${HANDOFF_FRAGMENT}=`;
-    if (!hash.startsWith(marker)) { setHandoffDone(true); return; }
-    const token = decodeURIComponent(hash.slice(marker.length));
-    if (token) localStorage.setItem("markdrop_token", token);
-    history.replaceState(null, "", window.location.pathname + window.location.search);
-    setHandoffDone(true);
-  }, []);
-
-  // On mount: the server render is deliberately anonymous so it can be cached,
-  // which means it hits the gate for *everyone* — including the people who were
-  // given access by name and are signed in right now. Retry once from the
-  // browser, where the token exists. Whoever the reader turns out to be, the
-  // API decides; this only stops us showing a locked door to someone holding
-  // the key.
-  useEffect(() => {
-    if (!handoffDone) return;
-    if (!pwdLocked && !pwdFetching) return;
-    if (typeof window === "undefined") return;
-    if (!localStorage.getItem("markdrop_token")) return;
-    let cancelled = false;
-    setPwdFetching(true);
-    getDocument(slug)
-      .then((doc) => {
-        if (cancelled) return;
-        adoptDoc(doc);
-        setPwdLocked(false);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        // A password gate is not a denial — they simply have not typed it yet.
-        // Anything else, with a token in hand, means this account was checked
-        // and refused.
-        const needsPassword = e instanceof Error && e.message === "PASSWORD_REQUIRED";
-        setAccessDenied(!needsPassword);
-        setPwdLocked(true);
-      })
-      .finally(() => { if (!cancelled) setPwdFetching(false); });
-    return () => { cancelled = true; };
-  }, [handoffDone]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // On mount: auto-unlock if owner (has edit secret) or cached password
-  useEffect(() => {
-    if (!isPasswordProtected) return;
-    // Owner bypass: edit secret skips the read password gate
-    if (initialSecret) {
-      getDocument(slug, undefined, initialSecret)
-        .then((doc) => { adoptDoc(doc); })
-        .catch(() => {
-          // Secret invalid — fall back to showing the password gate
-          setPwdLocked(true);
-        })
-        .finally(() => {
-          setPwdFetching(false);
-        });
-      return;
-    }
-    // Returning visitor: try sessionStorage cached password
-    const cached = sessionStorage.getItem(`pwd:${slug}`);
-    if (cached) {
-      getDocument(slug, cached)
-        .then((doc) => {
-          adoptDoc(doc);
-          setPwdLocked(false);
-        })
-        .catch(() => {
-          sessionStorage.removeItem(`pwd:${slug}`);
-        });
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function handlePasswordUnlock(e: React.SyntheticEvent) {
-    e.preventDefault();
-    if (!pwdInput.trim()) return;
-    setPwdUnlocking(true);
-    setPwdError("");
-    try {
-      const doc = await getDocument(slug, pwdInput);
-      sessionStorage.setItem(`pwd:${slug}`, pwdInput);
-      adoptDoc(doc);
-      setPwdLocked(false);
-    } catch (e) {
-      if (e instanceof Error && e.message === "WRONG_PASSWORD") {
-        setPwdError("Incorrect password");
-      } else {
-        setPwdError("Something went wrong. Try again.");
-      }
-    } finally {
-      setPwdUnlocking(false);
-    }
-  }
-
-  function syncScroll() {
-    const ta = textareaRef.current;
-    const pv = previewRef.current;
-    if (!ta || !pv) return;
-    const ratio = ta.scrollTop / Math.max(1, ta.scrollHeight - ta.clientHeight);
-    pv.scrollTop = ratio * (pv.scrollHeight - pv.clientHeight);
-  }
-
-  function handleEditClick() {
-    setEditTitle(displayTitle || "");
-    setEditContent(displayContent);
-    setViewMode("write");
-    setSaveError("");
-    setSecretError("");
-    setEditRemovePassword(false);
-    setEditNewPassword("");
-    setEditShowPassword(false);
-    setEditExpiresIn("");
-    setEditCustomExpiresAt("");
-    setRotateKey(false);
-    setEditing(true);
-  }
-
-  function handleCancelEdit() {
-    setEditing(false);
-    setShowDeleteConfirm(false);
-    setSaveError("");
-    setSecretError("");
-    if (!initialSecret) {
-      setSecretUnlocked(false);
-      setSecretInput("");
-    }
-  }
-
-  function handleUnlock(e: React.SyntheticEvent) {
-    e.preventDefault();
-    if (!secretInput.trim()) {
-      setSecretError("Enter your edit secret.");
-      return;
-    }
-    setSecretError("");
-    setSecretUnlocked(true);
-    handleEditClick();
-  }
-
-  async function handleSave() {
-    if (!editContent.trim()) return;
-    setSaving(true);
-    setSaveError("");
-    try {
-      let body = editContent;
-      let nextKey: CryptoKey | null = null;
-      let nextEncoded = "";
-      if (encrypted) {
-        if (!cryptoKey) {
-          // No key, so the text can't be touched — but expiry, password and
-          // deletion don't need one. Hand the stored envelope straight back so
-          // the document survives a settings change unchanged. The API requires
-          // a content field; this satisfies it without inventing anything.
-          if (!sealed) throw new Error("This document can't be saved without its key.");
-          body = sealed;
-        } else {
-          // Rotation issues a brand-new key. Because the ciphertext changes, the
-          // old link stops opening the document — which is the point — though it
-          // cannot un-read what someone already read.
-          nextKey = rotateKey ? await e2e.generateKey() : cryptoKey;
-          if (rotateKey) nextEncoded = await e2e.exportKey(nextKey);
-          // Same key or new, always a fresh IV: reusing a nonce under one key
-          // undoes AES-GCM entirely.
-          body = await e2e.seal(nextKey, {
-            title: editTitle.trim() || null,
-            content: editContent,
-          });
-        }
-      }
-      const doc = await updateDocument(slug, editTitle, body, secretInput, {
-        readPassword: editNewPassword || undefined,
-        removePassword: editRemovePassword,
-        expiresIn: editExpiresIn || undefined,
-        customExpiresAt: editExpiresIn === "custom" ? editCustomExpiresAt : undefined,
-        encrypted: encrypted || undefined,
-      });
-      if (canEditContent) {
-        setDisplayTitle(editTitle || null);
-        setDisplayContent(editContent);
-      }
-      if (encrypted) setSealed(body);
-      // Drop the cached render so the next visitor doesn't get the previous
-      // ciphertext — which, after a rotation, the old link would still open.
-      // Best-effort: a failure here costs freshness, not correctness.
-      fetch("/api/revalidate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug }),
-      }).catch(() => {});
-      if (nextKey && nextEncoded) {
-        setCryptoKey(nextKey);
-        setKeyFragment(nextEncoded);
-        setKeySource("link");
-        e2e.rememberKey(slug, nextEncoded);
-        // Put the new key in the address bar so a refresh — or a copy straight
-        // out of it — still opens the document.
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#k=${nextEncoded}`);
-        setRotated(e2e.withKey(url, nextEncoded));
-      }
-      setDisplayExpiresAt(doc.expires_at);
-      setEditing(false);
-      // The edit bumped the document's rev, so any linked Google Doc is now
-      // behind — flip the sync affordance to "Sync changes" without a reload.
-      if (googleDocUrl) setGoogleDocStale(true);
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Failed to save");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    setDeleting(true);
-    setSaveError("");
-    try {
-      await deleteDocument(slug, secretInput);
-      router.push("/new");
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Failed to delete");
-      setDeleting(false);
-      setShowDeleteConfirm(false);
-    }
-  }
-
-  const remaining = MAX_CHARS - editContent.length;
-  const activeTextareaRef = viewMode === "split" ? textareaRef : writeTextareaRef;
+  const livePill = useLiveUpdate(v.liveUpdate, displayContent, readRef);
+  const pct = useReadingProgress();
 
   // ── Artifact discovered behind the password gate ───────────────────────────
   if (artifactDoc) {
@@ -1006,728 +139,408 @@ export default function DocumentView({
         originalFilename={artifactDoc.original_filename ?? null}
         artifactUrl={artifactDoc.artifact_url ?? null}
         downloadUrl={artifactDoc.download_url ?? null}
+        viewerChrome={viewerChrome === "none" ? "none" : "full"}
       />
     );
   }
 
-  // ── Secret unlock screen ───────────────────────────────────────────────────
-  if (editing && !secretUnlocked) {
+  const gated = pwdLocked || pwdFetching;
+  const gateMode: "password" | "signin" | "denied" = accessDenied ? "denied" : gate === "signin" ? "signin" : "password";
+  const header = tenant
+    ? <TenantHeader returnPath={pathname || undefined} hideAuth={gated && !pwdFetching && gateMode === "signin"} />
+    : <SiteHeader />;
+
+  // ── Edit flow ──────────────────────────────────────────────────────────────
+  if (editing) {
     return (
-      <div className="w-full space-y-4">
-        <button onClick={handleCancelEdit} className="no-print text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 vscode:hover:text-[#d4d4d4] transition-colors">
-          ← Back
-        </button>
-        <div className="w-full max-w-xs mx-auto mt-12 space-y-4">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4]">Enter your edit secret</h2>
-          <form onSubmit={handleUnlock} className="space-y-3">
-            <input
-              type="text"
-              value={secretInput}
-              onChange={(e) => setSecretInput(e.target.value)}
-              placeholder="Paste your edit secret…"
-              autoFocus
-              className="w-full font-mono text-sm bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition-colors text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400"
+      <>
+        {header}
+        <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
+          {secretUnlocked ? (
+            <EditorScreen
+              v={v}
+              isPasswordProtected={isPasswordProtected}
+              encrypted={encrypted}
+              displayTitle={displayTitle}
+              displayContent={displayContent}
             />
-            {secretError && <p className="text-red-500 text-xs">{secretError}</p>}
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors"
-              >
-                Unlock
-              </button>
-              <button
-                type="button"
-                onClick={handleCancelEdit}
-                className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Edit mode ──────────────────────────────────────────────────────────────
-  if (editing && secretUnlocked) {
-    const btnBase = "px-3 py-1.5 text-xs border rounded-lg transition-colors";
-    const btnGhost = `${btnBase} border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]`;
-    const btnDanger = `${btnBase} border-red-300 dark:border-red-800 vscode:border-red-900 hover:bg-red-50 dark:hover:bg-red-900/20 vscode:hover:bg-red-900/30 text-red-600 dark:text-red-400 vscode:text-red-400`;
-    const inputBase = "bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] outline-none focus:border-blue-500 transition-colors";
-
-    return (
-      <div className="flex flex-col flex-1 min-h-0 gap-3">
-
-        {/* Title */}
-        <div className="no-print shrink-0">
-          <input
-            type="text"
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            placeholder={canEditContent ? "Document title (optional)" : "Title is encrypted"}
-            maxLength={200}
-            disabled={!canEditContent}
-            className="w-full bg-transparent border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] focus:border-blue-500 outline-none py-1 text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 dark:placeholder-gray-600 transition-colors"
-          />
-        </div>
-
-        {/* Edit options: password + expiry */}
-        <div className="no-print flex flex-wrap items-center gap-2 shrink-0">
-          {/* Password: remove (if protected) or set new */}
-          {isPasswordProtected ? (
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={editRemovePassword}
-                onChange={(e) => setEditRemovePassword(e.target.checked)}
-                className="accent-red-500"
-              />
-              <span className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">Remove password</span>
-            </label>
           ) : (
-            <div className={`flex items-center gap-1.5 rounded-lg px-2 py-1 ${inputBase} focus-within:border-blue-500`}>
-              <svg className="w-3 h-3 text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d] shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
-              </svg>
-              <input
-                type={editShowPassword ? "text" : "password"}
-                value={editNewPassword}
-                onChange={(e) => setEditNewPassword(e.target.value)}
-                placeholder="Add password"
-                maxLength={100}
-                className="bg-transparent outline-none text-xs w-28 placeholder-gray-400 dark:placeholder-gray-600"
-              />
-              {editNewPassword && (
-                <button type="button" tabIndex={-1} onClick={() => setEditShowPassword(v => !v)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 vscode:hover:text-[#d4d4d4] shrink-0">
-                  {editShowPassword
-                    ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                    : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  }
-                </button>
-              )}
-            </div>
+            <SecretUnlock v={v} />
           )}
-          {/* Expiry update */}
-          <select
-            value={editExpiresIn}
-            onChange={(e) => setEditExpiresIn(e.target.value as import("@/lib/api").ExpiresIn | "")}
-            className={`text-xs rounded-lg px-2 py-1 cursor-pointer ${inputBase}`}
-          >
-            <option value="">Expiry: no change</option>
-            <option value="never">Remove expiry</option>
-            <option value="1d">Expire in 1 day</option>
-            <option value="7d">Expire in 7 days</option>
-            <option value="30d">Expire in 30 days</option>
-            <option value="custom">Custom expiry…</option>
-          </select>
-          {editExpiresIn === "custom" && (
-            <input
-              type="datetime-local"
-              value={editCustomExpiresAt}
-              onChange={(e) => setEditCustomExpiresAt(e.target.value)}
-              className={`text-xs rounded-lg px-2 py-1 ${inputBase}`}
-            />
-          )}
-          {/* Rotation needs the current key: the document has to be decrypted
-              before it can be re-encrypted under a new one. */}
-          {encrypted && canEditContent && (
-            <label
-              title="Saves under a brand-new key. The old link stops opening this document — but anyone who already read it still has what they read."
-              className="flex items-center gap-1.5 cursor-pointer select-none"
-            >
-              <input
-                type="checkbox"
-                checked={rotateKey}
-                onChange={(e) => setRotateKey(e.target.checked)}
-                className="accent-amber-500"
-              />
-              <span className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                New key <span className="text-amber-600 dark:text-amber-500">(old link stops working)</span>
-              </span>
-            </label>
-          )}
-        </div>
-
-        {/* Action bar */}
-        <div className="no-print flex items-center justify-between gap-2 shrink-0">
-          <span className={`text-xs tabular-nums shrink-0 ${remaining < 1000 ? "text-amber-500" : "text-gray-400 dark:text-gray-500 vscode:text-[#9d9d9d]"}`}>
-            {remaining.toLocaleString()} left
-          </span>
-          {showDeleteConfirm ? (
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              <span className="text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d] shrink-0">Delete permanently?</span>
-              <button onClick={handleDelete} disabled={deleting}
-                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs rounded-lg transition-colors">
-                {deleting ? "Deleting…" : "Yes, delete"}
-              </button>
-              <button onClick={() => setShowDeleteConfirm(false)} className={btnGhost}>Cancel</button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button onClick={() => setShowDeleteConfirm(true)} className={btnDanger}>Delete</button>
-              <button onClick={handleCancelEdit} className={btnGhost}>Cancel</button>
-              <button onClick={handleSave} disabled={saving || (canEditContent && !editContent.trim())}
-                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-xs font-medium text-white transition-colors">
-                {saving ? "Saving…" : canEditContent ? (rotateKey ? "Save with new key" : "Save") : "Save settings"}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* No key: the editor would be an empty box, which reads as "your
-            document is gone" and invites someone to retype it over the top.
-            Say what is actually true and leave the settings above usable. */}
-        {!canEditContent && (
-          <div className="no-print flex-1 min-h-0 flex flex-col items-center justify-center gap-3 text-center px-4 py-10 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 vscode:border-[#3c3c3c]">
-            <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
-              <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
-            </svg>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]">
-              The text can&apos;t be edited without the key
-            </p>
-            <p className="max-w-md text-xs leading-relaxed text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-              Your document is still here and still intact — it just can&apos;t be read or
-              rewritten from this browser. Open it with its full link, the one ending in{" "}
-              <span className="font-mono text-gray-600 dark:text-gray-300">#k=…</span>, and editing
-              comes back.
-            </p>
-            <p className="max-w-md text-xs leading-relaxed text-gray-400 dark:text-gray-500">
-              Expiry, password and deletion above don&apos;t need the key, so those still work.
-            </p>
-          </div>
-        )}
-
-        {/* Mode tabs */}
-        {canEditContent && (
-        <div className="no-print flex items-center gap-1 border-b border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] shrink-0">
-          {(["write", "split", "preview"] as ViewMode[]).map((m) => (
-            <button key={m} onClick={() => setViewMode(m)}
-              className={`${m === "split" ? "hidden sm:block" : ""} px-3 sm:px-4 py-2 text-sm transition-colors border-b-2 -mb-px ${
-                viewMode === m
-                  ? "border-blue-500 text-blue-500 dark:text-blue-400"
-                  : "border-transparent text-gray-500 dark:text-gray-500 vscode:text-[#9d9d9d] hover:text-gray-700 dark:hover:text-gray-300 vscode:hover:text-[#d4d4d4]"
-              }`}>
-              {m.charAt(0).toUpperCase() + m.slice(1)}
-            </button>
-          ))}
-        </div>
-        )}
-
-        {canEditContent && (<>
-        {/* Toolbar */}
-        {viewMode !== "preview" && (
-          <div className="no-print shrink-0 rounded-t-lg overflow-hidden border border-b-0 border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c]">
-            <MarkdownToolbar textareaRef={activeTextareaRef} onChange={setEditContent} />
-          </div>
-        )}
-
-        {/* Write */}
-        {viewMode === "write" && (
-          <textarea
-            ref={writeTextareaRef}
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            autoFocus
-            maxLength={MAX_CHARS}
-            className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-b-lg rounded-t-none p-3 sm:p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] placeholder-gray-400 resize-none focus:outline-none focus:border-blue-500 transition-colors"
-          />
-        )}
-
-        {/* Split */}
-        {viewMode === "split" && (
-          <div className="flex gap-3 flex-1 min-h-0">
-            <textarea
-              ref={textareaRef}
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              onScroll={syncScroll}
-              autoFocus
-              maxLength={MAX_CHARS}
-              className="w-1/2 h-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#1e1e1e] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-b-lg rounded-t-none p-4 font-mono text-sm text-gray-800 dark:text-gray-200 vscode:text-[#d4d4d4] resize-none focus:outline-none focus:border-blue-500 transition-colors overflow-y-auto"
-            />
-            <div ref={previewRef}
-              className="w-1/2 h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 vscode:bg-[#252526] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-5">
-              {editContent.trim()
-                ? <MarkdownPreview content={editContent} />
-                : <p className="text-gray-400 dark:text-gray-600 vscode:text-[#9d9d9d] text-sm">Preview will appear here.</p>}
-            </div>
-          </div>
-        )}
-
-        {/* Preview */}
-        {viewMode === "preview" && (
-          <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 vscode:bg-[#252526] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-6">
-            {editContent.trim()
-              ? <MarkdownPreview content={editContent} />
-              : <p className="text-gray-400 dark:text-gray-600 vscode:text-[#9d9d9d] text-sm">Nothing to preview yet.</p>}
-          </div>
-        )}
-        </>)}
-
-        {saveError && <p className="shrink-0 text-red-500 text-sm">{saveError}</p>}
-      </div>
+        </main>
+      </>
     );
   }
 
   // ── Read mode ──────────────────────────────────────────────────────────────
+  const framed = !showImmersive;
+  const empty = readable && !displayContent.trim();
+  const protection: "private" | "password" | null = isPasswordProtected ? (gate === "signin" ? "private" : "password") : null;
+  const tocEntries = readable && !showRaw ? tocHeadings(headings) : [];
+  // The stored title, else the document's own leading H1 (most documents carry their title there).
+  const shownTitle = displayTitle || (headings[0]?.depth === 1 ? headings[0].text : null);
+
+  function copyLinkEvent() {
+    recordEvent(slug, "copy_url");
+    track("doc_copy_link");
+  }
+  function exportPdf() {
+    recordEvent(slug, "export_pdf");
+    track("doc_export_pdf");
+    window.print();
+  }
+  function openReport() {
+    setReportReason("");
+    v.setReportCategory("");
+    v.setReportError("");
+    setReportDone(false);
+    setShowReport(true);
+  }
+  // D19: the owner, or a secret holder in this session, gets Edit in the bar;
+  // everyone else finds it in More (it opens the secret prompt).
+  const editBlocked = encrypted && decryptState === "working";
+  const startEdit = () => { if (secretUnlocked) handleEditClick(); else setEditing(true); };
+  const canFullScreen = readable && !empty;
+  const googleOn = isOwner && gConnected && !pwdLocked && !encrypted;
+
+  const menu: MenuEntry[] = gated ? [] : [
+    ...(readable && !empty ? [{ label: showRaw ? "View rendered" : "View raw", icon: "code", onClick: () => setShowRaw(!showRaw) }] : []),
+    ...(readable ? [{ label: "Export PDF", icon: "printer", onClick: exportPdf }] : []),
+    // Hidden for encrypted documents: the copy happens server-side, which would
+    // duplicate ciphertext under a slug whose link carries no key.
+    ...(!isOwner && !encrypted ? [{ label: "Save a copy", icon: "copy", onClick: requestCopy }] : []),
+    ...(googleOn
+      ? v.googleDocUrl
+        ? [
+            { label: "Open in Google Docs", icon: "external", href: v.googleDocUrl, external: true },
+            { label: v.gBusy ? "Syncing to Google…" : v.googleDocStale ? "Sync to Google Docs" : "Re-sync to Google Docs", icon: "refresh", busy: v.gBusy, onClick: handleGoogleExport },
+          ]
+        : [{ label: v.gBusy ? "Publishing…" : "Publish to Google Docs", icon: "google", busy: v.gBusy, onClick: handleGoogleExport }]
+      : []),
+    // A shared or borrowed computer shouldn't keep the key to someone's document.
+    ...(encrypted && deviceKeySaved
+      ? [{
+          label: "Forget key on this device",
+          icon: "key",
+          description: "The link still works; this browser just stops remembering it.",
+          onClick: () => { e2e.forgetKey(slug); setDeviceKeySaved(false); },
+        }]
+      : []),
+    ...(!secretUnlocked ? [{ label: "Edit", icon: "edit", disabled: editBlocked, onClick: startEdit }] : []),
+    ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: true, onClick: openReport }] : []),
+  ];
+
+  const google = googleOn ? (
+    <GoogleDocsCard
+      g={{ url: v.googleDocUrl, stale: v.googleDocStale, busy: v.gBusy, error: null, needsReconnect: false }}
+      onExport={handleGoogleExport}
+      onReconnect={handleGoogleReconnect}
+      onDismissError={() => { v.setGError(null); v.setGNeedsReconnect(false); }}
+    />
+  ) : undefined;
+
+  const details = (
+    <DetailsPanel
+      url={url}
+      shareUrl={shareUrl}
+      encrypted={encrypted}
+      readable={readable}
+      keyFragment={keyFragment}
+      createdAt={displayCreatedAt}
+      expiresAt={displayExpiresAt}
+      views={displayViews}
+      content={displayContent}
+      protection={protection}
+      vscodeSynced={vscodeSynced}
+      live={v.live}
+      access={v.access}
+      canShare={v.canShare && !pwdLocked}
+      onShare={() => { setDetailsOpen(false); setShowShare(true); }}
+      google={google}
+      onReport={!secretUnlocked && !pwdLocked ? () => { setDetailsOpen(false); openReport(); } : undefined}
+    />
+  );
+
+  const tocFooter = readable && !empty
+    ? `${readingMinutes(displayContent)} min read, ${pct}% done`
+    : undefined;
+
+  const publishedAccess = gate === "signin" || v.access?.level === "private"
+    ? "private" as const
+    : v.access?.level === "workspace" ? "workspace" as const
+    : isPasswordProtected ? "password" as const : "link" as const;
+  const showPanel = isNew && !panelDismissed && !gated;
+  const guardActive = isNew && !!claimSecret && !secretCopied && !panelDismissed && !isOwner;
+
   return (
-    <div className="w-full space-y-4">
+    <div className={`flex min-w-0 flex-1 flex-col ${showImmersive ? "md-viewer-immersive" : ""}`}>
+      {framed && header}
 
-      {/* Secret notice — shown once after publish */}
-      {isNew && claimSecret && (
-        <div className="no-print flex items-start gap-3 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#252526] text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-          <span className="text-green-500 mt-0.5 shrink-0">✓</span>
-          <div className="min-w-0">
-            <span>Published. Save your edit secret — shown once:</span>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <code className="font-mono text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] select-all break-all">
-                {claimSecret}
-              </code>
-              <CopyButton text={claimSecret} label="Copy" />
-            </div>
-          </div>
-        </div>
-      )}
+      <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
+        {framed && (
+          <DocumentBar
+            slug={slug}
+            url={url}
+            shareUrl={shareUrl}
+            title={readable ? shownTitle : null}
+            gated={gated}
+            gateBadge={protection}
+            encrypted={encrypted}
+            onCopyLink={copyLinkEvent}
+            onEdit={secretUnlocked && !editBlocked ? handleEditClick : null}
+            onShare={v.canShare && !pwdLocked ? () => setShowShare(true) : null}
+            onFullScreen={canFullScreen ? () => v.toggleImmersive(true) : null}
+            onDetails={() => setDetailsOpen(true)}
+            menu={menu}
+            headings={tocEntries.length ? headings : []}
+            copyVariant={showPanel ? "secondary" : "primary"}
+          />
+        )}
 
-      {/* Claim / save-to-account bar */}
-      {!isOwned && !claimed && claimSecret && (
-        user ? (
-          <div className="no-print flex items-center justify-between gap-3 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/30 text-xs">
-            <span className="text-blue-700 dark:text-blue-300">Save this document to your account to manage it and see analytics.</span>
-            <button onClick={handleClaim} className="shrink-0 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors">
-              Save to my account
-            </button>
-          </div>
-        ) : (
-          <div className="no-print px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#252526] text-xs text-gray-500 dark:text-gray-400">
-            <a href={`/login?next=/${slug}`} className="text-blue-500 hover:underline">Log in</a> to save this document to your account and track analytics.
-          </div>
-        )
-      )}
-      {claimMsg && <p className="no-print text-xs text-gray-500 dark:text-gray-400">{claimMsg}</p>}
+        {/* Framed reading progress follows the page; the immersive one lives
+            inside the layer (its own scroller, and above the page). */}
+        {framed && !gated && readable && !empty && <ReadingProgress key="page" />}
+        {framed && <LiveUpdatePill show={livePill} />}
 
-      {/* Rotation just changed the link. Shown loudly, because every copy of the
-          old one is now dead and the user has to replace what they shared. */}
-      {rotated && (
-        <div className="no-print px-3 py-2 rounded-md border border-amber-300 dark:border-amber-800/70 bg-amber-50 dark:bg-amber-950/30 text-xs">
-          <p className="text-amber-800 dark:text-amber-300 font-medium">
-            New key generated — this is the link now. The previous one no longer opens this document.
-          </p>
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <code className="font-mono text-[11px] break-all text-amber-900/80 dark:text-amber-200/80 select-all">
-              {rotated}
-            </code>
-            <CopyButton text={rotated} label="Copy" />
-          </div>
-        </div>
-      )}
-
-      {/* Opened without the link — worth saying, so nobody assumes the link they
-          have works elsewhere. It doesn't; this browser just remembered. */}
-      {keySource === "device" && !rotated && (
-        <div className="no-print px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700/60 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/40 vscode:bg-[#252526] text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-          Opened with the key saved in this browser — the link in your address bar has no key in it
-          and won&apos;t work anywhere else. Use <strong className="font-medium">Copy link</strong>{" "}
-          above to get the shareable one.
-        </div>
-      )}
-
-      {/* Document header */}
-      <div className="flex flex-col gap-2 no-print">
-        <div className="space-y-1 min-w-0">
-          {displayTitle && !pwdLocked && (
-            <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] break-words">{displayTitle}</h1>
+        {/* Fixed slots: rails and notices come and go around the one content
+            element without ever re-parenting it. */}
+        <div
+          className={framed
+            ? "mx-auto grid w-full max-w-marketing flex-1 grid-cols-1 content-start gap-10 px-4 pb-16 pt-6 sm:px-6 sm:pt-8 xl:grid-cols-[200px_minmax(0,680px)_260px] xl:justify-between"
+            : "contents"}
+        >
+          {framed && (
+            <aside className="no-print hidden xl:block" aria-label="Contents">
+              {tocEntries.length > 0 && (
+                <div className="sticky top-32 max-h-[calc(100dvh-9rem)] overflow-y-auto pb-6">
+                  <Toc headings={headings} encrypted={encrypted} footer={tocFooter} />
+                </div>
+              )}
+            </aside>
           )}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="font-mono text-xs text-gray-400 dark:text-gray-500">/{slug}</span>
-            {!pwdLocked && (
+
+          <div className={framed ? "mx-auto flex w-full min-w-0 max-w-reading flex-col gap-4 xl:mx-0" : "contents"}>
+            {framed && (
               <>
-                <span className="text-xs text-gray-400 dark:text-gray-600">
-                  {new Date(displayCreatedAt).toLocaleDateString()}
-                </span>
-                <span className="text-xs text-gray-400 dark:text-gray-500">
-                  {(displayViews ?? 0).toLocaleString()} {(displayViews ?? 0) === 1 ? "view" : "views"}
-                </span>
-                {displayExpiresAt && <ExpiryBadge expiresAt={displayExpiresAt} />}
-              </>
-            )}
-            {encrypted && (
-              <span
-                title="Encrypted in the browser. Markdrop stores only ciphertext and never holds the key."
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
-              >
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
-                  <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
-                </svg>
-                End-to-end encrypted
-              </span>
-            )}
-            {isPasswordProtected && (
-              <span
-                title={gate === "signin"
-                  ? "Shared with specific people"
-                  : "Opens with a password"}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 vscode:bg-[#2d2d2d] vscode:text-[#9d9d9d]">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
-                </svg>
-                {gate === "signin" ? "Private" : "Protected"}
-              </span>
-            )}
-            {vscodeSynced && !pwdLocked && (
-              <span
-                title="Published and synced from the VS Code extension"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[#007acc]/10 text-[#007acc] dark:text-[#4daafc] vscode:bg-[#2d2d2d] vscode:text-[#4fc1ff]"
-              >
-                <VSCodeIcon className="w-3 h-3" />
-                Synced with VS Code
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Action buttons.
-            Hidden entirely while the document is gated: every one of them acts
-            on a document this reader cannot open, and offering "Copy Link" and
-            "Edit" to somebody being told they have no access reads as a bug. */}
-        <div className={`flex items-center gap-2 flex-wrap ${pwdLocked || pwdFetching ? "hidden" : ""}`}>
-          {/* shareUrl, not url: without the fragment the link opens a document
-              nobody can read, including the person who just published it. */}
-          <CopyButton text={shareUrl} onCopy={() => { recordEvent(slug, "copy_url"); track("doc_copy_link"); }} />
-          {!pwdLocked && (
-            <>
-              <button
-                onClick={() => setImmersive(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
-                </svg>
-                Full screen
-              </button>
-              <button
-                onClick={() => setShowRaw(!showRaw)}
-                className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
-              >
-                {showRaw ? "Rendered" : "Raw"}
-              </button>
-              <button
-                onClick={() => { recordEvent(slug, "export_pdf"); track("doc_export_pdf"); window.print(); }}
-                className="hidden sm:inline-flex px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
-              >
-                Export PDF
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => {
-              if (secretUnlocked) {
-                handleEditClick();
-              } else {
-                setEditing(true);
-              }
-            }}
-            disabled={encrypted && decryptState === "working"}
-            className="px-3 py-1.5 text-xs disabled:opacity-40 disabled:cursor-not-allowed border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
-          >
-            Edit
-          </button>
-
-          {/* A shared or borrowed computer shouldn't keep the key to someone's
-              document. Only offered once there is actually one to remove. */}
-          {encrypted && deviceKeySaved && (
-            <button
-              onClick={() => {
-                e2e.forgetKey(slug);
-                setDeviceKeySaved(false);
-              }}
-              title="Removes this browser's saved copy of the key. The link still works; this device just stops remembering it."
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-dashed border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]"
-            >
-              Forget key on this device
-            </button>
-          )}
-
-          {/* Share — owner only. Access control that lives only on the
-              dashboard is access control you cannot reach from the thing it
-              governs. */}
-          {isOwner && !pwdLocked && (
-            <button
-              onClick={() => setShowShare(true)}
-              title="Choose who can open this document"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
-            >
-              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9.5" cy="7" r="4" />
-                <path d="M20 8v6M23 11h-6" />
-              </svg>
-              Share
-            </button>
-          )}
-
-          {/* Save a copy — any viewer who isn't the owner (logged out → sign in first).
-              Hidden for encrypted documents: the copy happens server-side, which
-              would duplicate ciphertext under a slug whose link carries no key.
-              The API refuses it too, so this is the polite half of the answer. */}
-          {!isOwner && !pwdLocked && !encrypted && (
-            <button
-              onClick={requestCopy}
-              title="Save your own editable copy of this document"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
-            >
-              <CopyDocIcon /> Save a copy
-            </button>
-          )}
-
-          {/* Google Docs sync — owner + connected only. Never for encrypted
-              documents: the export renders Mermaid and LaTeX server-side, which
-              means reading the markdown. */}
-          {isOwner && gConnected && !pwdLocked && !encrypted && (
-            googleDocUrl ? (
-              <>
-                <a
-                  href={googleDocUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
-                >
-                  <GoogleDocIcon /> Open Doc
-                </a>
-                {googleDocStale ? (
-                  <button
-                    onClick={handleGoogleExport}
-                    disabled={gBusy}
-                    title="This document changed since the last sync — push the latest content to Google Docs"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 vscode:border-[#665c33] vscode:bg-[#3a3320] vscode:text-[#e2c08d] vscode:hover:bg-[#4a4126]"
+                {showPanel && (
+                  <PublishedPanel
+                    url={url}
+                    shareUrl={shareUrl}
+                    access={publishedAccess}
+                    encrypted={encrypted}
+                    secret={claimSecret}
+                    signedIn={!!user}
+                    isOwner={isOwner}
+                    onOpenFullScreen={canFullScreen ? () => v.toggleImmersive(true) : undefined}
+                    onSaveToAccount={user && !isOwned && !claimed ? handleClaim : undefined}
+                    secretSaved={claimed}
+                    signInHref={signInHref}
+                    workspaceShareFailed={wsShareFailed}
+                    onDismiss={() => setPanelDismissed(true)}
+                    onLinkCopied={copyLinkEvent}
+                    onSecretCopied={() => setSecretCopied(true)}
+                    className="no-print mb-4"
+                  />
+                )}
+                {/* Save to account, for a secret holder who isn't on the
+                    publish panel (a reload, or ?edit). */}
+                {!showPanel && !isOwned && !claimed && claimSecret && (
+                  user ? (
+                    <Alert
+                      tone="info"
+                      className="no-print"
+                      actions={<Button size="sm" variant="secondary" onClick={handleClaim}>Save to my account</Button>}
+                    >
+                      Save this document to your account to manage it and see analytics.
+                    </Alert>
+                  ) : (
+                    <Alert tone="info" className="no-print">
+                      <a href={signInHref} className="font-semibold text-accent-text underline underline-offset-4">Sign in</a>{" "}
+                      to save this document to your account and track analytics.
+                    </Alert>
+                  )
+                )}
+                {claimMsg && !showPanel && <p className="no-print text-caption text-text-secondary" role="status">{claimMsg}</p>}
+                {rotated && <div className="no-print"><RotatedNotice link={rotated} /></div>}
+                {keySource === "device" && !rotated && readable && <div className="no-print"><DeviceKeyNotice shareUrl={shareUrl} /></div>}
+                {v.gError && (
+                  <Alert
+                    tone="danger"
+                    className="no-print"
+                    onDismiss={() => { v.setGError(null); v.setGNeedsReconnect(false); }}
+                    actions={v.gNeedsReconnect ? <Button size="sm" variant="secondary" onClick={handleGoogleReconnect}>Reconnect Google Docs</Button> : undefined}
                   >
-                    <ReloadIcon spinning={gBusy} /> {gBusy ? "Syncing to Google…" : "Sync to Google Docs"}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleGoogleExport}
-                    disabled={gBusy}
-                    title="Up to date with Google Docs — click to re-sync"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 vscode:border-[#2e4034] vscode:text-[#4ec9b0] vscode:hover:bg-[#26332b]"
-                  >
-                    {gBusy ? <><ReloadIcon spinning /> Syncing to Google…</> : <><GoogleDocIcon /> Synced to Google</>}
-                  </button>
+                    {v.gError}
+                  </Alert>
                 )}
               </>
-            ) : (
-              <button
-                onClick={handleGoogleExport}
-                disabled={gBusy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 vscode:border-[#3c3c3c] rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 vscode:hover:bg-[#2d2d2d] disabled:opacity-50 transition-colors text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4]"
-              >
-                {gBusy ? <Spinner /> : <GoogleDocIcon />} {gBusy ? "Publishing…" : "Publish to Google Docs"}
-              </button>
-            )
-          )}
+            )}
 
-          {!secretUnlocked && !pwdLocked && (
-            <button
-              onClick={() => { setReportReason(""); setReportDone(false); setShowReport(true); }}
-              title="Report this document"
-              className="ml-auto px-2 py-1.5 text-xs text-gray-400 hover:text-red-500 transition-colors"
-            >
-              ⚑ Report
-            </button>
+            {/* The loading state wins over the gate, not the other way round. The
+                server render is anonymous, so a reader who *does* have access still
+                arrives locked and is only let in once the client retries with their
+                token — and showing "this isn't public" for that second tells them
+                something untrue about a document they can read. */}
+            {pwdFetching ? (
+              <div className={`flex flex-col gap-3 py-4 ${vs.delayed}`} aria-busy="true">
+                <span className="md-visually-hidden" role="status">Opening document</span>
+                <Skeleton width="40%" height={28} />
+                {[100, 92, 96, 70, 100, 88, 94, 60].map((w, i) => <Skeleton key={i} width={`${w}%`} />)}
+              </div>
+            ) : pwdLocked ? (
+              <div className="py-6 sm:py-12">
+                <AccessGate
+                  mode={gateMode}
+                  signInHref={signInHref}
+                  signInLabel={tenant ? `Sign in to read ${tenant.name}` : "Sign in to open"}
+                  headingLevel={1}
+                  email={user?.email}
+                  value={pwdInput}
+                  onValue={setPwdInput}
+                  onSubmit={handlePasswordUnlock}
+                  submitting={pwdUnlocking}
+                  error={pwdError}
+                  errorKey={v.pwdErrorKey}
+                  visible={pwdVisible}
+                  onToggleVisible={() => setPwdVisible((x: boolean) => !x)}
+                />
+              </div>
+            ) : (
+              /* THE content element: one element in both modes, classes only.
+                 The print variants flatten the fixed overlay back into the flow
+                 so Export PDF still works from full screen. */
+              <div
+                ref={layerRef}
+                className={
+                  showImmersive
+                    ? "fixed inset-0 z-(--z-overlay) overflow-y-auto overscroll-contain bg-bg print:static print:overflow-visible"
+                    : "relative min-w-0"
+                }
+              >
+                <div
+                  ref={readRef}
+                  className={`${vs.column} mx-auto w-full max-w-reading ${
+                    showImmersive ? "px-5 pb-32 pt-12 sm:px-8 sm:pt-24 print:p-0" : ""
+                  }`}
+                >
+                  <div className="hidden print-only">
+                    {displayTitle && <h1 className="mb-4 text-h1">{displayTitle}</h1>}
+                  </div>
+                  {readable && displayTitle && !showRaw && !empty && !opensWithOwnTitle(displayContent, displayTitle) && (
+                    <h1 dir="auto" className="no-print mb-8 break-words text-h1 text-text">
+                      {displayTitle}
+                    </h1>
+                  )}
+                  {!readable ? (
+                    <EncryptionState
+                      url={url}
+                      state={decryptState === "nokey" || decryptState === "failed" || decryptState === "unsupported" ? decryptState : "working"}
+                    />
+                  ) : empty ? (
+                    <EmptyState icon="doc" title="This document is empty" className="py-16" />
+                  ) : showRaw ? (
+                    <div className="flex flex-col gap-3">
+                      <CopyButton text={displayContent} label="Copy all" size="sm" variant="secondary" className="no-print self-end" />
+                      <pre className="whitespace-pre-wrap break-words rounded-xl border border-border bg-surface-inset p-4 font-mono text-code text-text">
+                        {displayContent}
+                      </pre>
+                    </div>
+                  ) : (
+                    <MarkdownPreview
+                      content={displayContent}
+                      size="reading"
+                      anchors={!encrypted}
+                      encrypted={encrypted}
+                      onHeadings={setHeadings}
+                    />
+                  )}
+                  {readable && !empty && <Colophon />}
+                </div>
+                {showImmersive && readable && !empty && <ReadingProgress key="layer" scroller={layerRef} />}
+                {showImmersive && readable && !showRaw && <TocTicks headings={headings} encrypted={encrypted} />}
+                {showImmersive && <LiveUpdatePill show={livePill} />}
+                {showImmersive && !(viewerChrome === "none" && !user) && (
+                  <ImmersiveExit onExit={() => v.toggleImmersive(false)} />
+                )}
+              </div>
+            )}
+          </div>
+
+          {framed && !gated && (
+            <aside className="no-print hidden xl:block" aria-label="Details">
+              <div className="sticky top-32 pb-6">{details}</div>
+            </aside>
           )}
         </div>
 
-        {gError && (
-          <div className="flex items-center justify-between gap-3 flex-wrap px-3 py-2 rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 text-xs text-red-600 dark:text-red-400">
-            <span>{gError}</span>
-            <div className="flex items-center gap-3 shrink-0">
-              {gNeedsReconnect && (
-                <button onClick={handleGoogleReconnect} className="font-medium underline hover:no-underline">Reconnect Google Docs →</button>
-              )}
-              <button onClick={() => { setGError(null); setGNeedsReconnect(false); }} className="text-red-400 hover:text-red-600">✕</button>
-            </div>
-          </div>
+        {framed && !gated && (
+          <DocumentActionBar
+            shareUrl={shareUrl}
+            onCopyLink={copyLinkEvent}
+            onContents={tocEntries.length ? () => setContentsOpen(true) : null}
+            onShare={v.canShare && !pwdLocked ? () => setShowShare(true) : null}
+            onEdit={secretUnlocked && !editBlocked ? handleEditClick : null}
+            menu={menu}
+            copyVariant={showPanel ? "secondary" : "primary"}
+          />
         )}
-      </div>
+      </main>
 
-      {showCopy && (
-        <Modal title="Save a copy to your account" onClose={() => { if (!copyBusy) setShowCopy(false); }}>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-              This creates your own editable copy on Markdrop with a new link. The
-              copy has <span className="font-medium">no password</span> and{" "}
-              <span className="font-medium">no expiry</span>.
-            </p>
-            <div className="space-y-2">
-              <button
-                onClick={() => handleCopy(false)}
-                disabled={!!copyBusy}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 disabled:opacity-50 transition-colors"
-              >
-                {copyBusy === "plain"
-                  ? <Spinner className="w-5 h-5 shrink-0 text-blue-500" />
-                  : <CopyDocIcon className="w-5 h-5 shrink-0 text-blue-500" />}
-                <span>
-                  <span className="block text-sm font-medium text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
-                    {copyBusy === "plain" ? "Creating copy…" : "Copy to Markdrop"}
-                  </span>
-                  <span className="block text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                    A new document in your dashboard.
-                  </span>
-                </span>
-              </button>
-              <button
-                onClick={() => handleCopy(true)}
-                disabled={!!copyBusy}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-lg border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 disabled:opacity-50 transition-colors"
-              >
-                {copyBusy === "google"
-                  ? <Spinner className="w-5 h-5 shrink-0 text-blue-500" />
-                  : <GoogleDocIcon className="w-5 h-5 shrink-0" />}
-                <span>
-                  <span className="block text-sm font-medium text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">
-                    {copyBusy === "google"
-                      ? "Working…"
-                      : gConnected
-                        ? "Copy & sync to Google Docs"
-                        : "Copy & connect Google Docs"}
-                  </span>
-                  <span className="block text-xs text-gray-500 dark:text-gray-400 vscode:text-[#9d9d9d]">
-                    {gConnected
-                      ? "Also export the copy to a new Google Doc."
-                      : "You'll be asked to connect Google Docs first."}
-                  </span>
-                </span>
-              </button>
-            </div>
-            {copyError && <p className="text-xs text-red-500">{copyError}</p>}
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowCopy(false)}
-                disabled={!!copyBusy}
-                className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      {/* Details below 1280px: a right drawer, a bottom sheet on phones. */}
+      <Drawer
+        open={framed && detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        title="Details"
+        side={phone ? "bottom" : "right"}
+        width={360}
+      >
+        {details}
+      </Drawer>
+      <Drawer
+        open={framed && contentsOpen}
+        onClose={() => setContentsOpen(false)}
+        title="Contents"
+        description={tocFooter}
+        side="bottom"
+      >
+        <Toc headings={headings} encrypted={encrypted} variant="sheet" onNavigate={() => setContentsOpen(false)} />
+      </Drawer>
+
+      <SaveCopyDialog
+        open={showCopy}
+        onClose={() => { if (!v.copyBusy) setShowCopy(false); }}
+        busy={v.copyBusy}
+        error={v.copyError}
+        gConnected={gConnected}
+        onCopy={v.handleCopy}
+      />
 
       {showShare && (
-        <ShareDialog slug={slug} title={displayTitle || slug} onClose={() => setShowShare(false)} />
-      )}
-
-      {showReport && (
-        <Modal title={reportDone ? "Report submitted" : "Report this document"} onClose={() => setShowReport(false)}>
-          {reportDone ? (
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">Thanks — our team will review this document.</p>
-              <div className="flex justify-end">
-                <button onClick={() => setShowReport(false)} className="px-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Close</button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Report spam, phishing, or abusive content. Optionally tell us why:</p>
-              <textarea
-                value={reportReason}
-                onChange={(e) => setReportReason(e.target.value)}
-                maxLength={500}
-                rows={3}
-                placeholder="Reason (optional)"
-                className="w-full bg-gray-50 dark:bg-gray-900 vscode:bg-[#2d2d2d] border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-colors resize-none"
-              />
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowReport(false)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Cancel</button>
-                <button onClick={submitReport} disabled={reportBusy} className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-medium transition-colors">
-                  {reportBusy ? "Submitting…" : "Submit report"}
-                </button>
-              </div>
-            </div>
-          )}
-        </Modal>
-      )}
-
-      {/* Print-only header */}
-      <div className="hidden print-only">
-        {displayTitle && <h1 className="text-2xl font-bold mb-4">{displayTitle}</h1>}
-      </div>
-
-      {/* Content — password gate or actual content */}
-      {/* The loading state wins over the gate, not the other way round. The
-          server render is anonymous, so a reader who *does* have access still
-          arrives locked and is only let in once the client retries with their
-          token — and showing "this isn't public" for that second tells them
-          something untrue about a document they can read. */}
-      {pwdFetching ? (
-        <div className="border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-6 space-y-3 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526]">
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
-              className={`h-3 bg-gray-100 dark:bg-gray-800 vscode:bg-[#2d2d2d] rounded animate-pulse ${
-                i % 3 === 0 ? "w-3/4" : i % 3 === 1 ? "w-full" : "w-5/6"
-              }`}
-            />
-          ))}
-        </div>
-      ) : pwdLocked ? (
-        <AccessGate
-          mode={accessDenied ? "denied" : gate === "signin" ? "signin" : "password"}
-          signInHref={signInHref}
-          email={user?.email}
-          value={pwdInput}
-          onValue={setPwdInput}
-          onSubmit={handlePasswordUnlock}
-          submitting={pwdUnlocking}
-          error={pwdError}
-          visible={pwdVisible}
-          onToggleVisible={() => setPwdVisible((v) => !v)}
+        <ShareDialog
+          slug={slug}
+          title={shownTitle || slug}
+          documentId={v.docId}
+          shareUrl={shareUrl}
+          onClose={() => setShowShare(false)}
+          onChanged={v.loadAccess}
         />
-      ) : (
-        /* One element in both modes — immersive only swaps its classes. Rendering
-           a second copy into an overlay would tear this subtree down and remount
-           it on every toggle, re-running every mermaid diagram and KaTeX block
-           inside it. The print variants flatten the fixed overlay back into the
-           flow so Export PDF still works from full screen. */
-        <div
-          className={
-            showImmersive
-              ? "fixed inset-0 z-[100] overflow-y-auto overscroll-contain bg-white dark:bg-gray-950 vscode:bg-[#1e1e1e] print:static print:overflow-visible print:bg-white"
-              : "relative border border-gray-200 dark:border-gray-800 vscode:border-[#3c3c3c] rounded-lg p-3 sm:p-6 bg-[#252526] dark:bg-gray-900/50 vscode:bg-[#252526] print:border-0 print:p-0 print:bg-white overflow-hidden"
-          }
-        >
-          {/* Full-bleed means we supply the reading measure ourselves; edge-to-
-              edge prose on a wide monitor is worse than the box it replaced. */}
-          <div ref={readRef} className={showImmersive ? "max-w-3xl mx-auto px-5 sm:px-8 py-10 sm:py-14 print:max-w-none print:p-0" : ""}>
-            {/* The title lives in the hidden chrome, and a document whose
-                markdown doesn't open with a heading would otherwise lose it. */}
-            {readable && showImmersive && displayTitle && !showRaw && !opensWithOwnTitle(displayContent, displayTitle) && (
-              <h1 className="no-print mb-8 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4] break-words">
-                {displayTitle}
-              </h1>
-            )}
-            {!readable ? (
-              <EncryptionGate
-                state={decryptState === "nokey" || decryptState === "failed" ? decryptState : "working"}
-              />
-            ) : showRaw ? (
-              <>
-                <CopyButton text={displayContent} label="Copy all" className="no-print absolute top-3 right-3" />
-                <pre className="font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-300 vscode:text-[#d4d4d4] whitespace-pre-wrap break-words">
-                  {displayContent}
-                </pre>
-              </>
-            ) : (
-              <MarkdownPreview content={displayContent} />
-            )}
-          </div>
-          {showImmersive && !(viewerChrome === "none" && !user) && (
-            <ImmersiveExit onExit={() => setImmersive(false)} />
-          )}
-        </div>
+      )}
+
+      <ReportDialog
+        open={showReport}
+        onClose={() => setShowReport(false)}
+        done={v.reportDone}
+        busy={v.reportBusy}
+        error={v.reportError}
+        category={v.reportCategory}
+        onCategory={v.setReportCategory}
+        reason={v.reportReason}
+        onReason={setReportReason}
+        onSubmit={v.submitReport}
+      />
+
+      {claimSecret && (
+        <LeaveGuard active={guardActive} secret={claimSecret} onCopied={() => setSecretCopied(true)} />
       )}
     </div>
   );

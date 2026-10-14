@@ -1,8 +1,9 @@
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -58,7 +59,7 @@ app.add_middleware(
     # invisible to JavaScript unless it is named here. Without this the gate
     # header arrives and is silently unreadable, and the page falls back to
     # guessing which kind of 401 it got — which is the bug it exists to fix.
-    expose_headers=["X-Markdrop-Gate"],
+    expose_headers=["X-Markdrop-Gate", "Retry-After"],
     # Starlette defaults to 600s. Every cross-origin API call the app makes is
     # preceded by a preflight, so a short cache doubles the request count the
     # rate limiter sees for an authenticated page. 7200 is Chrome's ceiling --
@@ -75,7 +76,22 @@ app.add_middleware(TenantCORSMiddleware)
 
 # Rate limiting
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+def _rate_limited(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """429 with Retry-After (seconds until the window resets), so clients can show a live countdown
+    instead of guessing. slowapi's own handler only sets it when headers are enabled globally, which
+    would require a `response` parameter on every limited route."""
+    retry_after = 60
+    try:
+        limit = getattr(request.state, "view_rate_limit", None)
+        if limit is not None:
+            reset_at, _remaining = request.app.state.limiter.limiter.get_window_stats(limit[0], *limit[1])
+            retry_after = max(1, int(1 + reset_at - time.time()))
+    except Exception:
+        pass
+    return JSONResponse({"error": f"Rate limit exceeded: {exc.detail}"}, status_code=429, headers={"Retry-After": str(retry_after)})
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limited)
 app.add_middleware(SlowAPIMiddleware)
 
 # Routers
@@ -87,6 +103,7 @@ app.include_router(admin_router)
 app.include_router(admin_analytics_router)
 app.include_router(beat_router)
 app.include_router(auth_router)
+# Old campaign unsubscribe links (/api/v1/unsubscribe); see routers/auth.py.
 app.include_router(unsubscribe_alias_router)
 app.include_router(me_router)
 app.include_router(sync_router)

@@ -1,0 +1,39 @@
+/* The workspace header: a flat band in the workspace's own accent (REVAMP_PLAN 7.12), 28% in
+   dark and 14% in light, over the page ground. --ws-accent is set inline from the workspace's
+   brand colour (customer data), falling back to Markdrop's accent. No AmbientBackground. */
+.band {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+  background: color-mix(in oklab, var(--ws-accent, var(--accent)) 28%, var(--bg));
+}
+:global([data-theme="light"]) .band {
+  background: color-mix(in oklab, var(--ws-accent, var(--accent)) 14%, var(--bg));
+  border-color: color-mix(in oklab, var(--ws-accent, var(--accent)) 22%, var(--border));
+}
+
+/* A tinted ground costs muted text contrast (a yellow band in dark, a near-black one in light took
+   --text-muted under 4.5:1), so the breadcrumb on the band uses the secondary text colour. */
+.band :global(.md-crumbs) { color: var(--text-secondary); }
+/* Status badges on the band sit on a solid surface: a soft tint over the accent band fell under 4.5:1. */
+.band :global(.md-badge) { background-color: var(--surface); }
+
+/* The sticky "unsaved changes" bar (Brand tab): pinned to the bottom of the viewport while dirty. */
+.saveBar {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-sticky);
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+  animation: bar-in var(--duration-panel, 200ms) var(--ease-out) both;
+}
+@keyframes bar-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .saveBar { animation: none; }
+}

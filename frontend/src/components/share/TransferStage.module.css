@@ -1,0 +1,178 @@
+/* TransferStage (REVAMP_PLAN 8.2, 6.2 "Transfer"). Tokens only; every animation has a rest frame. */
+
+.stage {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.svg {
+  position: absolute;
+  inset: 0 auto auto 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.abs {
+  position: absolute;
+}
+
+/* Paths ------------------------------------------------------------------------------------- */
+.path {
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out);
+}
+.idle { stroke: var(--border-strong); stroke-width: 1.5; }
+.ghost { stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 6 6; }
+.active { stroke: var(--accent); stroke-width: 2; }
+.halo { stroke: var(--accent-soft); stroke-width: 8; }
+.stalled { stroke: var(--accent); stroke-width: 2; opacity: 0.45; }
+.done { stroke: var(--success-fill); stroke-width: 2; }
+.gone { stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 4 6; }
+.failed { stroke: var(--danger); stroke-width: 1.5; stroke-dasharray: 4 6; opacity: 0.7; }
+.relayed { stroke-dasharray: 0 6; stroke-width: 2.5; }
+
+/* Marching ants: only while a connection is being set up (a real, bounded state). */
+.ants {
+  stroke: var(--border-strong);
+  stroke-width: 2;
+  stroke-dasharray: 6 6;
+  animation: ants var(--loop-sweep, 1.4s) linear infinite;
+}
+@keyframes ants {
+  to { stroke-dashoffset: -24; }
+}
+
+/* Done: the path fills success left → right once (400ms). */
+.fill {
+  stroke-dasharray: 100;
+  animation: fill var(--duration-reveal, 400ms) var(--ease-out) both;
+}
+@keyframes fill {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Progress rings ---------------------------------------------------------------------------- */
+.track { fill: none; stroke: var(--border-strong); stroke-width: 2.5; }
+.ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke-dasharray var(--duration-progress, 300ms) var(--ease-out), stroke var(--duration-fast);
+}
+.ringDone { stroke: var(--success-fill); }
+
+/* Packets ----------------------------------------------------------------------------------- */
+.packet { fill: var(--accent); }
+.packetHalo { fill: var(--accent-soft); }
+
+/* Nodes ------------------------------------------------------------------------------------- */
+.hub {
+  outline: 6px solid var(--accent-soft);
+}
+.peer {
+  background: var(--surface-raised);
+  border-color: var(--border);
+  color: var(--text);
+}
+.peerGone {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+.ghostNode {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  border: 1.5px dashed var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+.relayNode {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--accent-text);
+}
+.check {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  background: var(--success-fill);
+  color: var(--on-accent);
+  border: 2px solid var(--surface-inset);
+  animation: pop var(--duration-fast) var(--ease-out) both;
+}
+.fail {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+@keyframes pop {
+  from { transform: scale(0.6); opacity: 0; }
+}
+
+/* Labels ------------------------------------------------------------------------------------ */
+.label {
+  min-width: 0;
+}
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+.sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* One-shot drop into "This device" when everything has arrived (signature moment, once). */
+.drop {
+  position: absolute;
+  left: 50%;
+  top: -18px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--accent);
+  opacity: 0;
+  animation: drop 700ms var(--ease-out) 120ms both;
+  pointer-events: none;
+}
+@keyframes drop {
+  0% { opacity: 0; transform: translateY(-14px) rotate(-45deg) scale(0.9); }
+  25% { opacity: 1; }
+  70% { opacity: 1; transform: translateY(18px) rotate(-45deg) scale(1); }
+  100% { opacity: 0; transform: translateY(24px) rotate(-45deg) scale(0.4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ants, .fill, .check, .drop { animation: none; }
+  .drop { display: none; }
+  .ring, .path { transition: none; }
+}

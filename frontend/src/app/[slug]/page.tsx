@@ -1,9 +1,9 @@
 import { Suspense } from "react";
-import { ApiError, getDocument, API_BASE } from "@/lib/api";
+import { getDocument, API_BASE } from "@/lib/api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ArtifactView from "./ArtifactView";
-import MarkdropLoader from "@/components/MarkdropLoader";
+import { MarkdropLoader } from "@/components/ui";
 import DocumentView from "./DocumentView";
 
 interface Props {
@@ -36,8 +36,8 @@ export async function generateStaticParams() {
  */
 function ViewerFallback() {
   return (
-    <div className="flex-1 min-h-[60vh] flex items-center justify-center">
-      <MarkdropLoader label="Opening document…" />
+    <div className="flex min-h-[60vh] flex-1 items-center justify-center">
+      <MarkdropLoader label="Opening document" delay={300} />
     </div>
   );
 }
@@ -45,10 +45,10 @@ function ViewerFallback() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   // Dynamic link-preview card, rendered server-side by the backend. The endpoint
-  // is content-safe (a content-free card for anything an anonymous reader can't
-  // open, and for unknown slugs), so we advertise it in both metadata branches.
-  // `v` busts unfurl caches when the card itself changes.
-  const ogImage = `${API_BASE}/api/v1/og/${slug}.png?v=2`;
+  // is content-safe (generic card for password-protected / unknown slugs), so we
+  // advertise it in both metadata branches.
+  // `v` busts link-preview caches for the redesigned card (REVAMP_PLAN 7.21).
+  const ogImage = `${API_BASE}/api/v1/og/${slug}.png?v=3`;
   const images = [{ url: ogImage, width: 1200, height: 630, alt: "Markdrop" }];
   try {
     const doc = await getDocument(slug, undefined, undefined, { revalidate: 60 });
@@ -102,11 +102,12 @@ export default async function SlugPage({ params }: Props) {
       // with their token before showing anyone a door.
       isPasswordProtected = true;
       gate = "signin";
-    } else if (e instanceof ApiError && e.status === 404) {
+    } else if (e instanceof Error && e.message === "Document not found") {
       notFound();
     } else {
-      // An outage, not an answer: let the error boundary render it, and let
-      // ISR keep serving the last good copy instead of caching a 404.
+      // F7: only a real 404 is "Nothing at this link". A 5xx or a network
+      // failure throws, so app/error.tsx renders and ISR keeps serving the last
+      // good copy instead of caching a 404 for a document that exists.
       throw e;
     }
   }

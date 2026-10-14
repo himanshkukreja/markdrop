@@ -1,0 +1,1388 @@
+/* Key Lab: "The key lives in the link". Ported from design/revamp-canvas/PlayKeyLab.dc.html.
+   Base styles are the END state; animations play from a start state, so reduced motion (animation: none)
+   shows the finished picture. One-shot animations replay through A/B parity classes.
+   The key uses the standard key-fragment treatment (mono accent-text on accent-soft, key icon). */
+
+/* ── Section shell (server) ── */
+.section {
+  position: relative;
+  overflow: hidden;
+  overflow: clip;
+}
+.dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 8%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, black, transparent);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, black, transparent);
+  pointer-events: none;
+}
+.bighash {
+  position: absolute;
+  right: -8px;
+  top: -40px;
+  font: 800 260px/1 var(--font-mono);
+  color: var(--accent-text);
+  opacity: 0.05;
+  pointer-events: none;
+  user-select: none;
+}
+.head {
+  position: relative;
+  max-width: 720px;
+}
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font: 700 11px/16px var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.h2 {
+  margin: 0;
+  font: 800 clamp(30px, 22px + 2vw, 40px) / 1.1 var(--font-sans);
+  letter-spacing: -0.025em;
+  color: var(--text);
+  text-wrap: balance;
+}
+.h2 em {
+  font-style: normal;
+  color: var(--accent-text);
+}
+.lead {
+  margin: 16px 0 0;
+  max-width: 62ch;
+  font: 400 16px/26px var(--font-sans);
+  color: var(--text-secondary);
+}
+.lead code {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  font: 600 0.9375em/1 var(--font-mono);
+  color: var(--accent-text);
+}
+@media (min-width: 768px) {
+  .bighash {
+    right: -16px;
+    top: -88px;
+    font-size: 460px;
+  }
+  .lead {
+    font-size: 17px;
+    line-height: 27px;
+  }
+}
+
+/* ── The island ── */
+.root {
+  /* Not positioned on purpose: at >= 1024 the Pause control anchors to the section container. */
+  --kl-key: var(--accent-text);
+  --kl-key-soft: var(--accent-soft);
+  --kl-key-line: color-mix(in srgb, var(--accent-text) 42%, transparent);
+  --kl-glow: 0 0 26px color-mix(in srgb, var(--accent-text) 22%, transparent);
+  --kl-sh: 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent) inset, 0 40px 80px -40px var(--overlay);
+  --kl-cta-glow: var(--shadow-glow);
+}
+:global([data-theme="light"]) .root {
+  --kl-glow: 0 0 0 transparent;
+  --kl-sh: 0 1px 2px color-mix(in srgb, var(--text) 7%, transparent), 0 28px 56px -28px color-mix(in srgb, var(--text) 26%, transparent);
+  --kl-cta-glow: 0 10px 24px -10px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.root * {
+  box-sizing: border-box;
+}
+.root button {
+  font-family: var(--font-sans);
+}
+.root button:focus-visible,
+.root textarea:focus-visible,
+.root a:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ic {
+  display: inline-flex;
+  flex: none;
+}
+
+/* Pause / Play: in flow under the copy on small screens, top right of the section head from 1024 */
+.tools {
+  display: flex;
+  margin-top: 20px;
+}
+@media (min-width: 1024px) {
+  .tools {
+    position: absolute;
+    top: 96px;
+    right: 24px;
+    margin-top: 0;
+  }
+}
+.tbtn {
+  height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: 500 14px/1 var(--font-sans);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+.tbtn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.body {
+  container: kl / inline-size;
+  margin-top: 24px;
+}
+@media (min-width: 1024px) {
+  .body {
+    margin-top: 36px;
+  }
+}
+
+/* ── Stage: one column < 640, note | link over the panel < 1100, the board's three columns above ── */
+.stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "note" "link" "panel";
+  gap: 28px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--kl-sh);
+}
+@container kl (max-width: 300px) {
+  .stage {
+    padding: 12px;
+  }
+}
+@container kl (min-width: 640px) {
+  .stage {
+    grid-template-columns: clamp(240px, 34cqi, 290px) minmax(0, 1fr);
+    grid-template-areas: "note link" "panel panel";
+    gap: 24px;
+    padding: 24px;
+  }
+}
+@container kl (min-width: 1100px) {
+  .stage {
+    height: 540px;
+    grid-template-columns: clamp(250px, 23.5cqi, 290px) minmax(0, 1fr) clamp(360px, 32cqi, 420px);
+    grid-template-areas: "note link panel";
+  }
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.colNote {
+  grid-area: note;
+}
+.lab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+  margin-bottom: 10px;
+}
+.lt {
+  margin: 0;
+  font: 600 13px/20px var(--font-sans);
+  color: var(--text);
+}
+.livedot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 12px/1 var(--font-sans);
+  color: var(--text-muted);
+}
+.livedot i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+}
+.demo .livedot i {
+  animation: kl-blink 2.4s ease-in-out infinite;
+}
+@keyframes kl-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Left: the note */
+.field {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+}
+.ta {
+  flex: 1;
+  width: 100%;
+  /* Seven 22px lines: the sample note still fits when it wraps on a 320px phone. */
+  min-height: 184px;
+  resize: none;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-inset);
+  color: var(--text);
+  font: 400 14px/22px var(--font-mono);
+  caret-color: var(--accent-text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ta:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.ta::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.hint {
+  margin-top: 8px;
+  font: 400 12px/17px var(--font-sans);
+  color: var(--text-muted);
+}
+.meta {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--success-soft);
+  color: var(--text-secondary);
+  font: 400 12px/17px var(--font-sans);
+}
+.meta b {
+  display: block;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+.meta .ic {
+  color: var(--success);
+  margin-top: 1px;
+}
+
+/* Middle: the link, split at the # */
+.colLink {
+  grid-area: link;
+  container: kllink / inline-size;
+  /* URL font scales with the column so the whole link fits (JetBrains Mono: 0.58em per glyph here).
+     Resolved on .linkrow's font-size (100cqi = this column) and inherited as em below, because the key
+     half of the link is its own container. The tray uses --fs directly (no container in between). */
+  --fs: clamp(12px, (100cqi - 80px) / 18, 21px);
+  --chip-w: calc(var(--fs) * 6.75 + 37px);
+  --bar-h: 76px;
+  --chip-h: 52px;
+  --tray-h: 84px;
+  /* Bar centre to tray centre: half the bar, the annotation (36), the old-link row (32), the gap (8). */
+  --out-y: calc(var(--bar-h) / 2 + 76px + var(--tray-h) / 2);
+}
+@container kl (max-width: 639px) {
+  .colLink {
+    --bar-h: 64px;
+    --chip-h: 44px;
+    --tray-h: 88px;
+  }
+}
+.linkrow {
+  display: flex;
+  align-items: flex-start;
+  font-size: var(--fs);
+}
+.kmid {
+  display: inline;
+}
+
+.seg {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-width: 0;
+}
+.segF {
+  flex: 1;
+  container-type: inline-size;
+}
+.bar {
+  height: var(--bar-h);
+  display: flex;
+  align-items: center;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-strong);
+}
+.barL {
+  border-right: 0;
+  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+  padding: 0 2px 0 18px;
+}
+.barR {
+  position: relative;
+  border-left: 0;
+  border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+  padding: 0 12px 0 2px;
+}
+.url {
+  font: 600 1em/1 var(--font-mono);
+  letter-spacing: -0.02em;
+  color: var(--text);
+  white-space: nowrap;
+}
+.mu {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.ann {
+  position: relative;
+  height: 26px;
+  margin: 10px 4px 0 18px;
+  padding-top: 9px;
+  border-top: 2px solid var(--border-strong);
+  font: 500 12px/16px var(--font-sans);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.ann::before,
+.ann::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  width: 2px;
+  height: 8px;
+  background: var(--border-strong);
+}
+.ann::before {
+  left: 0;
+}
+.ann::after {
+  right: 0;
+}
+.annK {
+  margin: 10px 12px 0 2px;
+  border-top-color: var(--kl-key-line);
+  color: var(--kl-key);
+}
+.annK::before,
+.annK::after {
+  background: var(--kl-key-line);
+}
+
+/* The key chip: ONE element moved by transform, so keyboard focus never jumps. Out of the link it lands
+   at the right end of the tray (100cqi = the key half of the link). */
+.chip {
+  position: relative;
+  z-index: 4;
+  height: var(--chip-h);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--kl-key);
+  font-size: inherit;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.55s cubic-bezier(0.34, 1.32, 0.5, 1);
+}
+.chipOut {
+  transform: translate(calc(100cqi - 100% - 14px), var(--out-y));
+}
+.chipDrag {
+  transition: none;
+  cursor: grabbing;
+  z-index: 6;
+  transform: translate(var(--dx, 0px), var(--dy, 0px));
+}
+.chipOut.chipDrag {
+  transform: translate(calc(100cqi - 100% - 14px + var(--dx, 0px)), calc(var(--out-y) + var(--dy, 0px)));
+}
+.chipi {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--chip-h);
+  padding: 0 14px 0 12px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--kl-key-line);
+  background: var(--kl-key-soft);
+  box-shadow: var(--kl-glow);
+  font: 700 1em/1 var(--font-mono);
+  letter-spacing: -0.02em;
+  transition: box-shadow 0.2s, background-color 0.2s;
+}
+.chipi svg,
+.ghost svg {
+  width: 0.95em;
+  height: 0.95em;
+}
+.chip:hover .chipi {
+  background: color-mix(in srgb, var(--kl-key) 22%, transparent);
+}
+.chipDrag .chipi {
+  animation: none;
+  box-shadow: 0 22px 34px -14px var(--overlay), var(--kl-glow);
+  transform: scale(1.06) rotate(var(--tilt, 0deg));
+}
+.qA {
+  animation: kl-squashA 0.5s 0.32s cubic-bezier(0.34, 1.5, 0.5, 1);
+}
+.qB {
+  animation: kl-squashB 0.5s 0.32s cubic-bezier(0.34, 1.5, 0.5, 1);
+}
+@keyframes kl-squashA {
+  0% { transform: scale(1.14, 0.84); }
+  45% { transform: scale(0.95, 1.06); }
+  100% { transform: none; }
+}
+@keyframes kl-squashB {
+  0% { transform: scale(1.14, 0.84); }
+  45% { transform: scale(0.95, 1.06); }
+  100% { transform: none; }
+}
+.hw {
+  animation: kl-wiggle 1.8s ease-in-out infinite;
+}
+@keyframes kl-wiggle {
+  0%, 55%, 100% { transform: none; }
+  65% { transform: translateY(-7px) rotate(-3deg); }
+  76% { transform: translateY(1px) rotate(2deg); }
+  86% { transform: translateY(-3px); }
+}
+.kt {
+  display: inline-block;
+}
+.kA {
+  animation: kl-rollA 0.5s ease-out;
+}
+.kB {
+  animation: kl-rollB 0.5s ease-out;
+}
+@keyframes kl-rollA {
+  0% { opacity: 0; transform: translateY(-10px); filter: blur(4px); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+@keyframes kl-rollB {
+  0% { opacity: 0; transform: translateY(-10px); filter: blur(4px); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+.rip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-radius: 50%;
+  border: 2px solid var(--kl-key);
+  opacity: 0;
+  pointer-events: none;
+}
+.rA {
+  animation: kl-ripA 0.8s 0.38s ease-out;
+}
+.rB {
+  animation: kl-ripB 0.8s 0.38s ease-out;
+}
+@keyframes kl-ripA {
+  0% { opacity: 0.85; transform: scale(0.5); }
+  100% { opacity: 0; transform: scale(3.4); }
+}
+@keyframes kl-ripB {
+  0% { opacity: 0.85; transform: scale(0.5); }
+  100% { opacity: 0; transform: scale(3.4); }
+}
+.hintlab {
+  position: absolute;
+  left: 14px;
+  top: -14px;
+  z-index: 5;
+  padding: 4px 8px;
+  border-radius: var(--radius-full);
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
+  font: 600 11px/1 var(--font-sans);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: kl-fade 0.3s ease-out;
+}
+.ghost {
+  position: absolute;
+  left: 2px;
+  top: calc((var(--bar-h) - 2px - var(--chip-h)) / 2);
+  height: var(--chip-h);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 0 12px;
+  border-radius: var(--radius-lg);
+  border: 1.5px dashed var(--border-strong);
+  font: 700 1em/1 var(--font-mono);
+  letter-spacing: -0.02em;
+  opacity: 0;
+  transition: opacity 0.25s, border-color 0.2s, background-color 0.2s;
+  pointer-events: none;
+}
+.ghostOn {
+  opacity: 1;
+}
+.ghostHot {
+  border-color: var(--kl-key);
+  background: var(--kl-key-soft);
+}
+.sp {
+  visibility: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.gt {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  /* The link font bottoms out at 12px on a 320px phone; never let the ghost label drop under 11px. */
+  font-size: max(11px, 0.9em);
+}
+
+/* Old link after a rotation */
+.old {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 13px/1 var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.old .ic {
+  color: var(--danger);
+}
+.olds {
+  position: relative;
+  display: inline-block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.olds::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background: var(--danger);
+  transform-origin: left;
+  transform: scaleX(1);
+}
+.sA::after {
+  animation: kl-strikeA 0.45s 0.1s ease-out both;
+}
+.sB::after {
+  animation: kl-strikeB 0.45s 0.1s ease-out both;
+}
+@keyframes kl-strikeA {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes kl-strikeB {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.stop {
+  flex: none;
+  font: 600 12px/1 var(--font-sans);
+  color: var(--danger);
+}
+
+/* Tray: where the key goes when it is out of the link */
+.tray {
+  position: relative;
+  margin-top: 8px;
+  height: var(--tray-h);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-xl);
+  color: var(--text-muted);
+  font: 500 13px/18px var(--font-sans);
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+.trayHot {
+  border-color: var(--kl-key);
+  background: var(--kl-key-soft);
+  color: var(--kl-key);
+}
+.trayKey {
+  border-style: solid;
+  border-color: var(--kl-key-line);
+}
+.fA {
+  animation: kl-trayA 0.6s 0.3s ease-out;
+}
+.fB {
+  animation: kl-trayB 0.6s 0.3s ease-out;
+}
+@keyframes kl-trayA {
+  0% { background-color: var(--kl-key-soft); }
+  100% { background-color: transparent; }
+}
+@keyframes kl-trayB {
+  0% { background-color: var(--kl-key-soft); }
+  100% { background-color: transparent; }
+}
+.trayi {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+}
+.trayt {
+  /* Ends before the spot where the chip lands (chip width + its 14px inset + gaps, icon and padding). */
+  max-width: calc(100cqi - var(--chip-w) - 88px);
+}
+@container kl (max-width: 639px) {
+  .tray {
+    padding: 0 12px;
+    font-size: 12px;
+    line-height: 16px;
+  }
+  .trayi {
+    display: none;
+  }
+  .trayt {
+    max-width: calc(100cqi - var(--chip-w) - 44px);
+  }
+}
+
+/* Very narrow (320px phones): drop the middle of the key and tighten the bars so the link still fits. */
+@container kllink (max-width: 300px) {
+  .linkrow,
+  .tray {
+    --fs: clamp(11px, (100cqi - 56px) / 17, 14px);
+    --chip-w: calc(var(--fs) * 4.95 + 31px);
+  }
+  .kmid {
+    display: none;
+  }
+  .barL {
+    padding-left: 10px;
+  }
+  .barR {
+    padding-right: 8px;
+  }
+  .chipi,
+  .ghost {
+    gap: 6px;
+    padding: 0 9px 0 8px;
+  }
+  .ann {
+    margin-left: 10px;
+    padding-top: 4px;
+    font-size: 11px;
+    line-height: 11px;
+    white-space: normal;
+  }
+  .annK {
+    margin: 10px 8px 0 2px;
+  }
+}
+/* Actions + status */
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+.btn {
+  min-height: 44px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text);
+  font: 600 14px/1 var(--font-sans);
+  cursor: pointer;
+  transition: transform 0.12s, background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn:hover {
+  background: var(--surface-hover);
+}
+.btn:active {
+  transform: scale(0.96);
+}
+.btn[aria-pressed="true"],
+.btn[data-on] {
+  background: var(--kl-key-soft);
+  border-color: var(--kl-key-line);
+  color: var(--kl-key);
+}
+.btn svg {
+  width: 16px;
+  height: 16px;
+}
+@container kl (max-width: 639px) {
+  .acts .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+.status {
+  margin: 18px 0 0;
+  min-height: 44px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset);
+  font: 500 13px/19px var(--font-sans);
+  color: var(--text-secondary);
+}
+.status .ic {
+  margin-top: 2px;
+  color: var(--text-secondary);
+}
+@container kl (min-width: 1100px) {
+  .status {
+    margin-top: auto;
+  }
+  .acts {
+    margin-bottom: 18px;
+  }
+}
+
+/* Right: what each side sees */
+.panel {
+  grid-area: panel;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 460px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+}
+@container kl (min-width: 640px) {
+  .panel {
+    height: 420px;
+  }
+}
+@container kl (min-width: 1100px) {
+  .panel {
+    height: auto;
+  }
+}
+.seg2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin: 12px 12px 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset);
+}
+.sbtn {
+  min-height: 46px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 600 13px/17px var(--font-sans);
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.sbtn:hover {
+  color: var(--text);
+}
+.sbtn[aria-pressed="true"] {
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.pbody {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+}
+.vin {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.vinIn {
+  animation: kl-fade 0.3s ease-out;
+}
+.phead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+}
+.pt {
+  font: 700 14px/20px var(--font-sans);
+  color: var(--text);
+}
+.row {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.k {
+  font: 700 11px/18px var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.v {
+  font: 500 12px/18px var(--font-mono);
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.v small {
+  display: block;
+  font: 500 11px/16px var(--font-sans);
+  color: var(--kl-key);
+  white-space: normal;
+}
+.scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  margin-top: 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+  -webkit-mask-image: linear-gradient(transparent, black 14%, black 86%, transparent);
+  mask-image: linear-gradient(transparent, black 14%, black 86%, transparent);
+}
+.ct {
+  padding: 10px 12px;
+  font: 500 12px/19px var(--font-mono);
+  color: var(--text-secondary);
+  animation: kl-scroll var(--d, 30s) linear infinite;
+}
+.ctA {
+  animation: kl-scroll var(--d, 30s) linear infinite, kl-flashA 1s ease-out;
+}
+.ctB {
+  animation: kl-scroll var(--d, 30s) linear infinite, kl-flashB 1s ease-out;
+}
+.ct span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+}
+@keyframes kl-scroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+@keyframes kl-flashA {
+  0% { color: var(--kl-key); }
+  100% { color: var(--text-secondary); }
+}
+@keyframes kl-flashB {
+  0% { color: var(--kl-key); }
+  100% { color: var(--text-secondary); }
+}
+.pfoot {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  font: 500 12px/17px var(--font-sans);
+  color: var(--text-muted);
+}
+.pfoot .ic {
+  margin-top: 1px;
+}
+.pfoot svg {
+  width: 14px;
+  height: 14px;
+}
+.ok {
+  color: var(--success);
+}
+.tab {
+  align-self: flex-start;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--surface-inset);
+  font: 600 12px/28px var(--font-sans);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 0 var(--radius-md) var(--radius-md) var(--radius-md);
+  background: var(--surface-inset);
+  font: 500 12px/1 var(--font-mono);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.chrome .ic {
+  color: var(--text-secondary);
+}
+.chrome .mu {
+  color: var(--text-secondary);
+}
+.frag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--kl-key-soft);
+  color: var(--kl-key);
+  min-width: 0;
+  flex-shrink: 1;
+}
+/* On a 320px phone the fragment ellipsises instead of being cut mid-key. */
+.fragT {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.art {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 18px 4px 0;
+}
+.artIn {
+  animation: kl-reveal 0.55s ease-out;
+}
+@keyframes kl-reveal {
+  0% { opacity: 0.15; filter: blur(6px); }
+  100% { opacity: 1; filter: none; }
+}
+.ah {
+  margin: 0 0 10px;
+  font: 800 22px/28px var(--font-sans);
+  letter-spacing: -0.02em;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.ap {
+  margin: 0 0 8px;
+  font: 400 14px/22px var(--font-sans);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.ali {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 6px;
+  font: 400 14px/22px var(--font-sans);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.ali::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.miss {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 16px;
+  margin-top: 12px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.missbg {
+  position: absolute;
+  inset: 0;
+  padding: 10px 12px;
+  font: 500 12px/19px var(--font-mono);
+  color: var(--text-subtle);
+  opacity: 0.35;
+  filter: blur(1.5px);
+  pointer-events: none;
+  text-align: left;
+}
+.missbg span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.missc {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 18px;
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+}
+.lockc {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--warning-soft);
+  color: var(--warning);
+  animation: kl-shake 0.5s ease-out;
+}
+@keyframes kl-shake {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+.missc b {
+  margin-top: 14px;
+  font: 700 18px/24px var(--font-sans);
+  color: var(--text);
+}
+.missc p {
+  margin: 8px 0 0;
+  font: 400 13px/20px var(--font-sans);
+  color: var(--text-secondary);
+}
+.sign {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: kl-fade 0.25s ease-out;
+}
+.signc {
+  max-width: 340px;
+  max-height: 100%;
+  overflow: auto;
+  padding: 20px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+  animation: kl-rise 0.35s cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+.signIc {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-inset);
+  color: var(--text);
+}
+.signc b {
+  display: block;
+  margin-top: 12px;
+  font: 700 17px/23px var(--font-sans);
+  color: var(--text);
+}
+.signc p {
+  margin: 8px 0 0;
+  font: 400 13px/20px var(--font-sans);
+  color: var(--text-secondary);
+}
+.signc .btn {
+  margin-top: 16px;
+}
+@keyframes kl-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes kl-rise {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── Footer: checklist + CTA ── */
+.foot {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 24px;
+}
+.check {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.cmeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cmetaTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cmeta b {
+  font: 700 14px/18px var(--font-sans);
+  color: var(--text);
+}
+.count {
+  font: 500 12px/16px var(--font-sans);
+  color: var(--text-muted);
+}
+.bar3 {
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--surface-active);
+  overflow: hidden;
+}
+.bar3 i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success-fill);
+  transition: width 0.3s;
+}
+.done {
+  align-self: flex-start;
+}
+.steps {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset);
+  font: 500 13px/17px var(--font-sans);
+  color: var(--text-secondary);
+  transition: background-color 0.3s, color 0.3s;
+}
+.stepDone {
+  background: var(--success-soft);
+  color: var(--text);
+}
+.num {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--border-strong);
+  font: 700 11px/1 var(--font-mono);
+  color: var(--text-secondary);
+}
+.tick {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--success-fill);
+  color: var(--on-accent);
+  animation: kl-pop 0.5s cubic-bezier(0.34, 1.6, 0.5, 1);
+}
+.tick svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.6;
+}
+@keyframes kl-pop {
+  0% { transform: scale(0.3); }
+  100% { transform: none; }
+}
+.cta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.ctaw {
+  display: flex;
+  border-radius: var(--radius-lg);
+  transition: box-shadow 0.4s;
+}
+.ctaw > a {
+  flex: 1;
+}
+.lit {
+  box-shadow: var(--kl-cta-glow);
+  animation: kl-ctapulse 2.4s ease-in-out 2;
+}
+@keyframes kl-ctapulse {
+  0%, 100% { transform: none; }
+  50% { transform: translateY(-2px); }
+}
+.cta p {
+  margin: 0;
+  font: 400 12px/17px var(--font-sans);
+  color: var(--text-muted);
+}
+@container kl (min-width: 600px) {
+  .steps {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .check,
+  .cta {
+    padding: 16px 20px;
+  }
+  .ctaw {
+    align-self: flex-start;
+  }
+  .ctaw > a {
+    flex: none;
+  }
+}
+@container kl (min-width: 1000px) {
+  .foot {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 24px;
+  }
+  .check {
+    flex: 1;
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+  }
+  .cmeta {
+    flex: none;
+    width: 150px;
+  }
+  .cmetaTop {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .cta {
+    flex: none;
+    width: 320px;
+  }
+}
+
+/* ── Motion: Pause freezes the ambient loops; reduced motion shows the end states ── */
+.paused .ct,
+.paused .livedot i,
+.paused .hw {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .root *,
+  .root *::before,
+  .root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

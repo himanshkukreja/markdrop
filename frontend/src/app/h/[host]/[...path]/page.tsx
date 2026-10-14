@@ -5,8 +5,10 @@ import { getDocument, API_BASE } from "@/lib/api";
 import { resolveAppHost } from "@/lib/hostResolution";
 import ArtifactView from "@/app/[slug]/ArtifactView";
 import DocumentView from "@/app/[slug]/DocumentView";
-import MarkdropLoader from "@/components/MarkdropLoader";
 import { signInUrlFor } from "@/lib/hosts";
+import { getTenantFolder } from "@/components/tenant/folderIndex";
+import { TenantFolderIndex } from "@/components/tenant/TenantFolderIndex";
+import { TenantLoading } from "@/components/tenant/TenantLoading";
 
 /**
  * A document as served on a workspace's own domain.
@@ -32,7 +34,13 @@ import { signInUrlFor } from "@/lib/hosts";
  * shared route would make it dynamic for every visitor.
  *
  * The views are the same components markdrop.in renders. Only the scope and the
- * branding differ, so tenant pages can never drift from the product.
+ * branding differ, so tenant pages can never drift from the product. The tenant
+ * chrome (header, accent, footer) comes from `../layout.tsx` through
+ * `TenantProvider`; the views read it with `useTenant()`.
+ *
+ * A path whose last segment is not a document may be a folder: it renders the
+ * folder index when the API lists that folder, and is a 404 otherwise (in tenant
+ * chrome, via `../not-found.tsx`).
  */
 
 interface Props {
@@ -67,6 +75,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   let pageTitle = slug;
   let description = siteName ? `A document on ${siteName}` : "Shared document";
+  let isFolder = false;
   if (resolved) {
     try {
       const doc = await getDocument(slug, undefined, undefined, {
@@ -78,8 +87,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         const preview = doc.content.slice(0, 150).replace(/[#*_`]/g, "");
         if (preview) description = preview;
       }
-    } catch {
-      /* fall through to the generic card */
+    } catch (e) {
+      // Not a document (gates throw their own messages and keep the generic card):
+      // maybe a folder, which is named by its display name and has no OG card.
+      if (e instanceof Error && e.message === "Document not found") {
+        const listing = await getTenantFolder(host, path.filter(Boolean));
+        if (listing?.folder) {
+          isFolder = true;
+          pageTitle = listing.folder.name;
+          description = siteName ? `Documents in ${listing.folder.name} on ${siteName}` : `Documents in ${listing.folder.name}`;
+        }
+      }
     }
   }
 
@@ -87,7 +105,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // default one. A link to content.senseloaf.ai whose card reads
   // cdn.senseloaf.ai looks like somebody else's link. The server validates the
   // host against that workspace's verified domains before drawing it.
-  const ogImage = `${API_BASE}/api/v1/og/${slug}.png?host=${encodeURIComponent(host)}&v=2`;
+  const ogImage = `${API_BASE}/api/v1/og/${slug}.png?host=${encodeURIComponent(host)}&v=3`;
   const title = siteName ? `${pageTitle} — ${siteName}` : pageTitle;
   return {
     title,
@@ -96,12 +114,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title,
       description,
-      type: "article",
+      type: isFolder ? "website" : "article",
       url: `https://${host}/${path.filter(Boolean).join("/")}`,
       ...(siteName ? { siteName } : {}),
-      images: [{ url: ogImage, width: 1200, height: 630, alt: pageTitle }],
+      ...(isFolder ? {} : { images: [{ url: ogImage, width: 1200, height: 630, alt: pageTitle }] }),
     },
-    twitter: { card: "summary_large_image", title, description, images: [ogImage] },
+    twitter: isFolder
+      ? { card: "summary", title, description }
+      : { card: "summary_large_image", title, description, images: [ogImage] },
   };
 }
 
@@ -120,6 +140,7 @@ export default async function TenantDocumentPage({ params }: Props) {
   if (!resolved) notFound();
 
   let doc = null;
+  let missing = false;
   let isPasswordProtected = false;
   // Which gate the anonymous render hit. A private document with no password
   // must not be presented as "password protected" — there is no password to
@@ -137,7 +158,27 @@ export default async function TenantDocumentPage({ params }: Props) {
     } else if (e instanceof Error && e.message === "SIGNIN_REQUIRED") {
       isPasswordProtected = true;
       gate = "signin";
+    } else if (e instanceof Error && e.message === "Document not found") {
+      missing = true;
     } else notFound();
+  }
+
+  // Not a document: the whole path may name a folder. Only a listing the API
+  // actually returns is shown (it lists only what a signed-out reader may open);
+  // anything else is the tenant 404, exactly as before.
+  if (missing) {
+    const listing = await getTenantFolder(host, [...folders, slug]);
+    if (!listing?.folder) notFound();
+    return (
+      <TenantFolderIndex
+        siteName={resolved.site_name?.trim() || host}
+        folder={listing.folder}
+        trail={listing.trail}
+        folders={listing.folders}
+        documents={listing.documents}
+        returnPath={`/${[...folders, slug].join("/")}`}
+      />
+    );
   }
 
   // A password prompt reveals nothing about filing, so it is allowed through on
@@ -154,6 +195,10 @@ export default async function TenantDocumentPage({ params }: Props) {
     const canonical = [...(doc.folder_path ?? []), slug].join("/");
     redirect(`/${canonical}`);
   }
+
+  // D24: "minimal" is no longer offered and behaves like "full". "none" keeps
+  // hiding ImmersiveExit for anonymous readers (on this domain only).
+  const viewerChrome = resolved.viewer_chrome === "none" ? "none" : "full";
 
   if (doc?.kind === "artifact") {
     return (
@@ -172,7 +217,7 @@ export default async function TenantDocumentPage({ params }: Props) {
           originalFilename={doc.original_filename ?? null}
           artifactUrl={doc.artifact_url ?? null}
           downloadUrl={doc.download_url ?? null}
-          viewerChrome={resolved.viewer_chrome}
+          viewerChrome={viewerChrome}
         />
       </Suspense>
     );
@@ -194,16 +239,13 @@ export default async function TenantDocumentPage({ params }: Props) {
         isOwned={doc?.is_owned ?? false}
         syncedWithVscode={doc?.vscode_synced ?? false}
         encrypted={doc?.encrypted ?? false}
-        viewerChrome={resolved.viewer_chrome}
+        viewerChrome={viewerChrome}
       />
     </Suspense>
   );
 }
 
+/** Neutral on purpose: the Markdrop loader would put our mark on the customer's site. */
 function TenantFallback() {
-  return (
-    <div className="flex-1 min-h-[60vh] flex items-center justify-center">
-      <MarkdropLoader label="Opening document…" />
-    </div>
-  );
+  return <TenantLoading label="Opening document" />;
 }

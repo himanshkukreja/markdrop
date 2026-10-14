@@ -366,12 +366,45 @@ async def delete_folder(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: 
     """
     raw = await _get_owned(db, workspace_id, folder_id)
     fid = str(raw["_id"])
+    new_parent = raw.get("parent_id")
 
     # Children move up rather than being orphaned into an unreachable subtree.
-    await db["folders"].update_many(
-        {"workspace_id": workspace_id, "parent_id": fid},
-        {"$set": {"parent_id": raw.get("parent_id")}},
-    )
+    #
+    # One at a time, because a promoted child can land next to a folder with the
+    # same slug ("Archive/Reports" beside a top-level "Reports") -- the sibling
+    # unique index then refused the whole move and the delete failed with a 500.
+    # It can also land at the top level with a reserved word for a slug
+    # ("Archive/Settings"). Either way the child keeps its name and gets a
+    # suffixed slug, the same treatment `backfill_slugs` gives: there is nobody
+    # mid-request to ask for a different name.
+    children = await db["folders"].find(
+        {"workspace_id": workspace_id, "parent_id": fid}, {"slug": 1}
+    ).to_list(length=MAX_FOLDERS_PER_WORKSPACE)
+    if any((c.get("slug") or "") == raw.get("slug") for c in children):
+        # A child may share the dying folder's own slug ("Archive/Archive"); free
+        # it first, since the folder still occupies it until the very end.
+        await db["folders"].update_one(
+            {"_id": raw["_id"]}, {"$set": {"slug": f"deleting-{fid}"}}
+        )
+    for child in children:
+        base = child.get("slug") or str(child["_id"])
+        if new_parent is None and is_reserved_slug(base):
+            base = f"{base}-folder"
+        candidate, n = base, 1
+        while await db["folders"].find_one(
+            {"workspace_id": workspace_id, "parent_id": new_parent,
+             "slug": candidate, "_id": {"$nin": [child["_id"], raw["_id"]]}},
+            {"_id": 1},
+        ):
+            n += 1
+            candidate = f"{base}-{n}"
+            if n > 200:  # pathological; fall back to the id, which is unique
+                candidate = str(child["_id"])
+                break
+        await db["folders"].update_one(
+            {"_id": child["_id"]},
+            {"$set": {"parent_id": new_parent, "slug": candidate}},
+        )
     result = await db["documents"].update_many(
         {"workspace_id": workspace_id, "folder_id": fid},
         {"$unset": {"folder_id": "", "folder_path": ""}},

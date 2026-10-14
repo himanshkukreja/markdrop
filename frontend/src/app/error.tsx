@@ -1,23 +1,48 @@
 "use client";
 
-// Minimal error boundary: an API outage or a failed render shows this instead
-// of a 404, so a document that still exists never looks deleted.
-export default function ErrorPage({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+import { useEffect } from "react";
+import { Button, Disclosure, MarkdropMark } from "@/components/ui";
+import { SiteHeader } from "@/components/shell/SiteHeader";
+
+/**
+ * Route-segment error boundary (REVAMP_PLAN 7.22). It sits under the root layout, so it replaces
+ * the group layouts too and brings its own header. Never shows a stack trace: only the digest Next
+ * gives the server error, for bug reports. Also what /[slug] shows when the API is down (F7), so
+ * ISR keeps serving the last good copy instead of caching a 404.
+ */
+export default function RouteError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  useEffect(() => {
+    // Surfaces in the browser console for whoever is debugging; the UI never shows the message.
+    console.error(error);
+  }, [error]);
+
   return (
-    <div className="flex flex-col items-center justify-center py-12 sm:py-20 space-y-4">
-      <h1 className="text-2xl sm:text-3xl font-bold text-gray-400 dark:text-gray-500">
-        Something went wrong
-      </h1>
-      <p className="text-gray-500 dark:text-gray-400">
-        This page couldn&apos;t be loaded right now. Nothing has been deleted.
-      </p>
-      <button
-        type="button"
-        onClick={() => reset()}
-        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
-      >
-        Try again
-      </button>
-    </div>
+    <>
+      <SiteHeader />
+      <main id="main" tabIndex={-1} className="flex w-full min-w-0 flex-1 flex-col items-center justify-center px-4 py-16 outline-none sm:py-24">
+        <div className="flex w-full max-w-[30rem] flex-col items-center gap-5 text-center">
+          <MarkdropMark size={40} />
+          <h1 className="text-h1 text-text">Something went wrong on this page</h1>
+          <p className="text-body-lg text-text-secondary">Your work in other tabs is safe. Try again, or go back to where you were.</p>
+          <div className="flex w-full flex-col items-stretch justify-center gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Button variant="primary" size="lg" iconLeft="refresh" onClick={() => reset()}>Try again</Button>
+            <Button variant="secondary" size="lg" href="/">Go to the home page</Button>
+          </div>
+          <Disclosure summary="Details" className="w-full text-left text-body text-text-secondary">
+            <p className="pt-2">
+              {error.digest ? (
+                <>
+                  Error reference{" "}
+                  <code className="font-mono text-code rounded-md bg-code-inline-bg px-1.5 py-0.5 text-code-inline">{error.digest}</code>
+                  . Include it if you report this.
+                </>
+              ) : (
+                "This happened in your browser, so there's no server reference. Reloading the page usually clears it."
+              )}
+            </p>
+          </Disclosure>
+        </div>
+      </main>
+    </>
   );
 }

@@ -1,0 +1,7 @@
+/* Legacy utilities still used outside the landing page. The old landing CSS (md-reveal, md-float,
+   md-aurora, md-brand-*, md-art-*, md-packet-anim, md-loader-sweep, …) was removed with the old
+   landing components (REVAMP_BUILD §5.6.1). Remaining user:
+   - .md-no-scrollbar: app/(tools)/upload/ArtifactPreview.tsx (horizontal pill strips that scroll).
+   Delete this file and its import in app/globals.css once that moves to a DS utility. */
+.md-no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.md-no-scrollbar::-webkit-scrollbar { display: none; }

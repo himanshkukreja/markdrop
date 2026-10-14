@@ -1,51 +1,42 @@
 "use client";
 
-import { useEffect } from "react";
+import { Dialog } from "@/components/ui";
 
-export default function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
+/**
+ * Compatibility shim (REVAMP_PLAN 7.19): the old `<Modal title onClose>` signature, rendered by the
+ * design-system Dialog, so every call site gets the focus trap, focus return, stacked Escape, scroll
+ * lock and the themed portal without changing. Callers mount it conditionally (`{open && <Modal…>}`),
+ * so it is always open while mounted. New code should use `Dialog` from "@/components/ui" directly;
+ * delete this file once the last call site has migrated.
+ */
+export interface ModalProps {
+  title: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
-}) {
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [onClose]);
+  /** Optional extras, passed through to Dialog. */
+  description?: React.ReactNode;
+  footer?: React.ReactNode;
+  size?: "sm" | "md" | "lg" | "xl";
+  tone?: "default" | "danger";
+  /** false: Escape and the scrim don't close it (e.g. while a request runs). */
+  dismissible?: boolean;
+  initialFocus?: React.RefObject<HTMLElement | null>;
+}
 
+export default function Modal({ title, onClose, children, description, footer, size, tone, dismissible, initialFocus }: ModalProps) {
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
+    <Dialog
+      open
+      onClose={onClose}
+      title={title}
+      description={description}
+      footer={footer}
+      size={size}
+      tone={tone}
+      dismissible={dismissible}
+      initialFocus={initialFocus}
     >
-      <div
-        className="w-full max-w-md rounded-xl border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-white dark:bg-gray-900 vscode:bg-[#252526] shadow-2xl p-5"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 vscode:text-[#d4d4d4]">{title}</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-            aria-label="Close"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
+      {children}
+    </Dialog>
   );
 }

@@ -71,20 +71,24 @@ async def list_library(
     workspace_id: str,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    per_page: int | None = Query(None, ge=1, le=50),
     q: str | None = Query(None),
-    kind: str | None = Query(None, pattern="^(markdown|artifact)$"),
+    kind: str | None = Query(None, pattern="^(markdown|document|artifact)$"),
     folder_id: str | None = Query(None),
     unfiled: bool = Query(False),
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
     await ws_service.require_role(db, workspace_id, user.id, "viewer")
+    if per_page is not None:
+        limit = per_page
     docs, total = await lib_service.list_documents(
         db, workspace_id, page, limit, q, kind, folder_id, unfiled
     )
     items = await _attribute(db, [_to_list_item(d) for d in docs], docs, user.id)
     return MyDocListResponse(
-        documents=items, total=total, page=page, pages=max(1, math.ceil(total / limit))
+        documents=items, total=total, page=page, pages=max(1, math.ceil(total / limit)),
+        per_page=limit,
     )
 
 

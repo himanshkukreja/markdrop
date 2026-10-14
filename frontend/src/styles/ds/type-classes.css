@@ -1,0 +1,20 @@
+/* Vendored from design-system/ by scripts/sync-frontend.mjs — edit design-system/tokens/tokens.json, never this file. */
+/* Markdrop — type styles. Generated from tokens.json by scripts/build-tokens.mjs; do not edit by hand. */
+
+.display-xl { font-family: var(--font-sans); font-size: 56px; line-height: 1.05; font-weight: 800; letter-spacing: -0.03em; }
+.display { font-family: var(--font-sans); font-size: 40px; line-height: 1.1; font-weight: 800; letter-spacing: -0.025em; }
+.wordmark { font-family: var(--font-sans); font-size: 20px; line-height: 28px; font-weight: 800; letter-spacing: -0.03em; }
+.h1 { font-family: var(--font-sans); font-size: 30px; line-height: 36px; font-weight: 700; letter-spacing: -0.02em; }
+.h2 { font-family: var(--font-sans); font-size: 24px; line-height: 32px; font-weight: 700; letter-spacing: -0.015em; }
+.h3 { font-family: var(--font-sans); font-size: 18px; line-height: 28px; font-weight: 600; }
+.h4 { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 600; }
+.reading { font-family: var(--font-sans); font-size: 17px; line-height: 28px; font-weight: 400; }
+.body-lg { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 400; }
+.body { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; }
+.body-strong { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 600; }
+.caption { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 400; }
+.micro { font-family: var(--font-sans); font-size: 11px; line-height: 16px; font-weight: 500; }
+.eyebrow { font-family: var(--font-sans); font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.code { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 400; }
+.code-inline { font-family: var(--font-mono); font-size: 0.875em; line-height: 1; font-weight: 500; }
+.kbd { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 500; }

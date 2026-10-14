@@ -1,6 +1,27 @@
-"""Transactional email via Resend."""
+"""Transactional email via Resend, and the one light shell every email shares.
+
+Every message Markdrop sends (sign-in, welcome, workspace invite, document
+share, and the campaign templates in ``app/emails/``) is built on the same
+light shell (REVAMP_PLAN §7.20): a ``#f9fafb`` ground, a white 560px card with a
+1px ``#e5e7eb`` border, radius 12, and a 4px ``#155dfc`` bar across the top.
+
+Why light, and only light:
+
+* Gmail's mobile apps force-invert email colours and offer no supported opt-out.
+  Inversion turns near-white text dark while leaving saturated colours alone, so
+  a dark design comes out muddy and half-inverted. Dark text on white reads
+  correctly whether or not a client inverts it.
+* Apple Mail, Outlook and Samsung Mail honour ``color-scheme: light`` and skip
+  their dark transform entirely, so the meta tags below are still worth having.
+* Every colour that carries no text (the top bar, the button fill) is a
+  saturated block, which inversion leaves alone.
+
+The same shell renders the unsubscribe confirmation page (``page_html``), so the
+page someone lands on from an email looks like the email they came from.
+"""
 
 import html
+
 import httpx
 
 from app.config import get_settings
@@ -9,27 +30,176 @@ settings = get_settings()
 
 _RESEND_URL = "https://api.resend.com/emails"
 
-# Hosted on the CDN rather than inlined: Gmail strips inline SVG and blocks
-# data: URIs, so a real raster image at an absolute URL is the only thing that
-# reliably renders in an inbox.
-def _wordmark(size: int = 20, on_dark: bool = False) -> str:
+
+# ── Shell palette (email-safe hexes from the light palette, REVAMP §7.20) ──────
+
+_GROUND = "#f9fafb"
+_CARD = "#ffffff"
+_LINE = "#e5e7eb"
+_ACCENT = "#155dfc"
+_INK = "#101828"     # headings, strong text
+_BODY = "#364153"    # body copy
+_MUTED = "#6a7282"   # eyebrows and footers (never #999 / #94a3b8: they fail AA)
+_INSET = "#f3f4f6"   # OTP ground
+
+# Single quotes inside: these go into style="..." attributes.
+_SANS = "'Manrope',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+_MONO = "'JetBrains Mono',ui-monospace,Menlo,monospace"
+
+# Hidden filler after a preheader. Without it a client keeps scraping visible
+# text after the preheader to fill the preview line.
+_PREHEADER_PAD = "&#847;&zwnj;&nbsp;" * 40
+
+
+def _wordmark(size: int = 20) -> str:
     """The Markdrop wordmark, as text rather than an image.
 
-    It used to be a PNG on a third-party CDN, and that URL now 404s — so every
-    system email has been showing a broken image. Rehosting it would fix today's
-    symptom and leave the real one: most clients block remote images by default,
-    and Outlook desktop blocks them outright, so the *first* thing a recipient
-    saw of us was reliably a placeholder.
-
-    Text always renders. It cannot rot, cannot be blocked, costs no request, and
-    is what the wordmark already is — two words and a colour change.
+    It used to be a PNG on a third-party CDN, and that URL 404'd, so every
+    system email showed a broken image. Most clients block remote images by
+    default and Outlook desktop blocks them outright, so the first thing a
+    recipient saw of us was reliably a placeholder. Text always renders, cannot
+    rot, cannot be blocked and costs no request.
     """
-    dark = "#e8ecf7" if on_dark else "#0f172a"
     return (
-        f'<span style="font-size:{size}px;font-weight:800;color:{dark};'
-        f'letter-spacing:-.02em">mark'
-        f'<span style="color:#2563eb">drop</span></span>'
+        f'<span style="font-family:{_SANS};font-size:{size}px;line-height:1;'
+        f'font-weight:800;letter-spacing:-0.02em;color:{_INK}">mark'
+        f'<span style="color:{_ACCENT}">drop</span></span>'
     )
+
+
+def _base() -> str:
+    return settings.frontend_url.rstrip("/")
+
+
+# ── Building blocks ────────────────────────────────────────────────────────────
+
+
+def _eyebrow(text: str) -> str:
+    return (
+        f'<div style="font-family:{_SANS};font-size:11px;line-height:16px;font-weight:700;'
+        f'letter-spacing:0.08em;text-transform:uppercase;color:{_MUTED};margin:0 0 10px">'
+        f"{text}</div>"
+    )
+
+
+def _heading(text: str, tag: str = "h1") -> str:
+    return (
+        f'<{tag} style="font-family:{_SANS};font-size:24px;line-height:1.3;font-weight:700;'
+        f'color:{_INK};margin:0 0 12px;padding:0">{text}</{tag}>'
+    )
+
+
+def _p(inner: str, *, size: int = 15, color: str = _BODY, margin: str = "0 0 16px") -> str:
+    return (
+        f'<p style="font-family:{_SANS};font-size:{size}px;line-height:1.6;color:{color};'
+        f'margin:{margin}">{inner}</p>'
+    )
+
+
+def _strong(text: str) -> str:
+    return f'<strong style="color:{_INK};font-weight:700">{text}</strong>'
+
+
+def _link(href: str, label: str) -> str:
+    return (
+        f'<a href="{href}" style="color:{_ACCENT};font-weight:600;'
+        f'text-decoration:underline">{label}</a>'
+    )
+
+
+def _button(href: str, label: str, *, margin: str = "8px 0 24px") -> str:
+    """Bulletproof button: the fill is on the table cell, so it survives clients
+    that ignore padding or background on links."""
+    return f"""\
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:{margin}">
+  <tr><td bgcolor="{_ACCENT}" style="background-color:{_ACCENT};border-radius:8px">
+    <a href="{href}" style="display:inline-block;padding:12px 24px;font-family:{_SANS};font-size:14px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px">{label}</a>
+  </td></tr>
+</table>"""
+
+
+def _rule() -> str:
+    return (
+        f'<div style="border-top:1px solid {_LINE};height:0;line-height:0;'
+        f'font-size:0;margin:8px 0 20px">&nbsp;</div>'
+    )
+
+
+def _shell(
+    *,
+    title: str,
+    content: str,
+    footer: str,
+    preheader: str = "",
+    page: bool = False,
+) -> str:
+    """Wrap ``content`` in the light shell.
+
+    ``title`` and ``preheader`` are interpolated as-is: callers escape any user
+    text in them. ``page=True`` renders it as a web page (no preheader, a
+    vertical offset, noindex) for the unsubscribe confirmation.
+    """
+    pre = (
+        f'<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all">'
+        f"{preheader}{_PREHEADER_PAD}</div>"
+        if preheader and not page else ""
+    )
+    robots = '<meta name="robots" content="noindex">\n' if page else ""
+    outer_pad = "64px 12px 48px" if page else "32px 12px"
+    return f"""\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="format-detection" content="telephone=no,address=no,email=no,date=no">
+<!-- Light only. Apple Mail, Outlook and Samsung honour this; Gmail mobile
+     inverts regardless, which the design survives (see mailer.py). -->
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+{robots}<title>{title}</title>
+<style>
+  :root {{ color-scheme: light only; supported-color-schemes: light; }}
+  body {{ margin: 0; padding: 0; }}
+  a {{ color: {_ACCENT}; }}
+  @media (max-width: 600px) {{
+    .md-pad {{ padding-left: 22px !important; padding-right: 22px !important; }}
+    .md-h1 h1, .md-h1 h2 {{ font-size: 22px !important; }}
+  }}
+</style>
+</head>
+<body bgcolor="{_GROUND}" style="margin:0;padding:0;background-color:{_GROUND};-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%">
+{pre}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{_GROUND}" style="background-color:{_GROUND}">
+  <tr><td align="center" style="padding:{outer_pad}">
+    <!--[if mso]><table role="presentation" width="560" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+    <div style="max-width:560px;margin:0 auto">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%">
+      <tr><td bgcolor="{_CARD}" style="background-color:{_CARD};border:1px solid {_LINE};border-radius:12px">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr><td bgcolor="{_ACCENT}" height="4" style="background-color:{_ACCENT};height:4px;line-height:4px;font-size:0;border-radius:11px 11px 0 0">&nbsp;</td></tr>
+          <tr><td class="md-pad" style="padding:26px 32px 22px">
+            <a href="{_base()}" style="text-decoration:none">{_wordmark(20)}</a>
+          </td></tr>
+          <tr><td class="md-pad md-h1" style="padding:0 32px 12px;font-family:{_SANS};color:{_BODY};word-break:break-word;overflow-wrap:anywhere">
+{content}
+          </td></tr>
+        </table>
+      </td></tr>
+      <tr><td class="md-pad" style="padding:20px 32px 0">
+        <div style="font-family:{_SANS};font-size:12px;line-height:1.6;color:{_MUTED}">{footer}</div>
+      </td></tr>
+    </table>
+    </div>
+    <!--[if mso]></td></tr></table><![endif]-->
+  </td></tr>
+</table>
+</body>
+</html>"""
+
+
+def _footer_link(href: str, label: str) -> str:
+    return f'<a href="{href}" style="color:{_MUTED};text-decoration:underline">{label}</a>'
 
 
 def _sender(purpose: str) -> str:
@@ -47,45 +217,11 @@ def _sender(purpose: str) -> str:
     return f"{settings.email_from_name} <{address}>"
 
 
-def _masthead(tagline: str = "") -> str:
-    """The wordmark, as a link back to the site. Shared by every email so they
-    are recognisably from the same product."""
-    base = settings.frontend_url.rstrip("/")
-    sub = (f'<div style="font-size:12px;color:#6b7699;margin-top:6px">{tagline}</div>'
-           if tagline else "")
-    return f"""\
-        <tr><td style="padding:0 0 18px">
-          <a href="{base}" style="text-decoration:none">{_wordmark(21)}</a>{sub}
-        </td></tr>"""
-
-
 def is_configured() -> bool:
     return bool(settings.resend_api_key)
 
 
-def _login_html(otp: str, link_url: str) -> str:
-    return f"""\
-<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111">
-  <a href="{settings.frontend_url.rstrip("/")}" style="text-decoration:none;display:block;margin-bottom:18px">{_wordmark(21)}</a>
-  <h2 style="margin:0 0 8px">Sign in to Markdrop</h2>
-  <p style="color:#555;margin:0 0 20px">Use the code below, or click the button. This expires in {settings.login_challenge_ttl_minutes} minutes.</p>
-  <div style="font-size:32px;font-weight:700;letter-spacing:8px;background:#f4f4f5;border-radius:10px;padding:16px;text-align:center;margin-bottom:20px">{otp}</div>
-  <p style="text-align:center;margin:0 0 24px">
-    <a href="{link_url}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Sign in to Markdrop</a>
-  </p>
-  <p style="color:#999;font-size:12px;margin:0">If you didn't request this, you can safely ignore this email.</p>
-</div>"""
-
-
-async def send_login_email(to_email: str, otp: str, link_url: str) -> None:
-    """Send the passwordless login email (code + magic link). Raises on failure."""
-    payload = {
-        "from": _sender("login"),
-        "to": [to_email],
-        "subject": f"Your Markdrop sign-in code: {otp}",
-        "reply_to": settings.email_reply_to,
-        "html": _login_html(otp, link_url),
-    }
+async def _post(payload: dict) -> None:
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(
             _RESEND_URL,
@@ -93,6 +229,49 @@ async def send_login_email(to_email: str, otp: str, link_url: str) -> None:
             json=payload,
         )
         resp.raise_for_status()
+
+
+# ── Sign-in ────────────────────────────────────────────────────────────────────
+
+
+def _login_html(otp: str, link_url: str) -> str:
+    otp = html.escape(otp)
+    link_url = html.escape(link_url, quote=True)
+    minutes = int(settings.login_challenge_ttl_minutes)
+    content = (
+        _eyebrow("Sign in")
+        + _heading("Your sign-in code")
+        + _p("Enter this code where you asked for it, or use the button below.")
+        + f"""\
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 12px">
+  <tr><td align="center" bgcolor="{_INSET}" style="background-color:{_INSET};border-radius:8px;padding:16px 8px 16px 14px">
+    <span style="font-family:{_MONO};font-size:32px;line-height:40px;font-weight:700;letter-spacing:6px;color:{_INK}">{otp}</span>
+  </td></tr>
+</table>"""
+        + _p(f"This code expires in {minutes} minutes.", size=13, color=_MUTED, margin="0 0 20px")
+        + _button(link_url, "Sign in to Markdrop", margin="0 0 24px")
+    )
+    footer = (
+        "If you didn't ask to sign in, you can ignore this email. "
+        "Nobody can get in without the code."
+    )
+    return _shell(
+        title="Your Markdrop sign-in code",
+        preheader=f"Your sign-in code is {otp}",
+        content=content,
+        footer=footer,
+    )
+
+
+async def send_login_email(to_email: str, otp: str, link_url: str) -> None:
+    """Send the passwordless login email (code + magic link). Raises on failure."""
+    await _post({
+        "from": _sender("login"),
+        "to": [to_email],
+        "subject": f"Your Markdrop sign-in code: {otp}",
+        "reply_to": settings.email_reply_to,
+        "html": _login_html(otp, link_url),
+    })
 
 
 # ── Welcome / feature-tour email (sent once, on first signup) ───────────────────
@@ -101,32 +280,41 @@ _MARKETPLACE_URL = (
     "https://marketplace.visualstudio.com/items?itemName=HimanshuKukreja.markdrop"
 )
 
-# Animated product-demo hero (code-rendered GIF, hosted on ImageKit CDN — kept off
-# the app repo/bundle since it's a binary). Falls through to the static PNG hero
-# ({frontend_url}/email/hero.png) only if this is ever cleared.
+# Product-demo hero (code-rendered GIF on ImageKit, kept off the app repo since
+# it's a binary). It is dark artwork, so it sits in the light card as an
+# image-only block (D31) until a light re-render exists. Falls back to the
+# static {frontend_url}/email/hero.png only if this is ever cleared.
 _HERO_IMAGE = "https://ik.imagekit.io/jrcgzv9vw/markdrop/email/welcome-hero-hd.gif"
+_HERO_ALT = "Markdrop: documents and files become links that render in any browser"
 
-# (icon filename, title, description, CTA label, CTA href-key). Icons are hosted
-# PNGs under {frontend_url}/email/ — Gmail strips inline SVG and blocks data: URIs,
-# so real raster images at absolute URLs are the only reliable option.
+# Owner rule (2026-10-13): P2P copy always discloses that a relay may carry the
+# bytes. The sentence says "may", so it stays true whether or not the TURN relay
+# is configured; it errs toward disclosure rather than a stronger privacy claim.
+_P2P_RELAY_LIVE = True
+_P2P_RELAY_SENTENCE = " If a network blocks a direct path, an encrypted relay may forward bytes it cannot read."
+
+# (icon filename, title, description, CTA label, CTA href-key). Icons are the
+# existing hosted PNG tiles under {frontend_url}/email/. NEVER rename or delete
+# those files: emails already in inboxes reference them. New icons get new names
+# (and must reach production before any email references them).
 _FEATURES = [
     ("publish", "Documents that render",
-     "Write or paste markdown and AI write-ups and get a link that opens rendered in any browser — with live preview, syntax highlighting and PDF export. Choose who can open it: anyone with the link, only people you name, or your whole team.",
+     "Write or paste markdown and AI write-ups and get a link that opens rendered in any browser, with syntax highlighting and PDF export. Choose who can open it: anyone with the link, only people you name, or your whole team.",
      "Create a document", "new"),
     ("diagram", "Diagrams, charts &amp; math",
-     "Add a mermaid block or LaTeX between $$ … $$ and Markdrop renders flowcharts, sequence &amp; Gantt diagrams, charts and typeset math, live.",
+     "Add a mermaid block or LaTeX between $$ &hellip; $$ and Markdrop renders flowcharts, sequence and Gantt diagrams, charts and typeset math.",
      "Try a diagram", "diagrams"),
-    ("artifact", "Files that render &mdash; HTML, PDFs, sheets &amp; video",
+    ("artifact", "Files that render: HTML, PDFs, sheets &amp; video",
      "Upload an HTML page, a PDF, a spreadsheet, a Word doc, a video or a zipped site and get a link that opens it rendered, instead of a download. Rendered on an isolated domain, so a published page can never reach your account.",
      "Upload a file", "upload"),
     ("builder", "README builder",
-     "Assemble a README from 45+ drag-and-drop section blocks — badges, install steps, API tables, diagrams — then publish or download the .md.",
+     "Assemble a README from 45+ drag-and-drop section blocks (badges, install steps, API tables, diagrams), then publish it or download the .md.",
      "Open the builder", "builder"),
-    ("share", "Peer-to-peer file sharing",
-     "Send any file browser to browser over WebRTC, encrypted device to device. An encrypted relay may forward bytes it cannot read.",
+    ("share", "Send any file, device to device",
+     "Encrypted device to device: the files go straight from your browser to theirs and are never stored on our servers. Markdrop keeps file details and connection info.",
      "Send a file", "share"),
     ("sync", "Sync from VS Code",
-     "Publish and two-way sync your markdown from your editor — save locally to push, edit on the web to pull back, with safe conflict diffs.",
+     "Publish and two-way sync your markdown from your editor: save locally to push, edit on the web to pull back, with safe conflict diffs.",
      "Get the extension", "extension"),
     ("docs", "Analytics",
      "See views, countries and referrers for every link you publish, from your dashboard.",
@@ -135,7 +323,7 @@ _FEATURES = [
 
 
 def _welcome_html(name: str | None) -> str:
-    base = settings.frontend_url.rstrip("/")
+    base = _base()
     img = f"{base}/email"
     hero = _HERO_IMAGE or f"{img}/hero.png"
     urls = {
@@ -144,138 +332,114 @@ def _welcome_html(name: str | None) -> str:
         "upload": f"{base}/upload",
         "builder": f"{base}/builder",
         "share": f"{base}/share",
+        "record": f"{base}/share#what-we-record",
         "dashboard": f"{base}/dashboard",
         "extension": _MARKETPLACE_URL,
         "workspaces": f"{base}/settings/workspaces",
     }
-    greeting = f"Welcome, {html.escape(name)}" if name else "Welcome to Markdrop"
+    clean = (name or "").strip()
+    greeting = f"Welcome, {html.escape(clean)}" if clean else "Welcome to Markdrop"
 
-    # Feature rows — hosted PNG icon + text, on the dark card.
+    def row(icon: str, title: str, desc: str, cta: str, key: str, last: bool) -> str:
+        if key == "share":
+            if _P2P_RELAY_LIVE:
+                desc += _P2P_RELAY_SENTENCE
+            desc += " " + _link(urls["record"], "What we record")
+        border = "" if last else f"border-bottom:1px solid {_LINE};"
+        return f"""
+  <tr>
+    <td width="52" valign="top" style="padding:16px 0 16px;{border}">
+      <img src="{img}/{icon}.png" width="40" height="40" alt=""
+           style="display:block;width:40px;height:40px;border:0;outline:none;text-decoration:none;border-radius:10px">
+    </td>
+    <td valign="top" style="padding:16px 0 16px 14px;{border}">
+      <div style="font-family:{_SANS};font-size:15px;line-height:1.4;font-weight:700;color:{_INK};margin:0 0 4px">{title}</div>
+      <div style="font-family:{_SANS};font-size:14px;line-height:1.6;color:{_BODY};margin:0 0 8px">{desc}</div>
+      <a href="{urls[key]}" style="font-family:{_SANS};font-size:14px;font-weight:600;color:{_ACCENT};text-decoration:none">{cta} &rarr;</a>
+    </td>
+  </tr>"""
+
     rows = "".join(
-        f"""
-        <tr>
-          <td width="64" valign="top" style="padding:16px 0 16px 2px">
-            <img src="{img}/{icon}.png" width="48" height="48" alt=""
-                 style="display:block;width:48px;height:48px;border:0;outline:none;text-decoration:none">
-          </td>
-          <td valign="top" style="padding:16px 2px 16px 14px;border-bottom:1px solid #1a2540">
-            <div style="font-size:16px;font-weight:600;color:#eaf1ff;margin:0 0 4px">{title}</div>
-            <div style="font-size:14px;line-height:1.55;color:#93a3c6;margin:0 0 9px">{desc}</div>
-            <a href="{urls[key]}" style="font-size:13px;font-weight:600;color:#6ba4ff;text-decoration:none">{cta} &rarr;</a>
-          </td>
-        </tr>"""
-        for (icon, title, desc, cta, key) in _FEATURES
+        row(*f, last=(i == len(_FEATURES) - 1)) for i, f in enumerate(_FEATURES)
     )
 
-    return f"""\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark light">
-<meta name="supported-color-schemes" content="dark light">
-<title>Welcome to Markdrop</title>
-</head>
-<body style="margin:0;padding:0;background:#080d1a;-webkit-font-smoothing:antialiased">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">Drop it. It renders. Markdown, AI write-ups, HTML pages, PDFs, spreadsheets, Word docs, video and zipped sites become links that open in any browser.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#080d1a" style="background:#080d1a">
-  <tr>
-    <td align="center" style="padding:26px 14px">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
-             style="width:600px;max-width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+    def team(title: str, desc: str, margin: str = "0 0 14px") -> str:
+        return (
+            f'<div style="font-family:{_SANS};font-size:15px;line-height:1.4;font-weight:700;color:{_INK};margin:0 0 4px">{title}</div>'
+            f'<div style="font-family:{_SANS};font-size:14px;line-height:1.6;color:{_BODY};margin:{margin}">{desc}</div>'
+        )
 
-        <!-- Hero graphic (animated product demo) -->
-        <tr><td style="padding:0;line-height:0">
-          <a href="{base}" style="text-decoration:none">
-            <img src="{hero}" width="600" alt="Markdrop — docs and files as links that render"
-                 style="display:block;width:100%;max-width:600px;height:auto;border:0;border-radius:16px 16px 0 0">
-          </a>
-        </td></tr>
+    domain = f'<span style="font-family:{_MONO};font-size:13px;color:{_INK}">docs.yourcompany.com</span>'
+    team_block = (
+        _eyebrow("Working with a team")
+        + team("Your own domain, your own brand",
+               f"Point {domain} at Markdrop and we issue the certificate. Your name, logo "
+               "and colour on every page and link preview, with the option to drop "
+               "Markdrop branding entirely.")
+        + team("A shared library",
+               "Documents and files your team can all reach, in folders, with roles. Your "
+               "private documents stay private: putting something in a workspace is always "
+               "your choice.")
+        + team("Share with exactly who you mean",
+               "Anyone with the link, only the people you name, or everyone in the "
+               "workspace. You can name someone outside your company by email.")
+        + f'<a href="{urls["workspaces"]}" style="font-family:{_SANS};font-size:14px;'
+          f'font-weight:600;color:{_ACCENT};text-decoration:none">Create a workspace &rarr;</a>'
+    )
 
-        <!-- Card -->
-        <tr><td bgcolor="#0d1428" style="background:#0d1428;border:1px solid #1a2540;border-top:0;border-radius:0 0 16px 16px;padding:30px 26px">
-          <div style="font-size:22px;line-height:1.3;font-weight:700;color:#ffffff;margin:0 0 10px">{greeting}</div>
-          <div style="font-size:15px;line-height:1.65;color:#a6b4d4;margin:0 0 22px">
-            Your account is ready. Markdrop turns documents and files into links that render:
-            write or paste markdown and AI write-ups, or upload HTML pages, PDFs, spreadsheets,
-            Word docs, video and zipped sites &mdash; each one opens in any browser, no download,
-            no app. For one person, or a whole team on its own domain.
-          </div>
-
-          <!-- Primary CTA -->
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px">
-            <tr><td bgcolor="#2563eb" style="border-radius:10px">
-              <a href="{urls['new']}" style="display:inline-block;padding:13px 26px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none">Start writing</a>
-            </td></tr>
-          </table>
-
-          <div style="font-size:12px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#5f6f92;margin:0 0 2px">What you can do</div>
-
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">{rows}</table>
-
-          <!-- The team half of the product, which this email predates entirely.
-               A block rather than another icon row: it is a different mode of
-               using Markdrop, not an eighth feature. -->
-          <div style="margin:26px 0 0;padding:18px 18px 16px;background:#0a1020;border:1px solid #1a2540;border-radius:12px">
-            <div style="font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#5f6f92;margin:0 0 10px">
-              Working with a team
-            </div>
-            <div style="font-size:15px;font-weight:600;color:#eaf1ff;margin:0 0 4px">Your own domain, your own brand</div>
-            <div style="font-size:14px;line-height:1.55;color:#93a3c6;margin:0 0 12px">
-              Point <span style="color:#c7d4ee">docs.yourcompany.com</span> at Markdrop and we issue the
-              certificate. Your name, logo and colour on every page and link preview &mdash; with the
-              option to drop Markdrop branding entirely.
-            </div>
-            <div style="font-size:15px;font-weight:600;color:#eaf1ff;margin:0 0 4px">A shared library</div>
-            <div style="font-size:14px;line-height:1.55;color:#93a3c6;margin:0 0 12px">
-              Documents and artifacts your team can all reach, in folders, with roles.
-              Your private documents stay private &mdash; sharing into a workspace is always
-              something you choose.
-            </div>
-            <div style="font-size:15px;font-weight:600;color:#eaf1ff;margin:0 0 4px">Share with exactly who you mean</div>
-            <div style="font-size:14px;line-height:1.55;color:#93a3c6;margin:0 0 14px">
-              Anyone with the link, only the people you name, or everyone in the workspace &mdash;
-              and you can name someone outside your company by email.
-            </div>
-            <a href="{urls['workspaces']}" style="font-size:13px;font-weight:600;color:#6ba4ff;text-decoration:none">Create a workspace &rarr;</a>
-          </div>
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td style="padding:22px 8px 8px">
-          <div style="font-size:12px;line-height:1.65;color:#6b7699">
-            You're receiving this because you signed up at
-            <a href="{base}" style="color:#6ba4ff;text-decoration:none">markdrop.in</a>.
-            Markdrop is open source —
-            <a href="https://github.com/himanshkukreja/markdrop" style="color:#6ba4ff;text-decoration:none">star it on GitHub</a>.
-          </div>
-        </td></tr>
-
-      </table>
-    </td>
-  </tr>
-</table>
-</body>
-</html>"""
+    content = (
+        # Image-only hero block (D31): dark artwork inside the light card, with
+        # alt text so a blocked image still says what it was.
+        f"""\
+<a href="{base}" style="text-decoration:none;display:block;margin:0 0 24px">
+  <img src="{hero}" width="494" alt="{html.escape(_HERO_ALT, quote=True)}"
+       style="display:block;width:100%;max-width:494px;height:auto;border:0;border-radius:8px;font-family:{_SANS};font-size:14px;color:{_BODY}">
+</a>"""
+        + _eyebrow("Your account is ready")
+        + _heading(greeting)
+        + _p(
+            "Drop it. It renders. Write or paste markdown and AI write-ups, or upload "
+            "HTML pages, PDFs, spreadsheets, Word docs, video and zipped sites. Each "
+            "one becomes a link that opens in any browser, with no download and no app. "
+            "For one person, or a whole team on its own domain."
+        )
+        + _button(urls["new"], "Start writing", margin="4px 0 28px")
+        + _eyebrow("What you can do")
+        + f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px">{rows}\n</table>'
+        # The team half of the product: a block rather than another icon row,
+        # because it is a different way of using Markdrop, not an eighth feature.
+        + f"""\
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px">
+  <tr><td bgcolor="{_GROUND}" style="background-color:{_GROUND};border:1px solid {_LINE};border-radius:8px;padding:18px 18px 16px">
+    {team_block}
+  </td></tr>
+</table>"""
+    )
+    footer = (
+        f"You're getting this because you signed up at {_footer_link(base, 'markdrop.in')}. "
+        "It's the only welcome email we send. Markdrop is open source: "
+        f"{_footer_link('https://github.com/himanshkukreja/markdrop', 'star it on GitHub')}."
+    )
+    return _shell(
+        title="Welcome to Markdrop",
+        preheader=(
+            "Drop it. It renders. Markdown, AI write-ups, HTML pages, PDFs, spreadsheets, "
+            "Word docs, video and zipped sites become links that open in any browser."
+        ),
+        content=content,
+        footer=footer,
+    )
 
 
 async def send_welcome_email(to_email: str, name: str | None = None) -> None:
     """Send the one-time welcome / feature-tour email. Raises on failure."""
-    payload = {
+    await _post({
         "from": _sender("welcome"),
         "to": [to_email],
-        "subject": "Welcome to Markdrop — everything you can do",
+        "subject": "Welcome to Markdrop: everything you can do",
         "reply_to": settings.email_reply_to,
         "html": _welcome_html(name),
-    }
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(
-            _RESEND_URL,
-            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-            json=payload,
-        )
-        resp.raise_for_status()
+    })
 
 
 # ── Workspace invitations ──────────────────────────────────────────────────────
@@ -287,63 +451,52 @@ _ROLE_BLURB = {
 }
 
 
+def _invite_ttl_days() -> int:
+    try:  # the source of truth; imported lazily so a rename there can't break mail
+        from app.services.invitation import INVITE_TTL_DAYS
+        return int(INVITE_TTL_DAYS)
+    except Exception:
+        return 7
+
+
 def _invite_html(workspace_name: str, inviter_name: str, role: str, link_url: str) -> str:
-    base = settings.frontend_url.rstrip("/")
     blurb = _ROLE_BLURB.get(role, "collaborate")
-    # Both of these are free text chosen by a user, and they are about to be
-    # interpolated into markup that lands in someone else's inbox. A workspace
-    # named `</div><a href="http://evil">` would otherwise let any workspace
-    # owner compose arbitrary HTML inside an email sent from our domain, which
-    # is a phishing kit, not a display bug.
+    # All free text chosen by a user, about to land in someone else's inbox. A
+    # workspace named `</div><a href="http://evil">` would otherwise let any
+    # workspace owner compose arbitrary HTML inside an email sent from our
+    # domain, which is a phishing kit, not a display bug.
     workspace_name = html.escape(workspace_name)
     inviter_name = html.escape(inviter_name)
-    return f"""\
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark light"><title>Join {workspace_name} on Markdrop</title></head>
-<body style="margin:0;padding:0;background:#080d1a;-webkit-font-smoothing:antialiased">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">{inviter_name} invited you to the {workspace_name} workspace on Markdrop.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#080d1a" style="background:#080d1a">
-  <tr><td align="center" style="padding:32px 14px">
-    <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
-           style="width:560px;max-width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-      <tr><td bgcolor="#0d1428" style="background:#0d1428;border:1px solid #1a2540;border-radius:16px;padding:34px 30px">
+    role = html.escape(role)
+    link_url = html.escape(link_url, quote=True)
+    days = _invite_ttl_days()
 
-        <div style="margin:0 0 20px">{_wordmark(21, on_dark=True)}</div>
-        <div style="font-size:12px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#5f6f92;margin:0 0 14px">Workspace invitation</div>
-        <div style="font-size:23px;line-height:1.3;font-weight:700;color:#ffffff;margin:0 0 14px">
-          {inviter_name} invited you to {workspace_name}
-        </div>
-        <div style="font-size:15px;line-height:1.65;color:#a6b4d4;margin:0 0 26px">
-          You've been invited as a <strong style="color:#eaf1ff">{role}</strong>, which lets you {blurb}.
-          Nothing happens until you accept &mdash; and you can decline just as easily.
-        </div>
-
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 26px">
-          <tr><td bgcolor="#2563eb" style="border-radius:10px">
-            <a href="{link_url}" style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none">View invitation</a>
-          </td></tr>
-        </table>
-
-        <div style="font-size:13px;line-height:1.6;color:#6b7699;border-top:1px solid #1a2540;padding-top:18px">
-          This invitation expires in 7 days. To accept it you'll need to be signed in
-          to Markdrop with this email address &mdash; if you don't have an account yet,
-          you can create one on the way through.
-        </div>
-      </td></tr>
-      <tr><td style="padding:20px 8px 8px">
-        <div style="font-size:12px;line-height:1.65;color:#6b7699">
-          Didn't expect this? You can safely ignore it &mdash; you will not be added to
-          anything unless you accept. Sent by
-          <a href="{base}" style="color:#6ba4ff;text-decoration:none">markdrop.in</a>.
-        </div>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>
-</body>
-</html>"""
+    content = (
+        _eyebrow("Workspace invitation")
+        + _heading(f"{inviter_name} invited you to {workspace_name}")
+        + _p(
+            f"You're invited as {_strong(role)}, which lets you {blurb}. "
+            "Nothing happens until you accept, and you can decline just as easily."
+        )
+        + _button(link_url, "View invitation")
+        + _rule()
+        + _p(
+            "To accept, sign in to Markdrop with this email address. If you don't "
+            "have an account yet, you can create one on the way.",
+            size=13, color=_MUTED, margin="0 0 20px",
+        )
+    )
+    footer = (
+        f"This invitation expires in {days} days. Didn't expect it? You can ignore "
+        "this email: you won't be added to anything unless you accept. Sent by "
+        f"{_footer_link(_base(), 'markdrop.in')}."
+    )
+    return _shell(
+        title=f"Join {workspace_name} on Markdrop",
+        preheader=f"{inviter_name} invited you to the {workspace_name} workspace on Markdrop.",
+        content=content,
+        footer=footer,
+    )
 
 
 async def send_invite_email(
@@ -352,21 +505,14 @@ async def send_invite_email(
     """Send a workspace invitation. Raises on failure, which the caller treats as
     grounds to withdraw the invitation -- an invite nobody can receive is worse
     than none, because it shows as pending in the admin list forever."""
-    link_url = f"{settings.frontend_url.rstrip('/')}/invite/{token}"
-    payload = {
+    link_url = f"{_base()}/invite/{token}"
+    await _post({
         "from": _sender("share"),
         "to": [to_email],
         "subject": f"{inviter_name} invited you to {workspace_name} on Markdrop",
         "reply_to": settings.email_reply_to,
         "html": _invite_html(workspace_name, inviter_name, role, link_url),
-    }
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(
-            _RESEND_URL,
-            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-            json=payload,
-        )
-        resp.raise_for_status()
+    })
 
 
 # ── Document sharing ───────────────────────────────────────────────────────────
@@ -381,87 +527,74 @@ def _share_html(
     *, document_title: str, url: str, sharer_name: str, role: str,
     encrypted: bool, message: str | None,
 ) -> str:
-    base = settings.frontend_url.rstrip("/")
     # Free text chosen by one user, rendered into markup that lands in another
     # user's inbox. Unescaped, a document titled `</div><a href="http://evil">`
     # turns any sharer into a phishing kit sending from our domain.
     document_title = html.escape(document_title)
     sharer_name = html.escape(sharer_name)
+    url_attr = html.escape(url, quote=True)
+    url_text = html.escape(url)
+
     note = (
-        f"""<tr><td style="padding:0 0 20px">
-          <div style="border-left:3px solid #2563eb;padding:2px 0 2px 14px;
-                      font-size:14px;line-height:1.6;color:#a6b4d4">
-            &ldquo;{html.escape(message)}&rdquo;
-          </div></td></tr>"""
+        f"""\
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px">
+  <tr><td style="border-left:3px solid {_LINE};padding:2px 0 2px 14px">
+    <div style="font-family:{_SANS};font-size:15px;line-height:1.6;color:{_BODY}">&ldquo;{html.escape(message)}&rdquo;</div>
+  </td></tr>
+</table>"""
         if message else ""
     )
-    # An encrypted document cannot be unlocked by a permission — the key is in
+    # An encrypted document cannot be unlocked by a permission: the key is in
     # the link's fragment and never reached us. Saying so here prevents the
     # entirely reasonable assumption that being granted access means being able
     # to read it.
     crypto = (
-        """<tr><td style="padding:0 0 18px">
-          <div style="background:#2a1f05;border:1px solid #5c4813;border-radius:10px;
-                      padding:12px 14px;font-size:13px;line-height:1.6;color:#f6c453">
-            This document is end-to-end encrypted. You'll need the full link,
-            including everything after the <span style="font-family:monospace">#</span>,
-            for it to open — access alone isn't enough to decrypt it.
-          </div></td></tr>"""
+        f"""\
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px">
+  <tr><td bgcolor="#fffbeb" style="background-color:#fffbeb;border:1px solid #fee685;border-radius:8px;padding:12px 14px">
+    <div style="font-family:{_SANS};font-size:14px;line-height:1.6;color:#bb4d00">
+      <strong style="font-weight:700">This document is end-to-end encrypted.</strong>
+      Open it with the full link, including everything after the
+      <span style="font-family:{_MONO}">#</span>. Access alone can't decrypt it.
+    </div>
+  </td></tr>
+</table>"""
         if encrypted else ""
     )
-
-    return f"""\
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark light"><title>{document_title}</title></head>
-<body style="margin:0;padding:0;background:#080d1a;-webkit-font-smoothing:antialiased">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">{sharer_name} shared a document with you on Markdrop.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#080d1a" style="background:#080d1a">
-  <tr><td align="center" style="padding:32px 14px">
-    <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
-           style="width:560px;max-width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-      <tr><td bgcolor="#0d1428" style="background:#0d1428;border:1px solid #1a2540;border-radius:16px;padding:32px 30px">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-          {_masthead()}
-          <tr><td style="padding:0 0 10px">
-            <div style="font-size:22px;line-height:1.3;font-weight:700;color:#ffffff">
-              {sharer_name} shared a document with you
-            </div></td></tr>
-          <tr><td style="padding:0 0 18px">
-            <div style="font-size:15px;line-height:1.6;color:#a6b4d4">
-              You can <strong style="color:#eaf1ff">{_SHARE_ROLE.get(role, "read it")}</strong>.
-            </div></td></tr>
-          {note}
-          <tr><td style="padding:0 0 20px">
-            <div style="background:#0a1020;border:1px solid #1a2540;border-radius:10px;padding:14px 16px">
-              <div style="font-size:16px;font-weight:600;color:#eaf1ff">{document_title}</div>
-              <div style="font-family:monospace;font-size:12px;color:#6ba4ff;margin-top:5px;word-break:break-all">{url}</div>
-            </div></td></tr>
-          {crypto}
-          <tr><td style="padding:0 0 22px">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-              <tr><td bgcolor="#2563eb" style="border-radius:10px">
-                <a href="{url}" style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none">Open the document</a>
-              </td></tr></table></td></tr>
-          <tr><td style="border-top:1px solid #1a2540;padding:16px 0 0">
-            <div style="font-size:13px;line-height:1.6;color:#6b7699">
-              Sign in to Markdrop with <strong style="color:#93a3c6">this email address</strong> to open it.
-              You can create an account with it if you don't have one — access is tied to the address,
-              not to a link that anyone could forward.
-            </div></td></tr>
-        </table>
-      </td></tr>
-      <tr><td style="padding:18px 8px 8px">
-        <div style="font-size:12px;line-height:1.65;color:#6b7699">
-          Didn't expect this? You can ignore it — nothing was shared with you until you sign in.
-          Sent by <a href="{base}" style="color:#6ba4ff;text-decoration:none">markdrop.in</a>.
-        </div></td></tr>
-    </table>
+    doc_box = f"""\
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px">
+  <tr><td bgcolor="{_GROUND}" style="background-color:{_GROUND};border:1px solid {_LINE};border-radius:8px;padding:14px 16px">
+    <div dir="auto" style="font-family:{_SANS};font-size:16px;line-height:1.4;font-weight:700;color:{_INK};margin:0 0 6px">{document_title}</div>
+    <div style="font-family:{_MONO};font-size:13px;line-height:1.5;color:{_BODY};word-break:break-all">{url_text}</div>
   </td></tr>
-</table>
-</body>
-</html>"""
+</table>"""
+
+    content = (
+        _eyebrow("Shared with you")
+        + _heading(f"{sharer_name} shared a document with you")
+        + _p(f"You can {_strong(_SHARE_ROLE.get(role, 'read it'))}.")
+        + note
+        + doc_box
+        + crypto
+        + _button(url_attr, "Open the document", margin="0 0 24px")
+        + _rule()
+        + _p(
+            f"Sign in to Markdrop with {_strong('this email address')} to open it. You can "
+            "create an account with it if you don't have one. Access is tied to the "
+            "address, not to a link anyone could forward.",
+            size=13, color=_MUTED, margin="0 0 20px",
+        )
+    )
+    footer = (
+        "Didn't expect this? You can ignore it: nothing opens until you sign in with "
+        f"this address. Sent by {_footer_link(_base(), 'markdrop.in')}."
+    )
+    return _shell(
+        title=document_title or "A document was shared with you",
+        preheader=f"{sharer_name} shared &ldquo;{document_title}&rdquo; with you on Markdrop.",
+        content=content,
+        footer=footer,
+    )
 
 
 async def send_document_share_email(
@@ -485,9 +618,8 @@ async def send_document_share_email(
     # because a custom host rewrites *every* path to the document route: it has
     # no `/login`. Someone who has to sign in to read this — which is everybody
     # a share email reaches — would arrive somewhere with no way to do it.
-    base = settings.frontend_url.rstrip("/")
-    url = f"{base}/{slug}"
-    payload = {
+    url = f"{_base()}/{slug}"
+    await _post({
         "from": _sender("share"),
         "to": [to_email],
         "subject": f"{sharer_name} shared “{document_title}” with you",
@@ -496,11 +628,42 @@ async def send_document_share_email(
             document_title=document_title, url=url, sharer_name=sharer_name,
             role=role, encrypted=encrypted, message=message,
         ),
-    }
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(
-            _RESEND_URL,
-            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-            json=payload,
+    })
+
+
+# ── Web pages in the email shell ───────────────────────────────────────────────
+
+
+def unsubscribe_page_html(ok: bool) -> str:
+    """The page an unsubscribe link lands on, in the same light shell as the
+    email it came from. Light only: it is an extension of the email."""
+    base = _base()
+    if ok:
+        content = (
+            _eyebrow("Email preferences")
+            + _heading("You're unsubscribed")
+            + _p(
+                "You won't get product emails from Markdrop any more. Sign-in codes "
+                "and invitations still arrive, because you asked for them."
+            )
+            + _p(_link(base, "Go to Markdrop"), margin="0 0 20px")
         )
-        resp.raise_for_status()
+        title = "You're unsubscribed from Markdrop"
+    else:
+        content = (
+            _eyebrow("Email preferences")
+            + _heading("Link not recognised")
+            + _p(
+                "This unsubscribe link is invalid or incomplete, so nothing has "
+                "changed. Open the link again from the email, making sure none of it "
+                "was cut off."
+            )
+            + _p(
+                "Still getting emails you don't want? Reply to any of them and we'll "
+                "take you off the list by hand.",
+            )
+            + _p(_link(base, "Go to Markdrop"), margin="0 0 20px")
+        )
+        title = "Unsubscribe link not recognised"
+    footer = f"Markdrop &middot; {_footer_link(base, 'markdrop.in')}"
+    return _shell(title=title, content=content, footer=footer, page=True)

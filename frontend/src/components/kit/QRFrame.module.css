@@ -1,0 +1,80 @@
+/* QRFrame: always-white ground (--qr-ground, documented fixed value), constant dark ink. */
+
+.frame {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+.frame[data-layout="stack"] {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+}
+
+.tile {
+  box-sizing: border-box;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: var(--qr-ground);
+  color: var(--logo-ground);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  animation: qr-in var(--duration-fast) var(--ease-out) backwards;
+}
+.tile[data-fluid] { aspect-ratio: 1; }
+.tile[data-fluid] .svg { width: 100%; height: 100%; }
+
+/* Light: a hairline so the white tile doesn't merge into a pale card. Dark needs none. */
+:global([data-theme="light"]) .tile { border-color: var(--border-strong); }
+:global([data-theme="light"] [data-theme="dark"]) .tile { border-color: transparent; }
+
+.svg { display: block; }
+
+@keyframes qr-in {
+  from { opacity: 0; transform: scale(.96); }
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.frame[data-layout="stack"] .side { align-items: center; }
+
+.label {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+.caption {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+.expand { margin-top: 8px; }
+
+.full {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+.fullBox {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile { animation: none; }
+}

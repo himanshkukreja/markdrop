@@ -2,7 +2,7 @@
 
 Markdrop turns documents and files into links that render: write or paste markdown and AI write-ups, or upload HTML pages, PDFs, spreadsheets, Word docs, video and zipped sites, and each one opens in any browser. It also sends files device to device and syncs from VS Code. The line is *Drop it. It renders.* The product promise is *no login, no friction, just links*, and the interface should feel the same way: quiet, fast, mostly ink on a dark or light ground, with one blue that means "go".
 
-This system is the revamp target. Its dark values are the palette the app ships today; the light theme, the type scale and the component library are new. Build every new screen on the semantic tokens and the components in `src/`; never reach for a raw hex or a Tailwind palette class in product code. How to wire it into the app is in [README.md](README.md).
+This system is the revamp target. Its dark values are the palette the app ships today; the light theme, the type scale and the component library are new. Build every new screen on the semantic tokens and the components in `frontend/src/components/ui/`; never reach for a raw hex or a Tailwind palette class in product code. How to wire it into the app is in [README.md](README.md).
 
 ## Voice and content
 
@@ -19,12 +19,17 @@ This system is the revamp target. Its dark values are the palette the app ships 
 
 Two equal themes, `dark` (the default, as shipped) and `light`. Every semantic token has both values; components only ever use semantic tokens, so a theme switch is `data-theme="light"` on the root and nothing else.
 
+The light theme is **Mist**: a dimmed slate ground (`bg` #E3E7ED, `surface` #EBEEF2, `surface-raised` #F2F4F7) with navy ink (#111A2C, 14:1). Nothing in it is pure white, so a full screen of it never glares, and ink is deliberately softer than black-on-white. Cards lift by tone and by `shadow-sm`, which in light carries a faint top highlight plus a navy-tinted shadow. Chosen on 2026-10-13 over Slate (brighter, near-white cards), Paper (warm) and Dusk (one step dimmer); all four pass AA.
+
 - Grounds: `bg` is the page; `surface` is anything with an edge (cards, inputs, dialogs); `surface-raised` is menus and tooltips; `surface-inset` is wells (editor, pill-tab tracks); `surface-hover` / `surface-active` are the only hover and pressed fills.
 - Edges: `border` for hairlines and cards, `border-strong` for controls at rest, `border-focus` for the ring. Borders are decorative (under 3:1 in both themes); meaning is never carried by a border, which is why every control also has a focus ring.
-- Ink: `text` for headings and primary copy, `text-secondary` for body in tables and dialogs, `text-muted` for captions, placeholders and icon strokes. All three pass AA on every surface in both themes. `text-subtle` does not (3.7:1 dark, 2.6:1 light) — disabled labels and decoration only.
+- Ink: `text` for headings and primary copy, `text-secondary` for body in tables and dialogs, `text-muted` for captions, placeholders and icon strokes. `text`, `text-secondary` and `text-muted` pass AA on `bg`, `surface`, `surface-raised`, `surface-inset` and `code-bg` in both themes (Mist's `text-muted` is 5.6:1 on its inset well); on tinted grounds (`accent-soft`, status soft fills) use `text-secondary`. `text-subtle` does not (3.7:1 dark, 3.1:1 light) — disabled labels and decoration only.
 - Accent: `accent` is the one blue fill (primary button, checked controls, progress); `accent-text` is links and selected states; `accent-soft` tints selected rows, info alerts and the document icon tile. White on `accent-hover` (blue-500) is only 3.8:1 — fine for a transient hover, never a resting fill.
-- Status: `success` / `warning` / `danger` are text and icon colours, each with a `*-soft` tint and a `*-fill` solid. Success and danger are told apart by lightness and by their icons, not hue alone. `warning-fill` carries dark text, never white.
-- Categories: `cat-document`, `cat-artifact`, `cat-builder`, `cat-share`, `cat-sync` tint the Create menu tiles and FileIcon; they are never used for state.
+- Status: `success` / `warning` / `danger` are text and icon colours, each with a `*-soft` tint and a `*-fill` solid. Success and danger are told apart by their icons and words, never hue alone: an icon or arrow is mandatory on every success/danger pair, including chart deltas. `warning-fill` carries dark text, never white.
+- Categories: `cat-document`, `cat-artifact`, `cat-builder`, `cat-share`, `cat-sync` tint the Create menu tiles and FileIcon, and may label a product area on marketing pages and OG cards (an eyebrow, a tile). FileIcon adds `cat-image`, `cat-video`, `cat-pdf`, `cat-sheet`, `cat-audio`. They are never used for state, and never on app page headers.
+- Code: `syntax-*` colour highlighted code, each ≥ 4.5:1 on its `code-bg`; code follows the theme.
+- Charts: `chart-1…6` follow the entity, never its rank; `chart-seq-*` ramps print their values; `chart-up`/`chart-down` always carry an arrow.
+- Fixed values: `demo-accent` (someone else's brand in demos), `qr-ground` (always white), `logo-well-light`/`logo-well-dark` (customer logo wells), `on-warning` (text on `warning-fill`).
 - Code: `code-bg` / `code-border` for fenced blocks (GitHub dark and light), `code-inline` on `code-inline-bg` for inline code.
 - The logo colours (`logo-ground`, `logo-ink`, `logo-dot`, `logo-drop`) are identical in both themes. The mark never inverts.
 - The full Tailwind-derived scales (`gray-50`…`sky-950`) are present for reference and aliasing only; never use a scale step directly in UI.
@@ -32,7 +37,7 @@ Two equal themes, `dark` (the default, as shipped) and `light`. Every semantic t
 ## Typography
 
 - `Manrope` (variable, 200–800) for everything that is not code; `JetBrains Mono` (variable, 100–800) for code, slugs, URLs, keys and the Kbd. Both ship as files in `fonts/` under the SIL OFL.
-- Root size is 16px. Body copy is `body` (14/20); forms, dialogs, menus and tables all sit at 14px. `caption` (12/16) is metadata; `micro` (11/16, 500) is the floor for badges and labels — nothing in the UI is smaller than 11px.
+- Root size is 16px. UI copy is `body` (14/20); forms, dialogs, menus and tables all sit at 14px. Long-form reading (documents, previews) uses `reading` (17/28) on a 680px measure. `caption` (12/16) is metadata; `micro` (11/16, 500) is the floor for badges and labels — nothing in the UI is smaller than 11px.
 - Headings: `h1` (30/36, 700) page titles, `h2` (24/32) sections, `h3` (18/28, 600) dialog and card titles, `h4` (16/24, 600) sub-sections. Marketing gets `display` and `display-xl` at weight 800 with tight tracking.
 - The wordmark is the `wordmark` style, always lower case, "mark" in `text` and "drop" in `accent-text`.
 - `eyebrow` (11px, 700, uppercase, 0.08em) labels table headers and section kickers in `text-muted`.
@@ -43,13 +48,17 @@ Two equal themes, `dark` (the default, as shipped) and `light`. Every semantic t
 - A 4px grid (`space-1`). Inline gaps are `space-2`; control padding `space-3` horizontally; card and dialog padding `space-5`; page gutters `space-4` on phones, `space-6` above; sections `space-8` apart; marketing sections `space-16` to `space-24`.
 - Radii are tied to size: `radius-sm` (4) for checkboxes, inline code and kbd; `radius-md` (6) for small buttons and menu items; `radius-lg` (8) for buttons, inputs, tabs and tiles — the same 8/32 ratio as the logo pill; `radius-xl` (12) for cards, dialogs, menus and toasts; `radius-2xl` (16) for large panels; `radius-full` for pills, badges, avatars and switches.
 - Depth comes from borders first, shadows second. Dark surfaces carry no shadow at rest; `shadow-md` appears on hover, `shadow-lg` under menus and toasts, `shadow-xl` under dialogs and drawers. Light surfaces add `shadow-sm` to controls so they read as raised. `shadow-glow` is the single coloured shadow, reserved for the loader mark and marketing CTAs.
-- Layers: `z-sticky` 20, `z-dropdown` 50, `z-overlay` 100, `z-immersive` 101, `z-toast` 200. Nothing else sets a z-index.
+- Layers: `z-sticky` 20, `z-dropdown` 50, `z-overlay` 100, `z-immersive` 101, `z-toast` 200. Nothing else sets a z-index; the feedback launcher uses `z-sticky` and sheet scrims `z-overlay`.
+- Focus is a 2px `border-focus` outline with a 2px offset, so the ring never touches a blue fill.
 
 ## Motion
 
 - Colour and border transitions are 150ms; overlays enter in 150–220ms on `cubic-bezier(.16,1,.3,1)` with a small translate and scale, never a fade alone.
 - Loading is the brand: `MarkdropLoader`'s drop falls into the mark on a 1.9s cycle; indeterminate `Progress` and the loader bar share one 1.4s sweep.
 - Every animation has a `prefers-reduced-motion` rest state that still reads (the drop parked mid-fall, the packet mid-path).
+- Durations are tokens: `duration-instant` 100, `fast` 150, `menu` 150, `dialog` 180, `panel` 220, `exit` 120, `progress` 300, `reveal` 400; `ease-out` everywhere. Nothing moves for longer than 400ms except loaders, the landing hero and toys, the publish moment, hover/focus demos, and transfer packets driven by real bytes.
+- No motion library: CSS, the Web Animations API and View Transitions only.
+- **One autoplaying sequence at a time**: the landing hero autoplays; section toys run their demo only while they are the most visible toy, and every one has a Pause control. Loops pause offscreen, in hidden tabs and on the page's pause control.
 
 ## Iconography
 
@@ -59,11 +68,11 @@ Two equal themes, `dark` (the default, as shipped) and `light`. Every semantic t
 
 ## Layout rules
 
-- Content columns max out at 880px on app pages (see the Dashboard page) and 1280px on marketing pages, centred, with the gutters above.
+- Content columns: 880 on account pages (dashboard, settings); 1280 on marketing pages and editor tools (`/new`, `/upload`, `/builder`); 1024 on `/share`; 680 for the reading measure; fluid to 1200 in admin. Centred, with the gutters above.
 - Lists are `DocumentRow`s `space-2` apart, filtered by pill `Tabs` and paged by `Pagination` with a "Showing x of y" caption. Admin and analytics data use `Table`.
-- One primary `Button` per view. Destructive actions live in overflow menus or dialog footers.
+- One primary `Button` per view: the page's own action. The header Create is secondary except on the dashboard, which has no action of its own. Marketing pages may have one primary per section. Destructive actions live in overflow menus or dialog footers; danger tone on an action means it destroys data or access (reporting and sending are never danger).
 - Forms: every control inside a `Field`; errors replace hints; the submit button is the only primary.
-- Mobile: single column, header actions collapse to Create + avatar, drawers become full-width, menus stay click-to-open.
+- Mobile: single column; header actions collapse to Create + avatar when signed in, and to Create + Sign in + a Menu button (nav drawer) when signed out or on marketing pages; drawers become full-width or bottom sheets; menus stay click-to-open.
 
 ## Using the system
 

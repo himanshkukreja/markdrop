@@ -1,0 +1,58 @@
+/* CommandBlock: follows the theme (D14), on code-bg with the code-border hairline. */
+
+.block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-lg);
+  color: var(--text);
+}
+
+.label {
+  padding: 8px 12px 0;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 4px 4px 0;
+}
+
+.pre {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 6px 0 6px 12px;
+  overflow-x: auto;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text);
+}
+.code { display: block; font: inherit; }
+.line { display: block; white-space: pre; }
+.block[data-wrap] .line { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.prompt {
+  display: inline-block;
+  margin-right: 1ch;
+  color: var(--text-muted);
+  user-select: none;
+}
+.cmd { color: var(--text); }
+
+.copy { flex: none; }
+
+.pre:focus-visible { outline-offset: -2px; border-radius: var(--radius-md); }

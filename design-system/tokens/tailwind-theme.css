@@ -47,6 +47,48 @@
   --color-logo-ink: var(--logo-ink);
   --color-logo-dot: var(--logo-dot);
   --color-logo-drop: var(--logo-drop);
+  --color-syntax-keyword: var(--syntax-keyword);
+  --color-syntax-string: var(--syntax-string);
+  --color-syntax-comment: var(--syntax-comment);
+  --color-syntax-number: var(--syntax-number);
+  --color-syntax-title: var(--syntax-title);
+  --color-syntax-attr: var(--syntax-attr);
+  --color-syntax-builtin: var(--syntax-builtin);
+  --color-syntax-meta: var(--syntax-meta);
+  --color-syntax-punct: var(--syntax-punct);
+  --color-syntax-addition: var(--syntax-addition);
+  --color-syntax-addition-bg: var(--syntax-addition-bg);
+  --color-syntax-deletion: var(--syntax-deletion);
+  --color-syntax-deletion-bg: var(--syntax-deletion-bg);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-other: var(--chart-other);
+  --color-chart-seq-1: var(--chart-seq-1);
+  --color-chart-seq-2: var(--chart-seq-2);
+  --color-chart-seq-3: var(--chart-seq-3);
+  --color-chart-seq-4: var(--chart-seq-4);
+  --color-chart-seq-5: var(--chart-seq-5);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
+  --color-chart-crosshair: var(--chart-crosshair);
+  --color-chart-wash: var(--chart-wash);
+  --color-chart-track: var(--chart-track);
+  --color-chart-up: var(--chart-up);
+  --color-chart-down: var(--chart-down);
+  --color-on-warning: var(--on-warning);
+  --color-logo-well-light: var(--logo-well-light);
+  --color-logo-well-dark: var(--logo-well-dark);
+  --color-demo-accent: var(--demo-accent);
+  --color-qr-ground: var(--qr-ground);
+  --color-cat-image: var(--cat-image);
+  --color-cat-video: var(--cat-video);
+  --color-cat-pdf: var(--cat-pdf);
+  --color-cat-sheet: var(--cat-sheet);
+  --color-cat-audio: var(--cat-audio);
 
   --text-display-xl: 56px;
   --text-display-xl--line-height: 1.05;
@@ -74,6 +116,9 @@
   --text-h4: 16px;
   --text-h4--line-height: 24px;
   --text-h4--font-weight: 600;
+  --text-reading: 17px;
+  --text-reading--line-height: 28px;
+  --text-reading--font-weight: 400;
   --text-body-lg: 16px;
   --text-body-lg--line-height: 24px;
   --text-body-lg--font-weight: 400;
@@ -99,4 +144,18 @@
   --text-kbd: 11px;
   --text-kbd--line-height: 16px;
   --text-kbd--font-weight: 500;
+  --container-app: var(--layout-app);
+  --container-tool: var(--layout-tool);
+  --container-marketing: var(--layout-marketing);
+  --container-share: var(--layout-share);
+  --container-reading: var(--layout-reading);
+  --container-admin: var(--layout-admin);
+  --ease-brand: var(--ease-out);
+  --animate-rise: md-rise var(--duration-reveal) var(--ease-out) both;
+  --animate-pop: md-pop var(--duration-menu) var(--ease-out) both;
+  --animate-sweep: md-sweep var(--loop-sweep) cubic-bezier(.4,0,.2,1) infinite;
+
+  @keyframes md-rise { from { opacity: 0; transform: translateY(12px) scale(.98); } }
+  @keyframes md-pop { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+  @keyframes md-sweep { from { transform: translateX(-110%); } to { transform: translateX(310%); } }
 }

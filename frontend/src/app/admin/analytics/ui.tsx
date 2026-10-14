@@ -1,74 +1,81 @@
 "use client";
 
-/** Shared building blocks for the analytics tab. */
+/** Shared building blocks for the analytics pages (Overview, Product health), on DS tokens. */
 
-export function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`min-w-0 rounded-2xl border border-gray-800/80 bg-gray-900/40 p-4 sm:p-5 ${className}`}>{children}</div>;
+import { Alert, Button, Skeleton } from "@/components/ui";
+import type { DeltaValue } from "@/components/kit/StatTile";
+
+/** A card: `surface`, hairline, radius-xl. Titles are h2 (the page h1 sits above). */
+export function Card({ children, className = "", ...rest }: { children: React.ReactNode; className?: string } & React.HTMLAttributes<HTMLElement>) {
+  return <section className={`min-w-0 rounded-xl border border-border bg-surface p-4 sm:p-5 ${className}`} {...rest}>{children}</section>;
 }
 
-export function CardTitle({ title, sub, right }: { title: string; sub?: string; right?: React.ReactNode }) {
+export function CardTitle({ title, sub, right, id }: { title: React.ReactNode; sub?: React.ReactNode; right?: React.ReactNode; id?: string }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
-      <div>
-        <h3 className="text-sm font-semibold text-gray-100">{title}</h3>
-        {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+      <div className="min-w-0">
+        <h2 id={id} className="text-h4 text-text">{title}</h2>
+        {sub && <p className="mt-0.5 text-caption text-text-secondary">{sub}</p>}
       </div>
-      {right}
+      {right && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{right}</div>}
     </div>
   );
 }
 
-export function Segmented({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: [string, string][] }) {
+/** A small uppercase label above a list or chart inside a card. */
+export function Eyebrow({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <h3 className={`mb-2 text-eyebrow uppercase text-text-muted ${className}`}>{children}</h3>;
+}
+
+/** Per-card loading state. */
+export function CardSkeleton({ title, height = 220, className = "" }: { title?: string; height?: number; className?: string }) {
   return (
-    <div className="inline-flex min-w-0 max-w-full p-0.5 rounded-lg bg-gray-950 border border-gray-800 overflow-x-auto [scrollbar-width:none]">
-      {options.map(([k, l]) => (
-        <button key={k} onClick={() => onChange(k)}
-          className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${value === k ? "bg-gray-800 text-gray-50" : "text-gray-400 hover:text-gray-200"}`}>
-          {l}
-        </button>
-      ))}
-    </div>
+    <Card className={className} aria-busy="true">
+      {title ? <h2 className="mb-4 text-h4 text-text">{title}</h2> : <Skeleton width="40%" height={18} className="mb-4" />}
+      <span className="md-visually-hidden">Loading</span>
+      <Skeleton variant="rect" height={height} />
+    </Card>
   );
 }
 
-export function Delta({ now, prev, lowerIsBetter }: { now: number; prev: number; lowerIsBetter?: boolean }) {
-  if (!prev && !now) return null;
-  if (!prev) return <span className="text-[11px] font-medium text-gray-400">New</span>;
+/** Per-card error: what failed and a Retry that refetches just that card. */
+export function CardError({ title, onRetry, className = "" }: { title: string; onRetry: () => void; className?: string }) {
+  return (
+    <Card className={className}>
+      <h2 className="mb-3 text-h4 text-text">{title}</h2>
+      <Alert tone="danger" actions={<Button size="sm" variant="secondary" iconLeft="refresh" onClick={onRetry}>Retry</Button>}>
+        Couldn&apos;t load this card. The rest of the page is unaffected.
+      </Alert>
+    </Card>
+  );
+}
+
+/**
+ * The change against the previous period, for the kit `Delta` (always an arrow plus words).
+ * `lowerIsBetter` flips the tone (a falling bounce rate is good).
+ */
+export function deltaOf(now: number, prev: number, vs: string, lowerIsBetter = false): DeltaValue | undefined {
+  if (!prev && !now) return undefined;
+  if (!prev) return { value: "New", direction: "up", tone: "neutral", text: `New: none in the previous ${vs}` };
   const pct = Math.round(((now - prev) / prev) * 100);
-  if (pct === 0) return <span className="text-[11px] font-medium text-gray-500">0%</span>;
+  if (pct === 0) return { value: "0%", direction: "flat", text: `No change vs the previous ${vs}` };
   const up = pct > 0;
   const good = lowerIsBetter ? !up : up;
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${good ? "text-[#0ca30c]" : "text-[#e66767]"}`}
-      title={`${up ? "Up" : "Down"} ${Math.abs(pct)}% vs the previous period`}>
-      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d={up ? "M7 14l5-5 5 5" : "M7 10l5 5 5-5"} />
-      </svg>
-      {Math.abs(pct)}%
-    </span>
-  );
+  return {
+    value: `${Math.abs(pct)}%`,
+    direction: up ? "up" : "down",
+    tone: good ? "success" : "danger",
+    text: `${up ? "Up" : "Down"} ${Math.abs(pct)}% vs the previous ${vs}`,
+  };
 }
 
-export function Stat({ label, value, now, prev, foot, active, onClick, lowerIsBetter, live }: {
-  label: string; value: string; now?: number; prev?: number; foot?: string; active?: boolean;
-  onClick?: () => void; lowerIsBetter?: boolean; live?: boolean;
-}) {
-  const Tag = onClick ? "button" : "div";
+/** A labelled figure inside a card; `accent` marks the one number a section is about. */
+export function Figure({ label, value, foot, accent }: { label: string; value: string; foot?: string; accent?: boolean }) {
   return (
-    <Tag onClick={onClick}
-      className={`text-left rounded-2xl border p-4 transition-colors ${active
-        ? "border-blue-500/60 bg-blue-500/[0.07] ring-1 ring-blue-500/30"
-        : "border-gray-800/80 bg-gray-900/40"} ${onClick ? "hover:border-gray-700 cursor-pointer" : ""}`}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
-          {live && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-          {label}
-        </p>
-        {now !== undefined && prev !== undefined && <Delta now={now} prev={prev} lowerIsBetter={lowerIsBetter} />}
-      </div>
-      <p className="mt-1.5 text-2xl font-semibold tracking-tight text-gray-50">{value}</p>
-      {foot && <p className="mt-1 text-[11px] text-gray-500 truncate">{foot}</p>}
-    </Tag>
+    <div className={`min-w-0 rounded-lg border p-3.5 ${accent ? "border-accent bg-accent-soft" : "border-border bg-surface-inset"}`}>
+      <p className={`text-caption font-medium ${accent ? "text-accent-text" : "text-text-secondary"}`}>{label}</p>
+      <p className="mt-1 text-h3 tabular-nums text-text">{value}</p>
+      {foot && <p className="mt-0.5 text-micro text-text-secondary">{foot}</p>}
+    </div>
   );
 }
-

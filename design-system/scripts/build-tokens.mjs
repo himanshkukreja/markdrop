@@ -33,7 +33,15 @@ for (const f of t.type.fonts ?? []) {
 }
 css += `\n:root, [data-theme="${first}"] {\n  color-scheme: ${first};\n${decls(themed, first)}\n}\n`;
 for (const th of themes.slice(1)) css += `\n[data-theme="${th}"] {\n  color-scheme: ${th};\n${decls(themed, th)}\n}\n`;
-css += `\n:root {\n${decls(flat, first)}\n${Object.entries(t.type.families).map(([k, v]) => `  --font-${k}: ${v};`).join("\n")}\n}\n`;
+// No-JS readers follow the OS once light launches (REVAMP_PLAN 5.3). Off by default: until then a
+// JS-disabled visitor must get dark, like everyone else. Build with --no-js-light (or NO_JS_LIGHT=1) at launch.
+// With JS, the head script always sets data-theme before paint, so this block never applies.
+const noJsLight = process.argv.includes("--no-js-light") || process.env.NO_JS_LIGHT === "1";
+if (noJsLight && themes.includes("light")) css += `\n@media (prefers-color-scheme: light) {\n  :root:not([data-theme]) {\n    color-scheme: light;\n${decls(themed, "light").replace(/^/gm, "  ")}\n  }\n}\n`;
+const motion = t.motion?.tokens ?? [];
+const layout = t.layout?.tokens ?? [];
+css += `\n:root {\n${decls([...flat, ...motion, ...layout], first)}\n  --motion-scale: 1;\n${Object.entries(t.type.families).map(([k, v]) => `  --font-${k}: ${v};`).join("\n")}\n}\n`;
+css += `\n@media (prefers-reduced-motion: reduce) {\n  :root { --motion-scale: 0; }\n}\n`;
 fs.writeFileSync(path.join(root, "tokens/tokens.css"), css);
 
 let typeCss = header("type styles") + "\n\n";
@@ -52,6 +60,16 @@ for (const g of t.type.groups) for (const s of g.styles) {
   tw += `  --text-${s.name}: ${s.fontSize};\n  --text-${s.name}--line-height: ${s.lineHeight};\n  --text-${s.name}--font-weight: ${s.fontWeight};\n`;
   if (s.letterSpacing) tw += `  --text-${s.name}--letter-spacing: ${s.letterSpacing};\n`;
 }
+// Layout widths as max-w-* utilities (max-w-app, max-w-tool, max-w-reading …).
+for (const l of layout) tw += `  --container-${l.name.replace(/^layout-/, "")}: var(--${l.name});\n`;
+// Motion as Tailwind keys, so pages stop hand-rolling keyframes (REVAMP_PLAN 6.2).
+tw += `  --ease-brand: var(--ease-out);\n`;
+tw += `  --animate-rise: md-rise var(--duration-reveal) var(--ease-out) both;\n`;
+tw += `  --animate-pop: md-pop var(--duration-menu) var(--ease-out) both;\n`;
+tw += `  --animate-sweep: md-sweep var(--loop-sweep) cubic-bezier(.4,0,.2,1) infinite;\n`;
+tw += `\n  @keyframes md-rise { from { opacity: 0; transform: translateY(12px) scale(.98); } }\n`;
+tw += `  @keyframes md-pop { from { opacity: 0; transform: translateY(8px) scale(.98); } }\n`;
+tw += `  @keyframes md-sweep { from { transform: translateX(-110%); } to { transform: translateX(310%); } }\n`;
 tw += "}\n";
 fs.writeFileSync(path.join(root, "tokens/tailwind-theme.css"), tw);
 

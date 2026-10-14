@@ -1,0 +1,131 @@
+/* BrowserFrame: follows the theme; `paper` is a white page (documented fixed value --qr-ground). */
+
+.frame {
+  --bf-chrome: 40px;
+  --bf-dot: 10px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  color: var(--text);
+}
+.frame[data-size="sm"] { --bf-chrome: 32px; --bf-dot: 8px; border-radius: var(--radius-lg); }
+.frame[data-size="lg"] { --bf-chrome: 44px; --bf-dot: 10px; }
+
+:global([data-theme="light"]) .frame { box-shadow: var(--shadow-sm); }
+
+/* ── Chrome ─────────────────────────────────────────────────────────────── */
+.dots {
+  display: inline-flex;
+  gap: 6px;
+  flex: none;
+}
+.dots i {
+  display: block;
+  width: var(--bf-dot);
+  height: var(--bf-dot);
+  border-radius: var(--radius-full);
+  background: var(--border-strong);
+}
+
+.strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  min-width: 0;
+  height: var(--bf-chrome);
+  padding: 0 12px;
+  box-sizing: border-box;
+  background: var(--surface-inset);
+}
+.strip .dots { align-self: center; }
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: min(240px, 60%);
+  height: calc(var(--bf-chrome) - 8px);
+  padding: 0 14px;
+  box-sizing: border-box;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  margin-bottom: -1px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--text);
+}
+.favicon { display: inline-flex; flex: none; }
+.tabTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  height: var(--bf-chrome);
+  padding: 0 12px;
+  box-sizing: border-box;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.toolbar[data-single] { border-top: 0; }
+
+.addressSlot {
+  display: flex;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.addressSlot .address {
+  width: min(100%, 440px);
+  height: calc(var(--bf-chrome) - 12px);
+}
+.frame[data-size="sm"] .addressSlot .address { height: calc(var(--bf-chrome) - 10px); }
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+
+/* ── Page ───────────────────────────────────────────────────────────────── */
+.body {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* White paper in both themes: user HTML and PDF pages are written for white. */
+.paper {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--qr-ground);
+  color: var(--logo-ground);
+  color-scheme: light;
+}

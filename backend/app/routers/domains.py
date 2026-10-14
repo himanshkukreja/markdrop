@@ -278,6 +278,7 @@ async def resolve_host(
         favicon_url=b.favicon_url,
         logo_url=b.logo_url,
         accent_color=b.accent_color,
+        logo_well=getattr(b, "logo_well", None),
         hide_markdrop_branding=b.hide_markdrop_branding,
         viewer_chrome=s.viewer_chrome,
         require_auth_to_view=s.require_auth_to_view,

@@ -20,9 +20,13 @@ RESERVED_SLUGS = frozenset(
         # Marketing page for custom domains and white-labelling. Reserved before
         # the page shipped, so a document can never shadow it.
         "enterprise",
-        # The remaining top-level frontend routes (frontend/src/app), and the
-        # static folder served from frontend/public at the top level.
-        "invite", "extension", "email",
+        # Every other top-level frontend route (frontend/src/app). Without these
+        # a document could claim /invite or /extension and shadow the real page
+        # -- or worse, sit at an address people are trained to trust.
+        "invite", "extension", "dev-preview", "dev-kit-frames",
+        "dev-kit-publish", "dev-reading", "fonts", "icon.svg",
+        # Static folders served from frontend/public at the top level.
+        "email",
     }
 )
 

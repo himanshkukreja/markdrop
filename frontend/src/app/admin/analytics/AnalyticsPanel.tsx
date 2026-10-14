@@ -1,12 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { StatTile } from "@/components/kit/StatTile";
+import {
+  Badge, Button, Drawer, Icon, IconButton, Progress, Select, Switch, Table, Tabs, Tag, Tooltip, type Column,
+} from "@/components/ui";
 import { setTrackingDisabled, trackingDisabled } from "@/lib/track";
-import { ACCENT, FUNNEL_RAMP, Sparkline, TrendChart, bucketLabel, compact, heat } from "./charts";
-import { Card, CardTitle, Delta, Segmented, Stat } from "./ui";
-import { GrowthCard, ShareHealthCard, type Growth, type Shares } from "./sections";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "https://api.markdrop.in";
+import { PageHead } from "../shared";
+import { C, Sparkline, TableToggle, TrendChart, bucketLabel, compact, heat } from "./charts";
+import { RangePicker, rangeParams, rangeVs, useAdminFetch, type RangeValue } from "./controls";
+import { GrowthCard, type Growth } from "./sections";
+import { Card, CardError, CardSkeleton, CardTitle, Eyebrow, deltaOf } from "./ui";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,15 +36,8 @@ type Step = { t: "visit" | "page" | "event"; v?: string };
 type FunnelRes = { steps: (Step & { visitors: number; from_start: number; from_prev: number })[] };
 type Retention = { cohorts: { week: string; size: number; cells: { n: number; pct: number }[] }[] };
 
-type Filters = Record<string, string>;
-
-const RANGES: { key: string; label: string }[] = [
-  { key: "24h", label: "Last 24 hours" },
-  { key: "7d", label: "Last 7 days" },
-  { key: "30d", label: "Last 30 days" },
-  { key: "90d", label: "Last 90 days" },
-  { key: "12m", label: "Last 12 months" },
-];
+export type Filters = Record<string, string>;
+type Get = <T>(p: string, q: Record<string, string | undefined>) => Promise<T>;
 
 const FILTER_LABELS: Record<string, string> = {
   page: "Page", entry: "Entry page", host: "Host", channel: "Channel", ref: "Referrer",
@@ -63,7 +60,16 @@ const EVENT_LABELS: Record<string, string> = {
   share_started: "File share started", share_files_added: "Files added to a share",
   share_download: "Shared files downloaded", doc_copy_link: "Document link copied",
   doc_export_pdf: "Document exported to PDF",
+  hero_play: "Played the hero",
+  hero_found: "Found a hero feature",
+  hero_finale: "Reached the hero finale",
+  landing_cta: "Landing call to action clicked",
+  toy_play: "Played a landing toy",
+  toy_done: "Finished a landing toy",
 };
+
+const METRIC_LABEL = { visitors: "Visitors", pageviews: "Page views", sessions: "Sessions" } as const;
+type MetricKey = keyof typeof METRIC_LABEL;
 
 const regionNames = typeof Intl !== "undefined" && "DisplayNames" in Intl
   ? new Intl.DisplayNames(["en"], { type: "region" }) : null;
@@ -91,286 +97,261 @@ function stepLabel(s: Step) {
   return EVENT_LABELS[s.v ?? ""] ?? s.v ?? "";
 }
 
-// ── Data ──────────────────────────────────────────────────────────────────────
+// ── Data: one request per card, settled independently ─────────────────────────
 
-function useAdminFetch(token: string) {
-  return useCallback(async <T,>(path: string, params: Record<string, string | undefined>): Promise<T> => {
-    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][]);
-    const res = await fetch(`${API}/api/v1/admin/analytics/${path}?${q}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new Error(`${path}: ${res.status}`);
-    return res.json();
-  }, [token]);
-}
+type Slot<T> = { data?: T; error?: boolean };
+type Cards = { overview: Slot<Overview>; product: Slot<Product>; documents: Slot<Docs>; events: Slot<EventsRes>; growth: Slot<Growth> };
+type CardKey = keyof Cards;
+const FILTERED: Record<CardKey, boolean> = { overview: true, product: false, documents: false, events: true, growth: false };
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
-export default function AnalyticsPanel({ token }: { token: string }) {
+export default function AnalyticsPanel({ token, range, onRange, filters, onFilters, onOpenHealth }: {
+  token: string;
+  range: RangeValue; onRange: (r: RangeValue) => void;
+  filters: Filters; onFilters: (f: Filters) => void;
+  onOpenHealth: () => void;
+}) {
   const get = useAdminFetch(token);
   const tz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", []);
-  const [range, setRange] = useState("30d");
-  const [custom, setCustom] = useState<{ start: string; end: string } | null>(null);
-  const [filters, setFilters] = useState<Filters>({});
-  const [metric, setMetric] = useState<"visitors" | "pageviews" | "sessions">("visitors");
-
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [product, setProduct] = useState<Product | null>(null);
-  const [docs, setDocs] = useState<Docs | null>(null);
-  const [events, setEvents] = useState<EventsRes | null>(null);
-  const [retention, setRetention] = useState<Retention | null>(null);
+  const [metric, setMetric] = useState<MetricKey>("visitors");
+  const [cards, setCards] = useState<Cards>({ overview: {}, product: {}, documents: {}, events: {}, growth: {} });
+  const [retention, setRetention] = useState<Slot<Retention>>({});
   const [live, setLive] = useState<Realtime | null>(null);
-  const [growth, setGrowth] = useState<Growth | null>(null);
-  const [shares, setShares] = useState<Shares | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [excluded, setExcluded] = useState(false);
   const [tick, setTick] = useState(0);
+  const [sheet, setSheet] = useState(false);
 
   useEffect(() => setExcluded(trackingDisabled()), []);
 
+  const fKey = JSON.stringify(filters);
   const params = useMemo(() => ({
-    range: custom ? "custom" : range,
-    start: custom?.start, end: custom?.end, tz,
-    filters: Object.keys(filters).length ? JSON.stringify(filters) : undefined,
-  }), [range, custom, tz, filters]);
+    ...rangeParams(range, tz),
+    filters: Object.keys(filters).length ? fKey : undefined,
+  }), [range, tz, fKey, filters]);
 
+  const fetchCard = useCallback(<K extends CardKey>(key: K) => {
+    const { filters: _f, ...unfiltered } = params; // product, documents and growth ignore traffic filters
+    return get<NonNullable<Cards[K]["data"]>>(key, FILTERED[key] ? params : unfiltered);
+  }, [get, params]);
+
+  // Range or filter change: keep the current data on screen, show an indeterminate bar, and settle
+  // each card on its own (one failing endpoint never blanks the page).
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError("");
-    const { filters: _f, ...unfiltered } = params; // product & documents ignore traffic filters
-    Promise.all([
-      get<Overview>("overview", params),
-      get<Product>("product", unfiltered),
-      get<Docs>("documents", unfiltered),
-      get<EventsRes>("events", params),
-      get<Growth>("growth", unfiltered),
-      get<Shares>("shares", unfiltered),
-    ]).then(([o, p, d, e, g, sh]) => {
+    const keys: CardKey[] = ["overview", "product", "documents", "events", "growth"];
+    Promise.allSettled(keys.map((k) => fetchCard(k))).then((results) => {
       if (cancelled) return;
-      setOverview(o); setProduct(p); setDocs(d); setEvents(e); setGrowth(g); setShares(sh);
-    }).catch((err) => !cancelled && setError(err.message))
-      .finally(() => !cancelled && setLoading(false));
+      setCards((prev) => {
+        const next = { ...prev } as Cards;
+        results.forEach((r, i) => {
+          const k = keys[i];
+          (next as Record<CardKey, Slot<unknown>>)[k] = r.status === "fulfilled" ? { data: r.value } : { data: prev[k].data, error: true };
+        });
+        return next;
+      });
+      setLoading(false);
+    });
     return () => { cancelled = true; };
-  }, [get, params, tick]);
+  }, [fetchCard, tick]);
 
-  useEffect(() => {
-    get<Retention>("retention", { tz, weeks: "8" }).then(setRetention).catch(() => {});
-  }, [get, tz, tick]);
+  const retry = (k: CardKey) => {
+    fetchCard(k)
+      .then((d) => setCards((c) => ({ ...c, [k]: { data: d } })))
+      .catch(() => setCards((c) => ({ ...c, [k]: { ...c[k], error: true } })));
+  };
 
+  const loadRetention = useCallback(() => {
+    get<Retention>("retention", { tz, weeks: "8" }).then((d) => setRetention({ data: d })).catch(() => setRetention((r) => ({ ...r, error: true })));
+  }, [get, tz]);
+  useEffect(() => { loadRetention(); }, [loadRetention, tick]);
+
+  // Realtime: every 15s, paused while the tab is hidden, refreshed as soon as it's visible again.
   useEffect(() => {
     let alive = true;
-    const load = () => get<Realtime>("realtime", {}).then((r) => alive && setLive(r)).catch(() => {});
+    const load = () => { if (document.hidden) return; get<Realtime>("realtime", {}).then((r) => alive && setLive(r)).catch(() => {}); };
     load();
     const id = setInterval(load, 15_000);
-    return () => { alive = false; clearInterval(id); };
+    const onVis = () => { if (!document.hidden) load(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { alive = false; clearInterval(id); document.removeEventListener("visibilitychange", onVis); };
   }, [get]);
 
-  const addFilter = (k: string, v: string | null) => setFilters((f) => ({ ...f, [k]: v ?? "(none)" }));
-  const removeFilter = (k: string) => setFilters((f) => { const n = { ...f }; delete n[k]; return n; });
+  const addFilter = (k: string, v: string | null) => onFilters({ ...filters, [k]: v ?? "(none)" });
+  const removeFilter = (k: string) => { const n = { ...filters }; delete n[k]; onFilters(n); };
+  const nFilters = Object.keys(filters).length;
+  const vs = rangeVs(range);
 
-  const o = overview;
-  return (
-    <div className="space-y-5">
-      <Toolbar
-        range={range} custom={custom} setRange={(r) => { setCustom(null); setRange(r); }} setCustom={setCustom}
-        filters={filters} removeFilter={removeFilter} clear={() => setFilters({})}
-        live={live?.visitors ?? null} excluded={excluded}
-        toggleExcluded={() => { setTrackingDisabled(!excluded); setExcluded(!excluded); }}
-        refresh={() => setTick((t) => t + 1)} loading={loading}
-      />
-
-      {error && (
-        <div className="rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
-          Couldn&apos;t load analytics ({error}). The data may still be arriving — try refreshing.
-        </div>
-      )}
-
-      {!o ? <Skeleton /> : (
-        <div className={`space-y-5 transition-opacity ${loading ? "opacity-60" : ""}`}>
-          {/* Headline numbers */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-            <Stat label="Visitors" value={compact(o.kpis.visitors)} now={o.kpis.visitors} prev={o.prev.visitors}
-              active={metric === "visitors"} onClick={() => setMetric("visitors")}
-              foot={o.kpis.visitors ? `${Math.round((100 * o.kpis.new_visitors) / o.kpis.visitors)}% new · ${o.kpis.signed_in_visitors} signed in` : "—"} />
-            <Stat label="Page views" value={compact(o.kpis.pageviews)} now={o.kpis.pageviews} prev={o.prev.pageviews}
-              active={metric === "pageviews"} onClick={() => setMetric("pageviews")} foot={`${o.kpis.views_per_session} per session`} />
-            <Stat label="Sessions" value={compact(o.kpis.sessions)} now={o.kpis.sessions} prev={o.prev.sessions}
-              active={metric === "sessions"} onClick={() => setMetric("sessions")} foot={`${o.kpis.returning_visitors} returning visitors`} />
-            <Stat label="Bounce rate" value={`${o.kpis.bounce_rate}%`} now={o.kpis.bounce_rate} prev={o.prev.bounce_rate} lowerIsBetter
-              foot="Sessions with one page view" />
-            <Stat label="Engaged time" value={duration(o.kpis.avg_duration_s)} now={o.kpis.avg_duration_s} prev={o.prev.avg_duration_s}
-              foot="Avg. visible time per session" />
-            <Stat label="Live now" value={live ? String(live.visitors) : "—"} foot="Visitors in the last 5 min" live />
-          </div>
-
-          {/* Trend */}
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-100">
-                  {metric === "visitors" ? "Visitors" : metric === "pageviews" ? "Page views" : "Sessions"}
-                </h3>
-                <p className="text-xs text-gray-500">
-                  {o.range.unit === "hour" ? "Per hour" : o.range.unit === "week" ? "Per week" : "Per day"} · {tz}
-                </p>
-              </div>
-              <Segmented value={metric} onChange={(v) => setMetric(v as typeof metric)}
-                options={[["visitors", "Visitors"], ["pageviews", "Page views"], ["sessions", "Sessions"]]} />
-            </div>
-            <TrendChart points={o.series.map((p) => ({ t: p.t, v: p[metric] }))} unit={o.range.unit} tz={tz}
-              label={metric === "visitors" ? "Visitors" : metric === "pageviews" ? "Page views" : "Sessions"} />
-          </Card>
-
-          {/* Breakdowns */}
-          <div className="grid lg:grid-cols-2 gap-5 [&>*]:min-w-0">
-            <Breakdown title="Sources" onPick={addFilter} tabs={[
-              { key: "channel", label: "Channels", filter: "channel", rows: o.breakdowns.channel, none: "Direct" },
-              { key: "ref_host", label: "Referrers", filter: "ref", rows: o.breakdowns.ref_host, none: "Direct / none", favicon: true },
-              { key: "utm_source", label: "UTM source", filter: "utm_source", rows: o.breakdowns.utm_source, none: "(not set)" },
-              { key: "utm_medium", label: "Medium", filter: "utm_medium", rows: o.breakdowns.utm_medium, none: "(not set)" },
-              { key: "utm_campaign", label: "Campaign", filter: "utm_campaign", rows: o.breakdowns.utm_campaign, none: "(not set)" },
-            ]} />
-            <Breakdown title="Pages" onPick={addFilter} tabs={[
-              { key: "pages", label: "Top pages", filter: "page", rows: o.breakdowns.pages, mono: true },
-              { key: "entry", label: "Entry pages", filter: "entry", rows: o.breakdowns.entry, mono: true, sessions: true },
-              { key: "exit", label: "Exit pages", filter: "page", rows: o.breakdowns.exit, mono: true, sessions: true },
-            ]} />
-            <Breakdown title="Locations" onPick={addFilter} tabs={[
-              { key: "country", label: "Countries", filter: "country", rows: o.breakdowns.country, render: (k) => (
-                <span className="inline-flex items-center gap-2"><span className="w-7 text-[10px] font-mono text-gray-500">{k ?? "--"}</span>{countryName(k)}</span>
-              ) },
-              { key: "city", label: "Cities", filter: "city", rows: o.breakdowns.city, none: "Unknown" },
-            ]} />
-            <Breakdown title="Devices" onPick={addFilter} tabs={[
-              { key: "device", label: "Device", filter: "device", rows: o.breakdowns.device },
-              { key: "browser", label: "Browser", filter: "browser", rows: o.breakdowns.browser },
-              { key: "os", label: "OS", filter: "os", rows: o.breakdowns.os },
-              { key: "host", label: "Hosts", filter: "host", rows: o.breakdowns.host, mono: true },
-            ]} />
-          </div>
-
-          {product && <ProductSection product={product} tz={tz} />}
-
-          <GrowthCard data={growth} tz={tz} />
-
-          <div className="grid lg:grid-cols-2 gap-5 [&>*]:min-w-0">
-            <FunnelCard get={get} params={params} events={events} pages={o.breakdowns.pages} />
-            <RetentionCard data={retention} tz={tz} />
-          </div>
-
-          <ShareHealthCard data={shares} tz={tz} />
-
-          <div className="grid lg:grid-cols-2 gap-5 [&>*]:min-w-0">
-            <EventsCard data={events} get={get} params={params} />
-            <LiveCard data={live} />
-          </div>
-
-          {docs && <DocumentsCard docs={docs} />}
-        </div>
-      )}
-    </div>
+  const o = cards.overview.data;
+  const chips = Object.entries(filters).map(([k, v]) => (
+    <Tag key={k} onRemove={() => removeFilter(k)} removeLabel={`Remove ${FILTER_LABELS[k] ?? k} filter`}>
+      <span className="text-text-secondary">{FILTER_LABELS[k] ?? k}</span>&nbsp;
+      <span className="max-w-56 truncate font-medium">{k === "country" ? countryName(v) : v === "(none)" ? "none" : v}</span>
+    </Tag>
+  ));
+  const exclude = (
+    <span className="inline-flex items-center gap-1.5">
+      <Switch label="Exclude my visits" checked={excluded} onChange={() => { setTrackingDisabled(!excluded); setExcluded(!excluded); }} />
+      <Tooltip side="left" content="Stops this browser from being counted. Your own visits skew a small site's numbers." focusable>
+        <span className="inline-flex text-text-muted"><Icon name="info" size={16} /><span className="md-visually-hidden">About excluding your visits</span></span>
+      </Tooltip>
+    </span>
   );
-}
-
-// ── Toolbar ───────────────────────────────────────────────────────────────────
-
-function Toolbar({ range, custom, setRange, setCustom, filters, removeFilter, clear, live, excluded, toggleExcluded, refresh, loading }: {
-  range: string; custom: { start: string; end: string } | null; setRange: (r: string) => void;
-  setCustom: (c: { start: string; end: string } | null) => void;
-  filters: Filters; removeFilter: (k: string) => void; clear: () => void;
-  live: number | null; excluded: boolean; toggleExcluded: () => void; refresh: () => void; loading: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
-  const label = custom ? `${custom.start} → ${custom.end}` : RANGES.find((r) => r.key === range)?.label;
+  const liveBadge = live !== null && (
+    <Badge tone={live.visitors > 0 ? "success" : "neutral"} live={live.visitors > 0} dot={live.visitors === 0} className="tabular-nums">
+      {live.visitors} online
+    </Badge>
+  );
 
   return (
-    <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-gray-950/85 backdrop-blur border-b border-gray-900">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative" ref={ref}>
-          <button onClick={() => setOpen((o) => !o)}
-            className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-gray-800 bg-gray-900 text-sm font-medium text-gray-100 hover:border-gray-700 transition-colors">
-            <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 9.5h17M8 3v4M16 3v4" /></svg>
-            {label}
-            <svg className="w-3.5 h-3.5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
-          </button>
-          {open && (
-            <div className="absolute left-0 mt-1.5 w-64 rounded-xl border border-gray-800 bg-gray-950 shadow-2xl shadow-black/50 p-1.5 z-30">
-              {RANGES.map((r) => {
-                const on = !custom && r.key === range;
-                return (
-                  <button key={r.key} onClick={() => { setRange(r.key); setOpen(false); }}
-                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/5">
-                    {r.label}
-                    {on && <svg className="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 13l4 4L19 7" /></svg>}
-                  </button>
-                );
-              })}
-              <div className="mt-1.5 pt-2 border-t border-gray-800 px-1.5 pb-1 space-y-2">
-                <p className="text-[11px] font-medium text-gray-500">Custom range</p>
-                <div className="flex gap-1.5">
-                  <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="min-w-0 flex-1 h-8 px-2 rounded-md bg-gray-900 border border-gray-800 text-xs text-gray-200 [color-scheme:dark]" />
-                  <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="min-w-0 flex-1 h-8 px-2 rounded-md bg-gray-900 border border-gray-800 text-xs text-gray-200 [color-scheme:dark]" />
-                </div>
-                <button disabled={!start || !end || start > end} onClick={() => { setCustom({ start, end }); setOpen(false); }}
-                  className="w-full h-8 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-xs font-semibold text-white">Apply</button>
-              </div>
-            </div>
-          )}
-        </div>
+    <div className="flex flex-col gap-5">
+      <PageHead title="Overview" caption={`First-party visits and publishes across Markdrop, in your time zone (${tz}).`} />
 
-        {Object.entries(filters).map(([k, v]) => (
-          <span key={k} className="inline-flex items-center gap-1.5 h-9 pl-3 pr-1.5 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/30 text-sm text-blue-200">
-            <span className="text-blue-300/70">{FILTER_LABELS[k] ?? k}</span>
-            <span className="font-medium max-w-[14rem] truncate">{k === "country" ? countryName(v) : v === "(none)" ? "none" : v}</span>
-            <button onClick={() => removeFilter(k)} aria-label={`Remove ${FILTER_LABELS[k] ?? k} filter`} className="p-1 rounded hover:bg-blue-500/20">
-              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden><path d="M18 6L6 18M6 6l12 12" /></svg>
-            </button>
-          </span>
-        ))}
-        {Object.keys(filters).length > 1 && (
-          <button onClick={clear} className="h-9 px-2 text-xs text-gray-400 hover:text-gray-200">Clear all</button>
-        )}
-        {Object.keys(filters).length === 0 && (
-          <span className="hidden md:inline text-xs text-gray-500">Click any row below to filter the whole page</span>
-        )}
-
-        <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
-          {live !== null && (
-            <span className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-gray-800 text-sm text-gray-300">
-              <span className="relative flex w-2 h-2">
-                {live > 0 && <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />}
-                <span className={`relative inline-flex w-2 h-2 rounded-full ${live > 0 ? "bg-emerald-500" : "bg-gray-600"}`} />
-              </span>
-              <span className="tabular-nums font-medium text-gray-100">{live}</span> online
-            </span>
-          )}
-          <button onClick={toggleExcluded} role="switch" aria-checked={excluded}
-            title="Stops this browser from being counted — your own visits skew a small site's numbers"
-            className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-gray-800 text-xs text-gray-300 hover:border-gray-700">
-            <span className={`relative w-7 h-4 rounded-full transition-colors ${excluded ? "bg-blue-600" : "bg-gray-700"}`}>
-              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${excluded ? "left-3.5" : "left-0.5"}`} />
-            </span>
-            Exclude my visits
-          </button>
-          <button onClick={refresh} aria-label="Refresh" className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-gray-800 text-gray-400 hover:text-gray-200 hover:border-gray-700">
-            <svg className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M20 12a8 8 0 11-2.34-5.66M20 4v4h-4" /></svg>
-          </button>
+      {/* Sticky filter bar (under the phone top bar below 1024px). */}
+      <div className="sticky top-14 z-(--z-sticky) -mx-4 border-b border-border bg-bg px-4 py-2 sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-8 lg:px-8">
+        <div className="flex flex-wrap items-center gap-2">
+          <RangePicker value={range} onChange={onRange} />
+          <div className="hidden min-w-0 flex-wrap items-center gap-2 sm:flex">
+            {chips}
+            {nFilters > 0 && <Button variant="link" size="sm" onClick={() => onFilters({})}>Clear all</Button>}
+            {nFilters === 0 && <span className="hidden text-caption text-text-muted md:inline">Choose any row below to filter the whole page</span>}
+          </div>
+          <Button variant="secondary" className="min-h-11 sm:hidden" iconLeft="filter" onClick={() => setSheet(true)} aria-haspopup="dialog">
+            Filters{nFilters ? ` (${nFilters})` : ""}
+          </Button>
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            {liveBadge}
+            <span className="hidden sm:inline-flex">{exclude}</span>
+            <IconButton icon="refresh" label="Refresh" variant="secondary" className="max-sm:hidden" onClick={() => setTick((t) => t + 1)} />
+          </div>
         </div>
+        {loading && o && <Progress indeterminate size="sm" className="mt-2" aria-label="Updating the overview" valueText="Loading" />}
       </div>
+
+      <Drawer open={sheet} onClose={() => setSheet(false)} side="bottom" title="Filters"
+        footer={<Button variant="primary" block onClick={() => setSheet(false)}>Done</Button>}>
+        <div className="flex flex-col gap-4">
+          {nFilters ? <div className="flex flex-wrap gap-2">{chips}</div> : <p className="text-body text-text-secondary">No filters. Choose any row on the page to filter by it.</p>}
+          {nFilters > 0 && <Button variant="secondary" onClick={() => onFilters({})}>Clear all</Button>}
+          {exclude}
+          <Button variant="secondary" iconLeft="refresh" onClick={() => { setTick((t) => t + 1); setSheet(false); }}>Refresh data</Button>
+        </div>
+      </Drawer>
+
+      {/* KPI tiles */}
+      {cards.overview.error && !o ? (
+        <CardError title="Visitors" onRetry={() => retry("overview")} />
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-6">
+          {(["visitors", "pageviews", "sessions"] as const).map((m) => (
+            <StatTile key={m} size="md" loading={!o} label={METRIC_LABEL[m]}
+              value={o ? compact(o.kpis[m]) : ""}
+              delta={o ? deltaOf(o.kpis[m], o.prev[m], vs) : undefined}
+              selected={metric === m} onSelect={() => setMetric(m)}
+              caption={o ? (m === "visitors"
+                ? (o.kpis.visitors ? `${Math.round((100 * o.kpis.new_visitors) / o.kpis.visitors)}% new · ${o.kpis.signed_in_visitors} signed in` : "No visitors yet")
+                : m === "pageviews" ? `${o.kpis.views_per_session} per session` : `${o.kpis.returning_visitors} returning visitors`) : undefined}
+              chart={o && o.series.length > 1 ? <span className="max-sm:hidden"><Sparkline values={o.series.map((p) => p[m])} width={72} height={24} /></span> : undefined}
+            />
+          ))}
+          <StatTile size="md" loading={!o} label="Bounce rate" value={o ? `${o.kpis.bounce_rate}%` : ""}
+            delta={o ? deltaOf(o.kpis.bounce_rate, o.prev.bounce_rate, vs, true) : undefined} caption="Sessions with one page view" />
+          <StatTile size="md" loading={!o} label="Engaged time" value={o ? duration(o.kpis.avg_duration_s) : ""}
+            delta={o ? deltaOf(o.kpis.avg_duration_s, o.prev.avg_duration_s, vs) : undefined} caption="Average visible time per session" />
+          <StatTile size="md" label="Live now" value={live ? String(live.visitors) : "—"} caption="Visitors in the last 5 minutes" />
+        </div>
+      )}
+
+      {/* Trend */}
+      {!o ? (
+        cards.overview.error ? null : <CardSkeleton title={METRIC_LABEL[metric]} height={230} />
+      ) : (
+        <Card aria-labelledby="trend-h">
+          <CardTitle id="trend-h" title={`${METRIC_LABEL[metric]} over time`}
+            sub={`${o.range.unit === "hour" ? "Per hour" : o.range.unit === "week" ? "Per week" : "Per day"} · ${tz}`}
+            right={<Tabs variant="pill" size="sm" aria-label="Metric" value={metric} onChange={(v) => setMetric(v as MetricKey)}
+              items={(Object.keys(METRIC_LABEL) as MetricKey[]).map((k) => ({ value: k, label: METRIC_LABEL[k] }))} />} />
+          <TrendChart points={o.series.map((p) => ({ t: p.t, v: p[metric] }))} unit={o.range.unit} tz={tz} label={METRIC_LABEL[metric]} />
+        </Card>
+      )}
+
+      {/* Breakdowns */}
+      {o ? (
+        <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
+          <Breakdown title="Sources" onPick={addFilter} tabs={[
+            { key: "channel", label: "Channels", filter: "channel", rows: o.breakdowns.channel, none: "Direct" },
+            { key: "ref_host", label: "Referrers", filter: "ref", rows: o.breakdowns.ref_host, none: "Direct / none", favicon: true },
+            { key: "utm_source", label: "UTM source", filter: "utm_source", rows: o.breakdowns.utm_source, none: "(not set)" },
+            { key: "utm_medium", label: "Medium", filter: "utm_medium", rows: o.breakdowns.utm_medium, none: "(not set)" },
+            { key: "utm_campaign", label: "Campaign", filter: "utm_campaign", rows: o.breakdowns.utm_campaign, none: "(not set)" },
+          ]} />
+          <Breakdown title="Pages" onPick={addFilter} tabs={[
+            { key: "pages", label: "Top pages", filter: "page", rows: o.breakdowns.pages, mono: true },
+            { key: "entry", label: "Entry pages", filter: "entry", rows: o.breakdowns.entry, mono: true, sessions: true },
+            { key: "exit", label: "Exit pages", filter: "page", rows: o.breakdowns.exit, mono: true, sessions: true },
+          ]} />
+          <Breakdown title="Locations" onPick={addFilter} tabs={[
+            { key: "country", label: "Countries", filter: "country", rows: o.breakdowns.country, render: (k) => (
+              <span className="inline-flex items-center gap-2"><span className="w-7 font-mono text-micro text-text-muted">{k ?? "--"}</span>{countryName(k)}</span>
+            ) },
+            { key: "city", label: "Cities", filter: "city", rows: o.breakdowns.city, none: "Unknown" },
+          ]} />
+          <Breakdown title="Devices" onPick={addFilter} tabs={[
+            { key: "device", label: "Device", filter: "device", rows: o.breakdowns.device },
+            { key: "browser", label: "Browser", filter: "browser", rows: o.breakdowns.browser },
+            { key: "os", label: "OS", filter: "os", rows: o.breakdowns.os },
+            { key: "host", label: "Hosts", filter: "host", rows: o.breakdowns.host, mono: true },
+          ]} />
+        </div>
+      ) : !cards.overview.error && (
+        <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
+          {["Sources", "Pages", "Locations", "Devices"].map((t) => <CardSkeleton key={t} title={t} height={260} />)}
+        </div>
+      )}
+
+      {/* Product */}
+      {cards.product.data ? <ProductSection product={cards.product.data} vs={vs} />
+        : cards.product.error ? <CardError title="Product" onRetry={() => retry("product")} />
+        : <CardSkeleton title="Product" height={110} />}
+
+      {/* Growth loop */}
+      {cards.growth.data ? <GrowthCard data={cards.growth.data} tz={tz} />
+        : cards.growth.error ? <CardError title="Growth loop" onRetry={() => retry("growth")} />
+        : <CardSkeleton title="Growth loop" height={260} />}
+
+      <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
+        {o ? <FunnelCard get={get} params={params} events={cards.events.data ?? null} pages={o.breakdowns.pages ?? []} />
+          : cards.overview.error ? <CardError title="Funnel" onRetry={() => retry("overview")} /> : <CardSkeleton title="Funnel" />}
+        {retention.data ? <RetentionCard data={retention.data} tz={tz} />
+          : retention.error ? <CardError title="Retention" onRetry={() => { setRetention({}); loadRetention(); }} />
+          : <CardSkeleton title="Retention" />}
+      </div>
+
+      {/* Into Product health (D29) */}
+      <Card className="flex flex-wrap items-center justify-between gap-3">
+        <p className="min-w-0 text-body text-text-secondary">
+          <span className="font-semibold text-text">Product health</span> has file-sharing success rates, relay use, artifacts by type and feature adoption.
+        </p>
+        <Button variant="secondary" iconRight="arrowRight" href="/admin?tab=health" onClick={(e) => { e.preventDefault(); onOpenHealth(); }}>Open product health</Button>
+      </Card>
+
+      <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
+        {cards.events.data ? <EventsCard data={cards.events.data} get={get} params={params} />
+          : cards.events.error ? <CardError title="Product events" onRetry={() => retry("events")} />
+          : <CardSkeleton title="Product events" />}
+        <LiveCard data={live} />
+      </div>
+
+      {cards.documents.data ? <DocumentsCard docs={cards.documents.data} />
+        : cards.documents.error ? <CardError title="Documents" onRetry={() => retry("documents")} />
+        : <CardSkeleton title="Documents" height={260} />}
     </div>
   );
 }
 
-// ── Building blocks ───────────────────────────────────────────────────────────
+// ── Breakdowns ────────────────────────────────────────────────────────────────
 
 type Tab = {
   key: string; label: string; filter: string; rows: Row[]; none?: string; mono?: boolean;
@@ -382,41 +363,50 @@ function Breakdown({ title, tabs, onPick }: { title: string; tabs: Tab[]; onPick
   const [all, setAll] = useState(false);
   const tab = tabs.find((t) => t.key === active) ?? tabs[0];
   const rows = tab.rows ?? [];
-  const shown = all ? rows : rows.slice(0, 8);
-  const max = Math.max(1, ...rows.map((r) => (tab.sessions ? r.sessions ?? 0 : r.visitors)));
+  const valueOf = (r: Row) => (tab.sessions ? r.sessions ?? 0 : r.visitors);
+  const max = Math.max(1, ...rows.map(valueOf));
+  const name = (r: Row) => (tab.render ? tab.render(r.key) : (r.key ?? tab.none ?? "(none)"));
+  const pick = (r: Row) => { setAll(false); onPick(tab.filter, r.key); };
+  const id = `bd-${title.toLowerCase()}`;
+  const cols: Column<Row>[] = [
+    { key: "k", header: tab.label, primary: true, render: (r) => (
+      <button type="button" onClick={() => pick(r)} className={`md-focus truncate rounded-sm text-left text-text hover:underline ${tab.mono ? "font-mono text-caption" : ""}`}>{name(r)}</button>
+    ) },
+    { key: "v", header: tab.sessions ? "Sessions" : "Visitors", align: "right", render: (r) => compact(valueOf(r)) },
+    { key: "w", header: tab.sessions ? "Bounce" : "Views", align: "right", render: (r) => (tab.sessions ? `${r.bounce_rate ?? 0}%` : compact(r.pageviews ?? 0)) },
+  ];
   return (
-    <Card className="flex flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 min-w-0 [&>*]:min-w-0">
-        <h3 className="text-sm font-semibold text-gray-100">{title}</h3>
-        <Segmented value={tab.key} onChange={(k) => { setActive(k); setAll(false); }} options={tabs.map((t) => [t.key, t.label])} />
-      </div>
-      <div className="flex items-center justify-between px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+    <Card aria-labelledby={id} className="flex flex-col">
+      <CardTitle id={id} title={title} right={
+        <Tabs variant="pill" size="sm" aria-label={`${title} breakdown`} value={tab.key} className="max-w-full"
+          onChange={(k) => { setActive(k); setAll(false); }} items={tabs.map((t) => ({ value: t.key, label: t.label }))} />
+      } />
+      <div className="flex items-center justify-between px-2 pb-1.5 text-eyebrow uppercase text-text-muted" aria-hidden>
         <span>{tab.label}</span>
         <span className="flex gap-6 tabular-nums">
           <span className="w-14 text-right">{tab.sessions ? "Sessions" : "Visitors"}</span>
-          <span className="w-14 text-right hidden sm:inline">{tab.sessions ? "Bounce" : "Views"}</span>
+          <span className="hidden w-14 text-right sm:inline">{tab.sessions ? "Bounce" : "Views"}</span>
         </span>
       </div>
       {rows.length === 0 ? (
-        <p className="py-10 text-center text-xs text-gray-500">No data for this range yet.</p>
+        <p className="py-10 text-center text-caption text-text-secondary">No data for this range yet.</p>
       ) : (
-        <ul className={`space-y-1 ${all ? "max-h-[26rem] overflow-y-auto pr-1" : ""}`}>
-          {shown.map((r) => {
-            const v = tab.sessions ? r.sessions ?? 0 : r.visitors;
-            const text = tab.render ? tab.render(r.key) : (r.key ?? tab.none ?? "(none)");
+        <ul className="flex flex-col gap-1" aria-label={`${title}: ${tab.label}`}>
+          {rows.slice(0, 8).map((r) => {
+            const v = valueOf(r);
             return (
               <li key={String(r.key)}>
-                <button onClick={() => onPick(tab.filter, r.key)} title={`Filter by ${tab.label.toLowerCase()}: ${r.key ?? tab.none ?? "none"}`}
-                  className="group relative w-full flex items-center justify-between gap-3 h-8 px-2 rounded-md text-left text-[13px] hover:bg-white/[0.03]">
-                  <span aria-hidden className="absolute inset-y-0.5 left-0 rounded-[4px] transition-[width]"
-                    style={{ width: `${(v / max) * 100}%`, background: ACCENT, opacity: 0.16 }} />
-                  <span className={`relative min-w-0 flex items-center gap-2 truncate text-gray-200 ${tab.mono ? "font-mono text-xs" : ""}`}>
+                <button type="button" onClick={() => pick(r)} aria-label={`Filter by ${tab.label.toLowerCase()}: ${r.key ?? tab.none ?? "none"}, ${compact(v)} ${tab.sessions ? "sessions" : "visitors"}`}
+                  className="md-focus group relative flex h-9 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-body hover:bg-surface-hover">
+                  <span aria-hidden className="absolute inset-y-0.5 left-0 rounded-sm transition-[width] duration-(--duration-fast)"
+                    style={{ width: `${(v / max) * 100}%`, background: C.wash }} />
+                  <span className={`relative flex min-w-0 items-center gap-2 truncate text-text ${tab.mono ? "font-mono text-caption" : ""}`}>
                     {tab.favicon && r.key && <HostBadge host={r.key} />}
-                    <span className="truncate">{text}</span>
+                    <span className="truncate">{name(r)}</span>
                   </span>
-                  <span className="relative flex gap-6 tabular-nums text-xs">
-                    <span className="w-14 text-right font-semibold text-gray-100">{compact(v)}</span>
-                    <span className="w-14 text-right text-gray-400 hidden sm:inline">
+                  <span className="relative flex gap-6 text-caption tabular-nums">
+                    <span className="w-14 text-right font-semibold text-text">{compact(v)}</span>
+                    <span className="hidden w-14 text-right text-text-secondary sm:inline">
                       {tab.sessions ? `${r.bounce_rate ?? 0}%` : compact(r.pageviews ?? 0)}
                     </span>
                   </span>
@@ -427,76 +417,72 @@ function Breakdown({ title, tabs, onPick }: { title: string; tabs: Tab[]; onPick
         </ul>
       )}
       {rows.length > 8 && (
-        <button onClick={() => setAll((a) => !a)} className="mt-2 self-start px-2 text-xs font-medium text-blue-400 hover:text-blue-300">
-          {all ? "Show less" : `Show all ${rows.length}`}
-        </button>
+        <Button variant="link" size="sm" className="mt-2 self-start" onClick={() => setAll(true)} aria-haspopup="dialog">Show all {rows.length}</Button>
       )}
+      <Drawer open={all} onClose={() => setAll(false)} title={`${title}: ${tab.label}`} description="Choose a row to filter the whole page by it." width={520}>
+        <Table compact columns={cols} rows={rows} rowKey={(r) => String(r.key)} caption={`${title}: ${tab.label}`} />
+      </Drawer>
     </Card>
   );
 }
 
 // ── Product ───────────────────────────────────────────────────────────────────
 
-function ProductSection({ product }: { product: Product; tz: string }) {
+function ProductSection({ product, vs }: { product: Product; vs: string }) {
   const m = product.metrics;
-  const items: [string, string, string][] = [
-    ["signups", "New accounts", "users"],
-    ["documents", "Documents published", "markdown"],
-    ["artifacts", "Artifacts uploaded", "files"],
-    ["file_shares", "File shares", "P2P"],
-    ["workspaces", "Workspaces created", "teams"],
+  const items: [string, string][] = [
+    ["signups", "New accounts"],
+    ["documents", "Documents published"],
+    ["artifacts", "Artifacts uploaded"],
+    ["file_shares", "File shares"],
+    ["workspaces", "Workspaces created"],
   ];
   return (
-    <div>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 mb-2 px-1">
-        <h3 className="text-sm font-semibold text-gray-100">Product</h3>
-        <p className="text-[11px] text-gray-500">From Markdrop&apos;s own records — exact, and not affected by filters</p>
+    <section aria-labelledby="product-h">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <h2 id="product-h" className="text-h4 text-text">Product</h2>
+        <p className="text-caption text-text-secondary">From Markdrop&apos;s own records — exact, and not affected by filters</p>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-6">
         {items.map(([k, label]) => {
           const x = m[k];
           if (!x) return null;
+          const values = (x.series ?? []).map((p) => p.n);
           return (
-            <div key={k} className="rounded-2xl border border-gray-800/80 bg-gray-900/40 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-gray-400">{label}</p>
-                <Delta now={x.total} prev={x.prev ?? 0} />
-              </div>
-              <p className="mt-1.5 text-2xl font-semibold tracking-tight text-gray-50">{compact(x.total)}</p>
-              <div className="mt-2"><Sparkline values={(x.series ?? []).map((p) => p.n)} width={140} height={26} /></div>
-            </div>
+            <StatTile key={k} size="md" label={label} value={compact(x.total)} delta={deltaOf(x.total, x.prev ?? 0, vs)}
+              chart={values.length > 1 ? <span className="max-sm:hidden"><Sparkline values={values} width={72} height={24} /></span> : undefined} />
           );
         })}
-        <div className="rounded-2xl border border-gray-800/80 bg-gray-900/40 p-4">
-          <p className="text-xs font-medium text-gray-400">Active accounts</p>
-          <p className="mt-1.5 text-2xl font-semibold tracking-tight text-gray-50">{compact(m.active_users?.total ?? 0)}</p>
-          <p className="mt-2 text-[11px] text-gray-500 leading-snug">Signed-in people seen or logging in during the range</p>
-        </div>
+        <StatTile size="md" label="Active accounts" value={compact(m.active_users?.total ?? 0)} caption="Signed-in people seen or signing in during the range" />
       </div>
-    </div>
+    </section>
   );
 }
 
 // ── Funnel ────────────────────────────────────────────────────────────────────
 
 function FunnelCard({ get, params, events, pages }: {
-  get: <T>(p: string, q: Record<string, string | undefined>) => Promise<T>;
-  params: Record<string, string | undefined>; events: EventsRes | null; pages: Row[];
+  get: Get; params: Record<string, string | undefined>; events: EventsRes | null; pages: Row[];
 }) {
   const [preset, setPreset] = useState(0);
   const [steps, setSteps] = useState<Step[]>(FUNNEL_PRESETS[0].steps);
   const [editing, setEditing] = useState(false);
   const [res, setRes] = useState<FunnelRes | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [n, setN] = useState(0);
 
   useEffect(() => {
     let alive = true;
-    get<FunnelRes>("funnel", { ...params, steps: JSON.stringify(steps) }).then((r) => alive && setRes(r)).catch(() => alive && setRes(null));
+    setFailed(false);
+    get<FunnelRes>("funnel", { ...params, steps: JSON.stringify(steps) })
+      .then((r) => alive && setRes(r))
+      .catch(() => { if (alive) { setRes(null); setFailed(true); } });
     return () => { alive = false; };
-  }, [get, params, steps]);
+  }, [get, params, steps, n]);
 
   const options: { key: string; label: string; step: Step }[] = [
     { key: "visit", label: "Any visit", step: { t: "visit" } },
-    ...Array.from(new Set([...Object.keys(EVENT_LABELS), ...(events?.events.map((e) => e.name) ?? [])])).map((n) => ({ key: `event:${n}`, label: `Event · ${EVENT_LABELS[n] ?? n}`, step: { t: "event" as const, v: n } })),
+    ...Array.from(new Set([...Object.keys(EVENT_LABELS), ...(events?.events.map((e) => e.name) ?? [])])).map((nm) => ({ key: `event:${nm}`, label: `Event · ${EVENT_LABELS[nm] ?? nm}`, step: { t: "event" as const, v: nm } })),
     ...Array.from(new Set(["/", "/new", "/upload", "/share", "/share/[id]", "/login", "/dashboard", "/builder", "/[slug]", ...pages.map((p) => p.key ?? "")].filter(Boolean)))
       .map((p) => ({ key: `page:${p}`, label: `Page · ${p}`, step: { t: "page" as const, v: p } })),
   ];
@@ -505,56 +491,60 @@ function FunnelCard({ get, params, events, pages }: {
   const overall = res && first ? Math.round((100 * res.steps[res.steps.length - 1].visitors) / first) : 0;
 
   return (
-    <Card>
-      <CardTitle title="Funnel" sub={res && first ? `${overall}% of visitors completed every step` : "Visitors who did each step, in order"}
+    <Card aria-labelledby="funnel-h">
+      <CardTitle id="funnel-h" title="Funnel" sub={res && first ? `${overall}% of visitors completed every step` : "Visitors who did each step, in order"}
         right={
-          <div className="flex items-center gap-2">
-            <select value={editing ? -1 : preset} onChange={(e) => { const i = Number(e.target.value); setPreset(i); setSteps(FUNNEL_PRESETS[i].steps); setEditing(false); }}
-              className="h-8 max-w-[13rem] rounded-lg bg-gray-950 border border-gray-800 px-2 text-xs text-gray-200">
-              {editing && <option value={-1}>Custom funnel</option>}
+          <>
+            <Select aria-label="Funnel" value={editing ? "-1" : String(preset)} className="max-w-56"
+              onChange={(e) => { const i = Number(e.target.value); if (i < 0) return; setPreset(i); setSteps(FUNNEL_PRESETS[i].steps); setEditing(false); }}>
+              {editing && <option value="-1">Custom funnel</option>}
               {FUNNEL_PRESETS.map((p, i) => <option key={p.label} value={i}>{p.label}</option>)}
-            </select>
-            <button onClick={() => setEditing((e) => !e)} className="h-8 px-2.5 rounded-lg border border-gray-800 text-xs text-gray-300 hover:border-gray-700">
-              {editing ? "Done" : "Edit steps"}
-            </button>
-          </div>
+            </Select>
+            <Button size="sm" variant="secondary" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>{editing ? "Done" : "Edit steps"}</Button>
+          </>
         } />
 
       {editing && (
-        <div className="mb-4 space-y-1.5">
+        <ol className="mb-4 flex flex-col gap-1.5">
           {steps.map((s, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="w-5 text-right text-xs text-gray-500 tabular-nums">{i + 1}</span>
-              <select value={keyOf(s)} onChange={(e) => { const o = options.find((x) => x.key === e.target.value); if (o) setSteps((st) => st.map((x, j) => (j === i ? o.step : x))); }}
-                className="flex-1 min-w-0 h-8 rounded-lg bg-gray-950 border border-gray-800 px-2 text-xs text-gray-200">
-                {options.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-              </select>
-              <button disabled={steps.length <= 2} onClick={() => setSteps((st) => st.filter((_, j) => j !== i))} aria-label="Remove step"
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 disabled:opacity-30">
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden><path d="M18 6L6 18M6 6l12 12" /></svg>
-              </button>
-            </div>
+            <li key={i} className="flex items-center gap-2">
+              <span className="w-5 text-right text-caption tabular-nums text-text-secondary">{i + 1}</span>
+              <div className="min-w-0 flex-1">
+                <Select aria-label={`Step ${i + 1}`} value={keyOf(s)}
+                  onChange={(e) => { const op = options.find((x) => x.key === e.target.value); if (op) setSteps((st) => st.map((x, j) => (j === i ? op.step : x))); }}>
+                  {options.map((op) => <option key={op.key} value={op.key}>{op.label}</option>)}
+                </Select>
+              </div>
+              <IconButton icon="x" label={`Remove step ${i + 1}`} disabled={steps.length <= 2} onClick={() => setSteps((st) => st.filter((_, j) => j !== i))} />
+            </li>
           ))}
           {steps.length < 6 && (
-            <button onClick={() => setSteps((st) => [...st, { t: "event", v: "doc_published" }])} className="ml-7 text-xs font-medium text-blue-400 hover:text-blue-300">+ Add step</button>
+            <li><Button size="sm" variant="link" iconLeft="plus" className="ml-7" onClick={() => setSteps((st) => [...st, { t: "event", v: "doc_published" }])}>Add step</Button></li>
           )}
-        </div>
+        </ol>
       )}
 
-      {!res ? <p className="py-10 text-center text-xs text-gray-500">Loading…</p> : (
-        <ol className="space-y-3">
+      {failed ? (
+        <div className="flex flex-wrap items-center gap-3 py-6">
+          <p className="text-caption text-text-secondary">Couldn&apos;t load the funnel.</p>
+          <Button size="sm" variant="secondary" iconLeft="refresh" onClick={() => setN((x) => x + 1)}>Retry</Button>
+        </div>
+      ) : !res ? (
+        <div className="flex flex-col gap-3" aria-busy="true"><span className="md-visually-hidden">Loading</span>{steps.map((_, i) => <div key={i} className="md-skeleton h-9 rounded-md" />)}</div>
+      ) : (
+        <ol className="flex flex-col gap-3">
           {res.steps.map((s, i) => (
             <li key={i}>
-              <div className="flex items-baseline justify-between gap-3 text-xs">
-                <span className="truncate text-gray-200"><span className="text-gray-500 mr-1.5 tabular-nums">{i + 1}.</span>{stepLabel(s)}</span>
-                <span className="shrink-0 tabular-nums text-gray-400">
-                  <span className="font-semibold text-gray-100">{compact(s.visitors)}</span>
-                  {i > 0 && <span className="ml-2" title="Of those who did the previous step">{s.from_prev}% of prev.</span>}
+              <div className="flex items-baseline justify-between gap-3 text-caption">
+                <span className="truncate text-text"><span className="mr-1.5 tabular-nums text-text-secondary">{i + 1}.</span>{stepLabel(s)}</span>
+                <span className="shrink-0 tabular-nums text-text-secondary">
+                  <span className="font-semibold text-text">{compact(s.visitors)}</span>
+                  <span className="ml-2">{i === 0 ? "100%" : `${s.from_prev}% of previous`}</span>
                 </span>
               </div>
-              <div className="mt-1.5 h-2.5 rounded-full bg-gray-800/70 overflow-hidden" title={`${s.from_start}% of step 1`}>
-                <div className="h-full rounded-full transition-[width] duration-500"
-                  style={{ width: `${first ? Math.max(s.visitors ? 1.5 : 0, s.from_start) : 0}%`, background: FUNNEL_RAMP[Math.min(i, FUNNEL_RAMP.length - 1)] }} />
+              <div aria-hidden className="mt-1.5 h-2.5 overflow-hidden rounded-full" style={{ background: C.track }}>
+                <div className="h-full rounded-full transition-[width] duration-(--duration-slow) motion-reduce:transition-none"
+                  style={{ width: `${first ? Math.max(s.visitors ? 1.5 : 0, s.from_start) : 0}%`, background: C.series }} />
               </div>
             </li>
           ))}
@@ -566,92 +556,96 @@ function FunnelCard({ get, params, events, pages }: {
 
 // ── Retention ─────────────────────────────────────────────────────────────────
 
-function RetentionCard({ data: raw, tz }: { data: Retention | null; tz: string }) {
+function RetentionCard({ data: raw, tz }: { data: Retention; tz: string }) {
+  const [table, setTable] = useState(false);
   // Weeks before the first visitor are noise, not information.
-  const firstReal = raw ? raw.cohorts.findIndex((c) => c.size > 0) : -1;
-  const data = raw && firstReal > 0 ? { cohorts: raw.cohorts.slice(firstReal) } : raw;
-  const weeks = data?.cohorts.length ?? 0;
+  const firstReal = raw.cohorts.findIndex((c) => c.size > 0);
+  const data = firstReal > 0 ? { cohorts: raw.cohorts.slice(firstReal) } : raw;
+  const weeks = data.cohorts.length;
   return (
-    <Card>
-      <CardTitle title="Retention" sub="Share of each week's new visitors who came back in later weeks" />
-      {!data ? <p className="py-10 text-center text-xs text-gray-500">Loading…</p> : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px] border-separate" style={{ borderSpacing: 2 }}>
-            <thead>
-              <tr className="text-gray-500">
-                <th className="text-left font-medium pr-2 pb-1">Cohort</th>
-                <th className="text-right font-medium pr-2 pb-1">New</th>
-                {Array.from({ length: weeks }, (_, k) => <th key={k} className="font-medium pb-1 w-9">W{k}</th>)}
+    <Card aria-labelledby="retention-h">
+      <CardTitle id="retention-h" title="Retention" sub="Share of each week's new visitors who came back in later weeks"
+        right={<TableToggle table={table} onToggle={() => setTable((t) => !t)} />} />
+      <div className="overflow-x-auto">
+        <table className={`w-full border-separate text-micro ${table ? "" : "[border-spacing:2px]"}`}>
+          <caption className="md-visually-hidden">Retention by weekly cohort, as percentages</caption>
+          <thead>
+            <tr className="text-text-secondary">
+              <th scope="col" className="sticky left-0 bg-surface pb-1 pr-2 text-left font-medium">Cohort</th>
+              <th scope="col" className="pb-1 pr-2 text-right font-medium">New</th>
+              {Array.from({ length: weeks }, (_, k) => <th key={k} scope="col" className="w-10 pb-1 font-medium">W{k}</th>)}
+            </tr>
+          </thead>
+          <tbody className="tabular-nums">
+            {data.cohorts.map((c) => (
+              <tr key={c.week}>
+                <th scope="row" className="sticky left-0 whitespace-nowrap bg-surface pr-2 text-left font-normal text-text-secondary">{bucketLabel(c.week, "day", tz)}</th>
+                <td className="pr-2 text-right font-medium text-text">{c.size}</td>
+                {Array.from({ length: weeks }, (_, k) => {
+                  const cell = c.cells[k];
+                  if (!cell) return <td key={k}><span className="md-visually-hidden">No data</span></td>;
+                  const pct = k === 0 ? 100 : Math.round(cell.pct);
+                  const label = `${cell.n} of ${c.size} (${k === 0 ? 100 : cell.pct}%)`;
+                  if (table || !c.size) return <td key={k} className="h-7 text-center text-text" title={label}>{c.size ? pct : 0}</td>;
+                  if (!cell.n && k > 0) {
+                    return <td key={k} className="h-7 rounded-sm text-center text-text-secondary" style={{ background: C.track }} title={label}>0</td>;
+                  }
+                  const h = heat(pct);
+                  return (
+                    <td key={k} className="h-7 rounded-sm text-center font-semibold" title={label}
+                      style={{ background: h.bg, color: h.fg, boxShadow: h.step === 1 ? "inset 0 0 0 1px var(--border-strong)" : undefined }}>
+                      {pct}
+                    </td>
+                  );
+                })}
               </tr>
-            </thead>
-            <tbody className="tabular-nums">
-              {data.cohorts.map((c) => (
-                <tr key={c.week}>
-                  <td className="pr-2 text-gray-400 whitespace-nowrap">{bucketLabel(c.week, "day", tz)}</td>
-                  <td className="pr-2 text-right text-gray-200 font-medium">{c.size}</td>
-                  {Array.from({ length: weeks }, (_, k) => {
-                    const cell = c.cells[k];
-                    if (!cell) return <td key={k} />;
-                    if (!c.size) return <td key={k} className="h-7 rounded bg-gray-900/60" />;
-                    const h = heat(k === 0 ? 100 : cell.pct);
-                    return (
-                      <td key={k} className="h-7 rounded text-center font-medium" style={{ background: h.bg, color: h.fg }}
-                        title={`${cell.n} of ${c.size} (${cell.pct}%)`}>
-                        {k === 0 ? "100" : cell.pct ? Math.round(cell.pct) : "·"}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="mt-2 text-[11px] text-gray-500">Percentages. W0 is the week of the first visit; visitors with privacy signals on are excluded.</p>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-micro text-text-secondary">Percentages. W0 is the week of the first visit; visitors with privacy signals on are excluded.</p>
     </Card>
   );
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
 
-function EventsCard({ data, get, params }: {
-  data: EventsRes | null; get: <T>(p: string, q: Record<string, string | undefined>) => Promise<T>;
-  params: Record<string, string | undefined>;
-}) {
+function EventsCard({ data, get, params }: { data: EventsRes; get: Get; params: Record<string, string | undefined> }) {
   const [open, setOpen] = useState<string | null>(null);
   const [props, setProps] = useState<EventsRes["props"] | null>(null);
   useEffect(() => {
     if (!open) return;
+    setProps(null);
     get<EventsRes>("events", { ...params, name: open }).then((r) => setProps(r.props ?? {})).catch(() => setProps({}));
   }, [open, get, params]);
-  const max = Math.max(1, ...(data?.events.map((e) => e.count) ?? [0]));
+  const max = Math.max(1, ...data.events.map((e) => e.count));
   return (
-    <Card>
-      <CardTitle title="Product events" sub="What people did, tracked in the app" />
-      {!data?.events.length ? <p className="py-10 text-center text-xs text-gray-500">No events in this range yet.</p> : (
-        <ul className="space-y-1">
+    <Card aria-labelledby="events-h">
+      <CardTitle id="events-h" title="Product events" sub="What people did, tracked in the app. Choose one to see its properties." />
+      {!data.events.length ? <p className="py-10 text-center text-caption text-text-secondary">No events in this range yet.</p> : (
+        <ul className="flex flex-col gap-1">
           {data.events.map((e) => (
             <li key={e.name}>
-              <button onClick={() => setOpen((o) => (o === e.name ? null : e.name))}
-                className="relative w-full flex items-center justify-between gap-3 h-8 px-2 rounded-md text-left text-[13px] hover:bg-white/[0.03]">
-                <span aria-hidden className="absolute inset-y-0.5 left-0 rounded-[4px]" style={{ width: `${(e.count / max) * 100}%`, background: ACCENT, opacity: 0.16 }} />
-                <span className="relative truncate text-gray-200">{EVENT_LABELS[e.name] ?? e.name}</span>
-                <span className="relative flex gap-4 tabular-nums text-xs">
-                  <span className="font-semibold text-gray-100">{compact(e.count)}</span>
-                  <span className="w-20 text-right text-gray-400">{compact(e.visitors)} {e.visitors === 1 ? "person" : "people"}</span>
+              <button type="button" aria-expanded={open === e.name} onClick={() => setOpen((o) => (o === e.name ? null : e.name))}
+                className="md-focus relative flex h-9 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-body hover:bg-surface-hover">
+                <span aria-hidden className="absolute inset-y-0.5 left-0 rounded-sm" style={{ width: `${(e.count / max) * 100}%`, background: C.wash }} />
+                <span className="relative truncate text-text">{EVENT_LABELS[e.name] ?? e.name}</span>
+                <span className="relative flex gap-4 text-caption tabular-nums">
+                  <span className="font-semibold text-text">{compact(e.count)}</span>
+                  <span className="w-20 text-right text-text-secondary">{compact(e.visitors)} {e.visitors === 1 ? "person" : "people"}</span>
                 </span>
               </button>
               {open === e.name && (
-                <div className="mx-2 mt-1 mb-2 rounded-lg border border-gray-800 bg-gray-950/60 p-3">
-                  {!props ? <p className="text-xs text-gray-500">Loading…</p> : !Object.keys(props).length ? (
-                    <p className="text-xs text-gray-500">No properties on this event.</p>
+                <div className="mx-2 mb-2 mt-1 rounded-lg border border-border bg-bg p-3">
+                  {!props ? <p className="text-caption text-text-secondary">Loading…</p> : !Object.keys(props).length ? (
+                    <p className="text-caption text-text-secondary">No properties on this event.</p>
                   ) : (
-                    <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       {Object.entries(props).map(([k, vals]) => (
-                        <div key={k}>
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1">{k}</p>
+                        <div key={k} className="min-w-0">
+                          <Eyebrow className="mb-1">{k}</Eyebrow>
                           {vals.slice(0, 6).map((v) => (
-                            <p key={v.value} className="flex justify-between text-xs text-gray-300"><span className="truncate">{v.value}</span><span className="tabular-nums text-gray-400">{v.n}</span></p>
+                            <p key={v.value} className="flex justify-between gap-2 text-caption text-text"><span className="truncate">{v.value}</span><span className="tabular-nums text-text-secondary">{v.n}</span></p>
                           ))}
                         </div>
                       ))}
@@ -670,31 +664,39 @@ function EventsCard({ data, get, params }: {
 // ── Live ──────────────────────────────────────────────────────────────────────
 
 function LiveCard({ data }: { data: Realtime | null }) {
+  // New rows slide in; the first paint doesn't animate.
+  const seen = useRef<Set<string> | null>(null);
+  const keyOf = (r: Realtime["recent"][number]) => `${r.ts}|${r.path}`;
+  const fresh = new Set<string>();
+  if (data) {
+    if (seen.current) for (const r of data.recent) if (!seen.current.has(keyOf(r))) fresh.add(keyOf(r));
+  }
+  useEffect(() => { if (data) seen.current = new Set(data.recent.map(keyOf)); }, [data]);
   return (
-    <Card>
-      <CardTitle title="Right now" sub="Last 5 minutes · refreshes every 15 seconds"
-        right={<span className="text-2xl font-semibold text-gray-50 tabular-nums">{data?.visitors ?? "—"}<span className="ml-1 text-xs font-normal text-gray-500">online</span></span>} />
+    <Card aria-labelledby="live-h">
+      <CardTitle id="live-h" title="Right now" sub="Last 5 minutes · refreshes every 15 seconds while this tab is visible"
+        right={<span className="text-h3 tabular-nums text-text">{data?.visitors ?? "—"}<span className="ml-1 text-caption font-normal text-text-secondary">online</span></span>} />
       {!data || (!data.pages.length && !data.recent.length) ? (
-        <p className="py-10 text-center text-xs text-gray-500">Nobody on the site right now.</p>
+        <p className="py-10 text-center text-caption text-text-secondary">Nobody on the site right now.</p>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">On page</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="min-w-0">
+            <Eyebrow>On page</Eyebrow>
             {data.pages.map((p) => (
-              <p key={p.key} className="flex justify-between py-0.5 text-xs"><span className="font-mono text-gray-300 truncate">{p.key}</span><span className="tabular-nums text-gray-100 font-semibold">{p.n}</span></p>
+              <p key={p.key} className="flex justify-between gap-2 py-0.5 text-caption"><span className="truncate font-mono text-text">{p.key}</span><span className="font-semibold tabular-nums text-text">{p.n}</span></p>
             ))}
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mt-3 mb-1.5">From</p>
+            <Eyebrow className="mt-3">From</Eyebrow>
             {data.sources.map((s) => (
-              <p key={s.key} className="flex justify-between py-0.5 text-xs"><span className="text-gray-300 truncate">{s.key}</span><span className="tabular-nums text-gray-100 font-semibold">{s.n}</span></p>
+              <p key={s.key} className="flex justify-between gap-2 py-0.5 text-caption"><span className="truncate text-text">{s.key}</span><span className="font-semibold tabular-nums text-text">{s.n}</span></p>
             ))}
           </div>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Latest page views</p>
-            <ul className="space-y-1.5 max-h-64 overflow-y-auto">
-              {data.recent.map((r, i) => (
-                <li key={i} className="text-xs">
-                  <p className="flex justify-between gap-2"><span className="font-mono text-gray-200 truncate">{r.path}</span><span className="shrink-0 text-gray-500">{ago(r.ts)}</span></p>
-                  <p className="text-[11px] text-gray-500 truncate">{[r.city, countryName(r.country)].filter(Boolean).join(", ")} · {r.device} · {r.channel}</p>
+          <div className="min-w-0">
+            <Eyebrow>Latest page views</Eyebrow>
+            <ul className="flex flex-col gap-1.5">
+              {data.recent.slice(0, 12).map((r, i) => (
+                <li key={`${keyOf(r)}#${i}`} className={`text-caption ${fresh.has(keyOf(r)) ? "motion-safe:animate-rise" : ""}`}>
+                  <p className="flex justify-between gap-2"><span className="truncate font-mono text-text">{r.path}</span><span className="shrink-0 text-text-secondary">{ago(r.ts)}</span></p>
+                  <p className="truncate text-micro text-text-secondary">{[r.city, countryName(r.country)].filter(Boolean).join(", ")} · {r.device} · {r.channel}</p>
                 </li>
               ))}
             </ul>
@@ -708,69 +710,41 @@ function LiveCard({ data }: { data: Realtime | null }) {
 // ── Documents ─────────────────────────────────────────────────────────────────
 
 function DocumentsCard({ docs }: { docs: Docs }) {
-  const max = Math.max(1, ...docs.referrers.map((r) => r.views));
+  const cols: Column<Doc>[] = [
+    { key: "doc", header: "Document", primary: true, render: (d) => (
+      <a href={d.slug ? `/${d.slug}` : undefined} target="_blank" rel="noopener noreferrer" className="md-focus group flex min-w-0 items-center gap-2.5 rounded-sm">
+        <span className={`grid size-5 shrink-0 place-items-center ${d.encrypted ? "text-text-muted" : d.kind === "artifact" ? "text-cat-artifact" : "text-cat-document"}`}>
+          <Icon name={d.encrypted ? "key" : d.kind === "artifact" ? "doc" : "lines"} size={18} />
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span className={`max-w-72 truncate group-hover:underline ${d.encrypted ? "italic text-text-secondary" : "text-text"}`} dir="auto">
+            {d.encrypted ? "Encrypted document" : d.title || "Untitled"}
+          </span>
+          <span className="truncate font-mono text-micro text-text-muted">/{d.slug}{d.kind === "artifact" ? " · artifact" : ""}</span>
+        </span>
+      </a>
+    ) },
+    { key: "views", header: "Views", align: "right", render: (d) => <span className="font-semibold">{compact(d.views)}</span> },
+    { key: "readers", header: "Readers", align: "right", render: (d) => compact(d.visitors) },
+    { key: "read", header: "Read time", align: "right", render: (d) => (d.reads ? duration(d.avg_seconds) : <span className="text-text-muted">—</span>) },
+    { key: "finished", header: "Finished", align: "right", render: (d) => (d.reads ? `${Math.round(d.finished)}%` : <span className="text-text-muted">—</span>) },
+    { key: "from", header: "Came from", render: (d) => (
+      <span className="flex flex-wrap gap-1">
+        {d.referrers.length ? d.referrers.slice(0, 3).map((r) => <Badge key={r.host} size="sm" tone="neutral">{r.host} {r.views}</Badge>) : <span className="text-text-muted">—</span>}
+      </span>
+    ) },
+  ];
   return (
-    <Card>
-      <CardTitle title="Documents" sub="Most-viewed published documents and artifacts, and where their readers came from" />
-      <div className="grid lg:grid-cols-[1fr_18rem] gap-5">
-        <div className="overflow-x-auto">
-          {!docs.documents.length ? <p className="py-10 text-center text-xs text-gray-500">No document views in this range.</p> : (
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-gray-500">
-                  <th className="text-left font-semibold pb-2">Document</th>
-                  <th className="text-right font-semibold pb-2 px-2">Views</th>
-                  <th className="text-right font-semibold pb-2 px-2">Readers</th>
-                  <th className="text-right font-semibold pb-2 px-2" title="Average active reading time">Read time</th>
-                  <th className="text-right font-semibold pb-2 px-2" title="Readers who reached the end">Finished</th>
-                  <th className="text-left font-semibold pb-2 pl-3">Came from</th>
-                </tr>
-              </thead>
-              <tbody>
-                {docs.documents.map((d) => (
-                  <tr key={d.doc_id} className="border-t border-gray-800/70">
-                    <td className="py-2 pr-2 max-w-[18rem]">
-                      <a href={d.slug ? `/${d.slug}` : undefined} target="_blank" rel="noopener noreferrer" className="group block min-w-0">
-                        <span className="block truncate text-gray-100 group-hover:text-blue-300">
-                          {d.encrypted ? <span className="text-gray-400 italic">Encrypted document</span> : d.title || "Untitled"}
-                        </span>
-                        <span className="block truncate font-mono text-[10px] text-gray-500">/{d.slug}{d.kind === "artifact" ? " · artifact" : ""}</span>
-                      </a>
-                    </td>
-                    <td className="py-2 px-2 text-right tabular-nums font-semibold text-gray-100">{compact(d.views)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-gray-400">{compact(d.visitors)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-gray-300">{d.reads ? duration(d.avg_seconds) : <span className="text-gray-600">—</span>}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-gray-300">{d.reads ? `${Math.round(d.finished)}%` : <span className="text-gray-600">—</span>}</td>
-                    <td className="py-2 pl-3">
-                      <div className="flex flex-wrap gap-1">
-                        {d.referrers.length ? d.referrers.slice(0, 3).map((r) => (
-                          <span key={r.host} className="px-1.5 py-0.5 rounded bg-gray-800 text-[10px] text-gray-300">{r.host} <span className="text-gray-500">{r.views}</span></span>
-                        )) : <span className="text-[10px] text-gray-600">—</span>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+    <Card aria-labelledby="docs-h">
+      <CardTitle id="docs-h" title="Documents" sub="Most-viewed published documents and artifacts, and where their readers came from" />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] [&>*]:min-w-0">
+        <Table compact hover={false} columns={cols} rows={docs.documents} rowKey={(d) => d.doc_id} caption="Most-viewed documents" empty="No document views in this range." />
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Where document readers came from</p>
+          <Eyebrow>Where document readers came from</Eyebrow>
           {!docs.referrers.length ? (
-            <p className="text-xs text-gray-500 leading-relaxed">Recorded for views since Oct 8 — this fills in as people arrive from links.</p>
+            <p className="text-caption text-text-secondary">Recorded for views since Oct 8. This fills in as people arrive from links.</p>
           ) : (
-            <ul className="space-y-1">
-              {docs.referrers.slice(0, 10).map((r) => (
-                <li key={r.host} className="relative flex items-center justify-between h-7 px-2 text-xs">
-                  <span aria-hidden className="absolute inset-y-0.5 left-0 rounded-[4px]" style={{ width: `${(r.views / max) * 100}%`, background: ACCENT, opacity: 0.16 }} />
-                  <span className="relative flex items-center gap-2 truncate text-gray-200">
-                    <HostBadge host={r.host} />
-                    {r.host}
-                  </span>
-                  <span className="relative tabular-nums font-semibold text-gray-100">{compact(r.views)}</span>
-                </li>
-              ))}
-            </ul>
+            <BarRows rows={docs.referrers.slice(0, 10).map((r) => ({ key: r.host, n: r.views }))} />
           )}
         </div>
       </div>
@@ -778,35 +752,35 @@ function DocumentsCard({ docs }: { docs: Docs }) {
   );
 }
 
+function BarRows({ rows }: { rows: { key: string; n: number }[] }) {
+  const max = Math.max(1, ...rows.map((r) => r.n));
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((r) => (
+        <li key={r.key} className="relative flex h-8 items-center justify-between gap-2 px-2 text-caption">
+          <span aria-hidden className="absolute inset-y-0.5 left-0 rounded-sm" style={{ width: `${(r.n / max) * 100}%`, background: C.wash }} />
+          <span className="relative flex min-w-0 items-center gap-2 truncate text-text"><HostBadge host={r.key} /><span className="truncate">{r.key}</span></span>
+          <span className="relative font-semibold tabular-nums text-text">{compact(r.n)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
- * A site's initial, drawn locally. Fetching real favicons would send every
- * referring hostname to a third-party icon service from the admin's browser.
+ * A site's initial, drawn locally. Fetching real favicons would send every referring hostname to a
+ * third-party icon service from the admin's browser. Neutral tile, so no brand colours.
  */
-const KNOWN: Record<string, [string, string]> = {
-  "t.co": ["𝕏", "#1d1d1f"], "x.com": ["𝕏", "#1d1d1f"], "twitter.com": ["𝕏", "#1d1d1f"],
-  "google.com": ["G", "#1a73e8"], "linkedin.com": ["in", "#0a66c2"], "facebook.com": ["f", "#1877f2"],
-  "reddit.com": ["r", "#ff4500"], "chatgpt.com": ["AI", "#10a37f"], "github.com": ["gh", "#24292f"],
-  "news.ycombinator.com": ["Y", "#ff6600"], "bing.com": ["b", "#008373"], "claude.ai": ["C", "#c96442"],
+const KNOWN: Record<string, string> = {
+  "t.co": "X", "x.com": "X", "twitter.com": "X", "google.com": "G", "linkedin.com": "in", "facebook.com": "f",
+  "reddit.com": "r", "chatgpt.com": "AI", "github.com": "gh", "news.ycombinator.com": "Y", "bing.com": "b", "claude.ai": "C",
 };
 function HostBadge({ host }: { host: string }) {
   const base = host.replace(/^www\./, "").replace(/^(l|lm|m|out|accounts)\./, "");
   const known = KNOWN[base] ?? Object.entries(KNOWN).find(([k]) => base.endsWith("." + k) || base.startsWith(k.split(".")[0] + "."))?.[1];
-  const [txt, bg] = known ?? [base.charAt(0).toUpperCase(), "#374151"];
   return (
-    <span aria-hidden className="inline-flex items-center justify-center w-4 h-4 shrink-0 rounded text-[8px] font-bold text-white" style={{ background: bg }}>
-      {txt}
+    <span aria-hidden className="inline-grid size-4 shrink-0 place-items-center rounded-xs bg-surface-active text-micro font-bold leading-none text-text">
+      {(known ?? base.charAt(0).toUpperCase()).slice(0, 2)}
     </span>
-  );
-}
-
-function Skeleton() {
-  return (
-    <div className="space-y-5 animate-pulse">
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-        {Array.from({ length: 6 }, (_, i) => <div key={i} className="h-[104px] rounded-2xl bg-gray-900/60" />)}
-      </div>
-      <div className="h-72 rounded-2xl bg-gray-900/60" />
-      <div className="grid lg:grid-cols-2 gap-5 [&>*]:min-w-0">{[0, 1].map((i) => <div key={i} className="h-80 rounded-2xl bg-gray-900/60" />)}</div>
-    </div>
   );
 }

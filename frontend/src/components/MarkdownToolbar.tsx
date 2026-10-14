@@ -1,34 +1,52 @@
 "use client";
 
-import { RefObject } from "react";
+import { RefObject, useRef, useState, type KeyboardEvent } from "react";
+import { Icon, Tooltip, cx } from "@/components/ui";
+
+/**
+ * Markdown formatting buttons for a textarea (used by /new, the viewer's editor and the builder).
+ *
+ * The buttons act on `click`, so Enter and Space work from the keyboard; `mousedown` only stops the
+ * textarea losing its selection (and, on phones, the keyboard closing). It is one `toolbar` with a
+ * single tab stop: arrow keys, Home and End move between buttons (WAI-ARIA toolbar pattern). Each
+ * button is named, and a tooltip shows the name on hover and focus.
+ */
 
 interface ToolbarAction {
-  label: string;
   title: string;
+  icon?: string;
+  label?: string;
   prefix: string;
   suffix: string;
   placeholder: string;
-  block?: boolean; // Insert on new line
+  /** Insert on a new line. */
+  block?: boolean;
 }
 
 const ACTIONS: ToolbarAction[] = [
-  { label: "B",   title: "Bold",         prefix: "**",  suffix: "**",  placeholder: "bold text" },
-  { label: "I",   title: "Italic",       prefix: "_",   suffix: "_",   placeholder: "italic text" },
-  { label: "H",   title: "Heading",      prefix: "## ", suffix: "",    placeholder: "Heading",     block: true },
-  { label: "`",   title: "Inline code",  prefix: "`",   suffix: "`",   placeholder: "code" },
-  { label: "</>", title: "Code block",   prefix: "```\n", suffix: "\n```", placeholder: "code here", block: true },
-  { label: "🔗",  title: "Link",         prefix: "[",   suffix: "](url)", placeholder: "link text" },
-  { label: "•",   title: "List item",    prefix: "- ",  suffix: "",    placeholder: "item",        block: true },
+  { title: "Bold", icon: "bold", prefix: "**", suffix: "**", placeholder: "bold text" },
+  { title: "Italic", icon: "italic", prefix: "_", suffix: "_", placeholder: "italic text" },
+  { title: "Heading", icon: "heading", prefix: "## ", suffix: "", placeholder: "Heading", block: true },
+  { title: "Inline code", label: "`", prefix: "`", suffix: "`", placeholder: "code" },
+  { title: "Code block", icon: "code", prefix: "```\n", suffix: "\n```", placeholder: "code here", block: true },
+  { title: "Link", icon: "link", prefix: "[", suffix: "](url)", placeholder: "link text" },
+  { title: "List item", icon: "list", prefix: "- ", suffix: "", placeholder: "item", block: true },
 ];
 
 interface Props {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   onChange: (value: string) => void;
-  /** Inline on the tab row: no background, border or padding of its own. */
+  /** Inline on a tab row: no background, border or padding of its own. */
   bare?: boolean;
+  /** Bigger (44px) targets, e.g. the phone strip above the keyboard. */
+  large?: boolean;
+  className?: string;
 }
 
-export default function MarkdownToolbar({ textareaRef, onChange, bare = false }: Props) {
+export default function MarkdownToolbar({ textareaRef, onChange, bare = false, large = false, className }: Props) {
+  const [active, setActive] = useState(0);
+  const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
   function applyAction(action: ToolbarAction) {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -42,45 +60,57 @@ export default function MarkdownToolbar({ textareaRef, onChange, bare = false }:
     let before = value.slice(0, start);
     const after = value.slice(end);
 
-    // For block-level actions, ensure we start on a fresh line
+    // Block-level actions start on a fresh line.
     if (action.block && before.length > 0 && !before.endsWith("\n")) {
       before += "\n";
     }
 
-    const newText = before + action.prefix + insertion + action.suffix + after;
-    onChange(newText);
+    onChange(before + action.prefix + insertion + action.suffix + after);
 
-    // Restore focus and set cursor position after the inserted text
+    // Back into the text with the inserted words selected, so typing replaces the placeholder.
     requestAnimationFrame(() => {
       ta.focus();
       const cursorStart = before.length + action.prefix.length;
-      const cursorEnd = cursorStart + insertion.length;
-      ta.setSelectionRange(cursorStart, cursorEnd);
+      ta.setSelectionRange(cursorStart, cursorStart + insertion.length);
     });
   }
 
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    const n = ACTIONS.length;
+    let next = -1;
+    if (e.key === "ArrowRight") next = (active + 1) % n;
+    else if (e.key === "ArrowLeft") next = (active - 1 + n) % n;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = n - 1;
+    else return;
+    e.preventDefault();
+    setActive(next);
+    btnRefs.current[next]?.focus();
+  }
+
   return (
-    // `bare` drops the bar's own background and border so it can sit inline on
-    // the mode-tab row rather than occupying a full-width strip of its own.
-    <div className={bare
-      ? "flex items-center gap-1"
-      : "flex items-center gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] bg-gray-50 dark:bg-gray-900/50 vscode:bg-[#252526]"}>
-      {ACTIONS.map((action) => (
-        <button
-          key={action.title}
-          type="button"
-          title={action.title}
-          onMouseDown={(e) => {
-            // Prevent textarea from losing focus
-            e.preventDefault();
-            applyAction(action);
-          }}
-          className={`px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 vscode:border-[#3c3c3c] hover:bg-gray-200 dark:hover:bg-gray-700 vscode:hover:bg-[#3c3c3c] transition-colors text-gray-600 dark:text-gray-400 vscode:text-[#9d9d9d] hover:text-gray-900 dark:hover:text-gray-100 vscode:hover:text-[#d4d4d4] select-none ${
-            action.label === "B" ? "font-bold" : ""
-          } ${action.label === "I" ? "italic" : ""}`}
-        >
-          {action.label}
-        </button>
+    <div
+      role="toolbar"
+      aria-label="Formatting"
+      onKeyDown={onKeyDown}
+      className={cx("md-toolbar", bare && "md-toolbar--bare", "min-w-0 items-center", className)}
+    >
+      {ACTIONS.map((action, i) => (
+        <Tooltip key={action.title} content={action.title} side="bottom">
+          <button
+            ref={(el) => { btnRefs.current[i] = el; }}
+            type="button"
+            className={cx("md-toolbar__btn shrink-0 select-none", large ? "h-11 min-w-11" : "pointer-coarse:h-11 pointer-coarse:min-w-11")}
+            aria-label={action.title}
+            tabIndex={i === active ? 0 : -1}
+            onFocus={() => setActive(i)}
+            // Keep the textarea's selection and focus (and a phone's keyboard) while clicking.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => applyAction(action)}
+          >
+            {action.icon ? <Icon name={action.icon} size={14} /> : <span aria-hidden>{action.label}</span>}
+          </button>
+        </Tooltip>
       ))}
     </div>
   );

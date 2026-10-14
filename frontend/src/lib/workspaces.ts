@@ -46,6 +46,8 @@ export interface Branding {
   favicon_url: string | null;
   logo_url: string | null;
   accent_color: string | null;
+  /** D38: the well a customer logo sits on; absent/null = follow the theme. */
+  logo_well?: "light" | "dark" | "checker" | null;
   hide_markdrop_branding: boolean;
 }
 
@@ -177,6 +179,10 @@ export interface InvitePreview {
   signed_in_as: string | null;
   email_matches: boolean;
   already_member: boolean;
+  /** D27: optional workspace branding for the invite card (absent on older backends). */
+  logo_url?: string | null;
+  accent_color?: string | null;
+  logo_well?: "light" | "dark" | "checker" | null;
 }
 
 export const listInvitations = (id: string) =>

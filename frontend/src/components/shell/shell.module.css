@@ -1,0 +1,45 @@
+/* The 404 "missed drop" (REVAMP_PLAN 7.9). The base styles are the END frame; the animation plays
+   once from the start state, so reduced motion (animation: none) shows the finished picture. */
+.missed { overflow: visible; }
+.drop {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: md-nf-fall calc(var(--duration-reveal) * 2.5) linear 300ms both;
+}
+.ring {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  opacity: 0;
+  animation: md-nf-ring var(--duration-reveal) var(--ease-out) calc(300ms + var(--duration-reveal) * 1.5) both;
+}
+.spray {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  opacity: 0;
+  animation: md-nf-spray-l var(--duration-reveal) var(--ease-out) calc(300ms + var(--duration-reveal) * 1.5) both;
+}
+.sprayR { animation-name: md-nf-spray-r; }
+
+@keyframes md-nf-fall {
+  0% { transform: translateY(-40px) scale(.75, 1.2); opacity: 0; animation-timing-function: cubic-bezier(.55, 0, .85, .4); }
+  12% { opacity: 1; }
+  60% { transform: translateY(0) scale(.8, 1.2); opacity: 1; animation-timing-function: ease-out; }
+  72% { transform: scale(1.4, .6); }
+  86% { transform: scale(.92, 1.08); }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes md-nf-ring {
+  from { transform: scale(.4); opacity: .9; }
+  to { transform: scale(2.4); opacity: 0; }
+}
+@keyframes md-nf-spray-l {
+  from { transform: translate(0, 0); opacity: 1; }
+  to { transform: translate(-7px, -9px); opacity: 0; }
+}
+@keyframes md-nf-spray-r {
+  from { transform: translate(0, 0); opacity: 1; }
+  to { transform: translate(7px, -8px); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drop, .ring, .spray { animation: none; }
+}
