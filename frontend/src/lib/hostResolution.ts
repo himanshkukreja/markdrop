@@ -16,6 +16,7 @@ export interface HostResolution {
   favicon_url: string | null;
   logo_url: string | null;
   accent_color: string | null;
+  logo_well?: "light" | "dark" | "checker" | null;
   hide_markdrop_branding: boolean;
   viewer_chrome: "full" | "minimal" | "none";
   require_auth_to_view: boolean;
