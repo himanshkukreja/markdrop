@@ -1,0 +1,6 @@
+/* ImmersiveExit sits at --z-immersive (101), above dialog scrims (100). While any modal Dialog or
+   Drawer is open over the immersive view it would float above the scrim and look clickable, so it
+   steps out of the way until the overlay closes. */
+:global(body:has([role="dialog"][aria-modal="true"])) .exit {
+  display: none;
+}
