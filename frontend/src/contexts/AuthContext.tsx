@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { fetchMe, getToken, setToken, clearToken, logoutRequest, MeUser } from "@/lib/api";
+import { ApiError, fetchMe, getToken, setToken, clearToken, logoutRequest, MeUser } from "@/lib/api";
 import AuthModal from "@/components/AuthModal";
 import { track } from "@/lib/track";
 
@@ -25,6 +25,10 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
+// Waits between attempts when /auth/me fails for a reason other than a rejected
+// token (a network error or a 5xx, e.g. while the API restarts).
+const RETRY_DELAYS_MS = [2000, 5000, 15000];
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,14 +39,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return;
     }
-    try {
-      setUser(await fetchMe());
-    } catch {
-      clearToken();
-      setUser(null);
-    } finally {
-      setLoading(false);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        setUser(await fetchMe());
+        break;
+      } catch (e) {
+        // Only a 401 means the token is no good. Anything else keeps the token
+        // (and any user already loaded) and tries again.
+        if (e instanceof ApiError && e.status === 401) {
+          clearToken();
+          setUser(null);
+          break;
+        }
+        if (attempt >= RETRY_DELAYS_MS.length || !getToken()) break;
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
+      }
     }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
