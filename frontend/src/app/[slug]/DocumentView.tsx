@@ -2,33 +2,39 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import ImmersiveExit from "@/components/ImmersiveExit";
 import AccessGate from "@/components/access/AccessGate";
-import ShareDialog from "@/components/access/ShareDialog";
 import { Alert, Button, CopyButton, Drawer, EmptyState, Skeleton, type MenuEntry } from "@/components/ui";
 import { SiteHeader } from "@/components/shell/SiteHeader";
 import { TenantHeader, useTenant } from "@/components/tenant";
-import { PublishedPanel } from "@/components/kit/PublishedPanel";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import { ReadingProgress, Toc, TocTicks, tocHeadings, useReadingProgress, type Heading } from "@/components/reading";
 import * as e2e from "@/lib/e2e";
 import { recordEvent } from "@/lib/api";
 import { track } from "@/lib/track";
-import ArtifactView from "./ArtifactView";
 import { useDocumentViewer } from "./doc/useDocumentViewer";
 import type { DocumentViewProps } from "./doc/types";
 import { DocumentActionBar, DocumentBar } from "./doc/DocumentBar";
 import { DetailsPanel, readingMinutes } from "./doc/DetailsPanel";
-import { GoogleDocsCard } from "./doc/GoogleDocsCard";
 import { DeviceKeyNotice, EncryptionState, RotatedNotice } from "./doc/EncryptionState";
-import { EditorScreen, SecretUnlock } from "./doc/EditorScreen";
-import { ReportDialog } from "./doc/ReportDialog";
-import { SaveCopyDialog } from "./doc/SaveCopyDialog";
 import { LeaveGuard } from "./doc/LeaveGuard";
 import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
 import { Colophon } from "./doc/Colophon";
 import vs from "./doc/viewer.module.css";
+
+// Code that only runs after an interaction or in a specific state loads on demand, so a reader's first
+// load carries the reading view only (REVAMP_BUILD §8.5 budget for /[slug]). Each still renders on the
+// server when the state calls for it (dynamic() keeps SSR), so artifact pages and gates are unchanged.
+const ArtifactView = dynamic(() => import("./ArtifactView"));
+const ShareDialog = dynamic(() => import("@/components/access/ShareDialog"));
+const PublishedPanel = dynamic(() => import("@/components/kit/PublishedPanel").then((m) => m.PublishedPanel));
+const GoogleDocsCard = dynamic(() => import("./doc/GoogleDocsCard").then((m) => m.GoogleDocsCard));
+const EditorScreen = dynamic(() => import("./doc/EditorScreen").then((m) => m.EditorScreen));
+const SecretUnlock = dynamic(() => import("./doc/EditorScreen").then((m) => m.SecretUnlock));
+const ReportDialog = dynamic(() => import("./doc/ReportDialog").then((m) => m.ReportDialog));
+const SaveCopyDialog = dynamic(() => import("./doc/SaveCopyDialog").then((m) => m.SaveCopyDialog));
 
 /**
  * Does the document already open with a heading that says what the title says?
