@@ -175,7 +175,7 @@ function MdInput({ node: _node, type, checked, ...props }: ComponentProps<"input
   if (type !== "checkbox") return <input type={type} checked={checked} {...props} />;
   return (
     <span className="md-task-check">
-      <input type="checkbox" checked={!!checked} disabled readOnly />
+      <input type="checkbox" checked={!!checked} disabled readOnly aria-label={checked ? "Completed task" : "Incomplete task"} />
       <span className="md-task-check__box" aria-hidden>
         <Icon name="check" />
       </span>

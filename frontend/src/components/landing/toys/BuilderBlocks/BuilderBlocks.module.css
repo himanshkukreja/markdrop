@@ -53,6 +53,8 @@
   user-select: none;
   white-space: nowrap;
 }
+/* Drawn as generated content: purely decorative, so it is neither text nor a contrast target. */
+.gl::before { content: attr(data-g); }
 :global([data-theme="light"]) .gl { opacity: 0.3; }
 @media (min-width: 1280px) {
   .gl { display: block; }

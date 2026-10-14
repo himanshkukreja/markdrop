@@ -34,7 +34,7 @@ export default function BuilderBlocks() {
       <div className="mx-auto max-w-marketing px-4 py-16 sm:px-6 sm:py-24">
         <div className={s.wrap}>
           {GLYPHS.map(([t, x, y]) => (
-            <span key={t} className={s.gl} aria-hidden="true" style={{ left: x, top: y }}>{t}</span>
+            <span key={t} className={s.gl} aria-hidden="true" data-g={t} style={{ left: x, top: y }} />
           ))}
 
           <header className={s.head}>

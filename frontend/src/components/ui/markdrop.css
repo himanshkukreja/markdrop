@@ -53,7 +53,7 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-btn--danger:hover { filter: brightness(1.08); }
 .md-btn--inverse { background: var(--surface-inverse); color: var(--text-inverse); }
 .md-btn--inverse:hover { opacity: .9; }
-.md-btn--link { background: none; color: var(--accent-text); padding: 0; height: auto; }
+.md-btn--link { background: none; color: var(--accent-text); padding: 0; height: auto; min-height: 24px; }
 .md-btn--link:hover { color: var(--accent-text-hover); text-decoration: underline; }
 .md-btn:disabled, .md-btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; pointer-events: none; }
 .md-btn--block { width: 100%; }

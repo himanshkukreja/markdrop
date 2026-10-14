@@ -14,6 +14,8 @@
 /* A tinted ground costs muted text contrast (a yellow band in dark, a near-black one in light took
    --text-muted under 4.5:1), so the breadcrumb on the band uses the secondary text colour. */
 .band :global(.md-crumbs) { color: var(--text-secondary); }
+/* Status badges on the band sit on a solid surface: a soft tint over the accent band fell under 4.5:1. */
+.band :global(.md-badge) { background-color: var(--surface); }
 
 /* The sticky "unsaved changes" bar (Brand tab): pinned to the bottom of the viewport while dirty. */
 .saveBar {

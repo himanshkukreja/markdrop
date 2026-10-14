@@ -407,7 +407,7 @@
 .md-ticks:focus-within .md-ticks__list { background: var(--surface-raised); border-color: var(--border); box-shadow: var(--shadow-lg); }
 .md-ticks__item {
   display: flex; align-items: center; gap: 12px;
-  width: 100%; height: 20px; padding: 0 4px 0 0;
+  width: 100%; height: 24px; padding: 0 4px 0 0;
   border: 0; border-radius: var(--radius-sm);
   background: none; cursor: pointer; text-align: left;
   font-family: var(--font-sans); font-size: 13px; line-height: 20px; font-weight: 500;
