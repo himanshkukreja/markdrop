@@ -1,0 +1,29 @@
+/* The workspace brand tile: the logo on its well (D38), or initials. */
+.tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.tile img { max-width: 78%; max-height: 78%; object-fit: contain; display: block; }
+
+/* Automatic well: follows the theme. */
+.auto { background: var(--logo-well-dark); }
+:global([data-theme="light"]) .auto { background: var(--logo-well-light); }
+:global([data-theme="light"] [data-theme="dark"]) .auto { background: var(--logo-well-dark); }
+.light { background: var(--logo-well-light); }
+.dark { background: var(--logo-well-dark); }
+.checker {
+  background: repeating-conic-gradient(var(--logo-well-light) 0 25%, color-mix(in oklab, var(--logo-well-light) 78%, var(--logo-well-dark)) 0 50%) 0 0 / 10px 10px;
+}
+
+/* Initials on the workspace accent: the colour and its text colour come from inline custom
+   properties computed by accentTokens() (customer data, not theme colour). */
+.accent { background: var(--ws-fill); color: var(--ws-on); border-color: transparent; }
+:global([data-theme="light"]) .accent { box-shadow: var(--shadow-sm); }
