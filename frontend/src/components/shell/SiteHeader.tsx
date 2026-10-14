@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Anchor, Button, Icon, MarkdropLogo, SkipLink, VisuallyHidden, cx } from "@/components/ui";
+import { Anchor, Icon, MarkdropLogo, SkipLink, VisuallyHidden, cx } from "@/components/ui";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import CreateMenu from "@/components/CreateMenu";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,9 +18,12 @@ export interface SiteHeaderProps {
   /**
    * - "default" (tools, app, 404, framed viewer): 56px, sticky, on bg with a hairline.
    *   Right: ThemeToggle · CreateMenu · Sign in / AccountMenu.
-   * - "marketing" (/, /enterprise): 72px, transparent over the hero until 8px of scroll, then bg
-   *   at 85% with a 12px backdrop blur and the hairline. Nav Enterprise · VS Code extension ↗ ·
-   *   GitHub ↗; right: ThemeToggle · Sign in / AccountMenu · "Start writing" (primary).
+   * - "marketing" (/, /enterprise; Landing.dc.html, REVAMP_BUILD O11): 56px, transparent over the hero
+   *   until 8px of scroll, then bg at 85% with a 12px backdrop blur and the hairline. Nav Enterprise ·
+   *   VS Code extension ↗ · GitHub ↗; right: ThemeToggle · Create (secondary) · Sign in / AccountMenu.
+   *   No primary in the header: the page's own "Start writing" is the one primary (REVAMP_PLAN 4.4).
+   *   The auth control sits in a fixed-width slot, so swapping "Sign in" for the avatar after
+   *   hydration never shifts the row.
    * - "minimal" (focus pages): the logo and ThemeToggle only.
    */
   variant?: SiteHeaderVariant;
@@ -71,7 +74,7 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
         "no-print sticky top-0 z-(--z-sticky) w-full shrink-0 border-b",
         marketing
           ? cx(
-              "h-14 md:h-18 transition-[background-color,border-color,backdrop-filter] duration-(--duration-fast) ease-(--ease-out)",
+              "h-14 transition-[background-color,border-color,backdrop-filter] duration-(--duration-fast) ease-(--ease-out)",
               scrolled ? "border-border bg-bg/85 backdrop-blur-md" : "border-transparent bg-transparent",
             )
           : "h-14 border-border bg-bg",
@@ -112,9 +115,11 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
             ) : marketing ? (
               <>
                 <ThemeToggle className="hidden md:inline-flex" />
-                <CreateMenu variant="secondary" className="md:hidden max-md:[&_.md-create]:h-11" />
-                <HeaderAuthSlot signInClassName="max-md:px-2" />
-                <Button variant="primary" href="/new" className="hidden md:inline-flex">Start writing</Button>
+                <CreateMenu variant="secondary" className="max-md:[&_.md-create]:h-11" />
+                {/* Fixed width: "Sign in" (server, first paint) and the avatar (after hydration) share it. */}
+                <div className="flex w-16 shrink-0 justify-end md:w-20">
+                  <HeaderAuthSlot signInClassName="max-md:px-2" />
+                </div>
                 <MobileNav className="lg:hidden" />
               </>
             ) : (

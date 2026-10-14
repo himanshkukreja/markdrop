@@ -1,46 +1,39 @@
-import Hero from "@/components/landing/Hero";
-import FeatureGrid from "@/components/landing/FeatureGrid";
-import EncryptionShowcase from "@/components/landing/EncryptionShowcase";
-import P2PShowcase from "@/components/landing/P2PShowcase";
-import VSCodeShowcase from "@/components/landing/VSCodeShowcase";
-import DiagramShowcase from "@/components/landing/DiagramShowcase";
-import GoogleDocsShowcase from "@/components/landing/GoogleDocsShowcase";
-import BuilderShowcase from "@/components/landing/BuilderShowcase";
-import ArtifactShowcase from "@/components/landing/ArtifactShowcase";
-import DomainShowcase from "@/components/landing/DomainShowcase";
-import HowItWorks from "@/components/landing/HowItWorks";
-import CallToAction from "@/components/landing/CallToAction";
-import LandingFooter from "@/components/landing/LandingFooter";
+import Hero from "@/components/landing/orbit";
+import RenderBench from "@/components/landing/toys/RenderBench";
+import LinkForge from "@/components/landing/toys/LinkForge";
+import KeyLab from "@/components/landing/toys/KeyLab";
+import SyncDesk from "@/components/landing/toys/SyncDesk";
+import SendSim from "@/components/landing/toys/SendSim";
+import DomainStudio from "@/components/landing/toys/DomainStudio";
+import BuilderBlocks from "@/components/landing/toys/BuilderBlocks";
+import CanTheyOpen from "@/components/landing/toys/CanTheyOpen";
+import ClosingCta from "@/components/landing/closing/ClosingCta";
+import StickyStart from "@/components/landing/closing/StickyStart";
+import CtaTracker from "@/components/landing/CtaTracker";
 
+/**
+ * The landing page (REVAMP_BUILD §5.6.1): the Orbit Playground hero, eight playable sections (artifacts
+ * first), then the closing CTA. A server component that reads no cookies, headers or searchParams, so
+ * `/` stays static: every section's copy and static first frame is server HTML, and each interactive
+ * half loads on demand (components/landing/LazyIsland). At most one attract/demo loop runs at a time
+ * (components/landing/PlayCoordinator). Nothing from the markdown pipeline (react-markdown, rehype,
+ * KaTeX, Mermaid) ships here. The (marketing) layout adds the header and SiteFooter.
+ */
 export default function LandingPage() {
   return (
     <div className="w-full min-w-0 overflow-x-clip">
-      {/* Ambient background: drifting aurora blobs + dotted grid, fixed behind everything */}
-      <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="md-aurora absolute -top-40 -left-32 w-[38rem] h-[38rem] rounded-full blur-3xl opacity-40 dark:opacity-50"
-          style={{ background: "radial-gradient(circle, rgba(37,99,235,0.55), transparent 65%)" }} />
-        <div className="md-aurora-2 absolute top-1/3 -right-40 w-[42rem] h-[42rem] rounded-full blur-3xl opacity-35 dark:opacity-45"
-          style={{ background: "radial-gradient(circle, rgba(14,165,233,0.45), transparent 65%)" }} />
-        <div className="md-aurora absolute bottom-0 left-1/4 w-[34rem] h-[34rem] rounded-full blur-3xl opacity-30 dark:opacity-40"
-          style={{ background: "radial-gradient(circle, rgba(59,130,246,0.45), transparent 65%)" }} />
-        <div className="absolute inset-0 md-grid" />
-      </div>
-
       <Hero />
-      <FeatureGrid />
-      {/* First of the showcases: privacy is the strongest claim on this page. */}
-      <EncryptionShowcase />
-      <P2PShowcase />
-      <VSCodeShowcase />
-      <DiagramShowcase />
-      <GoogleDocsShowcase />
-      <BuilderShowcase />
-      <ArtifactShowcase />
-      {/* Text-left, continuing the alternation after ArtifactShowcase */}
-      <DomainShowcase />
-      <HowItWorks />
-      <CallToAction />
-      <LandingFooter />
+      <RenderBench />
+      <LinkForge />
+      <KeyLab />
+      <SyncDesk />
+      <SendSim />
+      <DomainStudio />
+      <BuilderBlocks />
+      <CanTheyOpen />
+      <ClosingCta />
+      <StickyStart />
+      <CtaTracker />
     </div>
   );
 }
