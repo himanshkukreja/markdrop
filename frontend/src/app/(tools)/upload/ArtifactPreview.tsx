@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatBytes } from "@/components/ArtifactBadge";
-import MarkdropLoader from "@/components/MarkdropLoader";
+import { EmptyState, MarkdropLoader, cx } from "@/components/ui";
 
 /**
  * Client-side preview of a file before it's published. Nothing is uploaded.
@@ -88,19 +88,23 @@ function parseCsv(text: string, maxRows = 200): string[][] {
 }
 
 function Frame({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-[#0b1220] h-[26rem]">
-      {children}
-    </div>
-  );
+  return <div className="h-[26rem] overflow-hidden rounded-xl border border-border bg-bg">{children}</div>;
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <div className="h-full grid place-items-center p-6 text-center text-sm text-gray-500 dark:text-gray-400">
+    <div className="grid h-full place-items-center p-6 text-center text-body text-text-secondary">
       <div>{children}</div>
     </div>
   );
+}
+
+/** Whether the preview of this file is a white page (user HTML, PDF, Word, images): paper in both themes. */
+export function previewIsPaper(file: File | null | undefined, html?: string): boolean {
+  if (html !== undefined) return true;
+  if (!file || file.size > MAX_PREVIEW_BYTES) return false;
+  const k = kindOf(file.name);
+  return k === "html" || k === "pdf" || k === "docx";
 }
 
 export default function ArtifactPreview({
@@ -189,19 +193,16 @@ export default function ArtifactPreview({
   if (kind === "none" && !file) return null;
 
   const body = (() => {
-    if (error) return <Centered><span className="text-red-500">{error}</span></Centered>;
+    if (error) return <Centered><span role="alert" className="text-danger">{error}</span></Centered>;
     if (file && file.size > MAX_PREVIEW_BYTES) {
       return (
-        <Centered>
-          <p className="font-medium text-gray-700 dark:text-gray-300">
-            {formatBytes(file.size)} — too large to preview here
-          </p>
-          <p className="mt-1">
-            Rendering a file this size in the page would freeze the tab. It will
-            publish and render normally — previews are skipped above{" "}
-            {formatBytes(MAX_PREVIEW_BYTES)}.
-          </p>
-        </Centered>
+        <div className="grid h-full place-items-center p-4">
+          <EmptyState
+            icon="eye"
+            title="Too large to preview here"
+            description={`${formatBytes(file.size)}. It will publish and render normally — previews are skipped above ${formatBytes(MAX_PREVIEW_BYTES)}.`}
+          />
+        </div>
       );
     }
     if (busy) return <Centered><MarkdropLoader label="Preparing preview…" size="sm" /></Centered>;
@@ -220,18 +221,22 @@ export default function ArtifactPreview({
           sandbox="allow-scripts allow-forms allow-popups allow-modals"
           referrerPolicy="no-referrer"
           title="Preview"
-          className="w-full h-full border-0 bg-white"
+          style={{ colorScheme: "light" }}
+          className="block h-full w-full border-0 bg-(--qr-ground)"
         />
       );
     }
 
     if (kind === "pdf" && objectUrl) {
-      return <iframe src={objectUrl} title="PDF preview" className="w-full h-full border-0" />;
+      return <iframe src={objectUrl} title="PDF preview" style={{ colorScheme: "light" }} className="block h-full w-full border-0 bg-(--qr-ground)" />;
     }
 
     if (kind === "image" && objectUrl) {
       return (
-        <div className="h-full grid place-items-center p-4 bg-[repeating-conic-gradient(#f3f4f6_0_25%,#fff_0_50%)] bg-[length:20px_20px] dark:bg-none">
+        <div
+          className="grid h-full place-items-center p-4"
+          style={{ background: "repeating-conic-gradient(var(--surface) 0 25%, var(--surface-inset) 0 50%) 0 0 / 20px 20px" }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={objectUrl} alt="Preview" className="max-w-full max-h-full object-contain" />
         </div>
@@ -244,7 +249,8 @@ export default function ArtifactPreview({
           srcDoc={`<style>body{font:15px/1.7 -apple-system,Segoe UI,Roboto,sans-serif;padding:2rem;max-width:44rem;margin:0 auto;color:#111}img{max-width:100%}table{border-collapse:collapse;width:100%}td,th{border:1px solid #e5e7eb;padding:6px}</style>${docHtml}`}
           sandbox=""
           title="Document preview"
-          className="w-full h-full border-0 bg-white"
+          style={{ colorScheme: "light" }}
+          className="block h-full w-full border-0 bg-(--qr-ground)"
         />
       );
     }
@@ -253,35 +259,35 @@ export default function ArtifactPreview({
       return (
         <div className="h-full flex flex-col">
           {sheets.length > 1 && (
-            <div className="flex gap-1 p-2 border-b border-gray-200 dark:border-gray-800 overflow-x-auto md-no-scrollbar">
+            <div role="group" aria-label="Sheets" className="flex gap-1 overflow-x-auto border-b border-border bg-surface p-2 md-no-scrollbar">
               {sheets.map((n, i) => (
                 <button
                   key={n}
+                  type="button"
                   onClick={() => showSheet(i)}
-                  className={`shrink-0 px-2.5 py-1 text-xs rounded-md transition-colors ${
-                    i === sheet
-                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                      : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
-                  }`}
+                  aria-pressed={i === sheet}
+                  className={cx(
+                    "md-focus min-h-8 shrink-0 rounded-full px-3 text-caption transition-colors duration-(--duration-fast)",
+                    i === sheet ? "bg-accent-soft text-accent-text" : "text-text-secondary hover:bg-surface-hover hover:text-text",
+                  )}
                 >
                   {n}
                 </button>
               ))}
             </div>
           )}
-          <div className="flex-1 overflow-auto">
-            <table className="text-xs border-collapse">
+          <div className="flex-1 overflow-auto" tabIndex={0} aria-label="Spreadsheet preview">
+            <table className="border-collapse text-caption">
               <tbody>
                 {rows.slice(0, 200).map((r, i) => (
                   <tr key={i} className={i === 0 ? "sticky top-0" : ""}>
                     {(r || []).map((c, j) => (
                       <td
                         key={j}
-                        className={`border border-gray-200 dark:border-gray-800 px-2 py-1 whitespace-nowrap ${
-                          i === 0
-                            ? "bg-gray-50 dark:bg-gray-900 font-semibold text-gray-700 dark:text-gray-300"
-                            : "text-gray-600 dark:text-gray-400"
-                        }`}
+                        className={cx(
+                          "whitespace-nowrap border border-border px-2 py-1",
+                          i === 0 ? "bg-surface-inset font-semibold text-text" : "text-text-secondary",
+                        )}
                       >
                         {String(c ?? "")}
                       </td>
@@ -297,7 +303,7 @@ export default function ArtifactPreview({
 
     if (kind === "text" && text !== null) {
       return (
-        <pre className="h-full overflow-auto p-4 text-xs whitespace-pre-wrap break-words text-gray-700 dark:text-gray-300">
+        <pre tabIndex={0} aria-label="Text preview" className="m-0 h-full overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-code text-text-secondary">
           {text}
         </pre>
       );
@@ -306,8 +312,8 @@ export default function ArtifactPreview({
     if (kind === "bundle") {
       return (
         <Centered>
-          <p className="font-medium text-gray-700 dark:text-gray-300">Zipped site</p>
-          <p className="mt-1">
+          <p className="m-0 text-body-strong text-text">Zipped site</p>
+          <p className="m-0 mt-1">
             The archive is unpacked when you publish, and the entry page renders then.
             {file && <> · {formatBytes(file.size)}</>}
           </p>
@@ -322,9 +328,9 @@ export default function ArtifactPreview({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">Preview</span>
-        <span className="text-[11px] text-gray-400">Rendered here in your browser — nothing uploaded yet</span>
+      <div className="mb-1.5 flex items-center justify-between gap-3">
+        <span className="text-body-strong text-text">Preview</span>
+        <span className="text-caption text-text-muted">Rendered here in your browser — nothing uploaded yet</span>
       </div>
       <Frame>{body}</Frame>
     </div>

@@ -2,9 +2,37 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Spinner from "@/components/Spinner";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  FileIcon,
+  Icon,
+  Input,
+  Meter,
+  Progress,
+  Tabs,
+  Textarea,
+  cx,
+} from "@/components/ui";
+import { DropZone } from "@/components/kit/DropZone";
+import { BrowserFrame } from "@/components/kit/BrowserFrame";
+import { PublishSettings } from "@/components/kit/PublishSettings";
+import {
+  DEFAULT_PUBLISH_SETTINGS,
+  PHONE_QUERY,
+  toApiExpiry,
+  useMediaQuery,
+  type PublishField,
+  type PublishSettingsValue,
+  type PublishWorkspace,
+} from "@/components/kit/publish-utils";
+import { formatBytes } from "@/components/ArtifactBadge";
 import { slugifyFilename, titleFromFilename } from "@/lib/slugify";
-import ArtifactPreview from "./ArtifactPreview";
+import ArtifactPreview, { previewIsPaper } from "./ArtifactPreview";
 import { consumePending, savePending } from "./pendingUpload";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -14,82 +42,98 @@ import {
   type ArtifactStatus,
   type ExpiresIn,
 } from "@/lib/api";
-import PublishTarget, { type PublishTargetValue } from "@/components/workspace/PublishTarget";
+import { useWorkspaceTargets } from "@/lib/useWorkspaceTargets";
 import { shareToWorkspace } from "@/lib/workspaces";
 import { track } from "@/lib/track";
 
 type Tab = "paste" | "upload";
 
+/**
+ * D5: the Paste HTML tab stays hidden (the paste endpoint 500s until F5 ships, and stays hidden
+ * after). The paste path is kept only so a draft saved with it before sign-in still publishes.
+ */
+const PASTE_TAB = false;
+
 const ACCEPT =
   ".html,.htm,.pdf,.docx,.csv,.xlsx,.xls,.json,.txt,.zip,.png,.jpg,.jpeg,.gif,.webp,.svg,.mp4,.mov,.webm,.ogv";
 const SLUG_PATTERN = /^[a-zA-Z0-9_-]*$/;
+const VIDEO_EXT = ["mp4", "mov", "webm", "ogv"];
 
-// Shown in the empty dropzone. Colours mirror components/ArtifactBadge.tsx so
-// the promise here matches the badge on the published page.
-const FILE_KINDS = [
-  { label: "HTML", cls: "bg-orange-500/10 text-orange-600 dark:text-orange-400 ring-orange-500/25" },
-  { label: "PDF", cls: "bg-red-500/10 text-red-600 dark:text-red-400 ring-red-500/25" },
-  { label: "Excel", cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/25" },
-  { label: "Word", cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-blue-500/25" },
-  { label: "CSV", cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/25" },
-  { label: "Images", cls: "bg-violet-500/10 text-violet-600 dark:text-violet-400 ring-violet-500/25" },
-  { label: "Video", cls: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400 ring-fuchsia-500/25" },
-  { label: ".zip site", cls: "bg-teal-500/10 text-teal-600 dark:text-teal-400 ring-teal-500/25" },
+/** sessionStorage flag the artifact viewer reads on ?new=1 (workspace share failed). */
+const WS_FAIL_KEY = (slug: string) => `md_ws_share_failed:${slug}`;
+
+/** What the dropzone promises, in the order of the board. Names drive the FileIcon tint. */
+const KINDS = [
+  { label: "HTML", note: "Live web page", name: "page.html", mime: "text/html" },
+  { label: "PDF", note: "Readable pages", name: "a.pdf", mime: "application/pdf" },
+  { label: "Excel, CSV", note: "Sheet with tabs", name: "a.xlsx", mime: "" },
+  { label: "Word", note: "Formatted document", name: "a.docx", mime: "" },
+  { label: "Images", note: "Full-size view", name: "a.png", mime: "image/png" },
+  { label: "Video", note: "Plays in place", name: "a.mp4", mime: "video/mp4" },
+  { label: "Zipped site", note: "Multi-page site", name: "a.zip", mime: "application/zip" },
 ];
 
-/** How a chosen file will be presented, so the dropzone can say so up front. */
+/** How a chosen file will be presented, so the file row can say so up front. */
 function describeFile(f: File): string {
   const ext = f.name.toLowerCase().split(".").pop() || "";
-  if (["html", "htm"].includes(ext)) return "a live page";
+  if (["html", "htm"].includes(ext)) return "a web page";
   if (ext === "pdf") return "a readable PDF";
   if (["xlsx", "xls", "csv"].includes(ext)) return "a spreadsheet";
   if (ext === "docx") return "a document";
-  if (ext === "zip") return "a multi-file site";
+  if (ext === "zip") return "a multi-page site";
   if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) return "an image";
-  if (["mp4", "mov", "webm", "ogv"].includes(ext)) return "a playable video";
+  if (VIDEO_EXT.includes(ext)) return "a playable video";
   return "";
 }
 
-const SAMPLE = `<!doctype html>
-<html>
-  <head><style>body{font-family:system-ui;padding:3rem;background:#0b1220;color:#e5e7eb}</style></head>
-  <body><h1>Hello from Markdrop</h1><p>Paste any HTML here and publish it.</p></body>
-</html>`;
+const isVideo = (f: File) => VIDEO_EXT.includes(f.name.toLowerCase().split(".").pop() || "");
+const isZip = (f: File | null) => !!f && f.name.toLowerCase().endsWith(".zip");
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+function expiresFromApi(expiresIn: string, at?: string | null): PublishSettingsValue["expires"] {
+  if (expiresIn === "custom" && at) return { at };
+  return expiresIn === "1d" || expiresIn === "7d" || expiresIn === "30d" ? expiresIn : "never";
 }
 
 export default function UploadArtifactPage() {
   const router = useRouter();
   const { user, loading: authLoading, openAuthModal } = useAuth();
 
-  const [tab, setTab] = useState<Tab>("paste");
+  const [tab, setTab] = useState<Tab>("upload");
   const [status, setStatus] = useState<ArtifactStatus | null>(null);
+  const [statusError, setStatusError] = useState(false);
+  const [statusTry, setStatusTry] = useState(0);
   const [html, setHtml] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [dragging, setDragging] = useState(false);
   const [title, setTitle] = useState("");
-  const [customSlug, setCustomSlug] = useState("");
-  const [slugError, setSlugError] = useState("");
-  const [slugTouched, setSlugTouched] = useState(false);
-  const [pastePreview, setPastePreview] = useState(false);
-  const [restored, setRestored] = useState(false);
   const [titleTouched, setTitleTouched] = useState(false);
-  const [expiresIn, setExpiresIn] = useState<ExpiresIn>("never");
-  const [readPassword, setReadPassword] = useState("");
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [settings, setSettings] = useState<PublishSettingsValue>(DEFAULT_PUBLISH_SETTINGS);
+  const [slugError, setSlugError] = useState("");
+  const [fileError, setFileError] = useState("");
+  const [restored, setRestored] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [target, setTarget] = useState<PublishTargetValue>({ workspaceId: null, folderId: null });
-  const [accessLevel, setAccessLevel] = useState<"private" | "link">("link");
   const [progress, setProgress] = useState(0);
-  const [error, setError] = useState("");
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<{ tone: "danger" | "warning"; title?: string; text: string } | null>(null);
+  const pickInput = useRef<HTMLInputElement>(null);
+  // Phones get the compact upload tile (MobileCreate 4: one big tap target), not the resting fan.
+  const isPhone = useMediaQuery(PHONE_QUERY);
+
+  const ws = useWorkspaceTargets(settings.target);
+  const workspaces: PublishWorkspace[] = ws.workspaces.map((w) => ({
+    id: w.id,
+    name: w.name,
+    host: w.primary_host ?? null,
+    folders: w.id === settings.target.workspaceId ? ws.folders.map((f) => ({ id: f.id, name: f.name, path: f.path })) : undefined,
+  }));
 
   useEffect(() => {
-    getArtifactStatus().then(setStatus).catch(() => {});
-  }, [user]);
+    let cancelled = false;
+    setStatusError(false);
+    getArtifactStatus()
+      .then((s) => { if (!cancelled) setStatus(s); })
+      .catch(() => { if (!cancelled) setStatusError(true); });
+    return () => { cancelled = true; };
+  }, [user, statusTry]);
 
   // Restore a draft left behind by the sign-in prompt. consumePending() deletes
   // as it reads and ignores anything stale, so this fires at most once and a
@@ -104,9 +148,14 @@ export default function UploadArtifactPage() {
       setHtml(d.html);
       setFile(d.file);
       setTitle(d.title);
-      setCustomSlug(d.customSlug);
-      setExpiresIn(d.expiresIn as ExpiresIn);
-      setReadPassword(d.readPassword);
+      setSettings((s) => ({
+        ...s,
+        slug: d.customSlug,
+        password: d.readPassword || null,
+        expires: expiresFromApi(d.expiresIn, d.customExpiresAt),
+        access: d.accessLevel ?? s.access,
+        target: d.target ?? s.target,
+      }));
       // Anything they typed is theirs — don't let the filename prefill stomp it.
       setTitleTouched(true);
       setSlugTouched(true);
@@ -118,15 +167,13 @@ export default function UploadArtifactPage() {
     if (!f) return;
     // Video has its own ceiling; gating every type on the document limit would
     // refuse a recording the server would have accepted.
-    const isVideo = ["mp4", "mov", "webm", "ogv"].includes(
-      f.name.toLowerCase().split(".").pop() || ""
-    );
-    const cap = (isVideo && status?.max_video_bytes) || status?.max_file_bytes || 0;
+    const cap = (isVideo(f) && status?.max_video_bytes) || status?.max_file_bytes || 0;
     if (status && cap && f.size > cap) {
-      setError(`That file is ${formatBytes(f.size)} — the limit is ${formatBytes(cap)}.`);
+      setFileError(`That file is ${formatBytes(f.size)} — the limit is ${formatBytes(cap)}.`);
       return;
     }
-    setError("");
+    setFileError("");
+    setError(null);
     setFile(f);
     // Prefill from the filename so the published link reads like the file
     // instead of a random slug — but never overwrite something typed by hand.
@@ -135,26 +182,32 @@ export default function UploadArtifactPage() {
       const derived = slugifyFilename(f.name);
       // Under 3 chars the server would reject it; leave it blank and let the
       // server pick instead of showing an error on a field they never touched.
-      setCustomSlug(derived.length >= 3 ? derived : "");
+      setSettings((s) => ({ ...s, slug: derived.length >= 3 ? derived : "" }));
       setSlugError("");
     }
   }
 
-  function handleSlug(v: string) {
-    if (!SLUG_PATTERN.test(v)) return;
-    setSlugTouched(true);
-    setCustomSlug(v);
-    setSlugError(v && v.length < 3 ? "Minimum 3 characters" : "");
+  function onSettings(next: PublishSettingsValue, field: PublishField) {
+    if (field === "slug") {
+      if (!SLUG_PATTERN.test(next.slug)) return;
+      setSlugTouched(true);
+      setSlugError(next.slug && next.slug.length < 3 ? "Use at least 3 characters." : "");
+    }
+    setSettings(next);
   }
 
   async function publish() {
+    const { expiresIn, customExpiresAt } = toApiExpiry(settings.expires);
+    const accessLevel = settings.access;
+    const target = settings.target;
     if (!user) {
       // Google's flow navigates away and back, so hold everything they've
       // entered. Saved only here — pressing Publish is the one moment we know
       // the draft is worth keeping.
       await savePending({
-        tab, html, file, title, customSlug,
-        expiresIn, readPassword,
+        tab, html, file, title, customSlug: settings.slug,
+        expiresIn, readPassword: settings.password ?? "",
+        customExpiresAt: customExpiresAt ?? null, accessLevel, target,
       });
       openAuthModal({
         title: "Sign in to publish an artifact",
@@ -164,15 +217,17 @@ export default function UploadArtifactPage() {
       });
       return;
     }
-    if (customSlug && customSlug.length < 3) return setSlugError("Minimum 3 characters");
+    if (settings.slug && settings.slug.length < 3) return setSlugError("Use at least 3 characters.");
 
     setBusy(true);
-    setError("");
+    setError(null);
+    setSlugError("");
     setProgress(0);
     const opts = {
-      customSlug: customSlug || undefined,
-      expiresIn,
-      readPassword: readPassword || undefined,
+      customSlug: settings.slug || undefined,
+      expiresIn: expiresIn as ExpiresIn,
+      customExpiresAt,
+      readPassword: settings.password || undefined,
       accessLevel,
     };
     try {
@@ -183,381 +238,370 @@ export default function UploadArtifactPage() {
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);
       track("artifact_uploaded", { source: tab, access: accessLevel, workspace: !!target.workspaceId });
       // Share as a second step — see the same note in /new. The artifact is
-      // already published; a sharing failure must not read as an upload failure.
+      // already published; a sharing failure must not read as an upload failure,
+      // so it rides to the viewer on a flag and shows in the published panel.
       if (target.workspaceId && doc.id) {
         try {
           await shareToWorkspace(target.workspaceId, doc.id, target.folderId);
         } catch {
-          setError("Uploaded, but couldn't add it to the workspace. You can share it from your dashboard.");
+          try { sessionStorage.setItem(WS_FAIL_KEY(doc.slug), "1"); } catch {}
         }
       }
       router.push(`/${doc.slug}?new=1`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
+      const msg = e instanceof Error ? e.message : "";
       setBusy(false);
+      setProgress(0);
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setError({ tone: "warning", title: "You're offline", text: "Your file and settings are still here. Publish again when you're back online." });
+      } else if (/This URL is (already taken|reserved)/i.test(msg)) {
+        setSlugError(/reserved/i.test(msg) ? "That link is reserved. Choose another." : "That link is taken. Choose another.");
+      } else if (/rate limit|too many/i.test(msg)) {
+        setError({ tone: "warning", title: "Too many uploads in a short time", text: "Wait a minute, then publish again. Everything you picked is still here." });
+      } else {
+        setError({ tone: "danger", text: msg || "Something went wrong. Try again." });
+      }
     }
   }
 
   const canPublish = tab === "paste" ? html.trim().length > 0 : !!file;
-  const inputClass =
-    "w-full text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-gray-700 dark:text-gray-300 outline-none focus:border-blue-500 transition-colors";
-  const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5";
+  const limits = status
+    ? `Up to ${formatBytes(status.max_file_bytes)}` +
+      (status.max_video_bytes ? ` · ${formatBytes(status.max_video_bytes)} for video` : "")
+    : null;
+  const uploading = busy && tab === "upload" && progress < 100;
+  const linkUrl = { host: "markdrop.in", slug: settings.slug || "your-link" };
 
   if (status && !status.configured) {
     return (
-      <div className="max-w-lg mx-auto mt-16 text-center space-y-3">
-        <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Artifacts aren&apos;t enabled yet</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Artifact hosting is still being set up on this server. Markdown publishing works as normal
-          in the meantime.
-        </p>
-        <a href="/new" className="inline-block text-sm text-blue-500 hover:underline">
-          Publish markdown instead →
-        </a>
+      <div className="mx-auto flex w-full max-w-app flex-1 items-center justify-center py-16">
+        <EmptyState
+          icon="upload"
+          title="Artifacts aren't enabled yet"
+          description="Artifact hosting is still being set up on this server. Markdown publishing works as normal in the meantime."
+          actions={<Button href="/new" variant="primary" iconRight="arrowRight">Publish markdown instead</Button>}
+        />
       </div>
     );
   }
 
-  return (
-    <div className="max-w-3xl mx-auto w-full space-y-5 pb-10">
-      {/* Header */}
-      <div className="text-center sm:text-left">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400 ring-1 ring-orange-500/25">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-orange-500" />
-          </span>
-          Artifacts
+  const fileRow = file && (
+    <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-surface p-3 sm:flex-row sm:items-center sm:gap-3 sm:p-4">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-lg border border-border bg-surface-inset">
+          <FileIcon name={file.name} mime={file.type} size={24} />
         </span>
-        <h1 className="mt-3 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-          Publish a file, get a page
-        </h1>
-        <p className="mt-2 text-sm sm:text-base text-gray-500 dark:text-gray-400 max-w-xl mx-auto sm:mx-0">
-          Drop in a PDF, spreadsheet, Word doc or a zipped site — or paste raw HTML.
-          You get one link that <span className="text-gray-800 dark:text-gray-200 font-medium">renders</span> it,
-          instead of downloading it.
-        </p>
-      </div>
-
-      {/* Mode switch — a segmented control reads as a choice, where the old
-          underlined tabs read as navigation away from the page. */}
-      <div className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-gray-100/80 dark:bg-gray-900/60">
-        {([
-          { id: "upload" as Tab, label: "Upload a file", d: "M12 16V4m0 0L8 8m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" },
-          { id: "paste" as Tab, label: "Paste HTML", d: "M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2M9 4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1H9z" },
-        ]).map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            aria-pressed={tab === t.id}
-            className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-              tab === t.id
-                ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm"
-                : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-            }`}
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d={t.d} />
-            </svg>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "paste" ? (
-        <div className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-gray-50 dark:bg-[#0d1526]">
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-800 bg-white/60 dark:bg-white/[0.02]">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
-            <span className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
-            <span className="ml-2 text-[11px] font-mono text-gray-400">index.html</span>
-
-            {/* Edit and preview swap in place rather than sitting side by side,
-                so the editor keeps the full width. */}
-            <div className="ml-auto flex items-center gap-1 p-0.5 rounded-lg bg-gray-100 dark:bg-white/5">
-              {([
-                { id: false, label: "Edit" },
-                { id: true, label: "Preview" },
-              ]).map((m) => (
-                <button
-                  key={m.label}
-                  onClick={() => setPastePreview(m.id)}
-                  disabled={m.id && !html.trim()}
-                  aria-pressed={pastePreview === m.id}
-                  className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                    pastePreview === m.id
-                      ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm"
-                      : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-            <span className="text-[11px] tabular-nums text-gray-400">
-              {formatBytes(new Blob([html]).size)}
-            </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 dir="auto" className="m-0 min-w-0 truncate text-h4 text-text">{file.name}</h2>
+            {busy ? (
+              <Badge tone="info" size="sm" dot className="shrink-0">{uploading ? "Uploading" : "Publishing"}</Badge>
+            ) : (
+              <Badge tone="success" size="sm" icon="check" className="shrink-0">Ready</Badge>
+            )}
           </div>
-
-          {pastePreview ? (
-            // Taller than the editor: swapping in place means the preview isn't
-            // bound to the textarea's height, and a real page needs the room.
-            <div className="h-[34rem]">
-              <ArtifactPreview html={html} bare />
-            </div>
-          ) : (
-            <>
-              <textarea
-                value={html}
-                onChange={(e) => setHtml(e.target.value)}
-                placeholder={"<!doctype html>\n<html>\n  <body>\n    <h1>Hello</h1>\n  </body>\n</html>"}
-                spellCheck={false}
-                className="w-full h-72 font-mono text-xs bg-transparent p-4 outline-none text-gray-800 dark:text-gray-200 resize-none placeholder:text-gray-400/70"
-              />
-              {!html && (
-                <div className="px-4 pb-3 -mt-2">
-                  <button onClick={() => setHtml(SAMPLE)} className="text-xs text-blue-500 hover:underline">
-                    Insert a sample page
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+          <span className="text-caption text-text-muted">
+            {formatBytes(file.size)}
+            {describeFile(file) && ` · Will render as ${describeFile(file)}`}
+          </span>
         </div>
-      ) : (
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            pickFile(e.dataTransfer.files?.[0] ?? null);
-          }}
-          onClick={() => !file && fileInput.current?.click()}
-          className={`relative rounded-2xl border-2 border-dashed transition-all ${
-            dragging
-              ? "border-blue-500 bg-blue-50/60 dark:bg-blue-950/25 scale-[1.01]"
-              : file
-              ? "border-emerald-400/60 bg-emerald-50/40 dark:bg-emerald-950/15"
-              : "border-gray-300 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50/30 dark:hover:bg-blue-950/10 cursor-pointer"
-          }`}
-        >
-          <input
-            ref={fileInput}
-            type="file"
-            accept={ACCEPT}
-            hidden
-            onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-          />
+      </div>
+      {!busy && (
+        <div className="-ml-2 flex shrink-0 items-center gap-1 sm:ml-0">
+          <Button variant="ghost" size="sm" iconLeft="upload" className="max-sm:min-h-11" onClick={() => pickInput.current?.click()}>
+            Choose another
+          </Button>
+          <Button variant="ghost" size="sm" iconLeft="trash" className="max-sm:min-h-11" onClick={() => setFile(null)}>
+            Remove
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 
-          {file ? (
-            /* Selected state: confirm what was picked and how it will render,
-               so there's no doubt before publishing. */
-            <div className="p-5 sm:p-6 flex items-start gap-4">
-              <div className="shrink-0 grid place-items-center w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{file.name}</p>
-                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {formatBytes(file.size)}
-                  {describeFile(file) && <> · will render as <span className="font-medium">{describeFile(file)}</span></>}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); fileInput.current?.click(); }}
-                    className="px-2.5 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-800 transition-colors"
-                  >
-                    Choose another
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                    className="px-2.5 py-1 text-xs rounded-md text-gray-500 hover:text-red-500 transition-colors"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            </div>
+  const paper = previewIsPaper(tab === "paste" ? null : file, tab === "paste" ? html : undefined);
+  const preview = (
+    <section aria-labelledby="upload-preview" className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 id="upload-preview" className="m-0 text-h4 text-text">Preview</h2>
+        <span className="text-caption text-text-muted">
+          {busy ? "This is what readers will see at the link" : "Rendered here in your browser — nothing uploaded yet"}
+        </span>
+      </div>
+      <BrowserFrame
+        url={linkUrl}
+        urlIcon="globe"
+        title={title.trim() || undefined}
+        actions={<Badge size="sm" variant="outline">Not published</Badge>}
+        paper={paper}
+        bodyClassName="h-80 sm:h-[26rem]"
+        aria-label="Preview of the page"
+      >
+        {tab === "paste" ? <ArtifactPreview html={html} bare /> : <ArtifactPreview file={file} bare />}
+      </BrowserFrame>
+      {paper && (
+        <p className="m-0 flex items-start gap-1.5 text-caption text-text-muted">
+          <Icon name="info" size={14} className="mt-0.5 shrink-0" />
+          <span>Previewed in a sandboxed frame. Scripts in your page run with no access to Markdrop or your account.</span>
+        </p>
+      )}
+    </section>
+  );
+
+  const emptyPreview = (
+    <BrowserFrame url={linkUrl} urlIcon="globe" actions={<span className="text-caption text-text-muted">Preview</span>} bodyClassName="h-56 sm:h-64" aria-label="Where your file will render">
+      <div className="grid h-full place-items-center p-4">
+        <EmptyState icon="eye" title="Your file renders here" description="See it the way readers will, before anything uploads." />
+      </div>
+    </BrowserFrame>
+  );
+
+  const action = (
+    <div
+      className={cx(
+        "flex flex-col gap-3",
+        // Phones: one sticky dock at the bottom, above the home indicator (MobileCreate 4–5).
+        "fixed inset-x-0 bottom-0 z-(--z-sticky) border-t border-border bg-surface px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]",
+        "lg:static lg:z-auto lg:border-0 lg:bg-transparent lg:p-0",
+      )}
+    >
+      {busy && tab === "upload" && file && (
+        <div aria-live="polite" className="flex flex-col gap-1">
+          {uploading ? (
+            <Progress
+              value={progress}
+              showValue
+              label={`Uploading ${file.name}`}
+              valueText={`${progress}%`}
+            />
           ) : (
-            <div className="px-6 py-12 flex flex-col items-center text-center">
-              <div className={`grid place-items-center w-14 h-14 rounded-2xl mb-4 transition-colors ${
-                dragging ? "bg-blue-500/15 text-blue-500" : "bg-gray-100 dark:bg-gray-800 text-gray-400"
-              }`}>
-                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M12 16V4m0 0L8 8m4-4 4 4" />
-                  <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-                </svg>
-              </div>
-              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                {dragging ? "Drop it here" : "Drag a file here, or click to browse"}
-              </p>
-              <p className="mt-1 text-xs text-gray-400">
-                {status
-                  ? `Up to ${formatBytes(status.max_file_bytes)}` +
-                    (status.max_video_bytes ? ` · ${formatBytes(status.max_video_bytes)} for video` : "")
-                  : "\u00a0"}
-              </p>
-
-              <div className="mt-5 flex flex-wrap justify-center gap-1.5">
-                {FILE_KINDS.map((k) => (
-                  <span key={k.label} className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ${k.cls}`}>
-                    {k.label}
-                  </span>
-                ))}
-              </div>
-            </div>
+            <Progress
+              indeterminate
+              tone="success"
+              label={isZip(file) ? "Unpacking site…" : "Publishing…"}
+            />
+          )}
+          {uploading && (
+            <span className="text-caption tabular-nums text-text-muted">
+              {formatBytes((file.size * progress) / 100)} of {formatBytes(file.size)}. Keep this tab open until it finishes.
+            </span>
           )}
         </div>
       )}
+      <Button
+        variant="primary"
+        size="lg"
+        block
+        onClick={publish}
+        loading={busy}
+        disabled={!busy && !canPublish}
+        aria-disabled={busy || undefined}
+        iconRight={busy ? undefined : "arrowRight"}
+      >
+        {busy ? (uploading ? "Uploading…" : "Publishing…") : user || authLoading ? "Publish" : "Sign in and publish"}
+      </Button>
+      <p className="m-0 flex items-start gap-1.5 text-caption text-text-muted">
+        <Icon name="shield" size={14} className="mt-0.5 shrink-0" />
+        <span>
+          {canPublish ? "" : "Choose a file to publish. "}Rendered on a separate domain, so a published page can never reach your account.
+        </span>
+      </p>
+    </div>
+  );
 
-      {tab === "upload" && file && <ArtifactPreview file={file} />}
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-5 pb-40 lg:pb-10">
+      <input
+        ref={pickInput}
+        type="file"
+        accept={ACCEPT}
+        hidden
+        onChange={(e) => {
+          pickFile(e.target.files?.[0] ?? null);
+          e.target.value = "";
+        }}
+      />
 
-      {/* Options */}
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 sm:p-5 space-y-4">
-        {/* Renders nothing for anyone without a workspace they can publish into. */}
-        <PublishTarget value={target} onChange={setTarget} disabled={busy} />
-
-        {/* Who can open it, chosen here rather than only after publishing. */}
-        {user && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400">Who can open it</span>
-            <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              {([["link", "Anyone with the link"], ["private", "Only me"]] as const).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setAccessLevel(id)}
-                  className={`px-3 py-1.5 text-xs transition-colors disabled:opacity-50 ${
-                    accessLevel === id
-                      ? "bg-blue-500/15 text-blue-600 dark:text-blue-300"
-                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.05]"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <span className="text-[11px] text-gray-400">
-              Add specific people from Share once it&apos;s published.
-            </span>
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pt-2 sm:pt-6">
+        <div className="flex min-w-0 max-w-2xl flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-eyebrow uppercase text-text-muted">Artifacts</span>
+            <Badge tone="warning" size="sm" upper>New</Badge>
           </div>
-        )}
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => { setTitleTouched(true); setTitle(e.target.value); }}
-              placeholder="Untitled"
-              maxLength={200}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Link</label>
-            <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 focus-within:border-blue-500 transition-colors overflow-hidden">
-              <span className="pl-3 pr-0.5 text-xs text-gray-400 shrink-0 select-none">markdrop.in/</span>
-              <input
-                type="text"
-                value={customSlug}
-                onChange={(e) => handleSlug(e.target.value)}
-                placeholder="auto"
-                maxLength={50}
-                className="flex-1 min-w-0 bg-transparent py-2 pr-3 text-sm font-mono outline-none text-gray-700 dark:text-gray-300"
-              />
-            </div>
-            {slugError && <p className="mt-1 text-[11px] text-red-500">{slugError}</p>}
-          </div>
+          <h1 className="m-0 text-h1 text-text">Publish a file, get a page</h1>
+          <p className="m-0 text-body-lg text-text-secondary">
+            Drop in an HTML page, PDF, spreadsheet, Word doc, video or zipped site. You get one link that{" "}
+            <strong className="font-semibold text-text">renders</strong> it, instead of downloading it.
+          </p>
         </div>
+        <Button href="/new" variant="ghost" iconLeft="lines" className="hidden sm:inline-flex">
+          Write markdown instead
+        </Button>
+      </header>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Expiry</label>
-            <select
-              value={expiresIn}
-              onChange={(e) => setExpiresIn(e.target.value as ExpiresIn)}
-              className={`${inputClass} cursor-pointer`}
-            >
-              <option value="never">Never expires</option>
-              <option value="1d">Delete after 1 day</option>
-              <option value="7d">Delete after 7 days</option>
-              <option value="30d">Delete after 30 days</option>
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>
-              Password <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <input
-              type="password"
-              value={readPassword}
-              onChange={(e) => setReadPassword(e.target.value)}
-              placeholder="Anyone with the link can view"
-              maxLength={100}
-              className={inputClass}
-            />
-          </div>
-        </div>
-      </div>
-
-      {status && status.quota_bytes > 0 && (
-        <p className="text-xs text-gray-400">
-          {formatBytes(status.used_bytes)} of {formatBytes(status.quota_bytes)} storage used
-        </p>
+      {!authLoading && !user && (
+        <Alert tone="info" title="Artifacts need a free account">
+          Fill everything in — it&apos;ll still be here after you sign in.
+        </Alert>
       )}
 
       {restored && (
-        <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-xs text-emerald-700 dark:text-emerald-400">
-          <span>Signed in — everything you had is still here. Publish when you&apos;re ready.</span>
-          <button onClick={() => setRestored(false)} aria-label="Dismiss" className="shrink-0 opacity-60 hover:opacity-100">✕</button>
-        </div>
+        <Alert tone="success" live onDismiss={() => setRestored(false)}>
+          Signed in — everything you had is still here. Publish when you&apos;re ready.
+        </Alert>
       )}
 
-      {error && (
-        <div className="px-3 py-2 rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 text-xs text-red-600 dark:text-red-400">
-          {error}
-        </div>
+      {statusError && (
+        <Alert
+          tone="danger"
+          title="Couldn't reach Markdrop"
+          actions={<Button variant="secondary" size="sm" iconLeft="refresh" onClick={() => setStatusTry((n) => n + 1)}>Try again</Button>}
+        >
+          File limits and your storage didn&apos;t load. Check your connection and try again.
+        </Alert>
       )}
 
-      {busy && tab === "upload" && progress > 0 && progress < 100 && (
-        <div className="h-1 w-full bg-gray-200 dark:bg-gray-800 rounded overflow-hidden">
-          <div
-            className="h-full bg-blue-500 transition-all duration-200"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      )}
-
-      <div className="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 py-3 bg-gradient-to-t from-white via-white dark:from-gray-950 dark:via-gray-950 to-transparent">
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={publish}
-            disabled={busy || !canPublish}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-sm font-semibold text-white transition-colors shadow-sm shadow-blue-600/20"
-          >
-            {busy && <Spinner className="w-4 h-4" />}
-            {busy
-              ? progress > 0 && progress < 100
-                ? `Uploading ${progress}%`
-                : "Publishing…"
-              : "Publish"}
-            {!busy && (
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                <path fillRule="evenodd" d="M7.3 14.7a1 1 0 0 1 0-1.4L10.58 10 7.3 6.7a1 1 0 1 1 1.4-1.4l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4 0z" clipRule="evenodd" />
-              </svg>
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
+        {/* Left: the file and its preview. */}
+        <div className="flex min-w-0 flex-col gap-4 lg:col-span-7">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            {PASTE_TAB ? (
+              <Tabs
+                variant="pill"
+                size="sm"
+                aria-label="How to add your page"
+                value={tab}
+                onChange={(v) => setTab(v as Tab)}
+                items={[
+                  { value: "upload", label: "Upload a file", icon: "upload" },
+                  { value: "paste", label: "Paste HTML", icon: "code" },
+                ]}
+              />
+            ) : (
+              <span className="text-body-strong text-text">{tab === "paste" ? "Your page" : "Your file"}</span>
             )}
-          </button>
-          <p className="text-xs text-gray-400 max-w-xs">
-            Rendered on a separate domain, so a published page can never reach your account.
-          </p>
+            {limits && <span className="text-caption text-text-muted">{limits}</span>}
+          </div>
+
+          {tab === "paste" ? (
+            <>
+              <Field label="HTML" hint={`${formatBytes(new Blob([html]).size)} · Rendered on a separate domain when published.`}>
+                <Textarea
+                  mono
+                  rows={12}
+                  value={html}
+                  onChange={(e) => setHtml(e.target.value)}
+                  spellCheck={false}
+                  disabled={busy}
+                  placeholder={"<!doctype html>\n<html>\n  <body>\n    <h1>Hello</h1>\n  </body>\n</html>"}
+                />
+              </Field>
+              {html.trim() && preview}
+            </>
+          ) : file ? (
+            <>
+              {fileRow}
+              {preview}
+            </>
+          ) : (
+            <>
+              <DropZone
+                onFiles={(files) => pickFile(files[0] ?? null)}
+                accept={ACCEPT}
+                multiple={false}
+                art={isPhone ? "tile" : "fan"}
+                title="Drag a file here, or click to browse"
+                dragTitle="Drop to add it"
+                caption="One file per page. A zipped site opens at its index.html."
+                chooseLabel="Choose a file"
+                disabled={busy}
+                className="min-h-50 sm:min-h-60"
+              />
+              {fileError && (
+                <p role="alert" className="m-0 flex items-center gap-1.5 text-caption text-danger">
+                  <Icon name="alert" size={14} />
+                  {fileError}
+                </p>
+              )}
+              <section aria-labelledby="upload-kinds" className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <h2 id="upload-kinds" className="m-0 text-eyebrow uppercase text-text-muted">What you can publish</h2>
+                  <span className="text-caption text-text-muted">Each one renders in the browser, not as a download</span>
+                </div>
+                <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-4 xl:grid-cols-7">
+                  {KINDS.map((k) => (
+                    <li key={k.label} className="flex min-w-0 flex-col gap-1 rounded-lg border border-border bg-surface p-3">
+                      <FileIcon name={k.name} mime={k.mime} size={18} />
+                      <span className="text-body-strong text-text">{k.label}</span>
+                      <span className="text-caption text-text-muted">{k.note}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <div className="hidden lg:block">{emptyPreview}</div>
+            </>
+          )}
+          {file && fileError && (
+            <p role="alert" className="m-0 flex items-center gap-1.5 text-caption text-danger">
+              <Icon name="alert" size={14} />
+              {fileError}
+            </p>
+          )}
+        </div>
+
+        {/* Right: the publish card. Sticky on desktop. */}
+        <div className="min-w-0 lg:col-span-5">
+          <Card
+            className="lg:sticky lg:top-20"
+            title="Publish"
+            description={file || html.trim() ? "Settings for this link. Readers see the title in the tab." : "Fill these in now or after you pick a file."}
+          >
+            <div className="flex flex-col gap-5">
+              <Field label="Title" hint="Shown in the browser tab and in link previews.">
+                <Input
+                  value={title}
+                  onChange={(e) => { setTitleTouched(true); setTitle(e.target.value); }}
+                  placeholder="Taken from the file name"
+                  maxLength={200}
+                  dir="auto"
+                  disabled={busy}
+                />
+              </Field>
+
+              <PublishSettings
+                layout="rows"
+                eyebrow={null}
+                kind="page"
+                value={settings}
+                onChange={onSettings}
+                signedIn={!!user}
+                workspaces={workspaces}
+                fields={["slug", "target", "access", "password", "expires"]}
+                hostPrefix="markdrop.in/"
+                errors={slugError ? { slug: slugError } : undefined}
+                disabled={busy}
+              />
+
+              {user && status && status.quota_bytes > 0 && (
+                <Meter
+                  label="Storage"
+                  value={status.used_bytes}
+                  max={status.quota_bytes}
+                  threshold={0.9}
+                  meta={`${formatBytes(status.used_bytes)} of ${formatBytes(status.quota_bytes)} used`}
+                  valueText={`${formatBytes(status.used_bytes)} of ${formatBytes(status.quota_bytes)} storage used`}
+                />
+              )}
+
+              {error && (
+                <Alert tone={error.tone} title={error.title}>
+                  {error.text}
+                </Alert>
+              )}
+
+              {action}
+            </div>
+          </Card>
         </div>
       </div>
     </div>
