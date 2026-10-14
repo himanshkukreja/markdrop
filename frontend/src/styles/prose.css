@@ -166,6 +166,9 @@
 /* Images: never wider than the column. An image alone in its paragraph gets the frame
    (radius-lg + border hairline); inline badges in a row of text don't. */
 .md-prose :where(img):not(:where(.not-prose, .not-prose *)) { max-width: 100%; height: auto; }
+/* Tailwind's preflight makes every img a block; inline images (a README's row of badges) must stay
+   in the line. Only image-only paragraphs (.md-img-block) render as blocks. */
+.md-prose :where(p:not(.md-img-block), li, td, th) :where(img) { display: inline-block; vertical-align: middle; }
 .md-prose :where(.md-img-block) img { display: block; margin: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); }
 .md-prose :where(.md-img-block) a:has(> img) { display: inline-block; }
 
