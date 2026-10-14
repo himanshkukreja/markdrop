@@ -1,0 +1,110 @@
+/* AccessGate (REVAMP_PLAN 7.6 "Gates"; Auth board panels 3–4, MobileReading frames 5–7). */
+
+.gate {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 100%;
+  max-width: 440px;
+  margin-inline: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Fades in after 150ms: the anonymous render is gated for everyone, and a signed-in reader with
+   access is let in by the token retry within that window, so they never see the door flash. */
+.enter {
+  animation: gate-in var(--duration-panel) var(--ease-out) 150ms both;
+}
+
+@keyframes gate-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+
+/* Enough of a document to show there is one here, and not a line of it legible. */
+.ghost {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  opacity: 0.45;
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.ghost span {
+  display: block;
+  height: 12px;
+  border-radius: var(--radius-full);
+  background: var(--surface-active);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-10, 40px) var(--space-6);
+  text-align: center;
+}
+
+@media (max-width: 639px) {
+  .panel { padding: var(--space-8, 32px) var(--space-5); }
+}
+
+.glyph {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--accent-ring);
+  border-radius: var(--radius-xl);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 24px;
+}
+
+.glyphWarn {
+  border-color: var(--warning-soft);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.form {
+  display: flex;
+  width: 100%;
+  gap: var(--space-2);
+}
+
+@media (max-width: 479px) {
+  .form { flex-direction: column; }
+}
+
+.shake {
+  animation: gate-shake 280ms var(--ease-out);
+}
+
+@keyframes gate-shake {
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+.chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-3) 4px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter, .shake { animation: none; }
+}

@@ -3,7 +3,7 @@ import { getDocument, API_BASE } from "@/lib/api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ArtifactView from "./ArtifactView";
-import MarkdropLoader from "@/components/MarkdropLoader";
+import { MarkdropLoader } from "@/components/ui";
 import DocumentView from "./DocumentView";
 
 interface Props {
@@ -36,8 +36,8 @@ export async function generateStaticParams() {
  */
 function ViewerFallback() {
   return (
-    <div className="flex-1 min-h-[60vh] flex items-center justify-center">
-      <MarkdropLoader label="Opening document…" />
+    <div className="flex min-h-[60vh] flex-1 items-center justify-center">
+      <MarkdropLoader label="Opening document" delay={300} />
     </div>
   );
 }
@@ -47,7 +47,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Dynamic link-preview card, rendered server-side by the backend. The endpoint
   // is content-safe (generic card for password-protected / unknown slugs), so we
   // advertise it in both metadata branches.
-  const ogImage = `${API_BASE}/api/v1/og/${slug}.png`;
+  // `v` busts link-preview caches for the redesigned card (REVAMP_PLAN 7.21).
+  const ogImage = `${API_BASE}/api/v1/og/${slug}.png?v=3`;
   const images = [{ url: ogImage, width: 1200, height: 630, alt: "Markdrop" }];
   try {
     const doc = await getDocument(slug, undefined, undefined, { revalidate: 60 });
@@ -101,8 +102,13 @@ export default async function SlugPage({ params }: Props) {
       // with their token before showing anyone a door.
       isPasswordProtected = true;
       gate = "signin";
-    } else {
+    } else if (e instanceof Error && e.message === "Document not found") {
       notFound();
+    } else {
+      // F7: only a real 404 is "Nothing at this link". A 5xx or a network
+      // failure throws, so app/error.tsx renders and ISR keeps serving the last
+      // good copy instead of caching a 404 for a document that exists.
+      throw e;
     }
   }
 

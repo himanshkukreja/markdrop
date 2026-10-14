@@ -1,0 +1,64 @@
+/* Viewer-only motion and layers (REVAMP_PLAN 7.6, 6.2). Tokens only; every animation has a
+   reduced-motion rest state. */
+
+/* "Updated just now": drops in at the top centre with a mini drop. */
+.pill {
+  position: fixed;
+  top: calc(var(--space-16) * 2);
+  left: 50%;
+  z-index: var(--z-dropdown);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  transform: translateX(-50%);
+  animation: pill-drop var(--duration-panel) var(--ease-out) both;
+  pointer-events: none;
+}
+
+.pill :global(.md-icon) { color: var(--accent-text); }
+
+@keyframes pill-drop {
+  from { opacity: 0; transform: translate(-50%, -12px) scale(0.96); }
+}
+
+/* Immersive has no header, so the pill sits near the top edge there. */
+:global(.md-viewer-immersive) .pill { top: var(--space-6); z-index: var(--z-immersive); }
+
+/* A highlight, not motion: the wash fades out over 1.2s. */
+.changed {
+  border-radius: var(--radius-sm);
+  animation: changed-fade 1200ms var(--ease-out) both;
+}
+
+@keyframes changed-fade {
+  from { background-color: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft); }
+  to { background-color: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+
+/* The reading column morphs between immersive and framed (REVAMP_PLAN 6.2). */
+@supports (view-transition-name: none) {
+  .column { view-transition-name: reading-column; }
+}
+
+/* The gate-retry skeleton waits 150ms like the gate, so a quick token retry never flashes it. */
+.delayed {
+  animation: delayed-in var(--duration-fast) var(--ease-out) 150ms both;
+}
+
+@keyframes delayed-in {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill, .delayed { animation: none; }
+  .changedStatic { animation-duration: 1200ms; }
+}
