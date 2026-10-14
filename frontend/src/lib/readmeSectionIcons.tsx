@@ -1,9 +1,9 @@
 /**
- * Professional line-icon set for the Markdrop builder section catalog.
+ * Line-icon set for the Markdrop builder section catalog.
  *
- * Feather/Lucide-style strokes (24×24, `stroke: currentColor`, round joins) so
- * they read as serious UI glyphs — not emoji — and inherit the surrounding text
- * colour, adapting to light / dark / VS Code themes automatically.
+ * Drawn on the design system's icon grid (24×24, 1.8 stroke, `stroke: currentColor`, round joins,
+ * like `components/ui` Icon) so they read as UI glyphs, not emoji, and take the surrounding
+ * text colour in both themes. The builder puts them in a `--cat-builder` tile.
  *
  * Keyed by SectionTemplate `id`. Falls back to a generic document glyph.
  */
@@ -349,16 +349,22 @@ const GLYPHS: Record<string, ReactElement> = {
 export function SectionIcon({
   id,
   className = "w-4 h-4",
+  size,
 }: {
   id: string;
   className?: string;
+  /** Pixel size; when set it wins over the sizing in `className`. */
+  size?: number;
 }) {
   return (
     <svg
       viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      style={size ? { width: size, height: size, flex: "none" } : undefined}
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.75}
+      strokeWidth={1.8}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}

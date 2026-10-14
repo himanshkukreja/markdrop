@@ -1,0 +1,157 @@
+/* /builder: the few things utilities can't say. Tokens only; every motion has a reduced-motion rest state. */
+
+/* The 32px section glyph tile (MobileCreate frames 6–7). */
+.tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--cat-builder) 14%, transparent);
+  color: var(--cat-builder);
+}
+
+/* A section row in "Your README". */
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 4px 4px 4px 0;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+}
+.row:hover { border-color: var(--border-strong); }
+.row[data-selected] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+/* Being dragged: lifts (shadow-md, scale 1.02) above its neighbours. */
+.row[data-dragging] {
+  z-index: 2;
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent);
+  background: var(--surface-raised);
+  cursor: grabbing;
+}
+
+.grip {
+  flex: none;
+  color: var(--text-muted);
+  cursor: grab;
+  touch-action: none;
+}
+.row[data-dragging] .grip { color: var(--accent-text); }
+
+/* The row's select button: name fills the row so the whole middle is a target. */
+.select {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.select:focus-visible { outline-offset: -2px; }
+
+/* Catalog row ("Add a section"). */
+.add {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.add:hover { background: var(--surface-hover); }
+.add:focus-visible { outline-offset: -2px; }
+.add .plus { color: var(--text-muted); transition: color var(--duration-fast) var(--ease-out); }
+.add:hover .plus, .add:focus-visible .plus { color: var(--accent-text); }
+.add .tile { width: 28px; height: 28px; }
+.sheet .add { min-height: 52px; padding: 0 16px; border-radius: 0; gap: 12px; }
+.sheet .add .tile { width: 32px; height: 32px; }
+
+/* Group filter chips in the phone sheet: scroll sideways, never wrap. */
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 16px 12px;
+}
+.chips::-webkit-scrollbar { display: none; }
+
+/* The editor's textarea fills the EditorFrame body. */
+.textarea {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 16px;
+  box-sizing: border-box;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  caret-color: var(--accent-text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  tab-size: 2;
+}
+.textarea::placeholder { color: var(--text-muted); }
+
+/* Preview: a new section's highlight is an accent-soft background that fades over 600ms (a
+   highlight, not motion). Reduced motion gets a 1s static outline instead. */
+.section { border-radius: var(--radius-lg); }
+.section + .section { margin-top: 16px; }
+.flash { animation: builder-flash 600ms var(--ease-out); }
+@keyframes builder-flash {
+  from { background-color: var(--accent-soft); box-shadow: 0 0 0 8px var(--accent-soft); }
+  to { background-color: transparent; box-shadow: 0 0 0 8px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flash { animation: none; outline: 2px solid var(--accent); outline-offset: 6px; }
+}
+
+/* Phone: the sticky publish bar. */
+.dock {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-sticky);
+  margin: 0 -16px -16px;
+  padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+@media (min-width: 640px) {
+  .dock { margin: 0 -24px -16px; padding-left: 24px; padding-right: 24px; }
+}
+@media (min-width: 768px) {
+  /* Clear the feedback launcher in the bottom-right corner. */
+  .dock { padding-right: 76px; }
+}
