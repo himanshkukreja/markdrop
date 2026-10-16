@@ -1,6 +1,8 @@
 /**
  * First-party analytics: page views, engaged time and product events, sent to
- * our own API (backend/app/services/traffic.py) — no third party involved.
+ * our own API (backend/app/services/traffic.py). Product events are mirrored to
+ * PostHog and Google Analytics through lib/thirdPartyAnalytics, which applies
+ * its own redaction and consent rules.
  *
  * Identity: a random visitor id in localStorage, so returning visitors and
  * retention can be measured. A browser that sends Global Privacy Control or Do
@@ -12,6 +14,7 @@
  */
 import { redactPath } from "@/lib/analyticsPath";
 import { getToken } from "@/lib/api";
+import { captureThirdParty } from "@/lib/thirdPartyAnalytics";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.markdrop.in";
 const SESSION_IDLE_MS = 30 * 60 * 1000;
@@ -202,4 +205,5 @@ export function track(name: string, props?: Record<string, string | number | boo
   if (typeof window === "undefined") return;
   if (!started) trackPageview(location.pathname);
   enqueue({ k: "ev", n: name, p: currentPath ?? shape(location.pathname), props });
+  if (!trackingDisabled()) captureThirdParty(name, props);
 }

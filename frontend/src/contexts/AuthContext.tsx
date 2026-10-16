@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import { ApiError, fetchMe, getToken, setToken, clearToken, logoutRequest, MeUser } from "@/lib/api";
 import AuthModal from "@/components/AuthModal";
 import { track } from "@/lib/track";
+import { identifyUser, resetIdentity } from "@/lib/thirdPartyAnalytics";
 
 interface AuthModalOptions {
   next?: string;
@@ -62,6 +63,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refresh();
   }, [refresh]);
 
+  // Link this browser's analytics history to the account (PostHog/GA, consent permitting).
+  useEffect(() => {
+    if (user) identifyUser(user);
+  }, [user]);
+
   const login = useCallback(async (token: string, u?: MeUser) => {
     setToken(token);
     track("logged_in");
@@ -77,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await logoutRequest();
     clearToken();
     setUser(null);
+    resetIdentity();
   }, []);
 
   const updateUser = useCallback((u: MeUser) => setUser(u), []);

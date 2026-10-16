@@ -17,6 +17,7 @@ const GROUPS: { label: string; items: { id: Section; label: string; icon: string
   { label: "Insights", items: [
     { id: "overview", label: "Overview", icon: "chart" },
     { id: "health", label: "Product health", icon: "zap" },
+    { id: "journeys", label: "Journeys", icon: "history" },
   ] },
   { label: "Content", items: [
     { id: "documents", label: "Documents", icon: "doc" },
@@ -30,7 +31,7 @@ const GROUPS: { label: string; items: { id: Section; label: string; icon: string
 ];
 
 export const SECTION_LABEL: Record<Section, string> = {
-  overview: "Overview", health: "Product health", documents: "Documents", reports: "Reports",
+  overview: "Overview", health: "Product health", journeys: "Journeys", documents: "Documents", reports: "Reports",
   users: "Users", feedback: "Feedback", email: "Email",
 };
 

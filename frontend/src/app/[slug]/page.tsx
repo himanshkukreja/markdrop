@@ -116,6 +116,7 @@ export default async function SlugPage({ params }: Props) {
   // rather than as markdown, so they get their own viewer entirely.
   if (doc?.kind === "artifact") {
     return (
+      <div className="ph-no-capture contents">
       <Suspense fallback={<ViewerFallback />}>
       <ArtifactView
         slug={slug}
@@ -131,15 +132,20 @@ export default async function SlugPage({ params }: Props) {
         originalFilename={doc.original_filename ?? null}
         artifactUrl={doc.artifact_url ?? null}
         downloadUrl={doc.download_url ?? null}
+        docRef={doc.ref ?? null}
       />
       </Suspense>
+      </div>
     );
   }
 
   // A protected document 401s on the anonymous SSR fetch, so we can't yet tell
   // markdown from artifact. DocumentView handles the gate and re-renders once
   // it knows — see its `kind` check after unlock.
+  // ph-no-capture (display: contents, so layout is untouched): nothing on a document page is ever
+  // part of a session recording, even in the instant before recording pauses on navigation.
   return (
+    <div className="ph-no-capture contents">
     <Suspense fallback={<ViewerFallback />}>
     <DocumentView
       slug={slug}
@@ -154,7 +160,9 @@ export default async function SlugPage({ params }: Props) {
       isOwned={doc?.is_owned ?? false}
       syncedWithVscode={doc?.vscode_synced ?? false}
       encrypted={doc?.encrypted ?? false}
+      docRef={doc?.ref ?? null}
     />
     </Suspense>
+    </div>
   );
 }

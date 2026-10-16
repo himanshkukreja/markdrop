@@ -113,7 +113,7 @@ export function PublishedPanel(props: PublishedPanelProps) {
 
   if (compact) {
     return (
-      <section role="region" aria-labelledby={`${uid}-t`} className={[s.compact, className].filter(Boolean).join(" ")}>
+      <section role="region" aria-labelledby={`${uid}-t`} className={["ph-no-capture", s.compact, className].filter(Boolean).join(" ")}>
         <div className={s.compactHead}>
           <DropTile animate={animate} small />
           <H id={`${uid}-t`} className={s.compactTitle}>Published</H>
@@ -137,7 +137,7 @@ export function PublishedPanel(props: PublishedPanelProps) {
 
   const qrId = `${uid}-qr`;
   return (
-    <section aria-labelledby={`${uid}-t`} className={[s.published, className].filter(Boolean).join(" ")}>
+    <section aria-labelledby={`${uid}-t`} className={["ph-no-capture", s.published, className].filter(Boolean).join(" ")}>
       <div className={s.pubHead}>
         <span className={s.pubGlyph} aria-hidden><Icon name="checkCircle" /></span>
         <div className={s.pubHeading}>

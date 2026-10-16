@@ -72,6 +72,8 @@ class DocumentResponse(BaseModel):
     # Owner-only fields (null/false for everyone else) — power the Google Docs
     # sync button on the document page.
     id: str | None = None
+    # Opaque analytics reference (services/doc_ref.py), for every reader.
+    ref: str | None = None
     google_doc_url: str | None = None
     google_doc_stale: bool = False  # True when the doc changed since last export
     # Public provenance flag: published/synced from the VS Code extension.

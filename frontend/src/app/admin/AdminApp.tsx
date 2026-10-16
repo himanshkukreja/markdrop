@@ -14,6 +14,7 @@ import { FeedbackPanel } from "./FeedbackPanel";
 import { ProductHealthPanel } from "./ProductHealthPanel";
 import { UnauthorizedContext, readQuery, sectionFrom, writeQuery, type Section } from "./shared";
 import { UsersPanel } from "./UsersPanel";
+import JourneysPanel from "./journeys/JourneysPanel";
 
 type Phase = "init" | "login" | "app";
 
@@ -134,6 +135,9 @@ export default function AdminApp() {
               onChanged={refreshCounts}
             />
           );
+          break;
+        case "journeys":
+          page = <JourneysPanel token={token} />;
           break;
         case "users":
           page = <UsersPanel token={token} />;

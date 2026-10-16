@@ -27,8 +27,8 @@ export const relayPricingCopy = () =>
 
 // ── Sections and URL state ────────────────────────────────────────────────────
 
-export type Section = "overview" | "health" | "documents" | "reports" | "users" | "feedback" | "email";
-export const SECTIONS: Section[] = ["overview", "health", "documents", "reports", "users", "feedback", "email"];
+export type Section = "overview" | "health" | "journeys" | "documents" | "reports" | "users" | "feedback" | "email";
+export const SECTIONS: Section[] = ["overview", "health", "journeys", "documents", "reports", "users", "feedback", "email"];
 
 /** Old tab names (bookmarks from before the rail) map onto the new sections. */
 const ALIASES: Record<string, Section> = { analytics: "overview", docs: "documents", usage: "health" };

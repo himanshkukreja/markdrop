@@ -110,7 +110,7 @@ export function DocRow({
   const menuItems = [...statusHeader(statuses.slice(2)), ...menu];
 
   return (
-    <li className={cx("md-docrow", styles.row, riseDelay != null && styles.rise, "min-w-0")} style={style}>
+    <li className={cx("ph-no-capture md-docrow", styles.row, riseDelay != null && styles.rise, "min-w-0")} style={style}>
       <RowTile d={d} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 items-center gap-2">
