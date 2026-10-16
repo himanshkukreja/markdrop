@@ -6,7 +6,7 @@ import {
   Badge, Button, Drawer, Icon, IconButton, Progress, Select, Switch, Table, Tabs, Tag, Tooltip, type Column,
 } from "@/components/ui";
 import { setTrackingDisabled, trackingDisabled } from "@/lib/track";
-import { PageHead } from "../shared";
+import { PageHead, LoadingBlock } from "../shared";
 import { C, Sparkline, TableToggle, TrendChart, bucketLabel, compact, heat } from "./charts";
 import { RangePicker, rangeParams, rangeVs, useAdminFetch, type RangeValue } from "./controls";
 import { GrowthCard, type Growth } from "./sections";
@@ -530,7 +530,7 @@ function FunnelCard({ get, params, events, pages }: {
           <Button size="sm" variant="secondary" iconLeft="refresh" onClick={() => setN((x) => x + 1)}>Retry</Button>
         </div>
       ) : !res ? (
-        <div className="flex flex-col gap-3" aria-busy="true"><span className="md-visually-hidden">Loading</span>{steps.map((_, i) => <div key={i} className="md-skeleton h-9 rounded-md" />)}</div>
+        <LoadingBlock label="Loading the funnel" minHeight={steps.length * 48} />
       ) : (
         <ol className="flex flex-col gap-3">
           {res.steps.map((s, i) => (

@@ -1,10 +1,11 @@
 "use client";
 
 import { Fragment } from "react";
-import { Progress, Skeleton } from "@/components/ui";
+import { Progress } from "@/components/ui";
 import StatTile from "@/components/kit/StatTile";
 import { notConfigured, useJourneys, type FunnelStep, type NotConfigured, type PageRef, type PathsRes } from "./api";
-import { BarList, DaysPicker, NavLink, PageIcon, Panel, PhErrorState, fmtNum, fmtPct, pageName, pageSub, useDays } from "./bits";
+import { LoadingBlock } from "../shared";
+import { BarList, DaysPicker, NavLink, PageIcon, Panel, PhErrorState, StaleNotice, fmtNum, fmtPct, pageName, pageSub, useDays } from "./bits";
 import { SetupCard } from "./SetupCard";
 
 /**
@@ -14,7 +15,7 @@ import { SetupCard } from "./SetupCard";
  */
 export function PathsTab({ token }: { token: string }) {
   const { days } = useDays("7d");
-  const { data, error, loading, refresh } = useJourneys<PathsRes | NotConfigured>(token, "/paths", { days });
+  const { data, error, loading, refresh, stale } = useJourneys<PathsRes | NotConfigured>(token, "/paths", { days });
   if (notConfigured(data)) return <SetupCard status={data.status} compact />;
   const res = data as PathsRes | undefined;
   const top = res?.funnel[0]?.n ?? 0;
@@ -27,20 +28,23 @@ export function PathsTab({ token }: { token: string }) {
         <DaysPicker fallback="7d" />
       </div>
       {loading && res && <Progress indeterminate size="sm" aria-label="Updating paths" valueText="Loading" />}
+      <StaleNotice stale={stale} error={res ? error : null} />
 
       {error && !res ? (
         <PhErrorState error={error} onRetry={refresh} />
+      ) : !res ? (
+        <LoadingBlock size="md" label="Loading paths and the funnel" minHeight={480} />
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatTile size="md" label="Sessions" value={res ? fmtNum(res.sessions) : "—"} loading={!res} caption="with a page view" />
-            <StatTile size="md" label="People" value={res ? fmtNum(res.people) : "—"} loading={!res} caption="landed at least once" />
-            <StatTile size="md" label="Published" value={res ? fmtNum(published) : "—"} loading={!res} caption="a document, file or README" />
-            <StatTile size="md" label="Land → publish" value={res && top ? fmtPct(published / top) : "—"} loading={!res} caption="of people who landed" />
+            <StatTile size="md" label="Sessions" value={fmtNum(res.sessions)} caption="with a page view" />
+            <StatTile size="md" label="People" value={fmtNum(res.people)} caption="landed at least once" />
+            <StatTile size="md" label="Published" value={fmtNum(published)} caption="a document, file or README" />
+            <StatTile size="md" label="Land → publish" value={top ? fmtPct(published / top) : "—"} caption="of people who landed" />
           </div>
 
           <Panel eyebrow="Funnel" title="Landing → signed in" titleId="journeys-funnel">
-            {res ? <Funnel steps={res.funnel} /> : <Skeleton variant="rect" height={200} />}
+            <Funnel steps={res.funnel} />
             <p className="mt-3 font-mono text-micro text-text-muted">
               each step counts people who reached it after the one before · a creator is /new, /upload or /builder
             </p>
@@ -48,32 +52,26 @@ export function PathsTab({ token }: { token: string }) {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Panel eyebrow="Where sessions start" title="Entry pages">
-              {res ? (
-                <BarList
-                  label="Entry pages"
-                  limit={10}
-                  items={res.entries.map(({ page, n }) => ({
-                    key: page.key, label: pageName(page), hint: pageSub(page), value: n, icon: <PageIcon page={page} />,
-                    to: { jt: "pages", path: page.key },
-                  }))}
-                />
-              ) : <Skeleton variant="rect" height={240} />}
+              <BarList
+                label="Entry pages"
+                limit={10}
+                items={res.entries.map(({ page, n }) => ({
+                  key: page.key, label: pageName(page), hint: pageSub(page), value: n, icon: <PageIcon page={page} />,
+                  to: { jt: "pages", path: page.key },
+                }))}
+              />
             </Panel>
             <Panel eyebrow="Where sessions end" title="Exit pages">
-              {res ? (
-                <BarList
-                  label="Exit pages"
-                  limit={8}
-                  items={res.exits.map(({ page, n }) => ({ key: page.key, label: pageName(page), hint: pageSub(page), value: n, icon: <PageIcon page={page} /> }))}
-                />
-              ) : <Skeleton variant="rect" height={240} />}
+              <BarList
+                label="Exit pages"
+                limit={8}
+                items={res.exits.map(({ page, n }) => ({ key: page.key, label: pageName(page), hint: pageSub(page), value: n, icon: <PageIcon page={page} /> }))}
+              />
             </Panel>
           </div>
 
           <Panel eyebrow="First 4 pages of a session" title="Top paths" pad={false}>
-            {!res ? (
-              <div className="p-4"><Skeleton variant="rect" height={240} /></div>
-            ) : res.paths.length === 0 ? (
+            {res.paths.length === 0 ? (
               <p className="px-4 py-8 text-center font-mono text-caption text-text-muted">No multi-page sessions yet.</p>
             ) : (
               <ol className="divide-y divide-border">
@@ -94,7 +92,7 @@ export function PathsTab({ token }: { token: string }) {
               </ol>
             )}
           </Panel>
-          {res?.truncated && <p className="font-mono text-micro text-text-muted">computed from the first 50,000 events of this window · pick a shorter range for exact numbers</p>}
+          {res.truncated && <p className="font-mono text-micro text-text-muted">computed from the first 50,000 events of this window · pick a shorter range for exact numbers</p>}
         </>
       )}
     </div>

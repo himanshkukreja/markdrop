@@ -1,0 +1,25 @@
+/* Live section: a stream row that just arrived slides in and its edge glows for a moment. */
+
+.fresh {
+  animation: live-in 360ms var(--ease-out, cubic-bezier(0.2, 0.8, 0.2, 1)) both;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+@keyframes live-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+    background-color: var(--accent-soft);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fresh {
+    animation: none;
+  }
+}

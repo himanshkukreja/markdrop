@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Button, Input, Progress } from "@/components/ui";
 import { notConfigured, useJourneys, type NotConfigured, type RecordingsRes } from "./api";
-import { DaysPicker, FilterChips, PhErrorState, SkeletonRows, pageName, useDays, useNav } from "./bits";
+import { LoadingBlock } from "../shared";
+import { DaysPicker, FilterChips, PhErrorState, StaleNotice, pageName, useDays, useNav } from "./bits";
 import { RecordingList } from "./RecordingList";
 import { SetupCard } from "./SetupCard";
 
@@ -22,7 +23,7 @@ export function RecordingsTab({ token }: { token: string }) {
   useEffect(() => setPage(0), [state.path, state.who, days]);
   useEffect(() => setDraft(state.path && !state.path.startsWith("doc:") ? state.path : ""), [state.path]);
 
-  const { data, error, loading, refresh } = useJourneys<RecordingsRes | NotConfigured>(token, "/recordings", {
+  const { data, error, loading, refresh, stale } = useJourneys<RecordingsRes | NotConfigured>(token, "/recordings", {
     days,
     offset: page * PAGE,
     path: state.path || undefined,
@@ -70,11 +71,12 @@ export function RecordingsTab({ token }: { token: string }) {
         <p className="font-mono text-micro text-text-muted">Sessions that opened this document. The document itself is never recorded: the replay pauses while it&apos;s on screen.</p>
       )}
       {loading && res && <Progress indeterminate size="sm" aria-label="Updating recordings" valueText="Loading" />}
+      <StaleNotice stale={stale} error={res ? error : null} />
 
       {error && !res ? (
         <PhErrorState error={error} onRetry={refresh} />
       ) : !res ? (
-        <SkeletonRows n={6} height={74} label="Loading recordings" />
+        <LoadingBlock size="md" label="Loading recordings" minHeight={360} />
       ) : (
         <RecordingList
           token={token}

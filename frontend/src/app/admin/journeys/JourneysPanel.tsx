@@ -2,18 +2,15 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Badge, Button, Skeleton, Tabs, Tooltip } from "@/components/ui";
+import { Alert, Badge, Button, Tabs, Tooltip } from "@/components/ui";
 import { GA_ID, POSTHOG_KEY } from "@/lib/analyticsConfig";
-import { PageHead } from "../shared";
+import { LoadingBlock, PageHead } from "../shared";
 import { isPreview, useJourneys, type PhStatus } from "./api";
 import { NavContext, PhErrorState, SUBTABS, applyPatch, hrefFor, readState, type JState, type Nav, type Patch, type SubTab } from "./bits";
 import { SetupCard } from "./SetupCard";
 
 // Each view loads when it's first opened, so the rest of the admin doesn't carry Journeys.
-const loading = () => (
-  <div aria-busy="true"><span className="md-visually-hidden">Loading</span><Skeleton variant="rect" height={320} /></div>
-);
-const LiveTab = dynamic(() => import("./LiveTab").then((m) => m.LiveTab), { ssr: false, loading });
+const loading = () => <LoadingBlock size="md" label="Loading Journeys" minHeight={320} />;
 const PeopleTab = dynamic(() => import("./PeopleTab").then((m) => m.PeopleTab), { ssr: false, loading });
 const RecordingsTab = dynamic(() => import("./RecordingsTab").then((m) => m.RecordingsTab), { ssr: false, loading });
 const PathsTab = dynamic(() => import("./PathsTab").then((m) => m.PathsTab), { ssr: false, loading });
@@ -21,19 +18,19 @@ const PagesTab = dynamic(() => import("./PagesTab").then((m) => m.PagesTab), { s
 const PersonView = dynamic(() => import("./PersonView").then((m) => m.PersonView), { ssr: false, loading });
 
 const TAB_LABEL: Record<SubTab, { label: string; icon: string }> = {
-  live: { label: "Live", icon: "wave" },
   people: { label: "People", icon: "users" },
   recordings: { label: "Recordings", icon: "film" },
   paths: { label: "Paths & funnel", icon: "listTree" },
   pages: { label: "Pages & heatmaps", icon: "eye" },
 };
 
-const INITIAL: JState = { jt: "live", range: null, q: "", kind: "all", person: null, path: null, who: null };
+const INITIAL: JState = { jt: "people", range: null, q: "", kind: "all", person: null, path: null, who: null };
 
 /**
  * Admin → Journeys: who comes, what they read, where they click, and their session replays, read
  * from PostHog through our API. Documents appear by title and link (resolved from our database);
- * PostHog itself only ever saw an opaque reference. Sub-state lives in the URL
+ * PostHog itself only ever saw an opaque reference. What is happening right now is the Live
+ * section (`?tab=live`; an old `jt=live` link lands there). Sub-state lives in the URL
  * (`?tab=journeys&jt=people&range=30d&q=&kind=&person=&path=&who=`), read after mount.
  */
 export default function JourneysPanel({ token }: { token: string }) {
@@ -59,7 +56,7 @@ export default function JourneysPanel({ token }: { token: string }) {
 
   let body: React.ReactNode;
   if (!ready || (!status.data && !status.error)) {
-    body = <div aria-busy="true"><span className="md-visually-hidden">Loading Journeys</span><Skeleton variant="rect" height={256} /></div>;
+    body = <LoadingBlock size="md" label="Loading Journeys" minHeight={320} />;
   } else if (status.error && !status.data) {
     body = <PhErrorState error={status.error} onRetry={status.refresh} title="Couldn't reach the Journeys API" />;
   } else if (!status.data!.configured || (isPreview() && readQueryHas("setup"))) {
@@ -74,11 +71,10 @@ export default function JourneysPanel({ token }: { token: string }) {
           aria-label="Journeys sections"
           idPrefix="journeys"
           value={state.jt}
-          onChange={(v) => go({ jt: v === "live" ? null : v, person: null, path: null, q: null, who: null }, true)}
+          onChange={(v) => go({ jt: v === "people" ? null : v, person: null, path: null, q: null, who: null }, true)}
           items={SUBTABS.map((t) => ({ value: t, label: TAB_LABEL[t].label, icon: TAB_LABEL[t].icon }))}
         />
         <div role="tabpanel" id={`journeys-panel-${state.jt}`} aria-labelledby={`journeys-tab-${state.jt}`}>
-          {state.jt === "live" && <LiveTab token={token} />}
           {state.jt === "people" && <PeopleTab token={token} />}
           {state.jt === "recordings" && <RecordingsTab token={token} />}
           {state.jt === "paths" && <PathsTab token={token} />}

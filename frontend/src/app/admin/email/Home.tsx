@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Alert, Button, EmptyState, Icon, Skeleton, Tabs, cx } from "@/components/ui";
+import { Alert, Button, EmptyState, Icon, Tabs, cx } from "@/components/ui";
 import { StatTile } from "@/components/kit/StatTile";
-import { PageHead, plural } from "../shared";
+import { LoadingBlock, PageHead, plural } from "../shared";
 import type { CampaignStatus, CampaignSummary, Info, TemplatesResponse } from "./api";
 import { CampaignBadge, Section, TimeAgo, num, pct } from "./bits";
 import type { Navigate } from "./EmailSection";
@@ -148,10 +148,7 @@ function TemplatePicker({ meta, metaError, reloadMeta, navigate }: {
       {metaError ? (
         <Alert tone="danger" title="Couldn't load templates" actions={<Button size="sm" variant="secondary" iconLeft="refresh" onClick={reloadMeta}>Retry</Button>}>{metaError}</Alert>
       ) : !meta ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
-          <span className="md-visually-hidden">Loading templates</span>
-          {[0, 1, 2].map((i) => <Skeleton key={i} variant="rect" height={148} />)}
-        </div>
+        <LoadingBlock label="Loading templates" minHeight={148} />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {meta.templates.map((t, i) => (
@@ -232,7 +229,7 @@ export default function Home({ token, tab, info, infoError, meta, metaError, rel
           </div>
           <Section id="email-all" label="Campaigns" title="All campaigns">
             {!info ? (
-              <div className="flex flex-col gap-2" aria-busy="true"><span className="md-visually-hidden">Loading campaigns</span>{[0, 1, 2].map((i) => <Skeleton key={i} variant="rect" height={48} />)}</div>
+              <LoadingBlock label="Loading campaigns" minHeight={168} />
             ) : campaigns.length === 0 ? (
               <EmptyState icon="mail" title="No campaigns yet" description="Start one from a template below." />
             ) : (

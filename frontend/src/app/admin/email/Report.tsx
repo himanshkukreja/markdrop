@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Badge, Button, Disclosure, EmptyState, Input, SegmentedControl, Skeleton, Tooltip, useToast } from "@/components/ui";
+import { Alert, Badge, Button, Disclosure, EmptyState, Input, SegmentedControl, Tooltip, useToast } from "@/components/ui";
 import { StatTile } from "@/components/kit/StatTile";
 import { TrendChart } from "../analytics/charts";
-import { isUnauthorized, useOnUnauthorized } from "../shared";
+import { LoadingBlock, isUnauthorized, useOnUnauthorized } from "../shared";
 import { emailApi, type CampaignSummary, type MessageRow, type RecipientFilter, type Report as ReportData } from "./api";
 import { MessageBadge, Section, TimeAgo, exact, num, pct, saveBlob, useDebounced, usePoll } from "./bits";
 
@@ -100,7 +100,7 @@ function Recipients({ token, campaign, live }: { token: string; campaign: Campai
         <SegmentedControl<RecipientFilter> size="sm" aria-label="Filter recipients" value={filter} onChange={setFilter} options={FILTERS} />
       </div>
       <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Email or name" aria-label="Search recipients" prefix="search" wrapClassName="max-w-md" />
-      {error ? <Alert tone="danger">{error}</Alert> : !data ? <Skeleton variant="rect" height={160} /> : data.rows.length === 0 ? (
+      {error ? <Alert tone="danger">{error}</Alert> : !data ? <LoadingBlock label="Loading recipients" minHeight={160} /> : data.rows.length === 0 ? (
         <EmptyState icon="users" title="Nobody matches this filter" className="py-6" />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
@@ -224,7 +224,7 @@ export default function Report({ token, campaign }: { token: string; campaign: C
         <Section id="email-timeline" label="Over time" title={series === "opens" ? "First opens" : "First clicks"}
           actions={<SegmentedControl<"opens" | "clicks"> size="sm" aria-label="Series" value={series} onChange={setSeries}
             options={[{ value: "opens", label: "Opens" }, { value: "clicks", label: "Clicks" }]} />}>
-          {!data ? <Skeleton variant="rect" height={220} /> : data.timeline.points.length < 2 ? (
+          {!data ? <LoadingBlock label="Loading activity over time" minHeight={220} /> : data.timeline.points.length < 2 ? (
             <EmptyState icon="chart" title="Not enough time yet" description="The chart fills in as people open and click." className="py-6" />
           ) : (
             <TrendChart
@@ -239,7 +239,7 @@ export default function Report({ token, campaign }: { token: string; campaign: C
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Section id="email-links" label="Links" title="Clicks per link">
-          {!data ? <Skeleton variant="rect" height={120} /> : data.links.length === 0 ? (
+          {!data ? <LoadingBlock label="Loading link clicks" minHeight={120} /> : data.links.length === 0 ? (
             <EmptyState icon="link" title="No clicks yet" className="py-6" />
           ) : (
             <div className="overflow-x-auto rounded-lg border border-border">
@@ -266,7 +266,7 @@ export default function Report({ token, campaign }: { token: string; campaign: C
           )}
         </Section>
         <Section id="email-activity" label="Activity" title="Latest opens, clicks and unsubscribes">
-          {!data ? <Skeleton variant="rect" height={120} /> : data.events.length === 0 ? (
+          {!data ? <LoadingBlock label="Loading activity" minHeight={120} /> : data.events.length === 0 ? (
             <EmptyState icon="inbox" title="Nothing yet" description="Opens and clicks appear here as they happen." className="py-6" />
           ) : (
             <ul className="md-focus flex max-h-85 flex-col overflow-y-auto rounded-sm" tabIndex={0} aria-label="Latest activity">

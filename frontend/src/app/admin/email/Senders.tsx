@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert, Badge, Button, ConfirmDialog, Drawer, EmptyState, Field, IconButton, Input, Skeleton, Switch, Textarea, useToast,
+  Alert, Badge, Button, ConfirmDialog, Drawer, EmptyState, Field, IconButton, Input, Switch, Textarea, useToast,
 } from "@/components/ui";
 import { CopyButton } from "@/components/ui";
-import { isUnauthorized, plural, useOnUnauthorized } from "../shared";
+import { LoadingBlock, isUnauthorized, plural, useOnUnauthorized } from "../shared";
 import { emailApi, type DomainsInfo, type Info, type Sender, type Suppression } from "./api";
 import { CheckBadge, Facts, Section, TimeAgo, num } from "./bits";
 
@@ -107,7 +107,7 @@ function Suppressions({ token }: { token: string }) {
         {data && <Badge tone="neutral" variant="outline" size="sm" className="tabular-nums">{plural(data.unsubscribed_accounts, "account")} opted out</Badge>}
       </div>
       <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search an address" aria-label="Search suppressions" prefix="search" wrapClassName="mb-3 max-w-md" />
-      {error ? <Alert tone="danger">{error}</Alert> : !data ? <Skeleton variant="rect" height={80} /> : data.rows.length === 0 ? (
+      {error ? <Alert tone="danger">{error}</Alert> : !data ? <LoadingBlock label="Loading suppressions" minHeight={120} /> : data.rows.length === 0 ? (
         <EmptyState icon="inbox" title={q ? "No match" : "Nobody suppressed"} className="py-6" />
       ) : (
         <ul className="md-focus flex max-h-80 flex-col overflow-y-auto rounded-lg border border-border" tabIndex={0} aria-label="Suppressed addresses">
@@ -219,7 +219,7 @@ export default function Senders({ token, info, onChanged }: { token: string; inf
           actions={setup ? (setup.transport === "resend"
             ? <Badge tone="success" icon="check">Configured</Badge>
             : <Badge tone="warning" icon="alert">Console · not sending</Badge>) : undefined}>
-          {!setup ? <Skeleton variant="rect" height={96} /> : (
+          {!setup ? <LoadingBlock label="Checking the email setup" minHeight={120} /> : (
             <div className="flex flex-col gap-3">
               <Facts items={[
                 { label: "API", value: setup.transport === "resend" ? "api.resend.com · batch API" : "MARKDROP_RESEND_API_KEY isn't set" },
@@ -238,7 +238,7 @@ export default function Senders({ token, info, onChanged }: { token: string; inf
         </Section>
         <Section id="email-webhooks" label="Delivery events" title="Resend webhook"
           actions={setup ? (setup.webhooks ? <Badge tone="success" icon="check">On</Badge> : <Badge tone="neutral">Off</Badge>) : undefined}>
-          {!setup ? <Skeleton variant="rect" height={96} /> : (
+          {!setup ? <LoadingBlock label="Checking the email setup" minHeight={120} /> : (
             <div className="flex flex-col gap-3 text-body text-text-secondary">
               <p>
                 Deliveries, bounces and complaints come from Resend webhooks. Hard bounces and complaints are suppressed automatically.
@@ -261,7 +261,7 @@ export default function Senders({ token, info, onChanged }: { token: string; inf
 
       <Section id="email-senders" label="Senders" title="From addresses"
         actions={<Button size="sm" iconLeft="plus" onClick={() => { setForm(EMPTY); setError(null); setOpen(true); }}>Add sender</Button>}>
-        {!senders ? <Skeleton variant="rect" height={96} /> : (
+        {!senders ? <LoadingBlock label="Loading senders" minHeight={120} /> : (
           <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
             {senders.map((s) => (
               <li key={s.id} className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3">

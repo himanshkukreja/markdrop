@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StatTile } from "@/components/kit/StatTile";
-import { Alert, Button, FileIcon, Pagination, Progress, Skeleton, Switch, Table, type Column } from "@/components/ui";
+import { Alert, Button, FileIcon, Pagination, Progress, Switch, Table, type Column } from "@/components/ui";
 import { adminFeatureUsage, adminListShareEvents, type AdminShareEventItem, type FeatureUsage } from "@/lib/api";
 import { RangePicker, rangeParams, useAdminFetch, type RangeValue } from "./analytics/controls";
 import { BarList, ShareHealthCard, type Shares } from "./analytics/sections";
 import { Card, CardError, CardSkeleton, CardTitle } from "./analytics/ui";
-import { PageHead, bytes, fmtDateTime, iconRenderer, isUnauthorized, plural, useOnUnauthorized } from "./shared";
+import { PageHead, bytes, fmtDateTime, iconRenderer, isUnauthorized, plural, useOnUnauthorized, LoadingBlock } from "./shared";
 
 /**
  * Product health (D29): the old "Feature usage" tab merged with the file-sharing health card.
@@ -132,7 +132,7 @@ function ShareLog({ token }: { token: string }) {
       {error ? (
         <Alert tone="danger" actions={<Button size="sm" variant="secondary" iconLeft="refresh" onClick={load}>Retry</Button>}>Couldn&apos;t load the share log.</Alert>
       ) : !rows ? (
-        <div className="flex flex-col gap-2" aria-busy="true"><span className="md-visually-hidden">Loading</span>{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} variant="rect" height={44} />)}</div>
+        <LoadingBlock label="Loading the share log" minHeight={220} />
       ) : (
         <>
           <Table compact hover={false} columns={cols} rows={rows} rowKey={(e) => e.id} caption="File share log"

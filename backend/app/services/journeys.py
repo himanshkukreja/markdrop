@@ -14,6 +14,7 @@ ref to the document's title and link from our own database. A ref is only truste
 import asyncio
 import json
 import re
+import time
 from collections import Counter
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
@@ -406,9 +407,19 @@ def _iso(v: Any) -> str | None:
     return str(v)
 
 
+def props_pick(raw: Any) -> dict:
+    """The EVENT_PROPS of an event's whole `properties` (a JSON string from HogQL)."""
+    props = _parse_props(raw)
+    return {k: props[k] for k in EVENT_PROPS if props.get(k) not in (None, "")}
+
+
 async def _timeline_rows(rows: list[dict], pages: Pages) -> list[dict]:
-    """Shared by the live stream and a person's timeline: rows → described events."""
-    parsed = [(r, props_from(r)) for r in rows]
+    """A person's timeline: rows with `p{i}` property columns → described events."""
+    return await _describe_parsed([(r, props_from(r)) for r in rows], pages)
+
+
+async def _describe_parsed(parsed: list[tuple[dict, dict]], pages: Pages) -> list[dict]:
+    """Shared by the live stream and a person's timeline: (row, props) → described events."""
     keys = {event_page_key(r["event"], p) for r, p in parsed}
     refs = {str(p["doc_ref"]) for _, p in parsed if p.get("doc_ref") and p.get("$pathname") == "/[slug]"}
     await pages.load(keys, refs)
@@ -432,59 +443,346 @@ async def _timeline_rows(rows: list[dict], pages: Pages) -> list[dict]:
 
 
 # ── Live ─────────────────────────────────────────────────────────────────────
+#
+# One poll answers the whole Live section (GET /live/feed): who is active (sessions with an event
+# in the last 30 minutes), what each is doing, the pages people are on, and the newest events.
+# It costs two small HogQL queries and, every 30 s at most, one recordings list:
+#   * live_sessions: the last 30 minutes grouped by session, from cheap columns only (no whole
+#     `properties` read: ~5 MB on the real project against ~20 MB with it). KPIs and "on page
+#     now" are derived from it;
+#   * live_stream: only events newer than the previous fetch (minus STREAM_OVERLAP_S for late
+#     arrivals), merged into a rolling buffer of the last 30 minutes shared by every admin
+#     (~3 MB a poll). Each session's last action, current document and place come from it.
+# The assembled feed is cached for FEED_TTL and shared across admins; each admin's `since` cursor
+# only filters the buffered stream. Live queries pass refresh="force_blocking": PostHog's own
+# cache would otherwise hand back an answer several minutes old.
+# The old /live stream scanned 24 hours of ~40 properties every 15 s (~64 MB a poll).
 
-STREAM_HEAD = (
-    "toString(uuid) AS uuid, event, timestamp, elements_chain AS chain, toString(person_id) AS person_id, "
-    "distinct_id, person.properties.email AS email, person.properties.name AS name"
+LIVE_WINDOW_MIN = 30
+LIVE_NOW_MIN = 5
+LIVE_SESSIONS = 100
+STREAM_KEEP = 400
+STREAM_OVERLAP_S = 180
+STREAM_PAGE = 60
+FEED_TTL = 8.0
+LIVE_RECORDINGS_TTL = 30.0
+
+# A session: posthog-js's $session_id, else the visitor (cookieless events carry no session).
+SESSION_KEY = (
+    "if(notEmpty(toString(properties.$session_id)), toString(properties.$session_id), "
+    "concat('d:', toString(distinct_id)))"
 )
 
 
-async def live(resolve: DocResolver) -> dict:
-    nl = not_local()
-    count_q = ph.hogql(
-        f"SELECT count(DISTINCT person_id) AS n FROM events WHERE timestamp > now() - INTERVAL 5 MINUTE AND {nl}",
-        name="live_count", ttl=10,
+def _dt(v: Any) -> datetime | None:
+    if isinstance(v, datetime):
+        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+    if not v:
+        return None
+    try:
+        d = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+async def _live_sessions() -> list[dict]:
+    return await ph.hogql(
+        f"""
+        SELECT {SESSION_KEY} AS sid,
+            toString(argMax(person_id, timestamp)) AS person_id,
+            argMax(distinct_id, timestamp) AS did,
+            any(person.properties.email) AS email,
+            any(person.properties.name) AS name,
+            min(timestamp) AS first_t,
+            max(timestamp) AS last_t,
+            count() AS n,
+            countIf(timestamp > now() - INTERVAL {LIVE_NOW_MIN} MINUTE) AS n_now,
+            countIf(event = '$pageview') AS pv,
+            argMaxIf(toString(properties.$pathname), timestamp, event = '$pageview') AS path,
+            argMax(toString(uuid), timestamp) AS last_id,
+            argMax(event, timestamp) AS last_event
+          FROM events
+          WHERE timestamp > now() - INTERVAL {LIVE_WINDOW_MIN} MINUTE AND event NOT IN {NOISE_SQL} AND {not_local()}
+          GROUP BY sid
+          ORDER BY last_t DESC
+          LIMIT {LIVE_SESSIONS}
+        """,
+        name="live_sessions",
+        ttl=FEED_TTL,
+        refresh="force_blocking",
     )
-    pages_q = ph.hogql(
-        f"""SELECT {PATH_KEY} AS path, count(DISTINCT person_id) AS n FROM events
-            WHERE event = '$pageview' AND timestamp > now() - INTERVAL 5 MINUTE AND {nl}
-            GROUP BY path ORDER BY n DESC LIMIT 10""",
-        name="live_pages", ttl=10,
+
+
+# The rolling stream buffer: uuid → row (with `_t` parsed and `_p` picked properties); `fetched`
+# is when the last successful fetch started, `at` its wall-clock time (the stale age).
+_stream: dict[str, Any] = {"rows": {}, "fetched": None, "at": 0.0}
+
+
+def reset_stream() -> None:
+    _stream.update({"rows": {}, "fetched": None, "at": 0.0})
+
+
+async def _refresh_stream() -> None:
+    """Fetch the events since the previous fetch (minus an overlap) and merge them in."""
+    now = datetime.now(timezone.utc)
+    floor = now - timedelta(minutes=LIVE_WINDOW_MIN)
+    prev: datetime | None = _stream["fetched"]
+    lo = max(floor, prev - timedelta(seconds=STREAM_OVERLAP_S)) if prev else floor
+    rows = await ph.hogql(
+        f"""SELECT toString(uuid) AS uuid, event, timestamp, elements_chain AS chain,
+                toString(person_id) AS person_id, distinct_id, properties
+            FROM events
+            WHERE timestamp > toDateTime({{lo}}, 'UTC') AND timestamp > now() - INTERVAL {LIVE_WINDOW_MIN} MINUTE
+              AND event NOT IN {NOISE_SQL} AND {not_local()}
+            ORDER BY timestamp DESC
+            LIMIT {STREAM_KEEP}""",
+        {"lo": lo.strftime("%Y-%m-%d %H:%M:%S")},
+        name="live_stream",
+        ttl=1,
+        refresh="force_blocking",
+        keep=False,  # the text changes every call; the buffer itself is the fallback
     )
-    stream_q = ph.hogql(
-        f"""SELECT {STREAM_HEAD}, {event_props_select()} FROM events
-            WHERE timestamp > now() - INTERVAL 1 DAY AND event NOT IN {NOISE_SQL} AND {nl}
-            ORDER BY timestamp DESC LIMIT 60""",
-        name="live_stream", ttl=10,
-    )
-    count, live_pages, stream = await asyncio.gather(count_q, pages_q, stream_q)
+    buf: dict[str, dict] = _stream["rows"]
+    for r in rows:
+        t = _dt(r.get("timestamp"))
+        if not t or not r.get("uuid"):
+            continue
+        r["_t"] = t
+        r["_p"] = props_pick(r.pop("properties", None))
+        buf[r["uuid"]] = r
+    keep = sorted((r for r in buf.values() if r["_t"] > floor), key=lambda r: r["_t"], reverse=True)[:STREAM_KEEP]
+    _stream["rows"] = {r["uuid"]: r for r in keep}
+    _stream["fetched"] = now
+    _stream["at"] = time.time()
+
+
+async def _stream_now() -> None:
+    """Refresh the buffer; when PostHog fails, keep serving it and say how old it is."""
+    try:
+        await _refresh_stream()
+    except ph.PostHogError as e:
+        if not e.stale_ok:
+            raise
+        # Nothing buffered yet: the sessions still answer; the stream fills in on a later poll.
+        ph.note_stale(_stream["at"] or time.time(), e.reason)
+
+
+def _rec_brief(r: dict) -> dict:
+    return {
+        "id": r.get("id"),
+        "ongoing": bool(r.get("ongoing")),
+        "start": r.get("start_time"),
+        "end": r.get("end_time"),
+        "duration": int(r.get("recording_duration") or 0),
+        "app_url": ph.app_url(f"/replay/{r.get('id')}"),
+    }
+
+
+async def _live_recordings(sids: list[str]) -> tuple[dict[str, dict], dict | None]:
+    """Recordings of the active sessions (recording id == $session_id), from the REST list. The
+    id set changes only when sessions come and go, so the cache key is stable between polls."""
+    ids = sorted(s for s in sids if is_uuid(s))[:50]
+    if not ids:
+        return {}, None
+    try:
+        data = await ph.list_recordings(
+            {"session_ids": json.dumps(ids), "limit": 50, "date_from": "-1d"}, ttl=LIVE_RECORDINGS_TTL
+        )
+    except ph.PostHogError as e:
+        return {}, {"error": e.message, "scope": e.scope}
+    out = {}
+    for r in data.get("results") or []:
+        if isinstance(r, dict) and r.get("id"):
+            out[str(r["id"])] = _rec_brief(r)
+    return out, None
+
+
+def _stream_sid(r: dict) -> str:
+    sid = r["_p"].get("$session_id")
+    return str(sid) if sid else f"d:{r.get('distinct_id')}"
+
+
+def _session_page_key(path: str | None, mine: list[dict]) -> tuple[str | None, dict]:
+    """A session's current page: its newest buffered page view, else the route of its last page
+    view (a document's ref recovered from any of its buffered events on that route)."""
+    pv = next((x for x in mine if x["event"] == "$pageview"), None)
+    if pv:
+        return event_page_key("$pageview", pv["_p"]), pv["_p"]
+    if not path:
+        return None, {}
+    if path == "/[slug]":
+        doc = next((x for x in mine if x["_p"].get("$pathname") == "/[slug]" and x["_p"].get("doc_ref")), None)
+        if doc:
+            return f"doc:{doc['_p']['doc_ref']}", doc["_p"]
+    return path, {}
+
+
+async def _build_feed(resolve: DocResolver) -> dict:
+    notes = ph.track_stale()  # this task's own list: what the feed stood in for travels with it
+    session_rows, _ = await asyncio.gather(_live_sessions(), _stream_now())
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(minutes=LIVE_WINDOW_MIN)
+    now_cut = now - timedelta(minutes=LIVE_NOW_MIN)
+
+    rec_by_sid, rec_error = await _live_recordings([str(r.get("sid") or "") for r in session_rows])
+
+    buffered: dict[str, dict] = _stream["rows"]
+    stream_rows = sorted(buffered.values(), key=lambda r: r["_t"], reverse=True)
+    by_sid: dict[str, list[dict]] = {}
+    for r in stream_rows:
+        by_sid.setdefault(_stream_sid(r), []).append(r)
+
     pages = Pages(resolve)
-    await pages.load({r["path"] for r in live_pages})
+    current = {}
+    for r in session_rows:
+        sid = str(r.get("sid") or "")
+        current[sid] = _session_page_key(r.get("path") or None, by_sid.get(sid, []))
+    await pages.load({k for k, _ in current.values()} | {r.get("path") for r in session_rows})
+    described = {e["id"]: e for e in await _describe_parsed([(r, r["_p"]) for r in stream_rows], pages)}
+
+    sessions: list[dict] = []
+    by_person: dict[str, dict] = {}
+    by_distinct: dict[str, dict] = {}
+    for r in session_rows:
+        sid = str(r.get("sid") or "")
+        first, last = _dt(r.get("first_t")), _dt(r.get("last_t"))
+        if not last:
+            continue
+        mine = by_sid.get(sid, [])
+        last_row = buffered.get(str(r.get("last_id") or "")) or (mine[0] if mine else None)
+        if last_row:
+            d = described[last_row["uuid"]]
+            last_ev = {k: d[k] for k in ("id", "t", "event", "kind", "label", "detail", "page")}
+        else:
+            # Older than the buffer holds (a very busy half hour): the event name and route only.
+            path = r.get("path") or None
+            pg = pages.page(path)
+            ev = str(r.get("last_event") or "")
+            last_ev = {"id": r.get("last_id"), "t": _iso(last), "event": ev,
+                       **describe(ev, {"$pathname": path} if path else {}, None, pg), "page": pg}
+        geo = next((x["_p"] for x in mine if x["_p"].get("$geoip_country_code") or x["_p"].get("$device_type")), {})
+        page_key, page_p = current.get(sid, (None, {}))
+        rec = rec_by_sid.get(sid)
+        started, truncated = first, bool(first and first - window_start < timedelta(seconds=45))
+        rec_start = _dt(rec.get("start")) if rec else None
+        if rec_start and (not started or rec_start < started):
+            started, truncated = rec_start, False
+        row = {
+            "id": sid,
+            "person_id": r.get("person_id") or None,
+            "distinct_id": r.get("did"),
+            "who": who_of(r.get("email"), r.get("name"), r.get("did"), r.get("person_id")),
+            "identified": bool(r.get("email")),
+            "email": r.get("email") or None,
+            "name": r.get("name") or None,
+            "country": geo.get("$geoip_country_code"),
+            "city": geo.get("$geoip_city_name"),
+            "device": geo.get("$device_type"),
+            "browser": geo.get("$browser"),
+            "started": _iso(started),
+            "started_before_window": truncated,
+            "last_seen": _iso(last),
+            "events": int(r.get("n") or 0),
+            "events_now": int(r.get("n_now") or 0),
+            "pageviews": int(r.get("pv") or 0),
+            "page": pages.page(page_key, kind=page_p.get("doc_kind"), access=page_p.get("doc_access")) if page_key else None,
+            "last": last_ev,
+            "recording": rec,
+        }
+        sessions.append(row)
+        if row["person_id"]:
+            by_person.setdefault(row["person_id"], row)
+        if row["distinct_id"]:
+            by_distinct.setdefault(str(row["distinct_id"]), row)
+
     events = []
-    for e, r in zip(await _timeline_rows(stream, pages), stream):
+    for r in stream_rows:
+        e = dict(described[r["uuid"]])
         p = e.pop("_p")
+        s = by_person.get(r.get("person_id") or "") or by_distinct.get(str(r.get("distinct_id") or ""))
+        who = (
+            {"who": s["who"], "identified": s["identified"]}
+            if s
+            else {"who": who_of(None, None, r.get("distinct_id"), r.get("person_id")), "identified": False}
+        )
         events.append(
             {
                 **e,
-                "person_id": r.get("person_id"),
-                "who": who_of(r.get("email"), r.get("name"), r.get("distinct_id"), r.get("person_id")),
-                "identified": bool(r.get("email")),
+                "person_id": r.get("person_id") or None,
+                **who,
                 "country": p.get("$geoip_country_code"),
                 "city": p.get("$geoip_city_name"),
                 "device": p.get("$device_type"),
             }
         )
+
+    on_now = [s for s in sessions if (_dt(s["last_seen"]) or now) >= now_cut]
+    page_people: dict[str, set[str]] = {}
+    page_objs: dict[str, dict] = {}
+    for s in on_now:
+        if s["page"]:
+            page_people.setdefault(s["page"]["key"], set()).add(s["person_id"] or s["id"])
+            page_objs[s["page"]["key"]] = s["page"]
+    on_page = sorted(
+        ({"page": page_objs[k], "n": len(v)} for k, v in page_people.items()), key=lambda x: (-x["n"], x["page"]["key"])
+    )[:12]
+
     return {
         "configured": True,
-        "live": int((count[0] if count else {}).get("n") or 0),
-        "pages": [{"page": pages.page(r["path"]), "n": int(r["n"])} for r in live_pages if r.get("path")],
+        "as_of": now.isoformat(),
+        "window_min": LIVE_WINDOW_MIN,
+        "now_min": LIVE_NOW_MIN,
+        "counts": {
+            "visitors_now": len({s["person_id"] or s["id"] for s in on_now}),
+            "sessions": len(sessions),
+            "events_now": sum(s["events_now"] for s in sessions),
+            "pageviews": sum(s["pageviews"] for s in sessions),
+            "capped": len(session_rows) >= LIVE_SESSIONS,
+        },
+        "sessions": sessions,
+        "pages": on_page,
         "events": events,
+        "recordings_error": rec_error,
+        "_stale_notes": list(notes),
+    }
+
+
+async def _feed(resolve: DocResolver) -> dict:
+    return await ph.cached("live:feed", FEED_TTL, lambda: _build_feed(resolve), keep=False)
+
+
+async def live_feed(resolve: DocResolver, since: datetime | None) -> dict:
+    """The Live section's poll. `since` (the previous answer's `cursor`) trims the stream to what
+    is new, with STREAM_OVERLAP_S of overlap for late arrivals (the console dedupes by id)."""
+    feed = await _feed(resolve)
+    events = feed["events"]
+    if since:
+        cut = since - timedelta(seconds=STREAM_OVERLAP_S)
+        events = [e for e in events if (_dt(e["t"]) or cut) > cut][:STREAM_KEEP]
+    else:
+        events = events[:STREAM_PAGE]
+    cursor = feed["events"][0]["t"] if feed["events"] else (since.isoformat() if since else None)
+    return {**feed, "events": events, "cursor": cursor, "_stale_notes": list(feed["_stale_notes"])}
+
+
+async def live(resolve: DocResolver) -> dict:
+    """The original live answer (`/live`), now cut from the shared feed (no 24-hour scan)."""
+    feed = await _feed(resolve)
+    return {
+        "configured": True,
+        "live": feed["counts"]["visitors_now"],
+        "pages": feed["pages"],
+        "events": feed["events"][:STREAM_PAGE],
+        "_stale_notes": list(feed["_stale_notes"]),
     }
 
 
 # ── People ───────────────────────────────────────────────────────────────────
 
 PEOPLE_LIMIT = 300
+# Minutes, not seconds: "last seen" a few minutes old is fine, and each refresh scans weeks.
+PEOPLE_TTL = 300
 
 
 async def people(resolve: DocResolver, days: int, kind: str, q: str | None) -> dict:
@@ -530,7 +828,7 @@ async def people(resolve: DocResolver, days: int, kind: str, q: str | None) -> d
         """,
         values or None,
         name="people",
-        ttl=30,
+        ttl=PEOPLE_TTL,
     )
     pages = Pages(resolve)
     await pages.load({k for r in rows for k in (r.get("top_pages") or []) if k})
@@ -602,7 +900,7 @@ async def _session_extras(ids: list[str]) -> dict[str, dict]:
               GROUP BY sid
             """,
             name="session_extras",
-            ttl=60,
+            ttl=300,
         )
     except ph.PostHogError:
         return {}
@@ -668,7 +966,7 @@ async def _sessions_on_page(key: str, days: int) -> list[str]:
             GROUP BY sid ORDER BY t DESC LIMIT 200""",
         values,
         name="sessions_on_page",
-        ttl=60,
+        ttl=300,
     )
     return [r["sid"] for r in rows if is_uuid(r.get("sid"))]
 
@@ -755,13 +1053,13 @@ async def person(resolve: DocResolver, find_account: Callable[[list[str], str | 
         "SELECT toString(id) AS id, created_at, properties FROM persons WHERE id = {id} LIMIT 1",
         {"id": pid},
         name="person_info",
-        ttl=60,
+        ttl=300,
     )
     ids_q = ph.hogql(
         "SELECT distinct_id FROM person_distinct_ids WHERE person_id = {id} LIMIT 50",
         {"id": pid},
         name="person_ids",
-        ttl=60,
+        ttl=300,
     )
     events_q = ph.hogql(
         f"""SELECT toString(uuid) AS uuid, event, timestamp, elements_chain AS chain, {event_props_select()}
@@ -770,7 +1068,9 @@ async def person(resolve: DocResolver, find_account: Callable[[list[str], str | 
             ORDER BY timestamp DESC LIMIT {EVENT_LIMIT}""",
         {"id": pid},
         name="person_events",
-        ttl=30,
+        ttl=120,
+        # Opened from Live, a timeline must include the last minutes: skip PostHog's cache.
+        refresh="force_blocking",
     )
 
     async def recs() -> tuple[list[dict], dict | None]:
@@ -898,7 +1198,9 @@ async def paths(resolve: DocResolver, days: int) -> dict:
             ORDER BY timestamp ASC
             LIMIT 50000""",
         name="paths",
-        ttl=300,
+        ttl=900,
+        # Weeks of events: started async and polled, so the 10 s blocking limit doesn't apply.
+        refresh="async",
     )
     res = compute_paths([(r["event"], r["person"], r.get("session"), r.get("path"), _iso(r.get("timestamp")) or "") for r in rows], days)
     keys = {k for k, _ in res["entries"]} | {k for k, _ in res["exits"]} | {k for p, _ in res["paths"] for k in p} | {k for k, _, _ in res["pages"]}
@@ -939,7 +1241,7 @@ async def page(resolve: DocResolver, key: str, days: int) -> dict:
             GROUP BY text ORDER BY n + rage DESC LIMIT 20""",
         values,
         name="page_clicks",
-        ttl=300,
+        ttl=600,
     )
     is_doc = key.startswith("doc:")
 
@@ -953,7 +1255,7 @@ async def page(resolve: DocResolver, key: str, days: int) -> dict:
                 GROUP BY pct ORDER BY pct""",
             {"ref": key[4:]},
             name="page_depth",
-            ttl=300,
+            ttl=600,
         )
         got = {int(r["pct"]): int(r["readers"]) for r in rows if r.get("pct") is not None}
         return [{"pct": p, "readers": got.get(p, 0)} for p in (25, 50, 75, 100)]
