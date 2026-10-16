@@ -13,6 +13,7 @@ from app.limiter import limiter
 from app.middleware.tenant_cors import TenantCORSMiddleware
 from app.routers.admin import router as admin_router
 from app.routers.admin_analytics import router as admin_analytics_router
+from app.routers.admin_email import router as admin_email_router
 from app.routers.admin_journeys import router as admin_journeys_router
 from app.routers.beat import router as beat_router
 from app.routers.artifacts import router as artifacts_router
@@ -22,6 +23,7 @@ from app.routers.documents import router as documents_router
 from app.routers.feedback import router as feedback_router
 from app.routers.workspaces import router as workspaces_router
 from app.routers.domains import router as domains_router
+from app.routers.email_public import router as email_public_router
 from app.routers.folders import router as folders_router
 from app.routers.invites import router as invites_router
 from app.routers.library import router as library_router
@@ -39,7 +41,14 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect()
+    # Campaign sender: sends queued campaigns in the background and resumes
+    # them after a restart (services/email_campaigns/engine.py).
+    from app.database import get_database
+    from app.services.email_campaigns import engine as email_engine
+
+    email_engine.start(get_database)
     yield
+    await email_engine.stop()
     await disconnect()
 
 
@@ -103,6 +112,8 @@ app.include_router(google_router)
 app.include_router(admin_router)
 app.include_router(admin_analytics_router)
 app.include_router(admin_journeys_router)
+app.include_router(admin_email_router)
+app.include_router(email_public_router)
 app.include_router(beat_router)
 app.include_router(auth_router)
 # Old campaign unsubscribe links (/api/v1/unsubscribe); see routers/auth.py.

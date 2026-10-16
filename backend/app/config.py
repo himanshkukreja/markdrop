@@ -70,6 +70,35 @@ class Settings(BaseSettings):
     # reply to a personal mailbox is a different thing to be than the one the
     # rest of these emails are dressed as.
     email_reply_to: str = "himanshu@markdrop.in"
+    # ── Email campaigns (admin → Email; services/email_campaigns) ──────────
+    # The env default campaign sender. Blank keeps the previous behaviour: the
+    # `updates@` mailbox on email_from's domain, so a complaint about an
+    # announcement can't drag the sign-in sender down with it.
+    email_campaign_from: str = ""
+    # "console" renders every campaign and test message to the log (and the
+    # email_outbox collection) instead of sending it, even with a Resend key.
+    # Blank means: Resend when resend_api_key is set, console otherwise.
+    email_transport: str = ""
+    # Svix signing secret of the Resend webhook (whsec_…). Blank turns the
+    # webhook endpoint off (503) rather than accepting unsigned events.
+    resend_webhook_secret: str = ""
+    # Hosts (or host/path-prefix) whose links are wrapped for click tracking and
+    # that the click redirect will send people to. The site's own frontend and
+    # API hosts are always allowed.
+    email_click_hosts: list[str] = [
+        "markdrop.in", "www.markdrop.in", "github.com/himanshkukreja",
+        "marketplace.visualstudio.com", "x.com", "twitter.com",
+        "linkedin.com", "www.linkedin.com",
+    ]
+    # Pace: messages per Resend batch call (≤100) and the gap between calls.
+    # Resend allows a few requests a second per team; one batch a second leaves
+    # room for the sign-in mail sharing the key.
+    email_batch_size: int = 100
+    email_round_gap_ms: int = 1000
+    # The background sender started with the app. Off, campaigns only move when
+    # the admin page drives them with the tick endpoint.
+    email_worker_enabled: bool = True
+
     login_challenge_ttl_minutes: int = 15
     otp_length: int = 6
     login_max_attempts: int = 5

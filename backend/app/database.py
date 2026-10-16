@@ -129,6 +129,23 @@ async def connect() -> None:
     await db["campaigns"].create_index([("created_at", -1)])
     await db["users"].create_index("unsubscribed_at", sparse=True)
 
+    # Email campaign service (services/email_campaigns). Additive: the legacy
+    # `campaigns` collection above is only read, as history.
+    await db["email_campaigns"].create_index([("updated_at", -1)])
+    await db["email_campaigns"].create_index([("status", 1), ("scheduled_at", 1)])
+    await db["email_messages"].create_index([("campaign_id", 1), ("email", 1)], unique=True)
+    await db["email_messages"].create_index("token", unique=True)
+    await db["email_messages"].create_index([("campaign_id", 1), ("status", 1), ("_id", 1)])
+    await db["email_messages"].create_index("claim_id", sparse=True)
+    await db["email_messages"].create_index("provider_id", sparse=True)
+    await db["email_events"].create_index([("campaign_id", 1), ("ts", -1)])
+    await db["email_events"].create_index("message_id")
+    await db["email_batches"].create_index([("campaign_id", 1), ("state", 1)])
+    await db["email_batches"].create_index("created_at", expireAfterSeconds=30 * 24 * 3600)
+    await db["email_senders"].create_index("is_default")
+    await db["email_outbox"].create_index("ts", expireAfterSeconds=7 * 24 * 3600)
+    await db["email_webhook_events"].create_index("ts", expireAfterSeconds=30 * 24 * 3600)
+
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])
     await db["feedback"].create_index([("status", 1), ("type", 1), ("created_at", -1)])
