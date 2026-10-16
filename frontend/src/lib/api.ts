@@ -912,18 +912,23 @@ export async function adminLogin(username: string, password: string): Promise<{ 
   return res.json();
 }
 
+/** Orders the admin document list accepts (backend routers/admin.py `_DOC_SORTS`). */
+export type AdminDocSort = "newest" | "oldest" | "updated" | "views" | "views_asc" | "reports" | "size" | "expiring" | "title";
+
 export async function adminListDocuments(
   token: string,
   page = 1,
   limit = 20,
   q?: string,
   reported = false,
-  kind?: DocKind
+  kind?: DocKind,
+  sort?: AdminDocSort
 ): Promise<AdminDocListResponse> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (q) params.set("q", q);
   if (reported) params.set("reported", "1");
   if (kind) params.set("kind", kind);
+  if (sort) params.set("sort", sort);
   const res = await fetch(`${API_BASE}/api/v1/admin/documents?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
