@@ -8,15 +8,22 @@ events (`doc_ref`) are resolved to titles and slugs here, from our own database
 
 Every data endpoint answers HTTP 200 `{configured: false, status}` while PostHog isn't set up,
 so the console shows its setup card instead of an error. Upstream failures come back as
-502/504/429/424 with `{detail, scope}`; never 401/403 (a 401 signs the admin out).
+502/503/504/429/424 with `{detail, scope, reason, retry_in}` (and Retry-After while PostHog's
+breaker is open); never 401/403 (a 401 signs the admin out). When the last good answer stands in
+for a failed PostHog call, the 200 answer carries `stale: {age_s, as_of, reason, message,
+retry_in}` (services/posthog_api.py).
 """
 
+import math
 import re
+import time
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timezone
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
@@ -39,13 +46,32 @@ def _resolver(db: AsyncIOMotorDatabase) -> jm.DocResolver:
     return resolve
 
 
+def _error(e: ph.PostHogError) -> JSONResponse:
+    body = {"detail": e.message, "scope": e.scope, "reason": e.reason}
+    headers = None
+    if e.retry_after:
+        body["retry_in"] = max(1, math.ceil(e.retry_after))
+        headers = {"Retry-After": str(body["retry_in"])}
+    return JSONResponse(body, status_code=e.status, headers=headers)
+
+
 async def _answer(fn: Callable[[], Awaitable[object]]):
+    """Run a data endpoint: not-configured shape, PostHog errors mapped, and `stale` added when
+    part of the answer is a last good result standing in for a failed PostHog call."""
     if not settings.posthog_configured:
         return ph.not_configured()
+    notes = ph.track_stale()
     try:
-        return await fn()
+        res = await fn()
     except ph.PostHogError as e:
-        return JSONResponse({"detail": e.message, "scope": e.scope}, status_code=e.status)
+        return _error(e)
+    if isinstance(res, dict):
+        res = dict(res)
+        notes = notes + list(res.pop("_stale_notes", None) or [])
+        stale = ph.stale_summary(notes)
+        if stale:
+            res["stale"] = stale
+    return res
 
 
 @router.get("/status")
@@ -56,6 +82,25 @@ async def status(_: dict = Depends(require_admin)):
 @router.get("/live")
 async def live(db: AsyncIOMotorDatabase = Depends(get_db), _: dict = Depends(require_admin)):
     return await _answer(lambda: jm.live(_resolver(db)))
+
+
+@router.get("/live/feed")
+async def live_feed(
+    since: str | None = Query(None, max_length=40),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Everything the Live section shows, in one poll (shared by every admin for a few seconds).
+    `since` is the `cursor` of the previous answer: only newer events come back."""
+    cursor = None
+    if since:
+        try:
+            cursor = datetime.fromisoformat(since.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="since must be an ISO timestamp") from None
+        if cursor.tzinfo is None:
+            cursor = cursor.replace(tzinfo=timezone.utc)
+    return await _answer(lambda: jm.live_feed(_resolver(db), cursor))
 
 
 @router.get("/people")
@@ -124,18 +169,56 @@ async def recordings(
     )
 
 
+# Live replays poll for new blobs every ~12 s. Each poll costs one or two REST calls against
+# PostHog's 1,200 an hour, so at most LIVE_VIEWERS recordings are followed at once.
+LIVE_VIEWERS = 2
+LIVE_IDLE_S = 45.0
+_live_viewers: dict[str, float] = {}
+
+
+def _claim_live(recording_id: str) -> float | None:
+    """Register a live poll; seconds to wait when LIVE_VIEWERS other recordings are followed."""
+    now = time.monotonic()
+    for k, t in list(_live_viewers.items()):
+        if now - t > LIVE_IDLE_S:
+            _live_viewers.pop(k, None)
+    if recording_id not in _live_viewers and len(_live_viewers) >= LIVE_VIEWERS:
+        return LIVE_IDLE_S - (now - min(_live_viewers.values()))
+    _live_viewers[recording_id] = now
+    return None
+
+
 @router.get("/recordings/{recording_id}/snapshots")
-async def snapshots(recording_id: str, _: dict = Depends(require_admin)):
+async def snapshots(
+    recording_id: str,
+    after: int | None = Query(None, ge=0, le=1_000_000),
+    _: dict = Depends(require_admin),
+):
+    """A recording's rrweb events. With `after` (the `last_key` of an earlier answer) only newer
+    blobs: how the live player follows an ongoing recording."""
     if not _RECORDING_ID.match(recording_id):
         raise HTTPException(status_code=400, detail="Invalid recording id")
+    if after is not None and settings.posthog_configured:
+        wait = _claim_live(recording_id)
+        if wait is not None:
+            retry = max(1, math.ceil(wait))
+            return JSONResponse(
+                {"detail": f"{LIVE_VIEWERS} live replays are already being followed; close one first.",
+                 "scope": None, "reason": "live_viewers", "retry_in": retry},
+                status_code=429,
+                headers={"Retry-After": str(retry)},
+            )
 
     async def run():
-        events = await ph.snapshots(recording_id)
+        snap = await ph.snapshots(recording_id, after=after)
         body = {
             "configured": True,
             "id": recording_id,
-            "found": events is not None,
-            "events": events or [],
+            "found": snap is not None,
+            "events": (snap or {}).get("events") or [],
+            "last_key": (snap or {}).get("last_key"),
+            "live_edge": (snap or {}).get("live_edge"),
+            "after": after,
             "app_url": ph.app_url(f"/replay/{recording_id}"),
         }
         # Recordings are large and personal; never let a shared cache keep one.
@@ -160,3 +243,61 @@ async def page(
     if not jm.valid_page_key(key):
         raise HTTPException(status_code=400, detail="path must start with / (or be a doc:<ref> key)")
     return await _answer(lambda: jm.page(_resolver(db), key, jm.clamp_days(days, 30)))
+
+
+# ── Development: fault injection (MARKDROP_POSTHOG_FAULT_INJECTION) ─────────────
+
+
+class FaultIn(BaseModel):
+    status: int = Field(429, ge=0, le=599)
+    retry_after: str | None = Field(None, max_length=40)
+    code: str | None = Field(None, max_length=60)
+    detail: str | None = Field(None, max_length=200)
+    count: int = Field(1, ge=1, le=1000)
+    path: str = Field("/", max_length=100)
+    timeout: bool = False
+
+
+def _faults_allowed() -> None:
+    if not settings.posthog_fault_injection:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+@router.post("/_debug/fault")
+async def inject_fault(body: FaultIn, _: dict = Depends(require_admin)):
+    """Make the next `count` PostHog calls under `path` answer `status` (or time out). The answer
+    goes through the real error mapping, breaker and stale path."""
+    _faults_allowed()
+    headers = {"Retry-After": body.retry_after} if body.retry_after else {}
+    payload = {
+        "type": "throttled" if body.status == 429 else "server_error",
+        "code": body.code,
+        "detail": body.detail or f"injected {body.status}",
+    }
+    ph.inject_fault(status=body.status, headers=headers, body=payload, count=body.count, path=body.path, timeout=body.timeout)
+    return {"ok": True, "limits": ph.limits()}
+
+
+@router.post("/_debug/reset")
+async def reset_faults(clear_cache: bool = False, expire: bool = False, _: dict = Depends(require_admin)):
+    """Drop injected faults and close the breakers. `expire` also ends every cached answer's
+    freshness (the last good answers stay, so the next failure serves them stale);
+    `clear_cache` forgets everything."""
+    _faults_allowed()
+    if clear_cache:
+        ph.reset()
+    elif expire:
+        ph._cache.clear()
+    else:
+        ph.clear_faults()
+    return {"ok": True}
+
+
+@router.get("/_debug/stats")
+async def debug_stats(reset: bool = False, _: dict = Depends(require_admin)):
+    """PostHog requests per query name / endpoint since start (to measure what a view costs)."""
+    _faults_allowed()
+    out = {"stats": ph.stats(), "limits": ph.limits()}
+    if reset:
+        ph.reset_stats()
+    return out
