@@ -9,7 +9,7 @@ import { AdminLogin } from "./AdminLogin";
 import { AdminShell } from "./AdminShell";
 import { DEFAULT_DOC_FILTERS, DocumentsPanel, type DocFilters } from "./DocumentsPanel";
 import { DocEditor } from "./DocEditor";
-import EmailPanel from "./EmailPanel";
+import EmailSection from "./email/EmailSection";
 import { FeedbackPanel } from "./FeedbackPanel";
 import { ProductHealthPanel } from "./ProductHealthPanel";
 import { UnauthorizedContext, readQuery, sectionFrom, writeQuery, type Section } from "./shared";
@@ -44,6 +44,8 @@ export default function AdminApp() {
   const [docFilters, setDocFilters] = useState<DocFilters>(DEFAULT_DOC_FILTERS);
   const [editing, setEditing] = useState<string | null>(null);
   const [counts, setCounts] = useState<{ reports?: number; feedback?: number }>({});
+  // Bumped when Email is picked in the rail, so it opens on its home rather than a campaign.
+  const [emailKey, setEmailKey] = useState(0);
 
   // Init: token and URL state, after mount.
   useEffect(() => {
@@ -88,7 +90,9 @@ export default function AdminApp() {
     setEditing(null);
     if (s !== section) setDocFilters((f) => ({ ...f, page: 1 }));
     setSection(s);
-    writeQuery({ tab: s === "overview" ? null : s }, true);
+    if (s === "email") setEmailKey((k) => k + 1);
+    // The Email section's own state (campaign, ct, et, template) doesn't carry over to other tabs.
+    writeQuery({ tab: s === "overview" ? null : s, campaign: null, ct: null, et: null, template: null }, true);
     document.getElementById("main")?.focus({ preventScroll: true });
     window.scrollTo({ top: 0 });
   };
@@ -146,7 +150,7 @@ export default function AdminApp() {
           page = <FeedbackPanel token={token} onChanged={refreshCounts} />;
           break;
         case "email":
-          page = <EmailPanel token={token} />;
+          page = <EmailSection key={emailKey} token={token} />;
           break;
       }
     }
