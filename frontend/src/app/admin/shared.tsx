@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import { MarkdropLoader, cx } from "@/components/ui";
 
 /**
  * Small pieces every admin page shares: the page head, the date/size formatters, the URL state
@@ -27,8 +28,8 @@ export const relayPricingCopy = () =>
 
 // ── Sections and URL state ────────────────────────────────────────────────────
 
-export type Section = "overview" | "health" | "journeys" | "documents" | "reports" | "users" | "feedback" | "email";
-export const SECTIONS: Section[] = ["overview", "health", "journeys", "documents", "reports", "users", "feedback", "email"];
+export type Section = "overview" | "live" | "health" | "journeys" | "documents" | "reports" | "users" | "feedback" | "email";
+export const SECTIONS: Section[] = ["overview", "live", "health", "journeys", "documents", "reports", "users", "feedback", "email"];
 
 /** Old tab names (bookmarks from before the rail) map onto the new sections. */
 const ALIASES: Record<string, Section> = { analytics: "overview", docs: "documents", usage: "health" };
@@ -118,6 +119,25 @@ export function PageHead({ title, caption, actions }: { title: React.ReactNode; 
       </div>
       {actions && <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>}
     </header>
+  );
+}
+
+// ── Loading ───────────────────────────────────────────────────────────────────
+
+/**
+ * A first load: the Markdrop loader (the dipping drop) centred in a block that keeps the space
+ * the content will take, so nothing jumps when it lands. `sm` (mark only) inside cards and
+ * lists, `md` (with the wordmark) for a whole panel. The label says what is loading ("Loading
+ * people"). The loader itself waits 300 ms (fast loads never flash) and rests under reduced
+ * motion. Refreshes of data already on screen use a thin Progress bar instead.
+ */
+export function LoadingBlock({ label, size = "sm", minHeight = 160, className }: {
+  label: string; size?: "sm" | "md"; minHeight?: number | string; className?: string;
+}) {
+  return (
+    <div className={cx("grid w-full min-w-0 place-items-center py-4", className)} style={{ minHeight }} aria-busy="true">
+      <MarkdropLoader size={size} label={label} hideWordmark={size === "sm"} />
+    </div>
   );
 }
 

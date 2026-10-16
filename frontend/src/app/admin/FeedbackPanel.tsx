@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Alert, Badge, Button, ConfirmDialog, Drawer, EmptyState, Pagination, Progress, RowMenu, Skeleton, Tabs, cx, useToast,
+  Alert, Badge, Button, ConfirmDialog, Drawer, EmptyState, Pagination, Progress, RowMenu, Tabs, cx, useToast,
 } from "@/components/ui";
 import {
   adminDeleteFeedback, adminListFeedback, adminSetFeedbackStatus,
   type AdminFeedbackItem, type FeedbackType,
 } from "@/lib/api";
-import { PageHead, fmtDateTime, isUnauthorized, plural, useOnUnauthorized } from "./shared";
+import { PageHead, fmtDateTime, isUnauthorized, plural, useOnUnauthorized, LoadingBlock } from "./shared";
 
 type Status = "open" | "resolved" | "";
 
@@ -150,7 +150,7 @@ export function FeedbackPanel({ token, onChanged }: { token: string; onChanged: 
           Check that the API is reachable, then retry.
         </Alert>
       ) : !items ? (
-        <div className="flex flex-col gap-2" aria-busy="true"><span className="md-visually-hidden">Loading feedback</span>{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} variant="rect" height={64} />)}</div>
+        <LoadingBlock size="md" label="Loading feedback" minHeight={360} />
       ) : items.length === 0 ? (
         <EmptyState icon="message" title={status === "open" ? "No open feedback." : status === "resolved" ? "Nothing resolved yet." : "No feedback yet."} />
       ) : (

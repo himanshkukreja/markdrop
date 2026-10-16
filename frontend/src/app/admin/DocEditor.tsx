@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import MarkdownPreview from "@/components/MarkdownPreview";
-import { Alert, Breadcrumb, Button, EmptyState, Field, Input, Skeleton, Tabs, Textarea, useToast } from "@/components/ui";
+import { Alert, Breadcrumb, Button, EmptyState, Field, Input, Tabs, Textarea, useToast } from "@/components/ui";
 import { adminGetDocument, adminUpdateDocument } from "@/lib/api";
-import { isUnauthorized, useOnUnauthorized } from "./shared";
+import { isUnauthorized, useOnUnauthorized, LoadingBlock } from "./shared";
 
 type Mode = "edit" | "split" | "preview";
 
@@ -72,7 +72,7 @@ export function DocEditor({ token, slug, onBack }: { token: string; slug: string
         {crumbs}
         <h1 className="text-h1 text-text">Edit document</h1>
         {state === "loading" ? (
-          <div className="flex flex-col gap-3" aria-busy="true"><span className="md-visually-hidden">Loading document</span><Skeleton variant="rect" height={40} /><Skeleton variant="rect" height={320} /></div>
+          <LoadingBlock size="md" label="Loading the document" minHeight={360} />
         ) : (
           <EmptyState
             icon={state === "encrypted" ? "key" : "alertCircle"}

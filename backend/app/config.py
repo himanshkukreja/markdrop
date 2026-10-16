@@ -178,6 +178,9 @@ class Settings(BaseSettings):
     posthog_personal_api_key: str = ""
     # Local development: show localhost traffic in the Journeys tab (hidden by default).
     posthog_include_local: bool = False
+    # Development only: lets an admin inject canned PostHog failures (429, 503, timeouts) through
+    # POST /api/v1/admin/journeys/_debug/fault to exercise the stale and cooldown paths.
+    posthog_fault_injection: bool = False
     # Keys the opaque document reference analytics receives instead of the slug
     # (services/doc_ref.py). Blank derives one from auth_secret.
     doc_ref_secret: str = ""

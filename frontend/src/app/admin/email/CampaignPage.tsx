@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Button, ConfirmDialog, Field, Input, Skeleton, Tabs, useToast } from "@/components/ui";
-import { PageHead, fmtDate, isUnauthorized, useOnUnauthorized } from "../shared";
+import { Alert, Button, ConfirmDialog, Field, Input, Tabs, useToast } from "@/components/ui";
+import { LoadingBlock, PageHead, fmtDate, isUnauthorized, useOnUnauthorized } from "../shared";
 import {
   draftFromTemplate, draftOf, emailApi, type Campaign, type CampaignSummary, type Draft, type Info,
   type RecipientPreview, type Rendered, type TemplatesResponse,
@@ -253,12 +253,7 @@ export default function CampaignPage({
   }
   if ((!isNew && !campaign) || !meta || (!legacy && !draft)) {
     return (
-      <div className="flex flex-col gap-4" aria-busy="true">
-        <span className="md-visually-hidden">Loading the campaign</span>
-        <Skeleton width="40%" height={36} />
-        <Skeleton variant="rect" height={44} />
-        <Skeleton variant="rect" height={420} />
-      </div>
+      <LoadingBlock size="md" label="Loading the campaign" minHeight={520} />
     );
   }
 

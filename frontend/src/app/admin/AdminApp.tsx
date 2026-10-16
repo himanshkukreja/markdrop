@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import { MarkdropLoader, ThemeScope } from "@/components/ui";
 import { adminListDocuments, adminListFeedback, clearAdminToken, getAdminToken } from "@/lib/api";
@@ -12,13 +13,29 @@ import { DocEditor } from "./DocEditor";
 import EmailSection from "./email/EmailSection";
 import { FeedbackPanel } from "./FeedbackPanel";
 import { ProductHealthPanel } from "./ProductHealthPanel";
-import { UnauthorizedContext, readQuery, sectionFrom, writeQuery, type Section } from "./shared";
+import { LoadingBlock, UnauthorizedContext, readQuery, sectionFrom, writeQuery, type Section } from "./shared";
 import { UsersPanel } from "./UsersPanel";
 import JourneysPanel from "./journeys/JourneysPanel";
-import { JOURNEYS_KEYS } from "./journeys/bits";
+import { JOURNEYS_KEYS, type Patch } from "./journeys/bits";
 
 /** Journeys keeps its sub-state in the URL; another section starts without it. */
 const JOURNEYS_CLEAR = Object.fromEntries(JOURNEYS_KEYS.map((k) => [k, null]));
+
+// Live polls PostHog and carries the replay player: loaded when it is first opened.
+const LivePanel = dynamic(() => import("./live/LivePanel"), {
+  ssr: false,
+  loading: () => <LoadingBlock size="md" label="Loading live activity" minHeight={480} />,
+});
+
+/** The section in the URL. Journeys' old Live view (`?tab=journeys&jt=live`) is now its own section. */
+function sectionOfUrl(): Section {
+  const q = readQuery();
+  if (q.get("tab") === "journeys" && q.get("jt") === "live") {
+    writeQuery({ tab: "live", jt: null });
+    return "live";
+  }
+  return sectionFrom(q.get("tab"));
+}
 
 type Phase = "init" | "login" | "app";
 
@@ -54,7 +71,7 @@ export default function AdminApp() {
   // Init: token and URL state, after mount.
   useEffect(() => {
     const q = readQuery();
-    setSection(sectionFrom(q.get("tab")));
+    setSection(sectionOfUrl());
     setRange(parseRange(q.get("range")));
     setFilters(parseFilters(q.get("f")));
     const stored = getAdminToken();
@@ -66,7 +83,7 @@ export default function AdminApp() {
   useEffect(() => {
     const onPop = () => {
       const q = readQuery();
-      setSection(sectionFrom(q.get("tab")));
+      setSection(sectionOfUrl());
       setRange(parseRange(q.get("range")));
       setFilters(parseFilters(q.get("f")));
       setEditing(null);
@@ -105,6 +122,12 @@ export default function AdminApp() {
     document.getElementById("main")?.focus({ preventScroll: true });
     window.scrollTo({ top: 0 });
   };
+  /** From Live to a person or page in Journeys. */
+  const openJourneys = useCallback((patch: Patch) => {
+    select("journeys");
+    writeQuery(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- select only reads setters and the current section
+  }, [section]);
   const changeRange = (r: RangeValue) => {
     setRange(r);
     writeQuery({ range: serializeRange(r) === "30d" ? null : serializeRange(r) });
@@ -148,6 +171,9 @@ export default function AdminApp() {
               onChanged={refreshCounts}
             />
           );
+          break;
+        case "live":
+          page = <LivePanel token={token} onOpenJourneys={openJourneys} />;
           break;
         case "journeys":
           page = <JourneysPanel token={token} />;
