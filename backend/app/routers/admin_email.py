@@ -413,29 +413,38 @@ async def campaign_report(cid: str, db: AsyncIOMotorDatabase = Depends(get_db), 
         return err(404, "Campaign not found.")
     counts = await store.refresh_counts(db, c["_id"])
 
-    # Unique opens and clicks over time (first open / first click per person).
-    start = c.get("started_at") or c.get("queued_at") or c.get("created_at")
-    start = start if (start and start.tzinfo) else (start.replace(tzinfo=timezone.utc) if start else store.now())
-    span = store.now() - start
-    unit = "hour" if span <= timedelta(hours=72) else "day"
-    fmt = "%Y-%m-%dT%H:00:00Z" if unit == "hour" else "%Y-%m-%dT00:00:00Z"
-    series: dict[str, dict[str, int]] = {}
-    for field, key in (("first_open_at", "opens"), ("first_click_at", "clicks")):
-        async for r in db["email_messages"].aggregate([
-            {"$match": {"campaign_id": c["_id"], field: {"$ne": None}}},
-            {"$group": {"_id": {"$dateToString": {"format": fmt, "date": f"${field}"}}, "n": {"$sum": 1}}},
-        ]):
-            series.setdefault(r["_id"], {"opens": 0, "clicks": 0})[key] = r["n"]
-    step = timedelta(hours=1) if unit == "hour" else timedelta(days=1)
-    t = start.replace(minute=0, second=0, microsecond=0)
-    if unit == "day":
-        t = t.replace(hour=0)
+    # Unique opens and clicks over time (first open / first click per person),
+    # bucketed by 10 minutes for a fresh campaign, by hour up to three days,
+    # then by day. Bucketed here rather than with $dateTrunc (MongoDB 5+ only).
+    start = c.get("started_at") or c.get("queued_at") or c.get("created_at") or store.now()
+    start = start if start.tzinfo else start.replace(tzinfo=timezone.utc)
     end = store.now()
+    span = end - start
+    if span <= timedelta(hours=6):
+        unit, step = "minute", timedelta(minutes=10)
+    elif span <= timedelta(hours=72):
+        unit, step = "hour", timedelta(hours=1)
+    else:
+        unit, step = "day", timedelta(days=1)
+
+    def floor(d: datetime) -> datetime:
+        d = d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+        if unit == "minute":
+            return d.replace(minute=d.minute - d.minute % 10, second=0, microsecond=0)
+        if unit == "hour":
+            return d.replace(minute=0, second=0, microsecond=0)
+        return d.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    series: dict[datetime, dict[str, int]] = {}
+    for field, key in (("first_open_at", "opens"), ("first_click_at", "clicks")):
+        async for r in db["email_messages"].find({"campaign_id": c["_id"], field: {"$ne": None}}, {field: 1}):
+            b = series.setdefault(floor(r[field]), {"opens": 0, "clicks": 0})
+            b[key] += 1
+    t = floor(start)
     points = []
-    while t <= end and len(points) < 400:
-        k = t.strftime(fmt)
-        v = series.get(k, {"opens": 0, "clicks": 0})
-        points.append({"t": k, "opens": v["opens"], "clicks": v["clicks"]})
+    while t <= end and len(points) < 500:
+        v = series.get(t, {"opens": 0, "clicks": 0})
+        points.append({"t": t.isoformat().replace("+00:00", "Z"), "opens": v["opens"], "clicks": v["clicks"]})
         t += step
 
     # Per-link clicks (UTM parameters folded together).

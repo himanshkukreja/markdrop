@@ -328,6 +328,8 @@ def display_status(m: dict[str, Any]) -> str:
     if m.get("status") == "sent":
         if m.get("bounced_at"):
             return "bounced"
+        if m.get("complained_at"):
+            return "complained"
         if (m.get("click_count") or 0) > 0:
             return "clicked"
         if (m.get("open_count") or 0) > 0 or m.get("first_open_at"):
