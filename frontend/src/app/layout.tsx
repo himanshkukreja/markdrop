@@ -7,6 +7,7 @@ import { NextLinkProvider } from "@/components/theme/NextLinkProvider";
 import { StatusRegion } from "@/components/ui";
 import VercelInsights from "@/components/VercelInsights";
 import SiteTracker from "@/components/SiteTracker";
+import ThirdPartyAnalytics from "@/components/analytics/ThirdPartyAnalytics";
 import { themeScript } from "@/lib/themeScript";
 
 const SITE_DESCRIPTION =
@@ -77,6 +78,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </NextLinkProvider>
         <VercelInsights />
         <SiteTracker />
+        <ThirdPartyAnalytics />
       </body>
     </html>
   );

@@ -272,7 +272,8 @@ export default function MarkdownPreview({
 
   return (
     <ReadingContext.Provider value={settings}>
-      <Prose size={size} className={className}>
+      {/* ph-no-capture: rendered documents and previews are never recorded (lib/thirdPartyAnalytics). */}
+      <Prose size={size} className={["ph-no-capture", className].filter(Boolean).join(" ")}>
         {tree}
       </Prose>
     </ReadingContext.Provider>

@@ -1,0 +1,23 @@
+/* Bottom-right on wide screens so it never covers the toast stack (bottom-left); full width with
+   the 16px gutter on phones. Above sticky bars and dropdowns, below dialogs and toasts. */
+.banner {
+  position: fixed;
+  right: var(--space-4);
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  z-index: calc(var(--z-overlay) - 1);
+  width: min(400px, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  font-size: 14px;
+  line-height: 20px;
+  animation: md-toast-in var(--duration-panel) var(--ease-out);
+}
+.title { margin: 0 0 var(--space-1); font-size: 15px; line-height: 22px; font-weight: 700; }
+.body { margin: 0; color: var(--text-secondary); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
+.more { margin-left: auto; }
+@media (prefers-reduced-motion: reduce) { .banner { animation: none; } }

@@ -52,7 +52,7 @@ export function DocumentBar(p: DocumentBarProps) {
   );
 
   return (
-    <div className="no-print sticky top-14 z-(--z-sticky) border-b border-border bg-surface">
+    <div className="ph-no-capture no-print sticky top-14 z-(--z-sticky) border-b border-border bg-surface">
       <div className="mx-auto flex h-14 max-w-marketing items-center gap-3 px-4 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {p.gated ? (

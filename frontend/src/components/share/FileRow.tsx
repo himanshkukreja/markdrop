@@ -34,7 +34,7 @@ function FileRowImpl(f: FileRowProps) {
         <FileIcon name={f.name} mime={f.mime} size={18} />
       </span>
       <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-body-strong text-text" title={f.name}>{f.name}</span>
+        <span className="ph-sensitive ph-mask truncate text-body-strong text-text" title={f.name}>{f.name}</span>
         {f.unreadable ? (
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <Badge tone="warning" size="sm" icon="alert">Couldn&apos;t read</Badge>

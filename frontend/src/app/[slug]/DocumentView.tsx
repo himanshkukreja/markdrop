@@ -14,6 +14,7 @@ import { ReadingProgress, Toc, TocTicks, tocHeadings, useReadingProgress, type H
 import * as e2e from "@/lib/e2e";
 import { recordEvent } from "@/lib/api";
 import { track } from "@/lib/track";
+import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
 import { useDocumentViewer } from "./doc/useDocumentViewer";
 import type { DocumentViewProps } from "./doc/types";
 import { DocumentActionBar, DocumentBar } from "./doc/DocumentBar";
@@ -120,6 +121,15 @@ export default function DocumentView(props: DocumentViewProps) {
   }, [showImmersive]);
 
   const livePill = useLiveUpdate(v.liveUpdate, displayContent, readRef);
+  useAnalyticsDoc(
+    artifactDoc
+      ? null
+      : {
+          ref: props.docRef ?? null,
+          kind: "document",
+          access: props.encrypted ? "encrypted" : props.isPasswordProtected || props.gate ? "protected" : "public",
+        },
+  );
   const pct = useReadingProgress();
 
   // ── Artifact discovered behind the password gate ───────────────────────────
@@ -139,6 +149,7 @@ export default function DocumentView(props: DocumentViewProps) {
         originalFilename={artifactDoc.original_filename ?? null}
         artifactUrl={artifactDoc.artifact_url ?? null}
         downloadUrl={artifactDoc.download_url ?? null}
+        docRef={artifactDoc.ref ?? null}
         viewerChrome={viewerChrome === "none" ? "none" : "full"}
       />
     );
@@ -419,7 +430,8 @@ export default function DocumentView(props: DocumentViewProps) {
               >
                 <div
                   ref={readRef}
-                  className={`${vs.column} mx-auto w-full max-w-reading ${
+                  // ph-no-capture: clicks inside a document are never autocaptured with their text.
+                  className={`ph-no-capture ${vs.column} mx-auto w-full max-w-reading ${
                     showImmersive ? "px-5 pb-32 pt-12 sm:px-8 sm:pt-24 print:p-0" : ""
                   }`}
                 >

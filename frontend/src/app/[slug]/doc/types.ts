@@ -23,6 +23,8 @@ export interface DocumentViewProps {
   syncedWithVscode?: boolean;
   /** `content` is a sealed envelope; the key is in the URL fragment, not here. */
   encrypted?: boolean;
+  /** Opaque analytics reference (API `ref`); never the slug. Null behind a gate. */
+  docRef?: string | null;
   /** Only ever set on a workspace's own domain. "minimal" behaves like "full" (D24). */
   viewerChrome?: "full" | "minimal" | "none";
 }

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { trackingDisabled } from "@/lib/track";
+import { captureThirdParty } from "@/lib/thirdPartyAnalytics";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "https://api.markdrop.in";
 const IDLE_MS = 60_000;
@@ -37,6 +38,7 @@ export function useReadDepth(slug: string, el: React.RefObject<HTMLElement | nul
     let activeMs = 0;
     let lastActivity = Date.now();
     let lastSent = "";
+    let mirrored = false;
     let raf = 0;
 
     const measure = () => {
@@ -59,6 +61,12 @@ export function useReadDepth(slug: string, el: React.RefObject<HTMLElement | nul
       const key = `${depth}:${seconds}`;
       if (key === lastSent) return;
       lastSent = key;
+      // Once per reading session, to PostHog/GA: the document is identified by its registered
+      // doc_ref there, never by this slug.
+      if (final && !mirrored) {
+        mirrored = true;
+        captureThirdParty("document_read", { depth, seconds });
+      }
       // text/plain, no credentials: a CORS "simple" request, so it needs no
       // preflight — which matters when this is the page's last act.
       const body = JSON.stringify({ rid, depth, seconds });

@@ -29,6 +29,7 @@ import { ArtifactSettingsDrawer, type ArtifactSettingsState } from "./artifact/A
 import { FrameCover } from "./artifact/FrameCover";
 import { ReportDialog } from "./artifact/ReportDialog";
 import { basePathOf, isPaper, linkPrefixOf, themedFrameSrc } from "./artifact/frame";
+import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
 
 /**
  * Viewer for kind="artifact" documents.
@@ -60,6 +61,8 @@ interface Props {
   originalFilename: string | null;
   artifactUrl: string | null;
   downloadUrl: string | null;
+  /** Opaque analytics reference (API `ref`); never the slug. */
+  docRef?: string | null;
   /**
    * Viewer chrome policy, set only when this is being served from a workspace's
    * own domain — the API refuses to apply it anywhere else. "none" hides the
@@ -93,8 +96,10 @@ export default function ArtifactView({
   originalFilename,
   artifactUrl: initialArtifactUrl,
   downloadUrl: initialDownloadUrl,
+  docRef = null,
   viewerChrome = "full",
 }: Props) {
+  useAnalyticsDoc({ ref: docRef, kind: "artifact", access: isPasswordProtected ? "protected" : "public" });
   const router = useRouter();
   const { user } = useAuth();
   // Workspace domain: its own header/footer and a neutral loader, never Markdrop chrome.

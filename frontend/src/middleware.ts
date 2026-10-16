@@ -45,7 +45,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Static assets and API routes must pass through untouched — rewriting them
-  // would break every chunk request on a custom domain.
-  matcher: ["/((?!_next/static|_next/image|api/|favicon.ico|.*\\..*).*)"],
+  // Static assets, API routes and the analytics proxy (/mdp, next.config.ts) must pass through
+  // untouched — rewriting them would break every chunk request on a custom domain.
+  matcher: ["/((?!_next/static|_next/image|api/|mdp/|favicon.ico|.*\\..*).*)"],
 };

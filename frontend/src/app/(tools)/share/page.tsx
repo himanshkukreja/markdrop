@@ -334,7 +334,7 @@ export default function SharePage() {
                 Up to 10 people at once, each choosing what to download. The link stops working when you end sharing or close this tab.
               </p>
             </div>
-            <div className="order-first flex justify-center sm:order-none">
+            <div className="ph-no-capture order-first flex justify-center sm:order-none">
               <QRFrame key={roomId} value={shareUrl} size={phone ? 160 : 152} label="Scan to open" caption="Point a phone camera at it."
                 expandable layout={phone ? "stack" : "row"} />
             </div>
