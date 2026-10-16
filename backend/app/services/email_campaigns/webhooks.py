@@ -90,13 +90,23 @@ def _when(data: dict[str, Any], event: dict[str, Any]) -> datetime:
 
 
 async def handle(db: AsyncIOMotorDatabase, msg_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """Apply one verified event. Idempotent per Svix id."""
-    t_now = store.now()
-    try:
-        await db["email_webhook_events"].insert_one({"_id": msg_id, "type": event.get("type"), "ts": t_now})
-    except Exception:  # duplicate key: already processed
-        return {"ok": True, "duplicate": True}
+    """Apply one verified event. Idempotent per Svix id: a processed id is a
+    no-op, and an id whose processing failed is forgotten again, so Resend's
+    retry (it retries on any non-2xx) applies it."""
+    from pymongo.errors import DuplicateKeyError
 
+    try:
+        await db["email_webhook_events"].insert_one({"_id": msg_id, "type": event.get("type"), "ts": store.now()})
+    except DuplicateKeyError:
+        return {"ok": True, "duplicate": True}
+    try:
+        return await _apply(db, event)
+    except Exception:
+        await db["email_webhook_events"].delete_one({"_id": msg_id})
+        raise
+
+
+async def _apply(db: AsyncIOMotorDatabase, event: dict[str, Any]) -> dict[str, Any]:
     kind = str(event.get("type") or "")
     data = event.get("data") or {}
     pid = data.get("email_id") or data.get("id")
