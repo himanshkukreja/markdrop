@@ -13,6 +13,7 @@ from app.limiter import limiter
 from app.middleware.tenant_cors import TenantCORSMiddleware
 from app.routers.admin import router as admin_router
 from app.routers.admin_analytics import router as admin_analytics_router
+from app.routers.admin_journeys import router as admin_journeys_router
 from app.routers.beat import router as beat_router
 from app.routers.artifacts import router as artifacts_router
 from app.routers.auth import router as auth_router
@@ -101,6 +102,7 @@ app.include_router(share_router)
 app.include_router(google_router)
 app.include_router(admin_router)
 app.include_router(admin_analytics_router)
+app.include_router(admin_journeys_router)
 app.include_router(beat_router)
 app.include_router(auth_router)
 # Old campaign unsubscribe links (/api/v1/unsubscribe); see routers/auth.py.

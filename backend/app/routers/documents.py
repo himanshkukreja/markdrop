@@ -19,6 +19,7 @@ from app.schemas.document import (
     ReportRequest,
     SlugChangeRequest,
 )
+from app.services.doc_ref import doc_ref
 from app.services import analytics, artifact as art_service, document as doc_service, live, r2
 from app.utils.net import get_client_ip
 
@@ -58,6 +59,9 @@ def _to_response(doc, viewer_id: str | None = None) -> dict:
         is_owner=is_owner,
         # Owner-only: never expose the internal id or Google link to others.
         id=doc.id if is_owner else None,
+        # Everyone past the gates: the opaque reference analytics gets instead of
+        # the slug (services/doc_ref.py). It opens nothing.
+        ref=doc_ref(doc.id),
         google_doc_url=doc.google_doc_url if is_owner else None,
         google_doc_stale=bool(
             is_owner and doc.google_doc_id and (doc.google_doc_synced_rev or 0) < doc.rev

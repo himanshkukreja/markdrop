@@ -139,6 +139,24 @@ class Settings(BaseSettings):
     # behave like a CNAME at the apex; those can use the target above instead.
     custom_domain_apex_ip: str = "76.76.21.21"
 
+    # ── PostHog (product analytics and session replay) ───────────────────────
+    # The browser sends events with the public project key (frontend
+    # lib/analyticsConfig.ts). The backend only READS, for the admin Journeys
+    # tab, with a personal API key holding the query, session_recording and
+    # person read scopes. Blank leaves that tab inert; nothing else depends on it.
+    posthog_host: str = "https://us.posthog.com"
+    posthog_project_id: str = ""
+    posthog_personal_api_key: str = ""
+    # Local development: show localhost traffic in the Journeys tab (hidden by default).
+    posthog_include_local: bool = False
+    # Keys the opaque document reference analytics receives instead of the slug
+    # (services/doc_ref.py). Blank derives one from auth_secret.
+    doc_ref_secret: str = ""
+
+    @property
+    def posthog_configured(self) -> bool:
+        return bool(self.posthog_project_id and self.posthog_personal_api_key)
+
     @property
     def vercel_domains_configured(self) -> bool:
         return bool(self.vercel_api_token and self.vercel_project_id)
