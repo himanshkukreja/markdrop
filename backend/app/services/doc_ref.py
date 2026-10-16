@@ -13,6 +13,7 @@ The admin Journeys tab resolves refs back to slugs and titles with
 
 import hashlib
 import hmac
+import re
 import time
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -40,20 +41,54 @@ def doc_ref(doc_id: object) -> str | None:
     return hmac.new(_key(), str(doc_id).encode(), hashlib.sha256).hexdigest()[:_REF_LEN]
 
 
+_HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$")
+
+
+def heading_title(head: str | None) -> str | None:
+    """What a reader sees as an untitled document's name: its first heading, else its first line."""
+    if not head:
+        return None
+    first = None
+    for line in head.splitlines():
+        if not line.strip():
+            continue
+        m = _HEADING.match(line)
+        if m:
+            return m.group(1).strip()[:120] or None
+        if first is None and not line.lstrip().startswith(("```", "---", "<")):
+            first = line.strip()
+    return first[:120] if first else None
+
+
 async def _build_map(db: AsyncIOMotorDatabase) -> dict[str, dict]:
     out: dict[str, dict] = {}
-    cursor = db["documents"].find(
-        {}, {"_id": 1, "slug": 1, "title": 1, "kind": 1, "encrypted": 1, "owner_id": 1}
+    # Only the head of an untitled, readable document is read: enough for its first heading.
+    cursor = db["documents"].aggregate(
+        [
+            {
+                "$project": {
+                    "slug": 1, "title": 1, "kind": 1, "encrypted": 1, "owner_id": 1,
+                    "head": {
+                        "$cond": [
+                            {"$or": [{"$eq": ["$encrypted", True]}, {"$gt": [{"$strLenCP": {"$ifNull": ["$title", ""]}}, 0]}]},
+                            None,
+                            {"$substrCP": [{"$ifNull": ["$content", ""]}, 0, 400]},
+                        ]
+                    },
+                }
+            }
+        ]
     )
     async for raw in cursor:
         ref = doc_ref(raw["_id"])
         if ref:
+            encrypted = bool(raw.get("encrypted"))
             out[ref] = {
                 "slug": raw.get("slug"),
                 # An encrypted document's stored title is not readable text.
-                "title": None if raw.get("encrypted") else raw.get("title"),
+                "title": None if encrypted else (raw.get("title") or heading_title(raw.get("head"))),
                 "kind": raw.get("kind") or "document",
-                "encrypted": bool(raw.get("encrypted")),
+                "encrypted": encrypted,
                 "owner_id": raw.get("owner_id"),
             }
     return out

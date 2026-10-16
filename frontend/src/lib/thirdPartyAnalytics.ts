@@ -149,6 +149,31 @@ function scrubSnapshot(node: unknown, depth = 0): void {
   }
 }
 
+/** Keys cleanProps handles itself (below) or that hold no URLs worth walking. */
+const NESTED_SKIP = new Set(["$snapshot_data", "$heatmap_data", "$elements"]);
+
+/**
+ * Nested objects carry URLs too: web vitals report `$web_vitals_FCP_event.navigationURL` and its
+ * own `$current_url`. Same rules as the top level, a few levels down.
+ */
+function cleanNested(v: unknown, titleSafe: boolean, depth: number): void {
+  if (!v || typeof v !== "object" || depth > 4) return;
+  if (Array.isArray(v)) {
+    for (const x of v) cleanNested(x, titleSafe, depth + 1);
+    return;
+  }
+  const o = v as Props;
+  for (const [k, x] of Object.entries(o)) {
+    if (typeof x === "string") {
+      if (PATH_KEY.test(k)) o[k] = cleanPath(x);
+      else if (URL_KEY.test(k)) o[k] = cleanUrl(x);
+      else if (TITLE_KEY.test(k) && !titleSafe) o[k] = "Markdrop";
+    } else if (x && typeof x === "object") {
+      cleanNested(x, titleSafe, depth + 1);
+    }
+  }
+}
+
 function cleanProps(props: Props | undefined, titleSafe: boolean): void {
   if (!props) return;
   for (const [k, v] of Object.entries(props)) {
@@ -156,6 +181,8 @@ function cleanProps(props: Props | undefined, titleSafe: boolean): void {
       if (PATH_KEY.test(k)) props[k] = cleanPath(v);
       else if (URL_KEY.test(k)) props[k] = cleanUrl(v);
       else if (TITLE_KEY.test(k) && !titleSafe) props[k] = "Markdrop";
+    } else if (v && typeof v === "object" && !NESTED_SKIP.has(k)) {
+      cleanNested(v, titleSafe, 1);
     }
   }
   // Autocaptured elements: link targets can be document URLs.
@@ -420,12 +447,26 @@ export function setAnalyticsDoc(next: DocContext | null) {
   }
 }
 
-/** A product event, mirrored from lib/track (whose props are already free of slugs and titles). */
-export function captureThirdParty(name: string, props?: Props) {
+/**
+ * A product event, mirrored from lib/track (whose props are already free of slugs and titles).
+ * `ga: false` keeps it to PostHog (fine-grained events GA has no use for, like read_progress).
+ */
+export function captureThirdParty(name: string, props?: Props, opts?: { ga?: boolean }) {
   if (!enabled() || mode === null) return;
   if (ph) ph.capture(name, props);
   else queued.push([name, props]);
-  if (gaLoaded && window.gtag) window.gtag("event", name, props ?? {});
+  if (opts?.ga !== false && gaLoaded && window.gtag) window.gtag("event", name, props ?? {});
+}
+
+/** What this browser last identified as, so a page load doesn't re-send it (each is a billable $set). */
+const IDENT_KEY = "md_ph_ident";
+
+function storedIdent(): string | null {
+  try {
+    return localStorage.getItem(IDENT_KEY);
+  } catch {
+    return null;
+  }
 }
 
 /** Sign-in: link this browser's history to the account. Limited mode never identifies. */
@@ -435,7 +476,15 @@ export function identifyUser(user: User) {
   pendingUser = user;
   if (mode !== "full") return;
   void loadPostHog(mode).then((p) => {
-    p?.identify(user.id, { email: user.email, name: user.name ?? undefined }, { signed_up_at: user.created_at });
+    if (!p) return;
+    const sig = `${user.id}|${user.email}|${user.name ?? ""}`;
+    if (p.get_distinct_id() === user.id && storedIdent() === sig) return;
+    p.identify(user.id, { email: user.email, name: user.name ?? undefined }, { signed_up_at: user.created_at });
+    try {
+      localStorage.setItem(IDENT_KEY, sig);
+    } catch {
+      /* storage blocked: identify again next time */
+    }
   });
   if (gaLoaded && window.gtag) window.gtag("set", { user_id: user.id });
 }
@@ -443,5 +492,10 @@ export function identifyUser(user: User) {
 /** Sign-out: a fresh anonymous identity, so the next person on this browser isn't merged in. */
 export function resetIdentity() {
   pendingUser = null;
+  try {
+    localStorage.removeItem(IDENT_KEY);
+  } catch {
+    /* storage blocked */
+  }
   ph?.reset();
 }

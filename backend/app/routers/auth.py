@@ -372,11 +372,19 @@ async def unsubscribe(
     user_id = campaign.verify_unsubscribe_token(t) if t else None
     ok = False
     if user_id and ObjectId.is_valid(user_id):
-        res = await db["users"].update_one(
+        user = await db["users"].find_one_and_update(
             {"_id": ObjectId(user_id)},
             {"$set": {"unsubscribed_at": datetime.now(timezone.utc)}},
+            projection={"email": 1},
         )
-        ok = res.matched_count > 0
+        ok = user is not None
+        if ok and user.get("email"):
+            # Also on the campaign suppression list, which covers addresses
+            # with no account (services/email_campaigns).
+            from app.services.email_campaigns import audience, store
+
+            await store.suppress(db, user["email"], "unsubscribed", "unsubscribe link (account)")
+            audience.invalidate()
 
     return HTMLResponse(
         mailer.unsubscribe_page_html(ok),

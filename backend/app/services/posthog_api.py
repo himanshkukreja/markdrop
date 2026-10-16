@@ -1,22 +1,31 @@
-"""Read-only PostHog client for the admin Journeys tab.
+"""Read-only PostHog client for the admin Journeys section.
 
-Every call uses the personal API key from settings, server side, so the key
-never reaches a browser and recordings are never exposed through PostHog's
-public share links. Results are cached briefly in-process: the admin pages poll
-and re-render, and PostHog rate-limits its query API.
+Every call uses the personal API key from settings, server side, so the key never reaches a
+browser and recordings are never exposed through PostHog's public share links. What the browser
+sends to PostHog is decided in frontend lib/thirdPartyAnalytics.ts: no slugs (an opaque `doc_ref`
+instead), no URL fragments, no tokens, no editor contents. This module only reads it back.
 
-What the browser sends to PostHog is decided in frontend lib/thirdPartyAnalytics.ts:
-no slugs (an opaque `doc_ref` instead), no URL fragments, no tokens, no editor
-contents. This module only reads it back.
+Transport rules (PostHog allows 3 concurrent queries and ~240 a minute per key):
+  * at most 3 requests in flight (`_slots`), the rest wait their turn;
+  * an in-memory TTL cache shares one in-flight request between concurrent callers and keeps the
+    answer for a few seconds to minutes (per query, see services/journeys.py);
+  * a HogQL query that times out or hits a PostHog 5xx is retried once after 1.5 s;
+  * errors are mapped to statuses the admin console can show. Never 401/403: a 401 from our API
+    signs the admin out, so a revoked PostHog key must not look like an expired admin session.
+
+Personal-key HogQL has two traps: OFFSET is refused (page by keyset on timestamp, or use the REST
+endpoints' offsets) and an unbounded scan of `events` times out (every query bounds `timestamp`).
 """
 
+import asyncio
 import base64
 import gzip
 import json
 import re
 import time
-from datetime import datetime
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar
+from urllib.parse import urlparse
 
 import httpx
 
@@ -24,284 +33,250 @@ from app.config import get_settings
 
 settings = get_settings()
 
-_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
-_cache: dict[str, tuple[float, Any]] = {}
+T = TypeVar("T")
 
 
 class PostHogError(Exception):
-    def __init__(self, status: int, detail: str):
-        super().__init__(detail)
+    """An upstream failure, already mapped to the status our API answers with.
+
+    `upstream` is PostHog's own status (or None for a network failure); `scope` names the missing
+    personal-API-key scope when PostHog refused the request for one.
+    """
+
+    def __init__(self, status: int, message: str, *, scope: str | None = None, upstream: int | None = None):
+        super().__init__(message)
         self.status = status
-        self.detail = detail
+        self.message = message
+        self.scope = scope
+        self.upstream = upstream
 
 
-def _headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {settings.posthog_personal_api_key}"}
+# ── Status ───────────────────────────────────────────────────────────────────
 
 
-def _base() -> str:
-    return f"{settings.posthog_host.rstrip('/')}/api/projects/{settings.posthog_project_id}"
+def ui_host() -> str:
+    return settings.posthog_host.rstrip("/")
 
 
-async def _request(method: str, path: str, *, json_body: dict | None = None, params: dict | None = None) -> httpx.Response:
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-        res = await client.request(method, f"{_base()}{path}", headers=_headers(), json=json_body, params=params)
-    if res.status_code >= 400:
+def region() -> str:
+    h = urlparse(ui_host()).hostname or ""
+    return "eu" if h.startswith("eu.") or "eu-" in h else "us"
+
+
+def status() -> dict:
+    """What the admin needs to render the setup state. Never includes a secret."""
+    missing = [
+        name
+        for name, value in (
+            ("MARKDROP_POSTHOG_PROJECT_ID", settings.posthog_project_id),
+            ("MARKDROP_POSTHOG_PERSONAL_API_KEY", settings.posthog_personal_api_key),
+        )
+        if not value
+    ]
+    return {
+        "configured": settings.posthog_configured,
+        "region": region(),
+        "ui_host": ui_host(),
+        "project_id": settings.posthog_project_id or None,
+        "include_local": settings.posthog_include_local,
+        "missing": missing,
+    }
+
+
+def not_configured() -> dict:
+    """Returned with HTTP 200 by every data endpoint while PostHog isn't set up."""
+    return {"configured": False, "status": status()}
+
+
+def app_url(path: str) -> str:
+    """A link into the PostHog app for this project."""
+    return f"{ui_host()}/project/{settings.posthog_project_id}{path}"
+
+
+# ── Transport ────────────────────────────────────────────────────────────────
+
+_slots: asyncio.Semaphore | None = None
+_client: httpx.AsyncClient | None = None
+_TIMEOUT = 20.0
+
+_SCOPE_IN_TEXT = re.compile(r"\b([a-z_]+:(?:read|write))\b")
+
+
+def _semaphore() -> asyncio.Semaphore:
+    global _slots
+    if _slots is None:
+        _slots = asyncio.Semaphore(3)
+    return _slots
+
+
+def _http() -> httpx.AsyncClient:
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(timeout=httpx.Timeout(_TIMEOUT, connect=8.0))
+    return _client
+
+
+def scope_for(path: str, method: str) -> str:
+    """The personal-API-key scope an endpoint needs (when PostHog's 403 doesn't name it)."""
+    if path.startswith("/query"):
+        return "query:read"
+    if "/sharing" in path:
+        return "sharing_configuration:read" if method == "GET" else "sharing_configuration:write"
+    if path.startswith("/session_recordings"):
+        return "session_recording:read"
+    if path.startswith("/persons"):
+        return "person:read"
+    return "project:read"
+
+
+def _detail(res: httpx.Response) -> str:
+    try:
+        body = res.json()
+    except ValueError:
+        return res.text[:300]
+    if isinstance(body, dict):
+        return str(body.get("detail") or body.get("error") or body.get("message") or "")[:500]
+    return str(body)[:300]
+
+
+def _map_error(res: httpx.Response, path: str, method: str) -> PostHogError:
+    code = res.status_code
+    detail = _detail(res)
+    # PostHog answers an invalid key with 403 on some endpoints (/query) and 401 on others.
+    try:
+        kind = (res.json() or {}).get("code") if res.headers.get("content-type", "").startswith("application/json") else None
+    except ValueError:
+        kind = None
+    if code == 401 or (code == 403 and kind == "authentication_failed"):
+        return PostHogError(
+            502, "PostHog rejected MARKDROP_POSTHOG_PERSONAL_API_KEY (revoked, or the wrong region?)", upstream=code
+        )
+    if code == 403:
+        m = _SCOPE_IN_TEXT.search(detail)
+        scope = m.group(1) if m else scope_for(path, method)
+        return PostHogError(
+            424,
+            f"The personal API key is missing the “{scope}” scope. "
+            "Add it in PostHog → Account settings → Personal API keys → edit.",
+            scope=scope,
+            upstream=code,
+        )
+    if code == 404:
+        return PostHogError(502, f"PostHog: not found ({detail or 'check MARKDROP_POSTHOG_PROJECT_ID'})", upstream=code)
+    if code == 429:
+        return PostHogError(429, "PostHog rate limit hit, try again in a minute", upstream=code)
+    if path.startswith("/query") and code == 400:
+        return PostHogError(502, f"HogQL: {detail}", upstream=code)
+    return PostHogError(502, f"PostHog {code}: {detail or res.reason_phrase}", upstream=code)
+
+
+async def request(
+    method: str,
+    path: str,
+    *,
+    json_body: dict | None = None,
+    params: dict | None = None,
+    timeout: float = _TIMEOUT,
+) -> httpx.Response:
+    """One call to `{host}/api/projects/{id}{path}`, through the 3-slot queue."""
+    url = f"{ui_host()}/api/projects/{settings.posthog_project_id}{path}"
+    headers = {"Authorization": f"Bearer {settings.posthog_personal_api_key}"}
+    async with _semaphore():
         try:
-            detail = res.json().get("detail") or res.text[:300]
-        except ValueError:
-            detail = res.text[:300]
-        raise PostHogError(res.status_code, str(detail))
+            res = await _http().request(method, url, headers=headers, json=json_body, params=params, timeout=timeout)
+        except httpx.TimeoutException:
+            raise PostHogError(504, "PostHog took too long to answer") from None
+        except httpx.HTTPError as e:
+            raise PostHogError(504, f"Can't reach PostHog: {e.__class__.__name__}") from None
+    if res.status_code >= 400:
+        raise _map_error(res, path, method)
     return res
 
 
-def _cached(key: str, ttl: float) -> Any | None:
+# ── Cache ────────────────────────────────────────────────────────────────────
+
+_cache: dict[str, tuple[float, asyncio.Future]] = {}
+
+
+async def cached(key: str, ttl: float, fn: Callable[[], Awaitable[T]]) -> T:
+    """Memoise `fn()` for `ttl` seconds. Concurrent callers share one request; a failure is
+    evicted at once so the next call retries. Treat what comes back as read-only."""
+    now = time.monotonic()
     hit = _cache.get(key)
-    if hit and time.monotonic() - hit[0] < ttl:
-        return hit[1]
-    return None
+    if hit and hit[0] > now and not (hit[1].done() and (hit[1].cancelled() or hit[1].exception() is not None)):
+        return await asyncio.shield(hit[1])
+    fut = asyncio.ensure_future(fn())
+    _cache[key] = (now + ttl, fut)
+    if len(_cache) > 300:
+        for k, (exp, f) in list(_cache.items()):
+            if exp <= now and f.done():
+                _cache.pop(k, None)
+    try:
+        return await asyncio.shield(fut)
+    except BaseException:
+        # Evict a failed request; a caller that merely went away leaves it running for the others.
+        if fut.done() and _cache.get(key, (0, None))[1] is fut:
+            _cache.pop(key, None)
+        raise
 
 
-def _store(key: str, value: Any) -> Any:
-    if len(_cache) > 500:
-        _cache.clear()
-    _cache[key] = (time.monotonic(), value)
-    return value
+def uncache(prefix: str) -> None:
+    for k in [k for k in _cache if k.startswith(prefix)]:
+        _cache.pop(k, None)
 
 
-async def hogql(query: str, values: dict | None = None, *, ttl: float = 30) -> list[dict]:
-    """Run a HogQL query; rows come back as dicts keyed by column name."""
-    key = "q:" + json.dumps([query, values], sort_keys=True, default=str)
-    hit = _cached(key, ttl)
-    if hit is not None:
-        return hit
-    body: dict[str, Any] = {"query": {"kind": "HogQLQuery", "query": query}}
+# ── HogQL ────────────────────────────────────────────────────────────────────
+
+_TRANSIENT = re.compile(r"execution time|timeout|timed out|took too long|server_error|too many simultaneous", re.I)
+
+
+def _transient(e: PostHogError) -> bool:
+    return (e.upstream is not None and e.upstream >= 500) or e.status == 504 or bool(_TRANSIENT.search(e.message))
+
+
+async def hogql(query: str, values: dict | None = None, *, name: str, ttl: float = 30) -> list[dict]:
+    """Run a HogQL query; rows come back as dicts keyed by column alias.
+
+    `values` fill `{name}` placeholders (PostHog escapes them). Numbers for INTERVAL and LIMIT
+    are validated by the caller and inlined.
+    """
+    q: dict[str, Any] = {"kind": "HogQLQuery", "query": query}
     if values:
-        body["query"]["values"] = values
-    res = await _request("POST", "/query/", json_body=body)
-    data = res.json()
-    cols = data.get("columns") or []
-    rows = [dict(zip(cols, r)) for r in data.get("results") or []]
-    return _store(key, rows)
+        q["values"] = values
+    body = {"query": q, "name": f"admin_journeys_{name}"}
+    key = "q:" + json.dumps(body, sort_keys=True, default=str)
 
-
-# Traffic from local development is tagged by host; leave it out of the console (unless a
-# development API asks for it with MARKDROP_POSTHOG_INCLUDE_LOCAL=true).
-_NOT_LOCAL = (
-    "1 = 1"
-    if settings.posthog_include_local
-    else "NOT (properties.$host LIKE 'localhost%' OR properties.$host LIKE '127.0.0.1%')"
-)
-
-
-def _days(days: int) -> int:
-    return max(1, min(int(days), 90))
-
-
-async def summary(days: int) -> dict:
-    rows = await hogql(
-        f"""
-        SELECT
-          uniq(person_id) AS people,
-          uniqIf(person_id, notEmpty(toString(person.properties.email))) AS identified,
-          uniq(properties.$session_id) AS sessions,
-          countIf(event = '$pageview') AS pageviews
-        FROM events
-        WHERE timestamp > now() - INTERVAL {_days(days)} DAY AND {_NOT_LOCAL}
-        """,
-        ttl=60,
-    )
-    return rows[0] if rows else {"people": 0, "identified": 0, "sessions": 0, "pageviews": 0}
-
-
-async def people(days: int, search: str | None, identified_only: bool, limit: int, before: str | None) -> list[dict]:
-    """People by most recent activity. Pages by keyset: `before` is the last row's last_seen
-    (PostHog refuses OFFSET on personal-API-key queries)."""
-    where = [f"timestamp > now() - INTERVAL {_days(days)} DAY", _NOT_LOCAL, "event != '$snapshot'"]
-    values: dict[str, Any] = {}
-    if search:
-        where.append(
-            "(toString(person.properties.email) ILIKE {q} OR toString(person.properties.name) ILIKE {q}"
-            " OR toString(person_id) = {exact} OR distinct_id = {exact})"
-        )
-        values["q"] = f"%{search}%"
-        values["exact"] = search
-    if identified_only:
-        where.append("notEmpty(toString(person.properties.email))")
-    having = "HAVING last_seen < parseDateTimeBestEffort({before})" if before else ""
-    return await hogql(
-        f"""
-        SELECT
-          toString(person_id) AS id,
-          argMax(toString(person.properties.email), timestamp) AS email,
-          argMax(toString(person.properties.name), timestamp) AS name,
-          min(timestamp) AS first_seen,
-          max(timestamp) AS last_seen,
-          count() AS events,
-          countIf(event = '$pageview') AS pageviews,
-          uniq(properties.$session_id) AS sessions,
-          argMax(properties.$geoip_country_code, timestamp) AS country,
-          argMax(properties.$geoip_city_name, timestamp) AS city,
-          argMax(properties.$browser, timestamp) AS browser,
-          argMax(properties.$os, timestamp) AS os,
-          argMax(properties.$device_type, timestamp) AS device,
-          argMin(properties.$referring_domain, timestamp) AS first_referrer,
-          argMin(properties.utm_source, timestamp) AS first_utm_source,
-          argMax(properties.$pathname, timestamp) AS last_path
-        FROM events
-        WHERE {' AND '.join(where)}
-        GROUP BY person_id
-        {having}
-        ORDER BY last_seen DESC
-        LIMIT {max(1, min(limit, 100))}
-        """,
-        ({**values, "before": before} if before else values) or None,
-    )
-
-
-_UUID = re.compile(r"^[0-9a-fA-F-]{32,36}$")
-
-
-def valid_person_id(person_id: str) -> bool:
-    return bool(_UUID.match(person_id))
-
-
-async def person(person_id: str) -> dict | None:
-    rows = await hogql(
-        "SELECT toString(id) AS id, created_at, properties FROM persons WHERE id = {id} LIMIT 1",
-        {"id": person_id},
-    )
-    if not rows:
-        return None
-    row = rows[0]
-    props = row.get("properties")
-    if isinstance(props, str):
-        try:
-            props = json.loads(props)
-        except ValueError:
-            props = {}
-    row["properties"] = props or {}
-    return row
-
-
-# Events that are bookkeeping, not something a person did.
-_SKIP_EVENTS = ("$snapshot", "$feature_flag_called", "$set", "$identify", "$groupidentify", "$web_vitals", "$opt_in", "$pageleave_bounce")
-
-_TAG = re.compile(r"^([a-zA-Z0-9-]+)")
-_TEXT = re.compile(r'(?:^|[^_])text="((?:[^"\\]|\\.)*)"')
-_HREF = re.compile(r'attr__href="((?:[^"\\]|\\.)*)"')
-_ARIA = re.compile(r'attr__aria-label="((?:[^"\\]|\\.)*)"')
-
-
-def describe_element(chain: str | None) -> dict | None:
-    """The clicked element from an elements_chain: tag, visible text, link target."""
-    if not chain:
-        return None
-    first = chain.split(";", 1)[0]
-    tag = _TAG.match(first)
-    text = _TEXT.search(first)
-    href = _HREF.search(first)
-    aria = _ARIA.search(first)
-    # The text often sits on the clicked element's parent (an icon inside a button).
-    if not text:
-        for seg in chain.split(";")[1:4]:
-            text = _TEXT.search(seg)
-            if text:
-                break
-    return {
-        "tag": tag.group(1) if tag else None,
-        "text": (text.group(1) if text else None) or (aria.group(1) if aria else None),
-        "href": href.group(1) if href else None,
-    }
-
-
-_KEEP_PROPS = {
-    "$session_id", "$pathname", "$current_url", "$referrer", "$referring_domain",
-    "$browser", "$os", "$device_type", "$geoip_city_name", "$geoip_country_code",
-    "$event_type", "$exception_message", "$exception_type", "$prev_pageview_pathname",
-    "$prev_pageview_duration", "$prev_pageview_max_scroll_percentage", "$prev_pageview_max_content_percentage",
-    "utm_source", "utm_medium", "utm_campaign", "doc_ref", "doc_kind", "doc_access", "$screen_width",
-}
-
-
-async def timeline(person_id: str, before: datetime | None, limit: int) -> list[dict]:
-    # The tuple's repr is valid HogQL: ('$snapshot', '$feature_flag_called', ...).
-    # A time bound keeps ClickHouse on the partition index; an unbounded scan times out.
-    where = ["timestamp > now() - INTERVAL 90 DAY", "person_id = {id}", f"event NOT IN {_SKIP_EVENTS!r}"]
-    values: dict[str, Any] = {"id": person_id}
-    if before:
-        where.append("timestamp < parseDateTimeBestEffort({before})")
-        values["before"] = before.isoformat()
-    rows = await hogql(
-        f"""
-        SELECT toString(uuid) AS uuid, event, timestamp, properties, elements_chain
-        FROM events
-        WHERE {' AND '.join(where)}
-        ORDER BY timestamp DESC
-        LIMIT {max(1, min(limit, 500))}
-        """,
-        values,
-        ttl=15,
-    )
-    out = []
-    for r in rows:
-        props = r.get("properties")
-        if isinstance(props, str):
+    async def run() -> list[dict]:
+        for attempt in (0, 1):
             try:
-                props = json.loads(props)
-            except ValueError:
-                props = {}
-        props = props or {}
-        kept = {k: v for k, v in props.items() if k in _KEEP_PROPS}
-        # Product events (publish, share, ...) carry their own small props.
-        custom = {k: v for k, v in props.items() if not k.startswith("$") and k not in _KEEP_PROPS and k not in ("token", "distinct_id")}
-        out.append(
-            {
-                "uuid": r["uuid"],
-                "event": r["event"],
-                "timestamp": r["timestamp"],
-                "props": kept,
-                "custom": custom if not r["event"].startswith("$") else {},
-                "element": describe_element(r.get("elements_chain")),
-            }
-        )
-    return out
+                data = (await request("POST", "/query/", json_body=body, timeout=30)).json()
+                if data.get("error"):
+                    raise PostHogError(502, f"HogQL: {data['error']}")
+            except PostHogError as e:
+                if not _transient(e):
+                    raise
+                if attempt == 0:
+                    await asyncio.sleep(1.5)
+                    continue
+                raise PostHogError(504, f"PostHog query timed out ({e.message}). Try again in a minute.") from None
+            cols = data.get("columns") or []
+            return [dict(zip(cols, r)) for r in data.get("results") or []]
+        return []  # unreachable
+
+    return await cached(key, ttl, run)
 
 
-def _recording(r: dict) -> dict:
-    person = r.get("person") or {}
-    pprops = person.get("properties") or {}
-    return {
-        "id": r.get("id"),
-        "start_time": r.get("start_time"),
-        "end_time": r.get("end_time"),
-        "duration": r.get("recording_duration"),
-        "active_seconds": r.get("active_seconds"),
-        "click_count": r.get("click_count"),
-        "keypress_count": r.get("keypress_count"),
-        "start_url": r.get("start_url"),
-        "ongoing": r.get("ongoing"),
-        "person": {
-            "id": person.get("uuid") or person.get("id"),
-            "email": pprops.get("email"),
-            "name": pprops.get("name"),
-        } if person else None,
-    }
+# ── Session recordings ───────────────────────────────────────────────────────
 
 
-async def recordings(person_id: str | None, limit: int, offset: int) -> list[dict]:
-    params: dict[str, Any] = {"limit": max(1, min(limit, 50)), "offset": max(0, offset)}
-    if person_id:
-        params["person_uuid"] = person_id
+async def list_recordings(params: dict, *, ttl: float = 30) -> dict:
+    """GET /session_recordings/ (REST: offsets are allowed here)."""
     key = "rec:" + json.dumps(params, sort_keys=True)
-    hit = _cached(key, 30)
-    if hit is not None:
-        return hit
-    res = await _request("GET", "/session_recordings/", params=params)
-    return _store(key, [_recording(r) for r in res.json().get("results") or []])
 
+    async def run() -> dict:
+        return (await request("GET", "/session_recordings/", params=params)).json()
 
-# ── Snapshots ────────────────────────────────────────────────────────────────
+    return await cached(key, ttl, run)
 
 
 def _inflate(value: Any) -> Any:
@@ -349,29 +324,36 @@ def _parse_lines(text: str) -> list[dict]:
     return events
 
 
-async def snapshots(recording_id: str) -> list[dict]:
-    """Every rrweb event of a recording, decompressed and in time order."""
-    key = f"snap:{recording_id}"
-    hit = _cached(key, 300)
-    if hit is not None:
-        return hit
-    path = f"/session_recordings/{recording_id}/snapshots"
-    sources = (await _request("GET", path, params={"blob_v2": "true"})).json().get("sources") or []
-    blob_keys = [s.get("blob_key") for s in sources if s.get("source") == "blob_v2" and s.get("blob_key") is not None]
-    events: list[dict] = []
-    if blob_keys:
-        ints = sorted(int(k) for k in blob_keys)
-        res = await _request(
-            "GET", path,
-            params={"source": "blob_v2", "start_blob_key": str(ints[0]), "end_blob_key": str(ints[-1])},
-        )
-        events = _parse_lines(res.text)
-    else:
-        # Older recordings: one request per blob source.
-        for s in sources:
-            if s.get("source") != "blob":
-                continue
-            res = await _request("GET", path, params={"source": "blob", "blob_key": s.get("blob_key")})
-            events.extend(_parse_lines(res.text))
-        events.sort(key=lambda e: e.get("timestamp") or 0)
-    return _store(key, events)
+async def snapshots(recording_id: str) -> list[dict] | None:
+    """Every rrweb event of a recording, decompressed and in time order; None when PostHog has
+    no such recording (too short, Do Not Track, or past retention)."""
+
+    async def run() -> list[dict] | None:
+        path = f"/session_recordings/{recording_id}/snapshots"
+        try:
+            sources = (await request("GET", path, params={"blob_v2": "true"}, timeout=30)).json().get("sources") or []
+        except PostHogError as e:
+            if e.upstream == 404:
+                return None
+            raise
+        blob_keys = [s.get("blob_key") for s in sources if s.get("source") == "blob_v2" and s.get("blob_key") is not None]
+        events: list[dict] = []
+        if blob_keys:
+            ints = sorted(int(k) for k in blob_keys)
+            res = await request(
+                "GET", path,
+                params={"source": "blob_v2", "start_blob_key": str(ints[0]), "end_blob_key": str(ints[-1])},
+                timeout=60,
+            )
+            events = _parse_lines(res.text)
+        else:
+            # Older recordings: one request per blob source.
+            for s in sources:
+                if s.get("source") != "blob":
+                    continue
+                res = await request("GET", path, params={"source": "blob", "blob_key": s.get("blob_key")}, timeout=60)
+                events.extend(_parse_lines(res.text))
+            events.sort(key=lambda e: e.get("timestamp") or 0)
+        return events
+
+    return await cached(f"snap:{recording_id}", 300, run)

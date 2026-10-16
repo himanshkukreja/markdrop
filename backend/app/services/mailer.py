@@ -132,13 +132,25 @@ def _shell(
     footer: str,
     preheader: str = "",
     page: bool = False,
+    top_label: str = "",
 ) -> str:
     """Wrap ``content`` in the light shell.
 
-    ``title`` and ``preheader`` are interpolated as-is: callers escape any user
-    text in them. ``page=True`` renders it as a web page (no preheader, a
-    vertical offset, noindex) for the unsubscribe confirmation.
+    ``title``, ``preheader`` and ``top_label`` are interpolated as-is: callers
+    escape any user text in them. ``page=True`` renders it as a web page (no
+    preheader, a vertical offset, noindex) for the unsubscribe confirmation.
+    ``top_label`` is a small uppercase label opposite the wordmark (campaigns:
+    "Product update", "Newsletter").
     """
+    brand = f'<a href="{_base()}" style="text-decoration:none">{_wordmark(20)}</a>'
+    if top_label:
+        brand = (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+            f'<td valign="middle">{brand}</td>'
+            f'<td align="right" valign="middle" style="font-family:{_SANS};font-size:11px;line-height:16px;'
+            f'font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:{_MUTED}">{top_label}</td>'
+            "</tr></table>"
+        )
     pre = (
         f'<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all">'
         f"{preheader}{_PREHEADER_PAD}</div>"
@@ -179,7 +191,7 @@ def _shell(
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr><td bgcolor="{_ACCENT}" height="4" style="background-color:{_ACCENT};height:4px;line-height:4px;font-size:0;border-radius:11px 11px 0 0">&nbsp;</td></tr>
           <tr><td class="md-pad" style="padding:26px 32px 22px">
-            <a href="{_base()}" style="text-decoration:none">{_wordmark(20)}</a>
+            {brand}
           </td></tr>
           <tr><td class="md-pad md-h1" style="padding:0 32px 12px;font-family:{_SANS};color:{_BODY};word-break:break-word;overflow-wrap:anywhere">
 {content}

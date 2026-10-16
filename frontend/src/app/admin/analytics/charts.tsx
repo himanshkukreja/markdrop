@@ -46,6 +46,9 @@ function niceMax(v: number): number {
 
 export function bucketLabel(iso: string, unit: string, tz: string, long = false): string {
   const d = new Date(iso);
+  if (unit === "minute") {
+    return d.toLocaleString("en", { timeZone: tz, hour: "numeric", minute: "2-digit", ...(long ? { day: "numeric", month: "short" } : {}) });
+  }
   if (unit === "hour") {
     return d.toLocaleString("en", { timeZone: tz, hour: "numeric", ...(long ? { weekday: "short", day: "numeric", month: "short" } : {}) });
   }
