@@ -4,14 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import { MetaList } from "@/components/kit/MetaList";
 import {
-  Alert, Badge, Button, ConfirmDialog, Progress, Drawer, EmptyState, FileIcon, Icon, Input, Pagination, RowMenu, Skeleton,
+  Alert, Badge, Button, ConfirmDialog, Progress, Drawer, EmptyState, FileIcon, Icon, Input, Pagination, RowMenu,
   Switch, Table, Tabs, Tooltip, copyText, useToast, type Column, type MenuItem,
 } from "@/components/ui";
 import {
   adminDeleteDocument, adminGetDocument, adminListDocuments,
   type AdminDocListItem, type DocKind, type DocumentResponse,
 } from "@/lib/api";
-import { PageHead, PersonAvatar, bytes, expiryLabel, fmtDate, iconRenderer, isUnauthorized, plural, useOnUnauthorized } from "./shared";
+import { PageHead, PersonAvatar, bytes, expiryLabel, fmtDate, iconRenderer, isUnauthorized, plural, useOnUnauthorized, LoadingBlock } from "./shared";
 
 /** The list endpoint also returns `encrypted` (title and preview are withheld for those). */
 export type AdminDoc = AdminDocListItem & { encrypted?: boolean };
@@ -205,10 +205,7 @@ export function DocumentsPanel({ token, filters, setFilters, reportsView, onEdit
           Check that the API is reachable, then retry.
         </Alert>
       ) : !docs ? (
-        <div className="flex flex-col gap-2" aria-busy="true">
-          <span className="md-visually-hidden">Loading documents</span>
-          {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} variant="rect" height={52} />)}
-        </div>
+        <LoadingBlock size="md" label="Loading documents" minHeight={360} />
       ) : docs.length === 0 ? (
         <EmptyState
           icon={reported ? "flag" : "inbox"}
@@ -325,7 +322,7 @@ function DocDrawer({ token, doc, onClose, onEdit, onDelete }: {
             ) : failed ? (
               <Alert tone="danger">Couldn&apos;t load the preview. Close and reopen the document to try again.</Alert>
             ) : !full ? (
-              <div className="flex flex-col gap-2" aria-busy="true"><Skeleton /><Skeleton width="80%" /><Skeleton width="60%" /></div>
+              <LoadingBlock label="Loading the preview" minHeight={200} className="rounded-xl border border-border bg-bg" />
             ) : (
               <div className="min-w-0 rounded-xl border border-border bg-bg p-4">
                 <MarkdownPreview content={full.content} />

@@ -2,8 +2,9 @@
 
 /** Shared building blocks for the analytics pages (Overview, Product health), on DS tokens. */
 
-import { Alert, Button, Skeleton } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import type { DeltaValue } from "@/components/kit/StatTile";
+import { LoadingBlock } from "../shared";
 
 /** A card: `surface`, hairline, radius-xl. Titles are h2 (the page h1 sits above). */
 export function Card({ children, className = "", ...rest }: { children: React.ReactNode; className?: string } & React.HTMLAttributes<HTMLElement>) {
@@ -27,13 +28,15 @@ export function Eyebrow({ children, className = "" }: { children: React.ReactNod
   return <h3 className={`mb-2 text-eyebrow uppercase text-text-muted ${className}`}>{children}</h3>;
 }
 
-/** Per-card loading state. */
+/**
+ * Per-card loading state: the card's title and the Markdrop loader in the space the chart will
+ * take (`height`), so the page doesn't jump when it lands.
+ */
 export function CardSkeleton({ title, height = 220, className = "" }: { title?: string; height?: number; className?: string }) {
   return (
-    <Card className={className} aria-busy="true">
-      {title ? <h2 className="mb-4 text-h4 text-text">{title}</h2> : <Skeleton width="40%" height={18} className="mb-4" />}
-      <span className="md-visually-hidden">Loading</span>
-      <Skeleton variant="rect" height={height} />
+    <Card className={className}>
+      {title && <h2 className="mb-4 text-h4 text-text">{title}</h2>}
+      <LoadingBlock label={title ? `Loading ${title.toLowerCase()}` : "Loading"} minHeight={height} className="py-0" />
     </Card>
   );
 }

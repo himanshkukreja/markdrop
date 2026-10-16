@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Alert, Badge, Button, Icon, Input, SegmentedControl, Skeleton, Spinner, cx } from "@/components/ui";
-import { isUnauthorized, useOnUnauthorized } from "../shared";
+import { Alert, Badge, Button, Icon, Input, SegmentedControl, Spinner, cx } from "@/components/ui";
+import { LoadingBlock, isUnauthorized, useOnUnauthorized } from "../shared";
 import { emailApi, type MergeTagInfo, type RecipientPreview, type Rendered } from "./api";
 import { Section, useDebounced } from "./bits";
 
@@ -158,7 +158,7 @@ export function EmailPreview({
       {error && !rendered ? (
         <Alert tone="danger" title="Couldn't render the email" actions={onRetry ? <Button size="sm" variant="secondary" iconLeft="refresh" onClick={onRetry}>Retry</Button> : undefined}>{error}</Alert>
       ) : !rendered ? (
-        <Skeleton variant="rect" height={compact ? 420 : 560} />
+        <LoadingBlock label="Rendering the email" minHeight={compact ? 420 : 560} className="rounded-lg border border-border bg-surface-inset" />
       ) : view === "html" ? (
         <ScaledFrame
           html={rendered.html}

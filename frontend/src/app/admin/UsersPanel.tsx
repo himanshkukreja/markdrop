@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Badge, Button, EmptyState, Input, Pagination, Progress, Skeleton, Table, type Column } from "@/components/ui";
+import { Alert, Badge, Button, EmptyState, Input, Pagination, Progress, Table, type Column } from "@/components/ui";
 import { adminListUsers, type AdminUserListItem } from "@/lib/api";
-import { PageHead, PersonAvatar, bytes, fmtDate, isUnauthorized, plural, useOnUnauthorized } from "./shared";
+import { PageHead, PersonAvatar, bytes, fmtDate, isUnauthorized, plural, useOnUnauthorized, LoadingBlock } from "./shared";
 
 const PROVIDER: Record<string, string> = { google: "Google", github: "GitHub", email: "Email", magic: "Email" };
 
@@ -130,7 +130,7 @@ export function UsersPanel({ token }: { token: string }) {
           Check that the API is reachable, then retry.
         </Alert>
       ) : !users ? (
-        <div className="flex flex-col gap-2" aria-busy="true"><span className="md-visually-hidden">Loading users</span>{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} variant="rect" height={52} />)}</div>
+        <LoadingBlock size="md" label="Loading users" minHeight={360} />
       ) : users.length === 0 ? (
         <EmptyState icon="users" title={q ? "No users match" : "No users yet"} description={q ? "Try another name or address." : undefined} />
       ) : (
