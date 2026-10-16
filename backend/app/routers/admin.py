@@ -321,6 +321,35 @@ async def admin_login(request: Request, data: AdminLoginRequest):
     return AdminLoginResponse(token=token, expires_at=exp)
 
 
+# How the admin document list can be ordered. Each maps to (sort key, direction); the computed
+# keys come from `_SORT_FIELDS` so documents without the field sort last, not first.
+_DOC_SORTS: dict[str, tuple[str, int]] = {
+    "newest": ("created_at", -1),
+    "oldest": ("created_at", 1),
+    "updated": ("updated_at", -1),
+    "views": ("views", -1),
+    "views_asc": ("views", 1),
+    "reports": ("report_count", -1),
+    "size": ("_size", -1),
+    "expiring": ("_expires", 1),
+    "title": ("_title", 1),
+}
+_SORT_FIELDS: dict[str, dict] = {
+    # Artifacts carry their byte size; markdown is measured from the stored content.
+    "_size": {"$ifNull": ["$size_bytes", {"$strLenBytes": {"$ifNull": ["$content", ""]}}]},
+    # No expiry sorts after every real date.
+    "_expires": {"$ifNull": ["$expires_at", datetime(9999, 12, 31, tzinfo=timezone.utc)]},
+    # Untitled and encrypted documents (no readable title) sort after titled ones.
+    "_title": {
+        "$cond": [
+            {"$or": [{"$eq": ["$encrypted", True]}, {"$eq": [{"$ifNull": ["$title", ""]}, ""]}]},
+            "\uffff",
+            {"$toLower": "$title"},
+        ]
+    },
+}
+
+
 @router.get("/documents", response_model=AdminDocListResponse)
 async def list_all_documents(
     page: int = Query(1, ge=1),
@@ -328,10 +357,12 @@ async def list_all_documents(
     q: str | None = Query(None),
     reported: bool = Query(False),
     kind: str | None = Query(None, pattern="^(markdown|artifact)$"),
+    sort: str | None = Query(None, pattern="^(" + "|".join(_DOC_SORTS) + ")$"),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
-    """List documents. `q` uses the full-text index; `reported=1` filters flagged docs."""
+    """List documents. `q` uses the full-text index; `reported=1` filters flagged docs; `sort`
+    orders them (default: newest, or most reported when `reported=1`)."""
     query: dict = {}
     if q:
         query["$text"] = {"$search": q}
@@ -345,15 +376,18 @@ async def list_all_documents(
 
     total = await db["documents"].count_documents(query)
     skip = (page - 1) * limit
-    sort_field = "report_count" if reported else "created_at"
-    cursor = (
-        db["documents"]
-        .find(query, {"_id": 0})
-        .sort(sort_field, -1)
-        .skip(skip)
-        .limit(limit)
-    )
-    docs = await cursor.to_list(length=limit)
+    field, direction = _DOC_SORTS[sort or ("reports" if reported else "newest")]
+    pipeline: list[dict] = [{"$match": query}]
+    if field in _SORT_FIELDS:
+        pipeline.append({"$addFields": {field: _SORT_FIELDS[field]}})
+    # `_id` breaks ties so paging is stable when many documents share a value (0 views).
+    pipeline += [
+        {"$sort": {field: direction, "_id": direction}},
+        {"$skip": skip},
+        {"$limit": limit},
+        {"$project": {"_id": 0, "_size": 0, "_expires": 0, "_title": 0}},
+    ]
+    docs = await db["documents"].aggregate(pipeline, allowDiskUse=True).to_list(length=limit)
     owner_map = await _owner_email_map(db, docs)
 
     return AdminDocListResponse(
