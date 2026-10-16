@@ -15,6 +15,10 @@ import { ProductHealthPanel } from "./ProductHealthPanel";
 import { UnauthorizedContext, readQuery, sectionFrom, writeQuery, type Section } from "./shared";
 import { UsersPanel } from "./UsersPanel";
 import JourneysPanel from "./journeys/JourneysPanel";
+import { JOURNEYS_KEYS } from "./journeys/bits";
+
+/** Journeys keeps its sub-state in the URL; another section starts without it. */
+const JOURNEYS_CLEAR = Object.fromEntries(JOURNEYS_KEYS.map((k) => [k, null]));
 
 type Phase = "init" | "login" | "app";
 
@@ -88,7 +92,7 @@ export default function AdminApp() {
     setEditing(null);
     if (s !== section) setDocFilters((f) => ({ ...f, page: 1 }));
     setSection(s);
-    writeQuery({ tab: s === "overview" ? null : s }, true);
+    writeQuery({ tab: s === "overview" ? null : s, ...(s !== "journeys" ? JOURNEYS_CLEAR : {}) }, true);
     document.getElementById("main")?.focus({ preventScroll: true });
     window.scrollTo({ top: 0 });
   };
