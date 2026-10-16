@@ -149,6 +149,31 @@ function scrubSnapshot(node: unknown, depth = 0): void {
   }
 }
 
+/** Keys cleanProps handles itself (below) or that hold no URLs worth walking. */
+const NESTED_SKIP = new Set(["$snapshot_data", "$heatmap_data", "$elements"]);
+
+/**
+ * Nested objects carry URLs too: web vitals report `$web_vitals_FCP_event.navigationURL` and its
+ * own `$current_url`. Same rules as the top level, a few levels down.
+ */
+function cleanNested(v: unknown, titleSafe: boolean, depth: number): void {
+  if (!v || typeof v !== "object" || depth > 4) return;
+  if (Array.isArray(v)) {
+    for (const x of v) cleanNested(x, titleSafe, depth + 1);
+    return;
+  }
+  const o = v as Props;
+  for (const [k, x] of Object.entries(o)) {
+    if (typeof x === "string") {
+      if (PATH_KEY.test(k)) o[k] = cleanPath(x);
+      else if (URL_KEY.test(k)) o[k] = cleanUrl(x);
+      else if (TITLE_KEY.test(k) && !titleSafe) o[k] = "Markdrop";
+    } else if (x && typeof x === "object") {
+      cleanNested(x, titleSafe, depth + 1);
+    }
+  }
+}
+
 function cleanProps(props: Props | undefined, titleSafe: boolean): void {
   if (!props) return;
   for (const [k, v] of Object.entries(props)) {
@@ -156,6 +181,8 @@ function cleanProps(props: Props | undefined, titleSafe: boolean): void {
       if (PATH_KEY.test(k)) props[k] = cleanPath(v);
       else if (URL_KEY.test(k)) props[k] = cleanUrl(v);
       else if (TITLE_KEY.test(k) && !titleSafe) props[k] = "Markdrop";
+    } else if (v && typeof v === "object" && !NESTED_SKIP.has(k)) {
+      cleanNested(v, titleSafe, 1);
     }
   }
   // Autocaptured elements: link targets can be document URLs.
