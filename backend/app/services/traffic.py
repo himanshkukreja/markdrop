@@ -45,7 +45,7 @@ settings = get_settings()
 # document slug. Mirror of frontend/src/lib/analyticsPath.ts — keep in step.
 APP_ROUTES = {
     "", "admin", "auth", "builder", "dashboard", "enterprise", "extension", "h",
-    "invite", "login", "new", "settings", "share", "upload",
+    "invite", "login", "new", "privacy", "settings", "share", "upload",
 }
 
 _ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")

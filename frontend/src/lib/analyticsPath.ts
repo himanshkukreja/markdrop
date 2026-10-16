@@ -26,6 +26,7 @@ const APP_ROUTES = new Set([
   "invite",
   "login",
   "new",
+  "privacy",
   "settings",
   "share",
   "upload",
