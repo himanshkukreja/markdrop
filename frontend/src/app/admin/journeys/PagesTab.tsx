@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, EmptyState, Skeleton, cx } from "@/components/ui";
+import { Button, EmptyState, cx } from "@/components/ui";
+import { LoadingBlock } from "../shared";
 import { notConfigured, useJourneys, type NotConfigured, type PageDetailRes, type PathsRes } from "./api";
 import {
-  BarList, DaysPicker, ExtLink, NavLink, PageIcon, Panel, PhErrorState, SkeletonRows, docUrl, fmtNum, fmtPct, pageName, pageSub, useDays, useNav,
+  BarList, DaysPicker, ExtLink, NavLink, PageIcon, Panel, PhErrorState, StaleNotice, docUrl, fmtNum, fmtPct, pageName, pageSub, useDays, useNav,
 } from "./bits";
 import { SetupCard } from "./SetupCard";
 
@@ -16,7 +17,7 @@ import { SetupCard } from "./SetupCard";
 export function PagesTab({ token }: { token: string }) {
   const { state, go } = useNav();
   const { days } = useDays("30d");
-  const { data, error, refresh } = useJourneys<PathsRes | NotConfigured>(token, "/paths", { days });
+  const { data, error, refresh, stale } = useJourneys<PathsRes | NotConfigured>(token, "/paths", { days });
   if (notConfigured(data)) return <SetupCard status={data.status} compact />;
   const res = data as PathsRes | undefined;
   const pages = res?.pages ?? [];
@@ -28,12 +29,13 @@ export function PagesTab({ token }: { token: string }) {
         <p className="font-mono text-caption text-text-muted">pick a page → most clicked elements, reading depth, heatmap overlay in PostHog</p>
         <DaysPicker fallback="30d" />
       </div>
+      <StaleNotice stale={stale} error={res ? error : null} />
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         <Panel eyebrow="Top pages" title="By views" pad={false}>
           {error && !res ? (
             <div className="p-4"><PhErrorState error={error} onRetry={refresh} /></div>
           ) : !res ? (
-            <div className="p-3"><SkeletonRows n={8} height={44} label="Loading pages" /></div>
+            <LoadingBlock label="Loading pages" minHeight={360} />
           ) : pages.length === 0 ? (
             <div className="p-4"><EmptyState icon="eye" title="No page views yet" /></div>
           ) : (
@@ -75,7 +77,7 @@ export function PagesTab({ token }: { token: string }) {
 }
 
 function PageDetail({ token, path, days }: { token: string; path: string; days: number }) {
-  const { data, error, refresh } = useJourneys<PageDetailRes | NotConfigured>(token, "/page", { path, days });
+  const { data, error, refresh, stale } = useJourneys<PageDetailRes | NotConfigured>(token, "/page", { path, days });
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -87,10 +89,8 @@ function PageDetail({ token, path, days }: { token: string; path: string; days: 
   if (error && !res) return <PhErrorState error={error} onRetry={refresh} title="Couldn't load this page" />;
   if (!res) {
     return (
-      <div className="flex flex-col gap-4" aria-busy="true">
-        <span className="md-visually-hidden">Loading the page</span>
-        <Skeleton variant="rect" height={150} />
-        <Skeleton variant="rect" height={320} />
+      <div className="rounded-xl border border-border bg-surface">
+        <LoadingBlock label="Loading clicks and reading depth" minHeight={420} />
       </div>
     );
   }

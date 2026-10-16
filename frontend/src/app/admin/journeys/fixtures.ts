@@ -2,12 +2,13 @@
  * Development-only fixtures for admin Journeys (`/admin?tab=journeys&preview=1`, `&setup=1` for
  * the setup card). Deterministic (a seeded LCG), dense enough to exercise every state: identified
  * and anonymous people, rage and dead clicks, errors, live and expiring recordings, documents
- * that resolve and ones that don't. api.ts imports this module only behind
+ * that resolve and ones that don't, and a live site for the Live section (`/admin?tab=live&preview=1`,
+ * `&stale=1` for the stale notice) with growing sessions and recordings. api.ts imports this module only behind
  * `process.env.NODE_ENV === "development"`, so production builds never contain it.
  */
 import type {
-  DocRef, Kind, LiveRes, PageDetailRes, PageRef, PathsRes, PeopleRes, PersonRes, PersonRow, PhStatus, Recording, RecordingsRes,
-  SnapshotsRes, StreamEvent, TimelineEvent,
+  DocRef, Kind, LiveFeedRes, LiveRes, LiveSession, PageDetailRes, PageRef, PathsRes, PeopleRes, PersonRes, PersonRow, PhStatus, Recording,
+  RecordingsRes, SnapshotsRes, StreamEvent, TimelineEvent,
 } from "./api";
 
 if (process.env.NODE_ENV !== "development") throw new Error("Journeys fixtures are development-only");
@@ -317,12 +318,165 @@ function snapshots(id: string): SnapshotsRes {
   return { configured: true, id, found: true, events, app_url: `https://us.posthog.com/project/0/replay/${id}` };
 }
 
+
+// ── Live section (`/admin?tab=live&preview=1`) ───────────────────────────────
+//
+// A small simulated site: six sessions active over the last half hour, two of them "right now",
+// with new events every few seconds (each poll sees what happened since the last), and two
+// ongoing recordings whose snapshots grow on every live poll.
+
+type LiveSim = { sessions: LiveSession[]; events: StreamEvent[]; next: number; r: () => number };
+let sim: LiveSim | null = null;
+
+const LIVE_SCRIPT: { event: string; kind: Kind; label: string; page: string; detail?: string }[] = [
+  { event: "$pageview", kind: "pageview", label: "Viewed “Home”", page: "/" },
+  { event: "landing_cta", kind: "cta", label: "Clicked a call to action", page: "/", detail: "start_writing · in hero" },
+  { event: "$pageview", kind: "pageview", label: "Viewed “Editor”", page: "/new" },
+  { event: "$autocapture", kind: "form", label: "Changed an input", page: "/new", detail: "Editor" },
+  { event: "$autocapture", kind: "click", label: "Clicked “Preview”", page: "/new", detail: "Editor" },
+  { event: "$rageclick", kind: "rage", label: "Rage-clicked “Publish”", page: "/new", detail: "Editor" },
+  { event: "doc_published", kind: "publish", label: "Published a document", page: "/new", detail: "public" },
+  { event: `$pageview`, kind: "pageview", label: `Opened “${DOCS[0]!.title}”`, page: `doc:${DOCS[0]!.ref}` },
+  { event: "read_progress", kind: "read", label: `Read 50% of “${DOCS[0]!.title}”`, page: `doc:${DOCS[0]!.ref}`, detail: "48s engaged · ~4 min read" },
+  { event: "doc_copy_link", kind: "share", label: `Copied the link to “${DOCS[0]!.title}”`, page: `doc:${DOCS[0]!.ref}` },
+  { event: "$exception", kind: "error", label: "Hit a JS error", page: "/upload", detail: "TypeError: Failed to fetch" },
+  { event: "$pageview", kind: "pageview", label: "Viewed “Upload a file”", page: "/upload" },
+];
+
+function liveSim(): LiveSim {
+  if (sim) return sim;
+  const r = rng(99);
+  const now = Date.now();
+  const ps = people();
+  const sessions: LiveSession[] = ps.slice(0, 6).map((p, i) => {
+    const sid = uuid(r);
+    const last = now - [8, 35, 70, 4 * 60, 11 * 60, 26 * 60][i]! * 1000;
+    const started = last - (3 + i * 4) * MIN;
+    return {
+      id: sid,
+      person_id: p.row.id,
+      distinct_id: p.row.distinct_id,
+      who: p.row.email ?? `anon ${(p.row.distinct_id ?? p.row.id).slice(-6)}`,
+      identified: p.row.identified,
+      email: p.row.email,
+      name: p.row.name,
+      country: p.row.country,
+      city: p.row.city,
+      device: p.row.device,
+      browser: p.row.browser,
+      started: new Date(started).toISOString(),
+      started_before_window: i === 5,
+      last_seen: new Date(last).toISOString(),
+      events: 6 + i * 3,
+      events_now: i < 2 ? 3 + i : 0,
+      pageviews: 2 + (i % 3),
+      page: pageOf(LIVE_SCRIPT[(i * 3) % LIVE_SCRIPT.length]!.page),
+      last: { id: uuid(r), t: new Date(last).toISOString(), event: "$pageview", kind: "pageview", label: "Viewed “Home”", detail: null, page: app("/") },
+      recording: i < 2 || i === 3
+        ? { id: sid, ongoing: i < 2, start: new Date(started).toISOString(), end: null, duration: Math.round((last - started) / 1000), app_url: `https://us.posthog.com/project/0/replay/${sid}` }
+        : null,
+    };
+  });
+  const events: StreamEvent[] = [];
+  sim = { sessions, events, next: 0, r };
+  // Backfill: a few events per session before now.
+  sessions.forEach((s, i) => {
+    for (let k = 0; k < 4; k++) addLiveEvent(sim!, i, new Date(s.last_seen).getTime() - (3 - k) * 50_000);
+  });
+  return sim;
+}
+
+function addLiveEvent(s: LiveSim, i: number, t: number) {
+  const sess = s.sessions[i]!;
+  const step = LIVE_SCRIPT[s.next++ % LIVE_SCRIPT.length]!;
+  const page = pageOf(step.page);
+  const e: StreamEvent = {
+    id: uuid(s.r), t: new Date(t).toISOString(), event: step.event, kind: step.kind, label: step.label, detail: step.detail ?? null,
+    page, session: sess.id, person_id: sess.person_id, who: sess.who, identified: sess.identified,
+    country: sess.country, city: sess.city, device: sess.device,
+  };
+  s.events.unshift(e);
+  if (t >= new Date(sess.last_seen).getTime()) {
+    sess.last_seen = e.t;
+    sess.last = { id: e.id, t: e.t, event: e.event, kind: e.kind, label: e.label, detail: e.detail, page };
+    if (e.kind === "pageview") sess.page = page;
+    if (sess.recording) sess.recording.duration = Math.round((t - new Date(sess.started!).getTime()) / 1000);
+  }
+  sess.events += 1;
+}
+
+function liveFeed(since: string | null): LiveFeedRes {
+  const s = liveSim();
+  const now = Date.now();
+  // Since the last poll: one or two of the "now" sessions did something.
+  const lastT = s.events[0] ? new Date(s.events[0].t).getTime() : now - 30_000;
+  for (let t = lastT + 3_000 + s.r() * 4_000; t < now - 1_000; t += 3_000 + s.r() * 6_000) addLiveEvent(s, s.r() < 0.6 ? 0 : 1, t);
+  s.events.splice(200);
+  s.sessions.sort((a, b) => (a.last_seen < b.last_seen ? 1 : -1));
+  const nowCut = now - 5 * MIN;
+  const on = s.sessions.filter((x) => new Date(x.last_seen).getTime() >= nowCut);
+  const pages = new Map<string, { page: PageRef; n: number }>();
+  for (const x of on) if (x.page) pages.set(x.page.key, { page: x.page, n: (pages.get(x.page.key)?.n ?? 0) + 1 });
+  const cut = since ? new Date(since).getTime() - 180_000 : 0;
+  return {
+    configured: true,
+    as_of: new Date(now).toISOString(),
+    window_min: 30,
+    now_min: 5,
+    counts: {
+      visitors_now: on.length,
+      sessions: s.sessions.length,
+      events_now: s.events.filter((e) => new Date(e.t).getTime() >= nowCut).length,
+      pageviews: s.sessions.reduce((a, x) => a + x.pageviews, 0),
+      capped: false,
+    },
+    sessions: s.sessions.map((x) => ({ ...x, last: { ...x.last }, recording: x.recording && { ...x.recording } })),
+    pages: [...pages.values()].sort((a, b) => b.n - a.n),
+    events: (since ? s.events.filter((e) => new Date(e.t).getTime() > cut) : s.events.slice(0, 60)).map((e) => ({ ...e })),
+    cursor: s.events[0]?.t ?? since,
+    recordings_error: null,
+    // `&stale=1`: as if PostHog were rate-limiting us and this were the last good answer.
+    stale: new URLSearchParams(window.location.search).get("stale") === "1"
+      ? { age_s: 240, as_of: new Date(now - 240_000).toISOString(), reason: "rate_limited", message: "PostHog is rate-limiting us", retry_in: 45 }
+      : null,
+  };
+}
+
+/** A recording that keeps growing: each `after` poll returns pointer moves up to ~20 s ago. */
+const liveRecs = new Map<string, { t0: number; edge: number; key: number }>();
+function liveSnapshots(id: string, after: number | null): SnapshotsRes {
+  let st = liveRecs.get(id);
+  const now = Date.now();
+  if (!st || after === null) {
+    const base = snapshots(id);
+    const t0 = now - 120_000;
+    const events = base.events as { type: number; timestamp: number; data: unknown }[];
+    const shift = t0 - events[0]!.timestamp;
+    for (const e of events) e.timestamp += shift;
+    st = { t0, edge: events[events.length - 1]!.timestamp, key: 4 };
+    liveRecs.set(id, st);
+    return { ...base, events, last_key: st.key, live_edge: new Date(st.edge).toISOString() };
+  }
+  const events: unknown[] = [];
+  const until = now - 20_000;
+  for (let t = st.edge + 400; t < until; t += 400) {
+    const i = (t - st.t0) / 400;
+    events.push({ type: 3, timestamp: t, data: { source: 1, positions: [{ x: 200 + Math.round(Math.cos(i / 5) * 160), y: 260 + Math.round(Math.sin(i / 4) * 120), id: 1, timeOffset: 0 }] } });
+  }
+  if (events.length) {
+    st.edge = (events[events.length - 1] as { timestamp: number }).timestamp;
+    st.key += 1;
+  }
+  return { configured: true, id, found: true, events, last_key: st.key, live_edge: new Date(st.edge).toISOString(), app_url: `https://us.posthog.com/project/0/replay/${id}` };
+}
+
 export async function resolveFixture(path: string, params: Params): Promise<unknown> {
   await new Promise((res) => setTimeout(res, 120));
   const days = Number(params.days ?? 30) || 30;
   const q = new URLSearchParams(window.location.search);
   if (path === "/status") return q.get("setup") === "1" ? { ...STATUS, configured: false, project_id: null, missing: ["MARKDROP_POSTHOG_PROJECT_ID", "MARKDROP_POSTHOG_PERSONAL_API_KEY"] } : STATUS;
   if (path === "/live") return live();
+  if (path === "/live/feed") return liveFeed(params.since ? String(params.since) : null);
   if (path === "/people") {
     const term = String(params.q ?? "").toLowerCase();
     const kind = String(params.kind ?? "all");
@@ -363,7 +517,12 @@ export async function resolveFixture(path: string, params: Params): Promise<unkn
     all.sort((a, b) => (a.start < b.start ? 1 : -1));
     return { configured: true, recordings: all, has_next: false, filter_page: params.path ? pageOf(String(params.path)) : null } satisfies RecordingsRes;
   }
-  if (path.startsWith("/recordings/") && path.endsWith("/snapshots")) return snapshots(path.split("/")[2]!);
+  if (path.startsWith("/recordings/") && path.endsWith("/snapshots")) {
+    const id = path.split("/")[2]!;
+    const ongoing = sim?.sessions.some((x) => x.recording?.id === id && x.recording.ongoing);
+    if (ongoing) return liveSnapshots(id, params.after === undefined || params.after === null ? null : Number(params.after));
+    return snapshots(id);
+  }
   if (path === "/paths") return paths(days);
   if (path === "/page") return page(String(params.path ?? "/"), days);
   return undefined;

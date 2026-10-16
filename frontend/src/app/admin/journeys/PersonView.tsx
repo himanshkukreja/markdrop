@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Badge, Button, Icon, SegmentedControl, Skeleton, cx } from "@/components/ui";
+import { Badge, Button, Icon, SegmentedControl, cx } from "@/components/ui";
+import { LoadingBlock } from "../shared";
 import StatTile from "@/components/kit/StatTile";
 import { notConfigured, useJourneys, type Kind, type NotConfigured, type PersonRes, type Recording, type TimelineEvent } from "./api";
 import {
-  DaysPicker, DocLink, eventDetail, ExtLink, Field, KindMark, NavLink, Panel, PhErrorState, clock, dayKey, dayLabel, fmtDate, fmtNum, hhmm, labelClass,
-  pageName, place, timeAgo, useDays, useNav, useNow,
+  DaysPicker, DocLink, eventDetail, ExtLink, Field, KindMark, NavLink, Panel, PhErrorState, StaleNotice, clock, dayKey, dayLabel, fmtDate, fmtNum, hhmm,
+  labelClass, pageName, place, timeAgo, useDays, useNav, useNow,
 } from "./bits";
 import { RecordingList } from "./RecordingList";
 import { ReplayPlayer } from "./ReplayPlayer";
@@ -55,7 +56,7 @@ export function PersonView({ token, id }: { token: string; id: string }) {
   const now = useNow();
   const [filter, setFilter] = useState("key");
   const [watching, setWatching] = useState<string | null>(null);
-  const { data, error, refresh } = useJourneys<PersonRes | NotConfigured>(token, "/person", { id, days });
+  const { data, error, refresh, stale } = useJourneys<PersonRes | NotConfigured>(token, "/person", { id, days });
   const res = notConfigured(data) ? undefined : (data as PersonRes | undefined);
 
   const recs = useMemo(() => new Map((res?.recordings ?? []).map((r) => [r.id, r])), [res]);
@@ -76,12 +77,9 @@ export function PersonView({ token, id }: { token: string; id: string }) {
   }
   if (!res) {
     return (
-      <div className="flex flex-col gap-4" aria-busy="true">
+      <div className="flex flex-col gap-4">
         <BackLink />
-        <span className="md-visually-hidden">Loading this journey</span>
-        <Skeleton variant="rect" height={144} />
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} variant="rect" height={88} />)}</div>
-        <Skeleton variant="rect" height={384} />
+        <LoadingBlock size="md" label="Loading this journey" minHeight={480} />
       </div>
     );
   }
@@ -94,6 +92,7 @@ export function PersonView({ token, id }: { token: string; id: string }) {
   return (
     <div className="flex flex-col gap-4">
       <BackLink />
+      <StaleNotice stale={stale} error={error} />
       <section className="rounded-xl border border-border bg-surface" aria-labelledby="journey-person">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-4">
           <div className="min-w-0">

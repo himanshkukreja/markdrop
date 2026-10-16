@@ -2,14 +2,15 @@
 
 /** Shared atoms for admin Journeys, on the Markdrop design system. */
 import { createContext, useContext, useEffect, useState } from "react";
-import { Alert, Button, Icon, SegmentedControl, Skeleton, Tag, cx } from "@/components/ui";
+import { Alert, Button, Icon, SegmentedControl, Tag, cx } from "@/components/ui";
 import { readQuery, writeQuery } from "../shared";
-import { JourneysError, type DocRef, type Kind, type PageRef } from "./api";
+import { JourneysError, type DocRef, type Kind, type PageRef, type Stale } from "./api";
 
 // ── URL state ────────────────────────────────────────────────────────────────
 
-export type SubTab = "live" | "people" | "recordings" | "paths" | "pages";
-export const SUBTABS: SubTab[] = ["live", "people", "recordings", "paths", "pages"];
+/** Journeys' views. "Live" moved to its own admin section (`?tab=live`). */
+export type SubTab = "people" | "recordings" | "paths" | "pages";
+export const SUBTABS: SubTab[] = ["people", "recordings", "paths", "pages"];
 export type RangeKey = "24h" | "7d" | "30d" | "90d";
 export const RANGE_DAYS: Record<RangeKey, number> = { "24h": 1, "7d": 7, "30d": 30, "90d": 90 };
 
@@ -32,7 +33,7 @@ export function readState(): JState {
   const range = q.get("range");
   const kind = q.get("kind");
   return {
-    jt: (SUBTABS as string[]).includes(jt ?? "") ? (jt as SubTab) : "live",
+    jt: (SUBTABS as string[]).includes(jt ?? "") ? (jt as SubTab) : "people",
     range: range && range in RANGE_DAYS ? (range as RangeKey) : null,
     q: (q.get("q") ?? "").slice(0, 80),
     kind: kind === "identified" || kind === "anonymous" ? kind : "all",
@@ -435,12 +436,55 @@ export function FilterChips({ chips, onClearAll }: { chips: { key: string; label
   );
 }
 
-export function SkeletonRows({ n, height, label = "Loading" }: { n: number; height: number; label?: string }) {
+/** "4 min ago", "40 s ago". */
+export function fmtAge(sec: number): string {
+  const s = Math.max(0, Math.round(sec));
+  if (s < 60) return `${s} s ago`;
+  if (s < 5400) return `${Math.round(s / 60)} min ago`;
+  return `${Math.round(s / 3600)} h ago`;
+}
+
+export function fmtWait(sec: number): string {
+  const s = Math.max(1, Math.round(sec));
+  return s < 120 ? `${s} s` : `${Math.round(s / 60)} min`;
+}
+
+/**
+ * PostHog failed but data is on screen: a small, non-blocking line saying how old the data is,
+ * why, and when we ask again. `stale` comes from the answer (the API served its last good
+ * result); `error` is a failed refresh while the previous answer is still shown.
+ */
+export function StaleNotice({ stale, error, className }: { stale?: Stale | null; error?: JourneysError | null; className?: string }) {
+  const now = useNow(5_000);
+  if (!stale && !error) return null;
+  let lead: string;
+  let why: string;
+  let retry: number | null = null;
+  if (stale) {
+    const age = Math.max(stale.age_s, (now - new Date(stale.as_of).getTime()) / 1000);
+    lead = age < 15 ? "Some of this didn't refresh" : `Showing data from ${fmtAge(age)}`;
+    why = stale.message;
+    // The answer left the API at as_of + age_s; count the retry down from there.
+    retry = stale.retry_in ? (new Date(stale.as_of).getTime() + (stale.age_s + stale.retry_in) * 1000 - now) / 1000 : null;
+    if (retry !== null && retry < 1) retry = null;
+  } else {
+    lead = "Couldn't refresh";
+    why = error!.message.replace(/[.;]\s*trying again in .*$/i, "");
+    retry = error!.retryIn;
+  }
   return (
-    <div className="flex flex-col gap-2" aria-busy="true">
-      <span className="md-visually-hidden">{label}</span>
-      {Array.from({ length: n }, (_, i) => <Skeleton key={i} variant="rect" height={height} />)}
-    </div>
+    <p role="status" className={cx("flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md border border-warning/40 bg-warning-soft px-3 py-1.5 font-mono text-micro text-text", className)}>
+      <Icon name="clock" size={12} className="shrink-0 text-warning" />
+      <span>{lead}</span>
+      <span aria-hidden className="text-text-muted">·</span>
+      <span className="min-w-0 text-text-secondary">{why}</span>
+      {retry ? (
+        <>
+          <span aria-hidden className="text-text-muted">·</span>
+          <span className="text-text-secondary">retrying in {fmtWait(retry)}</span>
+        </>
+      ) : null}
+    </p>
   );
 }
 

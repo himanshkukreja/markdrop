@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge, EmptyState, Icon, Input, Progress, SegmentedControl, Skeleton, cx } from "@/components/ui";
+import { Badge, EmptyState, Icon, Input, Progress, SegmentedControl, cx } from "@/components/ui";
+import { LoadingBlock } from "../shared";
 import { notConfigured, useJourneys, type NotConfigured, type PeopleRes, type PersonRow } from "./api";
 import {
-  DaysPicker, NavLink, PhErrorState, Who, WhoDot, countryFlag, fmtDate, fmtNum, pageName, place, plural, timeAgo, useDays, useNav, useNow,
+  DaysPicker, NavLink, PhErrorState, StaleNotice, Who, WhoDot, countryFlag, fmtDate, fmtNum, pageName, place, plural, timeAgo, useDays, useNav,
+  useNow,
 } from "./bits";
 import { SetupCard } from "./SetupCard";
 
@@ -49,7 +51,7 @@ export function PeopleTab({ token }: { token: string }) {
     timer.current = setTimeout(() => go({ q: v.trim() || null }, false), 350);
   };
 
-  const { data, error, loading, refresh } = useJourneys<PeopleRes | NotConfigured>(token, "/people", { days, kind: state.kind, q: state.q || undefined });
+  const { data, error, loading, refresh, stale } = useJourneys<PeopleRes | NotConfigured>(token, "/people", { days, kind: state.kind, q: state.q || undefined });
   const res = notConfigured(data) ? undefined : (data as PeopleRes | undefined);
 
   const rows = useMemo(() => {
@@ -102,9 +104,12 @@ export function PeopleTab({ token }: { token: string }) {
         </div>
       )}
       {loading && res && <Progress indeterminate size="sm" aria-label="Updating people" valueText="Loading" />}
+      <StaleNotice stale={stale} error={res ? error : null} />
 
       {error && !res ? (
         <PhErrorState error={error} onRetry={refresh} />
+      ) : !res ? (
+        <LoadingBlock size="md" label="Loading people" minHeight={360} />
       ) : (
         <>
           {/* Wide screens: a dense, sortable table. */}
@@ -124,15 +129,9 @@ export function PeopleTab({ token }: { token: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {!res
-                    ? Array.from({ length: 6 }, (_, i) => (
-                        <tr key={i} aria-hidden>
-                          {Array.from({ length: 7 }, (__, j) => <td key={j}><Skeleton width={j === 0 ? "70%" : "50%"} /></td>)}
-                        </tr>
-                      ))
-                    : rows.length === 0 && (
-                        <tr><td colSpan={7} className="md-table__empty">{state.q ? `Nobody matches “${state.q}”` : "No visitors in this window"}</td></tr>
-                      )}
+                  {rows.length === 0 && (
+                    <tr><td colSpan={7} className="md-table__empty">{state.q ? `Nobody matches “${state.q}”` : "No visitors in this window"}</td></tr>
+                  )}
                   {rows.map((p) => (
                     <tr key={p.id} onClick={(e) => { if (!(e.target as HTMLElement).closest("a")) go({ person: p.id }, true); }} className="cursor-pointer">
                       <td className="max-w-65">
@@ -164,10 +163,8 @@ export function PeopleTab({ token }: { token: string }) {
           </div>
 
           {/* Phones: cards. */}
-          <ul className="flex flex-col gap-2 md:hidden" aria-busy={!res || undefined}>
-            {!res
-              ? Array.from({ length: 5 }, (_, i) => <li key={i}><Skeleton variant="rect" height={84} /></li>)
-              : rows.length === 0
+          <ul className="flex flex-col gap-2 md:hidden">
+            {rows.length === 0
                 ? <li><EmptyState icon="users" title={state.q ? "Nobody matches" : "No visitors in this window"} description={state.q ? `Nothing for “${state.q}”. Try an email, a city or a country code.` : undefined} /></li>
                 : rows.map((p) => (
                     <li key={p.id}>
