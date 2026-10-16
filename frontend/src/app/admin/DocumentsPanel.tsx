@@ -5,19 +5,42 @@ import MarkdownPreview from "@/components/MarkdownPreview";
 import { MetaList } from "@/components/kit/MetaList";
 import {
   Alert, Badge, Button, ConfirmDialog, Progress, Drawer, EmptyState, FileIcon, Icon, Input, Pagination, RowMenu,
-  Switch, Table, Tabs, Tooltip, copyText, useToast, type Column, type MenuItem,
+  Select, Switch, Table, Tabs, Tooltip, copyText, useToast, type Column, type MenuItem,
 } from "@/components/ui";
 import {
   adminDeleteDocument, adminGetDocument, adminListDocuments,
-  type AdminDocListItem, type DocKind, type DocumentResponse,
+  type AdminDocListItem, type AdminDocSort, type DocKind, type DocumentResponse,
 } from "@/lib/api";
 import { PageHead, PersonAvatar, bytes, expiryLabel, fmtDate, iconRenderer, isUnauthorized, plural, useOnUnauthorized, LoadingBlock } from "./shared";
 
 /** The list endpoint also returns `encrypted` (title and preview are withheld for those). */
 export type AdminDoc = AdminDocListItem & { encrypted?: boolean };
 
-export interface DocFilters { q: string; kind: DocKind | "all"; reported: boolean; page: number }
-export const DEFAULT_DOC_FILTERS: DocFilters = { q: "", kind: "all", reported: false, page: 1 };
+/** `sort: null` = the view's default: newest first, or most reported first in Reports. */
+export interface DocFilters { q: string; kind: DocKind | "all"; reported: boolean; page: number; sort: AdminDocSort | null }
+export const DEFAULT_DOC_FILTERS: DocFilters = { q: "", kind: "all", reported: false, page: 1, sort: null };
+
+const SORT_OPTIONS: { value: AdminDocSort; label: string }[] = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "updated", label: "Recently updated" },
+  { value: "views", label: "Most viewed" },
+  { value: "views_asc", label: "Least viewed" },
+  { value: "reports", label: "Most reported" },
+  { value: "size", label: "Largest" },
+  { value: "expiring", label: "Expiring soonest" },
+  { value: "title", label: "Title A–Z" },
+];
+
+/** Table columns that sort: first click uses the column's natural order, a second click flips it. */
+const COLUMN_SORTS: Record<string, [AdminDocSort, AdminDocSort]> = {
+  views: ["views", "views_asc"],
+  created: ["newest", "oldest"],
+  reports: ["reports", "reports"],
+  size: ["size", "size"],
+  expires: ["expiring", "expiring"],
+  doc: ["title", "title"],
+};
 
 const KIND_TABS = [
   { value: "all", label: "All" },
@@ -105,7 +128,7 @@ export function DocumentsPanel({ token, filters, setFilters, reportsView, onEdit
     setLoading(true);
     setError(false);
     try {
-      const res = await adminListDocuments(token, filters.page, 20, filters.q || undefined, reported, filters.kind === "all" ? undefined : filters.kind);
+      const res = await adminListDocuments(token, filters.page, 20, filters.q || undefined, reported, filters.kind === "all" ? undefined : filters.kind, filters.sort ?? undefined);
       setDocs(res.documents as AdminDoc[]);
       setTotal(res.total);
       setPages(res.pages);
@@ -115,7 +138,7 @@ export function DocumentsPanel({ token, filters, setFilters, reportsView, onEdit
     } finally {
       setLoading(false);
     }
-  }, [token, filters.page, filters.q, filters.kind, reported, onUnauthorized]);
+  }, [token, filters.page, filters.q, filters.kind, filters.sort, reported, onUnauthorized]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -154,14 +177,35 @@ export function DocumentsPanel({ token, filters, setFilters, reportsView, onEdit
   ];
 
   const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  const sort: AdminDocSort = filters.sort ?? (reported ? "reports" : "newest");
+  const setSort = (s: AdminDocSort) => setFilters({ ...filters, sort: s, page: 1 });
+  /** A header that sorts the list. The arrow shows the active order; the label says it for screen readers. */
+  const sortHeader = (key: string, label: string) => {
+    const [first, second] = COLUMN_SORTS[key]!;
+    const active = sort === first || sort === second;
+    const next = active && first !== second ? (sort === first ? second : first) : first;
+    const current = SORT_OPTIONS.find((o) => o.value === sort)?.label;
+    const up = sort === "oldest" || sort === "views_asc" || sort === "expiring" || sort === "title";
+    return (
+      <button
+        type="button"
+        onClick={() => setSort(next)}
+        className={`md-focus -mx-1 inline-flex items-center gap-1 rounded-sm px-1 uppercase ${active ? "text-text" : ""}`}
+        aria-label={active ? `${label}: sorted ${current?.toLowerCase()}. Change order` : `Sort by ${label.toLowerCase()}`}
+      >
+        {label}
+        <Icon name={active ? (up ? "arrowUp" : "arrowDown") : "sort"} size={12} className={active ? "text-accent-text" : "text-text-subtle"} />
+      </button>
+    );
+  };
   const columns: Column<AdminDoc>[] = [
-    { key: "doc", header: "Document", primary: true, render: (d) => <DocTitle d={d} /> },
+    { key: "doc", header: sortHeader("doc", "Document"), primary: true, render: (d) => <DocTitle d={d} /> },
     { key: "owner", header: "Owner", render: (d) => <span className="block max-w-[14rem] text-caption text-text-secondary"><Owner d={d} /></span> },
-    { key: "reports", header: "Reports", render: (d) => <Reports n={d.report_count} /> },
-    { key: "views", header: "Views", align: "right", render: (d) => d.views.toLocaleString("en") },
-    { key: "created", header: "Created", render: (d) => <span className="whitespace-nowrap">{fmtDate(d.created_at)}</span> },
-    { key: "expires", header: "Expires", render: (d) => <Expires iso={d.expires_at} /> },
-    { key: "size", header: "Size", align: "right", render: (d) => <span className="whitespace-nowrap">{sizeOf(d)}</span> },
+    { key: "reports", header: sortHeader("reports", "Reports"), render: (d) => <Reports n={d.report_count} /> },
+    { key: "views", header: sortHeader("views", "Views"), align: "right", render: (d) => d.views.toLocaleString("en") },
+    { key: "created", header: sortHeader("created", "Created"), render: (d) => <span className="whitespace-nowrap">{fmtDate(d.created_at)}</span> },
+    { key: "expires", header: sortHeader("expires", "Expires"), render: (d) => <Expires iso={d.expires_at} /> },
+    { key: "size", header: sortHeader("size", "Size"), align: "right", render: (d) => <span className="whitespace-nowrap">{sizeOf(d)}</span> },
     { key: "menu", header: <span className="md-visually-hidden">Actions</span>, width: 48, render: (d) => (
       <span onClick={stop} onKeyDown={stop} className="flex justify-end"><RowMenu items={menu(d)} label={`Actions for ${d.encrypted ? "encrypted document" : d.title || d.slug}`} portal align="right" /></span>
     ) },
@@ -190,6 +234,10 @@ export function DocumentsPanel({ token, filters, setFilters, reportsView, onEdit
         />
         <Tabs variant="pill" items={KIND_TABS} value={filters.kind} aria-label="Kind"
           onChange={(v) => setFilters({ ...filters, kind: v as DocFilters["kind"], page: 1 })} />
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <label htmlFor="doc-sort" className="text-caption text-text-secondary">Sort</label>
+          <Select id="doc-sort" value={sort} options={SORT_OPTIONS} onChange={(e) => setSort(e.target.value as AdminDocSort)} className="min-w-[11rem]" />
+        </span>
         {!reportsView && (
           <span className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3">
             <Icon name="flag" size={16} className="text-warning" />
