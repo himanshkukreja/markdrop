@@ -1,126 +1,162 @@
-"""Admin Journeys: people, their timelines and session recordings, read from PostHog.
+"""Admin Journeys: live visitors, people, their timelines, session replays, paths and the funnel,
+and per-page clicks and reading depth, read from PostHog.
 
 Read-only and admin-only. The PostHog personal API key stays on the server
-(services/posthog_api.py); the console never talks to PostHog directly.
-Document references in events (`doc_ref`) are resolved to slugs and titles
-here, from our own database (services/doc_ref.py), since PostHog never has them.
+(services/posthog_api.py); the console never talks to PostHog directly. Document references in
+events (`doc_ref`) are resolved to titles and slugs here, from our own database
+(services/doc_ref.py), since PostHog never has them.
+
+Every data endpoint answers HTTP 200 `{configured: false, status}` while PostHog isn't set up,
+so the console shows its setup card instead of an error. Upstream failures come back as
+502/504/429/424 with `{detail, scope}`; never 401/403 (a 401 signs the admin out).
 """
 
-from datetime import datetime
+import re
+from collections.abc import Awaitable, Callable
 
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.routers.admin import get_db, require_admin
+from app.services import journeys as jm
 from app.services import posthog_api as ph
 from app.services.doc_ref import resolve_refs
 
 settings = get_settings()
 router = APIRouter(prefix="/api/v1/admin/journeys", tags=["admin"])
 
+_RECORDING_ID = re.compile(r"^[0-9A-Za-z-]{8,64}$")
 
-def _require_configured() -> None:
+
+def _resolver(db: AsyncIOMotorDatabase) -> jm.DocResolver:
+    async def resolve(refs: set[str]) -> dict[str, dict]:
+        docs = await resolve_refs(db, refs)
+        return {r: {k: d.get(k) for k in ("slug", "title", "kind", "encrypted")} for r, d in docs.items()}
+
+    return resolve
+
+
+async def _answer(fn: Callable[[], Awaitable[object]]):
     if not settings.posthog_configured:
-        raise HTTPException(
-            status_code=503,
-            detail="PostHog isn't configured on the server (MARKDROP_POSTHOG_PROJECT_ID, MARKDROP_POSTHOG_PERSONAL_API_KEY).",
-        )
-
-
-async def _call(coro):
+        return ph.not_configured()
     try:
-        return await coro
+        return await fn()
     except ph.PostHogError as e:
-        status = 502 if e.status >= 500 or e.status in (401, 403) else e.status
-        raise HTTPException(status_code=status, detail=f"PostHog: {e.detail}")
+        return JSONResponse({"detail": e.message, "scope": e.scope}, status_code=e.status)
 
 
 @router.get("/status")
 async def status(_: dict = Depends(require_admin)):
-    return {"configured": settings.posthog_configured, "ui_host": settings.posthog_host}
+    return ph.status()
 
 
-@router.get("/summary")
-async def summary(days: int = Query(7, ge=1, le=90), _: dict = Depends(require_admin)):
-    _require_configured()
-    return await _call(ph.summary(days))
+@router.get("/live")
+async def live(db: AsyncIOMotorDatabase = Depends(get_db), _: dict = Depends(require_admin)):
+    return await _answer(lambda: jm.live(_resolver(db)))
 
 
 @router.get("/people")
 async def people(
-    days: int = Query(7, ge=1, le=90),
+    days: int = 30,
+    kind: str = Query("all", pattern="^(all|identified|anonymous)$"),
     q: str | None = Query(None, max_length=200),
-    identified: bool = False,
-    limit: int = Query(50, ge=1, le=100),
-    before: str | None = Query(None, max_length=40, description="last_seen of the previous page's last row"),
-    _: dict = Depends(require_admin),
-):
-    _require_configured()
-    rows = await _call(ph.people(days, (q or "").strip() or None, identified, limit, before))
-    return {"people": rows, "has_more": len(rows) == limit}
-
-
-async def _resolve_docs(db: AsyncIOMotorDatabase, refs: set[str]) -> dict[str, dict]:
-    docs = await resolve_refs(db, refs)
-    return {r: {k: d[k] for k in ("slug", "title", "kind", "encrypted")} for r, d in docs.items()}
-
-
-@router.get("/people/{person_id}")
-async def person(person_id: str, db: AsyncIOMotorDatabase = Depends(get_db), _: dict = Depends(require_admin)):
-    _require_configured()
-    if not ph.valid_person_id(person_id):
-        raise HTTPException(status_code=400, detail="Invalid person id")
-    p = await _call(ph.person(person_id))
-    if not p:
-        raise HTTPException(status_code=404, detail="Person not found")
-    props = p["properties"]
-    # Link to the Markdrop account when the person signed in.
-    account = None
-    email = props.get("email")
-    if email:
-        u = await db["users"].find_one({"email": email}, {"_id": 1, "email": 1, "name": 1, "created_at": 1})
-        if u:
-            account = {"id": str(u["_id"]), "email": u.get("email"), "name": u.get("name"), "created_at": u.get("created_at")}
-    return {"id": p["id"], "created_at": p.get("created_at"), "properties": props, "account": account}
-
-
-@router.get("/people/{person_id}/timeline")
-async def timeline(
-    person_id: str,
-    before: datetime | None = None,
-    limit: int = Query(200, ge=1, le=500),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
-    _require_configured()
-    if not ph.valid_person_id(person_id):
-        raise HTTPException(status_code=400, detail="Invalid person id")
-    events = await _call(ph.timeline(person_id, before, limit))
-    refs = {e["props"].get("doc_ref") for e in events if e["props"].get("doc_ref")}
-    return {"events": events, "docs": await _resolve_docs(db, refs), "has_more": len(events) == limit}
+    return await _answer(lambda: jm.people(_resolver(db), jm.clamp_days(days, 30), kind, (q or "").strip()[:80] or None))
+
+
+@router.get("/person")
+async def person(
+    id: str = Query(..., min_length=1, max_length=200),
+    days: int = 30,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    async def find_account(distinct_ids: list[str], email: str | None) -> dict | None:
+        """The Markdrop account behind a signed-in person: distinct id = user id."""
+        ids = [ObjectId(d) for d in distinct_ids if ObjectId.is_valid(d) and len(d) == 24]
+        query: dict = {"_id": {"$in": ids}} if ids else {"email": email} if email else None
+        if not query:
+            return None
+        u = await db["users"].find_one(query, {"_id": 1, "email": 1, "name": 1, "created_at": 1})
+        if not u and ids and email:
+            u = await db["users"].find_one({"email": email}, {"_id": 1, "email": 1, "name": 1, "created_at": 1})
+        if not u:
+            return None
+        docs = await db["documents"].count_documents({"owner_id": str(u["_id"])})
+        created = u.get("created_at")
+        return {
+            "id": str(u["_id"]),
+            "email": u.get("email"),
+            "name": u.get("name"),
+            "created_at": created.isoformat() if hasattr(created, "isoformat") else created,
+            "documents": docs,
+        }
+
+    async def run():
+        res = await jm.person(_resolver(db), find_account, id, jm.clamp_days(days, 30))
+        if res is None:
+            return JSONResponse({"detail": "No events for this person in PostHog", "scope": None}, status_code=404)
+        return res
+
+    return await _answer(run)
 
 
 @router.get("/recordings")
 async def recordings(
-    person: str | None = None,
-    limit: int = Query(20, ge=1, le=50),
-    offset: int = Query(0, ge=0, le=5_000),
+    days: int = 7,
+    offset: int = Query(0, ge=0, le=5000),
+    person: str | None = Query(None, max_length=64),
+    path: str | None = Query(None, max_length=300),
+    db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
-    _require_configured()
-    if person and not ph.valid_person_id(person):
-        raise HTTPException(status_code=400, detail="Invalid person id")
-    rows = await _call(ph.recordings(person, limit, offset))
-    return {"recordings": rows, "has_more": len(rows) == limit}
+    if person and not jm.is_uuid(person):
+        raise HTTPException(status_code=400, detail="person must be a PostHog person id")
+    if path and not jm.valid_page_key(path):
+        raise HTTPException(status_code=400, detail="path must start with / (or be a doc:<ref> key)")
+    return await _answer(
+        lambda: jm.recordings(_resolver(db), days=jm.clamp_days(days, 7), offset=offset, person=person, path=path)
+    )
 
 
 @router.get("/recordings/{recording_id}/snapshots")
 async def snapshots(recording_id: str, _: dict = Depends(require_admin)):
-    _require_configured()
-    if not recording_id.replace("-", "").isalnum() or len(recording_id) > 64:
+    if not _RECORDING_ID.match(recording_id):
         raise HTTPException(status_code=400, detail="Invalid recording id")
-    events = await _call(ph.snapshots(recording_id))
-    # Recordings are large; never cache them in a shared cache.
-    return JSONResponse({"events": events}, headers={"Cache-Control": "private, no-store"})
+
+    async def run():
+        events = await ph.snapshots(recording_id)
+        body = {
+            "configured": True,
+            "id": recording_id,
+            "found": events is not None,
+            "events": events or [],
+            "app_url": ph.app_url(f"/replay/{recording_id}"),
+        }
+        # Recordings are large and personal; never let a shared cache keep one.
+        return JSONResponse(body, headers={"Cache-Control": "private, no-store"})
+
+    return await _answer(run)
+
+
+@router.get("/paths")
+async def paths(days: int = 7, db: AsyncIOMotorDatabase = Depends(get_db), _: dict = Depends(require_admin)):
+    return await _answer(lambda: jm.paths(_resolver(db), jm.clamp_days(days, 7)))
+
+
+@router.get("/page")
+async def page(
+    path: str = Query(..., max_length=300),
+    days: int = 30,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    key = path.split("?")[0].split("#")[0]
+    if not jm.valid_page_key(key):
+        raise HTTPException(status_code=400, detail="path must start with / (or be a doc:<ref> key)")
+    return await _answer(lambda: jm.page(_resolver(db), key, jm.clamp_days(days, 30)))
