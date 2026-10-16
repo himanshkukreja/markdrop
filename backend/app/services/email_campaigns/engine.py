@@ -516,23 +516,27 @@ async def tick(db: AsyncIOMotorDatabase, cid: str | ObjectId, budget_s: float = 
     finally:
         cid0 = c["_id"]
         c = await store.get_campaign(db, cid0)
-        if c is None:  # deleted while we were sending (cancel + delete)
-            return _result(None, done=True, sent_now=sent_now, failed_now=failed_now, skipped_now=skipped_now)
-        if fatal:
-            c = await store.update_campaign(db, c["_id"], {"status": "paused", "last_error": fatal}, only_if=("sending",)) or c
-        elif transient and c.get("status") == "sending":
-            n_err = int(c.get("transient_errors") or 0) + 1
-            patch: dict[str, Any] = {"transient_errors": n_err, "last_error": transient}
-            if n_err >= MAX_TRANSIENT:
-                patch.update(status="paused", last_error=f"Paused after {n_err} failed attempts in a row: {transient}")
-            c = await store.update_campaign(db, c["_id"], patch, only_if=("sending",)) or c
-        counts = await store.refresh_counts(db, c["_id"])
-        if not fatal and not transient and c.get("status") == "sending":
-            if counts["queued"] == 0 and counts["sending"] - counts["stuck"] <= 0:
-                c = await store.update_campaign(
-                    db, c["_id"], {"status": "sent", "finished_at": store.now(), "last_error": None}, only_if=("sending",)
-                ) or c
-        await store.release_lease(db, c["_id"], owner)
+        # Deleted while we were sending (cancel + delete): nothing to settle. No `return` in this
+        # finally, so a cancellation (worker shutdown) still propagates.
+        deleted = c is None
+        if not deleted:
+            if fatal:
+                c = await store.update_campaign(db, c["_id"], {"status": "paused", "last_error": fatal}, only_if=("sending",)) or c
+            elif transient and c.get("status") == "sending":
+                n_err = int(c.get("transient_errors") or 0) + 1
+                patch: dict[str, Any] = {"transient_errors": n_err, "last_error": transient}
+                if n_err >= MAX_TRANSIENT:
+                    patch.update(status="paused", last_error=f"Paused after {n_err} failed attempts in a row: {transient}")
+                c = await store.update_campaign(db, c["_id"], patch, only_if=("sending",)) or c
+            counts = await store.refresh_counts(db, c["_id"])
+            if not fatal and not transient and c.get("status") == "sending":
+                if counts["queued"] == 0 and counts["sending"] - counts["stuck"] <= 0:
+                    c = await store.update_campaign(
+                        db, c["_id"], {"status": "sent", "finished_at": store.now(), "last_error": None}, only_if=("sending",)
+                    ) or c
+            await store.release_lease(db, c["_id"], owner)
+    if deleted:
+        return _result(None, done=True, sent_now=sent_now, failed_now=failed_now, skipped_now=skipped_now)
     done = c.get("status") != "sending"
     return _result(c, counts, sent_now=sent_now, failed_now=failed_now, skipped_now=skipped_now,
                    done=done, error=fatal or transient)
