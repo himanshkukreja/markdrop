@@ -447,12 +447,26 @@ export function setAnalyticsDoc(next: DocContext | null) {
   }
 }
 
-/** A product event, mirrored from lib/track (whose props are already free of slugs and titles). */
-export function captureThirdParty(name: string, props?: Props) {
+/**
+ * A product event, mirrored from lib/track (whose props are already free of slugs and titles).
+ * `ga: false` keeps it to PostHog (fine-grained events GA has no use for, like read_progress).
+ */
+export function captureThirdParty(name: string, props?: Props, opts?: { ga?: boolean }) {
   if (!enabled() || mode === null) return;
   if (ph) ph.capture(name, props);
   else queued.push([name, props]);
-  if (gaLoaded && window.gtag) window.gtag("event", name, props ?? {});
+  if (opts?.ga !== false && gaLoaded && window.gtag) window.gtag("event", name, props ?? {});
+}
+
+/** What this browser last identified as, so a page load doesn't re-send it (each is a billable $set). */
+const IDENT_KEY = "md_ph_ident";
+
+function storedIdent(): string | null {
+  try {
+    return localStorage.getItem(IDENT_KEY);
+  } catch {
+    return null;
+  }
 }
 
 /** Sign-in: link this browser's history to the account. Limited mode never identifies. */
@@ -462,7 +476,15 @@ export function identifyUser(user: User) {
   pendingUser = user;
   if (mode !== "full") return;
   void loadPostHog(mode).then((p) => {
-    p?.identify(user.id, { email: user.email, name: user.name ?? undefined }, { signed_up_at: user.created_at });
+    if (!p) return;
+    const sig = `${user.id}|${user.email}|${user.name ?? ""}`;
+    if (p.get_distinct_id() === user.id && storedIdent() === sig) return;
+    p.identify(user.id, { email: user.email, name: user.name ?? undefined }, { signed_up_at: user.created_at });
+    try {
+      localStorage.setItem(IDENT_KEY, sig);
+    } catch {
+      /* storage blocked: identify again next time */
+    }
   });
   if (gaLoaded && window.gtag) window.gtag("set", { user_id: user.id });
 }
@@ -470,5 +492,10 @@ export function identifyUser(user: User) {
 /** Sign-out: a fresh anonymous identity, so the next person on this browser isn't merged in. */
 export function resetIdentity() {
   pendingUser = null;
+  try {
+    localStorage.removeItem(IDENT_KEY);
+  } catch {
+    /* storage blocked */
+  }
   ph?.reset();
 }

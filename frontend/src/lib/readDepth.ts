@@ -110,4 +110,104 @@ export function useReadDepth(slug: string, el: React.RefObject<HTMLElement | nul
       window.removeEventListener("pagehide", onPageHide);
     };
   }, [slug, el, enabled]);
+
+  useReadProgress(el, enabled);
+}
+
+// ── read_progress (PostHog only) ─────────────────────────────────────────────
+
+const MARKS = [25, 50, 75, 100] as const;
+const ACTIVE_WINDOW_MS = 90_000;
+const WORDS_PER_MINUTE = 230;
+
+/**
+ * Seconds of actual reading: a second counts only while the tab is visible and the reader did
+ * something (scroll, wheel, pointer, key, touch, selection) in the last 90 s, or text-to-speech is
+ * speaking. Each tick is capped at 2 s, so a sleeping laptop is never credited.
+ */
+function startEngagedClock(): { seconds: () => number; stop: () => void } {
+  let secs = 0;
+  let lastActivity = Date.now();
+  let lastTick = Date.now();
+  const onActivity = () => {
+    lastActivity = Date.now();
+  };
+  const events = ["scroll", "wheel", "pointermove", "pointerdown", "keydown", "touchstart"] as const;
+  for (const e of events) window.addEventListener(e, onActivity, { passive: true, capture: true });
+  document.addEventListener("selectionchange", onActivity);
+  const id = setInterval(() => {
+    const now = Date.now();
+    const dt = Math.min(2, (now - lastTick) / 1000);
+    lastTick = now;
+    const speaking = typeof speechSynthesis !== "undefined" && speechSynthesis.speaking;
+    if (document.visibilityState === "visible" && (now - lastActivity < ACTIVE_WINDOW_MS || speaking)) secs += dt;
+  }, 1000);
+  return {
+    seconds: () => Math.round(secs),
+    stop: () => {
+      clearInterval(id);
+      for (const e of events) window.removeEventListener(e, onActivity, { capture: true });
+      document.removeEventListener("selectionchange", onActivity);
+    },
+  };
+}
+
+/** Engaged seconds a mark needs: a quarter of the expected reading time up to it, at least 8 s
+ *  and at most 2 min per 25%. Scrolling to the end in a second earns nothing. */
+export function secondsForMark(mark: number, minutes: number): number {
+  const q = mark / 25;
+  return Math.min(120 * q, Math.max(8 * q, minutes * 60 * 0.25 * (mark / 100)));
+}
+
+/**
+ * `read_progress` at 25/50/75/100% of a document, each once per page and in order, only once the
+ * reader has spent enough engaged time to have plausibly read that far. Sent to PostHog through
+ * lib/thirdPartyAnalytics (consent, redaction and the document's opaque `doc_ref` apply there);
+ * the first-party read beacons above are separate and unchanged.
+ */
+function useReadProgress(el: React.RefObject<HTMLElement | null>, enabled: boolean) {
+  useEffect(() => {
+    if (!enabled || trackingDisabled()) return;
+    const clock = startEngagedClock();
+    let next = 0;
+    let words = 0;
+    let raf = 0;
+
+    const countWords = () => {
+      const text = el.current?.textContent ?? "";
+      words = text.split(/\s+/).filter(Boolean).length;
+    };
+    const check = () => {
+      raf = 0;
+      const node = el.current;
+      if (!node || next >= MARKS.length) return;
+      const r = node.getBoundingClientRect();
+      if (r.height < 50) return;
+      const pct = Math.max(0, Math.min(100, ((window.innerHeight - r.top) / r.height) * 100));
+      const minutes = Math.max(1, words / WORDS_PER_MINUTE);
+      const secs = clock.seconds();
+      while (next < MARKS.length) {
+        const m = MARKS[next]!;
+        if (pct < m || secs < secondsForMark(m, minutes)) break;
+        next += 1;
+        captureThirdParty("read_progress", { pct: m, engaged_sec: secs, est_minutes: Math.round(minutes) }, { ga: false });
+      }
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(check);
+    };
+
+    countWords();
+    // Diagrams and maths settle after first paint.
+    const settle = setTimeout(countWords, 1500);
+    const tick = setInterval(check, 2000);
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => {
+      clock.stop();
+      clearTimeout(settle);
+      clearInterval(tick);
+      if (raf) cancelAnimationFrame(raf);
+      document.removeEventListener("scroll", onScroll, { capture: true });
+    };
+  }, [el, enabled]);
 }
