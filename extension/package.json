@@ -2,7 +2,7 @@
   "name": "markdrop",
   "displayName": "Markdrop Sync",
   "description": "Docs and files as links that render: publish Markdown and HTML from VS Code to markdrop.in and keep them in two-way sync \u2014 save locally to push, edit on the web to pull back.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "HimanshuKukreja",
   "icon": "icon.png",
   "engines": {

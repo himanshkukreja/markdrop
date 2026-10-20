@@ -76,6 +76,52 @@ async function api(method: string, apiPath: string, body?: unknown): Promise<Res
   });
 }
 
+/** The server's own explanation of a failed request, for the error message. */
+async function errorDetail(res: Response): Promise<string | null> {
+  try {
+    const text = await res.text();
+    try {
+      const body = JSON.parse(text) as { detail?: unknown; error?: unknown };
+      const d = body.detail ?? body.error;
+      if (typeof d === "string") return d;
+      if (Array.isArray(d)) {
+        return d.map((e) => (e && typeof e === "object" && "msg" in e ? String((e as { msg: unknown }).msg) : "")).filter(Boolean).join("; ") || null;
+      }
+    } catch {
+      // Not JSON: nginx answers an oversized body with an HTML 413 page.
+    }
+  } catch {
+    // body unreadable
+  }
+  if (res.status === 413) return `This file is over the ${MAX_SYNC_MB} MB sync limit.`;
+  return null;
+}
+
+async function showRequestError(prefix: string, res: Response) {
+  const detail = await errorDetail(res);
+  vscode.window.showErrorMessage(detail ? `${prefix}: ${detail}` : `${prefix} (HTTP ${res.status}).`);
+}
+
+/** The server's limit for a file synced from the editor (backend artifact.MAX_SYNC_BYTES). */
+const MAX_SYNC_MB = 25;
+
+/** Too big to sync? Checked before uploading, so nothing large is sent only to be refused. */
+function tooLarge(text: string): string | null {
+  const bytes = Buffer.byteLength(text, "utf8");
+  if (bytes <= MAX_SYNC_MB * 1024 * 1024) return null;
+  const mb = (bytes / (1024 * 1024)).toFixed(1);
+  return `This file is ${mb} MB; files synced to Markdrop can be up to ${MAX_SYNC_MB} MB. ` +
+    "Move large images or fonts out of the page, or upload it at markdrop.in/upload.";
+}
+
+/** The filename the server turns into the link (it allows 100 characters), extension kept. */
+function desiredSlug(uri: vscode.Uri): string {
+  const base = path.basename(uri.fsPath);
+  if (base.length <= 100) return base;
+  const ext = path.extname(base);
+  return base.slice(0, 100 - ext.length) + ext;
+}
+
 // ── Content helpers ────────────────────────────────────────────────────────────
 function normalize(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(/\n+$/, "") + "\n";
@@ -293,15 +339,17 @@ async function publish() {
     return;
   }
   const text = editor.document.getText();
+  const big = tooLarge(text);
+  if (big) { vscode.window.showErrorMessage(`Can't publish to Markdrop: ${big}`); return; }
   const asArtifact = isArtifact(editor.document);
   setBusy(asArtifact ? "$(sync~spin) Markdrop: publishing artifact…" : "$(sync~spin) Markdrop: publishing…");
   const res = await api("POST", "/api/v1/sync", {
     title: deriveTitle(text, uri),
     content: normalize(text),
-    desired_slug: path.basename(uri.fsPath), // server slugifies + de-dupes
+    desired_slug: desiredSlug(uri), // server slugifies + de-dupes
   });
   if (res.status === 401) { await clearToken(); vscode.window.showErrorMessage("Session expired — sign in again."); updateStatus(); return; }
-  if (!res.ok) { vscode.window.showErrorMessage("Failed to publish to Markdrop."); updateStatus(); return; }
+  if (!res.ok) { await showRequestError("Failed to publish to Markdrop", res); updateStatus(); return; }
   const doc = await res.json() as SyncDoc;
   await setLink(uri, {
     id: doc.id, slug: doc.slug, baseRev: doc.rev, baseHash: hash(text),
@@ -322,6 +370,12 @@ async function pushDocument(document: vscode.TextDocument, { silent = false } = 
   const text = document.getText();
   const h = hash(text);
   if (h === link.baseHash) return; // nothing changed
+  const big = tooLarge(text);
+  if (big) {
+    if (!silent) vscode.window.showErrorMessage(`Markdrop sync paused: ${big}`);
+    updateStatus();
+    return;
+  }
 
   setBusy("$(sync~spin) Markdrop: syncing…");
   const res = await api("PUT", `/api/v1/sync/${link.id}`, {
@@ -343,12 +397,19 @@ async function pushDocument(document: vscode.TextDocument, { silent = false } = 
     return;
   }
   if (res.status === 409) {
-    const detail = (await res.json() as { detail: ConflictDetail }).detail;
-    await showConflict(document, link, detail);
+    const detail = (await res.clone().json().catch(() => ({})) as { detail?: ConflictDetail | string }).detail;
+    // A 409 is a content conflict only when it carries the web version; otherwise it is a refusal
+    // (an encrypted document, a non-text artifact) with a message to show.
+    if (detail && typeof detail === "object") {
+      await showConflict(document, link, detail);
+      return;
+    }
+    await showRequestError("Markdrop sync failed", res);
+    updateStatus();
     return;
   }
   if (!res.ok) {
-    if (!silent) vscode.window.showErrorMessage("Markdrop sync failed.");
+    if (!silent) await showRequestError("Markdrop sync failed", res);
     updateStatus();
     return;
   }
@@ -397,7 +458,7 @@ async function showConflict(document: vscode.TextDocument, link: Link, remote: C
       await setLink(document.uri, { ...link, slug: doc.slug, baseRev: doc.rev, baseHash: localHash });
       vscode.window.showInformationMessage("Pushed your local version to Markdrop.");
     } else {
-      vscode.window.showErrorMessage("Couldn't push — try again.");
+      await showRequestError("Couldn't push your version", res);
     }
   } else if (choice === "Use the web version") {
     await applyRemote(document.uri, link, remote);
