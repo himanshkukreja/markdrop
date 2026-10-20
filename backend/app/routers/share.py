@@ -69,6 +69,37 @@ CLOSE_ROOM_BUSY = 4003
 CLOSE_BAD_ROOM = 4004
 CLOSE_SERVER_FULL = 4005
 CLOSE_ROOM_FULL = 4006
+# The sender reconnected (same host key) and this older socket was replaced.
+CLOSE_REPLACED = 4007
+
+# A browser sender proves it owns a room with a random key it made when the share
+# started (`hk`, 32 hex). Only its hash is kept. With it, a sender whose socket
+# dropped (a network blip, a phone suspending the tab) takes the room straight
+# back instead of being refused as a duplicate host until the old socket times
+# out, which used to leave recipients unpaired for up to ~40 s. Without the key,
+# knowing the room id (it's in the share link) is not enough to become the host.
+_HOST_KEY = re.compile(r"^[A-Fa-f0-9]{32,64}$")
+
+
+# How long an empty room keeps its owner's key after the sender's socket goes, so a
+# phone that suspended the tab can come back to the same link.
+KEY_HOLD_SECONDS = 600
+
+
+def _sweep() -> None:
+    """Forget keyed rooms whose sender has been gone longer than KEY_HOLD_SECONDS."""
+    import time
+
+    cutoff = time.monotonic() - KEY_HOLD_SECONDS
+    for rid, r in list(_rooms.items()):
+        if r["host"] is None and not r["guests"] and r.get("left_at") and r["left_at"] < cutoff:
+            _rooms.pop(rid, None)
+
+
+def _key_hash(hk: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(hk.encode()).hexdigest()
 
 
 async def _consume_share_metadata(
@@ -133,6 +164,7 @@ async def signaling_ws(
     room_id: str,
     role: str = Query("host"),
     v: int = Query(1),
+    hk: str | None = Query(None, max_length=64),
 ) -> None:
     await websocket.accept()
 
@@ -142,11 +174,12 @@ async def signaling_ws(
     if role not in ("host", "guest"):
         await websocket.close(code=CLOSE_BAD_ROLE)
         return
+    _sweep()
     if room_id not in _rooms and len(_rooms) >= MAX_ROOMS:
         await websocket.close(code=CLOSE_SERVER_FULL)
         return
 
-    room = _rooms.setdefault(room_id, {"host": None, "multi": False, "guests": {}})
+    room = _rooms.setdefault(room_id, {"host": None, "multi": False, "guests": {}, "key": None})
     guests: dict[str, WebSocket] = room["guests"]
 
     # Hash the sharer's IP once (server-side only; never echoed to any client).
@@ -155,10 +188,29 @@ async def signaling_ws(
     gid = ""
 
     if role == "host":
-        if room["host"] is not None:
+        key = _key_hash(hk) if hk and _HOST_KEY.match(hk) else None
+        owner = room.get("key")
+        if owner is not None and key != owner:
+            # The room belongs to a sender that holds a key; nobody else may host it,
+            # even while that sender is away.
             await websocket.close(code=CLOSE_DUPLICATE_HOST)
             return
+        if room["host"] is not None:
+            if owner is None or key != owner:
+                await websocket.close(code=CLOSE_DUPLICATE_HOST)
+                return
+            # The same sender is back on a new socket while the old one has not been
+            # reaped yet: the old one is dead or about to be. Hand the room over.
+            stale = room["host"]
+            room["host"] = None
+            try:
+                await stale.close(code=CLOSE_REPLACED)
+            except Exception:
+                pass
+        if owner is None and key is not None:
+            room["key"] = key
         room["host"] = websocket
+        room.pop("left_at", None)
         room["multi"] = v >= 2
         await _send(websocket, {"type": "config", "iceServers": await turn.get_ice_servers()})
         # Guests that survived the host's signalling reconnect are still
@@ -167,7 +219,7 @@ async def signaling_ws(
             await _send(websocket, _addressed({"type": "guest-joined"}, g, room))
 
     else:  # guest
-        if room["host"] is None:
+        if room["host"] is None and not room.get("key"):
             await _send(websocket, {"type": "no-host"})
             await websocket.close(code=CLOSE_NO_HOST)
             if not guests:
@@ -188,7 +240,13 @@ async def signaling_ws(
         # Config strictly before guest-joined: the host answers guest-joined
         # with an offer, and the guest needs its ICE servers to answer that.
         await _send(websocket, {"type": "config", "iceServers": await turn.get_ice_servers()})
-        await _send(room["host"], _addressed({"type": "guest-joined"}, gid, room))
+        if room["host"] is None:
+            # A held room: the sender's socket dropped (often a phone suspending the
+            # tab while the link is being shared). Wait here; the sender is told
+            # about every waiting guest the moment it reconnects.
+            await _send(websocket, {"type": "peer-disconnected"})
+        else:
+            await _send(room["host"], _addressed({"type": "guest-joined"}, gid, room))
 
     try:
         while True:
@@ -247,7 +305,13 @@ async def signaling_ws(
             del guests[gid]
             await _send(room["host"], _addressed({"type": "peer-disconnected"}, gid, room))
         if room["host"] is None and not guests:
-            _rooms.pop(room_id, None)
+            if room.get("key"):
+                # Hold the room (and its owner's key) for a while: the sender may be back.
+                import time
+
+                room["left_at"] = time.monotonic()
+            else:
+                _rooms.pop(room_id, None)
 
 
 def _addressed(msg: dict, gid: str, room: dict) -> dict:
