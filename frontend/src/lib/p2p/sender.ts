@@ -105,6 +105,11 @@ const SOLO = "solo"; // an older server that doesn't assign guest ids
  * its own queue, so a phone pulling three photos doesn't wait behind a laptop
  * pulling a video. The link stays live until the sender ends it or closes the tab.
  */
+/** 128 random bits, hex: proves to the signalling server that a reconnecting socket is this sender. */
+function randomHostKey(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export class ShareSender {
   private files: Entry[] = [];
   private unreadable = new Set<string>();
@@ -143,7 +148,7 @@ export class ShareSender {
         this.failure = "signalling";
         this.setStatus("failed");
       },
-    });
+    }, randomHostKey());
   }
 
   // ── Public API ────────────────────────────────────────────────────────────

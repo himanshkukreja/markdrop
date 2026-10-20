@@ -201,7 +201,7 @@ export default function DownloadView({ roomId }: { roomId: string }) {
             {failure
               ? FAILURE_COPY[failure].detail
               : away
-                ? "Their tab lost its connection. If they're back within a minute, this picks up on its own."
+                ? "Their share page isn't connected right now, often because their phone put it in the background. Ask them to reopen it; this picks up on its own for the next 10 minutes."
                 : "Setting up an encrypted connection between your devices."}
           </p>
         </div>

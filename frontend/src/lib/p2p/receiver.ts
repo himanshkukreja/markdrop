@@ -36,8 +36,13 @@ export interface ReceiverSnapshot {
 }
 
 /** How long to wait for a sender whose signalling dropped before we connected. */
-const SENDER_GRACE_MS = 45_000;
+/** How long to wait for a sender whose page dropped (a phone suspending the tab while the link
+ * is shared). Matches the server's hold on the room (KEY_HOLD_SECONDS in routers/share.py). */
+const SENDER_GRACE_MS = 10 * 60_000;
 const SLOW_AFTER_MS = 8_000;
+/** How long "no sender in this room" is treated as the sender being on its way back. */
+const NO_HOST_PATIENCE_MS = 60_000;
+const NO_HOST_RETRY_MS = 3_000;
 const V1_ID = "v1";
 
 /**
@@ -48,6 +53,8 @@ const V1_ID = "v1";
 export class ShareReceiver {
   private files: ReceivedFile[] = [];
   private status: ReceiverStatus = "connecting";
+  /** When the server first said this room has no sender (cleared once a sender shows up). */
+  private noHostSince = 0;
   private failure: FailureReason | null = null;
   private route: "direct" | "relay" | null = null;
   private protocol: 1 | 2 = 2;
@@ -85,7 +92,7 @@ export class ShareReceiver {
       onFatal: (code) => {
         if (code === CLOSE.ROOM_BUSY) this.fail("room-busy");
         else if (code === CLOSE.ROOM_FULL) this.fail("room-full");
-        else if (code === CLOSE.NO_HOST) this.fail("no-host");
+        else if (code === CLOSE.NO_HOST) this.noHost();
         else this.fail("signalling");
       },
       onUnreachable: () => {
@@ -142,13 +149,29 @@ export class ShareReceiver {
     return this.channel?.readyState === "open";
   }
 
+  /**
+   * The server knows no sender for this room. Right after a server restart (every deploy) or while
+   * the sender's page is reconnecting, that is true for a few seconds even though the sender is
+   * coming back; say "waiting" and look again for a minute before calling the link dead.
+   */
+  private noHost(): void {
+    if (this.channelOpen) return;
+    if (!this.noHostSince) this.noHostSince = Date.now();
+    if (Date.now() - this.noHostSince > NO_HOST_PATIENCE_MS) {
+      this.fail("no-host");
+      return;
+    }
+    this.setStatus(this.files.length ? "ready" : "sender-away");
+    this.signal.retry(NO_HOST_RETRY_MS);
+  }
+
   private async onSignal(msg: Record<string, unknown> & { type: string }) {
     switch (msg.type) {
       case "config":
         this.iceServers = (msg.iceServers as RTCIceServer[]) ?? null;
         break;
       case "no-host":
-        this.fail("no-host");
+        this.noHost();
         break;
       case "room-busy":
         this.fail("room-busy");
@@ -162,6 +185,7 @@ export class ShareReceiver {
         this.fail("sender-ended");
         break;
       case "offer":
+        this.noHostSince = 0;
         // A sender whose signalling reconnected renegotiates from scratch.
         if (this.graceTimer) clearTimeout(this.graceTimer);
         this.graceTimer = null;
