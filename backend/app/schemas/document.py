@@ -7,9 +7,12 @@ from app.config import get_settings
 
 MAX_CONTENT = get_settings().max_content_chars
 # Sync carries artifacts as well as markdown, and an HTML file is routinely
-# larger than a markdown note. The markdown limit is still enforced per-document
-# in the sync handler; this only stops pydantic rejecting an artifact outright.
-MAX_SYNC_CONTENT = 10 * 1024 * 1024
+# larger than a markdown note. The real limits are enforced in the sync handler
+# (markdown: max_content_chars; artifacts: artifact.MAX_SYNC_BYTES, 25 MB) with a
+# 413 the editor can show. This bound only has to sit above them: when it was
+# 10M characters, an 11 MB HTML page failed validation with a bare 422 that
+# echoed the whole file back. nginx caps the body at 32 MB before this.
+MAX_SYNC_CONTENT = 32 * 1024 * 1024
 
 
 class DocumentCreate(BaseModel):

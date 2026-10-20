@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.1
+
+**Large HTML files publish again, and failures say why.**
+
+- HTML and other files up to 25 MB now publish and sync (the server limit was
+  10 MB, so self-contained pages with inlined images or fonts failed).
+- A file over the limit is caught before uploading, with its size and what to do.
+- Errors show the server's reason instead of "Failed to publish to Markdrop".
+- Very long filenames are shortened to fit the link instead of being refused.
+- A sync refusal (for example an encrypted document) is shown as a message
+  instead of opening an empty conflict.
+
 ## 0.3.0
 
 **HTML and text files now sync too.**

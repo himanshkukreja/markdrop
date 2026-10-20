@@ -421,10 +421,23 @@ SYNCABLE_MIMES = frozenset({
     "image/svg+xml",
 })
 
-# Sync payloads travel as JSON through the API, unlike uploads which go straight
-# to R2, so they're capped below nginx's body limit rather than at the 25 MB
-# artifact limit.
-MAX_SYNC_BYTES = 10 * 1024 * 1024
+# A file synced from the editor gets the same ceiling as one uploaded on the
+# site (25 MB by default). It travels as JSON through the API rather than
+# straight to R2, so nginx's client_max_body_size on the API host must stay
+# above this plus JSON escaping (32m in the server's nginx site for api.markdrop.in,
+# /etc/nginx/sites-enabled). A self-contained HTML page
+# with inlined images or fonts is routinely 10–25 MB.
+MAX_SYNC_BYTES = settings.artifact_max_bytes
+
+
+def sync_size_error(size_bytes: int) -> str:
+    """The editor shows this verbatim when a file is over the sync limit."""
+    mb = lambda n: f"{n / (1024 * 1024):.1f}".rstrip("0").rstrip(".")
+    return (
+        f"This file is {mb(size_bytes)} MB; files synced from your editor can be up to "
+        f"{mb(MAX_SYNC_BYTES)} MB. Move large images or fonts out of the page, or upload it at "
+        "markdrop.in/upload."
+    )
 
 
 def is_syncable(mime: str | None) -> bool:
@@ -491,7 +504,7 @@ async def sync_push_content(
 
     payload = content.encode("utf-8")
     if len(payload) > MAX_SYNC_BYTES:
-        return ("unsupported", None)
+        return ("too_large", None)
 
     mime = raw["mime"]
     is_public = not is_guarded(
