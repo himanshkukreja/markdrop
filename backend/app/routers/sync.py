@@ -119,15 +119,12 @@ async def sync_create(
 
 async def _create_synced_artifact(db, user, data, mime: str):
     """Store the editor's text in R2 and mint an artifact pointing at it."""
+    payload = data.content.encode("utf-8")
+    if len(payload) > art_service.MAX_SYNC_BYTES:
+        raise HTTPException(status_code=413, detail=art_service.sync_size_error(len(payload)))
     if not r2.is_configured():
         raise HTTPException(
             status_code=503, detail="Artifact storage is not configured on this server."
-        )
-    payload = data.content.encode("utf-8")
-    if len(payload) > art_service.MAX_SYNC_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File is over the {art_service.MAX_SYNC_BYTES // (1024*1024)} MB sync limit.",
         )
 
     blob_key = art_service.make_blob_key(user.id, mime)
@@ -208,6 +205,10 @@ async def sync_push(
         status, doc = await art_service.sync_push_content(
             db, doc_id, user.id, data.content, data.base_rev
         )
+        if status == "too_large":
+            raise HTTPException(
+                status_code=413, detail=art_service.sync_size_error(len(data.content.encode("utf-8")))
+            )
         if status == "unsupported":
             raise HTTPException(
                 status_code=409,

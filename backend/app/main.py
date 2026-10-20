@@ -2,6 +2,8 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -102,6 +104,24 @@ def _rate_limited(request: Request, exc: RateLimitExceeded) -> JSONResponse:
 
 
 app.add_exception_handler(RateLimitExceeded, _rate_limited)
+
+
+def _small(value):
+    """A validation error's `input`, unless it is big: FastAPI echoes it back, so an oversized
+    field (a 12 MB HTML file) would otherwise come straight back down the wire."""
+    if isinstance(value, (str, bytes)) and len(value) > 300:
+        return f"<{len(value):,} characters omitted>"
+    if isinstance(value, (dict, list)) and len(repr(value)) > 2000:
+        return "<omitted>"
+    return value
+
+
+async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    errors = [{**e, "input": _small(e.get("input"))} if "input" in e else e for e in exc.errors()]
+    return JSONResponse({"detail": jsonable_encoder(errors)}, status_code=422)
+
+
+app.add_exception_handler(RequestValidationError, _validation_error)
 app.add_middleware(SlowAPIMiddleware)
 
 # Routers
