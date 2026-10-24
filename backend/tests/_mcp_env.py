@@ -31,6 +31,7 @@ settings = get_settings()
 API = "https://api.markdrop.in"
 RESOURCE = f"{API}/mcp"
 REDIRECT = "https://client.example/callback"
+_R2_SETTINGS = ("r2_account_id", "r2_access_key_id", "r2_secret_access_key", "r2_bucket")
 
 
 def pkce() -> tuple[str, str]:
@@ -52,6 +53,11 @@ class McpTestCase(unittest.IsolatedAsyncioTestCase):
         self._saved = (database._client, settings.mongodb_db)
         database._client = self.client
         settings.mongodb_db = self.db_name
+        # A developer's .env may hold real R2 keys: never let a test reach the bucket. Tests that
+        # need storage mock the r2 module instead.
+        self._saved_r2 = {k: getattr(settings, k) for k in _R2_SETTINGS}
+        for k in _R2_SETTINGS:
+            setattr(settings, k, "")
         await self.db["documents"].create_index("slug", unique=True)
         await self.db["users"].create_index("email", unique=True)
         await self.db["oauth_grants"].create_index([("user_id", 1), ("client_id", 1)], unique=True)
@@ -67,6 +73,8 @@ class McpTestCase(unittest.IsolatedAsyncioTestCase):
         await self.client.drop_database(self.db_name)
         self.client.close()
         database._client, settings.mongodb_db = self._saved
+        for k, v in self._saved_r2.items():
+            setattr(settings, k, v)
         oauth_server.clear_access_cache()
         cimd.clear_cache()
 
