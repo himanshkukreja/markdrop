@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -59,9 +60,48 @@ func newPeerConnection(ice []webrtc.ICEServer) (*webrtc.PeerConnection, error) {
 	lf := logging.NewDefaultLoggerFactory()
 	lf.Writer = os.Stderr
 	se.LoggerFactory = lf
+	if skip := ifaceSkipList(); len(skip) > 0 {
+		se.SetInterfaceFilter(func(name string) bool {
+			for _, p := range skip {
+				if strings.HasPrefix(name, p) {
+					return false
+				}
+			}
+			return true
+		})
+	}
 	api := webrtc.NewAPI(webrtc.WithSettingEngine(se))
-	return api.NewPeerConnection(webrtc.Configuration{ICEServers: ice})
+	pc, err := api.NewPeerConnection(webrtc.Configuration{ICEServers: ice})
+	if err == nil && os.Getenv("MARKDROP_DEBUG") != "" {
+		pc.OnICEConnectionStateChange(func(s webrtc.ICEConnectionState) {
+			line := "ice: " + s.String()
+			if s == webrtc.ICEConnectionStateConnected {
+				if p, perr := pc.SCTP().Transport().ICETransport().GetSelectedCandidatePair(); perr == nil && p != nil {
+					line += " via " + p.String()
+				}
+			}
+			fmt.Fprintln(os.Stderr, line)
+		})
+	}
+	return pc, err
 }
+
+// ifaceSkipList reads MARKDROP_ICE_EXCLUDE_IFACES: comma-separated network
+// interface name prefixes (e.g. "utun") to leave out of ICE. A troubleshooting
+// knob for VPN tunnels that pass the handshake but drop bulk data.
+func ifaceSkipList() []string {
+	var out []string
+	for _, p := range strings.Split(os.Getenv("MARKDROP_ICE_EXCLUDE_IFACES"), ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// stallLimit is how long a transfer may make no progress at all before it is
+// abandoned, so a dead path ends in an error instead of a hang.
+var stallLimit = 30 * time.Second
 
 // sdpMsg is used for offer/answer JSON messages. X is the opaque share
 // metadata blob the server logs and strips (offers only).
@@ -309,6 +349,13 @@ func ServeOne(ctx context.Context, sig *signaling.Client, src *Source, o HostOpt
 				return errors.New("timed out connecting to the recipient")
 			}
 		case <-ctx.Done():
+			if opened && dc.ReadyState() == webrtc.DataChannelStateOpen {
+				// Stopped by the sender: say so on the channel too, so the
+				// recipient shows "sender stopped" rather than a broken link.
+				if dc.SendText(`{"type":"bye"}`) == nil {
+					time.Sleep(150 * time.Millisecond)
+				}
+			}
 			return ctx.Err()
 		}
 	}
@@ -332,14 +379,23 @@ func streamFile(
 
 	for sent < total {
 		// Backpressure: wait for buffer to drain before sending more.
-		for dc.BufferedAmount() > bufferHighWater {
-			if dc.ReadyState() != webrtc.DataChannelStateOpen {
-				return ErrGuestLeft
+		if n := dc.BufferedAmount(); n > bufferHighWater {
+			low, since := n, time.Now()
+			for n > bufferHighWater {
+				if dc.ReadyState() != webrtc.DataChannelStateOpen {
+					return ErrGuestLeft
+				}
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				if n < low {
+					low, since = n, time.Now()
+				} else if time.Since(since) > stallLimit {
+					return fmt.Errorf("transfer stalled: the recipient acknowledged nothing for %s", stallLimit)
+				}
+				time.Sleep(10 * time.Millisecond)
+				n = dc.BufferedAmount()
 			}
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			time.Sleep(10 * time.Millisecond)
 		}
 
 		n, err := f.Read(buf)
@@ -372,7 +428,6 @@ func streamFile(
 // receiver got a truncated file. pion lowers BufferedAmount only as SCTP
 // acknowledges data, so zero means the receiver has it all.
 func waitDelivered(dc *webrtc.DataChannel) error {
-	const stallLimit = 60 * time.Second
 	last := dc.BufferedAmount()
 	lastProgress := time.Now()
 	for {

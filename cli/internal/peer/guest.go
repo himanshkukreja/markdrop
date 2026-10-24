@@ -97,9 +97,17 @@ func Receive(ctx context.Context, sig *signaling.Client, o GuestOptions) (*Guest
 	}()
 	var graceC <-chan time.Time
 	msgs := sig.Messages()
+	// lastRx is when the last chunk (or the start) went by; 0 until started.
+	var lastRx atomic.Int64
+	watchdog := time.NewTicker(time.Second)
+	defer watchdog.Stop()
 
 	for {
 		select {
+		case <-watchdog.C:
+			if t := lastRx.Load(); t != 0 && time.Since(time.Unix(0, t)) > stallLimit {
+				return nil, fmt.Errorf("transfer stalled: nothing arrived for %s", stallLimit)
+			}
 		case raw, ok := <-msgs:
 			if !ok {
 				if established.Load() {
@@ -155,7 +163,7 @@ func Receive(ctx context.Context, sig *signaling.Client, o GuestOptions) (*Guest
 					}
 				})
 				pc.OnDataChannel(func(dc *webrtc.DataChannel) {
-					handleIncomingChannel(dc, o, finish, &established)
+					handleIncomingChannel(dc, o, finish, &established, &lastRx)
 				})
 				if err = pc.SetRemoteDescription(m.SDP); err != nil {
 					return nil, fmt.Errorf("set remote description: %w", err)
@@ -214,6 +222,7 @@ func handleIncomingChannel(
 	o GuestOptions,
 	finish func(guestResult),
 	established *atomic.Bool,
+	lastRx *atomic.Int64,
 ) {
 	var (
 		meta      FileMeta
@@ -228,7 +237,16 @@ func handleIncomingChannel(
 		outDir = "."
 	}
 
-	dc.OnError(func(err error) { finish(guestResult{err: fmt.Errorf("data channel error: %w", err)}) })
+	dc.OnError(func(err error) {
+		if completed.Load() {
+			return
+		}
+		if dc.ReadyState() != webrtc.DataChannelStateOpen {
+			finish(guestResult{err: errors.New("the sender closed the connection before the transfer finished")})
+			return
+		}
+		finish(guestResult{err: fmt.Errorf("data channel error: %w", err)})
+	})
 	dc.OnClose(func() {
 		if !completed.Load() {
 			if tmpFile != nil {
@@ -241,6 +259,7 @@ func handleIncomingChannel(
 
 	complete := func() {
 		completed.Store(true)
+		lastRx.Store(0) // saving (or unzipping) may take a while; not a stall
 		if tmpFile != nil {
 			_ = tmpFile.Close()
 			tmpFile = nil
@@ -318,6 +337,9 @@ func handleIncomingChannel(
 					finish(guestResult{err: fmt.Errorf("send start signal: %w", serr)})
 					return
 				}
+				if !completed.Load() {
+					lastRx.Store(time.Now().UnixNano())
+				}
 				if m.Size == 0 {
 					complete() // no chunks will come
 				}
@@ -334,6 +356,7 @@ func handleIncomingChannel(
 			return
 		}
 		received += int64(len(msg.Data))
+		lastRx.Store(time.Now().UnixNano())
 		if o.OnProgress != nil {
 			o.OnProgress(received, meta.Size)
 		}

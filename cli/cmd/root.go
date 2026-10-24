@@ -36,6 +36,8 @@ Examples:
   markdrop get https://markdrop.in/share/a3f7c12e
   markdrop get a3f7c12e -o ~/Downloads
   markdrop mcp            # local MCP server for AI assistants (stdio)`,
+	// A failed transfer is not a usage mistake: print the error, not the help.
+	SilenceUsage: true,
 }
 
 // Execute is called from main.go.
