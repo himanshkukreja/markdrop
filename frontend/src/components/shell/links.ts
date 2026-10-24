@@ -34,6 +34,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: NavLink[] }> = [
   {
     title: "Developers",
     links: [
+      { label: "AI assistants (MCP)", href: "/mcp" },
       { label: "VS Code extension", href: VSCODE_URL, external: true },
       { label: "GitHub", href: GITHUB_URL, external: true },
       { label: "CLI", href: CLI_URL, external: true },
