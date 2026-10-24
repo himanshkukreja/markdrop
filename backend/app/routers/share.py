@@ -306,7 +306,11 @@ async def signaling_ws(
             target, data, bye = _route_from_host(data, room)
             if bye:
                 # The sender ended the share. Everyone still waiting or
-                # downloading hears it now, not when a timeout runs out.
+                # downloading hears it now, not when a timeout runs out. A
+                # stopped sender never comes back, so drop its key too: the room
+                # goes when the sender's socket does, instead of being held for
+                # KEY_HOLD_SECONDS with late recipients waiting on nobody.
+                room["key"] = None
                 for g in list(guests.values()):
                     await _send(g, {"type": "room-closed"})
                 continue
