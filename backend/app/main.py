@@ -33,6 +33,7 @@ from app.routers.access import router as access_router
 from app.routers.google import router as google_router
 from app.routers.live import router as live_router
 from app.routers.me import router as me_router
+from app.routers.oauth import router as oauth_router
 from app.routers.og import router as og_router
 from app.routers.share import router as share_router
 from app.routers.sync import router as sync_router
@@ -149,6 +150,7 @@ app.include_router(folders_router)
 app.include_router(invites_router)
 app.include_router(library_router)
 app.include_router(access_router)
+app.include_router(oauth_router)
 
 
 @app.get("/health")
