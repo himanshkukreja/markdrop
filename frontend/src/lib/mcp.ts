@@ -87,6 +87,64 @@ export const MCP_TOOLS: McpTool[] = [
     scope: "documents:read",
     icon: "download",
   },
+  {
+    name: "list_shares",
+    title: "List your file shares",
+    description: "Lists the peer-to-peer shares you started while signed in, once someone has opened the link: which are live, how many people are connected and how many downloads finished.",
+    scope: "documents:read",
+    icon: "share",
+  },
+  {
+    name: "get_share_status",
+    title: "Check a share link",
+    description: "Says whether a markdrop.in/share link's sender is online and people can join. File details only for your own shares.",
+    scope: "documents:read",
+    icon: "wave",
+  },
+];
+
+/**
+ * The local server for peer-to-peer sharing (spec Part B). It runs inside the markdrop CLI on the
+ * user's computer, over stdio, because P2P file bytes leave from the sender's own device: an AI app
+ * in the cloud holds none of the user's files. Names here are the CLI's; keep them in step.
+ */
+export const MCP_LOCAL_SERVER = "markdrop-p2p";
+export const MCP_LOCAL_COMMAND = "markdrop mcp";
+/** The first CLI release with `markdrop mcp`. */
+export const MCP_LOCAL_MIN_CLI = "0.3.0";
+
+export interface McpLocalTool {
+  name: string;
+  title: string;
+  description: string;
+  icon: string;
+}
+
+export const MCP_LOCAL_TOOLS: McpLocalTool[] = [
+  {
+    name: "share_files",
+    title: "Share files",
+    description: "Shares files or folders from your computer as a markdrop.in/share link. Several files or a folder go as one zip.",
+    icon: "send",
+  },
+  {
+    name: "share_status",
+    title: "Follow progress",
+    description: "Shows each share and download in this session: waiting, transferring or done, with progress.",
+    icon: "refresh",
+  },
+  {
+    name: "stop_share",
+    title: "Stop a share",
+    description: "Ends a share. The link stops working and anyone still downloading is told.",
+    icon: "wifiOff",
+  },
+  {
+    name: "receive_share",
+    title: "Receive a share",
+    description: "Downloads a share link to Downloads/Markdrop, or a folder you name, without overwriting anything.",
+    icon: "download",
+  },
 ];
 
 /** The two permissions, in the words the consent screen uses (spec "Scopes"). */

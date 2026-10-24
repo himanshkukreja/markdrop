@@ -4,13 +4,10 @@
 import { useState } from "react";
 import { Disclosure, Icon, Tabs, cx } from "@/components/ui";
 import { CommandBlock } from "@/components/kit/CommandBlock";
+import { CLI_INSTALL } from "@/lib/cli";
 import ui from "./share.module.css";
 
-export const INSTALL = [
-  { os: "macOS", cmd: "brew install himanshkukreja/tap/markdrop" },
-  { os: "Linux and macOS", cmd: "curl -fsSL https://github.com/himanshkukreja/markdrop/releases/latest/download/install.sh | sh" },
-  { os: "Windows (PowerShell)", cmd: "irm https://github.com/himanshkukreja/markdrop/releases/latest/download/install.ps1 | iex" },
-];
+export const INSTALL = CLI_INSTALL;
 
 const PERKS: Array<[string, string]> = [
   ["Whole folders", "Point it at a directory: it's zipped, sent, and unzipped on arrival."],

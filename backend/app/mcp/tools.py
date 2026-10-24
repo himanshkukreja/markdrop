@@ -31,6 +31,7 @@ from pydantic import ValidationError
 from app.config import get_settings
 from app.mcp.auth import READ, WRITE
 from app.models.user import User
+from app.routers import share as share_room
 from app.schemas.document import DocumentCreate, DocumentUpdate
 from app.services import access as access_service
 from app.services import analytics
@@ -68,6 +69,15 @@ PAGE_TYPES = {
 EXPIRY_CHOICES = ["never", "1h", "1d", "7d", "30d"]
 ACCESS_CHOICES = ["link", "private", "password"]
 _SLUG_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+# A share link is markdrop.in/share/<room id>.
+SHARE_HOSTS = ("markdrop.in", "www.markdrop.in")
+BAD_SHARE_LINK = (
+    "That doesn't look like a Markdrop share link (https://markdrop.in/share/...) or a share id."
+)
+# list_shares reads at most this many of the user's newest share events before
+# folding them into one row per share, so a heavy sharer can't make it scan
+# their whole history.
+SHARE_SCAN_ROWS = 2000
 # get_document returns at most this much text, so one huge file can't flood a
 # model's context; the result says when it was cut.
 MAX_RETURNED_CHARS = 200_000
@@ -253,6 +263,100 @@ def display_title(doc) -> str | None:
     if doc.kind != "artifact":
         return heading_title(doc.content[:400])
     return doc.original_filename
+
+
+def share_url(room_id: str) -> str:
+    return public_url(f"share/{room_id}")
+
+
+def resolve_share(value: str) -> str:
+    """A share's room id from its link (markdrop.in/share/<id>, with or without
+    www or a scheme; a local sandbox's own frontend too) or from the bare id."""
+    text = (value or "").strip()
+    if not text:
+        raise ToolError("Give a Markdrop share link or share id.")
+    if share_room._ROOM_ID.match(text):
+        return text
+    url = text if "://" in text else f"https://{text}"
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+    except ValueError:
+        raise ToolError(BAD_SHARE_LINK)
+    hosts = set(SHARE_HOSTS)
+    front = (urlsplit(settings.frontend_url).hostname or "").lower()
+    if front in ("localhost", "127.0.0.1"):
+        hosts.update(("localhost", "127.0.0.1"))
+    elif front:
+        hosts.add(front)
+    segments = [s for s in parts.path.split("/") if s]
+    if (host not in hosts or len(segments) != 2 or segments[0] != "share"
+            or not share_room._ROOM_ID.match(segments[1])):
+        raise ToolError(BAD_SHARE_LINK)
+    return segments[1]
+
+
+def human_bytes(n: int | None) -> str | None:
+    if n is None:
+        return None
+    if n < 1024:
+        return f"{n} bytes"
+    size = n / 1024
+    for unit in ("KB", "MB"):
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} GB"
+
+
+async def downloads_by_room(db: AsyncIOMotorDatabase, room_ids: list[str]) -> dict[str, int]:
+    """Finished downloads per share, as reported by recipients' browsers."""
+    if not room_ids:
+        return {}
+    rows = await db["share_transfers"].aggregate([
+        {"$match": {"room_id": {"$in": room_ids}}},
+        {"$group": {"_id": "$room_id", "n": {"$sum": 1}}},
+    ]).to_list(length=len(room_ids))
+    return {r["_id"]: int(r["n"]) for r in rows}
+
+
+def share_fields(row: dict) -> dict:
+    """The owner-only fields of a share, from its folded share_events row."""
+    size = row.get("file_size")
+    return {
+        "file_name": row.get("file_name"),
+        "file_count": int(row.get("file_count") or 1),
+        "total_bytes": int(size) if isinstance(size, (int, float)) and not isinstance(size, bool) else None,
+        "started_at": iso(row.get("started_at")),
+    }
+
+
+def share_label(fields: dict) -> str:
+    name = fields["file_name"] or "a file"
+    if fields["file_count"] > 1:
+        name = f"{name} and {fields['file_count'] - 1} more"
+    size = human_bytes(fields["total_bytes"])
+    return f"{name} ({size})" if size else name
+
+
+def _fold_shares(match: dict) -> list[dict]:
+    """share_events → one row per share, newest first. A sender that reconnects
+    logs the same room again: the newest row describes it, the oldest says when
+    it started."""
+    return [
+        {"$match": match},
+        {"$sort": {"ts": -1}},
+        {"$limit": SHARE_SCAN_ROWS},
+        {"$group": {
+            "_id": "$room_id",
+            "last": {"$first": "$ts"},
+            "started_at": {"$min": "$ts"},
+            "file_name": {"$first": "$file_name"},
+            "file_size": {"$first": "$file_size"},
+            "file_count": {"$first": "$file_count"},
+        }},
+        {"$sort": {"last": -1, "_id": 1}},
+    ]
 
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
@@ -631,6 +735,107 @@ async def fetch(ctx: Context, args: dict) -> tuple[str, dict]:
     return json.dumps(out), out
 
 
+async def list_shares(ctx: Context, args: dict) -> tuple[str, dict]:
+    limit = int(args.get("limit") or 20)
+    live_only = bool(args.get("live_only"))
+    pipeline = _fold_shares({"user_id": ctx.user.id})
+    if not live_only:
+        pipeline.append({"$limit": limit})
+    shares: list[dict] = []
+    async for row in ctx.db["share_events"].aggregate(pipeline):
+        snap = share_room.room_snapshot(row["_id"])
+        live = bool(snap and snap["host_online"])
+        if live_only and not live:
+            continue
+        shares.append({
+            "id": row["_id"],
+            "url": share_url(row["_id"]),
+            **share_fields(row),
+            "live": live,
+            "recipients_now": snap["guests"] if snap else 0,
+        })
+        if len(shares) >= limit:
+            break
+    done = await downloads_by_room(ctx.db, [s["id"] for s in shares])
+    for s in shares:
+        s["downloads_completed"] = done.get(s["id"], 0)
+    out = {"shares": shares, "count": len(shares)}
+    if not shares:
+        if live_only:
+            return "None of the user's shares is live right now.", out
+        return ("No shares found. Shares started while signed in to Markdrop, or from the "
+                "markdrop CLI with an API token, appear here."), out
+    lines = []
+    for s in shares:
+        state = f"live, {s['recipients_now']} recipient(s) connected" if s["live"] else "ended"
+        lines.append(f"- {share_label(s)}: {s['url']} ({state}; "
+                     f"{s['downloads_completed']} download(s) completed)")
+    return f"{len(shares)} share(s), newest first:\n" + "\n".join(lines), out
+
+
+SHARE_REASONS = {
+    "ok": "The sender is online: anyone with the link can open it and download now.",
+    "held": (
+        "The sender's connection dropped a moment ago. Recipients who open the link now "
+        f"wait up to {share_room.KEY_HOLD_SECONDS // 60} minutes for the sender to come back."
+    ),
+    "no_sender": (
+        "No one is sharing at this link right now: the sender stopped the share or went "
+        "offline. Ask them to share again."
+    ),
+    "busy": (
+        "The sender is online but already sending to someone, and this sender handles one "
+        "recipient at a time. Try again when that download finishes."
+    ),
+    "full": (
+        f"The sender is online but already sending to {share_room.MAX_GUESTS} people, the "
+        "most at once. Try again shortly."
+    ),
+}
+
+
+def join_state(snap: dict | None) -> tuple[bool, str]:
+    """(can_join, reason): what the signalling server would do with a new
+    recipient right now (routers/share.py, guest branch, in the same order)."""
+    if snap is None or (not snap["host_online"] and not snap["held"]):
+        return False, "no_sender"
+    if snap["guests"] and not snap["multi"]:
+        return False, "busy"
+    if snap["guests"] >= share_room.MAX_GUESTS:
+        return False, "full"
+    if not snap["host_online"]:
+        return True, "held"
+    return True, "ok"
+
+
+async def get_share_status(ctx: Context, args: dict) -> tuple[str, dict]:
+    room_id = resolve_share(args["link"])
+    snap = share_room.room_snapshot(room_id)  # read-only: never creates a room
+    can_join, reason = join_state(snap)
+    out: dict[str, Any] = {
+        "id": room_id,
+        "url": share_url(room_id),
+        "sender_online": bool(snap and snap["host_online"]),
+        "can_join": can_join,
+        "reason": reason,
+        "yours": False,
+    }
+    text = SHARE_REASONS[reason]
+    # Only the user's own shares say what is being shared and to how many.
+    # Anyone else learns no more than opening the link would tell them.
+    rows = await ctx.db["share_events"].aggregate(
+        _fold_shares({"user_id": ctx.user.id, "room_id": room_id})
+    ).to_list(length=1)
+    if rows:
+        fields = share_fields(rows[0])
+        done = (await downloads_by_room(ctx.db, [room_id])).get(room_id, 0)
+        out.update(fields, yours=True, recipients_now=snap["guests"] if snap else 0,
+                   downloads_completed=done)
+        text += (f"\nThis is the user's share of {share_label(fields)}: "
+                 f"{out['recipients_now']} recipient(s) connected now, {done} download(s) completed.")
+    return text, out
+
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 _NULLABLE_STR = {"type": ["string", "null"]}
@@ -884,6 +1089,72 @@ TOOLS: list[Tool] = [
         }),
         annotations=_ann(True, False, True),
         handler=fetch,
+    ),
+    Tool(
+        name="list_shares",
+        title="List my P2P shares",
+        description=(
+            "List the peer-to-peer file shares the user started while signed in (in the browser, or "
+            "from the markdrop CLI with their API token), newest first, with whether each one is live "
+            "right now and how many recipients are connected. A share is listed once its first "
+            "recipient has connected; before that, check its link with get_share_status. "
+            "downloads_completed counts downloads "
+            "finished in a recipient's browser; downloads with the markdrop CLI aren't counted. "
+            "This server can't send or receive files: that needs the markdrop CLI's local MCP server."
+        ),
+        scope=READ,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20},
+                "live_only": {"type": "boolean", "default": False,
+                              "description": "Only shares whose sender is online right now."},
+            },
+        },
+        output_schema=_out({
+            "shares": {"type": "array", "items": _out({
+                "id": {"type": "string"}, "url": {"type": "string"},
+                "file_name": _NULLABLE_STR, "file_count": {"type": "integer"},
+                "total_bytes": {"type": ["integer", "null"]}, "started_at": {"type": "string"},
+                "live": {"type": "boolean"}, "recipients_now": {"type": "integer"},
+                "downloads_completed": {"type": "integer"},
+            })},
+            "count": {"type": "integer"},
+        }),
+        annotations=_ann(True, False, True),
+        handler=list_shares,
+    ),
+    Tool(
+        name="get_share_status",
+        title="Check a share link",
+        description=(
+            "Check a Markdrop peer-to-peer share link (https://markdrop.in/share/...): whether the "
+            "sender is online and recipients can join. For the user's own shares it also says what "
+            "is being shared, how many recipients are connected and how many downloads finished."
+        ),
+        scope=READ,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "link": {"type": "string", "minLength": 1, "maxLength": 2048,
+                         "description": "The share link (https://markdrop.in/share/<id>) or just its id."},
+            },
+            "required": ["link"],
+        },
+        output_schema=_out(
+            {
+                "id": {"type": "string"}, "url": {"type": "string"},
+                "sender_online": {"type": "boolean"}, "can_join": {"type": "boolean"},
+                "reason": {"type": "string", "enum": list(SHARE_REASONS)},
+                "yours": {"type": "boolean"},
+                "file_name": _NULLABLE_STR, "file_count": {"type": "integer"},
+                "total_bytes": {"type": ["integer", "null"]}, "started_at": {"type": "string"},
+                "recipients_now": {"type": "integer"}, "downloads_completed": {"type": "integer"},
+            },
+            ["id", "url", "sender_online", "can_join", "reason", "yours"],
+        ),
+        annotations=_ann(True, False, True),
+        handler=get_share_status,
     ),
 ]
 

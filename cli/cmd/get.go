@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -65,7 +67,9 @@ func runGet(_ *cobra.Command, args []string) error {
 
 	// Connect to signalling server as guest.
 	stopSpin := ui.Spinner("Connecting to sender…")
-	sig, err := signaling.Connect(flagServer, roomID, "guest", flagOrigin)
+	sig, err := signaling.Dial(ctx, signaling.Options{
+		Server: flagServer, Room: roomID, Role: "guest", Origin: flagOrigin,
+	})
 	stopSpin()
 	if err != nil {
 		return fmt.Errorf("could not connect to signalling server: %w", err)
@@ -78,43 +82,38 @@ func runGet(_ *cobra.Command, args []string) error {
 		Set64(n int64) error
 		Finish() error
 	}
+	var total int64
 
-	onMeta := func(m peer.FileMeta) {
-		ui.Success(fmt.Sprintf("P2P connection established"))
-		ui.Info(fmt.Sprintf("File : %s", m.Name))
-		ui.Info(fmt.Sprintf("Size : %s", formatBytes(m.Size)))
-		if !flagAutoAccept {
-			// Progress bar is created after user accepts in guest.go — mirror here.
-		} else {
-			bar = ui.NewProgressBar(m.Size, "Receiving")
-		}
-	}
-
-	onProgress := func(received, total int64) {
-		if bar != nil {
+	opts := peer.GuestOptions{
+		OutputDir:  outputDir,
+		OutputFile: outputFile,
+		OnMeta: func(m peer.FileMeta) {
+			total = m.Size
+			ui.Success("P2P connection established")
+			ui.Info(fmt.Sprintf("File : %s", m.Name))
+			ui.Info(fmt.Sprintf("Size : %s", formatBytes(m.Size)))
+		},
+		OnProgress: func(received, _ int64) {
+			if bar == nil {
+				bar = ui.NewProgressBar(total, "Receiving")
+			}
 			_ = bar.Set64(received)
+		},
+		OnWaiting: func() {
+			ui.Info("The sender is away — waiting for them to reconnect…")
+		},
+	}
+	if !flagAutoAccept {
+		opts.Confirm = func(m peer.FileMeta) bool {
+			fmt.Printf("\n  Accept download of %q (%s)? [Y/n]: ", m.Name, formatBytes(m.Size))
+			ans, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+			ans = strings.TrimSpace(strings.ToLower(ans))
+			return ans != "n" && ans != "no"
 		}
 	}
 
-	// For non-auto-accept, the progress bar is created AFTER the prompt in
-	// guest.go. We recreate it here by hooking via a wrapper.
-	var barReady bool
-	var barTotal int64
-
-	wrappedOnMeta := func(m peer.FileMeta) {
-		barTotal = m.Size
-		onMeta(m)
-	}
-
-	wrappedOnProgress := func(received, total int64) {
-		if bar == nil && !barReady {
-			barReady = true
-			bar = ui.NewProgressBar(barTotal, "Receiving")
-		}
-		onProgress(received, total)
-	}
-
-	if err = peer.RunGuest(ctx, sig, outputDir, outputFile, flagAutoAccept, wrappedOnProgress, wrappedOnMeta); err != nil {
+	res, err := peer.Receive(ctx, sig, opts)
+	if err != nil {
 		if ctx.Err() != nil {
 			fmt.Println()
 			ui.Info("Interrupted.")
@@ -126,37 +125,44 @@ func runGet(_ *cobra.Command, args []string) error {
 	if bar != nil {
 		_ = bar.Finish()
 	}
-
-	finalName := outputFile
-	if finalName == "" {
-		finalName = "(filename from sender)"
+	for _, p := range res.Saved {
+		ui.Success(fmt.Sprintf("Saved to %s", p))
 	}
-	savedAt := filepath.Join(outputDir, finalName)
-	ui.Success(fmt.Sprintf("Saved to %s", savedAt))
 	return nil
 }
 
-// parseRoomID extracts the 10-char room ID from either a bare ID or a full URL.
+// roomIDPattern mirrors _ROOM_ID in backend/app/routers/share.py.
+var roomIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{6,64}$`)
+
+// parseRoomID extracts the room ID from either a bare ID or a full URL
+// (https://markdrop.in/share/<id>, www., localhost in dev, …).
 func parseRoomID(input string) (string, error) {
 	input = strings.TrimSpace(input)
+	id := input
 	// Looks like a URL.
 	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
 		u, err := url.Parse(input)
 		if err != nil {
 			return "", fmt.Errorf("invalid URL: %w", err)
 		}
+		id = ""
 		segments := strings.Split(strings.Trim(u.Path, "/"), "/")
 		// Expected path: /share/<roomID>
 		for i, seg := range segments {
 			if seg == "share" && i+1 < len(segments) {
-				return segments[i+1], nil
+				id = segments[i+1]
+				break
 			}
 		}
-		return "", fmt.Errorf("could not find room ID in URL %q — expected .../share/<room-id>", input)
+		if id == "" {
+			return "", fmt.Errorf("could not find room ID in URL %q — expected .../share/<room-id>", input)
+		}
 	}
-	// Bare room ID.
-	if len(input) == 0 {
+	if id == "" {
 		return "", fmt.Errorf("room ID cannot be empty")
 	}
-	return input, nil
+	if !roomIDPattern.MatchString(id) {
+		return "", fmt.Errorf("%q is not a valid share id", id)
+	}
+	return id, nil
 }
