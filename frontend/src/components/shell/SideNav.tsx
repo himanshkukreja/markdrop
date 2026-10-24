@@ -18,7 +18,7 @@ export interface RailData {
 
 /**
  * Which rail item the URL points at. Keys: "docs:all" | "docs:document" | "docs:artifact" |
- * "ws:<id>:library" | "ws:<id>:folder:<fid>" | "ws:<id>:settings" | "ws:new" | "int:vscode" | "settings".
+ * "ws:<id>:library" | "ws:<id>:folder:<fid>" | "ws:<id>:settings" | "ws:new" | "int:vscode" | "int:apps" | "settings".
  */
 export function railKeyFor(pathname: string, search: string): string | null {
   const q = new URLSearchParams(search);
@@ -37,6 +37,7 @@ export function railKeyFor(pathname: string, search: string): string | null {
   if (m) return `ws:${m[1]}:settings`;
   if (pathname === "/settings/workspaces") return "ws:new";
   if (pathname.startsWith("/settings/tokens")) return "int:vscode";
+  if (pathname.startsWith("/settings/connections")) return "int:apps";
   if (pathname === "/settings" || pathname.startsWith("/settings/account")) return "settings";
   return null;
 }
@@ -173,7 +174,7 @@ export interface SideNavProps {
 /**
  * The account rail (REVAMP_PLAN 4.3, Dashboard board): Your documents (All · Documents · Artifacts
  * with counts) · Workspaces (tile, name, chevron; expanded: Library, folders by depth, Settings;
- * "New workspace") · Integrations (VS Code, "N tokens"; Google Docs hidden per D7) · Settings ·
+ * "New workspace") · Integrations (VS Code, "N tokens"; Connected apps; Google Docs hidden per D7) · Settings ·
  * Send feedback. `nav aria-label="Account"`.
  */
 export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedback, footer, className }: SideNavProps) {
@@ -271,6 +272,9 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
           {tokens !== undefined && (
             <span className="ml-auto shrink-0 text-caption text-text-muted">{tokens === 1 ? "1 token" : `${tokens} tokens`}</span>
           )}
+        </RailLink>
+        <RailLink k="int:apps" href="/settings/connections" active={active} onNavigate={onNavigate}>
+          <Icon name="sparkle" size={16} /> <span className="truncate">Connected apps</span>
         </RailLink>
       </section>
 

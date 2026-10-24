@@ -35,7 +35,7 @@ export function UserAvatar({ user, size = "md", className }: { user: MeUser; siz
 
 /**
  * Account menu (REVAMP_PLAN 4.2): an avatar trigger → WAI-ARIA menu with the identity header,
- * Dashboard, Workspaces & domains, API tokens, Account settings, a Theme row (System / Light /
+ * Dashboard, Workspaces & domains, API tokens, Connected apps, Account settings, a Theme row (System / Light /
  * Dark), Send feedback, and Sign out (neutral: signing out isn't destructive). Sign-out uses
  * AuthContext.logout() (server revoke, then the local token is cleared).
  */
@@ -55,6 +55,7 @@ export function AccountMenu({ user, align = "right" }: { user: MeUser; align?: "
     { label: "Dashboard", href: "/dashboard", icon: "home", separated: true },
     { label: "Workspaces & domains", href: "/settings/workspaces", icon: "users" },
     { label: "API tokens", href: "/settings/tokens", icon: "key" },
+    { label: "Connected apps", href: "/settings/connections", icon: "sparkle" },
     { label: "Account settings", href: "/settings/account", icon: "settings" },
     ...(LIGHT_ENABLED
       ? [{
