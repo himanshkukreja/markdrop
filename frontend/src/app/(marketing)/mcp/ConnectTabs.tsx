@@ -25,15 +25,15 @@ const VSCODE_JSON = `{
 const CLAUDE_CODE = `claude mcp add --transport http markdrop ${MCP_SERVER_URL}`;
 
 /** A UI path such as Settings → Connectors, set as one unbreakable label. */
-function Path({ children }: { children: ReactNode }) {
+export function Path({ children }: { children: ReactNode }) {
   return <strong className="font-semibold text-text">{children}</strong>;
 }
-function Code({ children }: { children: ReactNode }) {
+export function Code({ children }: { children: ReactNode }) {
   return <code className="rounded-sm bg-code-inline-bg px-1.5 py-0.5 font-mono text-[0.875em] text-code-inline">{children}</code>;
 }
 
-interface Step { body: ReactNode; snippet?: { text: string; label: string; copy: string; prompt?: string } }
-interface Client { value: string; label: string; intro: ReactNode; steps: Step[]; note?: ReactNode }
+export interface Step { body: ReactNode; snippet?: { text: string; label: string; copy: string; prompt?: string } }
+export interface Client { value: string; label: string; intro: ReactNode; steps: Step[]; note?: ReactNode }
 
 const URL_SNIPPET = { text: MCP_SERVER_URL, label: "Server URL", copy: "Copy server URL", prompt: "" };
 
@@ -110,27 +110,32 @@ const CLIENTS: Client[] = [
 
 /** "Connect your app": pill tabs per MCP client, each with numbered steps and copyable snippets. */
 export function ConnectTabs() {
-  const [tab, setTab] = useState(CLIENTS[0]!.value);
-  const client = CLIENTS.find((c) => c.value === tab) ?? CLIENTS[0]!;
+  return <AppTabs clients={CLIENTS} idPrefix="mcp-client" />;
+}
+
+/** Pill tabs, one per app, over a panel of numbered steps with copyable snippets. */
+export function AppTabs({ clients, idPrefix, className }: { clients: Client[]; idPrefix: string; className?: string }) {
+  const [tab, setTab] = useState(clients[0]!.value);
+  const client = clients.find((c) => c.value === tab) ?? clients[0]!;
   return (
-    <div className="min-w-0">
+    <div className={["min-w-0", className ?? ""].join(" ")}>
       {/* Phones scroll the tab row sideways rather than wrapping it. */}
       <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
         <Tabs
           variant="pill"
-          idPrefix="mcp-client"
+          idPrefix={idPrefix}
           aria-label="AI app"
           value={tab}
           onChange={setTab}
-          items={CLIENTS.map((c) => ({ value: c.value, label: c.label }))}
+          items={clients.map((c) => ({ value: c.value, label: c.label }))}
           className="w-max"
         />
       </div>
 
       <div
         role="tabpanel"
-        id={`mcp-client-panel-${client.value}`}
-        aria-labelledby={`mcp-client-tab-${client.value}`}
+        id={`${idPrefix}-panel-${client.value}`}
+        aria-labelledby={`${idPrefix}-tab-${client.value}`}
         tabIndex={0}
         className="md-focus mt-4 min-w-0 rounded-2xl border border-border bg-surface p-5 sm:p-6"
       >
