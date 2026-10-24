@@ -159,6 +159,9 @@ async def connect() -> None:
     await db["oauth_tokens"].create_index([("user_id", 1), ("client_id", 1)])
     await db["oauth_grants"].create_index([("user_id", 1), ("client_id", 1)], unique=True)
     await db["oauth_clients"].create_index("created_at")
+    # Tool-call audit (no content), kept 90 days.
+    await db["mcp_events"].create_index("ts", expireAfterSeconds=90 * 24 * 3600)
+    await db["mcp_events"].create_index([("user_id", 1), ("ts", -1)])
 
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])
