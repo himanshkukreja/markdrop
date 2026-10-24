@@ -90,7 +90,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "list_shares",
     title: "List your file shares",
-    description: "Lists the peer-to-peer shares you started while signed in, newest first: which are live, how many people are connected and how many downloads finished.",
+    description: "Lists the peer-to-peer shares you started while signed in, once someone has opened the link: which are live, how many people are connected and how many downloads finished.",
     scope: "documents:read",
     icon: "share",
   },

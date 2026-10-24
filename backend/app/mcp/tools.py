@@ -1096,7 +1096,9 @@ TOOLS: list[Tool] = [
         description=(
             "List the peer-to-peer file shares the user started while signed in (in the browser, or "
             "from the markdrop CLI with their API token), newest first, with whether each one is live "
-            "right now and how many recipients are connected. downloads_completed counts downloads "
+            "right now and how many recipients are connected. A share is listed once its first "
+            "recipient has connected; before that, check its link with get_share_status. "
+            "downloads_completed counts downloads "
             "finished in a recipient's browser; downloads with the markdrop CLI aren't counted. "
             "This server can't send or receive files: that needs the markdrop CLI's local MCP server."
         ),
