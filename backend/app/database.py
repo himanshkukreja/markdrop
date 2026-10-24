@@ -146,6 +146,23 @@ async def connect() -> None:
     await db["email_outbox"].create_index("ts", expireAfterSeconds=7 * 24 * 3600)
     await db["email_webhook_events"].create_index("ts", expireAfterSeconds=30 * 24 * 3600)
 
+    # MCP server + OAuth (services/oauth_server.py). New collections only.
+    # Pending consent requests (10 min) and authorization codes go by TTL; a
+    # used code is kept until purge_at so a replay can still be recognised.
+    await db["oauth_requests"].create_index("expires_at", expireAfterSeconds=0)
+    await db["oauth_codes"].create_index("purge_at", expireAfterSeconds=0)
+    await db["oauth_codes"].create_index([("user_id", 1), ("client_id", 1)])
+    # Tokens are looked up by _id (their hash); these serve revocation of a
+    # whole family and disconnecting an app.
+    await db["oauth_tokens"].create_index("expires_at", expireAfterSeconds=0)
+    await db["oauth_tokens"].create_index("family_id")
+    await db["oauth_tokens"].create_index([("user_id", 1), ("client_id", 1)])
+    await db["oauth_grants"].create_index([("user_id", 1), ("client_id", 1)], unique=True)
+    await db["oauth_clients"].create_index("created_at")
+    # Tool-call audit (no content), kept 90 days.
+    await db["mcp_events"].create_index("ts", expireAfterSeconds=90 * 24 * 3600)
+    await db["mcp_events"].create_index([("user_id", 1), ("ts", -1)])
+
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])
     await db["feedback"].create_index([("status", 1), ("type", 1), ("created_at", -1)])

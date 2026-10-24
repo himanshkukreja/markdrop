@@ -185,6 +185,38 @@ class Settings(BaseSettings):
     # (services/doc_ref.py). Blank derives one from auth_secret.
     doc_ref_secret: str = ""
 
+    # ── MCP server + OAuth 2.1 authorization server (routers/mcp.py, oauth.py) ─
+    # The MCP endpoint's canonical resource URI (RFC 8707/9728) and the OAuth
+    # issuer. Blank derives both from api_base_url, so production
+    # (https://api.markdrop.in) gets https://api.markdrop.in/mcp and
+    # https://api.markdrop.in, and a local sandbox on http://127.0.0.1:<port>
+    # gets its own loopback URLs. Plain http is only ever kept for loopback
+    # hosts: anything else is advertised as https.
+    mcp_resource_url: str = ""
+    oauth_issuer: str = ""
+    # Per-user limits on MCP tool calls, so a runaway agent loop can't spam
+    # publishes. Writes cover every tool that creates, changes or deletes.
+    mcp_write_rate_limit: str = "60/minute"
+    mcp_read_rate_limit: str = "300/minute"
+    # Per-IP limits on the public OAuth endpoints. Generous because AI clients
+    # call them server to server, from a handful of shared egress addresses.
+    oauth_token_rate_limit: str = "300/minute"
+    oauth_register_rate_limit: str = "30/minute"
+    # Development only: accept http://127.0.0.1 / http://localhost Client ID
+    # Metadata Document URLs (and fetch them from loopback). Off, CIMD URLs
+    # must be https and resolve to public addresses.
+    oauth_cimd_allow_http_loopback: bool = False
+
+    @property
+    def oauth_issuer_url(self) -> str:
+        return _public_base(self.oauth_issuer or self.api_base_url)
+
+    @property
+    def mcp_resource(self) -> str:
+        if self.mcp_resource_url:
+            return _public_base(self.mcp_resource_url)
+        return f"{self.oauth_issuer_url}/mcp"
+
     @property
     def posthog_configured(self) -> bool:
         return bool(self.posthog_project_id and self.posthog_personal_api_key)
@@ -278,6 +310,27 @@ class Settings(BaseSettings):
     ip_hash_salt: str = "change-this-ip-hash-salt-in-production"
 
     model_config = {"env_file": ".env", "env_prefix": "MARKDROP_"}
+
+
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def _public_base(url: str) -> str:
+    """`url` without a trailing slash, upgraded to https unless it is loopback.
+
+    OAuth metadata, token audiences and redirect `iss` values are compared as
+    strings by clients, so the advertised form has to be stable. A plain-http
+    address is only meaningful for a local sandbox; anywhere else it would mean
+    tokens and codes crossing the network in the clear.
+    """
+    from urllib.parse import urlsplit, urlunsplit
+
+    parts = urlsplit(url.strip().rstrip("/"))
+    host = (parts.hostname or "").lower()
+    scheme = parts.scheme.lower() or "https"
+    if scheme == "http" and host not in _LOOPBACK_HOSTS:
+        scheme = "https"
+    return urlunsplit((scheme, parts.netloc.lower(), parts.path, "", ""))
 
 
 @lru_cache

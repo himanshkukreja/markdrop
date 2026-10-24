@@ -12,6 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import get_settings
 from app.database import connect, disconnect
 from app.limiter import limiter
+from app.middleware.public_cors import PublicCORSMiddleware
 from app.middleware.tenant_cors import TenantCORSMiddleware
 from app.routers.admin import router as admin_router
 from app.routers.admin_analytics import router as admin_analytics_router
@@ -32,7 +33,9 @@ from app.routers.library import router as library_router
 from app.routers.access import router as access_router
 from app.routers.google import router as google_router
 from app.routers.live import router as live_router
+from app.routers.mcp import router as mcp_router
 from app.routers.me import router as me_router
+from app.routers.oauth import router as oauth_router
 from app.routers.og import router as og_router
 from app.routers.share import router as share_router
 from app.routers.sync import router as sync_router
@@ -85,6 +88,11 @@ app.add_middleware(
 # handles verified hosts itself and passes everything else straight through to
 # the static-list behaviour below.
 app.add_middleware(TenantCORSMiddleware)
+
+# The MCP endpoint and the public OAuth endpoints answer any origin, without
+# credentials (middleware/public_cors.py). Outside both CORS layers above so it
+# sees their preflights first; every other path passes through untouched.
+app.add_middleware(PublicCORSMiddleware)
 
 # Rate limiting
 app.state.limiter = limiter
@@ -149,6 +157,8 @@ app.include_router(folders_router)
 app.include_router(invites_router)
 app.include_router(library_router)
 app.include_router(access_router)
+app.include_router(oauth_router)
+app.include_router(mcp_router)
 
 
 @app.get("/health")
