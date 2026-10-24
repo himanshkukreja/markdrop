@@ -27,6 +27,10 @@ RESERVED_SLUGS = frozenset(
         "dev-kit-publish", "dev-reading", "fonts", "icon.svg",
         # Static folders served from frontend/public at the top level.
         "email",
+        # The MCP server's public page (/mcp) and the OAuth consent screen
+        # (/oauth/consent). The API host serves /mcp and /oauth/* too, so a
+        # document at either address would read like part of the sign-in flow.
+        "mcp", "oauth",
     }
 )
 
