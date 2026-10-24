@@ -19,6 +19,7 @@ const LABELS: Record<string, string> = {
   "docs:artifact": "Artifacts",
   "ws:new": "Workspaces",
   "int:vscode": "API tokens",
+  "int:apps": "Connected apps",
   settings: "Settings",
 };
 
