@@ -7,6 +7,7 @@ export interface NavLink { label: string; href: string; external?: boolean }
 
 /** Marketing header nav (D37) and the mobile menu. */
 export const NAV_LINKS: NavLink[] = [
+  { label: "MCP", href: "/mcp" },
   { label: "Enterprise", href: "/enterprise" },
   { label: "VS Code extension", href: VSCODE_URL, external: true },
   { label: "GitHub", href: GITHUB_URL, external: true },
