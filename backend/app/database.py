@@ -109,6 +109,8 @@ async def connect() -> None:
     await db["share_diagnostics"].create_index("ts", expireAfterSeconds=90 * 24 * 3600)
     await db["share_diagnostics"].create_index([("room_id", 1)])
     await db["share_transfers"].create_index("ts", expireAfterSeconds=90 * 24 * 3600)
+    # Completed downloads per share, counted by the MCP share tools.
+    await db["share_transfers"].create_index([("room_id", 1)])
     # Reading sessions update one row in place (analytics.record_read).
     await db["events"].create_index([("rid", 1), ("doc_id", 1)], sparse=True)
 

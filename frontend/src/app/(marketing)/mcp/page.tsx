@@ -2,8 +2,19 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Anchor, Badge, Button, Icon, MarkdropMark } from "@/components/ui";
 import { CommandBlock } from "@/components/kit/CommandBlock";
-import { MCP_SCOPES, MCP_SERVER_URL, MCP_TOOLS, type McpScope } from "@/lib/mcp";
+import { CLI_URL } from "@/components/shell/links";
+import { CLI_INSTALL } from "@/lib/cli";
+import {
+  MCP_LOCAL_MIN_CLI,
+  MCP_LOCAL_SERVER,
+  MCP_LOCAL_TOOLS,
+  MCP_SCOPES,
+  MCP_SERVER_URL,
+  MCP_TOOLS,
+  type McpScope,
+} from "@/lib/mcp";
 import { ConnectTabs } from "./ConnectTabs";
+import { LocalServerTabs } from "./LocalServerTabs";
 
 const TITLE = "Markdrop for AI assistants — MCP server";
 const DESCRIPTION =
@@ -25,6 +36,32 @@ const PROMPTS: Array<{ text: string; tools: string[] }> = [
   { text: "Build an HTML dashboard of this CSV and publish it.", tools: ["publish_page"] },
   { text: "Make my Q3 report private.", tools: ["list_documents", "set_access"] },
   { text: "How many people read my launch notes?", tools: ["list_documents", "get_document_stats"] },
+  { text: "Is anyone downloading the files I shared?", tools: ["list_shares"] },
+  { text: "Is this share link still working? markdrop.in/share/4f9a2c71e0", tools: ["get_share_status"] },
+];
+
+/** Where each kind of AI app runs decides what it can do with peer-to-peer shares. */
+const P2P_SPLIT: Array<{ icon: string; where: string; apps: string; body: string; tools: string[] }> = [
+  {
+    icon: "globe",
+    where: "In the cloud",
+    apps: "claude.ai, the Claude apps on your phone, ChatGPT",
+    body: "Connected with the server URL above. They can list your shares and check whether a share link is live, but they never see the files on your computer.",
+    tools: ["list_shares", "get_share_status"],
+  },
+  {
+    icon: "laptop",
+    where: "On your computer",
+    apps: "Claude Code, Claude Desktop, Cursor, VS Code",
+    body: "Add Markdrop's local server, which comes with the markdrop CLI. Your assistant can then send files and folders as a share link, and download links people send you.",
+    tools: MCP_LOCAL_TOOLS.map((t) => t.name),
+  },
+];
+
+const P2P_SAFETY: Array<{ icon: string; body: ReactNode }> = [
+  { icon: "link", body: <>Anything you share goes to whoever has the link. Send it only to people you mean to.</> },
+  { icon: "shield", body: <>Your AI app asks you before each share, and the server refuses secret files such as SSH keys, cloud credentials and <code className="font-mono text-[0.875em]">.env</code> files.</> },
+  { icon: "clock", body: <>A share stops when you close the AI app, or when you ask the assistant to stop it.</> },
 ];
 
 const PRIVACY: Array<{ icon: string; body: ReactNode }> = [
@@ -101,6 +138,35 @@ function SectionHead({ eyebrow, title, id, lead }: { eyebrow: string; title: Rea
       </h2>
       {lead && <p className="mt-3 max-w-[60ch] text-body-lg text-text-secondary">{lead}</p>}
     </div>
+  );
+}
+
+function InlineCode({ children }: { children: ReactNode }) {
+  return <code className="rounded-sm bg-code-inline-bg px-1.5 py-0.5 font-mono text-[0.875em] text-code-inline">{children}</code>;
+}
+
+function StepNumber({ n }: { n: number }) {
+  return (
+    <span aria-hidden="true" className="grid size-6 flex-none place-items-center rounded-full bg-accent-soft text-micro font-bold text-accent-text">
+      {n}
+    </span>
+  );
+}
+
+function ToolRow({ name, title, description, icon }: { name: string; title: string; description: string; icon: string }) {
+  return (
+    <li className="flex min-w-0 gap-3.5 px-5 py-4">
+      <span className="grid size-9 flex-none place-items-center rounded-lg bg-surface-inset text-accent-text" aria-hidden="true">
+        <Icon name={icon} size={18} />
+      </span>
+      <div className="min-w-0">
+        <p className="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="text-body-strong text-text">{title}</span>
+          <code className="font-mono text-caption text-text-muted">{name}</code>
+        </p>
+        <p className="m-0 mt-1 text-body text-text-secondary">{description}</p>
+      </div>
+    </li>
   );
 }
 
@@ -209,7 +275,7 @@ export default function McpPage() {
             eyebrow="Tools"
             id="tools-title"
             title="What it can do"
-            lead="Ten tools, each needing one of two permissions. Your assistant picks the right one from what you ask."
+            lead="Twelve tools, each needing one of two permissions. Your assistant picks the right one from what you ask."
           />
           <div className="mt-10 grid min-w-0 gap-6 lg:grid-cols-2">
             {[
@@ -223,18 +289,7 @@ export default function McpPage() {
                 </div>
                 <ul className="m-0 flex list-none flex-col divide-y divide-border p-0">
                   {g.tools.map((t) => (
-                    <li key={t.name} className="flex min-w-0 gap-3.5 px-5 py-4">
-                      <span className="grid size-9 flex-none place-items-center rounded-lg bg-surface-inset text-accent-text" aria-hidden="true">
-                        <Icon name={t.icon} size={18} />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                          <span className="text-body-strong text-text">{t.title}</span>
-                          <code className="font-mono text-caption text-text-muted">{t.name}</code>
-                        </p>
-                        <p className="m-0 mt-1 text-body text-text-secondary">{t.description}</p>
-                      </div>
-                    </li>
+                    <ToolRow key={t.name} name={t.name} title={t.title} description={t.description} icon={t.icon} />
                   ))}
                 </ul>
               </div>
@@ -243,8 +298,116 @@ export default function McpPage() {
         </div>
       </section>
 
+      {/* Peer-to-peer: the local server */}
+      <section id="p2p" aria-labelledby="p2p-title" className="border-y border-border bg-surface-inset py-16 md:py-24">
+        <div className={CONTAINER}>
+          <SectionHead
+            eyebrow="On your computer"
+            id="p2p-title"
+            title="Send and receive files peer-to-peer"
+            lead="Markdrop's peer-to-peer sharing sends files straight from your computer to the other person's, never through Markdrop's servers. So only an assistant running on your computer can send them."
+          />
+
+          <ul className="m-0 mt-10 grid list-none gap-4 p-0 md:grid-cols-2">
+            {P2P_SPLIT.map((s) => (
+              <li key={s.where} className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-surface p-5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="grid size-9 flex-none place-items-center rounded-lg bg-accent-soft text-accent-text" aria-hidden="true">
+                    <Icon name={s.icon} size={18} />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="m-0 text-h4 text-text">{s.where}</h3>
+                    <p className="m-0 text-caption text-text-muted">{s.apps}</p>
+                  </div>
+                </div>
+                <p className="m-0 text-body text-text-secondary">{s.body}</p>
+                <p className="m-0 mt-auto flex flex-wrap items-center gap-1.5 text-caption text-text-muted">
+                  <span>Tools</span>
+                  {s.tools.map((t) => (
+                    <code key={t} className="rounded-sm bg-code-inline-bg px-1.5 py-0.5 font-mono text-code-inline">{t}</code>
+                  ))}
+                </p>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-12 grid min-w-0 gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)] lg:gap-16">
+            {/* Setup */}
+            <div className="min-w-0">
+              <h3 className="m-0 text-h3 text-text">Set up the local server</h3>
+              <ol className="m-0 mt-6 flex list-none flex-col gap-8 p-0">
+                <li className="flex min-w-0 gap-3">
+                  <StepNumber n={1} />
+                  <div className="flex min-w-0 flex-1 flex-col gap-3">
+                    <p className="m-0 text-body text-text-secondary">
+                      <span className="text-body-strong text-text">Install the markdrop CLI</span>, version {MCP_LOCAL_MIN_CLI} or later. Already have
+                      it? Check with <InlineCode>markdrop --version</InlineCode>, and see the{" "}
+                      <a href={CLI_URL} target="_blank" rel="noopener noreferrer" className={LINK}>CLI guide</a> for apt, dnf and Scoop.
+                    </p>
+                    {CLI_INSTALL.map(({ os, cmd }) => (
+                      <CommandBlock key={os} label={os} command={cmd} />
+                    ))}
+                  </div>
+                </li>
+                <li className="flex min-w-0 gap-3">
+                  <StepNumber n={2} />
+                  <div className="flex min-w-0 flex-1 flex-col gap-3">
+                    <p className="m-0 text-body text-text-secondary">
+                      <span className="text-body-strong text-text">Add it to your AI app</span> as <InlineCode>{MCP_LOCAL_SERVER}</InlineCode>. It runs on your
+                      computer while the app is open.
+                    </p>
+                    <LocalServerTabs />
+                  </div>
+                </li>
+                <li className="flex min-w-0 gap-3">
+                  <StepNumber n={3} />
+                  <div className="flex min-w-0 flex-1 flex-col gap-3">
+                    <p className="m-0 text-body text-text-secondary">
+                      <span className="text-body-strong text-text">Optional: link shares to your account</span>, so they show up in{" "}
+                      <InlineCode>list_shares</InlineCode>. Create a token in{" "}
+                      <Anchor href="/settings/tokens" className={LINK}>Settings → API tokens</Anchor> and add it to the server&apos;s entry
+                      as <InlineCode>MARKDROP_TOKEN</InlineCode>:
+                    </p>
+                    <CommandBlock command={`"env": { "MARKDROP_TOKEN": "mdk_your_token" }`} prompt="" label="In the JSON config" copyLabel="Copy JSON" wrap />
+                    <p className="m-0 text-caption text-text-muted">
+                      In Claude Code, add <InlineCode>-e MARKDROP_TOKEN=mdk_your_token</InlineCode> before the <InlineCode>--</InlineCode>.
+                    </p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+
+            {/* Local tools and safety */}
+            <div className="flex min-w-0 flex-col gap-6">
+              <div className="min-w-0 rounded-2xl border border-border bg-surface">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
+                  <h3 className="m-0 text-h4 text-text">Tools on your computer</h3>
+                  <Badge tone="neutral" size="sm" className="font-mono">{MCP_LOCAL_SERVER}</Badge>
+                </div>
+                <ul className="m-0 flex list-none flex-col divide-y divide-border p-0">
+                  {MCP_LOCAL_TOOLS.map((t) => (
+                    <ToolRow key={t.name} name={t.name} title={t.title} description={t.description} icon={t.icon} />
+                  ))}
+                </ul>
+              </div>
+              <div className="min-w-0">
+                <h3 className="m-0 text-h4 text-text">Before you share</h3>
+                <ul className="m-0 mt-4 flex list-none flex-col gap-4 p-0">
+                  {P2P_SAFETY.map((p) => (
+                    <li key={p.icon} className="flex min-w-0 gap-3 text-body text-text-secondary">
+                      <Icon name={p.icon} size={18} className="mt-0.5 flex-none text-text-muted" />
+                      <span className="min-w-0">{p.body}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Prompts */}
-      <section aria-labelledby="prompts-title" className="border-y border-border bg-surface-inset py-16 md:py-24">
+      <section aria-labelledby="prompts-title" className="py-16 md:py-24">
         <div className={CONTAINER}>
           <SectionHead eyebrow="Try it" id="prompts-title" title="Things to ask" lead="Say it the way you would to a colleague. These work once Markdrop is connected." />
           <ul className="m-0 mt-10 grid list-none gap-4 p-0 sm:grid-cols-2">
@@ -267,7 +430,7 @@ export default function McpPage() {
       </section>
 
       {/* Permissions and privacy */}
-      <section aria-labelledby="privacy-title" className="py-16 md:py-24">
+      <section aria-labelledby="privacy-title" className="border-y border-border bg-surface-inset py-16 md:py-24">
         <div className={`${CONTAINER} grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16`}>
           <div className="min-w-0">
             <SectionHead
@@ -303,7 +466,7 @@ export default function McpPage() {
       </section>
 
       {/* FAQ */}
-      <section aria-labelledby="faq-title" className="border-t border-border bg-surface-inset py-16 md:py-24">
+      <section aria-labelledby="faq-title" className="py-16 md:py-24">
         <div className={`${CONTAINER} grid gap-8 lg:grid-cols-[360px_minmax(0,1fr)] lg:gap-16`}>
           <div className="min-w-0">
             <SectionHead eyebrow="FAQ" id="faq-title" title="Questions" />

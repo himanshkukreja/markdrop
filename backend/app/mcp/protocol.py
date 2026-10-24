@@ -64,7 +64,10 @@ INSTRUCTIONS = (
     "Use publish_document for markdown (notes, reports, docs, AI write-ups) and publish_page "
     "for a complete HTML page or a text file (csv, json, svg). Always give the user the returned "
     "link. Documents are public to anyone with the link unless access is set to private or "
-    "password. Never publish secrets or personal data unless the user asked."
+    "password. Never publish secrets or personal data unless the user asked. list_shares and "
+    "get_share_status report on peer-to-peer file shares (markdrop.in/share links); this server "
+    "can't send or receive those files itself, which needs the markdrop CLI's local MCP server "
+    "(markdrop mcp) on the user's computer."
 )
 # How long a client may reuse discovery and list results (envelope era).
 LIST_TTL_MS = 5 * 60 * 1000

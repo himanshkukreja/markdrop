@@ -96,6 +96,31 @@ def _sweep() -> None:
             _rooms.pop(rid, None)
 
 
+def room_snapshot(room_id: str) -> dict | None:
+    """What a new recipient would find in a room right now, read-only.
+
+    ``host_online``: a sender socket is connected. ``held``: no sender, but the
+    room still keeps its owner's key, so recipients may join and wait for the
+    sender to come back. ``guests``: recipients connected now. ``multi``: a
+    version-2 (multi-recipient) sender. None when there is no room, which is
+    also what a held room past KEY_HOLD_SECONDS amounts to (the next connection
+    sweeps it). Never creates or changes a room.
+    """
+    import time
+
+    room = _rooms.get(room_id)
+    if room is None:
+        return None
+    host_online = room["host"] is not None
+    guests = len(room["guests"])
+    held = not host_online and bool(room.get("key"))
+    left_at = room.get("left_at")
+    if held and not guests and left_at and left_at < time.monotonic() - KEY_HOLD_SECONDS:
+        return None
+    return {"host_online": host_online, "held": held, "guests": guests,
+            "multi": bool(room.get("multi"))}
+
+
 def _key_hash(hk: str) -> str:
     import hashlib
 
