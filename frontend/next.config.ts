@@ -11,6 +11,21 @@ const nextConfig: NextConfig = {
    * posthog.com are on ad-block lists; the same requests to our own origin are not. The
    * rewrite forwards them unchanged, including the client's IP for geolocation.
    */
+  /**
+   * The OAuth consent screen must never render inside another site's frame: a page that framed it
+   * could trick a click on Approve (clickjacking). Headers only; rendering is unchanged.
+   */
+  async headers() {
+    return [
+      {
+        source: "/oauth/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     return [
       { source: "/mdp/static/:path*", destination: "https://us-assets.i.posthog.com/static/:path*" },
