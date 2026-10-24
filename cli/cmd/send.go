@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/markdrop/cli/internal/peer"
@@ -26,7 +27,10 @@ var sendCmd = &cobra.Command{
 
   Folders are transparently compressed (zip) on the sender side and
   automatically extracted on the CLI receiver side. The recipient gets
-  the original folder structure, not a zip file.`,
+  the original folder structure, not a zip file.
+
+  Set MARKDROP_TOKEN to an API token (Settings → API tokens on markdrop.in)
+  to have the share listed under your account.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runSend,
 }
@@ -41,7 +45,7 @@ func runSend(_ *cobra.Command, args []string) error {
 	}
 
 	roomID := generateRoomID()
-	shareURL := buildShareURL(flagServer, roomID)
+	shareURL := buildShareURL(flagServer, flagWeb, roomID)
 
 	displayName := filepath.Base(filePath)
 	displaySize := formatBytes(fi.Size())
@@ -60,7 +64,9 @@ func runSend(_ *cobra.Command, args []string) error {
 
 	// Connect to signalling server as host.
 	stopSpin := ui.Spinner("Connecting to signalling server…")
-	sig, err := signaling.Connect(flagServer, roomID, "host", flagOrigin)
+	sig, err := signaling.Dial(ctx, signaling.Options{
+		Server: flagServer, Room: roomID, Role: "host", Origin: flagOrigin,
+	})
 	stopSpin()
 	if err != nil {
 		return fmt.Errorf("could not connect to signalling server: %w", err)
@@ -81,19 +87,24 @@ func runSend(_ *cobra.Command, args []string) error {
 	}
 	ui.Success("Recipient connected — establishing P2P link…")
 
-	// For folders, RunHost compresses first; show a note.
+	// For folders, the source is compressed first; show a note.
 	if fi.IsDir() {
 		ui.Info("Compressing folder…")
 	}
+	src, err := peer.SourceFromPath(filePath)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
 
-	// Progress bar — size is approximate for folders (zip size differs from raw).
-	bar := ui.NewProgressBar(fi.Size(), "Sending  ")
+	bar := ui.NewProgressBar(src.Size, "Sending  ")
 	onProgress := func(sent, total int64) {
 		bar.ChangeMax64(total)
 		_ = bar.Set64(sent)
 	}
 
-	if err = peer.RunHost(ctx, sig, filePath, onProgress); err != nil {
+	err = peer.ServeOne(ctx, sig, src, peer.HostOptions{OnProgress: onProgress, Blob: shareBlob(src)})
+	if err != nil {
 		if ctx.Err() != nil {
 			fmt.Println()
 			ui.Info("Interrupted.")
@@ -109,29 +120,38 @@ func runSend(_ *cobra.Command, args []string) error {
 
 // waitForGuest blocks until the server sends {"type":"guest-joined"} or ctx is done.
 func waitForGuest(ctx context.Context, sig *signaling.Client) error {
-	msgCh := make(chan error, 1)
-	go func() {
-		for {
-			_, raw, err := sig.ReadMsg()
-			if err != nil {
-				msgCh <- err
-				return
+	for {
+		select {
+		case raw, ok := <-sig.Messages():
+			if !ok {
+				if err := sig.Err(); err != nil {
+					return err
+				}
+				return fmt.Errorf("signalling closed")
 			}
 			var hdr struct {
 				Type string `json:"type"`
 			}
 			if json.Unmarshal(raw, &hdr) == nil && hdr.Type == "guest-joined" {
-				msgCh <- nil
-				return
+				return nil
 			}
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-	}()
-	select {
-	case err := <-msgCh:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
 	}
+}
+
+// shareBlob is the share-metadata blob for the offer when MARKDROP_TOKEN is
+// set (so the share is listed under the token owner's account), else "".
+// Without a token the CLI tells the server nothing about the file, as before.
+func shareBlob(src *peer.Source) string {
+	token := strings.TrimSpace(os.Getenv("MARKDROP_TOKEN"))
+	if token == "" {
+		return ""
+	}
+	return peer.EncodeShareMeta(peer.ShareMeta{
+		Name: src.Name, Size: src.Size, Mime: src.MimeType, Token: token, Count: src.FileCount,
+	})
 }
 
 // generateRoomID generates a 10-character hex room ID using crypto/rand.
@@ -144,14 +164,27 @@ func generateRoomID() string {
 	return hex.EncodeToString(b)[:10]
 }
 
-// buildShareURL constructs the browser-friendly share URL.
-func buildShareURL(server, roomID string) string {
-	// For the default production server, use the canonical web URL.
+// generateHostKey makes the 32-hex key that proves to the signalling server a
+// reconnecting socket is this sender (randomHostKey in the browser's sender.ts).
+func generateHostKey() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand unavailable: " + err.Error())
+	}
+	return hex.EncodeToString(b)
+}
+
+// buildShareURL constructs the browser-friendly share URL. web, when set, is
+// the web app's base URL (--web); otherwise the production site for the
+// production API, or the API URL with port 8080 swapped for 3000 in local dev.
+func buildShareURL(server, web, roomID string) string {
+	if web != "" {
+		return fmt.Sprintf("%s/share/%s", strings.TrimRight(web, "/"), roomID)
+	}
 	if server == defaultServer {
 		return fmt.Sprintf("https://markdrop.in/share/%s", roomID)
 	}
-	// For local dev: replace port 8080 with 3000.
-	webBase := replacePort(server, "8080", "3000")
+	webBase := replacePort(strings.TrimRight(server, "/"), "8080", "3000")
 	return fmt.Sprintf("%s/share/%s", webBase, roomID)
 }
 
@@ -160,8 +193,7 @@ func replacePort(url, from, to string) string {
 	newPort := ":" + to
 	for i := len(url) - 1; i >= 0; i-- {
 		if url[i] == ':' {
-			candidate := url[i : i+len(old)]
-			if candidate == old {
+			if strings.HasPrefix(url[i:], old) {
 				return url[:i] + newPort + url[i+len(old):]
 			}
 			break
@@ -170,15 +202,4 @@ func replacePort(url, from, to string) string {
 	return url
 }
 
-func formatBytes(b int64) string {
-	switch {
-	case b < 1_024:
-		return fmt.Sprintf("%d B", b)
-	case b < 1_048_576:
-		return fmt.Sprintf("%.1f KB", float64(b)/1_024)
-	case b < 1_073_741_824:
-		return fmt.Sprintf("%.1f MB", float64(b)/1_048_576)
-	default:
-		return fmt.Sprintf("%.2f GB", float64(b)/1_073_741_824)
-	}
-}
+func formatBytes(b int64) string { return peer.FormatBytes(b) }
