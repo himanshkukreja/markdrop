@@ -9,6 +9,7 @@ import (
 var (
 	flagServer string // API base URL (http/https)
 	flagOrigin string // WebSocket Origin header
+	flagWeb    string // web app base URL used in share links
 )
 
 // defaultServer is the production API endpoint.
@@ -17,8 +18,10 @@ const defaultServer = "https://api.markdrop.in"
 // defaultOrigin must match one of the CORS allowed origins in the backend.
 const defaultOrigin = "https://www.markdrop.in"
 
-// version is set at build time via -ldflags "-X github.com/markdrop/cli/cmd.version=<ver>".
-var version = "dev"
+// version is the CLI version. Release builds set it from the git tag via
+// -ldflags "-X github.com/markdrop/cli/cmd.version=<ver>"; this default is what
+// a plain `go build` / `go install` reports.
+var version = "0.3.0"
 
 var rootCmd = &cobra.Command{
 	Use:   "markdrop",
@@ -31,7 +34,8 @@ var rootCmd = &cobra.Command{
 Examples:
   markdrop send report.pdf
   markdrop get https://markdrop.in/share/a3f7c12e
-  markdrop get a3f7c12e -o ~/Downloads`,
+  markdrop get a3f7c12e -o ~/Downloads
+  markdrop mcp            # local MCP server for AI assistants (stdio)`,
 }
 
 // Execute is called from main.go.
@@ -49,7 +53,12 @@ func init() {
 		&flagOrigin, "origin", defaultOrigin,
 		"Origin header for the WebSocket handshake (must match server CORS config)",
 	)
+	rootCmd.PersistentFlags().StringVar(
+		&flagWeb, "web", "",
+		"Base URL of the markdrop web app used in share links (default: https://markdrop.in for the production server)",
+	)
 
 	rootCmd.AddCommand(sendCmd)
 	rootCmd.AddCommand(getCmd)
+	rootCmd.AddCommand(mcpCmd)
 }

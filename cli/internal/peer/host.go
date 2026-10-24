@@ -1,23 +1,25 @@
 // Package peer implements the WebRTC DataChannel logic for both the sending
 // (host) and receiving (guest) sides of a markdrop file transfer.
 //
-// The package mirrors the browser-side logic in frontend/src/lib/webrtc.ts and
-// frontend/src/app/share/page.tsx exactly so that CLI↔Browser and CLI↔CLI
-// transfers both work without any backend changes.
+// It speaks version 1 of the share protocol (frontend/src/lib/p2p/protocol.ts):
+// host → meta {name,size,mimeType,isFolder?}, guest → start, host → bytes…
+// The browser accepts it from a CLI sender and speaks it to a CLI recipient,
+// so CLI↔Browser and CLI↔CLI transfers work without backend changes.
 package peer
 
 import (
-	"archive/zip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"os"
-	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/markdrop/cli/internal/signaling"
+	"github.com/pion/logging"
 	"github.com/pion/webrtc/v3"
 )
 
@@ -36,26 +38,37 @@ const bufferHighWater = 4 * 1024 * 1024
 // Must be larger than the biggest single message we can receive (65535 bytes).
 const sctpReceiveBufSize = 512 * 1024 // 512 KB
 
-// iceServers mirrors ICE_SERVERS in frontend/src/lib/webrtc.ts.
-var iceServers = []webrtc.ICEServer{
-	{URLs: []string{"stun:stun.l.google.com:19302"}},
-	{URLs: []string{"stun:stun1.l.google.com:19302"}},
-}
+// negotiateTimeout bounds how long a recipient may take to open the data
+// channel once it has joined.
+const negotiateTimeout = 90 * time.Second
+
+// ErrGuestLeft means the recipient went away before the transfer finished.
+var ErrGuestLeft = errors.New("recipient disconnected before the transfer finished")
+
+// ErrRenegotiate means the recipient (re)joined while we were still
+// negotiating — start again with a fresh offer.
+var ErrRenegotiate = errors.New("recipient rejoined; renegotiating")
 
 // newPeerConnection creates a PeerConnection with a generous SCTP receive
 // buffer so that large DataChannel messages from the browser never hit pion's
-// "short buffer" error.
-func newPeerConnection() (*webrtc.PeerConnection, error) {
+// "short buffer" error. pion logs to stderr, never stdout: stdout belongs to
+// the MCP protocol in `markdrop mcp`.
+func newPeerConnection(ice []webrtc.ICEServer) (*webrtc.PeerConnection, error) {
 	se := webrtc.SettingEngine{}
 	se.SetSCTPMaxReceiveBufferSize(sctpReceiveBufSize)
+	lf := logging.NewDefaultLoggerFactory()
+	lf.Writer = os.Stderr
+	se.LoggerFactory = lf
 	api := webrtc.NewAPI(webrtc.WithSettingEngine(se))
-	return api.NewPeerConnection(webrtc.Configuration{ICEServers: iceServers})
+	return api.NewPeerConnection(webrtc.Configuration{ICEServers: ice})
 }
 
-// sdpMsg is used for offer/answer JSON messages.
+// sdpMsg is used for offer/answer JSON messages. X is the opaque share
+// metadata blob the server logs and strips (offers only).
 type sdpMsg struct {
 	Type string                    `json:"type"`
 	SDP  webrtc.SessionDescription `json:"sdp"`
+	X    string                    `json:"x,omitempty"`
 }
 
 // iceMsg is used for ICE candidate JSON messages.
@@ -73,63 +86,45 @@ type metaMsg struct {
 	IsFolder bool   `json:"isFolder,omitempty"`
 }
 
-// startMsg is sent from guest to host over the DataChannel to begin streaming.
-type startMsg struct {
-	Type string `json:"type"`
+// HostOptions tune one transfer.
+type HostOptions struct {
+	// OnProgress is called with (bytes acknowledged-or-queued, total).
+	OnProgress func(sent, total int64)
+	// OnConnected is called once the data channel is open.
+	OnConnected func()
+	// OnStart is called when the recipient asks for the bytes.
+	OnStart func()
+	// Blob, if set, rides on every offer as field `x` (see EncodeShareMeta).
+	Blob string
+	// OnLateJoin hears about signalling that arrives after the channel opened:
+	// true for guest-joined (the next recipient is already waiting, since the
+	// server announces it only once), false for peer-disconnected. Called on
+	// ServeOne's goroutine.
+	OnLateJoin func(joined bool)
 }
 
-// RunHost connects to the signalling server as a host (file sender) and sends
-// the file at filePath to the first guest that joins the room.
-// If filePath is a directory it is transparently zipped before transfer.
-//
-// onProgress is called periodically with (bytesSent, totalBytes).
-// The function blocks until the transfer completes or ctx is cancelled.
-func RunHost(
-	ctx context.Context,
-	sig *signaling.Client,
-	filePath string,
-	onProgress func(sent, total int64),
-) error {
-	fi, err := os.Stat(filePath)
+// RunHost sends the file or folder at filePath to the guest that has just
+// joined (the caller waits for guest-joined). Folders are zipped first.
+func RunHost(ctx context.Context, sig *signaling.Client, filePath string, o HostOptions) error {
+	src, err := SourceFromPath(filePath)
 	if err != nil {
-		return fmt.Errorf("open file: %w", err)
+		return err
 	}
+	defer src.Close()
+	return ServeOne(ctx, sig, src, o)
+}
 
-	// If a directory is given, zip it to a temp file first.
-	isFolder := fi.IsDir()
-	var tmpZip string
-	// displayName is what the receiver will see (and use for the output filename).
-	displayName := filepath.Base(filePath)
-	if isFolder {
-		tmpZip, err = zipDir(filePath)
-		if err != nil {
-			return fmt.Errorf("compress folder: %w", err)
-		}
-		defer os.Remove(tmpZip)
-		filePath = tmpZip
-		fi, err = os.Stat(filePath)
-		if err != nil {
-			return fmt.Errorf("stat zip: %w", err)
-		}
-		displayName = displayName + ".zip"
-	}
-
-	f, err := os.Open(filePath)
+// ServeOne negotiates with the recipient that has just joined and streams src
+// to it. It returns nil once every byte has been acknowledged, ErrGuestLeft if
+// the recipient goes, ErrRenegotiate if it rejoins mid-negotiation.
+func ServeOne(ctx context.Context, sig *signaling.Client, src *Source, o HostOptions) error {
+	f, err := os.Open(src.Path)
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
 	defer f.Close()
 
-	total := fi.Size()
-	mimeType := "application/zip"
-	if !isFolder {
-		mimeType = mime.TypeByExtension(filepath.Ext(filePath))
-		if mimeType == "" {
-			mimeType = "application/octet-stream"
-		}
-	}
-
-	pc, err := newPeerConnection()
+	pc, err := newPeerConnection(sig.ICEServers())
 	if err != nil {
 		return fmt.Errorf("create peer connection: %w", err)
 	}
@@ -141,51 +136,55 @@ func RunHost(
 		return fmt.Errorf("create data channel: %w", err)
 	}
 
-	// transferErr receives any error from the goroutines below.
 	transferErr := make(chan error, 1)
-	// dcOpened is closed once the DataChannel is open and meta has been sent.
-	// After that point we no longer need the signalling WS and can ignore its errors.
+	fail := func(e error) {
+		select {
+		case transferErr <- e:
+		default:
+		}
+	}
 	dcOpened := make(chan struct{}, 1)
 
-	// Trickle ICE candidates to the peer via the signalling relay.
+	// Trickle ICE candidates to the peer via the signalling relay. A write
+	// that fails while signalling reconnects is not fatal: the guest is told
+	// to renegotiate once we are back.
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
-		if c == nil {
-			return
+		if c != nil {
+			_ = sig.WriteJSON(iceMsg{Type: "ice", Candidate: c.ToJSON()})
 		}
-		msg := iceMsg{Type: "ice", Candidate: c.ToJSON()}
-		if werr := sig.WriteJSON(msg); werr != nil {
-			select {
-			case transferErr <- fmt.Errorf("send ICE: %w", werr):
-			default:
-			}
+	})
+	pc.OnConnectionStateChange(func(s webrtc.PeerConnectionState) {
+		if s == webrtc.PeerConnectionStateFailed {
+			fail(errors.New("couldn't connect the two devices (no direct or relayed route)"))
 		}
 	})
 
-	// DataChannel is open → send file metadata, then wait for "start".
 	dc.OnOpen(func() {
-		meta := metaMsg{
-			Type:     "meta",
-			Name:     displayName,
-			Size:     total,
-			MimeType: mimeType,
-			IsFolder: isFolder,
-		}
-		b, _ := json.Marshal(meta)
+		b, _ := json.Marshal(metaMsg{
+			Type: "meta", Name: src.Name, Size: src.Size, MimeType: src.MimeType, IsFolder: src.IsFolder,
+		})
 		if serr := dc.SendText(string(b)); serr != nil {
-			select {
-			case transferErr <- fmt.Errorf("send meta: %w", serr):
-			default:
-			}
+			fail(fmt.Errorf("send meta: %w", serr))
 			return
 		}
-		// Signal that the P2P channel is usable; signalling WS is no longer critical.
 		select {
 		case dcOpened <- struct{}{}:
 		default:
 		}
 	})
 
-	// Guest sent {"type":"start"} → begin streaming chunks.
+	var startOnce sync.Once
+	// allSent flips once every byte is queued. A recipient closes the channel
+	// as soon as it has the last byte, which can beat waitDelivered's verdict.
+	var allSent atomic.Bool
+	progress := func(sent, total int64) {
+		if sent >= total {
+			allSent.Store(true)
+		}
+		if o.OnProgress != nil {
+			o.OnProgress(sent, total)
+		}
+	}
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if !msg.IsString {
 			return
@@ -193,23 +192,44 @@ func RunHost(
 		var inner struct {
 			Type string `json:"type"`
 		}
-		if jerr := json.Unmarshal(msg.Data, &inner); jerr != nil || inner.Type != "start" {
+		if json.Unmarshal(msg.Data, &inner) != nil {
 			return
 		}
-
-		go func() {
-			transferErr <- streamFile(dc, f, total, onProgress)
-		}()
-	})
-
-	dc.OnError(func(err error) {
-		select {
-		case transferErr <- fmt.Errorf("data channel error: %w", err):
-		default:
+		switch inner.Type {
+		case "start":
+			startOnce.Do(func() {
+				if o.OnStart != nil {
+					o.OnStart()
+				}
+				if src.Size == 0 {
+					allSent.Store(true)
+				}
+				go func() { fail(streamFile(ctx, dc, f, src.Size, progress)) }()
+			})
+		case "ping": // a browser recipient checking we are still here
+			_ = dc.SendText(`{"type":"pong"}`)
 		}
 	})
+	dc.OnClose(func() {
+		if !allSent.Load() {
+			fail(ErrGuestLeft)
+			return
+		}
+		// Everything was sent and the recipient hung up: that is how a
+		// recipient says it is done. Let streamFile's own verdict (normally
+		// nil within 250 ms) win; if it never comes, count it delivered.
+		go func() {
+			time.Sleep(2 * time.Second)
+			fail(nil)
+		}()
+	})
+	dc.OnError(func(err error) {
+		if allSent.Load() {
+			return // the recipient hanging up after the last byte; OnClose decides
+		}
+		fail(fmt.Errorf("data channel error: %w", err))
+	})
 
-	// Create and send the SDP offer.
 	offer, err := pc.CreateOffer(nil)
 	if err != nil {
 		return fmt.Errorf("create offer: %w", err)
@@ -217,76 +237,80 @@ func RunHost(
 	if err = pc.SetLocalDescription(offer); err != nil {
 		return fmt.Errorf("set local description: %w", err)
 	}
-	if err = sig.WriteJSON(sdpMsg{Type: "offer", SDP: *pc.LocalDescription()}); err != nil {
+	if err = sig.WriteJSON(sdpMsg{Type: "offer", SDP: *pc.LocalDescription(), X: o.Blob}); err != nil {
 		return fmt.Errorf("send offer: %w", err)
 	}
 
-	// Signalling loop: process incoming messages until transfer completes.
-	sigErr := make(chan error, 1)
-	go func() {
-		for {
-			_, raw, rerr := sig.ReadMsg()
-			if rerr != nil {
-				select {
-				case sigErr <- rerr:
-				default:
+	msgs := sig.Messages()
+	opened := false
+	negotiate := time.NewTimer(negotiateTimeout)
+	defer negotiate.Stop()
+
+	for {
+		select {
+		case raw, ok := <-msgs:
+			if !ok {
+				if !opened {
+					if e := sig.Err(); e != nil {
+						return e
+					}
+					return errors.New("signalling closed")
 				}
-				return
+				// The data channel carries on without signalling.
+				msgs = nil
+				continue
 			}
 			var hdr struct {
 				Type string `json:"type"`
 			}
-			if jerr := json.Unmarshal(raw, &hdr); jerr != nil {
+			if json.Unmarshal(raw, &hdr) != nil {
 				continue
 			}
 			switch hdr.Type {
 			case "answer":
 				var m sdpMsg
-				if jerr := json.Unmarshal(raw, &m); jerr == nil {
+				if json.Unmarshal(raw, &m) == nil && pc.RemoteDescription() == nil {
 					if sderr := pc.SetRemoteDescription(m.SDP); sderr != nil {
-						select {
-						case sigErr <- fmt.Errorf("set remote SDP: %w", sderr):
-						default:
-						}
-						return
+						return fmt.Errorf("set remote SDP: %w", sderr)
 					}
 				}
 			case "ice":
 				var m iceMsg
-				if jerr := json.Unmarshal(raw, &m); jerr == nil {
-					// Stale candidates can be safely ignored.
-					_ = pc.AddICECandidate(m.Candidate)
+				if json.Unmarshal(raw, &m) == nil {
+					_ = pc.AddICECandidate(m.Candidate) // stale candidates are harmless
 				}
 			case "peer-disconnected":
-				select {
-				case sigErr <- fmt.Errorf("recipient disconnected before transfer completed"):
-				default:
+				// Before the channel opens the recipient really is gone; after,
+				// only its signalling went, and the channel decides.
+				if !opened {
+					return ErrGuestLeft
 				}
-				return
+				if o.OnLateJoin != nil {
+					o.OnLateJoin(false)
+				}
+			case "guest-joined":
+				if !opened {
+					return ErrRenegotiate
+				}
+				if o.OnLateJoin != nil {
+					o.OnLateJoin(true)
+				}
 			}
+		case <-dcOpened:
+			opened = true
+			negotiate.Stop()
+			if o.OnConnected != nil {
+				o.OnConnected()
+			}
+		case err := <-transferErr:
+			return err
+		case <-negotiate.C:
+			if !opened {
+				return errors.New("timed out connecting to the recipient")
+			}
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-	}()
-
-	// Phase 1: wait until the DataChannel is open (or something fails first).
-	// The signalling WS must stay healthy until the P2P channel is established.
-	select {
-	case <-dcOpened:
-		// fall through to phase 2
-	case err = <-transferErr:
-		return err
-	case err = <-sigErr:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-
-	// Phase 2: DataChannel is up — the signalling WS can drop without killing
-	// the transfer (proxies often close idle WS connections).
-	select {
-	case err = <-transferErr:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
 	}
 }
 
@@ -294,17 +318,27 @@ func RunHost(
 // It applies backpressure by polling BufferedAmount and sleeping when the
 // channel buffer exceeds bufferHighWater.
 func streamFile(
+	ctx context.Context,
 	dc *webrtc.DataChannel,
 	f *os.File,
 	total int64,
 	onProgress func(sent, total int64),
 ) error {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("read file: %w", err)
+	}
 	buf := make([]byte, chunkSize)
 	var sent int64
 
 	for sent < total {
 		// Backpressure: wait for buffer to drain before sending more.
 		for dc.BufferedAmount() > bufferHighWater {
+			if dc.ReadyState() != webrtc.DataChannelStateOpen {
+				return ErrGuestLeft
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			time.Sleep(10 * time.Millisecond)
 		}
 
@@ -324,6 +358,9 @@ func streamFile(
 			}
 			return fmt.Errorf("read file: %w", err)
 		}
+	}
+	if sent != total {
+		return fmt.Errorf("file changed while sending (%d of %d bytes)", sent, total)
 	}
 	return waitDelivered(dc)
 }
@@ -347,7 +384,10 @@ func waitDelivered(dc *webrtc.DataChannel) error {
 			return nil
 		}
 		if dc.ReadyState() != webrtc.DataChannelStateOpen {
-			return fmt.Errorf("connection closed with %d bytes undelivered", n)
+			// We only close after this returns, so the recipient closed it.
+			// A version-1 recipient hangs up as soon as it holds the last
+			// byte, before pion has counted the final acknowledgements.
+			return nil
 		}
 		if n < last {
 			last, lastProgress = n, time.Now()
@@ -356,66 +396,4 @@ func waitDelivered(dc *webrtc.DataChannel) error {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-}
-
-// zipDir recursively zips the directory at src into a temp file and returns
-// its path. The caller is responsible for deleting the temp file.
-func zipDir(src string) (string, error) {
-	src = filepath.Clean(src)
-	base := filepath.Base(src)
-
-	tmp, err := os.CreateTemp("", "markdrop-"+base+"-*.zip")
-	if err != nil {
-		return "", err
-	}
-	defer tmp.Close()
-
-	zw := zip.NewWriter(tmp)
-	defer zw.Close()
-
-	err = filepath.Walk(src, func(path string, info os.FileInfo, werr error) error {
-		if werr != nil {
-			return werr
-		}
-
-		// Build the in-archive path relative to src's parent so the zip
-		// contains a top-level folder named after the directory itself.
-		rel, err := filepath.Rel(filepath.Dir(src), path)
-		if err != nil {
-			return err
-		}
-		// Use forward slashes inside the zip (cross-platform).
-		rel = filepath.ToSlash(rel)
-
-		if info.IsDir() {
-			// Zip directories as entries ending with "/".
-			if rel != "." {
-				_, err = zw.Create(rel + "/")
-			}
-			return err
-		}
-
-		w, err := zw.Create(rel)
-		if err != nil {
-			return err
-		}
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		_, err = io.Copy(w, f)
-		return err
-	})
-	if err != nil {
-		os.Remove(tmp.Name())
-		return "", err
-	}
-
-	// Flush the zip writer before returning.
-	if err = zw.Close(); err != nil {
-		os.Remove(tmp.Name())
-		return "", err
-	}
-	return tmp.Name(), nil
 }
