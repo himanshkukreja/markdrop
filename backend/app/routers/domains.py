@@ -14,6 +14,7 @@ from app.database import get_database
 from app.limiter import limiter
 from app.models.domain import Domain
 from app.models.user import User
+from app.models.workspace import role_allows
 from app.routers.auth import require_user
 from app.schemas.domain import (
     DnsProviderHint,
@@ -53,6 +54,25 @@ def _warning_for(domain: Domain) -> str | None:
         "This host will serve files uploaded by your users. Anything it serves can "
         "set cookies on its parent domain, so prefer a domain you use for nothing "
         "else — not one that also hosts your app or marketing site."
+    )
+
+
+def _redacted(domain: Domain) -> DomainResponse:
+    """What a workspace viewer or member sees of a domain: which hosts the
+    workspace has and whether each is serving — never the TXT verification
+    token, the records to add or the setup diagnostics (admins only)."""
+    return DomainResponse(
+        id=domain.id,
+        host=domain.host,
+        kind=domain.kind,
+        status=domain.status,
+        created_at=domain.created_at,
+        verified_at=domain.verified_at,
+        attached=domain.attached,
+        is_primary=domain.is_primary,
+        live=domain_service.is_serving(domain),
+        dns_record_type=None,
+        apex_certain=None,
     )
 
 
@@ -96,9 +116,10 @@ async def list_domains(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    await ws_service.require_role(db, workspace_id, user.id, "viewer")
+    role = await ws_service.require_role(db, workspace_id, user.id, "viewer")
     domains = await domain_service.list_domains(db, workspace_id)
-    return DomainListResponse(domains=[_to_response(d) for d in domains])
+    full = role_allows(role, "admin")
+    return DomainListResponse(domains=[_to_response(d) if full else _redacted(d) for d in domains])
 
 
 @router.post("/workspaces/{workspace_id}/domains", response_model=DomainResponse, status_code=201)
@@ -189,9 +210,10 @@ async def dns_provider_hint(
 
     A separate endpoint rather than a field on the domain list, because it costs
     a live DNS lookup and the list is rendered on every visit to the tab. The UI
-    asks for it only while the setup instructions are actually on screen.
+    asks for it only while the setup instructions are actually on screen, and
+    only admins see those.
     """
-    await ws_service.require_role(db, workspace_id, user.id, "viewer")
+    await ws_service.require_role(db, workspace_id, user.id, "admin")
     domains = await domain_service.list_domains(db, workspace_id)
     domain = next((d for d in domains if d.id == domain_id), None)
     if domain is None:

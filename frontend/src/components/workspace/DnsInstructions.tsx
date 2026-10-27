@@ -45,8 +45,8 @@ export default function DnsInstructions({
   }, [workspaceId, domain.id]);
 
   const hostLabel = hint?.detected ? hint.host_field || "Name" : "Name";
-  const recordHost = hint?.detected && hint.record_host ? hint.record_host : domain.dns_record_name;
-  const targetHost = hint?.detected && hint.target_host ? hint.target_host : domain.dns_target_name;
+  const recordHost = hint?.detected && hint.record_host ? hint.record_host : domain.dns_record_name ?? "";
+  const targetHost = hint?.detected && hint.target_host ? hint.target_host : domain.dns_target_name ?? "";
 
   return (
     <div className="flex min-w-0 flex-col gap-3 border-t border-border pt-4">
@@ -76,9 +76,9 @@ export default function DnsInstructions({
         <RecordBlock
           label="Ownership record"
           purpose={`Proves ${domain.host} is yours`}
-          type={domain.dns_record_type}
+          type={domain.dns_record_type ?? "TXT"}
           name={recordHost}
-          value={domain.dns_record_value}
+          value={domain.dns_record_value ?? ""}
           nameLabel={hostLabel}
           found={domain.txt_ok}
         />
@@ -101,9 +101,9 @@ export default function DnsInstructions({
           <RecordBlock
             label="Routing record"
             purpose="Sends readers to Markdrop"
-            type={domain.dns_target_type}
+            type={domain.dns_target_type ?? ""}
             name={targetHost}
-            value={domain.dns_target_value}
+            value={domain.dns_target_value ?? ""}
             nameLabel={hostLabel}
             found={domain.routing_ok}
           />

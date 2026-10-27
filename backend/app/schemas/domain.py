@@ -28,13 +28,16 @@ class DomainResponse(BaseModel):
     last_error: str | None = None
     attached: bool = False
     is_primary: bool = False
-    # Everything the customer needs to paste into their DNS panel.
-    dns_record_name: str
-    dns_record_type: str = "TXT"
-    dns_record_value: str
-    dns_target_name: str
-    dns_target_type: str
-    dns_target_value: str
+    # Everything the customer needs to paste into their DNS panel. Admins and
+    # the owner only: for viewers and members these (and every other setup
+    # detail below) are null, because the TXT value is the proof of ownership
+    # and anyone holding it could re-claim the host elsewhere.
+    dns_record_name: str | None = None
+    dns_record_type: str | None = "TXT"
+    dns_record_value: str | None = None
+    dns_target_name: str | None = None
+    dns_target_type: str | None = None
+    dns_target_value: str | None = None
     # Surfaced rather than buried in docs: serving artifacts from a subdomain of
     # a site the customer uses for anything else is a real, if accepted, risk.
     warning: str | None = None
@@ -55,7 +58,7 @@ class DomainResponse(BaseModel):
     # is an apex; both (A and CNAME) when we can't tell (e.g. an unlisted
     # second-level registry like example.co.xx), so the customer picks the one
     # their panel accepts. `dns_target_*` above is the first entry.
-    apex_certain: bool = True
+    apex_certain: bool | None = True
     dns_routing_options: list[DnsRecord] = []
 
 

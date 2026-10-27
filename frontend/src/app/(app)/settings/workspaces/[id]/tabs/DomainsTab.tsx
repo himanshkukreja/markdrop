@@ -187,7 +187,7 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
         description="Serve this workspace's documents from hostnames you own."
         actions={
           <>
-            {domains && domains.length > 0 && (
+            {isAdmin && domains && domains.length > 0 && (
               <Button variant="ghost" size="sm" iconLeft="download" onClick={() => downloadDnsCsv(domains)} title="Download every DNS record for this workspace as CSV">
                 Download all as CSV
               </Button>
@@ -243,7 +243,13 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
                   )}
                   {d.last_error && d.status !== "lapsed" && <Alert tone="warning">{d.last_error}</Alert>}
                   {d.warning && <p className="text-caption text-text-secondary">{d.warning}</p>}
-                  {d.status === "verified" ? (
+                  {/* The records (and the TXT token that proves ownership) are admin-only: the
+                      server sends them only to admins and the owner. */}
+                  {!isAdmin ? (
+                    d.status !== "verified" && (
+                      <p className="text-caption text-text-secondary">An admin of this workspace finishes setting up this domain.</p>
+                    )
+                  ) : d.status === "verified" ? (
                     <Disclosure
                       summary="DNS records"
                       open={recordsOpen.has(d.id)}

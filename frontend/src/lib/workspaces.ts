@@ -126,12 +126,14 @@ export interface Domain {
   last_error: string | null;
   attached: boolean;
   is_primary: boolean;
-  dns_record_name: string;
-  dns_record_type: string;
-  dns_record_value: string;
-  dns_target_name: string;
-  dns_target_type: string;
-  dns_target_value: string;
+  /** The records to add: admins and the owner only — null for viewers and members, who never see
+   *  the TXT verification token. */
+  dns_record_name: string | null;
+  dns_record_type: string | null;
+  dns_record_value: string | null;
+  dns_target_name: string | null;
+  dns_target_type: string | null;
+  dns_target_value: string | null;
   warning: string | null;
   /** v2 (S3), optional until the backend sends them: which of the two records the last check saw. */
   txt_ok?: boolean | null;
@@ -141,7 +143,7 @@ export interface Domain {
   /** v2: verified, attached and not lapsed — the domain is serving. */
   live?: boolean;
   /** v2 (T4): false when we can't tell whether the host is an apex; then every option is shown. */
-  apex_certain?: boolean;
+  apex_certain?: boolean | null;
   dns_routing_options?: Array<{ type: string; name: string; value: string }>;
   /** Pending claims only: when the unverified claim is dropped. */
   expires_at?: string | null;

@@ -20,10 +20,11 @@ function cell(value: string): string {
 }
 
 export function dnsRows(domains: Domain[]): string[][] {
-  return domains.flatMap((d) => [
-    [d.host, d.dns_record_type, d.dns_record_name, d.dns_record_value, "3600",
+  // Rows without records (a viewer's or member's redacted listing) have nothing to export.
+  return domains.filter((d) => d.dns_record_value).flatMap((d) => [
+    [d.host, d.dns_record_type ?? "TXT", d.dns_record_name ?? "", d.dns_record_value ?? "", "3600",
      "Proves you own this domain"],
-    [d.host, d.dns_target_type, d.dns_target_name, d.dns_target_value, "3600",
+    [d.host, d.dns_target_type ?? "", d.dns_target_name ?? "", d.dns_target_value ?? "", "3600",
      d.kind === "app" ? "Routes documents to Markdrop" : "Routes files to Markdrop"],
   ]);
 }

@@ -377,6 +377,81 @@ class Lifecycle(DomainCase):
         self.assertIsNotNone(await self.resolve("docs.acme.com:443"))
 
 
+class DomainVisibility(DomainCase):
+    """GET /workspaces/{id}/domains: the TXT token and DNS setup are admin-only."""
+
+    SECRET_FIELDS = ("dns_record_name", "dns_record_value", "dns_target_name",
+                     "dns_target_type", "dns_target_value", "last_error", "txt_ok",
+                     "routing_ok")
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.pending = (await self.add("pending.acme.com")).json()
+        self.live = await self.live_domain("docs.acme.com")
+        self.tokens = {
+            (await self.row(h))["verification_token"] for h in ("pending.acme.com", "docs.acme.com")}
+        self.as_role: dict[str, dict] = {}
+        for role in ("viewer", "member", "admin"):
+            uid = await self.make_user(f"{role}@example.com", role)
+            await self.db["memberships"].insert_one({
+                "workspace_id": self.ws, "user_id": uid, "role": role,
+                "email": f"{role}@example.com", "created_at": T0})
+            from app.utils.auth import create_access_token
+
+            self.as_role[role] = {
+                "Authorization": f"Bearer {create_access_token(uid, f'{role}@example.com')[0]}"}
+
+    async def listing(self, auth: dict) -> tuple[str, list[dict]]:
+        r = await self.http.get(f"/api/v1/workspaces/{self.ws}/domains", headers=auth)
+        self.assertEqual(r.status_code, 200, r.text)
+        return r.text, r.json()["domains"]
+
+    async def test_viewers_and_members_get_status_only(self):
+        for role in ("viewer", "member"):
+            with self.subTest(role=role):
+                text, rows = await self.listing(self.as_role[role])
+                for token in self.tokens:
+                    self.assertNotIn(token, text)
+                self.assertNotIn("_markdrop-verify", text)
+                by_host = {d["host"]: d for d in rows}
+                self.assertEqual(set(by_host), {"pending.acme.com", "docs.acme.com"})
+                live = by_host["docs.acme.com"]
+                self.assertEqual((live["status"], live["live"], live["is_primary"]),
+                                 ("verified", True, True))
+                pending = by_host["pending.acme.com"]
+                self.assertEqual((pending["status"], pending["live"]), ("pending", False))
+                for d in rows:
+                    for field in self.SECRET_FIELDS:
+                        self.assertIsNone(d[field], field)
+                    self.assertEqual(d["dns_routing_options"], [])
+
+    async def test_admins_and_owner_get_the_records(self):
+        for auth in (self.as_role["admin"], self.auth):
+            text, rows = await self.listing(auth)
+            by_host = {d["host"]: d for d in rows}
+            pending = by_host["pending.acme.com"]
+            self.assertEqual(pending["dns_record_value"], self.pending["dns_record_value"])
+            self.assertIn(pending["dns_record_value"], self.tokens)
+            self.assertEqual(pending["dns_record_name"], "_markdrop-verify.pending.acme.com")
+            self.assertTrue(pending["dns_target_value"])
+            self.assertTrue(pending["dns_routing_options"])
+
+    async def test_provider_hint_is_admin_only(self):
+        for role in ("viewer", "member"):
+            r = await self.http.get(
+                f"/api/v1/workspaces/{self.ws}/domains/{self.pending['id']}/provider",
+                headers=self.as_role[role])
+            self.assertEqual(r.status_code, 403, r.text)
+
+    async def test_strangers_get_404(self):
+        uid = await self.make_user("stranger@example.com", "S")
+        from app.utils.auth import create_access_token
+
+        auth = {"Authorization": f"Bearer {create_access_token(uid, 'stranger@example.com')[0]}"}
+        r = await self.http.get(f"/api/v1/workspaces/{self.ws}/domains", headers=auth)
+        self.assertEqual(r.status_code, 404, r.text)
+
+
 class TenantTokens(DomainCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
