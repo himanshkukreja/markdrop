@@ -156,8 +156,6 @@ async def remove_document(
     admin may (even a private document they can't read — the redacted row).
     The level converts so leaving never widens: ``workspace`` ⇒ ``private``,
     and a link document leaving a sign-in workspace ⇒ ``private`` (Q2)."""
-    from app.services import lifecycle
-
     raw = await _load(db, document_id)
     return await remove_raw(db, workspace_id, raw, user)
 

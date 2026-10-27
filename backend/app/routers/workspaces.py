@@ -125,8 +125,6 @@ async def list_workspaces(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    from app.services import domain as domain_service
-
     pairs = await ws_service.list_for_user(db, user.id)
     # Domains and the live primary host, but not the counts: callers of this
     # list want to know where a workspace publishes. MAX_WORKSPACES caps this.

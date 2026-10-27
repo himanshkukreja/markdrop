@@ -7,8 +7,9 @@ in a workspace with a live primary app domain, else ``markdrop.in/<slug>``.
 markdrop.in for backwards compatibility, except MCP tools and files API results,
 which return ``url`` = canonical and ``markdrop_url`` = markdrop.in.
 
-Liveness is whatever ``domain_service.resolve_host`` says (verified, attached,
-not lapsed — owned by the domains workstream); this module only asks it.
+A host is *live* when its domain row is ``kind=app ∧ status=verified ∧
+attached ∧ ¬lapsed`` (policy §1.3, S3; :func:`is_live`). The canonical host is
+the workspace's explicit primary if live, else its oldest live app domain.
 """
 
 from __future__ import annotations

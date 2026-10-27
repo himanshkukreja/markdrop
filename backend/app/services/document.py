@@ -10,7 +10,7 @@ from pymongo.errors import DuplicateKeyError
 from app.config import get_settings
 from app.models.document import Document
 from app.schemas.document import DocumentCreate, DocumentUpdate
-from app.utils.security import generate_edit_secret, verify_edit_secret
+from app.utils.security import generate_edit_secret
 from app.utils.slug import generate_slug, is_reserved_slug, is_valid_slug, slugify
 
 settings = get_settings()

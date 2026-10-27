@@ -25,7 +25,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.models.workspace import role_allows
 from app.routers.auth import require_user
-from app.services import access, lifecycle, library as lib_service
+from app.services import access, library as lib_service
 from app.services import folder as folder_service
 from app.services import workspace as ws_service
 from app.services import workspace_items as items_service

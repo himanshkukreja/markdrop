@@ -299,13 +299,6 @@ async def load_for(ctx: Context, value: str, perm: str, action: str) -> dict:
     return raw
 
 
-async def require_owner(ctx: Context, raw: dict, action: str) -> None:
-    """Kept for old call sites: owner-only (stats-style) actions."""
-    d = await access_service.can(actor_of(ctx), raw, "view_stats", access_service.Ctx(ctx.db))
-    if not d.allowed:
-        raise deny(d, action)
-
-
 async def read_doc(ctx: Context, value: str):
     """The document through the one read rule (access.can): every gate applies,
     and a custom-domain link is scoped to its workspace."""
@@ -392,7 +385,6 @@ async def place(ctx: Context, raw: dict, workspace: str | None, folder: str | No
 async def precheck_workspace(ctx: Context, args: dict) -> tuple[str | None, str | None]:
     """Validate workspace + folder before anything is created (nothing is
     created when either is wrong). Returns (workspace id, folder id)."""
-    from app.services import workspace as ws_service
     from app.models.workspace import role_allows
 
     if not args.get("workspace"):
@@ -407,11 +399,11 @@ async def precheck_workspace(ctx: Context, args: dict) -> tuple[str | None, str 
 
 
 async def workspace_default_access(ctx: Context, ws_id: str | None, args: dict) -> str:
-    from app.services import workspace as ws_service
+    from app.services import workspace as _ws
 
     if args.get("access") or args.get("password") or not ws_id:
         return access_choice(args)[0]
-    ws = await ws_service.get_workspace(ctx.db, ws_id)
+    ws = await _ws.get_workspace(ctx.db, ws_id)
     return ws.settings.default_access if ws else "link"
 
 
@@ -737,8 +729,6 @@ async def update_document(ctx: Context, args: dict) -> tuple[str, dict]:
 
 async def _doc_meta(ctx: Context, raw: dict) -> dict:
     """workspace_id / folder / workspace_url for get_document (P6)."""
-    from app.services import folder as folder_service
-
     folder = None
     if raw.get("workspace_id") and raw.get("folder_id"):
         f = await ctx.db["folders"].find_one({"_id": ObjectId(raw["folder_id"])}, {"name": 1}) \
@@ -1106,14 +1096,15 @@ async def add_to_workspace(ctx: Context, args: dict) -> tuple[str, dict]:
     from app.services import library as lib_service
 
     raw = await load_for(ctx, args["document"], "read", "add")
-    if raw.get("owner_id") != ctx.user.id:
-        raise ToolError("Only the document's owner can add it to a workspace.")
     ws_id, ws, _role = await resolve_workspace(ctx, args["workspace"])
     folder_id = await resolve_folder(ctx, ws_id, args.get("folder"))
     level = args.get("access")
     try:
+        # access.can(file_into_workspace): the owner, member+ of the target.
         await lib_service.add_document(ctx.db, ws_id, str(raw["_id"]), ctx.user, folder_id, level=level)
     except HTTPException as exc:
+        if exc.status_code == 404 and exc.detail == "Document not found":
+            raise ToolError("Only the document's owner can add it to a workspace.")
         raise ToolError(http_message(exc))
     final = await load_raw(ctx.db, raw["slug"])
     out = {**await url_pair(ctx, final), "slug": final["slug"], "workspace_id": ws_id,

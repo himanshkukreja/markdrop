@@ -22,9 +22,8 @@ from __future__ import annotations
 
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
-import jwt
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings

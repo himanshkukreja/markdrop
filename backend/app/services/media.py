@@ -202,7 +202,7 @@ async def process(db, doc_id: str, version: int, blob_key: str, mime: str) -> di
     from bson import ObjectId
     from fastapi.concurrency import run_in_threadpool
 
-    from app.services import file_versions, r2
+    from app.services import r2
 
     if not wants_probe(mime) or not r2.is_configured():
         return None
