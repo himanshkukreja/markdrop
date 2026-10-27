@@ -306,6 +306,29 @@ class Upload(FilesTestCase):
         self.assertEqual(r.status_code, 204)
         self.assertEqual((await self.session(up["upload_id"]))["state"], "cancelled")
 
+    async def test_upload_storage_forgot_is_expired(self):
+        # R2's lifecycle rule (or an abort) cleared the multipart upload: the
+        # session can never complete, so it reads as expired and the client
+        # starts over rather than retrying forever.
+        up = (await self.start(VIDEO)).json()
+        sess = await self.session(up["upload_id"])
+        parts = await self.send_parts(up["upload_id"], VIDEO)
+        del self.r2.uploads[sess["r2_upload_id"]]
+        r = await self.http.post(f"/api/v1/files/uploads/{up['upload_id']}/complete",
+                                 json={"parts": parts}, headers=self.auth)
+        self.assertEqual(r.status_code, 410, r.text)
+        st = (await self.http.get(f"/api/v1/files/uploads/{up['upload_id']}", headers=self.auth)).json()
+        self.assertEqual(st["state"], "expired")
+
+        up = (await self.start(blob("again"))).json()
+        sess = await self.session(up["upload_id"])
+        del self.r2.uploads[sess["r2_upload_id"]]
+        st = (await self.http.get(f"/api/v1/files/uploads/{up['upload_id']}", headers=self.auth)).json()
+        self.assertEqual(st["state"], "expired")
+        self.assertIn("start a new one", st["error"])
+        r = await self.http.post(f"/api/v1/files/uploads/{up['upload_id']}/urls", headers=self.auth)
+        self.assertEqual(r.status_code, 410)
+
     async def test_create_sweeps_expired_sessions(self):
         up = (await self.start(VIDEO)).json()
         sess = await self.session(up["upload_id"])

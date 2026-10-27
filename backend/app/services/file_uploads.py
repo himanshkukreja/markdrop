@@ -318,7 +318,8 @@ async def fresh_urls(db: AsyncIOMotorDatabase, user_id: str, upload_id: str,
             raise HTTPException(status_code=422, detail=f"This upload has parts 1 to {count}; got {bad[:5]}.")
         numbers = sorted(set(part_numbers))
     else:
-        have = {p["part_number"] for p in await _list_parts(sess)}
+        have = {p["part_number"] for p in await _list_parts(sess, db)}
+        _require_uploading(sess)
         numbers = [n for n in range(1, count + 1) if n not in have]
     return _session_out(sess, numbers)
 
@@ -331,11 +332,21 @@ def _require_uploading(sess: dict) -> None:
         raise HTTPException(status_code=409, detail=f"This upload is already {state}.")
 
 
-async def _list_parts(sess: dict) -> list[dict]:
+async def _list_parts(sess: dict, db: AsyncIOMotorDatabase | None = None) -> list[dict]:
+    """Parts R2 holds. With ``db``, a session whose R2 upload is gone (aborted,
+    or cleared by the bucket's lifecycle rule) is marked expired on the way."""
     try:
         return await run_in_threadpool(r2.list_parts, sess["key"], sess["r2_upload_id"])
-    except Exception:
-        log.info("list_parts failed for %s", sess["_id"], exc_info=True)
+    except Exception as exc:
+        if db is not None and _r2_code(exc) == "NoSuchUpload":
+            await db[SESSIONS].update_one(
+                {"_id": sess["_id"], "state": "uploading"},
+                {"$set": {"state": "expired", "ended_at": _now(), "error": _r2_reason(exc)}},
+            )
+            sess["state"] = "expired"
+            sess["error"] = _r2_reason(exc)
+        else:
+            log.info("list_parts failed for %s", sess["_id"], exc_info=True)
         return []
 
 
@@ -343,7 +354,7 @@ async def status(db: AsyncIOMotorDatabase, user_id: str, upload_id: str) -> dict
     sess = await load(db, user_id, upload_id)
     if sess["state"] == "verifying":
         _maybe_resume(db, sess)
-    parts = await _list_parts(sess) if sess["state"] == "uploading" else []
+    parts = await _list_parts(sess, db) if sess["state"] == "uploading" else []
     out: dict[str, Any] = {
         "upload_id": sess["_id"],
         "state": sess["state"],
@@ -483,9 +494,15 @@ async def _verify_and_commit(db: AsyncIOMotorDatabase, upload_id: str) -> None:
             await run_in_threadpool(r2.complete_multipart, key, sess["r2_upload_id"], parts)
         except Exception as exc:
             if await run_in_threadpool(r2.head, key) is None:
+                # Storage forgot the upload (aborted, or cleared by the bucket's
+                # lifecycle rule): it can't be finished, so say so as "expired"
+                # and the client starts over. Anything else is the client's
+                # parts, which it can fix and complete again.
+                gone = _r2_code(exc) == "NoSuchUpload"
                 await db[SESSIONS].update_one(
                     {"_id": upload_id, "state": "verifying"},
-                    {"$set": {"state": "uploading", "error": _r2_reason(exc)}},
+                    {"$set": {"state": "expired" if gone else "uploading", "error": _r2_reason(exc),
+                              **({"ended_at": _now()} if gone else {})}},
                 )
                 return
         await _beat(db, upload_id)
@@ -520,12 +537,15 @@ async def _verify_and_commit(db: AsyncIOMotorDatabase, upload_id: str) -> None:
                     "Start the upload again.", delete=not committed)
 
 
-def _r2_reason(exc: Exception) -> str:
-    code = ""
+def _r2_code(exc: Exception) -> str:
     try:
-        code = exc.response["Error"]["Code"]  # type: ignore[attr-defined]
+        return str(exc.response["Error"]["Code"])  # type: ignore[attr-defined]
     except Exception:
-        pass
+        return ""
+
+
+def _r2_reason(exc: Exception) -> str:
+    code = _r2_code(exc)
     if code in ("InvalidPart", "InvalidPartOrder", "EntityTooSmall"):
         return (f"Storage rejected the parts ({code}): check every part was uploaded in full with "
                 "its own ETag, and that all parts but the last are part_size bytes.")
