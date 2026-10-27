@@ -239,6 +239,97 @@ class C4McpWorkspaceByName(AccessWorld):
         self.assertEqual(res["structuredContent"]["workspace_id"], self.ws["W1"])
 
 
+class B1FolderPagesTenantTokens(AccessWorld):
+    async def _setup(self):
+        from app.services import folder as folder_service
+
+        self.f = await folder_service.create_folder(self.db, self.ws["W1"], "Secret Plans", None)
+        self.d = await self.mkdoc("W", folder_id=self.f.id, folder_path=[self.f.slug])
+        share = await folder_service.set_share(self.db, self.ws["W1"], self.f.id, "workspace", self.uid["wo"])
+        self.share_id = share["id"]
+
+    async def _host_folder(self, headers: dict):
+        return await self.http.get("/api/v1/host/folder", params={"host": HOSTS["W1"], "path": self.f.slug},
+                                   headers=headers)
+
+    async def test_b1_tenant_token_needs_origin_on_folder_pages(self):
+        await self._setup()
+        good = self.tenant("wm", "W1")
+        self.assertEqual((await self._host_folder(good)).status_code, 200)
+        no_origin = {"Authorization": good["Authorization"]}
+        self.assertEqual((await self._host_folder(no_origin)).status_code, 401)
+        evil = {**good, "Origin": "https://evil.test"}
+        self.assertEqual((await self._host_folder(evil)).status_code, 401)
+        r = await self.http.get(f"/api/v1/folders/shared/{self.share_id}", headers=no_origin)
+        self.assertEqual(r.status_code, 401)
+        r = await self.http.get(f"/api/v1/folders/shared/{self.share_id}", headers=good)
+        self.assertEqual(r.status_code, 200, r.text)
+
+    async def test_b1_tenant_token_of_a_dead_host_is_refused(self):
+        await self._setup()
+        await self.add_domain("W1", "old.acme.test", is_primary=False)
+        from app.utils.auth import create_tenant_token
+
+        token, _ = create_tenant_token(self.uid["wm"], self.email["wm"], self.ws["W1"], "old.acme.test")
+        h = {"Authorization": f"Bearer {token}", "Origin": "https://old.acme.test"}
+        r = await self.http.get(f"/api/v1/folders/shared/{self.share_id}", headers=h)
+        self.assertEqual(r.status_code, 200, r.text)
+        await self.db["domains"].delete_one({"host": "old.acme.test"})
+        r = await self.http.get(f"/api/v1/folders/shared/{self.share_id}", headers=h)
+        self.assertEqual(r.status_code, 401)
+        r = await self.http.get("/api/v1/host/folder", params={"host": HOSTS["W1"], "path": self.f.slug},
+                                headers=h)
+        self.assertEqual(r.status_code, 401)
+
+
+class SmallBFolderGates(AccessWorld):
+    async def test_signin_body_has_no_workspace_id_or_internal_name(self):
+        await self.db["workspaces"].update_one({"_id": ObjectId(self.ws["WR"])},
+                                               {"$set": {"branding.site_name": "Acme Docs"}})
+        r = await self.http.get("/api/v1/host/folder", params={"host": HOSTS["WR"], "path": ""})
+        self.assertEqual(r.status_code, 401)
+        body = r.text
+        self.assertNotIn(self.ws["WR"], body)
+        self.assertNotIn("Acme Private", body)
+        self.assertEqual(r.json()["workspace"]["branding"]["site_name"], "Acme Docs")
+
+    async def test_gated_workspace_link_share_hides_its_name_from_strangers(self):
+        from app.services import folder as folder_service
+
+        f = await folder_service.create_folder(self.db, self.ws["WR"], "Codename", None)
+        await self.mkdoc("RW", folder_id=f.id, folder_path=[f.slug], grants=False)
+        share = await folder_service.set_share(self.db, self.ws["WR"], f.id, "link", self.uid["wo"])
+        r = await self.http.get(f"/api/v1/folders/shared/{share['id']}", headers=self.session("stranger"))
+        self.assertEqual(r.status_code, 404)
+        self.assertNotIn("Codename", r.text)
+        r = await self.http.get("/api/v1/host/folder", params={"host": HOSTS["WR"], "path": f.slug},
+                                headers=self.session("stranger"))
+        self.assertEqual(r.status_code, 404)
+        self.assertNotIn("Codename", r.text)
+        # A member still sees it.
+        r = await self.http.get(f"/api/v1/folders/shared/{share['id']}", headers=self.session("wv"))
+        self.assertEqual(r.status_code, 200, r.text)
+
+
+class B6TrailRedaction(AccessWorld):
+    async def test_b6_unreadable_ancestor_not_named_in_trail(self):
+        from app.services import folder as folder_service
+
+        parent = await folder_service.create_folder(self.db, self.ws["W1"], "Codename Falcon", None)
+        child = await folder_service.create_folder(self.db, self.ws["W1"], "Public Drop", parent.id)
+        await self.mkdoc("W", folder_id=parent.id, folder_path=[parent.slug])
+        await folder_service.set_share(self.db, self.ws["W1"], child.id, "link", self.uid["wo"])
+        r = await self.http.get("/api/v1/host/folder",
+                                params={"host": HOSTS["W1"], "path": f"{parent.slug}/{child.slug}"})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertNotIn("Codename Falcon", [t["name"] for t in r.json()["trail"]])
+        # A member who can read the parent's document still gets the full trail.
+        r = await self.http.get("/api/v1/host/folder",
+                                params={"host": HOSTS["W1"], "path": f"{parent.slug}/{child.slug}"},
+                                headers=self.session("wm"))
+        self.assertIn("Codename Falcon", [t["name"] for t in r.json()["trail"]])
+
+
 # ── LOW ───────────────────────────────────────────────────────────────────────
 
 

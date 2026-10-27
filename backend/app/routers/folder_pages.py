@@ -56,17 +56,26 @@ async def reader_for(request: Request, db: AsyncIOMotorDatabase, workspace_id: s
         payload = decode_access_token(token)
     except jwt.InvalidTokenError:
         return access.Actor()
+    if payload.get("typ") == "tenant":
+        # Exactly the document route's tenant-token rule (routers/auth.py,
+        # policy §2.2 step 1): an allowlisted route, an Origin that is present
+        # and equals the claim host, that host still a *live* app domain of the
+        # claim workspace — and here, that workspace is the one being listed
+        # (B1). No Origin is a 401, not a pass.
+        from app.routers.auth import _tenant_host_live, _tenant_scope_ok
+
+        if (payload.get("ws") != workspace_id or not _tenant_scope_ok(request, payload)
+                or not await _tenant_host_live(payload)):
+            raise HTTPException(status_code=401,
+                                detail="This session only works for documents on that workspace's domain.")
+        user = await user_service.get_user_by_id(db, payload.get("sub", ""))
+        if user is None:
+            return access.Actor()
+        return access.Actor(user=user, cred="tenant", tenant_ws=workspace_id,
+                            tenant_host=payload.get("host"))
     user = await user_service.get_user_by_id(db, payload.get("sub", ""))
     if user is None:
         return access.Actor()
-    if payload.get("typ") == "tenant":
-        origin = request.headers.get("origin") or ""
-        origin_host = urls.normalize_host(origin.split("://", 1)[-1].split("/", 1)[0]) if origin else ""
-        if payload.get("ws") != workspace_id or (origin_host and origin_host != (payload.get("host") or "")):
-            raise HTTPException(status_code=401,
-                                detail="This session only works for documents on that workspace's domain.")
-        return access.Actor(user=user, cred="tenant", tenant_ws=workspace_id,
-                            tenant_host=payload.get("host"))
     return access.Actor.of(user, "session")
 
 
@@ -81,9 +90,22 @@ def _branding(ws) -> dict:
     }
 
 
+def _public_branding(ws) -> dict:
+    """What an anonymous visitor of a sign-in-only site may learn: the public
+    site name and look — not the workspace id or its internal name."""
+    b = ws.branding
+    return {
+        "name": b.site_name or None,
+        "branding": {"site_name": b.site_name, "favicon_url": b.favicon_url, "logo_url": b.logo_url,
+                     "accent_color": b.accent_color, "logo_well": b.logo_well,
+                     "hide_markdrop_branding": b.hide_markdrop_branding},
+        "require_auth_to_view": ws.settings.require_auth_to_view,
+    }
+
+
 def _signin(ws) -> JSONResponse:
     return JSONResponse({"detail": "Sign in to view this site.", "gate": "signin",
-                         "workspace": _branding(ws)},
+                         "workspace": _public_branding(ws)},
                         status_code=401, headers={"X-Markdrop-Gate": "signin",
                                                   "Cache-Control": "private, no-store"})
 
@@ -127,6 +149,11 @@ async def host_folder(
     if folder_id:
         f = await db["folders"].find_one({"_id": ObjectId(folder_id)}, {"share": 1})
         shared_link = ((f or {}).get("share") or {}).get("level") == "link"
+    # In a sign-in-only workspace a link share opens nothing to an outsider,
+    # so for them it is a gated item like any other: shown only when it holds
+    # something they can read (small B: no folder names for strangers).
+    if shared_link and ws.settings.require_auth_to_view and await ctx.role(ws.id, actor.user_id) is None:
+        shared_link = False
     listing = await items_service.folder_listing(
         db, actor, ctx, ws.id, folder_id, always_show=(folder_id is None or shared_link))
     if listing is None:
@@ -140,7 +167,11 @@ async def host_folder(
             chain.append(cur)
             cur = folders_by_id.get(cur.parent_id) if cur.parent_id else None
         chain.reverse()
-        trail = [{"name": f.name, "path": paths.get(f.id) or []} for f in chain[:-1]]
+        # Only ancestors the caller could open themselves (≥1 readable item at
+        # or below): a link-shared folder inside an otherwise unreadable one
+        # must not name its parents (B6).
+        trail = [{"name": f.name, "path": paths.get(f.id) or []} for f in chain[:-1]
+                 if total.get(f.id, 0) > 0]
         folder = {"name": chain[-1].name, "path": paths.get(folder_id) or [],
                   "document_count": total.get(folder_id, 0)}
     _cache(response, actor)
@@ -181,6 +212,10 @@ async def shared_folder(
         raise HTTPException(status_code=404, detail="This folder link doesn't exist.")
 
     root_id = str(folder_raw["_id"])
+    # A sign-in-only workspace's link share shows its root to an outsider only
+    # when it holds something they can read (small B).
+    outsider_in_gated = (ws.settings.require_auth_to_view
+                         and await ctx.role(ws.id, actor.user_id) is None)
     folders = await folder_service.list_folders(db, ws.id)
     by_id = {f.id: f for f in folders}
     target, crumbs = root_id, [{"name": folder_raw["name"], "path": ""}]
@@ -191,8 +226,10 @@ async def shared_folder(
         target = child.id
         crumbs.append({"name": child.name, "path": "/".join([c for c in [crumbs[-1]["path"], seg] if c])})
     listing = await items_service.folder_listing(db, actor, ctx, ws.id, target, root_id=root_id,
-                                                 always_show=(target == root_id))
+                                                 always_show=(target == root_id and not outsider_in_gated))
     if listing is None:
+        if target == root_id:
+            raise HTTPException(status_code=404, detail="This folder link doesn't exist.")
         raise HTTPException(status_code=404, detail="Folder not found")
     here = crumbs[-1]["path"]
     _cache(response, actor)
