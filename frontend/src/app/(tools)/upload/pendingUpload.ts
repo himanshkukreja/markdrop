@@ -35,7 +35,7 @@ export interface PendingUpload {
   /** ISO instant when `expiresIn` is "custom" (added with the revamp; older drafts lack it). */
   customExpiresAt?: string | null;
   /** Who can open it, and where it publishes (added with the revamp; optional for older drafts). */
-  accessLevel?: "private" | "link";
+  accessLevel?: "private" | "link" | "workspace";
   target?: { workspaceId: string | null; folderId: string | null };
   savedAt: number;
 }

@@ -238,6 +238,12 @@ export function useDocumentViewer({
    * markdown shows a title and nothing else.
    */
   function adoptDoc(doc: import("@/lib/api").DocumentResponse, opts?: { created?: boolean }): boolean {
+    // An old slug of a renamed document (the signed-in retry of a gated page): go to the current
+    // one, keeping the query and the #k= key. The server render redirects the anonymous case.
+    if (doc.moved && doc.slug && doc.slug !== slug) {
+      router.replace(`/${encodeURIComponent(doc.slug)}${window.location.search}${window.location.hash}`);
+      return true;
+    }
     if (doc.kind === "artifact") {
       setArtifactDoc(doc);
       setPwdLocked(false);
@@ -910,6 +916,16 @@ export function useDocumentViewer({
   }, [user, pwdLocked, pwdFetching, loadAccess]);
   const canShare = isOwner || !!access?.can_share;
 
+  // P3: members (on a non-private document in their workspace) and editor grantees edit with
+  // their session, no edit secret. The server says so as `your_role: "editor"` and enforces it on
+  // save. Re-applied after Cancel (which re-locks secret-only sessions).
+  const sessionEditor = !!user && access?.your_role === "editor";
+  useEffect(() => {
+    if (sessionEditor && !secretUnlocked) setSecretUnlocked(true);
+  }, [sessionEditor, secretUnlocked]);
+  // Password, expiry, key rotation and delete stay with the owner (or the edit secret's holder).
+  const canEditSettings = isOwner || !!secretInput.trim();
+
   // `F` returns to full screen from the framed reader (REVAMP_PLAN 7.6 "Keys").
   // Single-key shortcuts never fire while typing or while a dialog is open.
   useEffect(() => {
@@ -931,6 +947,8 @@ export function useDocumentViewer({
     access,
     loadAccess,
     canShare,
+    canEditSettings,
+    sessionEditor,
     live,
     liveUpdate,
     toggleImmersive,

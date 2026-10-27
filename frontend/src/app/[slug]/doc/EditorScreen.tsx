@@ -141,7 +141,7 @@ export function EditorScreen({ v, isPasswordProtected, encrypted, displayTitle, 
         />
         <div className="flex flex-wrap items-center gap-2">
           {dirty && <Badge tone="warning" dot size="sm">Unsaved changes</Badge>}
-          <Button variant="ghost" iconLeft="settings" onClick={() => setSettingsOpen(true)}>Settings</Button>
+          {v.canEditSettings && <Button variant="ghost" iconLeft="settings" onClick={() => setSettingsOpen(true)}>Settings</Button>}
           <Button variant="ghost" onClick={requestCancel}>Cancel</Button>
           <Button
             onClick={v.handleSave}
@@ -154,6 +154,9 @@ export function EditorScreen({ v, isPasswordProtected, encrypted, displayTitle, 
       </div>
 
       {v.saveError && <Alert tone="danger">{v.saveError}</Alert>}
+      {v.sessionEditor && !v.canEditSettings && (
+        <p className="text-caption text-text-muted">You can edit the text. Its password, expiry, link and who can open it stay with its owner.</p>
+      )}
 
       {/* No key: the editor would be an empty box, which reads as "your document
           is gone" and invites someone to retype it over the top. Say what is
@@ -171,7 +174,7 @@ export function EditorScreen({ v, isPasswordProtected, encrypted, displayTitle, 
                 deletion in Settings don&apos;t need the key, so those still work.
               </>
             }
-            actions={<Button variant="secondary" iconLeft="settings" onClick={() => setSettingsOpen(true)}>Open settings</Button>}
+            actions={v.canEditSettings ? <Button variant="secondary" iconLeft="settings" onClick={() => setSettingsOpen(true)}>Open settings</Button> : undefined}
           />
         </div>
       ) : (

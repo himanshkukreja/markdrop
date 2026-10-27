@@ -23,6 +23,7 @@ import { BrowserFrame } from "@/components/kit/BrowserFrame";
 import { PublishSettings } from "@/components/kit/PublishSettings";
 import {
   DEFAULT_PUBLISH_SETTINGS,
+  createAccess,
   PHONE_QUERY,
   toApiExpiry,
   useMediaQuery,
@@ -42,8 +43,9 @@ import {
   type ArtifactStatus,
   type ExpiresIn,
 } from "@/lib/api";
-import { useWorkspaceTargets } from "@/lib/useWorkspaceTargets";
-import { shareToWorkspace } from "@/lib/workspaces";
+import { usePrefilledTarget, useWorkspaceTargets } from "@/lib/useWorkspaceTargets";
+import { useQueryFlags } from "@/lib/useQueryFlags";
+import { fileIntoWorkspace } from "@/lib/workspaces";
 import { track } from "@/lib/track";
 
 type Tab = "paste" | "upload";
@@ -123,12 +125,11 @@ export default function UploadArtifactPage() {
   const isPhone = useMediaQuery(PHONE_QUERY);
 
   const ws = useWorkspaceTargets(settings.target);
-  const workspaces: PublishWorkspace[] = ws.workspaces.map((w) => ({
-    id: w.id,
-    name: w.name,
-    host: w.primary_host ?? null,
-    folders: w.id === settings.target.workspaceId ? ws.folders.map((f) => ({ id: f.id, name: f.name, path: f.path })) : undefined,
-  }));
+  const workspaces: PublishWorkspace[] = ws.publishWorkspaces;
+  // "Upload here" from a workspace folder: /upload?ws=<id>&folder=<id>.
+  const flags = useQueryFlags();
+  usePrefilledTarget(flags.ready, flags.get("ws"), flags.get("folder"), ws.workspaces, (target, defaultAccess) =>
+    setSettings((s) => ({ ...s, target, access: defaultAccess ?? s.access })));
 
   useEffect(() => {
     let cancelled = false;
@@ -232,7 +233,7 @@ export default function UploadArtifactPage() {
       expiresIn: expiresIn as ExpiresIn,
       customExpiresAt,
       readPassword: settings.password || undefined,
-      accessLevel,
+      accessLevel: createAccess(accessLevel),
     };
     try {
       const doc =
@@ -244,9 +245,9 @@ export default function UploadArtifactPage() {
       // Share as a second step — see the same note in /new. The artifact is
       // already published; a sharing failure must not read as an upload failure,
       // so it rides to the viewer on a flag and shows in the published panel.
-      if (target.workspaceId && doc.id) {
+      if (target.workspaceId) {
         try {
-          await shareToWorkspace(target.workspaceId, doc.id, target.folderId);
+          await fileIntoWorkspace(target.workspaceId, doc, target.folderId, accessLevel === "workspace" ? "workspace" : undefined);
         } catch {
           try { sessionStorage.setItem(WS_FAIL_KEY(doc.slug), "1"); } catch {}
         }

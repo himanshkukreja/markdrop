@@ -34,7 +34,17 @@ export const PHONE_QUERY = "(max-width: 639px)";
 
 /* ── The publish settings value ────────────────────────────────────────── */
 
-export type PublishAccess = "link" | "private";
+/** "workspace" needs a workspace Location; Location and access are otherwise independent (P4). */
+export type PublishAccess = "link" | "private" | "workspace";
+
+/**
+ * The access level the create call takes. "Everyone in the workspace" can only be set once the
+ * document is in the workspace, so it is created private and opened up by the filing call; a
+ * filing failure then leaves it private, never public.
+ */
+export function createAccess(access: PublishAccess): "private" | "link" {
+  return access === "workspace" ? "private" : access;
+}
 
 export interface PublishTarget {
   /** null = Personal (not in a workspace). */
@@ -73,8 +83,11 @@ export interface PublishWorkspace {
   name: string;
   /** The verified document host, e.g. "docs.acme.com"; null/absent = markdrop.in. */
   host?: string | null;
-  /** Folders, when loaded. `path` is the URL path from the root (`["specs", "q3"]`). */
-  folders?: Array<{ id: string; name: string; path?: string[] }>;
+  /** Folders, when loaded. `path` is the URL path from the root (`["specs", "q3"]`); `label` is the
+   *  names from the root ("Specs › Q3") when known. */
+  folders?: Array<{ id: string; name: string; path?: string[]; label?: string }>;
+  /** Who can open what's published here unless the author chooses otherwise. */
+  defaultAccess?: PublishAccess | null;
 }
 
 /* ── Expiry ────────────────────────────────────────────────────────────── */
@@ -185,7 +198,9 @@ export interface PublishSummaryOptions {
  */
 export function publishSummary(value: PublishSettingsValue, opts: PublishSummaryOptions = {}): { primary: string; secondary: string; text: string; changed: boolean } {
   const { isClient = false, showEncrypt = true, workspaceName } = opts;
-  const primary = value.access === "private" ? "Only me" : "Anyone with the link";
+  const primary = value.access === "private" ? "Only me"
+    : value.access === "workspace" ? `Everyone in ${workspaceName || "the workspace"}`
+    : "Anyone with the link";
   const parts: string[] = [];
   if (workspaceName && value.target.workspaceId) parts.push(workspaceName);
   if (showEncrypt && value.encrypt) parts.push("Encrypted");

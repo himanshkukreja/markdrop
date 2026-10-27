@@ -12,8 +12,10 @@ import {
   addPerson, getAccess, removePerson, setAccessLevel, setResharing,
   type AccessLevel, type AccessState,
 } from "@/lib/access";
-import { useWorkspaceTargets, type PublishTargetValue } from "@/lib/useWorkspaceTargets";
-import { listMembers, purgeDocument, shareToWorkspace } from "@/lib/workspaces";
+import {
+  addItems, can, listMembers, listWorkspaces, moveItems, purgeDocument, removeItems, type Workspace,
+} from "@/lib/workspaces";
+import { ancestry, childrenMap, documentsChanged, useWorkspaceTree, workspaceChanged } from "@/lib/workspaceStore";
 
 /**
  * Who can open this document, and who has been named on it.
@@ -40,11 +42,38 @@ import { listMembers, purgeDocument, shareToWorkspace } from "@/lib/workspaces";
  * global user search: the dialog must not be a way to discover addresses.
  */
 
-const LEVELS: { id: AccessLevel; label: string; hint: string }[] = [
-  { id: "private", label: "Only people I choose", hint: "Nobody can open it unless they're on the list above." },
-  { id: "link", label: "Anyone with the link", hint: "No sign-in needed. This is how Markdrop links have always worked." },
-  { id: "workspace", label: "Everyone in the workspace", hint: "Members of the workspace this document is shared into." },
-];
+/** "Who can open it": the levels name the workspace (P4). Where it lives is a separate row. */
+function levelOptions(wsName: string | null, hasPassword: boolean) {
+  return [
+    { id: "private" as AccessLevel, label: "Only people you choose", hint: "You, and the people on the list above. Nobody else, link or not." },
+    {
+      id: "workspace" as AccessLevel,
+      label: wsName ? `Everyone in ${wsName}` : "Everyone in the workspace",
+      hint: wsName ? `Members of ${wsName} sign in to open it.` : "Put it in a workspace first, under Location.",
+    },
+    {
+      id: "link" as AccessLevel,
+      label: hasPassword ? "Anyone with the link and the password" : "Anyone with the link",
+      hint: hasPassword ? "No sign-in, but readers are asked for the password." : "No sign-in needed. This is how Markdrop links have always worked.",
+    },
+  ];
+}
+
+/** Workspaces once per page (names, roles, hosts). */
+let wsListCache: Promise<Workspace[]> | null = null;
+function useWorkspaceList() {
+  const [list, setList] = useState<Workspace[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    let signedIn = false;
+    try { signedIn = !!localStorage.getItem("markdrop_token"); } catch { /* no storage */ }
+    if (!signedIn) { setList([]); return; }
+    wsListCache ??= listWorkspaces().catch((e) => { wsListCache = null; throw e; });
+    wsListCache.then((w) => live && setList(w)).catch(() => live && setList([]));
+    return () => { live = false; };
+  }, []);
+  return list;
+}
 
 async function fetchContacts(): Promise<ComboboxSuggestion[] | null> {
   const t = typeof window === "undefined" ? null : localStorage.getItem("markdrop_token");
@@ -67,19 +96,23 @@ async function fetchContacts(): Promise<ComboboxSuggestion[] | null> {
 }
 
 export default function ShareDialog({
-  slug, title, documentId, shareUrl, onClose, onChanged,
+  slug, title, documentId, shareUrl, location, startWithLocation, onClose, onChanged,
 }: {
   slug: string;
   title: string;
-  /** Needed to put the document into a workspace from here. Without it the
-   *  workspace option is hidden rather than shown and then failing. */
+  /** The document's id (kept for callers; v2 filing works by slug). */
   documentId?: string | null;
   /** What the footer's "Copy link" copies (with `#k=` for encrypted documents).
    *  Omitted → no copy button, rather than a link that may not open it. */
   shareUrl?: string;
+  /** Where the caller knows the document is filed (the access endpoint names only the workspace). */
+  location?: { workspaceId: string | null; folderId: string | null } | null;
+  /** Open with the Location editor showing ("Add to a workspace…"). */
+  startWithLocation?: boolean;
   onClose: () => void;
   onChanged?: () => void;
 }) {
+  void documentId;
   const toast = useToast();
   const [state, setState] = useState<AccessState | null>(null);
   const [error, setError] = useState("");
@@ -89,12 +122,11 @@ export default function ShareDialog({
   const [message, setMessage] = useState("");
   const [showMessage, setShowMessage] = useState(false);
   const [busy, setBusy] = useState("");
-  // "Everyone in the workspace" for a document that isn't in one yet: the
-  // select shows the choice while the picker below collects what is missing.
-  const [wantWorkspace, setWantWorkspace] = useState(false);
-  const [wsTarget, setWsTarget] = useState<PublishTargetValue>({ workspaceId: null, folderId: null });
-  const ws = useWorkspaceTargets(wsTarget);
   const [suggestions, setSuggestions] = useState<ComboboxSuggestion[]>([]);
+  const workspaces = useWorkspaceList();
+  // Where it is filed. The access endpoint says which workspace (and, on v2, which folder); the
+  // caller's hint fills in the folder for older backends.
+  const [folderHint, setFolderHint] = useState<string | null>(location?.folderId ?? null);
 
   const load = useCallback(async () => {
     try { setState(await getAccess(slug)); }
@@ -164,24 +196,56 @@ export default function ShareDialog({
 
   const canManage = state?.can_manage ?? false;
   const canShare = state?.can_share ?? false;
-  const canOfferWorkspace = state?.in_workspace || (canManage && !!documentId && ws.available);
-  const levels = LEVELS.filter((l) => l.id !== "workspace" || canOfferWorkspace);
-  const shownLevel: AccessLevel = wantWorkspace ? "workspace" : (state?.level ?? "link");
+  const shownLevel: AccessLevel = state?.level ?? "link";
+
+  // ── Location ──
+  const wsId = state ? (state.workspace_id ?? (state.in_workspace ? location?.workspaceId ?? null : null)) : location?.workspaceId ?? null;
+  const stateFolder = (state as (AccessState & { folder_id?: string | null }) | null)?.folder_id;
+  const folderId = stateFolder !== undefined ? stateFolder : folderHint;
+  const ws = workspaces?.find((w) => w.id === wsId) ?? null;
+  const { tree } = useWorkspaceTree(wsId);
+  const wsName = tree?.workspace.name ?? ws?.name ?? (wsId ? "the workspace" : null);
+  const wsRole = tree?.workspace.role ?? ws?.role;
+  const trailNames = tree ? ancestry(tree.folders, folderId).map((f) => f.name) : [];
+  const host = tree?.workspace.primary_host ?? ws?.primary_host ?? null;
+  const folderPath = tree ? ancestry(tree.folders, folderId).map((f) => f.slug) : [];
+  const memberOf = (workspaces ?? []).filter((w) => can(w.role, "member"));
+  const canMoveHere = !!wsId && can(wsRole, "member");
+  const canRemove = !!wsId && (canManage || can(wsRole, "admin"));
+  const canChangeLocation = canManage ? memberOf.length > 0 || !!wsId : canMoveHere;
+  const [locOpen, setLocOpen] = useState(!!startWithLocation);
+
+  const levels = levelOptions(wsId ? wsName : null, !!state?.is_password_protected);
 
   function chooseLevel(next: AccessLevel) {
     if (!state || next === shownLevel) return;
-    if (next === "workspace" && !state.in_workspace) { setWantWorkspace(true); return; }
-    setWantWorkspace(false);
-    run("level", () => setAccessLevel(slug, next), () => toast.success("Visibility updated."));
+    if (next === "workspace" && !wsId) return;
+    run("level", () => setAccessLevel(slug, next), () => toast.success("Who can open it is updated."));
   }
 
-  async function moveIntoWorkspace() {
-    if (!documentId || !wsTarget.workspaceId) return;
-    await run("workspace", async () => {
-      await shareToWorkspace(wsTarget.workspaceId!, documentId, wsTarget.folderId, slug);
-      await setAccessLevel(slug, "workspace");
-      setWantWorkspace(false);
-      toast.success("Shared with the workspace.");
+  async function saveLocation(next: { workspaceId: string | null; folderId: string | null }) {
+    const from = wsId;
+    await run("location", async () => {
+      const wasWorkspaceLevel = state?.level === "workspace";
+      if (!next.workspaceId) {
+        const r = await removeItems(from!, [slug]);
+        const after = r.find((x) => x.slug === slug)?.access_after;
+        toast.success(after === "private" ? `Removed from ${wsName}. It's private now.` : `Removed from ${wsName}.`);
+      } else if (from && next.workspaceId === from) {
+        await moveItems(from, [slug], next.folderId);
+        toast.success("Moved.");
+      } else {
+        if (from) await removeItems(from, [slug]);
+        // Moving between workspaces keeps "Everyone in the workspace" meaning the new one.
+        await addItems(next.workspaceId, [slug], next.folderId, wasWorkspaceLevel ? "workspace" : undefined);
+        const name = workspaces?.find((w) => w.id === next.workspaceId)?.name ?? "the workspace";
+        toast.success(`Added to ${name}.`);
+      }
+      setFolderHint(next.folderId);
+      if (from) workspaceChanged(from);
+      if (next.workspaceId && next.workspaceId !== from) workspaceChanged(next.workspaceId);
+      documentsChanged();
+      setLocOpen(false);
     });
   }
 
@@ -223,6 +287,23 @@ export default function ShareDialog({
                 link, including everything after the <span className="font-mono">#</span>.
               </Alert>
             )}
+
+            {/* ── Location (where it's filed; separate from who can open it) ── */}
+            <LocationRow
+              wsId={wsId}
+              wsName={wsName}
+              trail={trailNames}
+              folderId={folderId ?? null}
+              canChange={canChangeLocation}
+              canRemove={canRemove}
+              isOwner={canManage}
+              workspaces={canManage ? memberOf : ws ? [ws] : []}
+              open={locOpen}
+              onOpenChange={setLocOpen}
+              busy={busy === "location"}
+              onSave={(next) => void saveLocation(next)}
+              level={shownLevel}
+            />
 
             {/* ── People ─────────────────────────────────────────────── */}
             {canShare && (
@@ -341,9 +422,9 @@ export default function ShareDialog({
               )}
             </div>
 
-            {/* ── General access ─────────────────────────────────────── */}
+            {/* ── Who can open it ────────────────────────────────────── */}
             <div className="flex flex-col gap-2">
-              <p id="md-share-general" className="text-eyebrow text-text-muted">General access</p>
+              <p id="md-share-general" className="text-eyebrow text-text-muted">Who can open it</p>
               <div aria-busy={busy === "level" || undefined}>
                 <RadioGroup
                   name="md-share-level"
@@ -354,65 +435,155 @@ export default function ShareDialog({
                     value: l.id,
                     label: l.label,
                     description: l.hint,
-                    disabled: !canManage || busy === "level",
+                    disabled: !canManage || busy === "level" || (l.id === "workspace" && !wsId),
                   }))}
                 />
               </div>
               {busy === "level" && <p className="text-caption text-text-muted" role="status">Updating…</p>}
-
-              {wantWorkspace && canManage && !state.in_workspace && (
-                <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface-inset p-3">
-                  <p className="text-caption text-text-secondary">Put this document in a workspace first:</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Select
-                      aria-label="Workspace"
-                      value={wsTarget.workspaceId ?? ""}
-                      onChange={(e) => setWsTarget({ workspaceId: e.target.value || null, folderId: null })}
-                      className="min-w-0 flex-1"
-                    >
-                      <option value="">Choose a workspace…</option>
-                      {ws.workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </Select>
-                    {wsTarget.workspaceId && ws.folders.length > 0 && (
-                      <Select
-                        aria-label="Folder"
-                        value={wsTarget.folderId ?? ""}
-                        onChange={(e) => setWsTarget({ ...wsTarget, folderId: e.target.value || null })}
-                        className="min-w-0 flex-1"
-                      >
-                        <option value="">No folder</option>
-                        {ws.folders.map((f) => (
-                          <option key={f.id} value={f.id}>{f.path.join(" / ") || f.name}</option>
-                        ))}
-                      </Select>
-                    )}
-                  </div>
-                  {wsTarget.workspaceId && (
-                    <p className="text-caption text-text-secondary">
-                      Everyone in {ws.workspace?.name} will be able to read it; members and admins can edit it.
-                    </p>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" onClick={moveIntoWorkspace} loading={busy === "workspace"} disabled={!wsTarget.workspaceId}>
-                      Add and share
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setWantWorkspace(false)}>Cancel</Button>
-                  </div>
-                </div>
-              )}
-
-              {state.is_password_protected && (
-                <p className="flex items-center gap-1.5 text-caption text-text-secondary">
-                  <Icon name="lock" aria-hidden /> A password is also set, so readers are asked for it either way.
+              {canManage && (
+                <p className="text-caption text-text-muted">
+                  One setting for every address it has: <span className="font-mono">markdrop.in/{slug}</span>
+                  {host && wsId ? <> and <span className="font-mono [overflow-wrap:anywhere]">{[host, ...folderPath, slug].join("/")}</span></> : null}.
                 </p>
               )}
               {!canManage && (
-                <p className="text-caption text-text-muted">Only the owner can change who this is visible to.</p>
+                <p className="text-caption text-text-muted">Only the owner can change who can open it.</p>
               )}
             </div>
           </>
         )}
       </div>
     </Dialog>
+  );
+}
+
+/**
+ * "In Acme › Guides · Change · Remove from workspace" (P4). Filing is about where it lives and its
+ * address on the workspace's domain; it never decides who can open it, which is the next block.
+ */
+function LocationRow({
+  wsId, wsName, trail, folderId, canChange, canRemove, isOwner, workspaces, open, onOpenChange, busy, onSave, level,
+}: {
+  wsId: string | null;
+  wsName: string | null;
+  trail: string[];
+  folderId: string | null;
+  canChange: boolean;
+  canRemove: boolean;
+  isOwner: boolean;
+  /** Where it may go: an owner's member+ workspaces; anyone else only the current one. */
+  workspaces: Workspace[];
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  busy: boolean;
+  onSave: (next: { workspaceId: string | null; folderId: string | null }) => void;
+  level: AccessLevel;
+}) {
+  const [draftWs, setDraftWs] = useState<string | null>(wsId);
+  const [draftFolder, setDraftFolder] = useState<string | null>(folderId);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  useEffect(() => {
+    if (open) { setDraftWs(wsId ?? workspaces[0]?.id ?? null); setDraftFolder(folderId); }
+  }, [open, wsId, folderId, workspaces]);
+  const { tree } = useWorkspaceTree(open ? draftWs : null);
+
+  const folderOptions = useMemo(() => {
+    if (!tree) return [];
+    const kids = childrenMap(tree.folders);
+    const out: Array<{ value: string; label: string }> = [];
+    const walk = (p: string | null, prefix: string[]) => {
+      for (const f of kids.get(p) ?? []) {
+        const names = [...prefix, f.name];
+        out.push({ value: f.id, label: names.join(" › ") });
+        walk(f.id, names);
+      }
+    };
+    walk(null, []);
+    return out;
+  }, [tree]);
+
+  const where = wsId ? [wsName ?? "Workspace", ...trail].join(" › ") : null;
+  const unchanged = draftWs === wsId && (draftFolder ?? null) === (folderId ?? null);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-eyebrow text-text-muted">Location</p>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-surface-inset px-3 py-2">
+        <Icon name={wsId ? "folder" : "user"} size={16} className="shrink-0 text-text-muted" />
+        <span className="min-w-0 flex-1 text-body text-text">
+          {where ? (
+            <>In <span className="font-medium [overflow-wrap:anywhere]" dir="auto">{where}</span></>
+          ) : (
+            <span className="text-text-secondary">Personal: not in a workspace</span>
+          )}
+        </span>
+        {!open && (
+          <span className="flex shrink-0 items-center gap-1">
+            {canChange && (
+              <Button size="sm" variant="ghost" onClick={() => onOpenChange(true)}>
+                {wsId ? "Change" : "Add to a workspace"}
+              </Button>
+            )}
+            {canRemove && wsId && (
+              <Button size="sm" variant="ghost" className="text-danger" onClick={() => setConfirmRemove(true)} aria-label={`Remove from ${wsName ?? "the workspace"}`}>
+                Remove
+              </Button>
+            )}
+          </span>
+        )}
+      </div>
+
+      {confirmRemove && !open && (
+        <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3" role="group" aria-label="Remove from workspace">
+          <p className="text-caption text-text-secondary">
+            It leaves {wsName} and goes back to its owner.{level === "workspace" ? ` It's open to everyone in ${wsName} now, so it becomes private.` : " Who can open it doesn't change."}
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="danger" loading={busy} onClick={() => { setConfirmRemove(false); onSave({ workspaceId: null, folderId: null }); }}>Remove</Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirmRemove(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {open && (
+        <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-surface p-3">
+          <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+            <Select
+              aria-label="Workspace"
+              value={draftWs ?? ""}
+              disabled={!isOwner}
+              onChange={(e) => { setDraftWs(e.target.value || null); setDraftFolder(null); }}
+              className="min-w-0"
+            >
+              {isOwner && <option value="">Personal (no workspace)</option>}
+              {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </Select>
+            {draftWs && (
+              <Select
+                aria-label="Folder"
+                value={draftFolder ?? ""}
+                onChange={(e) => setDraftFolder(e.target.value || null)}
+                className="min-w-0"
+                disabled={!tree}
+              >
+                <option value="">Top level</option>
+                {folderOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </Select>
+            )}
+          </div>
+          <p className="text-caption text-text-muted">
+            {draftWs
+              ? "Who can open it stays as set below. On the workspace's domain, its address follows the folder."
+              : level === "workspace" ? "It becomes private: only you and the people you named." : "It goes back to your personal documents. Who can open it doesn't change."}
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" loading={busy} disabled={unchanged} onClick={() => onSave({ workspaceId: draftWs, folderId: draftWs ? draftFolder : null })}>
+              Save location
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

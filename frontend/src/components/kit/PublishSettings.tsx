@@ -13,10 +13,12 @@
  * - "sheet" (the phone's "Publish settings" sheet): single column, 44px targets. Use
  *   `PublishSettingsSheet` for the sheet itself.
  *
- * Rules kept from the old PublishBar: signed out, "Who can open it" is a static fact with the
- * tooltip "No sign-in needed. This is how Markdrop links have always worked."; "Only me" can't be
- * combined with a workspace (each is disabled with its reason while the other is chosen); folder
- * ids belong to a workspace, so switching workspace clears the folder.
+ * Rules: signed out, "Who can open it" is a static fact with the tooltip "No sign-in needed. This
+ * is how Markdrop links have always worked."; Location (workspace + folder) and Who can open it
+ * are independent (P4): any Location goes with Only me or Anyone with the link, and "Everyone in
+ * <workspace>" needs a workspace Location (clearing the workspace turns it into Only me, never
+ * public). Picking a workspace applies its default access. Folder ids belong to a workspace, so
+ * switching workspace clears the folder.
  */
 import React, { useId, useRef, useState } from "react";
 import { Alert, Badge, Drawer, Field, Icon, IconButton, Input, Popover, Radio, Select, Switch, Tooltip } from "@/components/ui";
@@ -76,7 +78,7 @@ const PANEL_TITLE: Record<PublishField, string> = {
   password: "Password",
   expires: "Expires",
   slug: "Link",
-  target: "Where it publishes",
+  target: "Location",
 };
 const ACCESS_STATIC_TIP = "No sign-in needed. This is how Markdrop links have always worked.";
 const EXPIRY_OPTIONS = [
@@ -127,7 +129,7 @@ export function PublishSettings(props: PublishSettingsProps) {
   const noun = kind === "page" ? "page" : "document";
 
   const ctx: PanelCtx = {
-    value, set, layout, disabled, signedIn, accessLocked, e2eSupported, errors, workspaces, ws, folderPath, prefix, fullPrefix,
+    value, set, onChange, layout, disabled, signedIn, accessLocked, e2eSupported, errors, workspaces, ws, folderPath, prefix, fullPrefix,
     isClient, noun, slugMaxLength, passwordMaxLength, expiryBad,
   };
 
@@ -153,7 +155,13 @@ export function PublishSettings(props: PublishSettingsProps) {
   /* ── chips ── */
   const chipFor = (f: PublishField): { icon: string; label: string; value: React.ReactNode; valueText?: string; set: boolean; emphasis?: boolean; mono?: boolean } => {
     switch (f) {
-      case "access": return { icon: value.access === "private" ? "lock" : "globe", label: PANEL_TITLE.access, value: value.access === "private" ? "Only me" : "Anyone with the link", set: value.access === "private" };
+      case "access": {
+        const words = value.access === "private" ? "Only me" : value.access === "workspace" ? `Everyone in ${ws?.name ?? "the workspace"}` : "Anyone with the link";
+        return {
+          icon: value.access === "private" ? "lock" : value.access === "workspace" ? "users" : "globe", label: PANEL_TITLE.access,
+          value: <span className={s.chipTrunc}>{words}</span>, valueText: words, set: value.access !== "link",
+        };
+      }
       case "encrypt": return { icon: "key", label: PANEL_TITLE.encrypt, value: value.encrypt ? "Encrypted" : "Encrypt", set: value.encrypt, emphasis: value.encrypt };
       case "password": return { icon: "lock", label: PANEL_TITLE.password, value: value.password ? "Password set" : "No password", set: !!value.password };
       case "expires": return { icon: "clock", label: PANEL_TITLE.expires, value: expiryChipLabel(value.expires, isClient), set: value.expires !== "never" };
@@ -165,7 +173,7 @@ export function PublishSettings(props: PublishSettingsProps) {
           : { icon: "link", label: PANEL_TITLE.slug, value: "Random link", set: false };
       }
       case "target": {
-        const label = ws ? (folder ? `${ws.name} / ${folder.name}` : ws.name) : "Personal";
+        const label = ws ? (folder ? `${ws.name} › ${folder.label ?? folder.name}` : ws.name) : "Personal";
         return { icon: "folder", label: PANEL_TITLE.target, value: <span className={s.chipTrunc}>{label}</span>, valueText: label, set: !!ws };
       }
     }
@@ -222,6 +230,7 @@ export function PublishSettingsSheet({ open, onClose, footer, title = "Publish s
 interface PanelCtx {
   value: PublishSettingsValue;
   set: <K extends PublishField>(field: K, v: PublishSettingsValue[K]) => void;
+  onChange: (next: PublishSettingsValue, field: PublishField) => void;
   layout: PublishSettingsLayout;
   disabled?: boolean;
   signedIn: boolean;
@@ -273,11 +282,18 @@ function AccessPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean })
       </div>
     );
   }
+  const showWorkspace = ctx.workspaces.length > 0 && ctx.signedIn;
   const options: Array<{ value: PublishAccess; label: string; description: string; reason?: string }> = [
     { value: "link", label: "Anyone with the link", description: ACCESS_STATIC_TIP },
+    ...(showWorkspace ? [{
+      value: "workspace" as PublishAccess,
+      label: ws ? `Everyone in ${ws.name}` : "Everyone in a workspace",
+      description: ws ? `Members of ${ws.name} sign in to open it. Nobody else can, link or not.` : "",
+      reason: ws ? undefined : "Choose a workspace under Location first.",
+    }] : []),
     {
-      value: "private", label: "Only me", description: "Nobody else can open it. You can add people once it's published.",
-      reason: ws ? `Not with a workspace: everyone in ${ws.name} can read what's published there. Choose Personal to keep it to yourself.` : undefined,
+      value: "private", label: "Only me",
+      description: ws ? `Filed in ${ws.name}, but only you can open it. You can add people once it's published.` : "Nobody else can open it. You can add people once it's published.",
     },
   ];
   return (
@@ -295,7 +311,7 @@ function AccessPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean })
           );
         })}
       </div>
-      <p className={s.caption}>Naming specific people, and workspace-only access, are set from Share once the {ctx.noun} exists.</p>
+      <p className={s.caption}>You can name specific people from Share once the {ctx.noun} exists.</p>
     </div>
   );
 }
@@ -397,34 +413,44 @@ function LinkPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }) {
 }
 
 function TargetPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }) {
-  const { value, set, disabled, errors, workspaces, ws, fullPrefix, prefix } = ctx;
-  const privateChosen = value.access === "private";
+  const { value, onChange, disabled, errors, workspaces, ws, fullPrefix, prefix } = ctx;
   const wsOptions = [
     { value: "", label: "Personal (not in a workspace)" },
-    ...workspaces.map((w) => ({ value: w.id, label: w.name, disabled: privateChosen && w.id !== value.target.workspaceId })),
+    ...workspaces.map((w) => ({ value: w.id, label: w.name })),
   ];
   const folders = ws?.folders ?? [];
   const slug = value.slug.trim();
+  const accessWords = value.access === "private" ? "only you" : value.access === "workspace" ? `everyone in ${ws?.name ?? "the workspace"}` : "anyone with the link";
+
+  function pickWorkspace(id: string | null) {
+    const next = workspaces.find((w) => w.id === id) ?? null;
+    let access = value.access;
+    // "Everyone in the workspace" means nothing without one: fall back to the safe end.
+    if (!next && access === "workspace") access = "private";
+    // Moving from Personal into a workspace applies that workspace's default.
+    if (next && !value.target.workspaceId && next.defaultAccess) access = next.defaultAccess;
+    // Folder ids belong to one workspace, so a switch clears the folder.
+    onChange({ ...value, access, target: { workspaceId: next?.id ?? null, folderId: null } }, "target");
+  }
+
   return (
     <div className={s.block}>
-      <Field label={labelFor("target", inPopover)} error={errors.target}
-        hint={privateChosen ? "Only me documents stay personal. Choose “Anyone with the link” to publish into a workspace." : undefined}>
+      <Field label={labelFor("target", inPopover)} error={errors.target}>
         <Select options={wsOptions} value={value.target.workspaceId ?? ""} disabled={disabled}
-          // Folder ids belong to one workspace, so a switch clears the folder.
-          onChange={(e) => set("target", { workspaceId: e.target.value || null, folderId: null })} />
+          onChange={(e) => pickWorkspace(e.target.value || null)} />
       </Field>
-      {ws && folders.length > 0 && (
+      {ws && (
         <Field label="Folder">
-          <Select value={value.target.folderId ?? ""} disabled={disabled}
-            options={[{ value: "", label: "No folder" }, ...folders.map((f) => ({ value: f.id, label: (f.path?.length ? f.path.join(" / ") : f.name) }))]}
-            onChange={(e) => set("target", { workspaceId: value.target.workspaceId, folderId: e.target.value || null })} />
+          <Select value={value.target.folderId ?? ""} disabled={disabled || !ws.folders}
+            options={[{ value: "", label: "Top level" }, ...folders.map((f) => ({ value: f.id, label: f.label ?? (f.path?.length ? f.path.join(" / ") : f.name) }))]}
+            onChange={(e) => onChange({ ...value, target: { workspaceId: value.target.workspaceId, folderId: e.target.value || null } }, "target")} />
         </Field>
       )}
       <div className={s.preview}>
         <span className={s.previewLabel}>Will publish to</span>
         <span className={s.previewUrl}>{ws ? fullPrefix : prefix}{slug || <span className={s.previewRandom}>a short random link</span>}</span>
       </div>
-      {ws && <Alert tone="info">Everyone in {ws.name} can read it; members and admins can edit it.</Alert>}
+      {ws && <p className={s.caption}>Where it&apos;s filed and its address. Who can open it is separate: right now, {accessWords}.</p>}
     </div>
   );
 }

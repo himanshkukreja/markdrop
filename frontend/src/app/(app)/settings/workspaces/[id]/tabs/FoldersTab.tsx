@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import {
-  Button, ConfirmDialog, Dialog, EmptyState, Field, Icon, Input, RowMenu, Select, Skeleton, Tag,
+  Anchor, Button, ConfirmDialog, Dialog, EmptyState, Field, Icon, Input, RowMenu, Select, Skeleton, Tag,
   useToast, type MenuItem,
 } from "@/components/ui";
 import { createFolder, deleteFolder, renameFolder, type Folder } from "@/lib/workspaces";
+import { workspaceChanged } from "@/lib/workspaceStore";
 import { plural } from "../../../settings-shared";
 import { Locked, MAX_FOLDER_DEPTH, SectionHead, folderSlug, lockProps, type WsTabProps } from "../ws-shared";
 
@@ -73,6 +74,7 @@ export default function FoldersTab({ id, isAdmin, isMember, host, folders, folde
         toast.success(parent ? "Subfolder created." : "Folder created.");
       }
       await refresh("folders", "folderCounts");
+      workspaceChanged(id);
       setDialog(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save the folder. Try again.");
@@ -142,7 +144,7 @@ export default function FoldersTab({ id, isAdmin, isMember, host, folders, folde
                 >
                   <Icon name="folder" className="shrink-0 text-text-muted" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-body-strong text-text" dir="auto">{f.name}</p>
+                    <Anchor href={`/w/${encodeURIComponent(id)}/f/${encodeURIComponent(f.id)}`} className="md-focus block truncate rounded-sm text-body-strong text-text no-underline hover:underline hover:underline-offset-3" dir="auto">{f.name}</Anchor>
                     <p className="truncate font-mono text-micro text-text-muted">/{f.path.join("/")}</p>
                   </div>
                   {folderCounts && (
@@ -229,6 +231,7 @@ export default function FoldersTab({ id, isAdmin, isMember, host, folders, folde
           const r = await deleteFolder(id, f.id);
           setDeleting(null);
           await refresh("folders", "folderCounts");
+          workspaceChanged(id);
           toast.success(r?.unfiled_documents ? `Folder deleted. ${plural(r.unfiled_documents, "document")} moved to Unfiled.` : "Folder deleted.");
         }}
       />

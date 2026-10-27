@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { PublishWorkspace } from "@/components/kit/publish-utils";
 import { can, listFolders, listWorkspaces, type Folder, type Workspace } from "@/lib/workspaces";
 
 export interface PublishTargetValue {
@@ -49,8 +50,32 @@ export function useWorkspaceTargets(value: PublishTargetValue) {
   const workspace = workspaces?.find((w) => w.id === value.workspaceId) ?? null;
   const folder = folders.find((f) => f.id === value.folderId) ?? null;
 
+  // What PublishSettings takes: hosts, default access, and folders labelled by their names from
+  // the root ("Guides › Onboarding"), depth-first, so two "Drafts" folders can be told apart.
+  const publishWorkspaces = useMemo<PublishWorkspace[]>(() => {
+    const byId = new Map(folders.map((f) => [f.id, f]));
+    const names = (f: Folder) => {
+      const out: string[] = [];
+      let cur: Folder | undefined = f;
+      let guard = 0;
+      while (cur && guard++ < 16) { out.unshift(cur.name); cur = cur.parent_id ? byId.get(cur.parent_id) : undefined; }
+      return out;
+    };
+    const labelled = folders
+      .map((f) => ({ id: f.id, name: f.name, path: f.path, label: names(f).join(" › ") }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    return (workspaces ?? []).map((w) => ({
+      id: w.id,
+      name: w.name,
+      host: w.primary_host ?? null,
+      defaultAccess: w.default_access ?? null,
+      folders: w.id === value.workspaceId ? labelled : undefined,
+    }));
+  }, [workspaces, folders, value.workspaceId]);
+
   return {
     workspaces: workspaces ?? [],
+    publishWorkspaces,
     folders,
     workspace,
     folder,
@@ -61,4 +86,28 @@ export function useWorkspaceTargets(value: PublishTargetValue) {
       ? `${workspace.primary_host ?? "markdrop.in"}/${[...(folder?.path ?? []), "…"].join("/")}`
       : null,
   };
+}
+
+/**
+ * "New document here" / "Upload here" (`/new?ws=&folder=`, `/upload?ws=&folder=`): start in that
+ * workspace folder, with the workspace's default access, once the workspace list has loaded. Runs
+ * once; a workspace the person can't publish into is ignored rather than half-applied.
+ */
+export function usePrefilledTarget(
+  ready: boolean,
+  wsId: string | null,
+  folderId: string | null,
+  workspaces: Workspace[],
+  apply: (target: PublishTargetValue, defaultAccess: "private" | "link" | "workspace" | null) => void,
+) {
+  const done = useRef(false);
+  const applyRef = useRef(apply);
+  applyRef.current = apply;
+  useEffect(() => {
+    if (!ready || done.current || !wsId) return;
+    const w = workspaces.find((x) => x.id === wsId);
+    if (!w) return;
+    done.current = true;
+    applyRef.current({ workspaceId: w.id, folderId: folderId || null }, w.default_access ?? null);
+  }, [ready, wsId, folderId, workspaces]);
 }

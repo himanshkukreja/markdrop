@@ -24,10 +24,13 @@ export default function DnsInstructions({
   workspaceId,
   domain,
   siteName,
+  settled = false,
 }: {
   workspaceId: string;
   domain: Domain;
   siteName?: string;
+  /** The domain is verified: the records stay on show (they must stay in place), framed as a reference. */
+  settled?: boolean;
 }) {
   const [hint, setHint] = useState<DnsProviderHint | null>(null);
 
@@ -48,7 +51,9 @@ export default function DnsInstructions({
   return (
     <div className="flex min-w-0 flex-col gap-3 border-t border-border pt-4">
       <p className="text-body text-text-secondary">
-        Add these two records where your DNS lives, then check. Nothing changes for readers until both are in place.
+        {settled
+          ? "Keep both records in place. Markdrop re-checks them daily; a domain whose records are gone for three days stops serving."
+          : "Add these two records where your DNS lives, then check. Nothing changes for readers until both are in place."}
       </p>
 
       {hint?.detected && (
@@ -75,6 +80,7 @@ export default function DnsInstructions({
           name={recordHost}
           value={domain.dns_record_value}
           nameLabel={hostLabel}
+          found={domain.txt_ok}
         />
         <RecordBlock
           label="Routing record"
@@ -83,6 +89,7 @@ export default function DnsInstructions({
           name={targetHost}
           value={domain.dns_target_value}
           nameLabel={hostLabel}
+          found={domain.routing_ok}
         />
       </div>
 
