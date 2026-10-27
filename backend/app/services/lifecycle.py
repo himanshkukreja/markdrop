@@ -160,6 +160,56 @@ async def release_from_workspace(db: AsyncIOMotorDatabase, raw: dict, workspace_
     return after
 
 
+async def release_db_first(db: AsyncIOMotorDatabase, raw: dict, workspace_id: str, *,
+                           require_auth: bool) -> dict | None:
+    """D2 conversion that cannot be blocked by storage (W3, dangling refs — C1).
+
+    One CAS on ``{_id, workspace_id: W}`` writes the *safe* state first: out of
+    the workspace, level converted so leaving never widens, ``access_dirty``
+    set and — when the audience shrinks — the access epoch bumped (signed links
+    and read tickets die with it). Only then are the bytes re-derived; a
+    storage failure leaves the row dirty for the reconciler, and the bytes can
+    only be *more* closed than the row says (they were guarded inside the
+    workspace, or the level didn't change). Returns the row after, or None when
+    the document was no longer in ``workspace_id``."""
+    from pymongo import ReturnDocument
+
+    level = level_after_leaving(raw, require_auth)
+    current = raw.get("access_level") or "link"
+    narrows = level != current
+    update: dict = {"$set": {"workspace_id": None, "folder_id": None, "folder_path": [],
+                             "access_level": level, "access_dirty": True, "updated_at": _now()}}
+    if narrows:
+        update["$inc"] = {"access_epoch": 1}
+    after = await db["documents"].find_one_and_update(
+        {"_id": raw["_id"], "workspace_id": workspace_id}, update,
+        return_document=ReturnDocument.AFTER)
+    if after is None:
+        return None
+    await db["document_grants"].delete_many({"document_id": str(raw["_id"]), "granted_via": workspace_id})
+    try:
+        await revalidate.purge_doc(db, after, extra_slugs=raw.get("old_slugs") or [])
+        await revalidate.enqueue(db, tags=[f"wsl:{workspace_id}"])
+    except Exception:  # pragma: no cover - the outbox write itself failed
+        log.warning("purge after releasing %s failed", raw.get("slug"), exc_info=True)
+    live.access_changed(raw.get("slug"))
+    if publicity._has_bytes(after):
+        public = publicity.is_public(after, require_auth=False)
+        if await publicity.apply(after, public, epoch=publicity.epoch_of(after)):
+            await db["documents"].update_one(
+                {"_id": after["_id"], "access_epoch": after.get("access_epoch"),
+                 "workspace_id": None, "access_level": level},
+                {"$set": {"access_dirty": False}})
+        else:
+            log.warning("re-deriving the bytes of %s after leaving %s failed; left dirty",
+                        raw.get("slug"), workspace_id)
+    else:
+        await db["documents"].update_one(
+            {"_id": after["_id"], "access_epoch": after.get("access_epoch"), "workspace_id": None},
+            {"$set": {"access_dirty": False}})
+    return after
+
+
 # ── Workspace-wide (W1, W2, W3) ───────────────────────────────────────────────
 
 
@@ -201,18 +251,25 @@ async def _host_tags(db: AsyncIOMotorDatabase, workspace_id: str) -> list[str]:
 
 
 async def release_workspace_documents(db: AsyncIOMotorDatabase, workspace_id: str,
-                                      require_auth: bool) -> int:
-    """W3 for the documents: each one released with the D2 conversion."""
+                                      require_auth: bool, *, passes: int = 3) -> tuple[int, int]:
+    """W3 for the documents: each one released with the D2 conversion, the
+    database first (``release_db_first``) so a storage hiccup can never leave
+    a document filed in a workspace that is about to disappear (C1). Repeats
+    while documents keep arriving. Returns (released, still filed)."""
     n = 0
-    rows = await db["documents"].find({"workspace_id": workspace_id}).to_list(length=20_000)
-    for raw in rows:
-        try:
-            await release_from_workspace(db, raw, workspace_id, require_auth=require_auth)
-            n += 1
-        except HTTPException:
-            log.warning("releasing %s from %s failed", raw.get("slug"), workspace_id, exc_info=True)
+    for _ in range(max(1, passes)):
+        rows = await db["documents"].find({"workspace_id": workspace_id}).to_list(length=20_000)
+        if not rows:
+            break
+        for raw in rows:
+            try:
+                if await release_db_first(db, raw, workspace_id, require_auth=require_auth) is not None:
+                    n += 1
+            except Exception:
+                log.warning("releasing %s from %s failed", raw.get("slug"), workspace_id, exc_info=True)
     await db["document_grants"].delete_many({"granted_via": workspace_id})
-    return n
+    remaining = await db["documents"].count_documents({"workspace_id": workspace_id})
+    return n, remaining
 
 
 # ── Membership (M1, M2) ───────────────────────────────────────────────────────
@@ -267,9 +324,10 @@ async def reconcile_document(db: AsyncIOMotorDatabase, raw: dict) -> bool:
         except Exception:
             exists = None
         if exists is None:
-            # Dangling: released as if unshared from a workspace whose
-            # require_auth is unknown (W ⇒ private; a link doc keeps link).
-            await release_from_workspace(db, raw, ws_id, require_auth=False)
+            # Dangling: released from a workspace whose require_auth is
+            # unknown — and unknown never means open (C1, I8): W ⇒ private,
+            # link ⇒ private. Database first; the bytes follow.
+            await release_db_first(db, raw, ws_id, require_auth=True)
             raw = await db["documents"].find_one({"_id": raw["_id"]}) or raw
     if publicity.is_expired(raw):
         await destroy(db, raw, reason="expiry")
@@ -331,7 +389,9 @@ async def reconcile_once(db: AsyncIOMotorDatabase, *, limit: int = 200, full: bo
 async def migrate(db: AsyncIOMotorDatabase) -> dict:
     """1. filed docs with no stored ``allow_resharing`` ⇒ false;
     2. ``workspace`` level with no (or a dangling) workspace ⇒ private;
-    3. dangling workspace refs released (link docs keep link)."""
+    3. dangling workspace refs released: whether that workspace required
+       sign-in is unknown, so ``link`` ⇒ ``private`` too (C1 — never assume a
+       deleted workspace was open); epoch bumped, left dirty for the bytes."""
     out = {}
     res = await db["documents"].update_many(
         {"workspace_id": {"$ne": None}, "allow_resharing": {"$exists": False}},
@@ -349,8 +409,8 @@ async def migrate(db: AsyncIOMotorDatabase) -> dict:
             exists = None
         if exists is None:
             res = await db["documents"].update_many(
-                {"workspace_id": ws_id, "access_level": "workspace"},
-                {"$set": {"access_level": "private"}})
+                {"workspace_id": ws_id, "access_level": {"$in": ["workspace", "link", None]}},
+                {"$set": {"access_level": "private"}, "$inc": {"access_epoch": 1}})
             res2 = await db["documents"].update_many(
                 {"workspace_id": ws_id},
                 {"$set": {"workspace_id": None, "folder_id": None, "folder_path": [],

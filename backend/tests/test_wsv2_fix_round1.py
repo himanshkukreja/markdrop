@@ -18,6 +18,73 @@ def now():
     return datetime.now(timezone.utc)
 
 
+# ── HIGH ──────────────────────────────────────────────────────────────────────
+
+
+class C1WorkspaceDeleteNeverWidens(AccessWorld):
+    """Deleting a sign-in workspace while R2 fails must not leave its link
+    documents filed in a deleted workspace (readable by anyone, then published
+    by the reconciler)."""
+
+    async def _delete(self, key: str, name: str):
+        return await self.http.request("DELETE", f"/api/v1/workspaces/{self.ws[key]}",
+                                       json={"confirm_name": name}, headers=self.session("wo"))
+
+    async def test_c1_r2_failure_during_delete_keeps_docs_private(self):
+        a = await self.mkdoc("RL", kind="artifact")
+        m = await self.mkdoc("RL")
+        self.r2.fail_set_public = True
+        r = await self._delete("WR", "Acme Private")
+        self.assertEqual(r.status_code, 200, r.text)
+        self.r2.fail_set_public = False
+        for d in (a, m):
+            row = await self.doc(d["slug"])
+            self.assertIsNone(row.get("workspace_id"))
+            self.assertEqual(row["access_level"], "private")
+            self.assertEqual((await self.get(d["slug"])).status_code, 401)
+            self.assertEqual((await self.get(d["slug"], self.session("stranger"))).status_code, 404)
+        self.assertTrue((await self.doc(a["slug"])).get("access_dirty"))
+        await lifecycle.reconcile_once(self.db, full=True)
+        row = await self.doc(a["slug"])
+        self.assertEqual(row["access_level"], "private")
+        self.assertFalse(self.r2.objects[a["blob_key"]]["public"])
+        self.assertEqual((await self.get(a["slug"])).status_code, 401)
+
+    async def test_c1_workspace_row_kept_while_a_doc_is_still_filed(self):
+        d = await self.mkdoc("RL")
+
+        async def stuck(db, raw, workspace_id, *, require_auth):
+            return None  # the release never lands
+
+        with mock.patch.object(lifecycle, "release_db_first", stuck):
+            r = await self._delete("WR", "Acme Private")
+        self.assertEqual(r.status_code, 409, r.text)
+        self.assertIsNotNone(await self.db["workspaces"].find_one({"_id": ObjectId(self.ws["WR"])}))
+        self.assertEqual((await self.doc(d["slug"]))["workspace_id"], self.ws["WR"])
+
+    async def test_c1_dangling_link_doc_reads_private_and_is_released_private(self):
+        d = await self.mkdoc("RL", kind="artifact")
+        await self.db["workspaces"].delete_one({"_id": ObjectId(self.ws["WR"])})
+        self.assertEqual((await self.get(d["slug"])).status_code, 401)
+        self.assertEqual((await self.get(d["slug"], self.session("stranger"))).status_code, 404)
+        self.assertEqual((await self.get(d["slug"], self.session("owner"))).status_code, 200)
+        self.assertTrue(await publicity.workspace_requires_auth(self.db, self.ws["WR"]))
+        await lifecycle.reconcile_once(self.db, full=True)
+        row = await self.doc(d["slug"])
+        self.assertIsNone(row.get("workspace_id"))
+        self.assertEqual(row["access_level"], "private")
+        self.assertFalse(self.r2.objects[d["blob_key"]]["public"])
+
+    async def test_c1_migration_releases_dangling_link_docs_as_private(self):
+        d = await self.mkdoc("L")
+        await self.db["workspaces"].delete_one({"_id": ObjectId(self.ws["W1"])})
+        await lifecycle.migrate(self.db)
+        row = await self.doc(d["slug"])
+        self.assertIsNone(row.get("workspace_id"))
+        self.assertEqual(row["access_level"], "private")
+        self.assertTrue(row.get("access_dirty"))
+
+
 # ── LOW ───────────────────────────────────────────────────────────────────────
 
 

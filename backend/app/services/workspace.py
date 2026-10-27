@@ -303,22 +303,30 @@ async def delete_workspace(
         )
 
     from app.services import domain as domain_service
+    from app.services import lifecycle, revalidate
+
+    # W3: every document is released with the D2 conversion (workspace-only
+    # ⇒ private; link documents of a sign-in workspace ⇒ private), grants made
+    # through the workspace die, caches are purged. First, and database
+    # first: the workspace row must never disappear while a document still
+    # points at it, or nothing would remember that it required sign-in (C1).
+    released, remaining = await lifecycle.release_workspace_documents(
+        db, workspace_id, workspace.settings.require_auth_to_view)
+    if remaining:
+        raise HTTPException(
+            status_code=409,
+            detail="Some documents couldn't be taken out of this workspace yet. Nothing was "
+                   "deleted — try again.",
+        )
 
     domains = await db["domains"].find({"workspace_id": workspace_id}).to_list(length=200)
     for d in domains:
         if d.get("attached"):
             await domain_service.detach_from_hosting(d["host"])
-
-    # W3: every document is released with the D2 conversion (workspace-only
-    # ⇒ private; link documents of a sign-in workspace ⇒ private), grants made
-    # through the workspace die, caches and host tags are purged.
-    from app.services import lifecycle, revalidate
-
     host_tags = [f"host:{d['host']}" for d in domains if d.get("host")]
-    released = await lifecycle.release_workspace_documents(
-        db, workspace_id, workspace.settings.require_auth_to_view)
     await revalidate.enqueue(db, tags=[f"wsl:{workspace_id}", *host_tags])
     await db["domains"].delete_many({"workspace_id": workspace_id})
+    await domain_service.forget_hosts(db, [d.get("host") for d in domains])
     await db["folders"].delete_many({"workspace_id": workspace_id})
     await db["invitations"].delete_many({"workspace_id": workspace_id})
     members = await db["memberships"].delete_many({"workspace_id": workspace_id})

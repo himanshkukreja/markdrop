@@ -275,6 +275,12 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
     ws_id = doc.get("workspace_id") or None
     ws = await ctx.workspace(ws_id) if ws_id else None
     if ws is None:
+        if ws_id and level == "link":
+            # Dangling: its workspace is gone and whether it required sign-in
+            # is unknown. Never assume it didn't (I8): until the reconciler
+            # releases it (link ⇒ private), it reads as private — owner,
+            # grantees and the edit secret only (C1).
+            level = "private"
         ws_id = None  # dangling ⇒ unfiled
     uid = actor.user_id
     is_owner = bool(uid) and doc.get("owner_id") == uid

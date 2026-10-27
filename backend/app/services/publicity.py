@@ -75,13 +75,18 @@ def is_public(doc: Any, *, require_auth: bool, now: datetime | None = None) -> b
 
 
 async def workspace_requires_auth(db: AsyncIOMotorDatabase, workspace_id: str | None) -> bool:
-    """A dangling or absent workspace requires nothing (it is treated as unfiled)."""
+    """No workspace requires nothing. A *dangling* one (the row is gone) is
+    unknown, and unknown is treated as "requires sign-in": bytes stay guarded
+    and a link document leaving it becomes private (C1, I8). Never assume a
+    deleted workspace was open."""
     if not workspace_id:
         return False
     from app.services import workspace as ws_service
 
     ws = await ws_service.get_workspace(db, workspace_id)
-    return bool(ws is not None and ws.settings.require_auth_to_view)
+    if ws is None:
+        return True
+    return bool(ws.settings.require_auth_to_view)
 
 
 async def doc_is_public(db: AsyncIOMotorDatabase, doc: Any) -> bool:
