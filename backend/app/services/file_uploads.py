@@ -201,9 +201,10 @@ async def _require_free_slug(db: AsyncIOMotorDatabase, slug: str, user_id: str) 
         raise HTTPException(status_code=409, detail=f"The address {slug} is already taken. Choose another.")
 
 
-async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
+async def create(db: AsyncIOMotorDatabase, user, data, *, scope: str | None = None) -> dict:
     """Validate everything that can be validated before a byte moves, then
-    open the R2 multipart upload and presign its parts."""
+    open the R2 multipart upload and presign its parts. ``scope``: the
+    workspace of the custom domain the target was named by (C10)."""
     sha = data.sha256.lower()
     mime = art_service.normalize_mime(data.content_type, data.file_name)
     if not mime:
@@ -235,7 +236,7 @@ async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
                 detail=("access, password, workspace, folder and slug apply to new uploads only; a "
                         "replaced file keeps its link and settings (change them with set_access)."),
             )
-        target = await editable_artifact(db, user, data.target_slug, action="replace")
+        target = await editable_artifact(db, user, data.target_slug, action="replace", scope=scope)
         require_single_blob(target)
     else:
         access = data.access or ("workspace" if data.workspace else ("password" if data.password else "link"))

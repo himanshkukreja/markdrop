@@ -812,3 +812,36 @@ class C9CreateFolderUnderTheLock(AccessWorld):
         z = await self.db["folders"].find_one({"name": "Z"})
         if z is not None:
             self.assertLessEqual(await orig(self.db, W, str(z["_id"])), folder_service.MAX_DEPTH)
+
+
+class C10C11McpScopeAndOracle(AccessWorld):
+    async def call(self, who: str, tool: str, args: dict) -> dict:
+        return (await self.mcp_call(await self.mcp_token(who), tool, args))[1]
+
+    async def test_c10_remove_from_workspace_honours_the_host_scope(self):
+        d = await self.mkdoc("L")  # filed in W1
+        res = await self.call("wa", "remove_from_workspace", {"document": f"https://{HOSTS['W2']}/{d['slug']}"})
+        self.assertTrue(res.get("isError"), res)
+        self.assertEqual((await self.doc(d["slug"]))["workspace_id"], self.ws["W1"])
+        res = await self.call("wa", "remove_from_workspace", {"document": f"https://{HOSTS['W1']}/{d['slug']}"})
+        self.assertFalse(res.get("isError"), res)
+
+    async def test_c10_create_upload_target_honours_the_host_scope(self):
+        a = await self.mkdoc("W", kind="artifact", owner="wm")  # in W1, wm owns it
+        res = await self.call("wm", "create_upload", {
+            "file_name": "a.html", "size_bytes": 10, "sha256": "c" * 64,
+            "target_slug": f"https://{HOSTS['W2']}/{a['slug']}"})
+        self.assertTrue(res.get("isError"), res)
+        self.assertEqual(await self.db["file_uploads"].count_documents({}), 0)
+
+    async def test_c11_no_existence_oracle(self):
+        u = await self.mkdoc("P", ws=None, grants=False)
+        missing = (await self.call("stranger", "remove_from_workspace", {"document": "no-such-doc-xyz"}))
+        unfiled = (await self.call("stranger", "remove_from_workspace", {"document": u["slug"]}))
+        filed = await self.mkdoc("P", grants=False)
+        other = (await self.call("stranger", "remove_from_workspace", {"document": filed["slug"]}))
+        texts = {r["content"][0]["text"] for r in (missing, unfiled, other)}
+        self.assertEqual(len(texts), 1, texts)
+        # The owner still gets the precise answer.
+        res = await self.call("owner", "remove_from_workspace", {"document": u["slug"]})
+        self.assertIn("isn't in a workspace", res["content"][0]["text"])

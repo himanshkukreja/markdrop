@@ -1165,8 +1165,22 @@ async def remove_from_workspace(ctx: Context, args: dict) -> tuple[str, dict]:
     from app.services import document as _doc
 
     raw, _moved = await _doc.find_for_read(ctx.db, ref.slug)
-    if raw is None or not raw.get("workspace_id"):
-        raise ToolError("That document isn't in a workspace." if raw else NOT_FOUND)
+    actor = actor_of(ctx)
+    # Scoped like get_document (a custom-domain link names that host's
+    # workspace only, C10), and one answer for "missing" and "not yours to
+    # act on" (C11): only a caller who may unshare it — or at least read it —
+    # learns anything about it.
+    actx = access_service.Ctx(ctx.db, surface="mcp", workspace_scope=ref.scope)
+    if raw is None:
+        raise ToolError(NOT_FOUND)
+    if not raw.get("workspace_id"):
+        rd = await access_service.can(actor, raw, "read", actx)
+        raise ToolError("That document isn't in a workspace." if rd.allowed else NOT_FOUND)
+    d = await access_service.can(actor, raw, "unshare", actx)
+    if not d.allowed:
+        if d.status == 403 and d.code == "forbidden":
+            raise ToolError(d.detail or NOT_FOUND)  # a reader: existence already known
+        raise deny(d, "remove from its workspace")
     try:
         res = await lib_service.remove_raw(ctx.db, raw["workspace_id"], raw, ctx.user)
     except HTTPException as exc:
@@ -1416,9 +1430,12 @@ async def create_upload(ctx: Context, args: dict) -> tuple[str, dict]:
 
     _require_files()
     target = None
+    target_scope = None
     if args.get("target_slug"):
         ref = await resolve_doc(ctx, args["target_slug"])
-        target = ref.slug
+        # A custom-domain link names a document of that host's workspace only
+        # (§4.1 #34, C10), exactly as get_document resolves it.
+        target, target_scope = ref.slug, ref.scope
     access = password = None
     if target is None and (args.get("access") or args.get("password")):
         access, password = access_choice(args)
@@ -1447,7 +1464,7 @@ async def create_upload(ctx: Context, args: dict) -> tuple[str, dict]:
         raise ToolError("Those upload details aren't valid. Check file_name, size_bytes, sha256 "
                         "(64 hex characters) and slug.")
     try:
-        session = await file_uploads.create(ctx.db, ctx.user, data)
+        session = await file_uploads.create(ctx.db, ctx.user, data, scope=target_scope)
     except HTTPException as exc:
         raise _http_tool_error(exc)
     out = jsonable(session)
