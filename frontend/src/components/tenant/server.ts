@@ -156,12 +156,19 @@ export type TenantDocResult =
  * workspace, so a host only ever resolves its own documents). Cached for a minute under the
  * document's tag, so a refile or an access change purges it with the markdrop.in render.
  */
-export async function fetchTenantDocument(slug: string, workspaceId: string): Promise<TenantDocResult> {
+export async function fetchTenantDocument(
+  slug: string,
+  workspaceId: string,
+  /** The folder segments of the address asked for (B-N2): when a folder of this workspace lives
+   *  at exactly `<folders>/<slug>`, the API answers 404 and the page serves the folder route. */
+  folders: string[] = [],
+): Promise<TenantDocResult> {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(slug)) return { status: "missing" };
+  const path = [...folders, slug].map(encodeURIComponent).join("/");
   const res = await cachedAnswer(
-    ["doc", slug, workspaceId],
+    ["doc", slug, workspaceId, path],
     `/api/v1/documents/${slug}`,
-    { "x-markdrop-workspace": workspaceId },
+    { "x-markdrop-workspace": workspaceId, "x-markdrop-path": path },
     [documentTag(slug)],
   );
   if (res.status >= 200 && res.status < 300) {

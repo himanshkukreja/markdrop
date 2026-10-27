@@ -41,9 +41,9 @@ export default async function SharedFolderPage({ params }: Props) {
   // Anonymous here (the session lives in the browser); 5xx/network errors throw to error.tsx.
   // Signed (T1): every anonymous render reaches the API from the same few server addresses.
   const r = await fetchSharedFolder(shareId, sub, null, internalHeaders());
-  // A share's root always answers an anonymous reader (200, or 401 when its workspace needs
-  // sign-in), so a 404 there means there is no such share: a real 404, not a 200 page saying so.
-  // Sub-folders keep the client retry: one may hold only what a signed-in reader can open.
-  if (r.status === 404 && !sub) notFound();
+  // Nothing an anonymous reader may open here — no such share, no such sub-folder, or one holding
+  // only what a signed-in reader can open (indistinguishable on purpose): a real 404 status. The
+  // segment's not-found.tsx still asks again with the reader's session in the browser.
+  if (r.status === 404) notFound();
   return <SharedFolderView shareId={shareId} path={sub} initial={r.data} initialStatus={r.status} />;
 }

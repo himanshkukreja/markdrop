@@ -110,7 +110,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (resolved) {
     let result: TenantDocResult | null = null;
     try {
-      result = await fetchTenantDocument(slug, resolved.workspace_id);
+      result = await fetchTenantDocument(slug, resolved.workspace_id, folders);
     } catch {
       result = null; // transient: generic card; the page shows the error
     }
@@ -177,7 +177,9 @@ export default async function TenantDocumentPage({ params }: Props) {
   if (!resolved) notFound();
   const siteName = resolved.site_name?.trim() || host;
 
-  const result = await fetchTenantDocument(slug, resolved.workspace_id);
+  // The whole path goes along: when a folder lives at exactly this address the API answers as for
+  // a missing document, so a document filed elsewhere (or an old slug) can't redirect it away (B-N2).
+  const result = await fetchTenantDocument(slug, resolved.workspace_id, folders);
 
   // A folder at exactly this path wins over a redirect to a document filed
   // elsewhere (B5): a document — or a former slug of one — named like a

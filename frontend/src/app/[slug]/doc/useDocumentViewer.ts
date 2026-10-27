@@ -15,6 +15,7 @@ import * as e2e from "@/lib/e2e";
 import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
 import { HANDOFF_FRAGMENT } from "@/lib/hosts";
+import { isPrimaryHost } from "@/components/tenant/hosts";
 import { consumeHandoffToken, peekHandoffToken } from "@/components/tenant/handoff";
 import { useAuth } from "@/contexts/AuthContext";
 import { track } from "@/lib/track";
@@ -247,7 +248,12 @@ export function useDocumentViewer({
     // An old slug of a renamed document (the signed-in retry of a gated page): go to the current
     // one, keeping the query and the #k= key. The server render redirects the anonymous case.
     if (doc.moved && doc.slug && doc.slug !== slug) {
-      router.replace(`/${encodeURIComponent(doc.slug)}${window.location.search}${window.location.hash}`);
+      // On a workspace's own domain a document lives at `/<folders…>/<slug>` (B-N5).
+      const folders = !isPrimaryHost(window.location.host) && Array.isArray(doc.folder_path)
+        ? doc.folder_path.filter((s): s is string => typeof s === "string" && s.length > 0)
+        : [];
+      const target = [...folders, doc.slug].map(encodeURIComponent).join("/");
+      router.replace(`/${target}${window.location.search}${window.location.hash}`);
       return true;
     }
     if (doc.kind === "artifact") {
