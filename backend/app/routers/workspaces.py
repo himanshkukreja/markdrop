@@ -107,15 +107,22 @@ async def _domains(db: AsyncIOMotorDatabase, workspace_id: str) -> tuple[list[di
 
 
 def _branding_update(payload: BrandingPayload | None) -> dict | None:
-    """The branding dict to store. `logo_well` is left out when the client did
-    not send it, so a settings form that predates the field doesn't silently
-    reset it to automatic on every save."""
+    """Only the branding fields the client actually sent (merged onto the
+    stored ones by the service). An omitted field keeps its stored value; an
+    explicit null clears it. A partial update must never reset the rest —
+    e.g. turn Markdrop branding back on (C3 audit)."""
     if payload is None:
         return None
-    out = payload.model_dump()
-    if "logo_well" not in payload.model_fields_set:
-        out.pop("logo_well", None)
-    return out
+    return payload.model_dump(exclude_unset=True)
+
+
+def _settings_update(payload: SettingsPayload | None) -> dict | None:
+    """Only the settings the client sent. ``{"viewer_chrome": "full"}`` alone
+    must not reset ``require_auth_to_view`` to its default and publish every
+    document of a sign-in workspace (C3)."""
+    if payload is None:
+        return None
+    return payload.model_dump(exclude_unset=True)
 
 
 @router.get("", response_model=WorkspaceListResponse)
@@ -182,7 +189,7 @@ async def update_workspace(
         workspace_id,
         name=data.name,
         branding=_branding_update(data.branding),
-        settings=data.settings.model_dump() if data.settings is not None else None,
+        settings=_settings_update(data.settings),
     )
     from app.services import lifecycle, revalidate
 

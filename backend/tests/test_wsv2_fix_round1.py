@@ -172,6 +172,42 @@ class C7GrantRacingRemoval(_Grants):
         self.assertIsNone(await self.db["document_grants"].find_one({"email": "z@example.com"}))
 
 
+class C3PartialSettingsMerge(AccessWorld):
+    async def _put(self, key: str, body: dict, who: str = "wa"):
+        return await self.http.put(f"/api/v1/workspaces/{self.ws[key]}", json=body, headers=self.session(who))
+
+    async def test_c3_partial_settings_keep_require_auth(self):
+        a = await self.mkdoc("RL", kind="artifact")
+        r = await self._put("WR", {"settings": {"viewer_chrome": "full"}})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertTrue(r.json()["settings"]["require_auth_to_view"])
+        ws = await self.db["workspaces"].find_one({"_id": ObjectId(self.ws["WR"])})
+        self.assertTrue(ws["settings"]["require_auth_to_view"])
+        self.assertFalse(self.r2.objects[a["blob_key"]]["public"])
+        self.assertEqual((await self.get(a["slug"])).status_code, 401)
+
+    async def test_c3_partial_branding_keeps_other_fields(self):
+        await self.db["workspaces"].update_one(
+            {"_id": ObjectId(self.ws["W1"])},
+            {"$set": {"branding": {"site_name": "Acme", "hide_markdrop_branding": True,
+                                   "logo_url": "https://cdn.acme.test/l.png"}}})
+        r = await self._put("W1", {"branding": {"accent_color": "#123456"}})
+        self.assertEqual(r.status_code, 200, r.text)
+        b = r.json()["branding"]
+        self.assertTrue(b["hide_markdrop_branding"])
+        self.assertEqual(b["site_name"], "Acme")
+        self.assertEqual(b["accent_color"], "#123456")
+        r = await self._put("W1", {"branding": {"logo_url": None}})
+        self.assertIsNone(r.json()["branding"]["logo_url"])
+        self.assertEqual(r.json()["branding"]["site_name"], "Acme")
+
+    async def test_c3_null_settings_object_on_a_legacy_row(self):
+        await self.db["workspaces"].update_one({"_id": ObjectId(self.ws["W1"])}, {"$set": {"settings": None}})
+        r = await self._put("W1", {"settings": {"members_can_share_folders": False}})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertFalse(r.json()["settings"]["members_can_share_folders"])
+
+
 # ── LOW ───────────────────────────────────────────────────────────────────────
 
 

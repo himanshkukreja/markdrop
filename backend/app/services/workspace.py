@@ -158,21 +158,20 @@ async def update_workspace(
     updates: dict = {"updated_at": datetime.now(timezone.utc)}
     if name is not None:
         updates["name"] = name.strip() or "Untitled workspace"
-    # Whole-object replacement, not a merge: these come from a settings form that
-    # always sends every field, and a merge would make "clear this" impossible.
-    if branding is not None:
-        # The one exception to whole-object replacement: `logo_well` is newer
-        # than the form, so when a caller omits the key (rather than sending
-        # null) the stored value is carried over instead of being wiped.
-        if "logo_well" not in branding:
-            current = await db["workspaces"].find_one(
-                {"_id": ObjectId(workspace_id)}, {"branding.logo_well": 1}
-            )
-            kept = ((current or {}).get("branding") or {}).get("logo_well")
-            branding = {**branding, "logo_well": kept}
-        updates["branding"] = branding
-    if settings is not None:
-        updates["settings"] = settings
+    # Merged per field, never replaced whole: ``branding`` / ``settings`` hold
+    # only the keys the caller sent (explicit null clears a field). A partial
+    # PUT that replaced the object would reset every omitted setting to its
+    # default — ``require_auth_to_view`` off, i.e. every document of a
+    # sign-in workspace public (C3). Written as dotted keys so a concurrent
+    # update of another field isn't overwritten either.
+    for group, values in (("branding", branding), ("settings", settings)):
+        if values:
+            # A legacy row may hold null here; dotted keys need an object.
+            await db["workspaces"].update_one(
+                {"_id": ObjectId(workspace_id), group: {"$not": {"$type": "object"}}},
+                {"$set": {group: {}}})
+        for key, value in (values or {}).items():
+            updates[f"{group}.{key}"] = value
 
     await db["workspaces"].update_one({"_id": ObjectId(workspace_id)}, {"$set": updates})
     workspace = await get_workspace(db, workspace_id)
