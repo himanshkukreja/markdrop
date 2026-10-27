@@ -11,11 +11,17 @@ class DomainCreate(BaseModel):
     kind: Literal["app", "cdn"]
 
 
+class DnsRecord(BaseModel):
+    type: str
+    name: str
+    value: str
+
+
 class DomainResponse(BaseModel):
     id: str
     host: str
     kind: Literal["app", "cdn"]
-    status: Literal["pending", "verified", "failed"]
+    status: Literal["pending", "verified", "failed", "lapsed"]
     created_at: datetime
     verified_at: datetime | None = None
     last_checked_at: datetime | None = None
@@ -32,6 +38,22 @@ class DomainResponse(BaseModel):
     # Surfaced rather than buried in docs: serving artifacts from a subdomain of
     # a site the customer uses for anything else is a real, if accepted, risk.
     warning: str | None = None
+    # Lifecycle. `live` = verified and attached: the only state that serves,
+    # receives tenant tokens and gets CORS. `routing_ok` = whether the routing
+    # record was seen at the last check (None = never checked).
+    live: bool = False
+    routing_ok: bool | None = None
+    failures: int = 0
+    first_failed_at: datetime | None = None
+    lapsed_at: datetime | None = None
+    # When a still-unverified claim is dropped.
+    expires_at: datetime | None = None
+    # The routing record(s) to add. One entry when we are sure whether the host
+    # is an apex; both (A and CNAME) when we can't tell (e.g. an unlisted
+    # second-level registry like example.co.xx), so the customer picks the one
+    # their panel accepts. `dns_target_*` above is the first entry.
+    apex_certain: bool = True
+    dns_routing_options: list[DnsRecord] = []
 
 
 class DomainListResponse(BaseModel):

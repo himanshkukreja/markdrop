@@ -52,7 +52,7 @@ async def _card_host(db: AsyncIOMotorDatabase, workspace_id: str, host: str | No
     let anyone put any brand they liked on somebody else's preview card.
     """
     if host and await domain_service.host_belongs_to(db, workspace_id, host):
-        return host.strip().lower()
+        return domain_service.clean_host(host)
     return await domain_service.primary_host(db, workspace_id)
 
 
@@ -82,6 +82,34 @@ async def _anonymous_gate(db: AsyncIOMotorDatabase, raw: dict, workspace) -> str
     return None
 
 
+_POSTER_MAX_BYTES = 4 * 1024 * 1024
+
+
+async def _link_level_poster(raw: dict, mime: str) -> bytes | None:
+    """A video's poster frame for the card, read straight from the bucket.
+
+    Only for a *link-level* video (no password, access `link`): the card is
+    public and cached for an hour, so it may only show what the public `/r/`
+    URL would show anyway. Read from R2 directly, never fetched over HTTP: an
+    HTTP fetch from here would be a server-side request to a URL derived from
+    stored data, and would cost a round trip through the Worker for bytes we
+    already hold.
+    """
+    key = raw.get("poster_key")
+    if not key or artifact.renderer_for(mime) != "video":
+        return None
+    if artifact.is_guarded(
+        has_password=bool(raw.get("read_password_hash")),
+        access_level=raw.get("access_level"),
+    ):
+        return None
+    from app.services import r2
+
+    if not r2.is_configured():
+        return None
+    return await run_in_threadpool(r2.get_bytes, key, _POSTER_MAX_BYTES)
+
+
 def _brand(workspace, footer: str | None) -> og_render.CardBrand:
     b = workspace.branding
     return og_render.CardBrand(
@@ -107,7 +135,7 @@ async def og_image(
         {
             "title": 1, "content": 1, "read_password_hash": 1, "access_level": 1,
             "kind": 1, "mime": 1, "size_bytes": 1, "original_filename": 1,
-            "encrypted": 1, "workspace_id": 1,
+            "encrypted": 1, "workspace_id": 1, "poster_key": 1,
         },
     )
 
@@ -130,7 +158,7 @@ async def og_image(
         if workspace is not None and host and await domain_service.host_belongs_to(
             db, workspace_id, host
         ):
-            brand = _brand(workspace, host.strip().lower())
+            brand = _brand(workspace, domain_service.clean_host(host))
         card = og_render.Card(kind=gate, slug=slug, brand=brand)
         png = await run_in_threadpool(og_render.render_og_png, card)
         return _png(png, max_age=3600)
@@ -147,7 +175,9 @@ async def og_image(
         filename = (raw.get("original_filename") or "").strip()
         title = title or filename or slug
         size = int(raw.get("size_bytes") or 0)
+        poster = await _link_level_poster(raw, mime)
         card = og_render.Card(
+            poster=poster,
             kind="artifact",
             title=title,
             # `content` is only a filename stand-in for artifacts; the original

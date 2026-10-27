@@ -150,6 +150,26 @@ def make_blob_key(user_id: str, mime: str) -> str:
 # ── Access tokens for private artifacts ────────────────────────────────────────
 
 
+_MEDIA_EXTS = frozenset(
+    f".{t.ext}" for t in BY_MIME.values() if t.renderer in ("video", "audio") and t.ext
+)
+
+
+def _url_ttl_seconds(blob_key: str) -> int:
+    """How long a signed URL for this object stays valid.
+
+    Keyed off the object's extension (keys are minted with the type's own
+    extension, see `make_blob_key`), so every caller — artifact URL, download
+    URL, replaced-file URL — gets the media lifetime without a new parameter.
+    A video read in range requests needs its token for the whole playback, not
+    the first fifteen minutes of it.
+    """
+    dot = blob_key.rfind(".")
+    if dot != -1 and blob_key[dot:].lower() in _MEDIA_EXTS:
+        return max(settings.artifact_url_ttl_seconds, settings.artifact_media_url_ttl_seconds)
+    return settings.artifact_url_ttl_seconds
+
+
 def sign_access_token(blob_key: str) -> str:
     """Short-lived HMAC token the Worker checks before serving a private blob.
 
@@ -162,7 +182,7 @@ def sign_access_token(blob_key: str) -> str:
         {
             "k": blob_key,
             "iat": now,
-            "exp": now + timedelta(seconds=settings.artifact_url_ttl_seconds),
+            "exp": now + timedelta(seconds=_url_ttl_seconds(blob_key)),
         },
         settings.artifact_signing_key,
         algorithm="HS256",

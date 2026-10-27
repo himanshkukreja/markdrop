@@ -218,6 +218,14 @@ function baseHeaders() {
   };
 }
 
+/** `attachment` with a sanitised filename (ASCII fallback + RFC 5987 UTF-8). */
+function attachmentDisposition(name) {
+  const raw = (name || "").slice(0, 200).replace(/[\u0000-\u001f\u007f"\\/]/g, "").trim();
+  if (!raw) return "attachment";
+  const ascii = raw.replace(/[^\x20-\x7e]/g, "_");
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(raw)}`;
+}
+
 /** HS256 verify against the API's MARKDROP_ARTIFACT_SIGNING_KEY. */
 async function verifyToken(token, key, expectedBlobKey) {
   try {
@@ -282,7 +290,13 @@ async function serveRaw(blobKey, url, env, request) {
   // anyone drag the scrubber, whatever the current request asked for.
   headers.set("accept-ranges", "bytes");
 
-  if (INLINE_TYPES.has(type)) {
+  if (url.searchParams.get("dl") === "1") {
+    // A download link (no fetch): on a workspace's own domain the app can't
+    // read these bytes cross-origin (CORS here lists only the app's origins),
+    // so it links here with ?dl=1 and the browser saves the file instead of
+    // navigating. The name is the caller's suggestion, reduced to safe chars.
+    headers.set("content-disposition", attachmentDisposition(url.searchParams.get("fn")));
+  } else if (INLINE_TYPES.has(type)) {
     headers.set("content-disposition", "inline");
   } else {
     // Unknown type: never render it, hand it over as a download.
