@@ -288,10 +288,13 @@ class Tools(McpTestCase):
         # through anything other than an explicit "link" here.
         self.assertIsNotNone(raw["read_password_hash"])
         out = self.ok(await self.tool("set_access", document=slug, access="link", expires="never"))
-        self.assertEqual((out["access"], out["expires_at"]), ("link", None))
+        # A stored password is kept: "link" makes it apply again.
+        self.assertEqual((out["access"], out["expires_at"]), ("password", None))
+        out = self.ok(await self.tool("set_access", document=slug, access="link", remove_password=True))
+        self.assertEqual(out["access"], "link")
         raw = await self.db["documents"].find_one({"slug": slug})
         self.assertEqual(raw["access_level"], "link")
-        self.assertIsNone(raw["read_password_hash"])  # plain "link" asked for no password
+        self.assertIsNone(raw["read_password_hash"])  # removed only when asked
         self.assertEqual(raw["content"], "x")
 
     async def test_set_access_refusals(self):

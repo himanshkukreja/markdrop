@@ -928,6 +928,9 @@ async def set_access(ctx: Context, args: dict) -> tuple[str, dict]:
         raise ToolError('Access "password" needs a password.')
     if access != "password" and password:
         raise ToolError('A password only applies when access is "password".')
+    remove_password = bool(args.get("remove_password"))
+    if remove_password and access != "link":
+        raise ToolError('remove_password only applies when access is "link".')
     if access == "workspace" and not raw.get("workspace_id"):
         raise ToolError("That document isn't in a workspace. Add it to one first "
                         "(add_to_workspace), then it can be workspace-only.")
@@ -936,16 +939,16 @@ async def set_access(ctx: Context, args: dict) -> tuple[str, dict]:
     actx = access_service.Ctx(ctx.db, surface="mcp")
 
     # One access level per document (D1). Close before opening: narrowing
-    # steps (level down, password added) go first. A password is removed only
-    # when the caller asked for plain "link"; going private or workspace-only
-    # leaves it inert, so a later "link" doesn't silently publish without it
-    # (policy §1.2, C5).
+    # steps (level down, password added) go first. A stored password is never
+    # dropped implicitly: going private or workspace-only leaves it inert, and
+    # "link" makes it apply again (policy §1.2, C5) — the REST level change
+    # does the same. Only an explicit remove_password removes it.
     try:
         update = DocumentUpdate(
             title=raw.get("title"),
             content=raw["content"],
             read_password=password if access == "password" else None,
-            remove_password=access == "link" and bool(raw.get("read_password_hash")),
+            remove_password=remove_password and bool(raw.get("read_password_hash")),
             expires_in=expires_in,  # type: ignore[arg-type]
             custom_expires_at=custom_at,
         )
@@ -979,6 +982,9 @@ async def set_access(ctx: Context, args: dict) -> tuple[str, dict]:
                  + (" (with the password)." if out["access"] == "password" else "."))
     elif final.get("read_password_hash") and out["access"] in ("private", "workspace"):
         text += " Its password is kept (inactive) and applies again if it is made a link."
+    if access == "link" and final.get("read_password_hash"):
+        text += (" It kept its password, so the link alone doesn't open it; set access 'link' with "
+                 "remove_password: true to drop the password.")
     return text, out
 
 
@@ -1821,6 +1827,10 @@ TOOLS: list[Tool] = [
                 "access": {"type": "string", "enum": ACCESS_WITH_WORKSPACE},
                 "password": {"type": "string", "minLength": 1, "maxLength": 100,
                              "description": "Required when access is 'password'."},
+                "remove_password": {"type": "boolean",
+                                    "description": "Only with access 'link': also remove the document's "
+                                                   "password. Without it, a stored password is kept and "
+                                                   "applies again."},
                 "expires": {"type": "string", "enum": EXPIRY_CHOICES,
                             "description": "Optional: when the link stops working, counted from now."},
             },

@@ -616,9 +616,10 @@ class C5McpSetAccessKeepsPassword(AccessWorld):
         r = await self.get(d["slug"])
         self.assertEqual((r.status_code, r.headers.get("x-markdrop-gate")), (401, "password"))
 
-    async def test_c5_link_still_removes_the_password(self):
+    async def test_c5_link_removes_the_password_only_when_asked(self):
         d = await self.mkdoc("LP", ws=None)
-        res = await self.call("owner", "set_access", {"document": d["slug"], "access": "link"})
+        res = await self.call("owner", "set_access", {"document": d["slug"], "access": "link",
+                                                       "remove_password": True})
         self.assertFalse(res.get("isError"), res)
         self.assertFalse((await self.doc(d["slug"])).get("read_password_hash"))
 

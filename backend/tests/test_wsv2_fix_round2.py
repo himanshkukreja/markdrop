@@ -823,3 +823,29 @@ class RedisOutageNeverFailsRequests(AccessWorld):
             elapsed = time.monotonic() - t0
             self.assertEqual(codes, [(200, 200)] * 3)
             self.assertLess(elapsed, 6)
+
+
+class McpLinkKeepsThePassword(AccessWorld):
+    async def call(self, who: str, tool: str, args: dict) -> dict:
+        return (await self.mcp_call(await self.mcp_token(who), tool, args))[1]
+
+    async def test_private_then_link_reopens_with_the_password(self):
+        d = await self.mkdoc("LP", ws=None)
+        res = await self.call("owner", "set_access", {"document": d["slug"], "access": "private"})
+        self.assertFalse(res.get("isError"), res)
+        res = await self.call("owner", "set_access", {"document": d["slug"], "access": "link"})
+        self.assertFalse(res.get("isError"), res)
+        self.assertEqual(res["structuredContent"]["access"], "password")
+        self.assertIn("remove_password", res["content"][0]["text"])
+        row = await self.doc(d["slug"])
+        self.assertEqual(row["access_level"], "link")
+        self.assertTrue(row.get("read_password_hash"))
+        r = await self.get(d["slug"])
+        self.assertEqual((r.status_code, r.headers.get("x-markdrop-gate")), (401, "password"))
+
+    async def test_remove_password_only_with_link(self):
+        d = await self.mkdoc("LP", ws=None)
+        res = await self.call("owner", "set_access", {"document": d["slug"], "access": "private",
+                                                       "remove_password": True})
+        self.assertTrue(res.get("isError"), res)
+        self.assertTrue((await self.doc(d["slug"])).get("read_password_hash"))
