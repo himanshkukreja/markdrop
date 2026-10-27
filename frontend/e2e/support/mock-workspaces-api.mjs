@@ -310,6 +310,15 @@ const server = http.createServer(async (req, res) => {
       your_email: user.email, can_manage: mine, can_share: mine, grants: mine ? [{ email: "dana@acme.test", role: "editor", created_at: ago(30), granted_by_email: user.email, notified: true }] : [],
     });
   }
+  if (p === "/api/v1/documents/access/level" && req.method === "POST") {
+    const results = (body.slugs ?? []).map((slug) => {
+      const it = db.items.find((i) => i.slug === slug);
+      if (it && it.owner !== "me") return { slug, ok: false, error: "Only the owner can change who can open it.", status: 403 };
+      if (it) it.access = body.level;
+      return { slug, ok: true };
+    });
+    return send(res, 200, { results });
+  }
   if ((mm = m(/^\/api\/v1\/documents\/([^/]+)\/access\/level$/)) && req.method === "PUT") {
     const it = db.items.find((i) => i.slug === mm[1]);
     if (it) {
@@ -373,6 +382,7 @@ const server = http.createServer(async (req, res) => {
     if ((mm = rest.match(/^\/folders\/([^/]+)\/share$/))) {
       const f = db.folders.find((x) => x.id === mm[1]);
       if (!f) return send(res, 404, { detail: "Folder not found" });
+      if (req.method === "GET") return f.share ? send(res, 200, shareOut(f, role)) : send(res, 404, { detail: "This folder isn't shared." });
       if (RANK[r] < 1) return send(res, 403, { detail: "Only admins can share folders" });
       if (req.method === "DELETE") { f.share = null; return send(res, 204); }
       f.share = { id: f.share?.id ?? `sh${db.seq++}x9Kq2`, level: body.level };
