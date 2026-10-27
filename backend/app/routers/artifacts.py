@@ -400,14 +400,30 @@ async def replace_artifact_file(
     meta = await run_in_threadpool(r2.head, data.blob_key)
     if not meta:
         raise HTTPException(status_code=404, detail="Upload not found — please try again.")
-    if meta["size"] > settings.artifact_max_bytes:
-        await run_in_threadpool(r2.delete, data.blob_key)
-        raise HTTPException(status_code=413, detail="File is larger than the limit.")
 
+    # Same rules as creation: the real type sets the ceiling (a video may be far
+    # bigger than a document), measured on the real size, not the declared one.
     mime = art_service.normalize_mime(meta["content_type"], data.filename)
+    real_limit = art_service.max_bytes_for(mime) if mime else settings.artifact_max_bytes
+    if meta["size"] > real_limit:
+        await run_in_threadpool(r2.delete, data.blob_key)
+        raise HTTPException(
+            status_code=413,
+            detail=f"File is larger than the {real_limit // (1024*1024)} MB limit for this type.",
+        )
     if not mime:
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(status_code=415, detail="Unsupported file type.")
+
+    # Quota on the real size too, counting the file being replaced as freed.
+    current = await db["documents"].find_one(
+        {"slug": slug, "owner_id": user.id, "kind": "artifact"}, {"size_bytes": 1}
+    )
+    freed = int((current or {}).get("size_bytes") or 0)
+    allowed, _ = await art_service.check_quota(db, user.id, meta["size"] - freed)
+    if not allowed:
+        await run_in_threadpool(r2.delete, data.blob_key)
+        raise HTTPException(status_code=507, detail="Storage quota exceeded.")
 
     blob_key, bundle_prefix, size_bytes = data.blob_key, None, meta["size"]
     if mime == "application/zip":
