@@ -175,13 +175,17 @@ async def host_folder(
         folder = {"name": chain[-1].name, "path": paths.get(folder_id) or [],
                   "document_count": total.get(folder_id, 0)}
     _cache(response, actor)
+    # A sign-in-only site tells someone who isn't in it only its public face
+    # (site name and look), never the workspace id or internal name (small B).
+    insider = await ctx.role(ws.id, actor.user_id) is not None
+    face = _branding(ws) if (insider or not ws.settings.require_auth_to_view) else _public_branding(ws)
     return jsonable_encoder({
         "folder": folder,
         "trail": trail,
         "folders": [{"name": f.name, "path": paths.get(f.id) or [], "document_count": total.get(f.id, 0)}
                     for f in listing["folders"]],
         "documents": listing["documents"],
-        "workspace": _branding(ws),
+        "workspace": face,
     })
 
 

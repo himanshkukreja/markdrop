@@ -102,6 +102,20 @@ async def _full_response(db: AsyncIOMotorDatabase, raw: dict, actor: access.Acto
     return body
 
 
+async def _folder_owns_path(db, workspace_id: str, slug: str, path: str | None) -> bool:
+    """True when ``path`` (``a/b/<slug>``, as the tenant page was asked for)
+    names a folder of ``workspace_id``. Ignored unless its last segment is
+    the slug being read."""
+    from urllib.parse import unquote
+
+    if not path or len(path) > 2000:
+        return False
+    segments = [unquote(s) for s in path.strip("/").split("/") if s]
+    if not segments or segments[-1] != slug or len(segments) > folder_service.MAX_DEPTH + 1:
+        return False
+    return await folder_service.resolve_path(db, workspace_id, segments) is not None
+
+
 def _ctx(db, request: Request, scope: str | None = None) -> access.Ctx:
     return access.Ctx(db, surface="rest", workspace_scope=scope or None, ip=get_client_ip(request))
 
@@ -133,6 +147,7 @@ async def get_document(
     x_read_password: str | None = Header(None),
     x_edit_secret: str | None = Header(None),
     x_markdrop_workspace: str | None = Header(None),
+    x_markdrop_path: str | None = Header(None),
     user: User | None = Depends(optional_user),
 ):
     """One document, through access.can(read).
@@ -152,6 +167,13 @@ async def get_document(
     ctx = _ctx(db, request, x_markdrop_workspace)
     raw, moved = await doc_service.find_for_read(db, slug)
     scope = actor.tenant_ws or ctx.workspace_scope
+    if scope and raw is not None and await _folder_owns_path(db, scope, slug, x_markdrop_path):
+        # B-N2: on the workspace's own domain the address asked for
+        # (``X-Markdrop-Path``, the whole tenant path) is a folder of that
+        # workspace. Folders own their addresses: a document — or an old slug
+        # of one — filed elsewhere never takes it over through the
+        # "last segment is the slug" redirect. Same answer as a missing doc.
+        raise HTTPException(status_code=404, detail="Document not found")
     if (scope and raw is not None and not moved and raw.get("workspace_id") == scope
             and await folder_service.slug_shadowed(db, raw)):
         # B5: on the workspace's own domain this address belongs to a folder

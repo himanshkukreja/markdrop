@@ -930,3 +930,53 @@ class CN7CollisionsRevealNothing(AccessWorld):
         from app.services import folder as folder_service
 
         self.assertNotIn("secret", folder_service._clash_detail(None))
+
+
+class BN2FoldersOwnTheirAddress(AccessWorld):
+    async def _setup(self):
+        from app.services import folder as folder_service
+
+        W = self.ws["W1"]
+        await folder_service.create_folder(self.db, W, "Secret Plans", None)  # /secret-plans
+        x = await folder_service.create_folder(self.db, W, "X", None)
+        return x
+
+    def _scoped(self, path: str | None) -> dict:
+        h = {"X-Markdrop-Workspace": self.ws["W1"]}
+        if path is not None:
+            h["X-Markdrop-Path"] = path
+        return h
+
+    async def test_doc_filed_elsewhere_cannot_take_a_folder_address(self):
+        x = await self._setup()
+        d = await self.mkdoc("L", owner="wm", slug="secret-plans", folder_id=x.id, folder_path=["x"])
+        self.assertEqual((await self.get(d["slug"], self._scoped("secret-plans"))).status_code, 404)
+        self.assertEqual((await self.get(d["slug"], self._scoped("x/secret-plans"))).status_code, 200)
+        self.assertEqual((await self.get(d["slug"], self._scoped(None))).status_code, 200)
+        self.assertEqual((await self.get(d["slug"])).status_code, 200)  # markdrop.in unchanged
+
+    async def test_old_slug_cannot_take_a_folder_address(self):
+        x = await self._setup()
+        await self.mkdoc("L", owner="wm", slug="current-x", folder_id=x.id, folder_path=["x"],
+                         old_slugs=["secret-plans"])
+        self.assertEqual((await self.get("secret-plans", self._scoped("secret-plans"))).status_code, 404)
+        r = await self.get("secret-plans", self._scoped("x/secret-plans"))
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json().get("moved"))
+
+
+class SmallBHostFolderFace(AccessWorld):
+    async def test_stranger_on_a_sign_in_site_learns_no_id_or_internal_name(self):
+        from bson import ObjectId
+
+        await self.db["workspaces"].update_one({"_id": ObjectId(self.ws["WR"])},
+                                               {"$set": {"branding.site_name": "Acme Help"}})
+        r = await self.http.get("/api/v1/host/folder", params={"host": "docs-r.acme.test", "path": ""},
+                                headers=self.session("stranger"))
+        self.assertIn(r.status_code, (200, 404), r.text)
+        self.assertNotIn(self.ws["WR"], r.text)
+        self.assertNotIn("Acme Private", r.text)
+        r = await self.http.get("/api/v1/host/folder", params={"host": "docs-r.acme.test", "path": ""},
+                                headers=self.session("wv"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["workspace"]["id"], self.ws["WR"])  # members still get it
