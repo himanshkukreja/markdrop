@@ -144,6 +144,8 @@ async def create_document(
             await db["documents"].insert_one(doc_dict)
         except DuplicateKeyError:
             raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
+        if not await _kept_after_insert(db, doc_dict, owner_id):
+            raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
         from app.services import lifecycle
 
         await lifecycle.clear_tombstone(db, data.custom_slug)
@@ -166,6 +168,8 @@ async def create_document(
                     await db["documents"].insert_one(doc_dict)
                 except DuplicateKeyError:
                     continue
+                if not await _kept_after_insert(db, doc_dict, owner_id):
+                    continue
                 await _schedule_expiry(db, doc_dict)
                 return _doc_from_mongo(doc_dict), raw_secret
 
@@ -179,10 +183,25 @@ async def create_document(
             await db["documents"].insert_one(doc_dict)
         except DuplicateKeyError:
             continue
+        if not await _kept_after_insert(db, doc_dict, owner_id):
+            continue
         await _schedule_expiry(db, doc_dict)
         return _doc_from_mongo(doc_dict), raw_secret
 
     raise HTTPException(status_code=503, detail="Could not generate unique slug. Try again.")
+
+
+async def _kept_after_insert(db: AsyncIOMotorDatabase, doc_dict: dict, owner_id: str | None) -> bool:
+    """C6: the reservation check ran before the insert, and a rename (which
+    frees a live slug and reserves it as an old slug in one write) or a
+    delete can land in between. Re-check now that the row exists; if the slug
+    turned out to be someone else's reservation, take the row back out."""
+    from app.services import lifecycle
+
+    if not await lifecycle.slug_unavailable(db, doc_dict["slug"], owner_id, doc_id=doc_dict.get("_id")):
+        return True
+    await db["documents"].delete_one({"_id": doc_dict["_id"]})
+    return False
 
 
 async def _schedule_expiry(db: AsyncIOMotorDatabase, doc_dict: dict) -> None:
@@ -389,6 +408,15 @@ async def change_slug(db: AsyncIOMotorDatabase, slug: str, new_slug: str, actor,
         raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
     if after is None:
         raise HTTPException(status_code=409, detail="This document changed meanwhile. Try again.")
+    # C6: another document may have renamed away from ``new_slug`` (reserving
+    # it as its old slug) between the check and this write. Re-check; if so,
+    # put this document back as it was.
+    if await lifecycle.slug_unavailable(db, new_slug, raw.get("owner_id"), doc_id=raw["_id"]):
+        await db["documents"].update_one(
+            {"_id": raw["_id"], "slug": new_slug},
+            {"$set": {"slug": slug, "old_slugs": list(raw.get("old_slugs") or []),
+                      "updated_at": raw.get("updated_at") or now}})
+        raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
     await lifecycle.clear_tombstone(db, new_slug)
     await revalidate.purge_doc(db, after, extra_slugs=[slug])
     live.gone(slug)

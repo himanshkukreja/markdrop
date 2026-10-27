@@ -666,3 +666,67 @@ class C13SetPublicKeepsMetadata(__import__("unittest").TestCase):
             self.assertTrue(r2.set_public("k", True, "text/html", None))
         self.assertEqual(calls["Metadata"], {"live": "1", "public": "1", "ae": "0"})
         self.assertEqual(calls["CacheControl"], "no-cache, must-revalidate")
+
+
+class C6OldSlugRaces(AccessWorld):
+    async def test_c6_create_racing_a_rename_cannot_take_the_old_slug(self):
+        import asyncio
+
+        from app.services import document as doc_service
+
+        await self.mkdoc("L", ws=None, owner="owner", slug="orig-y")
+        orig_free = doc_service._slug_free
+        gate = asyncio.Event()
+
+        async def free_then_wait(db, slug, owner_id):
+            out = await orig_free(db, slug, owner_id)
+            if slug == "orig-y":
+                gate.set()
+                await asyncio.sleep(0.2)
+            return out
+
+        async def rename_after():
+            await gate.wait()
+            return await self.http.patch("/api/v1/documents/orig-y/slug", json={"new_slug": "renamed-y"},
+                                         headers=self.session("owner"))
+
+        with mock.patch.object(doc_service, "_slug_free", free_then_wait):
+            a, b = await asyncio.gather(
+                self.http.post("/api/v1/documents", json={"content": "phish", "custom_slug": "orig-y"},
+                               headers=self.session("stranger")), rename_after())
+        self.assertEqual(b.status_code, 200, b.text)
+        self.assertEqual(a.status_code, 409, a.text)
+        self.assertIsNone(await self.db["documents"].find_one({"slug": "orig-y"}))
+        r = await self.get("orig-y", self.session("gv"))
+        self.assertEqual(r.headers.get("x-markdrop-moved"), "renamed-y")
+
+    async def test_c6_rename_racing_another_rename_cannot_take_its_old_slug(self):
+        import asyncio
+
+        await self.mkdoc("L", ws=None, owner="owner", slug="taken-z")
+        mine = await self.mkdoc("L", ws=None, owner="stranger", slug="mine-z")
+        orig = lifecycle.slug_unavailable
+        gate = asyncio.Event()
+
+        async def check_then_wait(db, slug, owner_id, doc_id=None):
+            out = await orig(db, slug, owner_id, doc_id)
+            if slug == "taken-z" and not gate.is_set():
+                gate.set()
+                await asyncio.sleep(0.2)
+            return out
+
+        async def vacate():
+            await gate.wait()
+            return await self.http.patch("/api/v1/documents/taken-z/slug", json={"new_slug": "moved-z"},
+                                         headers=self.session("owner"))
+
+        with mock.patch.object(lifecycle, "slug_unavailable", check_then_wait):
+            # taken-z is live (unique index) when checked; the owner renames
+            # away from it meanwhile, then the stranger's write lands.
+            a, b = await asyncio.gather(
+                self.http.patch(f"/api/v1/documents/{mine['slug']}/slug", json={"new_slug": "taken-z"},
+                                headers=self.session("stranger")), vacate())
+        self.assertEqual(b.status_code, 200, b.text)
+        self.assertNotEqual(a.status_code, 200, a.text)
+        self.assertEqual((await self.doc("mine-z") or {}).get("_id"), mine["_id"])
+        self.assertIsNone(await self.db["documents"].find_one({"slug": "taken-z"}))

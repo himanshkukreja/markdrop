@@ -102,10 +102,13 @@ async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete"
     if publicity._has_bytes(raw):
         if not await publicity.apply(raw, False, epoch=publicity.epoch_of(raw) + 1):
             log.warning("closing %s before %s failed", slug, reason)
+    # Reserved *before* the row goes (C6): the unique index protects the slug
+    # while the row exists, the tombstone from the moment it doesn't — never a
+    # gap in which someone else's create could take it.
+    await tombstone(db, [slug, *(raw.get("old_slugs") or [])], raw.get("owner_id"))
     res = await db["documents"].delete_one({"_id": raw["_id"]})
     if res.deleted_count == 0:
         return False
-    await tombstone(db, [slug, *(raw.get("old_slugs") or [])], raw.get("owner_id"))
     await revalidate.purge_doc(db, raw, extra_slugs=raw.get("old_slugs") or [], inline=True)  # B2
     live.gone(slug)
     await db["document_grants"].delete_many({"document_id": doc_id})
