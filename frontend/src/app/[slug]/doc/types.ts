@@ -27,4 +27,6 @@ export interface DocumentViewProps {
   docRef?: string | null;
   /** Only ever set on a workspace's own domain. "minimal" behaves like "full" (D24). */
   viewerChrome?: "full" | "minimal" | "none";
+  /** The server render's `read_ticket` (beacons + live socket, §2.7). Client reads replace it. */
+  readTicket?: string | null;
 }

@@ -111,6 +111,26 @@ export interface DocumentResponse {
   poster_url?: string | null;
   /** ffprobe's reading of a video or audio file; null until known. */
   media?: MediaInfo | null;
+  /**
+   * v2: HMAC ticket the live socket (`?t=`) and the view/read beacons (`ticket` / `t`) must carry
+   * for any document an anonymous visitor couldn't read (access policy §2.7). Opaque.
+   */
+  read_ticket?: string | null;
+  /** v2: bumped on every narrowing; the OG image URL carries it (`e=`) so caches re-fetch. */
+  access_epoch?: number;
+}
+
+/**
+ * The link-preview image of a document. `e` is the access epoch when the reader could open it
+ * (`x` when not), so narrowing a document changes the URL and every unfurl cache re-fetches a
+ * content-free card instead of keeping the old one.
+ */
+export function ogImageUrl(slug: string, doc: Pick<DocumentResponse, "access_epoch"> | null, host?: string): string {
+  const q = new URLSearchParams();
+  if (host) q.set("host", host);
+  q.set("v", "4");
+  q.set("e", doc ? String(doc.access_epoch ?? 0) : "x");
+  return `${API_BASE}/api/v1/og/${encodeURIComponent(slug)}.png?${q}`;
 }
 
 export interface MediaInfo {
@@ -431,12 +451,20 @@ function landingReferrer(): string | null {
   return document.referrer;
 }
 
-export function recordEvent(slug: string, type: "view" | "export_pdf" | "copy_url"): void {
+/**
+ * View / export / copy-link beacon. `ticket` is the document's `read_ticket` (access policy §2.7):
+ * without it the API silently drops beacons for any document an anonymous visitor couldn't read.
+ */
+export function recordEvent(
+  slug: string,
+  type: "view" | "export_pdf" | "copy_url",
+  ticket?: string | null,
+): void {
   try {
     fetch(`${API_BASE}/api/v1/documents/${slug}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, referrer: type === "view" ? landingReferrer() : null }),
+      body: JSON.stringify({ type, ticket: ticket || null, referrer: type === "view" ? landingReferrer() : null }),
       keepalive: true,
     }).catch(() => {});
   } catch {
@@ -445,6 +473,15 @@ export function recordEvent(slug: string, type: "view" | "export_pdf" | "copy_ur
 }
 
 // ── Change slug / claim (owner or secret) ──────────────────────────────────────
+
+/**
+ * The live-update socket of a document. `ticket` (the `read_ticket`) is required for anything an
+ * anonymous visitor couldn't read; without it the socket opens but never receives anything.
+ */
+export function liveSocketUrl(slug: string, ticket?: string | null): string {
+  const base = `${API_BASE.replace(/^http/, "ws")}/ws/docs/${slug}`;
+  return ticket ? `${base}?t=${encodeURIComponent(ticket)}` : base;
+}
 
 export async function changeSlug(slug: string, newSlug: string, editSecret?: string): Promise<DocumentResponse> {
   const res = await fetch(`${API_BASE}/api/v1/documents/${slug}/slug`, {

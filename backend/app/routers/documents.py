@@ -97,6 +97,7 @@ async def _full_response(db: AsyncIOMotorDatabase, raw: dict, actor: access.Acto
     body["workspace_url"] = await urls.workspace_url(db, raw)
     body["can"] = await access.can_flags(actor, raw, ctx)
     body["read_ticket"] = tickets.mint(str(raw["_id"]), publicity.epoch_of(raw))
+    body["access_epoch"] = publicity.epoch_of(raw)
     return body
 
 

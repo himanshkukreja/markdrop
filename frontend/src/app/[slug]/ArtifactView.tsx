@@ -32,7 +32,7 @@ import {
   replaceArtifactFile,
   updateArtifactSettings,
   type ArtifactRenderer,
-  API_BASE,
+  liveSocketUrl,
 } from "@/lib/api";
 import { ArtifactBar } from "./artifact/ArtifactBar";
 import { ArtifactSettingsDrawer, type ArtifactSettingsState } from "./artifact/ArtifactSettingsDrawer";
@@ -82,6 +82,8 @@ interface Props {
    * plain CDN response rather than something wearing a viewer UI.
    */
   viewerChrome?: "full" | "minimal" | "none";
+  /** The document's `read_ticket` (beacons + live socket, access policy §2.7). */
+  readTicket?: string | null;
 }
 
 const EMPTY_SETTINGS: ArtifactSettingsState = {
@@ -111,6 +113,7 @@ export default function ArtifactView({
   posterUrl: initialPosterUrl = null,
   docRef = null,
   viewerChrome = "full",
+  readTicket: initialReadTicket = null,
 }: Props) {
   useAnalyticsDoc({ ref: docRef, kind: "artifact", access: isPasswordProtected ? "protected" : "public" });
   const router = useRouter();
@@ -224,6 +227,8 @@ export default function ArtifactView({
   const [wsFailed, setWsFailed] = useState(false);
 
   const beaconSent = useRef(false);
+  // Every beacon and the live socket carry the read ticket (§2.7); each read replaces it.
+  const [readTicket, setReadTicket] = useState<string | null>(initialReadTicket);
 
   // Bumped on every live update. The blob URL is stable now, so React would
   // see an unchanged src and leave the iframe alone; keying on this forces it
@@ -253,6 +258,7 @@ export default function ArtifactView({
     { remount = true }: { remount?: boolean } = {}
   ) {
     setTitle(doc.title);
+    if (doc.read_ticket) setReadTicket(doc.read_ticket);
     // A URL arriving late (password unlock, the owner's authorised re-read) goes immersive in the
     // same render, so the framed iframe never mounts just to be thrown away (one fetch, not two).
     if (doc.artifact_url && !artifactUrlRef.current) setImmersive(true);
@@ -276,8 +282,8 @@ export default function ArtifactView({
   useEffect(() => {
     if (beaconSent.current || locked) return;
     beaconSent.current = true;
-    recordEvent(slug, "view");
-  }, [slug, locked]);
+    recordEvent(slug, "view", readTicket);
+  }, [slug, locked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live updates. The socket carries only a "changed" ping, so we refetch
   // through the normal authorized read path. Failures are no-ops.
@@ -289,14 +295,18 @@ export default function ArtifactView({
 
     function connect() {
       try {
-        ws = new WebSocket(`${API_BASE.replace(/^http/, "ws")}/ws/docs/${slug}`);
+        ws = new WebSocket(liveSocketUrl(slug, readTicket));
       } catch {
         return;
       }
       ws.onmessage = (ev) => {
         let msg: { type?: string } | null = null;
         try { msg = JSON.parse(ev.data); } catch { return; }
-        if (msg?.type !== "changed") return;
+        // Deleted, expired or renamed away: let the page answer (404 or redirect).
+        if (msg?.type === "gone") { window.location.reload(); return; }
+        // Narrowed: re-read (fresh ticket, reconnect) or, if refused now, show the gate.
+        const narrowed = msg?.type === "access";
+        if (msg?.type !== "changed" && !narrowed) return;
         const cachedPwd = isPasswordProtected
           ? sessionStorage.getItem(`pwd:${slug}`) || undefined
           : undefined;
@@ -305,7 +315,7 @@ export default function ArtifactView({
             setLiveReload(true);
             applyDoc(doc);
           })
-          .catch(() => {});
+          .catch(() => { if (narrowed) window.location.reload(); });
       };
       ws.onclose = () => { if (!closed) retry = setTimeout(connect, 3000); };
     }
@@ -315,7 +325,7 @@ export default function ArtifactView({
       if (retry) clearTimeout(retry);
       ws?.close();
     };
-  }, [slug, locked, isPasswordProtected]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [slug, locked, isPasswordProtected, readTicket]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cached password from a previous unlock in this tab.
   useEffect(() => {

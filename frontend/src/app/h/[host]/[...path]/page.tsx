@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { API_BASE, type DocumentResponse } from "@/lib/api";
+import { ogImageUrl, type DocumentResponse } from "@/lib/api";
 import ArtifactView from "@/app/[slug]/ArtifactView";
 import DocumentView from "@/app/[slug]/DocumentView";
 import { signInUrlFor } from "@/lib/hosts";
@@ -104,6 +104,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   let description = siteName ? `A document on ${siteName}` : "Shared document";
   let isFolder = false;
   let video: { url: string; type: string } | null = null;
+  // The readable document behind the card (its access epoch goes on the image URL).
+  let ogDoc: DocumentResponse | null = null;
   if (resolved) {
     let result: TenantDocResult | null = null;
     try {
@@ -113,6 +115,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
     if (result?.status === "ok") {
       const doc = result.doc;
+      ogDoc = doc;
       if (!doc.encrypted) {
         pageTitle = doc.title || doc.original_filename || slug;
         const preview = doc.kind === "artifact" ? "" : (doc.content || "").slice(0, 150).replace(/[#*_`]/g, "");
@@ -123,7 +126,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       if (raw) video = { url: raw, type: doc.mime || "video/mp4" };
     } else if (result?.status === "missing") {
       // Maybe a folder, which is named by its display name and has no OG card.
-      const listing = await fetchTenantFolderQuietly(host, [...folders, slug]);
+      const listing = await fetchTenantFolderQuietly(host, [...folders, slug], resolved.workspace_id);
       if (listing?.folder) {
         isFolder = true;
         pageTitle = listing.folder.name;
@@ -135,7 +138,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Named with the host this card was unfurled from, not the workspace's
   // default one. The server validates the host against that workspace's live
   // domains before drawing it. A link-level video's card carries its poster.
-  const ogImage = `${API_BASE}/api/v1/og/${encodeURIComponent(slug)}.png?host=${encodeURIComponent(host)}&v=4`;
+  const ogImage = ogImageUrl(slug, ogDoc, host);
   const title = siteName ? `${pageTitle} — ${siteName}` : pageTitle;
   const url = `https://${host}/${[...folders, slug].map(encodeURIComponent).join("/")}`;
   return {
@@ -185,7 +188,7 @@ export default async function TenantDocumentPage({ params }: Props) {
   // actually returns is shown; anything else is the tenant 404 (where a
   // signed-in reader's browser asks once more with their token).
   if (result.status === "missing") {
-    const listing = await fetchTenantFolder(host, [...folders, slug]);
+    const listing = await fetchTenantFolder(host, [...folders, slug], resolved.workspace_id);
     if (!listing?.folder) notFound();
     return <TenantFolderPage host={host} siteName={siteName} path={[...folders, slug]} initial={listing} />;
   }
@@ -228,6 +231,7 @@ export default async function TenantDocumentPage({ params }: Props) {
           artifactUrl={doc.artifact_url ?? null}
           downloadUrl={doc.download_url ?? null}
           posterUrl={doc.poster_url ?? null}
+          readTicket={doc.read_ticket ?? null}
           viewerChrome={viewerChrome}
         />
       </Suspense>
@@ -250,6 +254,7 @@ export default async function TenantDocumentPage({ params }: Props) {
         isOwned={doc?.is_owned ?? false}
         syncedWithVscode={doc?.vscode_synced ?? false}
         encrypted={doc?.encrypted ?? false}
+        readTicket={doc?.read_ticket ?? null}
         viewerChrome={viewerChrome}
       />
     </Suspense>

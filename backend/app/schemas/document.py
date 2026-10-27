@@ -120,6 +120,9 @@ class DocumentResponse(BaseModel):
     # HMAC ticket for the live socket (?t=) and the view/read beacons ("ticket"),
     # needed for any document an anonymous visitor could not read (§2.7).
     read_ticket: str | None = None
+    # Bumped on every narrowing (services/publicity.py). Pages put it on the OG
+    # image URL (`e=`) so a narrowed document's card is re-fetched (§5.1 #4).
+    access_epoch: int = 0
 
     model_config = {"from_attributes": True}
 

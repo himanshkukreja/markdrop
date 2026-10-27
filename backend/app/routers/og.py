@@ -59,24 +59,26 @@ async def _card_host(db: AsyncIOMotorDatabase, workspace_id: str, host: str | No
 async def _anonymous_gate(db: AsyncIOMotorDatabase, raw: dict, workspace) -> str | None:
     """Which gate stops an anonymous reader, or None if they can read it.
 
-    Mirrors ``services.document.get_document`` called with no user, no edit
-    secret and no password — the exact position a link crawler is in — using
-    the same rules rather than a second copy of them:
+    The decision is ``access.anonymous_can_read`` — ``can(AN, read)``, the
+    exact position a link crawler is in (policy §4.1 #30) — not a second copy
+    of the rules. Only the *kind* of content-free card is chosen here:
 
-    - ``access.can_read`` with no identity: only ``link`` (or no level, the
-      historical default) is readable; ``private`` and ``workspace`` are not.
-    - the workspace's ``require_auth_to_view`` closes every document in it to
-      anonymous readers, on every host.
-    - a read password gates every stranger.
-    - an encrypted document is ciphertext to the server; its title and body
-      are meaningless here and the owner chose to keep them off the wire.
+    - "password" when the one thing missing is the read password (a plain
+      link document outside a sign-in-required workspace);
+    - "private" for everything else an anonymous reader can't open (private,
+      workspace-only, require-sign-in workspace, expired);
+    - "encrypted" when it is readable but ciphertext to the server: its title
+      and body are meaningless here and the owner chose to keep them off the
+      wire.
     """
-    if workspace is not None and workspace.settings.require_auth_to_view:
+    if not await access_service.anonymous_can_read(db, raw):
+        if (
+            raw.get("read_password_hash")
+            and (raw.get("access_level") or "link") == "link"
+            and not (workspace is not None and workspace.settings.require_auth_to_view)
+        ):
+            return "password"
         return "private"
-    if not await access_service.can_read(db, raw, None, None):
-        return "private"
-    if raw.get("read_password_hash"):
-        return "password"
     if raw.get("encrypted"):
         return "encrypted"
     return None
@@ -136,6 +138,8 @@ async def og_image(
             "title": 1, "content": 1, "read_password_hash": 1, "access_level": 1,
             "kind": 1, "mime": 1, "size_bytes": 1, "original_filename": 1,
             "encrypted": 1, "workspace_id": 1, "poster_key": 1,
+            # What access.can(AN, read) looks at besides the above.
+            "slug": 1, "owner_id": 1, "expires_at": 1, "access_epoch": 1,
         },
     )
 
@@ -161,7 +165,7 @@ async def og_image(
             brand = _brand(workspace, domain_service.clean_host(host))
         card = og_render.Card(kind=gate, slug=slug, brand=brand)
         png = await run_in_threadpool(og_render.render_og_png, card)
-        return _png(png, max_age=3600)
+        return _png(png, max_age=300)
 
     # Readable by anyone with the link: the full card.
     # A document that belongs to a workspace wears that workspace's brand
@@ -208,4 +212,4 @@ async def og_image(
     png = await run_in_threadpool(og_render.render_og_png, card)
     # 1h cache: title/snippet edits and access changes propagate within the
     # hour without hammering the renderer on every crawler hit.
-    return _png(png, max_age=3600)
+    return _png(png, max_age=300)

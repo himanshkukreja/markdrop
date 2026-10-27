@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { trackingDisabled } from "@/lib/track";
 import { captureThirdParty } from "@/lib/thirdPartyAnalytics";
 
@@ -29,7 +29,17 @@ function randomId(): string {
  * longest time it has been told, so periodic and final reports never double
  * count.
  */
-export function useReadDepth(slug: string, el: React.RefObject<HTMLElement | null>, enabled: boolean) {
+export function useReadDepth(
+  slug: string,
+  el: React.RefObject<HTMLElement | null>,
+  enabled: boolean,
+  /** The document's `read_ticket` (sent as `t`); required for non-public documents (§2.7). */
+  ticket?: string | null,
+) {
+  // Read at send time, so a ticket that arrives (or is refreshed) mid-session is used without
+  // starting a new reading session.
+  const ticketRef = useRef<string | null>(ticket ?? null);
+  ticketRef.current = ticket ?? null;
   useEffect(() => {
     if (!enabled || trackingDisabled()) return;
     const rid = randomId();
@@ -69,7 +79,8 @@ export function useReadDepth(slug: string, el: React.RefObject<HTMLElement | nul
       }
       // text/plain, no credentials: a CORS "simple" request, so it needs no
       // preflight — which matters when this is the page's last act.
-      const body = JSON.stringify({ rid, depth, seconds });
+      const t = ticketRef.current;
+      const body = JSON.stringify(t ? { rid, depth, seconds, t } : { rid, depth, seconds });
       try {
         if (final && navigator.sendBeacon?.(url, new Blob([body], { type: "text/plain" }))) return;
         void fetch(url, { method: "POST", body, keepalive: true, headers: { "Content-Type": "text/plain" } }).catch(() => {});
