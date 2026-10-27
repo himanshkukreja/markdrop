@@ -356,6 +356,22 @@ async def migrate(db: AsyncIOMotorDatabase) -> dict:
                           "access_dirty": True}})
             dangling += res2.modified_count
     out["dangling_released"] = dangling
+    # 4. Artifacts filed in a require-sign-in workspace: before D3 their bytes
+    #    followed only level + password, so link ones are still public in R2.
+    #    Mark them dirty; the reconciler closes them under the one rule.
+    #    One-shot (recorded in `migrations`), so a restart doesn't re-copy
+    #    every object of those workspaces.
+    marker = "require_auth_bytes_v1"
+    if await db["migrations"].find_one({"_id": marker}):
+        return out
+    await db["migrations"].update_one({"_id": marker}, {"$set": {"at": _now()}}, upsert=True)
+    ra_ids = [str(w["_id"]) async for w in db["workspaces"].find(
+        {"settings.require_auth_to_view": True}, {"_id": 1})]
+    if ra_ids:
+        res = await db["documents"].update_many(
+            {"workspace_id": {"$in": ra_ids}, "kind": "artifact", "access_dirty": {"$ne": True}},
+            {"$set": {"access_dirty": True}})
+        out["require_auth_bytes_queued"] = res.modified_count
     return out
 
 
