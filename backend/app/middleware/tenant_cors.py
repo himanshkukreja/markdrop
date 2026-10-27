@@ -83,10 +83,7 @@ async def _is_verified_origin(origin: str) -> bool:
         if "/" not in rest and "@" not in rest and ":" not in rest:
             host = domain_service.clean_host(rest)
             try:
-                found = await get_database()["domains"].find_one(
-                    {"host": host, **domain_service.LIVE, "kind": "app"}, {"_id": 1}
-                )
-                allowed = found is not None
+                allowed = await domain_service.live_app_domain(get_database(), host) is not None
             except Exception:
                 # A database blip must not silently widen CORS.
                 allowed = False
@@ -104,7 +101,9 @@ ALLOW_HEADERS = ", ".join((
     "X-Read-Password", "X-Edit-Secret", "X-Markdrop-Workspace",
 ))
 ALLOW_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-EXPOSE_HEADERS = "X-Markdrop-Gate, Retry-After"
+# Readable by the page's JavaScript: the gate kind of a 401, a renamed slug's
+# current address (Q4), and how long to wait after a 429.
+EXPOSE_HEADERS = "X-Markdrop-Gate, X-Markdrop-Moved, Retry-After"
 
 
 def _apply(response: Response, origin: str) -> None:

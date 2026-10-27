@@ -46,8 +46,15 @@ MAX_DOMAINS_PER_WORKSPACE = 25
 # stranger scope our own traffic to their workspace and rebrand the product.
 _RESERVED_SUFFIXES = ("markdrop.in", "workers.dev", "vercel.app", "localhost")
 
-# The one definition of "this host may serve, receive tokens and get CORS".
-LIVE: dict = {"status": "verified", "attached": True}
+# The one definition of "this host may serve, receive tokens and get CORS"
+# (policy §1.3, S3): verified ∧ attached ∧ ¬lapsed. A lapsed row has
+# status "lapsed", so status "verified" already excludes it; the `lapsed`
+# flag is checked too in case a row carries it. `LIVE_APP` adds kind app —
+# what every document surface needs (a cdn host serves no pages and gets no
+# token or CORS). `is_live` is the same rule for a row in hand; urls.is_live
+# delegates here.
+LIVE: dict = {"status": "verified", "attached": True, "lapsed": {"$ne": True}}
+LIVE_APP: dict = {**LIVE, "kind": "app"}
 
 
 def _now() -> datetime:
@@ -84,13 +91,24 @@ def _to_domain(raw: dict) -> Domain:
     )
 
 
-def is_live(domain: Domain | dict | None) -> bool:
-    """Verified and attached (and therefore not lapsed or pending)."""
+def is_serving(domain: Domain | dict | None) -> bool:
+    """Verified, attached and not lapsed — of any kind (cdn hosts included)."""
     if domain is None:
         return False
     if isinstance(domain, dict):
-        return domain.get("status") == "verified" and bool(domain.get("attached"))
-    return domain.status == "verified" and domain.attached
+        return (domain.get("status") == "verified" and bool(domain.get("attached"))
+                and not domain.get("lapsed"))
+    return domain.status == "verified" and bool(domain.attached)
+
+
+def is_live(domain: Domain | dict | None) -> bool:
+    """A *live app host* (policy §1.3, S3): kind app ∧ verified ∧ attached ∧
+    ¬lapsed. The one rule behind canonical URLs, the workspace list's `live`,
+    MCP domain resolution, /host/folder, tenant token minting and tenant CORS."""
+    if not is_serving(domain):
+        return False
+    kind = domain.get("kind") if isinstance(domain, dict) else domain.kind
+    return kind == "app"
 
 
 def clean_host(raw: str | None) -> str:
@@ -297,6 +315,22 @@ async def remove_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: 
     if raw.get("attached"):
         await detach_from_hosting(raw["host"])
     await db["domains"].delete_one({"_id": raw["_id"]})
+    await _purge_host(db, raw)
+
+
+async def _purge_host(db: AsyncIOMotorDatabase, raw: dict) -> None:
+    """A domain changed state (verified / lapsed / removed / attached /
+    detached / primary): purge the frontend's cached host resolution and the
+    workspace's folder listings (policy §5.2, H*). Durable (outbox)."""
+    from app.services import revalidate
+
+    tags = [f"host:{raw['host']}"] if raw.get("host") else []
+    if raw.get("workspace_id"):
+        tags.append(f"wsl:{raw['workspace_id']}")
+    try:
+        await revalidate.enqueue(db, tags=tags)
+    except Exception:
+        log.warning("host purge failed for %s", raw.get("host"), exc_info=True)
 
 
 async def _find(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: str) -> dict:
@@ -541,6 +575,7 @@ async def _ensure_attached(db: AsyncIOMotorDatabase, raw: dict, routing_state: s
     updates["last_checked_at"] = now
     await db["domains"].update_one({"_id": raw["_id"]}, {"$set": updates})
     raw.update(updates)
+    await _purge_host(db, raw)
 
 
 async def attach_to_hosting(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: str) -> Domain:
@@ -566,6 +601,7 @@ async def attach_to_hosting(db: AsyncIOMotorDatabase, workspace_id: str, domain_
         updates = {"attached": True, "attached_via": "vercel", "last_error": None, "last_checked_at": now}
         await db["domains"].update_one({"_id": raw["_id"]}, {"$set": updates})
         raw.update(updates)
+        await _purge_host(db, raw)
         return _to_domain(raw)
     await db["domains"].update_one(
         {"_id": raw["_id"]}, {"$set": {"last_error": detail, "last_checked_at": now}}
@@ -601,6 +637,7 @@ async def detach_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: 
         {"_id": raw["_id"]}, {"$set": {"attached": False, "last_error": None, "last_checked_at": now}}
     )
     raw.update(attached=False, last_error=None, last_checked_at=now)
+    await _purge_host(db, raw)
     return _to_domain(raw)
 
 
@@ -646,6 +683,7 @@ async def _promote(db: AsyncIOMotorDatabase, raw: dict, now: datetime) -> None:
         if not has_primary:
             await db["domains"].update_one({"_id": raw["_id"]}, {"$set": {"is_primary": True}})
             raw["is_primary"] = True
+    await _purge_host(db, raw)
 
 
 async def _unverify(db: AsyncIOMotorDatabase, raw: dict, now: datetime, reason: str) -> None:
@@ -663,6 +701,7 @@ async def _unverify(db: AsyncIOMotorDatabase, raw: dict, now: datetime, reason: 
     }
     await db["domains"].update_one({"_id": raw["_id"]}, {"$set": updates})
     raw.update(updates)
+    await _purge_host(db, raw)
 
 
 async def lapse(db: AsyncIOMotorDatabase, raw: dict, now: datetime, reason: str) -> None:
@@ -681,6 +720,7 @@ async def lapse(db: AsyncIOMotorDatabase, raw: dict, now: datetime, reason: str)
             updates["attached"] = False
     await db["domains"].update_one({"_id": raw["_id"]}, {"$set": updates})
     raw.update(updates)
+    await _purge_host(db, raw)
     log.warning("domain %s lapsed: %s", raw["host"], reason)
 
 
@@ -788,7 +828,7 @@ async def primary_host(db: AsyncIOMotorDatabase, workspace_id: str) -> str | Non
     lapsed or unattached host doesn't answer."""
     rows = (
         await db["domains"]
-        .find({"workspace_id": workspace_id, **LIVE, "kind": "app"})
+        .find({"workspace_id": workspace_id, **LIVE_APP})
         .to_list(length=25)
     )
     if not rows:
@@ -825,6 +865,7 @@ async def set_primary(
         {"workspace_id": workspace_id, "is_primary": True}, {"$set": {"is_primary": False}}
     )
     await db["domains"].update_one({"_id": raw["_id"]}, {"$set": {"is_primary": True}})
+    await _purge_host(db, raw)
 
 
 async def host_belongs_to(
@@ -840,7 +881,7 @@ async def host_belongs_to(
     if not host:
         return False
     return bool(await db["domains"].find_one(
-        {"workspace_id": workspace_id, "host": host, **LIVE, "kind": "app"},
+        {"workspace_id": workspace_id, "host": host, **LIVE_APP},
         {"_id": 1},
     ))
 
@@ -854,6 +895,16 @@ async def resolve_host(db: AsyncIOMotorDatabase, raw_host: str) -> Domain | None
         return None
     raw = await db["domains"].find_one({"host": host, **LIVE})
     return _to_domain(raw) if raw else None
+
+
+async def live_app_domain(db: AsyncIOMotorDatabase, raw_host: str | None) -> dict | None:
+    """The domain row of a *live app host* (`is_live`), or None. What token
+    minting, tenant CORS, /host/folder and MCP custom-domain URLs resolve."""
+    host = clean_host(raw_host)
+    if not host:
+        return None
+    raw = await db["domains"].find_one({"host": host, **LIVE_APP})
+    return raw if is_live(raw) else None
 
 
 # ── Indexes and migration ─────────────────────────────────────────────────────

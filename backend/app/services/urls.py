@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
+from app.services import domain as domain_service
 
 settings = get_settings()
 PUBLIC_BASE = "https://markdrop.in"
@@ -61,42 +62,25 @@ def domain_status(row: dict) -> str:
 
 
 def is_live(row: dict | None) -> bool:
-    """A live app host (policy §1.3, S3): kind app ∧ verified ∧ attached ∧ ¬lapsed."""
-    return bool(
-        row
-        and row.get("kind") == "app"
-        and row.get("status") == "verified"
-        and row.get("attached")
-        and not row.get("lapsed")
-    )
+    """A live app host (policy §1.3, S3): kind app ∧ verified ∧ attached ∧
+    ¬lapsed. Delegates to :func:`app.services.domain.is_live` — one rule."""
+    return domain_service.is_live(row)
 
 
 async def live_primary_host(db: AsyncIOMotorDatabase, workspace_id: str) -> str | None:
     """The workspace's primary host among its *live* app domains: the explicit
-    primary if live, else the oldest live one."""
-    rows = await db["domains"].find({"workspace_id": workspace_id, "kind": "app"}).to_list(length=50)
-    live = [r for r in rows if is_live(r)]
-    if not live:
-        return None
-    chosen = next((r for r in live if r.get("is_primary")), None)
-    if chosen is None:
-        live.sort(key=lambda r: r.get("created_at") or 0)
-        chosen = live[0]
-    return chosen["host"]
+    primary if live, else the oldest live one (``domain.primary_host``)."""
+    return await domain_service.primary_host(db, workspace_id)
 
 
 def normalize_host(raw: str | None) -> str:
-    return (raw or "").strip().lower().split(":")[0].rstrip(".")
+    return domain_service.clean_host(raw)
 
 
 async def live_host(db: AsyncIOMotorDatabase, raw_host: str | None) -> dict | None:
     """The domain row for a live app host, or None (unknown, pending, cdn,
     detached or lapsed hosts never resolve)."""
-    host = normalize_host(raw_host)
-    if not host:
-        return None
-    row = await db["domains"].find_one({"host": host, "status": "verified"})
-    return row if is_live(row) else None
+    return await domain_service.live_app_domain(db, raw_host)
 
 
 def build_workspace_url(host: str | None, folder_path: list[str] | None, slug: str) -> str | None:

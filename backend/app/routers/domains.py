@@ -76,7 +76,7 @@ def _to_response(domain: Domain) -> DomainResponse:
         dns_target_type=first.type,
         dns_target_value=first.value,
         warning=_warning_for(domain),
-        live=domain_service.is_live(domain),
+        live=domain_service.is_serving(domain),
         routing_ok=domain.routing_ok,
         failures=domain.failures,
         first_failed_at=domain.first_failed_at,
@@ -283,7 +283,7 @@ async def resolve_host(
         return None
 
     b, s = workspace.branding, workspace.settings
-    response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=86400"
+    response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
     return HostResolution(
         host=resolved.host,
         workspace_id=resolved.workspace_id,

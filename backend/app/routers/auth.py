@@ -149,10 +149,10 @@ async def _tenant_host_live(payload: dict) -> bool:
     workspace takes its outstanding tokens with it at once, rather than leaving
     them good for the rest of their 12 hours."""
     try:
-        domain = await domain_service.resolve_host(get_database(), payload.get("host") or "")
+        row = await domain_service.live_app_domain(get_database(), payload.get("host") or "")
     except Exception:
         return False
-    return domain is not None and domain.kind == "app" and domain.workspace_id == payload.get("ws")
+    return row is not None and row.get("workspace_id") == payload.get("ws")
 
 
 def is_tenant_request(request: Request) -> bool:
@@ -283,7 +283,7 @@ async def _tenant_target(host_raw: str):
     domain = await domain_service.resolve_host(get_database(), host)
     # Unverified, unattached, lapsed, unknown, or a cdn host — none of which
     # serve documents, and none of which should ever receive a credential.
-    if domain is None or domain.kind != "app":
+    if not domain_service.is_live(domain):
         raise HTTPException(status_code=404, detail="Unknown domain.")
     return domain
 
