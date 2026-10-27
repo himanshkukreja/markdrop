@@ -370,6 +370,15 @@ async def sweep_expired(db: AsyncIOMotorDatabase, *, limit: int = 100) -> int:
     return n
 
 
+async def next_expiry(db: AsyncIOMotorDatabase, within: timedelta) -> datetime | None:
+    """The earliest ``expires_at`` still ahead of now and within ``within``."""
+    now = _now()
+    row = await db["documents"].find_one(
+        {"expires_at": {"$gt": now, "$lte": now + within}}, {"expires_at": 1},
+        sort=[("expires_at", 1)])
+    return publicity.aware(row.get("expires_at")) if row else None
+
+
 # ── Reconciler (§5.5) ─────────────────────────────────────────────────────────
 
 

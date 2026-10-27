@@ -98,7 +98,9 @@ async def enqueue(
         # sends it after this write, so it purges the newer state anyway. A due
         # time in the future (backoff) is pulled forward to now.
         await db[JOBS].update_one(
-            {"key": key, "state": "pending"},
+            # Scheduled jobs (``schedule``) are left alone: pulling one forward
+            # would spend the purge that must happen at its due time.
+            {"key": key, "state": "pending", "scheduled": {"$ne": True}},
             {"$setOnInsert": {"key": key, "payload": payload, "state": "pending",
                               "attempts": 0, "created_at": now},
              "$set": {"next_at": now, "updated_at": now}},
@@ -107,6 +109,49 @@ async def enqueue(
     if attempt_now:
         _spawn(db, list(seen))
     return list(seen)
+
+
+async def schedule(
+    db: AsyncIOMotorDatabase,
+    *,
+    at: datetime,
+    slugs: Iterable[str | None] = (),
+    tags: Iterable[str | None] = (),
+) -> list[str]:
+    """Purge jobs due at ``at`` rather than now — a document's expiry (B3):
+    the cached render must go the moment the document does, not when the
+    sweeper next passes. Sent by the revalidate worker (every few seconds)."""
+    at = _aware(at)
+    keys: list[tuple[str, dict]] = []
+    for slug in slugs:
+        if slug and _SLUG.match(slug):
+            keys.append((doc_key(slug), {"slug": slug}))
+    for tag in tags:
+        if tag:
+            keys.append((tag_key(tag), {"tag": tag}))
+    now = _now()
+    out: list[str] = []
+    for key, payload in dict(keys).items():
+        await db[JOBS].update_one(
+            {"key": key, "state": "pending", "scheduled": True, "next_at": at},
+            {"$setOnInsert": {"payload": payload, "attempts": 0, "created_at": now,
+                              "scheduled_for": at},
+             "$set": {"updated_at": now}},
+            upsert=True,
+        )
+        out.append(key)
+    return out
+
+
+async def schedule_expiry(db: AsyncIOMotorDatabase, raw: dict) -> list[str]:
+    """Purge(doc) at the document's ``expires_at`` (a second after it, so the
+    API already answers 404 when the page is rebuilt)."""
+    exp = _aware(raw.get("expires_at"))
+    if exp is None:
+        return []
+    tags = [f"wsl:{raw['workspace_id']}"] if raw.get("workspace_id") else []
+    old = [s for s in (raw.get("old_slugs") or []) if isinstance(s, str)]
+    return await schedule(db, at=exp + timedelta(seconds=1), slugs=[raw.get("slug"), *old], tags=tags)
 
 
 async def purge_doc(
@@ -167,7 +212,7 @@ async def _run_job(db: AsyncIOMotorDatabase, job: dict) -> str:
     elif 400 <= status < 500 and status not in (408, 425, 429):
         # The frontend refused the shape: retrying can't help.
         state, extra = "rejected", {"purge_at": now + GIVE_UP_AFTER, "last_status": status}
-    elif now - (_aware(job.get("created_at")) or now) > GIVE_UP_AFTER:
+    elif now - (_aware(job.get("scheduled_for")) or _aware(job.get("created_at")) or now) > GIVE_UP_AFTER:
         state, extra = "dead", {"purge_at": now + GIVE_UP_AFTER, "last_status": status}
     else:
         attempts = int(job.get("attempts") or 0) + 1

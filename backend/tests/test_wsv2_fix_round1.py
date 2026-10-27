@@ -402,6 +402,53 @@ class B5DocAndFolderAddresses(AccessWorld):
         self.assertEqual((await self.get(d["slug"], scoped)).status_code, 200)
 
 
+class B3ExpiryPurgeIsScheduled(AccessWorld):
+    async def test_b3_setting_an_expiry_books_a_purge_at_that_moment(self):
+        from app.services import revalidate
+
+        d = await self.mkdoc("L", owner="owner")
+        when = now() + timedelta(minutes=5)
+        r = await self.http.put(f"/api/v1/documents/{d['slug']}", headers=self.session("owner"), json={
+            "content": "x", "expires_in": "custom", "custom_expires_at": when.isoformat()})
+        self.assertEqual(r.status_code, 200, r.text)
+        job = await self.db["revalidate_jobs"].find_one({"key": f"doc:{d['slug']}", "scheduled": True})
+        self.assertIsNotNone(job)
+        due = publicity.aware(job["next_at"])
+        self.assertGreaterEqual(due, when)
+        self.assertLess(due, when + timedelta(seconds=5))
+        self.assertIsNotNone(await self.db["revalidate_jobs"].find_one(
+            {"key": f"tag:wsl:{self.ws['W1']}", "scheduled": True}))
+        # Ordinary purges of the same page don't consume it…
+        await revalidate.purge_doc(self.db, await self.doc(d["slug"]))
+        self.assertIsNotNone(await self.db["revalidate_jobs"].find_one(
+            {"key": f"doc:{d['slug']}", "scheduled": True, "state": "pending"}))
+        # …and the worker sends it once it is due.
+        sched = {"key": f"doc:{d['slug']}", "scheduled": True}
+        with mock.patch.object(revalidate.settings, "page_revalidate_enabled", True):
+            await revalidate.run_due(self.db)
+            self.assertEqual((await self.db["revalidate_jobs"].find_one(sched))["state"], "pending")
+            with mock.patch.object(revalidate, "_now", lambda: when + timedelta(seconds=2)):
+                self.posted.clear()
+                await revalidate.run_due(self.db)
+            self.assertIn({"slug": d["slug"]}, self.posted)
+            self.assertEqual((await self.db["revalidate_jobs"].find_one(sched))["state"], "done")
+
+    async def test_b3_new_document_with_expiry_books_its_purge(self):
+        r = await self.http.post("/api/v1/documents", headers=self.session("owner"),
+                                 json={"content": "# x", "expires_in": "1d"})
+        self.assertEqual(r.status_code, 201, r.text)
+        self.assertIsNotNone(await self.db["revalidate_jobs"].find_one(
+            {"key": f"doc:{r.json()['slug']}", "scheduled": True}))
+
+    async def test_b3_sweeper_waits_for_an_imminent_expiry(self):
+        from app.services import background
+
+        d = await self.mkdoc("L", ws=None, expires_at=now() + timedelta(seconds=1.2))
+        with mock.patch.object(background, "SWEEP_EVERY", 5.0):
+            await background._sweep(self.db)
+        self.assertIsNone(await self.doc(d["slug"]))
+
+
 # ── LOW ───────────────────────────────────────────────────────────────────────
 
 

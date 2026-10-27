@@ -71,10 +71,23 @@ async def _revalidate(db: AsyncIOMotorDatabase) -> None:
     await revalidate.run_due(db, limit=200)
 
 
+SWEEP_EVERY = 60.0
+
+
 async def _sweep(db: AsyncIOMotorDatabase) -> None:
+    """Destroy what has expired; then, for documents expiring before the next
+    pass, wait for each and sweep again (B3) — the policy says gone *at*
+    expires_at, so a 60 s pass must not mean up to 60 s of late deletion."""
     from app.services import lifecycle
 
     await lifecycle.sweep_expired(db)
+    deadline = _now() + timedelta(seconds=SWEEP_EVERY)
+    while True:
+        nxt = await lifecycle.next_expiry(db, deadline - _now())
+        if nxt is None:
+            return
+        await asyncio.sleep(max(0.0, (nxt - _now()).total_seconds()) + 0.5)
+        await lifecycle.sweep_expired(db)
 
 
 _last_full: dict[str, datetime] = {}
@@ -93,7 +106,7 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
     if not settings.background_workers_enabled or _TASKS:
         return
     loop = asyncio.get_running_loop()
-    for name, every, body in (("revalidate", 5.0, _revalidate), ("sweeper", 60.0, _sweep),
+    for name, every, body in (("revalidate", 5.0, _revalidate), ("sweeper", SWEEP_EVERY, _sweep),
                               ("reconciler", 60.0, _reconcile)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 

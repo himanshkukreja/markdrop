@@ -147,6 +147,7 @@ async def create_document(
         from app.services import lifecycle
 
         await lifecycle.clear_tombstone(db, data.custom_slug)
+        await _schedule_expiry(db, doc_dict)
         return _doc_from_mongo(doc_dict), raw_secret
 
     # Preferred slug path (e.g. from a filename): try it, then add a short
@@ -163,9 +164,10 @@ async def create_document(
                 doc_dict = _build(slug)
                 try:
                     await db["documents"].insert_one(doc_dict)
-                    return _doc_from_mongo(doc_dict), raw_secret
                 except DuplicateKeyError:
                     continue
+                await _schedule_expiry(db, doc_dict)
+                return _doc_from_mongo(doc_dict), raw_secret
 
     # Random slug path with retry
     for _ in range(settings.slug_max_retries):
@@ -175,11 +177,27 @@ async def create_document(
         doc_dict = _build(slug)
         try:
             await db["documents"].insert_one(doc_dict)
-            return _doc_from_mongo(doc_dict), raw_secret
         except DuplicateKeyError:
             continue
+        await _schedule_expiry(db, doc_dict)
+        return _doc_from_mongo(doc_dict), raw_secret
 
     raise HTTPException(status_code=503, detail="Could not generate unique slug. Try again.")
+
+
+async def _schedule_expiry(db: AsyncIOMotorDatabase, doc_dict: dict) -> None:
+    """B3: a document born with an expiry gets its purge booked for that moment."""
+    if doc_dict.get("expires_at") is None:
+        return
+    from app.services import revalidate
+
+    try:
+        await revalidate.schedule_expiry(db, doc_dict)
+    except Exception:  # pragma: no cover - the sweeper still purges it
+        import logging
+
+        logging.getLogger(__name__).warning("scheduling the expiry purge of %s failed",
+                                            doc_dict.get("slug"), exc_info=True)
 
 
 async def find_for_read(db: AsyncIOMotorDatabase, slug: str) -> tuple[dict | None, bool]:

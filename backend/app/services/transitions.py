@@ -97,6 +97,8 @@ async def change(
         live.access_changed(raw.get("slug"))
         if after.get("slug") != raw.get("slug"):
             live.access_changed(after.get("slug"))
+        if sets.get("expires_at") is not None:
+            await revalidate.schedule_expiry(db, after)  # B3
         return after
 
     opens = has_bytes and pub_after and not pub_before
@@ -116,6 +118,9 @@ async def change(
         await revalidate.purge_doc(db, after, extra_slugs=extra_slugs)
         if raw.get("workspace_id") and raw.get("workspace_id") != after.get("workspace_id"):
             await revalidate.enqueue(db, tags=[f"wsl:{raw['workspace_id']}"])
+    if sets.get("expires_at") is not None:
+        # B3: the cached renders go when the document does.
+        await revalidate.schedule_expiry(db, after)
     if live_event == "access":
         live.access_changed(after.get("slug"))
     else:
