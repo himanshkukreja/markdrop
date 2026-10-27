@@ -886,3 +886,58 @@ class C12AdminInvitationsAreTheOwners(AccessWorld):
         r = await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/invitations/{r.json()['id']}",
                                    headers=self.session("wa"))
         self.assertEqual(r.status_code, 204, r.text)
+
+
+class A1PasswordAttemptsShared(__import__("unittest").IsolatedAsyncioTestCase):
+    """The wrong-password window is shared by every API worker (Redis)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import shutil
+        import socket
+        import subprocess
+        import time as _time
+
+        exe = shutil.which("redis-server")
+        if not exe:
+            raise __import__("unittest").SkipTest("redis-server not installed")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            cls.port = sock.getsockname()[1]
+        cls.proc = subprocess.Popen([exe, "--port", str(cls.port), "--save", "", "--appendonly", "no"],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(50):
+            try:
+                socket.create_connection(("127.0.0.1", cls.port), timeout=0.1).close()
+                break
+            except OSError:
+                _time.sleep(0.05)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.proc.terminate()
+        cls.proc.wait(timeout=5)
+
+    async def test_a1_two_workers_share_one_window(self):
+        from app.config import get_settings
+        from app.services import access
+
+        with mock.patch.object(get_settings(), "redis_url", f"redis://127.0.0.1:{self.port}/0"):
+            w1, w2 = access._Attempts(), access._Attempts()
+            slug = f"s-{__import__('secrets').token_hex(3)}"
+            for _ in range(5):
+                await w1.fail(slug, "1.2.3.4")
+                await w2.fail(slug, "1.2.3.4")
+            self.assertTrue(await w1.blocked(slug, "1.2.3.4"))
+            self.assertTrue(await w2.blocked(slug, "1.2.3.4"))
+            self.assertFalse(await w2.blocked(slug, "5.6.7.8"))
+
+    async def test_a1_falls_back_to_memory_when_redis_is_down(self):
+        from app.config import get_settings
+        from app.services import access
+
+        with mock.patch.object(get_settings(), "redis_url", "redis://127.0.0.1:9/0"):
+            w = access._Attempts()
+            for _ in range(10):
+                await w.fail("s", "ip")
+            self.assertTrue(await w.blocked("s", "ip"))

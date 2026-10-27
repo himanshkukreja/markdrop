@@ -316,12 +316,52 @@ def resharing_allowed(doc: dict) -> bool:
 
 
 class _Attempts:
+    """Wrong-password attempts per (slug, client IP), shared by every API
+    worker through Redis (``settings.redis_url``) — an in-process window let
+    each worker grant its own 10/min (A1). Falls back to process memory when
+    Redis isn't configured (``memory://``) or doesn't answer, and retries
+    Redis after a short pause."""
+
     PER_MINUTE = 10
     PER_HOUR = 50
+    _RETRY_AFTER_S = 30.0
 
     def __init__(self) -> None:
         self._fails: dict[tuple[str, str], deque] = {}
+        self._redis = None
+        self._redis_loop = None
+        self._down_until = 0.0
 
+    # ── Redis ──
+    def _client(self):
+        from app.config import get_settings
+
+        url = get_settings().redis_url or ""
+        if not url.startswith(("redis://", "rediss://", "unix://")):
+            return None
+        if time.monotonic() < self._down_until:
+            return None
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        if self._redis is None or self._redis_loop is not loop:
+            import redis.asyncio as aioredis
+
+            self._redis = aioredis.from_url(url, socket_timeout=0.5, socket_connect_timeout=0.5)
+            self._redis_loop = loop
+        return self._redis
+
+    def _down(self) -> None:
+        self._down_until = time.monotonic() + self._RETRY_AFTER_S
+        self._redis = None
+
+    @staticmethod
+    def _key(slug: str, ip: str | None) -> str:
+        import hashlib
+
+        return "md:pwfail:" + hashlib.sha256(f"{slug}\x00{ip or '?'}".encode()).hexdigest()[:40]
+
+    # ── Memory fallback ──
     def _window(self, key) -> deque:
         q = self._fails.setdefault(key, deque())
         cutoff = time.monotonic() - 3600
@@ -329,12 +369,40 @@ class _Attempts:
             q.popleft()
         return q
 
-    def blocked(self, slug: str, ip: str | None) -> bool:
+    def _blocked_memory(self, slug: str, ip: str | None) -> bool:
         q = self._window((slug, ip or "?"))
         recent = sum(1 for t in q if t >= time.monotonic() - 60)
         return recent >= self.PER_MINUTE or len(q) >= self.PER_HOUR
 
-    def fail(self, slug: str, ip: str | None) -> None:
+    async def blocked(self, slug: str, ip: str | None) -> bool:
+        r = self._client()
+        if r is not None:
+            try:
+                key, now = self._key(slug, ip), time.time()
+                pipe = r.pipeline()
+                pipe.zremrangebyscore(key, 0, now - 3600)
+                pipe.zcount(key, now - 60, "+inf")
+                pipe.zcard(key)
+                _, recent, total = await pipe.execute()
+                return int(recent) >= self.PER_MINUTE or int(total) >= self.PER_HOUR
+            except Exception:
+                self._down()
+        return self._blocked_memory(slug, ip)
+
+    async def fail(self, slug: str, ip: str | None) -> None:
+        r = self._client()
+        if r is not None:
+            try:
+                import secrets as _secrets
+
+                key, now = self._key(slug, ip), time.time()
+                pipe = r.pipeline()
+                pipe.zadd(key, {f"{now:.6f}:{_secrets.token_hex(4)}": now})
+                pipe.expire(key, 3600)
+                await pipe.execute()
+                return
+            except Exception:
+                self._down()
         self._window((slug, ip or "?")).append(time.monotonic())
 
     def reset(self) -> None:
@@ -368,7 +436,7 @@ async def _read(actor: Actor, doc: dict, f: Facts, ctx: Ctx) -> Decision:
     cache_key = ("pw", id(actor), str(doc.get("_id")))
     if cache_key in ctx._facts:
         return ctx._facts[cache_key]
-    if password_attempts.blocked(doc.get("slug") or "", ctx.ip):
+    if await password_attempts.blocked(doc.get("slug") or "", ctx.ip):
         return Decision(False, 429, "Too many wrong passwords. Try again in a few minutes.",
                         code="rate_limited")
     try:
@@ -378,7 +446,7 @@ async def _read(actor: Actor, doc: dict, f: Facts, ctx: Ctx) -> Decision:
     if ok:
         d = _allow(None)
     else:
-        password_attempts.fail(doc.get("slug") or "", ctx.ip)
+        await password_attempts.fail(doc.get("slug") or "", ctx.ip)
         d = Decision(False, 403, "Incorrect password", code="wrong_password")
     ctx._facts[cache_key] = d
     return d
