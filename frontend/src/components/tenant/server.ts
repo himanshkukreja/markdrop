@@ -16,6 +16,7 @@
  */
 
 import { createHmac } from "crypto";
+import { unstable_cache } from "next/cache";
 import { API_BASE, documentTag, type DocumentResponse } from "@/lib/api";
 import type { HostResolution } from "@/lib/hostResolution";
 import type { TenantFolderListing } from "./folderIndex";
@@ -60,7 +61,7 @@ function transient(status: number): boolean {
   return status === 0 || status === 408 || status === 429 || status >= 500;
 }
 
-async function apiFetch(path: string, init: RequestInit & { next?: { revalidate?: number; tags?: string[] } }) {
+async function apiFetch(path: string, init: RequestInit) {
   try {
     return await fetch(`${API_BASE}${path}`, {
       ...init,
@@ -71,20 +72,58 @@ async function apiFetch(path: string, init: RequestInit & { next?: { revalidate?
   }
 }
 
+/** What a cached API answer keeps: enough to tell ok / moved / gate / missing apart. */
+interface Answer {
+  status: number;
+  gate: string | null;
+  moved: boolean;
+  body: unknown;
+}
+
+/**
+ * One API answer, cached for `REVALIDATE` seconds under `tags` — whatever its status (B-N3).
+ *
+ * Not the fetch cache: Next only stores 200 responses there, so once a document narrowed (its
+ * API answer turned into a 401 gate or a 404) the old 200 stayed in the cache and kept being
+ * served stale-while-revalidate on these force-dynamic pages — indefinitely if the purge for it
+ * was missed. Caching the *result* instead lets a gate or a 404 replace the 200 within one
+ * revalidation window even when every purge fails. A transient failure (network, 429, 5xx) throws
+ * and is never cached: the previous answer keeps being served until the API answers again.
+ */
+function cachedAnswer(
+  key: string[],
+  path: string,
+  headers: Record<string, string>,
+  tags: string[],
+  isTransient: (status: number) => boolean = transient,
+): Promise<Answer> {
+  const load = async (): Promise<Answer> => {
+    // no-store: inside unstable_cache the fetch cache is bypassed anyway; said explicitly.
+    const res = await apiFetch(path, { headers, cache: "no-store" });
+    if (isTransient(res.status)) throw new TenantUnavailable(res.status);
+    const body = res.ok ? await res.json().catch(() => null) : null;
+    if (res.ok && body === null) throw new TenantUnavailable(res.status);
+    return {
+      status: res.status,
+      gate: res.headers.get("x-markdrop-gate"),
+      moved: res.headers.has("x-markdrop-moved"),
+      body,
+    };
+  };
+  return unstable_cache(load, ["tenant-api-v1", ...key], { revalidate: REVALIDATE, tags })();
+}
+
 /**
  * Which workspace serves this host, for documents. Null for an unknown, unverified, lapsed or
  * cdn-kind host (the page is a 404). Throws `TenantUnavailable` when the API can't be asked.
  */
 export async function resolveTenantHost(host: string): Promise<HostResolution | null> {
   if (!host) return null;
-  const res = await apiFetch(`/api/v1/host?host=${encodeURIComponent(host)}`, {
-    next: { revalidate: REVALIDATE, tags: [hostTag(host)] },
-  });
-  if (!res.ok) {
-    if (transient(res.status)) throw new TenantUnavailable(res.status);
-    return null;
-  }
-  const data = (await res.json().catch(() => null)) as HostResolution | null;
+  // Cached whatever the answer: a host that stops resolving (lapsed, removed) must stop serving
+  // within a revalidation window even if its purge is missed (B-N3).
+  const res = await cachedAnswer(["host", host], `/api/v1/host?host=${encodeURIComponent(host)}`, {}, [hostTag(host)]);
+  if (res.status < 200 || res.status >= 300) return null;
+  const data = res.body as HostResolution | null;
   if (!data || !data.workspace_id || data.kind !== "app") return null;
   return data;
 }
@@ -119,14 +158,16 @@ export type TenantDocResult =
  */
 export async function fetchTenantDocument(slug: string, workspaceId: string): Promise<TenantDocResult> {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(slug)) return { status: "missing" };
-  const res = await apiFetch(`/api/v1/documents/${slug}`, {
-    headers: { "x-markdrop-workspace": workspaceId },
-    next: { revalidate: REVALIDATE, tags: [documentTag(slug)] },
-  });
-  if (res.ok) {
-    const body = (await res.json()) as (DocumentResponse & Partial<MovedBody>) | null;
+  const res = await cachedAnswer(
+    ["doc", slug, workspaceId],
+    `/api/v1/documents/${slug}`,
+    { "x-markdrop-workspace": workspaceId },
+    [documentTag(slug)],
+  );
+  if (res.status >= 200 && res.status < 300) {
+    const body = res.body as (DocumentResponse & Partial<MovedBody>) | null;
     // A renamed slug answers with where the document lives now (only to callers who may read it).
-    if (body && (body.moved === true || res.headers.has("x-markdrop-moved"))
+    if (body && (body.moved === true || res.moved)
         && typeof body.slug === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(body.slug)) {
       const folders = Array.isArray(body.folder_path)
         ? body.folder_path.filter((s): s is string => typeof s === "string" && s.length > 0)
@@ -138,10 +179,9 @@ export async function fetchTenantDocument(slug: string, workspaceId: string): Pr
   }
   if (res.status === 404) return { status: "missing" };
   if (res.status === 401) {
-    return res.headers.get("x-markdrop-gate") === "signin" ? { status: "signin" } : { status: "password" };
+    return res.gate === "signin" ? { status: "signin" } : { status: "password" };
   }
   if (res.status === 403) return { status: "password" };
-  if (transient(res.status)) throw new TenantUnavailable(res.status);
   return { status: "missing" };
 }
 
@@ -161,16 +201,20 @@ export async function fetchTenantFolder(
 ): Promise<TenantFolderListing | typeof FOLDER_SIGNIN | null> {
   const q = new URLSearchParams({ host, path: path.join("/") });
   // Anonymous view only (no credentials on a server render), so it may be shared; purged with
-  // the workspace's listings and with the host.
-  const res = await apiFetch(`/api/v1/host/folder?${q}`, {
-    next: { revalidate: REVALIDATE, tags: [listingTag(workspaceId), hostTag(host)] },
-  });
-  if (!res.ok) {
-    if (transient(res.status) && res.status !== 501) throw new TenantUnavailable(res.status);
-    if (res.status === 401 && res.headers.get("x-markdrop-gate") === "signin") return FOLDER_SIGNIN;
+  // the workspace's listings and with the host — and, like documents, a 404 or a sign-in gate
+  // replaces a cached listing on its own within a revalidation window (B-N3).
+  const res = await cachedAnswer(
+    ["folder", host, path.join("/"), workspaceId],
+    `/api/v1/host/folder?${q}`,
+    {},
+    [listingTag(workspaceId), hostTag(host)],
+    (status) => transient(status) && status !== 501,
+  );
+  if (res.status < 200 || res.status >= 300) {
+    if (res.status === 401 && res.gate === "signin") return FOLDER_SIGNIN;
     return null;
   }
-  return parseFolderListing(await res.json().catch(() => null));
+  return parseFolderListing(res.body);
 }
 
 /** The folder listing, or null on any failure: for metadata only. */
