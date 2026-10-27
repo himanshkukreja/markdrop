@@ -158,9 +158,9 @@ def clean_path(path: str, host: str) -> str | None:
     # /f/<share id>[/<path>] — a folder link is a capability; /w/<workspace id>/…
     # names a workspace. (Mirror in frontend lib/analyticsPath.ts.)
     if segments[0] == "f" and len(segments) > 1:
-        return "/f/[id]"
+        return "/f/[share]"
     if segments[0] == "w" and len(segments) > 1:
-        return "/w/[id]"
+        return "/w/[workspace]/f/[folder]" if len(segments) > 2 else "/w/[workspace]"
     if segments[0] == "h":
         return "/h/[workspace-doc]"
     if len(segments) == 1 and segments[0] not in APP_ROUTES:
