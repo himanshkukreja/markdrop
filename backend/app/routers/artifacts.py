@@ -118,7 +118,23 @@ async def create_upload_url(
             detail=f"File is larger than the {limit // (1024*1024)} MB limit for this type.",
         )
 
-    allowed, used = await art_service.check_quota(db, user.id, data.size_bytes)
+    if data.target_slug:
+        # A replacement: the bytes count against the file's owner, and a
+        # non-owner never makes the owner's old versions disappear (Q6). The
+        # authoritative checks run again at PUT /{slug}/file; this just spares
+        # an upload that would be refused there.
+        from app.services import file_uploads
+
+        target = await file_uploads.editable_artifact(db, user, data.target_slug, action="replace")
+        if not target.get("bundle_prefix") and mime != "application/zip":
+            plan = await file_versions.quota_plan(db, target["owner_id"], target, data.size_bytes)
+            if plan is None or (plan and target["owner_id"] != user.id):
+                raise HTTPException(status_code=507, detail=file_versions.quota_message())
+            allowed = True
+        else:
+            allowed, used = await art_service.check_quota(db, target["owner_id"], data.size_bytes)
+    else:
+        allowed, used = await art_service.check_quota(db, user.id, data.size_bytes)
     if not allowed:
         raise HTTPException(
             status_code=507,

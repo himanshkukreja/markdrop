@@ -25,6 +25,7 @@ function tenantPathOf(url: string): string {
   }
 }
 import {
+  ApiError,
   changeSlug,
   deleteDocument,
   getDocument,
@@ -137,6 +138,9 @@ export default function ArtifactView({
   const [sizeBytes, setSizeBytes] = useState(initialSize);
   const [views, setViews] = useState(initialViews);
   const [isOwner, setIsOwner] = useState(false);
+  // `can.replace` from the server (Q6): editors and workspace members on a non-private file may
+  // swap the bytes, but only the owner reaches the rest of the settings.
+  const [canReplace, setCanReplace] = useState(false);
   const [docId, setDocId] = useState<string | null>(null);
   // Immersive mode: the artifact fills the viewport with all app chrome hidden,
   // so a published page reads as the content itself rather than something in a
@@ -149,7 +153,7 @@ export default function ArtifactView({
   const [downloading, setDownloading] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
 
-  // Owner settings drawer
+  // Owner settings drawer (file-only for a non-owner who may replace the file)
   const [showEdit, setShowEdit] = useState(false);
   const [edit, setEdit] = useState<ArtifactSettingsState>(EMPTY_SETTINGS);
   const [eProgress, setEProgress] = useState(0);
@@ -170,6 +174,10 @@ export default function ArtifactView({
       return;
     }
     if (edit.slug && edit.slug.length < 3) return;
+    if (!isOwner && edit.file && /\.zip$/i.test(edit.file.name)) {
+      setEError("Only the owner can replace this with a zipped site. Choose a single file instead.");
+      return;
+    }
     setEBusy(true);
     setEError("");
     try {
@@ -177,6 +185,12 @@ export default function ArtifactView({
       if (edit.file) {
         const doc = await replaceArtifactFile(slug, edit.file, setEProgress);
         applyDoc(doc);
+      }
+      if (!isOwner) {
+        // Everything past the file is the owner's (title, link, password, expiry).
+        purgeDocument(slug);
+        setShowEdit(false);
+        return;
       }
       const changedSettings =
         edit.title !== (title || "") || !!edit.password || edit.removePassword || !!edit.expiry;
@@ -202,7 +216,13 @@ export default function ArtifactView({
       }
       setShowEdit(false);
     } catch (err) {
-      setEError(err instanceof Error ? err.message : "Couldn't save the changes. Try again.");
+      setEError(
+        err instanceof ApiError && err.status === 507 && !isOwner
+          ? "The owner's storage is full, so the file can't be replaced right now. Ask them to free up some space."
+          : err instanceof Error
+            ? err.message
+            : "Couldn't save the changes. Try again."
+      );
     } finally {
       setEBusy(false);
       setEProgress(0);
@@ -342,6 +362,7 @@ export default function ArtifactView({
   useEffect(() => {
     if (!user) {
       setIsOwner(false);
+      setCanReplace(false);
       return;
     }
     let cancelled = false;
@@ -349,6 +370,7 @@ export default function ArtifactView({
       .then((doc) => {
         if (cancelled) return;
         setIsOwner(!!doc.is_owner);
+        setCanReplace(!!doc.can?.replace);
         setDocId(doc.id ?? null);
         if (doc.is_owner && doc.artifact_url) applyDoc(doc, { remount: false });
       })
@@ -558,6 +580,9 @@ export default function ArtifactView({
     menu.push({ label: "Share", icon: "share", onClick: () => setShowShare(true) });
     menu.push({ label: "Settings", icon: "settings", onClick: openEdit });
   }
+  if (!isOwner && canReplace && !locked) {
+    menu.push({ label: "Replace file", icon: "upload", onClick: openEdit });
+  }
   if (!isOwner && !locked) {
     menu.push({ label: "Report", icon: "flag", onClick: () => setShowReport(true) });
   }
@@ -672,8 +697,9 @@ export default function ArtifactView({
         />
       )}
 
-      {isOwner && (
+      {(isOwner || canReplace) && (
         <ArtifactSettingsDrawer
+          fileOnly={!isOwner}
           open={showEdit}
           onClose={() => !eBusy && setShowEdit(false)}
           value={edit}

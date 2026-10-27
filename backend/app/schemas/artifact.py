@@ -14,6 +14,9 @@ class ArtifactUploadUrlRequest(BaseModel):
     # Declared size; advisory only. The real size is verified against R2 after
     # the upload, because a presigned PUT can't enforce a length range.
     size_bytes: int = Field(..., ge=1)
+    # Set when these bytes will replace the file at this link (PUT /{slug}/file):
+    # the quota is then measured on that file's owner, who pays for it (Q6).
+    target_slug: str | None = Field(None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
 
 
 class ArtifactUploadUrlResponse(BaseModel):

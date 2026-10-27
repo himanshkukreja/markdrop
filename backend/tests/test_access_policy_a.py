@@ -642,6 +642,39 @@ class Files(AccessWorld):
         self.assertEqual(r.status_code, 200, r.text)
         self.assertIsNone(await self.db["file_versions"].find_one({"blob_key": old}))
 
+    async def _upload_url(self, who, size, **extra):
+        body = {"filename": "v2.html", "content_type": "text/html", "size_bytes": size, **extra}
+        return await self.http.post("/api/v1/artifacts/upload-url", json=body, headers=self.session(who))
+
+    async def test_c072b_upload_url_for_replace_measures_owner_quota(self):
+        d = await self.mkdoc("P", ws=None, kind="artifact")
+        await self._fill_quota(d)
+        # Non-owner: a shortfall on the owner is refused before any bytes move.
+        r = await self._upload_url("ge", 20, target_slug=d["slug"])
+        self.assertEqual(r.status_code, 507, r.text)
+        # The owner may let old versions go, as PUT /file would.
+        r = await self._upload_url("owner", 20, target_slug=d["slug"])
+        self.assertEqual(r.status_code, 200, r.text)
+        # Fits the owner's room: fine for the editor too.
+        r = await self._upload_url("ge", 5, target_slug=d["slug"])
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertTrue(r.json()["blob_key"].startswith(f"art/{self.uid['ge']}/"))
+
+    async def test_c072c_upload_url_for_replace_ignores_the_callers_own_usage(self):
+        from unittest import mock
+
+        d = await self.mkdoc("W", kind="artifact")
+        await self.mkdoc("UL", owner="wm", kind="artifact", size_bytes=1000, grants=False)
+        with mock.patch.object(settings, "artifact_user_quota_bytes", 1010):
+            self.assertEqual((await self._upload_url("wm", 20)).status_code, 507)
+            r = await self._upload_url("wm", 20, target_slug=d["slug"])
+            self.assertEqual(r.status_code, 200, r.text)
+
+    async def test_c072d_upload_url_for_replace_needs_the_right(self):
+        d = await self.mkdoc("W", kind="artifact")
+        self.assertEqual((await self._upload_url("wv", 5, target_slug=d["slug"])).status_code, 403)
+        self.assertEqual((await self._upload_url("stranger", 5, target_slug=d["slug"])).status_code, 404)
+
     async def test_c074_member_cannot_replace_bundle(self):
         d = await self.mkdoc("W", kind="artifact", bundle=True)
         r, _ = await self._replace("wm", d["slug"])

@@ -1151,6 +1151,12 @@ export async function updateArtifactSettings(
 }
 
 /** Swap the file behind an artifact, keeping its URL and settings. */
+/**
+ * Swap the file behind an artifact, keeping its link and settings. Open to anyone whose
+ * `can.replace` is true (the owner, editors, members on non-private files): the bytes count against
+ * the file's owner, so `target_slug` lets the server measure that quota up front. Failures are
+ * `ApiError`s — a 507 from a non-owner means the owner's storage is full.
+ */
 export async function replaceArtifactFile(
   slug: string,
   file: File,
@@ -1163,9 +1169,10 @@ export async function replaceArtifactFile(
       filename: file.name,
       content_type: file.type || "application/octet-stream",
       size_bytes: file.size,
+      target_slug: slug,
     }),
   });
-  if (!urlRes.ok) throw await artifactError(urlRes, "Could not start the upload");
+  if (!urlRes.ok) throw await apiError(urlRes, "Could not start the upload");
   const { upload_url, blob_key, required_content_type } = await urlRes.json();
 
   await new Promise<void>((resolve, reject) => {
@@ -1186,7 +1193,7 @@ export async function replaceArtifactFile(
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ blob_key, filename: file.name }),
   });
-  if (!res.ok) throw await artifactError(res, "Could not replace the file");
+  if (!res.ok) throw await apiError(res, "Could not replace the file");
   return res.json();
 }
 
