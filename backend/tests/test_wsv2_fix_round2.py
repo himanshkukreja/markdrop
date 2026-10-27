@@ -849,3 +849,41 @@ class McpLinkKeepsThePassword(AccessWorld):
                                                        "remove_password": True})
         self.assertTrue(res.get("isError"), res)
         self.assertTrue((await self.doc(d["slug"])).get("read_password_hash"))
+
+
+# ── 4. Lookup / oracle / routing ──────────────────────────────────────────────
+
+
+class CN3McpWorkspaceReferences(AccessWorld):
+    async def _attacker(self, name: str) -> None:
+        from bson import ObjectId
+
+        await self.db["workspaces"].update_one({"_id": ObjectId(self.ws["W2"])}, {"$set": {"name": name}})
+        await self.add_member("W2", "wm", "member")
+
+    async def _publish(self, ref: str):
+        _s, res = await self.mcp_call(await self.mcp_token("wm"), "publish_document",
+                                      {"markdown": "# secret", "workspace": ref})
+        if res.get("isError"):
+            return None, res["content"][0]["text"]
+        return (await self.doc(res["structuredContent"]["slug"]))["workspace_id"], ""
+
+    async def test_r1_pending_domain_beats_a_workspace_named_after_it(self):
+        await self.db["domains"].update_many({"workspace_id": self.ws["W1"]}, {"$set": {"status": "pending"}})
+        await self._attacker("docs.acme.test")
+        for ref in ("docs.acme.test", "https://docs.acme.test/"):
+            ws_id, err = await self._publish(ref)
+            self.assertEqual(ws_id, self.ws["W1"], err)
+
+    async def test_host_shaped_reference_never_matches_a_name(self):
+        await self._attacker("unknown.example")
+        ws_id, err = await self._publish("unknown.example")
+        self.assertIsNone(ws_id)
+        self.assertIn("domain", err)
+
+    async def test_lookalike_names_are_refused(self):
+        for name in ("Αcme", "Acme​", "Acme ", "ACME"):
+            await self._attacker(name)
+            ws_id, err = await self._publish("Acme")
+            self.assertIsNone(ws_id, name)
+            self.assertIn("looks like", err)

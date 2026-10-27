@@ -317,14 +317,54 @@ async def url_pair(ctx: Context, raw_or_doc) -> dict:
     return {"url": ws_url or public_url(slug), "markdrop_url": public_url(slug), "workspace_url": ws_url}
 
 
-async def resolve_workspace(ctx: Context, value: str) -> tuple[str, Any, str]:
-    """A workspace the user belongs to: by exact id, then by one of its *live*
-    domains, then by a name that matches exactly ONE of the user's workspaces.
+_HOSTLIKE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$")
+# Common cross-script lookalikes (after NFKC + casefold + accent stripping).
+_CONFUSABLES = str.maketrans({
+    "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "у": "y", "х": "x", "і": "i", "ј": "j",
+    "ѕ": "s", "ԁ": "d", "ӏ": "l", "һ": "h", "ԛ": "q", "ԝ": "w", "в": "b", "к": "k", "м": "m",
+    "н": "h", "т": "t", "α": "a", "β": "b", "ε": "e", "η": "n", "ι": "i", "κ": "k", "ν": "v",
+    "ο": "o", "ρ": "p", "τ": "t", "υ": "u", "χ": "x", "γ": "y", "ω": "w", "0": "o", "1": "l",
+    "|": "l", "ı": "i", "ℓ": "l",
+})
 
-    Never the first of several same-named workspaces: anyone can create a
-    workspace, name it after yours and invite you, and "publish to Acme" must
-    not land in theirs (C4). Ambiguous names are refused with the candidates
-    (id and domains) so the caller can pick by id or domain."""
+
+def name_skeleton(name: str) -> str:
+    """What a workspace name *looks* like: NFKC, casefolded, invisible and
+    combining characters dropped, cross-script lookalikes folded, separators
+    collapsed — "Acme", "ACME ", "Αcme" (Greek) and "Acme​" all give "acme"."""
+    import unicodedata
+
+    text = unicodedata.normalize("NFKC", name or "").casefold()
+    text = "".join(ch for ch in unicodedata.normalize("NFD", text)
+                   if unicodedata.category(ch) not in ("Mn", "Cf", "Cc"))
+    text = text.translate(_CONFUSABLES).replace("i", "l")  # l / I / i look alike in many fonts
+    return " ".join(re.sub(r"[\s_\-.·・]+", " ", text).split())
+
+
+def _host_of(text: str) -> str | None:
+    """The hostname when the reference looks like a domain or URL, else None."""
+    host = text.strip().lower()
+    if "://" in host:
+        host = (urlsplit(host).hostname or "").lower()
+    host = host.split("/")[0].split(":")[0].rstrip(".")
+    try:
+        host = host.encode("idna").decode("ascii") if host else host
+    except UnicodeError:
+        return host or None
+    return host if host and _HOSTLIKE.match(host) else None
+
+
+async def resolve_workspace(ctx: Context, value: str) -> tuple[str, Any, str]:
+    """A workspace the user belongs to: by exact id; or, for anything shaped
+    like a domain, by a domain row of one of *their* workspaces (any status —
+    a pending domain is still theirs) and never by name; or by a name that
+    matches exactly ONE of their workspaces and is not confusable with another
+    of them.
+
+    Anyone can create a workspace, name it after yours (or after your domain,
+    or with a lookalike letter) and invite you; "publish to Acme" must not
+    land in theirs (C4, C-N3). Ambiguous or confusable references are refused
+    with the candidates (id and domains) so the caller can pick by id."""
     from app.services import urls as urls_service
     from app.services import workspace as ws_service
 
@@ -335,29 +375,39 @@ async def resolve_workspace(ctx: Context, value: str) -> tuple[str, Any, str]:
     for ws, role in pairs:
         if ws.id == text:
             return ws.id, ws, role
-    host = text.lower()
-    if "://" in host:
-        host = (urlsplit(host).hostname or "").lower()
-    host = host.split("/")[0].rstrip(".")
-    if host and "." in host:
-        row = await urls_service.live_host(ctx.db, host)
-        if row:
-            for ws, role in pairs:
-                if ws.id == row.get("workspace_id"):
-                    return ws.id, ws, role
-    matches = [(ws, role) for ws, role in pairs if ws.name.strip().lower() == text.lower()]
-    if len(matches) == 1:
-        return matches[0][0].id, matches[0][0], matches[0][1]
 
     async def describe(ws) -> str:
         hosts = [r["host"] for r in await ctx.db["domains"].find(
             {"workspace_id": ws.id}).to_list(length=20) if urls_service.is_live(r)]
         return f"{ws.name} (id {ws.id}" + (f", {', '.join(hosts)}" if hosts else "") + ")"
 
-    if len(matches) > 1:
-        listing = "; ".join([await describe(ws) for ws, _ in matches])
-        raise ToolError(f"More than one of the user's workspaces is called '{text}': {listing}. "
-                        "Name the workspace by its id or its domain instead.")
+    mine = {ws.id: (ws, role) for ws, role in pairs}
+    host = _host_of(text)
+    if host is not None:
+        rows = await ctx.db["domains"].find({"host": host}, {"workspace_id": 1}).to_list(length=50)
+        owners = list(dict.fromkeys(r["workspace_id"] for r in rows if r.get("workspace_id") in mine))
+        if len(owners) == 1:
+            ws, role = mine[owners[0]]
+            return ws.id, ws, role
+        if len(owners) > 1:
+            listing = "; ".join([await describe(mine[w][0]) for w in owners])
+            raise ToolError(f"More than one of the user's workspaces lists the domain {host}: {listing}. "
+                            "Name the workspace by its id instead.")
+        names = "; ".join([await describe(ws) for ws, _ in pairs])
+        raise ToolError(f"None of the user's workspaces has the domain {host}. A domain names a "
+                        f"workspace only through its own domain settings, never by a workspace's "
+                        f"name. Their workspaces: {names}.")
+
+    wanted = name_skeleton(text)
+    lookalikes = [(ws, role) for ws, role in pairs if name_skeleton(ws.name) == wanted]
+    exact = [(ws, role) for ws, role in lookalikes
+             if " ".join(ws.name.casefold().split()) == " ".join(text.casefold().split())]
+    if len(lookalikes) == 1 and len(exact) == 1:
+        return exact[0][0].id, exact[0][0], exact[0][1]
+    if len(lookalikes) > 1:
+        listing = "; ".join([await describe(ws) for ws, _ in lookalikes])
+        raise ToolError(f"More than one of the user's workspaces is called '{text}' or something that "
+                        f"looks like it: {listing}. Name the workspace by its id or its domain instead.")
     names = "; ".join([await describe(ws) for ws, _ in pairs])
     raise ToolError(f"The user isn't in a workspace matching '{text}'. Their workspaces: {names}.")
 
