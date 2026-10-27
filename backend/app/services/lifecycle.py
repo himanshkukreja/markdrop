@@ -253,6 +253,69 @@ async def require_auth_toggled(db: AsyncIOMotorDatabase, workspace_id: str, on: 
     return {"documents": len(rows), "changed": changed}
 
 
+REQUIRE_AUTH_LEASE = timedelta(seconds=120)
+
+
+async def sync_require_auth(db: AsyncIOMotorDatabase, workspace_id: str, *,
+                            wait: float = 10.0) -> dict | None:
+    """C-N8: make the documents reflect the workspace's *current*
+    ``require_auth_to_view`` — never the value a request saw before it wrote.
+
+    ``require_auth_applied`` records what the bytes, epochs and caches
+    reflect. Under a per-workspace lease (so two toggles can't open and close
+    the same objects at once) the holder re-reads the setting and applies it
+    until applied == wanted; every filed document is marked dirty first, so a
+    failure mid-way is repaired by the reconciler from the current row. A
+    request that finds the lease taken waits (bounded) for the holder, which
+    picks up its change on the next round."""
+    import asyncio
+
+    try:
+        oid = ObjectId(workspace_id)
+    except Exception:
+        return None
+    deadline = _now() + timedelta(seconds=wait)
+    result: dict | None = None
+    while True:
+        row = await db["workspaces"].find_one({"_id": oid}, {"settings": 1, "require_auth_applied": 1})
+        if row is None:
+            return result
+        want = bool((row.get("settings") or {}).get("require_auth_to_view"))
+        applied = row.get("require_auth_applied")
+        if applied is None:
+            # Never toggled since C-N8: nothing to reconcile.
+            await db["workspaces"].update_one({"_id": oid, "require_auth_applied": {"$exists": False}},
+                                              {"$set": {"require_auth_applied": want}})
+            return result
+        if bool(applied) == want:
+            return result
+        now = _now()
+        lease = await db["workspaces"].update_one(
+            {"_id": oid, "$or": [{"require_auth_lock": None}, {"require_auth_lock": {"$lt": now}}]},
+            {"$set": {"require_auth_lock": now + REQUIRE_AUTH_LEASE}})
+        if lease.matched_count == 0:
+            if _now() >= deadline:
+                log.warning("require_auth of %s still being applied elsewhere", workspace_id)
+                return result
+            await asyncio.sleep(0.1)
+            continue
+        try:
+            while True:
+                row = await db["workspaces"].find_one({"_id": oid}, {"settings": 1, "require_auth_applied": 1})
+                if row is None:
+                    break
+                want = bool((row.get("settings") or {}).get("require_auth_to_view"))
+                if bool(row.get("require_auth_applied")) == want:
+                    break
+                await db["documents"].update_many({"workspace_id": workspace_id},
+                                                  {"$set": {"access_dirty": True}})
+                result = await require_auth_toggled(db, workspace_id, want)
+                await db["workspaces"].update_one({"_id": oid}, {"$set": {"require_auth_applied": want}})
+        finally:
+            await db["workspaces"].update_one({"_id": oid}, {"$set": {"require_auth_lock": None}})
+        return result
+
+
 async def _host_tags(db: AsyncIOMotorDatabase, workspace_id: str) -> list[str]:
     rows = await db["domains"].find({"workspace_id": workspace_id}, {"host": 1}).to_list(length=200)
     return [f"host:{r['host']}" for r in rows if r.get("host")]

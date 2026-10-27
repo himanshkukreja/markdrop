@@ -560,13 +560,16 @@ async def _action(actor: Actor, doc: dict, f: Facts, action: str, ctx: Ctx) -> D
         if not owner:
             return not_found()  # an admin can never pull someone else's document in
         target = ctx.target_workspace or f.ws_id
-        if target is None or await ctx.workspace(target) is None:
+        tws = await ctx.workspace(target) if target is not None else None
+        if tws is None:
             return Decision(False, 404, "Workspace not found", code="not_found")
         trole = await ctx.role(target, uid)
         if trole is None:
             return Decision(False, 404, "Workspace not found", code="not_found")
         if not ws_role_allows(trole, "member"):
             return _forbid("Viewers can't add documents to a workspace.")
+        if getattr(tws, "deleting", False):
+            return Decision(False, 409, "This workspace is being deleted.", code="conflict")
         return allow
     if action == "move_in_workspace":
         if not uid:
@@ -575,6 +578,8 @@ async def _action(actor: Actor, doc: dict, f: Facts, action: str, ctx: Ctx) -> D
             return Decision(False, 404, "Workspace not found", code="not_found")
         if not ws_role_allows(f.ws_role, "member"):
             return _forbid("Viewers can't move documents.")
+        if getattr(f.ws, "deleting", False):
+            return Decision(False, 409, "This workspace is being deleted.", code="conflict")
         return allow
     if action == "unshare":
         if not uid:

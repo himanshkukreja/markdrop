@@ -543,3 +543,186 @@ class CN4GranterLostTheirGrant(_Grants):
         await self.db["migrations"].delete_many({})
         await lifecycle.migrate(self.db)
         self.assertEqual(await self.reads("z", d), 200)
+
+
+# ── 3. Workspace deletion and toggles ─────────────────────────────────────────
+
+
+class CN5DeletingWorkspaceIsClosed(AccessWorld):
+    async def _delete(self, key="WR", name="Acme Private"):
+        return await self.http.request("DELETE", f"/api/v1/workspaces/{self.ws[key]}",
+                                       json={"confirm_name": name}, headers=self.session("wo"))
+
+    async def test_h1_continuous_filing_cannot_hold_the_delete_hostage(self):
+        from bson import ObjectId
+        from app.services import lifecycle
+
+        await self.mkdoc("RL")
+        orig = lifecycle.release_db_first
+        adds: list[int] = []
+
+        async def filing_member(db, raw, ws_id, *, require_auth):
+            out = await orig(db, raw, ws_id, require_auth=require_auth)
+            mine = await self.mkdoc("L", ws=None, owner="wm")
+            r = await self.http.post(f"/api/v1/workspaces/{ws_id}/items/add", json={"slugs": [mine["slug"]]},
+                                     headers=self.session("wm"))
+            adds.append(r.status_code)
+            return out
+
+        with mock.patch.object(lifecycle, "release_db_first", filing_member):
+            r = await self._delete()
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertTrue(adds)
+        self.assertTrue(all(code == 409 for code in adds), adds)
+        self.assertIsNone(await self.db["workspaces"].find_one({"_id": ObjectId(self.ws["WR"])}))
+        self.assertEqual(await self.db["documents"].count_documents({"workspace_id": self.ws["WR"]}), 0)
+
+    async def test_h2_filing_after_the_release_is_refused(self):
+        from app.services import domain as domain_service
+
+        late = await self.mkdoc("L", ws=None, owner="wm", kind="artifact")
+        orig = domain_service.detach_from_hosting
+        state = {}
+
+        async def slow_detach(host):
+            r = await self.http.post(f"/api/v1/workspaces/{self.ws['WR']}/items/add",
+                                     json={"slugs": [late["slug"]]}, headers=self.session("wm"))
+            state["add"] = r.status_code
+            return await orig(host)
+
+        with mock.patch.object(domain_service, "detach_from_hosting", slow_detach):
+            r = await self._delete()
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(state["add"], 409)
+        row = await self.doc(late["slug"])
+        self.assertIsNone(row.get("workspace_id"))
+
+    async def test_h2_a_write_landing_after_the_release_is_swept(self):
+        from app.services import domain as domain_service
+
+        late = await self.mkdoc("L", ws=None, owner="wm", kind="artifact")
+        orig = domain_service.detach_from_hosting
+
+        async def lands_late(host):
+            # A filing that passed its checks before the delete started writes now.
+            await self.db["documents"].update_one({"_id": late["_id"]},
+                                                  {"$set": {"workspace_id": self.ws["WR"]}})
+            return await orig(host)
+
+        with mock.patch.object(domain_service, "detach_from_hosting", lands_late):
+            r = await self._delete()
+        self.assertEqual(r.status_code, 200, r.text)
+        row = await self.doc(late["slug"])
+        self.assertIsNone(row.get("workspace_id"))
+        self.assertEqual(row["access_level"], "private")  # left a sign-in workspace (Q2)
+        self.assertEqual((await self.get(late["slug"])).status_code, 401)
+
+    async def test_filing_that_lands_while_deleting_is_taken_back_out(self):
+        from bson import ObjectId
+        from app.services import folder as folder_service
+
+        mine = await self.mkdoc("L", ws=None, owner="wm")
+        orig = folder_service.assert_doc_fits
+
+        async def deleting_meanwhile(db, ws_id, folder_id, slug):
+            await db["workspaces"].update_one({"_id": ObjectId(ws_id)}, {"$set": {"deleting": True}})
+            return await orig(db, ws_id, folder_id, slug)
+
+        with mock.patch.object(folder_service, "assert_doc_fits", deleting_meanwhile):
+            from app.services import library as lib_service
+            from app.models.user import User
+
+            user = User(id=self.uid["wm"], email=self.email["wm"], created_at=now(), updated_at=now())
+            with self.assertRaises(Exception) as cm:
+                await lib_service.add_document(self.db, self.ws["WR"], str(mine["_id"]), user)
+        self.assertEqual(getattr(cm.exception, "status_code", None), 409)
+        row = await self.doc(mine["slug"])
+        self.assertIsNone(row.get("workspace_id"))
+        self.assertEqual(row["access_level"], "private")  # it touched a sign-in workspace: never wider
+
+    async def test_h1b_partial_release_reports_what_happened(self):
+        from bson import ObjectId
+        from app.services import lifecycle
+
+        a = await self.mkdoc("RL")
+        b = await self.mkdoc("RL")
+        orig = lifecycle.release_db_first
+
+        async def one_sticks(db, raw, ws_id, *, require_auth):
+            if raw["_id"] == b["_id"]:
+                return None
+            return await orig(db, raw, ws_id, require_auth=require_auth)
+
+        with mock.patch.object(lifecycle, "release_db_first", one_sticks):
+            r = await self._delete()
+        self.assertEqual(r.status_code, 409, r.text)
+        self.assertNotIn("Nothing was deleted", r.text)
+        self.assertIn("1 document", r.text)
+        self.assertIsNone((await self.doc(a["slug"])).get("workspace_id"))
+        ws = await self.db["workspaces"].find_one({"_id": ObjectId(self.ws["WR"])})
+        self.assertTrue(ws.get("deleting"))
+        mine = await self.mkdoc("L", ws=None, owner="wm")
+        r = await self.http.post(f"/api/v1/workspaces/{self.ws['WR']}/items/add",
+                                 json={"slugs": [mine["slug"]]}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 409, r.text)
+        r = await self.http.post(f"/api/v1/workspaces/{self.ws['WR']}/folders", json={"name": "New"},
+                                 headers=self.session("wm"))
+        self.assertEqual(r.status_code, 409, r.text)
+        r = await self._delete()  # a retry finishes it
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertIsNone(await self.db["workspaces"].find_one({"_id": ObjectId(self.ws["WR"])}))
+
+
+class CN8RequireAuthToggleRace(AccessWorld):
+    async def test_h4_racing_toggles_end_with_bytes_matching_the_row(self):
+        from bson import ObjectId
+        from app.services import workspace as ws_service
+
+        W = self.ws["WR"]
+        a = await self.mkdoc("RL", kind="artifact")
+        orig = ws_service.update_workspace
+        b_read, a_written, b_written = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        calls = {"n": 0}
+
+        async def upd(db, wid, **kw):
+            calls["n"] += 1
+            if calls["n"] == 1:      # A: OFF
+                await b_read.wait()
+                out = await orig(db, wid, **kw)
+                a_written.set()
+                await b_written.wait()
+                return out
+            b_read.set()             # B: ON, after A
+            await a_written.wait()
+            out = await orig(db, wid, **kw)
+            b_written.set()
+            return out
+
+        with mock.patch.object(ws_service, "update_workspace", upd):
+            ra, rb = await asyncio.gather(
+                self.http.put(f"/api/v1/workspaces/{W}", json={"settings": {"require_auth_to_view": False}},
+                              headers=self.session("wa")),
+                self.http.put(f"/api/v1/workspaces/{W}", json={"settings": {"require_auth_to_view": True}},
+                              headers=self.session("wo")))
+        self.assertEqual((ra.status_code, rb.status_code), (200, 200))
+        ws = await self.db["workspaces"].find_one({"_id": ObjectId(W)})
+        self.assertTrue(ws["settings"]["require_auth_to_view"])
+        self.assertTrue(ws["require_auth_applied"])
+        self.assertFalse(self.r2.objects[a["blob_key"]]["public"])
+        self.assertEqual((await self.get(a["slug"])).status_code, 401)
+
+    async def test_toggle_follows_the_current_setting_not_the_request(self):
+        from bson import ObjectId
+        from app.services import lifecycle
+
+        W = self.ws["W1"]
+        a = await self.mkdoc("L", kind="artifact")
+        self.assertTrue(self.r2.objects[a["blob_key"]]["public"])
+        # The row says ON but nothing was applied yet (a request that wrote and died).
+        await self.db["workspaces"].update_one({"_id": ObjectId(W)}, {"$set": {
+            "settings.require_auth_to_view": True, "require_auth_applied": False}})
+        await lifecycle.sync_require_auth(self.db, W)
+        self.assertFalse(self.r2.objects[a["blob_key"]]["public"])
+        ws = await self.db["workspaces"].find_one({"_id": ObjectId(W)})
+        self.assertTrue(ws["require_auth_applied"])
+        self.assertIsNone(ws.get("require_auth_lock"))

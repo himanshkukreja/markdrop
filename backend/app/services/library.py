@@ -144,12 +144,16 @@ async def add_document(
     # C8: the folder may have been deleted while we wrote: root it.
     if folder_id and not await folder_service.unfile_if_folder_gone(db, after):
         after = await db["documents"].find_one({"_id": after["_id"]}) or after
-    # W4: the workspace may have been deleted while we wrote. A dangling row is
-    # treated as unfiled everywhere; release it now rather than wait.
-    if await ctx.workspace(workspace_id) is None or not await db["workspaces"].find_one(
-            {"_id": ObjectId(workspace_id)}, {"_id": 1}):
-        after = await lifecycle.release_from_workspace(db, after, workspace_id, require_auth=require_auth)
-        raise HTTPException(status_code=404, detail="Workspace not found")
+    # W4, C-N5/N6: the workspace may have been deleted — or started being
+    # deleted — while we wrote. Take the document straight back out, database
+    # first (a storage hiccup can't keep it filed), rather than leave it for
+    # the deletion's late sweep or the reconciler.
+    now_row = await db["workspaces"].find_one({"_id": ObjectId(workspace_id)}, {"deleting": 1})
+    if now_row is None or now_row.get("deleting"):
+        await lifecycle.release_db_first(db, after, workspace_id, require_auth=require_auth)
+        if now_row is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        raise HTTPException(status_code=409, detail="This workspace is being deleted.")
     return _doc_from_mongo(after)
 
 

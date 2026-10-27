@@ -183,7 +183,6 @@ async def update_workspace(
     # Branding and viewer settings change what every visitor sees, so they sit
     # behind admin rather than member.
     role = await ws_service.require_role(db, workspace_id, user.id, "admin")
-    before = await ws_service.get_workspace(db, workspace_id)
     workspace = await ws_service.update_workspace(
         db,
         workspace_id,
@@ -194,11 +193,12 @@ async def update_workspace(
     from app.services import lifecycle, revalidate
 
     # W1/W2: require sign-in changes the audience of every filed document at
-    # once — bytes, epochs, caches (D3).
-    was = bool(before and before.settings.require_auth_to_view)
-    now_on = workspace.settings.require_auth_to_view
-    if was != now_on:
-        await lifecycle.require_auth_toggled(db, workspace_id, now_on)
+    # once — bytes, epochs, caches (D3). Applied from the *current* setting
+    # under a per-workspace lease, never from what this request saw before it
+    # wrote (C-N8: two racing toggles must end with the bytes matching the row).
+    toggled = await lifecycle.sync_require_auth(db, workspace_id)
+    if toggled is not None:
+        workspace = await ws_service.get_workspace(db, workspace_id) or workspace
     elif data.branding is not None or data.settings is not None or data.name is not None:
         # Branding / chrome render on the workspace's hosts.
         rows = await db["domains"].find({"workspace_id": workspace_id}, {"host": 1}).to_list(length=200)

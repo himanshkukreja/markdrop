@@ -90,6 +90,9 @@ class Workspace:
     updated_at: datetime
     branding: Branding = field(default_factory=Branding)
     settings: WorkspaceSettings = field(default_factory=WorkspaceSettings)
+    # Set by the owner's delete before anything is released (C-N5): nothing
+    # new may be filed, moved or created in it from then on.
+    deleting: bool = False
 
 
 @dataclass

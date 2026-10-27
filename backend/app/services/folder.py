@@ -454,7 +454,10 @@ async def list_folders(db: AsyncIOMotorDatabase, workspace_id: str) -> list[Fold
 async def create_folder(
     db: AsyncIOMotorDatabase, workspace_id: str, name: str, parent_id: str | None
 ) -> Folder:
+    from app.services import workspace as ws_service
+
     name = _clean_name(name)
+    await ws_service.assert_open(db, workspace_id)  # C-N5
     count = await db["folders"].count_documents({"workspace_id": workspace_id})
     if count >= MAX_FOLDERS_PER_WORKSPACE:
         raise HTTPException(status_code=429, detail="This workspace has reached its folder limit.")
@@ -491,6 +494,11 @@ async def create_folder(
     }
     result = await db["folders"].insert_one(doc)
     doc["_id"] = result.inserted_id
+    try:
+        await ws_service.assert_open(db, workspace_id)  # deleted meanwhile: don't leave it behind
+    except HTTPException:
+        await db["folders"].delete_one({"_id": result.inserted_id})
+        raise
     return _to_folder(doc)
 
 

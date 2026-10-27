@@ -33,7 +33,25 @@ def _to_workspace(raw: dict) -> Workspace:
         updated_at=raw["updated_at"],
         branding=Branding.from_dict(raw.get("branding")),
         settings=WorkspaceSettings.from_dict(raw.get("settings")),
+        deleting=bool(raw.get("deleting")),
     )
+
+
+DELETING = "This workspace is being deleted."
+
+
+async def assert_open(db: AsyncIOMotorDatabase, workspace_id: str) -> None:
+    """404 for a workspace that is gone, 409 for one being deleted (C-N5):
+    nothing may be filed, moved or created in it any more."""
+    try:
+        oid = ObjectId(workspace_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    raw = await db["workspaces"].find_one({"_id": oid}, {"deleting": 1})
+    if raw is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    if raw.get("deleting"):
+        raise HTTPException(status_code=409, detail=DELETING)
 
 
 def _to_membership(raw: dict) -> Membership:
@@ -127,6 +145,8 @@ async def create_workspace(db: AsyncIOMotorDatabase, name: str, owner: User) -> 
         "updated_at": now,
         "branding": {},
         "settings": {},
+        # What the documents' bytes and epochs currently reflect (C-N8).
+        "require_auth_applied": False,
     }
     result = await db["workspaces"].insert_one(doc)
     workspace_id = str(result.inserted_id)
@@ -164,6 +184,14 @@ async def update_workspace(
     # default — ``require_auth_to_view`` off, i.e. every document of a
     # sign-in workspace public (C3). Written as dotted keys so a concurrent
     # update of another field isn't overwritten either.
+    if settings and "require_auth_to_view" in settings:
+        # A workspace from before C-N8 has no record of what its documents
+        # reflect: it is whatever the setting was until this write.
+        row = await db["workspaces"].find_one({"_id": ObjectId(workspace_id)}, {"settings": 1})
+        if row is not None:
+            await db["workspaces"].update_one(
+                {"_id": ObjectId(workspace_id), "require_auth_applied": {"$exists": False}},
+                {"$set": {"require_auth_applied": bool((row.get("settings") or {}).get("require_auth_to_view"))}})
     for group, values in (("branding", branding), ("settings", settings)):
         if values:
             # A legacy row may hold null here; dotted keys need an object.
@@ -305,6 +333,14 @@ async def delete_workspace(
     from app.services import domain as domain_service
     from app.services import lifecycle, revalidate
 
+    # C-N5: close the doors first. From here on nothing can be filed, moved
+    # or created in it (can(file_into_workspace), folder create, uploads), so
+    # the release below can't be outrun by a member filing as fast as it goes.
+    await db["workspaces"].update_one(
+        {"_id": ObjectId(workspace_id), "owner_id": user_id},
+        {"$set": {"deleting": True, "deleting_at": datetime.now(timezone.utc)}})
+    require_auth = workspace.settings.require_auth_to_view
+
     # W3: every document is released with the D2 conversion (workspace-only
     # ⇒ private; link documents of a sign-in workspace ⇒ private), grants made
     # through the workspace die, caches are purged. First, and database
@@ -312,12 +348,17 @@ async def delete_workspace(
     # points at it, or nothing would remember that it required sign-in (C1).
     doc_keys: list[str] = []
     released, remaining = await lifecycle.release_workspace_documents(
-        db, workspace_id, workspace.settings.require_auth_to_view, purge_keys=doc_keys)
+        db, workspace_id, require_auth, purge_keys=doc_keys)
     if remaining:
+        # Say exactly what happened (C-N6): what was released stays released,
+        # the workspace stays closed to new documents, a retry finishes it.
+        if doc_keys:
+            await revalidate.flush(db, doc_keys)
         raise HTTPException(
             status_code=409,
-            detail="Some documents couldn't be taken out of this workspace yet. Nothing was "
-                   "deleted — try again.",
+            detail=(f"{released} document{'s' if released != 1 else ''} were taken out of this "
+                    f"workspace, but {remaining} couldn't be yet. The workspace is closed to new "
+                    "documents and wasn't deleted — try again to finish."),
         )
 
     domains = await db["domains"].find({"workspace_id": workspace_id}).to_list(length=200)
@@ -335,6 +376,15 @@ async def delete_workspace(
     await db["invitations"].delete_many({"workspace_id": workspace_id})
     members = await db["memberships"].delete_many({"workspace_id": workspace_id})
     await db["workspaces"].delete_one({"_id": ObjectId(workspace_id)})
+    # C-N6: a filing that passed its checks before ``deleting`` was set can
+    # still land after the release pass. Sweep again, database first: out of
+    # the (now gone) workspace, level converted, marked dirty for the bytes.
+    late_keys: list[str] = []
+    late, _left = await lifecycle.release_workspace_documents(
+        db, workspace_id, require_auth, passes=2, purge_keys=late_keys)
+    if late_keys:
+        await revalidate.flush(db, late_keys)
+    released += late
 
     return {
         "documents_released": released,

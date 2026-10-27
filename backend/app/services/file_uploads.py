@@ -252,6 +252,7 @@ async def create(db: AsyncIOMotorDatabase, user, data, *, scope: str | None = No
             from app.services import workspace as ws_service
 
             await ws_service.require_role(db, data.workspace, user.id, "member")
+            await ws_service.assert_open(db, data.workspace)  # C-N5
             workspace = data.workspace
             if folder is not None:
                 from app.services import folder as folder_service
