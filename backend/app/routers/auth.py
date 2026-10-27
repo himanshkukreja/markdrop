@@ -143,6 +143,18 @@ def _tenant_scope_ok(request: Request, payload: dict) -> bool:
     return any(m == method and rx.match(path) for m, rx in _TENANT_ALLOWED)
 
 
+async def _tenant_host_live(payload: dict) -> bool:
+    """Is the host this token was minted for still a live domain of its
+    workspace? A domain that lapsed, was detached, removed or moved to another
+    workspace takes its outstanding tokens with it at once, rather than leaving
+    them good for the rest of their 12 hours."""
+    try:
+        domain = await domain_service.resolve_host(get_database(), payload.get("host") or "")
+    except Exception:
+        return False
+    return domain is not None and domain.kind == "app" and domain.workspace_id == payload.get("ws")
+
+
 def is_tenant_request(request: Request) -> bool:
     """True when this request was authenticated with a tenant token."""
     return bool(getattr(request.state, "tenant_token", False))
@@ -184,7 +196,7 @@ async def optional_user(request: Request) -> User | None:
             # harmless when someone adds a route where anonymous is the more
             # permissive path. `require_user` already refuses these outright;
             # this keeps the two dependencies saying the same thing.
-            if not _tenant_scope_ok(request, payload):
+            if not _tenant_scope_ok(request, payload) or not await _tenant_host_live(payload):
                 raise HTTPException(
                     status_code=401,
                     detail="This session only works for documents on that workspace's domain.",
@@ -215,7 +227,7 @@ async def require_user(request: Request) -> User:
         except jwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid session token")
         if payload.get("typ") == "tenant":
-            if not _tenant_scope_ok(request, payload):
+            if not _tenant_scope_ok(request, payload) or not await _tenant_host_live(payload):
                 raise HTTPException(
                     status_code=401,
                     detail="This session only works for documents on that workspace's domain.",

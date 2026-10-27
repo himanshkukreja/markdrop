@@ -440,6 +440,18 @@ class TenantTokens(DomainCase):
         r = await self.http.post("/api/v1/auth/tenant-token", json={"host": "docs.acme.com"}, headers=self.auth)
         self.assertEqual(r.status_code, 404)
 
+    async def test_outstanding_tokens_die_with_the_domain(self):
+        token, _ = create_tenant_token(self.reader_id, "reader@example.com", self.ws, "docs.acme.com")
+        h = {"Authorization": f"Bearer {token}", "Origin": "https://docs.acme.com"}
+        self.assertEqual((await self.http.get("/api/v1/auth/me", headers=h)).status_code, 200)
+        await self.db["domains"].update_one({"host": "docs.acme.com"}, {"$set": {"status": "lapsed"}})
+        self.assertEqual((await self.http.get("/api/v1/auth/me", headers=h)).status_code, 401)
+        # A token naming another workspace for this host is refused too.
+        await self.db["domains"].update_one({"host": "docs.acme.com"}, {"$set": {"status": "verified"}})
+        other, _ = create_tenant_token(self.reader_id, "reader@example.com", "someone-else", "docs.acme.com")
+        r = await self.http.get("/api/v1/auth/me", headers={**h, "Authorization": f"Bearer {other}"})
+        self.assertEqual(r.status_code, 401)
+
     async def test_tenant_token_cannot_mint_or_read_consent(self):
         token, _ = create_tenant_token(self.reader_id, "reader@example.com", self.ws, "docs.acme.com")
         h = {"Authorization": f"Bearer {token}", "Origin": "https://docs.acme.com"}
