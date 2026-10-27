@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { fetchSharedFolder } from "@/lib/workspaces";
 import { internalHeaders } from "@/components/tenant/server";
 import SharedFolderView from "./SharedFolderView";
@@ -36,9 +37,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function SharedFolderPage({ params }: Props) {
   const { shareId, path } = await params;
   const sub = subPath(path);
-  if (!SHARE_ID.test(shareId)) return <SharedFolderView shareId={shareId} path={sub} initial={null} initialStatus={404} />;
+  if (!SHARE_ID.test(shareId)) notFound();
   // Anonymous here (the session lives in the browser); 5xx/network errors throw to error.tsx.
   // Signed (T1): every anonymous render reaches the API from the same few server addresses.
   const r = await fetchSharedFolder(shareId, sub, null, internalHeaders());
+  // A share's root always answers an anonymous reader (200, or 401 when its workspace needs
+  // sign-in), so a 404 there means there is no such share: a real 404, not a 200 page saying so.
+  // Sub-folders keep the client retry: one may hold only what a signed-in reader can open.
+  if (r.status === 404 && !sub) notFound();
   return <SharedFolderView shareId={shareId} path={sub} initial={r.data} initialStatus={r.status} />;
 }
