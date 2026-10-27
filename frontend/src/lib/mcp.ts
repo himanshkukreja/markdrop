@@ -53,6 +53,27 @@ export const MCP_TOOLS: McpTool[] = [
     icon: "trash",
   },
   {
+    name: "create_upload",
+    title: "Upload or replace a big file",
+    description: "Starts an upload of up to 2 GB, new or in place of a file you own, and gives the assistant the exact commands to send it. The link stays the same on a replace.",
+    scope: "documents:write",
+    icon: "upload",
+  },
+  {
+    name: "complete_upload",
+    title: "Finish an upload",
+    description: "Checks the uploaded file against its fingerprint and publishes it. Nothing changes if it doesn't match.",
+    scope: "documents:write",
+    icon: "checkCircle",
+  },
+  {
+    name: "restore_file_version",
+    title: "Restore an earlier version",
+    description: "Puts an earlier version of a file back at the same link. The last five versions are kept.",
+    scope: "documents:write",
+    icon: "history",
+  },
+  {
     name: "list_documents",
     title: "List your documents",
     description: "Lists your documents and files, newest first, filtered by a search or by kind.",
@@ -88,6 +109,27 @@ export const MCP_TOOLS: McpTool[] = [
     icon: "download",
   },
   {
+    name: "get_file_info",
+    title: "Check a file",
+    description: "Type, size, fingerprint, version and, for video, duration and resolution — so an assistant can confirm a replace took effect.",
+    scope: "documents:read",
+    icon: "info",
+  },
+  {
+    name: "list_file_versions",
+    title: "List a file's versions",
+    description: "The kept versions of a file you own, newest first, with which one is live.",
+    scope: "documents:read",
+    icon: "listTree",
+  },
+  {
+    name: "get_upload_status",
+    title: "Follow an upload",
+    description: "Whether an upload is still arriving, being checked, done or failed.",
+    scope: "documents:read",
+    icon: "refresh",
+  },
+  {
     name: "list_shares",
     title: "List your file shares",
     description: "Lists the peer-to-peer shares you started while signed in, once someone has opened the link: which are live, how many people are connected and how many downloads finished.",
@@ -110,8 +152,8 @@ export const MCP_TOOLS: McpTool[] = [
  */
 export const MCP_LOCAL_SERVER = "markdrop-p2p";
 export const MCP_LOCAL_COMMAND = "markdrop mcp";
-/** The first CLI release with `markdrop mcp`. */
-export const MCP_LOCAL_MIN_CLI = "0.3.0";
+/** The first CLI release with every tool below (file uploads arrived in 0.4.0). */
+export const MCP_LOCAL_MIN_CLI = "0.4.0";
 
 export interface McpLocalTool {
   name: string;
@@ -144,6 +186,36 @@ export const MCP_LOCAL_TOOLS: McpLocalTool[] = [
     title: "Receive a share",
     description: "Downloads a share link to Downloads/Markdrop, or a folder you name, without overwriting anything.",
     icon: "download",
+  },
+  {
+    name: "upload_file",
+    title: "Publish a file",
+    description: "Uploads a file from your computer — a 4K video up to 2 GB — and returns its markdrop.in link. Needs your API token.",
+    icon: "upload",
+  },
+  {
+    name: "replace_file",
+    title: "Replace a file, same link",
+    description: "Swaps the file behind a link you own. Access, title and views stay; the old version is kept for restore.",
+    icon: "rotate",
+  },
+  {
+    name: "list_file_versions",
+    title: "List versions",
+    description: "The kept versions of one of your files, newest first.",
+    icon: "listTree",
+  },
+  {
+    name: "restore_file_version",
+    title: "Restore a version",
+    description: "Puts an earlier version back at the same link.",
+    icon: "history",
+  },
+  {
+    name: "get_file_info",
+    title: "Check a file",
+    description: "Size, fingerprint, version, duration and resolution, to confirm a replace took effect.",
+    icon: "info",
   },
 ];
 

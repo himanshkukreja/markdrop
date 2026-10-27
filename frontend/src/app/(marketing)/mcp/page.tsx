@@ -53,7 +53,7 @@ const P2P_SPLIT: Array<{ icon: string; where: string; apps: string; body: string
     icon: "laptop",
     where: "On your computer",
     apps: "Claude Code, Claude Desktop, Cursor, VS Code",
-    body: "Add Markdrop's local server, which comes with the markdrop CLI. Your assistant can then send files and folders as a share link, and download links people send you.",
+    body: "Add Markdrop's local server, which comes with the markdrop CLI. Your assistant can then send files and folders as a share link, download links people send you, and publish or replace files on Markdrop straight from disk.",
     tools: MCP_LOCAL_TOOLS.map((t) => t.name),
   },
 ];
@@ -275,7 +275,7 @@ export default function McpPage() {
             eyebrow="Tools"
             id="tools-title"
             title="What it can do"
-            lead="Twelve tools, each needing one of two permissions. Your assistant picks the right one from what you ask."
+            lead="Eighteen tools, each needing one of two permissions. Your assistant picks the right one from what you ask."
           />
           <div className="mt-10 grid min-w-0 gap-6 lg:grid-cols-2">
             {[
@@ -304,8 +304,8 @@ export default function McpPage() {
           <SectionHead
             eyebrow="On your computer"
             id="p2p-title"
-            title="Send and receive files peer-to-peer"
-            lead="Markdrop's peer-to-peer sharing sends files straight from your computer to the other person's, never through Markdrop's servers. So only an assistant running on your computer can send them."
+            title="Send, receive and publish files from your computer"
+            lead="Markdrop's peer-to-peer sharing sends files straight from your computer to the other person's, never through Markdrop's servers. So only an assistant running on your computer can send them, and the same goes for uploading a big file such as a 4K video: it reads it from disk and keeps the link when it replaces one."
           />
 
           <ul className="m-0 mt-10 grid list-none gap-4 p-0 md:grid-cols-2">
@@ -363,8 +363,9 @@ export default function McpPage() {
                   <StepNumber n={3} />
                   <div className="flex min-w-0 flex-1 flex-col gap-3">
                     <p className="m-0 text-body text-text-secondary">
-                      <span className="text-body-strong text-text">Optional: link shares to your account</span>, so they show up in{" "}
-                      <InlineCode>list_shares</InlineCode>. Create a token in{" "}
+                      <span className="text-body-strong text-text">Add your API token</span>. Publishing and replacing files need it,
+                      and it links your shares to your account so they show up in{" "}
+                      <InlineCode>list_shares</InlineCode>. Sharing alone works without it. Create a token in{" "}
                       <Anchor href="/settings/tokens" className={LINK}>Settings → API tokens</Anchor> and add it to the server&apos;s entry
                       as <InlineCode>MARKDROP_TOKEN</InlineCode>:
                     </p>
