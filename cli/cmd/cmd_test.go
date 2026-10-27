@@ -43,7 +43,7 @@ func TestGeneratedIDs(t *testing.T) {
 	if !regexp.MustCompile(`^[0-9a-f]{32}$`).MatchString(generateHostKey()) {
 		t.Error("host key shape (the server wants 32-64 hex)")
 	}
-	if version != "0.4.0" {
+	if version != "0.5.0" {
 		t.Errorf("default version %q", version)
 	}
 }

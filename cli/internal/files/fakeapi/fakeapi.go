@@ -1,5 +1,6 @@
 // Package fakeapi is an in-memory stand-in for Markdrop's /api/v1/files API
-// and for the storage's pre-signed part URLs, for tests. It follows the
+// (plus GET /api/v1/workspaces and /workspaces/{id}/tree) and for the
+// storage's pre-signed part URLs, for tests. It follows the
 // contract in section 1 of the file-versions spec and records what clients
 // did so tests can assert on it (which parts were sent, how often, …).
 package fakeapi
@@ -46,10 +47,11 @@ type Server struct {
 	// AfterStore runs after a part is stored (outside the lock); it may block.
 	AfterStore func(uploadID string, part int)
 
-	mu       sync.Mutex
-	gen      int // bumping it expires every URL issued so far
-	sessions map[string]*session
-	docs     map[string]*Doc
+	mu         sync.Mutex
+	gen        int // bumping it expires every URL issued so far
+	sessions   map[string]*session
+	docs       map[string]*Doc
+	workspaces []*Workspace
 
 	// Counters and logs.
 	PartPuts     map[int]int // PUT attempts per part number (any outcome)
@@ -107,6 +109,62 @@ type Doc struct {
 	Current  int
 	Created  time.Time
 	Updated  time.Time
+
+	Workspace  string // workspace id it is filed in ("" = none)
+	FolderPath string // "guides/setup" ("" = the workspace's root)
+}
+
+// Workspace is a workspace the fake knows.
+type Workspace struct {
+	ID      string
+	Name    string
+	Members map[string]string // token → role: owner, admin, member or viewer
+	Domains []Domain
+	Folders []Folder
+}
+
+// Domain is one of a workspace's domains.
+type Domain struct {
+	Host    string
+	Kind    string // "app" (default) or "cdn"
+	Live    bool
+	Primary bool
+}
+
+// Folder is one of a workspace's folders.
+type Folder struct {
+	ID       string
+	Name     string
+	Slug     string
+	ParentID string
+	Path     string // "guides/setup"
+}
+
+// AddWorkspace registers a workspace.
+func (s *Server) AddWorkspace(w Workspace) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := w
+	s.workspaces = append(s.workspaces, &c)
+}
+
+func (s *Server) workspace(id string) *Workspace {
+	for _, w := range s.workspaces {
+		if w.ID == id {
+			return w
+		}
+	}
+	return nil
+}
+
+// liveHost is the workspace's live primary document domain ("" = none).
+func (w *Workspace) liveHost() string {
+	for _, d := range w.Domains {
+		if d.Live && d.Primary && d.Kind != "cdn" {
+			return d.Host
+		}
+	}
+	return ""
 }
 
 // New starts a fake. Close it with t.Cleanup(s.Close).
@@ -265,6 +323,8 @@ var (
 	reInfo     = regexp.MustCompile(`^/api/v1/files/([A-Za-z0-9_-]+)$`)
 	reVersions = regexp.MustCompile(`^/api/v1/files/([A-Za-z0-9_-]+)/versions$`)
 	reRestore  = regexp.MustCompile(`^/api/v1/files/([A-Za-z0-9_-]+)/versions/(\d+)/restore$`)
+	reTree     = regexp.MustCompile(`^/api/v1/workspaces/([^/]+)/tree$`)
+	customSlug = regexp.MustCompile(`^[A-Za-z0-9_-]{3,50}$`)
 	rePart     = regexp.MustCompile(`^/r2/([^/]+)/(\d+)$`)
 	hex64      = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
@@ -284,6 +344,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodGet && p == "/api/v1/auth/me":
 		writeJSON(w, 200, map[string]any{"id": user, "email": strings.TrimPrefix(user, "mdk_") + "@example.com"})
+	case r.Method == http.MethodGet && p == "/api/v1/workspaces":
+		s.listWorkspaces(w, user)
+	case r.Method == http.MethodGet && reTree.MatchString(p):
+		s.tree(w, user, reTree.FindStringSubmatch(p)[1])
 	case r.Method == http.MethodPost && reUploads.MatchString(p):
 		s.create(w, r, user)
 	case r.Method == http.MethodPost && reURLs.MatchString(p):
@@ -367,6 +431,43 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request, user string) {
 	if int64(size) > s.MaxBytes {
 		detail(w, 413, fmt.Sprintf("This file is too large (max %d bytes)", s.MaxBytes))
 		return
+	}
+	if t := str("target_slug"); t != "" && (str("workspace") != "" || str("folder") != "" || str("slug") != "") {
+		detail(w, 422, "access, password, workspace, folder and slug apply to new uploads only")
+		return
+	}
+	if str("folder") != "" && str("workspace") == "" {
+		detail(w, 422, "A folder needs a workspace.")
+		return
+	}
+	if ws := str("workspace"); ws != "" {
+		wsp := s.workspace(ws)
+		role := ""
+		if wsp != nil {
+			role = wsp.Members[user]
+		}
+		if role == "" {
+			detail(w, 404, "Workspace not found")
+			return
+		}
+		if role == "viewer" {
+			detail(w, 403, "This action requires the member role or higher.")
+			return
+		}
+		if f := str("folder"); f != "" && wsp.folder(f) == nil {
+			detail(w, 404, "Folder not found")
+			return
+		}
+	}
+	if slug := str("slug"); slug != "" {
+		if !customSlug.MatchString(slug) {
+			detail(w, 422, "slug: String should match pattern '^[a-zA-Z0-9_-]+$'")
+			return
+		}
+		if s.docs[slug] != nil {
+			detail(w, 409, fmt.Sprintf("The address %s is already taken. Choose another.", slug))
+			return
+		}
 	}
 	if t := str("target_slug"); t != "" {
 		d := s.docs[t]
@@ -652,7 +753,10 @@ func (s *Server) finish(ses *session) {
 		}
 		s.prune(d)
 	} else {
-		slug := s.slugFor(ses.FileName)
+		slug, _ := ses.Req["slug"].(string)
+		if slug == "" {
+			slug = s.slugFor(ses.FileName)
+		}
 		title, _ := ses.Req["title"].(string)
 		access, _ := ses.Req["access"].(string)
 		if access == "" {
@@ -660,13 +764,126 @@ func (s *Server) finish(ses *session) {
 		}
 		d = &Doc{Slug: slug, Owner: ses.Owner, Kind: "artifact", Title: title, Access: access, Created: now, Updated: now,
 			Versions: []*Version{{Version: 1, Data: data, SHA: &sha, CType: ses.CType, Created: now}}, Current: 1}
+		if ws, _ := ses.Req["workspace"].(string); ws != "" {
+			d.Workspace = ws
+			if f, _ := ses.Req["folder"].(string); f != "" {
+				d.FolderPath = s.workspace(ws).folder(f).Path
+			}
+		}
 		s.docs[slug] = d
 	}
 	ses.State = "done"
-	ses.Result = map[string]any{
-		"url": s.WebBase + "/" + d.Slug, "slug": d.Slug, "version": d.Current, "size_bytes": len(data),
-		"content_type": ses.CType, "sha256": sha,
+	markdropURL := s.WebBase + "/" + d.Slug
+	var wsURL any
+	if wsp := s.workspace(d.Workspace); wsp != nil && wsp.liveHost() != "" {
+		u := "https://" + wsp.liveHost() + "/"
+		if d.FolderPath != "" {
+			u += d.FolderPath + "/"
+		}
+		wsURL = u + d.Slug
 	}
+	url := markdropURL
+	if wsURL != nil {
+		url = wsURL.(string)
+	}
+	ses.Result = map[string]any{
+		"url": url, "markdrop_url": markdropURL, "workspace_url": wsURL, "workspace_error": nil,
+		"slug": d.Slug, "version": d.Current, "size_bytes": len(data), "content_type": ses.CType, "sha256": sha,
+	}
+}
+
+// folder finds a folder by id or path.
+func (w *Workspace) folder(ref string) *Folder {
+	for i := range w.Folders {
+		if w.Folders[i].ID == ref || w.Folders[i].Path == strings.Trim(ref, "/") {
+			return &w.Folders[i]
+		}
+	}
+	return nil
+}
+
+func (s *Server) listWorkspaces(w http.ResponseWriter, user string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []map[string]any{}
+	for _, ws := range s.workspaces {
+		role := ws.Members[user]
+		if role == "" {
+			continue
+		}
+		var primary any
+		if h := ws.liveHost(); h != "" {
+			primary = h
+		}
+		domains := []map[string]any{}
+		for _, d := range ws.Domains {
+			kind := d.Kind
+			if kind == "" {
+				kind = "app"
+			}
+			status := "pending"
+			if d.Live {
+				status = "verified"
+			}
+			domains = append(domains, map[string]any{
+				"host": d.Host, "kind": kind, "status": status, "verified": d.Live, "primary": d.Primary && d.Live,
+				"live": d.Live, "txt_ok": d.Live, "routing_ok": d.Live, "failures": 0,
+			})
+		}
+		out = append(out, map[string]any{
+			"id": ws.ID, "name": ws.Name, "owner_id": "u1", "role": role, "primary_host": primary,
+			"domains": domains, "default_access": "workspace",
+			"branding": map[string]any{}, "settings": map[string]any{},
+		})
+	}
+	writeJSON(w, 200, map[string]any{"workspaces": out})
+}
+
+func (s *Server) tree(w http.ResponseWriter, user, id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ws := s.workspace(id)
+	if ws == nil || ws.Members[user] == "" {
+		detail(w, 404, "Workspace not found")
+		return
+	}
+	var primary any
+	if h := ws.liveHost(); h != "" {
+		primary = h
+	}
+	folders := []map[string]any{}
+	unfiled := 0
+	for _, d := range s.docs {
+		if d.Workspace == id && d.FolderPath == "" {
+			unfiled++
+		}
+	}
+	for _, f := range ws.Folders {
+		var parent any
+		if f.ParentID != "" {
+			parent = f.ParentID
+		}
+		n, total := 0, 0
+		for _, d := range s.docs {
+			if d.Workspace != id {
+				continue
+			}
+			if d.FolderPath == f.Path {
+				n++
+			}
+			if d.FolderPath == f.Path || strings.HasPrefix(d.FolderPath, f.Path+"/") {
+				total++
+			}
+		}
+		folders = append(folders, map[string]any{
+			"id": f.ID, "name": f.Name, "slug": f.Slug, "parent_id": parent, "path": f.Path,
+			"depth": strings.Count(f.Path, "/") + 1, "item_count": n, "total_count": total, "share": nil,
+		})
+	}
+	writeJSON(w, 200, map[string]any{
+		"workspace": map[string]any{"id": ws.ID, "name": ws.Name, "role": ws.Members[user], "primary_host": primary},
+		"folders":   folders, "unfiled_count": unfiled,
+	})
 }
 
 func (s *Server) prune(d *Doc) {
@@ -786,4 +1003,20 @@ func (s *Server) restore(w http.ResponseWriter, user, slug string, n int) {
 	d.Updated = now
 	s.prune(d)
 	writeJSON(w, 200, s.infoBody(d))
+}
+
+// AddAcme registers the workspaces the workspace tests use: "Acme" (id
+// ws_acme; Token is a member, OtherToken a viewer) with a live primary domain
+// docs.acme.test, a files-only domain, and folders guides and guides/setup;
+// "Side" (id ws_side; Token is its owner) with no domain.
+func (s *Server) AddAcme() {
+	s.AddWorkspace(Workspace{
+		ID: "ws_acme", Name: "Acme", Members: map[string]string{Token: "member", OtherToken: "viewer"},
+		Domains: []Domain{{Host: "files.acme.test", Kind: "cdn", Live: true}, {Host: "docs.acme.test", Live: true, Primary: true}},
+		Folders: []Folder{
+			{ID: "f_guides", Name: "Guides", Slug: "guides", Path: "guides"},
+			{ID: "f_setup", Name: "Setup", Slug: "setup", ParentID: "f_guides", Path: "guides/setup"},
+		},
+	})
+	s.AddWorkspace(Workspace{ID: "ws_side", Name: "Side", Members: map[string]string{Token: "owner"}})
 }

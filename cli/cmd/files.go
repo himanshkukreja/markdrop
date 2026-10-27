@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -53,7 +54,7 @@ func (f *fileFlags) register(c *cobra.Command) {
 
 func newUploadCmd() *cobra.Command {
 	var ff fileFlags
-	var title, access, password, workspace string
+	var title, access, password, workspace, folder, slug string
 	c := &cobra.Command{
 		Use:   "upload <path>",
 		Short: "Publish a file (video, PDF, HTML, …) and print its link",
@@ -63,15 +64,22 @@ func newUploadCmd() *cobra.Command {
   errors) and verified by the server before it goes live. If the upload is
   interrupted, run the same command again: it resumes where it stopped.
 
+  --workspace files it in one of your workspaces (its id, name or custom
+  domain) and --folder puts it in an existing folder there ("guides/setup").
+  The printed link is then the workspace's custom domain when it has a live
+  one; the markdrop.in link is shown too. See ` + "`markdrop workspaces`" + `.
+
   Needs an API token: MARKDROP_TOKEN, --token, or ` + "`markdrop login`" + `
   (create one at https://markdrop.in/settings/tokens).
 
 Examples:
   markdrop upload demo.mp4
+  markdrop upload demo.mp4 --slug q3-demo                 # markdrop.in/q3-demo
   markdrop upload report.pdf --title "Q3 report" --access private
   markdrop upload deck.html --access password --password hunter2
+  markdrop upload spec.pdf --workspace Acme --folder guides/setup
   url=$(markdrop upload clip.mp4)        # stdout is just the link
-  markdrop upload clip.mp4 --json        # {"url":…,"slug":…,"version":1,…}`,
+  markdrop upload clip.mp4 --json        # {"url":…,"markdrop_url":…,"slug":…,…}`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			access = strings.ToLower(strings.TrimSpace(access))
@@ -92,18 +100,30 @@ Examples:
 			if access == "workspace" && workspace == "" {
 				return errors.New("--access workspace needs --workspace")
 			}
+			if folder != "" && workspace == "" {
+				return errors.New("--folder needs --workspace")
+			}
+			if slug != "" && !customSlugRE.MatchString(slug) {
+				return fmt.Errorf("--slug must be 3-50 letters, digits, - or _ (got %q)", slug)
+			}
 			return runUpload(cmd, ff, files.UploadOptions{
 				Path: args[0], Title: title, Access: access, Password: password, Workspace: workspace,
+				Folder: strings.Trim(strings.TrimSpace(folder), "/"), Slug: slug,
 			})
 		},
 	}
 	ff.register(c)
 	c.Flags().StringVar(&title, "title", "", "title shown on the page (default: the file name)")
-	c.Flags().StringVar(&access, "access", "", "who can open it: link (default), private, password or workspace")
+	c.Flags().StringVar(&access, "access", "",
+		"who can open it: link (default), private, password or workspace (the default with --workspace)")
 	c.Flags().StringVar(&password, "password", "", "password for --access password (implies it)")
-	c.Flags().StringVar(&workspace, "workspace", "", "workspace for --access workspace (implies it)")
+	c.Flags().StringVar(&workspace, "workspace", "", "file it in this workspace: its id, name or custom domain")
+	c.Flags().StringVar(&folder, "folder", "", "an existing folder of --workspace: its path (guides/setup) or id")
+	c.Flags().StringVar(&slug, "slug", "", "custom address: markdrop.in/<slug> (3-50 letters, digits, - or _)")
 	return c
 }
+
+var customSlugRE = regexp.MustCompile(`^[A-Za-z0-9_-]{3,50}$`)
 
 func newReplaceCmd() *cobra.Command {
 	var ff fileFlags
@@ -143,6 +163,15 @@ func runUpload(cmd *cobra.Command, ff fileFlags, opts files.UploadOptions) error
 	ctx, cancel := signal.NotifyContext(cmdContext(cmd), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	if opts.Workspace != "" && opts.TargetSlug == "" {
+		// The API takes ids; a name or a domain is looked up among the user's workspaces.
+		ws, err := client.ResolveWorkspace(ctx, opts.Workspace)
+		if err != nil {
+			return err
+		}
+		opts.Workspace = ws.ID
+	}
+
 	bar := &progressLine{w: errw, tty: stderrIsTTY(errw)}
 	opts.OnProgress = bar.update
 	opts.OnNotice = bar.notice
@@ -164,8 +193,95 @@ func runUpload(cmd *cobra.Command, ff fileFlags, opts files.UploadOptions) error
 		return nil
 	}
 	fmt.Fprintf(errw, "  ✓ Published %s (%s)\n", res.Slug, formatBytes(res.SizeBytes))
+	if res.MarkdropURL != "" && res.MarkdropURL != res.URL {
+		fmt.Fprintf(errw, "    also at %s\n", res.MarkdropURL)
+	}
+	if res.WorkspaceError != nil && *res.WorkspaceError != "" {
+		fmt.Fprintf(errw, "  ! %s\n", *res.WorkspaceError)
+	}
 	fmt.Fprintln(out, res.URL)
 	return nil
+}
+
+func newWorkspacesCmd() *cobra.Command {
+	var ff fileFlags
+	c := &cobra.Command{
+		Use:   "workspaces [workspace]",
+		Short: "List your workspaces, or the folders of one",
+		Long: `Without an argument, list the workspaces you belong to: id, name, your role and
+the custom domains that serve now. With a workspace (id, name or domain), list
+its folders — the paths ` + "`markdrop upload --folder`" + ` takes.
+
+Examples:
+  markdrop workspaces
+  markdrop workspaces Acme`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := apiClient(ff.token)
+			if err != nil {
+				return err
+			}
+			ctx, w := cmdContext(cmd), cmd.OutOrStdout()
+			if len(args) == 0 {
+				all, err := client.Workspaces(ctx)
+				if err != nil {
+					return err
+				}
+				if ff.json {
+					return printValue(w, map[string]any{"workspaces": all})
+				}
+				if len(all) == 0 {
+					fmt.Fprintln(cmd.ErrOrStderr(), "  You aren't a member of any workspace.")
+					return nil
+				}
+				tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+				fmt.Fprintln(tw, "ID\tNAME\tROLE\tDOMAINS")
+				for _, ws := range all {
+					fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", ws.ID, ws.Name, ws.Role, orDash(strings.Join(ws.LiveDomains(), ", ")))
+				}
+				return tw.Flush()
+			}
+			ws, err := client.ResolveWorkspace(ctx, args[0])
+			if err != nil {
+				return err
+			}
+			tree, err := client.Tree(ctx, ws.ID)
+			if err != nil {
+				return err
+			}
+			if ff.json {
+				return printValue(w, tree)
+			}
+			if len(tree.Folders) == 0 {
+				fmt.Fprintf(cmd.ErrOrStderr(), "  %s has no folders yet (%d item(s) at its root).\n", ws.Name, tree.UnfiledCount)
+				return nil
+			}
+			tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(tw, "PATH\tNAME\tITEMS\tID")
+			for _, f := range tree.Folders {
+				fmt.Fprintf(tw, "%s\t%s\t%d\t%s\n", f.Path, f.Name, f.TotalCount, f.ID)
+			}
+			return tw.Flush()
+		},
+	}
+	ff.register(c)
+	return c
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
+
+// printValue writes v as one compact JSON line.
+func printValue(w io.Writer, v any) error {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return printJSON(w, raw)
 }
 
 func newVersionsCmd() *cobra.Command {

@@ -34,7 +34,7 @@ var ErrNoToken = errors.New("no Markdrop API token: set MARKDROP_TOKEN (or run `
 type Client struct {
 	Base      string       // API base URL, e.g. https://api.markdrop.in
 	Token     string       // API token (mdk_…) or session JWT, sent as a Bearer token
-	UserAgent string       // e.g. markdrop-cli/0.4.0
+	UserAgent string       // e.g. markdrop-cli/0.5.0
 	HTTP      *http.Client // for API calls; nil = a client with a 2-minute timeout
 
 	// Retry tuning for transient API failures (tests shorten it).
@@ -97,7 +97,9 @@ type CreateUploadRequest struct {
 	Title       string `json:"title,omitempty"`
 	Access      string `json:"access,omitempty"`
 	Password    string `json:"password,omitempty"`
-	Workspace   string `json:"workspace,omitempty"`
+	Workspace   string `json:"workspace,omitempty"` // a workspace id
+	Folder      string `json:"folder,omitempty"`    // a folder id or path like "guides/setup"
+	Slug        string `json:"slug,omitempty"`      // custom address for a new upload
 }
 
 // PartURL is a pre-signed URL for one part.
@@ -140,7 +142,14 @@ func (s *UploadStatus) ErrorText() string {
 
 // Result is the outcome of a completed upload.
 type Result struct {
-	URL         string `json:"url"`
+	// URL is the canonical link: the workspace's custom domain when the file is
+	// filed in a workspace with a live one, else the markdrop.in link.
+	URL string `json:"url"`
+	// MarkdropURL is always https://markdrop.in/<slug>.
+	MarkdropURL    string  `json:"markdrop_url,omitempty"`
+	WorkspaceURL   *string `json:"workspace_url,omitempty"`
+	WorkspaceError *string `json:"workspace_error,omitempty"` // filing failed; the file is private
+
 	Slug        string `json:"slug"`
 	Version     int    `json:"version"`
 	SizeBytes   int64  `json:"size_bytes"`

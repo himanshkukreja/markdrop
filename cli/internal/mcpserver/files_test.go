@@ -123,7 +123,8 @@ func TestFileToolsEndToEnd(t *testing.T) {
 	}
 	sum, _ := files.SHA256File(path)
 	if out["url"] != e.fake.WebBase+"/launch-demo" || out["slug"] != "launch-demo" || out["version"] != 1.0 ||
-		out["size_bytes"] != float64(len(data)) || out["sha256"] != sum || len(out) != 5 {
+		out["size_bytes"] != float64(len(data)) || out["sha256"] != sum || len(out) != 6 ||
+		out["markdrop_url"] != out["url"] {
 		t.Errorf("upload_file output %v", out)
 	}
 	if !strings.Contains(resultText(res), "Published launch-demo") || !strings.Contains(resultText(res), "replace_file") {
@@ -350,5 +351,92 @@ func TestUploadDoesNotBlockAndResumesAfterCancel(t *testing.T) {
 	}
 	if out["slug"] != "big" {
 		t.Errorf("out %v", out)
+	}
+}
+
+func TestWorkspaceTools(t *testing.T) {
+	e := newFilesEnv(t, fakeapi.Token)
+	e.fake.AddAcme()
+	cs, _ := connectWithProgress(t, e.mgr)
+	ctx := context.Background()
+
+	res, out, err := callWithProgress(t, ctx, cs, "list_workspaces", map[string]any{}, nil)
+	if err != nil || res.IsError {
+		t.Fatalf("list_workspaces: %v %s", err, resultText(res))
+	}
+	ws := out["workspaces"].([]any)
+	acme := ws[0].(map[string]any)
+	doms := acme["custom_domains"].([]any)
+	if len(ws) != 2 || acme["workspace_id"] != "ws_acme" || acme["role"] != "member" || len(doms) != 1 ||
+		doms[0].(map[string]any)["domain"] != "docs.acme.test" || doms[0].(map[string]any)["default"] != true {
+		t.Errorf("list_workspaces %v", out)
+	}
+	if !strings.Contains(resultText(res), "Acme (ws_acme, member): docs.acme.test") {
+		t.Errorf("text %q", resultText(res))
+	}
+
+	res, out, err = callWithProgress(t, ctx, cs, "list_folders", map[string]any{"workspace": "https://docs.acme.test"}, nil)
+	if err != nil || res.IsError {
+		t.Fatalf("list_folders: %v %s", err, resultText(res))
+	}
+	folders := out["folders"].([]any)
+	if out["workspace_id"] != "ws_acme" || len(folders) != 2 || folders[1].(map[string]any)["path"] != "guides/setup" {
+		t.Errorf("list_folders %v", out)
+	}
+	res, _, _ = callWithProgress(t, ctx, cs, "list_folders", map[string]any{"workspace": "Nope"}, nil)
+	if !res.IsError || !strings.Contains(resultText(res), `no workspace "Nope"`) {
+		t.Errorf("unknown workspace: %q", resultText(res))
+	}
+
+	e.file(t, "Docs/Spec.pdf", 3000)
+	res, out, err = callWithProgress(t, ctx, cs, "upload_file", map[string]any{
+		"path": "~/Docs/Spec.pdf", "workspace": "Acme", "folder": "guides/setup", "slug": "q3-spec"}, nil)
+	if err != nil || res.IsError {
+		t.Fatalf("upload_file: %v %s", err, resultText(res))
+	}
+	if out["url"] != "https://docs.acme.test/guides/setup/q3-spec" || out["markdrop_url"] != e.fake.WebBase+"/q3-spec" ||
+		out["workspace_url"] != out["url"] || out["slug"] != "q3-spec" {
+		t.Errorf("upload_file %v", out)
+	}
+	if !strings.Contains(resultText(res), "(also at "+e.fake.WebBase+"/q3-spec)") {
+		t.Errorf("text %q", resultText(res))
+	}
+	if lc := e.fake.LastCreate; lc["workspace"] != "ws_acme" || lc["folder"] != "guides/setup" || lc["slug"] != "q3-spec" {
+		t.Errorf("create %v", lc)
+	}
+
+	creates := e.fake.Creates
+	check := func(args map[string]any, want string) {
+		t.Helper()
+		res, _, err := callWithProgress(t, ctx, cs, "upload_file", args, nil)
+		if err == nil && (res == nil || !res.IsError) {
+			t.Errorf("%v accepted", args)
+			return
+		}
+		msg := ""
+		if err != nil {
+			msg = err.Error()
+		} else {
+			msg = resultText(res)
+		}
+		if !strings.Contains(msg, want) {
+			t.Errorf("%v: %q, want %q", args, msg, want)
+		}
+	}
+	check(map[string]any{"path": "~/Docs/Spec.pdf", "folder": "guides"}, "folder needs a workspace")
+	check(map[string]any{"path": "~/Docs/Spec.pdf", "slug": "a b"}, "slug")
+	check(map[string]any{"path": "~/Docs/Spec.pdf", "workspace": "Nope"}, `no workspace "Nope"`)
+	if e.fake.Creates != creates {
+		t.Errorf("invalid calls reached the API")
+	}
+
+	// Someone who only views the workspace can't upload into it.
+	viewer := newFilesEnv(t, fakeapi.OtherToken)
+	viewer.fake.AddAcme()
+	cs2, _ := connectWithProgress(t, viewer.mgr)
+	viewer.file(t, "x.pdf", 10)
+	res, _, _ = callWithProgress(t, ctx, cs2, "upload_file", map[string]any{"path": "~/x.pdf", "workspace": "Acme"}, nil)
+	if !res.IsError || !strings.Contains(resultText(res), "member role") {
+		t.Errorf("viewer upload: %q", resultText(res))
 	}
 }

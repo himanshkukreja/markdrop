@@ -534,3 +534,87 @@ func TestMCPServerOverStdio(t *testing.T) {
 	}
 	t.Logf("%d progress notifications over stdio", len(got))
 }
+
+func TestUploadIntoWorkspace(t *testing.T) {
+	e := setup(t)
+	e.fake.AddAcme()
+	path, _ := randomFile(t, "Spec.pdf", 1500)
+	stdout, stderr, err := e.run("upload", path, "--workspace", "docs.acme.test", "--folder", "/guides/setup/",
+		"--slug", "q3-spec")
+	if err != nil {
+		t.Fatal(err, stderr)
+	}
+	if stdout != "https://docs.acme.test/guides/setup/q3-spec\n" {
+		t.Errorf("stdout %q (just the canonical link)", stdout)
+	}
+	if !strings.Contains(stderr, "also at "+e.fake.WebBase+"/q3-spec") {
+		t.Errorf("stderr %q", stderr)
+	}
+	lc := e.fake.LastCreate
+	if lc["workspace"] != "ws_acme" || lc["folder"] != "guides/setup" || lc["slug"] != "q3-spec" ||
+		lc["access"] != "workspace" {
+		t.Errorf("create %v", lc)
+	}
+
+	path2, _ := randomFile(t, "Plan.pdf", 900)
+	stdout, _, err = e.run("upload", path2, "--workspace", "Side", "--access", "link", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj := oneJSONObject(t, stdout)
+	if obj["url"] != e.fake.WebBase+"/plan" || obj["markdrop_url"] != obj["url"] || e.fake.LastCreate["workspace"] != "ws_side" {
+		t.Errorf("no live domain: %v", obj)
+	}
+
+	creates := e.fake.Creates
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"upload", path2, "--folder", "guides"}, "--folder needs --workspace"},
+		{[]string{"upload", path2, "--slug", "no spaces"}, "--slug must be"},
+		{[]string{"upload", path2, "--slug", "ab"}, "--slug must be"},
+		{[]string{"upload", path2, "--workspace", "Nope"}, `no workspace "Nope"`},
+		{[]string{"upload", path2, "--slug", "q3-spec"}, "already taken"},
+		{[]string{"upload", path2, "--workspace", "Acme", "--folder", "missing"}, "Folder not found"},
+	} {
+		stdout, _, err := e.run(c.args...)
+		if err == nil || !strings.Contains(err.Error(), c.want) || stdout != "" {
+			t.Errorf("%v: err %v, stdout %q, want %q", c.args, err, stdout, c.want)
+		}
+	}
+	if e.fake.Creates != creates+2 { // only the taken slug and the missing folder reach the API
+		t.Errorf("creates %d → %d", creates, e.fake.Creates)
+	}
+}
+
+func TestWorkspacesCommand(t *testing.T) {
+	e := setup(t)
+	e.fake.AddAcme()
+	stdout, _, err := e.run("workspaces")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "ws_acme") || !strings.Contains(stdout, "docs.acme.test") ||
+		strings.Contains(stdout, "files.acme.test") || !strings.Contains(stdout, "Side") {
+		t.Errorf("list %q", stdout)
+	}
+	stdout, _, err = e.run("workspaces", "acme")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "guides/setup") || !strings.Contains(stdout, "f_setup") {
+		t.Errorf("folders %q", stdout)
+	}
+	stdout, _, err = e.run("workspaces", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ws := oneJSONObject(t, stdout)["workspaces"].([]any); len(ws) != 2 {
+		t.Errorf("json %q", stdout)
+	}
+	stdout, stderr, err := e.run("workspaces", "Side")
+	if err != nil || stdout != "" || !strings.Contains(stderr, "no folders yet") {
+		t.Errorf("empty: %v %q %q", err, stdout, stderr)
+	}
+}

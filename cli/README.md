@@ -230,6 +230,12 @@ as an `Authorization: Bearer` header to the API.
 markdrop upload demo.mp4                                   # → https://markdrop.in/demo
 markdrop upload report.pdf --title "Q3 report" --access private
 markdrop upload deck.html --password hunter2               # --access password is implied
+markdrop upload demo.mp4 --slug q3-demo                    # → https://markdrop.in/q3-demo
+
+markdrop workspaces                                        # your workspaces, roles and live domains
+markdrop workspaces Acme                                   # its folders (the paths --folder takes)
+markdrop upload spec.pdf --workspace Acme --folder guides/setup
+# → https://docs.acme.com/guides/setup/spec  (also at https://markdrop.in/spec)
 
 markdrop replace https://markdrop.in/demo demo-v2.mp4      # same link, now version 2
 markdrop versions demo                                     # * marks the version the link serves
@@ -263,6 +269,16 @@ version 2
   `http://localhost:3000/<slug>` or just the slug.
 - Limits: up to 2 GB for video (other types keep their usual limits), 20 GB per account; Markdrop keeps up
   to 5 versions of a file and old versions count toward the quota.
+- **Workspaces (v0.5.0+):** `--workspace` files a new upload in one of your workspaces — give its id, its
+  name or one of its custom domains — and `--folder` puts it in an existing folder there (`guides/setup`,
+  or a folder id). You need to be a member (viewers can't add files). Without `--access`, members of the
+  workspace can open it. When the workspace has a live custom domain, the printed link is on that domain
+  and the markdrop.in link is shown on stderr (`--json` has both: `url` and `markdrop_url`).
+- `--slug` picks the address (3-50 letters, digits, `-` or `_`). If it's taken the command fails before
+  any bytes are sent; it is never silently renamed.
+- `replace` also works on files you don't own but can edit (an editor, or a workspace member on a file
+  that isn't private). The space counts against the owner's storage, and if it's full you get an error
+  rather than the owner losing old versions. Zipped sites can only be replaced by their owner, on the website.
 
 **Scripting with `--json`**
 
@@ -271,7 +287,7 @@ else (errors go to stderr with exit code 1):
 
 ```bash
 $ markdrop upload demo.mp4 --json
-{"url":"https://markdrop.in/demo","slug":"demo","version":1,"size_bytes":222717952,"content_type":"video/mp4","sha256":"9f2c…"}
+{"url":"https://markdrop.in/demo","markdrop_url":"https://markdrop.in/demo","workspace_url":null,"workspace_error":null,"slug":"demo","version":1,"size_bytes":222717952,"content_type":"video/mp4","sha256":"9f2c…"}
 
 $ markdrop versions demo --json
 {"versions":[{"version":2,"size_bytes":222717952,"sha256":"9f2c…","content_type":"video/mp4","created_at":"…","current":true},{"version":1,…,"current":false}]}
@@ -281,7 +297,9 @@ $ markdrop info demo --json        # restore --json prints the same shape
 ```
 
 Without `--json`, `upload` prints just the link on stdout (`url=$(markdrop upload x.mp4)` works), and
-`replace` / `restore` print the link and `version N`.
+`replace` / `restore` print the link and `version N`. `url` is the canonical link: the workspace's custom
+domain when the file is filed in a workspace with a live one, else markdrop.in. `markdrop workspaces --json`
+prints `{"workspaces":[…]}`, and `markdrop workspaces <workspace> --json` the folder tree.
 
 ---
 
@@ -291,7 +309,8 @@ Without `--json`, `upload` prints just the link on stdout (`url=$(markdrop uploa
 an AI app on your computer — Claude Code, Claude Desktop, Cursor, VS Code — work with your files:
 "publish ~/Movies/demo.mp4 and give me the link", "replace the video at markdrop.in/demo with the new
 render", "share these three PDFs peer-to-peer", "download https://markdrop.in/share/… into ~/Projects".
-(Peer-to-peer tools since v0.3.0; file publishing tools since v0.4.0.)
+(Peer-to-peer tools since v0.3.0; file publishing tools since v0.4.0; workspaces, folders and custom
+slugs since v0.5.0.)
 
 It runs **on your computer** because the bytes come from your own disk: an AI app never has to pass a
 file's contents through the conversation. The remote server at `https://api.markdrop.in/mcp` (which
@@ -342,8 +361,10 @@ from `which markdrop`, e.g. `/opt/homebrew/bin/markdrop`.
 
 | Tool | What it does |
 |------|--------------|
-| `upload_file` | Publishes a local file (`path`, optional `title`, `access` = `link`/`private`/`password`/`workspace`, `password`, `workspace`) and returns `{url, slug, version, size_bytes, sha256}`. |
-| `replace_file` | Replaces the file behind an existing link (`document` = link or slug, `path`, optional `title`). The link, access, title and views stay the same; the previous version is kept and can be restored. Returns `{url, slug, version, size_bytes, sha256}`. |
+| `upload_file` | Publishes a local file (`path`, optional `title`, `access` = `link`/`private`/`password`/`workspace`, `password`, `workspace` = id, name or custom domain, `folder` = path like `guides/setup` or id, `slug`) and returns `{url, markdrop_url, workspace_url?, workspace_error?, slug, version, size_bytes, sha256}`. `url` is on the workspace's custom domain when it has a live one. |
+| `replace_file` | Replaces the file behind an existing link (`document` = link or slug, `path`, optional `title`). The link, access, title and views stay the same; the previous version is kept and can be restored. Works for files you own or can edit; the space counts against the owner. Returns the same shape as `upload_file`. |
+| `list_workspaces` | `{workspaces:[{workspace_id, name, role, custom_domains:[{domain, verified, live, default}], default_access}]}` — the workspaces you belong to. |
+| `list_folders` | `{workspace_id, folders:[{id, name, path, depth, items}], root_items}` for one workspace (`workspace` = id, name or custom domain). |
 | `list_file_versions` | `{slug, versions:[{version, size_bytes, sha256, content_type, created_at, current, media?}]}`, newest first (up to 5 kept). |
 | `restore_file_version` | Makes `version` current again as a new version (nothing is deleted); returns the file info. |
 | `get_file_info` | `{slug, url, content_type, size_bytes, sha256, version, updated_at, created_at, media, poster_url}`; `media` has duration, width, height and codecs for audio/video. |
@@ -365,6 +386,8 @@ the call, calling the tool again with the same arguments resumes where it stoppe
 **Agent recipes**
 
 - *"Publish ~/Movies/launch.mp4 privately"* → `upload_file {path: "~/Movies/launch.mp4", access: "private"}`.
+- *"Put the spec in Acme's setup guides"* → `list_workspaces`, `list_folders {workspace: "Acme"}`, then
+  `upload_file {path: "~/spec.pdf", workspace: "Acme", folder: "guides/setup"}` → `https://docs.acme.com/guides/setup/spec`.
 - *"I re-rendered the demo, put it on the same link"* → `replace_file {document: "https://markdrop.in/launch", path: "~/Movies/launch-v2.mp4"}`;
   the link you already sent people now plays the new video.
 - *"Oops, go back to the old cut"* → `list_file_versions {document: "launch"}`, then
@@ -475,9 +498,11 @@ Publish a file and print its link. See [Upload and replace files](#upload-and-re
 | Flag | Description |
 |------|-------------|
 | `--title T` | Title shown on the page (default: the file name) |
-| `--access A` | `link` (default: anyone with the link), `private`, `password` or `workspace` |
+| `--access A` | `link` (default: anyone with the link), `private`, `password` or `workspace` (the default with `--workspace`) |
 | `--password P` | Password for `--access password` (implies it) |
-| `--workspace W` | Workspace for `--access workspace` (implies it) |
+| `--workspace W` | File it in this workspace: its id, name or custom domain |
+| `--folder F` | An existing folder of `--workspace`: its path (`guides/setup`) or id |
+| `--slug S` | Custom address `markdrop.in/<slug>` (3-50 letters, digits, `-`, `_`); fails if taken |
 | `--json` | Print the API result as one JSON object on stdout, nothing else |
 | `--token T` | API token (default: `$MARKDROP_TOKEN`, then the token saved by `markdrop login`) |
 
@@ -485,6 +510,11 @@ Publish a file and print its link. See [Upload and replace files](#upload-and-re
 
 Replace the file behind an existing link; prints the link and the new version. Flags: `--title T` (also
 change the title), `--json`, `--token`.
+
+### `markdrop workspaces [workspace]`
+
+List the workspaces you belong to (id, name, your role, live custom domains), or — given a workspace's id,
+name or domain — its folders, with the paths `upload --folder` takes. Flags: `--json`, `--token`.
 
 ### `markdrop versions <slug-or-url>` · `markdrop restore <slug-or-url> <version>` · `markdrop info <slug-or-url>`
 

@@ -23,7 +23,7 @@ const expires = "when this app closes or stop_share is called"
 const instructions = `Markdrop on this computer does two things with local files.
 
 Publish a file behind a lasting link (needs MARKDROP_TOKEN or ` + "`markdrop login`" + `):
-- upload_file publishes a file from this computer (video up to 2 GB, PDF, HTML page, image, spreadsheet, …) and returns https://markdrop.in/<slug>. The bytes go from here straight to storage, so use this (not the remote Markdrop server) for files on this machine.
+- upload_file publishes a file from this computer (video up to 2 GB, PDF, HTML page, image, spreadsheet, …) and returns its link. The bytes go from here straight to storage, so use this (not the remote Markdrop server) for files on this machine. When the user mentions a workspace, team or custom domain, pass workspace (and folder) — find them with list_workspaces and list_folders; the link is then on the workspace's custom domain when it has a live one (markdrop_url is the markdrop.in link). slug picks the address.
 - replace_file swaps the file behind an existing link: the link, access, title and views stay the same and the previous version is kept. Use it to update something already published instead of uploading a new copy.
 - list_file_versions, restore_file_version (undo a replace) and get_file_info (size, sha256, version, video duration/resolution).
 Uploads are verified by sha256 and resume if interrupted: call the same tool again with the same arguments. Markdown documents are written with the remote server's publish_document/update_document, not these tools.
@@ -38,7 +38,7 @@ Anyone with a link can open what it points to, so only publish or share what the
 func boolPtr(b bool) *bool { return &b }
 
 // NewServer builds the MCP server with its tools: four for peer-to-peer
-// sharing and five for publishing files (files.go).
+// sharing and seven for publishing files and finding workspaces (files.go).
 func NewServer(m *Manager, version string) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:       ServerName,
