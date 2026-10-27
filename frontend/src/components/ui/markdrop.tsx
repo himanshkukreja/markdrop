@@ -197,7 +197,7 @@ export function CopyButton({ text, label = "Copy link", copiedLabel = "Copied", 
 const IMG = /\.(png|jpe?g|gif|webp|svg|avif|heic)$/i;
 export function isImage(name: string, mime: string) { return mime.startsWith("image/") || IMG.test(name); }
 /** The artifact renderers the backend reports; a renderer wins over mime and extension. */
-export type FileRenderer = "pdf" | "sheet" | "docx" | "text" | "video" | "html" | "image" | "zip";
+export type FileRenderer = "pdf" | "sheet" | "docx" | "text" | "video" | "audio" | "html" | "image" | "zip";
 export type FileKind = "image" | "video" | "audio" | "pdf" | "sheet" | "archive" | "html" | "document" | "code" | "other";
 /** Icon and category token per kind (never a state colour; REVAMP_PLAN 8.1). */
 export const FILE_KINDS: Record<FileKind, { icon: string; tint: string }> = {
@@ -212,7 +212,7 @@ export const FILE_KINDS: Record<FileKind, { icon: string; tint: string }> = {
   code: { icon: "code", tint: "var(--cat-sync)" },
   other: { icon: "doc", tint: "var(--text-muted)" },
 };
-const RENDERER_KIND: Record<FileRenderer, FileKind> = { pdf: "pdf", sheet: "sheet", docx: "document", text: "document", video: "video", html: "html", image: "image", zip: "archive" };
+const RENDERER_KIND: Record<FileRenderer, FileKind> = { pdf: "pdf", sheet: "sheet", docx: "document", text: "document", video: "video", audio: "audio", html: "html", image: "image", zip: "archive" };
 export function fileKind(name = "", mime = "", renderer?: FileRenderer | null): FileKind {
   if (renderer && RENDERER_KIND[renderer]) return RENDERER_KIND[renderer];
   const ext = (name.split(".").pop() || "").toLowerCase();

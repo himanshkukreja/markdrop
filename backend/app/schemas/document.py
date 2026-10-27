@@ -95,6 +95,10 @@ class DocumentResponse(BaseModel):
     original_filename: str | None = None
     artifact_url: str | None = None
     download_url: str | None = None
+    # Video poster frame (raw image URL, signed when guarded) and ffprobe's
+    # reading of a video or audio file; null until known.
+    poster_url: str | None = None
+    media: dict | None = None
 
     model_config = {"from_attributes": True}
 

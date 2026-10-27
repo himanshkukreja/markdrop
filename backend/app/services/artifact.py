@@ -50,6 +50,7 @@ class ArtifactType:
 #   "image" → <img> (SVG included — it can carry script, so it stays sandboxed)
 #   "text"  → escaped <pre>
 #   "video" → custom player on the sandbox origin; needs range requests to seek
+#   "audio" → <audio controls> page on the sandbox origin (same range support)
 _TYPES: tuple[ArtifactType, ...] = (
     ArtifactType("text/html", "html", "HTML page", "html"),
     ArtifactType("application/pdf", "pdf", "PDF", "pdf"),
@@ -78,12 +79,19 @@ _TYPES: tuple[ArtifactType, ...] = (
     ArtifactType("video/quicktime", "video", "Video", "mov"),
     ArtifactType("video/webm", "video", "Video", "webm"),
     ArtifactType("video/ogg", "video", "Video", "ogv"),
+    # Audio. Browsers disagree on the MIME type of an .m4a (audio/x-m4a) or a
+    # .wav (audio/x-wav, audio/wave); normalize_mime falls back to the
+    # extension, so those still land on the canonical type here.
+    ArtifactType("audio/mpeg", "audio", "Audio", "mp3"),
+    ArtifactType("audio/mp4", "audio", "Audio", "m4a"),
+    ArtifactType("audio/wav", "audio", "Audio", "wav"),
+    ArtifactType("audio/ogg", "audio", "Audio", "ogg"),
 )
 
 # Renderers whose files are routinely far larger than a document. A 25 MB cap is
 # right for a PDF and useless for a screen recording, so the ceiling is chosen
 # per renderer rather than one number for everything.
-_LARGE_RENDERERS = frozenset({"video"})
+_LARGE_RENDERERS = frozenset({"video", "audio"})
 
 BY_MIME: dict[str, ArtifactType] = {t.mime: t for t in _TYPES}
 BY_EXT: dict[str, ArtifactType] = {t.ext: t for t in _TYPES}
@@ -193,15 +201,11 @@ def build_artifact_url(blob_key: str, mime: str, *, private: bool) -> str:
 
 
 async def user_usage_bytes(db: AsyncIOMotorDatabase, user_id: str) -> int:
-    """Total artifact bytes this account is currently storing."""
-    cursor = db["documents"].aggregate(
-        [
-            {"$match": {"owner_id": user_id, "kind": "artifact"}},
-            {"$group": {"_id": None, "total": {"$sum": "$size_bytes"}}},
-        ]
-    )
-    rows = await cursor.to_list(length=1)
-    return int(rows[0]["total"]) if rows else 0
+    """Total artifact bytes this account is storing, old file versions included
+    (see services/file_versions.usage_bytes)."""
+    from app.services import file_versions
+
+    return await file_versions.usage_bytes(db, user_id)
 
 
 async def check_quota(db: AsyncIOMotorDatabase, user_id: str, incoming: int) -> tuple[bool, int]:
@@ -289,6 +293,14 @@ def is_guarded(*, has_password: bool, access_level: str | None) -> bool:
     return has_password or (access_level or "link") != "link"
 
 
+def poster_url(doc, *, private: bool) -> str | None:
+    """Raw URL of a video's poster frame (signed when the video is guarded)."""
+    key = getattr(doc, "poster_key", None)
+    if not key:
+        return None
+    return build_download_url(key, private=private)
+
+
 def to_response(doc, *, is_owner: bool) -> dict:
     """Shape an artifact Document for the API, including its sandbox URL."""
     private = is_guarded(
@@ -296,6 +308,8 @@ def to_response(doc, *, is_owner: bool) -> dict:
         access_level=getattr(doc, "access_level", "link"),
     )
     return dict(
+        poster_url=poster_url(doc, private=private),
+        media=getattr(doc, "media", None),
         slug=doc.slug,
         url=f"{settings.frontend_url.rstrip('/')}/{doc.slug}",
         title=doc.title,
@@ -379,6 +393,9 @@ async def replace_file(
     Returns ``(document, old_storage_key)``; the caller frees the old object so
     a replaced file doesn't linger. ``rev`` is bumped so any live viewer
     refreshes, matching how a markdown edit behaves.
+
+    Only for swaps involving a zipped site (bundle), which keep no versions.
+    Single files go through ``file_versions.swap``, which keeps the old bytes.
     """
     from app.services.document import _doc_from_mongo
 
@@ -387,6 +404,7 @@ async def replace_file(
         return None, None
 
     old_key = raw.get("bundle_prefix") or raw.get("blob_key")
+    now = datetime.now(timezone.utc)
     updated = await db["documents"].find_one_and_update(
         {"_id": raw["_id"]},
         {
@@ -396,9 +414,15 @@ async def replace_file(
                 "mime": mime,
                 "size_bytes": size_bytes,
                 "original_filename": filename,
-                "updated_at": datetime.now(timezone.utc),
+                "updated_at": now,
+                "file_updated_at": now,
+                # A bundle has no versions (services/file_versions.py), and
+                # nothing about the old file describes the new one.
+                "sha256": None,
+                "media": None,
+                "poster_key": None,
             },
-            "$inc": {"rev": 1},
+            "$inc": {"rev": 1, "file_version": 1},
         },
         return_document=True,
     )

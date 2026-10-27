@@ -106,6 +106,18 @@ def _to_response(doc, viewer_id: str | None = None) -> dict:
             if doc.kind == "artifact" and doc.blob_key and r2.is_configured()
             else None
         ),
+        poster_url=(
+            art_service.poster_url(
+                doc,
+                private=art_service.is_guarded(
+                    has_password=bool(doc.read_password_hash),
+                    access_level=doc.access_level,
+                ),
+            )
+            if doc.kind == "artifact" and r2.is_configured()
+            else None
+        ),
+        media=doc.media if doc.kind == "artifact" else None,
     )
 
 

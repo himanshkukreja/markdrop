@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/markdrop/cli/internal/files"
 	"github.com/markdrop/cli/internal/mcpserver"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
@@ -19,25 +20,34 @@ import (
 
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
-	Short: "Run a local MCP server so AI apps can send and receive files peer-to-peer",
+	Short: "Run a local MCP server so AI apps can publish, replace and share files",
 	Long: `Run Markdrop's local Model Context Protocol server over stdio.
 
   AI apps on this computer (Claude Code, Claude Desktop, Cursor, VS Code, …)
-  start it themselves; you don't run it by hand. It gives them four tools:
+  start it themselves; you don't run it by hand. It gives them these tools:
 
-    share_files    share files or folders and get a markdrop.in/share link
+    upload_file           publish a local file (video, PDF, …) behind a markdrop.in link
+    replace_file          swap the file behind an existing link (same link, old version kept)
+    list_file_versions    a published file's versions
+    restore_file_version  make an earlier version current again
+    get_file_info         size, sha256, version, media details of a published file
+
+    share_files    share files or folders peer-to-peer and get a markdrop.in/share link
     share_status   progress of shares and downloads
     stop_share     stop a share (or cancel a download)
-    receive_share  download a Markdrop link into ~/Downloads/Markdrop
+    receive_share  download a Markdrop share link into ~/Downloads/Markdrop
 
-  Shares live as long as this process: when the app closes, every link stops.
+  The file tools need an API token. Peer-to-peer shares live as long as this
+  process: when the app closes, every share link stops.
 
-  Claude Code:  claude mcp add markdrop-p2p -- markdrop mcp
-  Others:       {"mcpServers": {"markdrop-p2p": {"command": "markdrop", "args": ["mcp"]}}}
+  Claude Code:  claude mcp add markdrop-p2p -e MARKDROP_TOKEN=mdk_… -- markdrop mcp
+  Others:       {"mcpServers": {"markdrop-p2p": {"command": "markdrop", "args": ["mcp"],
+                 "env": {"MARKDROP_TOKEN": "mdk_…"}}}}
 
 Environment:
-  MARKDROP_TOKEN               API token (markdrop.in → Settings → API tokens);
-                               shares then appear in your account (list_shares).
+  MARKDROP_TOKEN               API token (markdrop.in → Settings → API tokens), needed
+                               by the file tools (or run markdrop login once); shares
+                               then also appear in your account (list_shares).
   MARKDROP_MCP_ALLOW_ANY_PATH  set to 1 to allow sharing secret locations
                                (~/.ssh, ~/.aws, .env files, …), refused by default.`,
 	Args: cobra.NoArgs,
@@ -59,15 +69,19 @@ func runMCP(_ *cobra.Command, _ []string) error {
 		downloads = "Markdrop"
 	}
 
+	filesToken, _ := files.ResolveToken("")
 	mgr := mcpserver.NewManager(mcpserver.Config{
-		Server:     flagServer,
-		Origin:     flagOrigin,
-		ShareURL:   func(id string) string { return buildShareURL(flagServer, flagWeb, id) },
-		Token:      strings.TrimSpace(os.Getenv("MARKDROP_TOKEN")),
-		Downloads:  downloads,
-		Log:        logger,
-		NewRoomID:  generateRoomID,
-		NewHostKey: generateHostKey,
+		Server:      flagServer,
+		Origin:      flagOrigin,
+		ShareURL:    func(id string) string { return buildShareURL(flagServer, flagWeb, id) },
+		Token:       strings.TrimSpace(os.Getenv("MARKDROP_TOKEN")),
+		Downloads:   downloads,
+		Log:         logger,
+		NewRoomID:   generateRoomID,
+		NewHostKey:  generateHostKey,
+		FilesToken:  filesToken,
+		UserAgent:   "markdrop-cli/" + version + " (mcp)",
+		NewUploader: newUploader,
 	})
 	server := mcpserver.NewServer(mgr, version)
 

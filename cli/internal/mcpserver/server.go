@@ -20,20 +20,29 @@ const ServerName = "markdrop-p2p"
 
 const expires = "when this app closes or stop_share is called"
 
-const instructions = `Markdrop P2P sends files straight from this computer to whoever opens the link (no upload to a cloud drive), and downloads files someone shared with a Markdrop link.
+const instructions = `Markdrop on this computer does two things with local files.
 
-- share_files starts a share and returns a link; it keeps serving recipients one at a time until stop_share or until this app closes. Anyone with the link can download, so only share what the user asked to share, and give the link only to the user.
-- receive_share downloads a Markdrop link into ~/Downloads/Markdrop (or a folder the user names) in the background.
+Publish a file behind a lasting link (needs MARKDROP_TOKEN or ` + "`markdrop login`" + `):
+- upload_file publishes a file from this computer (video up to 2 GB, PDF, HTML page, image, spreadsheet, …) and returns https://markdrop.in/<slug>. The bytes go from here straight to storage, so use this (not the remote Markdrop server) for files on this machine.
+- replace_file swaps the file behind an existing link: the link, access, title and views stay the same and the previous version is kept. Use it to update something already published instead of uploading a new copy.
+- list_file_versions, restore_file_version (undo a replace) and get_file_info (size, sha256, version, video duration/resolution).
+Uploads are verified by sha256 and resume if interrupted: call the same tool again with the same arguments. Markdown documents are written with the remote server's publish_document/update_document, not these tools.
+
+Share peer-to-peer (no upload; the link works only while this app stays open):
+- share_files starts a share and returns a markdrop.in/share link; it keeps serving recipients one at a time until stop_share or until this app closes.
+- receive_share downloads a Markdrop share link into ~/Downloads/Markdrop (or a folder the user names) in the background.
 - share_status reports progress of both.
-Well-known secret locations (SSH and cloud credentials, keychains, .env files, private keys) are refused.`
+
+Anyone with a link can open what it points to, so only publish or share what the user asked for, and give links only to the user. Well-known secret locations (SSH and cloud credentials, keychains, .env files, private keys) are refused.`
 
 func boolPtr(b bool) *bool { return &b }
 
-// NewServer builds the MCP server with its four tools.
+// NewServer builds the MCP server with its tools: four for peer-to-peer
+// sharing and five for publishing files (files.go).
 func NewServer(m *Manager, version string) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:       ServerName,
-		Title:      "Markdrop P2P sharing",
+		Title:      "Markdrop: P2P sharing and file publishing",
 		Version:    version,
 		WebsiteURL: "https://markdrop.in/mcp",
 	}, &mcp.ServerOptions{Instructions: instructions})
@@ -141,6 +150,8 @@ func NewServer(m *Manager, version string) *mcp.Server {
 		return text(fmt.Sprintf("Downloading into %s (receive_id %s). Check progress with share_status.",
 			info.Directory, info.ReceiveID)), out, nil
 	})
+
+	addFileTools(s, m)
 	return s
 }
 
