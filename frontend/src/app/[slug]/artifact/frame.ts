@@ -18,15 +18,34 @@ export function isPaper(renderer: ArtifactRenderer): boolean {
  * theme (the Worker never forwards it there, and it would only add a cache variant). A Worker
  * that predates R34 ignores the parameter, so this is harmless before it ships.
  */
-export function themedFrameSrc(artifactUrl: string, theme: "dark" | "light"): string {
+export function themedFrameSrc(
+  artifactUrl: string,
+  theme: "dark" | "light",
+  posterUrl?: string | null
+): string {
   try {
     const u = new URL(artifactUrl);
     if (!u.pathname.startsWith("/v/")) return artifactUrl;
     u.searchParams.set("theme", theme);
+    if (posterUrl && u.pathname.startsWith("/v/video/")) addPoster(u, posterUrl);
     return u.toString();
   } catch {
     return artifactUrl;
   }
+}
+
+/**
+ * The video player's poster frame. The API's `poster_url` is the raw image on the artifact origin
+ * (`/r/<key>`, plus its own signed `?t=` when the video is guarded); the Worker's player takes its
+ * key as `poster` and that token as `pt`, and ignores anything that isn't a poster key. A Worker
+ * that predates posters ignores both, so this is harmless before it ships.
+ */
+function addPoster(frame: URL, posterUrl: string): void {
+  const p = new URL(posterUrl);
+  if (p.origin !== frame.origin || !p.pathname.startsWith("/r/")) return;
+  frame.searchParams.set("poster", decodeURIComponent(p.pathname.slice(3)));
+  const token = p.searchParams.get("t");
+  if (token) frame.searchParams.set("pt", token);
 }
 
 /** "Oct 12", or "Oct 12, 2025" outside the current year. Client only (reader's zone). */

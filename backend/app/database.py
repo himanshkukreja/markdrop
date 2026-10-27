@@ -165,6 +165,21 @@ async def connect() -> None:
     await db["mcp_events"].create_index("ts", expireAfterSeconds=90 * 24 * 3600)
     await db["mcp_events"].create_index([("user_id", 1), ("ts", -1)])
 
+    # File versions (services/file_versions.py). One row per version; blob and
+    # poster keys are looked up to decide whether an object is still referenced
+    # before it is deleted, so those are indexed on both collections.
+    await db["file_versions"].create_index([("doc_id", 1), ("version", -1)], unique=True)
+    await db["file_versions"].create_index("user_id")
+    await db["file_versions"].create_index("blob_key")
+    await db["file_versions"].create_index("poster_key", sparse=True)
+    await db["documents"].create_index("blob_key", sparse=True)
+    await db["documents"].create_index("poster_key", sparse=True)
+    # Multipart upload sessions (services/file_uploads.py): swept per user, and
+    # the rows themselves dropped a day after they expire.
+    await db["file_uploads"].create_index([("user_id", 1), ("state", 1), ("expires_at", 1)])
+    await db["file_uploads"].create_index("purge_at", expireAfterSeconds=0)
+    await db["file_events"].create_index([("user_id", 1), ("ts", -1)])
+
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])
     await db["feedback"].create_index([("status", 1), ("type", 1), ("created_at", -1)])

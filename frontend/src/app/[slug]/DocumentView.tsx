@@ -149,6 +149,7 @@ export default function DocumentView(props: DocumentViewProps) {
         originalFilename={artifactDoc.original_filename ?? null}
         artifactUrl={artifactDoc.artifact_url ?? null}
         downloadUrl={artifactDoc.download_url ?? null}
+        posterUrl={artifactDoc.poster_url ?? null}
         docRef={artifactDoc.ref ?? null}
         viewerChrome={viewerChrome === "none" ? "none" : "full"}
       />

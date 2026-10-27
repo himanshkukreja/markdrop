@@ -68,5 +68,18 @@ class Document:
     # Set for multi-file bundles: every object lives under this R2 prefix, so
     # deleting the document must clear the whole prefix, not just blob_key.
     bundle_prefix: str | None = None
+    # ── File versions (services/file_versions.py) ────────────────────────────
+    # The current file's number among its versions. Absent on artifacts that
+    # predate versions, which are version 1.
+    file_version: int = 1
+    # Hex sha256 of the current bytes, when the uploader proved it (the files
+    # API verifies every upload); None for files uploaded any other way.
+    sha256: str | None = None
+    # ffprobe's reading of a video or audio file: duration_s, width, height,
+    # video_codec, audio_codec. None until probed, or when it couldn't be.
+    media: dict | None = None
+    # R2 key of a poster frame for a video, stored beside it with the same
+    # publicity.
+    poster_key: str | None = None
     id: str | None = None  # str(_id); populated when the query includes _id
 

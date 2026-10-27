@@ -103,11 +103,23 @@ export interface DocumentResponse {
   artifact_url?: string | null;
   /** Raw bytes. artifact_url may be a viewer page, so never download from it. */
   download_url?: string | null;
+  /** A video's poster frame on the artifact origin (signed when guarded); null until generated. */
+  poster_url?: string | null;
+  /** ffprobe's reading of a video or audio file; null until known. */
+  media?: MediaInfo | null;
+}
+
+export interface MediaInfo {
+  duration_s: number | null;
+  width: number | null;
+  height: number | null;
+  video_codec: string | null;
+  audio_codec: string | null;
 }
 
 export type DocKind = "markdown" | "artifact";
 export type ArtifactRenderer =
-  | "html" | "pdf" | "sheet" | "docx" | "bundle" | "image" | "video" | "text" | "download";
+  | "html" | "pdf" | "sheet" | "docx" | "bundle" | "image" | "video" | "audio" | "text" | "download";
 
 export interface ArtifactStatus {
   configured: boolean;

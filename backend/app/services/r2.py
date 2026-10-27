@@ -203,3 +203,130 @@ def set_public_prefix(prefix: str, public: bool) -> int:
     for k in keys:
         set_public(k, public)
     return len(keys)
+
+
+# ── Large files: multipart uploads (routers/files.py) ─────────────────────────
+#
+# A 2 GB video can't go up as one presigned PUT from an agent's shell and
+# survive a dropped connection, so big files go up in parts: we open an R2
+# multipart upload, presign one PUT per part, and the client sends the parts
+# straight to R2. As with the single PUT, bytes never touch this server.
+
+
+def presign_get(key: str, expires_in: int = 300) -> str:
+    """Short-lived read URL. ffprobe/ffmpeg read media headers through it with
+    range requests, so a 2 GB video is probed without being downloaded."""
+    return _client().generate_presigned_url(
+        "get_object",
+        Params={"Bucket": settings.r2_bucket, "Key": key},
+        ExpiresIn=expires_in,
+        HttpMethod="GET",
+    )
+
+
+def presign_upload_part(key: str, upload_id: str, part_number: int, expires_in: int) -> str:
+    """Presigned PUT for one part. Pure local HMAC, safe on the event loop.
+
+    The client must send a Content-Length (R2 refuses chunked transfer encoding
+    on presigned part uploads), which `curl --upload-file <file>` does."""
+    return _client().generate_presigned_url(
+        "upload_part",
+        Params={
+            "Bucket": settings.r2_bucket,
+            "Key": key,
+            "UploadId": upload_id,
+            "PartNumber": part_number,
+        },
+        ExpiresIn=expires_in,
+        HttpMethod="PUT",
+    )
+
+
+def create_multipart(key: str, content_type: str, public: bool) -> str:
+    """Open a multipart upload; returns R2's upload id. Network call.
+
+    Publicity is set here rather than copied on afterwards: flipping it later
+    means copying the whole object onto itself, which for 2 GB is slow."""
+    r = _client().create_multipart_upload(
+        Bucket=settings.r2_bucket,
+        Key=key,
+        ContentType=content_type,
+        Metadata={"public": "1"} if public else {},
+        CacheControl="public, max-age=300" if public else "private, no-store",
+    )
+    return r["UploadId"]
+
+
+def list_parts(key: str, upload_id: str) -> list[dict[str, Any]]:
+    """Parts R2 has received so far: [{part_number, etag, size}]. Network call.
+    Raises when the multipart upload no longer exists."""
+    parts: list[dict[str, Any]] = []
+    marker = 0
+    c = _client()
+    while True:
+        kwargs: dict[str, Any] = {"Bucket": settings.r2_bucket, "Key": key, "UploadId": upload_id,
+                                  "MaxParts": 1000}
+        if marker:
+            kwargs["PartNumberMarker"] = marker
+        r = c.list_parts(**kwargs)
+        for p in r.get("Parts", []):
+            parts.append({
+                "part_number": int(p["PartNumber"]),
+                "etag": (p.get("ETag") or "").strip('"'),
+                "size": int(p.get("Size", 0)),
+            })
+        if not r.get("IsTruncated"):
+            return parts
+        marker = int(r.get("NextPartNumberMarker") or 0)
+        if not marker:
+            return parts
+
+
+def complete_multipart(key: str, upload_id: str, parts: list[dict[str, Any]]) -> None:
+    """Stitch the parts into the final object. Network call; raises on failure
+    (a wrong or missing ETag, an upload that was aborted or expired)."""
+    _client().complete_multipart_upload(
+        Bucket=settings.r2_bucket,
+        Key=key,
+        UploadId=upload_id,
+        MultipartUpload={
+            "Parts": [
+                {"PartNumber": int(p["part_number"]), "ETag": _quoted(p["etag"])}
+                for p in sorted(parts, key=lambda p: int(p["part_number"]))
+            ]
+        },
+    )
+
+
+def abort_multipart(key: str, upload_id: str) -> None:
+    """Best-effort: free the parts of an upload that will never complete."""
+    try:
+        _client().abort_multipart_upload(Bucket=settings.r2_bucket, Key=key, UploadId=upload_id)
+    except Exception:
+        pass
+
+
+def sha256_of(key: str, on_progress=None, chunk_size: int = 8 * 1024 * 1024) -> tuple[str, int]:
+    """Stream an object and hash it in constant memory: (hex digest, bytes read).
+
+    Network call, and a long one for a big file (2 GB is tens of seconds), so
+    callers run it in a thread. ``on_progress(bytes_so_far)`` is called per chunk."""
+    import hashlib
+
+    h = hashlib.sha256()
+    total = 0
+    body = _client().get_object(Bucket=settings.r2_bucket, Key=key)["Body"]
+    try:
+        for chunk in body.iter_chunks(chunk_size):
+            h.update(chunk)
+            total += len(chunk)
+            if on_progress is not None:
+                on_progress(total)
+    finally:
+        body.close()
+    return h.hexdigest(), total
+
+
+def _quoted(etag: str) -> str:
+    etag = (etag or "").strip()
+    return etag if etag.startswith('"') else f'"{etag}"'
