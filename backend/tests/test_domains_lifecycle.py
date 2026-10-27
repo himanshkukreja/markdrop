@@ -572,11 +572,16 @@ class OgPoster(McpTestCase):
 
 class MediaUrlTtl(unittest.TestCase):
     def test_video_and_audio_tokens_outlive_playback(self):
+        # Lifetime follows the type (publicity.ttl_for), applied when byte URLs are minted.
+        from app.services import publicity
+
         with mock.patch.object(settings, "artifact_signing_key", "k"):
-            for key, ttl in (("art/u/a.mp4", 4 * 3600), ("art/u/a.mp3", 4 * 3600),
-                             ("art/u/a.pdf", 900), ("art/u/a", 900), ("art/u/p-poster.jpg", 900)):
-                claims = jwt.decode(artifact.sign_access_token(key), "k", algorithms=["HS256"])
-                self.assertEqual(claims["exp"] - claims["iat"], ttl, key)
+            for mime, ttl in (("video/mp4", 4 * 3600), ("audio/mpeg", 4 * 3600),
+                              ("application/pdf", 900), ("", 900), ("image/jpeg", 900)):
+                key = "art/u/x"
+                token = artifact.sign_access_token(key, epoch=0, ttl=publicity.ttl_for(mime))
+                claims = jwt.decode(token, "k", algorithms=["HS256"])
+                self.assertEqual(claims["exp"] - claims["iat"], ttl, mime)
 
 
 class ApexGuess(unittest.TestCase):
