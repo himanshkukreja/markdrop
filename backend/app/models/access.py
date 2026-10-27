@@ -50,3 +50,10 @@ class Grant:
     # Whether a notification was actually sent, so the UI can say "invited" vs
     # "added quietly" rather than implying an email that never left.
     notified: bool = False
+    # What the grant gives right now (a delegated grant whose authority lapsed
+    # gives nothing until housekeeping removes it). Filled by list_grants.
+    active: bool = True
+    effective_role: str | None = None
+    # add_grant by a non-owner for someone who already had access: nothing was
+    # written (and nobody should be notified again).
+    unchanged: bool = False

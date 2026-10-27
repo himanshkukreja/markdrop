@@ -223,3 +223,323 @@ class BN4MassExpiryDrainsConcurrently(AccessWorld):
             elapsed = time.monotonic() - t0
         self.assertEqual(n, 8)
         self.assertLess(elapsed, 1.5)
+
+
+# ── 2. Grants: validity decided at read time ─────────────────────────────────
+
+
+class _Grants(AccessWorld):
+    async def grant(self, who: str, d: dict, email: str, role: str):
+        return await self.http.post(f"/api/v1/documents/{d['slug']}/access/people",
+                                    json={"email": email, "role": role, "notify": False},
+                                    headers=self.session(who))
+
+    async def person(self, name: str) -> str:
+        self.email[name] = f"{name}@example.com"
+        self.uid[name] = await self.make_user(self.email[name], name.upper())
+        return self.email[name]
+
+    async def rows(self, d: dict) -> dict:
+        rows = await self.db["document_grants"].find({"document_id": str(d["_id"])}).to_list(500)
+        return {g["email"].split("@")[0]: g for g in rows}
+
+    async def reads(self, who: str, d: dict) -> int:
+        return (await self.get(d["slug"], self.session(who))).status_code
+
+    async def edits(self, who: str, d: dict) -> int:
+        r = await self.http.put(f"/api/v1/documents/{d['slug']}", json={"content": "# changed"},
+                                headers=self.session(who))
+        return r.status_code
+
+    async def insert(self, d: dict, email: str, role: str, *, by: str, parent=None, via=None, **extra):
+        res = await self.db["document_grants"].insert_one({
+            "document_id": str(d["_id"]), "email": email, "role": role, "created_at": now(),
+            "granted_by_email": self.email.get(by), "granted_by_user_id": self.uid.get(by),
+            "granted_via": via, "parent_grant_id": str(parent) if parent else None, **extra})
+        return res.inserted_id
+
+
+class CN1ReGrantCycles(_Grants):
+    async def test_g1_regrant_never_rewrites_an_existing_grant(self):
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.person("y")
+        self.assertEqual((await self.grant("wm", d, "x@example.com", "editor")).status_code, 201)
+        self.assertEqual((await self.grant("x", d, "y@example.com", "editor")).status_code, 201)
+        before = (await self.rows(d))["x"]
+        r = await self.grant("y", d, "x@example.com", "editor")  # Y→X would close a cycle
+        self.assertLess(r.status_code, 300, r.text)
+        after = (await self.rows(d))["x"]
+        for k in ("granted_by_user_id", "granted_via", "parent_grant_id", "role"):
+            self.assertEqual(after.get(k), before.get(k), k)
+        r = await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/members/{self.uid['wm']}",
+                                   headers=self.session("wo"))
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(await self.rows(d), {})
+        self.assertEqual(await self.reads("x", d), 404)
+        self.assertEqual(await self.reads("y", d), 404)
+
+    async def test_a_cycle_gives_nothing_at_read_time(self):
+        d = await self.mkdoc("P", ws=None, grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.person("y")
+        xid = await self.insert(d, "x@example.com", "editor", by="y")
+        yid = await self.insert(d, "y@example.com", "editor", by="x", parent=xid)
+        await self.db["document_grants"].update_one({"_id": xid}, {"$set": {"parent_grant_id": str(yid)}})
+        self.assertEqual(await self.reads("x", d), 404)
+        self.assertEqual(await self.reads("y", d), 404)
+
+
+class CN2NoOverwriteByNonOwners(_Grants):
+    async def test_g2_member_cannot_overwrite_the_owners_grant(self):
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        await self.person("x")
+        self.assertEqual((await self.grant("owner", d, "x@example.com", "editor")).status_code, 201)
+        r = await self.grant("wm", d, "x@example.com", "viewer")
+        self.assertLess(r.status_code, 300, r.text)  # a no-op
+        x = (await self.rows(d))["x"]
+        self.assertEqual((x["role"], x["granted_by_user_id"], x.get("granted_via")),
+                         ("editor", self.uid["owner"], None))
+        await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/members/{self.uid['wm']}",
+                               headers=self.session("wo"))
+        self.assertEqual(await self.reads("x", d), 200)  # M7: the owner's grant stays
+
+    async def test_g3_grantee_cannot_downgrade_or_reparent_the_owners_grant(self):
+        d = await self.mkdoc("P", ws=None, grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.person("y")
+        await self.grant("owner", d, "x@example.com", "viewer")
+        await self.grant("owner", d, "y@example.com", "editor")
+        r = await self.grant("x", d, "y@example.com", "viewer")
+        self.assertLess(r.status_code, 300, r.text)
+        y = (await self.rows(d))["y"]
+        self.assertEqual((y["role"], y["granted_by_user_id"], y.get("parent_grant_id")),
+                         ("editor", self.uid["owner"], None))
+        r = await self.http.delete(f"/api/v1/documents/{d['slug']}/access/people/x@example.com",
+                                   headers=self.session("x"))
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(await self.reads("y", d), 200)
+        self.assertEqual(await self.edits("y", d), 200)
+
+    async def test_higher_role_for_an_existing_grantee_is_409(self):
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.grant("owner", d, "x@example.com", "viewer")
+        r = await self.grant("wm", d, "x@example.com", "editor")
+        self.assertEqual(r.status_code, 409, r.text)
+        self.assertEqual((await self.rows(d))["x"]["role"], "viewer")
+
+
+class CN9ChainsAreBoundedAndCascade(_Grants):
+    async def test_g4_deep_chains_are_refused_and_die_at_once(self):
+        from app.services import access
+
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        names = [f"c{i}" for i in range(access.MAX_GRANT_DEPTH + 2)]
+        for n in names:
+            await self.person(n)
+        prev, made = "wm", []
+        for n in names:
+            r = await self.grant(prev, d, f"{n}@example.com", "viewer")
+            if r.status_code != 201:
+                break
+            made.append(n)
+            prev = n
+        self.assertEqual(len(made), access.MAX_GRANT_DEPTH + 1)  # the member's own grant is depth 0
+        self.assertEqual(r.status_code, 403, r.text)
+        self.assertEqual(await self.reads(made[-1], d), 200)
+        await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/members/{self.uid['wm']}",
+                               headers=self.session("wo"))
+        self.assertEqual(await self.rows(d), {})  # synchronous, no hop cap
+        self.assertEqual(await self.reads(made[-1], d), 404)
+
+    async def test_a_chain_deeper_than_the_cap_gives_nothing_at_read_time(self):
+        from app.services import access
+
+        d = await self.mkdoc("P", ws=None, grants=False, allow_resharing=True)
+        prev, by = None, "owner"
+        names = [f"k{i}" for i in range(access.MAX_GRANT_DEPTH + 2)]
+        for n in names:
+            await self.person(n)
+            prev = await self.insert(d, f"{n}@example.com", "viewer", by=by, parent=prev)
+            by = n
+        self.assertEqual(await self.reads(names[access.MAX_GRANT_DEPTH], d), 200)
+        self.assertEqual(await self.reads(names[access.MAX_GRANT_DEPTH + 1], d), 404)
+
+    async def test_g5_owner_revoking_the_middle_cuts_everything_below(self):
+        d = await self.mkdoc("P", ws=None, grants=False, allow_resharing=True)
+        for n in ("a", "b", "c"):
+            await self.person(n)
+        await self.grant("owner", d, "a@example.com", "editor")
+        await self.grant("a", d, "b@example.com", "editor")
+        await self.grant("b", d, "c@example.com", "editor")
+        r = await self.http.delete(f"/api/v1/documents/{d['slug']}/access/people/b@example.com",
+                                   headers=self.session("owner"))
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(set(await self.rows(d)), {"a"})
+        self.assertEqual(await self.reads("c", d), 404)
+        self.assertEqual(await self.reads("a", d), 200)
+
+    async def test_self_removal_cascades(self):
+        d = await self.mkdoc("P", ws=None, grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.person("y")
+        await self.grant("owner", d, "x@example.com", "editor")
+        await self.grant("x", d, "y@example.com", "viewer")
+        r = await self.http.delete(f"/api/v1/documents/{d['slug']}/access/people/x@example.com",
+                                   headers=self.session("x"))
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(await self.rows(d), {})
+        self.assertEqual(await self.reads("y", d), 404)
+
+    async def test_g6_owner_downgrade_caps_the_chain(self):
+        d = await self.mkdoc("P", ws=None, grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.person("y")
+        await self.grant("owner", d, "x@example.com", "editor")
+        await self.grant("x", d, "y@example.com", "editor")
+        await self.grant("owner", d, "x@example.com", "viewer")
+        self.assertEqual(await self.reads("y", d), 200)
+        self.assertEqual(await self.edits("y", d), 403)
+        self.assertEqual((await self.rows(d))["y"]["role"], "viewer")
+
+    async def test_read_time_capping_without_any_cleanup(self):
+        from app.services import access
+
+        d = await self.mkdoc("P", ws=None, grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.person("y")
+        xid = await self.insert(d, "x@example.com", "viewer", by="owner")
+        await self.insert(d, "y@example.com", "editor", by="x", parent=xid)  # never settled
+        self.assertEqual(await self.reads("y", d), 200)
+        self.assertEqual(await self.edits("y", d), 403)
+        with mock.patch.object(access, "settle_document_grants", mock.AsyncMock(return_value=0)):
+            await self.http.delete(f"/api/v1/documents/{d['slug']}/access/people/x@example.com",
+                                   headers=self.session("owner"))
+        self.assertEqual(await self.reads("y", d), 404)  # the row is still there; worth nothing
+
+
+class MembershipAuthorityAtReadTime(_Grants):
+    async def test_member_grant_dies_with_the_membership_without_cleanup(self):
+        from app.services import lifecycle
+
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.grant("wm", d, "x@example.com", "editor")
+        with mock.patch.object(lifecycle, "_settle_documents", mock.AsyncMock(return_value=0)):
+            await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/members/{self.uid['wm']}",
+                                   headers=self.session("wo"))
+        self.assertIsNotNone((await self.rows(d)).get("x"))
+        self.assertEqual(await self.reads("x", d), 404)
+
+    async def test_demotion_caps_at_read_time(self):
+        from app.services import lifecycle
+
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.grant("wm", d, "x@example.com", "editor")
+        with mock.patch.object(lifecycle, "_settle_documents", mock.AsyncMock(return_value=0)):
+            await self.http.put(f"/api/v1/workspaces/{self.ws['W1']}/members/{self.uid['wm']}",
+                                json={"role": "viewer"}, headers=self.session("wo"))
+        self.assertEqual(await self.reads("x", d), 200)
+        self.assertEqual(await self.edits("x", d), 403)
+
+    async def test_member_grant_listing_marks_inactive_for_the_owner(self):
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        await self.insert(d, "z@example.com", "editor", by="former", via=self.ws["W1"])
+        r = await self.http.get(f"/api/v1/documents/{d['slug']}/access", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
+        z = next(g for g in r.json()["grants"] if g["email"] == "z@example.com")
+        self.assertFalse(z["active"])
+
+    async def test_reconciler_settles_old_dead_grants(self):
+        from app.services import lifecycle
+
+        d = await self.mkdoc("W", grants=False)
+        await self.insert(d, "z@example.com", "editor", by="former", via=self.ws["W1"])
+        await self.db["document_grants"].update_one(
+            {"email": "z@example.com"}, {"$set": {"created_at": now() - timedelta(days=3)}})
+        lifecycle._DELEGATION_CURSOR["after"] = None
+        await lifecycle.reconcile_once(self.db)  # not the daily full pass
+        self.assertIsNone(await self.db["document_grants"].find_one({"email": "z@example.com"}))
+
+    async def test_listings_follow_the_chain(self):
+        d = await self.mkdoc("P", grants=False)  # private, filed in W1
+        await self.person("x")
+        await self.add_member("W1", "x", "viewer")
+        await self.insert(d, "x@example.com", "viewer", by="former", via=self.ws["W1"])
+        r = await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/items", headers=self.session("x"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertNotIn(d["slug"], r.text)
+
+
+class CN4GranterLostTheirGrant(_Grants):
+    async def test_r5_parent_revoked_while_granting(self):
+        from app.services import access as access_service
+
+        d = await self.mkdoc("P", ws=None, grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.grant("owner", d, "x@example.com", "editor")
+        orig = access_service.add_grant
+        gate = asyncio.Event()
+
+        async def paused(db, raw, email, role, actor, ctx):
+            if actor.email == "x@example.com":
+                await access_service.require(actor, raw, "share", ctx)
+                await access_service.facts(actor, raw, ctx)
+                gate.set()
+                await asyncio.sleep(0.2)
+            return await orig(db, raw, email, role, actor, ctx)
+
+        async def revoke():
+            await gate.wait()
+            return await self.http.delete(f"/api/v1/documents/{d['slug']}/access/people/x@example.com",
+                                          headers=self.session("owner"))
+
+        await self.person("z")
+        with mock.patch.object(access_service, "add_grant", paused):
+            g, rv = await asyncio.gather(self.grant("x", d, "z@example.com", "editor"), revoke())
+        self.assertEqual(rv.status_code, 204)
+        self.assertNotEqual(g.status_code, 201, g.text)
+        self.assertIsNone((await self.rows(d)).get("z"))
+        self.assertEqual(await self.reads("z", d), 404)
+
+    async def test_revoke_landing_after_the_insert_still_gives_nothing(self):
+        from app.services import access as access_service
+
+        d = await self.mkdoc("P", ws=None, grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.person("z")
+        await self.grant("owner", d, "x@example.com", "editor")
+        orig = access_service.document_grant_graph
+        calls = {"n": 0}
+
+        async def revoke_then_graph(db, document_id):
+            calls["n"] += 1
+            if calls["n"] == 2:  # the post-insert check: the owner revokes X just before it
+                await db["document_grants"].delete_one({"document_id": document_id, "email": "x@example.com"})
+            return await orig(db, document_id)
+
+        with mock.patch.object(access_service, "document_grant_graph", revoke_then_graph):
+            r = await self.grant("x", d, "z@example.com", "viewer")
+        self.assertEqual(r.status_code, 403, r.text)
+        self.assertEqual(await self.reads("z", d), 404)
+
+    async def test_non_owner_root_without_authority_gives_nothing(self):
+        d = await self.mkdoc("P", ws=None, grants=False, allow_resharing=True)
+        await self.person("z")
+        await self.insert(d, "z@example.com", "editor", by="stranger")  # no parent, no workspace
+        self.assertEqual(await self.reads("z", d), 404)
+
+    async def test_migration_links_legacy_reshares(self):
+        from app.services import lifecycle
+
+        d = await self.mkdoc("P", ws=None, grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.person("z")
+        await self.insert(d, "x@example.com", "editor", by="owner")
+        await self.insert(d, "z@example.com", "viewer", by="x")  # pre-v2 re-share: no parent recorded
+        self.assertEqual(await self.reads("z", d), 404)
+        await self.db["migrations"].delete_many({})
+        await lifecycle.migrate(self.db)
+        self.assertEqual(await self.reads("z", d), 200)

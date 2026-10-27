@@ -287,81 +287,79 @@ async def release_workspace_documents(db: AsyncIOMotorDatabase, workspace_id: st
 # ── Membership (M1, M2) ───────────────────────────────────────────────────────
 
 
-async def _descendants(db: AsyncIOMotorDatabase, roots: list[dict], workspace_id: str) -> list[dict]:
-    """Every grant re-shared (directly or not) from ``roots`` — the grants whose
-    ``parent_grant_id`` chain leads to one of them (C2). Bounded walk."""
-    out: list[dict] = []
-    frontier = [str(r["_id"]) for r in roots]
-    seen = set(frontier)
-    hops = 0
-    while frontier and hops < 50:
-        hops += 1
-        rows = await db["document_grants"].find(
-            {"parent_grant_id": {"$in": frontier}, "granted_via": workspace_id}).to_list(length=20_000)
-        frontier = []
-        for r in rows:
-            rid = str(r["_id"])
-            if rid not in seen:
-                seen.add(rid)
-                out.append(r)
-                frontier.append(rid)
-    return out
+async def _settle_documents(db: AsyncIOMotorDatabase, doc_ids) -> int:
+    from app.services import access
+
+    changed = 0
+    for doc_id in sorted({d for d in doc_ids if d}):
+        try:
+            changed += await access.settle_document_grants(db, doc_id)
+        except Exception:
+            log.warning("settling the grants of %s failed", doc_id, exc_info=True)
+    return changed
+
+
+async def _docs_resting_on(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str) -> list[str]:
+    """Documents with a grant this person made, or one made through
+    ``workspace_id`` (re-shares of those inherit ``granted_via``)."""
+    ids = set(await db["document_grants"].distinct("document_id", {"granted_by_user_id": user_id}))
+    ids |= set(await db["document_grants"].distinct("document_id", {"granted_via": workspace_id}))
+    return list(ids)
 
 
 async def member_left(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str) -> int:
-    """M1: grants this person made through their workspace role are deleted —
-    and so is every grant re-shared from those (C2: no laundering through a
-    grantee)."""
+    """M1: grants this person made through their workspace role give nothing
+    any more (read time, access.GrantGraph) — and neither does anything
+    re-shared from them, however deep (C2, C-N1). Housekeeping deletes them
+    now, synchronously; live readers re-check."""
     from app.services import live
 
-    roots = await db["document_grants"].find(
-        {"granted_via": workspace_id, "granted_by_user_id": user_id}).to_list(length=20_000)
-    rows = roots + await _descendants(db, roots, workspace_id)
-    if not rows:
-        return 0
-    res = await db["document_grants"].delete_many({"_id": {"$in": [r["_id"] for r in rows]}})
-    for doc_id in {r["document_id"] for r in rows}:
-        try:
-            d = await db["documents"].find_one({"_id": ObjectId(doc_id)}, {"slug": 1})
-        except Exception:
-            d = None
-        if d:
-            live.access_changed(d.get("slug"))
-    return res.deleted_count
+    doc_ids = await _docs_resting_on(db, workspace_id, user_id)
+    changed = await _settle_documents(db, doc_ids)
+    if changed:
+        for doc_id in doc_ids:
+            try:
+                d = await db["documents"].find_one({"_id": ObjectId(doc_id)}, {"slug": 1})
+            except Exception:
+                d = None
+            if d:
+                live.access_changed(d.get("slug"))
+    return changed
 
 
 async def member_demoted(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str,
                          new_role: str) -> int:
     """M2: demoted to viewer ⇒ editor grants they made through the workspace
-    become viewer grants, and so do editor grants re-shared from those (C2)."""
+    give viewer only, and so does everything re-shared from those (C2).
+    Stored roles are lowered to match."""
     if new_role != "viewer":
         return 0
-    roots = await db["document_grants"].find(
-        {"granted_via": workspace_id, "granted_by_user_id": user_id}).to_list(length=20_000)
-    rows = roots + await _descendants(db, roots, workspace_id)
-    res = await db["document_grants"].update_many(
-        {"_id": {"$in": [r["_id"] for r in rows]}, "role": "editor"}, {"$set": {"role": "viewer"}})
-    return res.modified_count
+    return await _settle_documents(db, await _docs_resting_on(db, workspace_id, user_id))
+
+
+_DELEGATION_CURSOR: dict = {"after": None}
 
 
 async def drop_orphaned_delegations(db: AsyncIOMotorDatabase, *, limit: int = 5000,
                                     since: datetime | None = None) -> int:
-    """Reconciler (C7): a grant whose authority is gone — its granter is no
-    longer a member of ``granted_via`` (or no longer may give that role), or
-    the grant it was re-shared from was removed — is deleted. Covers a grant
-    written while its granter was being removed."""
-    from app.services import access
-
-    dropped = 0
-    query: dict = {"$or": [{"granted_via": {"$nin": [None]}}, {"parent_grant_id": {"$nin": [None]}}]}
+    """Reconciler housekeeping (read-time validity already applies): settle
+    the documents of delegated grants — recent ones (``since``) every pass,
+    plus the next ``limit`` older ones in ``_id`` order (a rotating cursor,
+    so every delegated grant is looked at regardless of when it was made).
+    Returns how many rows were deleted or lowered."""
+    delegated: dict = {"$or": [{"granted_via": {"$nin": [None]}}, {"parent_grant_id": {"$nin": [None]}}]}
+    doc_ids: set[str] = set()
     if since is not None:
-        query["created_at"] = {"$gte": since}
-    rows = await db["document_grants"].find(query).limit(limit).to_list(length=limit)
-    for g in rows:
-        if not await access.grant_authority_holds(db, g):
-            res = await db["document_grants"].delete_one({"_id": g["_id"]})
-            dropped += res.deleted_count
-    return dropped
+        rows = await db["document_grants"].find(
+            {**delegated, "created_at": {"$gte": since}}, {"document_id": 1}).limit(limit).to_list(length=limit)
+        doc_ids |= {r["document_id"] for r in rows}
+    query = dict(delegated)
+    if _DELEGATION_CURSOR["after"] is not None:
+        query = {"$and": [delegated, {"_id": {"$gt": _DELEGATION_CURSOR["after"]}}]}
+    rows = await db["document_grants"].find(query, {"document_id": 1}).sort("_id", 1).limit(limit).to_list(length=limit)
+    _DELEGATION_CURSOR["after"] = rows[-1]["_id"] if len(rows) == limit else None
+    doc_ids |= {r["document_id"] for r in rows}
+    return await _settle_documents(db, doc_ids)
 
 
 # ── Expiry sweeper (A6) ───────────────────────────────────────────────────────
@@ -533,6 +531,13 @@ async def migrate(db: AsyncIOMotorDatabase) -> dict:
         log.warning("address collision in workspace %s: folder %s and document %s both answer at %r",
                     c["workspace_id"], c["folder_id"], c["document_id"], c["slug"])
     out["slug_collisions"] = len(clashes)
+    # 3c. Delegated grants made before authority was recorded (C-N4): link
+    #     each re-share to the granter's own grant (or workspace role), so its
+    #     validity follows the chain at read time. One-shot.
+    try:
+        out["grant_authority_linked"] = await _link_legacy_grants(db)
+    except Exception:
+        log.warning("linking legacy re-shared grants failed", exc_info=True)
     # 4. Artifacts filed in a require-sign-in workspace: before D3 their bytes
     #    followed only level + password, so link ones are still public in R2.
     #    Mark them dirty; the reconciler closes them under the one rule.
@@ -550,6 +555,71 @@ async def migrate(db: AsyncIOMotorDatabase) -> dict:
             {"$set": {"access_dirty": True}})
         out["require_auth_bytes_queued"] = res.modified_count
     return out
+
+
+async def _link_legacy_grants(db: AsyncIOMotorDatabase) -> int:
+    """Grants written before ``granted_by_user_id``/``parent_grant_id``
+    existed carry only ``granted_by_email``. The owner's become owner roots;
+    anyone else's point at the granter's own grant (or their membership of
+    the document's workspace), and with neither they record the granter and
+    give nothing (the owner sees them as inactive)."""
+    from app.services import access
+
+    marker = "grant_authority_v1"
+    if await db["migrations"].find_one({"_id": marker}):
+        return 0
+    linked = 0
+    emails: dict[str, str | None] = {}
+
+    async def uid_for(email: str) -> str | None:
+        if email not in emails:
+            row = await db["users"].find_one({"email": email}, {"_id": 1})
+            emails[email] = str(row["_id"]) if row else None
+        return emails[email]
+
+    owners: dict[str, tuple] = {}
+    query = {"$or": [{"granted_by_user_id": None},
+                     {"parent_grant_id": None, "granted_via": None}]}
+    async for g in db["document_grants"].find(query):
+        doc_id = g["document_id"]
+        if doc_id not in owners:
+            try:
+                d = await db["documents"].find_one({"_id": ObjectId(doc_id)}, {"owner_id": 1, "workspace_id": 1})
+            except Exception:
+                d = None
+            owner_email = None
+            if d and d.get("owner_id"):
+                try:
+                    u = await db["users"].find_one({"_id": ObjectId(d["owner_id"])}, {"email": 1})
+                except Exception:
+                    u = None
+                owner_email = access.normalize_email((u or {}).get("email"))
+            owners[doc_id] = (d, owner_email)
+        d, owner_email = owners[doc_id]
+        if d is None or not d.get("owner_id"):
+            continue
+        granter_email = access.normalize_email(g.get("granted_by_email"))
+        granter = g.get("granted_by_user_id")
+        if granter is None and (not granter_email or granter_email == owner_email):
+            granter = d["owner_id"]
+        if granter is None:
+            granter = await uid_for(granter_email) or f"email:{granter_email}"
+        sets: dict = {"granted_by_user_id": granter}
+        if granter != d["owner_id"] and not g.get("parent_grant_id") and not g.get("granted_via"):
+            own = await db["document_grants"].find_one(
+                {"document_id": doc_id, "email": granter_email, "_id": {"$ne": g["_id"]}},
+                {"_id": 1, "granted_via": 1}) if granter_email else None
+            if own is not None:
+                sets.update(parent_grant_id=str(own["_id"]), granted_via=own.get("granted_via"))
+            elif d.get("workspace_id") and await db["memberships"].find_one(
+                    {"workspace_id": d["workspace_id"], "user_id": granter}, {"_id": 1}):
+                sets["granted_via"] = d["workspace_id"]
+        if any(g.get(k) != v for k, v in sets.items()):
+            await db["document_grants"].update_one({"_id": g["_id"]}, {"$set": sets})
+            linked += 1
+    await db["migrations"].update_one({"_id": marker}, {"$set": {"at": _now(), "linked": linked}},
+                                      upsert=True)
+    return linked
 
 
 async def ensure_expiry_ttl(db: AsyncIOMotorDatabase) -> int:

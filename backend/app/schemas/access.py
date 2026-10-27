@@ -12,6 +12,10 @@ class GrantResponse(BaseModel):
     # Whether a notification actually left. The UI says "invited" or "added
     # quietly" from this rather than implying an email that never went.
     notified: bool = False
+    # False when the grant gives nothing any more (a re-share whose authority
+    # lapsed); ``effective_role`` is what it gives now (may be lower).
+    active: bool = True
+    effective_role: Literal["viewer", "editor"] | None = None
 
 
 class GrantCreate(BaseModel):

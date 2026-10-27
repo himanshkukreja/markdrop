@@ -27,6 +27,14 @@ Roles::
 Grants key on the **address** (lower-cased, IDNA-ASCII domain, no plus/dot
 folding) of the authenticated account, never on an email claim in a token (I10).
 
+A grant made by someone other than the owner is *delegated*: it is worth
+something only while its authority chain holds, and that is decided when it is
+read (:class:`GrantGraph`), not by a cleanup that may lag behind — walk
+``parent_grant_id`` to a root; the root must be the owner's grant, or a grant
+made through a workspace role its granter still holds (``granted_via``). Every
+hop caps the role at its parent's; a cycle, a missing link, a lost membership
+or a chain deeper than ``MAX_GRANT_DEPTH`` gives nothing (I9).
+
 A dangling ``workspace_id`` (its workspace is gone) is treated as unfiled for
 every rule, and released by the reconciler.
 """
@@ -49,6 +57,10 @@ from app.models.workspace import role_allows as ws_role_allows
 from app.services import publicity
 
 MAX_GRANTS_PER_DOCUMENT = 200
+# Re-sharing hops from the root grant (the owner's, or a member's) to the
+# deepest grant that still gives access. Deeper chains are refused at write
+# time and worth nothing at read time.
+MAX_GRANT_DEPTH = 10
 MCP_WRITE = "documents:write"
 
 # Policy §2.1. `list` is answered for many rows at once by `readable_filter`.
@@ -175,13 +187,22 @@ class Ctx:
         return self._roles[key]
 
     async def grants_for(self, email: str) -> dict[str, str]:
-        """document_id → role for every grant to this address (one query)."""
+        """document_id → *effective* role for every grant to this address that
+        still gives access (its authority chain holds — :class:`GrantGraph`)."""
         if not email:
             return {}
         if email not in self._grants:
             rows = await self.db["document_grants"].find(
-                {"email": email}, {"document_id": 1, "role": 1}).to_list(length=20_000)
-            self._grants[email] = {r["document_id"]: r["role"] for r in rows}
+                {"email": email},
+                {"document_id": 1, "role": 1, "parent_grant_id": 1, "granted_via": 1,
+                 "granted_by_user_id": 1}).to_list(length=20_000)
+            graph = await GrantGraph.load(self.db, rows)
+            out: dict[str, str] = {}
+            for r in rows:
+                role = graph.role(str(r["_id"]))
+                if role is not None:
+                    out[r["document_id"]] = role
+            self._grants[email] = out
         return self._grants[email]
 
     def forget(self, doc: dict | None = None) -> None:
@@ -710,8 +731,11 @@ async def readable_filter(actor: Actor, workspace_id: str, ctx: Ctx) -> Readable
 # ── Grants (§3.2) ─────────────────────────────────────────────────────────────
 
 
-def _to_grant(raw: dict) -> Grant:
-    return Grant(
+_UNSET: Any = object()
+
+
+def _to_grant(raw: dict, effective: Any = _UNSET) -> Grant:
+    g = Grant(
         id=str(raw["_id"]),
         document_id=raw["document_id"],
         email=raw["email"],
@@ -721,14 +745,152 @@ def _to_grant(raw: dict) -> Grant:
         user_id=raw.get("user_id"),
         notified=bool(raw.get("notified")),
     )
+    if effective is not _UNSET:
+        g.effective_role = effective
+        g.active = effective is not None
+    return g
+
+
+def _min_role(a: str | None, b: str | None) -> str | None:
+    if a is None or b is None:
+        return None
+    return a if _ROLE_RANK.get(a, 0) <= _ROLE_RANK.get(b, 0) else b
+
+
+class GrantGraph:
+    """Read-time validity of grants (I9, C-N1/N2/N4/N9).
+
+    ``role(grant_id)`` is the role a grant *currently* gives, or None:
+
+    * no ``parent_grant_id`` and no ``granted_via`` — a root, valid only when
+      its granter is the document's owner (``granted_by_user_id`` is the owner,
+      or absent on rows that predate the field);
+    * ``granted_via`` = W and no parent — a member's grant: valid while the
+      document is still filed in W and the granter is still in W, capped at
+      what that role may give (viewer ⇒ viewer, member+ ⇒ editor);
+    * ``parent_grant_id`` set — the parent's effective role caps it; a missing
+      parent, a parent on another document, a cycle or more than
+      ``MAX_GRANT_DEPTH`` hops from the root ⇒ None.
+
+    Built from a handful of queries (grants of the documents involved, those
+    documents, the memberships the roots rest on), then evaluated in memory."""
+
+    def __init__(self, rows: dict[str, dict], docs: dict[str, dict], roles: dict[tuple, str]):
+        self._rows = rows
+        self._docs = docs
+        self._roles = roles
+        self._role: dict[str, str | None] = {}
+        self._depth: dict[str, int] = {}
+
+    @classmethod
+    async def load(cls, db: AsyncIOMotorDatabase, rows: list[dict]) -> "GrantGraph":
+        by_id = {str(r["_id"]): r for r in rows}
+        doc_ids = {r["document_id"] for r in rows}
+        # Chains are walked over every grant of the documents that have one.
+        chained = sorted({r["document_id"] for r in rows if r.get("parent_grant_id")})
+        if chained:
+            for r in await db["document_grants"].find(
+                    {"document_id": {"$in": chained}},
+                    {"document_id": 1, "role": 1, "parent_grant_id": 1, "granted_via": 1,
+                     "granted_by_user_id": 1, "email": 1}).to_list(
+                    length=len(chained) * (MAX_GRANTS_PER_DOCUMENT + 50)):
+                by_id.setdefault(str(r["_id"]), r)
+        oids = []
+        for d in doc_ids:
+            try:
+                oids.append(ObjectId(d))
+            except Exception:
+                continue
+        docs = {}
+        if oids:
+            for d in await db["documents"].find(
+                    {"_id": {"$in": oids}}, {"owner_id": 1, "workspace_id": 1}).to_list(length=len(oids)):
+                docs[str(d["_id"])] = d
+        pairs = {(r.get("granted_via"), r.get("granted_by_user_id")) for r in by_id.values()
+                 if r.get("granted_via") and not r.get("parent_grant_id") and r.get("granted_by_user_id")}
+        roles: dict[tuple, str] = {}
+        if pairs:
+            for m in await db["memberships"].find(
+                    {"$or": [{"workspace_id": w, "user_id": u} for w, u in pairs]},
+                    {"workspace_id": 1, "user_id": 1, "role": 1}).to_list(length=len(pairs) + 10):
+                roles[(m["workspace_id"], m["user_id"])] = m["role"]
+        return cls(by_id, docs, roles)
+
+    def _root_role(self, g: dict) -> str | None:
+        doc = self._docs.get(g.get("document_id"))
+        if doc is None:
+            return None
+        via = g.get("granted_via")
+        if via:
+            if doc.get("workspace_id") != via:
+                return None
+            ws_role = self._roles.get((via, g.get("granted_by_user_id")))
+            if ws_role is None:
+                return None
+            return _min_role(g.get("role"), "viewer" if ws_role == "viewer" else "editor")
+        by = g.get("granted_by_user_id")
+        if by is None or by == doc.get("owner_id"):
+            return g.get("role")
+        return None  # a non-owner's grant with no authority recorded (C-N4)
+
+    def _resolve(self, gid: str) -> None:
+        first = self._rows.get(gid)
+        chain: list[dict] = []
+        seen: set[str] = set()
+        cur = gid
+        role: str | None
+        depth: int
+        while True:
+            if cur in self._role:
+                role, depth = self._role[cur], self._depth[cur]
+                break
+            g = self._rows.get(cur)
+            if g is None or cur in seen or first is None or g.get("document_id") != first.get("document_id"):
+                role, depth = None, MAX_GRANT_DEPTH + 1  # missing link, cycle or foreign parent
+                break
+            seen.add(cur)
+            parent = g.get("parent_grant_id")
+            if not parent:
+                role, depth = self._root_role(g), 0
+                self._role[cur], self._depth[cur] = role, 0
+                break
+            chain.append(g)
+            if len(chain) > MAX_GRANT_DEPTH:
+                # Too far from any root to count; intermediate hops are left
+                # for their own walk (each walk stays bounded).
+                self._role[gid], self._depth[gid] = None, MAX_GRANT_DEPTH + 1
+                return
+            cur = str(parent)
+        for g in reversed(chain):
+            depth += 1
+            role = _min_role(g.get("role"), role) if depth <= MAX_GRANT_DEPTH else None
+            key = str(g["_id"])
+            self._role[key], self._depth[key] = role, depth
+
+    def role(self, gid: str) -> str | None:
+        if gid not in self._role:
+            self._resolve(gid)
+        return self._role.get(gid)
+
+    def depth(self, gid: str) -> int:
+        if gid not in self._depth:
+            self._resolve(gid)
+        return self._depth.get(gid, MAX_GRANT_DEPTH + 1)
+
+
+async def document_grant_graph(db: AsyncIOMotorDatabase, document_id: str) -> tuple[list[dict], GrantGraph]:
+    rows = await db["document_grants"].find({"document_id": document_id}).to_list(
+        length=MAX_GRANTS_PER_DOCUMENT + 50)
+    return rows, await GrantGraph.load(db, rows)
 
 
 async def list_grants(db: AsyncIOMotorDatabase, document_id: str) -> list[Grant]:
-    rows = await db["document_grants"].find({"document_id": document_id}).to_list(
-        length=MAX_GRANTS_PER_DOCUMENT
-    )
+    """Every grant of the document, each marked with what it gives *now*
+    (``active`` / ``effective_role``): the owner sees a delegated grant whose
+    authority lapsed as inactive until housekeeping removes it."""
+    rows, graph = await document_grant_graph(db, document_id)
     rows.sort(key=lambda r: r["created_at"])
-    return [_to_grant(r) for r in rows]
+    return [_to_grant(r, graph.role(str(r["_id"]))) for r in rows[:MAX_GRANTS_PER_DOCUMENT]]
 
 
 async def grant_for(db: AsyncIOMotorDatabase, document_id: str, email: str | None) -> Grant | None:
@@ -750,11 +912,24 @@ async def _owner_email(db: AsyncIOMotorDatabase, raw_doc: dict) -> str:
     return normalize_email((row or {}).get("email"))
 
 
+def _unchanged(existing: dict, role: str) -> Grant:
+    g = _to_grant(existing)
+    g.unchanged = True
+    return g
+
+
 async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: GrantRole,
                     actor: Actor, ctx: Ctx) -> Grant:
     """G1: normalised address; never the granter's own or the owner's; never
-    more than the granter's own role; records who granted it and whether that
-    authority came from a workspace role (``granted_via``)."""
+    more than the granter's own role; records who granted it and on what
+    authority — the granter's own grant (``parent_grant_id``) or their
+    workspace role (``granted_via``).
+
+    Only the owner changes an existing grant. Anyone else asking for a person
+    who already has access gets a no-op (same or lower role) or a 409 —
+    never a re-parented, re-attributed or downgraded row (C-N2, M7)."""
+    from pymongo.errors import DuplicateKeyError
+
     await require(actor, raw_doc, "share", ctx)
     document_id = str(raw_doc["_id"])
     email = normalize_email(email)
@@ -767,84 +942,126 @@ async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: G
     if email == actor.email:
         raise HTTPException(status_code=403, detail="You can't share a document with yourself.")
 
-    granted_via = None
-    parent_grant_id = None
-    if not f.is_owner:
-        if not grant_role_allows(f.role, role):
-            raise HTTPException(status_code=403,
-                                detail="You can't give someone more access than you have.")
-        # Whose authority is this? The grant alone, if it suffices; otherwise it
-        # came from workspace membership, and dies with it (I9). A grant that
-        # rests on the granter's own grant inherits where *that* came from and
-        # points at it, so re-sharing can never launder a workspace-derived
-        # grant into one that outlives the member (C2).
-        if grant_role_allows(f.grant_role, role):
-            own = await db["document_grants"].find_one(
-                {"document_id": document_id, "email": actor.email}, {"_id": 1, "granted_via": 1})
-            if own is not None:
-                parent_grant_id = str(own["_id"])
-                granted_via = own.get("granted_via")
-        else:
-            granted_via = f.ws_id
+    def already(existing: dict) -> Grant:
+        if grant_role_allows(existing.get("role"), role):
+            return _unchanged(existing, role)
+        raise HTTPException(status_code=409,
+                            detail="That person already has access. Only the document's owner can "
+                                   "change their role.")
 
+    existing = await db["document_grants"].find_one({"document_id": document_id, "email": email})
     count = await db["document_grants"].count_documents({"document_id": document_id})
-    exists = await db["document_grants"].find_one({"document_id": document_id, "email": email},
-                                                  {"_id": 1})
-    if count >= MAX_GRANTS_PER_DOCUMENT and not exists:
+    if count >= MAX_GRANTS_PER_DOCUMENT and not existing:
         raise HTTPException(
             status_code=429,
             detail=f"A document can be shared with at most {MAX_GRANTS_PER_DOCUMENT} people.",
         )
-
     now = ctx.now
-    row = {
-        "document_id": document_id, "email": email, "role": role,
-        "granted_by_email": actor.email or None, "granted_by_user_id": actor.user_id,
-        "granted_via": granted_via, "parent_grant_id": parent_grant_id,
-        "created_at": now, "notified": False,
-    }
-    result = await db["document_grants"].find_one_and_update(
-        {"document_id": document_id, "email": email}, {"$set": row},
-        upsert=True, return_document=True,
-    )
+
+    if f.is_owner:
+        row = {
+            "document_id": document_id, "email": email, "role": role,
+            "granted_by_email": actor.email or None, "granted_by_user_id": actor.user_id,
+            "granted_via": None, "parent_grant_id": None,
+            "created_at": now, "notified": False,
+        }
+        result = await db["document_grants"].find_one_and_update(
+            {"document_id": document_id, "email": email}, {"$set": row},
+            upsert=True, return_document=True,
+        )
+        if existing is not None and existing.get("role") != role:
+            # A role change cascades: grants re-shared from this one are capped.
+            await settle_document_grants(db, document_id)
+    else:
+        if not grant_role_allows(f.role, role):
+            raise HTTPException(status_code=403,
+                                detail="You can't give someone more access than you have.")
+        if existing is not None:
+            return already(existing)
+        # Whose authority is this? Their own grant, if it suffices; otherwise
+        # their workspace role, and the grant dies with it (I9). A grant that
+        # rests on the granter's own grant points at it and inherits where
+        # *that* came from (C2): validity is the chain, read at read time.
+        granted_via = None
+        parent_grant_id = None
+        if grant_role_allows(f.grant_role, role):
+            own = await db["document_grants"].find_one(
+                {"document_id": document_id, "email": actor.email}, {"_id": 1, "granted_via": 1})
+            if own is None:
+                # C-N4: the grant this rests on is gone (revoked meanwhile).
+                ctx.forget()
+                raise HTTPException(status_code=403,
+                                    detail="You can't give someone more access than you have.")
+            rows, graph = await document_grant_graph(db, document_id)
+            if graph.depth(str(own["_id"])) + 1 > MAX_GRANT_DEPTH:
+                raise HTTPException(status_code=403,
+                                    detail="This document has been re-shared through too many people. "
+                                           "Ask its owner to share it.")
+            parent_grant_id = str(own["_id"])
+            granted_via = own.get("granted_via")
+        elif f.ws_id is not None and grant_role_allows(f.member_doc_role, role):
+            granted_via = f.ws_id
+        else:
+            raise HTTPException(status_code=403,
+                                detail="You can't give someone more access than you have.")
+        row = {
+            "document_id": document_id, "email": email, "role": role,
+            "granted_by_email": actor.email or None, "granted_by_user_id": actor.user_id,
+            "granted_via": granted_via, "parent_grant_id": parent_grant_id,
+            "created_at": now, "notified": False,
+        }
+        try:
+            res = await db["document_grants"].insert_one(row)
+        except DuplicateKeyError:
+            # Someone (perhaps the owner) granted the same address meanwhile:
+            # theirs stands.
+            existing = await db["document_grants"].find_one({"document_id": document_id, "email": email})
+            if existing is None:  # pragma: no cover - deleted again at once
+                raise HTTPException(status_code=409, detail="That changed meanwhile. Try again.")
+            return already(existing)
+        result = {**row, "_id": res.inserted_id}
     # Race with a delete (§3.8): a grant must never outlive its document.
     if not await db["documents"].find_one({"_id": raw_doc["_id"]}, {"_id": 1}):
         await db["document_grants"].delete_many({"document_id": document_id})
         raise HTTPException(status_code=404, detail="Document not found")
-    # Race with the granter's removal/demotion (C7): the authority this grant
-    # rests on must still be there *after* it was written, or it goes.
-    if not f.is_owner and not await grant_authority_holds(db, result):
-        await db["document_grants"].delete_one({"_id": result["_id"], "granted_by_user_id": actor.user_id})
-        ctx.forget()
-        raise HTTPException(status_code=403, detail="You can't give someone more access than you have.")
+    # Race with the granter losing the authority it rests on (C7, C-N4): read
+    # back what the new grant gives *after* it was written. Worthless ⇒ gone.
+    if not f.is_owner:
+        _rows, graph = await document_grant_graph(db, document_id)
+        if graph.role(str(result["_id"])) is None:
+            await db["document_grants"].delete_one({"_id": result["_id"], "granted_by_user_id": actor.user_id})
+            ctx.forget()
+            raise HTTPException(status_code=403, detail="You can't give someone more access than you have.")
     ctx.forget()
     return _to_grant(result)
 
 
 async def grant_authority_holds(db: AsyncIOMotorDatabase, grant: dict) -> bool:
-    """Is the authority a non-owner grant was made under still there?
+    """Does this grant still give anything (its chain holds — GrantGraph)?"""
+    _rows, graph = await document_grant_graph(db, grant["document_id"])
+    return graph.role(str(grant["_id"])) is not None
 
-    * ``parent_grant_id`` set: that grant still exists with a role ≥ this one;
-    * else ``granted_via`` set: the granter is still in that workspace with a
-      role that may give this one (member+ for editor, viewer+ for viewer).
-    Grants made by the owner (neither field) always hold."""
-    role = grant.get("role")
-    parent_id = grant.get("parent_grant_id")
-    if parent_id:
-        try:
-            parent = await db["document_grants"].find_one({"_id": ObjectId(parent_id)}, {"role": 1})
-        except Exception:
-            parent = None
-        return parent is not None and grant_role_allows(parent.get("role"), role)
-    via = grant.get("granted_via")
-    if via:
-        m = await db["memberships"].find_one(
-            {"workspace_id": via, "user_id": grant.get("granted_by_user_id")}, {"role": 1})
-        if m is None:
-            return False
-        ws_grant_role = "viewer" if m["role"] == "viewer" else "editor"
-        return grant_role_allows(ws_grant_role, role)
-    return True
+
+async def settle_document_grants(db: AsyncIOMotorDatabase, document_id: str) -> int:
+    """Housekeeping for one document (read-time validity already applies):
+    delete every grant that gives nothing any more and lower stored roles to
+    what they give. No hop limit — a whole chain goes at once. Returns how
+    many rows changed."""
+    rows, graph = await document_grant_graph(db, document_id)
+    dead, lowered = [], 0
+    for r in rows:
+        eff = graph.role(str(r["_id"]))
+        if eff is None:
+            dead.append(r["_id"])
+        elif eff != r.get("role"):
+            res = await db["document_grants"].update_one(
+                {"_id": r["_id"], "role": r.get("role")}, {"$set": {"role": eff}})
+            lowered += res.modified_count
+    removed = 0
+    if dead:
+        res = await db["document_grants"].delete_many({"_id": {"$in": dead}})
+        removed = res.deleted_count
+    return removed + lowered
 
 
 async def mark_notified(db: AsyncIOMotorDatabase, grant_id: str) -> None:
@@ -853,14 +1070,17 @@ async def mark_notified(db: AsyncIOMotorDatabase, grant_id: str) -> None:
 
 async def remove_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, actor: Actor,
                        ctx: Ctx) -> None:
-    """The owner removes anybody; anyone else only themselves (G2)."""
+    """The owner removes anybody; anyone else only themselves (G2). Grants
+    re-shared from the removed one go with it, synchronously."""
     await require(actor, raw_doc, "revoke_grant", ctx)
     f = await facts(actor, raw_doc, ctx)
     email = normalize_email(email)
     if not f.is_owner and email != actor.email:
         raise HTTPException(status_code=403, detail="Only the owner can remove someone else's access.")
-    res = await db["document_grants"].delete_one({"document_id": str(raw_doc["_id"]), "email": email})
+    document_id = str(raw_doc["_id"])
+    res = await db["document_grants"].delete_one({"document_id": document_id, "email": email})
     if res.deleted_count:
+        await settle_document_grants(db, document_id)
         from app.services import live
 
         live.access_changed(raw_doc.get("slug"))

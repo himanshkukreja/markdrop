@@ -38,6 +38,8 @@ def _to_grant(g) -> GrantResponse:
     return GrantResponse(
         email=g.email, role=g.role, created_at=g.created_at,
         granted_by_email=g.granted_by_email, notified=g.notified,
+        active=getattr(g, "active", True),
+        effective_role=getattr(g, "effective_role", None) if getattr(g, "active", True) else None,
     )
 
 
@@ -181,7 +183,8 @@ async def add_person(
     raw = await _load(db, slug)
     grant = await access_service.add_grant(db, raw, str(data.email), data.role, actor, ctx)
 
-    if data.notify and mailer.is_configured():
+    # Nothing was written for someone who already had access: no email either.
+    if data.notify and not grant.unchanged and mailer.is_configured():
         try:
             await mailer.send_document_share_email(
                 to_email=grant.email,
