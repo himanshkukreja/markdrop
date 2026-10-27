@@ -384,10 +384,12 @@ export default function ShareDialog({
                       <Avatar name={g.email.split("@")[0] || g.email} size="sm" neutral />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-body text-text">{g.email}</span>
-                        {!g.notified && <span className="block text-caption text-text-muted">Added without an email</span>}
+                        {g.active === false ? (
+                          <span className="block text-caption text-text-muted">No longer active: whoever shared it lost access</span>
+                        ) : !g.notified && <span className="block text-caption text-text-muted">Added without an email</span>}
                       </span>
                       <span className="shrink-0 text-caption text-text-secondary">
-                        {g.role === "editor" ? "Can edit" : "Can view"}
+                        {g.active === false ? "No access" : (g.effective_role ?? g.role) === "editor" ? "Can edit" : "Can view"}
                       </span>
                       {(canManage || g.email === state.your_email) && (
                         <RowMenu

@@ -41,6 +41,10 @@ export interface Grant {
   granted_by_email: string | null;
   /** Whether a notification actually left — not merely whether one was asked for. */
   notified: boolean;
+  /** False when a re-share's authority lapsed (its sharer lost access): it opens nothing. */
+  active?: boolean;
+  /** What it gives right now, when lower than `role`. */
+  effective_role?: "viewer" | "editor" | null;
 }
 
 /** `can` flags (access policy §7), the same names on `/access`, the document and item rows. */
