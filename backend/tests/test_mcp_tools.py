@@ -284,11 +284,14 @@ class Tools(McpTestCase):
         self.assertEqual(out["access"], "private")
         raw = await self.db["documents"].find_one({"slug": slug})
         self.assertEqual(raw["access_level"], "private")
-        self.assertIsNone(raw["read_password_hash"])
+        # Kept inert (policy §1.2, C5): it applies again if the doc becomes a link
+        # through anything other than an explicit "link" here.
+        self.assertIsNotNone(raw["read_password_hash"])
         out = self.ok(await self.tool("set_access", document=slug, access="link", expires="never"))
         self.assertEqual((out["access"], out["expires_at"]), ("link", None))
         raw = await self.db["documents"].find_one({"slug": slug})
         self.assertEqual(raw["access_level"], "link")
+        self.assertIsNone(raw["read_password_hash"])  # plain "link" asked for no password
         self.assertEqual(raw["content"], "x")
 
     async def test_set_access_refusals(self):

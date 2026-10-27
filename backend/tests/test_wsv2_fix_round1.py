@@ -560,3 +560,109 @@ class B7OgForOldSlugs(AccessWorld):
         self.assertIsNotNone(cards[-1].brand)
         self.assertTrue(cards[-1].brand.hide_markdrop_branding)
         self.assertNotIn(d["title"], repr(cards[-1]))
+
+
+class C5McpSetAccessKeepsPassword(AccessWorld):
+    async def call(self, who: str, tool: str, args: dict) -> dict:
+        return (await self.mcp_call(await self.mcp_token(who), tool, args))[1]
+
+    async def test_c5_private_keeps_the_password_inert(self):
+        d = await self.mkdoc("LP", ws=None)
+        res = await self.call("owner", "set_access", {"document": d["slug"], "access": "private"})
+        self.assertFalse(res.get("isError"), res)
+        row = await self.doc(d["slug"])
+        self.assertEqual(row["access_level"], "private")
+        self.assertTrue(row.get("read_password_hash"))
+        r = await self.http.put(f"/api/v1/documents/{d['slug']}/access/level", json={"level": "link"},
+                                headers=self.session("owner"))
+        self.assertIn(r.status_code, (200, 204))
+        r = await self.get(d["slug"])
+        self.assertEqual((r.status_code, r.headers.get("x-markdrop-gate")), (401, "password"))
+
+    async def test_c5_link_still_removes_the_password(self):
+        d = await self.mkdoc("LP", ws=None)
+        res = await self.call("owner", "set_access", {"document": d["slug"], "access": "link"})
+        self.assertFalse(res.get("isError"), res)
+        self.assertFalse((await self.doc(d["slug"])).get("read_password_hash"))
+
+
+class C13Leftovers(AccessWorld):
+    async def call(self, who: str, tool: str, args: dict) -> dict:
+        return (await self.mcp_call(await self.mcp_token(who), tool, args))[1]
+
+    async def test_c13_link_in_a_signin_workspace_is_not_called_public(self):
+        d = await self.mkdoc("RW")
+        res = await self.call("owner", "set_access", {"document": d["slug"], "access": "link"})
+        text = res["content"][0]["text"]
+        self.assertNotIn("anyone with the link", text)
+        self.assertNotIn("public", text)
+        self.assertIn("members of its workspace", text)
+        res = await self.call("wm", "publish_document", {"markdown": "# x", "workspace": self.ws["WR"],
+                                                          "access": "link"})
+        self.assertNotIn("anyone with the link", res["content"][0]["text"])
+
+    async def test_c13_create_upload_takes_a_slug(self):
+        from app.mcp import tools as mcp_tools
+
+        tool = next(t for t in mcp_tools.TOOLS if t.name == "create_upload")
+        self.assertIn("slug", tool.input_schema["properties"])
+        res = await self.call("owner", "create_upload", {
+            "file_name": "a.html", "size_bytes": 10, "sha256": "b" * 64, "slug": "my-upload-slug"})
+        self.assertFalse(res.get("isError"), res)
+        sess = await self.db["file_uploads"].find_one({}, sort=[("_id", -1)])
+        self.assertEqual(sess.get("slug"), "my-upload-slug")
+
+    async def test_c13_restored_version_gets_the_current_epoch(self):
+        d = await self.mkdoc("P", ws=None, kind="artifact", access_epoch=3, file_version=2)
+        old_key = f"art/{self.uid['owner']}/old.html"
+        self.r2.put_bytes(old_key, b"<p>old</p>", "text/html", False)
+        self.r2.objects[old_key]["ae"] = "1"
+        for v, key in ((1, old_key), (2, d["blob_key"])):
+            await self.db["file_versions"].insert_one({
+                "doc_id": str(d["_id"]), "version": v, "blob_key": key, "user_id": self.uid["owner"],
+                "size_bytes": 10, "mime": "text/html", "created_at": now()})
+        r = await self.http.post(f"/api/v1/files/{d['slug']}/versions/1/restore", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
+        row = await self.doc(d["slug"])
+        self.assertEqual(row["blob_key"], old_key)
+        self.assertEqual(self.r2.objects[old_key].get("ae"), str(row.get("access_epoch") or 0))
+        self.assertFalse(self.r2.objects[old_key]["public"])
+
+    async def test_c13_granter_who_lost_access_cannot_manage_their_grants(self):
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        r = await self.http.post(f"/api/v1/documents/{d['slug']}/access/people",
+                                 json={"email": "x@example.com", "role": "viewer"}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 201)
+        await self.http.put(f"/api/v1/documents/{d['slug']}/access/level", json={"level": "private"},
+                            headers=self.session("owner"))
+        self.assertIsNotNone(await self.db["document_grants"].find_one({"email": "x@example.com"}))
+        r = await self.http.delete(f"/api/v1/documents/{d['slug']}/access/people/x@example.com",
+                                   headers=self.session("wm"))
+        self.assertEqual(r.status_code, 404)
+        r = await self.http.post(f"/api/v1/documents/{d['slug']}/access/people",
+                                 json={"email": "x@example.com", "role": "editor"}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual((await self.http.get(f"/api/v1/documents/{d['slug']}/access",
+                                              headers=self.session("wm"))).status_code, 404)
+
+
+class C13SetPublicKeepsMetadata(__import__("unittest").TestCase):
+    def test_c13_set_public_keeps_live_and_other_keys(self):
+        from app.services import r2
+
+        calls = {}
+
+        class Client:
+            def head_object(self, **kw):
+                return {"ContentType": "text/html", "Metadata": {"live": "1", "public": "1", "ae": "0"}}
+
+            def copy_object(self, **kw):
+                calls.update(kw)
+
+        with mock.patch.object(r2, "_client", lambda: Client()):
+            self.assertTrue(r2.set_public("k", False, "text/html", 4))
+        self.assertEqual(calls["Metadata"], {"live": "1", "ae": "4"})
+        with mock.patch.object(r2, "_client", lambda: Client()):
+            self.assertTrue(r2.set_public("k", True, "text/html", None))
+        self.assertEqual(calls["Metadata"], {"live": "1", "public": "1", "ae": "0"})
+        self.assertEqual(calls["CacheControl"], "no-cache, must-revalidate")

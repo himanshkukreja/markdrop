@@ -186,13 +186,19 @@ def set_public(key: str, public: bool, content_type: str | None = None,
     ``ae``: the Worker refuses a signed token whose ``e`` claim differs, so
     bumping it on a narrowing revokes every signed link already handed out.
     """
-    metadata: dict[str, str] = {"public": "1"} if public else {}
-    if epoch is not None:
-        metadata["ae"] = str(int(epoch))
     try:
         c = _client()
+        # REPLACE rewrites the whole metadata set: carry over every other key
+        # (e.g. ``live``) so changing publicity never drops it (C13).
+        head_res = c.head_object(Bucket=settings.r2_bucket, Key=key)
+        existing = {k: v for k, v in (head_res.get("Metadata") or {}).items()
+                    if k not in ("public", "ae")}
+        metadata: dict[str, str] = {**existing, **({"public": "1"} if public else {})}
+        if epoch is not None:
+            metadata["ae"] = str(int(epoch))
+        elif (head_res.get("Metadata") or {}).get("ae") is not None:
+            metadata["ae"] = head_res["Metadata"]["ae"]
         if content_type is None:
-            head_res = c.head_object(Bucket=settings.r2_bucket, Key=key)
             content_type = head_res.get("ContentType") or "application/octet-stream"
         c.copy_object(
             Bucket=settings.r2_bucket,
@@ -203,7 +209,9 @@ def set_public(key: str, public: bool, content_type: str | None = None,
             Metadata=metadata,
             # Short even when public: adding a password flips this object to
             # private, and a long-lived edge copy would outlive that change.
-            CacheControl="public, max-age=300" if public else "private, no-store",
+            CacheControl=("private, no-store" if not public
+                          else "no-cache, must-revalidate" if existing.get("live") == "1"
+                          else "public, max-age=300"),
         )
         return True
     except Exception:

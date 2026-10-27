@@ -264,19 +264,24 @@ def is_public(raw: dict, require_auth: bool = False) -> bool:
 
 
 async def apply_publicity(before: dict, after: dict, *, new_blob_already: bool | None = None,
-                          require_auth: bool = False) -> None:
+                          require_auth: bool = False, stamp_epoch: bool = False) -> None:
     """After a swap: the current blob and poster follow the document's access;
     the outgoing ones become non-public (old versions are never public).
 
     ``new_blob_already`` is the publicity the new object was created with, when
     known, so a 2 GB object isn't copied onto itself for nothing. The current
-    objects carry the document's access epoch (``ae``)."""
+    objects carry the document's access epoch (``ae``).
+
+    ``stamp_epoch``: rewrite the new current blob's metadata even when its
+    publicity is already right — a *restored* version still carries the epoch
+    it had when it was last current, and a signed link minted back then (before
+    a narrowing) would match it again (C13)."""
     from app.services import publicity, r2
 
     public = is_public(after, require_auth)
     epoch = publicity.epoch_of(after)
     new_key, old_key = after.get("blob_key"), before.get("blob_key")
-    if new_key and new_blob_already is not public:
+    if new_key and (new_blob_already is not public or stamp_epoch):
         await run_in_threadpool(r2.set_public, new_key, public, after.get("mime"), epoch)
     if after.get("poster_key"):
         await run_in_threadpool(r2.set_public, after["poster_key"], public, "image/jpeg", epoch)

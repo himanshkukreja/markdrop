@@ -596,13 +596,29 @@ async def publish_document(ctx: Context, args: dict) -> tuple[str, dict]:
         "access": access,
         "expires_at": iso(doc.expires_at),
     }
-    return f"Published: {out['url']} (visible to {who_text(access, raw)}).", out
+    return f"Published: {out['url']} (visible to {await audience(ctx, raw)}).", out
 
 
-def who_text(access: str, raw: dict | None = None) -> str:
+def who_text(access: str, raw: dict | None = None, *, require_auth: bool = False) -> str:
+    """Who can open it, in words. In a workspace that requires sign-in a link
+    is not public: only its members and the people it is shared with get in
+    (with the link), whatever the level says (C13)."""
+    if require_auth and access in ("link", "password"):
+        return ("members of its workspace and people it is shared with (the workspace requires "
+                "sign-in, so the link alone opens nothing)")
     return {"link": "anyone with the link", "private": "only you",
             "password": "anyone with the link and the password",
             "workspace": "members of its workspace (and people it is shared with)"}.get(access, access)
+
+
+async def audience(ctx: Context, raw: dict | None) -> str:
+    """who_text for a stored row (level, password, its workspace's sign-in rule)."""
+    from app.services import publicity
+
+    raw = raw or {}
+    ra = await publicity.workspace_requires_auth(ctx.db, raw.get("workspace_id"))
+    return who_text(access_of(raw.get("access_level"), bool(raw.get("read_password_hash"))), raw,
+                    require_auth=ra)
 
 
 async def publish_page(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -920,13 +936,16 @@ async def set_access(ctx: Context, args: dict) -> tuple[str, dict]:
     actx = access_service.Ctx(ctx.db, surface="mcp")
 
     # One access level per document (D1). Close before opening: narrowing
-    # steps (level down, password added) go first.
+    # steps (level down, password added) go first. A password is removed only
+    # when the caller asked for plain "link"; going private or workspace-only
+    # leaves it inert, so a later "link" doesn't silently publish without it
+    # (policy §1.2, C5).
     try:
         update = DocumentUpdate(
             title=raw.get("title"),
             content=raw["content"],
             read_password=password if access == "password" else None,
-            remove_password=access != "password" and bool(raw.get("read_password_hash")),
+            remove_password=access == "link" and bool(raw.get("read_password_hash")),
             expires_in=expires_in,  # type: ignore[arg-type]
             custom_expires_at=custom_at,
         )
@@ -950,11 +969,16 @@ async def set_access(ctx: Context, args: dict) -> tuple[str, dict]:
         "access": access_of(final.get("access_level"), bool(final.get("read_password_hash"))),
         "expires_at": iso(final.get("expires_at")),
     }
-    text = f"{out['url']} is now visible to {who_text(out['access'])}."
-    if final.get("workspace_id") and out["access"] in ("link", "password"):
+    text = f"{out['url']} is now visible to {await audience(ctx, final)}."
+    from app.services import publicity
+
+    if (final.get("workspace_id") and out["access"] in ("link", "password")
+            and not await publicity.workspace_requires_auth(ctx.db, final.get("workspace_id"))):
         text += (" One access level applies to every address of the document, so it is now "
                  "public on markdrop.in and on its workspace's domains"
                  + (" (with the password)." if out["access"] == "password" else "."))
+    elif final.get("read_password_hash") and out["access"] in ("private", "workspace"):
+        text += " Its password is kept (inactive) and applies again if it is made a link."
     return text, out
 
 
@@ -1131,7 +1155,7 @@ async def add_to_workspace(ctx: Context, args: dict) -> tuple[str, dict]:
            "folder": "/".join(final.get("folder_path") or []) or None,
            "access": access_of(final.get("access_level"), bool(final.get("read_password_hash")))}
     return (f"Added {final['slug']} to {ws.name}: {out['url']} (visible to "
-            f"{who_text(out['access'])})."), out
+            f"{await audience(ctx, final)})."), out
 
 
 async def remove_from_workspace(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -1151,7 +1175,7 @@ async def remove_from_workspace(ctx: Context, args: dict) -> tuple[str, dict]:
     out = {"slug": res["slug"], "access_after": res["access_after"], "url": public_url(res["slug"]),
            "markdrop_url": public_url(res["slug"])}
     return (f"Removed {res['slug']} from its workspace; it is now visible to "
-            f"{who_text(access_of(final.get('access_level'), bool(final.get('read_password_hash'))))}."), out
+            f"{await audience(ctx, final)}."), out
 
 
 async def create_folder(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -1399,6 +1423,8 @@ async def create_upload(ctx: Context, args: dict) -> tuple[str, dict]:
     if target is None and (args.get("access") or args.get("password")):
         access, password = access_choice(args)
     ws_id = None
+    if target is not None and args.get("slug"):
+        raise ToolError("slug applies to new uploads only (a replaced file keeps its link).")
     if args.get("workspace"):
         if target is not None:
             raise ToolError("workspace and folder apply to new uploads only.")
@@ -1415,10 +1441,11 @@ async def create_upload(ctx: Context, args: dict) -> tuple[str, dict]:
             password=password,
             workspace=ws_id,
             folder=args.get("folder") or None,
+            slug=(args.get("slug") or None) if target is None else None,
         )
     except ValidationError:
-        raise ToolError("Those upload details aren't valid. Check file_name, size_bytes and sha256 "
-                        "(64 hex characters).")
+        raise ToolError("Those upload details aren't valid. Check file_name, size_bytes, sha256 "
+                        "(64 hex characters) and slug.")
     try:
         session = await file_uploads.create(ctx.db, ctx.user, data)
     except HTTPException as exc:
@@ -1948,6 +1975,10 @@ TOOLS: list[Tool] = [
                 "password": _PUBLISH_OPTIONS["password"],
                 "workspace": {**_WORKSPACE_ARG, "description": "New uploads only: file it in this workspace (id, name or custom domain)."},
                 "folder": {**_FOLDER_ARG, "description": "New uploads only: an existing folder of that workspace."},
+                "slug": {**_PUBLISH_OPTIONS["slug"], "description": (
+                    "New uploads only: a custom address (markdrop.in/<slug>), 3-50 letters, digits, "
+                    "- or _. Taken or reserved is an error before any byte is sent, never a silent "
+                    "rename. Default: derived from the file name.")},
             },
             "required": ["file_name", "size_bytes", "sha256"],
         },

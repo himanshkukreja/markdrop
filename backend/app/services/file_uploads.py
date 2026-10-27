@@ -909,8 +909,10 @@ async def restore(db: AsyncIOMotorDatabase, user, raw: dict, version: int) -> di
         from app.services import publicity
 
         ra = await publicity.workspace_requires_auth(db, after.get("workspace_id"))
-        # A non-current blob is never public, so the restored one starts private.
-        await file_versions.apply_publicity(before, after, new_blob_already=False, require_auth=ra)
+        # A non-current blob is never public, so the restored one starts
+        # private; its stale ``ae`` is replaced with the current epoch either way.
+        await file_versions.apply_publicity(before, after, new_blob_already=False, require_auth=ra,
+                                            stamp_epoch=True)
         await file_versions.prune(db, after)
         await after_swap(db, before, after, new_version, action="restore", user_id=user.id, probe=True)
     fresh = await db["documents"].find_one({"_id": raw["_id"]})
