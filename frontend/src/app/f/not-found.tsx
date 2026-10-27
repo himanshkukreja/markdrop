@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import SharedFolderView from "./SharedFolderView";
+import SharedFolderView from "./[shareId]/[[...path]]/SharedFolderView";
 
 /**
  * A shared-folder address with nothing an anonymous reader may open (404 status from page.tsx).
