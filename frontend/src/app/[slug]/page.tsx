@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { getDocument, API_BASE } from "@/lib/api";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import ArtifactView from "./ArtifactView";
 import { MarkdropLoader } from "@/components/ui";
@@ -111,6 +111,10 @@ export default async function SlugPage({ params }: Props) {
       throw e;
     }
   }
+
+  // An old slug of a renamed document: 307 to the current one. (A gated document's old slug
+  // 401s here like any other; the signed-in client retry redirects in useDocumentViewer.)
+  if (doc?.moved && doc.slug && doc.slug !== slug) redirect(`/${encodeURIComponent(doc.slug)}`);
 
   // Artifacts render their file in a sandboxed iframe on the artifact origin
   // rather than as markdown, so they get their own viewer entirely.

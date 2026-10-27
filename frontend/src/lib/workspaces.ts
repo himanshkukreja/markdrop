@@ -13,12 +13,31 @@ function authHeaders(): Record<string, string> {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
+/** An API refusal that keeps its HTTP status, so screens can tell "not built yet" (404/405/501)
+ *  from "not allowed" (403) from an outage (0 / 5xx). `message` is the server's `detail`. */
+export class WsApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "WsApiError";
+    this.status = status;
+  }
+}
+
+/** The status of a failed call (0 for a network error or anything that isn't a WsApiError). */
+export const errorStatus = (e: unknown): number => (e instanceof WsApiError ? e.status : 0);
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    cache: "no-store",
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...(init?.headers || {}) },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", ...authHeaders(), ...(init?.headers || {}) },
+    });
+  } catch {
+    throw new WsApiError("Couldn't reach Markdrop. Check your connection and try again.", 0);
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     // FastAPI validation errors arrive as a list of objects; surfacing "[object
@@ -30,7 +49,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         : Array.isArray(detail)
           ? detail[0]?.msg || "That value isn't valid."
           : `Request failed (${res.status})`;
-    throw new Error(message);
+    throw new WsApiError(message, res.status);
   }
   return res.status === 204 ? (undefined as T) : res.json();
 }
@@ -54,6 +73,16 @@ export interface Branding {
 export interface WorkspaceSettings {
   viewer_chrome: ViewerChrome;
   require_auth_to_view: boolean;
+  /** v2: members (not only admins) may share folders. Absent on older backends (= true). */
+  members_can_share_folders?: boolean;
+}
+
+/** v2 `GET /workspaces` item domain summary. */
+export interface WorkspaceDomainSummary {
+  host: string;
+  verified: boolean;
+  primary: boolean;
+  live: boolean;
 }
 
 export interface Workspace {
@@ -71,6 +100,10 @@ export interface Workspace {
   member_count: number;
   pending_invite_count: number;
   domain_count: number;
+  /** v2: the workspace's domains in brief (absent on older backends). */
+  domains?: WorkspaceDomainSummary[];
+  /** v2: who can open a document published into this workspace, unless the author says otherwise. */
+  default_access?: "private" | "link" | "workspace";
 }
 
 export interface Member {
@@ -85,7 +118,8 @@ export interface Domain {
   id: string;
   host: string;
   kind: DomainKind;
-  status: "pending" | "verified" | "failed";
+  /** "lapsed" (v2, S3): verified once, then failed re-checks for 72 h; no longer serving. */
+  status: "pending" | "verified" | "failed" | "lapsed";
   created_at: string;
   verified_at: string | null;
   last_checked_at: string | null;
@@ -99,6 +133,11 @@ export interface Domain {
   dns_target_type: string;
   dns_target_value: string;
   warning: string | null;
+  /** v2 (S3), optional until the backend sends them: which of the two records the last check saw. */
+  txt_ok?: boolean | null;
+  routing_ok?: boolean | null;
+  /** v2 (S3): consecutive failed re-checks. */
+  failures?: number | null;
 }
 
 export interface Folder {
@@ -299,10 +338,14 @@ export const renameFolder = (id: string, folderId: string, name: string) =>
     body: JSON.stringify({ name }),
   });
 
-export const deleteFolder = (id: string, folderId: string) =>
-  request<{ unfiled_documents: number }>(`/api/v1/workspaces/${id}/folders/${folderId}`, {
-    method: "DELETE",
-  });
+/** Delete a folder. Nothing in it is deleted. `unfile` (the original behaviour): documents directly
+ *  inside go to the workspace root, subfolders move up one level. `move_up`: everything moves up
+ *  into the parent folder. Omitted = the server's default (unfile). */
+export const deleteFolder = (id: string, folderId: string, mode?: "unfile" | "move_up") =>
+  request<{ unfiled_documents: number }>(
+    `/api/v1/workspaces/${id}/folders/${folderId}${mode ? `?mode=${mode}` : ""}`,
+    { method: "DELETE" }
+  );
 
 // ── Shared library ────────────────────────────────────────────────────────────
 //
@@ -382,3 +425,254 @@ export const fileDocument = async (
 export const ROLE_RANK: Record<Role, number> = { viewer: 0, member: 1, admin: 2, owner: 3 };
 export const can = (role: Role | undefined, required: Role) =>
   role !== undefined && ROLE_RANK[role] >= ROLE_RANK[required];
+
+// ── v2: tree, items, batch moves, folder sharing ──────────────────────────────
+//
+// Contracts from specs/workspaces-v2-spec.md ("New / changed API contracts"). Every listing is
+// already filtered by the server to what the caller can open (A1, D2): the UI never filters for
+// privacy itself, it only hides controls the `can` flags say would be refused.
+
+/** One folder in `GET /workspaces/{id}/tree`. */
+export interface TreeFolder {
+  id: string;
+  name: string;
+  slug: string;
+  parent_id: string | null;
+  /** Slugs from the root, joined: "guides/q3". */
+  path: string;
+  depth: number;
+  /** Items filed directly here that the caller can open. */
+  item_count: number;
+  /** Items in this folder and every folder under it that the caller can open. */
+  total_count: number;
+  share: { id: string; level: FolderShareLevel } | null;
+}
+
+export interface WorkspaceTree {
+  workspace: { id: string; name: string; role: Role; primary_host: string | null };
+  folders: TreeFolder[];
+  /** Items at the workspace root (in no folder). */
+  unfiled_count: number;
+}
+
+export const getWorkspaceTree = (id: string) =>
+  request<WorkspaceTree>(`/api/v1/workspaces/${encodeURIComponent(id)}/tree`);
+
+export type ItemAccess = "private" | "link" | "workspace";
+
+/** One row of `GET /workspaces/{id}/items`. */
+export interface WorkspaceItem {
+  id?: string | null;
+  slug: string;
+  title: string | null;
+  kind: "markdown" | "artifact";
+  mime?: string | null;
+  /** Canonical: the custom-domain URL when the workspace has a live primary domain. */
+  url: string;
+  markdrop_url: string;
+  access: ItemAccess;
+  has_password: boolean;
+  folder: { id: string; name: string; path: string } | null;
+  owner: { name: string | null; is_you: boolean };
+  size_bytes?: number | null;
+  updated_at: string;
+  views?: number | null;
+  can: { edit: boolean; move: boolean; unshare: boolean; delete: boolean; share: boolean };
+  /** Optional extras some backends send; used for nicer tiles when present. */
+  renderer?: string | null;
+  original_filename?: string | null;
+  encrypted?: boolean;
+}
+
+/**
+ * A row an admin may see but not read: someone's private document filed in the workspace. Only
+ * who owns it and an opaque handle (to remove it from the workspace) come back.
+ */
+export interface RedactedItem {
+  redacted: true;
+  id_token: string;
+  owner: { name: string | null; is_you?: boolean };
+  folder?: { id: string; name: string; path: string } | null;
+  updated_at?: string | null;
+  can: Partial<WorkspaceItem["can"]>;
+}
+
+export interface ItemsPage {
+  items: WorkspaceItem[];
+  /** Admin-only placeholders for private documents they can't open (see RedactedItem). */
+  redacted: RedactedItem[];
+  next_cursor: string | null;
+}
+
+/** `folder`: a folder id, "root" (filed at the top), "unfiled" or "all". */
+export const listWorkspaceItems = async (
+  id: string,
+  opts: { folder: string; q?: string; kind?: string; cursor?: string | null; limit?: number }
+): Promise<ItemsPage> => {
+  const p = new URLSearchParams({ folder: opts.folder });
+  if (opts.q) p.set("q", opts.q);
+  if (opts.kind) p.set("kind", opts.kind);
+  if (opts.cursor) p.set("cursor", opts.cursor);
+  p.set("limit", String(opts.limit ?? 50));
+  const r = await request<{ items: Array<WorkspaceItem | RedactedItem>; next_cursor: string | null }>(
+    `/api/v1/workspaces/${encodeURIComponent(id)}/items?${p}`
+  );
+  const rows = r.items ?? [];
+  const isRedacted = (x: WorkspaceItem | RedactedItem): x is RedactedItem => (x as RedactedItem).redacted === true || !(x as WorkspaceItem).slug;
+  return {
+    items: rows.filter((x): x is WorkspaceItem => !isRedacted(x)),
+    redacted: rows.filter(isRedacted).filter((x) => !!x.id_token),
+    next_cursor: r.next_cursor ?? null,
+  };
+};
+
+/** Rename and/or move a folder (move = `parent_id`; null = the top level). Admins only. */
+export const updateFolder = (
+  id: string,
+  folderId: string,
+  data: { name?: string; slug?: string; parent_id?: string | null }
+) =>
+  request<unknown>(`/api/v1/workspaces/${encodeURIComponent(id)}/folders/${encodeURIComponent(folderId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+
+function purgeAll(slugs: string[]) {
+  for (const s of slugs) purgeDocument(s);
+}
+
+/** Batch move (drag and drop, "Move to…"). `folderId` null = the workspace root. */
+export const moveItems = async (id: string, slugs: string[], folderId: string | null) => {
+  const r = await request<{ items?: WorkspaceItem[] }>(`/api/v1/workspaces/${encodeURIComponent(id)}/items/move`, {
+    method: "POST",
+    body: JSON.stringify({ slugs, folder_id: folderId }),
+  });
+  purgeAll(slugs);
+  return r;
+};
+
+/** File documents you own into the workspace (D1: the same document, not a copy). Access changes
+ *  only when `access` is given. */
+export const addItems = async (id: string, slugs: string[], folderId: string | null, access?: ItemAccess) => {
+  const r = await request<{ items?: WorkspaceItem[] }>(`/api/v1/workspaces/${encodeURIComponent(id)}/items/add`, {
+    method: "POST",
+    body: JSON.stringify({ slugs, folder_id: folderId, ...(access ? { access } : {}) }),
+  });
+  purgeAll(slugs);
+  return r;
+};
+
+export interface RemovedItem { slug: string; access_after: ItemAccess }
+
+/** Take documents out of the workspace (unshare). A `workspace`-level document becomes private;
+ *  `access_after` says what each one is now. */
+export const removeItems = async (id: string, slugs: string[], handles: string[] = []): Promise<RemovedItem[]> => {
+  const r = await request<{ items?: RemovedItem[] } | RemovedItem[] | null>(
+    `/api/v1/workspaces/${encodeURIComponent(id)}/items/remove`,
+    { method: "POST", body: JSON.stringify(handles.length ? { slugs, handles } : { slugs }) }
+  );
+  purgeAll(slugs);
+  return Array.isArray(r) ? r : r?.items ?? [];
+};
+
+/**
+ * Put a document you own into a workspace folder with a given access, preferring the v2
+ * `items/add` call and falling back to the v1 share + level calls on a backend without it
+ * (404/405), so publishing keeps working while the two deploy in either order.
+ */
+export async function fileIntoWorkspace(
+  id: string,
+  doc: { slug: string; id?: string | null },
+  folderId: string | null,
+  access?: ItemAccess
+): Promise<void> {
+  try {
+    await addItems(id, [doc.slug], folderId, access);
+    return;
+  } catch (e) {
+    const s = errorStatus(e);
+    if ((s !== 404 && s !== 405) || !doc.id) throw e;
+  }
+  await shareToWorkspace(id, doc.id!, folderId, doc.slug);
+  if (access) await setLevel(doc.slug, access);
+}
+
+async function setLevel(slug: string, level: ItemAccess) {
+  await request<void>(`/api/v1/documents/${encodeURIComponent(slug)}/access/level`, {
+    method: "PUT",
+    body: JSON.stringify({ level }),
+  });
+  purgeDocument(slug);
+}
+
+// ── Folder sharing (D2: a folder link shows only what each viewer can already open) ──────────
+
+export type FolderShareLevel = "link" | "workspace";
+
+export interface FolderShare {
+  share_id: string;
+  url: string;
+  level: FolderShareLevel;
+  /** Items in the folder's subtree a signed-out visitor couldn't open (for level=link). */
+  hidden_count: number;
+  hidden: Array<{ slug: string; title: string | null; access: ItemAccess; has_password?: boolean; is_yours?: boolean }>;
+  /** Optional: how many items the subtree holds in all (for "N of M"). */
+  total_count?: number;
+}
+
+export const shareFolder = (id: string, folderId: string, level: FolderShareLevel) =>
+  request<FolderShare>(`/api/v1/workspaces/${encodeURIComponent(id)}/folders/${encodeURIComponent(folderId)}/share`, {
+    method: "PUT",
+    body: JSON.stringify({ level }),
+  });
+
+export const unshareFolder = (id: string, folderId: string) =>
+  request<void>(`/api/v1/workspaces/${encodeURIComponent(id)}/folders/${encodeURIComponent(folderId)}/share`, {
+    method: "DELETE",
+  });
+
+/** Make documents you own open to anyone with the link (the folder dialog's "Open up the K you
+ *  own"). One call per document (there is no batch level endpoint); returns the slugs that failed. */
+export const openUpToLink = async (slugs: string[]): Promise<string[]> => {
+  const failed: string[] = [];
+  for (const slug of slugs) {
+    try {
+      await setLevel(slug, "link");
+    } catch {
+      failed.push(slug);
+    }
+  }
+  return failed;
+};
+
+/**
+ * `GET /folders/shared/{share_id}?path=` (public). Server renders call it anonymously; the
+ * browser calls it again with the session (`token`) so members see what they can open. Returns
+ * the status rather than throwing, because 401 (sign in) and 404 are pages, not errors; a 5xx or
+ * network failure throws.
+ */
+export async function fetchSharedFolder(
+  shareId: string,
+  path: string,
+  token?: string | null,
+): Promise<{ status: 200; data: SharedFolderPage } | { status: 401 | 403 | 404; data: null }> {
+  const q = path ? `?path=${encodeURIComponent(path)}` : "";
+  const res = await fetch(`${API_BASE}/api/v1/folders/shared/${encodeURIComponent(shareId)}${q}`, {
+    cache: "no-store",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (res.ok) return { status: 200, data: (await res.json()) as SharedFolderPage };
+  if (res.status === 401 || res.status === 403 || res.status === 404) return { status: res.status, data: null };
+  throw new WsApiError(`Folder request failed (${res.status})`, res.status);
+}
+
+/** The public folder page's data (`GET /folders/shared/{share_id}`). */
+export interface SharedFolderPage {
+  workspace: { name: string; branding?: Partial<Branding> | null };
+  folder: { name: string; path: string; breadcrumbs: Array<{ name: string; path: string }> };
+  subfolders: Array<{ name: string; path: string; count: number }>;
+  items: Array<{
+    slug: string; title: string | null; kind: "markdown" | "artifact" | string; mime?: string | null;
+    url: string; size_bytes?: number | null; updated_at?: string | null; poster_url?: string | null;
+  }>;
+}

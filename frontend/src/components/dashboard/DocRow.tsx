@@ -92,6 +92,15 @@ export interface DocRowProps {
   /** First-load rise, delay in ms (null = no animation). */
   riseDelay?: number | null;
   menuLabel: string;
+  /** Before the tile (e.g. a selection checkbox in a workspace folder). */
+  leading?: ReactNode;
+  /** A chip at the start of the meta line (e.g. "Acme › Guides" on a personal row). */
+  chip?: ReactNode;
+  /** The row element, for drag and drop (WorkspaceDnd). */
+  rowRef?: (el: HTMLLIElement | null) => void;
+  /** Extra props for the row element (drag listeners, data attributes). */
+  rowProps?: React.HTMLAttributes<HTMLLIElement>;
+  className?: string;
 }
 
 /**
@@ -101,6 +110,7 @@ export interface DocRowProps {
  */
 export function DocRow({
   doc: d, title, href, external, address, extraMeta, statuses, onAccess, copy, menu, phone, riseDelay, menuLabel,
+  leading, chip, rowRef, rowProps, className,
 }: DocRowProps) {
   const shown = statuses.slice(0, 2);
   const access = accessOf(d);
@@ -110,7 +120,8 @@ export function DocRow({
   const menuItems = [...statusHeader(statuses.slice(2)), ...menu];
 
   return (
-    <li className={cx("ph-no-capture md-docrow", styles.row, riseDelay != null && styles.rise, "min-w-0")} style={style}>
+    <li ref={rowRef} {...rowProps} className={cx("ph-no-capture md-docrow", styles.row, riseDelay != null && styles.rise, "min-w-0", className)} style={style}>
+      {leading}
       <RowTile d={d} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 items-center gap-2">
@@ -134,6 +145,7 @@ export function DocRow({
           )}
         </div>
         <div className="flex min-w-0 items-center gap-1.5 text-caption text-text-muted">
+          {chip}
           {d.vscode_synced && (
             <Tooltip content="Synced with VS Code" focusable>
               <span className="inline-flex shrink-0 items-center" aria-label="Synced with VS Code" role="img">

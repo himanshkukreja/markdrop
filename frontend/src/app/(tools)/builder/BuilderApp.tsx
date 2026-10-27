@@ -456,7 +456,7 @@ export default function BuilderApp() {
       {/* ── Phone: the sticky publish bar ──────────────────────────────── */}
       <div className={cx(styles.dock, "no-print lg:hidden")}>
         <p className="mb-2 flex min-w-0 items-center gap-1.5 text-caption text-text-secondary">
-          <Icon name={settings.access === "private" ? "lock" : "globe"} size={14} />
+          <Icon name={settings.access === "private" ? "lock" : settings.access === "workspace" ? "users" : "globe"} size={14} />
           <span className="truncate">{summary.text}</span>
         </p>
         <Button variant="primary" size="lg" block onClick={openPublish} aria-haspopup="dialog">

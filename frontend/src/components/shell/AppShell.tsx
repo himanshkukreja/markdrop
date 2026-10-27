@@ -8,9 +8,11 @@ import { openFeedback, FeedbackDialog } from "@/components/FeedbackWidget";
 import { useAuth } from "@/contexts/AuthContext";
 import { listApiTokens, listMyDocuments } from "@/lib/api";
 import { LIGHT_ENABLED } from "@/lib/theme";
-import { libraryCounts, listFolders, listWorkspaces } from "@/lib/workspaces";
+import { listWorkspaces } from "@/lib/workspaces";
+import { ancestry, useDocumentsChanged, useWorkspaceChanged, useWorkspaceTree } from "@/lib/workspaceStore";
+import { WorkspaceDndProvider } from "@/components/workspace/WorkspaceDnd";
 import { UserAvatar } from "./AccountMenu";
-import { SideNav, railKeyFor, workspaceOfKey, type RailData } from "./SideNav";
+import { SideNav, railKeyFor, workspaceOfKey, wsFolderKey, wsRootKey, type RailData } from "./SideNav";
 import { useLocationSearch } from "./useLocation";
 
 const LABELS: Record<string, string> = {
@@ -25,25 +27,28 @@ const LABELS: Record<string, string> = {
 
 /**
  * Loads the rail's data lazily and tolerantly: document counts (one page of /me/documents carries
- * count_all / count_markdown / count_artifact), workspaces, token count, and a workspace's folders
- * and library counts only when it is expanded (the API has a burst limit). Any failure just leaves
- * that part of the rail without numbers. Refreshes counts when the user changes.
+ * count_all / count_markdown / count_artifact), workspaces and the token count. A workspace's
+ * folder tree comes from the shared tree store (lib/workspaceStore), loaded only when it is
+ * expanded (the API has a burst limit) and refreshed whenever anything changes it. Any failure
+ * just leaves that part of the rail without numbers. Personal counts reload after a change too.
  */
-function useRailData(userId: string | null, expanded: Set<string>) {
-  const [data, setData] = useState<RailData>({ folders: {}, libraryCounts: {} });
-  const requested = useRef(new Set<string>());
+function useRailData(userId: string | null) {
+  const [data, setData] = useState<RailData>({});
 
-  useEffect(() => {
-    requested.current = new Set();
-    setData({ folders: {}, libraryCounts: {} });
-    if (!userId) return;
-    let live = true;
+  const loadCounts = useCallback(() => {
     listMyDocuments(1)
       .then((r) => {
-        if (!live || r.count_all === undefined) return;
+        if (r.count_all === undefined) return;
         setData((d) => ({ ...d, counts: { all: r.count_all, documents: r.count_markdown, artifacts: r.count_artifact } }));
       })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setData({});
+    if (!userId) return;
+    let live = true;
+    loadCounts();
     listWorkspaces()
       .then((ws) => live && setData((d) => ({ ...d, workspaces: ws })))
       .catch(() => {});
@@ -53,23 +58,49 @@ function useRailData(userId: string | null, expanded: Set<string>) {
     return () => {
       live = false;
     };
-  }, [userId]);
+  }, [userId, loadCounts]);
 
-  useEffect(() => {
-    if (!userId) return;
-    for (const id of expanded) {
-      if (requested.current.has(id)) continue;
-      requested.current.add(id);
-      listFolders(id)
-        .then((f) => setData((d) => ({ ...d, folders: { ...d.folders, [id]: f } })))
-        .catch(() => setData((d) => ({ ...d, folders: { ...d.folders, [id]: [] } })));
-      libraryCounts(id)
-        .then((c) => setData((d) => ({ ...d, libraryCounts: { ...d.libraryCounts, [id]: c } })))
-        .catch(() => {});
-    }
-  }, [expanded, userId]);
+  // Filing a document into (or out of) a workspace changes the personal list's numbers too.
+  const refreshCounts = useCallback(() => { if (userId) loadCounts(); }, [userId, loadCounts]);
+  useDocumentsChanged(refreshCounts);
+  useWorkspaceChanged("*", refreshCounts);
 
   return data;
+}
+
+const EXPANDED_KEY = "md_rail_tree";
+
+/** Which tree nodes are open, remembered on this device (REVAMP P2 "persisted expand state"). */
+function useExpanded() {
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const loaded = useRef(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(EXPANDED_KEY);
+      if (raw) {
+        const keys = JSON.parse(raw);
+        if (Array.isArray(keys)) setExpanded((s) => new Set([...s, ...keys.filter((k) => typeof k === "string").slice(0, 200)]));
+      }
+    } catch { /* storage unavailable: start collapsed */ }
+    loaded.current = true;
+  }, []);
+  useEffect(() => {
+    if (!loaded.current) return;
+    try { localStorage.setItem(EXPANDED_KEY, JSON.stringify([...expanded])); } catch { /* ignore */ }
+  }, [expanded]);
+  const setOpen = useCallback((key: string, open: boolean) => {
+    setExpanded((s) => {
+      if (s.has(key) === open) return s;
+      const n = new Set(s);
+      if (open) n.add(key);
+      else n.delete(key);
+      return n;
+    });
+  }, []);
+  const openAll = useCallback((keys: string[]) => {
+    setExpanded((s) => (keys.every((k) => s.has(k)) ? s : new Set([...s, ...keys])));
+  }, []);
+  return { expanded, setOpen, openAll };
 }
 
 /**
@@ -86,21 +117,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const active = railKeyFor(pathname, search);
   const activeWs = workspaceOfKey(active);
 
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
-  // The workspace you are in opens itself.
+  const { expanded, setOpen, openAll } = useExpanded();
+  const activeTree = useWorkspaceTree(activeWs).tree;
+  const activeFolderId = active?.split(":folder:")[1];
+  // The workspace you are in opens itself, and so does every folder above the one you're in.
   useEffect(() => {
-    if (activeWs) setExpanded((s) => (s.has(activeWs) ? s : new Set(s).add(activeWs)));
-  }, [activeWs]);
-  const toggle = useCallback((id: string) => {
-    setExpanded((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  }, []);
+    if (!activeWs) return;
+    const keys = [wsRootKey(activeWs)];
+    if (activeTree && activeFolderId) {
+      for (const f of ancestry(activeTree.folders, activeFolderId).slice(0, -1)) keys.push(wsFolderKey(activeWs, f.id));
+    }
+    openAll(keys);
+  }, [activeWs, activeTree, activeFolderId, openAll]);
 
-  const data = useRailData(user?.id ?? null, expanded);
+  const data = useRailData(user?.id ?? null);
   const [browseOpen, setBrowseOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   useEffect(() => setBrowseOpen(false), [pathname, search]);
@@ -114,16 +144,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (!activeLabel && activeWs) {
     const ws = data.workspaces?.find((w) => w.id === activeWs);
     if (ws) {
-      const folderId = active?.split(":folder:")[1];
-      const folder = folderId ? data.folders[activeWs]?.find((f) => f.id === folderId) : undefined;
+      const folder = activeFolderId ? activeTree?.folders.find((f) => f.id === activeFolderId) : undefined;
       activeLabel = folder ? `${ws.name} / ${folder.name}` : active?.endsWith(":settings") ? `${ws.name} settings` : ws.name;
     }
   }
 
   return (
+    <WorkspaceDndProvider>
     <div className="flex w-full min-w-0 flex-1">
       <aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-62 shrink-0 overflow-y-auto border-r border-border bg-bg lg:block">
-        <SideNav data={data} active={active} expanded={expanded} onToggle={toggle} onFeedback={feedback} />
+        <SideNav data={data} active={active} expanded={expanded} onToggle={setOpen} onFeedback={feedback} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -141,7 +171,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           data={data}
           active={active}
           expanded={expanded}
-          onToggle={toggle}
+          onToggle={setOpen}
           onFeedback={feedback}
           onNavigate={() => setBrowseOpen(false)}
           className="py-2"
@@ -169,6 +199,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </Drawer>
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
+    </WorkspaceDndProvider>
   );
 }
 

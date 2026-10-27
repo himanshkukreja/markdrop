@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Dialog, Field, Input, announce } from "@/components/ui";
 import { PublishSettings } from "@/components/kit/PublishSettings";
 import {
+  createAccess,
   expiryInvalid,
   toApiExpiry,
   useIsClient,
@@ -17,7 +18,7 @@ import * as e2e from "@/lib/e2e";
 import { MAX_CHARS } from "@/lib/limits";
 import { track } from "@/lib/track";
 import { useWorkspaceTargets } from "@/lib/useWorkspaceTargets";
-import { shareToWorkspace } from "@/lib/workspaces";
+import { fileIntoWorkspace } from "@/lib/workspaces";
 import { failureOf, publishDocument, type PublishFailure } from "./publish";
 
 const SLUG_PATTERN = /^[a-zA-Z0-9_-]*$/;
@@ -118,16 +119,16 @@ export default function PublishDialog({ open, onClose, title, onTitleChange, set
         customExpiresAt,
         readPassword: settings.password || undefined,
         encrypted: settings.encrypt || undefined,
-        accessLevel: settings.access,
+        accessLevel: createAccess(settings.access),
       });
       track("builder_published", { sections: sectionCount });
       // The edit secret lives in this tab only, never in the URL.
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);
       // Filing into a workspace is a second step (the library enforces its own rules); a failure
       // must not lose the published document, so it's carried to the page the author lands on.
-      if (settings.target.workspaceId && doc.id) {
+      if (settings.target.workspaceId) {
         try {
-          await shareToWorkspace(settings.target.workspaceId, doc.id, settings.target.folderId);
+          await fileIntoWorkspace(settings.target.workspaceId, doc, settings.target.folderId, settings.access === "workspace" ? "workspace" : undefined);
         } catch {
           try {
             sessionStorage.setItem(WS_SHARE_FAILED_KEY(doc.slug), "1");
@@ -261,14 +262,7 @@ export default function PublishDialog({ open, onClose, title, onTitleChange, set
 function WorkspaceTargets({ target, onChange }: { target: PublishSettingsValue["target"]; onChange: (w: PublishWorkspace[]) => void }) {
   const ws = useWorkspaceTargets(target);
   useEffect(() => {
-    onChange(
-      ws.workspaces.map((w) => ({
-        id: w.id,
-        name: w.name,
-        host: w.primary_host,
-        folders: w.id === target.workspaceId ? ws.folders.map((f) => ({ id: f.id, name: f.name, path: f.path })) : undefined,
-      })),
-    );
-  }, [ws.workspaces, ws.folders, target.workspaceId, onChange]);
+    onChange(ws.publishWorkspaces);
+  }, [ws.publishWorkspaces, onChange]);
   return null;
 }

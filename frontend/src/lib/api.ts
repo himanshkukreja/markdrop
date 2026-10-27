@@ -64,6 +64,10 @@ export interface DocumentCreateResponse {
 
 export interface DocumentResponse {
   slug: string;
+  /** v2: this was an old slug of a renamed document; `slug` is the current one. Redirect there. */
+  moved?: boolean;
+  /** v2: the document's address on its workspace's live primary domain, when it has one. */
+  workspace_url?: string | null;
   /** Folder slugs from the root down; empty unless the document is filed in a
    *  workspace folder. The document's address on that workspace's own domain is
    *  these segments followed by the slug. */
