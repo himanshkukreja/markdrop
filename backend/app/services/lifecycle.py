@@ -453,6 +453,19 @@ async def reconcile_once(db: AsyncIOMotorDatabase, *, limit: int = 200, full: bo
                 async for raw in db["documents"].find({"workspace_id": ws_id}).limit(limit):
                     await reconcile_document(db, raw)
                     fixed += 1
+        # C8: documents pointing at a folder that no longer exists go to
+        # their workspace's root.
+        from app.services import folder as folder_service
+
+        for fid in await db["documents"].distinct("folder_id", {"folder_id": {"$ne": None}}):
+            try:
+                exists = await db["folders"].find_one({"_id": ObjectId(fid)}, {"_id": 1})
+            except Exception:
+                exists = None
+            if exists is None:
+                async for raw in db["documents"].find({"folder_id": fid}).limit(limit):
+                    await folder_service.unfile_if_folder_gone(db, raw)
+                    fixed += 1
         doc_ids = await db["document_grants"].distinct("document_id")
         for doc_id in doc_ids:
             try:

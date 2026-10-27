@@ -730,3 +730,85 @@ class C6OldSlugRaces(AccessWorld):
         self.assertNotEqual(a.status_code, 200, a.text)
         self.assertEqual((await self.doc("mine-z") or {}).get("_id"), mine["_id"])
         self.assertIsNone(await self.db["documents"].find_one({"slug": "taken-z"}))
+
+
+class C8MoveRacingFolderDelete(AccessWorld):
+    async def test_c8_move_racing_delete_leaves_no_dangling_folder(self):
+        import asyncio
+
+        from app.services import folder as folder_service
+
+        W = self.ws["W1"]
+        c = await folder_service.create_folder(self.db, W, "C", None)
+        d = await self.mkdoc("W")
+        orig = folder_service.path_of
+        gate = asyncio.Event()
+
+        async def slow_path_of(db, ws, fid):
+            out = await orig(db, ws, fid)
+            if fid == c.id and not gate.is_set():
+                gate.set()
+                await asyncio.sleep(0.2)
+            return out
+
+        async def delete_later():
+            await gate.wait()
+            return await self.http.delete(f"/api/v1/workspaces/{W}/folders/{c.id}", headers=self.session("wa"))
+
+        with mock.patch.object(folder_service, "path_of", slow_path_of):
+            await asyncio.gather(
+                self.http.post(f"/api/v1/workspaces/{W}/items/move",
+                               json={"slugs": [d["slug"]], "folder_id": c.id}, headers=self.session("wm")),
+                delete_later())
+        self.assertIsNone(await self.db["folders"].find_one({"_id": ObjectId(c.id)}))
+        row = await self.doc(d["slug"])
+        self.assertIsNone(row.get("folder_id"))
+        self.assertEqual(row.get("folder_path"), [])
+
+    async def test_c8_reconciler_roots_dangling_folder_refs(self):
+        d = await self.mkdoc("W", folder_id=str(ObjectId()), folder_path=["gone"])
+        await lifecycle.reconcile_once(self.db, full=True)
+        row = await self.doc(d["slug"])
+        self.assertIsNone(row.get("folder_id"))
+        self.assertEqual(row.get("folder_path"), [])
+        self.assertEqual(row["workspace_id"], self.ws["W1"])
+
+
+class C9CreateFolderUnderTheLock(AccessWorld):
+    async def test_c9_create_racing_a_move_never_exceeds_max_depth(self):
+        import asyncio
+
+        from app.services import folder as folder_service
+
+        W = self.ws["W1"]
+        parent, chain = None, []
+        for i in range(7):
+            f = await folder_service.create_folder(self.db, W, f"f{i}", parent)
+            chain.append(f)
+            parent = f.id
+        x = await folder_service.create_folder(self.db, W, "X", None)
+        y = await folder_service.create_folder(self.db, W, "Y", x.id)
+        orig = folder_service._depth_of
+        gate = asyncio.Event()
+
+        async def slow_depth(db, ws, fid):
+            out = await orig(db, ws, fid)
+            if fid == y.id and not gate.is_set():
+                gate.set()
+                await asyncio.sleep(0.2)
+            return out
+
+        async def move_later():
+            await gate.wait()
+            return await self.http.put(f"/api/v1/workspaces/{W}/folders/{x.id}",
+                                       json={"parent_id": chain[5].id, "reparent": True},
+                                       headers=self.session("wa"))
+
+        with mock.patch.object(folder_service, "_depth_of", slow_depth):
+            await asyncio.gather(
+                self.http.post(f"/api/v1/workspaces/{W}/folders", json={"name": "Z", "parent_id": y.id},
+                               headers=self.session("wm")),
+                move_later())
+        z = await self.db["folders"].find_one({"name": "Z"})
+        if z is not None:
+            self.assertLessEqual(await orig(self.db, W, str(z["_id"])), folder_service.MAX_DEPTH)

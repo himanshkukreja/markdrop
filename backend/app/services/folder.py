@@ -456,14 +456,27 @@ async def create_folder(
     if count >= MAX_FOLDERS_PER_WORKSPACE:
         raise HTTPException(status_code=429, detail="This workspace has reached its folder limit.")
 
-    if parent_id:
-        await _get_owned(db, workspace_id, parent_id)  # must exist, and be ours
-        if await _depth_of(db, workspace_id, parent_id) >= MAX_DEPTH:
-            raise HTTPException(status_code=422, detail=f"Folders can nest at most {MAX_DEPTH} deep.")
-
-    slug = await _unique_slug(db, workspace_id, name, parent_id)
-    if await doc_slug_taken(db, workspace_id, parent_id, slug):
-        raise HTTPException(status_code=409, detail=_clash_detail(slug))
+    # A nested folder is a structural change: under the workspace folder lock
+    # (C9), like moves, so a concurrent move of an ancestor can't push the new
+    # folder past MAX_DEPTH. The depth is read after the revision and the
+    # lock is a CAS on that revision; a lost race re-reads and re-checks.
+    for attempt in range(3):
+        rev = await folders_rev(db, workspace_id) if parent_id else None
+        if parent_id:
+            await _get_owned(db, workspace_id, parent_id)  # must exist, and be ours
+            if await _depth_of(db, workspace_id, parent_id) >= MAX_DEPTH:
+                raise HTTPException(status_code=422, detail=f"Folders can nest at most {MAX_DEPTH} deep.")
+        slug = await _unique_slug(db, workspace_id, name, parent_id)
+        if await doc_slug_taken(db, workspace_id, parent_id, slug):
+            raise HTTPException(status_code=409, detail=_clash_detail(slug))
+        if not parent_id:
+            break
+        try:
+            await _lock(db, workspace_id, rev)
+            break
+        except HTTPException:
+            if attempt == 2:
+                raise
     now = datetime.now(timezone.utc)
     doc = {
         "workspace_id": workspace_id,
@@ -651,6 +664,14 @@ async def delete_folder(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: 
             {"$set": {"folder_id": None, "folder_path": []}},
         )
     await db["folders"].delete_one({"_id": raw["_id"]})
+    # C8: a move that wrote between the update above and the delete would
+    # otherwise point at a folder that no longer exists.
+    late = await db["documents"].find({"workspace_id": workspace_id, "folder_id": fid},
+                                      {"slug": 1}).to_list(length=20_000)
+    if late:
+        await db["documents"].update_many({"workspace_id": workspace_id, "folder_id": fid},
+                                          {"$set": {"folder_id": None, "folder_path": []}})
+        inside = inside + [d for d in late if d["_id"] not in {i["_id"] for i in inside}]
     slugs = [d["slug"] for d in inside]
     for child in await db["folders"].find(
         {"workspace_id": workspace_id, "parent_id": raw.get("parent_id")}, {"_id": 1}
@@ -680,8 +701,36 @@ async def file_document(db: AsyncIOMotorDatabase, raw: dict, workspace_id: str,
     )
     if after is None:
         raise HTTPException(status_code=404, detail="That document isn't in this workspace.")
+    if folder_id and not await unfile_if_folder_gone(db, after):
+        # C8: the folder was deleted while we wrote; the document is back at
+        # the workspace root rather than pointing at nothing.
+        raise HTTPException(status_code=404, detail="Folder not found")
     await revalidate.purge_doc(db, after)
     return after
+
+
+async def unfile_if_folder_gone(db: AsyncIOMotorDatabase, raw: dict) -> bool:
+    """True when ``raw``'s folder exists. Otherwise (a move or filing raced
+    the folder's deletion) put the document at the workspace root — CAS on
+    the dangling ``folder_id`` — purge it, and return False (C8)."""
+    from app.services import revalidate
+
+    fid = raw.get("folder_id")
+    if not fid:
+        return True
+    try:
+        found = await db["folders"].find_one({"_id": ObjectId(fid), "workspace_id": raw.get("workspace_id")},
+                                             {"_id": 1})
+    except Exception:
+        found = None
+    if found is not None:
+        return True
+    res = await db["documents"].update_one(
+        {"_id": raw["_id"], "folder_id": fid},
+        {"$set": {"folder_id": None, "folder_path": [], "updated_at": datetime.now(timezone.utc)}})
+    if res.modified_count:
+        await revalidate.purge_doc(db, {**raw, "folder_id": None, "folder_path": []})
+    return False
 
 
 async def move_document(

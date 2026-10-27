@@ -141,6 +141,9 @@ async def add_document(
         db, raw, sets=sets, cas={"owner_id": user.id, "workspace_id": raw.get("workspace_id")},
         narrows=narrows, require_auth_after=require_auth,
     )
+    # C8: the folder may have been deleted while we wrote: root it.
+    if folder_id and not await folder_service.unfile_if_folder_gone(db, after):
+        after = await db["documents"].find_one({"_id": after["_id"]}) or after
     # W4: the workspace may have been deleted while we wrote. A dangling row is
     # treated as unfiled everywhere; release it now rather than wait.
     if await ctx.workspace(workspace_id) is None or not await db["workspaces"].find_one(
