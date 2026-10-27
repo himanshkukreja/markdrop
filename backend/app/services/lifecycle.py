@@ -275,23 +275,81 @@ async def release_workspace_documents(db: AsyncIOMotorDatabase, workspace_id: st
 # ── Membership (M1, M2) ───────────────────────────────────────────────────────
 
 
+async def _descendants(db: AsyncIOMotorDatabase, roots: list[dict], workspace_id: str) -> list[dict]:
+    """Every grant re-shared (directly or not) from ``roots`` — the grants whose
+    ``parent_grant_id`` chain leads to one of them (C2). Bounded walk."""
+    out: list[dict] = []
+    frontier = [str(r["_id"]) for r in roots]
+    seen = set(frontier)
+    hops = 0
+    while frontier and hops < 50:
+        hops += 1
+        rows = await db["document_grants"].find(
+            {"parent_grant_id": {"$in": frontier}, "granted_via": workspace_id}).to_list(length=20_000)
+        frontier = []
+        for r in rows:
+            rid = str(r["_id"])
+            if rid not in seen:
+                seen.add(rid)
+                out.append(r)
+                frontier.append(rid)
+    return out
+
+
 async def member_left(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str) -> int:
-    """M1: grants this person made through their workspace role are deleted."""
-    res = await db["document_grants"].delete_many(
-        {"granted_via": workspace_id, "granted_by_user_id": user_id})
+    """M1: grants this person made through their workspace role are deleted —
+    and so is every grant re-shared from those (C2: no laundering through a
+    grantee)."""
+    from app.services import live
+
+    roots = await db["document_grants"].find(
+        {"granted_via": workspace_id, "granted_by_user_id": user_id}).to_list(length=20_000)
+    rows = roots + await _descendants(db, roots, workspace_id)
+    if not rows:
+        return 0
+    res = await db["document_grants"].delete_many({"_id": {"$in": [r["_id"] for r in rows]}})
+    for doc_id in {r["document_id"] for r in rows}:
+        try:
+            d = await db["documents"].find_one({"_id": ObjectId(doc_id)}, {"slug": 1})
+        except Exception:
+            d = None
+        if d:
+            live.access_changed(d.get("slug"))
     return res.deleted_count
 
 
 async def member_demoted(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str,
                          new_role: str) -> int:
     """M2: demoted to viewer ⇒ editor grants they made through the workspace
-    become viewer grants."""
+    become viewer grants, and so do editor grants re-shared from those (C2)."""
     if new_role != "viewer":
         return 0
+    roots = await db["document_grants"].find(
+        {"granted_via": workspace_id, "granted_by_user_id": user_id}).to_list(length=20_000)
+    rows = roots + await _descendants(db, roots, workspace_id)
     res = await db["document_grants"].update_many(
-        {"granted_via": workspace_id, "granted_by_user_id": user_id, "role": "editor"},
-        {"$set": {"role": "viewer"}})
+        {"_id": {"$in": [r["_id"] for r in rows]}, "role": "editor"}, {"$set": {"role": "viewer"}})
     return res.modified_count
+
+
+async def drop_orphaned_delegations(db: AsyncIOMotorDatabase, *, limit: int = 5000,
+                                    since: datetime | None = None) -> int:
+    """Reconciler (C7): a grant whose authority is gone — its granter is no
+    longer a member of ``granted_via`` (or no longer may give that role), or
+    the grant it was re-shared from was removed — is deleted. Covers a grant
+    written while its granter was being removed."""
+    from app.services import access
+
+    dropped = 0
+    query: dict = {"$or": [{"granted_via": {"$nin": [None]}}, {"parent_grant_id": {"$nin": [None]}}]}
+    if since is not None:
+        query["created_at"] = {"$gte": since}
+    rows = await db["document_grants"].find(query).limit(limit).to_list(length=limit)
+    for g in rows:
+        if not await access.grant_authority_holds(db, g):
+            res = await db["document_grants"].delete_one({"_id": g["_id"]})
+            dropped += res.deleted_count
+    return dropped
 
 
 # ── Expiry sweeper (A6) ───────────────────────────────────────────────────────
@@ -360,6 +418,13 @@ async def reconcile_once(db: AsyncIOMotorDatabase, *, limit: int = 200, full: bo
             failed += 1
             log.warning("reconciling %s failed", raw.get("slug"), exc_info=True)
     orphans = 0
+    try:
+        # Every pass: grants written in the last few minutes (the window in
+        # which a grant can race its granter's removal); the full pass: all.
+        orphans += await drop_orphaned_delegations(
+            db, since=None if full else _now() - timedelta(minutes=10))
+    except Exception:
+        log.warning("dropping orphaned delegated grants failed", exc_info=True)
     if full:
         ws_ids = await db["documents"].distinct("workspace_id", {"workspace_id": {"$ne": None}})
         for ws_id in ws_ids:

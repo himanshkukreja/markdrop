@@ -700,13 +700,23 @@ async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: G
         raise HTTPException(status_code=403, detail="You can't share a document with yourself.")
 
     granted_via = None
+    parent_grant_id = None
     if not f.is_owner:
         if not grant_role_allows(f.role, role):
             raise HTTPException(status_code=403,
                                 detail="You can't give someone more access than you have.")
         # Whose authority is this? The grant alone, if it suffices; otherwise it
-        # came from workspace membership, and dies with it (I9).
-        if not grant_role_allows(f.grant_role, role):
+        # came from workspace membership, and dies with it (I9). A grant that
+        # rests on the granter's own grant inherits where *that* came from and
+        # points at it, so re-sharing can never launder a workspace-derived
+        # grant into one that outlives the member (C2).
+        if grant_role_allows(f.grant_role, role):
+            own = await db["document_grants"].find_one(
+                {"document_id": document_id, "email": actor.email}, {"_id": 1, "granted_via": 1})
+            if own is not None:
+                parent_grant_id = str(own["_id"])
+                granted_via = own.get("granted_via")
+        else:
             granted_via = f.ws_id
 
     count = await db["document_grants"].count_documents({"document_id": document_id})
@@ -722,7 +732,8 @@ async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: G
     row = {
         "document_id": document_id, "email": email, "role": role,
         "granted_by_email": actor.email or None, "granted_by_user_id": actor.user_id,
-        "granted_via": granted_via, "created_at": now, "notified": False,
+        "granted_via": granted_via, "parent_grant_id": parent_grant_id,
+        "created_at": now, "notified": False,
     }
     result = await db["document_grants"].find_one_and_update(
         {"document_id": document_id, "email": email}, {"$set": row},
@@ -732,8 +743,40 @@ async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: G
     if not await db["documents"].find_one({"_id": raw_doc["_id"]}, {"_id": 1}):
         await db["document_grants"].delete_many({"document_id": document_id})
         raise HTTPException(status_code=404, detail="Document not found")
+    # Race with the granter's removal/demotion (C7): the authority this grant
+    # rests on must still be there *after* it was written, or it goes.
+    if not f.is_owner and not await grant_authority_holds(db, result):
+        await db["document_grants"].delete_one({"_id": result["_id"], "granted_by_user_id": actor.user_id})
+        ctx.forget()
+        raise HTTPException(status_code=403, detail="You can't give someone more access than you have.")
     ctx.forget()
     return _to_grant(result)
+
+
+async def grant_authority_holds(db: AsyncIOMotorDatabase, grant: dict) -> bool:
+    """Is the authority a non-owner grant was made under still there?
+
+    * ``parent_grant_id`` set: that grant still exists with a role ≥ this one;
+    * else ``granted_via`` set: the granter is still in that workspace with a
+      role that may give this one (member+ for editor, viewer+ for viewer).
+    Grants made by the owner (neither field) always hold."""
+    role = grant.get("role")
+    parent_id = grant.get("parent_grant_id")
+    if parent_id:
+        try:
+            parent = await db["document_grants"].find_one({"_id": ObjectId(parent_id)}, {"role": 1})
+        except Exception:
+            parent = None
+        return parent is not None and grant_role_allows(parent.get("role"), role)
+    via = grant.get("granted_via")
+    if via:
+        m = await db["memberships"].find_one(
+            {"workspace_id": via, "user_id": grant.get("granted_by_user_id")}, {"role": 1})
+        if m is None:
+            return False
+        ws_grant_role = "viewer" if m["role"] == "viewer" else "editor"
+        return grant_role_allows(ws_grant_role, role)
+    return True
 
 
 async def mark_notified(db: AsyncIOMotorDatabase, grant_id: str) -> None:

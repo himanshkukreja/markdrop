@@ -85,6 +85,93 @@ class C1WorkspaceDeleteNeverWidens(AccessWorld):
         self.assertTrue(row.get("access_dirty"))
 
 
+# ── MEDIUM ────────────────────────────────────────────────────────────────────
+
+
+class _Grants(AccessWorld):
+    async def grant(self, who: str, slug: str, email: str, role: str):
+        return await self.http.post(f"/api/v1/documents/{slug}/access/people",
+                                    json={"email": email, "role": role}, headers=self.session(who))
+
+    async def person(self, name: str) -> None:
+        self.email[name] = f"{name}@example.com"
+        self.uid[name] = await self.make_user(self.email[name], name.upper())
+
+    async def roles(self, d: dict) -> dict:
+        rows = await self.db["document_grants"].find({"document_id": str(d["_id"])}).to_list(100)
+        return {g["email"]: g["role"] for g in rows}
+
+
+class C2NoGrantLaundering(_Grants):
+    async def test_c2_regrant_dies_with_the_member(self):
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.person("y")
+        self.assertEqual((await self.grant("wm", d["slug"], "x@example.com", "editor")).status_code, 201)
+        r = await self.grant("x", d["slug"], "y@example.com", "editor")
+        self.assertEqual(r.status_code, 201, r.text)
+        y = await self.db["document_grants"].find_one({"email": "y@example.com"})
+        self.assertEqual(y["granted_via"], self.ws["W1"])
+        self.assertIsNotNone(y.get("parent_grant_id"))
+        r = await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/members/{self.uid['wm']}",
+                                   headers=self.session("wo"))
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(await self.roles(d), {})
+        self.assertEqual((await self.get(d["slug"], self.session("y"))).status_code, 404)
+
+    async def test_c2_regrant_shrinks_with_demotion(self):
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        await self.person("x")
+        await self.person("y")
+        await self.grant("wm", d["slug"], "x@example.com", "editor")
+        await self.grant("x", d["slug"], "y@example.com", "editor")
+        r = await self.http.put(f"/api/v1/workspaces/{self.ws['W1']}/members/{self.uid['wm']}",
+                                json={"role": "viewer"}, headers=self.session("wo"))
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(await self.roles(d), {"x@example.com": "viewer", "y@example.com": "viewer"})
+
+    async def test_c2_owner_rooted_regrant_survives(self):
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        await self.person("y")
+        await self.db["document_grants"].insert_one({
+            "document_id": str(d["_id"]), "email": self.email["wm"], "role": "viewer",
+            "created_at": now(), "granted_via": None, "granted_by_user_id": self.uid["owner"]})
+        self.assertEqual((await self.grant("wm", d["slug"], "y@example.com", "viewer")).status_code, 201)
+        await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/members/{self.uid['wm']}",
+                               headers=self.session("wo"))
+        self.assertEqual((await self.roles(d)).get("y@example.com"), "viewer")
+
+
+class C7GrantRacingRemoval(_Grants):
+    async def test_c7_grant_written_during_removal_is_dropped(self):
+        from app.services import access
+
+        d = await self.mkdoc("W", grants=False, allow_resharing=True)
+        orig = access.facts
+        fired = {"done": False}
+
+        async def facts_then_removed(actor, doc, ctx):
+            out = await orig(actor, doc, ctx)
+            if not fired["done"] and actor.user_id == self.uid["wm"]:
+                fired["done"] = True  # the removal lands between the check and the write
+                await self.remove_member("W1", "wm")
+                await lifecycle.member_left(self.db, self.ws["W1"], self.uid["wm"])
+            return out
+
+        with mock.patch.object(access, "facts", facts_then_removed):
+            r = await self.grant("wm", d["slug"], "z@example.com", "editor")
+        self.assertNotEqual(r.status_code, 201, r.text)
+        self.assertIsNone(await self.db["document_grants"].find_one({"email": "z@example.com"}))
+
+    async def test_c7_reconciler_drops_grants_whose_granter_left(self):
+        d = await self.mkdoc("W", grants=False)
+        await self.db["document_grants"].insert_one({
+            "document_id": str(d["_id"]), "email": "z@example.com", "role": "editor",
+            "created_at": now(), "granted_via": self.ws["W1"], "granted_by_user_id": self.uid["former"]})
+        await lifecycle.reconcile_once(self.db)
+        self.assertIsNone(await self.db["document_grants"].find_one({"email": "z@example.com"}))
+
+
 # ── LOW ───────────────────────────────────────────────────────────────────────
 
 
