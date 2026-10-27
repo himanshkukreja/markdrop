@@ -310,8 +310,9 @@ async def delete_workspace(
     # through the workspace die, caches are purged. First, and database
     # first: the workspace row must never disappear while a document still
     # points at it, or nothing would remember that it required sign-in (C1).
+    doc_keys: list[str] = []
     released, remaining = await lifecycle.release_workspace_documents(
-        db, workspace_id, workspace.settings.require_auth_to_view)
+        db, workspace_id, workspace.settings.require_auth_to_view, purge_keys=doc_keys)
     if remaining:
         raise HTTPException(
             status_code=409,
@@ -324,9 +325,12 @@ async def delete_workspace(
         if d.get("attached"):
             await domain_service.detach_from_hosting(d["host"])
     host_tags = [f"host:{d['host']}" for d in domains if d.get("host")]
-    await revalidate.enqueue(db, tags=[f"wsl:{workspace_id}", *host_tags])
     await db["domains"].delete_many({"workspace_id": workspace_id})
     await domain_service.forget_hosts(db, [d.get("host") for d in domains])
+    # Closing: the hosts stop serving and every document left them. Answer once
+    # the host resolutions, listings and released pages are purged (bounded, B2).
+    keys = await revalidate.enqueue(db, tags=[f"wsl:{workspace_id}", *host_tags], attempt_now=False)
+    await revalidate.flush(db, [*keys, *doc_keys])
     await db["folders"].delete_many({"workspace_id": workspace_id})
     await db["invitations"].delete_many({"workspace_id": workspace_id})
     members = await db["memberships"].delete_many({"workspace_id": workspace_id})

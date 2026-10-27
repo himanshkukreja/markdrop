@@ -44,6 +44,7 @@ async def change(
     extra_slugs: tuple = (),
     live_event: str | None = None,
     purge: bool = True,
+    inline_purge: bool = False,
 ) -> dict:
     """Write ``sets``/``unset``/``inc`` to the document, ordered per I4.
 
@@ -125,9 +126,16 @@ async def change(
         else:
             log.warning("opening %s failed; left for the reconciler", after.get("slug"))
     if purge:
-        await revalidate.purge_doc(db, after, extra_slugs=extra_slugs)
+        # ``inline_purge``: not narrower by level, but closing somewhere — e.g.
+        # leaving a workspace takes the document off that workspace's domain —
+        # so the answer waits for the purge too (B2).
+        keys = await revalidate.purge_doc(db, after, extra_slugs=extra_slugs,
+                                          attempt=not inline_purge)
         if raw.get("workspace_id") and raw.get("workspace_id") != after.get("workspace_id"):
-            await revalidate.enqueue(db, tags=[f"wsl:{raw['workspace_id']}"])
+            keys += await revalidate.enqueue(db, tags=[f"wsl:{raw['workspace_id']}"],
+                                             attempt_now=not inline_purge)
+        if inline_purge:
+            await revalidate.flush(db, keys)
     if sets.get("expires_at") is not None:
         # B3: the cached renders go when the document does.
         await revalidate.schedule_expiry(db, after)

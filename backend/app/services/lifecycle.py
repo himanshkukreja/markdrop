@@ -151,7 +151,7 @@ async def release_from_workspace(db: AsyncIOMotorDatabase, raw: dict, workspace_
     try:
         after = await transitions.change(
             db, raw, sets=sets, cas={"workspace_id": workspace_id},
-            narrows=level != current, require_auth_after=False,
+            narrows=level != current, require_auth_after=False, inline_purge=True,
         )
     except HTTPException as exc:
         if exc.status_code == 409:
@@ -259,7 +259,8 @@ async def _host_tags(db: AsyncIOMotorDatabase, workspace_id: str) -> list[str]:
 
 
 async def release_workspace_documents(db: AsyncIOMotorDatabase, workspace_id: str,
-                                      require_auth: bool, *, passes: int = 3) -> tuple[int, int]:
+                                      require_auth: bool, *, passes: int = 3,
+                                      purge_keys: list[str] | None = None) -> tuple[int, int]:
     """W3 for the documents: each one released with the D2 conversion, the
     database first (``release_db_first``) so a storage hiccup can never leave
     a document filed in a workspace that is about to disappear (C1). Repeats
@@ -273,6 +274,9 @@ async def release_workspace_documents(db: AsyncIOMotorDatabase, workspace_id: st
             try:
                 if await release_db_first(db, raw, workspace_id, require_auth=require_auth) is not None:
                     n += 1
+                    if purge_keys is not None:
+                        purge_keys.extend(revalidate.doc_key(x) for x in
+                                          [raw.get("slug"), *(raw.get("old_slugs") or [])] if x)
             except Exception:
                 log.warning("releasing %s from %s failed", raw.get("slug"), workspace_id, exc_info=True)
     await db["document_grants"].delete_many({"granted_via": workspace_id})

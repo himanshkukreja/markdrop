@@ -521,6 +521,43 @@ class B2NarrowingWaitsForThePurge(AccessWorld):
         job = await self.db["revalidate_jobs"].find_one({"key": f"doc:{d['slug']}"})
         self.assertEqual(job["state"], "done")
 
+    async def _inline(self, action) -> list[dict]:
+        from app.services import revalidate
+
+        seen: list[dict] = []
+
+        async def post(payload):
+            seen.append(payload)
+            return 200
+
+        with mock.patch.object(revalidate.settings, "page_revalidate_enabled", True), \
+                mock.patch.object(revalidate, "_spawn", lambda *a, **k: None), \
+                mock.patch.object(revalidate, "_post", post):
+            r = await action()
+            self.assertLess(r.status_code, 300, r.text)
+        return seen
+
+    async def test_b2_unshare_refile_and_workspace_delete_wait_for_their_purges(self):
+        from app.services import folder as folder_service
+
+        d = await self.mkdoc("L")
+        seen = await self._inline(lambda: self.http.post(
+            f"/api/v1/workspaces/{self.ws['W1']}/items/remove", json={"slugs": [d["slug"]]},
+            headers=self.session("owner")))
+        self.assertIn({"slug": d["slug"]}, seen)
+        f = await folder_service.create_folder(self.db, self.ws["W1"], "Moved", None)
+        m = await self.mkdoc("W")
+        seen = await self._inline(lambda: self.http.post(
+            f"/api/v1/workspaces/{self.ws['W1']}/items/move", json={"slugs": [m["slug"]], "folder_id": f.id},
+            headers=self.session("wm")))
+        self.assertIn({"slug": m["slug"]}, seen)
+        r = await self.mkdoc("RL")
+        seen = await self._inline(lambda: self.http.request(
+            "DELETE", f"/api/v1/workspaces/{self.ws['WR']}", json={"confirm_name": "Acme Private"},
+            headers=self.session("wo")))
+        self.assertIn({"tag": f"host:{HOSTS['WR']}"}, seen)
+        self.assertIn({"slug": r["slug"]}, seen)
+
     async def test_b2_widening_stays_in_the_background(self):
         from app.services import revalidate
 

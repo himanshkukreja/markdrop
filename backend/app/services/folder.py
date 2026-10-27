@@ -705,7 +705,9 @@ async def file_document(db: AsyncIOMotorDatabase, raw: dict, workspace_id: str,
         # C8: the folder was deleted while we wrote; the document is back at
         # the workspace root rather than pointing at nothing.
         raise HTTPException(status_code=404, detail="Folder not found")
-    await revalidate.purge_doc(db, after)
+    # The old address closes (it 307s to the new one): answer once the cached
+    # render at the old path is gone (B2).
+    await revalidate.purge_doc(db, after, inline=True)
     return after
 
 
