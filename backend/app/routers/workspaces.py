@@ -308,7 +308,7 @@ async def create_invitation(
         raise HTTPException(status_code=403, detail="Only the workspace owner can invite admins.")
 
     invite, token = await invite_service.create_invitation(
-        db, workspace_id, str(data.email), data.role, user
+        db, workspace_id, str(data.email), data.role, user, by_owner=workspace.owner_id == user.id
     )
 
     if not mailer.is_configured():
@@ -345,7 +345,9 @@ async def revoke_invitation(
     user: User = Depends(require_user),
 ):
     await ws_service.require_role(db, workspace_id, user.id, "admin")
-    await invite_service.revoke_invitation(db, workspace_id, invite_id)
+    workspace = await ws_service.get_workspace(db, workspace_id)
+    await invite_service.revoke_invitation(
+        db, workspace_id, invite_id, by_owner=bool(workspace and workspace.owner_id == user.id))
 
 
 # ── Branding assets ───────────────────────────────────────────────────────────

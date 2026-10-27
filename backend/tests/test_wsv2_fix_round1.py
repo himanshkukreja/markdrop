@@ -845,3 +845,44 @@ class C10C11McpScopeAndOracle(AccessWorld):
         # The owner still gets the precise answer.
         res = await self.call("owner", "remove_from_workspace", {"document": u["slug"]})
         self.assertIn("isn't in a workspace", res["content"][0]["text"])
+
+
+class C12AdminInvitationsAreTheOwners(AccessWorld):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        from app.services import mailer
+
+        async def send(**kw):
+            return None
+
+        for p in (mock.patch.object(mailer, "is_configured", lambda: True),
+                  mock.patch.object(mailer, "send_invite_email", send)):
+            p.start()
+            self.addCleanup(p.stop)
+
+    async def invite(self, who: str, email: str, role: str):
+        return await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/invitations",
+                                    json={"email": email, "role": role}, headers=self.session(who))
+
+    async def test_c12_admin_cannot_replace_or_revoke_an_admin_invitation(self):
+        r = await self.invite("wo", "boss@example.com", "admin")
+        self.assertEqual(r.status_code, 201, r.text)
+        inv_id = r.json()["id"]
+        before = await self.db["invitations"].find_one({"email": "boss@example.com", "status": "pending"})
+        r = await self.invite("wa", "boss@example.com", "member")
+        self.assertEqual(r.status_code, 409, r.text)
+        after = await self.db["invitations"].find_one({"email": "boss@example.com", "status": "pending"})
+        self.assertEqual((after["role"], after["token_hash"]), ("admin", before["token_hash"]))
+        r = await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/invitations/{inv_id}",
+                                   headers=self.session("wa"))
+        self.assertEqual(r.status_code, 403, r.text)
+        self.assertEqual((await self.db["invitations"].find_one({"_id": ObjectId(inv_id)}))["status"], "pending")
+        # The owner still can; admins keep managing member invitations.
+        r = await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/invitations/{inv_id}",
+                                   headers=self.session("wo"))
+        self.assertEqual(r.status_code, 204, r.text)
+        r = await self.invite("wa", "pal@example.com", "member")
+        self.assertEqual(r.status_code, 201, r.text)
+        r = await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/invitations/{r.json()['id']}",
+                                   headers=self.session("wa"))
+        self.assertEqual(r.status_code, 204, r.text)
