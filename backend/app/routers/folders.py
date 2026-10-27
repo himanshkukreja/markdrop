@@ -130,10 +130,11 @@ async def delete_folder(
 ):
     # Deleting a container can unfile many documents at once, so admin.
     await ws_service.require_role(db, workspace_id, user.id, "admin")
-    async with revalidate.batch(db):  # B-R1
-        inside = await folder_service.delete_folder(db, workspace_id, folder_id, mode)
-    # D6: the count says only what the caller could see.
     actor, ctx = access.actor_from_request(request, user), access.Ctx(db)
+    async with revalidate.batch(db):  # B-R1
+        inside = await folder_service.delete_folder(db, workspace_id, folder_id, mode,
+                                                    actor=actor, ctx=ctx)
+    # D6: the count says only what the caller could see.
     readable = 0
     for raw in inside:
         if (await access.can(actor, raw, "read", ctx)).allowed:

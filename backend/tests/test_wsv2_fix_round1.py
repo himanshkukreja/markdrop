@@ -355,18 +355,24 @@ class B5DocAndFolderAddresses(AccessWorld):
         self.assertEqual(f.slug, "members-area")
 
     async def test_b5_folder_cannot_take_a_documents_address(self):
+        # Round 2 (C-N7): the folder side takes the next free suffix instead of
+        # a 409 — the document there may be one the caller can't read.
         await self.mkdoc("W", slug="handbook")
         r = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/folders",
                                  json={"name": "Handbook"}, headers=self.session("wm"))
-        self.assertEqual(r.status_code, 409, r.text)
+        self.assertEqual(r.status_code, 201, r.text)
+        self.assertNotEqual(r.json()["slug"], "handbook")
+        await self.db["folders"].delete_one({"slug": r.json()["slug"]})
         g = await self.folder("Guides")
         r = await self.http.put(f"/api/v1/workspaces/{self.ws['W1']}/folders/{g.id}",
                                 json={"name": "Handbook"}, headers=self.session("wa"))
-        self.assertEqual(r.status_code, 409, r.text)
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertNotEqual(r.json()["slug"], "handbook")
         inner = await self.folder("Handbook", g.id)  # fine: another parent
         r = await self.http.put(f"/api/v1/workspaces/{self.ws['W1']}/folders/{inner.id}",
                                 json={"parent_id": None, "reparent": True}, headers=self.session("wa"))
-        self.assertEqual(r.status_code, 409, r.text)
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertNotEqual(r.json()["slug"], "handbook")
 
     async def test_b5_rename_and_upload_onto_a_folder_address_refused(self):
         await self.folder("Plans")

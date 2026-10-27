@@ -887,3 +887,46 @@ class CN3McpWorkspaceReferences(AccessWorld):
             ws_id, err = await self._publish("Acme")
             self.assertIsNone(ws_id, name)
             self.assertIn("looks like", err)
+
+
+class CN7CollisionsRevealNothing(AccessWorld):
+    async def test_h5_folder_delete_is_not_blocked_by_an_invisible_document(self):
+        from app.services import folder as folder_service
+
+        W = self.ws["W1"]
+        g = await folder_service.create_folder(self.db, W, "Guides", None)
+        x = await folder_service.create_folder(self.db, W, "X", None)
+        hidden = await self.mkdoc("P", slug="guides", folder_id=x.id, folder_path=["x"], grants=False)
+        r = await self.http.delete(f"/api/v1/workspaces/{W}/folders/{x.id}", headers=self.session("wa"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertNotIn("guides", r.text)
+        row = await self.doc(hidden["slug"])
+        self.assertIsNone(row.get("folder_id"))
+        moved = await self.db["folders"].find_one({"_id": __import__("bson").ObjectId(g.id)})
+        self.assertNotEqual(moved["slug"], "guides")  # the folder stepped aside
+
+    async def test_folder_delete_blocked_by_a_readable_document_says_so(self):
+        from app.services import folder as folder_service
+
+        W = self.ws["W1"]
+        await folder_service.create_folder(self.db, W, "Guides", None)
+        x = await folder_service.create_folder(self.db, W, "X", None)
+        await self.mkdoc("W", slug="guides", folder_id=x.id, folder_path=["x"], grants=False)
+        r = await self.http.delete(f"/api/v1/workspaces/{W}/folders/{x.id}", headers=self.session("wa"))
+        self.assertEqual(r.status_code, 409, r.text)
+        self.assertIn("guides", r.text)
+
+    async def test_folder_create_next_to_a_private_document_is_no_oracle(self):
+        W = self.ws["W1"]
+        await self.mkdoc("P", slug="secret-plan-q3", grants=False)
+        a = await self.http.post(f"/api/v1/workspaces/{W}/folders", json={"name": "secret-plan-q3"},
+                                 headers=self.session("wm"))
+        b = await self.http.post(f"/api/v1/workspaces/{W}/folders", json={"name": "no-such-thing-q3"},
+                                 headers=self.session("wm"))
+        self.assertEqual((a.status_code, b.status_code), (201, 201), a.text)
+        self.assertNotEqual(a.json()["slug"], "secret-plan-q3")
+
+    async def test_clash_message_never_names_an_unreadable_slug(self):
+        from app.services import folder as folder_service
+
+        self.assertNotIn("secret", folder_service._clash_detail(None))

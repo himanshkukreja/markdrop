@@ -77,7 +77,12 @@ async def _unique_slug(
     parent_id: str | None,
     exclude_id: ObjectId | None = None,
 ) -> str:
-    """A URL-safe segment for this folder, unique among its siblings.
+    """A URL-safe segment for this folder, unique among its siblings — the
+    folders *and* the documents filed next to it (B5, C-N7).
+
+    A document there may be one the caller can't read, so a clash is never a
+    409 naming it: the folder (whose address admins manage) takes the next
+    free suffix, exactly as it does next to a sibling folder.
 
     Reserved words are refused outright at the top level rather than quietly
     suffixed: someone naming a folder "settings" should be told why it can't be
@@ -99,7 +104,8 @@ async def _unique_slug(
         }
         if exclude_id is not None:
             query["_id"] = {"$ne": exclude_id}
-        if not await db["folders"].find_one(query, {"_id": 1}):
+        if not await db["folders"].find_one(query, {"_id": 1}) and not await doc_slug_taken(
+                db, workspace_id, parent_id, candidate):
             return candidate
         n += 1
         candidate = f"{base}-{n}"
@@ -326,7 +332,12 @@ async def _get_owned(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: str
 # unless the document's owner administers the workspace (``slug_shadowed``).
 
 
-def _clash_detail(slug: str) -> str:
+def _clash_detail(slug: str | None) -> str:
+    """The 409 for an address clash. ``slug`` only when the caller may know
+    what holds it (their own document's slug, or a folder): never the slug of
+    a document they can't read (C-N7)."""
+    if not slug:
+        return "That address is already in use in this folder."
     return (f"“{slug}” is already the address of a folder or document in that place. "
             "Rename one of them first.")
 
@@ -473,8 +484,8 @@ async def create_folder(
             if await _depth_of(db, workspace_id, parent_id) >= MAX_DEPTH:
                 raise HTTPException(status_code=422, detail=f"Folders can nest at most {MAX_DEPTH} deep.")
         slug = await _unique_slug(db, workspace_id, name, parent_id)
-        if await doc_slug_taken(db, workspace_id, parent_id, slug):
-            raise HTTPException(status_code=409, detail=_clash_detail(slug))
+        if await doc_slug_taken(db, workspace_id, parent_id, slug):  # filed meanwhile
+            raise HTTPException(status_code=409, detail=_clash_detail(None))
         if not parent_id:
             break
         try:
@@ -598,8 +609,8 @@ async def update_folder(
             base_name = cleaned
         new_slug = await _unique_slug(db, workspace_id, base_name, target_parent, exclude_id=raw["_id"])
         if new_slug != raw.get("slug") or "parent_id" in updates:
-            if await doc_slug_taken(db, workspace_id, target_parent, new_slug):
-                raise HTTPException(status_code=409, detail=_clash_detail(new_slug))
+            if await doc_slug_taken(db, workspace_id, target_parent, new_slug):  # filed meanwhile
+                raise HTTPException(status_code=409, detail=_clash_detail(None))
             updates["slug"] = new_slug
 
     structural = "slug" in updates or "parent_id" in updates
@@ -617,7 +628,7 @@ async def update_folder(
 
 
 async def delete_folder(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: str,
-                        mode: str = "unfile") -> list[dict]:
+                        mode: str = "unfile", *, actor=None, ctx=None) -> list[dict]:
     """Remove a folder (D6). Documents inside are never deleted: ``unfile``
     puts them at the workspace root, ``move_up`` into the parent folder. Child
     folders move up a level. The folder's share dies with it; children's shares
@@ -629,11 +640,37 @@ async def delete_folder(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: 
     # B5: the documents inside move to the parent (move_up) or the root; none
     # may land on the address of a folder already there.
     dest = new_parent if (mode == "move_up" and new_parent) else None
-    for d in await db["documents"].find({"workspace_id": workspace_id, "folder_id": fid},
-                                        {"slug": 1}).to_list(length=20_000):
+    # A clash with a document the caller can read is theirs to resolve (409
+    # naming it). One with a document they can't see must neither name it nor
+    # block them (C-N7): the clashing *folder* at the destination — folder
+    # addresses are admin-managed — moves to the next free suffix instead.
+    from app.services import access
+
+    hidden_clashes: list[str] = []
+    for d in await db["documents"].find({"workspace_id": workspace_id, "folder_id": fid}).to_list(length=20_000):
         if await folder_slug_taken(db, workspace_id, dest, d.get("slug"), exclude_id=raw["_id"]):
-            raise HTTPException(status_code=409, detail=_clash_detail(d["slug"]))
+            readable = actor is not None and (await access.can(
+                actor, d, "read", ctx or access.Ctx(db))).allowed
+            if readable:
+                raise HTTPException(status_code=409, detail=_clash_detail(d["slug"]))
+            hidden_clashes.append(d["slug"])
     await _lock(db, workspace_id, await folders_rev(db, workspace_id))
+    renamed_folders: list[str] = []
+    for slug in dict.fromkeys(hidden_clashes):
+        clash = await db["folders"].find_one(
+            {"workspace_id": workspace_id, "parent_id": dest, "slug": slug, "_id": {"$ne": raw["_id"]}})
+        if clash is None:
+            continue
+        n, candidate = 2, f"{slug}-2"
+        while await folder_slug_taken(db, workspace_id, dest, candidate) or await doc_slug_taken(
+                db, workspace_id, dest, candidate) or candidate in hidden_clashes:
+            n += 1
+            candidate = f"{slug}-{n}"
+            if n > 200:
+                candidate = str(clash["_id"])
+                break
+        await db["folders"].update_one({"_id": clash["_id"]}, {"$set": {"slug": candidate}})
+        renamed_folders.append(str(clash["_id"]))
 
     children = await db["folders"].find(
         {"workspace_id": workspace_id, "parent_id": fid}, {"slug": 1}
@@ -684,6 +721,8 @@ async def delete_folder(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: 
                                           {"$set": {"folder_id": None, "folder_path": []}})
         inside = inside + [d for d in late if d["_id"] not in {i["_id"] for i in inside}]
     slugs = [d["slug"] for d in inside]
+    for moved in renamed_folders:
+        slugs.extend(await _reindex_subtree(db, workspace_id, moved))
     for child in await db["folders"].find(
         {"workspace_id": workspace_id, "parent_id": raw.get("parent_id")}, {"_id": 1}
     ).to_list(length=MAX_FOLDERS_PER_WORKSPACE):
