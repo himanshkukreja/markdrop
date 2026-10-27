@@ -941,3 +941,14 @@ class A1PasswordAttemptsShared(__import__("unittest").IsolatedAsyncioTestCase):
             for _ in range(10):
                 await w.fail("s", "ip")
             self.assertTrue(await w.blocked("s", "ip"))
+
+
+class TransferToAnyMember(AccessWorld):
+    async def test_transfer_to_a_viewer_is_allowed(self):
+        r = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/transfer",
+                                 json={"user_id": self.uid["wv"]}, headers=self.session("wo"))
+        self.assertEqual(r.status_code, 200, r.text)
+        ws = await self.db["workspaces"].find_one({"_id": ObjectId(self.ws["W1"])})
+        self.assertEqual(ws["owner_id"], self.uid["wv"])
+        old = await self.db["memberships"].find_one({"workspace_id": self.ws["W1"], "user_id": self.uid["wo"]})
+        self.assertEqual(old["role"], "admin")

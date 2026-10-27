@@ -234,8 +234,9 @@ async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
 
 async def transfer_ownership(db: AsyncIOMotorDatabase, workspace_id: str, actor_id: str,
                              target_id: str) -> None:
-    """M5: the owner hands the workspace to an existing member; the old owner
-    becomes an admin. One CAS on ``{_id, owner_id: old}``, conditioned on the
+    """M5: the owner hands the workspace to an existing member of any role
+    (viewers included — the owner's explicit choice); the old owner becomes
+    an admin. One CAS on ``{_id, owner_id: old}``, conditioned on the
     target's membership still existing (§3.8)."""
     workspace = await get_workspace(db, workspace_id)
     if workspace is None or await role_for(db, workspace_id, actor_id) is None:

@@ -280,7 +280,8 @@ async def unshare_folder(request: Request, workspace_id: str, folder_id: str,
 async def transfer_ownership(request: Request, workspace_id: str, data: OwnershipTransfer,
                              db: AsyncIOMotorDatabase = Depends(get_db),
                              user: User = Depends(require_user)):
-    """M5: owner → an existing member; the old owner becomes admin. Docs,
-    grants and domains are unchanged."""
+    """M5: owner → any existing member — viewers included: it is the owner's
+    explicit choice, and the new owner can change their own standing. The old
+    owner becomes admin. Docs, grants and domains are unchanged."""
     await ws_service.transfer_ownership(db, workspace_id, user.id, data.user_id)
     return {"workspace_id": workspace_id, "owner_id": data.user_id}
