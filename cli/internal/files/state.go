@@ -64,6 +64,13 @@ func stateKey(server, abs string, size, mtimeNS int64, sha string, req CreateUpl
 		h.Write([]byte(part))
 		h.Write([]byte{0})
 	}
+	// Only when set, so uploads saved by older versions keep their keys.
+	for _, kv := range [][2]string{{"folder", req.Folder}, {"slug", req.Slug}} {
+		if kv[1] != "" {
+			h.Write([]byte(kv[0] + "=" + kv[1]))
+			h.Write([]byte{0})
+		}
+	}
 	return hex.EncodeToString(h.Sum(nil))[:32]
 }
 

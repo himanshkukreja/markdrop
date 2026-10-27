@@ -73,20 +73,31 @@ class FakeR2:
         o = self.objects.get(key)
         if o is None:
             return None
-        return {"size": len(o["data"]), "content_type": o["content_type"], "etag": "x"}
+        return {"size": len(o["data"]), "content_type": o["content_type"], "etag": "x",
+                "public": bool(o.get("public")), "ae": o.get("ae")}
 
     def delete(self, key):
         self.deleted.append(key)
         self.objects.pop(key, None)
 
-    def set_public(self, key, public, content_type=None):
+    fail_set_public = False
+
+    def set_public(self, key, public, content_type=None, epoch=None):
+        if self.fail_set_public:
+            return False
         self.public_calls.append((key, public))
         if key in self.objects:
             self.objects[key]["public"] = public
+            if epoch is not None:
+                self.objects[key]["ae"] = str(epoch)
         return True
 
-    def set_public_prefix(self, prefix, public):
-        return 0
+    def set_public_prefix(self, prefix, public, epoch=None):
+        keys = [k for k in self.objects if k.startswith(prefix)]
+        for k in keys:
+            if not self.set_public(k, public, None, epoch):
+                raise RuntimeError("set_public failed")
+        return len(keys)
 
     def delete_prefix(self, prefix):
         for k in [k for k in self.objects if k.startswith(prefix)]:
@@ -186,8 +197,9 @@ class FilesTestCase(unittest.IsolatedAsyncioTestCase):
         self.revalidated: list[str] = []
         self.probed: list[tuple] = []
 
-        async def fake_post(slug):
-            self.revalidated.append(slug)
+        async def fake_post(payload):
+            self.revalidated.append(payload.get("slug") or payload.get("tag"))
+            return 200
 
         def fake_schedule(db, doc_id, version, blob_key, mime):
             self.probed.append((doc_id, version, blob_key, mime))

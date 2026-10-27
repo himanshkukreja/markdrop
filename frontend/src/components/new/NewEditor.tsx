@@ -26,7 +26,7 @@ import {
 import { EditorFrame } from "@/components/kit/EditorFrame";
 import { PublishSettings } from "@/components/kit/PublishSettings";
 import {
-  DEFAULT_PUBLISH_SETTINGS, expiryInvalid, PHONE_QUERY, publishSummary, toApiExpiry, useIsClient, useMediaQuery,
+  DEFAULT_PUBLISH_SETTINGS, createAccess, expiryInvalid, PHONE_QUERY, publishSummary, toApiExpiry, useIsClient, useMediaQuery,
   type PublishField, type PublishSettingsValue, type PublishWorkspace,
 } from "@/components/kit/publish-utils";
 import MarkdownPreview from "@/components/MarkdownPreview";
@@ -38,8 +38,8 @@ import { MAX_CHARS } from "@/lib/limits";
 import { DIAGRAM_SAMPLE, DIAGRAM_SAMPLE_PARAM } from "@/lib/samples";
 import { track } from "@/lib/track";
 import { useQueryFlags } from "@/lib/useQueryFlags";
-import { useWorkspaceTargets } from "@/lib/useWorkspaceTargets";
-import { shareToWorkspace } from "@/lib/workspaces";
+import { usePrefilledTarget, useWorkspaceTargets } from "@/lib/useWorkspaceTargets";
+import { fileIntoWorkspace } from "@/lib/workspaces";
 import { clearDraft, readDraft, writeDraft } from "./draft";
 import { classifyPublishError, slugFailureText, type PublishFailure } from "./publishFailure";
 import { SplitPane } from "./SplitPane";
@@ -136,16 +136,11 @@ export default function NewEditor() {
 
   /* ── Workspaces (signed-in members and above) ── */
   const ws = useWorkspaceTargets(settings.target);
-  const workspaces: PublishWorkspace[] = useMemo(
-    () => ws.workspaces.map((w) => ({
-      id: w.id,
-      name: w.name,
-      host: w.primary_host,
-      folders: w.id === settings.target.workspaceId ? ws.folders.map((f) => ({ id: f.id, name: f.name, path: f.path })) : undefined,
-    })),
-    [ws.workspaces, ws.folders, settings.target.workspaceId],
-  );
+  const workspaces: PublishWorkspace[] = ws.publishWorkspaces;
   const workspaceName = ws.workspace?.name ?? null;
+  // "New document here" from a workspace folder: /new?ws=<id>&folder=<id>.
+  usePrefilledTarget(flags.ready, flags.get("ws"), flags.get("folder"), ws.workspaces, (target, defaultAccess) =>
+    setSettings((s) => ({ ...s, target, access: defaultAccess ?? s.access })));
 
   /* ── Mount: sample, draft, ?slug=, ?encrypt=1, remembered mode ── */
   useEffect(() => {
@@ -287,7 +282,7 @@ export default function NewEditor() {
         customExpiresAt,
         readPassword: readPassword || undefined,
         encrypted: useE2E || undefined,
-        accessLevel,
+        accessLevel: createAccess(accessLevel),
       });
       track("doc_published", { encrypted: !!useE2E, access: accessLevel, password: !!readPassword, expires: !!expiresIn, workspace: !!target.workspaceId });
       // Keep the secret in sessionStorage only — never in the URL (it would leak via history,
@@ -297,9 +292,9 @@ export default function NewEditor() {
       // Sharing is a second step rather than a field on create: it's the library's rule to enforce
       // (owner-only, role-checked). A failure here must not lose the document, which is already
       // published, so it is carried to the page the author lands on.
-      if (target.workspaceId && doc.id) {
+      if (target.workspaceId) {
         try {
-          await shareToWorkspace(target.workspaceId, doc.id, target.folderId);
+          await fileIntoWorkspace(target.workspaceId, doc, target.folderId, accessLevel === "workspace" ? "workspace" : undefined);
         } catch {
           try { sessionStorage.setItem(WS_SHARE_FAILED_KEY(doc.slug), "1"); } catch { /* storage unavailable */ }
         }
@@ -703,7 +698,7 @@ export default function NewEditor() {
         >
           {busy && <Progress indeterminate size="sm" aria-label={publishLabel} valueText={publishLabel} className="mb-2" />}
           <p className="mb-2 flex min-w-0 items-center gap-1.5 text-caption text-text-secondary">
-            <Icon name={settings.access === "private" ? "lock" : "globe"} size={14} className="shrink-0" />
+            <Icon name={settings.access === "private" ? "lock" : settings.access === "workspace" ? "users" : "globe"} size={14} className="shrink-0" />
             <span className="truncate">{summary.text}</span>
           </p>
           {publishButton(true, "lg")}

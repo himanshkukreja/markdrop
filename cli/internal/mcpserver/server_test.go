@@ -98,6 +98,8 @@ func TestToolsListed(t *testing.T) {
 		"list_file_versions":   {true, false, true, false},
 		"restore_file_version": {false, false, false, true},
 		"get_file_info":        {true, false, true, false},
+		"list_workspaces":      {true, false, true, false},
+		"list_folders":         {true, false, true, false},
 	}
 	if len(byName) != len(want) {
 		t.Fatalf("tools: %v", byName)

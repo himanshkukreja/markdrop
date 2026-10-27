@@ -22,6 +22,7 @@ const APP_ROUTES = new Set([
   "dashboard",
   "enterprise",
   "extension",
+  "f",
   "h",
   "invite",
   "login",
@@ -32,6 +33,7 @@ const APP_ROUTES = new Set([
   "settings",
   "share",
   "upload",
+  "w",
 ]);
 
 /** Swap an identifier-bearing path for its route shape. */
@@ -46,6 +48,10 @@ export function redactPath(pathname: string): string {
   // /h/<host>/<path> — the internal route a workspace domain is served from;
   // the path below the host is a document.
   if (segments[0] === "h") return "/h/[workspace-doc]";
+  // /f/<share_id>[/…] — a shared folder link is a capability, like a document slug.
+  if (segments[0] === "f" && segments.length > 1) return "/f/[share]";
+  // /w/<workspace>[/f/<folder>] — ids, not secrets, but not worth a row per workspace either.
+  if (segments[0] === "w" && segments.length > 1) return segments.length > 2 ? "/w/[workspace]/f/[folder]" : "/w/[workspace]";
 
   if (segments.length === 1 && !APP_ROUTES.has(segments[0])) return "/[slug]";
   return pathname;

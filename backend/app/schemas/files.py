@@ -23,6 +23,13 @@ class UploadCreateRequest(BaseModel):
     password: str | None = Field(None, min_length=1, max_length=100)
     # Workspace id to file the upload into (the caller must be a member).
     workspace: str | None = Field(None, min_length=1, max_length=64)
+    # Folder of that workspace: an id or a slug path like "guides/setup". It
+    # must exist (folders are never created implicitly here).
+    folder: str | None = Field(None, min_length=1, max_length=400)
+    # New uploads only: a custom address (markdrop.in/<slug>). Taken or reserved
+    # ⇒ 409 here, before a byte moves — never a silent rename. Default: derived
+    # from the file name.
+    slug: str | None = Field(None, min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
 
 
 class UploadPartUrl(BaseModel):
@@ -54,7 +61,14 @@ class UploadCompleteRequest(BaseModel):
 
 
 class UploadResult(BaseModel):
+    # The canonical address: the workspace's live custom domain when the file is
+    # filed in one, else markdrop.in (same as markdrop_url).
     url: str
+    markdrop_url: str | None = None
+    workspace_url: str | None = None
+    # Set when the upload asked for a workspace but couldn't be filed there at
+    # commit (e.g. membership removed meanwhile). The file then stays private.
+    workspace_error: str | None = None
     slug: str
     version: int
     size_bytes: int
@@ -97,6 +111,8 @@ class MediaInfo(BaseModel):
 class FileInfoResponse(BaseModel):
     slug: str
     url: str
+    markdrop_url: str | None = None
+    workspace_url: str | None = None
     title: str | None = None
     content_type: str
     size_bytes: int

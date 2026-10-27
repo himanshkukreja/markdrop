@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { Breadcrumb, DocumentRow, FileIcon, Icon } from "@/components/ui";
 import type { FileRenderer } from "@/components/ui";
 import type { TenantFolderDocument, TenantFolderRef } from "./folderIndex";
@@ -27,11 +30,41 @@ function dateOf(d: TenantFolderDocument): string | null {
   return Number.isNaN(t.getTime()) ? null : DATE.format(t);
 }
 
+/** Always a path on this host, built from segments — never a URL from the payload. */
 const hrefOf = (segments: string[]) => "/" + segments.map(encodeURIComponent).join("/");
 
 const RENDERERS: FileRenderer[] = ["pdf", "sheet", "docx", "text", "video", "html", "image", "zip"];
 
+/** Only http(s) image URLs (a poster comes from our artifact origin). */
+function posterOf(doc: TenantFolderDocument): string | null {
+  if (!doc.poster_url) return null;
+  try {
+    const u = new URL(doc.poster_url);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function Tile({ doc }: { doc: TenantFolderDocument }) {
+  const [broken, setBroken] = useState(false);
+  const poster = doc.kind === "artifact" && doc.renderer === "video" && !broken ? posterOf(doc) : null;
+  if (poster) {
+    return (
+      <span className="md-docrow__icon overflow-hidden bg-surface-inset p-0">
+        {/* A poster on the artifact origin: next/image would need that host allow-listed. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={poster}
+          alt=""
+          className="size-full object-cover"
+          referrerPolicy="no-referrer"
+          loading="lazy"
+          onError={() => setBroken(true)}
+        />
+      </span>
+    );
+  }
   if (doc.kind === "artifact") {
     const renderer = RENDERERS.includes(doc.renderer as FileRenderer) ? (doc.renderer as FileRenderer) : undefined;
     return (

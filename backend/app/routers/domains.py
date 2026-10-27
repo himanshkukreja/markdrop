@@ -14,9 +14,11 @@ from app.database import get_database
 from app.limiter import limiter
 from app.models.domain import Domain
 from app.models.user import User
+from app.models.workspace import role_allows
 from app.routers.auth import require_user
 from app.schemas.domain import (
     DnsProviderHint,
+    DnsRecord,
     DomainCreate,
     DomainListResponse,
     DomainResponse,
@@ -34,9 +36,15 @@ def get_db() -> AsyncIOMotorDatabase:
     return get_database()
 
 
-def _is_apex(host: str) -> bool:
-    """Rough but adequate: an apex has no subdomain label to CNAME."""
-    return host.count(".") == 1
+def _routing_options(host: str) -> tuple[bool, list[DnsRecord]]:
+    """(certain, records): the A record for an apex, a CNAME otherwise, and
+    both — likeliest first — when the apex guess is uncertain."""
+    apex, certain = domain_service.apex_guess(host)
+    a = DnsRecord(type="A", name=host, value=settings.custom_domain_apex_ip)
+    cname = DnsRecord(type="CNAME", name=host, value=settings.custom_domain_cname_target)
+    if certain:
+        return True, [a if apex else cname]
+    return False, [a, cname] if apex else [cname, a]
 
 
 def _warning_for(domain: Domain) -> str | None:
@@ -49,8 +57,28 @@ def _warning_for(domain: Domain) -> str | None:
     )
 
 
+def _redacted(domain: Domain) -> DomainResponse:
+    """What a workspace viewer or member sees of a domain: which hosts the
+    workspace has and whether each is serving — never the TXT verification
+    token, the records to add or the setup diagnostics (admins only)."""
+    return DomainResponse(
+        id=domain.id,
+        host=domain.host,
+        kind=domain.kind,
+        status=domain.status,
+        created_at=domain.created_at,
+        verified_at=domain.verified_at,
+        attached=domain.attached,
+        is_primary=domain.is_primary,
+        live=domain_service.is_serving(domain),
+        dns_record_type=None,
+        apex_certain=None,
+    )
+
+
 def _to_response(domain: Domain) -> DomainResponse:
-    apex = _is_apex(domain.host)
+    certain, options = _routing_options(domain.host)
+    first = options[0]
     return DomainResponse(
         id=domain.id,
         host=domain.host,
@@ -64,12 +92,19 @@ def _to_response(domain: Domain) -> DomainResponse:
         is_primary=domain.is_primary,
         dns_record_name=f"{domain_service.TXT_PREFIX}.{domain.host}",
         dns_record_value=domain.verification_token,
-        dns_target_name=domain.host,
-        dns_target_type="A" if apex else "CNAME",
-        dns_target_value=(
-            settings.custom_domain_apex_ip if apex else settings.custom_domain_cname_target
-        ),
+        dns_target_name=first.name,
+        dns_target_type=first.type,
+        dns_target_value=first.value,
         warning=_warning_for(domain),
+        live=domain_service.is_serving(domain),
+        routing_ok=domain.routing_ok,
+        txt_ok=domain.txt_ok,
+        failures=domain.failures,
+        first_failed_at=domain.first_failed_at,
+        lapsed_at=domain.lapsed_at,
+        expires_at=domain.expires_at if domain.status != "verified" else None,
+        apex_certain=certain,
+        dns_routing_options=options,
     )
 
 
@@ -81,9 +116,10 @@ async def list_domains(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    await ws_service.require_role(db, workspace_id, user.id, "viewer")
+    role = await ws_service.require_role(db, workspace_id, user.id, "viewer")
     domains = await domain_service.list_domains(db, workspace_id)
-    return DomainListResponse(domains=[_to_response(d) for d in domains])
+    full = role_allows(role, "admin")
+    return DomainListResponse(domains=[_to_response(d) if full else _redacted(d) for d in domains])
 
 
 @router.post("/workspaces/{workspace_id}/domains", response_model=DomainResponse, status_code=201)
@@ -174,9 +210,10 @@ async def dns_provider_hint(
 
     A separate endpoint rather than a field on the domain list, because it costs
     a live DNS lookup and the list is rendered on every visit to the tab. The UI
-    asks for it only while the setup instructions are actually on screen.
+    asks for it only while the setup instructions are actually on screen, and
+    only admins see those.
     """
-    await ws_service.require_role(db, workspace_id, user.id, "viewer")
+    await ws_service.require_role(db, workspace_id, user.id, "admin")
     domains = await domain_service.list_domains(db, workspace_id)
     domain = next((d for d in domains if d.id == domain_id), None)
     if domain is None:
@@ -269,7 +306,7 @@ async def resolve_host(
         return None
 
     b, s = workspace.branding, workspace.settings
-    response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=86400"
+    response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
     return HostResolution(
         host=resolved.host,
         workspace_id=resolved.workspace_id,

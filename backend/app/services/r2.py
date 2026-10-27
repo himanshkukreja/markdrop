@@ -73,10 +73,15 @@ def head(key: str) -> dict[str, Any] | None:
         r = _client().head_object(Bucket=settings.r2_bucket, Key=key)
     except Exception:
         return None
+    meta = r.get("Metadata") or {}
     return {
         "size": int(r.get("ContentLength", 0)),
         "content_type": r.get("ContentType") or "application/octet-stream",
         "etag": (r.get("ETag") or "").strip('"'),
+        # What the Worker decides on (services/publicity.py): served without a
+        # token only when public == "1"; a signed token must carry e == ae.
+        "public": meta.get("public") == "1",
+        "ae": meta.get("ae"),
     }
 
 
@@ -169,17 +174,31 @@ def delete_prefix(prefix: str) -> int:
     return len(keys)
 
 
-def set_public(key: str, public: bool, content_type: str | None = None) -> bool:
+def set_public(key: str, public: bool, content_type: str | None = None,
+               epoch: int | None = None) -> bool:
     """Mark an object public or private for the artifact Worker.
 
     The Worker fails closed: it serves an object without a signed token only
     when ``customMetadata.public == "1"``. R2 has no metadata-only update, so
     this copies the object onto itself with the metadata replaced.
+
+    ``epoch`` is the document's access epoch (services/publicity.py), written as
+    ``ae``: the Worker refuses a signed token whose ``e`` claim differs, so
+    bumping it on a narrowing revokes every signed link already handed out.
     """
     try:
         c = _client()
+        # REPLACE rewrites the whole metadata set: carry over every other key
+        # (e.g. ``live``) so changing publicity never drops it (C13).
+        head_res = c.head_object(Bucket=settings.r2_bucket, Key=key)
+        existing = {k: v for k, v in (head_res.get("Metadata") or {}).items()
+                    if k not in ("public", "ae")}
+        metadata: dict[str, str] = {**existing, **({"public": "1"} if public else {})}
+        if epoch is not None:
+            metadata["ae"] = str(int(epoch))
+        elif (head_res.get("Metadata") or {}).get("ae") is not None:
+            metadata["ae"] = head_res["Metadata"]["ae"]
         if content_type is None:
-            head_res = c.head_object(Bucket=settings.r2_bucket, Key=key)
             content_type = head_res.get("ContentType") or "application/octet-stream"
         c.copy_object(
             Bucket=settings.r2_bucket,
@@ -187,21 +206,27 @@ def set_public(key: str, public: bool, content_type: str | None = None) -> bool:
             CopySource={"Bucket": settings.r2_bucket, "Key": key},
             MetadataDirective="REPLACE",
             ContentType=content_type,
-            Metadata={"public": "1"} if public else {},
+            Metadata=metadata,
             # Short even when public: adding a password flips this object to
             # private, and a long-lived edge copy would outlive that change.
-            CacheControl="public, max-age=300" if public else "private, no-store",
+            CacheControl=("private, no-store" if not public
+                          else "no-cache, must-revalidate" if existing.get("live") == "1"
+                          else "public, max-age=300"),
         )
         return True
     except Exception:
         return False
 
 
-def set_public_prefix(prefix: str, public: bool) -> int:
-    """Apply :func:`set_public` to every object of a bundle. Returns the count."""
+def set_public_prefix(prefix: str, public: bool, epoch: int | None = None) -> int:
+    """Apply :func:`set_public` to every object of a bundle. Returns the count.
+
+    Raises when any object could not be updated: a bundle half-closed is a
+    bundle still partly public, which a caller closing it must hear about."""
     keys = list_prefix(prefix)
-    for k in keys:
-        set_public(k, public)
+    failed = [k for k in keys if not set_public(k, public, None, epoch)]
+    if failed:
+        raise RuntimeError(f"{len(failed)} object(s) under {prefix} kept their old publicity")
     return len(keys)
 
 

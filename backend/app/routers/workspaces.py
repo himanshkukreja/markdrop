@@ -75,22 +75,54 @@ def _to_response(workspace: Workspace, role: str, counts: dict | None = None) ->
         settings=SettingsPayload(
             viewer_chrome=s.viewer_chrome,
             require_auth_to_view=s.require_auth_to_view,
+            members_can_share_folders=s.members_can_share_folders,
+            default_access=s.default_access,
         ),
         role=role,  # type: ignore[arg-type]
+        default_access=s.default_access,
         **(counts or {}),
     )
 
 
+async def _domains(db: AsyncIOMotorDatabase, workspace_id: str) -> tuple[list[dict], str | None]:
+    """Every domain with its state, and the live primary host."""
+    from app.services import urls
+
+    rows = await db["domains"].find({"workspace_id": workspace_id}).to_list(length=200)
+    primary = await urls.live_primary_host(db, workspace_id)
+    out = []
+    for r in sorted(rows, key=lambda r: r.get("created_at") or 0):
+        out.append({
+            "host": r["host"],
+            "kind": r.get("kind"),
+            "status": urls.domain_status(r),
+            "verified": r.get("status") == "verified",
+            "primary": r["host"] == primary,
+            "live": urls.is_live(r),
+            "txt_ok": r.get("txt_ok", r.get("status") == "verified"),
+            "routing_ok": r.get("routing_ok"),
+            "failures": int(r.get("failures") or 0),
+        })
+    return out, primary
+
+
 def _branding_update(payload: BrandingPayload | None) -> dict | None:
-    """The branding dict to store. `logo_well` is left out when the client did
-    not send it, so a settings form that predates the field doesn't silently
-    reset it to automatic on every save."""
+    """Only the branding fields the client actually sent (merged onto the
+    stored ones by the service). An omitted field keeps its stored value; an
+    explicit null clears it. A partial update must never reset the rest —
+    e.g. turn Markdrop branding back on (C3 audit)."""
     if payload is None:
         return None
-    out = payload.model_dump()
-    if "logo_well" not in payload.model_fields_set:
-        out.pop("logo_well", None)
-    return out
+    return payload.model_dump(exclude_unset=True)
+
+
+def _settings_update(payload: SettingsPayload | None) -> dict | None:
+    """Only the settings the client sent. ``{"viewer_chrome": "full"}`` alone
+    must not reset ``require_auth_to_view`` to its default and publish every
+    document of a sign-in workspace (C3)."""
+    if payload is None:
+        return None
+    return payload.model_dump(exclude_unset=True)
 
 
 @router.get("", response_model=WorkspaceListResponse)
@@ -100,20 +132,14 @@ async def list_workspaces(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    from app.services import domain as domain_service
-
     pairs = await ws_service.list_for_user(db, user.id)
-    # The host, but not the counts: callers of this list want to know where a
-    # workspace publishes (to preview a URL), and paying three count queries per
-    # workspace for numbers nobody renders here would be waste. MAX_WORKSPACES
-    # caps this at ten lookups.
-    return WorkspaceListResponse(
-        workspaces=[
-            _to_response(w, role,
-                         {"primary_host": await domain_service.primary_host(db, w.id)})
-            for w, role in pairs
-        ]
-    )
+    # Domains and the live primary host, but not the counts: callers of this
+    # list want to know where a workspace publishes. MAX_WORKSPACES caps this.
+    out = []
+    for w, role in pairs:
+        domains, primary = await _domains(db, w.id)
+        out.append(_to_response(w, role, {"primary_host": primary, "domains": domains}))
+    return WorkspaceListResponse(workspaces=out)
 
 
 @router.post("", response_model=WorkspaceResponse, status_code=201)
@@ -140,7 +166,9 @@ async def get_workspace(
     workspace = await ws_service.get_workspace(db, workspace_id)
     if workspace is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
-    return _to_response(workspace, role, await _counts(db, workspace_id))
+    counts = await _counts(db, workspace_id)
+    counts["domains"], counts["primary_host"] = await _domains(db, workspace_id)
+    return _to_response(workspace, role, counts)
 
 
 @router.put("/{workspace_id}", response_model=WorkspaceResponse)
@@ -155,13 +183,27 @@ async def update_workspace(
     # Branding and viewer settings change what every visitor sees, so they sit
     # behind admin rather than member.
     role = await ws_service.require_role(db, workspace_id, user.id, "admin")
+    await ws_service.assert_open(db, workspace_id)  # R3-1: no settings changes mid-delete
     workspace = await ws_service.update_workspace(
         db,
         workspace_id,
         name=data.name,
         branding=_branding_update(data.branding),
-        settings=data.settings.model_dump() if data.settings is not None else None,
+        settings=_settings_update(data.settings),
     )
+    from app.services import lifecycle, revalidate
+
+    # W1/W2: require sign-in changes the audience of every filed document at
+    # once — bytes, epochs, caches (D3). Applied from the *current* setting
+    # under a per-workspace lease, never from what this request saw before it
+    # wrote (C-N8: two racing toggles must end with the bytes matching the row).
+    toggled = await lifecycle.sync_require_auth(db, workspace_id)
+    if toggled is not None:
+        workspace = await ws_service.get_workspace(db, workspace_id) or workspace
+    elif data.branding is not None or data.settings is not None or data.name is not None:
+        # Branding / chrome render on the workspace's hosts.
+        rows = await db["domains"].find({"workspace_id": workspace_id}, {"host": 1}).to_list(length=200)
+        await revalidate.enqueue(db, tags=[f"host:{r['host']}" for r in rows] + [f"wsl:{workspace_id}"])
     return _to_response(workspace, role)
 
 
@@ -262,9 +304,12 @@ async def create_invitation(
     workspace = await ws_service.get_workspace(db, workspace_id)
     if workspace is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
+    # Q5: only the workspace owner brings in admins.
+    if data.role == "admin" and workspace.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Only the workspace owner can invite admins.")
 
     invite, token = await invite_service.create_invitation(
-        db, workspace_id, str(data.email), data.role, user
+        db, workspace_id, str(data.email), data.role, user, by_owner=workspace.owner_id == user.id
     )
 
     if not mailer.is_configured():
@@ -301,7 +346,9 @@ async def revoke_invitation(
     user: User = Depends(require_user),
 ):
     await ws_service.require_role(db, workspace_id, user.id, "admin")
-    await invite_service.revoke_invitation(db, workspace_id, invite_id)
+    workspace = await ws_service.get_workspace(db, workspace_id)
+    await invite_service.revoke_invitation(
+        db, workspace_id, invite_id, by_owner=bool(workspace and workspace.owner_id == user.id))
 
 
 # ── Branding assets ───────────────────────────────────────────────────────────
@@ -354,7 +401,7 @@ async def set_member_role(
     user: User = Depends(require_user),
 ):
     await ws_service.require_role(db, workspace_id, user.id, "admin")
-    await ws_service.set_member_role(db, workspace_id, member_user_id, data.role)
+    await ws_service.set_member_role(db, workspace_id, member_user_id, data.role, actor_id=user.id)
 
 
 @router.delete("/{workspace_id}/members/{member_user_id}", status_code=204)
@@ -371,4 +418,4 @@ async def remove_member(
         await ws_service.require_role(db, workspace_id, user.id, "admin")
     else:
         await ws_service.require_role(db, workspace_id, user.id, "viewer")
-    await ws_service.remove_member(db, workspace_id, member_user_id)
+    await ws_service.remove_member(db, workspace_id, member_user_id, actor_id=user.id)

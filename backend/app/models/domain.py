@@ -17,7 +17,10 @@ from typing import Literal
 # architecture is built to preserve.
 DomainKind = Literal["app", "cdn"]
 
-DomainStatus = Literal["pending", "verified", "failed"]
+# "lapsed": was verified, then its DNS stopped proving it (TXT or routing record
+# gone) for long enough that it was taken off the air. Serves nothing until an
+# admin checks it again and both records are back.
+DomainStatus = Literal["pending", "verified", "failed", "lapsed"]
 
 
 @dataclass
@@ -40,3 +43,17 @@ class Domain:
     # on preview cards and used for the links the library hands out. A workspace
     # with several domains otherwise had its oldest one silently chosen for it.
     is_primary: bool = False
+    # Lifecycle (services/domain_monitor.py). `failures` counts consecutive
+    # failed re-checks since `first_failed_at`; a run of them spanning the lapse
+    # window lapses the domain.
+    failures: int = 0
+    first_failed_at: datetime | None = None
+    lapsed_at: datetime | None = None
+    # Whether the routing record (CNAME to the edge target, or the apex A
+    # record) was seen at the last check; None = never checked.
+    routing_ok: bool | None = None
+    # Whether the ownership TXT record was seen at the last check; None = never
+    # checked (or the lookup itself failed).
+    txt_ok: bool | None = None
+    # Pending rows only: when the unverified claim is dropped (TTL index).
+    expires_at: datetime | None = None

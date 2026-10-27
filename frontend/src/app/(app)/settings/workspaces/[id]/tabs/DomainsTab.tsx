@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import {
-  Alert, Badge, Button, Card, ConfirmDialog, Dialog, EmptyState, Field, Input, RadioGroup, RowMenu,
+  Alert, Badge, Button, Card, ConfirmDialog, Dialog, Disclosure, EmptyState, Field, Input, RadioGroup, RowMenu,
   Skeleton, useToast, type MenuItem,
 } from "@/components/ui";
 import DnsInstructions from "@/components/workspace/DnsInstructions";
+import DomainStepper from "@/components/workspace/DomainStepper";
 import { downloadDnsCsv } from "@/lib/dnsCsv";
 import {
-  addDomain, attachDomain, detachDomain, removeDomain, setPrimaryDomain, verifyDomain,
+  addDomain, attachDomain, detachDomain, errorStatus, removeDomain, setPrimaryDomain, verifyDomain,
   type Domain, type DomainKind,
 } from "@/lib/workspaces";
 import { shortDate } from "../../../settings-shared";
@@ -17,19 +18,29 @@ import { Locked, SectionHead, lockProps, type WsTabProps } from "../ws-shared";
 function statusBadge(d: Domain) {
   if (d.status === "verified") {
     return d.attached
-      ? <Badge size="sm" tone="success" dot>Live</Badge>
+      ? <Badge size="sm" tone="success" dot>{d.kind === "cdn" ? "Serving" : "Live"}</Badge>
       : <Badge size="sm" tone="info" icon="checkCircle">Verified, not serving</Badge>;
   }
+  if (d.status === "lapsed") return <Badge size="sm" tone="danger" icon="alertCircle">Lapsed</Badge>;
   if (d.status === "failed") return <Badge size="sm" tone="danger" icon="alertCircle">Verification failed</Badge>;
   return <Badge size="sm" tone="warning" icon="clock">Awaiting DNS</Badge>;
 }
 
+/** What a failed domain call means to a person, by status (501: the server doesn't do domains). */
+function domainError(e: unknown, fallback: string): string {
+  const s = errorStatus(e);
+  if (s === 501) return "Custom domains aren't switched on for this Markdrop server yet. Your records are safe to leave in place.";
+  if (s === 409) return e instanceof Error && e.message ? e.message : "Another workspace already verified that domain.";
+  if (s === 403) return "Only admins can change domains.";
+  return e instanceof Error && e.message ? e.message : fallback;
+}
+
 /**
- * Domains, v1 (REVAMP_PLAN 7.12): today's record list restyled — a card per domain with its status,
- * one in-card action for its state (Check DNS for an unverified domain, Attach for a verified one
- * that isn't serving), everything else in a RowMenu. Detach (stop serving, keep the verification)
- * and Remove (discard the verification) stay separate, both behind a confirm. Stepper, StatusPath
- * and the provider strip are v2.
+ * Domains (P5): a stepper per domain — Added → DNS records → Verified → Live. Both records stay on
+ * show (collapsed once verified, because they must stay in place). "Check DNS" verifies and, when
+ * that succeeds, attaches the domain and makes the first verified app domain primary, so "verified"
+ * is never a dead end waiting for a second button. Detach (stop serving, keep the verification) and
+ * Remove (discard it) stay in the menu behind a confirm.
  */
 export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabProps) {
   const toast = useToast();
@@ -39,6 +50,7 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
   const [kind, setKind] = useState<DomainKind>("app");
   const [addError, setAddError] = useState("");
   const [confirm, setConfirm] = useState<{ domain: Domain; action: "detach" | "remove" } | null>(null);
+  const [recordsOpen, setRecordsOpen] = useState<Set<string>>(new Set());
   const siteName = ws.branding.site_name || undefined;
 
   async function run(key: string, fn: () => Promise<unknown>, ok?: string) {
@@ -48,7 +60,47 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
       await refresh("domains");
       if (ok) toast.success(ok);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Something went wrong. Try again.");
+      toast.error(domainError(e, "Something went wrong. Try again."));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  /** Check DNS, then (on success) go live and pick a primary, in one press. */
+  async function checkAndGoLive(d: Domain) {
+    setBusy(`v${d.id}`);
+    try {
+      const v = await verifyDomain(id, d.id);
+      if (v.status === "verified") {
+        // The server already attaches a verified domain (and makes the first one primary) when it
+        // can. Attach here only when that didn't happen and the routing record isn't known to be
+        // missing; without hosting credentials (501) going live waits for the routing record.
+        let live = v.live ?? v.attached;
+        if (!live && v.routing_ok === false) {
+          toast.info(`${d.host} is verified. The routing record isn't visible yet; it goes live once it is.`);
+        } else if (!live) {
+          try {
+            const a = await attachDomain(id, d.id);
+            live = a?.attached ?? true;
+          } catch (e) {
+            if (errorStatus(e) === 501) {
+              toast.info(`${d.host} is verified. It goes live as soon as the routing record is visible.`);
+            } else {
+              toast.error(`${d.host} is verified, but going live failed: ${domainError(e, "try again in a minute.")}`);
+            }
+          }
+        }
+        if (live) toast.success(`${d.host} is live.`);
+      } else {
+        const missing = v.txt_ok === false && v.routing_ok === false ? "Neither record is visible yet"
+          : v.txt_ok === false ? "The ownership record isn't visible yet"
+          : v.routing_ok === false ? "The routing record isn't visible yet"
+          : "The records aren't visible yet";
+        toast.info(`${missing}. DNS changes can take up to an hour; check again then.`);
+      }
+      await refresh("domains");
+    } catch (e) {
+      toast.error(domainError(e, "Couldn't check DNS. Try again."));
     } finally {
       setBusy("");
     }
@@ -65,9 +117,9 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
       await refresh("domains");
       setAddOpen(false);
       setHost("");
-      toast.success(`${h} added. Add the DNS records below to verify it.`);
+      toast.success(`${h} added. Add the two DNS records below, then press Check DNS.`);
     } catch (err) {
-      setAddError(err instanceof Error ? err.message : "Couldn't add that domain. Try again.");
+      setAddError(domainError(err, "Couldn't add that domain. Try again."));
     } finally {
       setBusy("");
     }
@@ -95,10 +147,10 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
     if (d.status !== "verified") {
       return (
         <Locked locked={!isAdmin}>
-          <Button size="sm" variant="secondary" iconLeft="search" loading={busy === `v${d.id}`}
+          <Button size="sm" variant="primary" iconLeft="search" loading={busy === `v${d.id}`}
             {...lockProps(!isAdmin)}
-            onClick={isAdmin ? () => run(`v${d.id}`, () => verifyDomain(id, d.id)) : lockProps(true).onClick}>
-            Check DNS
+            onClick={isAdmin ? () => void checkAndGoLive(d) : lockProps(true).onClick}>
+            {d.status === "lapsed" ? "Check DNS again" : "Check DNS"}
           </Button>
         </Locked>
       );
@@ -106,10 +158,10 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
     if (!d.attached) {
       return (
         <Locked locked={!isAdmin}>
-          <Button size="sm" variant="secondary" loading={busy === `a${d.id}`}
+          <Button size="sm" variant="primary" iconLeft="zap" loading={busy === `a${d.id}`}
             {...lockProps(!isAdmin)}
             onClick={isAdmin ? () => run(`a${d.id}`, () => attachDomain(id, d.id), `${d.host} is live.`) : lockProps(true).onClick}>
-            Attach
+            Go live
           </Button>
         </Locked>
       );
@@ -135,7 +187,7 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
         description="Serve this workspace's documents from hostnames you own."
         actions={
           <>
-            {domains && domains.length > 0 && (
+            {isAdmin && domains && domains.length > 0 && (
               <Button variant="ghost" size="sm" iconLeft="download" onClick={() => downloadDnsCsv(domains)} title="Download every DNS record for this workspace as CSV">
                 Download all as CSV
               </Button>
@@ -167,21 +219,47 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
                       <h3 className="min-w-0 font-mono text-body-strong text-text [overflow-wrap:anywhere]">{d.host}</h3>
                       {statusBadge(d)}
                       <Badge size="sm" variant="outline">{d.kind === "app" ? "Documents and files" : "Files only"}</Badge>
-                      {d.is_primary && <Badge size="sm" variant="outline" icon="flag">Primary</Badge>}
+                      {d.kind === "app" && d.is_primary && d.status === "verified" && (
+                        <Badge size="sm" tone="info" icon="flag" title="Used for shared links and preview cards">Primary</Badge>
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       {primaryAction(d)}
                       {isAdmin && <RowMenu portal align="right" label={`More actions for ${d.host}`} items={menuFor(d)} />}
                     </div>
                   </div>
+                  <DomainStepper domain={d} className="rounded-lg border border-border bg-surface-inset p-3" />
                   <p className="text-caption text-text-muted">
                     {d.status === "verified"
-                      ? `${d.attached ? "Serving" : "Verified"} since ${shortDate(d.verified_at)}`
-                      : d.last_checked_at ? `Last checked ${shortDate(d.last_checked_at)}` : `Added ${shortDate(d.created_at)}, not checked yet`}
+                      ? `${d.attached ? "Serving" : "Verified"} since ${shortDate(d.verified_at)}${d.last_checked_at ? ` · Last checked ${shortDate(d.last_checked_at)}` : ""}`
+                      : d.status === "lapsed"
+                        ? `Stopped serving after its records failed checks for three days${d.last_checked_at ? ` · Last checked ${shortDate(d.last_checked_at)}` : ""}`
+                        : d.last_checked_at ? `Last checked ${shortDate(d.last_checked_at)}` : `Added ${shortDate(d.created_at)}, not checked yet`}
                   </p>
-                  {d.last_error && <Alert tone="warning">{d.last_error}</Alert>}
+                  {d.status === "lapsed" && (
+                    <Alert tone="danger" title={`${d.host} isn't serving`}>
+                      Its DNS records stopped resolving to Markdrop. Put both records back, then check again; links on markdrop.in kept working throughout.
+                    </Alert>
+                  )}
+                  {d.last_error && d.status !== "lapsed" && <Alert tone="warning">{d.last_error}</Alert>}
                   {d.warning && <p className="text-caption text-text-secondary">{d.warning}</p>}
-                  {d.status !== "verified" && <DnsInstructions workspaceId={id} domain={d} siteName={siteName} />}
+                  {/* The records (and the TXT token that proves ownership) are admin-only: the
+                      server sends them only to admins and the owner. */}
+                  {!isAdmin ? (
+                    d.status !== "verified" && (
+                      <p className="text-caption text-text-secondary">An admin of this workspace finishes setting up this domain.</p>
+                    )
+                  ) : d.status === "verified" ? (
+                    <Disclosure
+                      summary="DNS records"
+                      open={recordsOpen.has(d.id)}
+                      onOpenChange={(o) => setRecordsOpen((s) => { const n = new Set(s); if (o) n.add(d.id); else n.delete(d.id); return n; })}
+                    >
+                      {recordsOpen.has(d.id) && <DnsInstructions workspaceId={id} domain={d} siteName={siteName} settled />}
+                    </Disclosure>
+                  ) : (
+                    <DnsInstructions workspaceId={id} domain={d} siteName={siteName} />
+                  )}
                 </div>
               </Card>
             </li>

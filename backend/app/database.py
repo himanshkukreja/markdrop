@@ -23,8 +23,15 @@ async def connect() -> None:
     # Ensure the slug index exists (unique, fast lookups)
     db = get_database()
     await db["documents"].create_index("slug", unique=True)
-    # TTL index: auto-delete documents when expires_at is reached
-    await db["documents"].create_index("expires_at", expireAfterSeconds=0, sparse=True)
+    # Expiry: the sweeper (services/lifecycle.sweep_expired) deletes expired
+    # documents properly — bytes, versions, grants, caches. The TTL index stays
+    # only as a one-day backstop (access policy A6), migrated in place.
+    try:
+        from app.services import lifecycle as _lifecycle
+
+        await _lifecycle.ensure_expiry_ttl(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] expiry TTL migration skipped: {exc}")
     # Owner lookups for the user dashboard (Phase 3)
     await db["documents"].create_index("owner_id", sparse=True)
     # Full-text index for admin search (title + content + slug)
@@ -59,8 +66,17 @@ async def connect() -> None:
     await db["invitations"].create_index("workspace_id")
     # Sweeps resolved invitations once they stop being useful history.
     await db["invitations"].create_index("purge_at", expireAfterSeconds=0)
-    await db["domains"].create_index("host", unique=True)
-    await db["domains"].create_index("workspace_id")
+    # Domains: unique on *verified* hosts only (a pending claim blocks nobody),
+    # pending claims expire, plus the one-time lifecycle backfill. Migrates
+    # from the old all-rows unique index safely (new index first, then drop the
+    # old one); see services/domain.ensure_indexes. Never fatal: until it runs
+    # the old index keeps hosts unique, which is stricter, not looser.
+    try:
+        from app.services import domain as _domain_service
+
+        await _domain_service.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] domain index migration skipped: {exc}")
     await db["folders"].create_index([("workspace_id", 1), ("parent_id", 1)])
     # Folder slugs are URL segments, so siblings must differ or one of them is
     # unreachable. Partial on `slug` so folders created before slugs existed
@@ -180,6 +196,22 @@ async def connect() -> None:
     await db["file_uploads"].create_index("purge_at", expireAfterSeconds=0)
     await db["file_events"].create_index([("user_id", 1), ("ts", -1)])
 
+    # Access policy (services/access.py, lifecycle.py, revalidate.py).
+    # Former slugs after a rename redirect and stay reserved (Q4).
+    await db["documents"].create_index("old_slugs", sparse=True)
+    await db["documents"].create_index(
+        "access_dirty", partialFilterExpression={"access_dirty": True})
+    await db["slug_tombstones"].create_index("slug", unique=True)
+    await db["slug_tombstones"].create_index("until", expireAfterSeconds=0)
+    await db["revalidate_jobs"].create_index([("state", 1), ("next_at", 1)])
+    await db["revalidate_jobs"].create_index([("key", 1), ("state", 1)])
+    await db["revalidate_jobs"].create_index("purge_at", expireAfterSeconds=0)
+    await db["document_grants"].create_index(
+        [("granted_via", 1), ("granted_by_user_id", 1)], sparse=True)
+    # Folder shares: /f/<share_id> resolves one folder.
+    await db["folders"].create_index(
+        "share.id", unique=True, partialFilterExpression={"share.id": {"$exists": True}})
+
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])
     await db["feedback"].create_index([("status", 1), ("type", 1), ("created_at", -1)])
@@ -197,6 +229,18 @@ async def connect() -> None:
                   f"across {filled['workspaces']} workspace(s)")
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] folder slug backfill skipped: {exc}")
+
+    # Access-policy data migrations (idempotent): resharing default for filed
+    # documents, `workspace` level without a workspace ⇒ private, dangling
+    # workspace refs released.
+    try:
+        from app.services import lifecycle as _lifecycle
+
+        moved = await _lifecycle.migrate(db)
+        if any(moved.values()):
+            print(f"[startup] access migrations: {moved}")
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] access migrations skipped: {exc}")
 
 
 async def disconnect() -> None:

@@ -1,23 +1,19 @@
 """The shared workspace library — documents and artifacts a team can see.
 
-The boundary this module draws is the important part, so it is worth stating
-plainly: **a document is private until its owner puts it in a workspace.**
+**A document is private to its owner's account until its owner files it in a
+workspace**, and filing never changes who can read it on its own: the
+document's one access level (D1) decides, on markdrop.in and on every domain of
+its workspace alike. What membership adds is a *role* on non-private filed
+documents (members edit, viewers read); a private filed document stays the
+owner's and their named people's.
 
-Markdrop's whole history is personal documents, and people are using it that way
-right now. Joining a workspace must not retroactively expose a single thing they
-wrote. So sharing is opt-in, per document, by the person who owns it — and the
-query that lists a workspace's library filters on `workspace_id`, which a private
-document simply does not have. There is no filter to get wrong and no flag to
-forget: a private document cannot appear in a shared list because it does not
-match the query that produces one.
+Every listing here is filtered per caller through ``access.readable_filter`` —
+search, kind and folder filters are applied *inside* it, so totals and counts
+never include a row the caller can't read (A1).
 
-What sharing *does* mean is not softened anywhere in the product: everyone in the
-workspace can read it, and members and admins can edit it. That is the trade, and
-the UI says so before the click.
-
-Ownership never moves. `owner_id` still points at the person who created it, so
-the document stays in their own library, they can always delete it, and removing
-it from the workspace hands it straight back.
+Ownership never moves. Filing is the owner's act (an admin can never pull
+someone else's document in); unfiling is the owner's — always, even after
+leaving — or a workspace admin's (D4), and leaving never widens (I8).
 """
 
 from datetime import datetime, timezone
@@ -28,23 +24,35 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.document import Document
 from app.models.user import User
-from app.services import workspace as ws_service
+from app.services import access, publicity
 from app.services.document import _doc_from_mongo, search_clause
 
 
-async def _load(db: AsyncIOMotorDatabase, document_id: str) -> dict:
+def kind_clause(kind: str | None) -> dict | None:
+    if kind in ("markdown", "document"):
+        return {"kind": {"$ne": "artifact"}}
+    if kind == "artifact":
+        return {"kind": "artifact"}
+    return None
+
+
+def search_filter(q: str | None) -> dict | None:
+    clause = search_clause(q)
+    return {"$or": clause} if clause else None
+
+
+async def _load(db: AsyncIOMotorDatabase, document_id: str) -> dict | None:
     try:
         oid = ObjectId(document_id)
     except Exception:
-        raise HTTPException(status_code=404, detail="Document not found")
-    raw = await db["documents"].find_one({"_id": oid})
-    if not raw:
-        raise HTTPException(status_code=404, detail="Document not found")
-    return raw
+        return None
+    return await db["documents"].find_one({"_id": oid})
 
 
 async def list_documents(
     db: AsyncIOMotorDatabase,
+    actor: access.Actor,
+    ctx: access.Ctx,
     workspace_id: str,
     page: int,
     limit: int,
@@ -53,26 +61,14 @@ async def list_documents(
     folder_id: str | None = None,
     unfiled: bool = False,
 ) -> tuple[list[Document], int]:
-    """Everything shared into this workspace, newest first.
-
-    `workspace_id` is matched exactly, so nothing private can be returned even if
-    every other argument is hostile. The caller is responsible for having checked
-    the reader's role first.
-    """
-    query: dict = {"workspace_id": workspace_id}
-    if kind in ("markdown", "document"):
-        query["kind"] = {"$ne": "artifact"}
-    elif kind == "artifact":
-        query["kind"] = "artifact"
+    """The rows of this workspace the caller can read, newest edit first."""
+    rf = await access.readable_filter(actor, workspace_id, ctx)
+    extra = [kind_clause(kind), search_filter(q)]
     if unfiled:
-        query["folder_id"] = None
+        extra.append({"folder_id": None})
     elif folder_id:
-        query["folder_id"] = folder_id
-    # Escaped: `q` is literal text, never a pattern. See `search_clause`.
-    search = search_clause(q)
-    if search:
-        query["$or"] = search
-
+        extra.append({"folder_id": folder_id})
+    query = rf.query(*extra)
     total = await db["documents"].count_documents(query)
     cursor = (
         db["documents"]
@@ -84,97 +80,108 @@ async def list_documents(
     return [_doc_from_mongo(d) for d in await cursor.to_list(length=limit)], total
 
 
+async def counts_by_folder(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
+                           workspace_id: str) -> dict[str, int]:
+    """How many documents the caller can read sit directly in each folder."""
+    rf = await access.readable_filter(actor, workspace_id, ctx)
+    rows = await db["documents"].find(rf.query(), {"folder_id": 1}).to_list(length=50_000)
+    out: dict[str, int] = {}
+    for r in rows:
+        key = r.get("folder_id") or "unfiled"
+        out[key] = out.get(key, 0) + 1
+    return out
+
+
 async def add_document(
     db: AsyncIOMotorDatabase,
     workspace_id: str,
     document_id: str,
     user: User,
     folder_id: str | None = None,
+    level: str | None = None,
 ) -> Document:
-    """Share a document into a workspace.
+    """D1: file the caller's own document into a workspace (member+ there).
 
-    Only its owner may do this, even if the caller is the workspace owner. The
-    decision to expose a document belongs to the person whose document it is —
-    an admin being able to reach into someone's private library and publish from
-    it would defeat the entire boundary this module exists to hold.
+    CAS on ``{_id, owner_id, workspace_id ∈ {null, W}}``; resharing switches off
+    (A2); the level only changes when ``level`` is given. Filing a link
+    document into a sign-in-required workspace guards its bytes (epoch bump).
     """
+    from app.services import folder as folder_service
+    from app.services import lifecycle, transitions
+
+    actor = access.Actor.of(user)
+    ctx = access.Ctx(db, target_workspace=workspace_id)
     raw = await _load(db, document_id)
-    if raw.get("owner_id") != user.id:
-        # 404 rather than 403: confirming that a document id exists is itself a
-        # disclosure to someone who has no relationship with it.
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    # The sharer must be in the workspace, and at member level -- a viewer is
-    # someone who reads the library, not someone who fills it.
-    await ws_service.require_role(db, workspace_id, user.id, "member")
-
-    existing = raw.get("workspace_id")
+    await access.require(actor, raw, "file_into_workspace", ctx)
+    f = await access.facts(actor, raw, ctx)
+    existing = f.ws_id  # dangling refs count as unfiled
     if existing and existing != workspace_id:
         raise HTTPException(
             status_code=409,
             detail="This document is already in another workspace. Remove it from that one first.",
         )
+    if level is not None and level not in access.LEVEL_RANK:
+        raise HTTPException(status_code=422, detail="Unknown access level.")
 
     if folder_id:
-        await _require_folder(db, workspace_id, folder_id)
-
-    # `folder_path` is the denormalised copy the read path serves URLs from —
-    # see `services.folder._reindex_subtree`. Every write of `folder_id`
-    # anywhere must set it too, or a document answers on a stale address.
-    from app.services import folder as folder_service
-
+        await folder_service._get_owned(db, workspace_id, folder_id)
+    await folder_service.assert_doc_fits(db, workspace_id, folder_id, raw.get("slug"))  # B5
     path = await folder_service.path_of(db, workspace_id, folder_id) if folder_id else []
-    await db["documents"].update_one(
-        {"_id": raw["_id"]},
-        {"$set": {
-            "workspace_id": workspace_id,
-            "folder_id": folder_id,
-            "folder_path": path,
-            "updated_at": datetime.now(timezone.utc),
-        }},
+    ws = await ctx.workspace(workspace_id)
+    require_auth = bool(ws is not None and ws.settings.require_auth_to_view)
+
+    current = raw.get("access_level") or "link"
+    new_level = level or current
+    sets = {"workspace_id": workspace_id, "folder_id": folder_id or None, "folder_path": path,
+            "allow_resharing": False, "updated_at": datetime.now(timezone.utc),
+            "access_level": new_level}
+    narrows = (access.LEVEL_RANK[new_level] < access.LEVEL_RANK[current]
+               or (require_auth and new_level == "link" and existing != workspace_id))
+    after = await transitions.change(
+        db, raw, sets=sets, cas={"owner_id": user.id, "workspace_id": raw.get("workspace_id")},
+        narrows=narrows, require_auth_after=require_auth,
     )
-    raw["workspace_id"] = workspace_id
-    raw["folder_id"] = folder_id
-    raw["folder_path"] = path
-    return _doc_from_mongo(raw)
+    # C8: the folder may have been deleted while we wrote: root it.
+    if folder_id and not await folder_service.unfile_if_folder_gone(db, after):
+        after = await db["documents"].find_one({"_id": after["_id"]}) or after
+    # W4, C-N5/N6: the workspace may have been deleted — or started being
+    # deleted — while we wrote. Take the document straight back out, database
+    # first (a storage hiccup can't keep it filed), rather than leave it for
+    # the deletion's late sweep or the reconciler.
+    now_row = await db["workspaces"].find_one({"_id": ObjectId(workspace_id)}, {"deleting": 1})
+    if now_row is None or now_row.get("deleting"):
+        await lifecycle.release_db_first(db, after, workspace_id, require_auth=require_auth)
+        if now_row is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        raise HTTPException(status_code=409, detail="This workspace is being deleted.")
+    return _doc_from_mongo(after)
 
 
 async def remove_document(
     db: AsyncIOMotorDatabase, workspace_id: str, document_id: str, user: User
-) -> None:
-    """Take a document back out of the shared library.
-
-    Either the owner (it was always theirs) or a workspace admin (tidying up, or
-    removing something that shouldn't be there). The document itself is
-    untouched — it returns to the owner's private library with its slug, its
-    links and its analytics intact. This is unsharing, not deleting.
-    """
+) -> dict:
+    """D2: unshare. The owner always may (even after leaving, D4); a workspace
+    admin may (even a private document they can't read — the redacted row).
+    The level converts so leaving never widens: ``workspace`` ⇒ ``private``,
+    and a link document leaving a sign-in workspace ⇒ ``private`` (Q2)."""
     raw = await _load(db, document_id)
-    if raw.get("workspace_id") != workspace_id:
+    return await remove_raw(db, workspace_id, raw, user)
+
+
+async def remove_raw(db: AsyncIOMotorDatabase, workspace_id: str, raw: dict | None,
+                     user: User) -> dict:
+    from app.services import lifecycle
+
+    if raw is None or raw.get("workspace_id") != workspace_id or publicity.is_expired(raw):
         raise HTTPException(status_code=404, detail="That document isn't in this workspace.")
-
-    if raw.get("owner_id") != user.id:
-        await ws_service.require_role(db, workspace_id, user.id, "admin")
-    else:
-        await ws_service.require_role(db, workspace_id, user.id, "viewer")
-
-    await db["documents"].update_one(
-        {"_id": raw["_id"]},
-        {"$set": {"workspace_id": None, "folder_id": None, "folder_path": [],
-                  "updated_at": datetime.now(timezone.utc)}},
-    )
-
-
-async def _require_folder(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: str) -> None:
-    """A folder must belong to this workspace. Scoped in the query itself, so a
-    folder id borrowed from another tenant simply does not resolve."""
-    try:
-        oid = ObjectId(folder_id)
-    except Exception:
-        raise HTTPException(status_code=404, detail="Folder not found")
-    found = await db["folders"].find_one({"_id": oid, "workspace_id": workspace_id}, {"_id": 1})
-    if not found:
-        raise HTTPException(status_code=404, detail="Folder not found")
+    actor = access.Actor.of(user)
+    d = await access.can(actor, raw, "unshare", access.Ctx(db))
+    if not d.allowed:
+        if d.status in (401, 404):
+            raise HTTPException(status_code=404, detail="That document isn't in this workspace.")
+        raise d.exception()
+    after = await lifecycle.release_from_workspace(db, raw, workspace_id)
+    return {"slug": after["slug"], "access_after": after.get("access_level") or "link"}
 
 
 async def set_folder(
@@ -184,32 +191,15 @@ async def set_folder(
     folder_id: str | None,
     user: User,
 ) -> None:
-    """File a shared document into a folder, or out of one with None.
-
-    Member-level, like editing: filing is housekeeping on a document the
-    workspace already shares, and it changes nothing about who can read it.
-    """
-    raw = await _load(db, document_id)
-    if raw.get("workspace_id") != workspace_id:
-        raise HTTPException(status_code=404, detail="That document isn't in this workspace.")
-    await ws_service.require_role(db, workspace_id, user.id, "member")
-    if folder_id:
-        await _require_folder(db, workspace_id, folder_id)
+    """Refile (D3): can(move_in_workspace) — read + member+."""
     from app.services import folder as folder_service
 
-    path = await folder_service.path_of(db, workspace_id, folder_id) if folder_id else []
-    await db["documents"].update_one(
-        {"_id": raw["_id"]},
-        {"$set": {"folder_id": folder_id, "folder_path": path,
-                  "updated_at": datetime.now(timezone.utc)}},
-    )
-
-
-async def counts_by_folder(db: AsyncIOMotorDatabase, workspace_id: str) -> dict[str, int]:
-    """How many shared documents sit in each folder, for the sidebar."""
-    pipeline = [
-        {"$match": {"workspace_id": workspace_id}},
-        {"$group": {"_id": "$folder_id", "n": {"$sum": 1}}},
-    ]
-    rows = await db["documents"].aggregate(pipeline).to_list(length=500)
-    return {(r["_id"] or "unfiled"): r["n"] for r in rows}
+    raw = await _load(db, document_id)
+    if raw is None or raw.get("workspace_id") != workspace_id:
+        raise HTTPException(status_code=404, detail="That document isn't in this workspace.")
+    d = await access.can(access.Actor.of(user), raw, "move_in_workspace", access.Ctx(db))
+    if not d.allowed:
+        if d.status in (401, 404):
+            raise HTTPException(status_code=404, detail="That document isn't in this workspace.")
+        raise d.exception()
+    await folder_service.file_document(db, raw, workspace_id, folder_id)

@@ -12,9 +12,11 @@ import { flushSync } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryFlags } from "@/lib/useQueryFlags";
 import * as e2e from "@/lib/e2e";
-import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, API_BASE } from "@/lib/api";
+import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
 import { HANDOFF_FRAGMENT } from "@/lib/hosts";
+import { isPrimaryHost } from "@/components/tenant/hosts";
+import { consumeHandoffToken, peekHandoffToken } from "@/components/tenant/handoff";
 import { useAuth } from "@/contexts/AuthContext";
 import { track } from "@/lib/track";
 import { useReadDepth } from "@/lib/readDepth";
@@ -38,6 +40,7 @@ export function useDocumentViewer({
   signInUrl = null,
   syncedWithVscode = false,
   encrypted = false,
+  readTicket: initialReadTicket = null,
 }: DocumentViewProps) {
   const router = useRouter();
   // Sign-in has to come back to the exact address the reader was refused at —
@@ -69,6 +72,9 @@ export function useDocumentViewer({
   const [claimMsg, setClaimMsg] = useState("");
   const viewBeaconSent = useRef(false);
   const editOpened = useRef(false);
+  // The document's read ticket (§2.7): every beacon and the live socket carry it, or the API
+  // ignores them for anything an anonymous visitor couldn't read. Each read replaces it.
+  const [readTicket, setReadTicket] = useState<string | null>(initialReadTicket);
 
   // Google Docs sync state — populated once we confirm the viewer owns this doc
   const [isOwner, setIsOwner] = useState(false);
@@ -238,6 +244,18 @@ export function useDocumentViewer({
    * markdown shows a title and nothing else.
    */
   function adoptDoc(doc: import("@/lib/api").DocumentResponse, opts?: { created?: boolean }): boolean {
+    if (doc.read_ticket) setReadTicket(doc.read_ticket);
+    // An old slug of a renamed document (the signed-in retry of a gated page): go to the current
+    // one, keeping the query and the #k= key. The server render redirects the anonymous case.
+    if (doc.moved && doc.slug && doc.slug !== slug) {
+      // On a workspace's own domain a document lives at `/<folders…>/<slug>` (B-N5).
+      const folders = !isPrimaryHost(window.location.host) && Array.isArray(doc.folder_path)
+        ? doc.folder_path.filter((s): s is string => typeof s === "string" && s.length > 0)
+        : [];
+      const target = [...folders, doc.slug].map(encodeURIComponent).join("/");
+      router.replace(`/${target}${window.location.search}${window.location.hash}`);
+      return true;
+    }
     if (doc.kind === "artifact") {
       setArtifactDoc(doc);
       setPwdLocked(false);
@@ -390,8 +408,7 @@ export function useDocumentViewer({
   const [pwdFetching, setPwdFetching] = useState(isPasswordProtected && !!initialSecret);
   useEffect(() => {
     if (!isPasswordProtected) return;
-    if (window.location.hash.startsWith(`#${HANDOFF_FRAGMENT}=`)
-        || localStorage.getItem("markdrop_token")) {
+    if (peekHandoffToken() || localStorage.getItem("markdrop_token")) {
       setPwdFetching(true);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -494,7 +511,7 @@ export function useDocumentViewer({
   // How far readers get and how long they read (lib/readDepth.ts). Only while
   // the document is actually on screen: not locked, not being edited.
   const readRef = useRef<HTMLDivElement>(null);
-  useReadDepth(slug, readRef, readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked));
+  useReadDepth(slug, readRef, readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked), readTicket);
 
   // Fire a single view beacon from the browser so the real visitor IP (not
   // Vercel's SSR server) drives the view count + geography.
@@ -502,8 +519,8 @@ export function useDocumentViewer({
     if (viewBeaconSent.current) return;
     if (isPasswordProtected && pwdLocked) return; // wait until unlocked
     viewBeaconSent.current = true;
-    recordEvent(slug, "view");
-  }, [pwdLocked, isPasswordProtected, slug]);
+    recordEvent(slug, "view", readTicket);
+  }, [pwdLocked, isPasswordProtected, slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If logged in, detect ownership so the owner can edit without the secret
   // (and view their own password-protected doc without the read password). We
@@ -566,7 +583,7 @@ export function useDocumentViewer({
 
     function connect() {
       try {
-        ws = new WebSocket(`${API_BASE.replace(/^http/, "ws")}/ws/docs/${slug}`);
+        ws = new WebSocket(liveSocketUrl(slug, readTicket));
       } catch {
         return;
       }
@@ -574,7 +591,13 @@ export function useDocumentViewer({
       ws.onmessage = (ev) => {
         let msg: { type?: string } | null = null;
         try { msg = JSON.parse(ev.data); } catch { return; }
-        if (msg?.type !== "changed" || editingRef.current) return;
+        // Deleted, expired or renamed away: the page itself has to answer now (404 or a redirect).
+        if (msg?.type === "gone") { if (!editingRef.current) window.location.reload(); return; }
+        // Who may read it narrowed: the server closes this socket and the old ticket stops
+        // working. Re-read through the normal path — still allowed gives a fresh ticket (and a
+        // reconnect); refused means the page must show the gate instead of the old content.
+        const narrowed = msg?.type === "access";
+        if ((msg?.type !== "changed" && !narrowed) || (editingRef.current && !narrowed)) return;
         const cachedPwd = isPasswordProtected
           ? sessionStorage.getItem(`pwd:${slug}`) || undefined
           : undefined;
@@ -585,7 +608,7 @@ export function useDocumentViewer({
             setVscodeSynced(!!doc.vscode_synced);
             if (doc.is_owner) setGoogleDocStale(!!doc.google_doc_stale);
           })
-          .catch(() => {});
+          .catch(() => { if (narrowed) window.location.reload(); });
       };
       ws.onclose = () => {
         setLive(false);
@@ -603,7 +626,7 @@ export function useDocumentViewer({
       ws?.close();
       setLive(false);
     };
-  }, [slug, isPasswordProtected, pwdLocked, claimSecret]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [slug, isPasswordProtected, pwdLocked, claimSecret, readTicket]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Open the editor directly when arriving via ?edit=1 (owner/secret ready).
   useEffect(() => {
@@ -656,13 +679,14 @@ export function useDocumentViewer({
   // back from. Stored for this origin only, and stripped from the address bar
   // straight away so it is not left sitting in a URL people copy and paste.
   const [handoffDone, setHandoffDone] = useState(false);
+  //
+  // Only a tenant token minted for this very host, and never on markdrop.in
+  // (`consumeHandoffToken`): a fragment is attacker-controllable, and taking any
+  // token from it let a crafted link swap the reader's session (login CSRF).
+  // A refused token is still stripped from the address bar.
   useEffect(() => {
-    const hash = window.location.hash;
-    const marker = `#${HANDOFF_FRAGMENT}=`;
-    if (!hash.startsWith(marker)) { setHandoffDone(true); return; }
-    const token = decodeURIComponent(hash.slice(marker.length));
-    if (token) localStorage.setItem("markdrop_token", token);
-    history.replaceState(null, "", window.location.pathname + window.location.search);
+    if (!window.location.hash.startsWith(`#${HANDOFF_FRAGMENT}=`)) { setHandoffDone(true); return; }
+    const token = consumeHandoffToken();
     setHandoffDone(true);
     // The header (Site or Tenant) reads the session from AuthContext, which
     // loaded before the token existed. Without this it stays signed out until
@@ -910,6 +934,16 @@ export function useDocumentViewer({
   }, [user, pwdLocked, pwdFetching, loadAccess]);
   const canShare = isOwner || !!access?.can_share;
 
+  // P3: members (on a non-private document in their workspace) and editor grantees edit with
+  // their session, no edit secret. The server says so as `your_role: "editor"` and enforces it on
+  // save. Re-applied after Cancel (which re-locks secret-only sessions).
+  const sessionEditor = !!user && (access?.can ? access.can.edit && !access.can.settings : access?.your_role === "editor");
+  useEffect(() => {
+    if (sessionEditor && !secretUnlocked) setSecretUnlocked(true);
+  }, [sessionEditor, secretUnlocked]);
+  // Password, expiry, key rotation and delete stay with the owner (or the edit secret's holder).
+  const canEditSettings = isOwner || !!secretInput.trim();
+
   // `F` returns to full screen from the framed reader (REVAMP_PLAN 7.6 "Keys").
   // Single-key shortcuts never fire while typing or while a dialog is open.
   useEffect(() => {
@@ -931,6 +965,8 @@ export function useDocumentViewer({
     access,
     loadAccess,
     canShare,
+    canEditSettings,
+    sessionEditor,
     live,
     liveUpdate,
     toggleImmersive,
@@ -944,6 +980,7 @@ export function useDocumentViewer({
     activeTextareaRef,
     adoptDoc,
     artifactDoc,
+    readTicket,
     canEditContent,
     claimed,
     claimMsg,

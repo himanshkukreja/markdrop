@@ -5,6 +5,7 @@ import { Alert, Button, ConfirmDialog, Dialog, Field, Input, Select } from "@/co
 import { changeSlug, deleteDocument, type MyDocListItem } from "@/lib/api";
 import { createFolder, fileDocument, listFolders, purgeDocument, type Folder } from "@/lib/workspaces";
 import { SLUG_RE } from "./format";
+import { folderNameProblem } from "@/lib/folderSlug";
 
 const errText = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
@@ -245,6 +246,8 @@ export function NewFolderDialog({
     e.preventDefault();
     const n = name.trim();
     if (!n || busy) return;
+    const problem = folderNameProblem(n, !parent);
+    if (problem) { setError(problem); return; }
     setBusy(true);
     setError("");
     try {

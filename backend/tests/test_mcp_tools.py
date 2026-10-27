@@ -48,8 +48,10 @@ class Tools(McpTestCase):
 
     async def test_publish_document(self):
         out = self.ok(await self.tool("publish_document", markdown="# Hello\n\nworld", title="Hello"))
-        self.assertEqual(set(out), {"url", "slug", "title", "access", "expires_at"})
+        self.assertEqual(set(out), {"url", "markdrop_url", "workspace_url", "slug", "title", "access",
+                                    "expires_at"})
         self.assertEqual(out["url"], f"https://markdrop.in/{out['slug']}")
+        self.assertEqual((out["markdrop_url"], out["workspace_url"]), (out["url"], None))
         self.assertEqual((out["title"], out["access"], out["expires_at"]), ("Hello", "link", None))
         raw = await self.db["documents"].find_one({"slug": out["slug"]})
         self.assertEqual(raw["owner_id"], self.user_id)
@@ -105,7 +107,7 @@ class Tools(McpTestCase):
             mock.patch.object(r2, "put_bytes", put),
             mock.patch.object(r2, "get_bytes", lambda key, max_bytes: stored[key]["data"]),
             mock.patch.object(r2, "delete", lambda key: stored.pop(key, None)),
-            mock.patch.object(r2, "set_public", lambda key, public, content_type=None: stored[key].update(public=public)),
+            mock.patch.object(r2, "set_public", lambda key, public, content_type=None, epoch=None: stored[key].update(public=public) or True),
             mock.patch.object(settings, "artifact_origin", "https://markdrop-artifacts.example.workers.dev"),
             mock.patch.object(settings, "artifact_signing_key", "k"),
         ]
@@ -282,11 +284,17 @@ class Tools(McpTestCase):
         self.assertEqual(out["access"], "private")
         raw = await self.db["documents"].find_one({"slug": slug})
         self.assertEqual(raw["access_level"], "private")
-        self.assertIsNone(raw["read_password_hash"])
+        # Kept inert (policy §1.2, C5): it applies again if the doc becomes a link
+        # through anything other than an explicit "link" here.
+        self.assertIsNotNone(raw["read_password_hash"])
         out = self.ok(await self.tool("set_access", document=slug, access="link", expires="never"))
-        self.assertEqual((out["access"], out["expires_at"]), ("link", None))
+        # A stored password is kept: "link" makes it apply again.
+        self.assertEqual((out["access"], out["expires_at"]), ("password", None))
+        out = self.ok(await self.tool("set_access", document=slug, access="link", remove_password=True))
+        self.assertEqual(out["access"], "link")
         raw = await self.db["documents"].find_one({"slug": slug})
         self.assertEqual(raw["access_level"], "link")
+        self.assertIsNone(raw["read_password_hash"])  # removed only when asked
         self.assertEqual(raw["content"], "x")
 
     async def test_set_access_refusals(self):

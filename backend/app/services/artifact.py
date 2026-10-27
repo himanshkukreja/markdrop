@@ -22,9 +22,8 @@ from __future__ import annotations
 
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
-import jwt
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
@@ -150,26 +149,22 @@ def make_blob_key(user_id: str, mime: str) -> str:
 # ── Access tokens for private artifacts ────────────────────────────────────────
 
 
-def sign_access_token(blob_key: str) -> str:
+def sign_access_token(blob_key: str, *, epoch: int = 0, ttl: int | None = None) -> str:
     """Short-lived HMAC token the Worker checks before serving a private blob.
 
     Public artifacts don't get one — their URL is an unguessable capability and
-    stays fully edge-cacheable. Password-protected ones do, so that a viewer who
-    unlocked the document can't just paste the raw blob URL around forever.
+    stays fully edge-cacheable. Guarded ones do, so that a viewer who unlocked
+    the document can't just paste the raw blob URL around forever. The token
+    carries the document's access epoch (``e``): the Worker refuses it once the
+    object's ``ae`` metadata has moved on (services/publicity.py).
     """
-    now = datetime.now(timezone.utc)
-    return jwt.encode(
-        {
-            "k": blob_key,
-            "iat": now,
-            "exp": now + timedelta(seconds=settings.artifact_url_ttl_seconds),
-        },
-        settings.artifact_signing_key,
-        algorithm="HS256",
-    )
+    from app.services import publicity
+
+    return publicity.sign(blob_key, epoch=epoch, ttl=ttl)
 
 
-def build_download_url(blob_key: str, *, private: bool) -> str:
+def build_download_url(blob_key: str, *, private: bool, epoch: int = 0,
+                       ttl: int | None = None) -> str:
     """URL for the raw bytes, whatever the renderer is.
 
     Distinct from :func:`build_artifact_url` on purpose: for a PDF, sheet or
@@ -178,11 +173,12 @@ def build_download_url(blob_key: str, *, private: bool) -> str:
     """
     url = f"{settings.artifact_origin.rstrip('/')}/r/{blob_key}"
     if private:
-        url += f"?t={sign_access_token(blob_key)}"
+        url += f"?t={sign_access_token(blob_key, epoch=epoch, ttl=ttl)}"
     return url
 
 
-def build_artifact_url(blob_key: str, mime: str, *, private: bool) -> str:
+def build_artifact_url(blob_key: str, mime: str, *, private: bool, epoch: int = 0,
+                       ttl: int | None = None) -> str:
     """URL on the sandbox origin that renders this blob.
 
     ``/r/<key>`` serves raw bytes (an HTML artifact IS the page); ``/v/<r>/<key>``
@@ -193,7 +189,7 @@ def build_artifact_url(blob_key: str, mime: str, *, private: bool) -> str:
     path = f"/r/{blob_key}" if renderer in ("html", "image", "bundle") else f"/v/{renderer}/{blob_key}"
     url = f"{origin}{path}"
     if private:
-        url += f"?t={sign_access_token(blob_key)}"
+        url += f"?t={sign_access_token(blob_key, epoch=epoch, ttl=ttl)}"
     return url
 
 
@@ -278,40 +274,48 @@ async def create_artifact(
     )
 
 
-def is_guarded(*, has_password: bool, access_level: str | None) -> bool:
+def is_guarded(*, has_password: bool, access_level: str | None,
+               require_auth: bool = False) -> bool:
     """Whether this artifact's bytes must require a signed token.
 
-    The Worker fails closed: an object marked public in R2 is served to anyone
-    holding its (unguessable) key, with no token and no idea who is asking. That
-    is exactly right for "anyone with the link" and exactly wrong for everything
-    else — a document can be made private in the API while its bytes stay
-    readable from the edge forever, because R2 never heard about the change.
-
-    So publicity is derived from *both* gates, in one place, and every path that
-    writes an object or changes a document's access has to come through here.
+    Kept for callers that only know the two document-level facts; the full rule
+    (which also closes everything in a sign-in-required workspace and anything
+    expired) is ``publicity.is_public``, and every byte path goes through that.
     """
-    return has_password or (access_level or "link") != "link"
+    return has_password or (access_level or "link") != "link" or require_auth
 
 
 def poster_url(doc, *, private: bool) -> str | None:
-    """Raw URL of a video's poster frame (signed when the video is guarded)."""
+    """Raw URL of a video's poster frame (signed when guarded)."""
     key = getattr(doc, "poster_key", None)
     if not key:
         return None
-    return build_download_url(key, private=private)
+    from app.services import publicity
+
+    return build_download_url(key, private=private, epoch=publicity.epoch_of(doc),
+                              ttl=publicity.ttl_for(getattr(doc, "mime", None)))
 
 
-def to_response(doc, *, is_owner: bool) -> dict:
-    """Shape an artifact Document for the API, including its sandbox URL."""
-    private = is_guarded(
-        has_password=bool(doc.read_password_hash),
-        access_level=getattr(doc, "access_level", "link"),
-    )
+def to_response(doc, *, is_owner: bool, public: bool | None = None,
+                workspace_url: str | None = None) -> dict:
+    """Shape an artifact Document for the API, including its sandbox URL.
+
+    ``public`` is ``publicity.is_public`` for the document (callers that know
+    the workspace pass it); without it the document-level facts decide."""
+    from app.services import publicity
+
+    if public is None:
+        public = not is_guarded(
+            has_password=bool(doc.read_password_hash),
+            access_level=getattr(doc, "access_level", "link"),
+        )
+    epoch, ttl = publicity.epoch_of(doc), publicity.ttl_for(doc.mime)
     return dict(
-        poster_url=poster_url(doc, private=private),
+        poster_url=poster_url(doc, private=not public),
         media=getattr(doc, "media", None),
         slug=doc.slug,
         url=f"{settings.frontend_url.rstrip('/')}/{doc.slug}",
+        workspace_url=workspace_url,
         title=doc.title,
         kind="artifact",
         mime=doc.mime or "application/octet-stream",
@@ -319,13 +323,14 @@ def to_response(doc, *, is_owner: bool) -> dict:
         type_label=label_for(doc.mime or ""),
         size_bytes=doc.size_bytes or 0,
         original_filename=doc.original_filename,
-        artifact_url=build_artifact_url(doc.blob_key or "", doc.mime or "", private=private),
-        download_url=build_download_url(doc.blob_key or "", private=private),
+        artifact_url=build_artifact_url(doc.blob_key or "", doc.mime or "", private=not public,
+                                        epoch=epoch, ttl=ttl),
+        download_url=build_download_url(doc.blob_key or "", private=not public, epoch=epoch, ttl=ttl),
         created_at=doc.created_at,
         updated_at=doc.updated_at,
         expires_at=doc.expires_at,
         views=doc.views,
-        is_password_protected=private,
+        is_password_protected=not public,
         is_owner=is_owner,
     )
 
@@ -333,48 +338,59 @@ def to_response(doc, *, is_owner: bool) -> dict:
 async def update_settings(
     db: AsyncIOMotorDatabase,
     slug: str,
-    user_id: str,
+    actor,
+    ctx,
     *,
     title: str | None,
     read_password: str | None,
     remove_password: bool,
     expires_in: str | None,
     custom_expires_at: datetime | None,
-):
-    """Owner-scoped edit of an artifact's metadata. Returns the Document or None.
-
-    Only touches what was supplied — the blob, mime and size are never altered
-    here (see ``replace_file`` for that).
-    """
+) -> dict:
+    """Edit an artifact's title (can(edit_content): owner, editors, members on
+    non-private files) or its password / expiry (can(edit_settings): owner or
+    edit secret). Only what was supplied changes; the blob never does here.
+    Returns the row after."""
     import bcrypt
+    from fastapi import HTTPException
 
-    from app.services.document import _doc_from_mongo, _EXPIRY_DELTA
+    from app.services import access, transitions
+    from app.services.document import _EXPIRY_DELTA, _check_expiry
 
     raw = await db["documents"].find_one({"slug": slug})
-    if not raw or raw.get("owner_id") != user_id or raw.get("kind") != "artifact":
-        return None
+    await access.require(actor, raw, "edit_content", ctx)
+    if raw.get("kind") != "artifact":
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    settings_change = (read_password is not None or remove_password or expires_in is not None
+                       or custom_expires_at is not None)
+    if settings_change:
+        await access.require(actor, raw, "edit_settings", ctx)
 
     now = datetime.now(timezone.utc)
-    updates: dict = {"updated_at": now}
+    sets: dict = {"updated_at": now}
+    narrows = False
     if title is not None:
-        updates["title"] = title.strip() or None
+        sets["title"] = title.strip() or None
     if remove_password or read_password == "":
-        updates["read_password_hash"] = None
+        sets["read_password_hash"] = None
     elif read_password:
-        updates["read_password_hash"] = bcrypt.hashpw(
-            read_password.encode(), bcrypt.gensalt()
-        ).decode()
+        sets["read_password_hash"] = bcrypt.hashpw(read_password.encode(), bcrypt.gensalt()).decode()
+        narrows = True
     if expires_in is not None:
-        if expires_in == "custom" and custom_expires_at:
-            updates["expires_at"] = custom_expires_at
+        _check_expiry(expires_in, custom_expires_at, now)
+        if expires_in == "custom":
+            sets["expires_at"] = custom_expires_at
         else:
             delta = _EXPIRY_DELTA.get(expires_in)
-            updates["expires_at"] = (now + delta) if delta else None
+            sets["expires_at"] = (now + delta) if delta else None
+    elif custom_expires_at is not None:
+        _check_expiry("custom", custom_expires_at, now)
+        sets["expires_at"] = custom_expires_at
 
-    updated = await db["documents"].find_one_and_update(
-        {"_id": raw["_id"]}, {"$set": updates}, return_document=True
-    )
-    return _doc_from_mongo(updated) if updated else None
+    after = await transitions.change(db, raw, sets=sets, inc={"rev": 1}, narrows=narrows or None,
+                                     cas={"slug": slug})
+    ctx.forget(raw)
+    return after
 
 
 async def replace_file(
@@ -491,7 +507,8 @@ async def read_content(doc) -> str | None:
 
 
 async def sync_push_content(
-    db: AsyncIOMotorDatabase, doc_id: str, user_id: str, content: str, base_rev: int
+    db: AsyncIOMotorDatabase, doc_id: str, user_id: str, content: str, base_rev: int,
+    *, authorized: bool = False,
 ):
     """Write editor content back to an artifact, with the same optimistic lock
     the markdown path uses.
@@ -517,7 +534,10 @@ async def sync_push_content(
     if not ObjectId.is_valid(doc_id):
         return ("notfound", None)
     raw = await db["documents"].find_one({"_id": ObjectId(doc_id)})
-    if not raw or raw.get("owner_id") != user_id or raw.get("kind") != "artifact":
+    # `authorized`: the caller already holds a can(edit_content) decision (an
+    # editor or member writing through MCP). Otherwise sync is owner-only.
+    if not raw or raw.get("kind") != "artifact" or (
+            not authorized and raw.get("owner_id") != user_id):
         return ("notfound", None)
     if not is_syncable(raw.get("mime")) or raw.get("bundle_prefix"):
         return ("unsupported", None)
@@ -530,11 +550,10 @@ async def sync_push_content(
     if len(payload) > MAX_SYNC_BYTES:
         return ("too_large", None)
 
+    from app.services import publicity
+
     mime = raw["mime"]
-    is_public = not is_guarded(
-        has_password=bool(raw.get("read_password_hash")),
-        access_level=raw.get("access_level"),
-    )
+    is_public = await publicity.doc_is_public(db, raw)
     key = raw.get("blob_key")
     if not key:
         return ("notfound", None)

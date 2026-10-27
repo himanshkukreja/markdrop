@@ -44,8 +44,8 @@ settings = get_settings()
 # Every real top-level route. Anything else with a single segment is a
 # document slug. Mirror of frontend/src/lib/analyticsPath.ts — keep in step.
 APP_ROUTES = {
-    "", "admin", "auth", "builder", "dashboard", "enterprise", "extension", "h",
-    "invite", "login", "mcp", "new", "oauth", "privacy", "settings", "share", "upload",
+    "", "admin", "auth", "builder", "dashboard", "enterprise", "extension", "f", "h",
+    "invite", "login", "mcp", "new", "oauth", "privacy", "settings", "share", "upload", "w",
 }
 
 _ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
@@ -155,6 +155,12 @@ def clean_path(path: str, host: str) -> str | None:
         return "/share/[id]"
     if segments[0] == "invite" and len(segments) > 1:
         return "/invite/[token]"
+    # /f/<share id>[/<path>] — a folder link is a capability; /w/<workspace id>/…
+    # names a workspace. (Mirror in frontend lib/analyticsPath.ts.)
+    if segments[0] == "f" and len(segments) > 1:
+        return "/f/[share]"
+    if segments[0] == "w" and len(segments) > 1:
+        return "/w/[workspace]/f/[folder]" if len(segments) > 2 else "/w/[workspace]"
     if segments[0] == "h":
         return "/h/[workspace-doc]"
     if len(segments) == 1 and segments[0] not in APP_ROUTES:

@@ -24,6 +24,15 @@ const nextConfig: NextConfig = {
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
         ],
       },
+      // The custom-domain handoff ("Continue to <host> as you?") hands a session to another
+      // origin on one click: same clickjacking rule as the consent screen.
+      {
+        source: "/auth/handoff",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+        ],
+      },
     ];
   },
   async rewrites() {

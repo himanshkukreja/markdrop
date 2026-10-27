@@ -19,6 +19,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from bson import ObjectId
+from pymongo.errors import DuplicateKeyError
 from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -80,6 +81,8 @@ async def create_invitation(
     email: str,
     role: InviteRole,
     inviter: User,
+    *,
+    by_owner: bool = True,
 ) -> tuple[Invitation, str]:
     """Create (or refresh) an invitation. Returns the record and the raw token.
 
@@ -141,25 +144,48 @@ async def create_invitation(
     # is still `status: pending`, so asking again simply mints a fresh token and
     # pushes the expiry out. Any older token stops working the moment its hash is
     # overwritten, which is what you want if the first mail went astray.
-    result = await db["invitations"].find_one_and_update(
-        {"workspace_id": workspace_id, "email": email, "status": "pending"},
-        {"$set": doc},
-        upsert=True,
-        return_document=True,
-    )
+    # Q5/C12: an invitation as admin is the owner's. An admin re-inviting that
+    # address would replace it (new role, new token) — refused instead. The
+    # filter repeats the rule so a race can't slip past the check.
+    query: dict = {"workspace_id": workspace_id, "email": email, "status": "pending"}
+    if not by_owner:
+        if await db["invitations"].find_one({**query, "role": "admin"}, {"_id": 1}):
+            raise HTTPException(
+                status_code=409,
+                detail="This address has a pending invitation as admin. Only the workspace owner "
+                       "can change or withdraw it.",
+            )
+        query["role"] = {"$ne": "admin"}
+    try:
+        result = await db["invitations"].find_one_and_update(
+            query, {"$set": doc}, upsert=True, return_document=True,
+        )
+    except DuplicateKeyError:
+        raise HTTPException(
+            status_code=409,
+            detail="This address has a pending invitation as admin. Only the workspace owner "
+                   "can change or withdraw it.",
+        )
     return _to_invitation(result), token
 
 
-async def revoke_invitation(db: AsyncIOMotorDatabase, workspace_id: str, invite_id: str) -> None:
+async def revoke_invitation(db: AsyncIOMotorDatabase, workspace_id: str, invite_id: str, *,
+                            by_owner: bool = True) -> None:
     try:
         oid = ObjectId(invite_id)
     except Exception:
         raise HTTPException(status_code=404, detail="Invitation not found")
     # Scoped by workspace_id in the query itself, so an admin of workspace A can
     # never act on an invitation belonging to workspace B by guessing its id.
+    query: dict = {"_id": oid, "workspace_id": workspace_id, "status": "pending"}
+    if not by_owner:
+        # Q5/C12: only the owner withdraws an invitation as admin.
+        if await db["invitations"].find_one({**query, "role": "admin"}, {"_id": 1}):
+            raise HTTPException(status_code=403,
+                                detail="Only the workspace owner can withdraw an invitation as admin.")
+        query["role"] = {"$ne": "admin"}
     result = await db["invitations"].update_one(
-        {"_id": oid, "workspace_id": workspace_id, "status": "pending"},
-        {"$set": {"status": "revoked", "responded_at": datetime.now(timezone.utc)}},
+        query, {"$set": {"status": "revoked", "responded_at": datetime.now(timezone.utc)}},
     )
     if result.matched_count == 0:
         raise HTTPException(

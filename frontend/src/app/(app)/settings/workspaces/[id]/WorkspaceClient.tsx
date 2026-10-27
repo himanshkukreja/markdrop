@@ -196,8 +196,8 @@ export default function WorkspaceClient({ id }: { id: string }) {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Button variant="secondary" iconLeft="folder" href={`/dashboard?ws=${encodeURIComponent(id)}`}>
-              Open library
+            <Button variant="secondary" iconLeft="folder" href={`/w/${encodeURIComponent(id)}`}>
+              Open workspace
             </Button>
             {host && (
               <IconButton icon="external" label={`Visit ${host}`} href={`https://${host}`} target="_blank" rel="noreferrer noopener" />

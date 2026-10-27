@@ -15,15 +15,17 @@ import {
   type MyDocListItem, type GoogleStatus,
 } from "@/lib/api";
 import { recallKey, withKey } from "@/lib/e2e";
-import { listFolders, listWorkspaces, can, type Folder, type Workspace } from "@/lib/workspaces";
+import { can, listWorkspaces, type Workspace } from "@/lib/workspaces";
+import { ancestry, useDocumentsChanged, useWorkspaceTree, useWorkspaceTrees, workspaceChanged } from "@/lib/workspaceStore";
 import { track } from "@/lib/track";
 import ShareDialog from "@/components/access/ShareDialog";
-import LibraryPanel, { type LibraryAnalyticsTarget } from "@/components/workspace/LibraryPanel";
+import type { LibraryAnalyticsTarget } from "@/components/workspace/LibraryPanel";
+import { MoveToDialog } from "@/components/workspace/folder/FolderDialogs";
 import AnalyticsDrawer from "@/components/dashboard/AnalyticsDrawer";
 import NameCard from "@/components/dashboard/NameCard";
 import { DocRow, rowStatuses } from "@/components/dashboard/DocRow";
 import { ListFooter, ListSkeleton } from "@/components/dashboard/ListParts";
-import { ChangeUrlDialog, DeleteDocDialog, MoveFolderDialog, NewFolderDialog } from "@/components/dashboard/DocDialogs";
+import { ChangeUrlDialog, DeleteDocDialog } from "@/components/dashboard/DocDialogs";
 import { addressOf, displayTitle, plural } from "@/components/dashboard/format";
 import { shouldHandleSlash, usePhone } from "@/components/dashboard/hooks";
 import styles from "@/components/dashboard/dashboard.module.css";
@@ -63,6 +65,20 @@ export default function DashboardPage() {
   const urlReady = mounted && typeof window !== "undefined" && search === window.location.search;
   const scope = useMemo(() => readScope(search), [search]);
   const inWorkspace = !!scope.ws;
+
+  // v2: a workspace's library is its folder view. Old links (?ws=…&folder=…) keep their meaning.
+  useEffect(() => {
+    if (!urlReady || !scope.ws) return;
+    const ws = encodeURIComponent(scope.ws);
+    const p = new URLSearchParams();
+    if (scope.q) p.set("q", scope.q);
+    if (scope.kind !== "all") p.set("kind", scope.kind === "document" ? "markdown" : "artifact");
+    let path = `/w/${ws}`;
+    if (scope.folder === "unfiled") p.set("filter", "unfiled");
+    else if (scope.folder) path += `/f/${encodeURIComponent(scope.folder)}`;
+    const qs = p.toString();
+    router.replace(`${path}${qs ? `?${qs}` : ""}`);
+  }, [urlReady, scope.ws, scope.folder, scope.q, scope.kind, router]);
 
   /** Update the query string. Push for scope/page changes (Back works), replace while typing. */
   const navigate = useCallback((patch: Record<string, string | null>, replace = false) => {
@@ -130,18 +146,7 @@ export default function DashboardPage() {
       .catch(() => { if (live) { setWorkspaces([]); setWsError(true); } });
     return () => { live = false; };
   }, [user]);
-  const workspace = scope.ws ? workspaces?.find((w) => w.id === scope.ws) ?? null : null;
-  const wsMissing = !!scope.ws && workspaces !== null && !workspace && !wsError;
-
-  const [folders, setFolders] = useState<Folder[] | null>(null);
-  const [folderTick, setFolderTick] = useState(0);
-  useEffect(() => {
-    if (!user || !scope.ws) { setFolders(null); return; }
-    let live = true;
-    listFolders(scope.ws).then((f) => live && setFolders(f)).catch(() => live && setFolders([]));
-    return () => { live = false; };
-  }, [user, scope.ws, folderTick]);
-  const folder = scope.folder && scope.folder !== "unfiled" ? folders?.find((f) => f.id === scope.folder) ?? null : null;
+  void wsError;
 
   /* ── Personal list ──────────────────────────────────────────────────── */
   const [docs, setDocs] = useState<MyDocListItem[]>([]);
@@ -264,11 +269,40 @@ export default function DashboardPage() {
   const [renameFor, setRenameFor] = useState<MyDocListItem | null>(null);
   const [deleteFor, setDeleteFor] = useState<MyDocListItem | null>(null);
   const [moveFor, setMoveFor] = useState<MyDocListItem | null>(null);
-  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [shareAt, setShareAt] = useState(false);
   const [analytics, setAnalytics] = useState<Analyzed | null>(null);
-  const [libraryTotal, setLibraryTotal] = useState<number | null>(null);
-  const [libraryTick, setLibraryTick] = useState(0);
-  useEffect(() => setLibraryTotal(null), [scope.ws, scope.folder]);
+  const moveTree = useWorkspaceTree(moveFor?.workspace_id ?? null).tree;
+
+  // Rows filed in a workspace show where ("Acme › Guides"): names come from the shared trees.
+  const rowWorkspaces = useMemo(() => [...new Set(docs.map((d) => d.workspace_id).filter((x): x is string => !!x))], [docs]);
+  const rowTrees = useWorkspaceTrees(rowWorkspaces);
+  // Something filed or unfiled elsewhere (a Share dialog, the folder view): reload this list.
+  const reloadList = useCallback(() => { void load(); }, [load]);
+  useDocumentsChanged(reloadList);
+
+  function locationChip(d: MyDocListItem) {
+    if (!d.workspace_id) return null;
+    const ws = workspaces?.find((w) => w.id === d.workspace_id);
+    const tree = rowTrees[d.workspace_id] || null;
+    const names = tree ? ancestry(tree.folders, d.folder_id).map((f) => f.name) : [];
+    const wsName = tree?.workspace.name ?? ws?.name;
+    if (!wsName) return null;
+    const label = [wsName, ...names].join(" › ");
+    const href = d.folder_id
+      ? `/w/${encodeURIComponent(d.workspace_id)}/f/${encodeURIComponent(d.folder_id)}`
+      : `/w/${encodeURIComponent(d.workspace_id)}`;
+    return (
+      <Anchor
+        href={href}
+        title={`In ${label}`}
+        className="md-focus relative z-[1] inline-flex min-w-0 max-w-[45%] shrink items-center gap-1 rounded-sm bg-surface-active px-1.5 text-micro text-text-secondary no-underline hover:text-text sm:max-w-56"
+      >
+        <Icon name="folder" size={11} className="shrink-0" />
+        {/* Phones: just the innermost place; the full trail is in the title. */}
+        <span className="truncate" dir="auto">{phone ? names[names.length - 1] ?? wsName : label}</span>
+      </Anchor>
+    );
+  }
 
   function rowCopy(d: MyDocListItem): { text: string; hint?: string } | null {
     if (!d.encrypted) return { text: d.url };
@@ -313,31 +347,20 @@ export default function DashboardPage() {
     items.push({ label: "Change URL", icon: "link", onClick: () => setRenameFor(d) });
     if (d.workspace_id) {
       items.push({ label: "Move to folder…", icon: "folder", onClick: () => setMoveFor(d) });
-    } else {
-      items.push({ label: "Move to folder…", icon: "folder", disabled: true, description: "Folders belong to workspaces. Share it with a workspace first." });
+    } else if (workspaces?.some((w) => can(w.role, "member"))) {
+      items.push({ label: "Add to a workspace…", icon: "folder", description: "Same link; who can open it stays as it is", onClick: () => { setShareAt(true); setShareFor(d); } });
     }
     items.push({ label: "Delete", icon: "trash", danger: true, separated: true, onClick: () => setDeleteFor(d) });
     return items;
   }
 
   /* ── Header ─────────────────────────────────────────────────────────── */
-  const heading = inWorkspace ? workspace?.name ?? (wsMissing ? "Workspace" : " ") : TITLES[scope.kind];
+  const heading = TITLES[scope.kind];
   let summary: React.ReactNode = null;
-  if (inWorkspace) {
-    const where = scope.folder === "unfiled" ? "Unfiled" : folder ? `/${folder.path.join("/")}` : null;
-    const n = libraryTotal !== null ? plural(libraryTotal, "shared item") : null;
-    summary = [where, n].filter(Boolean).join(" · ") || null;
-  } else if (counts) {
+  if (counts) {
     summary = counts.all === 0 ? "Nothing published from this account yet" : `${plural(counts.document, "document")} · ${plural(counts.artifact, "artifact")}`;
   }
-
-  const crumbs = inWorkspace
-    ? [
-        { label: workspace?.name ?? "Workspace", href: `/dashboard?ws=${encodeURIComponent(scope.ws!)}` },
-        { label: "Library", href: `/dashboard?ws=${encodeURIComponent(scope.ws!)}` },
-        ...(scope.folder === "unfiled" ? [{ label: "Unfiled" }] : folder ? [{ label: `/${folder.path.join("/")}` }] : []),
-      ]
-    : [{ label: "Your documents", href: "/dashboard" }, { label: TITLES[scope.kind] }];
+  const crumbs = [{ label: "Your documents", href: "/dashboard" }, { label: TITLES[scope.kind] }];
 
   const searchBox = (
     <div className={cx("min-w-0", phone ? "w-full" : "w-60")} role="search">
@@ -362,22 +385,16 @@ export default function DashboardPage() {
     </div>
   );
 
-  const canNewFolder = inWorkspace && workspace && can(workspace.role, "member");
-  const headerActions = (
-    <>
-      {!phone && searchBox}
-      {canNewFolder && <Button variant="secondary" size={phone ? "md" : "sm"} iconLeft="folder" onClick={() => setNewFolderOpen(true)} className="max-sm:h-11">New folder</Button>}
-    </>
-  );
+  const headerActions = <>{!phone && searchBox}</>;
 
   const tabItems = [
-    { value: "all", label: "All", count: !inWorkspace ? counts?.all : undefined },
-    { value: "document", label: "Documents", count: !inWorkspace ? counts?.document : undefined },
-    { value: "artifact", label: "Artifacts", count: !inWorkspace ? counts?.artifact : undefined },
+    { value: "all", label: "All", count: counts?.all },
+    { value: "document", label: "Documents", count: counts?.document },
+    { value: "artifact", label: "Artifacts", count: counts?.artifact },
   ];
 
   /* ── Render ─────────────────────────────────────────────────────────── */
-  if (authLoading || !user) {
+  if (authLoading || !user || inWorkspace) {
     return (
       <div className="flex flex-col gap-6" aria-busy="true">
         <ListSkeleton label="Loading your dashboard" />
@@ -423,38 +440,6 @@ export default function DashboardPage() {
         className="max-w-full min-w-0 self-start"
       />
 
-      {/* ── Workspace library ── */}
-      {inWorkspace && (wsMissing ? (
-        <EmptyState
-          icon="users"
-          title="This workspace isn't available"
-          description="It may have been deleted, or you're no longer a member."
-          actions={<Button variant="secondary" href="/dashboard">Go to your documents</Button>}
-        />
-      ) : workspace && folders !== null && urlReady ? (
-        <LibraryPanel
-          key={`${workspace.id}|${libraryTick}`}
-          workspaceId={workspace.id}
-          workspaceName={workspace.name}
-          role={workspace.role}
-          folders={folders}
-          primaryHost={workspace.primary_host}
-          folderId={scope.folder}
-          q={scope.q}
-          kind={scope.kind === "document" ? "markdown" : scope.kind === "artifact" ? "artifact" : ""}
-          page={scope.page}
-          onPage={(p) => navigate({ page: p > 1 ? String(p) : null })}
-          onClearSearch={clearSearch}
-          onAnalytics={setAnalytics}
-          onTotal={setLibraryTotal}
-        />
-      ) : wsError ? (
-        <Alert tone="danger" title="Couldn't load this workspace" actions={<Button size="sm" variant="secondary" iconLeft="refresh" onClick={() => { setWorkspaces(null); setWsError(false); listWorkspaces().then(setWorkspaces).catch(() => { setWorkspaces([]); setWsError(true); }); }}>Try again</Button>}>
-          Check your connection and try again.
-        </Alert>
-      ) : (
-        <ListSkeleton label="Loading the library" />
-      ))}
 
       {/* ── Your documents ── */}
       {showList && listState === "error" && (
@@ -519,6 +504,7 @@ export default function DashboardPage() {
                   phone={phone}
                   riseDelay={firstPaint.current ? Math.min(i, 8) * 20 : null}
                   menuLabel={`Actions for ${title}`}
+                  chip={locationChip(d)}
                 />
               );
             })}
@@ -549,7 +535,9 @@ export default function DashboardPage() {
           slug={shareFor.slug}
           documentId={shareFor.id}
           title={displayTitle(shareFor)}
-          onClose={() => setShareFor(null)}
+          location={{ workspaceId: shareFor.workspace_id ?? null, folderId: shareFor.folder_id ?? null }}
+          startWithLocation={shareAt}
+          onClose={() => { setShareFor(null); setShareAt(false); }}
           onChanged={() => void load()}
         />
       )}
@@ -575,36 +563,23 @@ export default function DashboardPage() {
         }}
       />
 
-      <MoveFolderDialog
-        doc={moveFor}
-        workspaceId={moveFor?.workspace_id ?? null}
-        workspaceName={workspaces?.find((w) => w.id === moveFor?.workspace_id)?.name}
+      <MoveToDialog
+        workspace={{
+          id: moveFor?.workspace_id ?? "",
+          name: moveTree?.workspace.name ?? workspaces?.find((w) => w.id === moveFor?.workspace_id)?.name ?? "Workspace",
+          branding: workspaces?.find((w) => w.id === moveFor?.workspace_id)?.branding ?? ({} as Workspace["branding"]),
+        }}
+        tree={moveTree}
+        target={moveFor ? { kind: "items", slugs: [moveFor.slug], label: displayTitle(moveFor), fromFolderId: moveFor.folder_id ?? null } : null}
         onClose={() => setMoveFor(null)}
-        onMoved={(d, label) => {
+        onMoved={(dest) => {
+          const d = moveFor;
           setMoveFor(null);
-          toast.success(`Moved “${displayTitle(d)}” to ${label}`);
+          if (d?.workspace_id) workspaceChanged(d.workspace_id);
+          if (d) toast.success(`Moved “${displayTitle(d)}” to ${dest.label}`);
           void load();
         }}
       />
-
-      {workspace && (
-        <NewFolderDialog
-          open={newFolderOpen}
-          workspaceId={workspace.id}
-          parent={folder}
-          onClose={() => setNewFolderOpen(false)}
-          onCreated={(f) => {
-            setNewFolderOpen(false);
-            setFolderTick((t) => t + 1);
-            setLibraryTick((t) => t + 1);
-            toast.toast({
-              message: `Folder “${f.name}” created`,
-              kind: "success",
-              action: { label: "Open", onClick: () => navigate({ ws: workspace.id, folder: f.id, q: null }) },
-            });
-          }}
-        />
-      )}
 
       <AnalyticsDrawer
         doc={analytics?.doc ?? null}

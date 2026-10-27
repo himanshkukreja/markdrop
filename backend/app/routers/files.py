@@ -123,7 +123,7 @@ async def file_info(
     user: User = Depends(require_user),
 ):
     raw = await file_uploads.readable_artifact(db, user, slug)
-    return file_uploads.file_info(raw)
+    return await file_uploads.file_info_for(db, raw)
 
 
 @router.get("/{slug}/versions", response_model=FileVersionsResponse)

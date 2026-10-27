@@ -86,6 +86,7 @@ export default function DocumentView(props: DocumentViewProps) {
     readable, readRef, requestCopy, rotated, secretUnlocked, setDeviceKeySaved, setEditing, setPwdInput,
     setPwdVisible, setShowCopy, setShowRaw, setShowReport, setShowShare, setReportDone, setReportReason,
     shareUrl, showCopy, showImmersive, showRaw, showReport, showShare, signInHref, user, vscodeSynced,
+    readTicket,
   } = v;
 
   const tenant = useTenant();
@@ -151,6 +152,7 @@ export default function DocumentView(props: DocumentViewProps) {
         downloadUrl={artifactDoc.download_url ?? null}
         posterUrl={artifactDoc.poster_url ?? null}
         docRef={artifactDoc.ref ?? null}
+        readTicket={artifactDoc.read_ticket ?? null}
         viewerChrome={viewerChrome === "none" ? "none" : "full"}
       />
     );
@@ -193,11 +195,11 @@ export default function DocumentView(props: DocumentViewProps) {
   const shownTitle = displayTitle || (headings[0]?.depth === 1 ? headings[0].text : null);
 
   function copyLinkEvent() {
-    recordEvent(slug, "copy_url");
+    recordEvent(slug, "copy_url", readTicket);
     track("doc_copy_link");
   }
   function exportPdf() {
-    recordEvent(slug, "export_pdf");
+    recordEvent(slug, "export_pdf", readTicket);
     track("doc_export_pdf");
     window.print();
   }

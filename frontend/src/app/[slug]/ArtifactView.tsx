@@ -14,7 +14,18 @@ import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAccess } from "@/lib/access";
 import { purgeDocument } from "@/lib/workspaces";
+import { signInUrlFor } from "@/lib/hosts";
+
+/** The path part of this page's URL, for the tenant sign-in return trip (/login 404s there). */
+function tenantPathOf(url: string): string {
+  try {
+    return new URL(url).pathname || "/";
+  } catch {
+    return "/";
+  }
+}
 import {
+  ApiError,
   changeSlug,
   deleteDocument,
   getDocument,
@@ -22,7 +33,7 @@ import {
   replaceArtifactFile,
   updateArtifactSettings,
   type ArtifactRenderer,
-  API_BASE,
+  liveSocketUrl,
 } from "@/lib/api";
 import { ArtifactBar } from "./artifact/ArtifactBar";
 import { ArtifactSettingsDrawer, type ArtifactSettingsState } from "./artifact/ArtifactSettingsDrawer";
@@ -72,6 +83,8 @@ interface Props {
    * plain CDN response rather than something wearing a viewer UI.
    */
   viewerChrome?: "full" | "minimal" | "none";
+  /** The document's `read_ticket` (beacons + live socket, access policy §2.7). */
+  readTicket?: string | null;
 }
 
 const EMPTY_SETTINGS: ArtifactSettingsState = {
@@ -101,6 +114,7 @@ export default function ArtifactView({
   posterUrl: initialPosterUrl = null,
   docRef = null,
   viewerChrome = "full",
+  readTicket: initialReadTicket = null,
 }: Props) {
   useAnalyticsDoc({ ref: docRef, kind: "artifact", access: isPasswordProtected ? "protected" : "public" });
   const router = useRouter();
@@ -124,6 +138,9 @@ export default function ArtifactView({
   const [sizeBytes, setSizeBytes] = useState(initialSize);
   const [views, setViews] = useState(initialViews);
   const [isOwner, setIsOwner] = useState(false);
+  // `can.replace` from the server (Q6): editors and workspace members on a non-private file may
+  // swap the bytes, but only the owner reaches the rest of the settings.
+  const [canReplace, setCanReplace] = useState(false);
   const [docId, setDocId] = useState<string | null>(null);
   // Immersive mode: the artifact fills the viewport with all app chrome hidden,
   // so a published page reads as the content itself rather than something in a
@@ -136,7 +153,7 @@ export default function ArtifactView({
   const [downloading, setDownloading] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
 
-  // Owner settings drawer
+  // Owner settings drawer (file-only for a non-owner who may replace the file)
   const [showEdit, setShowEdit] = useState(false);
   const [edit, setEdit] = useState<ArtifactSettingsState>(EMPTY_SETTINGS);
   const [eProgress, setEProgress] = useState(0);
@@ -157,6 +174,10 @@ export default function ArtifactView({
       return;
     }
     if (edit.slug && edit.slug.length < 3) return;
+    if (!isOwner && edit.file && /\.zip$/i.test(edit.file.name)) {
+      setEError("Only the owner can replace this with a zipped site. Choose a single file instead.");
+      return;
+    }
     setEBusy(true);
     setEError("");
     try {
@@ -164,6 +185,12 @@ export default function ArtifactView({
       if (edit.file) {
         const doc = await replaceArtifactFile(slug, edit.file, setEProgress);
         applyDoc(doc);
+      }
+      if (!isOwner) {
+        // Everything past the file is the owner's (title, link, password, expiry).
+        purgeDocument(slug);
+        setShowEdit(false);
+        return;
       }
       const changedSettings =
         edit.title !== (title || "") || !!edit.password || edit.removePassword || !!edit.expiry;
@@ -189,7 +216,13 @@ export default function ArtifactView({
       }
       setShowEdit(false);
     } catch (err) {
-      setEError(err instanceof Error ? err.message : "Couldn't save the changes. Try again.");
+      setEError(
+        err instanceof ApiError && err.status === 507 && !isOwner
+          ? "The owner's storage is full, so the file can't be replaced right now. Ask them to free up some space."
+          : err instanceof Error
+            ? err.message
+            : "Couldn't save the changes. Try again."
+      );
     } finally {
       setEBusy(false);
       setEProgress(0);
@@ -214,6 +247,8 @@ export default function ArtifactView({
   const [wsFailed, setWsFailed] = useState(false);
 
   const beaconSent = useRef(false);
+  // Every beacon and the live socket carry the read ticket (§2.7); each read replaces it.
+  const [readTicket, setReadTicket] = useState<string | null>(initialReadTicket);
 
   // Bumped on every live update. The blob URL is stable now, so React would
   // see an unchanged src and leave the iframe alone; keying on this forces it
@@ -243,6 +278,7 @@ export default function ArtifactView({
     { remount = true }: { remount?: boolean } = {}
   ) {
     setTitle(doc.title);
+    if (doc.read_ticket) setReadTicket(doc.read_ticket);
     // A URL arriving late (password unlock, the owner's authorised re-read) goes immersive in the
     // same render, so the framed iframe never mounts just to be thrown away (one fetch, not two).
     if (doc.artifact_url && !artifactUrlRef.current) setImmersive(true);
@@ -266,8 +302,8 @@ export default function ArtifactView({
   useEffect(() => {
     if (beaconSent.current || locked) return;
     beaconSent.current = true;
-    recordEvent(slug, "view");
-  }, [slug, locked]);
+    recordEvent(slug, "view", readTicket);
+  }, [slug, locked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live updates. The socket carries only a "changed" ping, so we refetch
   // through the normal authorized read path. Failures are no-ops.
@@ -279,14 +315,18 @@ export default function ArtifactView({
 
     function connect() {
       try {
-        ws = new WebSocket(`${API_BASE.replace(/^http/, "ws")}/ws/docs/${slug}`);
+        ws = new WebSocket(liveSocketUrl(slug, readTicket));
       } catch {
         return;
       }
       ws.onmessage = (ev) => {
         let msg: { type?: string } | null = null;
         try { msg = JSON.parse(ev.data); } catch { return; }
-        if (msg?.type !== "changed") return;
+        // Deleted, expired or renamed away: let the page answer (404 or redirect).
+        if (msg?.type === "gone") { window.location.reload(); return; }
+        // Narrowed: re-read (fresh ticket, reconnect) or, if refused now, show the gate.
+        const narrowed = msg?.type === "access";
+        if (msg?.type !== "changed" && !narrowed) return;
         const cachedPwd = isPasswordProtected
           ? sessionStorage.getItem(`pwd:${slug}`) || undefined
           : undefined;
@@ -295,7 +335,7 @@ export default function ArtifactView({
             setLiveReload(true);
             applyDoc(doc);
           })
-          .catch(() => {});
+          .catch(() => { if (narrowed) window.location.reload(); });
       };
       ws.onclose = () => { if (!closed) retry = setTimeout(connect, 3000); };
     }
@@ -305,7 +345,7 @@ export default function ArtifactView({
       if (retry) clearTimeout(retry);
       ws?.close();
     };
-  }, [slug, locked, isPasswordProtected]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [slug, locked, isPasswordProtected, readTicket]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cached password from a previous unlock in this tab.
   useEffect(() => {
@@ -322,6 +362,7 @@ export default function ArtifactView({
   useEffect(() => {
     if (!user) {
       setIsOwner(false);
+      setCanReplace(false);
       return;
     }
     let cancelled = false;
@@ -329,6 +370,7 @@ export default function ArtifactView({
       .then((doc) => {
         if (cancelled) return;
         setIsOwner(!!doc.is_owner);
+        setCanReplace(!!doc.can?.replace);
         setDocId(doc.id ?? null);
         if (doc.is_owner && doc.artifact_url) applyDoc(doc, { remount: false });
       })
@@ -440,6 +482,23 @@ export default function ArtifactView({
     // sheets and docs, so downloading it would save the HTML wrapper.
     const src = downloadUrl || artifactUrl;
     if (!src) return;
+    if (tenant) {
+      // On a workspace's own domain the artifact origin's CORS doesn't list
+      // this origin, so the fetch below would fail (after downloading the whole
+      // body) and fall back to opening the artifact origin. A Content-Disposition
+      // link instead: the Worker answers `?dl=1` as an attachment, so the
+      // browser saves the file without leaving the page.
+      const u = new URL(downloadUrl || src);
+      u.searchParams.set("dl", "1");
+      u.searchParams.set("fn", originalFilename || slug);
+      const a = document.createElement("a");
+      a.href = u.toString();
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return;
+    }
     setDownloading(true);
     try {
       // Fetched as a blob rather than linked. The download attribute is ignored
@@ -521,6 +580,9 @@ export default function ArtifactView({
     menu.push({ label: "Share", icon: "share", onClick: () => setShowShare(true) });
     menu.push({ label: "Settings", icon: "settings", onClick: openEdit });
   }
+  if (!isOwner && canReplace && !locked) {
+    menu.push({ label: "Replace file", icon: "upload", onClick: openEdit });
+  }
   if (!isOwner && !locked) {
     menu.push({ label: "Report", icon: "flag", onClick: () => setShowReport(true) });
   }
@@ -563,7 +625,7 @@ export default function ArtifactView({
           {locked ? (
             <AccessGate
               mode="password"
-              signInHref="/login"
+              signInHref={tenant ? signInUrlFor(tenant.host, tenantPathOf(url)) : "/login"}
               value={pwdInput}
               onValue={setPwdInput}
               onSubmit={handleUnlock}
@@ -635,8 +697,9 @@ export default function ArtifactView({
         />
       )}
 
-      {isOwner && (
+      {(isOwner || canReplace) && (
         <ArtifactSettingsDrawer
+          fileOnly={!isOwner}
           open={showEdit}
           onClose={() => !eBusy && setShowEdit(false)}
           value={edit}

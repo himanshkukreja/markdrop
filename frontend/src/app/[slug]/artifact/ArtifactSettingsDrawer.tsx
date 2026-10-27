@@ -20,6 +20,10 @@ export interface ArtifactSettingsState {
  * Owner settings for an artifact (REVAMP_PLAN 7.7): a right Drawer with File (replace tile +
  * real upload Progress), Title, Link (prefix from the actual host), Password, Expiry and a danger
  * zone. Purely presentational: the view owns the state and the save order (file, settings, slug).
+ *
+ * `fileOnly` is the same drawer for someone who may replace the file but isn't the owner (an
+ * editor, or a workspace member on a non-private file — `can.replace`): just the File tile.
+ * Title, link, password, expiry and delete stay the owner's.
  */
 export function ArtifactSettingsDrawer({
   open,
@@ -38,6 +42,7 @@ export function ArtifactSettingsDrawer({
   error,
   onSave,
   onDelete,
+  fileOnly = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -55,6 +60,7 @@ export function ArtifactSettingsDrawer({
   error: string;
   onSave: () => void;
   onDelete: () => void;
+  fileOnly?: boolean;
 }) {
   const replaceInput = useRef<HTMLInputElement>(null);
   const set = <K extends keyof ArtifactSettingsState>(k: K, v: ArtifactSettingsState[K]) => onChange({ ...value, [k]: v });
@@ -65,8 +71,12 @@ export function ArtifactSettingsDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title="Artifact settings"
-      description="Saved changes apply to the same link right away."
+      title={fileOnly ? "Replace file" : "Artifact settings"}
+      description={
+        fileOnly
+          ? "Upload a new version. The link and its settings stay the same, and the space counts against the owner's storage."
+          : "Saved changes apply to the same link right away."
+      }
       side="right"
       width={440}
       dismissible={!busy}
@@ -75,8 +85,8 @@ export function ArtifactSettingsDrawer({
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={onSave} loading={busy} disabled={slugShort}>
-            {busy ? (uploading ? `Uploading ${progress}%` : "Saving…") : "Save changes"}
+          <Button variant="primary" onClick={onSave} loading={busy} disabled={fileOnly ? !value.file : slugShort}>
+            {busy ? (uploading ? `Uploading ${progress}%` : "Saving…") : fileOnly ? "Replace file" : "Save changes"}
           </Button>
         </div>
       }
@@ -135,114 +145,120 @@ export function ArtifactSettingsDrawer({
           )}
         </div>
 
-        <Field label="Title" hint="Shown in the browser tab and in link previews.">
-          <Input
-            value={value.title}
-            onChange={(e) => set("title", e.target.value)}
-            maxLength={200}
-            placeholder="Untitled"
-            dir="auto"
-            disabled={busy}
-          />
-        </Field>
-
-        <Field
-          label="Link"
-          error={slugShort ? "Use at least 3 characters." : undefined}
-          hint={
-            value.slug !== currentSlug
-              ? "The old link stops working. Views and analytics carry over."
-              : "Letters, numbers, hyphens and underscores."
-          }
-        >
-          <Input
-            mono
-            textPrefix={linkPrefix}
-            value={value.slug}
-            invalid={slugShort}
-            onChange={(e) => /^[a-zA-Z0-9_-]*$/.test(e.target.value) && set("slug", e.target.value)}
-            maxLength={50}
-            disabled={busy}
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-          />
-        </Field>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          {protectedNow && !value.password ? (
-            <div className="flex flex-col gap-2">
-              <span className="text-body-strong text-text">Password</span>
-              <Checkbox
-                label="Remove the password"
-                description="Anyone with the link can open it again."
-                checked={value.removePassword}
-                onChange={(e) => set("removePassword", e.currentTarget.checked)}
-                disabled={busy}
-              />
-              {!value.removePassword && (
-                <Input
-                  type="password"
-                  aria-label="New password"
-                  placeholder="Or type a new one"
-                  value={value.password}
-                  onChange={(e) => set("password", e.target.value)}
-                  maxLength={100}
-                  disabled={busy}
-                />
-              )}
-            </div>
-          ) : (
-            <Field label="Password" hint="Readers are asked for this before the page opens.">
+        {fileOnly ? (
+          error && <Alert tone="danger">{error}</Alert>
+        ) : (
+          <>
+            <Field label="Title" hint="Shown in the browser tab and in link previews.">
               <Input
-                type="password"
-                value={value.password}
-                onChange={(e) => set("password", e.target.value)}
-                maxLength={100}
-                placeholder={protectedNow ? "New password" : "Optional"}
+                value={value.title}
+                onChange={(e) => set("title", e.target.value)}
+                maxLength={200}
+                placeholder="Untitled"
+                dir="auto"
                 disabled={busy}
               />
             </Field>
-          )}
 
-          <Field label="Expires">
-            <Select
-              value={value.expiry}
-              onChange={(e) => set("expiry", e.target.value as ExpiresIn | "")}
-              disabled={busy}
-              options={[
-                { value: "", label: "Leave unchanged" },
-                { value: "never", label: "Never" },
-                { value: "1d", label: "In 1 day" },
-                { value: "7d", label: "In 7 days" },
-                { value: "30d", label: "In 30 days" },
-                { value: "custom", label: "On a date…" },
-              ]}
-            />
-          </Field>
-        </div>
+            <Field
+              label="Link"
+              error={slugShort ? "Use at least 3 characters." : undefined}
+              hint={
+                value.slug !== currentSlug
+                  ? "The old link stops working. Views and analytics carry over."
+                  : "Letters, numbers, hyphens and underscores."
+              }
+            >
+              <Input
+                mono
+                textPrefix={linkPrefix}
+                value={value.slug}
+                invalid={slugShort}
+                onChange={(e) => /^[a-zA-Z0-9_-]*$/.test(e.target.value) && set("slug", e.target.value)}
+                maxLength={50}
+                disabled={busy}
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </Field>
 
-        {value.expiry === "custom" && (
-          <DateTimePicker
-            value={value.customExpiresAt}
-            onChange={(iso) => set("customExpiresAt", iso)}
-            disabled={busy}
-          />
+            <div className="grid gap-4 sm:grid-cols-2">
+              {protectedNow && !value.password ? (
+                <div className="flex flex-col gap-2">
+                  <span className="text-body-strong text-text">Password</span>
+                  <Checkbox
+                    label="Remove the password"
+                    description="Anyone with the link can open it again."
+                    checked={value.removePassword}
+                    onChange={(e) => set("removePassword", e.currentTarget.checked)}
+                    disabled={busy}
+                  />
+                  {!value.removePassword && (
+                    <Input
+                      type="password"
+                      aria-label="New password"
+                      placeholder="Or type a new one"
+                      value={value.password}
+                      onChange={(e) => set("password", e.target.value)}
+                      maxLength={100}
+                      disabled={busy}
+                    />
+                  )}
+                </div>
+              ) : (
+                <Field label="Password" hint="Readers are asked for this before the page opens.">
+                  <Input
+                    type="password"
+                    value={value.password}
+                    onChange={(e) => set("password", e.target.value)}
+                    maxLength={100}
+                    placeholder={protectedNow ? "New password" : "Optional"}
+                    disabled={busy}
+                  />
+                </Field>
+              )}
+
+              <Field label="Expires">
+                <Select
+                  value={value.expiry}
+                  onChange={(e) => set("expiry", e.target.value as ExpiresIn | "")}
+                  disabled={busy}
+                  options={[
+                    { value: "", label: "Leave unchanged" },
+                    { value: "never", label: "Never" },
+                    { value: "1d", label: "In 1 day" },
+                    { value: "7d", label: "In 7 days" },
+                    { value: "30d", label: "In 30 days" },
+                    { value: "custom", label: "On a date…" },
+                  ]}
+                />
+              </Field>
+            </div>
+
+            {value.expiry === "custom" && (
+              <DateTimePicker
+                value={value.customExpiresAt}
+                onChange={(iso) => set("customExpiresAt", iso)}
+                disabled={busy}
+              />
+            )}
+
+            {error && <Alert tone="danger">{error}</Alert>}
+
+            <section aria-labelledby="artifact-danger" className="flex flex-col gap-2 rounded-lg border border-border p-4">
+              <h3 id="artifact-danger" className="m-0 text-body-strong text-text">
+                Delete this artifact
+              </h3>
+              <p className="m-0 text-caption text-text-secondary">
+                The file and its link are removed for good, and the space comes back to your storage.
+              </p>
+              <Button variant="danger" iconLeft="trash" className="self-start" onClick={onDelete} disabled={busy}>
+                Delete artifact
+              </Button>
+            </section>
+          </>
         )}
-
-        {error && <Alert tone="danger">{error}</Alert>}
-
-        <section aria-labelledby="artifact-danger" className="flex flex-col gap-2 rounded-lg border border-border p-4">
-          <h3 id="artifact-danger" className="m-0 text-body-strong text-text">
-            Delete this artifact
-          </h3>
-          <p className="m-0 text-caption text-text-secondary">
-            The file and its link are removed for good, and the space comes back to your storage.
-          </p>
-          <Button variant="danger" iconLeft="trash" className="self-start" onClick={onDelete} disabled={busy}>
-            Delete artifact
-          </Button>
-        </section>
       </div>
     </Drawer>
   );

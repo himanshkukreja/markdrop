@@ -42,6 +42,14 @@ class DocumentCreate(BaseModel):
     def validate_custom_expiry(self):
         if self.expires_in == "custom" and self.custom_expires_at is None:
             raise ValueError("custom_expires_at is required when expires_in is 'custom'")
+        if self.expires_in == "custom" and self.custom_expires_at is not None:
+            from datetime import timedelta, timezone
+
+            when = self.custom_expires_at
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=timezone.utc)
+            if when < datetime.now(timezone.utc) + timedelta(seconds=60):
+                raise ValueError("custom_expires_at must be in the future")
         return self
 
 
@@ -99,6 +107,22 @@ class DocumentResponse(BaseModel):
     # reading of a video or audio file; null until known.
     poster_url: str | None = None
     media: dict | None = None
+    # ── Access policy additions (additive) ───────────────────────────────────
+    # The document's address on its workspace's live primary domain, else null.
+    workspace_url: str | None = None
+    # How it is reachable ("link" | "private" | "workspace") and where it is filed.
+    access_level: str = "link"
+    workspace_id: str | None = None
+    # What the caller may do, computed by access.can() so the client never
+    # re-derives it: {edit, replace, settings, access, rename, delete, share,
+    # move, unshare}.
+    can: dict | None = None
+    # HMAC ticket for the live socket (?t=) and the view/read beacons ("ticket"),
+    # needed for any document an anonymous visitor could not read (§2.7).
+    read_ticket: str | None = None
+    # Bumped on every narrowing (services/publicity.py). Pages put it on the OG
+    # image URL (`e=`) so a narrowed document's card is re-fetched (§5.1 #4).
+    access_epoch: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -119,6 +143,9 @@ class SlugChangeRequest(BaseModel):
 
 class EventRequest(BaseModel):
     type: Literal["view", "export_pdf", "copy_url"]
+    # The read ticket from GET /documents/{slug}; required (silently) for any
+    # document an anonymous visitor could not read.
+    ticket: str | None = Field(None, max_length=2048)
     # The page's own document.referrer, sent by the browser. The request's
     # Referer header can't be used: this beacon is fired *from* markdrop.in,
     # so that header only ever names markdrop.in.
@@ -162,7 +189,8 @@ class SyncRevResponse(BaseModel):
 
 
 class MyDocListItem(BaseModel):
-    id: str
+    # Only on rows the caller owns (A1): others never get the internal id.
+    id: str | None = None
     slug: str
     url: str
     title: str | None

@@ -56,7 +56,10 @@ class Upload(FilesTestCase):
                                  json={"parts": parts}, headers=self.auth)
         self.assertEqual(r.status_code, 200, r.text)
         res = r.json()
-        self.assertEqual(set(res), {"url", "slug", "version", "size_bytes", "content_type", "sha256"})
+        self.assertEqual(set(res), {"url", "markdrop_url", "workspace_url", "workspace_error", "slug",
+                                    "version", "size_bytes", "content_type", "sha256"})
+        self.assertEqual((res["markdrop_url"], res["workspace_url"], res["workspace_error"]),
+                         ("https://markdrop.in/launch-demo", None, None))
         self.assertEqual(res["slug"], "launch-demo")
         self.assertEqual(res["url"], "https://markdrop.in/launch-demo")
         self.assertEqual((res["version"], res["size_bytes"], res["content_type"], res["sha256"]),
@@ -285,6 +288,35 @@ class Upload(FilesTestCase):
         self.assertEqual(raw["access_level"], "link")
         self.assertTrue(raw["read_password_hash"])
         self.assertFalse(self.r2.objects[raw["blob_key"]]["public"])
+
+    async def test_custom_slug(self):
+        res = await self.upload(VIDEO, "Launch Demo.mp4", slug="q3-launch")
+        self.assertEqual((res["slug"], res["url"]), ("q3-launch", "https://markdrop.in/q3-launch"))
+        self.assertIsNone(await self.doc("launch-demo"))
+        # Taken (or reserved, or malformed): refused before a byte moves.
+        r = await self.start(blob("again"), "again.mp4", slug="q3-launch")
+        self.assertEqual(r.status_code, 409, r.text)
+        self.assertIn("q3-launch", r.json()["detail"])
+        self.assertEqual((await self.start(blob("res"), "r.mp4", slug="api")).status_code, 409)
+        self.assertEqual((await self.start(blob("bad"), "b.mp4", slug="no spaces")).status_code, 422)
+        self.assertEqual((await self.start(blob("bad"), "b.mp4", slug="ab")).status_code, 422)
+        # New uploads only.
+        r = await self.start(blob("v2"), "v2.mp4", target_slug="q3-launch", slug="other")
+        self.assertEqual(r.status_code, 422, r.text)
+
+    async def test_custom_slug_taken_mid_upload_fails_cleanly(self):
+        r = await self.start(VIDEO, "clip.mp4", slug="race-slug")
+        self.assertEqual(r.status_code, 200, r.text)
+        upload_id = r.json()["upload_id"]
+        parts = await self.send_parts(upload_id, VIDEO)
+        await self.upload(blob("first"), "first.mp4", slug="race-slug")
+        r = await self.http.post(f"/api/v1/files/uploads/{upload_id}/complete",
+                                 json={"parts": parts}, headers=self.auth)
+        self.assertEqual(r.status_code, 409, r.text)
+        sess = await self.session(upload_id)
+        self.assertEqual(sess["state"], "failed")
+        self.assertNotIn(sess["key"], self.r2.objects)
+        self.assertEqual((await self.doc("race-slug"))["original_filename"], "first.mp4")
 
     async def test_sessions_are_private_and_expire(self):
         up = (await self.start(VIDEO)).json()

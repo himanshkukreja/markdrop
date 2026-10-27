@@ -1,11 +1,9 @@
 """Who a document is shared with.
 
-Everything here operates on a document the caller can already see, and every
-route re-derives their role rather than trusting a client-supplied one. The
-rules themselves live in `services.access`; this layer is only plumbing and the
-share notification email.
+Every route asks access.can(); this layer is plumbing and the share email.
 """
 
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -17,11 +15,13 @@ from app.schemas.access import (
     AccessResponse,
     GrantCreate,
     GrantResponse,
+    BatchLevelUpdate,
     LevelUpdate,
     ResharingUpdate,
 )
 from app.services import access as access_service
 from app.services import mailer
+from app.utils.net import get_client_ip
 
 router = APIRouter(prefix="/api/v1/documents", tags=["access"])
 
@@ -30,18 +30,53 @@ def get_db() -> AsyncIOMotorDatabase:
     return get_database()
 
 
-async def _load(db: AsyncIOMotorDatabase, slug: str) -> dict:
-    raw = await db["documents"].find_one({"slug": slug})
-    if not raw:
-        raise HTTPException(status_code=404, detail="Document not found")
-    return raw
+async def _load(db: AsyncIOMotorDatabase, slug: str) -> dict | None:
+    return await db["documents"].find_one({"slug": slug})
 
 
 def _to_grant(g) -> GrantResponse:
     return GrantResponse(
         email=g.email, role=g.role, created_at=g.created_at,
         granted_by_email=g.granted_by_email, notified=g.notified,
+        active=getattr(g, "active", True),
+        effective_role=getattr(g, "effective_role", None) if getattr(g, "active", True) else None,
     )
+
+
+def _actor_ctx(request: Request, db, user: User):
+    return (access_service.actor_from_request(request, user),
+            access_service.Ctx(db, surface="rest", ip=get_client_ip(request)))
+
+
+@router.post("/access/level")
+@limiter.limit("30/minute")
+async def set_levels(
+    request: Request,
+    data: BatchLevelUpdate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Batch level change ("Open up the K you own"): owner-only per document,
+    each through the same rules as PUT /{slug}/access/level. Per-slug results
+    ``{results:[{slug, ok, error?}]}``."""
+    from fastapi import HTTPException as _HTTPException
+
+    from app.services import revalidate
+
+    actor, ctx = _actor_ctx(request, db, user)
+    results = []
+    # B-R1: one bounded wait for the whole batch's purges, not one per document.
+    async with revalidate.batch(db):
+        for slug in dict.fromkeys(data.slugs):
+            try:
+                raw = await _load(db, slug)
+                await access_service.set_level(db, raw, data.level, actor, ctx)
+                results.append({"slug": slug, "ok": True})
+            except _HTTPException as exc:
+                results.append({"slug": slug, "ok": False,
+                                "error": exc.detail if isinstance(exc.detail, str) else "Not allowed",
+                                "status": exc.status_code})
+    return {"results": results}
 
 
 @router.get("/{slug}/access", response_model=AccessResponse)
@@ -52,25 +87,26 @@ async def get_access(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """The sharing state, for anyone who can already see the document.
+    """The sharing state, for anyone holding a role on the document (A6).
 
-    The list of people is visible to everyone with access, exactly as it is in
-    a shared drive: you can see who else is in the room. What differs by role is
-    what you can *change*, which the flags below describe so the UI doesn't have
-    to re-implement the rules and get them subtly wrong.
+    A reader who merely has the link (no role) gets 404: the owner's address
+    and the grantee list are not something a link exposes. Viewers see their
+    own role and the owner's display name; the grantee list (and the owner's
+    address) is for the owner and editors.
     """
+    actor, ctx = _actor_ctx(request, db, user)
     raw = await _load(db, slug)
-    role = await access_service.effective_role(db, raw, user.id, user.email)
-    if role is None and (raw.get("access_level") or "link") != "link":
+    await access_service.require(actor, raw, "read", ctx)
+    f = await access_service.facts(actor, raw, ctx)
+    role = f.role
+    if role is None:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    is_owner = role == "owner"
-    grants = await access_service.list_grants(db, str(raw["_id"]))
+    sees_grants = (await access_service.can(actor, raw, "see_grants", ctx)).allowed
+    grants = await access_service.list_grants(db, str(raw["_id"])) if sees_grants else []
 
     owner_name = owner_email = None
     if raw.get("owner_id"):
-        from bson import ObjectId
-
         try:
             owner = await db["users"].find_one(
                 {"_id": ObjectId(raw["owner_id"])}, {"name": 1, "email": 1}
@@ -79,19 +115,24 @@ async def get_access(
             owner = None
         if owner:
             owner_name, owner_email = owner.get("name"), owner.get("email")
+    # The same flags (and names) as the document response and item rows (§7).
+    can = await access_service.can_flags(actor, raw, ctx)
     return AccessResponse(
         level=raw.get("access_level") or "link",
-        allow_resharing=raw.get("allow_resharing", True),
+        allow_resharing=access_service.resharing_allowed(raw),
         is_password_protected=bool(raw.get("read_password_hash")),
         encrypted=bool(raw.get("encrypted")),
-        in_workspace=bool(raw.get("workspace_id")),
-        workspace_id=raw.get("workspace_id"),
-        your_role=role or "viewer",
+        in_workspace=bool(f.ws_id),
+        workspace_id=f.ws_id,
+        workspace_name=f.ws.name if f.ws is not None else None,
+        folder_id=raw.get("folder_id") if f.ws_id else None,
+        can=can,
+        your_role=role,
         owner_name=owner_name,
-        owner_email=owner_email,
+        owner_email=owner_email if sees_grants else None,
         your_email=user.email,
-        can_manage=is_owner,
-        can_share=is_owner or (raw.get("allow_resharing", True) and role is not None),
+        can_manage=f.is_owner,
+        can_share=(await access_service.can(actor, raw, "share", ctx)).allowed,
         grants=[_to_grant(g) for g in grants],
     )
 
@@ -105,8 +146,9 @@ async def set_level(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
+    actor, ctx = _actor_ctx(request, db, user)
     raw = await _load(db, slug)
-    await access_service.set_level(db, raw, data.level, user.id)
+    await access_service.set_level(db, raw, data.level, actor, ctx)
 
 
 @router.put("/{slug}/access/resharing", status_code=204)
@@ -118,8 +160,9 @@ async def set_resharing(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
+    actor, ctx = _actor_ctx(request, db, user)
     raw = await _load(db, slug)
-    await access_service.set_resharing(db, raw, data.allow, user.id)
+    await access_service.set_resharing(db, raw, data.allow, actor, ctx)
 
 
 @router.post("/{slug}/access/people", response_model=GrantResponse, status_code=201)
@@ -133,21 +176,15 @@ async def add_person(
 ):
     """Share with a named person, optionally telling them.
 
-    Rate-limited by the hour, because what this spends is somebody else's inbox
-    rather than our CPU, and it will happily mail an address its caller does not
-    own.
-
     A failed notification does **not** undo the grant: the access is real and
-    correct, the email is a courtesy, and silently revoking someone because a
-    mail server was slow would be the worse outcome. The response says whether
-    the message actually went.
+    correct, the email is a courtesy. The response says whether it went.
     """
+    actor, ctx = _actor_ctx(request, db, user)
     raw = await _load(db, slug)
-    grant = await access_service.add_grant(
-        db, raw, str(data.email), data.role, user.id, user.email
-    )
+    grant = await access_service.add_grant(db, raw, str(data.email), data.role, actor, ctx)
 
-    if data.notify and mailer.is_configured():
+    # Nothing was written for someone who already had access: no email either.
+    if data.notify and not grant.unchanged and mailer.is_configured():
         try:
             await mailer.send_document_share_email(
                 to_email=grant.email,
@@ -175,5 +212,6 @@ async def remove_person(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
+    actor, ctx = _actor_ctx(request, db, user)
     raw = await _load(db, slug)
-    await access_service.remove_grant(db, raw, email, user.id, user.email)
+    await access_service.remove_grant(db, raw, email, actor, ctx)

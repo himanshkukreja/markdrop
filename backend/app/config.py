@@ -122,6 +122,11 @@ class Settings(BaseSettings):
     # private (password-protected / unlisted) artifacts.
     artifact_signing_key: str = ""
     artifact_url_ttl_seconds: int = 900
+    # Signed links for video/audio renderers last longer so playback survives
+    # past the 15-minute default (T4). Safe only because every signed link
+    # carries the document's access epoch, which the Worker checks: a narrowing
+    # (password added, made private, require sign-in) revokes them at once.
+    artifact_media_url_ttl_seconds: int = 4 * 3600
     # Escape hatch: serve artifacts from a SUBDOMAIN of the app (e.g.
     # artifacts.markdrop.in). A subdomain is still a distinct origin, so it does
     # block the localStorage/sessionStorage theft — but it shares cookie scope
@@ -164,6 +169,10 @@ class Settings(BaseSettings):
     # After a file is swapped, purge the frontend's cached page
     # (POST {frontend_url}/api/revalidate). Off in tests.
     page_revalidate_enabled: bool = True
+    # Background loops (services/background.py): the revalidation outbox worker,
+    # the expiry sweeper and the access reconciler. Each takes a Mongo lease so
+    # only one API worker runs it. Off in tests (they call the loops' bodies).
+    background_workers_enabled: bool = True
 
     # ── Custom domains ───────────────────────────────────────────────────────
     # Attaching a verified host to the hosting project so TLS is issued. Left
@@ -192,6 +201,27 @@ class Settings(BaseSettings):
     # hiding whose it is. Some DNS providers offer ALIAS/ANAME records that
     # behave like a CNAME at the apex; those can use the target above instead.
     custom_domain_apex_ip: str = "76.76.21.21"
+    # Scheduled re-verification (services/domain_monitor.py). Every verified
+    # domain's TXT *and* routing record are re-read once per interval; a domain
+    # whose checks keep failing for `domain_lapse_after_hours` is lapsed:
+    # detached from hosting, no longer resolved, no tokens, no CORS. One worker
+    # runs each pass (a Mongo lease); the others only wake to see whether one is
+    # due, every `domain_recheck_poll_seconds`.
+    domain_recheck_enabled: bool = True
+    domain_recheck_interval_seconds: int = 24 * 3600
+    domain_recheck_poll_seconds: int = 15 * 60
+    domain_lapse_after_hours: int = 72
+    # An unverified claim holds nothing and expires: without this a typed-in
+    # hostname squatted it for every other workspace forever.
+    domain_pending_ttl_days: int = 7
+
+    # Shared secret between the frontend's server and this API
+    # (MARKDROP_INTERNAL_SECRET; the frontend reads MARKDROP_INTERNAL_SECRET or
+    # INTERNAL_API_SECRET). A server-side tenant render signs
+    # `X-Markdrop-Internal` with it and is exempt from per-IP rate limits, which
+    # otherwise count every reader of every custom domain as one Vercel egress
+    # address. Blank: nothing is exempt.
+    internal_secret: str = ""
 
     # ── PostHog (product analytics and session replay) ───────────────────────
     # The browser sends events with the public project key (frontend

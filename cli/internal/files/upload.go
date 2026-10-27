@@ -44,7 +44,9 @@ type UploadOptions struct {
 	Title       string
 	Access      string // link | private | password | workspace (new uploads)
 	Password    string
-	Workspace   string
+	Workspace   string // workspace id to file a new upload in
+	Folder      string // folder of that workspace (id or path); needs Workspace
+	Slug        string // custom address for a new upload; "" = from the file name
 	ContentType string // "" = from the file name
 
 	OnProgress func(Progress) // optional
@@ -150,13 +152,14 @@ func (u *Uploader) Upload(ctx context.Context, opts UploadOptions) (*Result, err
 	if ctype == "" {
 		ctype = ContentTypeFor(name)
 	}
-	access, password, workspace := opts.Access, opts.Password, opts.Workspace
+	access, password, workspace, folder, slug := opts.Access, opts.Password, opts.Workspace, opts.Folder, opts.Slug
 	if opts.TargetSlug != "" {
-		access, password, workspace = "", "", "" // a replace keeps the document's access
+		// A replace keeps the document's link, access and place.
+		access, password, workspace, folder, slug = "", "", "", "", ""
 	}
 	req := CreateUploadRequest{
 		FileName: name, SizeBytes: size, ContentType: ctype, SHA256: sum, TargetSlug: opts.TargetSlug,
-		Title: opts.Title, Access: access, Password: password, Workspace: workspace,
+		Title: opts.Title, Access: access, Password: password, Workspace: workspace, Folder: folder, Slug: slug,
 	}
 	st := newStateStore(u.StateDir)
 	key := stateKey(u.Client.Base, abs, size, fi.ModTime().UnixNano(), sum, req)

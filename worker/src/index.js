@@ -218,8 +218,31 @@ function baseHeaders() {
   };
 }
 
+/**
+ * Access epoch (access policy §5.3): the API bumps a document's epoch on every
+ * narrowing (made private, password added or changed, require sign-in turned
+ * on) and writes it onto the object as customMetadata.ae. Every signed token
+ * carries the epoch it was minted under as claim `e`. When the object has an
+ * `ae` and the token's `e` differs, the token predates the narrowing: refuse
+ * it, so narrowing revokes every signed link already handed out. Objects with
+ * no `ae` (never narrowed, or written before epochs existed) accept any valid
+ * token, as before.
+ */
+function epochMatches(claims, objectEpoch) {
+  if (objectEpoch === undefined || objectEpoch === null || objectEpoch === "") return true;
+  return claims.e !== undefined && claims.e !== null && String(claims.e) === String(objectEpoch);
+}
+
+/** `attachment` with a sanitised filename (ASCII fallback + RFC 5987 UTF-8). */
+function attachmentDisposition(name) {
+  const raw = (name || "").slice(0, 200).replace(/[\u0000-\u001f\u007f"\\/]/g, "").trim();
+  if (!raw) return "attachment";
+  const ascii = raw.replace(/[^\x20-\x7e]/g, "_");
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(raw)}`;
+}
+
 /** HS256 verify against the API's MARKDROP_ARTIFACT_SIGNING_KEY. */
-async function verifyToken(token, key, expectedBlobKey) {
+async function verifyToken(token, key, expectedBlobKey, objectEpoch) {
   try {
     const [h, p, s] = token.split(".");
     if (!h || !p || !s) return false;
@@ -238,8 +261,9 @@ async function verifyToken(token, key, expectedBlobKey) {
     const claims = JSON.parse(atob(p.replace(/-/g, "+").replace(/_/g, "/")));
     if (!claims.exp || claims.exp * 1000 < Date.now()) return false;
     // Bind the token to this exact object, so one unlocked artifact's token
-    // can't be replayed against another.
-    return claims.k === expectedBlobKey;
+    // can't be replayed against another, and to the object's current access
+    // epoch, so a narrowing revokes it.
+    return claims.k === expectedBlobKey && epochMatches(claims, objectEpoch);
   } catch {
     return false;
   }
@@ -262,7 +286,7 @@ async function serveRaw(blobKey, url, env, request) {
   const isPublic = head.customMetadata?.public === "1";
   const token = url.searchParams.get("t");
   if (!isPublic) {
-    if (!token || !(await verifyToken(token, env.ARTIFACT_SIGNING_KEY, blobKey))) {
+    if (!token || !(await verifyToken(token, env.ARTIFACT_SIGNING_KEY, blobKey, head.customMetadata?.ae))) {
       // An HTML artifact's frame whose 15-minute token lapsed lands here on
       // reload: show the page, still with 403 and still without a byte of the
       // object. Non-page callers get the plain body exactly as before.
@@ -282,7 +306,13 @@ async function serveRaw(blobKey, url, env, request) {
   // anyone drag the scrubber, whatever the current request asked for.
   headers.set("accept-ranges", "bytes");
 
-  if (INLINE_TYPES.has(type)) {
+  if (url.searchParams.get("dl") === "1") {
+    // A download link (no fetch): on a workspace's own domain the app can't
+    // read these bytes cross-origin (CORS here lists only the app's origins),
+    // so it links here with ?dl=1 and the browser saves the file instead of
+    // navigating. The name is the caller's suggestion, reduced to safe chars.
+    headers.set("content-disposition", attachmentDisposition(url.searchParams.get("fn")));
+  } else if (INLINE_TYPES.has(type)) {
     headers.set("content-disposition", "inline");
   } else {
     // Unknown type: never render it, hand it over as a download.

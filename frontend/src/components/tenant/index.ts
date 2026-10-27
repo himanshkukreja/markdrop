@@ -9,6 +9,7 @@ export { TenantFooter } from "./TenantFooter";
 export { TenantNotFound } from "./TenantNotFound";
 export { TenantError } from "./TenantError";
 export { TenantFolderIndex, type TenantFolderIndexProps } from "./TenantFolderIndex";
+export { TenantFolderPage, type TenantFolderPageProps } from "./TenantFolderPage";
 export { TenantHome } from "./TenantHome";
 export { TenantHandoff } from "./TenantHandoff";
 export { TenantLoading } from "./TenantLoading";

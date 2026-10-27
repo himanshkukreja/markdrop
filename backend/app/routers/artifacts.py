@@ -118,7 +118,23 @@ async def create_upload_url(
             detail=f"File is larger than the {limit // (1024*1024)} MB limit for this type.",
         )
 
-    allowed, used = await art_service.check_quota(db, user.id, data.size_bytes)
+    if data.target_slug:
+        # A replacement: the bytes count against the file's owner, and a
+        # non-owner never makes the owner's old versions disappear (Q6). The
+        # authoritative checks run again at PUT /{slug}/file; this just spares
+        # an upload that would be refused there.
+        from app.services import file_uploads
+
+        target = await file_uploads.editable_artifact(db, user, data.target_slug, action="replace")
+        if not target.get("bundle_prefix") and mime != "application/zip":
+            plan = await file_versions.quota_plan(db, target["owner_id"], target, data.size_bytes)
+            if plan is None or (plan and target["owner_id"] != user.id):
+                raise HTTPException(status_code=507, detail=file_versions.quota_message())
+            allowed = True
+        else:
+            allowed, used = await art_service.check_quota(db, target["owner_id"], data.size_bytes)
+    else:
+        allowed, used = await art_service.check_quota(db, user.id, data.size_bytes)
     if not allowed:
         raise HTTPException(
             status_code=507,
@@ -342,6 +358,25 @@ async def paste_html(
     )
 
 
+async def _artifact_response(db, raw: dict, user: User) -> ArtifactResponse:
+    from app.services import publicity, urls
+    from app.services.document import _doc_from_mongo
+
+    doc = _doc_from_mongo(raw)
+    return ArtifactResponse(**art_service.to_response(
+        doc, is_owner=raw.get("owner_id") == user.id,
+        public=await publicity.doc_is_public(db, raw),
+        workspace_url=await urls.workspace_url(db, raw)))
+
+
+def _actor_ctx(request: Request, db, user: User):
+    from app.services import access
+    from app.utils.net import get_client_ip
+
+    return (access.actor_from_request(request, user),
+            access.Ctx(db, surface="rest", ip=get_client_ip(request)))
+
+
 @router.patch("/{slug}", response_model=ArtifactResponse)
 @limiter.limit("30/minute")
 async def update_artifact_settings(
@@ -351,41 +386,27 @@ async def update_artifact_settings(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """Edit an artifact's title, password or expiry.
+    """Edit an artifact's title (owner, editors, members on non-private files)
+    or its password / expiry (owner only, A3).
 
     Separate from the markdown update route because that one requires a
-    `content` body, which an artifact doesn't have. Slug changes and deletion
-    reuse the shared document endpoints.
+    `content` body, which an artifact doesn't have. Publicity, the access epoch,
+    cache purges and live events follow from services/transitions.py.
     """
     _require_configured()
-    doc = await art_service.update_settings(
+    actor, ctx = _actor_ctx(request, db, user)
+    after = await art_service.update_settings(
         db,
         slug,
-        user.id,
+        actor,
+        ctx,
         title=data.title,
         read_password=data.read_password,
         remove_password=data.remove_password,
         expires_in=data.expires_in,
         custom_expires_at=data.custom_expires_at,
     )
-    if doc is None:
-        raise HTTPException(status_code=404, detail="Artifact not found")
-
-    # Adding or clearing a password has to move the stored object across the
-    # Worker's fail-closed boundary. Without this the document reports itself as
-    # protected while the bytes stay readable to anyone holding the URL.
-    is_public = not art_service.is_guarded(
-        has_password=bool(doc.read_password_hash), access_level=doc.access_level
-    )
-    if doc.bundle_prefix:
-        await run_in_threadpool(r2.set_public_prefix, doc.bundle_prefix, is_public)
-    elif doc.blob_key:
-        await run_in_threadpool(r2.set_public, doc.blob_key, is_public, doc.mime)
-    if doc.poster_key:
-        await run_in_threadpool(r2.set_public, doc.poster_key, is_public, "image/jpeg")
-
-    live.publish(doc.slug, doc.rev)
-    return ArtifactResponse(**art_service.to_response(doc, is_owner=True))
+    return await _artifact_response(db, after, user)
 
 
 @router.put("/{slug}/file", response_model=ArtifactResponse)
@@ -399,10 +420,18 @@ async def replace_artifact_file(
 ):
     """Swap the file behind an artifact, keeping its URL and settings.
 
+    Single file → single file: can(replace_file) — the owner, editor grantees
+    and workspace members on non-private files (Q6); counted against the
+    **owner's** quota, and a non-owner whose upload would need the owner's old
+    versions dropped gets 507 instead. Either side a zipped site:
+    can(replace_bundle) — owner only.
+
     Same verify-then-commit shape as creation: the object is HEADed for its real
     size and type before anything is written, and the previous object (or bundle
     prefix) is freed only once the swap has succeeded.
     """
+    from app.services import access
+
     _require_configured()
     if not data.blob_key.startswith(f"art/{user.id}/"):
         raise HTTPException(status_code=403, detail="This upload does not belong to you.")
@@ -411,8 +440,6 @@ async def replace_artifact_file(
     if not meta:
         raise HTTPException(status_code=404, detail="Upload not found — please try again.")
 
-    # Same rules as creation: the real type sets the ceiling (a video may be far
-    # bigger than a document), measured on the real size, not the declared one.
     mime = art_service.normalize_mime(meta["content_type"], data.filename)
     real_limit = art_service.max_bytes_for(mime) if mime else settings.artifact_max_bytes
     if meta["size"] > real_limit:
@@ -425,23 +452,25 @@ async def replace_artifact_file(
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(status_code=415, detail="Unsupported file type.")
 
-    current = await db["documents"].find_one(
-        {"slug": slug, "owner_id": user.id, "kind": "artifact"}
-    )
-    if current is None:
+    actor, ctx = _actor_ctx(request, db, user)
+    current = await db["documents"].find_one({"slug": slug})
+    bundle_swap = mime == "application/zip" or bool((current or {}).get("bundle_prefix"))
+    decision = await access.can(actor, current, "replace_bundle" if bundle_swap else "replace_file", ctx)
+    if not decision.allowed or current.get("kind") != "artifact":
         await run_in_threadpool(r2.delete, data.blob_key)
+        if not decision.allowed:
+            raise decision.exception()
         raise HTTPException(status_code=404, detail="Artifact not found")
 
-    if mime != "application/zip" and not current.get("bundle_prefix"):
+    if not bundle_swap:
         return await _replace_keeping_version(db, user, current, data, mime, meta["size"])
 
-    # A zipped site on either side: no versions (services/file_versions.py).
-    # Quota on the real size, counting everything the file had as freed.
+    owner_id = current["owner_id"]
     freed = sum(
         int(r.get("size_bytes") or 0)
         for r in {r["blob_key"]: r for r in await file_versions.rows_for(db, current)}.values()
     )
-    allowed, _ = await art_service.check_quota(db, user.id, meta["size"] - freed)
+    allowed, _ = await art_service.check_quota(db, owner_id, meta["size"] - freed)
     if not allowed:
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(status_code=507, detail=file_versions.quota_message())
@@ -455,7 +484,7 @@ async def replace_artifact_file(
     doc, old_key = await art_service.replace_file(
         db,
         slug,
-        user.id,
+        owner_id,
         blob_key=blob_key,
         bundle_prefix=bundle_prefix,
         mime=mime,
@@ -463,46 +492,44 @@ async def replace_artifact_file(
         filename=data.filename,
     )
     if doc is None:
-        # Don't leave the just-uploaded bytes orphaned when the swap is refused.
         if bundle_prefix:
             await run_in_threadpool(r2.delete_prefix, bundle_prefix)
         else:
             await run_in_threadpool(r2.delete, blob_key)
         raise HTTPException(status_code=404, detail="Artifact not found")
 
-    # Inherit the artifact's privacy: a replacement file on a password-protected
-    # artifact must not come back publicly readable.
-    is_public = not art_service.is_guarded(
-        has_password=bool(doc.read_password_hash), access_level=doc.access_level
-    )
+    from app.services import publicity
+
+    fresh = await db["documents"].find_one({"_id": current["_id"]})
+    is_public = await publicity.doc_is_public(db, fresh)
     if bundle_prefix:
-        await run_in_threadpool(r2.set_public_prefix, bundle_prefix, is_public)
+        await run_in_threadpool(r2.set_public_prefix, bundle_prefix, is_public, doc.access_epoch)
     else:
-        await run_in_threadpool(r2.set_public, blob_key, is_public, mime)
+        await run_in_threadpool(r2.set_public, blob_key, is_public, mime, doc.access_epoch)
 
     if old_key:
         if old_key.endswith("/"):
             await run_in_threadpool(r2.delete_prefix, old_key)
         else:
             await run_in_threadpool(r2.delete, old_key)
-    # Any versions the old single file had (and its poster) go with it.
     await file_versions.forget_document(db, str(current["_id"]), {"poster_key": current.get("poster_key")})
 
     live.publish(doc.slug, doc.rev)
-    revalidate.page(doc.slug)
-    return ArtifactResponse(**art_service.to_response(doc, is_owner=True))
+    await revalidate.purge_doc(db, fresh)
+    return await _artifact_response(db, fresh, user)
 
 
 async def _replace_keeping_version(db, user: User, current: dict, data: ArtifactReplaceRequest,
                                    mime: str, size: int) -> ArtifactResponse:
     """A single file replaced by a single file: the new bytes become a new
     version and the old ones are kept (restorable), within the version and
-    quota rules of services/file_versions.py."""
-    from app.services import file_uploads
-    from app.services.document import _doc_from_mongo
+    quota rules of services/file_versions.py — measured on the owner."""
+    from app.services import file_uploads, publicity
 
-    plan = await file_versions.quota_plan(db, user.id, current, size, new_blob_key=data.blob_key)
-    if plan is None:
+    owner_id = current["owner_id"]
+    plan = await file_versions.quota_plan(db, owner_id, current, size, new_blob_key=data.blob_key)
+    if plan is None or (plan and owner_id != user.id):
+        # Q6: a non-owner never makes the owner's old versions disappear.
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(status_code=507, detail=file_versions.quota_message())
     swapped = await file_versions.swap(
@@ -513,10 +540,11 @@ async def _replace_keeping_version(db, user: User, current: dict, data: Artifact
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(status_code=404, detail="Artifact not found")
     before, after, version = swapped
+    ra = await publicity.workspace_requires_auth(db, after.get("workspace_id"))
     # A presigned PUT leaves the object unmarked (private); the swap's
     # publicity step marks it public only if the artifact is.
-    await file_versions.apply_publicity(before, after, new_blob_already=False)
+    await file_versions.apply_publicity(before, after, new_blob_already=False, require_auth=ra)
     await file_versions.prune(db, after, plan)
     await file_uploads.after_swap(db, before, after, version, action="replace",
                                   user_id=user.id, probe=True)
-    return ArtifactResponse(**art_service.to_response(_doc_from_mongo(after), is_owner=True))
+    return await _artifact_response(db, after, user)

@@ -102,25 +102,40 @@ def file_url(slug: str) -> str:
 # ── Resolving the target and its owner ───────────────────────────────────────
 
 
-async def owned_artifact(db: AsyncIOMotorDatabase, user, slug: str, *, action: str) -> dict:
-    """The user's own file at ``slug``. 404 when there's nothing there (or
-    nothing they can see), 403 when it's someone else's they can read, 409
-    for a markdown document."""
-    from app.services import access as access_service
+def _actor(user):
+    from app.services import access
+
+    return access.Actor.of(user, getattr(user, "_cred", "session"))
+
+
+async def editable_artifact(db: AsyncIOMotorDatabase, user, slug: str, *, action: str,
+                            perm: str = "replace_file", scope: str | None = None) -> dict:
+    """The file at ``slug`` if ``user`` may ``perm`` it (access.can): the owner,
+    an editor grantee or a workspace member on a non-private file (Q6). 404
+    when there's nothing there (or nothing they can read), 403 when they can
+    read but not change it, 409 for a markdown document or a zipped site."""
+    from app.services import access
 
     raw = await db["documents"].find_one({"slug": slug})
-    if not raw:
-        raise HTTPException(status_code=404, detail=f"There's no document at {slug}.")
-    if raw.get("owner_id") != user.id:
-        if await access_service.can_read(db, raw, user.id, getattr(user, "email", None)):
-            raise HTTPException(status_code=403, detail=f"You can only {action} files you own.")
-        raise HTTPException(status_code=404, detail=f"There's no document at {slug}.")
+    d = await access.can(_actor(user), raw, perm, access.Ctx(db, workspace_scope=scope))
+    if not d.allowed:
+        if d.status in (401, 404):
+            raise HTTPException(status_code=404, detail=f"There's no document at {slug}.")
+        raise HTTPException(status_code=d.status, detail=(
+            f"You can only {action} files you own or can edit." if d.code == "forbidden" else d.detail))
     if raw.get("kind") != "artifact":
         raise HTTPException(
             status_code=409,
             detail=f"{slug} is a markdown document, not a file; use update_document to change it.",
         )
     return raw
+
+
+async def owned_artifact(db: AsyncIOMotorDatabase, user, slug: str, *, action: str) -> dict:
+    """Kept for callers: now means "a file this user may change" (editable_artifact)."""
+    perm = {"replace": "replace_file", "see the versions of": "list_versions",
+            "restore versions of": "restore_version"}.get(action, "replace_file")
+    return await editable_artifact(db, user, slug, action=action, perm=perm)
 
 
 def require_single_blob(raw: dict) -> None:
@@ -173,9 +188,23 @@ async def _expire(db: AsyncIOMotorDatabase, sess: dict, state: str = "expired") 
         await run_in_threadpool(r2.abort_multipart, sess["key"], sess["r2_upload_id"])
 
 
-async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
+async def _require_free_slug(db: AsyncIOMotorDatabase, slug: str, user_id: str) -> None:
+    """409 when a custom address can't be had (reserved, taken, or held for
+    someone else) — the same words the website uses."""
+    from app.services import document as doc_service
+    from app.utils.slug import is_reserved_slug
+
+    if is_reserved_slug(slug):
+        raise HTTPException(status_code=409, detail=f"The address {slug} is reserved. Choose another.")
+    taken = await db["documents"].find_one({"slug": slug}, {"_id": 1}) is not None
+    if taken or not await doc_service._slug_free(db, slug, user_id):
+        raise HTTPException(status_code=409, detail=f"The address {slug} is already taken. Choose another.")
+
+
+async def create(db: AsyncIOMotorDatabase, user, data, *, scope: str | None = None) -> dict:
     """Validate everything that can be validated before a byte moves, then
-    open the R2 multipart upload and presign its parts."""
+    open the R2 multipart upload and presign its parts. ``scope``: the
+    workspace of the custom domain the target was named by (C10)."""
     sha = data.sha256.lower()
     mime = art_service.normalize_mime(data.content_type, data.file_name)
     if not mime:
@@ -196,15 +225,18 @@ async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
         )
 
     target: dict | None = None
-    level, password_hash, workspace = "link", None, None
+    level, password_hash, workspace, folder_id = "link", None, None, None
+    folder = getattr(data, "folder", None)
+    custom_slug = getattr(data, "slug", None) or None
     if data.target_slug:
-        if data.access is not None or data.password is not None or data.workspace is not None:
+        if (data.access is not None or data.password is not None or data.workspace is not None
+                or folder is not None or custom_slug is not None):
             raise HTTPException(
                 status_code=422,
-                detail=("access, password and workspace apply to new uploads only; a replaced "
-                        "file keeps its link's settings (change them with set_access)."),
+                detail=("access, password, workspace, folder and slug apply to new uploads only; a "
+                        "replaced file keeps its link and settings (change them with set_access)."),
             )
-        target = await owned_artifact(db, user, data.target_slug, action="replace")
+        target = await editable_artifact(db, user, data.target_slug, action="replace", scope=scope)
         require_single_blob(target)
     else:
         access = data.access or ("workspace" if data.workspace else ("password" if data.password else "link"))
@@ -214,19 +246,36 @@ async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
             raise HTTPException(status_code=422, detail='A password only applies when access is "password".')
         if access == "workspace" and not data.workspace:
             raise HTTPException(status_code=422, detail='Access "workspace" needs a workspace id.')
+        if folder is not None and not data.workspace:
+            raise HTTPException(status_code=422, detail="A folder needs a workspace.")
         if data.workspace:
             from app.services import workspace as ws_service
 
             await ws_service.require_role(db, data.workspace, user.id, "member")
+            await ws_service.assert_open(db, data.workspace)  # C-N5
             workspace = data.workspace
+            if folder is not None:
+                from app.services import folder as folder_service
+
+                folder_id = await folder_service.resolve_ref(db, workspace, folder)
         level = access
         if data.password:
             password_hash = bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode()
+        if custom_slug is not None:
+            await _require_free_slug(db, custom_slug, user.id)
+            if workspace:
+                from app.services import folder as folder_service
+
+                # B5: refused up front rather than failing at commit.
+                await folder_service.assert_doc_fits(db, workspace, folder_id, custom_slug)
 
     await sweep_expired(db, user.id)
 
-    plan = await file_versions.quota_plan(db, user.id, target, data.size_bytes)
-    if plan is None:
+    # Usage counts against the file's owner (Q6); a non-owner replacing never
+    # makes the owner's old versions disappear — that is a 507 for them.
+    quota_owner = target["owner_id"] if target is not None else user.id
+    plan = await file_versions.quota_plan(db, quota_owner, target, data.size_bytes)
+    if plan is None or (plan and quota_owner != user.id):
         raise HTTPException(status_code=507, detail=file_versions.quota_message())
 
     now = _now()
@@ -236,7 +285,7 @@ async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
         "user_id": user.id, "state": "uploading", "expires_at": {"$gt": now},
         "sha256": sha, "size_bytes": data.size_bytes, "file_name": data.file_name, "mime": mime,
         "target_slug": data.target_slug or None, "title": data.title, "access": level,
-        "workspace": workspace,
+        "workspace": workspace, "folder_id": folder_id, "slug": custom_slug,
     })
     if same is not None:
         if password_hash:
@@ -255,10 +304,15 @@ async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
     part_count = max(1, math.ceil(data.size_bytes / part_size))
     key = art_service.make_blob_key(user.id, mime)
     if target is not None:
-        public = file_versions.is_public(target)
+        from app.services import publicity
+
+        public = await publicity.doc_is_public(db, target)
     else:
-        public = not art_service.is_guarded(has_password=bool(password_hash),
-                                            access_level="link" if level == "password" else level)
+        # Born private when it is to be filed: it opens only once filing (and
+        # the workspace's own rules) succeeded at commit (A11).
+        public = workspace is None and not art_service.is_guarded(
+            has_password=bool(password_hash),
+            access_level="link" if level == "password" else level)
     try:
         r2_upload_id = await run_in_threadpool(r2.create_multipart, key, mime, public)
     except Exception:
@@ -283,6 +337,8 @@ async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
         "title": data.title,
         "access": level,
         "workspace": workspace,
+        "folder_id": folder_id,
+        "slug": custom_slug,
         "read_password_hash": password_hash,
         "public_at_create": public,
         "created_at": now,
@@ -590,9 +646,21 @@ async def _commit(db: AsyncIOMotorDatabase, sess: dict) -> tuple[dict, bool]:
     return await _commit_new(db, sess)
 
 
+async def _result_for(db: AsyncIOMotorDatabase, raw: dict, version: int, sess: dict,
+                      workspace_error: str | None = None) -> dict:
+    from app.services import urls
+
+    out = _result(raw["slug"], version, sess)
+    out["workspace_url"] = await urls.workspace_url(db, raw)
+    out["url"] = out["workspace_url"] or out["markdrop_url"]
+    out["workspace_error"] = workspace_error
+    return out
+
+
 def _result(slug: str, version: int, sess: dict) -> dict:
     return {
         "url": file_url(slug),
+        "markdrop_url": file_url(slug),
         "slug": slug,
         "version": int(version),
         "size_bytes": int(sess["size_bytes"]),
@@ -602,14 +670,28 @@ def _result(slug: str, version: int, sess: dict) -> dict:
 
 
 async def _commit_replace(db: AsyncIOMotorDatabase, sess: dict) -> tuple[dict, bool]:
+    from app.services import access, publicity
+    from app.services import user as user_service
+
     raw = await db["documents"].find_one({"_id": ObjectId(sess["target_doc_id"])})
-    if not raw or raw.get("owner_id") != sess["user_id"] or raw.get("kind") != "artifact":
-        raise UploadFailed(404, f"The file at {sess['target_slug']} no longer exists, so nothing was replaced.")
+    gone = f"The file at {sess['target_slug']} no longer exists, so nothing was replaced."
+    if not raw or raw.get("kind") != "artifact":
+        raise UploadFailed(404, gone)
     if raw.get("bundle_prefix"):
         raise UploadFailed(409, f"{raw['slug']} became a zipped website, which has no versions.")
-    plan = await file_versions.quota_plan(db, sess["user_id"], raw, int(sess["size_bytes"]),
+    # Permission is re-checked at commit (A11): the uploader may have lost
+    # access since `create` (removed from the workspace, grant revoked).
+    user = await user_service.get_user_by_id(db, sess["user_id"])
+    d = await access.can(access.Actor.of(user), raw, "replace_file", access.Ctx(db)) if user else None
+    if d is None or not d.allowed:
+        if d is not None and d.status == 403:
+            raise UploadFailed(403, f"You can no longer replace the file at {sess['target_slug']}; "
+                                    "nothing was replaced.")
+        raise UploadFailed(404, gone)
+    owner_id = raw["owner_id"]
+    plan = await file_versions.quota_plan(db, owner_id, raw, int(sess["size_bytes"]),
                                           new_blob_key=sess["key"])
-    if plan is None:
+    if plan is None or (plan and owner_id != sess["user_id"]):
         raise UploadFailed(507, file_versions.quota_message())
     swapped = await file_versions.swap(
         db, raw, blob_key=sess["key"], size_bytes=int(sess["size_bytes"]), mime=sess["mime"],
@@ -620,13 +702,15 @@ async def _commit_replace(db: AsyncIOMotorDatabase, sess: dict) -> tuple[dict, b
     before, after, version = swapped
     # From here the new bytes are live: a failure below must not delete them.
     try:
-        await file_versions.apply_publicity(before, after, new_blob_already=sess.get("public_at_create"))
+        ra = await publicity.workspace_requires_auth(db, after.get("workspace_id"))
+        await file_versions.apply_publicity(before, after, new_blob_already=sess.get("public_at_create"),
+                                            require_auth=ra)
         await file_versions.prune(db, after, plan)
     except Exception:
         log.warning("post-swap housekeeping failed for %s", after.get("slug"), exc_info=True)
     await after_swap(db, before, after, version, action="replace", user_id=sess["user_id"],
                      probe=True)
-    return _result(after["slug"], version, sess), True
+    return await _result_for(db, after, version, sess), True
 
 
 async def _commit_new(db: AsyncIOMotorDatabase, sess: dict) -> tuple[dict, bool]:
@@ -637,12 +721,19 @@ async def _commit_new(db: AsyncIOMotorDatabase, sess: dict) -> tuple[dict, bool]
     access = sess.get("access") or "link"
     # Born private, and opened up only once its password or workspace is in
     # place: the document is never more reachable than asked, even for a moment.
-    level = "link" if access == "link" else "private"
-    doc, _secret = await art_service.create_artifact(
-        db, user_id=sess["user_id"], blob_key=sess["key"], mime=sess["mime"], size_bytes=size,
-        title=sess.get("title"), filename=sess["file_name"], preferred_slug=sess["file_name"],
-        access_level=level,
-    )
+    level = "link" if access == "link" and not sess.get("workspace") else "private"
+    try:
+        doc, _secret = await art_service.create_artifact(
+            db, user_id=sess["user_id"], blob_key=sess["key"], mime=sess["mime"], size_bytes=size,
+            title=sess.get("title"), filename=sess["file_name"], preferred_slug=sess["file_name"],
+            custom_slug=sess.get("slug") or None, access_level=level,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 409 and sess.get("slug"):
+            # Claimed by someone else while the bytes were on their way.
+            raise UploadFailed(409, f"The address {sess['slug']} was taken while the file uploaded. "
+                                    "Upload it again with another slug.")
+        raise
     # A document now points at the object: whatever happens next, keep it.
     try:
         return await _finish_new(db, sess, doc.slug, access), True
@@ -653,42 +744,62 @@ async def _commit_new(db: AsyncIOMotorDatabase, sess: dict) -> tuple[dict, bool]
 
 async def _finish_new(db: AsyncIOMotorDatabase, sess: dict, slug: str, access: str) -> dict:
     from app.services import access as access_service
+    from app.services import publicity
 
     size = int(sess["size_bytes"])
     raw = await db["documents"].find_one({"slug": slug})
     now = _now()
     extra = {"sha256": sess["sha256"], "file_version": 1, "file_updated_at": now}
-    if access == "password" and sess.get("read_password_hash"):
+    if access == "password" and sess.get("read_password_hash") and not sess.get("workspace"):
         extra["read_password_hash"] = sess["read_password_hash"]
         extra["access_level"] = "link"
     await db["documents"].update_one({"_id": raw["_id"]}, {"$set": extra})
     raw = await db["documents"].find_one({"_id": raw["_id"]})
     await file_versions.ensure_current_row(db, raw)
 
+    workspace_error = None
     if sess.get("workspace"):
+        # Filed at commit, with membership re-checked now (A11). On failure the
+        # file stays private and the result says why.
         try:
             from app.services import library as lib_service
             from app.services import user as user_service
 
             user = await user_service.get_user_by_id(db, sess["user_id"])
-            await lib_service.add_document(db, sess["workspace"], str(raw["_id"]), user)
-            if access == "workspace":
+            if user is None:
+                raise HTTPException(status_code=404, detail="Workspace not found")
+            actor = access_service.Actor.of(user)
+            ctx = access_service.Ctx(db)
+            await lib_service.add_document(db, sess["workspace"], str(raw["_id"]), user,
+                                           sess.get("folder_id"))
+            fresh = await db["documents"].find_one({"_id": raw["_id"]})
+            if access == "password" and sess.get("read_password_hash"):
+                await db["documents"].update_one(
+                    {"_id": raw["_id"]}, {"$set": {"read_password_hash": sess["read_password_hash"]}})
                 fresh = await db["documents"].find_one({"_id": raw["_id"]})
-                await access_service.set_level(db, fresh, "workspace", sess["user_id"])
+                await access_service.set_level(db, fresh, "link", actor, ctx)
+            elif access in ("link", "workspace"):
+                await access_service.set_level(db, fresh, access, actor, ctx)
+        except HTTPException as exc:
+            workspace_error = (f"The file was uploaded but couldn't be added to the workspace "
+                               f"({exc.detail}). It is private to you.")
+            log.warning("adding upload %s to workspace failed: %s", sess["_id"], exc.detail)
         except Exception:
-            # The file stays private to its owner: never more open than asked.
+            workspace_error = ("The file was uploaded but couldn't be added to the workspace. "
+                               "It is private to you.")
             log.warning("adding upload %s to workspace failed", sess["_id"], exc_info=True)
         raw = await db["documents"].find_one({"_id": raw["_id"]})
 
-    public = file_versions.is_public(raw)
+    public = await publicity.doc_is_public(db, raw)
     if public != bool(sess.get("public_at_create")):
-        await run_in_threadpool(r2.set_public, sess["key"], public, sess["mime"])
+        await run_in_threadpool(r2.set_public, sess["key"], public, sess["mime"],
+                                publicity.epoch_of(raw))
     await file_versions.log_event(
         db, user_id=sess["user_id"], slug=raw["slug"], doc_id=str(raw["_id"]), action="upload",
         old_sha256=None, new_sha256=sess["sha256"], size_bytes=size, version=1,
     )
     media.schedule(db, str(raw["_id"]), 1, sess["key"], sess["mime"])
-    return _result(raw["slug"], 1, sess)
+    return await _result_for(db, raw, 1, sess, workspace_error)
 
 
 async def after_swap(db: AsyncIOMotorDatabase, before: dict, after: dict, version: int, *,
@@ -696,7 +807,7 @@ async def after_swap(db: AsyncIOMotorDatabase, before: dict, after: dict, versio
     """What every swap does once the document points at its new bytes: tell
     live viewers, purge the cached page, log it, and probe new media."""
     live.publish(after["slug"], int(after.get("rev", 1)))
-    revalidate.page(after["slug"])
+    await revalidate.purge_doc(db, after)
     await file_versions.log_event(
         db, user_id=user_id, slug=after["slug"], doc_id=str(after["_id"]), action=action,
         old_sha256=before.get("sha256"), new_sha256=after.get("sha256"),
@@ -716,16 +827,19 @@ def access_of(raw: dict) -> str:
     return "password" if raw.get("read_password_hash") else "link"
 
 
-def file_info(raw: dict) -> dict:
-    private = art_service.is_guarded(
-        has_password=bool(raw.get("read_password_hash")), access_level=raw.get("access_level")
-    )
-    blob = raw.get("blob_key") or ""
-    configured = r2.is_configured()
-    poster = raw.get("poster_key")
+def file_info(raw: dict, *, public: bool | None = None, workspace_url: str | None = None) -> dict:
+    """The file's details. ``public`` is publicity.is_public for the document
+    (``file_info_for`` computes it with the workspace); signed links otherwise."""
+    from app.services import publicity
+
+    if public is None:
+        public = publicity.is_public(raw, require_auth=False)
+    links = publicity.byte_urls(raw, public=public)
     return {
         "slug": raw["slug"],
-        "url": file_url(raw["slug"]),
+        "url": workspace_url or file_url(raw["slug"]),
+        "markdrop_url": file_url(raw["slug"]),
+        "workspace_url": workspace_url,
         "title": raw.get("title"),
         "content_type": raw.get("mime") or "application/octet-stream",
         "size_bytes": int(raw.get("size_bytes") or 0),
@@ -734,22 +848,29 @@ def file_info(raw: dict) -> dict:
         "updated_at": _aware(raw.get("updated_at")),
         "created_at": _aware(raw.get("created_at")),
         "media": raw.get("media"),
-        "poster_url": art_service.build_download_url(poster, private=private) if poster and configured else None,
-        "download_url": art_service.build_download_url(blob, private=private) if blob and configured else None,
+        "poster_url": links["poster_url"],
+        "download_url": links["download_url"],
         "access": access_of(raw),
     }
 
 
-async def readable_artifact(db: AsyncIOMotorDatabase, user, slug: str) -> dict:
-    """The file at ``slug`` for anyone who may read it: the owner, or someone
-    the website's own read path lets in (every gate applies)."""
+async def file_info_for(db: AsyncIOMotorDatabase, raw: dict) -> dict:
+    from app.services import publicity, urls
+
+    return file_info(raw, public=await publicity.doc_is_public(db, raw),
+                     workspace_url=await urls.workspace_url(db, raw))
+
+
+async def readable_artifact(db: AsyncIOMotorDatabase, user, slug: str, *,
+                            scope: str | None = None) -> dict:
+    """The file at ``slug`` (or the one that answered there before a rename,
+    Q4) for anyone access.can(read) admits — every gate applies, including a
+    custom domain's workspace ``scope``."""
+    from app.services import access
     from app.services import document as doc_service
 
-    raw = await db["documents"].find_one({"slug": slug})
-    if not raw:
-        raise HTTPException(status_code=404, detail=f"There's no document at {slug}.")
-    if raw.get("owner_id") != user.id:
-        await doc_service.get_document(db, slug, user_id=user.id, user_email=getattr(user, "email", None))
+    raw, _moved = await doc_service.find_for_read(db, slug)
+    await access.require(_actor(user), raw, "read", access.Ctx(db, workspace_scope=scope))
     if raw.get("kind") != "artifact":
         raise HTTPException(
             status_code=409,
@@ -787,9 +908,14 @@ async def restore(db: AsyncIOMotorDatabase, user, raw: dict, version: int) -> di
         )
     before, after, new_version = res
     if new_version != file_versions.current_version(before):
-        # A non-current blob is never public, so the restored one starts private.
-        await file_versions.apply_publicity(before, after, new_blob_already=False)
+        from app.services import publicity
+
+        ra = await publicity.workspace_requires_auth(db, after.get("workspace_id"))
+        # A non-current blob is never public, so the restored one starts
+        # private; its stale ``ae`` is replaced with the current epoch either way.
+        await file_versions.apply_publicity(before, after, new_blob_already=False, require_auth=ra,
+                                            stamp_epoch=True)
         await file_versions.prune(db, after)
         await after_swap(db, before, after, new_version, action="restore", user_id=user.id, probe=True)
     fresh = await db["documents"].find_one({"_id": raw["_id"]})
-    return file_info(fresh or after)
+    return await file_info_for(db, fresh or after)

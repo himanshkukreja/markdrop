@@ -24,10 +24,13 @@ export default function DnsInstructions({
   workspaceId,
   domain,
   siteName,
+  settled = false,
 }: {
   workspaceId: string;
   domain: Domain;
   siteName?: string;
+  /** The domain is verified: the records stay on show (they must stay in place), framed as a reference. */
+  settled?: boolean;
 }) {
   const [hint, setHint] = useState<DnsProviderHint | null>(null);
 
@@ -42,13 +45,15 @@ export default function DnsInstructions({
   }, [workspaceId, domain.id]);
 
   const hostLabel = hint?.detected ? hint.host_field || "Name" : "Name";
-  const recordHost = hint?.detected && hint.record_host ? hint.record_host : domain.dns_record_name;
-  const targetHost = hint?.detected && hint.target_host ? hint.target_host : domain.dns_target_name;
+  const recordHost = hint?.detected && hint.record_host ? hint.record_host : domain.dns_record_name ?? "";
+  const targetHost = hint?.detected && hint.target_host ? hint.target_host : domain.dns_target_name ?? "";
 
   return (
     <div className="flex min-w-0 flex-col gap-3 border-t border-border pt-4">
       <p className="text-body text-text-secondary">
-        Add these two records where your DNS lives, then check. Nothing changes for readers until both are in place.
+        {settled
+          ? "Keep both records in place. Markdrop re-checks them daily; a domain whose records are gone for three days stops serving."
+          : "Add these two records where your DNS lives, then check. Nothing changes for readers until both are in place."}
       </p>
 
       {hint?.detected && (
@@ -71,19 +76,38 @@ export default function DnsInstructions({
         <RecordBlock
           label="Ownership record"
           purpose={`Proves ${domain.host} is yours`}
-          type={domain.dns_record_type}
+          type={domain.dns_record_type ?? "TXT"}
           name={recordHost}
-          value={domain.dns_record_value}
+          value={domain.dns_record_value ?? ""}
           nameLabel={hostLabel}
+          found={domain.txt_ok}
         />
-        <RecordBlock
-          label="Routing record"
-          purpose="Sends readers to Markdrop"
-          type={domain.dns_target_type}
-          name={targetHost}
-          value={domain.dns_target_value}
-          nameLabel={hostLabel}
-        />
+        {domain.apex_certain === false && (domain.dns_routing_options?.length ?? 0) > 1 ? (
+          // We can't tell whether this host is an apex (T4): show every option and let the
+          // customer use the one their panel accepts.
+          domain.dns_routing_options!.map((o, i) => (
+            <RecordBlock
+              key={`${o.type}-${o.name}-${o.value}`}
+              label={i === 0 ? "Routing record" : "Or, if your panel refuses that one"}
+              purpose={i === 0 ? "Sends readers to Markdrop (add one of these)" : undefined}
+              type={o.type}
+              name={hint?.detected && hint.target_host && o.name === domain.dns_target_name ? hint.target_host : o.name}
+              value={o.value}
+              nameLabel={hostLabel}
+              found={domain.routing_ok}
+            />
+          ))
+        ) : (
+          <RecordBlock
+            label="Routing record"
+            purpose="Sends readers to Markdrop"
+            type={domain.dns_target_type ?? ""}
+            name={targetHost}
+            value={domain.dns_target_value ?? ""}
+            nameLabel={hostLabel}
+            found={domain.routing_ok}
+          />
+        )}
       </div>
 
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">

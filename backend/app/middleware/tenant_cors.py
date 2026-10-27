@@ -25,6 +25,7 @@ from starlette.responses import Response
 
 from app.config import get_settings
 from app.database import get_database
+from app.services import domain as domain_service
 
 settings = get_settings()
 
@@ -36,6 +37,11 @@ _CACHE_TTL_SECONDS = 60
 # miss costs a database round trip on the way.
 _CACHE_MAX_ENTRIES = 1024
 _cache: dict[str, tuple[bool, float]] = {}
+
+
+def clear_cache() -> None:
+    """Forget every cached answer (tests, and after a domain changes state)."""
+    _cache.clear()
 
 
 def _remember(origin: str, allowed: bool, now: float) -> None:
@@ -50,7 +56,15 @@ def _remember(origin: str, allowed: bool, now: float) -> None:
 
 
 async def _is_verified_origin(origin: str) -> bool:
-    """Whether this Origin belongs to a verified custom domain."""
+    """Whether this Origin is a *live* document domain: https, kind `app`,
+    verified, attached and not lapsed.
+
+    `cdn` hosts get nothing: they serve user-authored HTML and hold no session,
+    so there is no call they should be making with credentials. Plain http gets
+    nothing: a customer domain is served over TLS, and an http Origin claiming
+    it is a downgraded or spoofed page. Unattached and lapsed hosts get nothing:
+    they are not serving our pages, so whatever page is asking isn't ours.
+    """
     now = time.monotonic()
     hit = _cache.get(origin)
     if hit is not None and hit[1] > now:
@@ -64,15 +78,12 @@ async def _is_verified_origin(origin: str) -> bool:
         return False
     # A bare scheme + host only. An Origin carrying a path or credentials is
     # malformed and not worth matching against anything.
-    if origin.startswith(("https://", "http://")):
+    if origin.startswith("https://"):
         rest = origin.split("://", 1)[1]
-        if "/" not in rest and "@" not in rest:
-            host = rest.split(":")[0].lower()
+        if "/" not in rest and "@" not in rest and ":" not in rest:
+            host = domain_service.clean_host(rest)
             try:
-                found = await get_database()["domains"].find_one(
-                    {"host": host, "status": "verified"}, {"_id": 1}
-                )
-                allowed = found is not None
+                allowed = await domain_service.live_app_domain(get_database(), host) is not None
             except Exception:
                 # A database blip must not silently widen CORS.
                 allowed = False
@@ -81,11 +92,26 @@ async def _is_verified_origin(origin: str) -> bool:
     return allowed
 
 
+# Spelled out, not "*". With credentials allowed, a wildcard Allow-Headers is
+# taken literally by Safari and Firefox (it allows a header named "*") and
+# Authorization is never covered by the wildcard in any browser — so tenant
+# sign-in silently failed everywhere but Chrome's older behaviour.
+ALLOW_HEADERS = ", ".join((
+    "Authorization", "Content-Type", "Accept", "Accept-Language", "Content-Language",
+    "X-Read-Password", "X-Edit-Secret", "X-Markdrop-Workspace",
+))
+ALLOW_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+# Readable by the page's JavaScript: the gate kind of a 401, a renamed slug's
+# current address (Q4), and how long to wait after a 429.
+EXPOSE_HEADERS = "X-Markdrop-Gate, X-Markdrop-Moved, Retry-After"
+
+
 def _apply(response: Response, origin: str) -> None:
     response.headers["Access-Control-Allow-Origin"] = origin
     response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Allow-Methods"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = ALLOW_METHODS
+    response.headers["Access-Control-Allow-Headers"] = ALLOW_HEADERS
+    response.headers["Access-Control-Expose-Headers"] = EXPOSE_HEADERS
     # Without this a shared cache could hand one origin's CORS headers to another.
     response.headers["Vary"] = "Origin"
 

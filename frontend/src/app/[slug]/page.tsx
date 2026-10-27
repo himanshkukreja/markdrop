@@ -1,6 +1,6 @@
 import { Suspense } from "react";
-import { getDocument, API_BASE } from "@/lib/api";
-import { notFound } from "next/navigation";
+import { getDocument, ogImageUrl } from "@/lib/api";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import ArtifactView from "./ArtifactView";
 import { MarkdropLoader } from "@/components/ui";
@@ -47,11 +47,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Dynamic link-preview card, rendered server-side by the backend. The endpoint
   // is content-safe (generic card for password-protected / unknown slugs), so we
   // advertise it in both metadata branches.
-  // `v` busts link-preview caches for the redesigned card (REVAMP_PLAN 7.21).
-  const ogImage = `${API_BASE}/api/v1/og/${slug}.png?v=3`;
-  const images = [{ url: ogImage, width: 1200, height: 630, alt: "Markdrop" }];
+  // `v` busts link-preview caches for a redesigned card; `e` (the access epoch, `x` when the
+  // anonymous reader can't open it) busts them when the document is narrowed.
   try {
     const doc = await getDocument(slug, undefined, undefined, { revalidate: 60 });
+    const ogImage = ogImageUrl(slug, doc);
+    const images = [{ url: ogImage, width: 1200, height: 630, alt: "Markdrop" }];
     // An encrypted document has no readable title or body on this side — its
     // `content` is an envelope and `title` is null. Slicing it would put base64
     // in a link preview and still say nothing.
@@ -69,6 +70,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   } catch {
     // Password-protected or not found — generic metadata, still a rich card.
+    const ogImage = ogImageUrl(slug, null);
+    const images = [{ url: ogImage, width: 1200, height: 630, alt: "Markdrop" }];
     const title = `${slug} — Markdrop`;
     const description = "A document on Markdrop";
     return {
@@ -112,6 +115,10 @@ export default async function SlugPage({ params }: Props) {
     }
   }
 
+  // An old slug of a renamed document: 307 to the current one. (A gated document's old slug
+  // 401s here like any other; the signed-in client retry redirects in useDocumentViewer.)
+  if (doc?.moved && doc.slug && doc.slug !== slug) redirect(`/${encodeURIComponent(doc.slug)}`);
+
   // Artifacts render their file in a sandboxed iframe on the artifact origin
   // rather than as markdown, so they get their own viewer entirely.
   if (doc?.kind === "artifact") {
@@ -134,6 +141,7 @@ export default async function SlugPage({ params }: Props) {
         downloadUrl={doc.download_url ?? null}
         posterUrl={doc.poster_url ?? null}
         docRef={doc.ref ?? null}
+        readTicket={doc.read_ticket ?? null}
       />
       </Suspense>
       </div>
@@ -162,6 +170,7 @@ export default async function SlugPage({ params }: Props) {
       syncedWithVscode={doc?.vscode_synced ?? false}
       encrypted={doc?.encrypted ?? false}
       docRef={doc?.ref ?? null}
+      readTicket={doc?.read_ticket ?? null}
     />
     </Suspense>
     </div>
