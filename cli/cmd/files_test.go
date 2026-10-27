@@ -17,6 +17,7 @@ import (
 
 	"github.com/markdrop/cli/internal/files"
 	"github.com/markdrop/cli/internal/files/fakeapi"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 )
 
@@ -459,4 +460,68 @@ func TestKilledUploadResumes(t *testing.T) {
 		t.Errorf("state left after success: %v", states)
 	}
 	t.Logf("stored before kill: %d of %d parts; resumed run sent %d", len(before), parts, len(puts))
+}
+
+// The real `markdrop mcp` process over stdio, driven by an MCP client: the
+// file tools work end to end, with progress notifications, and stdout
+// carries nothing but the protocol.
+func TestMCPServerOverStdio(t *testing.T) {
+	e := setup(t)
+	e.fake.PartHook = func(string, int, int) int { time.Sleep(100 * time.Millisecond); return 0 }
+	path, data := randomFile(t, "talk.mp4", 5<<20+3)
+
+	c := cliProcess(t, e, "mcp")
+	var stderr bytes.Buffer
+	c.Stderr = &stderr
+	var mu sync.Mutex
+	var notes []*mcp.ProgressNotificationParams
+	client := mcp.NewClient(&mcp.Implementation{Name: "stdio-test", Version: "1"}, &mcp.ClientOptions{
+		ProgressNotificationHandler: func(_ context.Context, r *mcp.ProgressNotificationClientRequest) {
+			mu.Lock()
+			notes = append(notes, r.Params)
+			mu.Unlock()
+		},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cs, err := client.Connect(ctx, &mcp.CommandTransport{Command: c}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+	if v := cs.InitializeResult().ServerInfo.Version; v != version {
+		t.Errorf("server version %q", v)
+	}
+
+	p := &mcp.CallToolParams{Name: "upload_file", Arguments: map[string]any{"path": path}}
+	p.SetProgressToken(7)
+	res, err := cs.CallTool(ctx, p)
+	if err != nil || res.IsError {
+		t.Fatalf("upload_file: %v %+v", err, res)
+	}
+	out := res.StructuredContent.(map[string]any)
+	if out["slug"] != "talk" || out["size_bytes"] != float64(len(data)) || out["version"] != 1.0 {
+		t.Errorf("out %v", out)
+	}
+	mu.Lock()
+	got := append([]*mcp.ProgressNotificationParams(nil), notes...)
+	mu.Unlock()
+	if len(got) < 3 || got[len(got)-1].Progress != float64(len(data)) {
+		t.Errorf("progress notifications: %d", len(got))
+	}
+	for i, n := range got {
+		if i > 0 && n.Progress <= got[i-1].Progress {
+			t.Errorf("progress not increasing at %d", i)
+		}
+	}
+
+	res, err = cs.CallTool(ctx, &mcp.CallToolParams{Name: "get_file_info", Arguments: map[string]any{"document": "talk"}})
+	if err != nil || res.IsError || res.StructuredContent.(map[string]any)["content_type"] != "video/mp4" {
+		t.Fatalf("get_file_info %v %+v", err, res)
+	}
+	cs.Close()
+	if !strings.Contains(stderr.String(), "v"+version+" ready") || !strings.Contains(stderr.String(), "talk.mp4 → new file") {
+		t.Errorf("stderr %q", stderr.String())
+	}
+	t.Logf("%d progress notifications over stdio", len(got))
 }

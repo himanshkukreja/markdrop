@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/markdrop/cli/internal/files"
 	"github.com/markdrop/cli/internal/peer"
 	"github.com/markdrop/cli/internal/signaling"
 )
@@ -43,6 +44,13 @@ type Config struct {
 	Log        *log.Logger
 	NewRoomID  func() string
 	NewHostKey func() string
+
+	// File publishing tools (upload_file, replace_file, …).
+	FilesToken string // MARKDROP_TOKEN, or the token saved by `markdrop login`
+	UserAgent  string // e.g. markdrop-cli/0.4.0
+	// NewUploader builds the upload engine for a client; nil = defaults with
+	// resumable state in the user cache dir. Tests shorten its timings.
+	NewUploader func(*files.Client) *files.Uploader
 }
 
 // Manager owns every share and receive of this process. They live as long as
@@ -70,6 +78,11 @@ func NewManager(cfg Config) *Manager {
 	}
 	if cfg.NewHostKey == nil {
 		cfg.NewHostKey = func() string { return randomHex(16) }
+	}
+	if cfg.NewUploader == nil {
+		cfg.NewUploader = func(c *files.Client) *files.Uploader {
+			return &files.Uploader{Client: c, StateDir: files.DefaultStateDir()}
+		}
 	}
 	return &Manager{cfg: cfg, shares: map[string]*share{}, receives: map[string]*receive{}}
 }
