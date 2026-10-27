@@ -29,8 +29,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
-from typing import Iterable
+from typing import AsyncIterator, Iterable
 
 import httpx
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -47,6 +49,12 @@ GIVE_UP_AFTER = timedelta(days=7)
 DONE_KEEP = timedelta(days=1)
 _SLUG = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _TASKS: set[asyncio.Task] = set()
+# How many purges are in flight at once — per flush and per worker pass (B-N4,
+# B-R1): a mass expiry or a 50-document batch must not drain one RTT at a time.
+CONCURRENCY = 8
+LEASE = timedelta(seconds=30)
+# Inline purges of the current request, collected by ``batch()`` (B-R1).
+_BATCH: ContextVar[list[str] | None] = ContextVar("revalidate_batch", default=None)
 
 
 def _now() -> datetime:
@@ -94,21 +102,59 @@ async def enqueue(
         if key in seen:
             continue
         seen.add(key)
-        # A pending job for the same key already covers this purge: the worker
-        # sends it after this write, so it purges the newer state anyway. A due
-        # time in the future (backoff) is pulled forward to now.
-        await db[JOBS].update_one(
-            # Scheduled jobs (``schedule``) are left alone: pulling one forward
-            # would spend the purge that must happen at its due time.
-            {"key": key, "state": "pending", "scheduled": {"$ne": True}},
-            {"$setOnInsert": {"key": key, "payload": payload, "state": "pending",
-                              "attempts": 0, "created_at": now},
-             "$set": {"next_at": now, "updated_at": now}},
-            upsert=True,
-        )
+        await _upsert_pending(db, key, payload, now)
     if attempt_now:
         _spawn(db, list(seen))
     return list(seen)
+
+
+async def _upsert_pending(db: AsyncIOMotorDatabase, key: str, payload: dict, now: datetime) -> None:
+    """One pending, unsent job for ``key`` (B-N1).
+
+    A pending job nobody is sending yet covers this purge: it goes out after
+    this write, so it purges the newer state anyway (a backoff due time is
+    pulled forward to now). A job that is *leased* — being sent right now — may
+    already have reached the frontend with the older state, so it never
+    absorbs a newer purge: a second job is written instead. The generation
+    (``gen``) makes the same true for a lease that expired mid-send: the
+    sender only marks a job done when nothing was merged into it meanwhile."""
+    await db[JOBS].update_one(
+        # Scheduled jobs (``schedule``) are left alone: pulling one forward
+        # would spend the purge that must happen at its due time.
+        {"key": key, "state": "pending", "scheduled": {"$ne": True},
+         "$or": [{"lease_until": None}, {"lease_until": {"$lt": now}}]},
+        {"$setOnInsert": {"key": key, "payload": payload, "state": "pending",
+                          "attempts": 0, "created_at": now},
+         "$set": {"next_at": now, "updated_at": now},
+         "$inc": {"gen": 1}},
+        upsert=True,
+    )
+
+
+def _payload(key: str) -> dict | None:
+    kind, _, value = key.partition(":")
+    if kind == "doc" and _SLUG.match(value):
+        return {"slug": value}
+    if kind == "tag" and value:
+        return {"tag": value}
+    return None
+
+
+async def rearm(db: AsyncIOMotorDatabase, keys: Iterable[str]) -> list[str]:
+    """Re-enqueue jobs written *before* a state change (B-N1, transitions):
+    the outbox row had to exist before the narrower row was written, but a
+    worker may have claimed and sent it in between — with the old state. Called
+    after the write, this guarantees one more send that sees the new state.
+    Nothing is attempted here; the caller flushes."""
+    now = _now()
+    out: list[str] = []
+    for key in dict.fromkeys(keys):
+        payload = _payload(key)
+        if payload is None:
+            continue
+        await _upsert_pending(db, key, payload, now)
+        out.append(key)
+    return out
 
 
 async def schedule(
@@ -122,6 +168,10 @@ async def schedule(
     the cached render must go the moment the document does, not when the
     sweeper next passes. Sent by the revalidate worker (every few seconds)."""
     at = _aware(at)
+    # Whole seconds (rounded up, never early): documents of one workspace that
+    # expire in the same second share one listing purge (B-N4).
+    if at.microsecond:
+        at = at.replace(microsecond=0) + timedelta(seconds=1)
     keys: list[tuple[str, dict]] = []
     for slug in slugs:
         if slug and _SLUG.match(slug):
@@ -135,7 +185,7 @@ async def schedule(
         await db[JOBS].update_one(
             {"key": key, "state": "pending", "scheduled": True, "next_at": at},
             {"$setOnInsert": {"payload": payload, "attempts": 0, "created_at": now,
-                              "scheduled_for": at},
+                              "scheduled_for": at, "gen": 0},
              "$set": {"updated_at": now}},
             upsert=True,
         )
@@ -157,16 +207,69 @@ async def schedule_expiry(db: AsyncIOMotorDatabase, raw: dict) -> list[str]:
 async def flush(db: AsyncIOMotorDatabase, keys: list[str], *, timeout: float = TIMEOUT_S) -> None:
     """Send these jobs now and wait (bounded) — for narrowing transitions,
     whose response must not come back while the old, wider render is still
-    cached (B2). A slow or failed attempt leaves the job in the outbox for the
-    worker; the request is never failed by it."""
+    cached (B2). Also waits for a job of these keys that another sender is
+    already sending (B-N1). A slow or failed attempt leaves the job in the
+    outbox for the worker; the request is never failed by it. Sends that are
+    still running when the bound is reached carry on in the background.
+
+    Inside ``batch()`` the keys are only collected: the batch flushes once."""
     if not keys or not settings.page_revalidate_enabled:
         return
+    collecting = _BATCH.get()
+    if collecting is not None:
+        collecting.extend(keys)
+        return
+    task = asyncio.get_running_loop().create_task(_drain(db, list(dict.fromkeys(keys))))
+    _TASKS.add(task)
+    task.add_done_callback(_TASKS.discard)
     try:
-        await asyncio.wait_for(run_due(db, keys=list(keys), limit=len(keys)), timeout)
-    except asyncio.TimeoutError:
-        log.info("inline purge of %s timed out; left to the worker", keys)
-    except Exception:
-        log.warning("inline purge of %s failed; left to the worker", keys, exc_info=True)
+        done, _pending = await asyncio.wait({task}, timeout=timeout)
+    except asyncio.CancelledError:  # pragma: no cover - the request went away
+        raise
+    if not done:
+        log.info("inline purge of %d key(s) still running after %.1fs; left to finish", len(keys), timeout)
+    elif task.exception() is not None:
+        log.warning("inline purge of %s failed; left to the worker", keys[:5], exc_info=task.exception())
+
+
+async def _drain(db: AsyncIOMotorDatabase, keys: list[str]) -> None:
+    """Send every due job of ``keys`` (bounded concurrency) and wait for the
+    ones someone else is sending, until none of them is due."""
+    give_up = _now() + LEASE * 2
+    while _now() < give_up:
+        await run_due(db, keys=keys, limit=max(1, len(keys)) * 2)
+        now = _now()
+        left = await db[JOBS].find(
+            {"key": {"$in": keys}, "state": "pending", "next_at": {"$lte": now}},
+            {"lease_until": 1}).to_list(length=len(keys) * 4 + 10)
+        if not left:
+            return
+        if any(_aware(j.get("lease_until")) is None or _aware(j["lease_until"]) < now for j in left):
+            continue  # claimable again (a newer purge arrived, or a lease lapsed)
+        await asyncio.sleep(0.05)  # in flight elsewhere: wait for its outcome
+
+
+@asynccontextmanager
+async def batch(db: AsyncIOMotorDatabase, *, timeout: float = TIMEOUT_S) -> AsyncIterator[None]:
+    """One bounded wait for a whole batch of narrowings (B-R1).
+
+    Every inline ``flush`` inside the block (transitions, releases, deletes)
+    only collects its keys; leaving the block sends them all at once with
+    bounded concurrency under one ``timeout`` — instead of one ≈3 s wait per
+    document. The flush runs even when the block raises: the documents changed
+    before the error are narrower already and their purges are owed. Nested
+    batches defer to the outermost one."""
+    if _BATCH.get() is not None:
+        yield
+        return
+    keys: list[str] = []
+    token = _BATCH.set(keys)
+    try:
+        yield
+    finally:
+        _BATCH.reset(token)
+        if keys:
+            await flush(db, keys, timeout=timeout)
 
 
 async def purge_doc(
@@ -228,7 +331,11 @@ def _backoff(attempts: int) -> timedelta:
 
 
 async def _run_job(db: AsyncIOMotorDatabase, job: dict) -> str:
-    """Send one claimed job and record the outcome. Returns the new state."""
+    """Send one claimed job and record the outcome. Returns the new state.
+
+    The outcome is recorded only if no newer purge was merged into the job
+    while it was being sent (its ``gen`` is unchanged); otherwise the job goes
+    straight back to pending, due now, so the newer state is purged too."""
     status = await _post(job["payload"])
     now = _now()
     if 200 <= status < 300:
@@ -242,10 +349,17 @@ async def _run_job(db: AsyncIOMotorDatabase, job: dict) -> str:
         attempts = int(job.get("attempts") or 0) + 1
         state, extra = "pending", {"attempts": attempts, "next_at": now + _backoff(attempts),
                                    "last_status": status}
-    await db[JOBS].update_one(
-        {"_id": job["_id"]},
+    res = await db[JOBS].update_one(
+        {"_id": job["_id"], "gen": job.get("gen")},
         {"$set": {"state": state, "updated_at": now, "lease_until": None, **extra}},
     )
+    if res.matched_count == 0:
+        await db[JOBS].update_one(
+            {"_id": job["_id"]},
+            {"$set": {"state": "pending", "next_at": now, "updated_at": now, "lease_until": None,
+                      "last_status": status}},
+        )
+        return "pending"
     return state
 
 
@@ -254,24 +368,36 @@ async def _claim(db: AsyncIOMotorDatabase, query: dict) -> dict | None:
     return await db[JOBS].find_one_and_update(
         {**query, "state": "pending", "next_at": {"$lte": now},
          "$or": [{"lease_until": None}, {"lease_until": {"$lt": now}}]},
-        {"$set": {"lease_until": now + timedelta(seconds=30)}},
+        {"$set": {"lease_until": now + LEASE}},
         return_document=True,
     )
 
 
-async def run_due(db: AsyncIOMotorDatabase, *, limit: int = 100, keys: list[str] | None = None) -> int:
-    """Send every due job (or only ``keys``). Returns how many were sent."""
+async def run_due(db: AsyncIOMotorDatabase, *, limit: int = 100, keys: list[str] | None = None,
+                  concurrency: int = CONCURRENCY) -> int:
+    """Send every due job (or only ``keys``), up to ``concurrency`` at a time
+    (B-N4: a mass expiry must not drain one round trip after another).
+    Returns how many were sent."""
     if not settings.page_revalidate_enabled:
         return 0
-    sent = 0
     query = {"key": {"$in": keys}} if keys else {}
-    while sent < limit:
-        job = await _claim(db, query)
-        if job is None:
-            break
-        await _run_job(db, job)
-        sent += 1
-    return sent
+    counter = {"n": 0}
+
+    async def lane() -> None:
+        while counter["n"] < limit:
+            counter["n"] += 1
+            job = await _claim(db, query)
+            if job is None:
+                counter["n"] -= 1
+                return
+            try:
+                await _run_job(db, job)
+            except Exception:  # pragma: no cover - a database hiccup; the lease lapses
+                log.warning("sending purge job %s failed", job.get("key"), exc_info=True)
+
+    lanes = max(1, min(concurrency, limit))
+    await asyncio.gather(*(lane() for _ in range(lanes)))
+    return counter["n"]
 
 
 def _spawn(db: AsyncIOMotorDatabase, keys: list[str]) -> None:

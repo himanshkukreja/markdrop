@@ -25,7 +25,8 @@ from app.limiter import limiter
 from app.models.user import User
 from app.models.workspace import role_allows
 from app.routers.auth import require_user
-from app.services import access, library as lib_service
+from app.services import access, revalidate
+from app.services import library as lib_service
 from app.services import folder as folder_service
 from app.services import workspace as ws_service
 from app.services import workspace_items as items_service
@@ -126,8 +127,9 @@ async def items_move(request: Request, workspace_id: str, data: ItemsMove,
     for raw in rows:  # B5: a clash refuses the batch before anything moves
         if (raw.get("folder_id") or None) != (data.folder_id or None):
             await folder_service.assert_doc_fits(db, workspace_id, data.folder_id, raw.get("slug"))
-    for raw in rows:
-        await folder_service.file_document(db, raw, workspace_id, data.folder_id)
+    async with revalidate.batch(db):  # B-R1: one bounded wait for the batch
+        for raw in rows:
+            await folder_service.file_document(db, raw, workspace_id, data.folder_id)
     return jsonable_encoder({"items": await items_service.items_by_slug(db, actor, ctx, workspace_id, slugs)})
 
 
@@ -155,9 +157,10 @@ async def items_add(request: Request, workspace_id: str, data: ItemsAdd,
         rows.append(raw)
     for raw in rows:  # B5: a clash refuses the batch before anything is filed
         await folder_service.assert_doc_fits(db, workspace_id, data.folder_id, raw.get("slug"))
-    for raw in rows:
-        await lib_service.add_document(db, workspace_id, str(raw["_id"]), user, data.folder_id,
-                                       level=data.access)
+    async with revalidate.batch(db):  # B-R1
+        for raw in rows:
+            await lib_service.add_document(db, workspace_id, str(raw["_id"]), user, data.folder_id,
+                                           level=data.access)
     return jsonable_encoder({"items": await items_service.items_by_slug(db, actor, ctx, workspace_id, slugs)})
 
 
@@ -192,11 +195,12 @@ async def items_remove(request: Request, workspace_id: str, data: ItemsRemove,
                 raise HTTPException(status_code=404, detail="That document isn't in this workspace.")
             raise d.exception()
     removed = []
-    for raw, slug in targets:
-        readable = (await access.can(actor, raw, "read", ctx)).allowed
-        res = await lib_service.remove_raw(db, workspace_id, raw, user)
-        removed.append({"slug": res["slug"] if (slug or readable) else None,
-                        "access_after": res["access_after"]})
+    async with revalidate.batch(db):  # B-R1
+        for raw, slug in targets:
+            readable = (await access.can(actor, raw, "read", ctx)).allowed
+            res = await lib_service.remove_raw(db, workspace_id, raw, user)
+            removed.append({"slug": res["slug"] if (slug or readable) else None,
+                            "access_after": res["access_after"]})
     return {"items": removed}
 
 
@@ -210,9 +214,10 @@ async def patch_folder(request: Request, workspace_id: str, folder_id: str, data
     path, and all of them are purged."""
     await ws_service.require_role(db, workspace_id, user.id, "admin")
     reparent = "parent_id" in data.model_fields_set
-    folder = await folder_service.update_folder(
-        db, workspace_id, folder_id, name=data.name, slug=data.slug,
-        parent_id=data.parent_id, reparent=reparent)
+    async with revalidate.batch(db):  # B-R1
+        folder = await folder_service.update_folder(
+            db, workspace_id, folder_id, name=data.name, slug=data.slug,
+            parent_id=data.parent_id, reparent=reparent)
     path = await folder_service.path_of(db, workspace_id, folder.id)
     return jsonable_encoder({
         "id": folder.id, "workspace_id": folder.workspace_id, "name": folder.name,

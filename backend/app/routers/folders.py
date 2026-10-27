@@ -21,7 +21,7 @@ from app.schemas.folder import (
     FolderResponse,
     FolderUpdate,
 )
-from app.services import access
+from app.services import access, revalidate
 from app.services import folder as folder_service
 from app.services import workspace as ws_service
 
@@ -113,10 +113,11 @@ async def update_folder(
 ):
     # Renaming or moving re-addresses everything below: admin+ (A10).
     await ws_service.require_role(db, workspace_id, user.id, "admin")
-    folder = await folder_service.update_folder(
-        db, workspace_id, folder_id,
-        name=data.name, parent_id=data.parent_id, reparent=data.reparent,
-    )
+    async with revalidate.batch(db):  # B-R1
+        folder = await folder_service.update_folder(
+            db, workspace_id, folder_id,
+            name=data.name, parent_id=data.parent_id, reparent=data.reparent,
+        )
     return await _with_path(db, folder)
 
 
@@ -129,7 +130,8 @@ async def delete_folder(
 ):
     # Deleting a container can unfile many documents at once, so admin.
     await ws_service.require_role(db, workspace_id, user.id, "admin")
-    inside = await folder_service.delete_folder(db, workspace_id, folder_id, mode)
+    async with revalidate.batch(db):  # B-R1
+        inside = await folder_service.delete_folder(db, workspace_id, folder_id, mode)
     # D6: the count says only what the caller could see.
     actor, ctx = access.actor_from_request(request, user), access.Ctx(db)
     readable = 0

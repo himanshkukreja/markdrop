@@ -97,6 +97,10 @@ async def change(
         update["$set"] = {**sets, "access_dirty": False}
         after = await db["documents"].find_one_and_update(
             {**filt, "access_epoch": epoch}, update, return_document=ReturnDocument.AFTER)
+        # B-N1: the jobs were written before the row, so a worker may have
+        # claimed and sent one in between — with the old state. Re-arm them
+        # now that the narrower row is in: at least one more send sees it.
+        keys = await revalidate.rearm(db, keys)
         if after is None:
             # Bytes are closed and the row kept its old state: more closed than
             # the database says, which the reconciler repairs (I4).

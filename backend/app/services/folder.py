@@ -439,7 +439,10 @@ async def _purge(db: AsyncIOMotorDatabase, workspace_id: str, slugs: list[str],
     from app.services import revalidate
 
     tags = [f"wsl:{workspace_id}", *[f"share:{s}" for s in (share_ids or []) if s]]
-    await revalidate.enqueue(db, slugs=slugs, tags=tags)
+    # Old folder addresses stop answering (404 / 307): closing, so the answer
+    # waits for the purges — once per request inside ``revalidate.batch`` (B-R1).
+    keys = await revalidate.enqueue(db, slugs=slugs, tags=tags, attempt_now=False)
+    await revalidate.flush(db, keys)
 
 
 async def list_folders(db: AsyncIOMotorDatabase, workspace_id: str) -> list[Folder]:

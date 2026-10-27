@@ -59,17 +59,21 @@ async def set_levels(
     ``{results:[{slug, ok, error?}]}``."""
     from fastapi import HTTPException as _HTTPException
 
+    from app.services import revalidate
+
     actor, ctx = _actor_ctx(request, db, user)
     results = []
-    for slug in dict.fromkeys(data.slugs):
-        try:
-            raw = await _load(db, slug)
-            await access_service.set_level(db, raw, data.level, actor, ctx)
-            results.append({"slug": slug, "ok": True})
-        except _HTTPException as exc:
-            results.append({"slug": slug, "ok": False,
-                            "error": exc.detail if isinstance(exc.detail, str) else "Not allowed",
-                            "status": exc.status_code})
+    # B-R1: one bounded wait for the whole batch's purges, not one per document.
+    async with revalidate.batch(db):
+        for slug in dict.fromkeys(data.slugs):
+            try:
+                raw = await _load(db, slug)
+                await access_service.set_level(db, raw, data.level, actor, ctx)
+                results.append({"slug": slug, "ok": True})
+            except _HTTPException as exc:
+                results.append({"slug": slug, "ok": False,
+                                "error": exc.detail if isinstance(exc.detail, str) else "Not allowed",
+                                "status": exc.status_code})
     return {"results": results}
 
 

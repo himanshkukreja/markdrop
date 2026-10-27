@@ -373,12 +373,15 @@ async def sweep_expired(db: AsyncIOMotorDatabase, *, limit: int = 100) -> int:
     n = 0
     rows = await db["documents"].find(
         {"expires_at": {"$ne": None, "$lte": _now()}}).limit(limit).to_list(length=limit)
-    for raw in rows:
-        try:
-            if await destroy(db, raw, reason="expiry"):
-                n += 1
-        except Exception:
-            log.warning("expiring %s failed", raw.get("slug"), exc_info=True)
+    # B-N4: one bounded, concurrent flush for the whole pass — a mass expiry
+    # must not wait ≈ one purge round trip per document.
+    async with revalidate.batch(db):
+        for raw in rows:
+            try:
+                if await destroy(db, raw, reason="expiry"):
+                    n += 1
+            except Exception:
+                log.warning("expiring %s failed", raw.get("slug"), exc_info=True)
     return n
 
 
