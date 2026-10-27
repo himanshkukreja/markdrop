@@ -109,21 +109,8 @@ async def get_access(
             owner = None
         if owner:
             owner_name, owner_email = owner.get("name"), owner.get("email")
-    async def ok(action: str) -> bool:
-        return (await access_service.can(actor, raw, action, ctx)).allowed
-
-    can = {
-        "edit_content": await ok("edit_content"),
-        "replace_file": raw.get("kind") == "artifact" and await ok(
-            "replace_bundle" if raw.get("bundle_prefix") else "replace_file"),
-        "edit_settings": await ok("edit_settings"),
-        "change_access": await ok("change_access"),
-        "rename": await ok("rename_slug"),
-        "delete": await ok("delete"),
-        "share": await ok("share"),
-        "unshare": bool(f.ws_id) and await ok("unshare"),
-        "move": bool(f.ws_id) and await ok("move_in_workspace"),
-    }
+    # The same flags (and names) as the document response and item rows (§7).
+    can = await access_service.can_flags(actor, raw, ctx)
     return AccessResponse(
         level=raw.get("access_level") or "link",
         allow_resharing=access_service.resharing_allowed(raw),

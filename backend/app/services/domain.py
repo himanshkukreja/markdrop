@@ -87,6 +87,7 @@ def _to_domain(raw: dict) -> Domain:
         first_failed_at=raw.get("first_failed_at"),
         lapsed_at=raw.get("lapsed_at"),
         routing_ok=raw.get("routing_ok"),
+        txt_ok=raw.get("txt_ok", True if raw.get("status") == "verified" else None),
         expires_at=raw.get("expires_at"),
     )
 
@@ -724,6 +725,15 @@ async def lapse(db: AsyncIOMotorDatabase, raw: dict, now: datetime, reason: str)
     log.warning("domain %s lapsed: %s", raw["host"], reason)
 
 
+async def _record_txt(db: AsyncIOMotorDatabase, raw: dict, txt: str) -> None:
+    """Remember whether the TXT record was seen (`txt_ok`), so the UI can say
+    which record is missing. A failed lookup ("error") changes nothing."""
+    if txt == "error":
+        return
+    raw["txt_ok"] = txt == "ok"
+    await db["domains"].update_one({"_id": raw["_id"]}, {"$set": {"txt_ok": raw["txt_ok"]}})
+
+
 async def verify_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: str) -> Domain:
     """"Check DNS again": re-read the TXT and routing records now.
 
@@ -740,6 +750,7 @@ async def verify_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: 
     routing, routing_msg = await _run(check_routing, raw["host"])
     status = raw.get("status", "pending")
     routing_ok = routing == "ok" if routing != "error" else raw.get("routing_ok")
+    await _record_txt(db, raw, txt)
 
     if status == "verified":
         if txt == "missing":
@@ -789,6 +800,7 @@ async def recheck(db: AsyncIOMotorDatabase, raw: dict, now: datetime | None = No
 
     txt, txt_msg = await _run(check_txt, raw["host"], raw["verification_token"])
     routing, routing_msg = await _run(check_routing, raw["host"])
+    await _record_txt(db, raw, txt)
 
     if txt == "ok" and routing == "ok":
         updates = {"last_checked_at": now, "routing_ok": True, **_HEALTHY}

@@ -122,6 +122,9 @@ async def item_for(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx
         "title": display_title(raw),
         "kind": raw.get("kind") or "markdown",
         "mime": raw.get("mime"),
+        "renderer": art_service.renderer_for(raw.get("mime") or "") if raw.get("kind") == "artifact" else None,
+        "type_label": art_service.label_for(raw.get("mime") or "") if raw.get("kind") == "artifact" else None,
+        "original_filename": raw.get("original_filename") if raw.get("kind") == "artifact" else None,
         "url": workspace_url or urls.markdrop_url(raw["slug"]),
         "markdrop_url": urls.markdrop_url(raw["slug"]),
         "access": raw.get("access_level") or "link",
@@ -334,8 +337,7 @@ async def hidden_for_share(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: a
     else:
         hidden = [r for r in mine if (r.get("access_level") or "link") == "private"]
     return [{"slug": r["slug"], "title": display_title(r),
-             "access": "password" if (r.get("read_password_hash") and (r.get("access_level") or "link") == "link")
-             else (r.get("access_level") or "link"),
+             "access": r.get("access_level") or "link",
              "has_password": bool(r.get("read_password_hash")),
              "is_yours": bool(actor.user_id) and r.get("owner_id") == actor.user_id} for r in hidden]
 

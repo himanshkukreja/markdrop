@@ -78,6 +78,7 @@ def _to_response(domain: Domain) -> DomainResponse:
         warning=_warning_for(domain),
         live=domain_service.is_serving(domain),
         routing_ok=domain.routing_ok,
+        txt_ok=domain.txt_ok,
         failures=domain.failures,
         first_failed_at=domain.first_failed_at,
         lapsed_at=domain.lapsed_at,

@@ -329,8 +329,8 @@ class Grants(AccessWorld):
         d = await self.mkdoc("P", ws=None)
         body = (await self.http.get(f"/api/v1/documents/{d['slug']}/access", headers=self.session("ge"))).json()
         self.assertEqual({g["email"] for g in body["grants"]}, {self.email["gv"], self.email["ge"]})
-        self.assertTrue(body["can"]["edit_content"])
-        self.assertFalse(body["can"]["edit_settings"])
+        self.assertTrue(body["can"]["edit"])
+        self.assertFalse(body["can"]["settings"])
 
     async def test_c043_grant_removal_sends_access_event(self):
         d = await self.mkdoc("P", ws=None)

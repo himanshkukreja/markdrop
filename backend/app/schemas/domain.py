@@ -43,6 +43,9 @@ class DomainResponse(BaseModel):
     # record was seen at the last check (None = never checked).
     live: bool = False
     routing_ok: bool | None = None
+    # Whether the ownership TXT record was seen at the last check (None = never
+    # checked). With `routing_ok` it tells the UI which record is missing.
+    txt_ok: bool | None = None
     failures: int = 0
     first_failed_at: datetime | None = None
     lapsed_at: datetime | None = None

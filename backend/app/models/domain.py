@@ -52,5 +52,8 @@ class Domain:
     # Whether the routing record (CNAME to the edge target, or the apex A
     # record) was seen at the last check; None = never checked.
     routing_ok: bool | None = None
+    # Whether the ownership TXT record was seen at the last check; None = never
+    # checked (or the lookup itself failed).
+    txt_ok: bool | None = None
     # Pending rows only: when the unverified claim is dropped (TTL index).
     expires_at: datetime | None = None
