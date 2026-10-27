@@ -316,16 +316,19 @@ func TestUploadDoesNotBlockAndResumesAfterCancel(t *testing.T) {
 		t.Fatal("cancelled call never returned")
 	}
 	close(hold)
-	// Wait until the server-side upload has stopped (its state file stays).
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		m, _ := filepath.Glob(filepath.Join(e.stateDir, "*.json"))
-		if len(m) == 1 || time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	// The server-side upload stops: no new parts start, the session stays
+	// open on the server and remembered locally.
+	if !e.fake.Quiesce(10 * time.Second) {
+		t.Fatal("part handlers still running")
 	}
+	sent := e.fake.TotalPuts()
 	time.Sleep(100 * time.Millisecond)
+	if !e.fake.Quiesce(10*time.Second) || e.fake.TotalPuts() != sent {
+		t.Fatal("the cancelled upload kept sending parts")
+	}
+	if m, _ := filepath.Glob(filepath.Join(e.stateDir, "*.json")); len(m) != 1 || e.fake.Completes != 0 {
+		t.Fatalf("state %v, completes %d", m, e.fake.Completes)
+	}
 	_, before := e.fake.Counts()
 	e.fake.Lock()
 	e.fake.PartHook = nil

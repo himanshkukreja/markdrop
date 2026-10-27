@@ -391,6 +391,9 @@ func TestKilledUploadResumes(t *testing.T) {
 	reached := make(chan struct{})
 	release := make(chan struct{})
 	var once sync.Once
+	// Set under the fake's lock: the requests come from another process, so
+	// the race detector can't see that they follow this write.
+	e.fake.Lock()
 	e.fake.PartHook = func(_ string, n, _ int) int {
 		if _, stored := e.fake.Counts(); len(stored) >= 3 {
 			once.Do(func() { close(reached) })
@@ -399,6 +402,7 @@ func TestKilledUploadResumes(t *testing.T) {
 		}
 		return 0
 	}
+	e.fake.Unlock()
 	c := cliProcess(t, e, "upload", path, "--json")
 	var out1 bytes.Buffer
 	c.Stdout = &out1
@@ -416,6 +420,9 @@ func TestKilledUploadResumes(t *testing.T) {
 	close(release)
 	if out1.Len() != 0 {
 		t.Fatalf("killed run printed %q", out1.String())
+	}
+	if !e.fake.Quiesce(10 * time.Second) {
+		t.Fatal("part handlers still running")
 	}
 	_, before := e.fake.Counts()
 	if len(before) >= parts {
@@ -467,7 +474,9 @@ func TestKilledUploadResumes(t *testing.T) {
 // carries nothing but the protocol.
 func TestMCPServerOverStdio(t *testing.T) {
 	e := setup(t)
+	e.fake.Lock()
 	e.fake.PartHook = func(string, int, int) int { time.Sleep(100 * time.Millisecond); return 0 }
+	e.fake.Unlock()
 	path, data := randomFile(t, "talk.mp4", 5<<20+3)
 
 	c := cliProcess(t, e, "mcp")

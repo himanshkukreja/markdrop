@@ -47,7 +47,7 @@ type fileFlags struct {
 }
 
 func (f *fileFlags) register(c *cobra.Command) {
-	c.Flags().StringVar(&f.token, "token", "", "API token (default: $MARKDROP_TOKEN, then the one saved by `markdrop login`)")
+	c.Flags().StringVar(&f.token, "token", "", "API token (default: $MARKDROP_TOKEN, then the one saved by markdrop login)")
 	c.Flags().BoolVar(&f.json, "json", false, "print the API's JSON result (one object) on stdout and nothing else")
 }
 

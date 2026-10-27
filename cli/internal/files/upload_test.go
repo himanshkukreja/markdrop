@@ -119,6 +119,9 @@ func TestUploadHappyPath(t *testing.T) {
 			t.Errorf("auth header %q", h)
 		}
 	}
+	if f.PartCredentials != 0 {
+		t.Errorf("%d part uploads carried the API token to the storage", f.PartCredentials)
+	}
 	if s := stateFiles(t, u); len(s) != 0 {
 		t.Errorf("state left behind: %v", s)
 	}

@@ -245,7 +245,7 @@ func addFileTools(s *mcp.Server, m *Manager) {
 			return nil, FileResult{}, err
 		}
 		return text(fmt.Sprintf("Published %s (%s): %s\nSlug %s, version %d. To swap the file behind this same "+
-			"link later, use replace_file.", res.Slug, humanBytes(res.SizeBytes), res.URL, res.Slug, res.Version)),
+				"link later, use replace_file.", res.Slug, humanBytes(res.SizeBytes), res.URL, res.Slug, res.Version)),
 			fileResult(res), nil
 	})
 

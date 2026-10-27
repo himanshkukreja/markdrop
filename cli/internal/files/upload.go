@@ -75,7 +75,7 @@ func (u *Uploader) attempts() int    { return defInt(u.PartAttempts, 6) }
 func (u *Uploader) backoff() time.Duration {
 	return defDur(u.Backoff, time.Second)
 }
-func (u *Uploader) poll() time.Duration     { return defDur(u.PollInterval, 2*time.Second) }
+func (u *Uploader) poll() time.Duration      { return defDur(u.PollInterval, 2*time.Second) }
 func (u *Uploader) urlMaxAge() time.Duration { return defDur(u.URLMaxAge, 50*time.Minute) }
 func (u *Uploader) stall() time.Duration     { return defDur(u.StallTimeout, 2*time.Minute) }
 func (u *Uploader) tick() time.Duration      { return defDur(u.ProgressTick, 200*time.Millisecond) }

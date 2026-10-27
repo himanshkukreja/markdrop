@@ -59,9 +59,12 @@ type Server struct {
 	URLRefreshes []([]int) // part_numbers of each /urls call (nil = all)
 	StatusGets   int
 	LastCreate   map[string]any
-	AuthHeaders  []string
-	maxInFlight  int
-	inFlight     int
+	AuthHeaders  []string // Authorization headers of API calls
+	// PartCredentials counts part PUTs that carried an Authorization or
+	// Cookie header (must stay 0: pre-signed URLs need no credentials).
+	PartCredentials int
+	maxInFlight     int
+	inFlight        int
 }
 
 type session struct {
@@ -197,6 +200,24 @@ func (s *Server) MaxInFlight() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.maxInFlight
+}
+
+// Quiesce waits until no part PUT is being handled (a killed client's
+// in-flight parts may still be stored or dropped), up to timeout.
+func (s *Server) Quiesce(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		s.mu.Lock()
+		n := s.inFlight
+		s.mu.Unlock()
+		if n == 0 {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 // TotalPuts sums PartPuts.
@@ -475,6 +496,9 @@ func (s *Server) putPart(w http.ResponseWriter, r *http.Request, id string, n in
 
 	s.mu.Lock()
 	s.PartPuts[n]++
+	if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+		s.PartCredentials++ // the API token must never reach the storage
+	}
 	attempt := s.PartPuts[n]
 	hook := s.PartHook
 	expired := time.Now().UnixNano() > exp || gen != s.gen
