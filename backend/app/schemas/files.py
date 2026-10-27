@@ -26,6 +26,10 @@ class UploadCreateRequest(BaseModel):
     # Folder of that workspace: an id or a slug path like "guides/setup". It
     # must exist (folders are never created implicitly here).
     folder: str | None = Field(None, min_length=1, max_length=400)
+    # New uploads only: a custom address (markdrop.in/<slug>). Taken or reserved
+    # ⇒ 409 here, before a byte moves — never a silent rename. Default: derived
+    # from the file name.
+    slug: str | None = Field(None, min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
 
 
 class UploadPartUrl(BaseModel):

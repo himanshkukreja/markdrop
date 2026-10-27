@@ -188,6 +188,19 @@ async def _expire(db: AsyncIOMotorDatabase, sess: dict, state: str = "expired") 
         await run_in_threadpool(r2.abort_multipart, sess["key"], sess["r2_upload_id"])
 
 
+async def _require_free_slug(db: AsyncIOMotorDatabase, slug: str, user_id: str) -> None:
+    """409 when a custom address can't be had (reserved, taken, or held for
+    someone else) — the same words the website uses."""
+    from app.services import document as doc_service
+    from app.utils.slug import is_reserved_slug
+
+    if is_reserved_slug(slug):
+        raise HTTPException(status_code=409, detail=f"The address {slug} is reserved. Choose another.")
+    taken = await db["documents"].find_one({"slug": slug}, {"_id": 1}) is not None
+    if taken or not await doc_service._slug_free(db, slug, user_id):
+        raise HTTPException(status_code=409, detail=f"The address {slug} is already taken. Choose another.")
+
+
 async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
     """Validate everything that can be validated before a byte moves, then
     open the R2 multipart upload and presign its parts."""
@@ -213,13 +226,14 @@ async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
     target: dict | None = None
     level, password_hash, workspace, folder_id = "link", None, None, None
     folder = getattr(data, "folder", None)
+    custom_slug = getattr(data, "slug", None) or None
     if data.target_slug:
         if (data.access is not None or data.password is not None or data.workspace is not None
-                or folder is not None):
+                or folder is not None or custom_slug is not None):
             raise HTTPException(
                 status_code=422,
-                detail=("access, password, workspace and folder apply to new uploads only; a "
-                        "replaced file keeps its link's settings (change them with set_access)."),
+                detail=("access, password, workspace, folder and slug apply to new uploads only; a "
+                        "replaced file keeps its link and settings (change them with set_access)."),
             )
         target = await editable_artifact(db, user, data.target_slug, action="replace")
         require_single_blob(target)
@@ -245,6 +259,8 @@ async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
         level = access
         if data.password:
             password_hash = bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode()
+        if custom_slug is not None:
+            await _require_free_slug(db, custom_slug, user.id)
 
     await sweep_expired(db, user.id)
 
@@ -262,7 +278,7 @@ async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
         "user_id": user.id, "state": "uploading", "expires_at": {"$gt": now},
         "sha256": sha, "size_bytes": data.size_bytes, "file_name": data.file_name, "mime": mime,
         "target_slug": data.target_slug or None, "title": data.title, "access": level,
-        "workspace": workspace, "folder_id": folder_id,
+        "workspace": workspace, "folder_id": folder_id, "slug": custom_slug,
     })
     if same is not None:
         if password_hash:
@@ -315,6 +331,7 @@ async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
         "access": level,
         "workspace": workspace,
         "folder_id": folder_id,
+        "slug": custom_slug,
         "read_password_hash": password_hash,
         "public_at_create": public,
         "created_at": now,
@@ -698,11 +715,18 @@ async def _commit_new(db: AsyncIOMotorDatabase, sess: dict) -> tuple[dict, bool]
     # Born private, and opened up only once its password or workspace is in
     # place: the document is never more reachable than asked, even for a moment.
     level = "link" if access == "link" and not sess.get("workspace") else "private"
-    doc, _secret = await art_service.create_artifact(
-        db, user_id=sess["user_id"], blob_key=sess["key"], mime=sess["mime"], size_bytes=size,
-        title=sess.get("title"), filename=sess["file_name"], preferred_slug=sess["file_name"],
-        access_level=level,
-    )
+    try:
+        doc, _secret = await art_service.create_artifact(
+            db, user_id=sess["user_id"], blob_key=sess["key"], mime=sess["mime"], size_bytes=size,
+            title=sess.get("title"), filename=sess["file_name"], preferred_slug=sess["file_name"],
+            custom_slug=sess.get("slug") or None, access_level=level,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 409 and sess.get("slug"):
+            # Claimed by someone else while the bytes were on their way.
+            raise UploadFailed(409, f"The address {sess['slug']} was taken while the file uploaded. "
+                                    "Upload it again with another slug.")
+        raise
     # A document now points at the object: whatever happens next, keep it.
     try:
         return await _finish_new(db, sess, doc.slug, access), True
