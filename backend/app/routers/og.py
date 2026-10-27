@@ -132,16 +132,20 @@ async def og_image(
 ):
     # Read-only, only the fields the gate and the card need — never a hash's
     # content, only whether one exists.
-    raw = await db["documents"].find_one(
-        {"slug": slug},
-        {
-            "title": 1, "content": 1, "read_password_hash": 1, "access_level": 1,
-            "kind": 1, "mime": 1, "size_bytes": 1, "original_filename": 1,
-            "encrypted": 1, "workspace_id": 1, "poster_key": 1,
-            # What access.can(AN, read) looks at besides the above.
-            "slug": 1, "owner_id": 1, "expires_at": 1, "access_epoch": 1,
-        },
-    )
+    projection = {
+        "title": 1, "content": 1, "read_password_hash": 1, "access_level": 1,
+        "kind": 1, "mime": 1, "size_bytes": 1, "original_filename": 1,
+        "encrypted": 1, "workspace_id": 1, "poster_key": 1,
+        # What access.can(AN, read) looks at besides the above.
+        "slug": 1, "owner_id": 1, "expires_at": 1, "access_epoch": 1,
+    }
+    raw = await db["documents"].find_one({"slug": slug}, projection)
+    if raw is None:
+        # A former slug (Q4) answers like the document it now belongs to,
+        # through the same gate: a gated old link on a white-label host gets
+        # that workspace's content-free card, not a Markdrop-branded generic
+        # one (B7). The card prints the slug that was asked for.
+        raw = await db["documents"].find_one({"old_slugs": slug}, projection)
 
     if not raw:
         # Unknown/expired slug: the generic branded card (200) keeps the preview

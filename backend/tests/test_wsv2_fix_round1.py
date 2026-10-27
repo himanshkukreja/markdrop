@@ -538,3 +538,25 @@ class B2NarrowingWaitsForThePurge(AccessWorld):
                                     json={"level": "link"}, headers=self.session("owner"))
             self.assertIn(r.status_code, (200, 204), r.text)
         self.assertEqual(seen, [])
+
+
+class B7OgForOldSlugs(AccessWorld):
+    async def test_b7_gated_old_slug_gets_the_workspace_card_not_the_generic_one(self):
+        from app.routers import og as og_router
+
+        await self.db["workspaces"].update_one({"_id": ObjectId(self.ws["WR"])},
+                                               {"$set": {"branding.hide_markdrop_branding": True}})
+        d = await self.mkdoc("RL", old_slugs=["old-secret"])
+        cards = []
+
+        def render(card):
+            cards.append(card)
+            return b"png"
+
+        with mock.patch.object(og_router.og_render, "render_og_png", render):
+            r = await self.http.get("/api/v1/og/old-secret.png", params={"host": HOSTS["WR"]})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(cards[-1].kind, "private")
+        self.assertIsNotNone(cards[-1].brand)
+        self.assertTrue(cards[-1].brand.hide_markdrop_branding)
+        self.assertNotIn(d["title"], repr(cards[-1]))
