@@ -179,9 +179,21 @@ export default async function TenantDocumentPage({ params }: Props) {
 
   const result = await fetchTenantDocument(slug, resolved.workspace_id);
 
+  // A folder at exactly this path wins over a redirect to a document filed
+  // elsewhere (B5): a document — or a former slug of one — named like a
+  // folder must not take that folder's address over.
+  const folderHere = async () => {
+    const listing = await fetchTenantFolder(host, [...folders, slug], resolved.workspace_id);
+    return listing && listing !== FOLDER_SIGNIN && listing.folder ? listing : null;
+  };
+
   // A renamed slug: the old address keeps working by sending the reader to the
   // current one (307, like every canonical redirect here).
   if (result.status === "moved") {
+    const listing = await folderHere();
+    if (listing) {
+      return <TenantFolderPage host={host} siteName={siteName} path={[...folders, slug]} initial={listing} />;
+    }
     redirect(`/${[...result.folder_path, result.slug].map(encodeURIComponent).join("/")}`);
   }
 
@@ -211,6 +223,10 @@ export default async function TenantDocumentPage({ params }: Props) {
   // spelling is redirected there — temporarily (307): refiling moves it, and a
   // cached permanent redirect would pin the old path in readers' browsers.
   if (doc && !pathMatches(doc, folders)) {
+    const listing = await folderHere();
+    if (listing) {
+      return <TenantFolderPage host={host} siteName={siteName} path={[...folders, slug]} initial={listing} />;
+    }
     const canonical = [...(doc.folder_path ?? []), slug].map(encodeURIComponent).join("/");
     redirect(`/${canonical}`);
   }

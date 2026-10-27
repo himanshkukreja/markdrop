@@ -1,7 +1,7 @@
 import json
 import re
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -21,6 +21,7 @@ from app.schemas.document import (
     SlugChangeRequest,
 )
 from app.services import access, analytics, artifact as art_service, document as doc_service
+from app.services import folder as folder_service
 from app.services import publicity, tickets, urls
 from app.services.doc_ref import doc_ref
 from app.utils.net import get_client_ip
@@ -150,6 +151,13 @@ async def get_document(
                                       read_password=x_read_password)
     ctx = _ctx(db, request, x_markdrop_workspace)
     raw, moved = await doc_service.find_for_read(db, slug)
+    scope = actor.tenant_ws or ctx.workspace_scope
+    if (scope and raw is not None and not moved and raw.get("workspace_id") == scope
+            and await folder_service.slug_shadowed(db, raw)):
+        # B5: on the workspace's own domain this address belongs to a folder
+        # (a collision that predates the rule; the owner isn't a workspace
+        # admin). Same answer as a missing document, before any gate.
+        raise HTTPException(status_code=404, detail="Document not found")
     await access.require(actor, raw, "read", ctx)
     if moved:
         current = raw["slug"]

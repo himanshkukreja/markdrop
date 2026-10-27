@@ -123,6 +123,9 @@ async def items_move(request: Request, workspace_id: str, data: ItemsMove,
                 raise HTTPException(status_code=404, detail=f"There's no document {slug} in this workspace.")
             raise d.exception()
         rows.append(raw)
+    for raw in rows:  # B5: a clash refuses the batch before anything moves
+        if (raw.get("folder_id") or None) != (data.folder_id or None):
+            await folder_service.assert_doc_fits(db, workspace_id, data.folder_id, raw.get("slug"))
     for raw in rows:
         await folder_service.file_document(db, raw, workspace_id, data.folder_id)
     return jsonable_encoder({"items": await items_service.items_by_slug(db, actor, ctx, workspace_id, slugs)})
@@ -150,6 +153,8 @@ async def items_add(request: Request, workspace_id: str, data: ItemsAdd,
                 raise HTTPException(status_code=404, detail=f"There's no document {slug} of yours.")
             raise d.exception()
         rows.append(raw)
+    for raw in rows:  # B5: a clash refuses the batch before anything is filed
+        await folder_service.assert_doc_fits(db, workspace_id, data.folder_id, raw.get("slug"))
     for raw in rows:
         await lib_service.add_document(db, workspace_id, str(raw["_id"]), user, data.folder_id,
                                        level=data.access)

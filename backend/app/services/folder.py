@@ -315,6 +315,79 @@ async def _get_owned(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: str
     return raw
 
 
+# ── Document slug vs folder slug (B5) ──────────────────────────────────────────
+#
+# On a workspace's own domain ``/<a>/<b>`` is either the folder ``b`` under
+# ``a`` or the document ``b`` filed in ``a``. Both may never exist: a member's
+# document must not take over a folder's address (white-label phishing) and a
+# folder must not make a document unreachable. New collisions are refused
+# (409) wherever either side is created or moved; collisions that predate the
+# rule are listed at startup and resolved at read time in favour of the folder
+# unless the document's owner administers the workspace (``slug_shadowed``).
+
+
+def _clash_detail(slug: str) -> str:
+    return (f"“{slug}” is already the address of a folder or document in that place. "
+            "Rename one of them first.")
+
+
+async def doc_slug_taken(db: AsyncIOMotorDatabase, workspace_id: str, parent_id: str | None,
+                         slug: str) -> bool:
+    """A document filed directly in ``parent_id`` (None = root) answers at ``slug``."""
+    return bool(await db["documents"].find_one(
+        {"workspace_id": workspace_id, "folder_id": parent_id or None, "slug": slug}, {"_id": 1}))
+
+
+async def folder_slug_taken(db: AsyncIOMotorDatabase, workspace_id: str, parent_id: str | None,
+                            slug: str | None, exclude_id=None) -> bool:
+    """A folder directly in ``parent_id`` (None = root) answers at ``slug``."""
+    if not slug:
+        return False
+    query: dict = {"workspace_id": workspace_id, "parent_id": parent_id or None, "slug": slug}
+    if exclude_id is not None:
+        query["_id"] = {"$ne": exclude_id}
+    return bool(await db["folders"].find_one(query, {"_id": 1}))
+
+
+async def assert_doc_fits(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: str | None,
+                          slug: str | None) -> None:
+    """409 when a document with ``slug`` would sit next to a folder of that slug."""
+    if await folder_slug_taken(db, workspace_id, folder_id, slug):
+        raise HTTPException(status_code=409, detail=_clash_detail(slug or ""))
+
+
+async def slug_shadowed(db: AsyncIOMotorDatabase, raw: dict | None) -> bool:
+    """A pre-existing collision: a folder next to this filed document has its
+    slug. On the workspace's domain the folder wins, unless the document's
+    owner is an admin/owner of the workspace (they could have renamed it)."""
+    if not raw or not raw.get("workspace_id"):
+        return False
+    ws_id = raw["workspace_id"]
+    if not await folder_slug_taken(db, ws_id, raw.get("folder_id"), raw.get("slug")):
+        return False
+    owner = raw.get("owner_id")
+    m = await db["memberships"].find_one({"workspace_id": ws_id, "user_id": owner}, {"role": 1}) \
+        if owner else None
+    return not (m and m.get("role") in ("owner", "admin"))
+
+
+async def list_slug_collisions(db: AsyncIOMotorDatabase, *, limit: int = 1000) -> list[dict]:
+    """Every (folder, document) pair that already shares an address."""
+    out: list[dict] = []
+    async for f in db["folders"].find({}, {"workspace_id": 1, "parent_id": 1, "slug": 1}):
+        if not f.get("slug"):
+            continue
+        d = await db["documents"].find_one(
+            {"workspace_id": f["workspace_id"], "folder_id": f.get("parent_id") or None, "slug": f["slug"]},
+            {"_id": 1, "owner_id": 1})
+        if d:
+            out.append({"workspace_id": f["workspace_id"], "folder_id": str(f["_id"]),
+                        "document_id": str(d["_id"]), "slug": f["slug"], "parent_id": f.get("parent_id")})
+            if len(out) >= limit:
+                break
+    return out
+
+
 async def _depth_of(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: str | None) -> int:
     """How deep a folder sits (a top-level folder is 1). Bounded walk."""
     depth = 0
@@ -388,11 +461,14 @@ async def create_folder(
         if await _depth_of(db, workspace_id, parent_id) >= MAX_DEPTH:
             raise HTTPException(status_code=422, detail=f"Folders can nest at most {MAX_DEPTH} deep.")
 
+    slug = await _unique_slug(db, workspace_id, name, parent_id)
+    if await doc_slug_taken(db, workspace_id, parent_id, slug):
+        raise HTTPException(status_code=409, detail=_clash_detail(slug))
     now = datetime.now(timezone.utc)
     doc = {
         "workspace_id": workspace_id,
         "name": name,
-        "slug": await _unique_slug(db, workspace_id, name, parent_id),
+        "slug": slug,
         "parent_id": parent_id or None,
         "created_at": now,
         "updated_at": now,
@@ -498,6 +574,8 @@ async def update_folder(
             base_name = cleaned
         new_slug = await _unique_slug(db, workspace_id, base_name, target_parent, exclude_id=raw["_id"])
         if new_slug != raw.get("slug") or "parent_id" in updates:
+            if await doc_slug_taken(db, workspace_id, target_parent, new_slug):
+                raise HTTPException(status_code=409, detail=_clash_detail(new_slug))
             updates["slug"] = new_slug
 
     structural = "slug" in updates or "parent_id" in updates
@@ -524,6 +602,13 @@ async def delete_folder(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: 
     raw = await _get_owned(db, workspace_id, folder_id)
     fid = str(raw["_id"])
     new_parent = raw.get("parent_id")
+    # B5: the documents inside move to the parent (move_up) or the root; none
+    # may land on the address of a folder already there.
+    dest = new_parent if (mode == "move_up" and new_parent) else None
+    for d in await db["documents"].find({"workspace_id": workspace_id, "folder_id": fid},
+                                        {"slug": 1}).to_list(length=20_000):
+        if await folder_slug_taken(db, workspace_id, dest, d.get("slug"), exclude_id=raw["_id"]):
+            raise HTTPException(status_code=409, detail=_clash_detail(d["slug"]))
     await _lock(db, workspace_id, await folders_rev(db, workspace_id))
 
     children = await db["folders"].find(
@@ -542,7 +627,9 @@ async def delete_folder(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: 
             {"workspace_id": workspace_id, "parent_id": new_parent,
              "slug": candidate, "_id": {"$nin": [child["_id"], raw["_id"]]}},
             {"_id": 1},
-        ):
+        ) or await doc_slug_taken(db, workspace_id, new_parent, candidate) or (
+            new_parent == dest and await db["documents"].find_one(
+                {"workspace_id": workspace_id, "folder_id": fid, "slug": candidate}, {"_id": 1})):
             n += 1
             candidate = f"{base}-{n}"
             if n > 200:
@@ -582,6 +669,8 @@ async def file_document(db: AsyncIOMotorDatabase, raw: dict, workspace_id: str,
 
     if folder_id:
         await _get_owned(db, workspace_id, folder_id)
+    if (folder_id or None) != (raw.get("folder_id") or None):
+        await assert_doc_fits(db, workspace_id, folder_id, raw.get("slug"))
     path = await path_of(db, workspace_id, folder_id) if folder_id else []
     after = await db["documents"].find_one_and_update(
         {"_id": raw["_id"], "workspace_id": workspace_id},

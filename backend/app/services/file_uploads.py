@@ -261,6 +261,11 @@ async def create(db: AsyncIOMotorDatabase, user, data) -> dict:
             password_hash = bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode()
         if custom_slug is not None:
             await _require_free_slug(db, custom_slug, user.id)
+            if workspace:
+                from app.services import folder as folder_service
+
+                # B5: refused up front rather than failing at commit.
+                await folder_service.assert_doc_fits(db, workspace, folder_id, custom_slug)
 
     await sweep_expired(db, user.id)
 

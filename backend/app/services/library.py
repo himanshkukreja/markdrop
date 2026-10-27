@@ -125,6 +125,7 @@ async def add_document(
 
     if folder_id:
         await folder_service._get_owned(db, workspace_id, folder_id)
+    await folder_service.assert_doc_fits(db, workspace_id, folder_id, raw.get("slug"))  # B5
     path = await folder_service.path_of(db, workspace_id, folder_id) if folder_id else []
     ws = await ctx.workspace(workspace_id)
     require_auth = bool(ws is not None and ws.settings.require_auth_to_view)

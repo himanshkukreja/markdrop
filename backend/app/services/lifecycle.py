@@ -482,6 +482,20 @@ async def migrate(db: AsyncIOMotorDatabase) -> dict:
                           "access_dirty": True}})
             dangling += res2.modified_count
     out["dangling_released"] = dangling
+    # 3b. Documents that share an address with a folder next to them (B5).
+    #     New ones are refused; old ones are listed here (the workspace's
+    #     domain serves the folder unless the document's owner is an admin).
+    try:
+        from app.services import folder as folder_service
+
+        clashes = await folder_service.list_slug_collisions(db)
+    except Exception:
+        clashes = []
+        log.warning("listing folder/document address collisions failed", exc_info=True)
+    for c in clashes:
+        log.warning("address collision in workspace %s: folder %s and document %s both answer at %r",
+                    c["workspace_id"], c["folder_id"], c["document_id"], c["slug"])
+    out["slug_collisions"] = len(clashes)
     # 4. Artifacts filed in a require-sign-in workspace: before D3 their bytes
     #    followed only level + password, so link ones are still public in R2.
     #    Mark them dirty; the reconciler closes them under the one rule.

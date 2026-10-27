@@ -330,6 +330,78 @@ class B6TrailRedaction(AccessWorld):
         self.assertIn("Codename Falcon", [t["name"] for t in r.json()["trail"]])
 
 
+class B5DocAndFolderAddresses(AccessWorld):
+    async def folder(self, name: str, parent=None, ws: str = "W1"):
+        from app.services import folder as folder_service
+
+        return await folder_service.create_folder(self.db, self.ws[ws], name, parent)
+
+    async def test_b5_member_doc_cannot_take_a_folders_address(self):
+        f = await self.folder("Members Area")
+        d = await self.mkdoc("UL", owner="wm", slug="members-area")
+        r = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/items/add",
+                                 json={"slugs": [d["slug"]], "folder_id": None}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 409, r.text)
+        self.assertIsNone((await self.doc(d["slug"])).get("workspace_id"))
+        # Filed elsewhere, then moved next to the folder: refused too.
+        other = await self.folder("Other")
+        r = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/items/add",
+                                 json={"slugs": [d["slug"]], "folder_id": other.id}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        r = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/items/move",
+                                 json={"slugs": [d["slug"]], "folder_id": None}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 409, r.text)
+        self.assertEqual((await self.doc(d["slug"]))["folder_id"], other.id)
+        self.assertEqual(f.slug, "members-area")
+
+    async def test_b5_folder_cannot_take_a_documents_address(self):
+        await self.mkdoc("W", slug="handbook")
+        r = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/folders",
+                                 json={"name": "Handbook"}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 409, r.text)
+        g = await self.folder("Guides")
+        r = await self.http.put(f"/api/v1/workspaces/{self.ws['W1']}/folders/{g.id}",
+                                json={"name": "Handbook"}, headers=self.session("wa"))
+        self.assertEqual(r.status_code, 409, r.text)
+        inner = await self.folder("Handbook", g.id)  # fine: another parent
+        r = await self.http.put(f"/api/v1/workspaces/{self.ws['W1']}/folders/{inner.id}",
+                                json={"parent_id": None, "reparent": True}, headers=self.session("wa"))
+        self.assertEqual(r.status_code, 409, r.text)
+
+    async def test_b5_rename_and_upload_onto_a_folder_address_refused(self):
+        await self.folder("Plans")
+        d = await self.mkdoc("W", owner="wm")
+        r = await self.http.patch(f"/api/v1/documents/{d['slug']}/slug", json={"new_slug": "plans"},
+                                  headers=self.session("wm"))
+        self.assertEqual(r.status_code, 409, r.text)
+        r = await self.http.post("/api/v1/files/uploads", json={
+            "file_name": "p.html", "size_bytes": 10, "sha256": "a" * 64, "workspace": self.ws["W1"],
+            "slug": "plans"}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 409, r.text)
+
+    async def test_b5_deleting_a_folder_cannot_move_a_doc_onto_a_folder(self):
+        top = await self.folder("Top")
+        await self.folder("Reports")
+        await self.mkdoc("W", slug="reports", folder_id=top.id, folder_path=[top.slug])
+        r = await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/folders/{top.id}",
+                                   headers=self.session("wa"))
+        self.assertEqual(r.status_code, 409, r.text)
+        self.assertIsNotNone(await self.db["folders"].find_one({"_id": ObjectId(top.id)}))
+
+    async def test_b5_existing_collision_folder_wins_on_the_domain(self):
+        await self.folder("Members Area")
+        d = await self.mkdoc("L", owner="wm", slug="members-area")  # filed at root, predates the rule
+        scoped = {"X-Markdrop-Workspace": self.ws["W1"]}
+        self.assertEqual((await self.get(d["slug"], scoped)).status_code, 404)
+        self.assertEqual((await self.get(d["slug"], self.tenant("wv", "W1"))).status_code, 404)
+        self.assertEqual((await self.get(d["slug"])).status_code, 200)  # markdrop.in/<slug> unchanged
+        out = await lifecycle.migrate(self.db)
+        self.assertEqual(out["slug_collisions"], 1)
+        # An admin's own document keeps its address.
+        await self.db["documents"].update_one({"_id": d["_id"]}, {"$set": {"owner_id": self.uid["wa"]}})
+        self.assertEqual((await self.get(d["slug"], scoped)).status_code, 200)
+
+
 # ── LOW ───────────────────────────────────────────────────────────────────────
 
 

@@ -351,6 +351,11 @@ async def change_slug(db: AsyncIOMotorDatabase, slug: str, new_slug: str, actor,
         return raw
     if await lifecycle.slug_unavailable(db, new_slug, raw.get("owner_id"), doc_id=raw["_id"]):
         raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
+    if raw.get("workspace_id"):
+        from app.services import folder as folder_service
+
+        # B5: never onto the address of a folder next to it on the workspace's domain.
+        await folder_service.assert_doc_fits(db, raw["workspace_id"], raw.get("folder_id"), new_slug)
 
     now = datetime.now(timezone.utc)
     old_slugs = [s for s in (raw.get("old_slugs") or []) if s != new_slug]
