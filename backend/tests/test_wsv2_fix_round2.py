@@ -941,11 +941,35 @@ class BN2FoldersOwnTheirAddress(AccessWorld):
         x = await folder_service.create_folder(self.db, W, "X", None)
         return x
 
-    def _scoped(self, path: str | None) -> dict:
+    def setUp(self):
+        super().setUp()
+        from unittest import mock
+
+        from app.middleware import internal as internal_mw
+
+        # X-Markdrop-Path is only honoured on requests signed by our own tenant pages (R3-B1).
+        p = mock.patch.object(internal_mw.settings, "internal_secret", "test-internal-secret")
+        p.start()
+        self.addCleanup(p.stop)
+
+    def _scoped(self, path: str | None, *, signed: bool = True) -> dict:
+        import time
+
+        from app.middleware import internal as internal_mw
+
         h = {"X-Markdrop-Workspace": self.ws["W1"]}
         if path is not None:
             h["X-Markdrop-Path"] = path
+            if signed:
+                bucket = int(time.time() // internal_mw.WINDOW_SECONDS)
+                h["X-Markdrop-Internal"] = internal_mw.sign(bucket, "test-internal-secret")
         return h
+
+    async def test_unsigned_path_header_is_ignored(self):
+        # R3-B1: sent straight to the API, the header can't be used to probe for hidden folders.
+        x = await self._setup()
+        d = await self.mkdoc("L", owner="wm", slug="secret-plans", folder_id=x.id, folder_path=["x"])
+        self.assertEqual((await self.get(d["slug"], self._scoped("secret-plans", signed=False))).status_code, 200)
 
     async def test_doc_filed_elsewhere_cannot_take_a_folder_address(self):
         x = await self._setup()

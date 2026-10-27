@@ -167,6 +167,12 @@ async def get_document(
     ctx = _ctx(db, request, x_markdrop_workspace)
     raw, moved = await doc_service.find_for_read(db, slug)
     scope = actor.tenant_ws or ctx.workspace_scope
+    # X-Markdrop-Path is honoured only on requests our own tenant pages sign (R3-B1): sent straight
+    # to the API it would let anyone probe for hidden folders by comparing 404 with the gate.
+    from app.middleware import internal as internal_mw
+
+    if not internal_mw.is_valid(request.headers.get("x-markdrop-internal")):
+        x_markdrop_path = None
     if scope and raw is not None and await _folder_owns_path(db, scope, slug, x_markdrop_path):
         # B-N2: on the workspace's own domain the address asked for
         # (``X-Markdrop-Path``, the whole tenant path) is a folder of that
