@@ -11,6 +11,7 @@ import type { ArtifactRenderer } from "@/lib/api";
 const LABELS: Record<ArtifactRenderer, string> = {
   html: "HTML",
   video: "Video",
+  audio: "Audio",
   pdf: "PDF",
   sheet: "Sheet",
   docx: "Word",

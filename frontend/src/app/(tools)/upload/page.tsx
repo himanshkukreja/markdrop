@@ -55,9 +55,10 @@ type Tab = "paste" | "upload";
 const PASTE_TAB = false;
 
 const ACCEPT =
-  ".html,.htm,.pdf,.docx,.csv,.xlsx,.xls,.json,.txt,.zip,.png,.jpg,.jpeg,.gif,.webp,.svg,.mp4,.mov,.webm,.ogv";
+  ".html,.htm,.pdf,.docx,.csv,.xlsx,.xls,.json,.txt,.zip,.png,.jpg,.jpeg,.gif,.webp,.svg,.mp4,.mov,.webm,.ogv,.mp3,.m4a,.wav,.ogg";
 const SLUG_PATTERN = /^[a-zA-Z0-9_-]*$/;
 const VIDEO_EXT = ["mp4", "mov", "webm", "ogv"];
+const AUDIO_EXT = ["mp3", "m4a", "wav", "ogg"];
 
 /** sessionStorage flag the artifact viewer reads on ?new=1 (workspace share failed). */
 const WS_FAIL_KEY = (slug: string) => `md_ws_share_failed:${slug}`;
@@ -83,10 +84,13 @@ function describeFile(f: File): string {
   if (ext === "zip") return "a multi-page site";
   if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) return "an image";
   if (VIDEO_EXT.includes(ext)) return "a playable video";
+  if (AUDIO_EXT.includes(ext)) return "playable audio";
   return "";
 }
 
-const isVideo = (f: File) => VIDEO_EXT.includes(f.name.toLowerCase().split(".").pop() || "");
+// Video and audio share the larger media ceiling (max_video_bytes).
+const isVideo = (f: File) =>
+  [...VIDEO_EXT, ...AUDIO_EXT].includes(f.name.toLowerCase().split(".").pop() || "");
 const isZip = (f: File | null) => !!f && f.name.toLowerCase().endsWith(".zip");
 
 function expiresFromApi(expiresIn: string, at?: string | null): PublishSettingsValue["expires"] {
@@ -267,7 +271,7 @@ export default function UploadArtifactPage() {
   const canPublish = tab === "paste" ? html.trim().length > 0 : !!file;
   const limits = status
     ? `Up to ${formatBytes(status.max_file_bytes)}` +
-      (status.max_video_bytes ? ` · ${formatBytes(status.max_video_bytes)} for video` : "")
+      (status.max_video_bytes ? ` · ${formatBytes(status.max_video_bytes)} for video and audio` : "")
     : null;
   const uploading = busy && tab === "upload" && progress < 100;
   const linkUrl = { host: "markdrop.in", slug: settings.slug || "your-link" };

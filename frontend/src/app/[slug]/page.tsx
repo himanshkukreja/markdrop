@@ -132,6 +132,7 @@ export default async function SlugPage({ params }: Props) {
         originalFilename={doc.original_filename ?? null}
         artifactUrl={doc.artifact_url ?? null}
         downloadUrl={doc.download_url ?? null}
+        posterUrl={doc.poster_url ?? null}
         docRef={doc.ref ?? null}
       />
       </Suspense>

@@ -22,7 +22,12 @@
  * prefers-color-scheme instead. Only the token `t` is ever forwarded to /r/.
  */
 
-const VIEWERS = new Set(["pdf", "sheet", "text", "docx", "video"]);
+const VIEWERS = new Set(["pdf", "sheet", "text", "docx", "video", "audio"]);
+
+// A video's poster frame, as the API stores it: art/<owner>/<random>.poster.jpg.
+// Anything else in ?poster= is ignored, so the parameter can only ever point
+// the player at a poster image on this origin.
+const POSTER_KEY = /^art\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.poster\.jpg$/;
 
 // The only two strings that can ever reach the data-theme attribute.
 const THEMES = new Set(["dark", "light"]);
@@ -53,6 +58,10 @@ const INLINE_TYPES = new Set([
   "video/quicktime",
   "video/webm",
   "video/ogg",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/wav",
+  "audio/ogg",
 ]);
 
 /**
@@ -331,11 +340,19 @@ function serveViewer(renderer, blobKey, url, env) {
   // Only `t` is forwarded to /r/. `theme` styles this page and goes no further.
   const token = url.searchParams.get("t");
   const src = `/r/${blobKey}${token ? `?t=${encodeURIComponent(token)}` : ""}`;
+  // A video's poster frame: ?poster=<key> (+ ?pt=<its token> when guarded),
+  // passed on by the app from the API's poster_url.
+  const posterKey = url.searchParams.get("poster");
+  const posterToken = url.searchParams.get("pt");
+  const poster = posterKey && POSTER_KEY.test(posterKey)
+    ? `/r/${posterKey}${posterToken ? `?t=${encodeURIComponent(posterToken)}` : ""}`
+    : null;
   const html =
     renderer === "pdf" ? pdfViewer(src, theme)
     : renderer === "sheet" ? sheetViewer(src, theme)
     : renderer === "docx" ? docxViewer(src, theme)
-    : renderer === "video" ? videoViewer(src)
+    : renderer === "video" ? videoViewer(src, poster)
+    : renderer === "audio" ? audioViewer(src, theme)
     : textViewer(src, theme);
   return new Response(html, {
     headers: {
@@ -1017,6 +1034,36 @@ ${NA_SCRIPT}
 }
 
 /**
+ * Audio: the browser's own <audio controls>, centred on the page. Seeking uses
+ * the same range requests /r/ already answers for video.
+ */
+function audioViewer(src, theme) {
+  const css = `
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:24px 16px;background:var(--surface)}
+  audio{width:100%;max-width:640px}
+  .msg{text-align:center}`;
+  const body = `<main class="stage" id="stage"><audio id="a" controls preload="metadata" src="${src}"></audio></main>
+<script>
+${NA_SCRIPT}
+(function () {
+  var a = document.getElementById('a');
+  // Same diagnosis as the video player: a 403/404 and an unplayable codec
+  // look identical to the element, so ask the source which it was.
+  a.addEventListener('error', function () {
+    fetch(a.currentSrc || a.src, { headers: { Range: 'bytes=0-0' } }).then(function (r) {
+      if (r.status === 401 || r.status === 403 || r.status === 404) { showUnavailable(); return; }
+      var p = document.createElement('p');
+      p.className = 'msg';
+      p.textContent = 'This audio file can\\u2019t be played in this browser. Download it to play it locally.';
+      document.getElementById('stage').replaceChildren(p);
+    }).catch(function () {});
+  });
+})();
+</script>`;
+  return page({ title: "Audio", theme, css, body });
+}
+
+/**
  * Custom video player.
  *
  * Not <video controls>: the native chrome differs on every browser, can't be
@@ -1028,7 +1075,7 @@ ${NA_SCRIPT}
  * Everything here is inline. The page renders inside a sandboxed iframe on a
  * throwaway origin with no build step and no network beyond the video itself.
  */
-function videoViewer(src) {
+function videoViewer(src, poster = null) {
   // Dark in both app themes, on purpose: a light frame around moving pictures
   // fights the picture. It still takes the design tokens (dark set) and the
   // accent, so it reads as the same product as the other viewers.
@@ -1101,7 +1148,7 @@ function videoViewer(src) {
   @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 </style></head><body>
 <div id="stage" tabindex="0">
-  <video id="v" playsinline preload="metadata" src="${src}"></video>
+  <video id="v" playsinline preload="metadata"${poster ? ` poster="${poster}"` : ""} src="${src}"></video>
   <button id="big" aria-label="Play"><span><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></span></button>
   <div id="toast"></div>
   <div id="ui">

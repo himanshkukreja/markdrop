@@ -217,6 +217,7 @@ export default async function TenantDocumentPage({ params }: Props) {
           originalFilename={doc.original_filename ?? null}
           artifactUrl={doc.artifact_url ?? null}
           downloadUrl={doc.download_url ?? null}
+          posterUrl={doc.poster_url ?? null}
           viewerChrome={viewerChrome}
         />
       </Suspense>

@@ -61,6 +61,8 @@ interface Props {
   originalFilename: string | null;
   artifactUrl: string | null;
   downloadUrl: string | null;
+  /** A video's poster frame (API `poster_url`), shown by the player before it plays. */
+  posterUrl?: string | null;
   /** Opaque analytics reference (API `ref`); never the slug. */
   docRef?: string | null;
   /**
@@ -96,6 +98,7 @@ export default function ArtifactView({
   originalFilename,
   artifactUrl: initialArtifactUrl,
   downloadUrl: initialDownloadUrl,
+  posterUrl: initialPosterUrl = null,
   docRef = null,
   viewerChrome = "full",
 }: Props) {
@@ -115,6 +118,7 @@ export default function ArtifactView({
   const [artifactUrl, setArtifactUrl] = useState(initialArtifactUrl);
   const artifactUrlRef = useRef(initialArtifactUrl);
   const [downloadUrl, setDownloadUrl] = useState(initialDownloadUrl);
+  const [posterUrl, setPosterUrl] = useState(initialPosterUrl);
   const [renderer, setRenderer] = useState(initialRenderer);
   const [typeLabel, setTypeLabel] = useState(initialTypeLabel);
   const [sizeBytes, setSizeBytes] = useState(initialSize);
@@ -249,6 +253,7 @@ export default function ArtifactView({
     // already loading, restarting the fetch and the loader with it.
     if (remount) setReloadKey((k) => k + 1);
     setDownloadUrl(doc.download_url ?? null);
+    setPosterUrl(doc.poster_url ?? null);
     if (doc.renderer) setRenderer(doc.renderer);
     if (doc.type_label) setTypeLabel(doc.type_label);
     if (doc.size_bytes) setSizeBytes(doc.size_bytes);
@@ -471,7 +476,8 @@ export default function ArtifactView({
   const loadingLabel = `Loading ${typeLabel}…`;
   // Theme on Worker viewer pages (`/v/…`), via the URL API so a signed `?t=` survives. Waits for
   // hydration *and* the resolved theme, so the iframe mounts once with its final src.
-  const frameSrc = hydrated && resolved && artifactUrl ? themedFrameSrc(artifactUrl, resolved) : null;
+  const frameSrc =
+    hydrated && resolved && artifactUrl ? themedFrameSrc(artifactUrl, resolved, posterUrl) : null;
   const showCover = frameLoading && !liveReload;
   const showLiveProgress = frameLoading && liveReload;
   const canOpen = !!artifactUrl && !locked;
