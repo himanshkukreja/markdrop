@@ -67,7 +67,15 @@ INSTRUCTIONS = (
     "password. Never publish secrets or personal data unless the user asked. list_shares and "
     "get_share_status report on peer-to-peer file shares (markdrop.in/share links); this server "
     "can't send or receive those files itself, which needs the markdrop CLI's local MCP server "
-    "(markdrop mcp) on the user's computer."
+    "(markdrop mcp) on the user's computer. "
+    "Binary files (video up to 2 GB, PDFs, images): never put file bytes in a tool argument. "
+    "For a file on the user's computer, prefer the local server's upload_file / replace_file "
+    "(markdrop mcp), which read it from disk. If you only have this server but can run shell "
+    "commands where the file is, use create_upload (with target_slug to replace the file behind "
+    "an existing link, keeping its URL, access and views), run the split + curl commands it "
+    "returns, then complete_upload (poll get_upload_status if it says 'verifying'). Replacing "
+    "keeps the previous version: list_file_versions and restore_file_version undo a replace. "
+    "get_file_info describes a file (size, duration, dimensions, version)."
 )
 # How long a client may reuse discovery and list results (envelope era).
 LIST_TTL_MS = 5 * 60 * 1000

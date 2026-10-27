@@ -37,6 +37,7 @@ from app.services import access as access_service
 from app.services import analytics
 from app.services import artifact as art_service
 from app.services import document as doc_service
+from app.services import file_uploads
 from app.services import live, r2
 from app.services.doc_ref import heading_title
 
@@ -476,7 +477,13 @@ async def update_document(ctx: Context, args: dict) -> tuple[str, dict]:
     title = args.get("title")
     if raw.get("kind") == "artifact":
         if not art_service.is_syncable(raw.get("mime")) or raw.get("bundle_prefix"):
-            raise ToolError("That file isn't a text file, so it can't be updated here.")
+            label = art_service.label_for(raw.get("mime") or "")
+            raise ToolError(
+                f"That file ({label}) isn't a text file, so it can't be updated here. To replace "
+                "its bytes and keep the link, use replace_file in the local Markdrop server "
+                "(markdrop mcp) for a file on the user's computer, or create_upload then "
+                "complete_upload here when you have a shell."
+            )
         if not r2.is_configured():
             raise ToolError("File storage isn't available on this server, so files can't be updated.")
         status, doc = await art_service.sync_push_content(
@@ -522,6 +529,23 @@ async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
     doc = await read_doc(ctx, slug)
     if doc.encrypted:
         raise ToolError(ENCRYPTED_READ)
+    if doc.kind == "artifact" and (not art_service.is_syncable(doc.mime) or doc.bundle_prefix):
+        # A video, PDF or image has no text to return: describe the file instead.
+        raw = await load_raw(ctx.db, slug)
+        info = jsonable(file_uploads.file_info(raw))
+        out = {
+            "url": public_url(doc.slug),
+            "slug": doc.slug,
+            "title": display_title(doc),
+            "kind": "artifact",
+            "access": access_of(doc.access_level, bool(doc.read_password_hash)),
+            "created_at": iso(doc.created_at),
+            "updated_at": iso(doc.updated_at),
+            "views": doc.views,
+            "owner": "you" if doc.owner_id == ctx.user.id else "someone else",
+            "file": info,
+        }
+        return f"{out['title'] or doc.slug} ({out['url']}): {describe_file(info)}", out
     content, note = await text_of(doc)
     content, clipped = _clip(content)
     if clipped:
@@ -836,6 +860,228 @@ async def get_share_status(ctx: Context, args: dict) -> tuple[str, dict]:
     return text, out
 
 
+# ── Files: upload, replace, versions ──────────────────────────────────────────
+#
+# Bytes never travel through a tool argument. create_upload hands back
+# presigned part URLs and the exact shell commands that PUT the file's parts
+# straight to storage; complete_upload then verifies the sha256 and publishes.
+# (The local server, `markdrop mcp`, does all of this itself from a path.)
+
+
+def jsonable(value: Any) -> Any:
+    """Datetimes → ISO strings, recursively, for structuredContent."""
+    if isinstance(value, datetime):
+        return iso(value)
+    if isinstance(value, dict):
+        return {k: jsonable(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [jsonable(v) for v in value]
+    return value
+
+
+def _duration(seconds: float | None) -> str | None:
+    if not seconds:
+        return None
+    s = int(round(seconds))
+    h, rem = divmod(s, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def describe_file(info: dict) -> str:
+    """One line about a file: type, size, version, and media facts if known."""
+    label = art_service.label_for(info.get("content_type") or "")
+    bits = [f"{label}, {human_bytes(info.get('size_bytes'))}", f"version {info.get('version')}"]
+    m = info.get("media") or {}
+    if _duration(m.get("duration_s")):
+        bits.append(_duration(m.get("duration_s")))
+    if m.get("width") and m.get("height"):
+        bits.append(f"{m['width']}x{m['height']}")
+    codecs = "/".join(c for c in (m.get("video_codec"), m.get("audio_codec")) if c)
+    if codecs:
+        bits.append(codecs)
+    if info.get("sha256"):
+        bits.append(f"sha256 {info['sha256'][:12]}…")
+    return "; ".join(bits) + "."
+
+
+def _file_out(info: dict) -> dict:
+    out = jsonable(info)
+    out["url"] = public_url(info["slug"])
+    return out
+
+
+def _http_tool_error(exc: HTTPException) -> ToolError:
+    """The website's read gates, in the words the other tools use."""
+    gate = (exc.headers or {}).get("X-Markdrop-Gate")
+    if exc.status_code == 401 and gate == "password":
+        return ToolError(PASSWORD_GATED)
+    if exc.status_code in (401, 404):
+        return ToolError(NOT_FOUND)
+    return ToolError(http_message(exc))
+
+
+def _require_files() -> None:
+    if not r2.is_configured() or not settings.artifact_origin_is_isolated:
+        raise ToolError("File uploads aren't available on this server right now (file storage isn't configured).")
+
+
+def upload_instructions(file_name: str, upload_id: str, part_size: int, parts: list[dict]) -> str:
+    """The exact commands that send a file's parts to their presigned URLs.
+
+    `split` makes files of exactly part_size bytes (R2 wants every part but the
+    last the same size), and `curl --upload-file` sends each with a
+    Content-Length: R2 refuses chunked uploads, so never pipe from stdin."""
+    import shlex
+
+    prefix = f"/tmp/md-{upload_id}.part."
+    lines = [
+        f"FILE={shlex.quote(file_name)}   # use the file's full path",
+        f'split -b {part_size} -d -a 4 "$FILE" {prefix}',
+    ]
+    for p in parts:
+        n = int(p["part_number"])
+        lines.append(
+            f"printf '{n} '; curl -sS --fail -X PUT --upload-file {prefix}{n - 1:04d} "
+            f"'{p['url']}' -D - -o /dev/null | grep -i '^etag'"
+        )
+    lines.append(f"rm -f {prefix}*")
+    head = (
+        f"Upload {file_name} in {len(parts)} part(s) of {part_size:,} bytes with the shell commands "
+        "below. Each curl prints the part number and its ETag. Then call complete_upload with "
+        f'upload_id "{upload_id}" and parts [{{"part_number": N, "etag": "..."}}] (or omit parts '
+        "to use the parts storage received). The URLs expire in "
+        f"{settings.file_upload_url_ttl // 60} minutes; calling create_upload again with the same "
+        "arguments returns fresh ones for the same upload. Use curl --upload-file as shown: "
+        "storage needs each part's Content-Length, so never stream a part from stdin."
+    )
+    return head + "\n\n" + "\n".join(lines)
+
+
+async def create_upload(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.schemas.files import UploadCreateRequest
+
+    _require_files()
+    target = resolve_ref(args["target_slug"]) if args.get("target_slug") else None
+    access = password = None
+    if target is None and (args.get("access") or args.get("password")):
+        access, password = access_choice(args)
+    try:
+        data = UploadCreateRequest(
+            file_name=args["file_name"].strip().replace("\\", "/").rsplit("/", 1)[-1][:255],
+            size_bytes=args["size_bytes"],
+            content_type=args.get("content_type") or "",
+            sha256=args["sha256"],
+            target_slug=target,
+            title=(args.get("title") or "").strip() or None,
+            access=access,
+            password=password,
+        )
+    except ValidationError:
+        raise ToolError("Those upload details aren't valid. Check file_name, size_bytes and sha256 "
+                        "(64 hex characters).")
+    try:
+        session = await file_uploads.create(ctx.db, ctx.user, data)
+    except HTTPException as exc:
+        raise _http_tool_error(exc)
+    out = jsonable(session)
+    out["instructions"] = upload_instructions(data.file_name, out["upload_id"], out["part_size"],
+                                              out["parts"])
+    return out["instructions"], out
+
+
+async def complete_upload(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.schemas.files import UploadCompleteRequest
+
+    _require_files()
+    try:
+        parsed = UploadCompleteRequest(parts=args.get("parts") or None)
+    except ValidationError:
+        raise ToolError('parts must be a list of {"part_number": N, "etag": "..."}.')
+    parts = [p.model_dump() for p in parsed.parts] if parsed.parts else None
+    try:
+        status, body = await file_uploads.complete(ctx.db, ctx.user.id, args["upload_id"], parts)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    if status == 200:
+        out = {"state": "done", **jsonable(body)}
+        out["url"] = public_url(body["slug"])
+        return (f"Uploaded: {out['url']} (version {out['version']}, {human_bytes(out['size_bytes'])}, "
+                "sha256 verified)."), out
+    if status == 202:
+        out = {"state": "verifying", "upload_id": args["upload_id"]}
+        return ("The parts are in and the file is still being verified (sha256 of a large file "
+                "takes a while). Call get_upload_status with this upload_id until state is \"done\" "
+                "(it then includes the result) or \"failed\"."), out
+    raise ToolError(body.get("detail") or "The upload couldn't be completed.")
+
+
+async def get_upload_status(ctx: Context, args: dict) -> tuple[str, dict]:
+    try:
+        st = await file_uploads.status(ctx.db, ctx.user.id, args["upload_id"])
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    out = jsonable(st)
+    if out.get("result"):
+        out["result"]["url"] = public_url(out["result"]["slug"])
+    state = out["state"]
+    if state == "done":
+        text = f"Done: {out['result']['url']} (version {out['result']['version']})."
+    elif state == "failed":
+        text = f"Failed: {out.get('error')}"
+    elif state == "verifying":
+        text = (f"Verifying: {human_bytes(out.get('verified_bytes') or 0)} of "
+                f"{human_bytes(out['size_bytes'])} checked. Ask again in a few seconds.")
+    elif state == "uploading":
+        text = (f"Waiting for parts: {len(out['parts_uploaded'])} of {out['part_count']} received"
+                + (f". Last error: {out['error']}" if out.get("error") else "."))
+    else:
+        text = f"This upload has {state}; start a new one with create_upload."
+    return text, out
+
+
+async def get_file_info(ctx: Context, args: dict) -> tuple[str, dict]:
+    slug = resolve_ref(args["document"])
+    try:
+        raw = await file_uploads.readable_artifact(ctx.db, ctx.user, slug)
+    except HTTPException as exc:
+        raise _http_tool_error(exc)
+    info = _file_out(file_uploads.file_info(raw))
+    return f"{raw.get('title') or slug} ({info['url']}): {describe_file(info)}", info
+
+
+async def _owned_file(ctx: Context, document: str, action: str) -> dict:
+    slug = resolve_ref(document)
+    raw = await load_raw(ctx.db, slug)
+    await require_owner(ctx, raw, action)
+    if raw.get("kind") != "artifact":
+        raise ToolError(f"{slug} is a markdown document, not a file; it has no file versions.")
+    return raw
+
+
+async def list_file_versions(ctx: Context, args: dict) -> tuple[str, dict]:
+    raw = await _owned_file(ctx, args["document"], "see the versions of")
+    out = jsonable(await file_uploads.versions(ctx.db, raw))
+    lines = [
+        f"- v{v['version']}{' (current)' if v['current'] else ''}: {human_bytes(v['size_bytes'])}, "
+        f"{v['created_at'] or 'date unknown'}" + (f", sha256 {v['sha256'][:12]}…" if v["sha256"] else "")
+        for v in out["versions"]
+    ]
+    return f"{len(lines)} version(s) of {public_url(raw['slug'])}, newest first:\n" + "\n".join(lines), out
+
+
+async def restore_file_version(ctx: Context, args: dict) -> tuple[str, dict]:
+    _require_files()
+    raw = await _owned_file(ctx, args["document"], "restore versions of")
+    try:
+        info = await file_uploads.restore(ctx.db, ctx.user, raw, int(args["version"]))
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    out = _file_out(info)
+    return (f"Version {args['version']} of {out['url']} is current again, as version {out['version']}. "
+            "The link is unchanged."), out
+
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 _NULLABLE_STR = {"type": ["string", "null"]}
@@ -866,6 +1112,35 @@ _PUBLISH_OPTIONS = {
 def _out(properties: dict, required: list[str] | None = None) -> dict:
     return {"type": "object", "properties": properties,
             "required": required if required is not None else list(properties)}
+
+
+_NULLABLE_INT = {"type": ["integer", "null"]}
+_MEDIA = {
+    "type": ["object", "null"],
+    "description": "ffprobe's reading of a video or audio file; null until known.",
+    "properties": {
+        "duration_s": {"type": ["number", "null"]}, "width": _NULLABLE_INT, "height": _NULLABLE_INT,
+        "video_codec": _NULLABLE_STR, "audio_codec": _NULLABLE_STR,
+    },
+}
+_FILE_INFO = _out(
+    {
+        "slug": {"type": "string"}, "url": {"type": "string"}, "title": _NULLABLE_STR,
+        "content_type": {"type": "string"}, "size_bytes": {"type": "integer"},
+        "sha256": _NULLABLE_STR, "version": {"type": "integer"},
+        "updated_at": {"type": "string"}, "created_at": {"type": "string"},
+        "media": _MEDIA, "poster_url": _NULLABLE_STR, "download_url": _NULLABLE_STR,
+        "access": _ACCESS_OUT,
+    },
+    ["slug", "url", "content_type", "size_bytes", "sha256", "version", "updated_at", "created_at",
+     "media", "poster_url"],
+)
+_UPLOAD_ID = {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^up_[A-Za-z0-9_-]+$",
+              "description": "The upload_id from create_upload."}
+_RESULT_PROPS = {
+    "url": {"type": "string"}, "slug": {"type": "string"}, "version": {"type": "integer"},
+    "size_bytes": {"type": "integer"}, "content_type": {"type": "string"}, "sha256": {"type": "string"},
+}
 
 
 def _ann(read_only: bool, destructive: bool, idempotent: bool) -> dict:
@@ -974,6 +1249,7 @@ TOOLS: list[Tool] = [
                 "access": _ACCESS_OUT, "created_at": {"type": "string"},
                 "updated_at": {"type": "string"}, "views": {"type": "integer"},
                 "owner": {"type": "string", "enum": ["you", "someone else"]},
+                "file": _FILE_INFO,
             },
             ["url", "slug", "title", "kind", "access", "created_at", "updated_at", "views", "owner"],
         ),
@@ -1155,6 +1431,175 @@ TOOLS: list[Tool] = [
         ),
         annotations=_ann(True, False, True),
         handler=get_share_status,
+    ),
+    Tool(
+        name="create_upload",
+        title="Start a file upload",
+        description=(
+            "Upload a file from the machine you run shell commands on (video up to 2 GB, PDF, image, "
+            "HTML, spreadsheet...) as a Markdrop link, or replace the file behind an existing link "
+            "with target_slug: the link, access, title and views stay the same and the previous "
+            "version is kept and can be restored. Give the file's name, exact size in bytes and "
+            "sha256 (e.g. `shasum -a 256 FILE`). Returns presigned part URLs plus the exact shell "
+            "commands (split + curl) that send the bytes straight to storage; then call "
+            "complete_upload. Never put file contents in an argument. If the user's computer runs "
+            "the local Markdrop server (markdrop mcp), its upload_file / replace_file tools are simpler."
+        ),
+        scope=WRITE,
+        writes=True,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "file_name": {"type": "string", "minLength": 1, "maxLength": 255,
+                              "description": "The file's name with its extension, e.g. 'demo.mp4'."},
+                "size_bytes": {"type": "integer", "minimum": 1,
+                               "description": "Exact size in bytes (e.g. `wc -c < FILE`)."},
+                "content_type": {"type": "string", "maxLength": 255,
+                                 "description": "MIME type, e.g. 'video/mp4'. Optional: the extension decides when omitted."},
+                "sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$",
+                           "description": "Hex sha256 of the file; the upload is verified against it."},
+                "target_slug": {**_DOC_REF, "description": (
+                    "Replace the file at this slug or link (one the user owns) instead of creating "
+                    "a new link.")},
+                "title": {"type": "string", "maxLength": 200, "description": "Optional title (a new title for a replaced file)."},
+                "access": {**_PUBLISH_OPTIONS["access"], "description": (
+                    "New uploads only: 'link' (default), 'private' or 'password'.")},
+                "password": _PUBLISH_OPTIONS["password"],
+            },
+            "required": ["file_name", "size_bytes", "sha256"],
+        },
+        output_schema=_out({
+            "upload_id": {"type": "string"}, "part_size": {"type": "integer"},
+            "parts": {"type": "array", "items": _out({"part_number": {"type": "integer"},
+                                                       "url": {"type": "string"}})},
+            "expires_at": {"type": "string"}, "instructions": {"type": "string"},
+        }),
+        annotations=_ann(False, False, False),
+        handler=create_upload,
+    ),
+    Tool(
+        name="complete_upload",
+        title="Finish a file upload",
+        description=(
+            "Finish an upload started with create_upload, once every part is uploaded: storage "
+            "assembles the parts, Markdrop checks the size and sha256, then publishes the file (or "
+            "swaps it in behind target_slug's link as a new version). Returns the link, or "
+            "state 'verifying' for a large file: then poll get_upload_status. Safe to call again."
+        ),
+        scope=WRITE,
+        writes=True,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "upload_id": _UPLOAD_ID,
+                "parts": {
+                    "type": "array", "maxItems": 10000,
+                    "description": ("Each part's number and the ETag its upload returned. Optional: "
+                                    "omitted, the parts storage received are used."),
+                    "items": {"type": "object", "properties": {
+                        "part_number": {"type": "integer", "minimum": 1},
+                        "etag": {"type": "string", "minLength": 1}},
+                        "required": ["part_number", "etag"]},
+                },
+            },
+            "required": ["upload_id"],
+        },
+        output_schema=_out(
+            {"state": {"type": "string", "enum": ["done", "verifying"]}, "upload_id": {"type": "string"},
+             **_RESULT_PROPS},
+            ["state"],
+        ),
+        annotations=_ann(False, False, True),
+        handler=complete_upload,
+    ),
+    Tool(
+        name="get_upload_status",
+        title="Check a file upload",
+        description=(
+            "State of an upload from create_upload: 'uploading' (with the parts received so far), "
+            "'verifying', 'done' (with the result: link and version), 'failed' (with the error), "
+            "'expired' or 'cancelled'."
+        ),
+        scope=READ,
+        input_schema={"type": "object", "properties": {"upload_id": _UPLOAD_ID}, "required": ["upload_id"]},
+        output_schema=_out(
+            {
+                "upload_id": {"type": "string"},
+                "state": {"type": "string", "enum": ["uploading", "verifying", "done", "failed",
+                                                     "expired", "cancelled"]},
+                "file_name": {"type": "string"}, "content_type": {"type": "string"},
+                "size_bytes": {"type": "integer"}, "sha256": {"type": "string"},
+                "part_size": {"type": "integer"}, "part_count": {"type": "integer"},
+                "parts_uploaded": {"type": "array", "items": _out({
+                    "part_number": {"type": "integer"}, "etag": {"type": "string"},
+                    "size": {"type": "integer"}})},
+                "target_slug": _NULLABLE_STR, "expires_at": {"type": "string"},
+                "verified_bytes": {"type": "integer"},
+                "result": _out(_RESULT_PROPS), "error": {"type": "string"},
+            },
+            ["upload_id", "state", "size_bytes", "part_size", "part_count", "parts_uploaded", "expires_at"],
+        ),
+        annotations=_ann(True, False, True),
+        handler=get_upload_status,
+    ),
+    Tool(
+        name="get_file_info",
+        title="File details",
+        description=(
+            "Details of a Markdrop file (video, PDF, image, page...) by slug or link: type, size, "
+            "sha256, current version, duration and dimensions for video or audio, and poster and "
+            "download links. Works for the user's files and files they can open."
+        ),
+        scope=READ,
+        input_schema={"type": "object", "properties": {"document": _DOC_REF}, "required": ["document"]},
+        output_schema=_FILE_INFO,
+        annotations=_ann(True, False, True),
+        handler=get_file_info,
+    ),
+    Tool(
+        name="list_file_versions",
+        title="List file versions",
+        description=(
+            "The kept versions of one of the user's files, newest first, marking the current one. "
+            f"Up to {settings.file_versions_keep} versions are kept per file; restore one with "
+            "restore_file_version."
+        ),
+        scope=READ,
+        input_schema={"type": "object", "properties": {"document": _DOC_REF}, "required": ["document"]},
+        output_schema=_out({"versions": {"type": "array", "items": _out(
+            {
+                "version": {"type": "integer"}, "size_bytes": {"type": "integer"},
+                "sha256": _NULLABLE_STR, "content_type": {"type": "string"},
+                "created_at": _NULLABLE_STR, "current": {"type": "boolean"}, "media": _MEDIA,
+                "filename": _NULLABLE_STR,
+            },
+            ["version", "size_bytes", "sha256", "content_type", "created_at", "current"],
+        )}}),
+        annotations=_ann(True, False, True),
+        handler=list_file_versions,
+    ),
+    Tool(
+        name="restore_file_version",
+        title="Restore a file version",
+        description=(
+            "Make an earlier version of one of the user's files current again, keeping its link. "
+            "The restored file becomes a new version; nothing is deleted, so this can be undone by "
+            "restoring again."
+        ),
+        scope=WRITE,
+        writes=True,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "document": _DOC_REF,
+                "version": {"type": "integer", "minimum": 1,
+                            "description": "The version number from list_file_versions."},
+            },
+            "required": ["document", "version"],
+        },
+        output_schema=_FILE_INFO,
+        annotations=_ann(False, False, False),
+        handler=restore_file_version,
     ),
 ]
 

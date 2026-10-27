@@ -106,7 +106,8 @@ class Transport(McpTestCase):
         self.assertEqual(set(tools), {
             "publish_document", "publish_page", "update_document", "get_document", "list_documents",
             "set_access", "delete_document", "get_document_stats", "search", "fetch",
-            "list_shares", "get_share_status"})
+            "list_shares", "get_share_status", "create_upload", "complete_upload", "get_upload_status",
+            "get_file_info", "list_file_versions", "restore_file_version"})
         for t in tools.values():
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertEqual(t["outputSchema"]["type"], "object")
@@ -157,7 +158,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 12)
+        self.assertEqual(len(r.json()["result"]["tools"]), 18)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")
