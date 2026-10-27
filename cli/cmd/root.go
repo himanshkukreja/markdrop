@@ -52,7 +52,7 @@ func init() {
 	rootCmd.Version = version
 	rootCmd.PersistentFlags().StringVar(
 		&flagServer, "server", defaultServer,
-		"API base URL of the markdrop signalling server",
+		"API base URL of the Markdrop server (signalling and file uploads)",
 	)
 	rootCmd.PersistentFlags().StringVar(
 		&flagOrigin, "origin", defaultOrigin,
