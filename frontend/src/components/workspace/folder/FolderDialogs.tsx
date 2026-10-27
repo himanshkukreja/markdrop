@@ -231,7 +231,7 @@ export function MoveToDialog({
       if (id === (current ?? null) && current !== undefined) return "It's already here";
       if (target.kind === "folder") {
         if (id === target.folder.id || (id && blocked.has(id))) return "A folder can't go inside itself";
-        const depth = f ? f.depth + 1 : 0;
+        const depth = f ? f.depth : 0; // the target's depth (top level = 1); root = 0
         if (depth + height > MAX_FOLDER_DEPTH) return `Folders nest at most ${MAX_FOLDER_DEPTH} deep`;
       }
       return undefined;

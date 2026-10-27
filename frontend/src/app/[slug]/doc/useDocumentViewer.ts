@@ -931,7 +931,7 @@ export function useDocumentViewer({
   // P3: members (on a non-private document in their workspace) and editor grantees edit with
   // their session, no edit secret. The server says so as `your_role: "editor"` and enforces it on
   // save. Re-applied after Cancel (which re-locks secret-only sessions).
-  const sessionEditor = !!user && access?.your_role === "editor";
+  const sessionEditor = !!user && (access?.can ? access.can.edit && !access.can.settings : access?.your_role === "editor");
   useEffect(() => {
     if (sessionEditor && !secretUnlocked) setSecretUnlocked(true);
   }, [sessionEditor, secretUnlocked]);

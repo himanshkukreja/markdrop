@@ -138,6 +138,13 @@ export interface Domain {
   routing_ok?: boolean | null;
   /** v2 (S3): consecutive failed re-checks. */
   failures?: number | null;
+  /** v2: verified, attached and not lapsed — the domain is serving. */
+  live?: boolean;
+  /** v2 (T4): false when we can't tell whether the host is an apex; then every option is shown. */
+  apex_certain?: boolean;
+  dns_routing_options?: Array<{ type: string; name: string; value: string }>;
+  /** Pending claims only: when the unverified claim is dropped. */
+  expires_at?: string | null;
 }
 
 export interface Folder {
@@ -476,6 +483,7 @@ export interface WorkspaceItem {
   owner: { name: string | null; is_you: boolean };
   size_bytes?: number | null;
   updated_at: string;
+  created_at?: string | null;
   views?: number | null;
   can: { edit: boolean; move: boolean; unshare: boolean; delete: boolean; share: boolean };
   /** Optional extras some backends send; used for nicer tiles when present. */
@@ -562,7 +570,8 @@ export const addItems = async (id: string, slugs: string[], folderId: string | n
   return r;
 };
 
-export interface RemovedItem { slug: string; access_after: ItemAccess }
+/** `slug` is null for a row removed by its redacted handle (the caller never learns it). */
+export interface RemovedItem { slug: string | null; access_after: ItemAccess }
 
 /** Take documents out of the workspace (unshare). A `workspace`-level document becomes private;
  *  `access_after` says what each one is now. */
@@ -590,8 +599,11 @@ export async function fileIntoWorkspace(
     await addItems(id, [doc.slug], folderId, access);
     return;
   } catch (e) {
+    // Only a backend without the route falls back: FastAPI's own 404 says exactly "Not Found";
+    // items/add's 404s ("There's no document … of yours", "Folder not found") are real answers.
     const s = errorStatus(e);
-    if ((s !== 404 && s !== 405) || !doc.id) throw e;
+    const missingRoute = s === 405 || (s === 404 && e instanceof Error && e.message === "Not Found");
+    if (!missingRoute || !doc.id) throw e;
   }
   await shareToWorkspace(id, doc.id!, folderId, doc.slug);
   if (access) await setLevel(doc.slug, access);
@@ -626,20 +638,53 @@ export const shareFolder = (id: string, folderId: string, level: FolderShareLeve
     body: JSON.stringify({ level }),
   });
 
+/** The folder's current share, or null when it isn't shared (`GET …/share`, viewer+). Read-only:
+ *  opening the dialog must not re-share (a PUT rewrites the share and purges caches). */
+export const getFolderShare = async (id: string, folderId: string): Promise<FolderShare | null> => {
+  try {
+    return await request<FolderShare>(
+      `/api/v1/workspaces/${encodeURIComponent(id)}/folders/${encodeURIComponent(folderId)}/share`
+    );
+  } catch (e) {
+    if (errorStatus(e) === 404) return null;
+    throw e;
+  }
+};
+
 export const unshareFolder = (id: string, folderId: string) =>
   request<void>(`/api/v1/workspaces/${encodeURIComponent(id)}/folders/${encodeURIComponent(folderId)}/share`, {
     method: "DELETE",
   });
 
 /** Make documents you own open to anyone with the link (the folder dialog's "Open up the K you
- *  own"). One call per document (there is no batch level endpoint); returns the slugs that failed. */
+ *  own"): `POST /documents/access/level` in chunks of 200 → `{results:[{slug, ok}]}`. Falls back to
+ *  one call per document on a backend without the batch route. Returns the slugs that failed. */
 export const openUpToLink = async (slugs: string[]): Promise<string[]> => {
   const failed: string[] = [];
-  for (const slug of slugs) {
+  for (let i = 0; i < slugs.length; i += 200) {
+    const chunk = slugs.slice(i, i + 200);
     try {
-      await setLevel(slug, "link");
-    } catch {
-      failed.push(slug);
+      const r = await request<{ results: Array<{ slug: string; ok: boolean }> }>("/api/v1/documents/access/level", {
+        method: "POST",
+        body: JSON.stringify({ slugs: chunk, level: "link" }),
+      });
+      const done = new Set<string>();
+      for (const row of r.results ?? []) {
+        done.add(row.slug);
+        if (row.ok) purgeDocument(row.slug);
+        else failed.push(row.slug);
+      }
+      for (const s of chunk) if (!done.has(s)) failed.push(s);
+    } catch (e) {
+      const s = errorStatus(e);
+      if (s !== 404 && s !== 405) { failed.push(...chunk); continue; }
+      for (const slug of chunk) {
+        try {
+          await setLevel(slug, "link");
+        } catch {
+          failed.push(slug);
+        }
+      }
     }
   }
   return failed;
@@ -655,11 +700,13 @@ export async function fetchSharedFolder(
   shareId: string,
   path: string,
   token?: string | null,
+  /** Server renders only: the signed `X-Markdrop-Internal` header (components/tenant/server.ts). */
+  extraHeaders?: Record<string, string>,
 ): Promise<{ status: 200; data: SharedFolderPage } | { status: 401 | 403 | 404; data: null }> {
   const q = path ? `?path=${encodeURIComponent(path)}` : "";
   const res = await fetch(`${API_BASE}/api/v1/folders/shared/${encodeURIComponent(shareId)}${q}`, {
     cache: "no-store",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: { ...(extraHeaders ?? {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });
   if (res.ok) return { status: 200, data: (await res.json()) as SharedFolderPage };
   if (res.status === 401 || res.status === 403 || res.status === 404) return { status: res.status, data: null };

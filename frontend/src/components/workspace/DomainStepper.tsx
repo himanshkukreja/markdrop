@@ -16,7 +16,7 @@ export function domainSteps(d: Domain): Array<{ key: string; label: string; deta
   const lapsed = d.status === "lapsed";
   const failed = d.status === "failed";
   const recordsOk = verified || (d.txt_ok === true && d.routing_ok === true);
-  const live = verified && d.attached;
+  const live = d.live ?? (verified && d.attached);
   const serving = d.kind === "cdn" ? "Serving files" : "Live";
   return [
     { key: "added", label: "Added", detail: d.host, state: "done" },

@@ -218,7 +218,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
   const here = folder ? `“${folder.name}”` : `the top of ${wsName}`;
   const newDocHref = `/new?ws=${encodeURIComponent(workspaceId)}${folderId ? `&folder=${encodeURIComponent(folderId)}` : ""}`;
   const uploadHref = `/upload?ws=${encodeURIComponent(workspaceId)}${folderId ? `&folder=${encodeURIComponent(folderId)}` : ""}`;
-  const depthFull = !!folder && folder.depth + 1 >= MAX_FOLDER_DEPTH;
+  const depthFull = !!folder && folder.depth >= MAX_FOLDER_DEPTH; // tree depth: top level = 1
 
   /* ── Row menus ────────────────────────────────────────────────────── */
   function itemMenu(it: WorkspaceItem): MenuEntry[] {

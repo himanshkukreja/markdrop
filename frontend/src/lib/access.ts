@@ -43,6 +43,19 @@ export interface Grant {
   notified: boolean;
 }
 
+/** `can` flags (access policy §7), the same names on `/access`, the document and item rows. */
+export interface DocCan {
+  edit: boolean;
+  replace: boolean;
+  settings: boolean;
+  access: boolean;
+  rename: boolean;
+  delete: boolean;
+  share: boolean;
+  move: boolean;
+  unshare: boolean;
+}
+
 export interface AccessState {
   level: AccessLevel;
   allow_resharing: boolean;
@@ -52,6 +65,11 @@ export interface AccessState {
   in_workspace: boolean;
   /** Which workspace, so the share box can suggest its members. */
   workspace_id?: string | null;
+  workspace_name?: string | null;
+  /** The folder it is filed in (null at the workspace root or when unfiled). */
+  folder_id?: string | null;
+  /** What the caller may do, computed by the server's access.can() (§7) — never re-derived. */
+  can?: DocCan;
   your_role: "owner" | "editor" | "viewer";
   owner_name?: string | null;
   owner_email?: string | null;

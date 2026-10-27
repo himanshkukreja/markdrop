@@ -12,7 +12,7 @@ export function toDocRow(it: WorkspaceItem, workspaceId: string): MyDocListItem 
     url: it.markdrop_url || it.url,
     title: it.title,
     content_preview: "",
-    created_at: it.updated_at,
+    created_at: it.created_at ?? it.updated_at,
     updated_at: it.updated_at,
     expires_at: null,
     views: it.views ?? 0,

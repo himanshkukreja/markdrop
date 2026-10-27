@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { assertTenantHost, tenantHostOf } from "@/components/tenant/assertHost";
-import { fetchTenantFolder, resolveTenantHost, resolveTenantHostQuietly } from "@/components/tenant/server";
+import { FOLDER_SIGNIN, fetchTenantFolder, resolveTenantHost, resolveTenantHostQuietly } from "@/components/tenant/server";
+import { signInUrlFor } from "@/lib/hosts";
 import { TenantFolderPage } from "@/components/tenant/TenantFolderPage";
 
 /**
@@ -46,5 +47,8 @@ export default async function TenantRootPage({ params }: Props) {
   const siteName = resolved.site_name?.trim() || host;
 
   const listing = await fetchTenantFolder(host, [], resolved.workspace_id);
+  if (listing === FOLDER_SIGNIN) {
+    return <TenantFolderPage host={host} siteName={siteName} path={[]} initial={null} signInHref={signInUrlFor(host, "/")} />;
+  }
   return <TenantFolderPage host={host} siteName={siteName} path={[]} initial={listing} />;
 }

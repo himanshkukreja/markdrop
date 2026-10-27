@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { fetchSharedFolder } from "@/lib/workspaces";
+import { internalHeaders } from "@/components/tenant/server";
 import SharedFolderView from "./SharedFolderView";
 
 interface Props {
@@ -22,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const robots = { index: false, follow: false };
   if (!SHARE_ID.test(shareId)) return { title: "Folder · Markdrop", robots };
   try {
-    const r = await fetchSharedFolder(shareId, subPath(path));
+    const r = await fetchSharedFolder(shareId, subPath(path), null, internalHeaders());
     if (r.status === 200) {
       const title = `${r.data.folder.name} · ${r.data.workspace.name}`;
       return { title, description: `A shared folder from ${r.data.workspace.name} on Markdrop.`, robots, openGraph: { title } };
@@ -37,6 +38,7 @@ export default async function SharedFolderPage({ params }: Props) {
   const sub = subPath(path);
   if (!SHARE_ID.test(shareId)) return <SharedFolderView shareId={shareId} path={sub} initial={null} initialStatus={404} />;
   // Anonymous here (the session lives in the browser); 5xx/network errors throw to error.tsx.
-  const r = await fetchSharedFolder(shareId, sub);
+  // Signed (T1): every anonymous render reaches the API from the same few server addresses.
+  const r = await fetchSharedFolder(shareId, sub, null, internalHeaders());
   return <SharedFolderView shareId={shareId} path={sub} initial={r.data} initialStatus={r.status} />;
 }

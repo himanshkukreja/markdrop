@@ -72,17 +72,24 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
     try {
       const v = await verifyDomain(id, d.id);
       if (v.status === "verified") {
-        let live = v.attached;
-        if (!live) {
+        // The server already attaches a verified domain (and makes the first one primary) when it
+        // can. Attach here only when that didn't happen and the routing record isn't known to be
+        // missing; without hosting credentials (501) going live waits for the routing record.
+        let live = v.live ?? v.attached;
+        if (!live && v.routing_ok === false) {
+          toast.info(`${d.host} is verified. The routing record isn't visible yet; it goes live once it is.`);
+        } else if (!live) {
           try {
             const a = await attachDomain(id, d.id);
             live = a?.attached ?? true;
           } catch (e) {
-            toast.error(`${d.host} is verified, but going live failed: ${domainError(e, "try again in a minute.")}`);
+            if (errorStatus(e) === 501) {
+              toast.info(`${d.host} is verified. It goes live as soon as the routing record is visible.`);
+            } else {
+              toast.error(`${d.host} is verified, but going live failed: ${domainError(e, "try again in a minute.")}`);
+            }
           }
         }
-        const hasPrimary = (domains ?? []).some((x) => x.id !== d.id && x.is_primary && x.status === "verified" && x.kind === "app");
-        if (v.kind === "app" && !v.is_primary && !hasPrimary) await setPrimaryDomain(id, d.id).catch(() => {});
         if (live) toast.success(`${d.host} is live.`);
       } else {
         const missing = v.txt_ok === false && v.routing_ok === false ? "Neither record is visible yet"

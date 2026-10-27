@@ -7,6 +7,7 @@ import DocumentView from "@/app/[slug]/DocumentView";
 import { signInUrlFor } from "@/lib/hosts";
 import { assertTenantHost, tenantHostOf } from "@/components/tenant/assertHost";
 import {
+  FOLDER_SIGNIN,
   fetchTenantDocument,
   fetchTenantFolder,
   fetchTenantFolderQuietly,
@@ -189,6 +190,12 @@ export default async function TenantDocumentPage({ params }: Props) {
   // signed-in reader's browser asks once more with their token).
   if (result.status === "missing") {
     const listing = await fetchTenantFolder(host, [...folders, slug], resolved.workspace_id);
+    if (listing === FOLDER_SIGNIN) {
+      const here = `/${[...folders, slug].map(encodeURIComponent).join("/")}`;
+      return (
+        <TenantFolderPage host={host} siteName={siteName} path={[...folders, slug]} initial={null} signInHref={signInUrlFor(host, here)} />
+      );
+    }
     if (!listing?.folder) notFound();
     return <TenantFolderPage host={host} siteName={siteName} path={[...folders, slug]} initial={listing} />;
   }

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui";
 import { plural } from "@/components/dashboard/format";
 import {
-  errorStatus, listWorkspaceItems, openUpToLink, shareFolder, unshareFolder,
+  errorStatus, getFolderShare, listWorkspaceItems, openUpToLink, shareFolder, unshareFolder,
   type FolderShare, type FolderShareLevel, type TreeFolder, type WorkspaceItem,
 } from "@/lib/workspaces";
 import { workspaceChanged } from "@/lib/workspaceStore";
@@ -72,8 +72,24 @@ export default function ShareFolderDialog({
     }
   }, [folder, workspaceId, workspaceName, toast]);
 
-  // Opening the dialog on a folder that is already shared re-reads its link and hidden items
-  // (PUT with the same level is the read: the contract has no separate GET).
+  // Re-read the current share (link + hidden items) without changing it: GET, never a PUT, which
+  // would rewrite the share and purge every cached page of it.
+  const reload = useCallback(async () => {
+    if (!folder) return;
+    setState("loading");
+    setError("");
+    try {
+      const s = await getFolderShare(workspaceId, folder.id);
+      setShare(s);
+      setLevel(s ? s.level : "off");
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : "Couldn't load the folder's link. Try again.");
+    } finally {
+      setState("idle");
+    }
+  }, [folder, workspaceId]);
+
+  // Opening the dialog on a folder that is already shared reads its link and hidden items.
   useEffect(() => {
     if (!folder) return;
     setShare(null);
@@ -81,7 +97,7 @@ export default function ShareFolderDialog({
     setError("");
     const current = folder.share?.level ?? null;
     setLevel(current ?? "off");
-    if (current) void apply(current, true);
+    if (current) void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folder?.id]);
 
@@ -109,7 +125,12 @@ export default function ShareFolderDialog({
   }, [share, workspaceId]);
 
   const hidden = share?.level === "link" ? share.hidden : [];
-  const mineHidden = useMemo(() => hidden.filter((h) => owned?.has(h.slug)), [hidden, owned]);
+  // Only what "open to anyone with the link" would actually reveal: a password-protected link
+  // document stays hidden after it (the password is the reason), so it isn't offered.
+  const mineHidden = useMemo(
+    () => hidden.filter((h) => owned?.has(h.slug) && !(h.has_password && h.access === "link")),
+    [hidden, owned],
+  );
   const total = share?.total_count ?? (f ? f.total_count : undefined);
 
   async function openUp() {
@@ -117,7 +138,7 @@ export default function ShareFolderDialog({
     setConfirmOpen(false);
     if (failed.length) toast.error(`${plural(failed.length, "item")} couldn't be changed. Try again.`);
     else toast.success(`${plural(mineHidden.length, "item")} now open to anyone with the link`);
-    await apply("link", true);
+    await reload();
   }
 
   const busy = state !== "idle";
@@ -195,7 +216,9 @@ export default function ShareFolderDialog({
                           <Icon name={h.access === "private" ? "lock" : "users"} size={16} className="shrink-0 text-text-muted" />
                           <span className="min-w-0 flex-1 truncate text-body text-text" dir="auto">{h.title || h.slug}</span>
                           {owned?.has(h.slug) && <Badge size="sm" variant="outline">Yours</Badge>}
-                          <span className="shrink-0 text-caption text-text-muted">{ACCESS_LABEL[h.access] ?? h.access}</span>
+                          <span className="shrink-0 text-caption text-text-muted">
+                            {h.has_password && h.access === "link" ? "Password-protected" : ACCESS_LABEL[h.access] ?? h.access}
+                          </span>
                         </li>
                       ))}
                     </ul>

@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchTenantFolderAsReader, type TenantFolderListing } from "./folderIndex";
 import { TenantFolderIndex } from "./TenantFolderIndex";
+import { Button, EmptyState } from "@/components/ui";
+import { TenantFooter } from "./TenantFooter";
+import { TenantHandoff } from "./TenantHandoff";
+import { TenantHeader } from "./TenantHeader";
 import { TenantHome } from "./TenantHome";
 
 /**
@@ -22,9 +26,11 @@ export interface TenantFolderPageProps {
   path: string[];
   /** The anonymous listing; null when there is none (the root then shows the site's name). */
   initial: TenantFolderListing | null;
+  /** Set when the workspace requires sign-in to view: where "Sign in" goes (the handoff). */
+  signInHref?: string | null;
 }
 
-export function TenantFolderPage({ host, siteName, path, initial }: TenantFolderPageProps) {
+export function TenantFolderPage({ host, siteName, path, initial, signInHref = null }: TenantFolderPageProps) {
   const { user } = useAuth();
   const [listing, setListing] = useState<TenantFolderListing | null>(initial);
   const key = path.join("/");
@@ -42,6 +48,7 @@ export function TenantFolderPage({ host, siteName, path, initial }: TenantFolder
   }, [host, key, user?.id]);
 
   const returnPath = path.length ? `/${path.join("/")}` : "/";
+  if (!listing && signInHref && !user) return <TenantSignInGate siteName={siteName} signInHref={signInHref} />;
   if (!listing) return <TenantHome siteName={siteName} />;
   return (
     <TenantFolderIndex
@@ -52,6 +59,30 @@ export function TenantFolderPage({ host, siteName, path, initial }: TenantFolder
       documents={listing.documents}
       returnPath={returnPath}
     />
+  );
+}
+
+/** A sign-in-required workspace (D3), seen signed out: say so and offer the way in. */
+function TenantSignInGate({ siteName, signInHref }: { siteName: string; signInHref: string }) {
+  return (
+    <>
+      <TenantHandoff />
+      <TenantHeader returnPath="/" hideAuth />
+      <main
+        id="main"
+        tabIndex={-1}
+        className="flex w-full min-w-0 flex-1 flex-col items-center justify-center px-4 py-16 outline-none sm:py-24"
+      >
+        <h1 className="md-visually-hidden">{siteName}</h1>
+        <EmptyState
+          icon="lock"
+          title={`Sign in to read ${siteName}`}
+          description="Only people who have been given access can see what's here."
+          actions={<Button variant="primary" href={signInHref} iconLeft="user">Sign in</Button>}
+        />
+      </main>
+      <TenantFooter />
+    </>
   );
 }
 

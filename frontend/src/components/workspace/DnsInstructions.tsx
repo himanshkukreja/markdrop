@@ -82,15 +82,32 @@ export default function DnsInstructions({
           nameLabel={hostLabel}
           found={domain.txt_ok}
         />
-        <RecordBlock
-          label="Routing record"
-          purpose="Sends readers to Markdrop"
-          type={domain.dns_target_type}
-          name={targetHost}
-          value={domain.dns_target_value}
-          nameLabel={hostLabel}
-          found={domain.routing_ok}
-        />
+        {domain.apex_certain === false && (domain.dns_routing_options?.length ?? 0) > 1 ? (
+          // We can't tell whether this host is an apex (T4): show every option and let the
+          // customer use the one their panel accepts.
+          domain.dns_routing_options!.map((o, i) => (
+            <RecordBlock
+              key={`${o.type}-${o.name}-${o.value}`}
+              label={i === 0 ? "Routing record" : "Or, if your panel refuses that one"}
+              purpose={i === 0 ? "Sends readers to Markdrop (add one of these)" : undefined}
+              type={o.type}
+              name={hint?.detected && hint.target_host && o.name === domain.dns_target_name ? hint.target_host : o.name}
+              value={o.value}
+              nameLabel={hostLabel}
+              found={domain.routing_ok}
+            />
+          ))
+        ) : (
+          <RecordBlock
+            label="Routing record"
+            purpose="Sends readers to Markdrop"
+            type={domain.dns_target_type}
+            name={targetHost}
+            value={domain.dns_target_value}
+            nameLabel={hostLabel}
+            found={domain.routing_ok}
+          />
+        )}
       </div>
 
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">

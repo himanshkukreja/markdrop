@@ -145,16 +145,20 @@ export async function fetchTenantDocument(slug: string, workspaceId: string): Pr
   return { status: "missing" };
 }
 
+/** The workspace requires sign-in to view anything (`/host/folder` answered 401 + signin gate). */
+export const FOLDER_SIGNIN = "signin" as const;
+
 /**
  * A folder of this host's workspace as an anonymous reader may see it (`GET /api/v1/host/folder`,
  * contract in `folderIndex.ts`). Null when there is nothing to show (404: no such folder, or none
- * of it is readable). Throws `TenantUnavailable` on a transient failure.
+ * of it is readable); `FOLDER_SIGNIN` when the workspace requires sign-in to view. Throws
+ * `TenantUnavailable` on a transient failure.
  */
 export async function fetchTenantFolder(
   host: string,
   path: string[],
   workspaceId: string,
-): Promise<TenantFolderListing | null> {
+): Promise<TenantFolderListing | typeof FOLDER_SIGNIN | null> {
   const q = new URLSearchParams({ host, path: path.join("/") });
   // Anonymous view only (no credentials on a server render), so it may be shared; purged with
   // the workspace's listings and with the host.
@@ -163,6 +167,7 @@ export async function fetchTenantFolder(
   });
   if (!res.ok) {
     if (transient(res.status) && res.status !== 501) throw new TenantUnavailable(res.status);
+    if (res.status === 401 && res.headers.get("x-markdrop-gate") === "signin") return FOLDER_SIGNIN;
     return null;
   }
   return parseFolderListing(await res.json().catch(() => null));
@@ -175,7 +180,8 @@ export async function fetchTenantFolderQuietly(
   workspaceId: string,
 ): Promise<TenantFolderListing | null> {
   try {
-    return await fetchTenantFolder(host, path, workspaceId);
+    const r = await fetchTenantFolder(host, path, workspaceId);
+    return r === FOLDER_SIGNIN ? null : r;
   } catch {
     return null;
   }

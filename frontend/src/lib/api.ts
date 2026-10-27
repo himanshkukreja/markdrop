@@ -118,6 +118,11 @@ export interface DocumentResponse {
   read_ticket?: string | null;
   /** v2: bumped on every narrowing; the OG image URL carries it (`e=`) so caches re-fetch. */
   access_epoch?: number;
+  /** v2: what the caller may do (server-computed, access policy §7). */
+  can?: import("@/lib/access").DocCan | null;
+  /** v2: "link" | "private" | "workspace", and the workspace it is filed in. */
+  access_level?: string;
+  workspace_id?: string | null;
 }
 
 /**
