@@ -24,6 +24,7 @@ from app.routers.auth import router as auth_router
 from app.routers.auth import unsubscribe_alias_router
 from app.routers.documents import router as documents_router
 from app.routers.feedback import router as feedback_router
+from app.routers.files import router as files_router
 from app.routers.workspaces import router as workspaces_router
 from app.routers.domains import router as domains_router
 from app.routers.email_public import router as email_public_router
@@ -135,6 +136,7 @@ app.add_middleware(SlowAPIMiddleware)
 # Routers
 app.include_router(documents_router)
 app.include_router(artifacts_router)
+app.include_router(files_router)
 app.include_router(share_router)
 app.include_router(google_router)
 app.include_router(admin_router)

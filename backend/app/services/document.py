@@ -59,6 +59,10 @@ def _doc_from_mongo(raw: dict) -> Document:
         allow_resharing=raw.get("allow_resharing", True),
         original_filename=raw.get("original_filename"),
         bundle_prefix=raw.get("bundle_prefix"),
+        file_version=raw.get("file_version") or 1,
+        sha256=raw.get("sha256"),
+        media=raw.get("media"),
+        poster_key=raw.get("poster_key"),
     )
 
 
@@ -392,8 +396,8 @@ async def delete_document(
     keep counting against the owner's quota."""
     raw = await db["documents"].find_one(
         {"slug": slug},
-        {"_id": 0, "edit_secret_hash": 1, "owner_id": 1, "blob_key": 1,
-         "bundle_prefix": 1, "workspace_id": 1},
+        {"_id": 1, "edit_secret_hash": 1, "owner_id": 1, "blob_key": 1,
+         "bundle_prefix": 1, "workspace_id": 1, "kind": 1, "poster_key": 1},
     )
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -402,6 +406,12 @@ async def delete_document(
     await _authorize_write(db, raw, edit_secret, user_id, required="admin")
 
     await db["documents"].delete_one({"slug": slug})
+    if raw.get("kind") == "artifact":
+        # Old file versions and the poster go with it; the current blob (or
+        # bundle) is still handed back for the caller to free, as before.
+        from app.services import file_versions
+
+        await file_versions.forget_document(db, str(raw["_id"]), raw)
     # A bundle is many objects under one prefix — hand that back in preference
     # to the single entry key so the caller can clear all of them.
     return raw.get("bundle_prefix") or raw.get("blob_key")

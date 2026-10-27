@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import os
 import secrets
 import unittest
 from urllib.parse import parse_qs, urlsplit
@@ -44,11 +45,22 @@ def query(url: str) -> dict[str, str]:
     return {k: v[0] for k, v in parse_qs(urlsplit(url).query).items()}
 
 
-@unittest.skipUnless(env.MONGO, "MongoDB not reachable")
+# Opt-in: MARKDROP_TEST_MONGOMOCK=1 runs these on an in-process mongomock
+# database when the test MongoDB is down. Real MongoDB stays the reference;
+# mongomock lacks a few server features (text indexes, some aggregation).
+USE_MOCK = not env.MONGO and os.environ.get("MARKDROP_TEST_MONGOMOCK") == "1"
+
+
+@unittest.skipUnless(env.MONGO or USE_MOCK, "MongoDB not reachable")
 class McpTestCase(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.db_name = f"markdrop_test_mcp_{secrets.token_hex(4)}"
-        self.client = AsyncIOMotorClient(env.MONGO_URI)
+        if USE_MOCK:
+            from mongomock_motor import AsyncMongoMockClient
+
+            self.client = AsyncMongoMockClient()
+        else:
+            self.client = AsyncIOMotorClient(env.MONGO_URI)
         self.db = self.client[self.db_name]
         self._saved = (database._client, settings.mongodb_db)
         database._client = self.client
@@ -70,8 +82,9 @@ class McpTestCase(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         await self.http.aclose()
-        await self.client.drop_database(self.db_name)
-        self.client.close()
+        if not USE_MOCK:
+            await self.client.drop_database(self.db_name)
+            self.client.close()
         database._client, settings.mongodb_db = self._saved
         for k, v in self._saved_r2.items():
             setattr(settings, k, v)

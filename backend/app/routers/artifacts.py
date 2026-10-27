@@ -38,8 +38,11 @@ from app.schemas.artifact import (
 )
 from app.services import artifact as art_service
 from app.services import bundle
+from app.services import file_versions
+from app.services import media
 from app.services import live
 from app.services import r2
+from app.services import revalidate
 
 settings = get_settings()
 router = APIRouter(prefix="/api/v1/artifacts", tags=["artifacts"])
@@ -233,6 +236,11 @@ async def confirm_artifact(
             await run_in_threadpool(r2.delete, blob_key)
         raise
 
+    # Duration, dimensions and a poster for a video or audio file, in the
+    # background (services/media.py); the response doesn't wait for it.
+    if doc.id and not bundle_prefix:
+        media.schedule(db, doc.id, 1, blob_key, mime)
+
     return ArtifactCreateResponse(
         **art_service.to_response(doc, is_owner=True), edit_secret=secret
     )
@@ -373,6 +381,8 @@ async def update_artifact_settings(
         await run_in_threadpool(r2.set_public_prefix, doc.bundle_prefix, is_public)
     elif doc.blob_key:
         await run_in_threadpool(r2.set_public, doc.blob_key, is_public, doc.mime)
+    if doc.poster_key:
+        await run_in_threadpool(r2.set_public, doc.poster_key, is_public, "image/jpeg")
 
     live.publish(doc.slug, doc.rev)
     return ArtifactResponse(**art_service.to_response(doc, is_owner=True))
@@ -415,15 +425,26 @@ async def replace_artifact_file(
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(status_code=415, detail="Unsupported file type.")
 
-    # Quota on the real size too, counting the file being replaced as freed.
     current = await db["documents"].find_one(
-        {"slug": slug, "owner_id": user.id, "kind": "artifact"}, {"size_bytes": 1}
+        {"slug": slug, "owner_id": user.id, "kind": "artifact"}
     )
-    freed = int((current or {}).get("size_bytes") or 0)
+    if current is None:
+        await run_in_threadpool(r2.delete, data.blob_key)
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    if mime != "application/zip" and not current.get("bundle_prefix"):
+        return await _replace_keeping_version(db, user, current, data, mime, meta["size"])
+
+    # A zipped site on either side: no versions (services/file_versions.py).
+    # Quota on the real size, counting everything the file had as freed.
+    freed = sum(
+        int(r.get("size_bytes") or 0)
+        for r in {r["blob_key"]: r for r in await file_versions.rows_for(db, current)}.values()
+    )
     allowed, _ = await art_service.check_quota(db, user.id, meta["size"] - freed)
     if not allowed:
         await run_in_threadpool(r2.delete, data.blob_key)
-        raise HTTPException(status_code=507, detail="Storage quota exceeded.")
+        raise HTTPException(status_code=507, detail=file_versions.quota_message())
 
     blob_key, bundle_prefix, size_bytes = data.blob_key, None, meta["size"]
     if mime == "application/zip":
@@ -464,6 +485,38 @@ async def replace_artifact_file(
             await run_in_threadpool(r2.delete_prefix, old_key)
         else:
             await run_in_threadpool(r2.delete, old_key)
+    # Any versions the old single file had (and its poster) go with it.
+    await file_versions.forget_document(db, str(current["_id"]), {"poster_key": current.get("poster_key")})
 
     live.publish(doc.slug, doc.rev)
+    revalidate.page(doc.slug)
     return ArtifactResponse(**art_service.to_response(doc, is_owner=True))
+
+
+async def _replace_keeping_version(db, user: User, current: dict, data: ArtifactReplaceRequest,
+                                   mime: str, size: int) -> ArtifactResponse:
+    """A single file replaced by a single file: the new bytes become a new
+    version and the old ones are kept (restorable), within the version and
+    quota rules of services/file_versions.py."""
+    from app.services import file_uploads
+    from app.services.document import _doc_from_mongo
+
+    plan = await file_versions.quota_plan(db, user.id, current, size, new_blob_key=data.blob_key)
+    if plan is None:
+        await run_in_threadpool(r2.delete, data.blob_key)
+        raise HTTPException(status_code=507, detail=file_versions.quota_message())
+    swapped = await file_versions.swap(
+        db, current, blob_key=data.blob_key, size_bytes=size, mime=mime,
+        filename=data.filename, sha256=None,
+    )
+    if swapped is None:
+        await run_in_threadpool(r2.delete, data.blob_key)
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    before, after, version = swapped
+    # A presigned PUT leaves the object unmarked (private); the swap's
+    # publicity step marks it public only if the artifact is.
+    await file_versions.apply_publicity(before, after, new_blob_already=False)
+    await file_versions.prune(db, after, plan)
+    await file_uploads.after_swap(db, before, after, version, action="replace",
+                                  user_id=user.id, probe=True)
+    return ArtifactResponse(**art_service.to_response(_doc_from_mongo(after), is_owner=True))

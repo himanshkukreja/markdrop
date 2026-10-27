@@ -202,6 +202,10 @@ async def _sync_artifact_visibility(db: AsyncIOMotorDatabase, raw_doc: dict) -> 
             await run_in_threadpool(
                 r2.set_public, raw_doc["blob_key"], public, raw_doc.get("mime")
             )
+        # A video's poster frame shows what the video shows: same publicity.
+        # (Old file versions are never public, so they need nothing here.)
+        if raw_doc.get("poster_key"):
+            await run_in_threadpool(r2.set_public, raw_doc["poster_key"], public, "image/jpeg")
     except Exception:
         # Never leave the document *more* open than the API believes. Failing to
         # re-open a public object is a nuisance; failing to close a private one

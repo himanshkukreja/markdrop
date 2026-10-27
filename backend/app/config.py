@@ -135,10 +135,35 @@ class Settings(BaseSettings):
     # Video gets its own ceiling: a 25 MB cap is right for a PDF and useless for
     # a screen recording. Still bounded — R2's free tier is 10 GB in total, and
     # one upload should not be able to consume a meaningful slice of it.
-    artifact_max_video_bytes: int = 500 * 1024 * 1024
-    artifact_user_quota_bytes: int = 2 * 1024 * 1024 * 1024
+    # Media (video, and audio) can be up to 2 GB: 4K screen recordings are
+    # routinely hundreds of megabytes. Anything this large arrives through the
+    # multipart upload API (routers/files.py), straight to R2.
+    artifact_max_video_bytes: int = 2 * 1024 * 1024 * 1024
+    # Per account, and old file versions count towards it (services/file_versions.py).
+    artifact_user_quota_bytes: int = 20 * 1024 * 1024 * 1024
     # Presigned PUT validity. Short: the client uploads immediately.
     artifact_upload_ttl_seconds: int = 600
+
+    # ── File uploads and versions (routers/files.py) ──────────────────────────
+    # Versions kept per file, the current one included. Older ones are pruned,
+    # and dropped early when an upload would otherwise go over the quota.
+    file_versions_keep: int = 5
+    # Multipart part size. R2 needs every part but the last to be the same size
+    # and at least 5 MiB; 32 MiB keeps a 2 GB file at 64 parts.
+    file_part_size: int = 32 * 1024 * 1024
+    # Presigned part-URL validity. Clients ask for fresh ones when they lapse.
+    file_upload_url_ttl: int = 3600
+    # An upload session stays usable this long; its row is purged (TTL) a day later.
+    file_upload_session_hours: int = 24
+    # How long `complete` waits for the sha256 check before answering 202.
+    file_complete_wait_seconds: float = 45.0
+    # Server-side media probing (duration, size, codecs) and video posters.
+    # Blank finds the binaries on PATH; missing binaries just mean no metadata.
+    ffprobe_path: str = ""
+    ffmpeg_path: str = ""
+    # After a file is swapped, purge the frontend's cached page
+    # (POST {frontend_url}/api/revalidate). Off in tests.
+    page_revalidate_enabled: bool = True
 
     # ── Custom domains ───────────────────────────────────────────────────────
     # Attaching a verified host to the hosting project so TLS is issued. Left

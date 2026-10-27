@@ -22,6 +22,11 @@ os.environ.update({
     "MARKDROP_EMAIL_ROUND_GAP_MS": "0",
     "MARKDROP_AUTH_SECRET": "test-auth-secret",
     "MARKDROP_ADMIN_SECRET": "test-admin-secret",
+    # The frontend URL above is production's: never purge its page cache.
+    "MARKDROP_PAGE_REVALIDATE_ENABLED": "false",
+    # Never let a test spawn ffmpeg against a URL; probe tests call it directly.
+    "MARKDROP_FFPROBE_PATH": "/nonexistent/ffprobe",
+    "MARKDROP_FFMPEG_PATH": "/nonexistent/ffmpeg",
 })
 
 MONGO_URI = os.environ.get("MARKDROP_TEST_MONGODB_URI", "mongodb://localhost:27018")

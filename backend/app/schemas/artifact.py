@@ -71,6 +71,10 @@ class ArtifactResponse(BaseModel):
     artifact_url: str
     # Raw bytes for saving to disk — artifact_url may be a viewer page.
     download_url: str
+    # A video's poster frame (signed when guarded) and ffprobe's metadata
+    # {duration_s, width, height, video_codec, audio_codec}; null until known.
+    poster_url: str | None = None
+    media: dict | None = None
     created_at: datetime
     updated_at: datetime
     expires_at: datetime | None = None
