@@ -9,6 +9,7 @@ import { createFolder, deleteFolder, renameFolder, type Folder } from "@/lib/wor
 import { workspaceChanged } from "@/lib/workspaceStore";
 import { plural } from "../../../settings-shared";
 import { Locked, MAX_FOLDER_DEPTH, SectionHead, folderSlug, lockProps, type WsTabProps } from "../ws-shared";
+import { folderNameProblem } from "@/lib/folderSlug";
 
 /**
  * Folders (REVAMP_PLAN 7.12): the tree with a RowMenu per folder (New subfolder, Rename, Delete),
@@ -63,6 +64,8 @@ export default function FoldersTab({ id, isAdmin, isMember, host, folders, folde
     e.preventDefault();
     const n = name.trim();
     if (!n) { setError("Give the folder a name."); return; }
+    const problem = folderNameProblem(n, parentPath.length === 0);
+    if (problem) { setError(problem); return; }
     setBusy(true);
     setError("");
     try {

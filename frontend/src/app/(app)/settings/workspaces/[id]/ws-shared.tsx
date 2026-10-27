@@ -84,13 +84,5 @@ export function SectionHead({ id, title, description, actions }: { id?: string; 
   );
 }
 
-/** URL-safe folder segment, close to the server's slugify (the server may add a suffix on a clash). */
-export function folderSlug(name: string): string {
-  return name
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "folder";
-}
+/** URL-safe folder segment (one implementation, `lib/folderSlug.ts`, mirroring the server). */
+export { folderSlug } from "@/lib/folderSlug";

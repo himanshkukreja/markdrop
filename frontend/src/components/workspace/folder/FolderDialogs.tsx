@@ -21,22 +21,15 @@ import {
   addItems, deleteFolder, moveItems, updateFolder, type TreeFolder, type Workspace, type WorkspaceTree,
 } from "@/lib/workspaces";
 import { childrenMap, descendants, subtreeHeight } from "@/lib/workspaceStore";
+import { folderNameProblem, folderSlug } from "@/lib/folderSlug";
 
 /** Mirrors MAX_DEPTH in services/folder.py. */
 export const MAX_FOLDER_DEPTH = 8;
 
 const errText = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
-/** URL-safe folder segment, close to the server's slugify (the server may add a suffix on a clash). */
-export function folderSlug(name: string): string {
-  return name
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "folder";
-}
+/** URL-safe folder segment (one implementation, `lib/folderSlug.ts`, mirroring the server). */
+export { folderSlug } from "@/lib/folderSlug";
 
 /* ── Rename ───────────────────────────────────────────────────────────── */
 
@@ -68,6 +61,8 @@ export function RenameFolderDialog({
     if (!folder || busy) return;
     if (!n) { setError("Give the folder a name."); return; }
     if (!changed) { onClose(); return; }
+    const problem = folderNameProblem(n, parentPath.length === 0);
+    if (problem) { setError(problem); return; }
     setBusy(true);
     setError("");
     try {

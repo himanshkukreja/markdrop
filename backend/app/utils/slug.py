@@ -35,6 +35,10 @@ RESERVED_SLUGS = frozenset(
         # in-app workspace view (/w/<workspace id>). Keep in sync with
         # services/traffic.py APP_ROUTES and frontend lib/analyticsPath.ts.
         "f", "w",
+        # The analytics proxy (/mdp/*, frontend next.config.ts) skips the
+        # middleware on every host, so neither a document nor a top-level
+        # folder on a custom domain could ever be served there.
+        "mdp",
     }
 )
 
