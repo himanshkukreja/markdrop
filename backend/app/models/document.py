@@ -81,5 +81,12 @@ class Document:
     # R2 key of a poster frame for a video, stored beside it with the same
     # publicity.
     poster_key: str | None = None
+    # ── Access bookkeeping (services/access.py, services/publicity.py) ───────
+    # Bumped on every narrowing; signed byte links and read tickets carry it, so
+    # a bump revokes the ones already handed out. Absent on old rows = 0.
+    access_epoch: int = 0
+    # Every slug this document answered at before a rename (Q4): reserved for
+    # it permanently, and readers holding one are redirected to the current.
+    old_slugs: list[str] = field(default_factory=list)
     id: str | None = None  # str(_id); populated when the query includes _id
 

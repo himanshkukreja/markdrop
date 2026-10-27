@@ -216,7 +216,9 @@ async def process(db, doc_id: str, version: int, blob_key: str, mime: str) -> di
                 poster_key = poster_key_for(blob_key)
                 raw = await db["documents"].find_one({"_id": ObjectId(doc_id)})
                 current = bool(raw) and raw.get("blob_key") == blob_key
-                public = current and file_versions.is_public(raw)
+                from app.services import publicity
+
+                public = current and await publicity.doc_is_public(db, raw)
                 if not await run_in_threadpool(r2.put_bytes, poster_key, jpg, "image/jpeg", public):
                     poster_key = None
         if media is None and poster_key is None:

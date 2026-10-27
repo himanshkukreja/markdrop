@@ -161,6 +161,11 @@ async def optional_user(request: Request) -> User | None:
             request.state.tenant_workspace = payload.get("ws")
     user_id = await _user_id_from_token(token)
     if not user_id:
+        # A revoked or invalid API token is a bad credential, not "anonymous"
+        # (access policy §2.2 step 1, C1). An expired session JWT still
+        # downgrades to anonymous (I2).
+        if token.startswith(api_token.TOKEN_PREFIX):
+            raise HTTPException(status_code=401, detail="Invalid API token")
         return None
     return await user_service.get_user_by_id(get_database(), user_id)
 

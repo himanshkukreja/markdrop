@@ -69,6 +69,9 @@ class ArtifactResponse(BaseModel):
     # Sandbox-origin URL the viewer iframes. Carries a short-lived token when
     # the document is password-protected.
     artifact_url: str
+    # The canonical address on the workspace's own domain, when the artifact is
+    # filed in a workspace with a live primary domain; else null.
+    workspace_url: str | None = None
     # Raw bytes for saving to disk — artifact_url may be a viewer page.
     download_url: str
     # A video's poster frame (signed when guarded) and ffprobe's metadata

@@ -26,3 +26,6 @@ class Folder:
     # URL segment, derived from the name. Unique among siblings, and never a
     # reserved word -- see `services.folder`.
     slug: str = ""
+    # Folder share (D2): {id, level: "link"|"workspace", created_at, created_by}.
+    # A share only *filters* — it never grants access to any document.
+    share: dict | None = None

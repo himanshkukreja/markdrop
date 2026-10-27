@@ -1,14 +1,15 @@
 import json
+import re
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
-from app.routers.auth import optional_user, tenant_workspace, require_user
+from app.routers.auth import optional_user, require_user
 from app.schemas.document import (
     DocumentCopyRequest,
     DocumentCreate,
@@ -19,17 +20,15 @@ from app.schemas.document import (
     ReportRequest,
     SlugChangeRequest,
 )
+from app.services import access, analytics, artifact as art_service, document as doc_service
+from app.services import publicity, tickets, urls
 from app.services.doc_ref import doc_ref
-from app.services import analytics, artifact as art_service, document as doc_service, live, r2
 from app.utils.net import get_client_ip
 
 settings = get_settings()
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 
 BASE_URL = "https://markdrop.in"
-
-
-import re
 
 _BOT_RE = re.compile(r"bot|crawl|spider|slurp|preview|fetch|monitor|headless|curl|wget|python-|axios|node-fetch", re.I)
 
@@ -42,8 +41,13 @@ def _build_url(slug: str) -> str:
     return f"{BASE_URL}/{slug}"
 
 
-def _to_response(doc, viewer_id: str | None = None) -> dict:
+def _to_response(doc, viewer_id: str | None = None, *, public: bool | None = None) -> dict:
+    """The response body for a reader already past every gate (access.can)."""
     is_owner = bool(viewer_id) and doc.owner_id == viewer_id
+    if public is None:
+        public = not art_service.is_guarded(
+            has_password=bool(doc.read_password_hash), access_level=doc.access_level)
+    byte_urls = publicity.byte_urls(doc, public=public)
     return dict(
         slug=doc.slug,
         url=_build_url(doc.slug),
@@ -68,57 +72,36 @@ def _to_response(doc, viewer_id: str | None = None) -> dict:
         ),
         vscode_synced=doc.vscode_synced,
         encrypted=doc.encrypted,
-        # Artifact fields — only meaningful for kind="artifact".
         kind=doc.kind,
         mime=doc.mime,
         renderer=art_service.renderer_for(doc.mime or "") if doc.kind == "artifact" else None,
         type_label=art_service.label_for(doc.mime or "") if doc.kind == "artifact" else None,
         size_bytes=doc.size_bytes,
         original_filename=doc.original_filename,
-        # Built only once the reader is past every gate (get_document raises
-        # before we get here otherwise), so the signed URL never leaks.
-        #
-        # `private` must come from the same helper the uploader and the access
-        # service use. Deriving it from the password alone here — as this did —
-        # hands back an unsigned URL for a document whose bytes R2 is no longer
-        # serving publicly, which looks like the file has vanished.
-        artifact_url=(
-            art_service.build_artifact_url(
-                doc.blob_key, doc.mime or "",
-                private=art_service.is_guarded(
-                    has_password=bool(doc.read_password_hash),
-                    access_level=doc.access_level,
-                ),
-            )
-            if doc.kind == "artifact" and doc.blob_key and r2.is_configured()
-            else None
-        ),
-        # Always the raw object — artifact_url points at a viewer page for
-        # PDFs/sheets/docs, which would download the wrapper, not the file.
-        download_url=(
-            art_service.build_download_url(
-                doc.blob_key,
-                private=art_service.is_guarded(
-                    has_password=bool(doc.read_password_hash),
-                    access_level=doc.access_level,
-                ),
-            )
-            if doc.kind == "artifact" and doc.blob_key and r2.is_configured()
-            else None
-        ),
-        poster_url=(
-            art_service.poster_url(
-                doc,
-                private=art_service.is_guarded(
-                    has_password=bool(doc.read_password_hash),
-                    access_level=doc.access_level,
-                ),
-            )
-            if doc.kind == "artifact" and r2.is_configured()
-            else None
-        ),
+        # One rule for every byte path (services/publicity.py): signed (with the
+        # access epoch) unless the bytes are public.
+        artifact_url=byte_urls["artifact_url"],
+        download_url=byte_urls["download_url"],
+        poster_url=byte_urls["poster_url"],
         media=doc.media if doc.kind == "artifact" else None,
+        access_level=doc.access_level,
+        workspace_id=doc.workspace_id,
     )
+
+
+async def _full_response(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor,
+                         ctx: access.Ctx) -> dict:
+    doc = doc_service._doc_from_mongo(raw)
+    public = await publicity.doc_is_public(db, raw)
+    body = _to_response(doc, actor.user_id, public=public)
+    body["workspace_url"] = await urls.workspace_url(db, raw)
+    body["can"] = await access.can_flags(actor, raw, ctx)
+    body["read_ticket"] = tickets.mint(str(raw["_id"]), publicity.epoch_of(raw))
+    return body
+
+
+def _ctx(db, request: Request, scope: str | None = None) -> access.Ctx:
+    return access.Ctx(db, surface="rest", workspace_scope=scope or None, ip=get_client_ip(request))
 
 
 def get_db() -> AsyncIOMotorDatabase:
@@ -150,26 +133,32 @@ async def get_document(
     x_markdrop_workspace: str | None = Header(None),
     user: User | None = Depends(optional_user),
 ):
-    viewer_id = user.id if user else None
-    # Set by the edge when the request arrived on a workspace's own verified
-    # domain, so that host serves only its own documents. Unsigned on purpose:
-    # the scope can only ever *narrow* what resolves, so forging it shows the
-    # caller less, never more. Absent — every markdrop.in request — nothing
-    # changes and this behaves exactly as it always has.
-    # A tenant token is only valid for the workspace it was minted for, and that
-    # is enforced here rather than on trust: the read is pinned to that
-    # workspace, so a token issued for one customer's domain cannot resolve
-    # another customer's document even though the route is the same. It wins
-    # over the header, which is unsigned.
-    scope = tenant_workspace(request) or x_markdrop_workspace or None
-    doc = await doc_service.get_document(
-        db, slug, x_read_password, x_edit_secret, viewer_id,
-        workspace_scope=scope,
-        # Access grants key on the address, not the account id — see
-        # services/access.py — so the reader's email is what resolves them.
-        user_email=user.email if user else None,
-    )
-    return DocumentResponse(**_to_response(doc, viewer_id))
+    """One document, through access.can(read).
+
+    Scope: a tenant token's workspace wins over ``X-Markdrop-Workspace`` (set by
+    the edge on a workspace's own domain; unsigned, so it can only narrow).
+
+    Renamed documents (Q4): a slug that is in some document's ``old_slugs``
+    answers — only to a caller who can read that document — ``200
+    {"moved": true, "slug": <current>, "url", "workspace_url", "folder_path"}``
+    with header ``X-Markdrop-Moved: <current>``; the page then 307s to the
+    canonical address. Anyone else gets exactly the denial the current slug
+    would give them (404 / 401 + gate), never the new slug.
+    """
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret,
+                                      read_password=x_read_password)
+    ctx = _ctx(db, request, x_markdrop_workspace)
+    raw, moved = await doc_service.find_for_read(db, slug)
+    await access.require(actor, raw, "read", ctx)
+    if moved:
+        current = raw["slug"]
+        return JSONResponse(
+            {"moved": True, "slug": current, "url": _build_url(current),
+             "workspace_url": await urls.workspace_url(db, raw),
+             "folder_path": raw.get("folder_path") or []},
+            headers={"X-Markdrop-Moved": current},
+        )
+    return DocumentResponse(**await _full_response(db, raw, actor, ctx))
 
 
 @router.put("/{slug}", response_model=DocumentResponse)
@@ -182,14 +171,10 @@ async def update_document(
     x_edit_secret: str | None = Header(None),
     user: User | None = Depends(optional_user),
 ):
-    viewer_id = user.id if user else None
-    doc = await doc_service.update_document(
-        db, slug, data, x_edit_secret, viewer_id,
-        user_email=user.email if user else None,
-    )
-    # Notify any open viewers so they refresh live (best-effort, in-process).
-    live.publish(doc.slug, doc.rev)
-    return DocumentResponse(**_to_response(doc, viewer_id))
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
+    ctx = _ctx(db, request)
+    after = await doc_service.update_document(db, slug, data, actor, ctx)
+    return DocumentResponse(**await _full_response(db, after, actor, ctx))
 
 
 @router.delete("/{slug}", status_code=204)
@@ -201,14 +186,30 @@ async def delete_document(
     x_edit_secret: str | None = Header(None),
     user: User | None = Depends(optional_user),
 ):
-    key = await doc_service.delete_document(db, slug, x_edit_secret, user.id if user else None)
-    # Free the R2 storage too, or the bytes keep billing and keep eating quota.
-    # A bundle key is a prefix (no extension) covering many objects.
-    if key and r2.is_configured():
-        if key.endswith("/"):
-            await run_in_threadpool(r2.delete_prefix, key)
-        else:
-            await run_in_threadpool(r2.delete, key)
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
+    await doc_service.delete_document(db, slug, actor, _ctx(db, request))
+
+
+@router.post("/{slug}/edit-secret/rotate")
+@limiter.limit(settings.rate_limit_create)
+async def rotate_edit_secret(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """A9: the owner replaces a leaked edit secret. The old one stops working
+    at once; the new one is returned once."""
+    from app.utils.security import generate_edit_secret
+
+    actor = access.actor_from_request(request, user)
+    ctx = _ctx(db, request)
+    raw = await db["documents"].find_one({"slug": slug})
+    d = await access.can(actor, raw, "change_access", ctx)  # owner session only
+    d.raise_()
+    secret, hashed = generate_edit_secret()
+    await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"edit_secret_hash": hashed}})
+    return {"slug": slug, "edit_secret": secret}
 
 
 @router.post("/{slug}/claim", response_model=DocumentResponse)
@@ -221,7 +222,8 @@ async def claim_document(
     user: User = Depends(require_user),
 ):
     """Attach an anonymous document to the logged-in account (proven via secret)."""
-    doc = await doc_service.claim_document(db, slug, x_edit_secret, user.id)
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
+    doc = await doc_service.claim_document(db, slug, actor, _ctx(db, request))
     return DocumentResponse(**_to_response(doc, user.id))
 
 
@@ -231,16 +233,19 @@ async def copy_document(
     request: Request,
     slug: str,
     data: DocumentCopyRequest,
+    x_markdrop_workspace: str | None = Header(None),
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """Import a copy of a readable document into the logged-in user's account.
+    """Import a copy of a readable document into the caller's account.
 
-    The copy is owned by the caller with a fresh slug, no read password, and no
-    expiry. Requires login (401 otherwise); 404/401/403 if the source can't be
-    read (missing, or protected without the right password).
+    Owned by the caller with a fresh slug, no password and no expiry; born
+    private unless the source is plainly public (Q3). 404/401/403 exactly as a
+    read of the source would answer.
     """
-    doc, raw_secret = await doc_service.copy_document(db, slug, user.id, data.read_password)
+    actor = access.actor_from_request(request, user, read_password=data.read_password)
+    doc, raw_secret = await doc_service.copy_document(
+        db, slug, actor, _ctx(db, request, x_markdrop_workspace))
     return DocumentCreateResponse(**_to_response(doc, user.id), edit_secret=raw_secret)
 
 
@@ -254,9 +259,22 @@ async def change_slug(
     x_edit_secret: str | None = Header(None),
     user: User | None = Depends(optional_user),
 ):
-    viewer_id = user.id if user else None
-    doc = await doc_service.change_slug(db, slug, data.new_slug, x_edit_secret, viewer_id)
-    return DocumentResponse(**_to_response(doc, viewer_id))
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
+    ctx = _ctx(db, request)
+    after = await doc_service.change_slug(db, slug, data.new_slug, actor, ctx)
+    return DocumentResponse(**await _full_response(db, after, actor, ctx))
+
+
+async def _beacon_target(db: AsyncIOMotorDatabase, slug: str, ticket: str | None) -> dict | None:
+    """The document a beacon may be recorded against, or None. Anonymous-
+    readable documents need no ticket; anything else needs a valid one (§2.7).
+    The caller answers identically either way (I5)."""
+    raw = await db["documents"].find_one({"slug": slug})
+    if raw is None or publicity.is_expired(raw):
+        return None
+    if tickets.valid_for(ticket, raw) or await access.anonymous_can_read(db, raw):
+        return raw
+    return None
 
 
 @router.post("/{slug}/events", status_code=202)
@@ -267,20 +285,20 @@ async def record_click(
     data: EventRequest,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
-    """Record a view / export-PDF / copy-URL event (called by the viewer's browser)."""
-    # Skip obvious bots/crawlers for view counting (beacons already exclude
-    # most non-JS bots; this covers headless/preview fetchers).
+    """Record a view / export-PDF / copy-URL event (called by the viewer's
+    browser). Always 202: missing, unreadable and recorded look the same."""
     if data.type == "view" and _is_bot(request.headers.get("user-agent")):
         return {"status": "ignored"}
-    result = await doc_service.register_event(db, slug, data.type)
-    if result is None:
-        raise HTTPException(status_code=404, detail="Document not found")
-    doc_id, owner_id = result
-    await analytics.record_event(
-        db, doc_id, owner_id, data.type,
-        ip=get_client_ip(request),
-        referrer=data.referrer,
-    )
+    raw = await _beacon_target(db, slug, data.ticket)
+    if raw is not None:
+        result = await doc_service.register_event(db, raw, data.type)
+        if result is not None:
+            doc_id, owner_id = result
+            await analytics.record_event(
+                db, doc_id, owner_id, data.type,
+                ip=get_client_ip(request),
+                referrer=data.referrer,
+            )
     return {"status": "ok"}
 
 
@@ -295,23 +313,25 @@ async def record_read(
 
     Takes a raw body rather than a model so the page can send it with
     navigator.sendBeacon as text/plain while it unloads — a JSON content type
-    would need a CORS preflight, which a closing page can't wait for.
+    would need a CORS preflight, which a closing page can't wait for. The body
+    may carry ``"t"``: the read ticket. Always 204.
     """
     if _is_bot(request.headers.get("user-agent")):
         return
-    raw = await request.body()
-    if len(raw) > 512:
+    raw_body = await request.body()
+    if len(raw_body) > 3072:
         return
     try:
-        body = json.loads(raw)
+        body = json.loads(raw_body)
         rid = body["rid"]
         depth = int(body["depth"])
         seconds = int(body["seconds"])
-    except (ValueError, KeyError, TypeError):
+        ticket = body.get("t") if isinstance(body.get("t"), str) else None
+    except (ValueError, KeyError, TypeError, AttributeError):
         return
     if not (isinstance(rid, str) and re.fullmatch(r"[A-Za-z0-9_-]{8,64}", rid)):
         return
-    doc = await db["documents"].find_one({"slug": slug}, {"_id": 1, "owner_id": 1})
+    doc = await _beacon_target(db, slug, ticket)
     if not doc:
         return
     await analytics.record_read(
@@ -329,8 +349,7 @@ async def report_document(
     data: ReportRequest,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
-    """Flag a document for abuse (public, rate-limited)."""
-    ok = await doc_service.report_document(db, slug, data.reason, get_client_ip(request))
-    if not ok:
-        raise HTTPException(status_code=404, detail="Document not found")
+    """Flag a document for abuse (public, rate-limited). Always 202; stored
+    only when the slug exists."""
+    await doc_service.report_document(db, slug, data.reason, get_client_ip(request))
     return {"status": "ok"}

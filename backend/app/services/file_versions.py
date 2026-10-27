@@ -21,7 +21,7 @@ Rules (owner decisions, 2026-10-27):
 * Old versions count towards the account quota. When an upload would go over,
   the oldest non-current versions of the *same* file are dropped first, then the
   upload is refused (507).
-* Publicity: the current blob (and its poster) follows ``artifact.is_guarded``
+* Publicity: the current blob (and its poster) follows ``publicity.is_public``
   like every other artifact write; a non-current version is never public.
 
 Single-blob artifacts only. A zipped site (``bundle_prefix``) has no versions:
@@ -255,36 +255,39 @@ async def swap(
     return before, after, version
 
 
-def is_public(raw: dict) -> bool:
-    from app.services import artifact as art_service
+def is_public(raw: dict, require_auth: bool = False) -> bool:
+    """services/publicity.is_public: link, no password, not in a sign-in
+    workspace, not expired."""
+    from app.services import publicity
 
-    return not art_service.is_guarded(
-        has_password=bool(raw.get("read_password_hash")), access_level=raw.get("access_level")
-    )
+    return publicity.is_public(raw, require_auth=require_auth)
 
 
-async def apply_publicity(before: dict, after: dict, *, new_blob_already: bool | None = None) -> None:
+async def apply_publicity(before: dict, after: dict, *, new_blob_already: bool | None = None,
+                          require_auth: bool = False) -> None:
     """After a swap: the current blob and poster follow the document's access;
     the outgoing ones become non-public (old versions are never public).
 
     ``new_blob_already`` is the publicity the new object was created with, when
-    known, so a 2 GB object isn't copied onto itself for nothing."""
-    from app.services import r2
+    known, so a 2 GB object isn't copied onto itself for nothing. The current
+    objects carry the document's access epoch (``ae``)."""
+    from app.services import publicity, r2
 
-    public = is_public(after)
+    public = is_public(after, require_auth)
+    epoch = publicity.epoch_of(after)
     new_key, old_key = after.get("blob_key"), before.get("blob_key")
     if new_key and new_blob_already is not public:
-        await run_in_threadpool(r2.set_public, new_key, public, after.get("mime"))
+        await run_in_threadpool(r2.set_public, new_key, public, after.get("mime"), epoch)
     if after.get("poster_key"):
-        await run_in_threadpool(r2.set_public, after["poster_key"], public, "image/jpeg")
+        await run_in_threadpool(r2.set_public, after["poster_key"], public, "image/jpeg", epoch)
     # The outgoing blob was public only if the document was; otherwise it is
     # already private and copying it onto itself would gain nothing.
-    if is_public(before) and not before.get("bundle_prefix"):
+    if is_public(before, require_auth) and not before.get("bundle_prefix"):
         if old_key and old_key != new_key:
-            await run_in_threadpool(r2.set_public, old_key, False, before.get("mime"))
+            await run_in_threadpool(r2.set_public, old_key, False, before.get("mime"), epoch)
         old_poster = before.get("poster_key")
         if old_poster and old_poster != after.get("poster_key"):
-            await run_in_threadpool(r2.set_public, old_poster, False, "image/jpeg")
+            await run_in_threadpool(r2.set_public, old_poster, False, "image/jpeg", epoch)
 
 
 # ── Pruning and deletion ──────────────────────────────────────────────────────

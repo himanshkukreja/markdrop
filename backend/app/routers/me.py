@@ -105,16 +105,19 @@ async def list_my_documents(
 
 @router.get("/documents/{slug}/analytics")
 async def document_analytics(
+    request: Request,
     slug: str,
     range: str = Query("30d", pattern="^(7d|30d|all)$"),
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """Aggregated analytics for a document the caller owns."""
-    doc_id = await doc_service.get_owned_doc_id(db, slug, user.id)
-    if doc_id is None:
-        raise HTTPException(status_code=404, detail="Document not found")
-    return await analytics.get_analytics(db, doc_id, range)
+    """Aggregated analytics: can(view_stats) — the owner only. A reader who
+    isn't the owner gets 403, anyone else the read denial (404)."""
+    from app.services import access
+
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(access.actor_from_request(request, user), raw, "view_stats", access.Ctx(db))
+    return await analytics.get_analytics(db, str(raw["_id"]), range)
 
 
 # ── Share-dialog suggestions ────────────────────────────────────────────────────

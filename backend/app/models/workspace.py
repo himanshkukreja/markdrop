@@ -59,15 +59,25 @@ class WorkspaceSettings:
     """
 
     viewer_chrome: Literal["full", "minimal", "none"] = "full"
-    require_auth_to_view: bool = False    # private CDN: no anonymous reads at all
+    # D3: only members and named grantees read anything filed here (never "any
+    # signed-in account"), and every file's bytes are guarded.
+    require_auth_to_view: bool = False
+    # D2: may members (not only admins) share a folder as a link? Default yes.
+    members_can_share_folders: bool = True
+    # What the app preselects for "Who can open it" when filing here.
+    default_access: Literal["link", "workspace", "private"] = "workspace"
 
     @classmethod
     def from_dict(cls, raw: dict | None) -> "WorkspaceSettings":
         raw = raw or {}
         chrome = raw.get("viewer_chrome")
+        default_access = raw.get("default_access")
         return cls(
             viewer_chrome=chrome if chrome in ("full", "minimal", "none") else "full",
             require_auth_to_view=bool(raw.get("require_auth_to_view")),
+            members_can_share_folders=bool(raw.get("members_can_share_folders", True)),
+            default_access=default_access if default_access in ("link", "workspace", "private")
+            else "workspace",
         )
 
 

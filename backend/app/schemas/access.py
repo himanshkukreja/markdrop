@@ -29,6 +29,11 @@ class ResharingUpdate(BaseModel):
     allow: bool
 
 
+class BatchLevelUpdate(BaseModel):
+    slugs: list[str] = Field(..., min_length=1, max_length=200)
+    level: Literal["private", "link", "workspace"]
+
+
 class AccessResponse(BaseModel):
     level: Literal["private", "link", "workspace"]
     allow_resharing: bool
@@ -41,6 +46,11 @@ class AccessResponse(BaseModel):
     # Which workspace, so the share box can suggest its members rather than
     # making someone remember and retype addresses they already have.
     workspace_id: str | None = None
+    workspace_name: str | None = None
+    folder_id: str | None = None
+    # access.can() for the caller: {edit_content, replace_file, edit_settings,
+    # change_access, rename, delete, share, unshare, move}.
+    can: dict | None = None
     your_role: Literal["owner", "editor", "viewer"]
     # Who owns it, so the share list can name a person rather than guessing from
     # whatever string the caller happened to pass as a title.

@@ -5,7 +5,7 @@ scoped to it, so a folder id from another tenant is indistinguishable from one
 that does not exist.
 """
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
@@ -21,6 +21,7 @@ from app.schemas.folder import (
     FolderResponse,
     FolderUpdate,
 )
+from app.services import access
 from app.services import folder as folder_service
 from app.services import workspace as ws_service
 
@@ -110,7 +111,8 @@ async def update_folder(
     request: Request, workspace_id: str, folder_id: str, data: FolderUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user),
 ):
-    await ws_service.require_role(db, workspace_id, user.id, "member")
+    # Renaming or moving re-addresses everything below: admin+ (A10).
+    await ws_service.require_role(db, workspace_id, user.id, "admin")
     folder = await folder_service.update_folder(
         db, workspace_id, folder_id,
         name=data.name, parent_id=data.parent_id, reparent=data.reparent,
@@ -122,12 +124,19 @@ async def update_folder(
 @limiter.limit("60/minute")
 async def delete_folder(
     request: Request, workspace_id: str, folder_id: str,
+    mode: str = Query("unfile", pattern="^(unfile|move_up)$"),
     db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user),
 ):
     # Deleting a container can unfile many documents at once, so admin.
     await ws_service.require_role(db, workspace_id, user.id, "admin")
-    unfiled = await folder_service.delete_folder(db, workspace_id, folder_id)
-    return FolderDeleteResponse(unfiled_documents=unfiled)
+    inside = await folder_service.delete_folder(db, workspace_id, folder_id, mode)
+    # D6: the count says only what the caller could see.
+    actor, ctx = access.actor_from_request(request, user), access.Ctx(db)
+    readable = 0
+    for raw in inside:
+        if (await access.can(actor, raw, "read", ctx)).allowed:
+            readable += 1
+    return FolderDeleteResponse(unfiled_documents=readable)
 
 
 @router.post("/{workspace_id}/documents/move", status_code=204)
@@ -136,5 +145,7 @@ async def move_document(
     request: Request, workspace_id: str, data: DocumentMoveRequest,
     db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user),
 ):
-    await ws_service.require_role(db, workspace_id, user.id, "member")
-    await folder_service.move_document(db, workspace_id, data.slug, data.folder_id)
+    await ws_service.require_role(db, workspace_id, user.id, "viewer")
+    await folder_service.move_document(
+        db, workspace_id, data.slug, data.folder_id,
+        actor=access.actor_from_request(request, user), ctx=access.Ctx(db))

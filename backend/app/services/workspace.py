@@ -182,8 +182,15 @@ async def update_workspace(
 
 
 async def set_member_role(
-    db: AsyncIOMotorDatabase, workspace_id: str, user_id: str, role: Role
+    db: AsyncIOMotorDatabase, workspace_id: str, user_id: str, role: Role,
+    actor_id: str | None = None,
 ) -> None:
+    """Admins change members and viewers; only the workspace **owner** may
+    promote to, demote from, or touch an admin (Q5). Demotion to viewer turns
+    the editor grants this person made through the workspace into viewer
+    grants (M2)."""
+    from app.services import lifecycle
+
     workspace = await get_workspace(db, workspace_id)
     if workspace is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -191,14 +198,25 @@ async def set_member_role(
         raise HTTPException(status_code=422, detail="The owner's role can't be changed.")
     if role == "owner":
         raise HTTPException(status_code=422, detail="Transfer ownership instead.")
+    current = await role_for(db, workspace_id, user_id)
+    if current is None:
+        raise HTTPException(status_code=404, detail="That person isn't in this workspace.")
+    if actor_id is not None and actor_id != workspace.owner_id and (role == "admin" or current == "admin"):
+        raise HTTPException(status_code=403, detail="Only the workspace owner can change an admin's role.")
     result = await db["memberships"].update_one(
-        {"workspace_id": workspace_id, "user_id": user_id}, {"$set": {"role": role}}
+        {"workspace_id": workspace_id, "user_id": user_id, "role": current}, {"$set": {"role": role}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="That person isn't in this workspace.")
+    await lifecycle.member_demoted(db, workspace_id, user_id, role)
 
 
-async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str) -> None:
+async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str,
+                        actor_id: str | None = None) -> None:
+    """Remove (or leave). Removing an admin is the owner's call (Q5). Grants
+    this person made through the workspace die with the membership (M1)."""
+    from app.services import lifecycle
+
     workspace = await get_workspace(db, workspace_id)
     if workspace is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -207,7 +225,43 @@ async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
             status_code=422,
             detail="The owner can't be removed. Transfer ownership or delete the workspace.",
         )
-    await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id})
+    if actor_id is not None and actor_id != user_id and actor_id != workspace.owner_id:
+        if await role_for(db, workspace_id, user_id) == "admin":
+            raise HTTPException(status_code=403, detail="Only the workspace owner can remove an admin.")
+    res = await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id})
+    if res.deleted_count:
+        await lifecycle.member_left(db, workspace_id, user_id)
+
+
+async def transfer_ownership(db: AsyncIOMotorDatabase, workspace_id: str, actor_id: str,
+                             target_id: str) -> None:
+    """M5: the owner hands the workspace to an existing member; the old owner
+    becomes an admin. One CAS on ``{_id, owner_id: old}``, conditioned on the
+    target's membership still existing (§3.8)."""
+    workspace = await get_workspace(db, workspace_id)
+    if workspace is None or await role_for(db, workspace_id, actor_id) is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    if workspace.owner_id != actor_id:
+        raise HTTPException(status_code=403, detail="Only the workspace owner can transfer it.")
+    if target_id == actor_id:
+        raise HTTPException(status_code=422, detail="You already own this workspace.")
+    target = await db["memberships"].find_one({"workspace_id": workspace_id, "user_id": target_id})
+    if target is None:
+        raise HTTPException(status_code=404, detail="That person isn't in this workspace.")
+    promoted = await db["memberships"].update_one(
+        {"workspace_id": workspace_id, "user_id": target_id, "role": target["role"]},
+        {"$set": {"role": "owner"}})
+    if promoted.matched_count == 0:
+        raise HTTPException(status_code=404, detail="That person isn't in this workspace.")
+    moved = await db["workspaces"].update_one(
+        {"_id": ObjectId(workspace_id), "owner_id": actor_id},
+        {"$set": {"owner_id": target_id, "updated_at": datetime.now(timezone.utc)}})
+    if moved.matched_count == 0:
+        await db["memberships"].update_one(
+            {"workspace_id": workspace_id, "user_id": target_id}, {"$set": {"role": target["role"]}})
+        raise HTTPException(status_code=409, detail="The workspace changed meanwhile. Try again.")
+    await db["memberships"].update_one(
+        {"workspace_id": workspace_id, "user_id": actor_id}, {"$set": {"role": "admin"}})
 
 
 async def delete_workspace(
@@ -255,10 +309,15 @@ async def delete_workspace(
         if d.get("attached"):
             await domain_service.detach_from_hosting(d["host"])
 
-    released = await db["documents"].update_many(
-        {"workspace_id": workspace_id},
-        {"$set": {"workspace_id": None, "folder_id": None, "folder_path": []}},
-    )
+    # W3: every document is released with the D2 conversion (workspace-only
+    # ⇒ private; link documents of a sign-in workspace ⇒ private), grants made
+    # through the workspace die, caches and host tags are purged.
+    from app.services import lifecycle, revalidate
+
+    host_tags = [f"host:{d['host']}" for d in domains if d.get("host")]
+    released = await lifecycle.release_workspace_documents(
+        db, workspace_id, workspace.settings.require_auth_to_view)
+    await revalidate.enqueue(db, tags=[f"wsl:{workspace_id}", *host_tags])
     await db["domains"].delete_many({"workspace_id": workspace_id})
     await db["folders"].delete_many({"workspace_id": workspace_id})
     await db["invitations"].delete_many({"workspace_id": workspace_id})
@@ -266,7 +325,7 @@ async def delete_workspace(
     await db["workspaces"].delete_one({"_id": ObjectId(workspace_id)})
 
     return {
-        "documents_released": released.modified_count,
+        "documents_released": released,
         "domains_removed": len(domains),
         "members_removed": members.deleted_count,
     }

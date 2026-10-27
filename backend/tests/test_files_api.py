@@ -56,7 +56,10 @@ class Upload(FilesTestCase):
                                  json={"parts": parts}, headers=self.auth)
         self.assertEqual(r.status_code, 200, r.text)
         res = r.json()
-        self.assertEqual(set(res), {"url", "slug", "version", "size_bytes", "content_type", "sha256"})
+        self.assertEqual(set(res), {"url", "markdrop_url", "workspace_url", "workspace_error", "slug",
+                                    "version", "size_bytes", "content_type", "sha256"})
+        self.assertEqual((res["markdrop_url"], res["workspace_url"], res["workspace_error"]),
+                         ("https://markdrop.in/launch-demo", None, None))
         self.assertEqual(res["slug"], "launch-demo")
         self.assertEqual(res["url"], "https://markdrop.in/launch-demo")
         self.assertEqual((res["version"], res["size_bytes"], res["content_type"], res["sha256"]),

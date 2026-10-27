@@ -22,8 +22,10 @@ from app.schemas.document import (
     MyDocListItem,
     MyDocListResponse,
 )
+from app.services import access
 from app.services import library as lib_service
 from app.services import workspace as ws_service
+from app.utils.net import get_client_ip
 
 router = APIRouter(prefix="/api/v1/workspaces", tags=["library"])
 
@@ -61,6 +63,12 @@ async def _attribute(
         item.shared_by_name = (who or {}).get("name")
         item.shared_by_email = (who or {}).get("email")
         item.is_mine = doc.owner_id == viewer_id
+        if not item.is_mine:
+            # A1 / §4.1 #31: someone else's row never carries the owner's
+            # internal id or their Google Docs link.
+            item.id = None
+            item.google_doc_url = None
+            item.google_doc_stale = False
     return items
 
 
@@ -82,8 +90,10 @@ async def list_library(
     await ws_service.require_role(db, workspace_id, user.id, "viewer")
     if per_page is not None:
         limit = per_page
+    actor = access.actor_from_request(request, user)
+    ctx = access.Ctx(db, ip=get_client_ip(request))
     docs, total = await lib_service.list_documents(
-        db, workspace_id, page, limit, q, kind, folder_id, unfiled
+        db, actor, ctx, workspace_id, page, limit, q, kind, folder_id, unfiled
     )
     items = await _attribute(db, [_to_list_item(d) for d in docs], docs, user.id)
     return MyDocListResponse(
@@ -101,7 +111,8 @@ async def library_counts(
     user: User = Depends(require_user),
 ):
     await ws_service.require_role(db, workspace_id, user.id, "viewer")
-    return await lib_service.counts_by_folder(db, workspace_id)
+    return await lib_service.counts_by_folder(
+        db, access.actor_from_request(request, user), access.Ctx(db), workspace_id)
 
 
 @router.post("/{workspace_id}/documents", response_model=MyDocListItem, status_code=201)
