@@ -294,8 +294,10 @@ async def _needs_consent(user: User, domain) -> bool:
     db = get_database()
     if await ws_service.role_for(db, domain.workspace_id, user.id):
         return False
+    # Keyed on the workspace too: a "yes" given to a host is a yes to the
+    # workspace that owned it then, never to whoever claims the host later (B4).
     return not await db["tenant_consents"].find_one(
-        {"user_id": user.id, "host": domain.host}, {"_id": 1}
+        {"user_id": user.id, "host": domain.host, "workspace_id": domain.workspace_id}, {"_id": 1}
     )
 
 
@@ -351,7 +353,7 @@ async def mint_tenant_token(
             raise HTTPException(status_code=403, detail="consent_required")
         if data.remember:
             await get_database()["tenant_consents"].update_one(
-                {"user_id": user.id, "host": domain.host},
+                {"user_id": user.id, "host": domain.host, "workspace_id": domain.workspace_id},
                 {"$set": {"at": datetime.now(timezone.utc)}},
                 upsert=True,
             )

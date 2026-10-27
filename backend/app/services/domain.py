@@ -316,15 +316,41 @@ async def remove_domain(db: AsyncIOMotorDatabase, workspace_id: str, domain_id: 
     if raw.get("attached"):
         await detach_from_hosting(raw["host"])
     await db["domains"].delete_one({"_id": raw["_id"]})
+    await forget_hosts(db, [raw.get("host")])
     await _purge_host(db, raw)
+
+
+async def forget_hosts(db: AsyncIOMotorDatabase, hosts, *, keep_workspace: str | None = None) -> None:
+    """A host stopped belonging to a workspace (removed, its workspace deleted,
+    or re-claimed by another one): the "continue to <host> as you?" answers
+    readers gave it are void — they were given to the old owner (B4) — and
+    the in-process CORS answers for it are dropped (B8)."""
+    hosts = [h for h in (hosts or []) if h]
+    if hosts:
+        query: dict = {"host": {"$in": hosts}}
+        if keep_workspace is not None:
+            query["workspace_id"] = {"$ne": keep_workspace}
+        try:
+            await db["tenant_consents"].delete_many(query)
+        except Exception:
+            log.warning("forgetting consents for %s failed", hosts, exc_info=True)
+    _clear_cors()
+
+
+def _clear_cors() -> None:
+    from app.middleware import tenant_cors
+
+    tenant_cors.clear_cache()
 
 
 async def _purge_host(db: AsyncIOMotorDatabase, raw: dict) -> None:
     """A domain changed state (verified / lapsed / removed / attached /
     detached / primary): purge the frontend's cached host resolution and the
-    workspace's folder listings (policy §5.2, H*). Durable (outbox)."""
+    workspace's folder listings (policy §5.2, H*). Durable (outbox). The
+    in-process CORS cache forgets the host at once (B8)."""
     from app.services import revalidate
 
+    _clear_cors()
     tags = [f"host:{raw['host']}"] if raw.get("host") else []
     if raw.get("workspace_id"):
         tags.append(f"wsl:{raw['workspace_id']}")
@@ -673,6 +699,8 @@ async def _promote(db: AsyncIOMotorDatabase, raw: dict, now: datetime) -> None:
     await db["domains"].delete_many(
         {"host": raw["host"], "_id": {"$ne": raw["_id"]}, "status": {"$ne": "verified"}}
     )
+    # A re-claimed host: consents readers gave its previous workspace are void.
+    await forget_hosts(db, [raw["host"]], keep_workspace=raw.get("workspace_id"))
     # The first live document domain becomes the workspace's address on its own:
     # a workspace with one domain should never have to pick it.
     if raw.get("kind") == "app" and not raw.get("is_primary"):
@@ -972,9 +1000,16 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await coll.create_index("workspace_id")
     await coll.create_index("expires_at", expireAfterSeconds=0, sparse=True)
     await coll.create_index([("status", 1), ("last_checked_at", 1)])
-    # "Continue to <host> as you?" answered yes, per reader per host
-    # (routers/auth.py tenant-token consent).
-    await db["tenant_consents"].create_index([("user_id", 1), ("host", 1)], unique=True)
+    # "Continue to <host> as you?" answered yes, per reader per host *and* the
+    # workspace that owned it then (routers/auth.py tenant-token consent, B4).
+    # The older (user_id, host) unique index would refuse a second workspace's
+    # row for the same host; legacy rows without a workspace never match the
+    # keyed lookup, so they simply ask once more.
+    consents = db["tenant_consents"]
+    cinfo = await consents.index_information()
+    if "user_id_1_host_1" in cinfo:
+        await consents.drop_index("user_id_1_host_1")
+    await consents.create_index([("user_id", 1), ("host", 1), ("workspace_id", 1)], unique=True)
 
     # Steps 4 and 5 run once per database (a marker row), so a domain verified
     # *after* the migration without being attached is never mistaken for a
