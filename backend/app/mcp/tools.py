@@ -318,27 +318,47 @@ async def url_pair(ctx: Context, raw_or_doc) -> dict:
 
 
 async def resolve_workspace(ctx: Context, value: str) -> tuple[str, Any, str]:
-    """A workspace the user belongs to, by id, name or one of its domains."""
+    """A workspace the user belongs to: by exact id, then by one of its *live*
+    domains, then by a name that matches exactly ONE of the user's workspaces.
+
+    Never the first of several same-named workspaces: anyone can create a
+    workspace, name it after yours and invite you, and "publish to Acme" must
+    not land in theirs (C4). Ambiguous names are refused with the candidates
+    (id and domains) so the caller can pick by id or domain."""
+    from app.services import urls as urls_service
     from app.services import workspace as ws_service
 
     text = (value or "").strip()
     pairs = await ws_service.list_for_user(ctx.db, ctx.user.id)
     if not pairs:
         raise ToolError("The user isn't in any workspace yet.")
+    for ws, role in pairs:
+        if ws.id == text:
+            return ws.id, ws, role
     host = text.lower()
     if "://" in host:
         host = (urlsplit(host).hostname or "").lower()
     host = host.split("/")[0].rstrip(".")
-    for ws, role in pairs:
-        if ws.id == text or ws.name.strip().lower() == text.lower():
-            return ws.id, ws, role
-    if host:
-        row = await ctx.db["domains"].find_one({"host": host})
+    if host and "." in host:
+        row = await urls_service.live_host(ctx.db, host)
         if row:
             for ws, role in pairs:
                 if ws.id == row.get("workspace_id"):
                     return ws.id, ws, role
-    names = ", ".join(f"{ws.name} ({ws.id})" for ws, _ in pairs)
+    matches = [(ws, role) for ws, role in pairs if ws.name.strip().lower() == text.lower()]
+    if len(matches) == 1:
+        return matches[0][0].id, matches[0][0], matches[0][1]
+
+    async def describe(ws) -> str:
+        hosts = [r["host"] for r in await ctx.db["domains"].find(
+            {"workspace_id": ws.id}).to_list(length=20) if urls_service.is_live(r)]
+        return f"{ws.name} (id {ws.id}" + (f", {', '.join(hosts)}" if hosts else "") + ")"
+
+    if len(matches) > 1:
+        listing = "; ".join([await describe(ws) for ws, _ in matches])
+        raise ToolError(f"More than one of the user's workspaces is called '{text}': {listing}. "
+                        "Name the workspace by its id or its domain instead.")
+    names = "; ".join([await describe(ws) for ws, _ in pairs])
     raise ToolError(f"The user isn't in a workspace matching '{text}'. Their workspaces: {names}.")
 
 

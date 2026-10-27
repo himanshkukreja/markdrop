@@ -208,6 +208,37 @@ class C3PartialSettingsMerge(AccessWorld):
         self.assertFalse(r.json()["settings"]["members_can_share_folders"])
 
 
+class C4McpWorkspaceByName(AccessWorld):
+    async def call(self, who: str, tool: str, args: dict) -> dict:
+        status, res = await self.mcp_call(await self.mcp_token(who), tool, args)
+        self.assertEqual(status, 200)
+        return res
+
+    async def test_c4_same_name_workspace_is_refused_not_guessed(self):
+        await self.db["workspaces"].update_one(
+            {"_id": ObjectId(self.ws["W2"])},
+            {"$set": {"name": "Acme", "created_at": now() - timedelta(days=30)}})
+        await self.add_member("W2", "wm", "member")
+        res = await self.call("wm", "publish_document", {"markdown": "# victim secret", "workspace": "Acme"})
+        self.assertTrue(res.get("isError"), res)
+        text = res["content"][0]["text"]
+        self.assertIn("More than one", text)
+        self.assertIn(self.ws["W1"], text)
+        self.assertIn(self.ws["W2"], text)
+        self.assertEqual(await self.db["documents"].count_documents({"workspace_id": self.ws["W2"]}), 0)
+        # By id or by live domain it is unambiguous.
+        for ref in (self.ws["W1"], HOSTS["W1"], f"https://{HOSTS['W1']}/"):
+            res = await self.call("wm", "publish_document", {"markdown": "# ok", "workspace": ref})
+            self.assertFalse(res.get("isError"), res)
+            slug = res["structuredContent"]["slug"]
+            self.assertEqual((await self.doc(slug))["workspace_id"], self.ws["W1"])
+
+    async def test_c4_unique_name_still_resolves(self):
+        res = await self.call("wm", "list_folders", {"workspace": "acme"})
+        self.assertFalse(res.get("isError"), res)
+        self.assertEqual(res["structuredContent"]["workspace_id"], self.ws["W1"])
+
+
 # ── LOW ───────────────────────────────────────────────────────────────────────
 
 
