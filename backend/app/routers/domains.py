@@ -17,6 +17,7 @@ from app.models.user import User
 from app.routers.auth import require_user
 from app.schemas.domain import (
     DnsProviderHint,
+    DnsRecord,
     DomainCreate,
     DomainListResponse,
     DomainResponse,
@@ -34,9 +35,15 @@ def get_db() -> AsyncIOMotorDatabase:
     return get_database()
 
 
-def _is_apex(host: str) -> bool:
-    """Rough but adequate: an apex has no subdomain label to CNAME."""
-    return host.count(".") == 1
+def _routing_options(host: str) -> tuple[bool, list[DnsRecord]]:
+    """(certain, records): the A record for an apex, a CNAME otherwise, and
+    both — likeliest first — when the apex guess is uncertain."""
+    apex, certain = domain_service.apex_guess(host)
+    a = DnsRecord(type="A", name=host, value=settings.custom_domain_apex_ip)
+    cname = DnsRecord(type="CNAME", name=host, value=settings.custom_domain_cname_target)
+    if certain:
+        return True, [a if apex else cname]
+    return False, [a, cname] if apex else [cname, a]
 
 
 def _warning_for(domain: Domain) -> str | None:
@@ -50,7 +57,8 @@ def _warning_for(domain: Domain) -> str | None:
 
 
 def _to_response(domain: Domain) -> DomainResponse:
-    apex = _is_apex(domain.host)
+    certain, options = _routing_options(domain.host)
+    first = options[0]
     return DomainResponse(
         id=domain.id,
         host=domain.host,
@@ -64,12 +72,18 @@ def _to_response(domain: Domain) -> DomainResponse:
         is_primary=domain.is_primary,
         dns_record_name=f"{domain_service.TXT_PREFIX}.{domain.host}",
         dns_record_value=domain.verification_token,
-        dns_target_name=domain.host,
-        dns_target_type="A" if apex else "CNAME",
-        dns_target_value=(
-            settings.custom_domain_apex_ip if apex else settings.custom_domain_cname_target
-        ),
+        dns_target_name=first.name,
+        dns_target_type=first.type,
+        dns_target_value=first.value,
         warning=_warning_for(domain),
+        live=domain_service.is_live(domain),
+        routing_ok=domain.routing_ok,
+        failures=domain.failures,
+        first_failed_at=domain.first_failed_at,
+        lapsed_at=domain.lapsed_at,
+        expires_at=domain.expires_at if domain.status != "verified" else None,
+        apex_certain=certain,
+        dns_routing_options=options,
     )
 
 

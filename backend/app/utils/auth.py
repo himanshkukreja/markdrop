@@ -47,9 +47,12 @@ def create_tenant_token(
     reader's own documents, their other workspaces, or their account.
     """
     exp = datetime.now(timezone.utc) + timedelta(hours=TENANT_TOKEN_TTL_HOURS)
+    # No email: the token sits in the custom domain's storage, readable by
+    # whoever controls that domain, and a JWT payload is plain base64. The
+    # `email` parameter stays for callers; it is deliberately not embedded.
     payload = {
-        "sub": user_id, "email": email, "typ": "tenant",
-        "ws": workspace_id, "host": host.lower(), "exp": exp,
+        "sub": user_id, "typ": "tenant",
+        "ws": workspace_id, "host": host.lower().rstrip("."), "exp": exp,
     }
     return jwt.encode(payload, settings.auth_secret, algorithm=_ALGO), exp
 

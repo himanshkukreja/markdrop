@@ -15,6 +15,7 @@ import * as e2e from "@/lib/e2e";
 import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, API_BASE } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
 import { HANDOFF_FRAGMENT } from "@/lib/hosts";
+import { consumeHandoffToken, peekHandoffToken } from "@/components/tenant/handoff";
 import { useAuth } from "@/contexts/AuthContext";
 import { track } from "@/lib/track";
 import { useReadDepth } from "@/lib/readDepth";
@@ -390,8 +391,7 @@ export function useDocumentViewer({
   const [pwdFetching, setPwdFetching] = useState(isPasswordProtected && !!initialSecret);
   useEffect(() => {
     if (!isPasswordProtected) return;
-    if (window.location.hash.startsWith(`#${HANDOFF_FRAGMENT}=`)
-        || localStorage.getItem("markdrop_token")) {
+    if (peekHandoffToken() || localStorage.getItem("markdrop_token")) {
       setPwdFetching(true);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -656,13 +656,14 @@ export function useDocumentViewer({
   // back from. Stored for this origin only, and stripped from the address bar
   // straight away so it is not left sitting in a URL people copy and paste.
   const [handoffDone, setHandoffDone] = useState(false);
+  //
+  // Only a tenant token minted for this very host, and never on markdrop.in
+  // (`consumeHandoffToken`): a fragment is attacker-controllable, and taking any
+  // token from it let a crafted link swap the reader's session (login CSRF).
+  // A refused token is still stripped from the address bar.
   useEffect(() => {
-    const hash = window.location.hash;
-    const marker = `#${HANDOFF_FRAGMENT}=`;
-    if (!hash.startsWith(marker)) { setHandoffDone(true); return; }
-    const token = decodeURIComponent(hash.slice(marker.length));
-    if (token) localStorage.setItem("markdrop_token", token);
-    history.replaceState(null, "", window.location.pathname + window.location.search);
+    if (!window.location.hash.startsWith(`#${HANDOFF_FRAGMENT}=`)) { setHandoffDone(true); return; }
+    const token = consumeHandoffToken();
     setHandoffDone(true);
     // The header (Site or Tenant) reads the session from AuthContext, which
     // loaded before the token existed. Without this it stays signed out until

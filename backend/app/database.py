@@ -66,8 +66,17 @@ async def connect() -> None:
     await db["invitations"].create_index("workspace_id")
     # Sweeps resolved invitations once they stop being useful history.
     await db["invitations"].create_index("purge_at", expireAfterSeconds=0)
-    await db["domains"].create_index("host", unique=True)
-    await db["domains"].create_index("workspace_id")
+    # Domains: unique on *verified* hosts only (a pending claim blocks nobody),
+    # pending claims expire, plus the one-time lifecycle backfill. Migrates
+    # from the old all-rows unique index safely (new index first, then drop the
+    # old one); see services/domain.ensure_indexes. Never fatal: until it runs
+    # the old index keeps hosts unique, which is stricter, not looser.
+    try:
+        from app.services import domain as _domain_service
+
+        await _domain_service.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] domain index migration skipped: {exc}")
     await db["folders"].create_index([("workspace_id", 1), ("parent_id", 1)])
     # Folder slugs are URL segments, so siblings must differ or one of them is
     # unreachable. Partial on `slug` so folders created before slugs existed

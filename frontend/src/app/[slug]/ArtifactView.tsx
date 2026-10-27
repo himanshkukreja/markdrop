@@ -14,6 +14,16 @@ import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAccess } from "@/lib/access";
 import { purgeDocument } from "@/lib/workspaces";
+import { signInUrlFor } from "@/lib/hosts";
+
+/** The path part of this page's URL, for the tenant sign-in return trip (/login 404s there). */
+function tenantPathOf(url: string): string {
+  try {
+    return new URL(url).pathname || "/";
+  } catch {
+    return "/";
+  }
+}
 import {
   changeSlug,
   deleteDocument,
@@ -440,6 +450,23 @@ export default function ArtifactView({
     // sheets and docs, so downloading it would save the HTML wrapper.
     const src = downloadUrl || artifactUrl;
     if (!src) return;
+    if (tenant) {
+      // On a workspace's own domain the artifact origin's CORS doesn't list
+      // this origin, so the fetch below would fail (after downloading the whole
+      // body) and fall back to opening the artifact origin. A Content-Disposition
+      // link instead: the Worker answers `?dl=1` as an attachment, so the
+      // browser saves the file without leaving the page.
+      const u = new URL(downloadUrl || src);
+      u.searchParams.set("dl", "1");
+      u.searchParams.set("fn", originalFilename || slug);
+      const a = document.createElement("a");
+      a.href = u.toString();
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return;
+    }
     setDownloading(true);
     try {
       // Fetched as a blob rather than linked. The download attribute is ignored
@@ -563,7 +590,7 @@ export default function ArtifactView({
           {locked ? (
             <AccessGate
               mode="password"
-              signInHref="/login"
+              signInHref={tenant ? signInUrlFor(tenant.host, tenantPathOf(url)) : "/login"}
               value={pwdInput}
               onValue={setPwdInput}
               onSubmit={handleUnlock}

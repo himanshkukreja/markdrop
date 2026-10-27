@@ -20,8 +20,10 @@ export function TenantError({ error, reset }: { error: Error & { digest?: string
         className="flex w-full min-w-0 flex-1 flex-col items-center justify-center px-4 py-16 outline-none sm:py-24"
       >
         <div className="flex w-full max-w-[30rem] flex-col items-center gap-5 text-center">
-          <h1 className="text-h1 text-text">Something went wrong on this page</h1>
-          <p className="text-body-lg text-text-secondary">Try again, or go back to where you were.</p>
+          <h1 className="text-h1 text-text">This page couldn&rsquo;t be loaded</h1>
+          <p className="text-body-lg text-text-secondary">
+            The site may be busy or briefly unavailable. Try again in a moment.
+          </p>
           <div className="mt-2 flex w-full flex-col items-stretch justify-center gap-2 sm:w-auto sm:flex-row sm:items-center">
             <Button variant="primary" size="lg" onClick={reset}>Try again</Button>
             {tenant && (

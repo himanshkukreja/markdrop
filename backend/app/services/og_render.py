@@ -99,6 +99,9 @@ class Card:
     artifact_renderer: str | None = None
     artifact_label: str | None = None
     brand: CardBrand | None = None
+    # A link-level video's poster frame (image bytes read from our own bucket),
+    # drawn into the artifact card in place of the type glyph.
+    poster: bytes | None = None
 
 
 def parse_hex_color(value: str | None) -> tuple[int, int, int] | None:
@@ -788,6 +791,51 @@ _PROTECTED_COPY = {
 }
 
 
+# A video's poster, framed on the right of the artifact card (16:9, 512 wide).
+_POSTER_W, _POSTER_H = 512, 288
+_POSTER_X = _RIGHT - _POSTER_W
+_POSTER_Y = 168
+_POSTER_MAX_PIXELS = 40_000_000  # refuse decompression bombs before decoding
+
+
+def _poster_frame(data: bytes) -> Image.Image | None:
+    """The poster cover-cropped to the frame, or None if it isn't an image we
+    can (safely) decode. Bytes come from our own bucket, never a URL."""
+    try:
+        src = Image.open(BytesIO(data))
+        if src.width * src.height > _POSTER_MAX_PIXELS:
+            return None
+        src = src.convert("RGB")
+    except Exception:
+        return None
+    scale = max(_POSTER_W / src.width, _POSTER_H / src.height)
+    w, h = max(1, round(src.width * scale)), max(1, round(src.height * scale))
+    src = src.resize((w, h), Image.LANCZOS)
+    left, top = (w - _POSTER_W) // 2, (h - _POSTER_H) // 2
+    return src.crop((left, top, left + _POSTER_W, top + _POSTER_H))
+
+
+@lru_cache(maxsize=2)
+def _poster_mask(w: int, h: int) -> Image.Image:
+    ss = 4
+    big = Image.new("L", (w * ss, h * ss), 0)
+    ImageDraw.Draw(big).rounded_rectangle([0, 0, w * ss - 1, h * ss - 1], radius=20 * ss, fill=255)
+    return big.resize((w, h), Image.LANCZOS)
+
+
+def _draw_play(img: Image.Image, cx: int, cy: int, r: int = 44) -> None:
+    """A play disc over the poster, so the card reads as a video at a glance."""
+    ss = 4
+    size = 2 * r
+    disc = Image.new("RGBA", (size * ss, size * ss), (0, 0, 0, 0))
+    d = ImageDraw.Draw(disc)
+    d.ellipse([0, 0, size * ss - 1, size * ss - 1], fill=(3, 7, 18, 190))
+    u = size * ss
+    d.polygon([(0.40 * u, 0.30 * u), (0.40 * u, 0.70 * u), (0.72 * u, 0.50 * u)], fill=(*_TEXT, 255))
+    disc = disc.resize((size, size), Image.LANCZOS)
+    img.paste(disc, (cx - r, cy - r), disc)
+
+
 def render_og_png(card: Card) -> bytes:
     """Render ``card`` to PNG bytes (1200×630)."""
     if card.kind not in CARD_KINDS:
@@ -825,13 +873,19 @@ def render_og_png(card: Card) -> bytes:
         _draw_footer(draw, card, footer_colour, "")
 
     elif card.kind == "artifact":
-        glyph, colour = _RENDERER_GLYPH.get(card.artifact_renderer or "", _OTHER_GLYPH)
-        _paste_icon(img, glyph, 280, (856, 175), colour, opacity=0.10)
+        poster = _poster_frame(card.poster) if card.poster else None
+        text_w = _ARTIFACT_TEXT_W
+        if poster is not None:
+            img.paste(poster, (_POSTER_X, _POSTER_Y), _poster_mask(*poster.size))
+            _draw_play(img, _POSTER_X + poster.width // 2, _POSTER_Y + poster.height // 2)
+            text_w = _POSTER_X - _M - 40
+        else:
+            glyph, colour = _RENDERER_GLYPH.get(card.artifact_renderer or "", _OTHER_GLYPH)
+            _paste_icon(img, glyph, 280, (856, 175), colour, opacity=0.10)
         label = (card.artifact_label or "").strip()
         eyebrow = f"Artifact · {label}" if label else "Artifact"
-        _draw_eyebrow(draw, _M, _fit(eyebrow.upper(), _EYEBROW, _ARTIFACT_TEXT_W), _ARTIFACT_ORANGE)
-        _title_and_snippet(draw, card.title.strip() or card.slug, card.snippet.strip(),
-                           _ARTIFACT_TEXT_W)
+        _draw_eyebrow(draw, _M, _fit(eyebrow.upper(), _EYEBROW, text_w), _ARTIFACT_ORANGE)
+        _title_and_snippet(draw, card.title.strip() or card.slug, card.snippet.strip(), text_w)
         _draw_footer(draw, card, footer_colour, card.meta)
 
     else:  # document

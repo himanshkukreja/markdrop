@@ -12,6 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import get_settings
 from app.database import connect, disconnect
 from app.limiter import limiter
+from app.middleware.internal import InternalRequestMiddleware
 from app.middleware.public_cors import PublicCORSMiddleware
 from app.middleware.tenant_cors import TenantCORSMiddleware
 from app.routers.admin import router as admin_router
@@ -55,11 +56,15 @@ async def lifespan(app: FastAPI):
     from app.services.email_campaigns import engine as email_engine
 
     email_engine.start(get_database)
-    # Revalidation outbox, expiry sweeper, access reconciler (services/background.py).
-    from app.services import background
+    # Revalidation outbox, expiry sweeper, access reconciler (services/background.py),
+    # and custom-domain re-verification / lapsing (services/domain_monitor.py).
+    # Each runs one worker per pass via a Mongo lease.
+    from app.services import background, domain_monitor
 
     background.start(get_database)
+    domain_monitor.start(get_database)
     yield
+    await domain_monitor.stop()
     await background.stop()
     await email_engine.stop()
     await disconnect()
@@ -139,6 +144,9 @@ async def _validation_error(request: Request, exc: RequestValidationError) -> JS
 
 app.add_exception_handler(RequestValidationError, _validation_error)
 app.add_middleware(SlowAPIMiddleware)
+# Outside SlowAPIMiddleware (added after it, so it runs first): a request signed
+# by the frontend's own server is exempt from per-IP limits (middleware/internal.py).
+app.add_middleware(InternalRequestMiddleware)
 
 # Routers
 app.include_router(documents_router)

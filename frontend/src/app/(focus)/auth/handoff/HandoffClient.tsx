@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Button, MarkdropLoader, VisuallyHidden } from "@/components/ui";
+import { Button, Checkbox, MarkdropLoader, VisuallyHidden } from "@/components/ui";
 import { FocusState } from "@/components/auth/FocusState";
-import { mintTenantToken } from "@/lib/api";
 import { HANDOFF_FRAGMENT } from "@/lib/hosts";
+import { getHandoffConsent, HandoffError, mintHandoffToken, type HandoffConsent } from "./handoffApi";
 
 /**
  * Carry a signed-in reader from markdrop.in onto a workspace's own domain.
@@ -18,10 +18,14 @@ import { HANDOFF_FRAGMENT } from "@/lib/hosts";
  *
  * What it hands over is deliberately small. A custom domain is an origin we do
  * not control — its owner controls the DNS and could point it anywhere — so the
- * token is scoped to that one workspace, accepted only for reading documents,
- * and expires in hours. Someone who captured one would hold read access to
- * documents belonging to the workspace whose domain they already own, and
- * nothing of the reader's own.
+ * token is scoped to that one workspace, accepted only for reading documents
+ * and only from that host, carries no email address, and expires in hours.
+ *
+ * It is never silent for a stranger: handing it over tells the domain's owner
+ * who visited, and this page is reachable by any link. Unless the reader is a
+ * member of the workspace (it is their own site) or said yes for this host
+ * before, it asks first: "Continue to <host> as you?". The API enforces the
+ * same rule, so skipping this screen gets nothing.
  *
  * It comes back on the URL fragment rather than the query string: fragments are
  * never sent to a server, so the credential stays out of access logs, proxies
@@ -40,47 +44,76 @@ export function HandoffFallback() {
   );
 }
 
+function loginUrl(host: string, next: string): string {
+  const here = `/auth/handoff?host=${encodeURIComponent(host)}&next=${encodeURIComponent(next)}`;
+  return `/login?next=${encodeURIComponent(here)}`;
+}
+
 export default function HandoffClient() {
   const params = useSearchParams();
   const [error, setError] = useState<Failure | null>(null);
   const [signingIn, setSigningIn] = useState(false);
+  const [consent, setConsent] = useState<HandoffConsent | null>(null);
+  const [remember, setRemember] = useState(true);
+  const [busy, setBusy] = useState(false);
   const started = useRef(false);
 
-  const rawHost = (params.get("host") || "").trim().toLowerCase();
+  const rawHost = (params.get("host") || "").trim().toLowerCase().replace(/\.+$/, "");
   // Only ever show a host that passes the same check the redirect uses.
   const shownHost = HOST_RE.test(rawHost) ? rawHost : null;
+  const next = params.get("next") || "/";
+
+  const handOver = useCallback(
+    async (host: string, agreed: boolean, keep: boolean) => {
+      try {
+        const scoped = await mintHandoffToken(host, agreed, keep);
+        window.location.replace(`https://${host}${next}#${HANDOFF_FRAGMENT}=${encodeURIComponent(scoped)}`);
+      } catch (e) {
+        if (e instanceof HandoffError && e.status === 401) {
+          setSigningIn(true);
+          window.location.replace(loginUrl(host, next));
+          return;
+        }
+        setError("mint");
+        setBusy(false);
+      }
+    },
+    [next],
+  );
 
   useEffect(() => {
     if (started.current) return;
     started.current = true;
 
-    const host = (params.get("host") || "").trim().toLowerCase();
-    const next = params.get("next") || "/";
-
+    const host = rawHost;
     // Only ever a path on the target host, and only ever that host. Both are
     // attacker-supplied — this page is reachable by URL — so neither is allowed
     // to redirect anywhere of the caller's choosing.
     const hostOk = HOST_RE.test(host);
-    const nextOk = next.startsWith("/") && !next.startsWith("//");
+    const nextOk = next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\");
     if (!hostOk || !nextOk) { setError("invalid"); return; }
 
-    const token = localStorage.getItem("markdrop_token");
-    if (!token) {
+    if (!localStorage.getItem("markdrop_token")) {
       // Not signed in here either. Sign in first, then come back and finish.
       setSigningIn(true);
-      const here = `/auth/handoff?host=${encodeURIComponent(host)}&next=${encodeURIComponent(next)}`;
-      window.location.replace(`/login?next=${encodeURIComponent(here)}`);
+      window.location.replace(loginUrl(host, next));
       return;
     }
 
-    mintTenantToken(host)
-      .then(({ token: scoped }) => {
-        window.location.replace(
-          `https://${host}${next}#${HANDOFF_FRAGMENT}=${encodeURIComponent(scoped)}`
-        );
+    getHandoffConsent(host)
+      .then((info) => {
+        if (info.needs_consent) setConsent(info);
+        else void handOver(host, false, false);
       })
-      .catch(() => setError("mint"));
-  }, [params]);
+      .catch((e) => {
+        if (e instanceof HandoffError && e.status === 401) {
+          setSigningIn(true);
+          window.location.replace(loginUrl(host, next));
+          return;
+        }
+        setError("mint");
+      });
+  }, [rawHost, next, handOver]);
 
   if (error) {
     return (
@@ -96,10 +129,60 @@ export default function HandoffClient() {
           <FocusState
             icon="globe"
             title={shownHost ? <>Couldn&apos;t open <span className="break-words">{shownHost}</span></> : "Couldn't open that site"}
-            description="The site may not be connected to Markdrop yet, or your session has ended. Open the document from your documents, or sign in again."
+            description="The site may not be connected to Markdrop right now, or your session has ended. Open the document from your documents, or sign in again."
             actions={<Button href="/dashboard" variant="primary" size="lg">Go to your documents</Button>}
           />
         )}
+      </div>
+    );
+  }
+
+  if (consent && shownHost) {
+    const site = consent.site_name?.trim();
+    const who = consent.name?.trim() || consent.email;
+    return (
+      <div className="flex flex-1 items-center justify-center px-4 py-10">
+        <FocusState
+          icon="globe"
+          title={
+            <>
+              Continue to <span className="break-words">{shownHost}</span> as {who}?
+            </>
+          }
+          description={
+            <>
+              {site ? <><span className="break-words">{site}</span> ({shownHost})</> : shownHost} is a site published
+              with Markdrop. Continuing signs you in there so you can read what&apos;s been shared with you. The
+              site can see your display name, never your email address, and can&apos;t change anything in your
+              account.
+            </>
+          }
+          actions={
+            <div className="flex w-full flex-col items-center gap-4">
+              <Checkbox
+                label={`Don't ask again for ${shownHost}`}
+                checked={remember}
+                onChange={(e) => setRemember((e.target as HTMLInputElement).checked)}
+              />
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  disabled={busy}
+                  onClick={() => {
+                    setBusy(true);
+                    void handOver(shownHost, true, remember);
+                  }}
+                >
+                  Continue
+                </Button>
+                <Button variant="secondary" size="lg" href="/dashboard" disabled={busy}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          }
+        />
       </div>
     );
   }

@@ -29,6 +29,7 @@ from app.models.user import User
 from app.schemas.auth import EmailRequest, EmailVerifyRequest, NameUpdateRequest, TokenResponse, UserResponse
 from app.services import api_token, domain as domain_service, email_auth, mailer, oauth
 from app.services import user as user_service
+from app.services import workspace as ws_service
 from app.utils.auth import create_tenant_token, create_access_token, decode_access_token
 
 settings = get_settings()
@@ -80,6 +81,12 @@ async def _user_id_from_token(token: str) -> str | None:
 class TenantTokenRequest(BaseModel):
     """The workspace domain a scoped session is wanted for."""
     host: str = Field(..., min_length=3, max_length=253)
+    # The reader said yes on the handoff page ("Continue to <host> as you?").
+    # Required unless they are a member of the workspace that owns the host or
+    # already consented for this host.
+    consent: bool = False
+    # Remember that yes for this host, so the next sign-in there is silent.
+    remember: bool = True
 
 
 # ── Tenant tokens ─────────────────────────────────────────────────────────────
@@ -97,24 +104,60 @@ _TENANT_ALLOWED = (
     ("POST", re.compile(r"^/api/v1/documents/[^/]+/events$")),  # the view beacon
     # Reading one's own profile. Not a convenience: the app clears a token whose
     # /me call fails, so without this the credential deletes itself the moment
-    # it arrives. It returns nothing but the caller's own name and address, and
-    # anyone positioned to capture a tenant token is the owner of that domain —
-    # who already knows the addresses they shared with.
+    # it arrives. For a tenant token it answers the display name only, never
+    # the address (see `get_me`).
     ("GET", re.compile(r"^/api/v1/auth/me$")),
+    # Folder pages on the workspace's own domain, and shared folders: listings
+    # filtered to what this reader may open. Read-only, workspace-scoped.
+    ("GET", re.compile(r"^/api/v1/host/folder$")),
+    ("GET", re.compile(r"^/api/v1/folders/shared/[^/]+$")),
 )
+
+
+def _origin_host(request: Request) -> str | None:
+    origin = request.headers.get("origin")
+    if not origin or origin == "null":
+        return None
+    return domain_service.clean_host(origin) or None
 
 
 def _tenant_scope_ok(request: Request, payload: dict) -> bool:
     """May this tenant token be used for this request at all?
+
+    Two conditions: an allowed route, and a request made *from the host the
+    token was minted for* (its `host` claim must equal the request's Origin).
+    The second is what makes a captured token nearly worthless elsewhere: a
+    browser cannot be made to send another site's Origin, and a token replayed
+    from a script with no Origin at all is refused too.
 
     The workspace itself is enforced separately and deeper: the document read
     runs with `workspace_scope` pinned to the token's workspace, so a token for
     one customer's domain cannot resolve another customer's document even on an
     allowed route.
     """
+    claim = domain_service.clean_host(payload.get("host"))
+    if not claim or _origin_host(request) != claim:
+        return False
     path = request.url.path
     method = request.method.upper()
     return any(m == method and rx.match(path) for m, rx in _TENANT_ALLOWED)
+
+
+async def _tenant_host_live(payload: dict) -> bool:
+    """Is the host this token was minted for still a live domain of its
+    workspace? A domain that lapsed, was detached, removed or moved to another
+    workspace takes its outstanding tokens with it at once, rather than leaving
+    them good for the rest of their 12 hours."""
+    try:
+        domain = await domain_service.resolve_host(get_database(), payload.get("host") or "")
+    except Exception:
+        return False
+    return domain is not None and domain.kind == "app" and domain.workspace_id == payload.get("ws")
+
+
+def is_tenant_request(request: Request) -> bool:
+    """True when this request was authenticated with a tenant token."""
+    return bool(getattr(request.state, "tenant_token", False))
 
 
 def tenant_workspace(request: Request) -> str | None:
@@ -153,12 +196,13 @@ async def optional_user(request: Request) -> User | None:
             # harmless when someone adds a route where anonymous is the more
             # permissive path. `require_user` already refuses these outright;
             # this keeps the two dependencies saying the same thing.
-            if not _tenant_scope_ok(request, payload):
+            if not _tenant_scope_ok(request, payload) or not await _tenant_host_live(payload):
                 raise HTTPException(
                     status_code=401,
                     detail="This session only works for documents on that workspace's domain.",
                 )
             request.state.tenant_workspace = payload.get("ws")
+            request.state.tenant_token = True
     user_id = await _user_id_from_token(token)
     if not user_id:
         # A revoked or invalid API token is a bad credential, not "anonymous"
@@ -188,12 +232,13 @@ async def require_user(request: Request) -> User:
         except jwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid session token")
         if payload.get("typ") == "tenant":
-            if not _tenant_scope_ok(request, payload):
+            if not _tenant_scope_ok(request, payload) or not await _tenant_host_live(payload):
                 raise HTTPException(
                     status_code=401,
                     detail="This session only works for documents on that workspace's domain.",
                 )
             request.state.tenant_workspace = payload.get("ws")
+            request.state.tenant_token = True
         user_id = payload.get("sub", "")
 
     user = await user_service.get_user_by_id(get_database(), user_id)
@@ -214,7 +259,15 @@ def _to_user_response(user: User) -> UserResponse:
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(user: User = Depends(require_user)):
+async def get_me(request: Request, user: User = Depends(require_user)):
+    if is_tenant_request(request):
+        # On a workspace's own domain: who they are to show in the header, and
+        # nothing the domain's owner could harvest. No address, no picture
+        # (a third-party avatar URL is its own identifier), no providers.
+        return UserResponse(
+            id=user.id, email="", name=user.name, picture=None, providers=[],
+            created_at=user.created_at,
+        )
     return _to_user_response(user)
 
 
@@ -223,6 +276,48 @@ async def update_me(data: NameUpdateRequest, user: User = Depends(require_user))
     """Set the display name (used for passwordless email accounts with no name)."""
     updated = await user_service.update_name(get_database(), user.id, data.name.strip())
     return _to_user_response(updated or user)
+
+
+async def _tenant_target(host_raw: str):
+    host = domain_service.clean_host(host_raw)
+    domain = await domain_service.resolve_host(get_database(), host)
+    # Unverified, unattached, lapsed, unknown, or a cdn host — none of which
+    # serve documents, and none of which should ever receive a credential.
+    if domain is None or domain.kind != "app":
+        raise HTTPException(status_code=404, detail="Unknown domain.")
+    return domain
+
+
+async def _needs_consent(user: User, domain) -> bool:
+    """Members of the workspace that owns the host go straight through (it is
+    their own site); everyone else is asked once per host."""
+    db = get_database()
+    if await ws_service.role_for(db, domain.workspace_id, user.id):
+        return False
+    return not await db["tenant_consents"].find_one(
+        {"user_id": user.id, "host": domain.host}, {"_id": 1}
+    )
+
+
+@router.get("/tenant-token/consent")
+@limiter.limit("60/minute")
+async def tenant_token_consent(
+    request: Request,
+    host: str = Query(..., min_length=3, max_length=253),
+    user: User = Depends(require_user),
+):
+    """What the handoff page shows before handing a reader to a custom domain:
+    the site, who they will appear as, and whether it has to ask at all."""
+    domain = await _tenant_target(host)
+    workspace = await ws_service.get_workspace(get_database(), domain.workspace_id)
+    site_name = (workspace.branding.site_name if workspace else None) or None
+    return {
+        "host": domain.host,
+        "site_name": site_name,
+        "needs_consent": await _needs_consent(user, domain),
+        "name": user.name,
+        "email": user.email,
+    }
 
 
 @router.post("/tenant-token")
@@ -238,22 +333,31 @@ async def mint_tenant_token(
     result is handed to the custom domain so they can keep reading there instead
     of being bounced back here for every document.
 
-    Any signed-in reader may mint one for any verified domain, and that is
-    deliberate: the token grants *nothing by itself*. Every document read still
-    runs the full access check for that person, so a token for a workspace they
-    have no claim on resolves exactly nothing. Requiring membership here would
-    also lock out the case this exists for — somebody outside the workspace who
-    was named on a single document.
-    """
-    host = (data.host or "").strip().lower()
-    domain = await domain_service.resolve_host(get_database(), host)
-    # Unverified, unknown, or a cdn host — none of which serve documents, and
-    # none of which should ever receive a credential.
-    if domain is None or domain.kind != "app":
-        raise HTTPException(status_code=404, detail="Unknown domain.")
+    Any signed-in reader may mint one for any live domain: the token grants
+    *nothing by itself*. Every document read still runs the full access check
+    for that person, so a token for a workspace they have no claim on resolves
+    exactly nothing. Requiring membership here would also lock out the case
+    this exists for — somebody outside the workspace who was named on a single
+    document.
 
-    token, exp = create_tenant_token(user.id, user.email, domain.workspace_id, host)
-    return {"token": token, "expires_at": exp, "host": host}
+    But it does tell that domain's owner who visited. So it is never silent for
+    a stranger: unless the reader is a member of the workspace, or said yes for
+    this host before, they must consent first (403 `consent_required` until
+    they do). The handoff page asks "Continue to <host> as you?".
+    """
+    domain = await _tenant_target(data.host)
+    if await _needs_consent(user, domain):
+        if not data.consent:
+            raise HTTPException(status_code=403, detail="consent_required")
+        if data.remember:
+            await get_database()["tenant_consents"].update_one(
+                {"user_id": user.id, "host": domain.host},
+                {"$set": {"at": datetime.now(timezone.utc)}},
+                upsert=True,
+            )
+
+    token, exp = create_tenant_token(user.id, user.email, domain.workspace_id, domain.host)
+    return {"token": token, "expires_at": exp, "host": domain.host}
 
 
 @router.post("/logout")
