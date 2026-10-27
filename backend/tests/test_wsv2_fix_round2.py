@@ -5,6 +5,7 @@ feat/workspaces-v2 @ 913e3df and passes with its fix."""
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -726,3 +727,99 @@ class CN8RequireAuthToggleRace(AccessWorld):
         ws = await self.db["workspaces"].find_one({"_id": ObjectId(W)})
         self.assertTrue(ws["require_auth_applied"])
         self.assertIsNone(ws.get("require_auth_lock"))
+
+
+# ── Verification-agent additions ──────────────────────────────────────────────
+
+
+class RedisOutageNeverFailsRequests(AccessWorld):
+    """With Redis stopped or hung, rate-limited routes still answer (in-memory
+    fallback, short socket timeouts) instead of 500 / blocking."""
+
+    async def asyncSetUp(self):
+        import shutil
+        import socket
+        import subprocess
+        import tempfile
+
+        await super().asyncSetUp()
+        exe = shutil.which("redis-server") or "/opt/homebrew/bin/redis-server"
+        if not os.path.exists(exe):
+            self.skipTest("redis-server not installed")
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            self.port = s.getsockname()[1]
+        self.tmp = tempfile.mkdtemp()
+        self.redis = subprocess.Popen([exe, "--port", str(self.port), "--bind", "127.0.0.1", "--save", "",
+                                       "--appendonly", "no", "--dir", self.tmp],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(self._stop_redis)
+        for _ in range(50):
+            try:
+                with socket.create_connection(("127.0.0.1", self.port), timeout=0.2):
+                    break
+            except OSError:
+                await asyncio.sleep(0.05)
+
+    def _stop_redis(self):
+        import signal
+
+        if self.redis.poll() is None:
+            try:
+                self.redis.send_signal(signal.SIGCONT)
+            except Exception:
+                pass
+            self.redis.kill()
+            self.redis.wait(timeout=5)
+
+    @contextmanager
+    def app_limiter_on_redis(self):
+        from limits.storage import storage_from_string
+        from limits.strategies import STRATEGIES
+
+        from app import limiter as limiter_mod
+        from app.limiter import limiter
+
+        # The options production uses for a Redis URL (the test settings use memory://).
+        options = getattr(limiter_mod, "STORAGE_OPTIONS", {})
+        storage = storage_from_string(f"redis://127.0.0.1:{self.port}/0", **options)
+        strategy = STRATEGIES[limiter._strategy or "fixed-window"](storage)
+        with mock.patch.object(limiter, "_storage", storage), \
+                mock.patch.object(limiter, "_limiter", strategy), \
+                mock.patch.object(limiter, "_storage_dead", False), \
+                mock.patch.object(limiter, "enabled", True):
+            yield
+
+    async def _hit(self, d):
+        a = await asyncio.wait_for(self.get(d["slug"]), 5)
+        b = await asyncio.wait_for(self.http.get(f"/api/v1/og/{d['slug']}.png"), 5)
+        return a.status_code, b.status_code
+
+    async def test_redis_stopped(self):
+        d = await self.mkdoc("L", ws=None)
+        with self.app_limiter_on_redis():
+            self.assertEqual(await self._hit(d), (200, 200))
+            self.redis.kill()
+            self.redis.wait(timeout=5)
+            for _ in range(3):
+                self.assertEqual(await self._hit(d), (200, 200))
+
+    async def test_redis_hung(self):
+        import signal
+
+        d = await self.mkdoc("L", ws=None)
+        with self.app_limiter_on_redis():
+            self.assertEqual(await self._hit(d), (200, 200))
+            self.redis.send_signal(signal.SIGSTOP)
+            # A blocked event loop can't time itself out: resume Redis after
+            # 10 s from a thread so a regression fails instead of hanging.
+            import threading
+
+            timer = threading.Timer(10, lambda: self.redis.send_signal(signal.SIGCONT))
+            timer.start()
+            self.addCleanup(timer.cancel)
+            t0 = time.monotonic()
+            codes = [await self._hit(d) for _ in range(3)]
+            elapsed = time.monotonic() - t0
+            self.assertEqual(codes, [(200, 200)] * 3)
+            self.assertLess(elapsed, 6)
