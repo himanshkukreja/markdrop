@@ -201,7 +201,12 @@ async def update_workspace(
         for key, value in (values or {}).items():
             updates[f"{group}.{key}"] = value
 
-    await db["workspaces"].update_one({"_id": ObjectId(workspace_id)}, {"$set": updates})
+    # Never while the workspace is being deleted (R3-1): the release reads require-sign-in once the
+    # doors are shut, so a settings write landing after that could widen what it releases.
+    res = await db["workspaces"].update_one(
+        {"_id": ObjectId(workspace_id), "deleting": {"$ne": True}}, {"$set": updates})
+    if res.matched_count == 0:
+        await assert_open(db, workspace_id)  # 404 gone / 409 being deleted
     workspace = await get_workspace(db, workspace_id)
     if workspace is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -339,7 +344,13 @@ async def delete_workspace(
     await db["workspaces"].update_one(
         {"_id": ObjectId(workspace_id), "owner_id": user_id},
         {"$set": {"deleting": True, "deleting_at": datetime.now(timezone.utc)}})
-    require_auth = workspace.settings.require_auth_to_view
+    # Read require-sign-in from the stored row *after* the doors are shut (R3-1): settings writes
+    # are refused from here on (update_workspace), so this value is final. Either value being on
+    # counts as on, so a toggle racing the flag can never make the release widen anything.
+    stored = await db["workspaces"].find_one({"_id": ObjectId(workspace_id)}, {"settings": 1}) or {}
+    stored_auth = bool(((stored.get("settings") or {}) if isinstance(stored.get("settings"), dict) else {})
+                       .get("require_auth_to_view"))
+    require_auth = bool(workspace.settings.require_auth_to_view) or stored_auth
 
     # W3: every document is released with the D2 conversion (workspace-only
     # ⇒ private; link documents of a sign-in workspace ⇒ private), grants made

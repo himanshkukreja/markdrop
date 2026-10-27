@@ -183,6 +183,7 @@ async def update_workspace(
     # Branding and viewer settings change what every visitor sees, so they sit
     # behind admin rather than member.
     role = await ws_service.require_role(db, workspace_id, user.id, "admin")
+    await ws_service.assert_open(db, workspace_id)  # R3-1: no settings changes mid-delete
     workspace = await ws_service.update_workspace(
         db,
         workspace_id,
