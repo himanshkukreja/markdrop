@@ -285,7 +285,9 @@ async def folder_listing(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
     None when the folder holds nothing the caller can read (and isn't
     ``always_show``) — the caller then answers 404 so structure never leaks."""
     folders = await folder_service.list_folders(db, workspace_id)
-    rows = await readable_rows(db, actor, ctx, workspace_id)
+    # Counts need only the folder of each readable row; full rows are fetched
+    # for the one folder being shown.
+    rows = await readable_rows(db, actor, ctx, workspace_id, projection={"folder_id": 1})
     _direct, total, _root = counts(rows, folders)
     paths = folder_service.paths_by_id(folders)
     in_scope = set(folder_service.subtree_ids(folders, root_id)) if root_id else None
@@ -301,13 +303,13 @@ async def folder_listing(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
             and (in_scope is None or f.id in in_scope)]
     subs.sort(key=lambda f: f.name.lower())
     hosts = urls.HostCache(db)
-    docs = [r for r in rows if (r.get("folder_id") or None) == folder_id]
-    docs.sort(key=lambda r: publicity.aware(r.get("updated_at")) or datetime.min.replace(tzinfo=timezone.utc),
-              reverse=True)
+    rf = await access.readable_filter(actor, workspace_id, ctx)
+    docs = await db["documents"].find(rf.query({"folder_id": folder_id or None})).sort(
+        "updated_at", -1).to_list(length=5000)
     documents = []
     for r in docs:
         documents.append({**_public_doc(r, url=await urls.canonical_url(db, r, hosts)),
-                          **_poster(r, await publicity.doc_is_public(db, r))})
+                          **_poster(r, publicity.is_public(r, require_auth=rf.require_auth))})
     return {"folders": subs, "paths": paths, "total": total, "documents": documents}
 
 
