@@ -1,12 +1,19 @@
 # markdrop CLI
 
-A cross-platform terminal tool for **peer-to-peer file sharing** with no cloud storage.  
-Files travel directly between machines over an encrypted WebRTC DataChannel.  
-The signalling server only ever sees tiny handshake messages — never your file bytes.
+A cross-platform terminal tool that does two things with files:
+
+- **Share peer-to-peer** (`send` / `get`) with no cloud storage. Files travel directly between machines
+  over an encrypted WebRTC DataChannel; the signalling server only ever sees tiny handshake messages.
+- **Publish behind a lasting link** (`upload` / `replace`): a video, PDF, HTML page… gets a
+  `markdrop.in/<slug>` link, and you can swap the file behind that same link later, keeping earlier
+  versions. See [Upload and replace files](#upload-and-replace-files).
 
 ---
 
 ## Features
+
+- **Publish and replace** — `markdrop upload demo.mp4` prints a link; `markdrop replace <link> demo-v2.mp4`
+  changes the file without changing the link (videos up to 2 GB, resumable, sha256-verified)
 
 - **Zero server storage** — files go straight from sender to receiver
 - **Encrypted device to device** — WebRTC DTLS encryption by default
@@ -15,7 +22,7 @@ The signalling server only ever sees tiny handshake messages — never your file
 - **Cross-platform** — single statically linked binary for macOS, Linux, and Windows (amd64 + arm64)
 - **Large file support** — 64 KB chunking with backpressure; no memory limits on file size
 - **Auto-accept mode** — `-y` flag for scripted / unattended use
-- **AI assistants** — `markdrop mcp` lets Claude Code, Claude Desktop, Cursor or VS Code share and receive files for you
+- **AI assistants** — `markdrop mcp` lets Claude Code, Claude Desktop, Cursor or VS Code publish, replace, share and receive files for you
 
 ---
 
@@ -201,23 +208,103 @@ The receiver doesn't need the CLI. Share the URL and they can download from any 
 
 ---
 
+## Upload and replace files
+
+`markdrop upload` publishes a file from your computer on markdrop.in and prints its link.
+`markdrop replace` swaps the file behind an existing link: the **link, access setting, title and
+view count stay the same**, and the previous file is kept as a version you can restore. Good for a
+demo video you re-record, a PDF you revise, an HTML report you regenerate.
+
+These commands need an API token (v0.4.0+). Create one at
+[markdrop.in/settings/tokens](https://markdrop.in/settings/tokens), then either:
+
+```bash
+export MARKDROP_TOKEN=mdk_…        # per shell / CI secret
+markdrop login                     # or save it once (paste it; stored 0600 in your config dir)
+```
+
+`--token` on a command beats `MARKDROP_TOKEN`, which beats the saved token. The token is only ever sent
+as an `Authorization: Bearer` header to the API.
+
+```bash
+markdrop upload demo.mp4                                   # → https://markdrop.in/demo
+markdrop upload report.pdf --title "Q3 report" --access private
+markdrop upload deck.html --password hunter2               # --access password is implied
+
+markdrop replace https://markdrop.in/demo demo-v2.mp4      # same link, now version 2
+markdrop versions demo                                     # * marks the version the link serves
+markdrop restore demo 1                                    # bring v1 back (as version 3)
+markdrop info demo                                         # size, sha256, version, video size/duration
+```
+
+```
+$ markdrop replace demo demo-v2.mp4
+  Uploading [████████████░░░░░░░░░░░░]  52%  110.2 MB / 212.4 MB  38.1 MB/s
+  ✓ Replaced demo — version 2, 212.4 MB. The previous version is kept (markdrop versions demo).
+https://markdrop.in/demo
+version 2
+```
+
+**How it behaves**
+
+- The file is hashed locally (sha256, streamed), sent straight to storage in parts (the server picks the
+  part size, 32 MiB by default) with **4 parts in flight**, and each part is retried with backoff.
+  Upload URLs that expire during a long upload are refreshed automatically.
+- The server assembles the parts and checks the sha256 before anything goes live. If it doesn't match,
+  the command fails (exit code 1) and **nothing changes** on Markdrop.
+- **Resumable:** if an upload is interrupted (Ctrl+C, a dropped connection, a closed laptop), run the
+  **same command again** — only the parts the server doesn't have yet are sent. Sessions are remembered
+  in your user cache folder (`~/Library/Caches/markdrop/uploads` on macOS, `~/.cache/markdrop/uploads`
+  on Linux, `%LocalAppData%\markdrop\uploads` on Windows) and expire on the server after about two days,
+  after which the upload simply starts over.
+- A progress bar is drawn on stderr **only when stderr is a terminal**; in scripts and CI nothing but the
+  result is printed.
+- Links are accepted as `https://markdrop.in/<slug>`, `https://www.markdrop.in/<slug>`,
+  `http://localhost:3000/<slug>` or just the slug.
+- Limits: up to 2 GB for video (other types keep their usual limits), 20 GB per account; Markdrop keeps up
+  to 5 versions of a file and old versions count toward the quota.
+
+**Scripting with `--json`**
+
+With `--json` each command prints exactly **one JSON object on stdout** — the API's result — and nothing
+else (errors go to stderr with exit code 1):
+
+```bash
+$ markdrop upload demo.mp4 --json
+{"url":"https://markdrop.in/demo","slug":"demo","version":1,"size_bytes":222717952,"content_type":"video/mp4","sha256":"9f2c…"}
+
+$ markdrop versions demo --json
+{"versions":[{"version":2,"size_bytes":222717952,"sha256":"9f2c…","content_type":"video/mp4","created_at":"…","current":true},{"version":1,…,"current":false}]}
+
+$ markdrop info demo --json        # restore --json prints the same shape
+{"slug":"demo","url":"https://markdrop.in/demo","content_type":"video/mp4","size_bytes":222717952,"sha256":"9f2c…","version":2,"updated_at":"…","created_at":"…","media":{"duration_s":42.5,"width":3840,"height":2160,"video_codec":"h264","audio_codec":"aac"},"poster_url":"https://…"}
+```
+
+Without `--json`, `upload` prints just the link on stdout (`url=$(markdrop upload x.mp4)` works), and
+`replace` / `restore` print the link and `version N`.
+
+---
+
 ## Use with AI assistants (MCP)
 
-`markdrop mcp` (v0.3.0+) is a local [Model Context Protocol](https://modelcontextprotocol.io) server. It lets
-an AI app on your computer — Claude Code, Claude Desktop, Cursor, VS Code — send and receive files
-peer-to-peer for you: "share these three PDFs with a link", "download https://markdrop.in/share/… into
-~/Projects".
+`markdrop mcp` is a local [Model Context Protocol](https://modelcontextprotocol.io) server. It lets
+an AI app on your computer — Claude Code, Claude Desktop, Cursor, VS Code — work with your files:
+"publish ~/Movies/demo.mp4 and give me the link", "replace the video at markdrop.in/demo with the new
+render", "share these three PDFs peer-to-peer", "download https://markdrop.in/share/… into ~/Projects".
+(Peer-to-peer tools since v0.3.0; file publishing tools since v0.4.0.)
 
-It runs **on your computer** because peer-to-peer bytes come from the sender's own device: the
-remote server at `https://api.markdrop.in/mcp` (which ChatGPT and claude.ai use) holds none of your
-files, so it can only look up shares, not send them.
+It runs **on your computer** because the bytes come from your own disk: an AI app never has to pass a
+file's contents through the conversation. The remote server at `https://api.markdrop.in/mcp` (which
+ChatGPT and claude.ai use) can't read your disk; it writes markdown documents and can hand out upload
+URLs for agents that have a shell, but for files on this machine `markdrop mcp` is the simple path.
 
-The app starts `markdrop mcp` itself over stdio; you only register it once.
+The app starts `markdrop mcp` itself over stdio; you only register it once. The file tools need an API
+token (`MARKDROP_TOKEN` in the server's environment, or run `markdrop login` once).
 
 **Claude Code**
 
 ```bash
-claude mcp add markdrop-p2p -- markdrop mcp
+claude mcp add markdrop-p2p -e MARKDROP_TOKEN=mdk_… -- markdrop mcp
 ```
 
 **Claude Desktop** (`claude_desktop_config.json`), **Cursor** (`~/.cursor/mcp.json`) and other apps that use `mcpServers`:
@@ -227,7 +314,8 @@ claude mcp add markdrop-p2p -- markdrop mcp
   "mcpServers": {
     "markdrop-p2p": {
       "command": "markdrop",
-      "args": ["mcp"]
+      "args": ["mcp"],
+      "env": { "MARKDROP_TOKEN": "mdk_…" }
     }
   }
 }
@@ -250,7 +338,22 @@ claude mcp add markdrop-p2p -- markdrop mcp
 If the app can't find `markdrop` (desktop apps often start with a short `PATH`), use the full path
 from `which markdrop`, e.g. `/opt/homebrew/bin/markdrop`.
 
-**Tools**
+**Tools — publish files** (need a token)
+
+| Tool | What it does |
+|------|--------------|
+| `upload_file` | Publishes a local file (`path`, optional `title`, `access` = `link`/`private`/`password`/`workspace`, `password`, `workspace`) and returns `{url, slug, version, size_bytes, sha256}`. |
+| `replace_file` | Replaces the file behind an existing link (`document` = link or slug, `path`, optional `title`). The link, access, title and views stay the same; the previous version is kept and can be restored. Returns `{url, slug, version, size_bytes, sha256}`. |
+| `list_file_versions` | `{slug, versions:[{version, size_bytes, sha256, content_type, created_at, current, media?}]}`, newest first (up to 5 kept). |
+| `restore_file_version` | Makes `version` current again as a new version (nothing is deleted); returns the file info. |
+| `get_file_info` | `{slug, url, content_type, size_bytes, sha256, version, updated_at, created_at, media, poster_url}`; `media` has duration, width, height and codecs for audio/video. |
+
+Uploads are hashed, sent in parts and verified exactly like `markdrop upload`. When the app asks for
+progress (an MCP progress token), the server sends `notifications/progress` with bytes sent and the file
+size. A long upload never holds up other tool calls and has no time limit of its own; if the app cancels
+the call, calling the tool again with the same arguments resumes where it stopped.
+
+**Tools — peer-to-peer**
 
 | Tool | What it does |
 |------|--------------|
@@ -259,10 +362,24 @@ from `which markdrop`, e.g. `/opt/homebrew/bin/markdrop`.
 | `stop_share` | Stops a share; anyone downloading is told the sender stopped. Safe to repeat. Given a `receive_id`, cancels that download. |
 | `receive_share` | Downloads a share link (`link`, optional `directory`, default `~/Downloads/Markdrop`) in the background. Never overwrites: a clashing name becomes `name (1).ext`. Shared folders are unpacked. |
 
+**Agent recipes**
+
+- *"Publish ~/Movies/launch.mp4 privately"* → `upload_file {path: "~/Movies/launch.mp4", access: "private"}`.
+- *"I re-rendered the demo, put it on the same link"* → `replace_file {document: "https://markdrop.in/launch", path: "~/Movies/launch-v2.mp4"}`;
+  the link you already sent people now plays the new video.
+- *"Oops, go back to the old cut"* → `list_file_versions {document: "launch"}`, then
+  `restore_file_version {document: "launch", version: 1}`.
+- *"How long is the video I published, and is it 4K?"* → `get_file_info {document: "launch"}`.
+- From a shell instead of MCP (CI, scripts, an agent with a terminal): `markdrop upload … --json`,
+  `markdrop replace <slug> <file> --json`.
+
 **Safety**
 
-- Anyone with a link can download what it shares, until the share stops. Your AI app asks before it
-  calls `share_files`; read what it is about to share.
+- Anyone with a link can open what it points to (unless you published with `access: "private"` or a
+  password). Your AI app asks before it calls `upload_file`, `replace_file` or `share_files`; read what it
+  is about to publish or share.
+- `upload_file` and `replace_file` refuse the same secret locations as `share_files` (below).
+- Anyone with a share link can download what it shares, until the share stops.
 - Shares live only as long as the app that started them: closing the app ends every link.
 - `share_files` refuses well-known secret locations — `~/.ssh`, `~/.aws`, `~/.gnupg`,
   `~/.config/gcloud`, `~/.kube`, `~/.docker/config.json`, `.netrc`, `.npmrc`, `.pypirc`, macOS
@@ -277,8 +394,10 @@ from `which markdrop`, e.g. `/opt/homebrew/bin/markdrop`.
 
 | Variable | Effect |
 |----------|--------|
-| `MARKDROP_TOKEN` | An API token (markdrop.in → Settings → API tokens). Shares you start are then listed under your account, e.g. by the remote MCP server's `list_shares`. Also honoured by `markdrop send`. Without it the CLI tells the server nothing about your files. |
+| `MARKDROP_TOKEN` | An API token (markdrop.in → Settings → API tokens). Required by the file tools (unless you ran `markdrop login`, whose saved token they also use). Peer-to-peer shares you start are then listed under your account, e.g. by the remote MCP server's `list_shares` (also honoured by `markdrop send`); without it the peer-to-peer tools tell the server nothing about your files. |
 | `MARKDROP_MCP_ALLOW_ANY_PATH` | `1` disables the secret-path guard. |
+| `MARKDROP_CACHE_DIR` | Where resumable uploads are remembered (default: your user cache folder). |
+| `MARKDROP_CONFIG_DIR` | Where `markdrop login` keeps the token (default: your user config folder). |
 
 ```json
 {
@@ -349,6 +468,38 @@ Global Flags:
 
 ---
 
+### `markdrop upload <path>`
+
+Publish a file and print its link. See [Upload and replace files](#upload-and-replace-files).
+
+| Flag | Description |
+|------|-------------|
+| `--title T` | Title shown on the page (default: the file name) |
+| `--access A` | `link` (default: anyone with the link), `private`, `password` or `workspace` |
+| `--password P` | Password for `--access password` (implies it) |
+| `--workspace W` | Workspace for `--access workspace` (implies it) |
+| `--json` | Print the API result as one JSON object on stdout, nothing else |
+| `--token T` | API token (default: `$MARKDROP_TOKEN`, then the token saved by `markdrop login`) |
+
+### `markdrop replace <slug-or-url> <path>`
+
+Replace the file behind an existing link; prints the link and the new version. Flags: `--title T` (also
+change the title), `--json`, `--token`.
+
+### `markdrop versions <slug-or-url>` · `markdrop restore <slug-or-url> <version>` · `markdrop info <slug-or-url>`
+
+List versions (newest first, `*` = current), make an earlier version current again (as a new version),
+or show a file's details. Each takes `--json` and `--token`.
+
+### `markdrop login` / `markdrop logout`
+
+Save an API token (prompted without echo, or `--token T`, or piped on stdin) after checking it against the
+server; it is stored readable only by you (`0600`) in your user config folder. `logout` deletes it.
+
+**Exit codes:** `0` on success, `1` on any failure (with the reason on stderr).
+
+---
+
 ### `markdrop mcp`
 
 Runs the local MCP server over stdio. See [Use with AI assistants (MCP)](#use-with-ai-assistants-mcp).
@@ -361,7 +512,7 @@ These flags apply to all subcommands and can be used when pointing the CLI at a 
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--server` | `https://api.markdrop.in` | HTTP(S) base URL of the signalling server. The CLI derives the WebSocket URL automatically (`wss://…/ws/share/<id>`). |
+| `--server` | `https://api.markdrop.in` | HTTP(S) base URL of the Markdrop API (signalling and file uploads). The CLI derives the WebSocket URL automatically (`wss://…/ws/share/<id>`). |
 | `--origin` | `https://www.markdrop.in` | Value of the `Origin` header sent during the WebSocket upgrade. Must match an entry in the server's CORS allow-list. |
 | `--web` | `https://markdrop.in` for the production server | Base URL of the web app used in printed share links (for a self-hosted or local frontend). |
 

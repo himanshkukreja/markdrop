@@ -92,6 +92,12 @@ func TestToolsListed(t *testing.T) {
 		"share_status":  {true, false, true, false},
 		"stop_share":    {false, false, true, false},
 		"receive_share": {false, false, false, true},
+
+		"upload_file":          {false, false, false, true},
+		"replace_file":         {false, false, false, true},
+		"list_file_versions":   {true, false, true, false},
+		"restore_file_version": {false, false, false, true},
+		"get_file_info":        {true, false, true, false},
 	}
 	if len(byName) != len(want) {
 		t.Fatalf("tools: %v", byName)
@@ -115,7 +121,7 @@ func TestToolsListed(t *testing.T) {
 		t.Errorf("share_files schema lacks bounds: %s", schema)
 	}
 	init := cs.InitializeResult()
-	if init.ServerInfo.Name != "markdrop-p2p" || init.ServerInfo.Title != "Markdrop P2P sharing" || init.ServerInfo.Version != "0.3.0-test" {
+	if init.ServerInfo.Name != "markdrop-p2p" || init.ServerInfo.Title != "Markdrop: P2P sharing and file publishing" || init.ServerInfo.Version != "0.3.0-test" {
 		t.Errorf("server info: %+v", init.ServerInfo)
 	}
 }
