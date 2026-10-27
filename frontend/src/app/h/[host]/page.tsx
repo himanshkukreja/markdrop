@@ -45,6 +45,6 @@ export default async function TenantRootPage({ params }: Props) {
   if (!resolved) notFound();
   const siteName = resolved.site_name?.trim() || host;
 
-  const listing = await fetchTenantFolder(host, []);
+  const listing = await fetchTenantFolder(host, [], resolved.workspace_id);
   return <TenantFolderPage host={host} siteName={siteName} path={[]} initial={listing} />;
 }

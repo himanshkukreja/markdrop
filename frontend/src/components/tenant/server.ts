@@ -25,6 +25,14 @@ const WINDOW_SECONDS = 600;
 /** Pages may be cached for this long; the API's answers are re-fetched at most this often. */
 const REVALIDATE = 60;
 
+/**
+ * Cache tags the API's revalidate outbox purges (`app/api/revalidate/route.ts`):
+ * `host:<host>` when a domain is verified / lapses / is removed or its branding changes,
+ * `wsl:<workspaceId>` when anything a folder listing shows changes.
+ */
+export const hostTag = (host: string) => `host:${host}`;
+export const listingTag = (workspaceId: string) => `wsl:${workspaceId}`;
+
 /** A transient failure talking to the API (network, 429, 5xx). Never a 404. */
 export class TenantUnavailable extends Error {
   status: number;
@@ -70,7 +78,7 @@ async function apiFetch(path: string, init: RequestInit & { next?: { revalidate?
 export async function resolveTenantHost(host: string): Promise<HostResolution | null> {
   if (!host) return null;
   const res = await apiFetch(`/api/v1/host?host=${encodeURIComponent(host)}`, {
-    next: { revalidate: REVALIDATE },
+    next: { revalidate: REVALIDATE, tags: [hostTag(host)] },
   });
   if (!res.ok) {
     if (transient(res.status)) throw new TenantUnavailable(res.status);
@@ -142,9 +150,17 @@ export async function fetchTenantDocument(slug: string, workspaceId: string): Pr
  * contract in `folderIndex.ts`). Null when there is nothing to show (404: no such folder, or none
  * of it is readable). Throws `TenantUnavailable` on a transient failure.
  */
-export async function fetchTenantFolder(host: string, path: string[]): Promise<TenantFolderListing | null> {
+export async function fetchTenantFolder(
+  host: string,
+  path: string[],
+  workspaceId: string,
+): Promise<TenantFolderListing | null> {
   const q = new URLSearchParams({ host, path: path.join("/") });
-  const res = await apiFetch(`/api/v1/host/folder?${q}`, { next: { revalidate: REVALIDATE } });
+  // Anonymous view only (no credentials on a server render), so it may be shared; purged with
+  // the workspace's listings and with the host.
+  const res = await apiFetch(`/api/v1/host/folder?${q}`, {
+    next: { revalidate: REVALIDATE, tags: [listingTag(workspaceId), hostTag(host)] },
+  });
   if (!res.ok) {
     if (transient(res.status) && res.status !== 501) throw new TenantUnavailable(res.status);
     return null;
@@ -153,9 +169,13 @@ export async function fetchTenantFolder(host: string, path: string[]): Promise<T
 }
 
 /** The folder listing, or null on any failure: for metadata only. */
-export async function fetchTenantFolderQuietly(host: string, path: string[]): Promise<TenantFolderListing | null> {
+export async function fetchTenantFolderQuietly(
+  host: string,
+  path: string[],
+  workspaceId: string,
+): Promise<TenantFolderListing | null> {
   try {
-    return await fetchTenantFolder(host, path);
+    return await fetchTenantFolder(host, path, workspaceId);
   } catch {
     return null;
   }
