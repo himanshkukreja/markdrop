@@ -1,20 +1,28 @@
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { getDocument, API_BASE } from "@/lib/api";
-import { resolveAppHost } from "@/lib/hostResolution";
+import { API_BASE, type DocumentResponse } from "@/lib/api";
 import ArtifactView from "@/app/[slug]/ArtifactView";
 import DocumentView from "@/app/[slug]/DocumentView";
 import { signInUrlFor } from "@/lib/hosts";
-import { getTenantFolder } from "@/components/tenant/folderIndex";
-import { TenantFolderIndex } from "@/components/tenant/TenantFolderIndex";
+import { assertTenantHost, tenantHostOf } from "@/components/tenant/assertHost";
+import {
+  fetchTenantDocument,
+  fetchTenantFolder,
+  fetchTenantFolderQuietly,
+  resolveTenantHost,
+  resolveTenantHostQuietly,
+  type TenantDocResult,
+} from "@/components/tenant/server";
+import { TenantFolderPage } from "@/components/tenant/TenantFolderPage";
 import { TenantLoading } from "@/components/tenant/TenantLoading";
 
 /**
- * A document as served on a workspace's own domain.
+ * A document — or a folder — as served on a workspace's own domain.
  *
  * Reached only by rewrite from middleware, never linked: `/h/<host>/<path>` is
- * what `docs.acme.com/<path>` becomes.
+ * what `docs.acme.com/<path>` becomes, and the host is checked against the
+ * request's own Host header (`assertTenantHost`), never trusted from the path.
  *
  * A catch-all rather than a single segment, because folders are part of the
  * address here: a document filed under Data/Reports answers at
@@ -22,25 +30,20 @@ import { TenantLoading } from "@/components/tenant/TenantLoading";
  * document's identity and is globally unique — and the segments before it must
  * match the folder path the document is actually filed under.
  *
- * A mismatch redirects to the canonical path rather than 404-ing. Filing a
- * document changes its address, and links to the old one are already out in the
- * world — someone who shared `/<slug>` before it was filed should not discover
- * that filing it quietly broke their link. So the slug remains the identity and
- * always resolves; the folder path is how the document is *addressed*, and any
- * other spelling of it is a redirect to the real one.
- *
- * Kept as its own route so `/[slug]` can
- * stay statically prerendered for markdrop.in — reading the host inside that
- * shared route would make it dynamic for every visitor.
- *
- * The views are the same components markdrop.in renders. Only the scope and the
- * branding differ, so tenant pages can never drift from the product. The tenant
- * chrome (header, accent, footer) comes from `../layout.tsx` through
- * `TenantProvider`; the views read it with `useTenant()`.
+ * A mismatch redirects (307) to the canonical path rather than 404-ing. Filing
+ * a document changes its address, and links to the old one are already out in
+ * the world. So the slug remains the identity and always resolves; the folder
+ * path is how the document is *addressed*, and any other spelling of it is a
+ * redirect to the real one.
  *
  * A path whose last segment is not a document may be a folder: it renders the
- * folder index when the API lists that folder, and is a 404 otherwise (in tenant
- * chrome, via `../not-found.tsx`).
+ * folder index when the API lists that folder (`GET /api/v1/host/folder`, only
+ * what the reader may open; a signed-in reader's browser re-asks with their
+ * token), and is a 404 otherwise (in tenant chrome, via `../not-found.tsx`).
+ *
+ * A failure to *ask* the API (network, 429, 5xx) throws, and the route's
+ * error boundary shows a retryable error — it is never reported as "Nothing at
+ * this address" for a document that exists.
  */
 
 interface Props {
@@ -52,7 +55,13 @@ export const dynamic = "force-dynamic";
 
 /** Split a tenant URL into its folder path and the document slug. */
 function splitPath(path: string[]): { folders: string[]; slug: string } {
-  const segments = (path || []).filter(Boolean);
+  const segments = (path || []).filter(Boolean).map((s) => {
+    try {
+      return decodeURIComponent(s);
+    } catch {
+      return s;
+    }
+  });
   return { folders: segments.slice(0, -1), slug: segments[segments.length - 1] || "" };
 }
 
@@ -62,51 +71,73 @@ function pathMatches(doc: { folder_path?: string[] } | null, folders: string[]):
   return actual.length === folders.length && actual.every((seg, i) => seg === folders[i]);
 }
 
+/**
+ * A raw-bytes URL anyone may fetch: the Worker's `/r/` URL of a public object (no `?t=` token).
+ * Only link-level documents have one; a guarded document's URL is signed and expires, and must
+ * never be advertised in a card.
+ */
+function publicRawUrl(doc: DocumentResponse): string | null {
+  const u = doc.download_url;
+  if (!u) return null;
+  try {
+    const parsed = new URL(u);
+    if (parsed.searchParams.has("t") || !parsed.pathname.startsWith("/r/")) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { host, path } = await params;
-  const { slug } = splitPath(path);
-  // resolveAppHost, not resolveHost: this runs independently of the page
-  // component, so it must apply the kind check itself or it will describe a
-  // document the page is about to refuse to serve.
-  const resolved = await resolveAppHost(host);
+  const { host: param, path } = await params;
+  const host = await tenantHostOf(param);
+  if (!host) return {};
+  const { folders, slug } = splitPath(path);
+  // Applies the kind check itself (null for cdn hosts): this runs independently of the page
+  // component, and must not describe a document the page is about to refuse to serve.
+  const resolved = await resolveTenantHostQuietly(host);
   // Unbranded fallback rather than leaking "Markdrop" onto a host that has
   // explicitly asked not to show it.
-  const siteName = resolved?.site_name || (resolved?.hide_markdrop_branding ? "" : "Markdrop");
+  const siteName = resolved?.site_name || (resolved?.hide_markdrop_branding ? "" : host);
 
   let pageTitle = slug;
   let description = siteName ? `A document on ${siteName}` : "Shared document";
   let isFolder = false;
+  let video: { url: string; type: string } | null = null;
   if (resolved) {
+    let result: TenantDocResult | null = null;
     try {
-      const doc = await getDocument(slug, undefined, undefined, {
-        revalidate: 60,
-        workspaceScope: resolved.workspace_id,
-      });
+      result = await fetchTenantDocument(slug, resolved.workspace_id);
+    } catch {
+      result = null; // transient: generic card; the page shows the error
+    }
+    if (result?.status === "ok") {
+      const doc = result.doc;
       if (!doc.encrypted) {
-        pageTitle = doc.title || slug;
-        const preview = doc.content.slice(0, 150).replace(/[#*_`]/g, "");
+        pageTitle = doc.title || doc.original_filename || slug;
+        const preview = doc.kind === "artifact" ? "" : (doc.content || "").slice(0, 150).replace(/[#*_`]/g, "");
         if (preview) description = preview;
       }
-    } catch (e) {
-      // Not a document (gates throw their own messages and keep the generic card):
-      // maybe a folder, which is named by its display name and has no OG card.
-      if (e instanceof Error && e.message === "Document not found") {
-        const listing = await getTenantFolder(host, path.filter(Boolean));
-        if (listing?.folder) {
-          isFolder = true;
-          pageTitle = listing.folder.name;
-          description = siteName ? `Documents in ${listing.folder.name} on ${siteName}` : `Documents in ${listing.folder.name}`;
-        }
+      // og:video only for link-level videos: their raw URL is public and permanent.
+      const raw = doc.kind === "artifact" && doc.renderer === "video" ? publicRawUrl(doc) : null;
+      if (raw) video = { url: raw, type: doc.mime || "video/mp4" };
+    } else if (result?.status === "missing") {
+      // Maybe a folder, which is named by its display name and has no OG card.
+      const listing = await fetchTenantFolderQuietly(host, [...folders, slug]);
+      if (listing?.folder) {
+        isFolder = true;
+        pageTitle = listing.folder.name;
+        description = siteName ? `Documents in ${listing.folder.name} on ${siteName}` : `Documents in ${listing.folder.name}`;
       }
     }
   }
 
   // Named with the host this card was unfurled from, not the workspace's
-  // default one. A link to content.senseloaf.ai whose card reads
-  // cdn.senseloaf.ai looks like somebody else's link. The server validates the
-  // host against that workspace's verified domains before drawing it.
-  const ogImage = `${API_BASE}/api/v1/og/${slug}.png?host=${encodeURIComponent(host)}&v=3`;
+  // default one. The server validates the host against that workspace's live
+  // domains before drawing it. A link-level video's card carries its poster.
+  const ogImage = `${API_BASE}/api/v1/og/${encodeURIComponent(slug)}.png?host=${encodeURIComponent(host)}&v=4`;
   const title = siteName ? `${pageTitle} — ${siteName}` : pageTitle;
+  const url = `https://${host}/${[...folders, slug].map(encodeURIComponent).join("/")}`;
   return {
     title,
     description,
@@ -114,10 +145,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title,
       description,
-      type: isFolder ? "website" : "article",
-      url: `https://${host}/${path.filter(Boolean).join("/")}`,
+      type: isFolder ? "website" : video ? "video.other" : "article",
+      url,
       ...(siteName ? { siteName } : {}),
       ...(isFolder ? {} : { images: [{ url: ogImage, width: 1200, height: 630, alt: pageTitle }] }),
+      ...(video ? { videos: [{ url: video.url, secureUrl: video.url, type: video.type }] } : {}),
     },
     twitter: isFolder
       ? { card: "summary", title, description }
@@ -126,79 +158,57 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function TenantDocumentPage({ params }: Props) {
-  const { host, path } = await params;
+  const { host: param, path } = await params;
+  const host = await assertTenantHost(param);
   const { folders, slug } = splitPath(path);
   if (!slug) notFound();
 
-  // Null for an unknown host, an unverified one, or one declared for artifacts.
-  // Unknown or unverified must serve nothing, or pointing a CNAME at us would be
-  // enough to browse the platform. A cdn-kind host has no document surface at
-  // all: serving the app there would put the session on an origin that also
-  // serves user-authored HTML, which is the one thing the architecture exists
-  // to prevent.
-  const resolved = await resolveAppHost(host);
+  // Null for an unknown host, an unverified or lapsed one, or one declared for
+  // artifacts. Unknown or unverified must serve nothing, or pointing a CNAME at
+  // us would be enough to browse the platform. A cdn-kind host has no document
+  // surface at all: serving the app there would put the session on an origin
+  // that also serves user-authored HTML. Throws (error page) when the API can't
+  // be asked.
+  const resolved = await resolveTenantHost(host);
   if (!resolved) notFound();
+  const siteName = resolved.site_name?.trim() || host;
 
-  let doc = null;
-  let missing = false;
-  let isPasswordProtected = false;
-  // Which gate the anonymous render hit. A private document with no password
-  // must not be presented as "password protected" — there is no password to
-  // type, and the reader is left with a box that can never open.
-  let gate: "password" | "signin" | null = null;
-  try {
-    doc = await getDocument(slug, undefined, undefined, {
-      revalidate: 60,
-      workspaceScope: resolved.workspace_id,
-    });
-  } catch (e) {
-    if (e instanceof Error && e.message === "PASSWORD_REQUIRED") {
-      isPasswordProtected = true;
-      gate = "password";
-    } else if (e instanceof Error && e.message === "SIGNIN_REQUIRED") {
-      isPasswordProtected = true;
-      gate = "signin";
-    } else if (e instanceof Error && e.message === "Document not found") {
-      missing = true;
-    } else notFound();
+  const result = await fetchTenantDocument(slug, resolved.workspace_id);
+
+  // A renamed slug: the old address keeps working by sending the reader to the
+  // current one (307, like every canonical redirect here).
+  if (result.status === "moved") {
+    redirect(`/${[...result.folder_path, result.slug].map(encodeURIComponent).join("/")}`);
   }
 
   // Not a document: the whole path may name a folder. Only a listing the API
-  // actually returns is shown (it lists only what a signed-out reader may open);
-  // anything else is the tenant 404, exactly as before.
-  if (missing) {
-    const listing = await getTenantFolder(host, [...folders, slug]);
+  // actually returns is shown; anything else is the tenant 404 (where a
+  // signed-in reader's browser asks once more with their token).
+  if (result.status === "missing") {
+    const listing = await fetchTenantFolder(host, [...folders, slug]);
     if (!listing?.folder) notFound();
-    return (
-      <TenantFolderIndex
-        siteName={resolved.site_name?.trim() || host}
-        folder={listing.folder}
-        trail={listing.trail}
-        folders={listing.folders}
-        documents={listing.documents}
-        returnPath={`/${[...folders, slug].join("/")}`}
-      />
-    );
+    return <TenantFolderPage host={host} siteName={siteName} path={[...folders, slug]} initial={listing} />;
   }
 
-  // A password prompt reveals nothing about filing, so it is allowed through on
-  // any path. Everything else is served only at its canonical address, and any
-  // other spelling is redirected there.
-  //
-  // Temporary (307), never permanent. A document's canonical path is whatever
-  // folder it currently sits in, and refiling moves it. A 308 is cached by the
-  // browser indefinitely, so a single redirect served from a not-yet-expired
-  // render would pin the *old* path in that reader's browser for good — the
-  // document would keep bouncing them to its previous home long after the
-  // server had stopped saying so, with nothing we could do to take it back.
+  const doc = result.status === "ok" ? result.doc : null;
+  // Which gate the anonymous render hit. A private document with no password
+  // must not be presented as "password protected" — there is no password to
+  // type, and the reader is left with a box that can never open.
+  const gate = result.status === "password" ? "password" : result.status === "signin" ? "signin" : null;
+
+  // A gate reveals nothing about filing, so it is allowed through on any path.
+  // Everything else is served only at its canonical address, and any other
+  // spelling is redirected there — temporarily (307): refiling moves it, and a
+  // cached permanent redirect would pin the old path in readers' browsers.
   if (doc && !pathMatches(doc, folders)) {
-    const canonical = [...(doc.folder_path ?? []), slug].join("/");
+    const canonical = [...(doc.folder_path ?? []), slug].map(encodeURIComponent).join("/");
     redirect(`/${canonical}`);
   }
 
   // D24: "minimal" is no longer offered and behaves like "full". "none" keeps
   // hiding ImmersiveExit for anonymous readers (on this domain only).
   const viewerChrome = resolved.viewer_chrome === "none" ? "none" : "full";
+  const here = `/${[...folders, slug].map(encodeURIComponent).join("/")}`;
 
   if (doc?.kind === "artifact") {
     return (
@@ -206,7 +216,7 @@ export default async function TenantDocumentPage({ params }: Props) {
         <ArtifactView
           slug={slug}
           title={doc.title}
-          url={`https://${host}/${[...folders, slug].join("/")}`}
+          url={`https://${host}${here}`}
           createdAt={doc.created_at}
           views={doc.views}
           isPasswordProtected={false}
@@ -230,13 +240,13 @@ export default async function TenantDocumentPage({ params }: Props) {
         slug={slug}
         title={doc?.title ?? null}
         content={doc?.content ?? ""}
-        url={`https://${host}/${[...folders, slug].join("/")}`}
+        url={`https://${host}${here}`}
         createdAt={doc?.created_at ?? new Date().toISOString()}
         expiresAt={doc?.expires_at ?? null}
         views={doc?.views}
-        isPasswordProtected={isPasswordProtected}
+        isPasswordProtected={!!gate}
         gate={gate}
-        signInUrl={signInUrlFor(host, `/${[...folders, slug].join('/')}`)}
+        signInUrl={signInUrlFor(host, here)}
         isOwned={doc?.is_owned ?? false}
         syncedWithVscode={doc?.vscode_synced ?? false}
         encrypted={doc?.encrypted ?? false}

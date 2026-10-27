@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { TENANT_HOST_HEADER, isPrimaryHost, normalizeHost } from "@/components/tenant/hosts";
 
 /**
  * Route requests that arrived on a customer's own domain to the tenant renderer.
@@ -12,40 +13,70 @@ import { NextRequest, NextResponse } from "next/server";
  * Rewriting rather than reading headers() in /[slug] is the other half of that:
  * headers() would opt the shared document route into dynamic rendering for
  * everyone, undoing the prerendering that keeps markdrop.in fast.
+ *
+ * `/h/*` is internal. The host it renders for always comes from the request's
+ * own Host header, never from the path:
+ *
+ *   - on a customer host, EVERY path is rewritten to `/h/<that host><path>`,
+ *     including a path that itself starts with `/h/` (middleware runs once per
+ *     request; there is no "already rewritten" case). `docs.acme.com/h/evil.com/x`
+ *     renders docs.acme.com's `/h/evil.com/x`, which is a 404 or a redirect to a
+ *     document of docs.acme.com — never evil.com's;
+ *   - on our own hosts `/h/*` is a 404;
+ *   - and the tenant layout re-checks the param against the Host header and the
+ *     header set here, so a path that slipped past the matcher still can't
+ *     render another tenant.
  */
 
-/** Hosts that are *us*. Everything else is a customer domain. */
-const PRIMARY_HOSTS = new Set(
-  (process.env.NEXT_PUBLIC_PRIMARY_HOSTS || "markdrop.in,www.markdrop.in,localhost")
-    .split(",")
-    .map((h) => h.trim().toLowerCase())
-    .filter(Boolean)
-);
+const TENANT_ROBOTS = "User-agent: *\nAllow: /\n";
 
-function isPrimaryHost(host: string): boolean {
-  if (PRIMARY_HOSTS.has(host)) return true;
-  // Vercel preview deployments get a generated hostname per build; treating
-  // them as customer domains would make every preview 404.
-  if (host.endsWith(".vercel.app")) return true;
-  if (host === "127.0.0.1" || host.startsWith("localhost:")) return true;
-  return false;
+/** Markdrop's own icons and app metadata, which must not appear on a customer's domain. */
+const ICON_PATHS = new Set(["/favicon.ico", "/icon.svg", "/apple-icon"]);
+const MARKDROP_ONLY_PATHS = new Set(["/manifest.webmanifest", "/sitemap.xml"]);
+
+function notFound(): NextResponse {
+  return new NextResponse("Not found", {
+    status: 404,
+    headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+  });
 }
 
 export function middleware(request: NextRequest) {
-  const host = (request.headers.get("host") || "").toLowerCase().split(":")[0];
-  if (!host || isPrimaryHost(host)) return NextResponse.next();
+  const host = normalizeHost(request.headers.get("host"));
+  const { pathname } = request.nextUrl;
 
-  const { pathname, search } = request.nextUrl;
-  // Already rewritten (Next re-enters middleware on internal navigation).
-  if (pathname.startsWith("/h/")) return NextResponse.next();
+  if (isPrimaryHost(host)) {
+    // The tenant renderer is internal: reachable only through the rewrite below.
+    // (`/h` alone is left to /[slug]: it is not the tenant renderer.)
+    if (pathname.startsWith("/h/")) return notFound();
+    return NextResponse.next();
+  }
+
+  // Our own route handlers (geo, revalidate) answer on every host.
+  if (pathname.startsWith("/api/")) return NextResponse.next();
+
+  if (pathname === "/robots.txt") {
+    return new NextResponse(TENANT_ROBOTS, {
+      headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" },
+    });
+  }
+  if (MARKDROP_ONLY_PATHS.has(pathname)) return notFound();
+
+  const headers = new Headers(request.headers);
+  headers.set(TENANT_HOST_HEADER, host);
 
   const url = request.nextUrl.clone();
-  url.pathname = `/h/${host}${pathname}`;
-  return NextResponse.rewrite(url);
+  // The tenant's own favicon (or a 404), never Markdrop's: the root layout's icon
+  // links are file-based and can't be overridden per page, so their URLs are
+  // answered here instead.
+  url.pathname = ICON_PATHS.has(pathname) ? `/h/${host}/tenant-icon.ico` : `/h/${host}${pathname}`;
+  return NextResponse.rewrite(url, { request: { headers } });
 }
 
 export const config = {
-  // Static assets, API routes and the analytics proxy (/mdp, next.config.ts) must pass through
-  // untouched — rewriting them would break every chunk request on a custom domain.
-  matcher: ["/((?!_next/static|_next/image|api/|mdp/|favicon.ico|.*\\..*).*)"],
+  // Static assets and the analytics proxy (/mdp, next.config.ts) pass through untouched —
+  // rewriting them would break every chunk request on a custom domain. Dotted paths are NOT
+  // skipped any more: on a customer host robots.txt, the manifest and the icons must be
+  // answered for the tenant, and on ours `/h/<host>/…` (whose host has dots) must be refused.
+  matcher: ["/((?!_next/|mdp/).*)"],
 };

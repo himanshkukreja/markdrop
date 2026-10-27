@@ -90,6 +90,8 @@ export function TenantHeader({ tenant: override, returnPath, hideAuth, className
 
   if (!tenant) return null;
   const authPending = mounted && loading && !!getToken();
+  // On a customer's domain the API answers /me with the display name only (never the address).
+  const who = user ? user.name || user.email || "" : "";
   const signInHref = signInUrlFor(tenant.host, returnPath ?? path ?? "/");
 
   return (
@@ -116,14 +118,14 @@ export function TenantHeader({ tenant: override, returnPath, hideAuth, className
                   trigger={
                     <button
                       type="button"
-                      aria-label={`Signed in as ${user.email}`}
+                      aria-label={who ? `Signed in as ${who}` : "Signed in"}
                       className="md-focus inline-flex size-11 items-center justify-center rounded-full"
                     >
-                      <Avatar name={user.name || user.email} size="sm" />
+                      <Avatar name={who || "?"} size="sm" />
                     </button>
                   }
                   items={[
-                    { header: <span className="block max-w-60 truncate">{user.email}</span> },
+                    { header: <span className="block max-w-60 truncate">{who || "Signed in"}</span> },
                     { label: "Sign out", icon: "logOut", onClick: () => void logout() },
                   ]}
                 />
