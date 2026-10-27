@@ -174,6 +174,7 @@ async def require_auth_toggled(db: AsyncIOMotorDatabase, workspace_id: str, on: 
     rows = await db["documents"].find({"workspace_id": workspace_id}).to_list(length=20_000)
     for raw in rows:
         slugs.append(raw.get("slug"))
+        slugs.extend(s for s in (raw.get("old_slugs") or []) if isinstance(s, str))
         if on:
             if (raw.get("access_level") or "link") != "link":
                 continue

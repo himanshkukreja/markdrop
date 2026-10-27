@@ -117,9 +117,13 @@ async def purge_doc(
     listing: bool = True,
 ) -> list[str]:
     """Purge(doc): the document's page/data cache, plus its workspace's
-    folder listings when it is filed."""
+    folder listings when it is filed. Its old slugs (Q4) too: a cached render
+    of an old slug is a redirect to the current one, which must not outlive a
+    narrowing (it would show the new slug to someone who can no longer read
+    the document)."""
     tags = [f"wsl:{raw['workspace_id']}"] if listing and raw.get("workspace_id") else []
-    return await enqueue(db, slugs=[raw.get("slug"), *extra_slugs], tags=tags)
+    old = [s for s in (raw.get("old_slugs") or []) if isinstance(s, str)]
+    return await enqueue(db, slugs=[raw.get("slug"), *extra_slugs, *old], tags=tags)
 
 
 def page(slug: str | None) -> None:

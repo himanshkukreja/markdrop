@@ -113,6 +113,19 @@ class FolderSlugsAndContracts(DomainCase):
         self.assertIsInstance(doc["access_epoch"], int)
         self.assertTrue(doc["read_ticket"])
 
+    async def test_narrowing_purges_old_slugs_too(self):
+        r = await self.http.post("/api/v1/documents", json={"content": "# Old", "custom_slug": "glue-old"},
+                                 headers=self.auth)
+        self.assertEqual(r.status_code, 201, r.text)
+        r = await self.http.patch("/api/v1/documents/glue-old/slug", json={"new_slug": "glue-new"}, headers=self.auth)
+        self.assertEqual(r.status_code, 200, r.text)
+        await self.db["revalidate_jobs"].delete_many({})
+        r = await self.http.put("/api/v1/documents/glue-new/access/level", json={"level": "private"},
+                                headers=self.auth)
+        self.assertIn(r.status_code, (200, 204), r.text)
+        keys = await revalidate.all_keys(self.db)
+        self.assertTrue({"doc:glue-new", "doc:glue-old"} <= keys, keys)
+
     async def test_og_card_cached_300s_and_gated_by_anonymous_read(self):
         r = await self.http.post("/api/v1/documents", json={"content": "# Secret plans"}, headers=self.auth)
         slug = r.json()["slug"]
