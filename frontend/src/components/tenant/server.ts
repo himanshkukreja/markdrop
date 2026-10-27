@@ -96,13 +96,18 @@ function cachedAnswer(
   headers: Record<string, string>,
   tags: string[],
   isTransient: (status: number) => boolean = transient,
+  nullIsAnswer = false,
 ): Promise<Answer> {
   const load = async (): Promise<Answer> => {
     // no-store: inside unstable_cache the fetch cache is bypassed anyway; said explicitly.
     const res = await apiFetch(path, { headers, cache: "no-store" });
     if (isTransient(res.status)) throw new TenantUnavailable(res.status);
-    const body = res.ok ? await res.json().catch(() => null) : null;
-    if (res.ok && body === null) throw new TenantUnavailable(res.status);
+    // `undefined` = the body didn't parse (a broken answer: retry, never cache). A JSON `null` is a
+    // real answer where the caller says so (`/host` answers null for a host that isn't ours).
+    const body = res.ok ? await res.json().catch(() => undefined) : null;
+    if (res.ok && (body === undefined || (body === null && !nullIsAnswer))) {
+      throw new TenantUnavailable(res.status);
+    }
     return {
       status: res.status,
       gate: res.headers.get("x-markdrop-gate"),
@@ -121,7 +126,9 @@ export async function resolveTenantHost(host: string): Promise<HostResolution | 
   if (!host) return null;
   // Cached whatever the answer: a host that stops resolving (lapsed, removed) must stop serving
   // within a revalidation window even if its purge is missed (B-N3).
-  const res = await cachedAnswer(["host", host], `/api/v1/host?host=${encodeURIComponent(host)}`, {}, [hostTag(host)]);
+  const res = await cachedAnswer(
+    ["host", host], `/api/v1/host?host=${encodeURIComponent(host)}`, {}, [hostTag(host)], transient, true,
+  );
   if (res.status < 200 || res.status >= 300) return null;
   const data = res.body as HostResolution | null;
   if (!data || !data.workspace_id || data.kind !== "app") return null;
