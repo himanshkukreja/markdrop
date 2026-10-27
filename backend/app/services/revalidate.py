@@ -154,21 +154,45 @@ async def schedule_expiry(db: AsyncIOMotorDatabase, raw: dict) -> list[str]:
     return await schedule(db, at=exp + timedelta(seconds=1), slugs=[raw.get("slug"), *old], tags=tags)
 
 
+async def flush(db: AsyncIOMotorDatabase, keys: list[str], *, timeout: float = TIMEOUT_S) -> None:
+    """Send these jobs now and wait (bounded) — for narrowing transitions,
+    whose response must not come back while the old, wider render is still
+    cached (B2). A slow or failed attempt leaves the job in the outbox for the
+    worker; the request is never failed by it."""
+    if not keys or not settings.page_revalidate_enabled:
+        return
+    try:
+        await asyncio.wait_for(run_due(db, keys=list(keys), limit=len(keys)), timeout)
+    except asyncio.TimeoutError:
+        log.info("inline purge of %s timed out; left to the worker", keys)
+    except Exception:
+        log.warning("inline purge of %s failed; left to the worker", keys, exc_info=True)
+
+
 async def purge_doc(
     db: AsyncIOMotorDatabase,
     raw: dict,
     *,
     extra_slugs: Iterable[str | None] = (),
     listing: bool = True,
+    inline: bool = False,
+    attempt: bool = True,
 ) -> list[str]:
     """Purge(doc): the document's page/data cache, plus its workspace's
-    folder listings when it is filed. Its old slugs (Q4) too: a cached render
+    folder listings when it is filed. ``inline``: send now and wait (bounded,
+    ``flush``); ``attempt=False``: only write the jobs (the caller flushes
+    once the new state is in the database — a purge sent before that would
+    let the frontend re-cache the old state). Its old slugs (Q4) too: a cached render
     of an old slug is a redirect to the current one, which must not outlive a
     narrowing (it would show the new slug to someone who can no longer read
     the document)."""
     tags = [f"wsl:{raw['workspace_id']}"] if listing and raw.get("workspace_id") else []
     old = [s for s in (raw.get("old_slugs") or []) if isinstance(s, str)]
-    return await enqueue(db, slugs=[raw.get("slug"), *extra_slugs, *old], tags=tags)
+    keys = await enqueue(db, slugs=[raw.get("slug"), *extra_slugs, *old], tags=tags,
+                         attempt_now=attempt and not inline)
+    if inline:
+        await flush(db, keys)
+    return keys
 
 
 def page(slug: str | None) -> None:

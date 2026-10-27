@@ -496,3 +496,45 @@ class B8CorsCacheClearedOnDomainChange(AccessWorld):
         await domain_service.remove_domain(self.db, self.ws["W1"], str(row["_id"]))
         r = await self.http.options("/api/v1/documents/x", headers=pre)
         self.assertNotEqual(r.headers.get("access-control-allow-origin"), origin)
+
+
+class B2NarrowingWaitsForThePurge(AccessWorld):
+    async def test_b2_purge_is_sent_after_the_write_and_before_the_answer(self):
+        from app.services import revalidate
+
+        d = await self.mkdoc("L", ws=None)
+        seen: list[tuple[dict, str]] = []
+
+        async def post(payload):
+            row = await self.doc(d["slug"])
+            seen.append((payload, row["access_level"]))
+            return 200
+
+        with mock.patch.object(revalidate.settings, "page_revalidate_enabled", True), \
+                mock.patch.object(revalidate, "_spawn", lambda *a, **k: None), \
+                mock.patch.object(revalidate, "_post", post):
+            r = await self.http.put(f"/api/v1/documents/{d['slug']}/access/level",
+                                    json={"level": "private"}, headers=self.session("owner"))
+            self.assertIn(r.status_code, (200, 204), r.text)
+            sent = [lvl for payload, lvl in seen if payload == {"slug": d["slug"]}]
+        self.assertEqual(sent, ["private"])  # delivered before the answer, after the write
+        job = await self.db["revalidate_jobs"].find_one({"key": f"doc:{d['slug']}"})
+        self.assertEqual(job["state"], "done")
+
+    async def test_b2_widening_stays_in_the_background(self):
+        from app.services import revalidate
+
+        d = await self.mkdoc("P", ws=None)
+        seen: list[dict] = []
+
+        async def post(payload):
+            seen.append(payload)
+            return 200
+
+        with mock.patch.object(revalidate.settings, "page_revalidate_enabled", True), \
+                mock.patch.object(revalidate, "_spawn", lambda *a, **k: None), \
+                mock.patch.object(revalidate, "_post", post):
+            r = await self.http.put(f"/api/v1/documents/{d['slug']}/access/level",
+                                    json={"level": "link"}, headers=self.session("owner"))
+            self.assertIn(r.status_code, (200, 204), r.text)
+        self.assertEqual(seen, [])

@@ -83,17 +83,27 @@ async def change(
             raise HTTPException(status_code=409, detail=CONFLICT)
         if has_bytes:
             await publicity.close({**raw, "access_epoch": epoch}, epoch)
+        keys: list[str] = []
         if purge:
-            await revalidate.purge_doc(db, {**raw, **after_shape}, extra_slugs=extra_slugs)
+            # Durable first (the jobs exist before anything narrows), sent
+            # only after the narrower row is written — a purge delivered
+            # before that would let the frontend re-cache the old state.
+            keys = await revalidate.purge_doc(db, {**raw, **after_shape}, extra_slugs=extra_slugs,
+                                              attempt=False)
             if raw.get("workspace_id") and raw.get("workspace_id") != after_shape.get("workspace_id"):
-                await revalidate.enqueue(db, tags=[f"wsl:{raw['workspace_id']}"])
+                keys += await revalidate.enqueue(db, tags=[f"wsl:{raw['workspace_id']}"],
+                                                 attempt_now=False)
         update["$set"] = {**sets, "access_dirty": False}
         after = await db["documents"].find_one_and_update(
             {**filt, "access_epoch": epoch}, update, return_document=ReturnDocument.AFTER)
         if after is None:
             # Bytes are closed and the row kept its old state: more closed than
             # the database says, which the reconciler repairs (I4).
+            await revalidate.flush(db, keys)
             raise HTTPException(status_code=409, detail=CONFLICT)
+        # B2: a narrowing answers only once the cached wider render is gone
+        # (bounded wait; the outbox retries anything slower).
+        await revalidate.flush(db, keys)
         live.access_changed(raw.get("slug"))
         if after.get("slug") != raw.get("slug"):
             live.access_changed(after.get("slug"))

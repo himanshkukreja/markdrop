@@ -106,7 +106,7 @@ async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete"
     if res.deleted_count == 0:
         return False
     await tombstone(db, [slug, *(raw.get("old_slugs") or [])], raw.get("owner_id"))
-    await revalidate.purge_doc(db, raw, extra_slugs=raw.get("old_slugs") or [])
+    await revalidate.purge_doc(db, raw, extra_slugs=raw.get("old_slugs") or [], inline=True)  # B2
     live.gone(slug)
     await db["document_grants"].delete_many({"document_id": doc_id})
     try:
@@ -241,7 +241,12 @@ async def require_auth_toggled(db: AsyncIOMotorDatabase, workspace_id: str, on: 
                     await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"access_dirty": True}})
                 changed += 1
             live.publish(raw.get("slug"), int(raw.get("rev") or 1))
-    await revalidate.enqueue(db, slugs=slugs, tags=[f"wsl:{workspace_id}", *await _host_tags(db, workspace_id)])
+    keys = await revalidate.enqueue(db, slugs=slugs, tags=[f"wsl:{workspace_id}", *await _host_tags(db, workspace_id)],
+                                    attempt_now=not on)
+    if on:
+        # B2: turning sign-in on narrows every document; answer once the
+        # cached open renders are gone (bounded; the outbox retries the rest).
+        await revalidate.flush(db, keys)
     return {"documents": len(rows), "changed": changed}
 
 
