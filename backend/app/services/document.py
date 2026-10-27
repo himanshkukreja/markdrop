@@ -9,9 +9,8 @@ from pymongo.errors import DuplicateKeyError
 
 from app.config import get_settings
 from app.models.document import Document
-from app.models.workspace import role_allows
 from app.schemas.document import DocumentCreate, DocumentUpdate
-from app.utils.security import generate_edit_secret, verify_edit_secret
+from app.utils.security import generate_edit_secret
 from app.utils.slug import generate_slug, is_reserved_slug, is_valid_slug, slugify
 
 settings = get_settings()
@@ -63,71 +62,26 @@ def _doc_from_mongo(raw: dict) -> Document:
         sha256=raw.get("sha256"),
         media=raw.get("media"),
         poster_key=raw.get("poster_key"),
+        access_epoch=int(raw.get("access_epoch") or 0),
+        old_slugs=list(raw.get("old_slugs") or []),
     )
 
 
-def _authorize(raw: dict, edit_secret: str | None, user_id: str | None) -> None:
-    """Authorize an edit/delete via EITHER document ownership OR the edit secret.
+def _check_expiry(expires_in: str | None, custom_expires_at: datetime | None,
+                  now: datetime) -> None:
+    """A5: an expiry must be in the future (≥ now + 60 s); ``custom`` needs a date."""
+    if expires_in == "custom":
+        if custom_expires_at is None:
+            raise HTTPException(status_code=422, detail="Choose a date for the custom expiry.")
+        when = custom_expires_at if custom_expires_at.tzinfo else custom_expires_at.replace(tzinfo=timezone.utc)
+        if when < now + timedelta(seconds=60):
+            raise HTTPException(status_code=422, detail="The expiry date must be in the future.")
 
-    Raises 403 if neither proves authority.
-    """
-    if user_id and raw.get("owner_id") == user_id:
-        return
-    if edit_secret and verify_edit_secret(edit_secret, raw["edit_secret_hash"]):
-        return
-    raise HTTPException(status_code=403, detail="Not authorized to modify this document")
 
+async def _slug_free(db: AsyncIOMotorDatabase, slug: str, owner_id: str | None) -> bool:
+    from app.services import lifecycle
 
-async def _authorize_write(
-    db: AsyncIOMotorDatabase,
-    raw: dict,
-    edit_secret: str | None,
-    user_id: str | None,
-    *,
-    required: str = "member",
-    user_email: str | None = None,
-) -> None:
-    """`_authorize`, plus the shared-workspace and named-editor grants.
-
-    A document with no `workspace_id` is private to its owner and this behaves
-    exactly as it always has -- which is every document that existed before
-    workspaces, and still the default for new ones. The workspace path only ever
-    opens up a document whose owner explicitly put it there.
-
-    `required` is what separates editing from destroying. Members edit, because
-    that is the point of a shared library and the owner agreed to it when they
-    added the document. Deleting somebody else's work is a different act, so it
-    asks for admin -- the owner can always delete their own by the ownership
-    branch above.
-    """
-    try:
-        _authorize(raw, edit_secret, user_id)
-        return
-    except HTTPException:
-        if not user_id:
-            raise
-
-        # Mirrors `access.effective_role`: a private document is not the
-        # workspace's, even when it is filed in one. Without this a member could
-        # edit a document they are not allowed to read.
-        workspace_id = raw.get("workspace_id")
-        if workspace_id and (raw.get("access_level") or "link") != "private":
-            from app.services import workspace as ws_service
-
-            role = await ws_service.role_for(db, workspace_id, user_id)
-            if role_allows(role, required):  # type: ignore[arg-type]
-                return
-
-        # A named editor may change the text, but never rename or delete: those
-        # ask for "admin" here and a grant tops out at editor. Destroying or
-        # re-addressing someone else's document stays with its owner.
-        if user_email and required == "member" and raw.get("_id") is not None:
-            from app.services import access as access_service
-
-            grant = await access_service.grant_for(db, str(raw["_id"]), user_email)
-            if grant is not None and grant.role == "editor":
-                return
-        raise
+    return not await lifecycle.slug_unavailable(db, slug, owner_id)
 
 
 async def create_document(
@@ -142,6 +96,7 @@ async def create_document(
     now = datetime.now(timezone.utc)
 
     if data.expires_in == "custom":
+        _check_expiry("custom", data.custom_expires_at, now)
         expires_at = data.custom_expires_at
     else:
         delta = _EXPIRY_DELTA.get(data.expires_in)
@@ -173,19 +128,26 @@ async def create_document(
             # an anonymous publisher out of the document they just made. The
             # edit secret still opens it either way.
             "access_level": data.access_level if owner_id else "link",
+            "access_epoch": 0,
             **(extra or {}),
         }
 
-    # Custom slug path
+    # Custom slug path. A slug another document answered at before a rename,
+    # or one freed by someone else's delete in the last 30 days, is taken (Q4).
     if data.custom_slug:
         if is_reserved_slug(data.custom_slug):
             raise HTTPException(status_code=409, detail="This URL is reserved. Please choose another.")
+        if not await _slug_free(db, data.custom_slug, owner_id):
+            raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
         doc_dict = _build(data.custom_slug)
         try:
             await db["documents"].insert_one(doc_dict)
-            return _doc_from_mongo(doc_dict), raw_secret
         except DuplicateKeyError:
             raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
+        from app.services import lifecycle
+
+        await lifecycle.clear_tombstone(db, data.custom_slug)
+        return _doc_from_mongo(doc_dict), raw_secret
 
     # Preferred slug path (e.g. from a filename): try it, then add a short
     # random suffix on collision, then fall through to a fully random slug.
@@ -196,6 +158,8 @@ async def create_document(
                 f"{base}-{generate_slug(4)}" for _ in range(settings.slug_max_retries)
             ]
             for slug in candidates:
+                if not await _slug_free(db, slug, owner_id):
+                    continue
                 doc_dict = _build(slug)
                 try:
                     await db["documents"].insert_one(doc_dict)
@@ -205,7 +169,10 @@ async def create_document(
 
     # Random slug path with retry
     for _ in range(settings.slug_max_retries):
-        doc_dict = _build(generate_slug(settings.slug_length))
+        slug = generate_slug(settings.slug_length)
+        if not await _slug_free(db, slug, owner_id):
+            continue
+        doc_dict = _build(slug)
         try:
             await db["documents"].insert_one(doc_dict)
             return _doc_from_mongo(doc_dict), raw_secret
@@ -215,276 +182,161 @@ async def create_document(
     raise HTTPException(status_code=503, detail="Could not generate unique slug. Try again.")
 
 
-async def get_document(
-    db: AsyncIOMotorDatabase,
-    slug: str,
-    read_password: str | None = None,
-    edit_secret: str | None = None,
-    user_id: str | None = None,
-    workspace_scope: str | None = None,
-    user_email: str | None = None,
-) -> Document:
-    # Read-only fetch — NO side effects. Views are counted by a browser beacon
-    # (POST /{slug}/events type=view), so server-side rendering on Vercel does
-    # not inflate the count or poison geo with the SSR server's location.
+async def find_for_read(db: AsyncIOMotorDatabase, slug: str) -> tuple[dict | None, bool]:
+    """The row at ``slug``, or the row that used to answer at it before a
+    rename (Q4). Returns (row, moved)."""
     raw = await db["documents"].find_one({"slug": slug})
-    if not raw:
-        raise HTTPException(status_code=404, detail="Document not found")
+    if raw is not None:
+        return raw, False
+    moved = await db["documents"].find_one({"old_slugs": slug})
+    return moved, moved is not None
 
-    # `workspace_scope` is set only when the request arrived on a workspace's own
-    # verified domain. Without it — which is every request to markdrop.in, and so
-    # every request that existed before custom domains — nothing below runs and
-    # this function behaves exactly as it always has.
-    #
-    # With it, a host may serve only its own workspace's documents. Otherwise any
-    # customer's domain would be an open window onto every document on the
-    # platform, and a slug guessed anywhere would resolve everywhere. 404 rather
-    # than 403: whether a slug exists elsewhere is not this host's business.
-    if workspace_scope is not None and raw.get("workspace_id") != workspace_scope:
-        raise HTTPException(status_code=404, detail="Document not found")
 
-    # A workspace can require a signed-in reader. Enforced here rather than in
-    # the page, and on *every* host rather than only the workspace's own:
-    # otherwise the rule would be a UI preference that the API happily bypasses,
-    # and the markdrop.in URL for the same document would be the way around it.
-    # The lookup only happens for documents that belong to a workspace, so the
-    # ordinary path costs nothing.
-    owner_workspace = raw.get("workspace_id")
-    if owner_workspace and not user_id:
-        from app.services import workspace as ws_service
+async def read_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx) -> dict:
+    """The row at exactly ``slug`` if the actor may read it, else the read
+    denial (access.can, policy §2.6). Read-only — no side effects: views are
+    counted by the browser beacon."""
+    from app.services import access
 
-        workspace = await ws_service.get_workspace(db, owner_workspace)
-        if workspace is not None and workspace.settings.require_auth_to_view:
-            raise HTTPException(
-                status_code=401,
-                detail="Sign in to view this document.",
-                headers={"X-Markdrop-Gate": "signin"},
-            )
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "read", ctx)
+    return raw
 
-    # ── Access level ─────────────────────────────────────────────────────────
-    # `link` — every document that has ever existed here, and still the default
-    # — short-circuits without a database lookup, so the ordinary read pays
-    # nothing for a check it cannot fail. Anything narrower asks who this is.
-    #
-    # The edit secret bypasses, because holding it already proves authorship;
-    # without that, publishing a private document anonymously would lock the
-    # publisher out of their own document.
-    level = raw.get("access_level") or "link"
-    if level != "link":
-        from app.services import access as access_service
 
-        secret_proves_authorship = bool(edit_secret) and verify_edit_secret(
-            edit_secret, raw["edit_secret_hash"]
-        )
-        if not secret_proves_authorship and not await access_service.can_read(
-            db, raw, user_id, user_email
-        ):
-            # 404, not 403: a private document should not confirm that it exists
-            # to someone with no claim on it. 401 when nobody is signed in, so
-            # the page can offer a sign-in rather than a dead end.
-            #
-            # `X-Markdrop-Gate` says *which* 401 this is. Without it the two
-            # are indistinguishable on the wire, and the reader of a private
-            # document with no password on it is shown a password box asking
-            # for a password that does not exist — a dead end dressed up as a
-            # solvable one.
-            raise HTTPException(
-                status_code=401 if not user_id else 404,
-                detail="Sign in to view this document." if not user_id else "Document not found",
-                headers={"X-Markdrop-Gate": "signin"} if not user_id else None,
-            )
-
-    if raw.get("read_password_hash"):
-        # A password gates *strangers* — the people a link reaches who were
-        # never named. Anyone who has been given access deliberately (the owner,
-        # a named person, a member of the workspace it was shared into) is not a
-        # stranger, and asking them for a shared secret on top of the access
-        # they were granted by name is friction that protects nothing: they can
-        # already read it, and the password is not what is keeping anyone else
-        # out. So any effective role opens the document.
-        #
-        # The edit secret still bypasses on its own, because holding it proves
-        # authorship without proving identity.
-        edit_secret_bypasses = bool(edit_secret) and verify_edit_secret(
-            edit_secret, raw["edit_secret_hash"]
-        )
-        granted_bypasses = False
-        if not edit_secret_bypasses and user_id:
-            # Only for a signed-in reader: an anonymous one can hold no role, so
-            # the ordinary password-on-a-link read pays for no extra lookup.
-            from app.services import access as access_service
-
-            granted_bypasses = await access_service.effective_role(
-                db, raw, user_id, user_email
-            ) is not None
-
-        if not (granted_bypasses or edit_secret_bypasses):
-            if not read_password:
-                raise HTTPException(
-                    status_code=401, detail="Password required",
-                    headers={"X-Markdrop-Gate": "password"},
-                )
-            if not bcrypt.checkpw(read_password.encode(), raw["read_password_hash"].encode()):
-                raise HTTPException(status_code=403, detail="Incorrect password")
-
-    return _doc_from_mongo(raw)
+def _settings_requested(data: DocumentUpdate) -> bool:
+    """A3: any of these present (non-null) is a settings change, owner-only.
+    ``read_password: ""`` counts — it removes the password."""
+    return (
+        data.read_password is not None
+        or bool(data.remove_password)
+        or data.expires_in is not None
+        or data.custom_expires_at is not None
+    )
 
 
 async def update_document(
     db: AsyncIOMotorDatabase,
     slug: str,
     data: DocumentUpdate,
-    edit_secret: str | None = None,
-    user_id: str | None = None,
-    user_email: str | None = None,
-) -> Document:
-    raw = await db["documents"].find_one({"slug": slug})
-    if not raw:
-        raise HTTPException(status_code=404, detail="Document not found")
+    actor,
+    ctx,
+) -> dict:
+    """Content via can(edit_content); password/expiry via can(edit_settings).
+    A request carrying any settings field from someone who may only edit the
+    text is refused whole (403) — nothing is written."""
+    from app.services import access, transitions
 
-    await _authorize_write(db, raw, edit_secret, user_id, user_email=user_email)
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "edit_content", ctx)
+    settings_change = _settings_requested(data)
+    if settings_change:
+        await access.require(actor, raw, "edit_settings", ctx)
 
     now = datetime.now(timezone.utc)
-    updates: dict = {"title": data.title or None, "updated_at": now}
+    sets: dict = {"title": data.title or None, "updated_at": now}
     # Artifacts keep their bytes in R2 — `content` is only a search stand-in, so
-    # never let a markdown-shaped edit overwrite it. Title, password and expiry
-    # below still apply, which is what an artifact owner actually needs.
+    # never let a markdown-shaped edit overwrite it.
     if raw.get("kind") != "artifact":
-        updates["content"] = data.content
+        sets["content"] = data.content
 
-    # Password update: remove or set new
+    narrows = False
     if data.remove_password or data.read_password == "":
-        updates["read_password_hash"] = None
+        sets["read_password_hash"] = None
     elif data.read_password:
-        updates["read_password_hash"] = bcrypt.hashpw(
+        sets["read_password_hash"] = bcrypt.hashpw(
             data.read_password.encode(), bcrypt.gensalt()
         ).decode()
+        narrows = True  # A3: new or changed password ⇒ epoch bump, bytes guarded
 
-    # Expiry update
     if data.expires_in is not None:
+        _check_expiry(data.expires_in, data.custom_expires_at, now)
         if data.expires_in == "never":
-            updates["expires_at"] = None
-        elif data.expires_in == "custom" and data.custom_expires_at:
-            updates["expires_at"] = data.custom_expires_at
+            sets["expires_at"] = None
+        elif data.expires_in == "custom":
+            sets["expires_at"] = data.custom_expires_at
         else:
             delta = _EXPIRY_DELTA.get(data.expires_in)
-            updates["expires_at"] = (now + delta) if delta else None
+            sets["expires_at"] = (now + delta) if delta else None
+    elif data.custom_expires_at is not None:
+        _check_expiry("custom", data.custom_expires_at, now)
+        sets["expires_at"] = data.custom_expires_at
 
-    await db["documents"].update_one({"slug": slug}, {"$set": updates, "$inc": {"rev": 1}})
-
-    # A password is one of the two gates that decide whether an artifact's bytes
-    # may be served unauthenticated. Changing it here without telling R2 leaves
-    # the edge serving a file the API has just started guarding — the same class
-    # of bug as changing the access level and forgetting. One helper owns both.
-    if raw.get("kind") == "artifact" and "read_password_hash" in updates:
-        from app.services import access as access_service
-
-        await access_service._sync_artifact_visibility(db, {**raw, **updates})
-    raw.update(updates)
-    raw["rev"] = raw.get("rev", 1) + 1
-    return _doc_from_mongo(raw)
-
-
-async def delete_document(
-    db: AsyncIOMotorDatabase,
-    slug: str,
-    edit_secret: str | None = None,
-    user_id: str | None = None,
-) -> str | None:
-    """Delete a document. Returns its R2 blob key when it was an artifact, so
-    the caller can free the object too — otherwise the bytes would linger and
-    keep counting against the owner's quota."""
-    raw = await db["documents"].find_one(
-        {"slug": slug},
-        {"_id": 1, "edit_secret_hash": 1, "owner_id": 1, "blob_key": 1,
-         "bundle_prefix": 1, "workspace_id": 1, "kind": 1, "poster_key": 1},
+    after = await transitions.change(
+        db, raw, sets=sets, inc={"rev": 1}, narrows=narrows or None,
+        cas={"slug": slug},
     )
-    if not raw:
+    ctx.forget(raw)
+    return after
+
+
+async def delete_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx) -> None:
+    """Owner or edit secret (D4). Everything goes with it: bytes, old versions,
+    posters, grants; caches are purged and the slug is reserved for the same
+    owner for 30 days (A8)."""
+    from app.services import access, lifecycle
+
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "delete", ctx)
+    if not await lifecycle.destroy(db, raw):
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Admin, not member: see `_authorize_write`.
-    await _authorize_write(db, raw, edit_secret, user_id, required="admin")
 
-    await db["documents"].delete_one({"slug": slug})
-    if raw.get("kind") == "artifact":
-        # Old file versions and the poster go with it; the current blob (or
-        # bundle) is still handed back for the caller to free, as before.
-        from app.services import file_versions
+async def claim_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx) -> Document:
+    """Attach an owner-less document to the signed-in account (edit secret)."""
+    from app.services import access
 
-        await file_versions.forget_document(db, str(raw["_id"]), raw)
-    # A bundle is many objects under one prefix — hand that back in preference
-    # to the single entry key so the caller can clear all of them.
-    return raw.get("bundle_prefix") or raw.get("blob_key")
-
-
-async def claim_document(
-    db: AsyncIOMotorDatabase, slug: str, edit_secret: str, user_id: str
-) -> Document:
-    """Attach an (anonymous) document to a user account, proven via edit secret."""
-    raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
-    if not raw:
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    existing_owner = raw.get("owner_id")
-    if existing_owner == user_id:
+    raw = await db["documents"].find_one({"slug": slug})
+    if raw is not None and raw.get("owner_id") == actor.user_id:
         return _doc_from_mongo(raw)  # idempotent
-    if existing_owner:
+    await access.require(actor, raw, "claim", ctx)
+    updated = await db["documents"].find_one_and_update(
+        {"_id": raw["_id"], "owner_id": None},
+        {"$set": {"owner_id": actor.user_id}},
+        return_document=True,
+    )
+    if updated is None:
         raise HTTPException(status_code=409, detail="This document is already owned by another account")
-
-    if not verify_edit_secret(edit_secret, raw["edit_secret_hash"]):
-        raise HTTPException(status_code=403, detail="Invalid edit secret")
-
-    await db["documents"].update_one({"slug": slug}, {"$set": {"owner_id": user_id}})
-    raw["owner_id"] = user_id
-    return _doc_from_mongo(raw)
+    return _doc_from_mongo(updated)
 
 
-async def copy_document(
-    db: AsyncIOMotorDatabase,
-    slug: str,
-    user_id: str,
-    read_password: str | None = None,
-) -> tuple[Document, str]:
-    """Import a copy of a readable document into ``user_id``'s account.
+async def copy_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx) -> tuple[Document, str]:
+    """Import a copy of a readable document into the caller's account.
 
-    The copy is a brand-new document owned by the user: fresh slug, no read
-    password, and no expiry (import = keep it). Only title + content carry over.
-    Authorization to read the source reuses ``get_document`` (public docs, or a
-    protected doc unlocked with ``read_password`` / owned by the caller).
+    Copy = read (any reader could select-all and paste), through the full read
+    rule — grants, membership, scope and password included. The copy is a new
+    document owned by the caller with no password and no expiry, and it is born
+    **private** unless the source is plainly public (Q3).
     """
-    source = await get_document(db, slug, read_password=read_password, user_id=user_id)
+    from app.services import access, publicity
 
-    # A server-side copy would duplicate the ciphertext under a new slug whose
-    # link carries no key fragment — an unreadable document. Copying an encrypted
-    # document has to happen in the browser, which can decrypt it and re-encrypt
-    # under a fresh key.
-    if source.encrypted:
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "copy", ctx)
+    if raw.get("encrypted"):
         raise HTTPException(
             status_code=422,
             detail="Encrypted documents can't be copied on the server. "
                    "Open the document and use Save a copy there.",
         )
-
+    plain_public = publicity.is_public(
+        raw, require_auth=await publicity.workspace_requires_auth(db, raw.get("workspace_id")))
     data = DocumentCreate(
-        title=source.title,
-        content=source.content,
+        title=raw.get("title"),
+        content=raw["content"],
         custom_slug=None,
-        expires_in="never",      # drop any expiry — an imported copy is kept
-        read_password=None,      # drop any read password
+        expires_in="never",
+        read_password=None,
+        access_level="link" if plain_public else "private",
     )
-    # Prefer a slug derived from the title for a friendly URL; create_document
-    # auto-suffixes on collision and falls back to a random slug.
-    return await create_document(db, data, owner_id=user_id, preferred_slug=source.title or None)
+    return await create_document(db, data, owner_id=actor.user_id,
+                                 preferred_slug=raw.get("title") or None)
 
 
-async def change_slug(
-    db: AsyncIOMotorDatabase,
-    slug: str,
-    new_slug: str,
-    edit_secret: str | None = None,
-    user_id: str | None = None,
-) -> Document:
-    """Rename a document's slug. Analytics stay intact (events key on doc _id)."""
+async def change_slug(db: AsyncIOMotorDatabase, slug: str, new_slug: str, actor, ctx) -> dict:
+    """Rename (owner or edit secret, D4). The old slug joins ``old_slugs``:
+    readers who can open the document are redirected from it, and nobody else
+    can ever claim it (Q4)."""
+    from app.services import access, lifecycle, live, revalidate
+
     if not is_valid_slug(new_slug):
         raise HTTPException(
             status_code=422,
@@ -493,27 +345,32 @@ async def change_slug(
     if is_reserved_slug(new_slug):
         raise HTTPException(status_code=409, detail="This URL is reserved. Please choose another.")
 
-    raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
-    if not raw:
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    # A rename breaks every link already shared, so it sits with delete.
-    await _authorize_write(db, raw, edit_secret, user_id, required="admin")
-
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "rename_slug", ctx)
     if new_slug == slug:
-        return _doc_from_mongo(raw)
+        return raw
+    if await lifecycle.slug_unavailable(db, new_slug, raw.get("owner_id"), doc_id=raw["_id"]):
+        raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
 
     now = datetime.now(timezone.utc)
+    old_slugs = [s for s in (raw.get("old_slugs") or []) if s != new_slug]
+    if slug not in old_slugs:
+        old_slugs.append(slug)
     try:
-        await db["documents"].update_one(
-            {"slug": slug}, {"$set": {"slug": new_slug, "updated_at": now}}
+        after = await db["documents"].find_one_and_update(
+            {"_id": raw["_id"], "slug": slug},
+            {"$set": {"slug": new_slug, "old_slugs": old_slugs, "updated_at": now}},
+            return_document=True,
         )
     except DuplicateKeyError:
         raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
-
-    raw["slug"] = new_slug
-    raw["updated_at"] = now
-    return _doc_from_mongo(raw)
+    if after is None:
+        raise HTTPException(status_code=409, detail="This document changed meanwhile. Try again.")
+    await lifecycle.clear_tombstone(db, new_slug)
+    await revalidate.purge_doc(db, after, extra_slugs=[slug])
+    live.gone(slug)
+    ctx.forget(raw)
+    return after
 
 
 # Long enough for any title anyone types into a search box; bounded because the
@@ -547,8 +404,10 @@ async def list_user_documents(
     q: str | None,
     kind: str | None = None,
 ) -> tuple[list[Document], int]:
-    """Return (documents, total) owned by the user, newest first."""
-    query: dict = {"owner_id": user_id}
+    """Return (documents, total) owned by the user, newest first. Expired
+    documents are gone (I11) even before the sweeper deletes them."""
+    query: dict = {"owner_id": user_id, "$and": [{"$or": [
+        {"expires_at": None}, {"expires_at": {"$gt": datetime.now(timezone.utc)}}]}]}
     if kind in ("markdown", "document"):
         # Documents created before artifacts existed have no `kind` field.
         query["kind"] = {"$ne": "artifact"}
@@ -575,7 +434,8 @@ async def count_user_documents(db: AsyncIOMotorDatabase, user_id: str) -> dict:
     renders all three counts together, and they must not cost three round trips.
     """
     rows = await db["documents"].aggregate([
-        {"$match": {"owner_id": user_id}},
+        {"$match": {"owner_id": user_id, "$or": [
+            {"expires_at": None}, {"expires_at": {"$gt": datetime.now(timezone.utc)}}]}},
         {"$group": {"_id": {"$ifNull": ["$kind", "markdown"]}, "n": {"$sum": 1}}},
     ]).to_list(length=10)
     by_kind = {r["_id"]: r["n"] for r in rows}
@@ -598,11 +458,14 @@ _EVENT_COUNTER = {
 async def report_document(
     db: AsyncIOMotorDatabase, slug: str, reason: str | None, ip: str | None
 ) -> bool:
-    """Flag a document for abuse. Increments report_count + logs a report."""
+    """Flag a document for abuse. Stored only when the slug exists (and has not
+    expired); the caller answers 202 either way, so this is no oracle (I5)."""
     import hashlib
 
     raw = await db["documents"].find_one_and_update(
-        {"slug": slug}, {"$inc": {"report_count": 1}}, projection={"_id": 1}
+        {"slug": slug, "$or": [{"expires_at": None},
+                               {"expires_at": {"$gt": datetime.now(timezone.utc)}}]},
+        {"$inc": {"report_count": 1}}, projection={"_id": 1}
     )
     if not raw:
         return False
@@ -622,19 +485,20 @@ async def report_document(
 
 
 async def register_event(
-    db: AsyncIOMotorDatabase, slug: str, event_type: str
+    db: AsyncIOMotorDatabase, raw: dict, event_type: str
 ) -> tuple[str, str | None] | None:
-    """Bump the counter for an event type. Returns (doc_id, owner_id) or None."""
+    """Bump the counter for an event type on a document the caller was allowed
+    to record against. Returns (doc_id, owner_id) or None."""
     field = _EVENT_COUNTER[event_type]
-    raw = await db["documents"].find_one_and_update(
-        {"slug": slug},
+    updated = await db["documents"].find_one_and_update(
+        {"_id": raw["_id"]},
         {"$inc": {field: 1}},
         projection={"_id": 1, "owner_id": 1},
         return_document=True,
     )
-    if not raw:
+    if not updated:
         return None
-    return str(raw["_id"]), raw.get("owner_id")
+    return str(updated["_id"]), updated.get("owner_id")
 
 
 async def get_owned_doc_id(
@@ -642,13 +506,19 @@ async def get_owned_doc_id(
 ) -> str | None:
     """Return the document's id if owned by the user, else None (404/403 upstream)."""
     raw = await db["documents"].find_one(
-        {"slug": slug}, {"_id": 1, "owner_id": 1}
+        {"slug": slug}, {"_id": 1, "owner_id": 1, "expires_at": 1}
     )
-    if not raw:
+    if not raw or _expired(raw):
         return None
     if raw.get("owner_id") != user_id:
         return None
     return str(raw["_id"])
+
+
+def _expired(raw: dict) -> bool:
+    from app.services import publicity
+
+    return publicity.is_expired(raw)
 
 
 # ── Sync (VS Code extension) — operate by immutable _id, owner-scoped ────────────
@@ -660,7 +530,9 @@ async def get_owned_document_by_id(
     if not ObjectId.is_valid(doc_id):
         return None
     raw = await db["documents"].find_one({"_id": ObjectId(doc_id)})
-    if not raw or raw.get("owner_id") != user_id:
+    # can(sync) / can(gdocs_export) = the owner (policy §4.1 #38), and an
+    # expired document is gone everywhere (I11).
+    if not raw or raw.get("owner_id") != user_id or _expired(raw):
         return None
     return _doc_from_mongo(raw)
 
@@ -726,7 +598,7 @@ async def sync_push(
     if not ObjectId.is_valid(doc_id):
         return ("notfound", None)
     raw = await db["documents"].find_one({"_id": ObjectId(doc_id)})
-    if not raw or raw.get("owner_id") != user_id:
+    if not raw or raw.get("owner_id") != user_id or _expired(raw):
         return ("notfound", None)
 
     cur_rev = raw.get("rev", 1)

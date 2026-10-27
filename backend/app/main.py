@@ -29,6 +29,8 @@ from app.routers.workspaces import router as workspaces_router
 from app.routers.domains import router as domains_router
 from app.routers.email_public import router as email_public_router
 from app.routers.folders import router as folders_router
+from app.routers.folder_pages import router as folder_pages_router
+from app.routers.workspace_items import router as workspace_items_router
 from app.routers.invites import router as invites_router
 from app.routers.library import router as library_router
 from app.routers.access import router as access_router
@@ -53,7 +55,12 @@ async def lifespan(app: FastAPI):
     from app.services.email_campaigns import engine as email_engine
 
     email_engine.start(get_database)
+    # Revalidation outbox, expiry sweeper, access reconciler (services/background.py).
+    from app.services import background
+
+    background.start(get_database)
     yield
+    await background.stop()
     await email_engine.stop()
     await disconnect()
 
@@ -75,7 +82,7 @@ app.add_middleware(
     # invisible to JavaScript unless it is named here. Without this the gate
     # header arrives and is silently unreadable, and the page falls back to
     # guessing which kind of 401 it got — which is the bug it exists to fix.
-    expose_headers=["X-Markdrop-Gate", "Retry-After"],
+    expose_headers=["X-Markdrop-Gate", "X-Markdrop-Moved", "Retry-After"],
     # Starlette defaults to 600s. Every cross-origin API call the app makes is
     # preceded by a preflight, so a short cache doubles the request count the
     # rate limiter sees for an authenticated page. 7200 is Chrome's ceiling --
@@ -156,6 +163,8 @@ app.include_router(feedback_router)
 app.include_router(workspaces_router)
 app.include_router(domains_router)
 app.include_router(folders_router)
+app.include_router(workspace_items_router)
+app.include_router(folder_pages_router)
 app.include_router(invites_router)
 app.include_router(library_router)
 app.include_router(access_router)

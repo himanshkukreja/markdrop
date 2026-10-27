@@ -31,6 +31,10 @@ RESERVED_SLUGS = frozenset(
         # (/oauth/consent). The API host serves /mcp and /oauth/* too, so a
         # document at either address would read like part of the sign-in flow.
         "mcp", "oauth",
+        # Workspaces v2: shared folder pages (markdrop.in/f/<share id>) and the
+        # in-app workspace view (/w/<workspace id>). Keep in sync with
+        # services/traffic.py APP_ROUTES and frontend lib/analyticsPath.ts.
+        "f", "w",
     }
 )
 

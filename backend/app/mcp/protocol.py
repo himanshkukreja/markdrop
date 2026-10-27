@@ -75,7 +75,14 @@ INSTRUCTIONS = (
     "an existing link, keeping its URL, access and views), run the split + curl commands it "
     "returns, then complete_upload (poll get_upload_status if it says 'verifying'). Replacing "
     "keeps the previous version: list_file_versions and restore_file_version undo a replace. "
-    "get_file_info describes a file (size, duration, dimensions, version)."
+    "get_file_info describes a file (size, duration, dimensions, version). "
+    "Workspaces: when the user mentions a workspace, team space, folder or custom domain, call "
+    "list_workspaces / list_folders and pass workspace (and folder) to publish_document, "
+    "publish_page or create_upload, or file an existing document with add_to_workspace. A "
+    "document has one access level for every address it has (markdrop.in and its workspace's "
+    "domains); 'workspace' access means members only. Give the user the returned url, which is "
+    "the workspace's own domain when it has a live one. get_document and get_file_info accept "
+    "links on a workspace's custom domain too."
 )
 # How long a client may reuse discovery and list results (envelope era).
 LIST_TTL_MS = 5 * 60 * 1000

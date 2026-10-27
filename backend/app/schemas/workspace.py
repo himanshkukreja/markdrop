@@ -41,6 +41,22 @@ class BrandingPayload(BaseModel):
 class SettingsPayload(BaseModel):
     viewer_chrome: Literal["full", "minimal", "none"] = "full"
     require_auth_to_view: bool = False
+    members_can_share_folders: bool = True
+    default_access: Literal["link", "workspace", "private"] = "workspace"
+
+
+class DomainSummary(BaseModel):
+    host: str
+    kind: str | None = None
+    # "pending" | "verified" | "lapsed" (failed re-checks spanning ≥72 h).
+    status: str = "pending"
+    verified: bool
+    primary: bool
+    # Serving right now: verified ∧ attached ∧ ¬lapsed (and an app domain).
+    live: bool
+    txt_ok: bool | None = None
+    routing_ok: bool | None = None
+    failures: int = 0
 
 
 class WorkspaceCreate(BaseModel):
@@ -70,6 +86,10 @@ class WorkspaceResponse(BaseModel):
     # The workspace's own document host, when it has a verified one. Lets the UI
     # show where a document is reachable without fetching the domain list.
     primary_host: str | None = None
+    # Every domain of the workspace, with whether it serves right now.
+    domains: list[DomainSummary] = []
+    # The workspace's preselected "Who can open it" (settings.default_access).
+    default_access: str = "workspace"
     member_count: int = 0
     pending_invite_count: int = 0
     domain_count: int = 0

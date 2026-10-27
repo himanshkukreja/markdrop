@@ -757,6 +757,9 @@ async def admin_get_document(
     raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
+    # Moderation reads bypass every gate, so each one is recorded (§6.20 #254).
+    await db["admin_access_log"].insert_one(
+        {"slug": slug, "action": "read", "ts": datetime.now(timezone.utc)})
     return _to_doc_response(raw)
 
 
@@ -787,7 +790,15 @@ async def admin_update_document(
         "content": data.content,
         "updated_at": now,
     }
-    await db["documents"].update_one({"slug": slug}, {"$set": updates})
+    # Same side effects as any content edit (§4.1 #37): rev, live, purge.
+    from app.services import live, revalidate
+
+    full = await db["documents"].find_one_and_update(
+        {"slug": slug}, {"$set": updates, "$inc": {"rev": 1}}, return_document=True)
+    if full is not None:
+        live.publish(slug, int(full.get("rev") or 1))
+        await revalidate.purge_doc(db, full)
+    await db["admin_access_log"].insert_one({"slug": slug, "action": "update", "ts": now})
     raw.update(updates)
     return _to_doc_response(raw)
 
@@ -798,10 +809,16 @@ async def admin_delete_document(
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
-    """Permanently delete a document without requiring the edit_secret."""
-    result = await db["documents"].delete_one({"slug": slug})
-    if result.deleted_count == 0:
+    """Permanently delete a document without requiring the edit_secret. The
+    same cleanup as an owner's delete (A8): bytes, versions, posters, grants,
+    caches, live sockets, slug tombstone."""
+    from app.services import lifecycle
+
+    raw = await db["documents"].find_one({"slug": slug})
+    if raw is None or not await lifecycle.destroy(db, raw, reason="admin delete"):
         raise HTTPException(status_code=404, detail="Document not found")
+    await db["admin_access_log"].insert_one(
+        {"slug": slug, "action": "delete", "ts": datetime.now(timezone.utc)})
 
 
 # ── Email campaigns ────────────────────────────────────────────────────────────
