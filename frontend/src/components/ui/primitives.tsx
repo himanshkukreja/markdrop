@@ -496,11 +496,13 @@ export interface DialogProps {
   /** Element to focus on open. Default: the first focusable that isn't the close button, else the dialog. */
   initialFocus?: React.RefObject<HTMLElement | null>;
   hideClose?: boolean;
+  /** A decorative tile before the title (e.g. the folder being shared). Ignored for tone="danger". */
+  glyph?: React.ReactNode;
   /** false: Escape and the scrim don't close it (e.g. while a request runs). Default true. */
   dismissible?: boolean;
   className?: string; bodyClassName?: string;
 }
-export function Dialog({ open, onClose, title, description, children, footer, size = "md", tone = "default", initialFocus, hideClose, dismissible = true, className, bodyClassName }: DialogProps) {
+export function Dialog({ open, onClose, title, description, children, footer, size = "md", tone = "default", initialFocus, hideClose, glyph, dismissible = true, className, bodyClassName }: DialogProps) {
   const isClient = useIsClient();
   const { mounted, closing } = usePresence(open);
   const panel = useRef<HTMLDivElement>(null);
@@ -518,7 +520,7 @@ export function Dialog({ open, onClose, title, description, children, footer, si
           className={cx("md-dialog", size !== "md" && `md-dialog--${size}`, tone === "danger" && "md-dialog--danger", closing && "md-dialog--closing", className)}
           onKeyDown={e => trapTab(e, panel.current)}>
           <div className="md-dialog__head">
-            {tone === "danger" && <span className="md-dialog__glyph" aria-hidden><Icon name="alert" /></span>}
+            {tone === "danger" ? <span className="md-dialog__glyph" aria-hidden><Icon name="alert" /></span> : glyph ? <span className="md-dialog__glyph md-dialog__glyph--plain" aria-hidden>{glyph}</span> : null}
             <div className="md-dialog__heading"><h2 id={titleId} className="md-dialog__title">{title}</h2>{description && <p id={descId} className="md-dialog__desc">{description}</p>}</div>
             {!hideClose && <IconButton icon="x" label="Close" size="sm" onClick={onClose} data-md-close="" />}
           </div>

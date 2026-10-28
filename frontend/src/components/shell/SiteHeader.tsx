@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Anchor, Icon, MarkdropLogo, SkipLink, VisuallyHidden, cx } from "@/components/ui";
+import { Anchor, Icon, IconButton, Kbd, MarkdropLogo, SkipLink, VisuallyHidden, cx } from "@/components/ui";
+import { openCommandPalette } from "./commands";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import CreateMenu from "@/components/CreateMenu";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,7 +32,33 @@ export interface SiteHeaderProps {
   width?: "contained" | "full";
   /** Override the Create trigger; default primary on /dashboard, secondary elsewhere (REVAMP_PLAN 4.4). */
   createVariant?: "primary" | "secondary";
+  /** App pages: the "Search files, folders and workspaces" field that opens the ⌘K palette. */
+  search?: boolean;
   className?: string;
+}
+
+/** Looks like a search field (Main board), opens the ⌘K palette: one search, everywhere. */
+function SearchTrigger() {
+  const mounted = useMounted();
+  const mac = mounted && typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={openCommandPalette}
+        aria-keyshortcuts={mac ? "Meta+K" : "Control+K"}
+        aria-haspopup="dialog"
+        className="md-focus ml-4 hidden h-9 min-w-0 max-w-[520px] flex-[1_1_320px] cursor-text items-center gap-2 rounded-lg border border-border-strong bg-surface-inset px-3 text-left text-body text-text-muted hover:border-text-muted md:flex"
+      >
+        <Icon name="search" size={14} className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate">Search files, folders and workspaces</span>
+        <span className="flex shrink-0 items-center gap-1" aria-hidden>
+          <Kbd>{mac ? "⌘" : "Ctrl"}</Kbd>
+          <Kbd>K</Kbd>
+        </span>
+      </button>
+    </>
+  );
 }
 
 /** Scrolled past `px`? false on the server and the first client render. */
@@ -55,7 +82,7 @@ function useScrolledPast(px: number, active: boolean): boolean {
  * feedback and theme; signed-in people get it on marketing pages only). Below 360px Create is the
  * plus alone.
  */
-export function SiteHeader({ variant = "default", width = "contained", createVariant, className }: SiteHeaderProps) {
+export function SiteHeader({ variant = "default", width = "contained", createVariant, search, className }: SiteHeaderProps) {
   const pathname = usePathname() || "/";
   const { user, loading } = useAuth();
   const mounted = useMounted();
@@ -86,6 +113,7 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
         <div className={cx("mx-auto flex h-full min-w-0 items-center gap-2", width === "contained" && (marketing ? "max-w-marketing" : "max-w-tool"))}>
           <MarkdropLogo size={24} className="shrink-0 md:hidden" />
           <MarkdropLogo size={28} className="hidden shrink-0 md:inline-flex" />
+          {search && user && <SearchTrigger />}
 
           {marketing && (
             <nav aria-label="Primary" className="ml-8 hidden items-center gap-1 lg:flex">
@@ -124,6 +152,9 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
               </>
             ) : (
               <>
+                {search && user && (
+                  <IconButton icon="search" label="Search" variant="ghost" className="size-11 md:hidden" onClick={openCommandPalette} aria-haspopup="dialog" />
+                )}
                 <ThemeToggle className="hidden md:inline-flex" />
                 <CreateMenu variant={create} className="max-md:[&_.md-create]:h-11" />
                 <HeaderAuthSlot signInClassName="max-md:px-2" />

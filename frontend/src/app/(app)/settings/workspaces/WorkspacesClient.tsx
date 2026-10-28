@@ -13,7 +13,7 @@ import { createWorkspace, listWorkspaces, type Workspace } from "@/lib/workspace
 import { track } from "@/lib/track";
 import { SettingsLoader, plural, shortDate, useRequireUser } from "../settings-shared";
 
-const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Member", viewer: "Viewer" };
+const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Can edit", viewer: "Can view" };
 
 /** /settings/workspaces (REVAMP_PLAN 7.12): a grid of workspace cards, or the empty state. */
 export default function WorkspacesClient() {
@@ -50,7 +50,8 @@ export default function WorkspacesClient() {
     try {
       const w = await createWorkspace(n);
       track("workspace_created");
-      router.push(`/settings/workspaces/${w.id}`);
+      // Straight into the new workspace: its "Get set up" checklist and drop zone.
+      router.push(`/w/${encodeURIComponent(w.id)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't create the workspace. Try again.");
       setBusy(false);

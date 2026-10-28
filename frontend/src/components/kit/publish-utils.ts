@@ -85,7 +85,7 @@ export interface PublishWorkspace {
   host?: string | null;
   /** Folders, when loaded. `path` is the URL path from the root (`["specs", "q3"]`); `label` is the
    *  names from the root ("Specs › Q3") when known. */
-  folders?: Array<{ id: string; name: string; path?: string[]; label?: string }>;
+  folders?: Array<{ id: string; name: string; path?: string[]; label?: string; defaultAccess?: PublishAccess | null }>;
   /** Who can open what's published here unless the author chooses otherwise. */
   defaultAccess?: PublishAccess | null;
 }
@@ -198,8 +198,8 @@ export interface PublishSummaryOptions {
  */
 export function publishSummary(value: PublishSettingsValue, opts: PublishSummaryOptions = {}): { primary: string; secondary: string; text: string; changed: boolean } {
   const { isClient = false, showEncrypt = true, workspaceName } = opts;
-  const primary = value.access === "private" ? "Only me"
-    : value.access === "workspace" ? `Everyone in ${workspaceName || "the workspace"}`
+  const primary = value.access === "private" ? "Only people added"
+    : value.access === "workspace" ? `${workspaceName || "Workspace"} team`
     : "Anyone with the link";
   const parts: string[] = [];
   if (workspaceName && value.target.workspaceId) parts.push(workspaceName);

@@ -21,6 +21,7 @@ import { track } from "@/lib/track";
 import ShareDialog from "@/components/access/ShareDialog";
 import type { LibraryAnalyticsTarget } from "@/components/workspace/LibraryPanel";
 import { MoveToDialog } from "@/components/workspace/folder/FolderDialogs";
+import { teamName } from "@/components/workspace/folder/items";
 import AnalyticsDrawer from "@/components/dashboard/AnalyticsDrawer";
 import NameCard from "@/components/dashboard/NameCard";
 import { DocRow, rowStatuses } from "@/components/dashboard/DocRow";
@@ -33,7 +34,7 @@ import styles from "@/components/dashboard/dashboard.module.css";
 const PER_PAGE = 20;
 type KindTab = "all" | "document" | "artifact";
 
-const TITLES: Record<KindTab, string> = { all: "All items", document: "Documents", artifact: "Artifacts" };
+const TITLES: Record<KindTab, string> = { all: "My files", document: "Documents", artifact: "Artifacts" };
 
 const GDOCS_NOTICES: Record<string, { kind: "success" | "info" | "error"; text: string }> = {
   connected: { kind: "success", text: "Google Docs connected. You can now export documents." },
@@ -280,6 +281,12 @@ export default function DashboardPage() {
   const reloadList = useCallback(() => { void load(); }, [load]);
   useDocumentsChanged(reloadList);
 
+  function teamOf(d: MyDocListItem) {
+    if (!d.workspace_id) return null;
+    const ws = workspaces?.find((w) => w.id === d.workspace_id);
+    return ws ? teamName(ws) : (rowTrees[d.workspace_id] || null)?.workspace.name ?? null;
+  }
+
   function locationChip(d: MyDocListItem) {
     if (!d.workspace_id) return null;
     const ws = workspaces?.find((w) => w.id === d.workspace_id);
@@ -360,7 +367,7 @@ export default function DashboardPage() {
   if (counts) {
     summary = counts.all === 0 ? "Nothing published from this account yet" : `${plural(counts.document, "document")} · ${plural(counts.artifact, "artifact")}`;
   }
-  const crumbs = [{ label: "Your documents", href: "/dashboard" }, { label: TITLES[scope.kind] }];
+  const crumbs = [{ label: "My files", href: "/dashboard" }, { label: TITLES[scope.kind] }];
 
   const searchBox = (
     <div className={cx("min-w-0", phone ? "w-full" : "w-60")} role="search">
@@ -409,7 +416,7 @@ export default function DashboardPage() {
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <PageHeader
-        breadcrumb={<Breadcrumb items={crumbs} />}
+        breadcrumb={scope.kind === "all" ? undefined : <Breadcrumb items={crumbs} />}
         title={heading}
         description={summary ? <span className="text-text-muted">{summary}</span> : undefined}
         actions={headerActions}
@@ -505,6 +512,7 @@ export default function DashboardPage() {
                   riseDelay={firstPaint.current ? Math.min(i, 8) * 20 : null}
                   menuLabel={`Actions for ${title}`}
                   chip={locationChip(d)}
+                  team={teamOf(d)}
                 />
               );
             })}
@@ -535,6 +543,7 @@ export default function DashboardPage() {
           slug={shareFor.slug}
           documentId={shareFor.id}
           title={displayTitle(shareFor)}
+          kind={shareFor.kind}
           location={{ workspaceId: shareFor.workspace_id ?? null, folderId: shareFor.folder_id ?? null }}
           startWithLocation={shareAt}
           onClose={() => { setShareFor(null); setShareAt(false); }}

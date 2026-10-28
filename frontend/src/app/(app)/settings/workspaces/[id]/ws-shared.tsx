@@ -1,15 +1,21 @@
 "use client";
 
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 import { Tooltip } from "@/components/ui";
-import type { Domain, Folder, Invitation, Member, Workspace } from "@/lib/workspaces";
+import type { Domain, Invitation, Member, Workspace } from "@/lib/workspaces";
 
 /** Mirrors MAX_DEPTH in services/folder.py. The UI stops offering a parent at
  *  the limit rather than letting the server refuse the create. */
 export const MAX_FOLDER_DEPTH = 8;
 
-export type TabId = "general" | "brand" | "domains" | "people" | "folders";
-export const TAB_IDS: TabId[] = ["general", "brand", "domains", "people", "folders"];
+export type TabId = "people" | "look" | "advanced";
+export const TAB_IDS: TabId[] = ["people", "look", "advanced"];
+
+/** Old `?tab=` names (before the simpler settings) and where they live now. "folders" isn't a tab
+ *  any more: it opens the workspace's folder view. */
+export const OLD_TABS: Record<string, TabId | "folders"> = {
+  general: "look", brand: "look", domains: "look", people: "people", folders: "folders",
+};
 
 /** What every tab gets from the page: the workspace, the caller's powers and the lazily loaded collections. */
 export interface WsTabProps {
@@ -25,33 +31,20 @@ export interface WsTabProps {
   domains: Domain[] | null;
   members: Member[] | null;
   invites: Invitation[] | null;
-  folders: Folder[] | null;
-  /** Direct document counts per folder id ("unfiled" for the rest), or null until loaded. */
-  folderCounts: Record<string, number> | null;
   /** Re-fetch the workspace (header counts) and the given resources. */
   refresh: (...resources: Resource[]) => Promise<void>;
   /** Replace the workspace object after a PUT (avoids a refetch). */
   setWs: (w: Workspace) => void;
 }
 
-export type Resource = "domains" | "people" | "folders" | "folderCounts";
+export type Resource = "domains" | "people";
 
 /** Which resources each tab needs. Keyed on the resource so a resource two tabs share loads once. */
 export const TAB_NEEDS: Record<TabId, Resource[]> = {
-  general: [],
-  brand: [],
-  domains: ["domains"],
   people: ["people"],
-  folders: ["folders", "folderCounts"],
+  look: ["domains"],
+  advanced: [],
 };
-
-export const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Member", viewer: "Viewer" };
-
-export const ROLE_OPTIONS = [
-  { value: "viewer", label: "Viewer", description: "Read what the workspace publishes" },
-  { value: "member", label: "Member", description: "Create and publish documents" },
-  { value: "admin", label: "Admin", description: "Manage members, domains and branding" },
-] as const;
 
 export const ADMINS_ONLY = "Admins only";
 
@@ -69,19 +62,6 @@ export function lockProps(locked: boolean) {
 export function Locked({ locked, reason = ADMINS_ONLY, children }: { locked: boolean; reason?: string; children: ReactElement }) {
   if (!locked) return children;
   return <Tooltip content={reason}>{children}</Tooltip>;
-}
-
-/** A tab's section heading row: h2 + one line, actions on the right (wrap under on phones). */
-export function SectionHead({ id, title, description, actions }: { id?: string; title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-wrap items-end justify-between gap-x-4 gap-y-3">
-      <div className="min-w-0 flex-[1_1_16rem]">
-        <h2 id={id} className="text-h3 text-text">{title}</h2>
-        {description && <p className="mt-0.5 text-body text-text-muted">{description}</p>}
-      </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
-    </div>
-  );
 }
 
 /** URL-safe folder segment (one implementation, `lib/folderSlug.ts`, mirroring the server). */

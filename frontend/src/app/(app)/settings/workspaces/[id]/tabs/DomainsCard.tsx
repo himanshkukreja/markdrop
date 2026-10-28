@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  Alert, Badge, Button, Card, ConfirmDialog, Dialog, Disclosure, EmptyState, Field, Input, RadioGroup, RowMenu,
+  Alert, Badge, Button, ConfirmDialog, Dialog, Field, Icon, Input, RadioGroup, RowMenu,
   Skeleton, useToast, type MenuItem,
 } from "@/components/ui";
 import DnsInstructions from "@/components/workspace/DnsInstructions";
@@ -13,7 +13,7 @@ import {
   type Domain, type DomainKind,
 } from "@/lib/workspaces";
 import { shortDate } from "../../../settings-shared";
-import { Locked, SectionHead, lockProps, type WsTabProps } from "../ws-shared";
+import { Locked, lockProps, type WsTabProps } from "../ws-shared";
 
 function statusBadge(d: Domain) {
   if (d.status === "verified") {
@@ -36,13 +36,15 @@ function domainError(e: unknown, fallback: string): string {
 }
 
 /**
- * Domains (P5): a stepper per domain — Added → DNS records → Verified → Live. Both records stay on
+ * "Your own domain" (Settings › Look and domain): one row per domain (host, status, menu: Make
+ * default · Show DNS records · … · Remove), and "Add another domain". A domain that isn't live yet
+ * shows its stepper — Added → DNS records → Verified → Live — and the records under its row. Both records stay on
  * show (collapsed once verified, because they must stay in place). "Check DNS" verifies and, when
  * that succeeds, attaches the domain and makes the first verified app domain primary, so "verified"
  * is never a dead end waiting for a second button. Detach (stop serving, keep the verification) and
  * Remove (discard it) stay in the menu behind a confirm.
  */
-export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabProps) {
+export default function DomainsCard({ id, ws, isAdmin, domains, refresh }: WsTabProps) {
   const toast = useToast();
   const [busy, setBusy] = useState("");
   const [addOpen, setAddOpen] = useState(false);
@@ -125,15 +127,20 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
     }
   }
 
+  function toggleRecords(domainId: string, open: boolean) {
+    setRecordsOpen((s) => { const n = new Set(s); if (open) n.add(domainId); else n.delete(domainId); return n; });
+  }
+
   function menuFor(d: Domain): MenuItem[] {
     const items: MenuItem[] = [];
-    if (d.status === "verified") {
-      items.push({ label: "Check DNS again", icon: "refresh", onClick: () => run(`v${d.id}`, () => verifyDomain(id, d.id), `Checked ${d.host}.`) });
-    }
     if (d.status === "verified" && d.kind === "app" && !d.is_primary) {
       // With several domains the oldest one was silently chosen, so a newer one could never become
       // the address the product hands out.
-      items.push({ label: "Make primary", icon: "flag", description: "Use it for shared links and preview cards", onClick: () => run(`p${d.id}`, () => setPrimaryDomain(id, d.id), `${d.host} is now the primary domain.`) });
+      items.push({ label: "Make default", icon: "check", description: "Use it for shared links and preview cards", onClick: () => run(`p${d.id}`, () => setPrimaryDomain(id, d.id), `${d.host} is now the default domain.`) });
+    }
+    if (d.status === "verified") {
+      items.push({ label: recordsOpen.has(d.id) ? "Hide DNS records" : "Show DNS records", icon: "list", onClick: () => toggleRecords(d.id, !recordsOpen.has(d.id)) });
+      items.push({ label: "Check DNS again", icon: "refresh", onClick: () => run(`v${d.id}`, () => verifyDomain(id, d.id), `Checked ${d.host}.`) });
     }
     items.push({ label: "Download records (CSV)", icon: "download", onClick: () => downloadDnsCsv([d]) });
     if (d.attached) {
@@ -172,63 +179,43 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
     return null;
   }
 
-  const addButton = (
-    <Locked locked={!isAdmin}>
-      <Button variant="primary" iconLeft="plus" {...lockProps(!isAdmin)} onClick={isAdmin ? () => { setAddOpen(true); setAddError(""); } : lockProps(true).onClick}>
-        Add domain
-      </Button>
-    </Locked>
-  );
-
   return (
-    <div className="flex min-w-0 flex-col gap-5">
-      <SectionHead
-        title="Domains"
-        description="Serve this workspace's documents from hostnames you own."
-        actions={
-          <>
-            {isAdmin && domains && domains.length > 0 && (
-              <Button variant="ghost" size="sm" iconLeft="download" onClick={() => downloadDnsCsv(domains)} title="Download every DNS record for this workspace as CSV">
-                Download all as CSV
-              </Button>
-            )}
-            {addButton}
-          </>
-        }
-      />
+    <section aria-labelledby="ws-domain-h" className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-surface p-5">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <h2 id="ws-domain-h" className="flex-1 text-h3 text-text">Your own domain</h2>
+        {isAdmin && domains && domains.length > 1 && (
+          <Button variant="ghost" size="sm" iconLeft="download" onClick={() => downloadDnsCsv(domains)} title="Download every DNS record for this workspace as CSV">
+            Records as CSV
+          </Button>
+        )}
+      </div>
 
       {domains === null ? (
         <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading domains">
-          {[0, 1].map((i) => <Skeleton key={i} variant="rect" height={72} />)}
+          {[0, 1].map((i) => <Skeleton key={i} variant="rect" height={52} />)}
         </div>
       ) : domains.length === 0 ? (
-        <EmptyState
-          icon="globe"
-          title="No domains yet"
-          description="Add a hostname you control, like docs.yourcompany.com, to serve this workspace's documents from it."
-          actions={isAdmin ? addButton : undefined}
-        />
+        <p className="text-body text-text-secondary">
+          Serve this workspace from a hostname you own, like <code className="font-mono">docs.yourcompany.com</code>. Links on markdrop.in keep working.
+        </p>
       ) : (
-        <ul className="flex min-w-0 flex-col gap-4">
+        <ul className="m-0 flex min-w-0 list-none flex-col gap-3 p-0">
           {domains.map((d) => (
             <li key={d.id} className="min-w-0">
-              <Card compact className="min-w-0">
-                <div className="flex min-w-0 flex-col gap-3">
-                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                      <h3 className="min-w-0 font-mono text-body-strong text-text [overflow-wrap:anywhere]">{d.host}</h3>
-                      {statusBadge(d)}
-                      <Badge size="sm" variant="outline">{d.kind === "app" ? "Documents and files" : "Files only"}</Badge>
-                      {d.kind === "app" && d.is_primary && d.status === "verified" && (
-                        <Badge size="sm" tone="info" icon="flag" title="Used for shared links and preview cards">Primary</Badge>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      {primaryAction(d)}
-                      {isAdmin && <RowMenu portal align="right" label={`More actions for ${d.host}`} items={menuFor(d)} />}
-                    </div>
-                  </div>
-                  <DomainStepper domain={d} className="rounded-lg border border-border bg-surface-inset p-3" />
+              <div className="min-w-0 rounded-lg border border-border">
+                <div className="flex min-w-0 flex-wrap items-center gap-3 px-3.5 py-3">
+                  <Icon name="globe" size={18} className="shrink-0 text-text-secondary" />
+                  <h3 className="min-w-0 flex-1 font-mono text-[13px] font-medium text-text [overflow-wrap:anywhere]">{d.host}</h3>
+                  {statusBadge(d)}
+                  {d.kind === "cdn" && <Badge size="sm" variant="outline">Files only</Badge>}
+                  {d.kind === "app" && d.is_primary && d.status === "verified" && domains.length > 1 && (
+                    <Badge size="sm" tone="info" icon="check" title="Used for shared links and preview cards">Default</Badge>
+                  )}
+                  {(d.status !== "verified" || !d.attached) && primaryAction(d)}
+                  {isAdmin && <RowMenu portal align="right" label={`Domain actions for ${d.host}`} items={menuFor(d)} />}
+                </div>
+                <div className={`flex min-w-0 flex-col gap-3 px-3.5 pb-3.5 ${d.status === "verified" && d.attached && !recordsOpen.has(d.id) ? "hidden" : ""}`}>
+                  {(d.status !== "verified" || !d.attached) && <DomainStepper domain={d} className="rounded-lg border border-border bg-surface-inset p-3" />}
                   <p className="text-caption text-text-muted">
                     {d.status === "verified"
                       ? `${d.attached ? "Serving" : "Verified"} since ${shortDate(d.verified_at)}${d.last_checked_at ? ` · Last checked ${shortDate(d.last_checked_at)}` : ""}`
@@ -250,28 +237,30 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
                       <p className="text-caption text-text-secondary">An admin of this workspace finishes setting up this domain.</p>
                     )
                   ) : d.status === "verified" ? (
-                    <Disclosure
-                      summary="DNS records"
-                      open={recordsOpen.has(d.id)}
-                      onOpenChange={(o) => setRecordsOpen((s) => { const n = new Set(s); if (o) n.add(d.id); else n.delete(d.id); return n; })}
-                    >
-                      {recordsOpen.has(d.id) && <DnsInstructions workspaceId={id} domain={d} siteName={siteName} settled />}
-                    </Disclosure>
+                    recordsOpen.has(d.id) && (
+                      <div className="flex flex-col gap-2">
+                        <DnsInstructions workspaceId={id} domain={d} siteName={siteName} settled />
+                        <Button size="sm" variant="ghost" className="self-start" onClick={() => toggleRecords(d.id, false)}>Hide DNS records</Button>
+                      </div>
+                    )
                   ) : (
                     <DnsInstructions workspaceId={id} domain={d} siteName={siteName} />
                   )}
                 </div>
-              </Card>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      <p className="max-w-[72ch] text-caption text-text-muted">
-        Uploaded files always stream from an isolated file origin, whichever kind you pick. That is what stops a published HTML
-        page from reaching anyone&apos;s session. A Documents and files host renders them in a page on your domain; a Files only
-        host serves the raw bytes and runs no app, which is why it can&apos;t also show document pages.
-      </p>
+      {isAdmin && domains !== null && (
+        <Button variant={domains.length ? "secondary" : "primary"} iconLeft="plus" className="self-start" onClick={() => { setAddOpen(true); setAddError(""); }}>
+          {domains.length ? "Add another domain" : "Add a domain"}
+        </Button>
+      )}
+      {!isAdmin && domains !== null && domains.length === 0 && (
+        <p className="text-caption text-text-muted">An admin of this workspace sets up domains.</p>
+      )}
 
       <Dialog
         open={addOpen}
@@ -346,6 +335,6 @@ export default function DomainsTab({ id, ws, isAdmin, domains, refresh }: WsTabP
           toast.success(`${d.host} removed.`);
         }}
       />
-    </div>
+    </section>
   );
 }

@@ -25,6 +25,7 @@ export const RESERVED_FOLDER_SLUGS: ReadonlySet<string> = new Set([
   "email",
   "mcp", "oauth",
   "f", "w",
+  "shared", "recent", "requests",
 ]);
 
 /** URL-safe folder segment, the same as the server's slugify (the server may add a suffix on a clash). */

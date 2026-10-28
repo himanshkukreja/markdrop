@@ -737,6 +737,7 @@ export default function ArtifactView({
         <ShareDialog
           slug={slug}
           title={title || originalFilename || slug}
+          kind="artifact"
           documentId={docId}
           onClose={() => setShowShare(false)}
           onChanged={() => purgeDocument(slug)}

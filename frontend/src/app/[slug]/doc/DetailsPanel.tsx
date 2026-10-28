@@ -25,9 +25,9 @@ export function readingMinutes(text: string): number {
 }
 
 const LEVEL_LINE: Record<string, { icon: string; text: string }> = {
-  link: { icon: "globe", text: "Anyone with the link can view" },
-  private: { icon: "lock", text: "Only people you choose" },
-  workspace: { icon: "users", text: "Everyone in the workspace" },
+  link: { icon: "globe", text: "Anyone with the link" },
+  private: { icon: "lock", text: "Only people added" },
+  workspace: { icon: "user", text: "The workspace team" },
 };
 
 export interface DetailsPanelProps {

@@ -417,6 +417,7 @@ export default function DocumentView(props: DocumentViewProps) {
                   errorKey={v.pwdErrorKey}
                   visible={pwdVisible}
                   onToggleVisible={() => setPwdVisible((x: boolean) => !x)}
+                  request={v.deniedInfo ? { slug, ...v.deniedInfo } : null}
                 />
               </div>
             ) : (
