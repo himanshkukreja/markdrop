@@ -21,7 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   listAccessRequests, listRecent, listSharedWithMe, requestTitle, requesterName, type AccessRequest, type PersonalItem,
 } from "@/lib/me";
-import { errorStatus, listWorkspaces } from "@/lib/workspaces";
+import { errorStatus, listWorkspaces, openHref } from "@/lib/workspaces";
 import { ItemRow } from "./folder/ItemRow";
 import { displayAddress, itemTitle, teamName } from "./folder/items";
 
@@ -107,7 +107,7 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
   }
 
   const menu = (it: PersonalItem): MenuEntry[] => {
-    const out: MenuEntry[] = [{ label: "Open", icon: "external", href: `/${it.slug}` }];
+    const out: MenuEntry[] = [{ label: "Open", icon: "external", href: openHref(it.slug, it.url, it.encrypted) }];
     if (!it.encrypted) {
       out.push({ label: "Copy link", icon: "copy", onClick: () => { void copyText(it.url).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy the link"))); } });
     }
@@ -166,7 +166,7 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
                   key={it.slug}
                   file={{ slug: it.slug, kind: it.kind, mime: it.mime, renderer: it.renderer, original_filename: it.original_filename }}
                   title={title}
-                  href={`/${it.slug}`}
+                  href={openHref(it.slug, it.url, it.encrypted)}
                   address={it.encrypted ? "Encrypted" : displayAddress(it.url)}
                   views={null}
                   by={mode === "shared"

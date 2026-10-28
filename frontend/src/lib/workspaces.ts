@@ -4,6 +4,7 @@
  * Kept out of lib/api.ts: that module is loaded by every public document page,
  * and none of this is reachable without a session.
  */
+import { isPrimaryHost } from "@/components/tenant/hosts";
 import { API_BASE, type MyDocListItem, type MyDocListResponse } from "@/lib/api";
 
 const TOKEN_KEY = "markdrop_token";
@@ -774,3 +775,19 @@ export const getPreview = (id: string, opts: { folder: string | null; as: Previe
   if (opts.as === "email" && opts.email) p.set("email", opts.email);
   return request<PreviewResult>(`/api/v1/workspaces/${encodeURIComponent(id)}/preview?${p}`);
 };
+
+/**
+ * Where clicking an item takes you: its workspace domain when it has one — the same address
+ * "Copy link" gives — else the in-app page. Encrypted documents always open in the app (their key
+ * lives in the link fragment, which only the in-app page holds).
+ */
+export function openHref(slug: string, url?: string | null, encrypted?: boolean | null): string {
+  if (!url || encrypted) return `/${slug}`;
+  try {
+    const u = new URL(url);
+    if (isPrimaryHost(u.host) || (typeof window !== "undefined" && u.host === window.location.host)) return `/${slug}`;
+    return u.toString();
+  } catch {
+    return `/${slug}`;
+  }
+}

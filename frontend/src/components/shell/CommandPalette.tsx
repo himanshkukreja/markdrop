@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { Dialog, FileIcon, Icon, Kbd, Spinner } from "@/components/ui";
 import { listRecent, quickSearch, type PersonalItem, type QuickResults } from "@/lib/me";
 import { ancestry, peekTree } from "@/lib/workspaceStore";
+import { openHref } from "@/lib/workspaces";
 import s from "./CommandPalette.module.css";
 
 export interface PaletteAction {
@@ -98,7 +99,7 @@ export default function CommandPalette({
     return () => { clearTimeout(t); ctl.abort(); };
   }, [q, open]);
 
-  const go = useCallback((href: string) => { onClose(); router.push(href); }, [onClose, router]);
+  const go = useCallback((href: string) => { onClose(); if (/^https?:\/\//.test(href)) window.location.assign(href); else router.push(href); }, [onClose, router]);
 
   const groups = useMemo<Group[]>(() => {
     const out: Group[] = [];
@@ -112,7 +113,7 @@ export default function CommandPalette({
             label: (f.encrypted ? f.slug : f.title?.trim()) || f.slug,
             where: f.workspace ? [f.workspace.name, ...(f.folder ? [f.folder.name] : [])].join(" › ") : f.source === "shared" ? "Shared with me" : "My files",
             icon: fileIcon(f),
-            run: () => go(`/${f.slug}`),
+            run: () => go(openHref(f.slug, f.url, f.encrypted)),
           })),
         });
       }
@@ -148,7 +149,7 @@ export default function CommandPalette({
           label: (f.encrypted ? f.slug : f.title?.trim()) || f.slug,
           where: f.workspace ? [f.workspace.name, ...(f.folder ? [f.folder.name] : [])].join(" › ") : "My files",
           icon: fileIcon(f),
-          run: () => go(`/${f.slug}`),
+          run: () => go(openHref(f.slug, f.url, f.encrypted)),
         })),
       });
     }

@@ -35,7 +35,7 @@ import { DeleteDocDialog, NewFolderDialog } from "@/components/dashboard/DocDial
 import { hasFiles, useUploads, type UploadTarget } from "@/components/workspace/uploads/UploadProvider";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  can, errorStatus, getWorkspace, listWorkspaceItems, removeItems, WORKSPACES_EVENT,
+  can, errorStatus, getWorkspace, listWorkspaceItems, openHref, removeItems, WORKSPACES_EVENT,
   type Folder, type ItemAccess, type PreviewAs, type RedactedItem, type TreeFolder, type Workspace, type WorkspaceItem,
 } from "@/lib/workspaces";
 import {
@@ -314,7 +314,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
     setMoveTarget({ kind: "items", slugs: [it.slug], label: itemTitle(it), fromFolderId: it.folder?.id ?? null });
 
   function itemMenu(it: WorkspaceItem): MenuEntry[] {
-    const out: MenuEntry[] = [{ label: "Open", icon: "external", href: `/${it.slug}` }];
+    const out: MenuEntry[] = [{ label: "Open", icon: "external", href: openHref(it.slug, it.url, it.encrypted) }];
     if (it.can.move) out.push({ label: "Move to…", icon: "folder", onClick: () => moveOne(it) });
     if (it.can.edit && !it.encrypted) out.push({ label: "Rename", icon: "edit", onClick: () => setRenameItem({ slug: it.slug, kind: it.kind, title: itemTitle(it) }) });
     if (it.can.unshare) out.push({ label: "Remove from workspace", icon: "x", separated: true, onClick: () => setRemoveFor([it]) });
@@ -1040,7 +1040,7 @@ function WorkspaceItemRow({
     <ItemRow
       file={{ slug: it.slug, kind: it.kind, mime: it.mime, renderer: it.renderer, original_filename: it.original_filename }}
       title={t}
-      href={`/${it.slug}`}
+      href={openHref(it.slug, it.url, it.encrypted)}
       address={it.encrypted ? "Encrypted" : displayAddress(it.url)}
       views={it.views ?? 0}
       by={it.owner.is_you ? "You" : it.owner.name}
