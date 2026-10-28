@@ -102,6 +102,8 @@ function useExpanded() {
 
 /** Wide pages (the drive views) get the Main board's 960px column; settings keep 880. */
 const WIDE = /^\/(w\/|shared$|recent$)/;
+/** A workspace's folder view (/w/<ws> and /w/<ws>/f/<folder>), which brings its own phone header. */
+const FOLDER_PAGE = /^\/w\/[^/]+(\/f\/[^/]+)?\/?$/;
 
 /**
  * The account shell for /dashboard, /w/*, /shared, /recent and /settings/* (simpler UI, Main
@@ -167,7 +169,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex min-h-14 items-center gap-2 border-b border-border px-4 sm:px-6 lg:hidden">
+        {/* Phones on a workspace page get the folder's own compact header (back · title · search ·
+            share, Mobile board) instead of this bar, so the place isn't named twice. */}
+        <div className={cx("flex min-h-14 items-center gap-2 border-b border-border px-4 sm:px-6 lg:hidden", FOLDER_PAGE.test(pathname) && "max-sm:hidden")}>
           <IconButton icon="listTree" label="Browse" variant="secondary" className="size-11" aria-haspopup="dialog" aria-expanded={browseOpen} onClick={() => setBrowseOpen(true)} />
           {activeLabel && <span className="min-w-0 truncate text-body-strong text-text" dir="auto">{activeLabel}</span>}
         </div>
