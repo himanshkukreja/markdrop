@@ -95,6 +95,13 @@ export const MCP_TOOLS: McpTool[] = [
     icon: "chart",
   },
   {
+    name: "get_document_analytics",
+    title: "Ask how it's doing",
+    description: "Where people drop off in a video, how far they read a document or PDF, where they came from and what's worth a look, for a document or file you own.",
+    scope: "documents:read",
+    icon: "chart",
+  },
+  {
     name: "search",
     title: "Search your documents",
     description: "Finds your own documents that match a query. ChatGPT's deep research uses it.",

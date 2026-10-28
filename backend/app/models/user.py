@@ -16,3 +16,5 @@ class User:
     # Encrypted Google OAuth refresh token (Fernet). Present only when the user
     # has opted into the Google Docs integration. Never expose this over the API.
     google_refresh_token_enc: str | None = None
+    # Weekly analytics digest: "weekly" (the default) or "off".
+    analytics_digest: str = "weekly"

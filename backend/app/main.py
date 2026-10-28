@@ -61,11 +61,15 @@ async def lifespan(app: FastAPI):
     # Revalidation outbox, expiry sweeper, access reconciler (services/background.py),
     # and custom-domain re-verification / lapsing (services/domain_monitor.py).
     # Each runs one worker per pass via a Mongo lease.
-    from app.services import background, domain_monitor
+    from app.services import analytics_digest, background, domain_monitor
 
     background.start(get_database)
     domain_monitor.start(get_database)
+    # Weekly analytics digest: off unless MARKDROP_ANALYTICS_DIGEST_ENABLED
+    # (and background workers) are on; a lease + per-user claims, never twice.
+    analytics_digest.start(get_database)
     yield
+    await analytics_digest.stop()
     await domain_monitor.stop()
     await background.stop()
     await email_engine.stop()

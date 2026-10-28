@@ -275,7 +275,7 @@ export default function McpPage() {
             eyebrow="Tools"
             id="tools-title"
             title="What it can do"
-            lead="Eighteen tools, each needing one of two permissions. Your assistant picks the right one from what you ask."
+            lead="Nineteen tools, each needing one of two permissions. Your assistant picks the right one from what you ask."
           />
           <div className="mt-10 grid min-w-0 gap-6 lg:grid-cols-2">
             {[

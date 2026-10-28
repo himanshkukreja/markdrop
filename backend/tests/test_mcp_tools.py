@@ -352,6 +352,132 @@ class Tools(McpTestCase):
         self.assertEqual((out["views"], out["avg_read_depth"], out["last_viewed_at"], out["top_referrers"]),
                          (0, None, None, []))
 
+    # ── get_document_analytics ──
+
+    async def _views(self, doc: dict, n: int, *, channel: str = "Direct", internal: bool = False,
+                     days_ago: float = 0.05) -> None:
+        ts = datetime.now(timezone.utc) - timedelta(days=days_ago)
+        await self.db["events"].insert_many([
+            {"doc_id": str(doc["_id"]), "owner_id": doc.get("owner_id"), "type": "view", "ts": ts,
+             "ip_hash": f"ip{i}", "channel": channel, "internal": internal} for i in range(n)])
+
+    async def _sessions(self, doc: dict, rows: list[dict]) -> None:
+        base = {"doc_id": str(doc["_id"]), "owner_id": doc.get("owner_id"), "ver": None, "internal": False,
+                "started_at": datetime.now(timezone.utc) - timedelta(hours=2), "active_s": 40, "depth": 0,
+                "reached": [], "sec": {}, "copies": {}, "links": {}, "npages": None, "pmax": 0, "media": None,
+                "device": "Desktop", "channel": "Direct"}
+        await self.db["engage_sessions"].insert_many(
+            [{**base, "sid": f"s{i}-{ObjectId()}", "ip_hash": f"ip{i}", **r} for i, r in enumerate(rows)])
+
+    async def test_analytics_doc_sections_titles_and_copies(self):
+        from app.services import md_outline
+
+        md = ("# Getting started\n\nIntro\n\n## Install the SDK\n\n```bash\nnpm i acme\n```\n\n"
+              "## Pricing & limits\n\nText\n\n## Pricing & limits\n\nAgain\n")
+        doc = await self.seed("guide-1", owner=self.user_id, content=md, title="Guide")
+        ids = [h["id"] for h in md_outline.extract_headings(md)]
+        self.assertEqual(ids, ["user-content-getting-started", "user-content-install-the-sdk",
+                               "user-content-pricing--limits", "user-content-pricing--limits-1"])
+        block_hash = format(md_outline._fnv_utf8("npm i acme"), "08x")
+        rows = []
+        for i in range(30):
+            reach = ids[:2] if i < 18 else ids
+            rows.append({"kind": "doc", "depth": 95 if i >= 18 else 40, "reached": reach,
+                         "sec": {ids[1]: 12},
+                         "copies": {f"{block_hash}|{ids[1]}": 1} if i < 4 else {},
+                         "links": {"github.com/acme/sdk|" + ids[1]: 1} if i < 3 else {}})
+        await self._sessions(doc, rows)
+        await self._views(doc, 30, channel="Slack")
+        await self._views(doc, 5, internal=True)
+        res = await self.tool("get_document_analytics", document="guide-1")
+        out = self.ok(res)
+        text = res["content"][0]["text"]
+        self.assertEqual((out["kind"], out["range"], out["views"], out["people"]), ("doc", "30d", 30, 30))
+        self.assertEqual(out["title"], "Guide")
+        self.assertEqual({k["key"] for k in out["kpis"]},
+                         {"views", "people", "read_all", "read_time", "copies_clicks"})
+        self.assertEqual(out["top_sources"], [{"channel": "Slack", "views": 30}])
+        self.assertIsNone(out["media"])
+        self.assertIsNone(out["pages"])
+        c = out["content"]
+        self.assertEqual(c["read_all_pct"], 40.0)
+        by_id = {s["id"]: s for s in c["sections"]}
+        self.assertEqual(by_id[ids[1]]["title"], "Install the SDK")
+        self.assertEqual(by_id[ids[3]]["title"], "Pricing & limits")
+        self.assertEqual(by_id[ids[2]]["reached_pct"], 40.0)
+        self.assertEqual(c["top_copies"], [{"section": "Install the SDK", "preview": "npm i acme", "n": 4}])
+        self.assertEqual(c["top_links"], [{"href": "github.com/acme/sdk", "section": "Install the SDK", "n": 3}])
+        # Insights speak in titles, never heading ids.
+        self.assertTrue(out["insights"])
+        self.assertNotIn("user-content-", json.dumps(out["insights"]))
+        self.assertIn("Readers leave at “Install the SDK”", json.dumps(out["insights"], ensure_ascii=False))
+        sentences = [s for s in text.split(". ") if s.strip()]
+        self.assertTrue(3 <= len(sentences) <= 8, text)
+        self.assertIn("30 views from 30 people in the last 30 days", text)
+        self.assertIn("40% of readers read to the end", text)
+        self.assertIn("drop off most after “Install the SDK”", text)
+        self.assertNotIn("user-content-", text)
+
+    async def test_analytics_owner_only(self):
+        await self.seed("theirs-a", owner=self.other_id)
+        self.assertIn("only see analytics for documents you own",
+                      self.err(await self.tool("get_document_analytics", document="theirs-a")))
+        self.assertIn("couldn't find", self.err(await self.tool("get_document_analytics", document="no-such-doc")))
+        await self.seed("mine-a", owner=self.user_id)
+        self.assertIn("must be one of", self.err(await self.tool("get_document_analytics", document="mine-a",
+                                                                 range="1y")))
+
+    async def test_analytics_empty(self):
+        await self.seed("quiet-a", owner=self.user_id, content="# Quiet\n\nnothing")
+        res = await self.tool("get_document_analytics", document="quiet-a", range="7d")
+        out = self.ok(res)
+        self.assertEqual((out["views"], out["people"], out["range"], out["top_sources"]), (0, 0, "7d", []))
+        self.assertEqual(out["title"], "Quiet")
+        self.assertEqual(out["content"]["sections"], [])
+        self.assertIn("Nobody has opened it", res["content"][0]["text"])
+
+    async def test_analytics_video(self):
+        doc = await self.seed("demo-vid", owner=self.user_id, kind="artifact", mime="video/mp4",
+                              media={"duration_s": 200.0}, title="Product demo", file_version=1)
+        rows = []
+        for i in range(40):
+            end = 200 if i < 10 else (134 if i < 30 else 60)
+            rows.append({"kind": "video", "media": {
+                "plays": 1, "segs": [[0, end]], "watched_s": end, "dur": 200, "startup_ms": 800 + i,
+                "rebuf_n": 1 if i < 4 else 0, "ended": 1 if end == 200 else 0}})
+        await self._sessions(doc, rows)
+        await self._views(doc, 40)
+        res = await self.tool("get_document_analytics", document="demo-vid")
+        out = self.ok(res)
+        text = res["content"][0]["text"]
+        self.assertEqual(out["kind"], "video")
+        self.assertIsNone(out["content"])
+        m = out["media"]
+        self.assertEqual(set(m["retention_at"]), {"0:30", "25%", "50%", "75%", "end"})
+        self.assertEqual(m["retention_at"]["0:30"], 100.0)
+        self.assertEqual(m["retention_at"]["75%"], 25.0)
+        self.assertEqual(m["biggest_drop"]["at"], "2:14")
+        self.assertEqual(m["biggest_drop"]["delta"], 50.0)
+        self.assertEqual(m["qoe"]["stalled_pct"], 10.0)
+        self.assertEqual(m["qoe"]["failed_pct"], 0.0)
+        self.assertIsNotNone(m["avg_watched_pct"])
+        self.assertIn("Most viewers leave at 2:14", text)
+        self.assertIn("still watching at 0:30", text)
+
+    async def test_analytics_pdf(self):
+        doc = await self.seed("deck-pdf", owner=self.user_id, kind="artifact", mime="application/pdf",
+                              title="Seed deck", file_version=1)
+        await self._sessions(doc, [{"kind": "pdf", "npages": 4, "pmax": 4 if i < 5 else (2 if i < 15 else 1)}
+                                   for i in range(20)])
+        await self._views(doc, 20)
+        res = await self.tool("get_document_analytics", document="deck-pdf")
+        out = self.ok(res)
+        p = out["pages"]
+        self.assertEqual(p["npages"], 4)
+        self.assertEqual([r["pct"] for r in p["reach"]], [100.0, 75.0, 25.0, 25.0])
+        self.assertEqual(p["biggest_drop"], {"after_page": 2, "delta": 50.0})
+        self.assertIn("25% of readers reached the last page (of 4)", res["content"][0]["text"])
+
     # ── cross-cutting ──
 
     async def test_audit_rows_have_no_content(self):

@@ -230,6 +230,12 @@ async def connect() -> None:
         await _engage.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] engagement indexes skipped: {exc}")
+    try:
+        from app.services import analytics_digest as _digest
+
+        await _digest.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] digest indexes skipped: {exc}")
 
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])

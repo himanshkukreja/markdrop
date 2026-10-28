@@ -605,6 +605,8 @@ export interface MeUser {
   picture: string | null;
   providers: string[];
   created_at: string;
+  /** The weekly analytics email (Settings → Account). Missing on older API responses = "weekly". */
+  analytics_digest?: "weekly" | "off";
 }
 
 export function googleLoginUrl(next?: string): string {
@@ -689,6 +691,16 @@ export async function updateMyName(name: string): Promise<MeUser> {
     body: JSON.stringify({ name }),
   });
   if (!res.ok) throw new Error("Failed to update name");
+  return res.json();
+}
+
+export async function updatePreferences(prefs: { analytics_digest: "weekly" | "off" }): Promise<{ analytics_digest: "weekly" | "off" }> {
+  const res = await fetch(`${API_BASE}/api/v1/me/preferences`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(prefs),
+  });
+  if (!res.ok) throw new Error("Failed to save preferences");
   return res.json();
 }
 

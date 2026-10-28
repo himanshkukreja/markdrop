@@ -1078,6 +1078,162 @@ async def get_document_stats(ctx: Context, args: dict) -> tuple[str, dict]:
     return summary + ".", out
 
 
+_RANGE_WORDS = {"7d": "the last 7 days", "30d": "the last 30 days", "90d": "the last 90 days", "all": "all time"}
+_PREV_WORDS = {"7d": "the 7 days before", "30d": "the 30 days before", "90d": "the 90 days before"}
+
+
+def _n(value: float) -> str:
+    return f"{value:,.0f}"
+
+
+def _change(now_v: float, prev_v: float | None) -> str | None:
+    if not prev_v:
+        return None
+    d = round(100 * (now_v - prev_v) / prev_v)
+    if d == 0:
+        return "about the same as"
+    return f"{'up' if d > 0 else 'down'} {abs(d)}% on"
+
+
+async def get_document_analytics(ctx: Context, args: dict) -> tuple[str, dict]:
+    """Creator analytics for one of the caller's documents, in the words the
+    dashboard uses (services/creator_analytics.py does the arithmetic)."""
+    from app.services import creator_analytics as ca
+    from app.services import insights as insight_rules
+    from app.services import md_outline
+
+    raw = await load_for(ctx, args["document"], "view_stats", "see analytics for")
+    rng = args.get("range") or "30d"
+    if rng not in ca.RANGES:
+        raise ToolError("range must be one of 7d, 30d, 90d or all.")
+    w = ca.window(rng)
+    db = ctx.db
+    ov = await ca.overview(db, raw, w, False)
+    kind = ov["doc"]["kind"]
+    titles = md_outline.doc_heading_titles(raw)
+    title = md_outline.display_title(raw)
+    kpis = [{"key": k["key"], "label": k["label"], "value": k["value"], "unit": k["unit"],
+             "prev": k.get("prev")} for k in ov["kpis"]]
+    by_key = {k["key"]: k for k in ov["kpis"]}
+    views, people = by_key["views"]["value"], by_key["people"]["value"]
+    out: dict[str, Any] = {
+        "slug": raw["slug"],
+        "title": title,
+        "kind": kind,
+        "range": rng,
+        "views": views,
+        "people": people,
+        "kpis": kpis,
+        "top_sources": [{"channel": s["channel"], "views": s["views"]} for s in ov["sources"][:5]],
+        "insights": [md_outline.plain_insight(i, titles) for i in ov["insights"][:4]],
+        "media": None,
+        "content": None,
+        "pages": None,
+    }
+
+    when = _RANGE_WORDS.get(rng, rng)
+    lines: list[str] = []
+    first = f"“{title}” had {_n(views)} view{'s' if views != 1 else ''} from {_n(people)} " \
+            f"{'person' if people == 1 else 'people'} in {when}"
+    ch = _change(views, by_key["views"].get("prev"))
+    lines.append(f"{first}, {ch} {_PREV_WORDS[rng]}." if ch else f"{first}.")
+    if not views:
+        lines.append("Nobody has opened it in that time, so there is nothing more to report yet.")
+    elif not ov["has_engagement"]:
+        lines.append("There is no reading or watching data for it yet, only views.")
+
+    if kind in ca.MEDIA_KINDS:
+        rep = await ca.media_report(db, raw, w, False, None)
+        dur, pts = rep["dur"] or 0, rep["retention"]
+        at: dict[str, float | None] = {}
+        if pts and dur:
+            at["0:30"] = ca.retention_at(pts, 30) if dur > 30 else None
+            for q in (25, 50, 75):
+                at[f"{q}%"] = ca.retention_at(pts, dur * q / 100)
+            at["end"] = pts[-1]["pct"]
+        drop = insight_rules.biggest_drop(pts, dur=dur) if pts and dur else None
+        q = rep["qoe"]
+        avg = by_key.get("avg_watched", {}).get("value")
+        out["media"] = {
+            "duration_s": dur or None,
+            "sessions": rep["sessions"],
+            "retention_at": at,
+            "biggest_drop": ({"t": drop["t"], "at": insight_rules.fmt_t(drop["t"]), "delta": drop["delta"]}
+                             if drop and drop["delta"] > 0 else None),
+            "avg_watched_pct": avg,
+            "qoe": {"startup_p50_ms": q["startup_p50_ms"], "stalled_pct": q["stalled_pct"],
+                    "failed_pct": q["failed_pct"]},
+        }
+        noun, verb = ("listeners", "listened to") if kind == "audio" else ("viewers", "watched")
+        if avg is not None and rep["sessions"]:
+            s = f"On average {noun} {verb} {avg:.0f}% of it"
+            if at.get("0:30") is not None:
+                s += f", and {at['0:30']:.0f}% were still {'listening' if kind == 'audio' else 'watching'} at 0:30"
+            lines.append(s + ".")
+        if out["media"]["biggest_drop"]:
+            d = out["media"]["biggest_drop"]
+            lines.append(f"Most {noun} leave at {d['at']}: {d['delta']:.0f}% stop within 10 seconds of it.")
+        if q["startup_p50_ms"] is not None:
+            lines.append(f"Playback starts in {q['startup_p50_ms'] / 1000:.1f} s (median); "
+                         f"{q['stalled_pct']:.0f}% of plays stalled and {q['failed_pct']:.0f}% failed.")
+    elif kind == "doc":
+        rep = await ca.content_report(db, raw, w, False)
+        blocks = md_outline.fenced_blocks(raw.get("content")) if titles else []
+        sections = [{"id": s["id"], "title": md_outline.section_title(s["id"], titles),
+                     "reached_pct": s["reached_pct"], "median_s": s["median_s"]}
+                    for s in rep["sections"][:15]]
+        out["content"] = {
+            "read_all_pct": rep["read_all_pct"],
+            "median_read_s": rep["median_active_s"],
+            "sections": sections,
+            "top_copies": [{"section": md_outline.section_title(c["section"], titles),
+                            "preview": md_outline.block_preview(blocks, c["hash"]), "n": c["n"]}
+                           for c in rep["copies"][:5]],
+            "top_links": [{"href": lk["href"], "section": md_outline.section_title(lk["section"], titles),
+                           "n": lk["n"]} for lk in rep["links"][:5]],
+        }
+        if rep["sessions"]:
+            lines.append(f"{rep['read_all_pct']:.0f}% of readers read to the end; the median read lasted "
+                         f"{ca.fmt_duration(rep['median_active_s'])}.")
+        worst = None
+        for a, b in zip(sections, sections[1:]):
+            d = a["reached_pct"] - b["reached_pct"]
+            if d > 0 and (worst is None or d > worst[0]):
+                worst = (d, a)
+        if worst and worst[0] >= 5:
+            lines.append(f"Readers drop off most after “{worst[1]['title']}”: {worst[0]:.0f}% of readers "
+                         "don't reach the next section.")
+        if out["content"]["top_links"]:
+            lk = out["content"]["top_links"][0]
+            lines.append(f"The most clicked link is {lk['href']} ({lk['n']} click{'s' if lk['n'] != 1 else ''}).")
+    elif kind == "pdf":
+        rep = await ca.pages_report(db, raw, w, False)
+        bd = rep.get("biggest_drop")
+        out["pages"] = {
+            "npages": rep["npages"] or None,
+            "reach": rep["reach"],
+            "biggest_drop": {"after_page": bd["after_page"], "delta": bd["pct"]} if bd else None,
+        }
+        reached = by_key.get("reached_end", {}).get("value")
+        if rep["sessions"] and rep["npages"]:
+            lines.append(f"{reached:.0f}% of readers reached the last page (of {rep['npages']}).")
+        if bd:
+            lines.append(f"The biggest drop comes after page {bd['after_page']}: {bd['pct']:.0f} points fewer "
+                         "readers go on.")
+
+    if out["top_sources"] and views:
+        top = out["top_sources"][0]
+        lines.append(f"Most views came from {top['channel']} ({_n(top['views'])}).")
+    # The kind-specific sentences above already say where people leave.
+    said = {"media_drop", "section_drop", "page_drop"}
+    for i, plain in zip(ov["insights"][:4], out["insights"]):
+        if len(lines) >= 6:
+            break
+        if i.get("key") not in said:
+            lines.append(f"{plain['title'].rstrip('.')}: {plain['body']}")
+    return " ".join(lines[:6]), out
+
+
 async def search(ctx: Context, args: dict) -> tuple[str, dict]:
     query = args["query"].replace("\x00", "").strip()[: doc_service.MAX_SEARCH_LEN]
     scope = args.get("scope") or "mine"
@@ -1922,6 +2078,71 @@ TOOLS: list[Tool] = [
         }),
         annotations=_ann(True, False, True),
         handler=get_document_stats,
+    ),
+    Tool(
+        name="get_document_analytics",
+        title="Document analytics",
+        description=("How one of the user's own documents or files is being read or watched: views, people, "
+                     "where they came from, and what the dashboard noticed. For a video or audio file: how "
+                     "many are still watching at 0:30 / 25% / 50% / 75% / the end, where most leave, and "
+                     "playback health. For a markdown document: how many read to the end, how far readers "
+                     "get section by section, and what they copy and click. For a PDF: how many reach each "
+                     "page. The owner's own views are never counted; workspace members' views are left out. "
+                     "The text result is a short summary you can quote."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF,
+            "range": {"type": "string", "enum": ["7d", "30d", "90d", "all"], "default": "30d",
+                      "description": "The period: the last 7, 30 or 90 days (compared with the period "
+                                     "before), or all time."},
+        }, "required": ["document"]},
+        output_schema=_out({
+            "slug": {"type": "string"},
+            "title": {"type": "string"},
+            "kind": {"type": "string", "enum": ["doc", "pdf", "video", "audio", "other"]},
+            "range": {"type": "string"},
+            "views": {"type": "integer"},
+            "people": {"type": "integer"},
+            "kpis": {"type": "array", "items": _out(
+                {"key": {"type": "string"}, "label": {"type": "string"}, "value": {"type": "number"},
+                 "unit": {"type": "string", "enum": ["count", "seconds", "percent", "hours"]},
+                 "prev": {"type": ["number", "null"]}}, ["key", "label", "value", "unit"])},
+            "top_sources": {"type": "array", "items": _out(
+                {"channel": {"type": "string"}, "views": {"type": "integer"}})},
+            "insights": {"type": "array", "items": _out({"title": {"type": "string"}, "body": {"type": "string"}})},
+            "media": {"type": ["object", "null"], "description": "Video and audio only.", "properties": {
+                "duration_s": {"type": ["number", "null"]},
+                "sessions": {"type": "integer"},
+                "retention_at": {"type": "object", "description": (
+                    "Percent of people who pressed play still watching at 0:30, 25%, 50%, 75% and the end."),
+                    "additionalProperties": {"type": ["number", "null"]}},
+                "biggest_drop": {"type": ["object", "null"], "properties": {
+                    "t": {"type": "number"}, "at": {"type": "string"}, "delta": {"type": "number"}}},
+                "avg_watched_pct": {"type": ["number", "null"]},
+                "qoe": {"type": "object", "properties": {
+                    "startup_p50_ms": {"type": ["number", "null"]}, "stalled_pct": {"type": "number"},
+                    "failed_pct": {"type": "number"}}},
+            }},
+            "content": {"type": ["object", "null"], "description": "Markdown documents only.", "properties": {
+                "read_all_pct": {"type": "number"},
+                "median_read_s": {"type": "number"},
+                "sections": {"type": "array", "items": _out(
+                    {"id": {"type": "string"}, "title": _NULLABLE_STR, "reached_pct": {"type": "number"},
+                     "median_s": {"type": "number"}})},
+                "top_copies": {"type": "array", "items": _out(
+                    {"section": _NULLABLE_STR, "preview": _NULLABLE_STR, "n": {"type": "integer"}})},
+                "top_links": {"type": "array", "items": _out(
+                    {"href": {"type": "string"}, "section": _NULLABLE_STR, "n": {"type": "integer"}})},
+            }},
+            "pages": {"type": ["object", "null"], "description": "PDFs only.", "properties": {
+                "npages": _NULLABLE_INT,
+                "reach": {"type": "array", "items": _out({"page": {"type": "integer"}, "pct": {"type": "number"}})},
+                "biggest_drop": {"type": ["object", "null"], "properties": {
+                    "after_page": {"type": "integer"}, "delta": {"type": "number"}}},
+            }},
+        }),
+        annotations=_ann(True, False, True),
+        handler=get_document_analytics,
     ),
     Tool(
         name="search",

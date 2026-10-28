@@ -1084,7 +1084,10 @@ def _home_sessions_kpis(sessions: list[dict]) -> tuple[float, float]:
     return watch, read_end
 
 
-async def home(db, user_id: str, w: Window, internal: bool) -> dict:
+async def home(db, user_id: str, w: Window, internal: bool, *,
+               per_doc_out: dict[str, list[dict]] | None = None) -> dict:
+    """The home board. ``per_doc_out``, when given, receives each top link's
+    own insights by slug (the weekly digest's notes reuse them)."""
     owned = await _owned(db, user_id)
     scope = {"owner_id": user_id}
     vm = views_match(scope, w.start, w.end, internal)
@@ -1153,6 +1156,8 @@ async def home(db, user_id: str, w: Window, internal: bool) -> dict:
     per_doc = []
     for doc_id, _v in top[:5]:
         per_doc.append(await doc_insights(db, owned[doc_id], w, internal))
+        if per_doc_out is not None:
+            per_doc_out[owned[doc_id]["slug"]] = per_doc[-1]
     return {
         "range": w.key,
         "kpis": kpis,

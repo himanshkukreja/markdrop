@@ -215,6 +215,14 @@ class Settings(BaseSettings):
     # hostname squatted it for every other workspace forever.
     domain_pending_ttl_days: int = 7
 
+    # Weekly analytics digest (services/analytics_digest.py): on Mondays from
+    # 03:30 UTC, one email per owner whose links were viewed last week. Off
+    # until the owner flips MARKDROP_ANALYTICS_DIGEST_ENABLED after a deploy;
+    # also needs background workers on. One worker sends (a Mongo lease); the
+    # others only wake every `analytics_digest_poll_seconds` to see if it's due.
+    analytics_digest_enabled: bool = False
+    analytics_digest_poll_seconds: int = 15 * 60
+
     # Shared secret between the frontend's server and this API
     # (MARKDROP_INTERNAL_SECRET; the frontend reads MARKDROP_INTERNAL_SECRET or
     # INTERNAL_API_SECRET). A server-side tenant render signs

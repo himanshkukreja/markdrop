@@ -11,6 +11,12 @@ class UserResponse(BaseModel):
     picture: str | None = None
     providers: list[str] = []
     created_at: datetime
+    # Weekly analytics email (Settings → Account).
+    analytics_digest: Literal["weekly", "off"] = "weekly"
+
+
+class PreferencesUpdate(BaseModel):
+    analytics_digest: Literal["weekly", "off"]
 
 
 class TokenResponse(BaseModel):

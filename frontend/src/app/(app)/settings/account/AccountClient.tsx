@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { UserAvatar } from "@/components/shell/AccountMenu";
 import { ThemeSegmented } from "@/components/theme/ThemeSegmented";
 import { useAuth } from "@/contexts/AuthContext";
-import { updateMyName } from "@/lib/api";
+import { updateMyName, updatePreferences } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
 import { useShortcutsEnabled } from "@/lib/shortcuts";
 import { useMounted } from "@/components/shell/useLocation";
@@ -27,6 +27,7 @@ export default function AccountClient() {
   const [nameError, setNameError] = useState("");
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [savingDigest, setSavingDigest] = useState(false);
 
   // Seed the field once the user is known (and again if another tab renames them).
   const current = user?.name ?? "";
@@ -52,6 +53,21 @@ export default function AccountClient() {
       toast.error("Couldn't save your name. Check your connection and try again.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function setDigest(on: boolean) {
+    if (!user) return;
+    const value = on ? "weekly" : "off";
+    setSavingDigest(true);
+    try {
+      const res = await updatePreferences({ analytics_digest: value });
+      updateUser({ ...user, analytics_digest: res.analytics_digest });
+      toast.info(on ? "Weekly analytics email on." : "Weekly analytics email off.");
+    } catch {
+      toast.error("Couldn't save that. Check your connection and try again.");
+    } finally {
+      setSavingDigest(false);
     }
   }
 
@@ -138,6 +154,17 @@ export default function AccountClient() {
             />
           </div>
         </div>
+      </Card>
+
+      <Card title="Email">
+        <SwitchRow
+          id="analytics-digest"
+          label="Weekly analytics email"
+          hint="On Mondays: last week's views, your top links and what's worth a look. Only sent when something was viewed."
+          checked={(user.analytics_digest ?? "weekly") !== "off"}
+          disabled={savingDigest}
+          onChange={setDigest}
+        />
       </Card>
 
       <Card title="Sign out" description="Ends your session in this browser. Your documents stay as they are.">

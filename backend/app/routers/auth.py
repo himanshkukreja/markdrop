@@ -255,6 +255,7 @@ def _to_user_response(user: User) -> UserResponse:
         picture=user.picture,
         providers=user.providers,
         created_at=user.created_at,
+        analytics_digest=user.analytics_digest,
     )
 
 

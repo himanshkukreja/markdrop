@@ -5,21 +5,29 @@ Per-document endpoints are the owner's only: ``access.require(..., "view_stats")
 404). The home and live boards cover the caller's own documents
 (``owner_id == user.id``). Computation lives in services/creator_analytics.py.
 
+Also the weekly digest's preference (``PATCH /preferences``) and its signed
+turn-off link (``GET``/``POST /digest/off?t=``), services/analytics_digest.py.
+
 Common query parameters: ``range=7d|30d|90d|all`` (default 30d) and
 ``internal=0|1`` (default 0: workspace members' views and sessions hidden).
 """
 
 from __future__ import annotations
 
+import html
+
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
-from app.routers.auth import require_user
-from app.services import access
+from app.routers.auth import is_tenant_request, require_user
+from app.schemas.auth import PreferencesUpdate
+from app.services import access, mailer
+from app.services import analytics_digest as digest
 from app.services import creator_analytics as ca
 
 router = APIRouter(prefix="/api/v1/me", tags=["creator-analytics"])
@@ -189,3 +197,81 @@ async def analytics_home_csv(
 ):
     body = await ca.home_csv(db, user.id, ca.window(range), bool(internal))
     return _csv(body, f"markdrop-analytics-{range}.csv")
+
+
+# ── Weekly digest preferences (build spec §6) ────────────────────────────────
+
+
+# No @limiter here: slowapi's wrapper would hide the body model from FastAPI
+# (string annotations resolve in the wrapper's module). Signed-in only anyway.
+@router.patch("/preferences")
+async def update_preferences(
+    request: Request,
+    data: PreferencesUpdate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Account preferences: ``analytics_digest`` "weekly" | "off"."""
+    if is_tenant_request(request):
+        # A workspace domain's session reads documents; it doesn't change the account.
+        raise HTTPException(status_code=403, detail="Change this on markdrop.in.")
+    await digest.set_preference(db, user.id, data.analytics_digest)
+    return {"analytics_digest": data.analytics_digest}
+
+
+_DIGEST_HEADERS = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+                   "X-Robots-Tag": "noindex, nofollow"}
+
+
+def _digest_page(heading: str, body: str, *, status: int = 200, form: str = "") -> HTMLResponse:
+    content = (mailer._eyebrow("Email preferences") + mailer._heading(heading)
+               + mailer._p(body) + form
+               + mailer._p(mailer._link(mailer._base(), "Go to Markdrop"), margin="0 0 20px"))
+    footer = f"Markdrop &middot; {mailer._footer_link(mailer._base(), 'markdrop.in')}"
+    return HTMLResponse(mailer._shell(title=heading, content=content, footer=footer, page=True),
+                        status_code=status, headers=_DIGEST_HEADERS)
+
+
+async def _digest_user(db: AsyncIOMotorDatabase, t: str) -> tuple[dict | None, int]:
+    user_id = digest.verify_off_token(t)
+    if not user_id or not ObjectId.is_valid(user_id):
+        return None, 400
+    row = await db["users"].find_one({"_id": ObjectId(user_id)}, {"email": 1, "analytics_digest": 1})
+    return (row, 200) if row else (None, 404)
+
+
+_BAD_LINK = "This link isn't valid. You can turn the weekly email off in Settings → Account."
+
+
+@router.get("/digest/off", response_class=HTMLResponse)
+@limiter.limit("60/minute")
+async def digest_off_page(request: Request, t: str = "", db: AsyncIOMotorDatabase = Depends(get_db)):
+    """The "Turn off weekly emails" link. It asks before acting: mail scanners
+    open every link in an email, and a GET that acted would turn the email off
+    for people who never clicked. The button (and one-click) POSTs."""
+    row, status = await _digest_user(db, t)
+    if row is None:
+        return _digest_page("This link can't be used", _BAD_LINK, status=status)
+    if row.get("analytics_digest") == "off":
+        return _digest_page("Weekly emails are off", "You won't get the weekly analytics email. "
+                            "Turn it back on any time in Settings → Account.")
+    form = ('<form method="post" style="margin:4px 0 24px"><button type="submit" style="display:inline-block;'
+            f"padding:12px 24px;font-family:{mailer._SANS};font-size:14px;line-height:20px;font-weight:600;"
+            f'color:#ffffff;background-color:{mailer._ACCENT};border:0;border-radius:8px;cursor:pointer">'
+            "Turn off weekly emails</button></form>")
+    return _digest_page("Turn off the weekly analytics email?",
+                        f"{mailer._strong(html.escape(row.get('email') or 'This address'))} will stop getting "
+                        "the Monday summary of views and reading. Other Markdrop email is unaffected.",
+                        form=form)
+
+
+@router.post("/digest/off", response_class=HTMLResponse)
+@limiter.limit("60/minute")
+async def digest_off(request: Request, t: str = "", db: AsyncIOMotorDatabase = Depends(get_db)):
+    """The page's button, and RFC 8058 one-click from List-Unsubscribe-Post."""
+    row, status = await _digest_user(db, t)
+    if row is None:
+        return _digest_page("This link can't be used", _BAD_LINK, status=status)
+    await digest.set_preference(db, str(row["_id"]), "off")
+    return _digest_page("Weekly emails are off", "You won't get the weekly analytics email any more. "
+                        "Turn it back on any time in Settings → Account.")
