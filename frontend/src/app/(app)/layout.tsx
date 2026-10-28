@@ -11,7 +11,7 @@ import FeedbackWidget from "@/components/FeedbackWidget";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <SiteHeader width="full" />
+      <SiteHeader width="full" search />
       <AppShell>{children}</AppShell>
       <FeedbackWidget launcher={false} />
     </>

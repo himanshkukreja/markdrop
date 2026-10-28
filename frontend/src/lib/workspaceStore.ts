@@ -51,6 +51,11 @@ export function loadTree(id: string): Promise<void> {
   return p;
 }
 
+/** The last loaded tree for `id`, without subscribing (event handlers, e.g. a drop on the rail). */
+export function peekTree(id: string): WorkspaceTree | null {
+  return entries.get(id)?.tree ?? null;
+}
+
 function subscribe(cb: () => void) {
   listeners.add(cb);
   return () => listeners.delete(cb);

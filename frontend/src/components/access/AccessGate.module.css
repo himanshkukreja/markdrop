@@ -75,6 +75,15 @@
   color: var(--warning);
 }
 
+/* Request access (RequestAccess board): a neutral lock, not a warning. */
+.glyphQuiet {
+  width: 52px;
+  height: 52px;
+  border-color: transparent;
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+}
+
 .form {
   display: flex;
   width: 100%;

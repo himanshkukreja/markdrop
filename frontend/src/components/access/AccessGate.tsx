@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Avatar, Button, Icon, Input } from "@/components/ui";
+import { useEffect, useId, useRef, useState } from "react";
+import { Alert, Avatar, Button, Icon, Input, Textarea } from "@/components/ui";
 import s from "./AccessGate.module.css";
 
 /**
@@ -73,10 +73,32 @@ export interface AccessGateProps {
   /** Controlled show/hide of the password (optional; uncontrolled otherwise). */
   visible?: boolean;
   onToggleVisible?: () => void;
+  /**
+   * Denied mode only: the server said this reader may ask the owner for access ("No dead ends").
+   * Without it (or with `canRequest` false) the gate keeps its plain "ask the owner" copy, so a
+   * backend that doesn't offer requests never shows a button that would be refused.
+   */
+  request?: { slug: string; canRequest: boolean; pending: boolean; ownerFirstName: string | null; requestUrl?: string } | null;
   className?: string;
 }
 
-export default function AccessGate({
+export default function AccessGate(props: AccessGateProps) {
+  const { mode, request } = props;
+  if (mode === "denied" && request?.canRequest) {
+    return (
+      <RequestAccessGate
+        request={request}
+        email={props.email}
+        signInHref={props.signInHref}
+        headingLevel={props.headingLevel ?? 2}
+        className={props.className}
+      />
+    );
+  }
+  return <StandardGate {...props} />;
+}
+
+function StandardGate({
   mode,
   signInHref,
   email,
@@ -201,6 +223,123 @@ export default function AccessGate({
               Sign in with another account
             </Button>
           </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * "No dead ends" (simpler UI, RequestAccess board): a signed-in reader the document isn't shared
+ * with can ask its owner, with an optional note. The owner gets an email and decides; nothing is
+ * opened here. Offered only when the server said so on the denied read (`can_request_access`).
+ */
+function RequestAccessGate({
+  request, email, signInHref, headingLevel, className,
+}: {
+  request: NonNullable<AccessGateProps["request"]>;
+  email?: string | null;
+  signInHref: string;
+  headingLevel: 1 | 2;
+  className?: string;
+}) {
+  const [message, setMessage] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "pending">(request.pending ? "pending" : "idle");
+  const [error, setError] = useState("");
+  const statusRef = useRef<HTMLParagraphElement>(null);
+  const msgId = useId();
+  const H = headingLevel === 1 ? "h1" : "h2";
+  const owner = request.ownerFirstName;
+  const decides = `You'll get an email when ${owner ?? "the owner"} decides.`;
+
+  useEffect(() => {
+    if (state === "sent") statusRef.current?.focus();
+  }, [state]);
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    if (state === "sending") return;
+    setState("sending");
+    setError("");
+    try {
+      // Loaded on demand: the authenticated API module isn't part of a public page's first load.
+      const { requestAccess } = await import("@/lib/me");
+      await requestAccess(request.slug, message);
+      setState("sent");
+    } catch (err) {
+      const status = (err as { status?: number }).status ?? 0;
+      if (status === 409) { setState("pending"); return; }
+      setState("idle");
+      setError(
+        status === 429 ? "You've asked for a lot of things in the last hour. Try again later."
+          : status === 403 ? "This one is opened with a password, not by asking. Get the password from whoever shared it."
+            : status === 401 || status === 404 ? "This can't be requested from here. Open the link on markdrop.in, signed in, to ask for access."
+            : err instanceof Error && err.message ? err.message : "Couldn't send the request. Try again.",
+      );
+    }
+  }
+
+  const done = state === "sent" || state === "pending";
+
+  return (
+    <section aria-labelledby="md-gate-title" className={[s.gate, s.enter, className].filter(Boolean).join(" ")}>
+      <div className={s.ghost} aria-hidden>
+        {[40, 100, 83, 75, 100, 83, 60, 100, 90].map((w, i) => (
+          <span key={i} style={{ width: `${w}%` }} />
+        ))}
+      </div>
+      <div className={s.panel}>
+        <span className={[s.glyph, s.glyphQuiet].join(" ")} aria-hidden>
+          <Icon name={done ? "send" : "lock"} />
+        </span>
+        <div className="flex flex-col gap-1.5">
+          <H id="md-gate-title" className="text-h2 text-text">{done ? "Request sent" : "You don't have access yet"}</H>
+          {!done && (
+            <p className="text-body text-text-secondary">
+              {email ? <>You&apos;re signed in as <strong className="font-semibold text-text">{email}</strong>. </> : null}
+              Ask the owner and you&apos;ll get an email when they let you in.
+            </p>
+          )}
+          {done && (
+            <p ref={statusRef} tabIndex={-1} role="status" className="text-body text-text-secondary outline-none">
+              {state === "pending" ? `You've already asked for this. ${decides}` : `Request sent. ${decides}`}
+            </p>
+          )}
+        </div>
+
+        {!done && request.requestUrl && (
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button href={request.requestUrl} variant="primary" iconLeft="arrowRight">Request access</Button>
+            <Button href={signInHref} variant="ghost">Switch account</Button>
+          </div>
+        )}
+
+        {!done && !request.requestUrl && (
+          <form className="flex w-full flex-col gap-4 text-left" onSubmit={send}>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={msgId} className="text-body-strong text-text">
+                Message <span className="font-normal text-text-muted">(optional)</span>
+              </label>
+              <Textarea
+                id={msgId}
+                rows={2}
+                maxLength={500}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder={owner ? `Hi ${owner}, I need this for Thursday's review.` : "Hi, I need this for Thursday's review."}
+                className="resize-none"
+              />
+            </div>
+            {error && <Alert tone="danger">{error}</Alert>}
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button type="submit" variant="primary" iconLeft="arrowRight" loading={state === "sending"}>Request access</Button>
+              <Button href={signInHref} variant="ghost">Switch account</Button>
+            </div>
+          </form>
+        )}
+
+        {done && (
+          <Button href={signInHref} variant="ghost">Switch account</Button>
         )}
       </div>
     </section>

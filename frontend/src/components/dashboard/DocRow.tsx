@@ -42,17 +42,20 @@ export function statusHeader(rest: RowStatus[]): MenuEntry[] {
 
 type Access = { label: string; icon: string; aria: string };
 
-/** Access as words + icon, never colour alone. */
-export function accessOf(d: MyDocListItem): Access {
+/** Access as words + icon, never colour alone (the simpler UI's three presets). `team` is the
+ *  workspace's short name ("Acme") for "Acme team". */
+export function accessOf(d: MyDocListItem, team?: string | null): Access {
   const n = d.shared_with_count ?? 0;
+  const more = n > 0 ? ` +${n}` : "";
+  const andPeople = n > 0 ? `, and ${plural(n, "person", "people")}` : "";
   if (d.access_level === "private") {
-    if (n > 0) return { label: `+${n} ${n === 1 ? "person" : "people"}`, icon: "users", aria: `Private, shared with ${plural(n, "person", "people")}` };
-    return { label: "Private", icon: "lock", aria: "Private" };
+    return { label: n > 0 ? `Only people added (${n})` : "Only people added", icon: "lock", aria: `Only people added${n > 0 ? `: ${plural(n, "person", "people")}` : ""}` };
   }
   if (d.access_level === "workspace") {
-    return { label: n > 0 ? `Workspace +${n}` : "Workspace", icon: "users", aria: n > 0 ? `Everyone in the workspace, and ${plural(n, "person", "people")}` : "Everyone in the workspace" };
+    const words = team ? `${team} team` : "Workspace team";
+    return { label: `${words}${more}`, icon: "user", aria: `${words}${andPeople}` };
   }
-  return { label: n > 0 ? `Anyone with link +${n}` : "Anyone with link", icon: "link", aria: "Anyone with the link" };
+  return { label: `Anyone with the link${more}`, icon: "globe", aria: `Anyone with the link${andPeople}` };
 }
 
 const ARTIFACT_RENDERERS = new Set<FileRenderer>(["pdf", "sheet", "docx", "text", "video", "html", "image", "zip"]);
@@ -100,6 +103,8 @@ export interface DocRowProps {
   rowRef?: (el: HTMLLIElement | null) => void;
   /** Extra props for the row element (drag listeners, data attributes). */
   rowProps?: React.HTMLAttributes<HTMLLIElement>;
+  /** The workspace's short name, for "{Team} team". */
+  team?: string | null;
   className?: string;
 }
 
@@ -110,10 +115,10 @@ export interface DocRowProps {
  */
 export function DocRow({
   doc: d, title, href, external, address, extraMeta, statuses, onAccess, copy, menu, phone, riseDelay, menuLabel,
-  leading, chip, rowRef, rowProps, className,
+  leading, chip, rowRef, rowProps, team, className,
 }: DocRowProps) {
   const shown = statuses.slice(0, 2);
-  const access = accessOf(d);
+  const access = accessOf(d, team);
   const views = plural(d.views ?? 0, "view");
   const updated = relativeTime(d.updated_at || d.created_at);
   const style: CSSProperties | undefined = riseDelay != null ? { animationDelay: `${riseDelay}ms` } : undefined;

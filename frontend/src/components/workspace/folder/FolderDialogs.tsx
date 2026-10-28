@@ -475,8 +475,8 @@ export function AddExistingDialog({
             value={access}
             onChange={(v) => setAccess(v as "keep" | "workspace")}
             options={[
-              { value: "keep", label: "Keep as they are", description: "Each keeps its own setting. Private ones stay private, even here." },
-              { value: "workspace", label: `Everyone in ${workspace.name}`, description: "Members can open them; nobody outside the workspace can, link or not." },
+              { value: "keep", label: "Keep as they are", description: "Each keeps its own setting. “Only people added” stays that way, even here." },
+              { value: "workspace", label: `${workspace.name} team`, description: `Anyone in ${workspace.name}, after signing in. Nobody else, link or not.` },
             ]}
           />
         </div>

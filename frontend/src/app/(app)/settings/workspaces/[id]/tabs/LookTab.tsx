@@ -11,10 +11,12 @@ import { BrandTile, wellOf, type BrandingWithWell, type LogoWell } from "@/compo
 import { accentTokens } from "@/components/tenant/branding";
 import { updateWorkspace, uploadBrandingAsset, type ViewerChrome } from "@/lib/workspaces";
 import { SwitchRow } from "../../../settings-shared";
-import { Locked, SectionHead, type WsTabProps } from "../ws-shared";
+import { Locked, type WsTabProps } from "../ws-shared";
+import DomainsCard from "./DomainsCard";
 import styles from "../workspace.module.css";
 
 interface Draft {
+  name: string;
   site_name: string;
   accent_color: string | null;
   hide_markdrop_branding: boolean;
@@ -22,8 +24,9 @@ interface Draft {
   viewer_chrome: ViewerChrome;
 }
 
-function draftOf(b: BrandingWithWell, chrome: ViewerChrome): Draft {
+function draftOf(name: string, b: BrandingWithWell, chrome: ViewerChrome): Draft {
   return {
+    name,
     site_name: b.site_name ?? "",
     accent_color: b.accent_color ?? null,
     hide_markdrop_branding: !!b.hide_markdrop_branding,
@@ -41,16 +44,18 @@ const WELL_OPTIONS: Array<{ value: "auto" | "light" | "dark" | "checker"; label:
 ];
 
 /**
- * Brand (REVAMP_PLAN 7.12): the form, a sticky preview, and a sticky save bar only while there are
- * unsaved changes. Uploads (favicon, logo) and their removal save at once and never count as
- * unsaved changes: the upload is stored the moment it lands, so it is written onto the workspace
+ * Look and domain (Settings board): the workspace's name and the site name its pages carry, its own
+ * domain(s), then logo, colours and favicon with a preview. A sticky save bar appears only while
+ * there are unsaved changes. Uploads (favicon, logo) and their removal save at once and never count
+ * as unsaved changes: the upload is stored the moment it lands, so it is written onto the workspace
  * straight away too (on top of the last saved branding, never the unsaved draft).
  */
-export default function BrandTab({ id, ws, isAdmin, host, setWs }: WsTabProps) {
+export default function LookTab(props: WsTabProps) {
+  const { id, ws, isAdmin, host, setWs } = props;
   const toast = useToast();
   const saved = ws.branding as BrandingWithWell;
   const hasWellField = "logo_well" in saved; // D38: tolerate an API without the field
-  const base = useMemo(() => draftOf(saved, ws.settings.viewer_chrome), [saved, ws.settings.viewer_chrome]);
+  const base = useMemo(() => draftOf(ws.name, saved, ws.settings.viewer_chrome), [ws.name, saved, ws.settings.viewer_chrome]);
   const [draft, setDraft] = useState<Draft>(base);
   const [saving, setSaving] = useState(false);
   const [ground, setGround] = useState<"light" | "dark">("light");
@@ -72,7 +77,9 @@ export default function BrandTab({ id, ws, isAdmin, host, setWs }: WsTabProps) {
     });
   }, [base]);
 
+  const nameChanged = draft.name.trim() !== base.name.trim();
   const dirty =
+    nameChanged ||
     draft.site_name.trim() !== base.site_name.trim() ||
     (draft.accent_color || null) !== (base.accent_color || null) ||
     draft.hide_markdrop_branding !== base.hide_markdrop_branding ||
@@ -82,6 +89,7 @@ export default function BrandTab({ id, ws, isAdmin, host, setWs }: WsTabProps) {
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => !locked && setDraft((d) => ({ ...d, [k]: v }));
 
   async function save() {
+    if (!draft.name.trim()) { toast.error("Give the workspace a name."); return; }
     setSaving(true);
     try {
       const branding: BrandingWithWell = {
@@ -96,8 +104,8 @@ export default function BrandTab({ id, ws, isAdmin, host, setWs }: WsTabProps) {
         // Untouched legacy "minimal" stays as stored.
         viewer_chrome: draft.viewer_chrome === base.viewer_chrome ? ws.settings.viewer_chrome : draft.viewer_chrome,
       };
-      setWs(await updateWorkspace(id, { branding, settings }));
-      toast.success("Brand saved.");
+      setWs(await updateWorkspace(id, { ...(nameChanged ? { name: draft.name.trim() } : null), branding, settings }));
+      toast.success("Saved.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't save the brand. Try again.");
     } finally {
@@ -124,8 +132,30 @@ export default function BrandTab({ id, ws, isAdmin, host, setWs }: WsTabProps) {
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <SectionHead title="Brand" description="Applied to page titles, the favicon and link preview cards on your own verified domains. Anything left blank falls back to Markdrop's." />
+    <div className="flex min-w-0 flex-col gap-5">
+      <section aria-label="Names" className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4 rounded-xl border border-border bg-surface p-5">
+        <Field label="Workspace name">
+          <Input
+            value={draft.name}
+            maxLength={80}
+            readOnly={locked}
+            aria-disabled={locked || undefined}
+            onChange={(e) => set("name", e.target.value)}
+          />
+        </Field>
+        <Field label="Site name on your pages" hint="Shown in the header and link previews.">
+          <Input
+            placeholder={`e.g. ${ws.name}`}
+            maxLength={60}
+            value={draft.site_name}
+            readOnly={locked}
+            aria-disabled={locked || undefined}
+            onChange={(e) => set("site_name", e.target.value)}
+          />
+        </Field>
+      </section>
+
+      <DomainsCard {...props} />
 
       {/* Phones and narrow windows: the preview sits above the form, collapsed. */}
       <div className="xl:hidden">
@@ -139,21 +169,10 @@ export default function BrandTab({ id, ws, isAdmin, host, setWs }: WsTabProps) {
         </Disclosure>
       </div>
 
-      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="flex min-w-0 flex-col gap-6">
-          <Card title="Identity">
+      <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="flex min-w-0 flex-col gap-5">
+          <Card title="Logo, colours and favicon" description="On your own domains: page titles, the favicon and link preview cards. Anything left blank falls back to Markdrop's.">
             <div className="flex min-w-0 flex-col gap-5">
-              <Field label="Site name" hint={'Replaces "Markdrop" in titles and cards.'}>
-                <Input
-                  placeholder={`e.g. ${ws.name}`}
-                  maxLength={60}
-                  value={draft.site_name}
-                  readOnly={locked}
-                  aria-disabled={locked || undefined}
-                  onChange={(e) => set("site_name", e.target.value)}
-                />
-              </Field>
-
               <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 <AssetUpload
                   label="Favicon"

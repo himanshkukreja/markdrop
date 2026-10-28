@@ -1,0 +1,117 @@
+/* ⌘K quick search (CommandK board): a DS Dialog without its title bar, near the top. */
+.palette {
+  align-self: start;
+  margin-top: min(10vh, 96px);
+  max-width: 640px;
+  background: var(--surface-raised);
+  overflow: hidden;
+}
+
+.palette :global(.md-dialog__head) {
+  display: none;
+}
+
+.palette :global(.md-dialog__body) {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.list {
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  overflow-y: auto;
+  max-height: min(56vh, 420px);
+}
+
+.group {
+  margin: 8px 10px 4px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 9px 10px;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.option[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+
+.icon {
+  display: flex;
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.option[aria-selected="true"] .icon {
+  color: var(--accent-text);
+}
+
+.where {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 639px) {
+  .palette {
+    margin-top: 8px;
+  }
+  .foot .hideSm {
+    display: none;
+  }
+}

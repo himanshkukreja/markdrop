@@ -4,14 +4,16 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 import { Anchor, Icon, cx } from "@/components/ui";
 import VSCodeIcon from "@/components/VSCodeIcon";
 import { TreeView, type TreeNode } from "@/components/workspace/FolderTree";
+import { useUploads } from "@/components/workspace/uploads/UploadProvider";
 import { can, type TreeFolder, type Workspace } from "@/lib/workspaces";
 import { childrenMap, descendants, useWorkspaceTrees, type TreeSlot } from "@/lib/workspaceStore";
 
 /** What the rail shows. Every field may be missing: the rail omits what failed to load. */
 export interface RailData {
-  counts?: { all?: number; documents?: number; artifacts?: number };
   workspaces?: Workspace[];
   tokens?: number;
+  /** Shared with me: granted in the last 7 days and not opened yet. */
+  sharedNew?: number;
 }
 
 /** Rail keys for a workspace's tree nodes (also the tree's expand keys). */
@@ -20,8 +22,8 @@ export const wsFolderKey = (id: string, folderId: string) => `ws:${id}:folder:${
 export const wsSettingsKey = (id: string) => `ws:${id}:settings`;
 
 /**
- * Which rail item the URL points at. Keys: "docs:all" | "docs:document" | "docs:artifact" |
- * "ws:<id>:root" | "ws:<id>:folder:<fid>" | "ws:<id>:settings" | "ws:new" | "int:vscode" | "int:apps" | "settings".
+ * Which rail item the URL points at. Keys: "files" | "shared" | "recent" | "ws:<id>:root" |
+ * "ws:<id>:folder:<fid>" | "ws:<id>:settings" | "ws:new" | "int:vscode" | "int:apps" | "settings".
  */
 export function railKeyFor(pathname: string, search: string): string | null {
   const q = new URLSearchParams(search);
@@ -36,13 +38,12 @@ export function railKeyFor(pathname: string, search: string): string | null {
       const folder = q.get("folder");
       return folder && folder !== "unfiled" ? wsFolderKey(ws, folder) : wsRootKey(ws);
     }
-    const kind = q.get("kind");
-    if (kind === "document" || kind === "markdown") return "docs:document";
-    if (kind === "artifact") return "docs:artifact";
-    return "docs:all";
+    return "files";
   }
+  if (pathname === "/shared" || pathname.startsWith("/requests")) return "shared";
+  if (pathname === "/recent") return "recent";
   const m = pathname.match(/^\/settings\/workspaces\/([^/]+)/);
-  if (m) return `ws:${m[1]}:settings`;
+  if (m) return wsSettingsKey(decodeURIComponent(m[1]!));
   if (pathname === "/settings/workspaces") return "ws:new";
   if (pathname.startsWith("/settings/tokens")) return "int:vscode";
   if (pathname.startsWith("/settings/connections")) return "int:apps";
@@ -104,34 +105,29 @@ function useActivePill(container: React.RefObject<HTMLElement | null>, pill: Rea
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-function Count({ n }: { n: number | undefined }) {
-  if (n === undefined) return null;
-  return (
-    <span className="ml-auto shrink-0 rounded-full bg-surface-active px-1.5 text-micro tabular-nums text-text-secondary">
-      {n}
-    </span>
-  );
-}
-
 const ITEM =
   "md-focus relative flex min-h-9 min-w-0 items-center gap-2.5 rounded-lg px-2.5 text-body text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text max-lg:min-h-11";
-const ACTIVE = "font-medium text-accent-text hover:bg-transparent hover:text-accent-text";
+const ACTIVE = "font-semibold text-accent-text hover:bg-transparent hover:text-accent-text";
 
-function RailLink({ k, href, active, onNavigate, children, style }: { k: string; href: string; active: string | null; onNavigate?: () => void; children: React.ReactNode; style?: React.CSSProperties }) {
+function RailLink({ k, href, active, onNavigate, children, style, className }: { k: string; href: string; active: string | null; onNavigate?: () => void; children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
   const on = active === k;
   return (
-    <Anchor href={href} data-rail-key={k} aria-current={on ? "page" : undefined} className={cx(ITEM, on && ACTIVE)} onClick={onNavigate} style={style}>
+    <Anchor href={href} data-rail-key={k} aria-current={on ? "page" : undefined} className={cx(ITEM, on && ACTIVE, className)} onClick={onNavigate} style={style}>
       {children}
     </Anchor>
   );
 }
 
-/** The 16px workspace tile: the logo on a logo well, or neutral initials. */
-export function WorkspaceTile({ ws }: { ws: Pick<Workspace, "name" | "branding"> }) {
+/**
+ * The workspace's letter tile (Main board: 18px, rounded 5px): the logo on a logo well, else the
+ * initial; the workspace you're in shows it on the accent.
+ */
+export function WorkspaceTile({ ws, active, size = 18 }: { ws: Pick<Workspace, "name" | "branding">; active?: boolean; size?: number }) {
   const logo = ws.branding?.logo_url;
+  const box = { width: size, height: size, borderRadius: Math.max(4, Math.round(size * 0.28)) };
   if (logo) {
     return (
-      <span className="grid size-4 shrink-0 place-items-center overflow-hidden rounded-xs" style={{ background: "var(--logo-well-light)" }} aria-hidden>
+      <span className="grid shrink-0 place-items-center overflow-hidden" style={{ ...box, background: "var(--logo-well-light)" }} aria-hidden>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={logo} alt="" className="size-full object-contain" />
       </span>
@@ -139,25 +135,29 @@ export function WorkspaceTile({ ws }: { ws: Pick<Workspace, "name" | "branding">
   }
   const initial = (ws.branding?.site_name || ws.name || "?").trim().charAt(0).toUpperCase();
   return (
-    <span className="grid size-4 shrink-0 place-items-center rounded-xs bg-surface-active text-micro leading-none font-bold text-text-secondary" aria-hidden>
+    <span
+      className={cx("grid shrink-0 place-items-center font-bold leading-none", active ? "bg-accent text-on-accent" : "bg-surface-active text-text")}
+      style={{ ...box, fontSize: Math.max(10, Math.round(size * 0.6)) }}
+      aria-hidden
+    >
       {initial}
     </span>
   );
 }
 
-/** The workspace's tree as rail nodes: the workspace (its root folder view), its folders by depth
- *  with total counts, then Settings. Drop targets and (for admins) draggable folders. */
-function workspaceNode(ws: Workspace, slot: TreeSlot): TreeNode {
+/** The workspace's tree as rail nodes: the workspace (its root folder view), then its folders by
+ *  depth with total counts. Drop targets for rows and folders (dnd-kit) and for files (uploads). */
+function workspaceNode(
+  ws: Workspace,
+  slot: TreeSlot,
+  active: boolean,
+  onFiles: ((wsId: string, folderId: string | null, label: string, files: File[]) => void) | null,
+): TreeNode {
   const tree = slot || null;
   const admin = can(tree?.workspace.role ?? ws.role, "admin");
   const member = can(tree?.workspace.role ?? ws.role, "member");
-  const settings: TreeNode = {
-    key: wsSettingsKey(ws.id),
-    label: "Settings",
-    icon: <Icon name="settings" size={16} />,
-    href: `/settings/workspaces/${encodeURIComponent(ws.id)}`,
-    leaf: true,
-  };
+  const filesTo = (folderId: string | null, label: string) =>
+    member && onFiles ? (files: File[]) => onFiles(ws.id, folderId, label, files) : undefined;
   let children: TreeNode[] | undefined;
   let total: number | undefined;
   if (tree) {
@@ -172,7 +172,7 @@ function workspaceNode(ws: Workspace, slot: TreeSlot): TreeNode {
         href: `/w/${encodeURIComponent(ws.id)}/f/${encodeURIComponent(f.id)}`,
         children: sub.length ? sub.map(build) : undefined,
         marker: f.share ? (
-          <span className="inline-flex shrink-0 text-text-muted" title={f.share.level === "link" ? "Shared by link" : "Shared with the workspace"}>
+          <span className="inline-flex shrink-0 text-text-muted" title={f.share.level === "link" ? "Shared by link" : "Shared with the team"}>
             <Icon name="link" size={12} />
             <span className="md-visually-hidden">, shared</span>
           </span>
@@ -181,23 +181,26 @@ function workspaceNode(ws: Workspace, slot: TreeSlot): TreeNode {
         drag: admin
           ? { type: "folder", workspaceId: ws.id, folderId: f.id, label: f.name, parentId: f.parent_id, blocked: [...descendants(tree.folders, f.id)] }
           : null,
+        onFiles: filesTo(f.id, f.name),
       };
     };
-    children = [...(kids.get(null) ?? []).map(build), settings];
+    children = (kids.get(null) ?? []).map(build);
+    if (!children.length) children = undefined;
     total = tree.unfiled_count + (kids.get(null) ?? []).reduce((n, f) => n + f.total_count, 0);
   }
   return {
     key: wsRootKey(ws.id),
     label: ws.name,
-    icon: <WorkspaceTile ws={ws} />,
+    icon: <WorkspaceTile ws={ws} active={active} />,
     count: total,
     href: `/w/${encodeURIComponent(ws.id)}`,
     children,
-    // Failed to load: no spinner forever, just Settings (the folder view explains the error).
+    // Not loaded yet: expandable, with a spinner when opened. Loaded and empty: a leaf. Failed: a leaf
+    // too (the folder view explains the error).
     lazy: slot === null,
-    ...(slot === false ? { children: [settings] } : {}),
-    className: "text-text",
+    className: "font-semibold text-text",
     drop: member ? { workspaceId: ws.id, folderId: null, label: `the top of ${ws.name}`, acceptsFolders: admin } : null,
+    onFiles: filesTo(null, ws.name),
   };
 }
 
@@ -215,10 +218,9 @@ export interface SideNavProps {
 }
 
 /**
- * The account rail (REVAMP_PLAN 4.3, Dashboard board): Your documents (All · Documents · Artifacts
- * with counts) · Workspaces (tile, name, chevron; expanded: Library, folders by depth, Settings;
- * "New workspace") · Integrations (VS Code, "N tokens"; Connected apps; Google Docs hidden per D7) · Settings ·
- * Send feedback. `nav aria-label="Account"`.
+ * The drive rail (simpler UI, Main board): My files · Shared with me ("N new") · Recent, then
+ * WORKSPACES (each workspace's tile, its folder tree with counts, "New workspace"), then the quieter
+ * account links at the bottom. `nav aria-label="Your drive"`. Files dropped on a folder upload there.
  */
 export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedback, footer, className }: SideNavProps) {
   const container = useRef<HTMLElement>(null);
@@ -226,15 +228,23 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
   const uid = useId();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  const uploads = useUploads();
+  const activeWs = workspaceOfKey(active);
 
   const openWs = useMemo(
     () => (data.workspaces ?? []).filter((w) => expanded.has(wsRootKey(w.id))).map((w) => w.id),
     [data.workspaces, expanded],
   );
   const trees = useWorkspaceTrees(openWs);
+  const onFiles = useMemo(
+    () => (uploads
+      ? (wsId: string, folderId: string | null, label: string, files: File[]) => uploads.upload(files, uploads.resolve(wsId, folderId, label))
+      : null),
+    [uploads],
+  );
   const nodes = useMemo(
-    () => (data.workspaces ?? []).map((ws) => workspaceNode(ws, trees[ws.id] ?? null)),
-    [data.workspaces, trees],
+    () => (data.workspaces ?? []).map((ws) => workspaceNode(ws, trees[ws.id] ?? null, ws.id === activeWs, onFiles)),
+    [data.workspaces, trees, activeWs, onFiles],
   );
 
   const layoutKey = [
@@ -242,30 +252,34 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
     data.workspaces?.length ?? -1,
     [...expanded].join(","),
     Object.entries(trees).map(([k, v]) => `${k}:${v ? v.folders.length : String(v)}`).join(","),
-    data.counts ? 1 : 0,
+    data.sharedNew ?? -1,
     data.tokens ?? -1,
   ].join("|");
   useActivePill(container, pill, active, layoutKey);
 
-  const counts = data.counts;
   const tokens = data.tokens;
+  const fresh = data.sharedNew ?? 0;
 
   return (
-    <nav ref={container} aria-label="Account" className={cx("relative flex min-h-full flex-col gap-6 px-3 py-5", className)}>
+    <nav ref={container} aria-label="Your drive" className={cx("relative flex min-h-full flex-col gap-5 px-3 py-4", className)}>
       <span ref={pill} aria-hidden className="pointer-events-none absolute rounded-lg bg-accent-soft opacity-0" />
 
-      <section aria-labelledby={`${uid}-docs`} className="flex flex-col gap-0.5">
-        <h2 id={`${uid}-docs`} className="text-eyebrow uppercase mb-1.5 px-2.5 text-text-muted">Your documents</h2>
-        <RailLink k="docs:all" href="/dashboard" active={active} onNavigate={onNavigate}>
-          <Icon name="list" size={16} /> <span className="truncate">All items</span> <Count n={counts?.all} />
+      <div className="flex flex-col gap-0.5">
+        <RailLink k="files" href="/dashboard" active={active} onNavigate={onNavigate}>
+          <Icon name="home" size={18} /> <span className="truncate">My files</span>
         </RailLink>
-        <RailLink k="docs:document" href="/dashboard?kind=document" active={active} onNavigate={onNavigate}>
-          <Icon name="lines" size={16} /> <span className="truncate">Documents</span> <Count n={counts?.documents} />
+        <RailLink k="shared" href="/shared" active={active} onNavigate={onNavigate}>
+          <Icon name="inbox" size={18} /> <span className="truncate">Shared with me</span>
+          {fresh > 0 && (
+            <span className="ml-auto shrink-0 rounded-full bg-accent-soft px-1.5 text-micro font-semibold text-accent-text">
+              {fresh} new
+            </span>
+          )}
         </RailLink>
-        <RailLink k="docs:artifact" href="/dashboard?kind=artifact" active={active} onNavigate={onNavigate}>
-          <Icon name="doc" size={16} /> <span className="truncate">Artifacts</span> <Count n={counts?.artifacts} />
+        <RailLink k="recent" href="/recent" active={active} onNavigate={onNavigate}>
+          <Icon name="clock" size={18} /> <span className="truncate">Recent</span>
         </RailLink>
-      </section>
+      </div>
 
       <section aria-labelledby={`${uid}-ws`} className="flex flex-col gap-0.5">
         <h2 id={`${uid}-ws`} className="text-eyebrow uppercase mb-1.5 px-2.5 text-text-muted">Workspaces</h2>
@@ -281,13 +295,12 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
             activeClassName={ACTIVE}
           />
         )}
-        <RailLink k="ws:new" href="/settings/workspaces" active={active} onNavigate={onNavigate}>
+        <RailLink k="ws:new" href="/settings/workspaces" active={active} onNavigate={onNavigate} className="text-text-muted">
           <Icon name="plus" size={16} /> <span className="truncate">New workspace</span>
         </RailLink>
       </section>
 
-      <section aria-labelledby={`${uid}-int`} className="flex flex-col gap-0.5">
-        <h2 id={`${uid}-int`} className="text-eyebrow uppercase mb-1.5 px-2.5 text-text-muted">Integrations</h2>
+      <div className="mt-auto flex flex-col gap-0.5 border-t border-border pt-3">
         <RailLink k="int:vscode" href="/settings/tokens" active={active} onNavigate={onNavigate}>
           <span className="inline-flex text-cat-sync"><VSCodeIcon size={16} className="size-4" /></span>
           <span className="truncate">VS Code</span>
@@ -298,9 +311,6 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
         <RailLink k="int:apps" href="/settings/connections" active={active} onNavigate={onNavigate}>
           <Icon name="sparkle" size={16} /> <span className="truncate">Connected apps</span>
         </RailLink>
-      </section>
-
-      <div className="mt-auto flex flex-col gap-0.5 border-t border-border pt-3">
         <RailLink k="settings" href="/settings/account" active={active} onNavigate={onNavigate}>
           <Icon name="settings" size={16} /> <span className="truncate">Settings</span>
         </RailLink>

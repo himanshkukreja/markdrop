@@ -38,6 +38,8 @@ export interface TreeNode {
   className?: string;
   /** Not part of the tree semantics' expandability: always a leaf. */
   leaf?: boolean;
+  /** nav: files dropped from the desktop onto this item (uploads into that folder). */
+  onFiles?: (files: File[]) => void;
 }
 
 interface Visible {
@@ -222,6 +224,28 @@ function TreeItem({
   const drop = useFolderDrop(node.key, mode === "nav" ? node.drop ?? null : null);
   const drag = useWorkspaceDraggable(`tree:${node.key}`, mode === "nav" ? node.drag ?? null : null);
   const loading = expandable && open && node.lazy && !node.children;
+  // Files from the desktop (native drag and drop, separate from dnd-kit's row moves).
+  const [fileOver, setFileOver] = useState(false);
+  const fileDrop = mode === "nav" && node.onFiles
+    ? {
+        onDragOver: (e: React.DragEvent) => {
+          if (!Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = "copy";
+          if (!fileOver) setFileOver(true);
+        },
+        onDragLeave: () => setFileOver(false),
+        onDrop: (e: React.DragEvent) => {
+          if (!Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setFileOver(false);
+          const files = Array.from(e.dataTransfer.files ?? []);
+          if (files.length) node.onFiles!(files);
+        },
+      }
+    : {};
 
   const indent = Math.min(level - 1, 6);
   const style: React.CSSProperties = { paddingLeft: `calc(0.375rem + ${indent} * clamp(8px, 2.6vw, 12px))` };
@@ -270,7 +294,7 @@ function TreeItem({
       itemClassName,
       node.className,
       (isCurrent || isSelected) && activeClassName,
-      drop.over && "!bg-accent-soft ring-2 ring-accent ring-inset",
+      (drop.over || fileOver) && "!bg-accent-soft ring-2 ring-accent ring-inset",
       drag.isDragging && "opacity-50",
       node.disabled && "cursor-not-allowed opacity-50",
     ),
@@ -293,6 +317,7 @@ function TreeItem({
           aria-current={isCurrent ? "page" : undefined}
           onClick={() => onNavigate?.()}
           {...(drag.listeners ?? {})}
+          {...fileDrop}
         >
           {body}
         </Anchor>

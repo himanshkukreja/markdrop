@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PublishWorkspace } from "@/components/kit/publish-utils";
 import { can, listFolders, listWorkspaces, type Folder, type Workspace } from "@/lib/workspaces";
+import { loadTree, peekTree, useWorkspaceTree } from "@/lib/workspaceStore";
 
 export interface PublishTargetValue {
   workspaceId: string | null;
@@ -49,6 +50,7 @@ export function useWorkspaceTargets(value: PublishTargetValue) {
 
   const workspace = workspaces?.find((w) => w.id === value.workspaceId) ?? null;
   const folder = folders.find((f) => f.id === value.folderId) ?? null;
+  const { tree } = useWorkspaceTree(value.workspaceId);
 
   // What PublishSettings takes: hosts, default access, and folders labelled by their names from
   // the root ("Guides › Onboarding"), depth-first, so two "Drafts" folders can be told apart.
@@ -61,8 +63,10 @@ export function useWorkspaceTargets(value: PublishTargetValue) {
       while (cur && guard++ < 16) { out.unshift(cur.name); cur = cur.parent_id ? byId.get(cur.parent_id) : undefined; }
       return out;
     };
+    // Each folder's "New items here start as" (from the shared tree, when loaded).
+    const effective = new Map((tree?.folders ?? []).map((f) => [f.id, f.effective_default_access ?? null]));
     const labelled = folders
-      .map((f) => ({ id: f.id, name: f.name, path: f.path, label: names(f).join(" › ") }))
+      .map((f) => ({ id: f.id, name: f.name, path: f.path, label: names(f).join(" › "), defaultAccess: effective.get(f.id) ?? null }))
       .sort((a, b) => a.label.localeCompare(b.label));
     return (workspaces ?? []).map((w) => ({
       id: w.id,
@@ -71,7 +75,7 @@ export function useWorkspaceTargets(value: PublishTargetValue) {
       defaultAccess: w.default_access ?? null,
       folders: w.id === value.workspaceId ? labelled : undefined,
     }));
-  }, [workspaces, folders, value.workspaceId]);
+  }, [workspaces, folders, value.workspaceId, tree]);
 
   return {
     workspaces: workspaces ?? [],
@@ -108,6 +112,12 @@ export function usePrefilledTarget(
     const w = workspaces.find((x) => x.id === wsId);
     if (!w) return;
     done.current = true;
-    applyRef.current({ workspaceId: w.id, folderId: folderId || null }, w.default_access ?? null);
+    const target = { workspaceId: w.id, folderId: folderId || null };
+    if (!folderId) { applyRef.current(target, w.default_access ?? null); return; }
+    // A folder may start new items differently ("New items here start as …"): use its effective default.
+    loadTree(w.id)
+      .then(() => peekTree(w.id)?.folders.find((f) => f.id === folderId)?.effective_default_access ?? w.default_access ?? null)
+      .catch(() => w.default_access ?? null)
+      .then((access) => applyRef.current(target, access));
   }, [ready, wsId, folderId, workspaces]);
 }

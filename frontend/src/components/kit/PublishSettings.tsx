@@ -156,9 +156,9 @@ export function PublishSettings(props: PublishSettingsProps) {
   const chipFor = (f: PublishField): { icon: string; label: string; value: React.ReactNode; valueText?: string; set: boolean; emphasis?: boolean; mono?: boolean } => {
     switch (f) {
       case "access": {
-        const words = value.access === "private" ? "Only me" : value.access === "workspace" ? `Everyone in ${ws?.name ?? "the workspace"}` : "Anyone with the link";
+        const words = value.access === "private" ? "Only people added" : value.access === "workspace" ? `${ws?.name ?? "Workspace"} team` : "Anyone with the link";
         return {
-          icon: value.access === "private" ? "lock" : value.access === "workspace" ? "users" : "globe", label: PANEL_TITLE.access,
+          icon: value.access === "private" ? "lock" : value.access === "workspace" ? "user" : "globe", label: PANEL_TITLE.access,
           value: <span className={s.chipTrunc}>{words}</span>, valueText: words, set: value.access !== "link",
         };
       }
@@ -284,17 +284,17 @@ function AccessPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean })
   }
   const showWorkspace = ctx.workspaces.length > 0 && ctx.signedIn;
   const options: Array<{ value: PublishAccess; label: string; description: string; reason?: string }> = [
-    { value: "link", label: "Anyone with the link", description: ACCESS_STATIC_TIP },
+    {
+      value: "private", label: "Only people added",
+      description: ws ? `Filed in ${ws.name}, but only you and the people you add can open it. Add people once it's published.` : "Only you and the people you add. Add people once it's published.",
+    },
     ...(showWorkspace ? [{
       value: "workspace" as PublishAccess,
-      label: ws ? `Everyone in ${ws.name}` : "Everyone in a workspace",
-      description: ws ? `Members of ${ws.name} sign in to open it. Nobody else can, link or not.` : "",
-      reason: ws ? undefined : "Choose a workspace under Location first.",
+      label: ws ? `${ws.name} team` : "A workspace team",
+      description: ws ? `Anyone in ${ws.name}, after signing in. Nobody else, link or not.` : "",
+      reason: ws ? undefined : "Add it to a workspace first.",
     }] : []),
-    {
-      value: "private", label: "Only me",
-      description: ws ? `Filed in ${ws.name}, but only you can open it. You can add people once it's published.` : "Nobody else can open it. You can add people once it's published.",
-    },
+    { value: "link", label: "Anyone with the link", description: ACCESS_STATIC_TIP },
   ];
   return (
     <div className={s.block}>
@@ -420,7 +420,7 @@ function TargetPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean })
   ];
   const folders = ws?.folders ?? [];
   const slug = value.slug.trim();
-  const accessWords = value.access === "private" ? "only you" : value.access === "workspace" ? `everyone in ${ws?.name ?? "the workspace"}` : "anyone with the link";
+  const accessWords = value.access === "private" ? "only people added" : value.access === "workspace" ? `the ${ws?.name ?? "workspace"} team` : "anyone with the link";
 
   function pickWorkspace(id: string | null) {
     const next = workspaces.find((w) => w.id === id) ?? null;
@@ -443,7 +443,13 @@ function TargetPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean })
         <Field label="Folder">
           <Select value={value.target.folderId ?? ""} disabled={disabled || !ws.folders}
             options={[{ value: "", label: "Top level" }, ...folders.map((f) => ({ value: f.id, label: f.label ?? (f.path?.length ? f.path.join(" / ") : f.name) }))]}
-            onChange={(e) => onChange({ ...value, target: { workspaceId: value.target.workspaceId, folderId: e.target.value || null } }, "target")} />
+            onChange={(e) => {
+              // A folder can start new items differently ("New items here start as …"): apply it.
+              const folderId = e.target.value || null;
+              const picked = folders.find((f) => f.id === folderId);
+              const access = (folderId ? picked?.defaultAccess : null) ?? ws.defaultAccess ?? value.access;
+              onChange({ ...value, access, target: { workspaceId: value.target.workspaceId, folderId } }, "target");
+            }} />
         </Field>
       )}
       <div className={s.preview}>

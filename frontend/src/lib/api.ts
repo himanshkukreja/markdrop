@@ -17,6 +17,17 @@ export class ApiError extends Error {
   }
 }
 
+/** Whether a reader the page refused may ask its owner for access (from
+ *  `GET /documents/{slug}/access-requests/mine`, never from the read itself). */
+export interface DeniedInfo {
+  canRequest: boolean;
+  pending: boolean;
+  /** The owner's first name, when the server chooses to say it. */
+  ownerFirstName: string | null;
+  /** Where to ask instead (a workspace's own domain can't send requests: its token is read-only). */
+  requestUrl?: string;
+}
+
 async function apiError(res: Response, fallback: string): Promise<ApiError> {
   const body = (await res.json().catch(() => null)) as { detail?: unknown; error?: unknown } | null;
   const message = typeof body?.detail === "string" ? body.detail : typeof body?.error === "string" ? body.error : fallback;
@@ -60,6 +71,8 @@ export interface DocumentCreateResponse {
   // Present when the creator owns the doc (e.g. logged-in create, or copy) —
   // needed to trigger the Google Docs export by internal id.
   id?: string | null;
+  /** Created, but filing it into the requested workspace/folder failed (why, in words). */
+  workspace_error?: string | null;
 }
 
 export interface DocumentResponse {
@@ -176,6 +189,8 @@ export interface ArtifactCreateResponse extends DocumentResponse {
   artifact_url: string;
   mime: string;
   renderer: ArtifactRenderer;
+  /** Created, but filing it into the requested workspace/folder failed (why, in words). */
+  workspace_error?: string | null;
 }
 
 interface ArtifactOptions {
@@ -185,15 +200,21 @@ interface ArtifactOptions {
   readPassword?: string;
   /** Who can open it. Ignored for an anonymous author. */
   accessLevel?: "private" | "link";
+  /** File it straight into a workspace (id) and folder (id or slug path) as it is created. With a
+   *  workspace and no `accessLevel`, the folder's "New items here start as" applies (server side). */
+  workspace?: string | null;
+  folder?: string | null;
 }
 
 function artifactBody(options?: ArtifactOptions) {
+  const inherit = !!options?.workspace && options.accessLevel === undefined;
   return {
     custom_slug: options?.customSlug?.trim() || null,
     expires_in: options?.expiresIn ?? "never",
     custom_expires_at: options?.customExpiresAt ?? null,
     read_password: options?.readPassword || null,
-    access_level: options?.accessLevel ?? "link",
+    ...(inherit ? {} : { access_level: options?.accessLevel ?? "link" }),
+    ...(options?.workspace ? { workspace: options.workspace, ...(options.folder ? { folder: options.folder } : {}) } : {}),
   };
 }
 
@@ -288,8 +309,13 @@ export async function createDocument(
     /** Who can open it. Ignored server-side for an anonymous author — there is
      *  nobody to be "only me" for. */
     accessLevel?: "private" | "link";
+    /** File it into a workspace (id) and folder (id or slug path) as it is created. With a
+     *  workspace and no `accessLevel`, the folder's "New items here start as" applies. */
+    workspace?: string | null;
+    folder?: string | null;
   }
 ): Promise<DocumentCreateResponse> {
+  const inherit = !!options?.workspace && options.accessLevel === undefined;
   const res = await fetch(`${API_BASE}/api/v1/documents`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -303,7 +329,8 @@ export async function createDocument(
       expires_in: options?.expiresIn ?? "never",
       custom_expires_at: options?.customExpiresAt ?? null,
       read_password: options?.readPassword ?? null,
-      access_level: options?.accessLevel ?? "link",
+      ...(inherit ? {} : { access_level: options?.accessLevel ?? "link" }),
+      ...(options?.workspace ? { workspace: options.workspace, ...(options.folder ? { folder: options.folder } : {}) } : {}),
     }),
   });
   if (!res.ok) {

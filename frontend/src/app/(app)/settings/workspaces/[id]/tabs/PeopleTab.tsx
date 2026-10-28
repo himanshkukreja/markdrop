@@ -2,36 +2,53 @@
 
 import { useMemo, useState } from "react";
 import {
-  Avatar, Badge, Button, ConfirmDialog, Dialog, Disclosure, Field, Input, RadioGroup, RowMenu, Select,
-  Skeleton, Table, useToast, type Column,
+  Avatar, Badge, Button, ConfirmDialog, Dialog, Field, Input, RadioGroup, RowMenu, Select, Skeleton, useToast,
 } from "@/components/ui";
+import { PresetCards } from "@/components/access/PresetCards";
+import { ROLE_HINT, ROLE_WORDS, teamName } from "@/components/workspace/folder/items";
 import {
-  inviteMember, removeMember, revokeInvitation, setMemberRole,
-  type Invitation, type Member, type Role,
+  inviteMember, removeMember, revokeInvitation, setMemberRole, updateWorkspace,
+  type Invitation, type ItemAccess, type Member, type Role,
 } from "@/lib/workspaces";
-import { relativeDays, shortDate } from "../../../settings-shared";
-import { Locked, ROLE_LABEL, ROLE_OPTIONS, SectionHead, lockProps, type WsTabProps } from "../ws-shared";
+import { relativeDays } from "../../../settings-shared";
+import { Locked, lockProps, type WsTabProps } from "../ws-shared";
 
 type InviteRole = Exclude<Role, "owner">;
-const ROLE_SELECT = ROLE_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
+type Privacy = "open" | "team" | "locked";
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function expiryBadge(iso: string) {
-  const days = Math.round((new Date(iso).getTime() - Date.now()) / 86_400_000);
-  const soon = days <= 1;
-  return (
-    <Badge size="sm" tone={soon ? "warning" : "neutral"} icon="clock">
-      {days < 0 ? "Expired" : days === 0 ? "Expires today" : days === 1 ? "Expires tomorrow" : `Expires in ${days} days`}
-    </Badge>
-  );
+const ROLE_SELECT = [
+  { value: "viewer", label: "Can view" },
+  { value: "member", label: "Can edit" },
+  { value: "admin", label: "Admin" },
+];
+
+const ROLE_CHOICES = [
+  { value: "viewer", label: "Can view", description: "Read what the workspace publishes." },
+  { value: "member", label: "Can edit", description: "Add and change files." },
+  { value: "admin", label: "Admin", description: "Also invite people and manage folders." },
+];
+
+/** The privacy preset the stored settings amount to, or null ("Custom") when they match none. */
+export function privacyOf(requireAuth: boolean, defaultAccess: ItemAccess): Privacy | null {
+  if (!requireAuth && defaultAccess === "link") return "open";
+  if (!requireAuth && defaultAccess === "workspace") return "team";
+  if (requireAuth && defaultAccess === "workspace") return "locked";
+  return null;
 }
 
+const PRESET: Record<Privacy, { require_auth_to_view: boolean; default_access: ItemAccess }> = {
+  open: { require_auth_to_view: false, default_access: "link" },
+  team: { require_auth_to_view: false, default_access: "workspace" },
+  locked: { require_auth_to_view: true, default_access: "workspace" },
+};
+
 /**
- * People (REVAMP_PLAN 7.12): invite dialog with role descriptions; members with a labelled role
- * Select and Remove (confirmed); pending invitations with Resend and Revoke (confirmed); history in
- * a Disclosure. Tables on wide screens, stacked rows on phones.
+ * People (Settings board): Privacy (Open · Team · Locked, mapped onto the existing settings; "Custom"
+ * when Advanced doesn't match one), then everyone in the workspace with a three-role select
+ * (Can view · Can edit · Admin; the owner is a badge), pending invitations, and Invite people.
  */
-export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, refresh }: WsTabProps) {
+export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, refresh, setWs }: WsTabProps) {
   const toast = useToast();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [email, setEmail] = useState("");
@@ -40,27 +57,44 @@ export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, ref
   const [busy, setBusy] = useState("");
   const [removing, setRemoving] = useState<Member | null>(null);
   const [revoking, setRevoking] = useState<Invitation | null>(null);
+  const team = teamName(ws);
+  const defaultAccess: ItemAccess = ws.settings.default_access ?? ws.default_access ?? "workspace";
+  // The server says which preset the settings amount to; older servers: work it out the same way.
+  const privacy = ws.privacy ? (ws.privacy === "custom" ? null : ws.privacy) : privacyOf(ws.settings.require_auth_to_view, defaultAccess);
 
   const pending = useMemo(() => (invites ?? []).filter((i) => i.status === "pending"), [invites]);
-  const resolved = useMemo(() => (invites ?? []).filter((i) => i.status !== "pending"), [invites]);
-  const historySummary = useMemo(() => {
-    const c: Record<string, number> = {};
-    resolved.forEach((i) => { c[i.status] = (c[i.status] ?? 0) + 1; });
-    return Object.entries(c).map(([k, n]) => `${n} ${k}`).join(" · ");
-  }, [resolved]);
+  const people = useMemo(() => {
+    const order: Record<string, number> = { owner: 0, admin: 1, member: 2, viewer: 3 };
+    return [...(members ?? [])].sort((a, b) =>
+      (a.user_id === ws.owner_id ? -1 : 0) - (b.user_id === ws.owner_id ? -1 : 0) || (order[a.role] ?? 9) - (order[b.role] ?? 9));
+  }, [members, ws.owner_id]);
+
+  async function choosePrivacy(p: Privacy) {
+    if (!isAdmin || p === privacy) return;
+    setBusy("privacy");
+    try {
+      setWs(await updateWorkspace(id, { settings: { ...ws.settings, ...PRESET[p] } }));
+      toast.success(p === "open" ? "Open: links work for anyone they're open to." : p === "team" ? "Team: new items are for the team." : "Locked: only members and people added by name.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "That didn't save. Try again.");
+    } finally {
+      setBusy("");
+    }
+  }
 
   async function sendInvite(e: React.FormEvent) {
     e.preventDefault();
-    const to = email.trim();
-    if (!EMAIL.test(to)) { setInviteError("Enter an email address like name@company.com."); return; }
+    const list = email.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+    const bad = list.find((x) => !EMAIL.test(x));
+    if (!list.length || bad) { setInviteError(`Enter an email address like name@company.com${bad ? ` (“${bad}” isn't one)` : ""}.`); return; }
     setBusy("invite");
     setInviteError("");
     try {
-      await inviteMember(id, to, role);
+      for (const to of list) await inviteMember(id, to, role);
       await refresh("people");
       setInviteOpen(false);
       setEmail("");
-      toast.success(`Invitation sent to ${to}.`);
+      toast.success(list.length === 1 ? `Invitation sent to ${list[0]}.` : `${list.length} invitations sent.`);
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : "Couldn't send the invitation. Try again.");
     } finally {
@@ -73,7 +107,7 @@ export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, ref
     try {
       await setMemberRole(id, m.user_id, next);
       await refresh("people");
-      toast.success(`${m.name || m.email} is now ${ROLE_LABEL[next].toLowerCase() === "admin" ? "an admin" : `a ${ROLE_LABEL[next].toLowerCase()}`}.`);
+      toast.success(`${m.name || m.email}: ${ROLE_WORDS[next]}.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't change the role. Try again.");
     } finally {
@@ -94,170 +128,123 @@ export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, ref
     }
   }
 
-  const who = (m: Member) => (
-    <span className="flex min-w-0 items-center gap-3">
-      <Avatar name={m.name || m.email || "?"} size="md" />
-      <span className="min-w-0">
-        <span className="block truncate text-body-strong text-text" dir="auto">
-          {m.name || m.email}
-          {m.user_id === meId && <span className="font-normal text-text-muted"> (you)</span>}
-        </span>
-        {m.name && <span className="block truncate text-caption text-text-muted">{m.email}</span>}
-      </span>
-    </span>
-  );
-
-  const roleCell = (m: Member) => {
-    const label = `Role for ${m.name || m.email}`;
-    if (m.user_id === ws.owner_id || m.role === "owner") return <Badge size="sm" tone="info" icon="user">Owner</Badge>;
-    if (!isAdmin || m.user_id === meId) return <Badge size="sm">{ROLE_LABEL[m.role] ?? m.role}</Badge>;
-    return (
-      <Select
-        aria-label={label}
-        value={m.role}
-        disabled={busy === `r${m.user_id}`}
-        options={ROLE_SELECT}
-        onChange={(e) => changeRole(m, e.target.value as InviteRole)}
-        className="min-w-[120px]"
-      />
-    );
-  };
-
-  const memberMenu = (m: Member) =>
-    isAdmin && m.user_id !== ws.owner_id && m.user_id !== meId ? (
-      <RowMenu portal align="right" label={`More actions for ${m.name || m.email}`}
-        items={[{ label: "Remove from workspace", icon: "userX", danger: true, onClick: () => setRemoving(m) }]} />
-    ) : null;
-
-  const memberCols: Column<Member>[] = [
-    { key: "member", header: "Member", render: who },
-    { key: "role", header: "Role", width: 150, render: roleCell },
-    { key: "joined", header: "Joined", width: 96, render: (m) => shortDate(m.created_at) },
-    { key: "menu", header: <span className="md-visually-hidden">Actions</span>, width: 56, align: "right", render: (m) => memberMenu(m) },
-  ];
-
-  const inviteActions = (i: Invitation) =>
-    isAdmin ? (
-      <span className="flex items-center justify-end gap-1">
-        <Button size="sm" variant="secondary" loading={busy === `ri${i.id}`} onClick={() => resend(i)} aria-label={`Resend invitation to ${i.email}`}>Resend</Button>
-        <Button size="sm" variant="ghost" className="text-danger" onClick={() => setRevoking(i)} aria-label={`Revoke invitation to ${i.email}`}>Revoke</Button>
-      </span>
-    ) : null;
-
-  const invitee = (i: Invitation) => (
-    <span className="flex min-w-0 items-center gap-3">
-      <Avatar name={i.email} size="md" neutral />
-      <span className="min-w-0">
-        <span className="block truncate text-body-strong text-text">{i.email}</span>
-        <span className="block truncate text-caption text-text-muted">
-          Invited{i.invited_by_name ? ` by ${i.invited_by_name}` : ""} on {shortDate(i.created_at)}
-        </span>
-      </span>
-    </span>
-  );
-
-  const pendingCols: Column<Invitation>[] = [
-    { key: "who", header: "Invitee", render: invitee },
-    { key: "role", header: "Role", width: 96, render: (i) => ROLE_LABEL[i.role] ?? i.role },
-    { key: "exp", header: "Expires", width: 150, render: (i) => expiryBadge(i.expires_at) },
-    { key: "act", header: <span className="md-visually-hidden">Actions</span>, width: 170, align: "right", render: inviteActions },
-  ];
-
-  const inviteButton = (
-    <Locked locked={!isAdmin}>
-      <Button variant="primary" iconLeft="userPlus" {...lockProps(!isAdmin)}
-        onClick={isAdmin ? () => { setInviteOpen(true); setInviteError(""); } : lockProps(true).onClick}>
-        Invite people
-      </Button>
-    </Locked>
-  );
-
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <SectionHead
-        title="People"
-        description="Roles decide who can publish here and who can change branding, domains and people."
-        actions={inviteButton}
-      />
+    <div className="flex min-w-0 flex-col gap-5">
+      <section aria-labelledby="ws-privacy-h" className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-surface p-5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h2 id="ws-privacy-h" className="text-h3 text-text">Privacy</h2>
+          {!privacy && <Badge size="sm" tone="info">Custom</Badge>}
+        </div>
+        <PresetCards<Privacy>
+          legend="Privacy"
+          legendHidden
+          name="ws-privacy"
+          layout="auto"
+          value={privacy}
+          onChange={(v) => void choosePrivacy(v)}
+          disabled={!isAdmin || busy === "privacy"}
+          busy={busy === "privacy"}
+          options={[
+            { value: "open", label: "Open", hint: "Links work for anyone. Each item still chooses who can open it." },
+            { value: "team", label: "Team", hint: "New items are for the team. Public links stay possible, one by one." },
+            { value: "locked", label: "Locked", hint: "Only members and people added by name. No public links." },
+          ]}
+        />
+        {!privacy && (
+          <p className="text-caption text-text-muted">
+            Custom: the switches in Advanced don&apos;t match a preset. Pick one to replace them.
+          </p>
+        )}
+        {!isAdmin && <p className="text-caption text-text-muted">Only admins change privacy.</p>}
+      </section>
 
-      <section aria-label="Members" className="min-w-0">
+      <section aria-labelledby="ws-people-h" className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-surface p-5">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <h2 id="ws-people-h" className="flex-1 text-h3 text-text">People</h2>
+          <Locked locked={!isAdmin}>
+            <Button variant="primary" iconLeft="plus" {...lockProps(!isAdmin)}
+              onClick={isAdmin ? () => { setInviteOpen(true); setInviteError(""); } : lockProps(true).onClick}>
+              Invite people
+            </Button>
+          </Locked>
+        </div>
+        <p className="text-caption text-text-muted">{ROLE_HINT}</p>
+
         {members === null ? (
-          <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading members">
+          <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading people">
             {[0, 1, 2].map((i) => <Skeleton key={i} variant="rect" height={52} />)}
           </div>
         ) : (
-          <>
-            <Table<Member> className="hidden sm:block" columns={memberCols} rows={members} rowKey={(m) => m.user_id} hover={false} caption="Members" />
-            <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-surface sm:hidden">
-              {members.map((m) => (
-                <li key={m.user_id} className="flex min-w-0 flex-col gap-2 px-4 py-3">
-                  <div className="flex min-w-0 items-start justify-between gap-2">
-                    {who(m)}
-                    {memberMenu(m)}
+          <ul className="m-0 flex list-none flex-col p-0">
+            {people.map((m) => {
+              const owner = m.user_id === ws.owner_id || m.role === "owner";
+              const editable = isAdmin && !owner && m.user_id !== meId;
+              return (
+                <li key={m.user_id} className="flex min-w-0 flex-wrap items-center gap-3 border-t border-border py-2.5">
+                  <Avatar name={m.name || m.email || "?"} size="md" />
+                  <div className="min-w-0 flex-[1_1_220px]">
+                    <div className="truncate text-body-strong text-text" dir="auto">
+                      {m.name || m.email}
+                      {m.user_id === meId && <span className="font-normal text-text-muted"> (you)</span>}
+                    </div>
+                    {m.name && <div className="truncate text-caption text-text-muted">{m.email}</div>}
                   </div>
-                  <div className="flex min-w-0 items-center justify-between gap-2 pl-11">
-                    {roleCell(m)}
-                    <span className="text-caption text-text-muted">Joined {shortDate(m.created_at)}</span>
-                  </div>
+                  {owner ? (
+                    <Badge tone="info">Owner</Badge>
+                  ) : editable ? (
+                    <Select
+                      aria-label={`Role for ${m.name || m.email}`}
+                      value={m.role}
+                      disabled={busy === `r${m.user_id}`}
+                      options={ROLE_SELECT}
+                      onChange={(e) => void changeRole(m, e.target.value as InviteRole)}
+                      className="w-[132px]"
+                    />
+                  ) : (
+                    <span className="text-[13px] text-text-secondary">{ROLE_WORDS[m.role] ?? m.role}</span>
+                  )}
+                  {editable && (
+                    <RowMenu portal align="right" label={`More actions for ${m.name || m.email}`}
+                      items={[{ label: "Remove from workspace", icon: "userX", danger: true, onClick: () => setRemoving(m) }]} />
+                  )}
                 </li>
-              ))}
-            </ul>
-          </>
+              );
+            })}
+            {pending.map((i) => (
+              <li key={i.id} className="flex min-w-0 flex-wrap items-center gap-3 border-t border-border py-2.5">
+                <Avatar name={i.email} size="md" neutral />
+                <div className="min-w-0 flex-[1_1_220px]">
+                  <div className="truncate text-body-strong text-text">{i.email}</div>
+                  <div className="flex flex-wrap items-center gap-x-1 text-caption text-text-muted">
+                    <span>Invite sent {relativeDays(i.created_at).toLowerCase()} · {ROLE_WORDS[i.role] ?? i.role}</span>
+                    {isAdmin && (
+                      <>
+                        <span aria-hidden>·</span>
+                        <button type="button" className="md-focus cursor-pointer rounded-sm bg-transparent p-0 font-semibold text-accent-text hover:underline disabled:opacity-60"
+                          disabled={busy === `ri${i.id}`} onClick={() => void resend(i)} aria-label={`Resend the invitation to ${i.email}`}>
+                          Resend
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <Badge tone="warning" icon="clock">Invited</Badge>
+                {isAdmin && (
+                  <RowMenu portal align="right" label={`More actions for ${i.email}`}
+                    items={[{ label: "Revoke invitation", icon: "x", danger: true, onClick: () => setRevoking(i) }]} />
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </section>
-
-      {pending.length > 0 && (
-        <section aria-labelledby="ws-pending" className="flex min-w-0 flex-col gap-3">
-          <div>
-            <h3 id="ws-pending" className="flex items-center gap-2 text-h4 text-text">
-              Pending invitations <Badge size="sm">{pending.length}</Badge>
-            </h3>
-            <p className="mt-0.5 text-body text-text-muted">They get an email with a link. Nothing changes until they accept it.</p>
-          </div>
-          <Table<Invitation> className="hidden sm:block" columns={pendingCols} rows={pending} rowKey={(i) => i.id} hover={false} caption="Pending invitations" />
-          <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-surface sm:hidden">
-            {pending.map((i) => (
-              <li key={i.id} className="flex min-w-0 flex-col gap-2 px-4 py-3">
-                {invitee(i)}
-                <div className="flex min-w-0 flex-wrap items-center gap-2 pl-11">
-                  {expiryBadge(i.expires_at)}
-                  <span className="text-caption text-text-muted">{ROLE_LABEL[i.role] ?? i.role}</span>
-                </div>
-                {isAdmin && <div className="pl-11">{inviteActions(i)}</div>}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {resolved.length > 0 && (
-        <Disclosure
-          summary={<span className="flex flex-wrap items-baseline gap-x-2">Invitation history <span className="text-caption font-normal text-text-muted">{historySummary}</span></span>}
-          className="rounded-xl border border-border bg-surface"
-          buttonClassName="w-full px-4 py-3 text-body-strong"
-          panelClassName="border-t border-border"
-        >
-          <ul className="flex flex-col divide-y divide-border">
-            {resolved.map((i) => (
-              <li key={i.id} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
-                <span className="min-w-0 flex-1 truncate text-body text-text-secondary">{i.email}</span>
-                <Badge size="sm" tone={i.status === "accepted" ? "success" : i.status === "declined" ? "danger" : "neutral"}
-                  icon={i.status === "accepted" ? "check" : i.status === "declined" ? "x" : i.status === "expired" ? "clock" : "minus"}>
-                  {i.status.charAt(0).toUpperCase() + i.status.slice(1)}
-                </Badge>
-                <span className="w-28 shrink-0 text-right text-caption text-text-muted">{i.responded_at ? relativeDays(i.responded_at) : ""}</span>
-              </li>
-            ))}
-          </ul>
-        </Disclosure>
-      )}
 
       <Dialog
         open={inviteOpen}
         onClose={() => busy !== "invite" && setInviteOpen(false)}
         dismissible={busy !== "invite"}
-        title="Invite people"
-        description="They get an email with a link. Nothing changes until they accept it."
+        title={`Invite people to ${ws.name}`}
+        description={`They get an email with a link, and can open everything the ${team} team can once they accept.`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setInviteOpen(false)} disabled={busy === "invite"}>Cancel</Button>
@@ -266,17 +253,17 @@ export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, ref
         }
       >
         <form id="invite-form" onSubmit={sendInvite} className="flex min-w-0 flex-col gap-5" noValidate>
-          <Field label="Email" error={inviteError || undefined}>
-            <Input type="email" value={email} onChange={(e) => { setEmail(e.target.value); if (inviteError) setInviteError(""); }} placeholder="name@company.com" autoComplete="email" />
+          <Field label="Email addresses" error={inviteError || undefined} hint="Separate several with commas.">
+            <Input type="text" inputMode="email" value={email} onChange={(e) => { setEmail(e.target.value); if (inviteError) setInviteError(""); }} placeholder="name@company.com, …" autoComplete="off" />
           </Field>
           <div className="flex flex-col gap-2">
-            <span id="invite-role" className="md-field__label">Role</span>
+            <span id="invite-role" className="md-field__label">Their access</span>
             <RadioGroup
               name="invite-role"
               aria-labelledby="invite-role"
               value={role}
               onChange={(v) => setRole(v as InviteRole)}
-              options={ROLE_OPTIONS.map((o) => ({ value: o.value, label: o.label, description: o.description }))}
+              options={ROLE_CHOICES}
             />
           </div>
         </form>
@@ -286,7 +273,7 @@ export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, ref
         open={!!removing}
         onClose={() => setRemoving(null)}
         title={removing ? `Remove ${removing.name || removing.email}?` : "Remove member?"}
-        body="They lose access to this workspace's library and settings right away. Documents they shared stay in the workspace, and they still own them."
+        body="They lose access to this workspace right away. Files they added stay in the workspace, and they still own them."
         confirmLabel="Remove from workspace"
         onConfirm={async () => {
           const m = removing!;

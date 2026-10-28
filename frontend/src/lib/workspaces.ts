@@ -27,7 +27,7 @@ export class WsApiError extends Error {
 /** The status of a failed call (0 for a network error or anything that isn't a WsApiError). */
 export const errorStatus = (e: unknown): number => (e instanceof WsApiError ? e.status : 0);
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
@@ -75,6 +75,9 @@ export interface WorkspaceSettings {
   require_auth_to_view: boolean;
   /** v2: members (not only admins) may share folders. Absent on older backends (= true). */
   members_can_share_folders?: boolean;
+  /** v2: who can open a new item unless its author says otherwise (mirrors `Workspace.default_access`).
+   *  The settings PUT replaces the whole object, so it must be sent back as it came. */
+  default_access?: ItemAccess;
 }
 
 /** v2 `GET /workspaces` item domain summary. */
@@ -104,6 +107,9 @@ export interface Workspace {
   domains?: WorkspaceDomainSummary[];
   /** v2: who can open a document published into this workspace, unless the author says otherwise. */
   default_access?: "private" | "link" | "workspace";
+  /** Simpler UI (read-only): the Privacy preset the settings amount to. Saving a preset writes
+   *  `require_auth_to_view` + `default_access`. */
+  privacy?: "open" | "team" | "locked" | "custom";
 }
 
 export interface Member {
@@ -455,13 +461,30 @@ export interface TreeFolder {
   /** Items in this folder and every folder under it that the caller can open. */
   total_count: number;
   share: { id: string; level: FolderShareLevel } | null;
+  /** What new items filed here start as; null = the workspace's default. */
+  default_access?: ItemAccess | null;
+  /** The folder's own default, else the workspace's (absent on older backends). */
+  effective_default_access?: ItemAccess;
+  /** Items filed directly here that the caller can open, by who can open them. */
+  exposure?: Exposure;
+}
+
+/** Who can open the caller-readable items in a folder: `link` includes password-protected links,
+ *  which `password` counts again. Never counts what the caller can't read. */
+export interface Exposure {
+  link: number;
+  workspace: number;
+  private: number;
+  password?: number;
 }
 
 export interface WorkspaceTree {
-  workspace: { id: string; name: string; role: Role; primary_host: string | null };
+  workspace: { id: string; name: string; role: Role; primary_host: string | null; default_access?: ItemAccess };
   folders: TreeFolder[];
   /** Items at the workspace root (in no folder). */
   unfiled_count: number;
+  /** Exposure of the root's direct items (absent on older backends). */
+  root_exposure?: Exposure;
 }
 
 export const getWorkspaceTree = (id: string) =>
@@ -540,7 +563,8 @@ export const listWorkspaceItems = async (
 export const updateFolder = (
   id: string,
   folderId: string,
-  data: { name?: string; slug?: string; parent_id?: string | null }
+  /** `default_access`: what new items filed here start as (null = the workspace's default). Admins. */
+  data: { name?: string; slug?: string; parent_id?: string | null; default_access?: ItemAccess | null }
 ) =>
   request<unknown>(`/api/v1/workspaces/${encodeURIComponent(id)}/folders/${encodeURIComponent(folderId)}`, {
     method: "PATCH",
@@ -658,40 +682,6 @@ export const unshareFolder = (id: string, folderId: string) =>
     method: "DELETE",
   });
 
-/** Make documents you own open to anyone with the link (the folder dialog's "Open up the K you
- *  own"): `POST /documents/access/level` in chunks of 200 → `{results:[{slug, ok}]}`. Falls back to
- *  one call per document on a backend without the batch route. Returns the slugs that failed. */
-export const openUpToLink = async (slugs: string[]): Promise<string[]> => {
-  const failed: string[] = [];
-  for (let i = 0; i < slugs.length; i += 200) {
-    const chunk = slugs.slice(i, i + 200);
-    try {
-      const r = await request<{ results: Array<{ slug: string; ok: boolean }> }>("/api/v1/documents/access/level", {
-        method: "POST",
-        body: JSON.stringify({ slugs: chunk, level: "link" }),
-      });
-      const done = new Set<string>();
-      for (const row of r.results ?? []) {
-        done.add(row.slug);
-        if (row.ok) purgeDocument(row.slug);
-        else failed.push(row.slug);
-      }
-      for (const s of chunk) if (!done.has(s)) failed.push(s);
-    } catch (e) {
-      const s = errorStatus(e);
-      if (s !== 404 && s !== 405) { failed.push(...chunk); continue; }
-      for (const slug of chunk) {
-        try {
-          await setLevel(slug, "link");
-        } catch {
-          failed.push(slug);
-        }
-      }
-    }
-  }
-  return failed;
-};
-
 /**
  * `GET /folders/shared/{share_id}?path=` (public). Server renders call it anonymously; the
  * browser calls it again with the session (`token`) so members see what they can open. Returns
@@ -725,3 +715,47 @@ export interface SharedFolderPage {
     url: string; size_bytes?: number | null; updated_at?: string | null; poster_url?: string | null;
   }>;
 }
+
+// ── Preview as (simpler UI) ───────────────────────────────────────────────────
+
+export type PreviewAs = "anyone" | "member" | "email";
+
+/** Why an item isn't in what the previewed person sees. */
+export type HiddenReason = "team" | "people" | "password" | "signin" | "folder_empty";
+
+export interface PreviewHidden {
+  slug: string | null;
+  title: string | null;
+  kind: string;
+  reason: HiddenReason;
+  /** The caller owns it. */
+  yours: boolean;
+  /** The caller owns it and "anyone with the link" would show it to this person. */
+  can_open_up: boolean;
+  mime?: string | null;
+  /** folder_empty rows: the subfolder (its `title` is the folder's name). */
+  folder_id?: string | null;
+  /** Optional extra a backend may send. */
+  owner_name?: string | null;
+}
+
+export interface PreviewResult {
+  as: PreviewAs;
+  folder: { id: string | null; name: string; path: string };
+  visible: {
+    folders: Array<{ id: string; name: string; path?: string; item_count?: number }>;
+    /** `redacted`: an admin's placeholder for someone's private item (no slug, no title). */
+    items: Array<{ slug: string | null; title: string | null; kind: string; mime?: string | null; redacted?: boolean; updated_at?: string | null }>;
+  };
+  /** Only what the caller can read; an admin's redacted row keeps `title` null. */
+  hidden: PreviewHidden[];
+  counts: { visible: number; total: number; folders_visible?: number; folders_total?: number };
+}
+
+/** `GET /workspaces/{id}/preview` (member+; `as=email` admins only). The server evaluates its own
+ *  access rules for a stand-in reader; the UI only shows the answer. */
+export const getPreview = (id: string, opts: { folder: string | null; as: PreviewAs; email?: string }) => {
+  const p = new URLSearchParams({ folder: opts.folder ?? "root", as: opts.as });
+  if (opts.as === "email" && opts.email) p.set("email", opts.email);
+  return request<PreviewResult>(`/api/v1/workspaces/${encodeURIComponent(id)}/preview?${p}`);
+};

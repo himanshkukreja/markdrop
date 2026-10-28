@@ -30,8 +30,11 @@ const APP_ROUTES = new Set([
   "new",
   "oauth",
   "privacy",
+  "recent",
+  "requests",
   "settings",
   "share",
+  "shared",
   "upload",
   "w",
 ]);
@@ -52,6 +55,8 @@ export function redactPath(pathname: string): string {
   if (segments[0] === "f" && segments.length > 1) return "/f/[share]";
   // /w/<workspace>[/f/<folder>] — ids, not secrets, but not worth a row per workspace either.
   if (segments[0] === "w" && segments.length > 1) return segments.length > 2 ? "/w/[workspace]/f/[folder]" : "/w/[workspace]";
+  // /requests/<id> — one access request; not worth a row each.
+  if (segments[0] === "requests" && segments.length > 1) return "/requests/[id]";
 
   if (segments.length === 1 && !APP_ROUTES.has(segments[0])) return "/[slug]";
   return pathname;

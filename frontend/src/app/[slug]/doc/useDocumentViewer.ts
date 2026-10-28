@@ -12,7 +12,7 @@ import { flushSync } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryFlags } from "@/lib/useQueryFlags";
 import * as e2e from "@/lib/e2e";
-import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl } from "@/lib/api";
+import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl, type DeniedInfo } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
 import { HANDOFF_FRAGMENT } from "@/lib/hosts";
 import { isPrimaryHost } from "@/components/tenant/hosts";
@@ -423,6 +423,8 @@ export function useDocumentViewer({
   // telling someone to sign in when they already are is how a working link
   // starts looking broken.
   const [accessDenied, setAccessDenied] = useState(false);
+  // What the denied answer said about asking the owner for access (the gate's Request access).
+  const [deniedInfo, setDeniedInfo] = useState<DeniedInfo | null>(null);
 
   // Immersive mode: the document fills the viewport with all app chrome hidden,
   // so a published page reads as the content itself rather than as something in
@@ -720,11 +722,33 @@ export function useDocumentViewer({
         // and refused.
         const needsPassword = e instanceof Error && e.message === "PASSWORD_REQUIRED";
         setAccessDenied(!needsPassword);
+        setDeniedInfo(null);
+        if (!needsPassword) void loadRequestState();
         setPwdLocked(true);
       })
       .finally(() => { if (!cancelled) setPwdFetching(false); });
     return () => { cancelled = true; };
   }, [handoffDone]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * "No dead ends": once the page is denied, ask whether this account may request access. The read
+   * itself never says (that would tell strangers the document exists); `…/access-requests/mine`
+   * does, for the signed-in caller only. A workspace's own domain holds a read-only tenant token, so
+   * there the gate links to the markdrop.in page, where the request can be made.
+   */
+  async function loadRequestState() {
+    if (typeof window !== "undefined" && !isPrimaryHost(window.location.host)) {
+      setDeniedInfo({ canRequest: true, pending: false, ownerFirstName: null, requestUrl: `https://markdrop.in/${encodeURIComponent(slug)}` });
+      return;
+    }
+    try {
+      const { myAccessRequest } = await import("@/lib/me");
+      const r = await myAccessRequest(slug);
+      setDeniedInfo({ canRequest: r.can_request_access || r.request_pending, pending: r.request_pending, ownerFirstName: null });
+    } catch {
+      // No request option (or an older server): the plain "ask the owner" gate stays.
+    }
+  }
 
   // On mount: auto-unlock if owner (has edit secret) or cached password
   useEffect(() => {
@@ -977,6 +1001,7 @@ export function useDocumentViewer({
     pwdErrorKey,
     setPwdError,
     accessDenied,
+    deniedInfo,
     activeTextareaRef,
     adoptDoc,
     artifactDoc,
