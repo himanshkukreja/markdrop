@@ -114,15 +114,26 @@ function usePageFileDrop(target: UploadTarget | null, onFiles: (files: File[]) =
       const files = Array.from(e.dataTransfer?.files ?? []);
       if (files.length) onFiles(files);
     };
+    // A drop on a rail folder or a folder card is handled there (stopPropagation), so the bubbling
+    // `drop` above never fires and no `dragleave` follows a drop: clear the overlay in the capture
+    // phase, before any target can stop the event.
+    const reset = () => {
+      depth.current = 0;
+      setOver(false);
+    };
     window.addEventListener("dragenter", enter);
     window.addEventListener("dragover", overFn);
     window.addEventListener("dragleave", leave);
     window.addEventListener("drop", drop);
+    window.addEventListener("drop", reset, true);
+    window.addEventListener("dragend", reset, true);
     return () => {
       window.removeEventListener("dragenter", enter);
       window.removeEventListener("dragover", overFn);
       window.removeEventListener("dragleave", leave);
       window.removeEventListener("drop", drop);
+      window.removeEventListener("drop", reset, true);
+      window.removeEventListener("dragend", reset, true);
     };
   }, [target, onFiles]);
   return over;
