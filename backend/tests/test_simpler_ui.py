@@ -846,3 +846,21 @@ class Privacy(World):
             self.assertEqual(r.status_code, 200, r.text)
             self.assertEqual(r.json()["privacy"], privacy, settings)
             self.assertEqual((await self.body("GET", url, "wv")).json()["privacy"], privacy)
+
+
+class WorkspaceListCounts(World):
+    async def test_list_carries_the_same_people_counts_as_the_single_get(self):
+        # The rail/settings cards, the Share dialog ("Everyone in Acme · N people") and the
+        # "Get set up" checklist read these from the list; they used to be 0 there.
+        W = self.ws["W1"]
+        await self.db["invitations"].insert_one({
+            "workspace_id": W, "email": "new@example.com", "role": "viewer", "status": "pending",
+            "created_at": now(), "expires_at": now() + timedelta(days=7)})
+        one = (await self.body("GET", f"/api/v1/workspaces/{W}", "wm")).json()
+        self.assertGreater(one["member_count"], 1)
+        listed = {w["id"]: w for w in (await self.body("GET", "/api/v1/workspaces", "wm")).json()["workspaces"]}
+        for key in ("member_count", "pending_invite_count", "domain_count"):
+            self.assertEqual(listed[W][key], one[key], key)
+        self.assertGreaterEqual(listed[W]["pending_invite_count"], 1)
+        self.assertEqual(listed[W]["member_count"],
+                         await self.db["memberships"].count_documents({"workspace_id": W}))

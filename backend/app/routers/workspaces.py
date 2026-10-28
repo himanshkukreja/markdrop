@@ -134,13 +134,29 @@ async def list_workspaces(
     user: User = Depends(require_user),
 ):
     pairs = await ws_service.list_for_user(db, user.id)
-    # Domains and the live primary host, but not the counts: callers of this
-    # list want to know where a workspace publishes. MAX_WORKSPACES caps this.
+    # Domains, the live primary host and the people counts (the settings
+    # cards, the Share dialog's "Everyone in <ws> · N people" and the folder
+    # view's "Get set up" read them; they were always 0 here). Two grouped
+    # counts for the whole list. MAX_WORKSPACES caps this.
+    ids = [w.id for w, _role in pairs]
+    members = await _grouped_counts(db, "memberships", {"workspace_id": {"$in": ids}})
+    invites = await _grouped_counts(db, "invitations", {"workspace_id": {"$in": ids}, "status": "pending"})
     out = []
     for w, role in pairs:
         domains, primary = await _domains(db, w.id)
-        out.append(_to_response(w, role, {"primary_host": primary, "domains": domains}))
+        out.append(_to_response(w, role, {
+            "primary_host": primary, "domains": domains, "domain_count": len(domains),
+            "member_count": members.get(w.id, 0), "pending_invite_count": invites.get(w.id, 0)}))
     return WorkspaceListResponse(workspaces=out)
+
+
+async def _grouped_counts(db: AsyncIOMotorDatabase, coll: str, match: dict) -> dict[str, int]:
+    if not match["workspace_id"]["$in"]:
+        return {}
+    rows = await db[coll].aggregate([
+        {"$match": match}, {"$group": {"_id": "$workspace_id", "n": {"$sum": 1}}},
+    ]).to_list(length=1000)
+    return {r["_id"]: int(r["n"]) for r in rows}
 
 
 @router.post("", response_model=WorkspaceResponse, status_code=201)
