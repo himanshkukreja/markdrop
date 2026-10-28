@@ -34,9 +34,22 @@ class DocumentCreate(BaseModel):
     encrypted: bool = False
     # Who can open it, chosen at creation. "link" is the default and is what
     # every document has always been, so an unset field changes nothing.
-    # "workspace" is only meaningful once the document is in one, which happens
-    # after creation — the client sends it with the share step, not here.
-    access_level: Literal["private", "link"] = "link"
+    # "workspace" is only meaningful for a document filed at creation
+    # (``workspace`` below). Filed and not said ⇒ the folder's "new items start
+    # as" (else the workspace's default_access).
+    access_level: Literal["private", "link", "workspace"] = "link"
+    # File it at creation (signed-in members of that workspace only): workspace
+    # id, and optionally a folder of it (id or slug path like "guides/setup").
+    workspace: str | None = Field(None, min_length=1, max_length=64)
+    folder: str | None = Field(None, min_length=1, max_length=400)
+
+    @model_validator(mode="after")
+    def validate_filing(self):
+        if self.folder is not None and not self.workspace:
+            raise ValueError("A folder needs a workspace.")
+        if self.access_level == "workspace" and not self.workspace:
+            raise ValueError('access_level "workspace" needs a workspace.')
+        return self
 
     @model_validator(mode="after")
     def validate_custom_expiry(self):
@@ -129,6 +142,9 @@ class DocumentResponse(BaseModel):
 
 class DocumentCreateResponse(DocumentResponse):
     edit_secret: str
+    # Set when the create asked for a workspace but the document couldn't be
+    # filed there at the last moment (it then stays private to its owner).
+    workspace_error: str | None = None
 
 
 class DocumentCopyRequest(BaseModel):

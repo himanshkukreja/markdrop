@@ -212,6 +212,17 @@ async def connect() -> None:
     await db["folders"].create_index(
         "share.id", unique=True, partialFilterExpression={"share.id": {"$exists": True}})
 
+    # Simpler workspaces UI: access requests (one pending per doc + requester)
+    # and per-user recently opened documents (newest 100, 90-day TTL).
+    try:
+        from app.services import access_requests as _access_requests
+        from app.services import personal as _personal
+
+        await _access_requests.ensure_indexes(db)
+        await _personal.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] access-request / recent indexes skipped: {exc}")
+
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])
     await db["feedback"].create_index([("status", 1), ("type", 1), ("created_at", -1)])

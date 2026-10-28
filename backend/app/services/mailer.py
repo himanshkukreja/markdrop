@@ -643,6 +643,132 @@ async def send_document_share_email(
     })
 
 
+# ── Access requests ────────────────────────────────────────────────────────────
+
+
+def _quote(message: str | None) -> str:
+    if not message:
+        return ""
+    return f"""\
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px">
+  <tr><td style="border-left:3px solid {_LINE};padding:2px 0 2px 14px">
+    <div style="font-family:{_SANS};font-size:15px;line-height:1.6;color:{_BODY};white-space:pre-wrap">&ldquo;{html.escape(message)}&rdquo;</div>
+  </td></tr>
+</table>"""
+
+
+def _ghost_button(href: str, label: str) -> str:
+    return f"""\
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px">
+  <tr><td bgcolor="{_CARD}" style="background-color:{_CARD};border:1px solid {_LINE};border-radius:8px">
+    <a href="{href}" style="display:inline-block;padding:11px 22px;font-family:{_SANS};font-size:14px;line-height:20px;font-weight:600;color:{_INK};text-decoration:none;border-radius:8px">{label}</a>
+  </td></tr>
+</table>"""
+
+
+def _access_request_html(*, requester_name: str, requester_email: str, document_title: str,
+                         message: str | None, request_id: str, workspace_name: str | None) -> str:
+    # Every value below is chosen by someone else (the requester's name and
+    # note, the title): escaped, or a request is a way to put markup in an
+    # owner's inbox from our domain.
+    name = html.escape(requester_name)
+    address = html.escape(requester_email)
+    title = html.escape(document_title)
+    base = f"{_base()}/requests/{html.escape(request_id, quote=True)}"
+    outsider = (f" &middot; not in {html.escape(workspace_name)}" if workspace_name else "")
+    content = (
+        _eyebrow("Access request")
+        + _heading(f"{name} asked to open &ldquo;{title}&rdquo;")
+        + _p(f'<span style="font-family:{_MONO};font-size:13px">{address}</span>{outsider}',
+             size=13, color=_MUTED, margin="0 0 16px")
+        + _quote(message)
+        + _button(f"{base}?action=view", "Let them view", margin="8px 0 10px")
+        + _ghost_button(f"{base}?action=edit", "Let them edit")
+        + _ghost_button(f"{base}?action=decline", "Decline")
+        + _rule()
+        + _p(
+            "This shares only this item with them. "
+            + ("It doesn't add them to your workspace. " if workspace_name else "")
+            + "You'll be asked to sign in before anything changes.",
+            size=13, color=_MUTED, margin="0 0 20px",
+        )
+    )
+    footer = (
+        "You're getting this because you own the document. Ignore it and nothing "
+        f"changes. Sent by {_footer_link(_base(), 'markdrop.in')}."
+    )
+    return _shell(
+        title=f"{name} asked to open {title}",
+        preheader=f"{name} ({address}) asked for access to &ldquo;{title}&rdquo;.",
+        content=content,
+        footer=footer,
+    )
+
+
+async def send_access_request_email(
+    *, to_email: str, requester_name: str, requester_email: str, document_title: str,
+    message: str | None, request_id: str, workspace_name: str | None = None,
+) -> None:
+    """Tell a document's owner someone asked to open it. Raises on failure (the
+    request is recorded in-app either way)."""
+    await _post({
+        "from": _sender("share"),
+        "to": [to_email],
+        "subject": f"{requester_name} asked to open “{document_title}”",
+        "reply_to": settings.email_reply_to,
+        "html": _access_request_html(
+            requester_name=requester_name, requester_email=requester_email,
+            document_title=document_title, message=message, request_id=request_id,
+            workspace_name=workspace_name),
+    })
+
+
+def _access_decision_html(*, owner_name: str, document_title: str, url: str,
+                          approved: bool, role: str | None) -> str:
+    owner = html.escape(owner_name)
+    title = html.escape(document_title)
+    if approved:
+        can = _SHARE_ROLE.get(role or "viewer", "read it")
+        content = (
+            _eyebrow("Access request")
+            + _heading(f"You can open &ldquo;{title}&rdquo;")
+            + _p(f"{owner} said yes. You can {_strong(can)}.")
+            + _button(html.escape(url, quote=True), "Open it", margin="0 0 24px")
+            + _rule()
+            + _p(f"Sign in to Markdrop with {_strong('this email address')} to open it.",
+                 size=13, color=_MUTED, margin="0 0 20px")
+        )
+        subject_line = f"You can open {title}"
+    else:
+        content = (
+            _eyebrow("Access request")
+            + _heading(f"Your request to open &ldquo;{title}&rdquo;")
+            + _p(f"{owner} isn't sharing it with you right now. Nothing else changes, and "
+                 "you're welcome to ask them directly if you think this is a mistake.")
+        )
+        subject_line = f"About your request to open {title}"
+    footer = f"Sent by {_footer_link(_base(), 'markdrop.in')} because you asked for access."
+    return _shell(title=subject_line, preheader=subject_line, content=content, footer=footer)
+
+
+async def send_access_decision_email(
+    *, to_email: str, owner_name: str, document_title: str, slug: str,
+    approved: bool, role: str | None = None,
+) -> None:
+    """Tell a requester what the owner decided. Raises on failure."""
+    url = f"{_base()}/{slug}"
+    subject = (f"You can open “{document_title}”" if approved
+               else f"About your request to open “{document_title}”")
+    await _post({
+        "from": _sender("share"),
+        "to": [to_email],
+        "subject": subject,
+        "reply_to": settings.email_reply_to,
+        "html": _access_decision_html(owner_name=owner_name, document_title=document_title,
+                                      url=url, approved=approved, role=role),
+    })
+
+
 # ── Web pages in the email shell ───────────────────────────────────────────────
 
 

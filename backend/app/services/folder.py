@@ -25,8 +25,8 @@ from bson import ObjectId
 from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.models.folder import Folder
-from app.utils.slug import is_reserved_slug, slugify
+from app.models.folder import FOLDER_DEFAULT_LEVELS, Folder
+from app.utils.slug import is_reserved_folder_slug as is_reserved_slug, slugify
 
 MAX_FOLDERS_PER_WORKSPACE = 500
 # Deep enough for any filing anyone actually does, bounded because every level
@@ -48,7 +48,32 @@ def _to_folder(raw: dict) -> Folder:
         # ugly rather than absent — a missing segment would break a path.
         slug=raw.get("slug") or str(raw["_id"]),
         share=raw.get("share") or None,
+        default_access=(raw.get("default_access")
+                        if raw.get("default_access") in FOLDER_DEFAULT_LEVELS else None),
     )
+
+
+async def effective_default_access(db: AsyncIOMotorDatabase, workspace_id: str | None,
+                                   folder_id: str | None = None, *, workspace=None) -> str:
+    """What a new item filed into ``folder_id`` (None = the workspace root)
+    starts as when the caller didn't say: the folder's ``default_access``, else
+    the workspace's ``settings.default_access``. Unfiled ⇒ ``link`` (as every
+    new document always was). A preselection only — filing rules still apply."""
+    if not workspace_id:
+        return "link"
+    if folder_id:
+        try:
+            raw = await db["folders"].find_one(
+                {"_id": ObjectId(folder_id), "workspace_id": workspace_id}, {"default_access": 1})
+        except Exception:
+            raw = None
+        if raw and raw.get("default_access") in FOLDER_DEFAULT_LEVELS:
+            return raw["default_access"]
+    if workspace is None:
+        from app.services import workspace as ws_service
+
+        workspace = await ws_service.get_workspace(db, workspace_id)
+    return workspace.settings.default_access if workspace is not None else "link"
 
 
 def _oid(value: str, what: str = "Folder") -> ObjectId:
@@ -568,6 +593,7 @@ async def update_folder(
     parent_id: str | None = None,
     reparent: bool = False,
     expected_rev: int | None = ...,  # type: ignore[assignment]
+    default_access: str | None = ...,  # type: ignore[assignment]
 ) -> Folder:
     """Rename (name/slug) and/or move (reparent → parent_id; None = top level).
 
@@ -598,6 +624,16 @@ async def update_folder(
             )
         updates["parent_id"] = target_parent
 
+    unset: dict = {}
+    if default_access is not ...:
+        # What new items start as here; existing documents are untouched.
+        if default_access is None:
+            unset["default_access"] = ""
+        elif default_access in FOLDER_DEFAULT_LEVELS:
+            updates["default_access"] = default_access
+        else:
+            raise HTTPException(status_code=422, detail="Unknown access level.")
+
     if name is not None:
         updates["name"] = _clean_name(name)
     if slug is not None or name is not None or reparent:
@@ -616,8 +652,11 @@ async def update_folder(
     structural = "slug" in updates or "parent_id" in updates
     if structural:
         await _lock(db, workspace_id, rev)
-    await db["folders"].update_one({"_id": raw["_id"]}, {"$set": updates})
+    await db["folders"].update_one({"_id": raw["_id"]},
+                                   {"$set": updates, **({"$unset": unset} if unset else {})})
     raw.update(updates)
+    for key in unset:
+        raw.pop(key, None)
     if structural:
         slugs = await _reindex_subtree(db, workspace_id, folder_id)
         current = await list_folders(db, workspace_id)

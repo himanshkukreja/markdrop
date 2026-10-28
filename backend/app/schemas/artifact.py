@@ -41,8 +41,13 @@ class ArtifactCreateRequest(BaseModel):
     custom_expires_at: datetime | None = None
     read_password: str | None = Field(None, min_length=1, max_length=100)
     # Who can open it, chosen at upload. "link" is the default and is what every
-    # artifact has always been.
-    access_level: Literal["private", "link"] = "link"
+    # artifact has always been. "workspace" needs ``workspace``; filed and not
+    # said ⇒ the folder's "new items start as" (else the workspace's default).
+    access_level: Literal["private", "link", "workspace"] = "link"
+    # File it at upload (members of that workspace only): workspace id and
+    # optionally a folder of it (id or slug path).
+    workspace: str | None = Field(None, min_length=1, max_length=64)
+    folder: str | None = Field(None, min_length=1, max_length=400)
 
 
 class ArtifactPasteRequest(BaseModel):
@@ -91,6 +96,9 @@ class ArtifactResponse(BaseModel):
 
 class ArtifactCreateResponse(ArtifactResponse):
     edit_secret: str
+    # Set when the upload asked for a workspace but couldn't be filed there at
+    # the last moment (the file then stays private to its owner).
+    workspace_error: str | None = None
 
 
 class ArtifactStatusResponse(BaseModel):

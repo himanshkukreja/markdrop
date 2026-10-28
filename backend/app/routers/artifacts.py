@@ -173,6 +173,21 @@ async def confirm_artifact(
     if not data.blob_key.startswith(f"art/{user.id}/"):
         raise HTTPException(status_code=403, detail="This upload does not belong to you.")
 
+    # Filing into a workspace folder: everything checkable is checked before
+    # the blob is touched. Born private; opened only once filed (A11).
+    folder_id, filed_level = None, None
+    if data.folder is not None and not data.workspace:
+        raise HTTPException(status_code=422, detail="A folder needs a workspace.")
+    if data.access_level == "workspace" and not data.workspace:
+        raise HTTPException(status_code=422, detail='Access "workspace" needs a workspace.')
+    if data.workspace:
+        from app.services import library as lib_service
+
+        explicit = data.access_level if "access_level" in data.model_fields_set else None
+        folder_id, filed_level = await lib_service.prepare_new_filing(
+            db, user, data.workspace, data.folder, custom_slug=data.custom_slug,
+            access_level=explicit)
+
     meta = await run_in_threadpool(r2.head, data.blob_key)
     if not meta:
         raise HTTPException(status_code=404, detail="Upload not found — please try again.")
@@ -218,8 +233,9 @@ async def confirm_artifact(
     # The Worker fails closed, so an object is unreadable until it's marked
     # public. Anything with a password *or* narrower-than-link access stays
     # unmarked and needs a signed token — see `artifact.is_guarded`.
+    born_level = "private" if data.workspace else data.access_level
     is_public = not art_service.is_guarded(
-        has_password=bool(data.read_password), access_level=data.access_level
+        has_password=bool(data.read_password), access_level=born_level
     )
     if bundle_prefix:
         await run_in_threadpool(r2.set_public_prefix, bundle_prefix, is_public)
@@ -240,7 +256,7 @@ async def confirm_artifact(
             expires_in=data.expires_in,
             custom_expires_at=data.custom_expires_at,
             read_password=data.read_password,
-            access_level=data.access_level,
+            access_level=born_level,
         )
     except Exception:
         # The bytes are already in R2 but no document will reference them, so
@@ -256,6 +272,15 @@ async def confirm_artifact(
     # background (services/media.py); the response doesn't wait for it.
     if doc.id and not bundle_prefix:
         media.schedule(db, doc.id, 1, blob_key, mime)
+
+    if data.workspace:
+        from app.services import library as lib_service
+
+        raw = await db["documents"].find_one({"slug": doc.slug})
+        after, error = await lib_service.place_new(db, raw, user, data.workspace, folder_id,
+                                                   filed_level)
+        body = (await _artifact_response(db, after, user)).model_dump()
+        return ArtifactCreateResponse(**body, edit_secret=secret, workspace_error=error)
 
     return ArtifactCreateResponse(
         **art_service.to_response(doc, is_owner=True), edit_secret=secret

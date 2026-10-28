@@ -239,25 +239,32 @@ async def create(db: AsyncIOMotorDatabase, user, data, *, scope: str | None = No
         target = await editable_artifact(db, user, data.target_slug, action="replace", scope=scope)
         require_single_blob(target)
     else:
-        access = data.access or ("workspace" if data.workspace else ("password" if data.password else "link"))
-        if access == "password" and not data.password:
-            raise HTTPException(status_code=422, detail='Access "password" needs a password.')
-        if data.password and access != "password":
-            raise HTTPException(status_code=422, detail='A password only applies when access is "password".')
-        if access == "workspace" and not data.workspace:
-            raise HTTPException(status_code=422, detail='Access "workspace" needs a workspace id.')
         if folder is not None and not data.workspace:
             raise HTTPException(status_code=422, detail="A folder needs a workspace.")
         if data.workspace:
+            from app.services import folder as folder_service
             from app.services import workspace as ws_service
 
             await ws_service.require_role(db, data.workspace, user.id, "member")
             await ws_service.assert_open(db, data.workspace)  # C-N5
             workspace = data.workspace
             if folder is not None:
-                from app.services import folder as folder_service
-
                 folder_id = await folder_service.resolve_ref(db, workspace, folder)
+        if data.access:
+            access = data.access
+        elif workspace:
+            # Not said: the folder's "new items start as" (else the workspace's).
+            from app.services import folder as folder_service
+
+            access = await folder_service.effective_default_access(db, workspace, folder_id)
+        else:
+            access = "password" if data.password else "link"
+        if access == "password" and not data.password:
+            raise HTTPException(status_code=422, detail='Access "password" needs a password.')
+        if data.password and access != "password":
+            raise HTTPException(status_code=422, detail='A password only applies when access is "password".')
+        if access == "workspace" and not data.workspace:
+            raise HTTPException(status_code=422, detail='Access "workspace" needs a workspace id.')
         level = access
         if data.password:
             password_hash = bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode()

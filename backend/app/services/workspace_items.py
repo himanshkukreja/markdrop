@@ -187,17 +187,43 @@ def counts(rows: list[dict], folders: list[Folder]) -> tuple[dict[str, int], dic
     return direct, total, root
 
 
+def _empty_exposure() -> dict[str, int]:
+    return {"link": 0, "workspace": 0, "private": 0, "password": 0}
+
+
+def exposure(rows: list[dict]) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
+    """Who can open what, per folder (direct items) and at the root, counted
+    over ``rows`` — which must be the caller's *readable* rows only, so a count
+    never includes something the caller can't open. A password-protected link
+    item counts in ``link`` and again in ``password``."""
+    per: dict[str, dict[str, int]] = {}
+    root = _empty_exposure()
+    for r in rows:
+        bucket = per.setdefault(r["folder_id"], _empty_exposure()) if r.get("folder_id") else root
+        level = r.get("access_level") or "link"
+        if level not in ("link", "workspace", "private"):
+            level = "private"
+        bucket[level] += 1
+        if level == "link" and r.get("read_password_hash"):
+            bucket["password"] += 1
+    return per, root
+
+
 async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                workspace_id: str, role: str) -> dict:
     ws = await ctx.workspace(workspace_id)
     folders = await folder_service.list_folders(db, workspace_id)
     paths = folder_service.paths_by_id(folders)
-    rows = await readable_rows(db, actor, ctx, workspace_id, projection={"folder_id": 1})
+    rows = await readable_rows(db, actor, ctx, workspace_id,
+                               projection={"folder_id": 1, "access_level": 1, "read_password_hash": 1})
     direct, total, root = counts(rows, folders)
+    per, root_exposure = exposure(rows)
     ordered = sorted(folders, key=lambda f: [s.lower() for s in (paths.get(f.id) or [])])
+    ws_default = ws.settings.default_access if ws else "link"
     return {
         "workspace": {"id": workspace_id, "name": ws.name if ws else None, "role": role,
-                      "primary_host": await urls.live_primary_host(db, workspace_id)},
+                      "primary_host": await urls.live_primary_host(db, workspace_id),
+                      "default_access": ws_default},
         "folders": [
             {
                 "id": f.id, "name": f.name, "slug": f.slug, "parent_id": f.parent_id,
@@ -205,10 +231,14 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                 "item_count": direct.get(f.id, 0), "total_count": total.get(f.id, 0),
                 "share": ({"id": f.share.get("id"), "level": f.share.get("level")}
                           if f.share and f.share.get("id") else None),
+                "default_access": f.default_access,
+                "effective_default_access": f.default_access or ws_default,
+                "exposure": per.get(f.id) or _empty_exposure(),
             }
             for f in ordered
         ],
         "unfiled_count": root,
+        "root_exposure": root_exposure,
     }
 
 
