@@ -1,6 +1,6 @@
 """Simpler UI polish: document password / expiry from the share dialog
-(``PATCH /documents/{slug}/settings``) and the share dialog's real addresses
-on ``GET …/access``.
+(``PATCH /documents/{slug}/settings``), the share dialog's real addresses on
+``GET …/access``, and titles taken from the text when none was typed.
 
 The settings route must behave exactly like the password / expiry fields of
 ``PUT /documents/{slug}`` (services/transitions.py): a new password narrows
@@ -14,6 +14,8 @@ from datetime import timedelta
 from unittest import mock
 
 from tests._access_env import ES_SECRET, PASSWORD, AccessWorld, now, settings
+
+from app.services.document import title_from_markdown
 
 
 class DocumentSettings(AccessWorld):
@@ -165,3 +167,39 @@ class AccessAddresses(AccessWorld):
         d = await self.mkdoc("L")
         body = (await self.http.get(f"/api/v1/documents/{d['slug']}/access", headers=self.session("owner"))).json()
         self.assertIsNone(body["workspace_url"])
+
+
+class TitleFromContent(AccessWorld):
+    def test_rules(self):
+        self.assertEqual(title_from_markdown("# Hello world\n\ntext"), "Hello world")
+        self.assertEqual(title_from_markdown("intro line\n\n# The heading #\n"), "The heading")
+        self.assertEqual(title_from_markdown("## Sub only\nbody"), "Sub only")
+        self.assertEqual(title_from_markdown("\n\n  > quoted first line  \n"), "quoted first line")
+        self.assertEqual(title_from_markdown("```\n# not a title\n```\nplain"), "plain")
+        self.assertEqual(title_from_markdown("---\ntitle: x\n---\n# Real\n"), "Real")
+        self.assertIsNone(title_from_markdown("   \n\n"))
+        long = title_from_markdown("x" * 500)
+        self.assertEqual(len(long), 120)
+
+    async def test_create_derives_a_missing_title(self):
+        r = await self.http.post("/api/v1/documents", json={"content": "Some intro\n\n# Launch plan\n\nBody"})
+        self.assertEqual(r.status_code, 201, r.text)
+        self.assertEqual(r.json()["title"], "Launch plan")
+        self.assertEqual((await self.doc(r.json()["slug"]))["title"], "Launch plan")
+
+        r = await self.http.post("/api/v1/documents", json={"content": "No heading here, " + "y" * 300},
+                                 headers=self.session("owner"))
+        self.assertEqual(r.status_code, 201, r.text)
+        self.assertEqual(len(r.json()["title"]), 120)
+        self.assertTrue(r.json()["title"].startswith("No heading here, "))
+
+        r = await self.http.post("/api/v1/documents", json={"content": "# From text", "title": "Typed"})
+        self.assertEqual(r.json()["title"], "Typed")
+        r = await self.http.post("/api/v1/documents", json={"content": "# From text", "title": ""})
+        self.assertEqual(r.json()["title"], "From text")
+
+    async def test_encrypted_documents_keep_a_null_title(self):
+        r = await self.http.post("/api/v1/documents", json={"content": "# looks like a heading", "encrypted": True})
+        self.assertEqual(r.status_code, 201, r.text)
+        self.assertIsNone(r.json()["title"])
+        self.assertIsNone((await self.doc(r.json()["slug"]))["title"])

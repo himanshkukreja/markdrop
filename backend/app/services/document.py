@@ -79,6 +79,51 @@ def _check_expiry(expires_in: str | None, custom_expires_at: datetime | None,
             raise HTTPException(status_code=422, detail="The expiry date must be in the future.")
 
 
+TITLE_FROM_CONTENT_MAX = 120
+_FENCE = re.compile(r"^\s{0,3}(```|~~~)")
+_ATX_H1 = re.compile(r"^\s{0,3}#(?!#)\s+(.*?)(?:\s+#+)?\s*$")
+_LEADING_MARKS = re.compile(r"^\s{0,3}(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)]\s+)+")
+
+
+def title_from_markdown(content: str | None) -> str | None:
+    """A title for a document published without one: its first H1, else its
+    first non-empty line (heading / quote / list marks dropped), trimmed to
+    120 characters. Fenced code and a leading front-matter block are skipped.
+    None when nothing usable is found."""
+    if not content:
+        return None
+    lines = content.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    start = 0
+    if lines and lines[0].strip() == "---":
+        for i in range(1, min(len(lines), 200)):
+            if lines[i].strip() in ("---", "..."):
+                start = i + 1
+                break
+    first_line: str | None = None
+    in_fence = False
+    for line in lines[start:]:
+        if _FENCE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = _ATX_H1.match(line)
+        if m and m.group(1).strip():
+            return _trim_title(m.group(1))
+        if first_line is None and line.strip():
+            text = _LEADING_MARKS.sub("", line).strip()
+            if text:
+                first_line = text
+    return _trim_title(first_line) if first_line else None
+
+
+def _trim_title(text: str) -> str | None:
+    text = " ".join(text.split())
+    if len(text) > TITLE_FROM_CONTENT_MAX:
+        text = text[:TITLE_FROM_CONTENT_MAX - 1].rstrip() + "…"
+    return text or None
+
+
 async def _slug_free(db: AsyncIOMotorDatabase, slug: str, owner_id: str | None) -> bool:
     from app.services import lifecycle
 
@@ -103,6 +148,14 @@ async def create_document(
         delta = _EXPIRY_DELTA.get(data.expires_in)
         expires_at = (now + delta) if delta else None
 
+    # Published without a title (the /new editor's title field is optional):
+    # take one from the text. Never for an encrypted document — its title must
+    # stay null, the server can't read the text — nor for an artifact, whose
+    # `content` is only its filename.
+    title = data.title or None
+    if title is None and not data.encrypted and (extra or {}).get("kind", "markdown") == "markdown":
+        title = title_from_markdown(data.content)
+
     read_pwd_hash = None
     if data.read_password:
         read_pwd_hash = bcrypt.hashpw(data.read_password.encode(), bcrypt.gensalt()).decode()
@@ -110,7 +163,7 @@ async def create_document(
     def _build(slug: str) -> dict:
         return {
             "slug": slug,
-            "title": data.title or None,
+            "title": title,
             "content": data.content,
             "edit_secret_hash": secret_hash,
             "created_at": now,
