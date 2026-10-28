@@ -20,9 +20,10 @@ export const THEME_COLOR: Record<ResolvedTheme, string> = { dark: "#030712", lig
  * The inline <head> script. Static (no request data), so it is safe in ISR HTML. It runs during
  * parsing, before any paint, so there is no flash. It also drops the legacy `theme` key: every past
  * visitor has `theme=dark` written by the old script, and honouring it would pin them to dark.
+ * Someone who never chose gets light; "system" is followed only when it was picked.
  */
 export function themeScript(lightEnabled: boolean = LIGHT_ENABLED): string {
   return `(function(){var d=document.documentElement,t='dark';try{var ls=localStorage;ls.removeItem('theme');if(${
     lightEnabled ? "true" : "ls.getItem('md_theme_beta')==='1'"
-  }){var s=ls.getItem('md_theme');t=(s==='light'||s==='dark')?s:(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');}}catch(e){}d.setAttribute('data-theme',t);d.classList.toggle('dark',t==='dark');d.classList.add('js');var h=document.head;h.querySelectorAll('meta[name=theme-color]').forEach(function(m){m.remove()});var m=document.createElement('meta');m.name='theme-color';m.content=t==='light'?'${THEME_COLOR.light}':'${THEME_COLOR.dark}';h.appendChild(m);})();`;
+  }){var s=ls.getItem('md_theme');t=(s==='light'||s==='dark')?s:s==='system'?(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'):'light';}}catch(e){}d.setAttribute('data-theme',t);d.classList.toggle('dark',t==='dark');d.classList.add('js');var h=document.head;h.querySelectorAll('meta[name=theme-color]').forEach(function(m){m.remove()});var m=document.createElement('meta');m.name='theme-color';m.content=t==='light'?'${THEME_COLOR.light}':'${THEME_COLOR.dark}';h.appendChild(m);})();`;
 }

@@ -8,8 +8,8 @@ export { BETA_KEY, LIGHT_ENABLED, THEME_KEY, themeScript, type ResolvedTheme, ty
 /**
  * Theme plumbing (REVAMP_PLAN 5.1–5.3).
  *
- * The choice lives in localStorage `md_theme` = "system" | "light" | "dark" (default "system",
- * decision D1). The resolved theme is written to <html data-theme> (tokens) and the `.dark` class
+ * The choice lives in localStorage `md_theme` = "system" | "light" | "dark". Nothing stored means
+ * light (the default since 2026-10-28; it was "system", decision D1), so "system" is stored explicitly. The resolved theme is written to <html data-theme> (tokens) and the `.dark` class
  * (legacy `dark:` variants) by the inline head script before first paint, and by `setTheme` after.
  *
  * Nothing here may read cookies, headers or search params on the server: `/[slug]` is ISR and its
@@ -31,9 +31,9 @@ function readChoice(): ThemeChoice {
   if (!lightAvailable()) return "dark";
   try {
     const v = localStorage.getItem(THEME_KEY);
-    return v === "light" || v === "dark" ? v : "system";
+    return v === "light" || v === "dark" || v === "system" ? v : "light";
   } catch {
-    return "system";
+    return "light";
   }
 }
 
@@ -90,8 +90,7 @@ function wire() {
 
 export function setTheme(choice: ThemeChoice) {
   try {
-    if (choice === "system") localStorage.removeItem(THEME_KEY);
-    else localStorage.setItem(THEME_KEY, choice);
+    localStorage.setItem(THEME_KEY, choice);
   } catch {
     /* private mode: still switch for this page */
   }
