@@ -19,10 +19,9 @@ import { can, listWorkspaces, type Workspace } from "@/lib/workspaces";
 import { ancestry, useDocumentsChanged, useWorkspaceTree, useWorkspaceTrees, workspaceChanged } from "@/lib/workspaceStore";
 import { track } from "@/lib/track";
 import ShareDialog from "@/components/access/ShareDialog";
-import type { LibraryAnalyticsTarget } from "@/components/workspace/LibraryPanel";
 import { MoveToDialog } from "@/components/workspace/folder/FolderDialogs";
 import { teamName } from "@/components/workspace/folder/items";
-import AnalyticsDrawer from "@/components/dashboard/AnalyticsDrawer";
+import { docHref } from "@/components/analytics/format";
 import NameCard from "@/components/dashboard/NameCard";
 import { DocRow, rowStatuses } from "@/components/dashboard/DocRow";
 import { ListFooter, ListSkeleton } from "@/components/dashboard/ListParts";
@@ -52,8 +51,6 @@ function readScope(search: string) {
   const page = Math.max(1, parseInt(p.get("page") || "1", 10) || 1);
   return { ws: p.get("ws"), folder: p.get("folder"), kind, q: (p.get("q") || "").trim(), page };
 }
-
-type Analyzed = LibraryAnalyticsTarget;
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -271,7 +268,6 @@ export default function DashboardPage() {
   const [deleteFor, setDeleteFor] = useState<MyDocListItem | null>(null);
   const [moveFor, setMoveFor] = useState<MyDocListItem | null>(null);
   const [shareAt, setShareAt] = useState(false);
-  const [analytics, setAnalytics] = useState<Analyzed | null>(null);
   const moveTree = useWorkspaceTree(moveFor?.workspace_id ?? null).tree;
 
   // Rows filed in a workspace show where ("Acme › Guides"): names come from the shared trees.
@@ -317,7 +313,7 @@ export default function DashboardPage() {
     return key ? { text: withKey(d.url, key), hint: "Key saved on this device" } : null;
   }
 
-  function menuFor(d: MyDocListItem, title: string, address: string, copy: { text: string } | null): MenuEntry[] {
+  function menuFor(d: MyDocListItem, copy: { text: string } | null): MenuEntry[] {
     const isArtifact = d.kind === "artifact";
     const items: MenuEntry[] = [{ label: "Open", icon: "external", href: `/${d.slug}`, external: true }];
     if (phone && copy) {
@@ -333,7 +329,7 @@ export default function DashboardPage() {
         items.push({ label: "Edit", icon: "edit", href: `/${d.slug}?edit=1` });
       }
     }
-    items.push({ label: "Analytics", icon: "chart", onClick: () => setAnalytics({ doc: d, title, address, copyText: copy?.text ?? null }) });
+    items.push({ label: "Analytics", icon: "chart", href: docHref(d.slug) });
 
     // Google actions: product actions stay on the dashboard (D7); they need a connected account.
     if (gStatus?.configured && !isArtifact && !d.encrypted) {
@@ -508,7 +504,7 @@ export default function DashboardPage() {
                   statuses={rowStatuses(d, !!gStatus?.connected)}
                   onAccess={() => setShareFor(d)}
                   copy={copy}
-                  menu={menuFor(d, title, addr.label, copy)}
+                  menu={menuFor(d, copy)}
                   phone={phone}
                   riseDelay={firstPaint.current ? Math.min(i, 8) * 20 : null}
                   menuLabel={`Actions for ${title}`}
@@ -589,14 +585,6 @@ export default function DashboardPage() {
           if (d) toast.success(`Moved “${displayTitle(d)}” to ${dest.label}`);
           void load();
         }}
-      />
-
-      <AnalyticsDrawer
-        doc={analytics?.doc ?? null}
-        title={analytics?.title ?? ""}
-        address={analytics?.address ?? ""}
-        copyText={analytics?.copyText ?? null}
-        onClose={() => setAnalytics(null)}
       />
 
       <ConfirmDialog

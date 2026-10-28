@@ -52,6 +52,7 @@ import RenameItemDialog, { type RenameTarget } from "./RenameItemDialog";
 import { DropArea, SetupChecklist, useChecklistHidden } from "./SetupChecklist";
 import { shouldShowSetup } from "./setupRule";
 import { accessLabel, displayAddress, itemTitle, teamName, toDocRow } from "./items";
+import { docHref } from "@/components/analytics/format";
 
 type Kind = "" | "markdown" | "artifact";
 const PAGE = 50;
@@ -315,6 +316,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
 
   function itemMenu(it: WorkspaceItem): MenuEntry[] {
     const out: MenuEntry[] = [{ label: "Open", icon: "external", href: openHref(it.slug, it.url, it.encrypted), external: true }];
+    if (it.owner?.is_you) out.push({ label: "Analytics", icon: "chart", href: docHref(it.slug) });
     if (it.can.move) out.push({ label: "Move to…", icon: "folder", onClick: () => moveOne(it) });
     if (it.can.edit && !it.encrypted) out.push({ label: "Rename", icon: "edit", onClick: () => setRenameItem({ slug: it.slug, kind: it.kind, title: itemTitle(it) }) });
     if (it.can.unshare) out.push({ label: "Remove from workspace", icon: "x", separated: true, onClick: () => setRemoveFor([it]) });

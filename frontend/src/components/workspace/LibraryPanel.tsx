@@ -6,6 +6,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import ShareDialog from "@/components/access/ShareDialog";
+import { docHref } from "@/components/analytics/format";
 import { DocRow, rowStatuses } from "@/components/dashboard/DocRow";
 import { ListFooter, ListSkeleton } from "@/components/dashboard/ListParts";
 import { MoveFolderDialog, folderOptions } from "@/components/dashboard/DocDialogs";
@@ -188,8 +189,11 @@ export default function LibraryPanel({
     if (phone && copy) {
       items.push({ label: "Copy link", icon: "copy", onClick: () => { void copyText(copy.text).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy the link"))); } });
     }
-    if (d.is_mine && onAnalytics) {
-      items.push({ label: "Analytics", icon: "chart", onClick: () => onAnalytics({ doc: d, title: t, address, copyText: copy?.text ?? null }) });
+    if (d.is_mine) {
+      // The analytics page; a caller may still take it over (legacy drawer callers).
+      items.push(onAnalytics
+        ? { label: "Analytics", icon: "chart", onClick: () => onAnalytics({ doc: d, title: t, address, copyText: copy?.text ?? null }) }
+        : { label: "Analytics", icon: "chart", href: docHref(d.slug) });
     }
     const second: MenuEntry[] = [];
     if (d.is_mine) second.push({ label: "Share…", icon: "user", onClick: () => setShareFor(d) });

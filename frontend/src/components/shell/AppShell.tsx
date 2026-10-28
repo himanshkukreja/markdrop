@@ -24,6 +24,7 @@ const LABELS: Record<string, string> = {
   files: "My files",
   shared: "Shared with me",
   recent: "Recent",
+  analytics: "Analytics",
   "ws:new": "Workspaces",
   "int:vscode": "API tokens",
   "int:apps": "Connected apps",
@@ -102,6 +103,8 @@ function useExpanded() {
 
 /** Wide pages (the drive views) get the Main board's 960px column; settings keep 880. */
 const WIDE = /^\/(w\/|shared$|recent$)/;
+/** Analytics pages use the analytics boards' 1180px column. */
+const ANALYTICS = /^\/dashboard\/(analytics(\/|$)|live$)/;
 /** A workspace's folder view (/w/<ws> and /w/<ws>/f/<folder>), which brings its own phone header. */
 const FOLDER_PAGE = /^\/w\/[^/]+(\/f\/[^/]+)?\/?$/;
 
@@ -182,7 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           tabIndex={-1}
           className={cx(
             "mx-auto w-full min-w-0 flex-1 px-4 py-6 outline-none sm:px-6",
-            WIDE.test(pathname) ? "max-w-[1024px] lg:px-8 lg:pb-10" : "max-w-app lg:py-8",
+            ANALYTICS.test(pathname) ? "max-w-[1180px] lg:px-8 lg:py-7 lg:pb-12" : WIDE.test(pathname) ? "max-w-[1024px] lg:px-8 lg:pb-10" : "max-w-app lg:py-8",
           )}
         >
           {children}
@@ -251,7 +254,9 @@ function Palette({ activeWs, folderId, data }: { activeWs: string | null; folder
   }, [toggle]);
 
   const actions = useMemo<PaletteAction[]>(() => {
-    if (!onFolderPage || !activeWs || !tree) return [];
+    // Everywhere in the shell: jump to analytics.
+    const analytics: PaletteAction = { id: "analytics", label: "Open analytics", icon: "chart", where: "Go to", run: () => router.push("/dashboard/analytics") };
+    if (!onFolderPage || !activeWs || !tree) return [analytics];
     const ws = data.workspaces?.find((w) => w.id === activeWs);
     const role = tree.workspace.role ?? ws?.role;
     const folder = folderId ? tree.folders.find((f) => f.id === folderId) ?? null : null;
@@ -266,6 +271,7 @@ function Palette({ activeWs, folderId, data }: { activeWs: string | null; folder
     if (can(role, "member")) out.push({ id: "new-folder", label: "New folder", icon: "folder", where: "Here", run: () => sendFolderCommand("new-folder") });
     if (can(role, "member")) out.push({ id: "preview", label: `Preview ${here} as a visitor`, icon: "eye", where: "Here", run: () => sendFolderCommand("preview") });
     out.push({ id: "settings", label: `${teamName(ws, tree.workspace.name)} settings`, icon: "settings", where: "Workspace", run: () => router.push(`/settings/workspaces/${encodeURIComponent(activeWs)}`) });
+    out.push(analytics);
     return out;
   }, [onFolderPage, activeWs, tree, folderId, data.workspaces, uploads, router]);
 

@@ -70,6 +70,10 @@ export function MobileNav({ className }: { className?: string }) {
                 <span>Dashboard</span>
                 <Icon name="chevronRight" size={18} className="text-text-muted" />
               </Anchor>
+              <Anchor href="/dashboard/analytics" className={row} onClick={close}>
+                <span>Analytics</span>
+                <Icon name="chevronRight" size={18} className="text-text-muted" />
+              </Anchor>
               <Anchor href="/settings/account" className={row} onClick={close}>
                 <span>Account settings</span>
                 <Icon name="chevronRight" size={18} className="text-text-muted" />

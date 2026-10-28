@@ -22,7 +22,7 @@ export const wsFolderKey = (id: string, folderId: string) => `ws:${id}:folder:${
 export const wsSettingsKey = (id: string) => `ws:${id}:settings`;
 
 /**
- * Which rail item the URL points at. Keys: "files" | "shared" | "recent" | "ws:<id>:root" |
+ * Which rail item the URL points at. Keys: "files" | "shared" | "recent" | "analytics" | "ws:<id>:root" |
  * "ws:<id>:folder:<fid>" | "ws:<id>:settings" | "ws:new" | "int:vscode" | "int:apps" | "settings".
  */
 export function railKeyFor(pathname: string, search: string): string | null {
@@ -42,6 +42,7 @@ export function railKeyFor(pathname: string, search: string): string | null {
   }
   if (pathname === "/shared" || pathname.startsWith("/requests")) return "shared";
   if (pathname === "/recent") return "recent";
+  if (pathname === "/dashboard/analytics" || pathname.startsWith("/dashboard/analytics/") || pathname === "/dashboard/live") return "analytics";
   const m = pathname.match(/^\/settings\/workspaces\/([^/]+)/);
   if (m) return wsSettingsKey(decodeURIComponent(m[1]!));
   if (pathname === "/settings/workspaces") return "ws:new";
@@ -278,6 +279,9 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
         </RailLink>
         <RailLink k="recent" href="/recent" active={active} onNavigate={onNavigate}>
           <Icon name="clock" size={18} /> <span className="truncate">Recent</span>
+        </RailLink>
+        <RailLink k="analytics" href="/dashboard/analytics" active={active} onNavigate={onNavigate}>
+          <Icon name="chart" size={18} /> <span className="truncate">Analytics</span>
         </RailLink>
       </div>
 
