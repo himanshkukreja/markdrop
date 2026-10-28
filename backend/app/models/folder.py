@@ -29,3 +29,10 @@ class Folder:
     # Folder share (D2): {id, level: "link"|"workspace", created_at, created_by}.
     # A share only *filters* — it never grants access to any document.
     share: dict | None = None
+    # What new items filed here start as ("private" | "workspace" | "link");
+    # None = the workspace's ``settings.default_access``. A preselection for
+    # new items only: it never changes a document that is already filed.
+    default_access: str | None = None
+
+
+FOLDER_DEFAULT_LEVELS = ("private", "workspace", "link")

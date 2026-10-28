@@ -39,8 +39,17 @@ RESERVED_SLUGS = frozenset(
         # middleware on every host, so neither a document nor a top-level
         # folder on a custom domain could ever be served there.
         "mdp",
+        # Simpler workspaces UI: Shared with me, Recent, and the owner's
+        # access-request page (/requests/<id>). Same lists as above.
+        "shared", "recent", "requests",
     }
 )
+
+# Reserved for documents (markdrop.in/<slug>) only. A workspace's own domain
+# rewrites every path to its documents and folders and serves none of these app
+# pages, so a top-level *folder* called "Shared" or "Recent" (common names)
+# shadows nothing and stays allowed.
+APP_ONLY_SLUGS = frozenset({"shared", "recent", "requests"})
 
 _SLUG_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
@@ -51,6 +60,12 @@ def generate_slug(length: int = 7) -> str:
 
 def is_reserved_slug(slug: str) -> bool:
     return slug.lower() in RESERVED_SLUGS
+
+
+def is_reserved_folder_slug(slug: str) -> bool:
+    """Top-level folder slugs: the document list minus the app-only pages."""
+    value = slug.lower()
+    return value in RESERVED_SLUGS and value not in APP_ONLY_SLUGS
 
 
 def is_valid_slug(slug: str) -> bool:

@@ -90,6 +90,9 @@ class WorkspaceResponse(BaseModel):
     domains: list[DomainSummary] = []
     # The workspace's preselected "Who can open it" (settings.default_access).
     default_access: str = "workspace"
+    # "open" | "team" | "locked" | "custom": the Privacy preset these settings
+    # amount to (models/workspace.privacy_of). Read-only — set the settings.
+    privacy: str = "custom"
     member_count: int = 0
     pending_invite_count: int = 0
     domain_count: int = 0

@@ -65,6 +65,9 @@ class FolderPatch(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=80)
     slug: str | None = Field(None, min_length=1, max_length=40)
     parent_id: str | None = None
+    # What new items filed here start as; null = inherit the workspace's
+    # default_access. Present ⇒ applied (absent ⇒ unchanged).
+    default_access: Literal["private", "workspace", "link"] | None = None
 
 
 class FolderShare(BaseModel):
@@ -101,6 +104,32 @@ async def workspace_items(
     actor, ctx = _ac(request, db, user)
     return jsonable_encoder(await items_service.items(
         db, actor, ctx, workspace_id, folder=folder, q=q, kind=kind, cursor=cursor, limit=limit))
+
+
+@router.get("/{workspace_id}/preview")
+@limiter.limit("60/minute")
+async def workspace_preview(
+    request: Request, workspace_id: str,
+    folder: str = Query("root", max_length=64),
+    as_: Literal["anyone", "member", "email"] = Query("anyone", alias="as"),
+    email: str | None = Query(None, max_length=320),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """"Preview as": what ``as`` would see in this folder, and what is hidden
+    from them and why — among the items the caller can see (services/preview.py).
+    Member+; ``as=email`` admin+ (it reveals that person's grants)."""
+    from app.services import preview as preview_service
+
+    role = await ws_service.require_role(db, workspace_id, user.id, "member")
+    if as_ == "email":
+        if not role_allows(role, "admin"):
+            raise HTTPException(status_code=403, detail="Only workspace admins can preview as a person.")
+        if not email or "@" not in access.normalize_email(email):
+            raise HTTPException(status_code=422, detail="Enter an email address to preview as.")
+    actor, ctx = _ac(request, db, user)
+    return jsonable_encoder(await preview_service.preview(
+        db, actor, ctx, workspace_id, folder, as_, email if as_ == "email" else None))
 
 
 @router.post("/{workspace_id}/items/move")
@@ -214,15 +243,20 @@ async def patch_folder(request: Request, workspace_id: str, folder_id: str, data
     path, and all of them are purged."""
     await ws_service.require_role(db, workspace_id, user.id, "admin")
     reparent = "parent_id" in data.model_fields_set
+    extra = ({"default_access": data.default_access}
+             if "default_access" in data.model_fields_set else {})
     async with revalidate.batch(db):  # B-R1
         folder = await folder_service.update_folder(
             db, workspace_id, folder_id, name=data.name, slug=data.slug,
-            parent_id=data.parent_id, reparent=reparent)
+            parent_id=data.parent_id, reparent=reparent, **extra)
     path = await folder_service.path_of(db, workspace_id, folder.id)
     return jsonable_encoder({
         "id": folder.id, "workspace_id": folder.workspace_id, "name": folder.name,
         "slug": folder.slug, "parent_id": folder.parent_id, "path": path,
         "created_at": folder.created_at, "updated_at": folder.updated_at,
+        "default_access": folder.default_access,
+        "effective_default_access": await folder_service.effective_default_access(
+            db, workspace_id, folder.id),
     })
 
 

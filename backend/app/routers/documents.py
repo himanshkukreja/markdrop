@@ -134,8 +134,29 @@ async def create_document(
 ):
     # Logged-in creators automatically own their document.
     owner_id = user.id if user else None
+    if data.workspace:
+        return await _create_filed(request, db, data, user)
     doc, raw_secret = await doc_service.create_document(db, data, owner_id=owner_id)
     return DocumentCreateResponse(**_to_response(doc, owner_id), edit_secret=raw_secret)
+
+
+async def _create_filed(request: Request, db: AsyncIOMotorDatabase, data: DocumentCreate,
+                        user: User | None) -> DocumentCreateResponse:
+    """Create straight into a workspace folder (drag-and-drop of a .md file).
+    Checked before anything exists; born private, filed, then given its level
+    — the one asked for, else the folder's "new items start as" (A11)."""
+    from app.services import library as lib_service
+
+    explicit = data.access_level if "access_level" in data.model_fields_set else None
+    folder_id, level = await lib_service.prepare_new_filing(
+        db, user, data.workspace, data.folder, custom_slug=data.custom_slug, access_level=explicit)
+    born = data.model_copy(update={"access_level": "private", "workspace": None, "folder": None})
+    doc, raw_secret = await doc_service.create_document(db, born, owner_id=user.id)
+    raw = await db["documents"].find_one({"slug": doc.slug})
+    after, error = await lib_service.place_new(db, raw, user, data.workspace, folder_id, level)
+    actor = access.actor_from_request(request, user)
+    body = await _full_response(db, after, actor, _ctx(db, request))
+    return DocumentCreateResponse(**body, edit_secret=raw_secret, workspace_error=error)
 
 
 @router.get("/{slug}", response_model=DocumentResponse)
@@ -195,7 +216,14 @@ async def get_document(
              "folder_path": raw.get("folder_path") or []},
             headers={"X-Markdrop-Moved": current},
         )
-    return DocumentResponse(**await _full_response(db, raw, actor, ctx))
+    body = await _full_response(db, raw, actor, ctx)
+    if actor.user_id:
+        # "Recent" (services/personal.py): a signed-in reader's successful
+        # read. Re-checked with can() whenever the list is shown.
+        from app.services import personal
+
+        await personal.record_view(db, actor.user_id, raw["_id"])
+    return DocumentResponse(**body)
 
 
 @router.put("/{slug}", response_model=DocumentResponse)

@@ -203,3 +203,46 @@ async def set_folder(
             raise HTTPException(status_code=404, detail="That document isn't in this workspace.")
         raise d.exception()
     await folder_service.file_document(db, raw, workspace_id, folder_id)
+
+
+# ── Filing at creation (documents, artifacts) ────────────────────────────────
+
+
+async def prepare_new_filing(db: AsyncIOMotorDatabase, user: User | None, workspace_id: str,
+                             folder: str | None, *, custom_slug: str | None = None,
+                             access_level: str | None = None) -> tuple[str | None, str]:
+    """Everything that can be checked before a new item exists: the caller is
+    a member+ of the workspace, it isn't being deleted, the folder (id or slug
+    path) exists, a custom slug fits beside that folder's subfolders (B5).
+    Returns (folder id, level) — ``access_level`` when given, else the
+    folder's "new items start as" (else the workspace's default)."""
+    from app.services import folder as folder_service
+    from app.services import workspace as ws_service
+
+    if user is None:
+        raise HTTPException(status_code=401, detail="Sign in to add something to a workspace.")
+    await ws_service.require_role(db, workspace_id, user.id, "member")
+    await ws_service.assert_open(db, workspace_id)  # C-N5
+    folder_id = await folder_service.resolve_ref(db, workspace_id, folder) if folder else None
+    if custom_slug:
+        await folder_service.assert_doc_fits(db, workspace_id, folder_id, custom_slug)
+    level = access_level or await folder_service.effective_default_access(db, workspace_id, folder_id)
+    return folder_id, level
+
+
+async def place_new(db: AsyncIOMotorDatabase, raw: dict, user: User, workspace_id: str,
+                    folder_id: str | None, level: str) -> tuple[dict, str | None]:
+    """File a just-created item (born private) and only then give it ``level``
+    (A11: never more reachable than asked, even for a moment). On failure it
+    stays private (filed or not), and the second value says why."""
+    try:
+        await add_document(db, workspace_id, str(raw["_id"]), user, folder_id)
+        if level != "private":
+            fresh = await db["documents"].find_one({"_id": raw["_id"]})
+            await access.set_level(db, fresh, level, access.Actor.of(user), access.Ctx(db))
+        error = None
+    except HTTPException as exc:
+        detail = exc.detail if isinstance(exc.detail, str) else "not allowed"
+        error = (f"It was created but couldn't be added to the workspace as asked ({detail}). "
+                 "It is private to you.")
+    return (await db["documents"].find_one({"_id": raw["_id"]})) or raw, error

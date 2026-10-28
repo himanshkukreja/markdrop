@@ -81,6 +81,16 @@ class WorkspaceSettings:
         )
 
 
+def privacy_of(settings: "WorkspaceSettings") -> str:
+    """The single "Privacy" choice the settings page shows — a name for two
+    existing settings, never a rule of its own: Open = link default and no
+    sign-in; Team = workspace default and no sign-in; Locked = workspace
+    default and sign-in required; anything else = Custom."""
+    pair = (bool(settings.require_auth_to_view), settings.default_access)
+    return {(False, "link"): "open", (False, "workspace"): "team",
+            (True, "workspace"): "locked"}.get(pair, "custom")
+
+
 @dataclass
 class Workspace:
     id: str

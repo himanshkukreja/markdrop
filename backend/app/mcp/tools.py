@@ -468,13 +468,15 @@ async def precheck_workspace(ctx: Context, args: dict) -> tuple[str | None, str 
     return ws_id, folder_id
 
 
-async def workspace_default_access(ctx: Context, ws_id: str | None, args: dict) -> str:
-    from app.services import workspace as _ws
+async def workspace_default_access(ctx: Context, ws_id: str | None, args: dict,
+                                   folder_id: str | None = None) -> str:
+    """Not said ⇒ what new items start as in that folder (its default_access,
+    else the workspace's)."""
+    from app.services import folder as _folder
 
     if args.get("access") or args.get("password") or not ws_id:
         return access_choice(args)[0]
-    ws = await _ws.get_workspace(ctx.db, ws_id)
-    return ws.settings.default_access if ws else "link"
+    return await _folder.effective_default_access(ctx.db, ws_id, folder_id)
 
 
 async def text_of(doc) -> tuple[str | None, str | None]:
@@ -612,8 +614,8 @@ async def publish_document(ctx: Context, args: dict) -> tuple[str, dict]:
             f"Markdown documents are limited to {settings.max_content_chars:,} characters; "
             f"this one has {len(markdown):,}."
         )
-    ws_id, _folder_id = await precheck_workspace(ctx, args)
-    access = await workspace_default_access(ctx, ws_id, args)
+    ws_id, folder_id = await precheck_workspace(ctx, args)
+    access = await workspace_default_access(ctx, ws_id, args, folder_id)
     password = args.get("password") or None
     if access == "workspace" and not ws_id:
         raise ToolError('Access "workspace" needs a workspace: pass workspace too.')
@@ -690,8 +692,8 @@ async def publish_page(ctx: Context, args: dict) -> tuple[str, dict]:
             "Publishing files isn't available on this server right now (file storage "
             "isn't configured). publish_document still works for markdown."
         )
-    ws_id, _folder_id = await precheck_workspace(ctx, args)
-    access = await workspace_default_access(ctx, ws_id, args)
+    ws_id, folder_id = await precheck_workspace(ctx, args)
+    access = await workspace_default_access(ctx, ws_id, args, folder_id)
     password = args.get("password") or None
     if access == "workspace" and not ws_id:
         raise ToolError('Access "workspace" needs a workspace: pass workspace too.')
@@ -1659,7 +1661,8 @@ _PUBLISH_OPTIONS = {
         "description": ("'link': anyone with the link (the default outside a workspace). 'private': "
                         "only the user. 'password': anyone with the link and the password. "
                         "'workspace': members of its workspace (needs workspace). With workspace and no "
-                        "access, the workspace's default access applies."),
+                        "access, the folder's \"new items start as\" setting applies (else the "
+                        "workspace's default access)."),
     },
     "workspace": {**_WORKSPACE_ARG, "description": (
         "Optional: file it in this workspace (id, name or custom domain) — use it when the user "

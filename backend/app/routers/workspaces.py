@@ -11,7 +11,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
-from app.models.workspace import Workspace
+from app.models.workspace import Workspace, privacy_of
 from app.routers.auth import require_user
 from app.schemas.workspace import (
     BrandingAssetResponse,
@@ -80,6 +80,7 @@ def _to_response(workspace: Workspace, role: str, counts: dict | None = None) ->
         ),
         role=role,  # type: ignore[arg-type]
         default_access=s.default_access,
+        privacy=privacy_of(s),
         **(counts or {}),
     )
 
