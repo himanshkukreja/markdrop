@@ -9,6 +9,7 @@ import { useEffect } from "react";
 
 const PALETTE = "md:cmdk";
 const FOLDER = "md:folder-command";
+const BROWSE = "md:browse";
 
 export type FolderCommand = "share" | "invite" | "new-folder" | "preview";
 
@@ -20,6 +21,18 @@ export function usePaletteRequests(cb: () => void) {
   useEffect(() => {
     window.addEventListener(PALETTE, cb);
     return () => window.removeEventListener(PALETTE, cb);
+  }, [cb]);
+}
+
+/** Open the Browse drawer (phones: the folder page's compact header has no shell bar). */
+export function openBrowse() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(BROWSE));
+}
+
+export function useBrowseRequests(cb: () => void) {
+  useEffect(() => {
+    window.addEventListener(BROWSE, cb);
+    return () => window.removeEventListener(BROWSE, cb);
   }, [cb]);
 }
 

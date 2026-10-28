@@ -25,7 +25,7 @@ import {
 } from "@/components/ui";
 import { WorkspaceTile } from "@/components/shell/SideNav";
 import { useLocationSearch, useMounted } from "@/components/shell/useLocation";
-import { openCommandPalette, useFolderCommands, type FolderCommand } from "@/components/shell/commands";
+import { openCommandPalette, useFolderCommands, type FolderCommand, openBrowse } from "@/components/shell/commands";
 import ShareDialog from "@/components/access/ShareDialog";
 import RowMenu from "@/components/dashboard/RowMenu";
 import { ListSkeleton } from "@/components/dashboard/ListParts";
@@ -510,6 +510,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
             <div className="truncate text-caption text-text-muted" dir="auto">{folder ? wsName : "Workspace"}</div>
             <h1 className="truncate text-h4 leading-5 text-text" dir="auto">{tree ? title : <Skeleton width={120} height={18} />}</h1>
           </div>
+          <IconButton icon="listTree" label="Browse" className="size-11" onClick={openBrowse} aria-haspopup="dialog" />
           <IconButton icon="search" label="Search" className="size-11" onClick={openCommandPalette} aria-haspopup="dialog" />
           {isMember && (
             <Dropdown aria-label="New" align="right" minWidth={240} trigger={<IconButton icon="plus" label="New" className="size-11" />} items={newMenu} />

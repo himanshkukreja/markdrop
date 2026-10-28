@@ -16,7 +16,7 @@ import { UploadProvider, useUploads } from "@/components/workspace/uploads/Uploa
 import { teamName } from "@/components/workspace/folder/items";
 import { UserAvatar } from "./AccountMenu";
 import CommandPalette, { type PaletteAction } from "./CommandPalette";
-import { sendFolderCommand, usePaletteRequests } from "./commands";
+import { sendFolderCommand, usePaletteRequests, useBrowseRequests } from "./commands";
 import { SideNav, railKeyFor, workspaceOfKey, wsFolderKey, wsRootKey, type RailData } from "./SideNav";
 import { useLocationSearch } from "./useLocation";
 
@@ -136,6 +136,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [browseOpen, setBrowseOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   useEffect(() => setBrowseOpen(false), [pathname, search]);
+  const openBrowseDrawer = useCallback(() => setBrowseOpen(true), []);
+  useBrowseRequests(openBrowseDrawer);
 
   const feedback = () => {
     setBrowseOpen(false);
