@@ -20,7 +20,7 @@ import { consumeHandoffToken, peekHandoffToken } from "@/components/tenant/hando
 import { useAuth } from "@/contexts/AuthContext";
 import { track } from "@/lib/track";
 import { useReadDepth } from "@/lib/readDepth";
-import { engagementOptedOut, useDocEngagement } from "@/lib/engage";
+import { engagementOptedOut, useAuthSettled, useDocEngagement } from "@/lib/engage";
 import { getAccess, type AccessState } from "@/lib/access";
 import type { DocumentViewProps } from "./types";
 
@@ -531,13 +531,14 @@ export function useDocumentViewer({
 
   // Fire a single view beacon from the browser so the real visitor IP (not
   // Vercel's SSR server) drives the view count + geography. After auth has
-  // settled, so it carries the session token and the owner's own view isn't counted.
+  // settled (or 1.5 s), so it carries the session token and the owner's own view isn't counted.
+  const authSettled = useAuthSettled(authLoading);
   useEffect(() => {
-    if (viewBeaconSent.current || authLoading) return;
+    if (viewBeaconSent.current || !authSettled) return;
     if (isPasswordProtected && pwdLocked) return; // wait until unlocked
     viewBeaconSent.current = true;
     recordEvent(slug, "view", readTicket, { optOut: engagementOptedOut() });
-  }, [pwdLocked, isPasswordProtected, slug, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pwdLocked, isPasswordProtected, slug, authSettled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If logged in, detect ownership so the owner can edit without the secret
   // (and view their own password-protected doc without the read password). We

@@ -4,7 +4,7 @@
 import { EmptyState } from "@/components/ui";
 import { getPages, type AnalyticsRange, type Overview } from "@/lib/analytics";
 import { PageBars } from "./charts";
-import { RANGE_WORDS, num, pct, secs } from "./format";
+import { RANGE_WORDS, num, pagesLabel, pct, secs } from "./format";
 import { TrackingNote } from "./OverviewTab";
 import { LoadError, Panel, PanelSkeleton, Quiet, useLoad } from "./parts";
 
@@ -37,7 +37,7 @@ export default function PagesTab({ slug, ov, range, internal }: { slug: string; 
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
-      <Quiet>{num(p.npages)} pages · {num(p.sessions)} {p.sessions === 1 ? "reader" : "readers"} · {RANGE_WORDS[range]}</Quiet>
+      <Quiet>{pagesLabel(p.npages)} · {num(p.sessions)} {p.sessions === 1 ? "reader" : "readers"} · {RANGE_WORDS[range]}</Quiet>
       <div className="flex flex-wrap gap-4">
         <Panel id="pg-reach" title="Viewers who reached each page" className="flex-[1_1_420px]">
           <PageBars

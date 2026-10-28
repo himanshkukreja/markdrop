@@ -144,3 +144,12 @@ export function docHref(slug: string, tab?: string | null): string {
   const t = tab && tab !== "overview" ? `tab=${encodeURIComponent(tab)}` : "";
   return `/dashboard/analytics/${encodeURIComponent(slug)}${t ? `?${t}` : ""}`;
 }
+
+/** The PDF viewer shows (and so reports) at most this many pages (worker/src/index.js LIMIT). */
+export const PDF_VIEWER_PAGES = 50;
+
+/** "12 pages", or "50+ pages" when the file is longer than the viewer shows. */
+export function pagesLabel(n: number): string {
+  if (n >= PDF_VIEWER_PAGES) return `${PDF_VIEWER_PAGES}+ pages`;
+  return `${num(n)} ${n === 1 ? "page" : "pages"}`;
+}

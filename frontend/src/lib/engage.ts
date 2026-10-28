@@ -15,7 +15,7 @@
  * the document's owner send nothing at all.
  */
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getToken, landingReferrer, landingUtm } from "@/lib/api";
 import { trackingDisabled } from "@/lib/track";
 import {
@@ -449,4 +449,18 @@ export function useArtifactEngagement(
       session.stop();
     };
   }, [slug, enabled, kind, ver, origin, frame]);
+}
+
+/**
+ * True once sign-in has settled, or after `capMs` regardless: the view beacon reads the token
+ * itself, so it waits only briefly (a workspace domain hands its token over just after load) and
+ * never on a slow or retrying /auth/me.
+ */
+export function useAuthSettled(authLoading: boolean, capMs = 1500): boolean {
+  const [capped, setCapped] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setCapped(true), capMs);
+    return () => clearTimeout(t);
+  }, [capMs]);
+  return !authLoading || capped;
 }

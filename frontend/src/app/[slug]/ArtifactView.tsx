@@ -41,7 +41,7 @@ import { FrameCover } from "./artifact/FrameCover";
 import { ReportDialog } from "./artifact/ReportDialog";
 import { basePathOf, isPaper, linkPrefixOf, themedFrameSrc } from "./artifact/frame";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
-import { engageKindFor, engagementOptedOut, useArtifactEngagement } from "@/lib/engage";
+import { engageKindFor, engagementOptedOut, useArtifactEngagement, useAuthSettled } from "@/lib/engage";
 
 /**
  * Viewer for kind="artifact" documents.
@@ -308,12 +308,13 @@ export default function ArtifactView({
 
   // Count the view from the browser so the real visitor IP drives geo, matching
   // how markdown documents are counted.
-  // After auth has settled, so it carries the session token (the owner's own view isn't counted).
+  // After auth has settled (or 1.5 s), so it carries the session token (the owner's own view isn't counted).
+  const authSettled = useAuthSettled(authLoading);
   useEffect(() => {
-    if (beaconSent.current || locked || authLoading) return;
+    if (beaconSent.current || locked || !authSettled) return;
     beaconSent.current = true;
     recordEvent(slug, "view", readTicket, { ver: fileVersion, optOut: engagementOptedOut() });
-  }, [slug, locked, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [slug, locked, authSettled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live updates. The socket carries only a "changed" ping, so we refetch
   // through the normal authorized read path. Failures are no-ops.

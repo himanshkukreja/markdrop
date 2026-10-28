@@ -19,7 +19,7 @@ import MediaTab from "./MediaTab";
 import OverviewTab from "./OverviewTab";
 import PagesTab from "./PagesTab";
 import VersionsTab from "./VersionsTab";
-import { KIND_WORD, clock, day, num, prettyHeadingId } from "./format";
+import { KIND_WORD, clock, day, num, pagesLabel, prettyHeadingId } from "./format";
 import { KpiGrid, LoadError, PanelSkeleton, RangePicker, useAnalyticsGate, useLoad, useParams } from "./parts";
 
 type Tab = "overview" | "video" | "listening" | "content" | "pages" | "audience" | "versions";
@@ -54,7 +54,7 @@ function metaLine(ov: { doc: AnalyticsDoc; versions_marks: { date: string; versi
   const d = ov.doc;
   const parts: React.ReactNode[] = [KIND_WORD[d.kind]];
   if ((d.kind === "video" || d.kind === "audio") && d.duration_s) parts.push(clock(d.duration_s));
-  if (d.kind === "pdf" && d.npages) parts.push(`${num(d.npages)} ${d.npages === 1 ? "page" : "pages"}`);
+  if (d.kind === "pdf" && d.npages) parts.push(pagesLabel(d.npages));
   parts.push(<code key="a" className="font-mono text-caption break-all">{d.address}</code>);
   const fv = d.file_version ?? 1;
   if (fv > 1) {

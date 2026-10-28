@@ -620,6 +620,8 @@ export async function fetchMe(): Promise<MeUser> {
     res = await fetch(`${API_BASE}/api/v1/auth/me`, {
       headers: { ...authHeaders() },
       cache: "no-store",
+      // A hung request would hold every "after sign-in settles" step on the page.
+      signal: AbortSignal.timeout(10_000),
     });
   } catch {
     throw new ApiError("NETWORK_ERROR", 0);
