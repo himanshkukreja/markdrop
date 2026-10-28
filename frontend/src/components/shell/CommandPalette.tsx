@@ -99,7 +99,9 @@ export default function CommandPalette({
     return () => { clearTimeout(t); ctl.abort(); };
   }, [q, open]);
 
-  const go = useCallback((href: string) => { onClose(); if (/^https?:\/\//.test(href)) window.location.assign(href); else router.push(href); }, [onClose, router]);
+  const go = useCallback((href: string) => { onClose(); router.push(href); }, [onClose, router]);
+  /** Files open in a new tab, like a click on their row. */
+  const openFile = useCallback((href: string) => { onClose(); window.open(href, "_blank", "noopener,noreferrer"); }, [onClose]);
 
   const groups = useMemo<Group[]>(() => {
     const out: Group[] = [];
@@ -113,7 +115,7 @@ export default function CommandPalette({
             label: (f.encrypted ? f.slug : f.title?.trim()) || f.slug,
             where: f.workspace ? [f.workspace.name, ...(f.folder ? [f.folder.name] : [])].join(" › ") : f.source === "shared" ? "Shared with me" : "My files",
             icon: fileIcon(f),
-            run: () => go(openHref(f.slug, f.url, f.encrypted)),
+            run: () => openFile(openHref(f.slug, f.url, f.encrypted)),
           })),
         });
       }
@@ -149,7 +151,7 @@ export default function CommandPalette({
           label: (f.encrypted ? f.slug : f.title?.trim()) || f.slug,
           where: f.workspace ? [f.workspace.name, ...(f.folder ? [f.folder.name] : [])].join(" › ") : "My files",
           icon: fileIcon(f),
-          run: () => go(openHref(f.slug, f.url, f.encrypted)),
+          run: () => openFile(openHref(f.slug, f.url, f.encrypted)),
         })),
       });
     }
@@ -168,7 +170,7 @@ export default function CommandPalette({
       });
     }
     return out;
-  }, [q, results, recent, actions, go, onClose]);
+  }, [q, results, recent, actions, go, openFile, onClose]);
 
   const flat = useMemo(() => groups.flatMap((g) => g.rows), [groups]);
   useEffect(() => { setActive(0); }, [flat.length, q]);

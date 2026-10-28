@@ -184,7 +184,7 @@ export default function LibraryPanel({
   }
 
   function menuFor(d: MyDocListItem, t: string, href: string, external: boolean, address: string, copy: { text: string } | null): MenuEntry[] {
-    const items: MenuEntry[] = [{ label: "Open", icon: "external", href, external }];
+    const items: MenuEntry[] = [{ label: "Open", icon: "external", href, external: true }];
     if (phone && copy) {
       items.push({ label: "Copy link", icon: "copy", onClick: () => { void copyText(copy.text).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy the link"))); } });
     }
@@ -308,7 +308,7 @@ export default function LibraryPanel({
                 doc={d}
                 title={t}
                 href={addr.href}
-                external={addr.external}
+                external
                 address={addr.label}
                 extraMeta={by ? <><span aria-hidden> · </span><span>{by}</span></> : null}
                 statuses={rowStatuses(d, false)}

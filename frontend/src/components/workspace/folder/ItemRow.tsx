@@ -95,7 +95,9 @@ export function ItemRow({
         {leading}
         <ItemTile file={file} bare />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Anchor href={href} className="md-focus min-w-0 truncate rounded-sm text-body-strong text-text no-underline" dir="auto">{title}</Anchor>
+          <Anchor href={href} target="_blank" rel="noopener noreferrer" className="md-focus min-w-0 truncate rounded-sm text-body-strong text-text no-underline" dir="auto">
+            {title}<span className="md-visually-hidden"> (opens in a new tab)</span>
+          </Anchor>
           <span className="flex min-w-0 items-center gap-1 text-caption text-text-muted">
             <Icon name={icon} size={12} className="shrink-0" />
             <span className="truncate">{words}{hasPassword && access === "link" ? " · password" : ""}</span>
@@ -116,8 +118,8 @@ export function ItemRow({
       <ItemTile file={file} />
       <div className="flex min-w-0 flex-[1_1_260px] flex-col">
         <div className="flex min-w-0 items-center gap-2">
-          <Anchor href={href} className="md-focus min-w-0 truncate rounded-sm text-body-strong text-text no-underline hover:underline hover:underline-offset-3" dir="auto" title={title}>
-            {title}
+          <Anchor href={href} target="_blank" rel="noopener noreferrer" className="md-focus min-w-0 truncate rounded-sm text-body-strong text-text no-underline hover:underline hover:underline-offset-3" dir="auto" title={title}>
+            {title}<span className="md-visually-hidden"> (opens in a new tab)</span>
           </Anchor>
           {encrypted && <Badge size="sm" tone="info" icon="key" upper title="Encrypted in the browser. The key is in the link.">E2E</Badge>}
           {hasPassword && <Badge size="sm" icon="lock" title="People without access are asked for the password">Password</Badge>}

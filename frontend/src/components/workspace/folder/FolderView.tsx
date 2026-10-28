@@ -314,7 +314,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
     setMoveTarget({ kind: "items", slugs: [it.slug], label: itemTitle(it), fromFolderId: it.folder?.id ?? null });
 
   function itemMenu(it: WorkspaceItem): MenuEntry[] {
-    const out: MenuEntry[] = [{ label: "Open", icon: "external", href: openHref(it.slug, it.url, it.encrypted) }];
+    const out: MenuEntry[] = [{ label: "Open", icon: "external", href: openHref(it.slug, it.url, it.encrypted), external: true }];
     if (it.can.move) out.push({ label: "Move to…", icon: "folder", onClick: () => moveOne(it) });
     if (it.can.edit && !it.encrypted) out.push({ label: "Rename", icon: "edit", onClick: () => setRenameItem({ slug: it.slug, kind: it.kind, title: itemTitle(it) }) });
     if (it.can.unshare) out.push({ label: "Remove from workspace", icon: "x", separated: true, onClick: () => setRemoveFor([it]) });

@@ -319,7 +319,7 @@ export default function DashboardPage() {
 
   function menuFor(d: MyDocListItem, title: string, address: string, copy: { text: string } | null): MenuEntry[] {
     const isArtifact = d.kind === "artifact";
-    const items: MenuEntry[] = [{ label: "Open", icon: "external", href: `/${d.slug}` }];
+    const items: MenuEntry[] = [{ label: "Open", icon: "external", href: `/${d.slug}`, external: true }];
     if (phone && copy) {
       items.push({
         label: "Copy link", icon: "copy",
@@ -503,6 +503,7 @@ export default function DashboardPage() {
                   doc={d}
                   title={title}
                   href={`/${d.slug}`}
+                  external
                   address={addr.label}
                   statuses={rowStatuses(d, !!gStatus?.connected)}
                   onAccess={() => setShareFor(d)}

@@ -107,7 +107,7 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
   }
 
   const menu = (it: PersonalItem): MenuEntry[] => {
-    const out: MenuEntry[] = [{ label: "Open", icon: "external", href: openHref(it.slug, it.url, it.encrypted) }];
+    const out: MenuEntry[] = [{ label: "Open", icon: "external", href: openHref(it.slug, it.url, it.encrypted), external: true }];
     if (!it.encrypted) {
       out.push({ label: "Copy link", icon: "copy", onClick: () => { void copyText(it.url).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy the link"))); } });
     }
