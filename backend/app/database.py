@@ -223,6 +223,14 @@ async def connect() -> None:
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] access-request / recent indexes skipped: {exc}")
 
+    # Creator analytics (services/engage.py): engagement sessions, 395-day TTL.
+    try:
+        from app.services import engage as _engage
+
+        await _engage.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] engagement indexes skipped: {exc}")
+
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])
     await db["feedback"].create_index([("status", 1), ("type", 1), ("created_at", -1)])

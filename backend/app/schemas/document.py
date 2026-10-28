@@ -120,6 +120,8 @@ class DocumentResponse(BaseModel):
     # reading of a video or audio file; null until known.
     poster_url: str | None = None
     media: dict | None = None
+    # The current file's version number (artifacts only; null for markdown).
+    file_version: int | None = None
     # ── Access policy additions (additive) ───────────────────────────────────
     # The document's address on its workspace's live primary domain, else null.
     workspace_url: str | None = None
@@ -169,6 +171,13 @@ class SlugChangeRequest(BaseModel):
     new_slug: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
 
 
+class EventUtm(BaseModel):
+    """The landing URL's utm_* parameters (each trimmed to 100 characters)."""
+    source: str | None = Field(None, max_length=500)
+    medium: str | None = Field(None, max_length=500)
+    campaign: str | None = Field(None, max_length=500)
+
+
 class EventRequest(BaseModel):
     type: Literal["view", "export_pdf", "copy_url"]
     # The read ticket from GET /documents/{slug}; required (silently) for any
@@ -178,6 +187,10 @@ class EventRequest(BaseModel):
     # Referer header can't be used: this beacon is fired *from* markdrop.in,
     # so that header only ever names markdrop.in.
     referrer: str | None = Field(None, max_length=2048)
+    # Creator analytics (build spec §1a): campaign tags from the landing URL,
+    # and which file version was viewed (artifacts).
+    utm: EventUtm | None = None
+    ver: int | None = None
 
 
 class ReportRequest(BaseModel):

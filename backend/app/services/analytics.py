@@ -59,21 +59,50 @@ async def record_event(
     event_type: str,
     ip: str | None = None,
     referrer: str | None = None,
+    *,
+    user_agent: str | None = None,
+    utm: dict | None = None,
+    ver: int | None = None,
+    internal: bool = False,
 ) -> None:
+    """One view / click row. Creator analytics (build spec §1a) adds coarse
+    device / OS / browser, the marketing channel, the landing URL's campaign
+    tags, the file version viewed and whether a workspace member viewed it."""
+    from app.services import traffic
+
     location = geo.lookup(ip)
-    await db["events"].insert_one(
-        {
-            "doc_id": doc_id,
-            "owner_id": owner_id,
-            "type": event_type,
-            "ts": datetime.now(timezone.utc),
-            "country": location["country"],
-            "region": location["region"],
-            "city": location["city"],
-            "referrer": clean_referrer(referrer),
-            "ip_hash": _hash_ip(ip),
-        }
-    )
+    ref = clean_referrer(referrer)
+    utm = utm or {}
+
+    def _tag(key: str, lower: bool) -> str | None:
+        v = utm.get(key)
+        if not isinstance(v, str) or not v.strip():
+            return None
+        v = v.strip()[:100]
+        return v.lower() if lower else v
+
+    source, medium, campaign = _tag("source", True), _tag("medium", True), _tag("campaign", False)
+    ref_host = urlsplit(ref).hostname if ref else None
+    row = {
+        "doc_id": doc_id,
+        "owner_id": owner_id,
+        "type": event_type,
+        "ts": datetime.now(timezone.utc),
+        "country": location["country"],
+        "region": location["region"],
+        "city": location["city"],
+        "referrer": ref,
+        "ip_hash": _hash_ip(ip),
+        "channel": traffic.channel_for(ref_host, source, medium),
+        "utm_source": source,
+        "utm_medium": medium,
+        "utm_campaign": campaign,
+        "ver": ver,
+        "internal": bool(internal),
+    }
+    if user_agent is not None:
+        row.update(traffic.parse_ua(user_agent))
+    await db["events"].insert_one(row)
 
 
 # ── Reading ──────────────────────────────────────────────────────────────────

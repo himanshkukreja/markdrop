@@ -133,7 +133,7 @@ class Public(unittest.IsolatedAsyncioTestCase):
         r = await self.http.post("/api/v1/unsubscribe", params={"t": t}, content=b"List-Unsubscribe=One-Click")
         self.assertEqual(r.status_code, 200)
         self.assertIsNotNone((await self.db["users"].find_one({"_id": self.user}))["unsubscribed_at"])
-        r = await self.http.get("/api/v1/auth/unsubscribe", params={"t": t[:-1] + "0"})
+        r = await self.http.get("/api/v1/auth/unsubscribe", params={"t": t[:-1] + ("1" if t[-1] == "0" else "0")})
         self.assertEqual(r.status_code, 400)
 
     # ── webhooks ──

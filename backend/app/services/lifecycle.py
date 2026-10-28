@@ -85,6 +85,14 @@ async def _delete_objects(raw: dict) -> None:
         await run_in_threadpool(r2.delete_prefix, raw["bundle_prefix"])
     elif raw.get("blob_key"):
         await run_in_threadpool(r2.delete, raw["blob_key"])
+        from app.services import media
+
+        if media.may_have_frames(raw["blob_key"]):
+            # Frames creator analytics cached for this video (best effort).
+            try:
+                await run_in_threadpool(r2.delete_prefix, media.frames_prefix(raw["blob_key"]))
+            except Exception:  # pragma: no cover
+                pass
 
 
 async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete") -> bool:

@@ -163,15 +163,22 @@ def poster_time(duration_s: float | None) -> float:
 
 async def poster(source: str, mime: str, duration_s: float | None) -> bytes | None:
     """One JPEG frame, at most 1280 px wide; None if it can't be made."""
+    return await frame(source, mime, poster_time(duration_s))
+
+
+async def frame(source: str, mime: str, t: float, *, max_width: int = POSTER_MAX_WIDTH) -> bytes | None:
+    """One JPEG frame at ``t`` seconds (the poster's recipe at any timestamp —
+    creator analytics shows the frame where viewers drop off); None if it
+    can't be made."""
     exe = binary("ffmpeg")
     inp = _input_args(source, mime)
     if exe is None or inp is None or not (mime or "").startswith("video/"):
         return None
-    t = poster_time(duration_s)
+    t = max(0.0, float(t))
     # -ss before -i: a fast seek on the input, so only the frames near it are read.
     args = [exe, "-nostdin", "-v", "error", "-ss", f"{t:.3f}", *inp,
             "-frames:v", "1", "-an", "-sn", "-dn",
-            "-vf", f"scale='min({POSTER_MAX_WIDTH},iw)':-2",
+            "-vf", f"scale='min({int(max_width)},iw)':-2",
             "-q:v", "4", "-f", "image2", "-c:v", "mjpeg", "pipe:1"]
     res = await _run(args, POSTER_TIMEOUT_S)
     if res is None or res[0] != 0:
@@ -189,6 +196,19 @@ def poster_key_for(blob_key: str) -> str:
 
     owner_dir = blob_key.rsplit("/", 1)[0] if "/" in blob_key else "art"
     return f"{owner_dir}/{secrets.token_urlsafe(18)}.poster.jpg"
+
+
+_VIDEO_EXTS = (".mp4", ".mov", ".webm", ".ogv", ".m4v")
+
+
+def frames_prefix(blob_key: str) -> str:
+    """Where creator analytics caches frames of a video (private objects):
+    ``<blob_key>.f/<second>.jpg``. Deleted with the video."""
+    return f"{blob_key}.f/"
+
+
+def may_have_frames(key: str | None) -> bool:
+    return bool(key) and key.lower().endswith(_VIDEO_EXTS)
 
 
 def wants_probe(mime: str | None) -> bool:

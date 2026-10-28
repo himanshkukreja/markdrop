@@ -12,6 +12,10 @@ encrypted one — gets a content-free card: no title, no opening text, nothing
 derived from the document beyond the address the link already shows.
 """
 
+import logging
+import re
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
@@ -29,6 +33,61 @@ router = APIRouter(prefix="/api/v1/og", tags=["og-image"])
 
 def get_db() -> AsyncIOMotorDatabase:
     return get_database()
+
+
+# ── Share signals (creator analytics §2) ──────────────────────────────────────
+# A link-preview fetch of the card means someone pasted the link somewhere.
+# Recorded as an ``events`` row of type "preview" (never a view), at most one
+# per document and platform every 10 minutes. Order matters: iMessage sends
+# "facebookexternalhit … Twitterbot", which is left as the first match.
+_PREVIEW_BOTS = (
+    ("Slack", re.compile(r"Slackbot|Slack-ImgProxy", re.I)),
+    ("LinkedIn", re.compile(r"LinkedInBot", re.I)),
+    ("WhatsApp", re.compile(r"WhatsApp", re.I)),
+    ("Facebook", re.compile(r"facebookexternalhit|Facebot", re.I)),
+    # Telegram's fetcher says "TelegramBot (like TwitterBot)".
+    ("Telegram", re.compile(r"TelegramBot", re.I)),
+    ("X", re.compile(r"Twitterbot", re.I)),
+    ("Discord", re.compile(r"Discordbot", re.I)),
+    ("Teams", re.compile(r"SkypeUriPreview|MicrosoftPreview|Teams", re.I)),
+    ("Google Chat", re.compile(r"Google-PageRenderer|GoogleChat|Google Chat", re.I)),
+    ("Other", re.compile(r"redditbot|Embedly|Iframely|Pinterest|Mastodon|Cardyb|vkShare|Viber|"
+                         r"SnapchatPreview|Snap URL Preview|Bluesky|Skype|Zoom", re.I)),
+)
+PREVIEW_DEDUPE = timedelta(minutes=10)
+
+
+def preview_platform(user_agent: str | None) -> str | None:
+    """The messaging / social platform a link-preview fetch came from, if any."""
+    if not user_agent:
+        return None
+    for name, rx in _PREVIEW_BOTS:
+        if rx.search(user_agent):
+            return name
+    return None
+
+
+async def record_preview(db: AsyncIOMotorDatabase, raw: dict, user_agent: str | None) -> bool:
+    """Insert a share signal for this fetch unless one was recorded for the
+    same document and platform in the last 10 minutes. Best effort."""
+    platform = preview_platform(user_agent)
+    if platform is None or raw.get("_id") is None:
+        return False
+    try:
+        doc_id = str(raw["_id"])
+        now = datetime.now(timezone.utc)
+        recent = await db["events"].find_one(
+            {"doc_id": doc_id, "type": "preview", "platform": platform, "ts": {"$gte": now - PREVIEW_DEDUPE}},
+            {"_id": 1})
+        if recent is not None:
+            return False
+        await db["events"].insert_one({
+            "doc_id": doc_id, "owner_id": raw.get("owner_id"), "type": "preview",
+            "ts": now, "platform": platform})
+        return True
+    except Exception:  # pragma: no cover - a card is never refused over this
+        logging.getLogger(__name__).warning("share signal not recorded", exc_info=True)
+        return False
 
 
 def _png(data: bytes, *, max_age: int) -> Response:
@@ -152,6 +211,8 @@ async def og_image(
         # from breaking and says nothing about the slug.
         png = await run_in_threadpool(og_render.render_og_png, og_render.Card(kind="generic"))
         return _png(png, max_age=300)
+
+    await record_preview(db, raw, request.headers.get("user-agent"))
 
     workspace_id = raw.get("workspace_id")
     workspace = await ws_service.get_workspace(db, workspace_id) if workspace_id else None

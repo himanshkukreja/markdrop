@@ -39,6 +39,7 @@ from app.routers.google import router as google_router
 from app.routers.live import router as live_router
 from app.routers.mcp import router as mcp_router
 from app.routers.me import router as me_router
+from app.routers.creator_analytics import router as creator_analytics_router
 from app.routers.oauth import router as oauth_router
 from app.routers.personal import router as personal_router
 from app.routers.og import router as og_router
@@ -165,6 +166,7 @@ app.include_router(auth_router)
 # Old campaign unsubscribe links (/api/v1/unsubscribe); see routers/auth.py.
 app.include_router(unsubscribe_alias_router)
 app.include_router(me_router)
+app.include_router(creator_analytics_router)
 app.include_router(sync_router)
 app.include_router(og_router)
 app.include_router(live_router)

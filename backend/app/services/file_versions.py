@@ -317,8 +317,16 @@ async def _delete_objects(keys: list[str]) -> None:
 
     if not keys or not r2.is_configured():
         return
+    from app.services import media
+
     for key in keys:
         await run_in_threadpool(r2.delete, key)
+        if media.may_have_frames(key):
+            # Frames creator analytics cached for this video (best effort).
+            try:
+                await run_in_threadpool(r2.delete_prefix, media.frames_prefix(key))
+            except Exception:  # pragma: no cover
+                log.warning("frame cache not cleared for %s", key, exc_info=True)
 
 
 async def drop_rows(db: AsyncIOMotorDatabase, rows: list[dict]) -> list[str]:

@@ -86,6 +86,9 @@ def _to_response(doc, viewer_id: str | None = None, *, public: bool | None = Non
         download_url=byte_urls["download_url"],
         poster_url=byte_urls["poster_url"],
         media=doc.media if doc.kind == "artifact" else None,
+        # Which version of the file this is (artifacts); the engagement tracker
+        # tags its sessions with it so versions can be compared.
+        file_version=(doc.file_version or 1) if doc.kind == "artifact" else None,
         access_level=doc.access_level,
         workspace_id=doc.workspace_id,
     )
@@ -370,6 +373,31 @@ async def _beacon_target(db: AsyncIOMotorDatabase, slug: str, ticket: str | None
     return None
 
 
+async def _beacon_user(request: Request) -> User | None:
+    """The signed-in viewer behind a beacon, resolved exactly like
+    ``optional_user`` (session JWT, API token, tenant token on its own domain)
+    — but a credential that doesn't resolve is simply anonymous here: a beacon
+    always answers the same."""
+    try:
+        return await optional_user(request)
+    except HTTPException:
+        return None
+
+
+async def _viewer_flags(db: AsyncIOMotorDatabase, raw: dict, user_id: str | None) -> tuple[bool, bool]:
+    """(is_owner, internal) for a viewer of ``raw``: the owner's own views are
+    never counted; a member of the document's workspace is counted as internal."""
+    if not user_id:
+        return False, False
+    if raw.get("owner_id") and raw["owner_id"] == user_id:
+        return True, False
+    if raw.get("workspace_id"):
+        from app.services import workspace as ws_service
+
+        return False, (await ws_service.role_for(db, raw["workspace_id"], user_id)) is not None
+    return False, False
+
+
 @router.post("/{slug}/events", status_code=202)
 @limiter.limit("120/minute")
 async def record_click(
@@ -379,18 +407,36 @@ async def record_click(
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """Record a view / export-PDF / copy-URL event (called by the viewer's
-    browser). Always 202: missing, unreadable and recorded look the same."""
-    if data.type == "view" and _is_bot(request.headers.get("user-agent")):
+    browser). Always 202: missing, unreadable and recorded look the same.
+
+    A signed-in viewer sends their bearer token: the owner's own events are
+    not recorded at all (and don't bump ``views``); a member of the
+    document's workspace is recorded with ``internal: true``."""
+    ua = request.headers.get("user-agent") or ""
+    if data.type == "view" and _is_bot(ua):
         return {"status": "ignored"}
     raw = await _beacon_target(db, slug, data.ticket)
     if raw is not None:
+        user = await _beacon_user(request)
+        is_owner, internal = await _viewer_flags(db, raw, user.id if user else None)
+        if is_owner:
+            return {"status": "ok"}
         result = await doc_service.register_event(db, raw, data.type)
         if result is not None:
             doc_id, owner_id = result
+            utm = data.utm.model_dump() if data.utm is not None else {}
+            ver = None
+            if raw.get("kind") == "artifact":
+                current = int(raw.get("file_version") or 1)
+                ver = data.ver if data.ver and 1 <= data.ver <= current else current
             await analytics.record_event(
                 db, doc_id, owner_id, data.type,
                 ip=get_client_ip(request),
                 referrer=data.referrer,
+                user_agent=ua,
+                utm=utm,
+                ver=ver,
+                internal=internal,
             )
     return {"status": "ok"}
 
@@ -432,6 +478,48 @@ async def record_read(
         depth=max(0, min(100, depth)), seconds=max(0, min(7200, seconds)),
         ip=get_client_ip(request),
     )
+
+
+@router.post("/{slug}/engage", status_code=204)
+@limiter.limit("120/minute")
+async def record_engagement(
+    slug: str,
+    request: Request,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> None:
+    """The engagement beacon (creator analytics, build spec §1b): deltas of
+    what a reader did since the previous beacon of the same page load.
+
+    A raw ``text/plain`` body (≤ 8 KB) so ``navigator.sendBeacon`` can send it
+    without a CORS preflight while the page unloads. Admission is the read
+    beacon's (``_beacon_target``: anonymous-readable, or a valid read ticket in
+    ``"t"``). ``"u"`` may carry the viewer's Markdrop token: the owner's own
+    sessions are dropped, a workspace member's are marked internal. Always
+    204, whatever happened.
+    """
+    from app.routers.auth import _user_id_from_token
+    from app.services import engage
+
+    ua = request.headers.get("user-agent") or ""
+    if _is_bot(ua):
+        return
+    raw_body = await request.body()
+    try:
+        msg = engage.parse(raw_body)
+        if msg is None:
+            return
+        doc = await _beacon_target(db, slug, msg["t"])
+        if not doc:
+            return
+        viewer_id = await _user_id_from_token(msg["u"]) if msg["u"] else None
+        is_owner, internal = await _viewer_flags(db, doc, viewer_id)
+        await engage.ingest(db, doc, msg, ip=get_client_ip(request), ua=ua,
+                            viewer_id=viewer_id, internal=internal)
+    except Exception:  # pragma: no cover - a beacon never errors
+        import logging
+
+        logging.getLogger(__name__).warning("engage beacon failed", exc_info=True)
+    return
 
 
 @router.post("/{slug}/report", status_code=202)
