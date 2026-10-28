@@ -294,7 +294,7 @@ export async function pasteHtmlArtifact(
   return res.json();
 }
 
-export type ExpiresIn = "never" | "1d" | "7d" | "30d" | "custom";
+export type ExpiresIn = "never" | "1h" | "1d" | "7d" | "30d" | "custom";
 
 export async function createDocument(
   title: string,
@@ -1174,6 +1174,34 @@ export async function updateArtifactSettings(
     }),
   });
   if (!res.ok) throw await artifactError(res, "Could not save changes");
+  return res.json();
+}
+
+export interface DocumentSettings {
+  readPassword?: string;
+  removePassword?: boolean;
+  expiresIn?: ExpiresIn;
+  /** ISO date-time, with `expiresIn: "custom"`. */
+  customExpiresAt?: string;
+}
+
+/**
+ * A document's password and expiry without resending its content (`PATCH …/settings`): the share
+ * dialog's "More options", for documents and files alike. Owner (or the edit secret) only; the
+ * server applies it through the same narrowing/widening as an editor save.
+ */
+export async function updateDocumentSettings(slug: string, settings: DocumentSettings): Promise<DocumentResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/documents/${encodeURIComponent(slug)}/settings`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      read_password: settings.readPassword ?? null,
+      remove_password: settings.removePassword ?? false,
+      expires_in: settings.expiresIn ?? null,
+      custom_expires_at: settings.customExpiresAt ?? null,
+    }),
+  });
+  if (!res.ok) throw await artifactError(res, "Could not save these options");
   return res.json();
 }
 

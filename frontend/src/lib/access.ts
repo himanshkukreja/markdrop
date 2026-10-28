@@ -82,6 +82,11 @@ export interface AccessState {
   grants: Grant[];
   /** The viewer's own address, so a grantee can find their row to leave. */
   your_email?: string | null;
+  /** markdrop.in/<slug> (a local sandbox: its own frontend). */
+  url?: string | null;
+  /** The custom-domain address when its workspace has a live primary domain, else null. */
+  workspace_url?: string | null;
+  expires_at?: string | null;
 }
 
 export const getAccess = (slug: string) =>

@@ -8,7 +8,7 @@ import {
 } from "@/components/ui";
 import { Combobox, type ComboboxSuggestion } from "@/components/kit/Combobox";
 import { useToast } from "@/components/Toast";
-import { API_BASE, updateArtifactSettings, type ExpiresIn } from "@/lib/api";
+import { API_BASE, updateDocumentSettings, type ExpiresIn } from "@/lib/api";
 import {
   addPerson, getAccess, removePerson, setAccessLevel, setResharing,
   type AccessLevel, type AccessState,
@@ -76,13 +76,18 @@ async function fetchContacts(): Promise<ComboboxSuggestion[] | null> {
 const EXPIRY: Array<{ value: "" | ExpiresIn; label: string }> = [
   { value: "", label: "Don't change" },
   { value: "never", label: "Never" },
+  { value: "1h", label: "In 1 hour" },
   { value: "1d", label: "In 1 day" },
   { value: "7d", label: "In 7 days" },
   { value: "30d", label: "In 30 days" },
+  { value: "custom", label: "On a date…" },
 ];
 
+/** "https://docs.acme.com/guides/x" → "docs.acme.com/guides/x" */
+const bare = (u: string) => u.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
 export default function ShareDialog({
-  slug, title, documentId, shareUrl, location, kind, startWithLocation, onClose, onChanged,
+  slug, title, documentId, shareUrl, location, startWithLocation, onClose, onChanged,
 }: {
   slug: string;
   title: string;
@@ -93,7 +98,7 @@ export default function ShareDialog({
   shareUrl?: string;
   /** Where the caller knows the document is filed (the access endpoint names only the workspace). */
   location?: { workspaceId: string | null; folderId: string | null } | null;
-  /** "artifact" lets the owner set a password and expiry here; documents do it in the editor. */
+  /** The item's kind (kept for callers; password and expiry work the same for every kind). */
   kind?: string | null;
   /** Open with the location editor showing ("Add to a workspace…"). */
   startWithLocation?: boolean;
@@ -245,6 +250,14 @@ export default function ShareDialog({
   const where = wsId ? [wsName ?? "Workspace", ...trailNames].join(" › ") : null;
   const memberCount = ws?.member_count;
   const pw = !!state?.is_password_protected;
+  // Where it lives, as the server says (custom domain first when its workspace has a live one).
+  // Older backends don't send these: fall back to the markdrop.in address and the tree's host.
+  const addresses = state?.url
+    ? [state.workspace_url, state.url].filter((u): u is string => !!u).map(bare)
+    : [`markdrop.in/${slug}`, ...(host && wsId ? [[host, ...folderPath, slug].join("/")] : [])];
+  // "Copy link": what the caller passed (it may carry an encrypted document's #k=), else the
+  // canonical address — never for an encrypted document, whose link needs the key.
+  const copyUrl = shareUrl ?? (state && !state.encrypted ? state.workspace_url ?? state.url ?? undefined : undefined);
 
   const header = (
     <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-text-muted">
@@ -285,7 +298,7 @@ export default function ShareDialog({
         <div className="flex w-full flex-wrap items-center gap-2">
           {wsId && <Button variant="ghost" iconLeft="eye" onClick={preview}>Preview as</Button>}
           <span className="ml-auto" />
-          {shareUrl && <CopyButton text={shareUrl} label="Copy link" variant="secondary" size="md" />}
+          {copyUrl && <CopyButton text={copyUrl} label="Copy link" variant="secondary" size="md" />}
           <Button variant="primary" onClick={onClose}>Done</Button>
         </div>
       }
@@ -360,8 +373,14 @@ export default function ShareDialog({
               {busy === "level" && <p className="text-caption text-text-muted" role="status">Updating…</p>}
               {canManage ? (
                 <p className="mt-1 text-caption text-text-muted">
-                  One setting for every address of this file: <code className="font-mono">markdrop.in/{slug}</code>
-                  {host && wsId ? <> and <code className="font-mono [overflow-wrap:anywhere]">{[host, ...folderPath, slug].join("/")}</code></> : null}.
+                  {addresses.length > 1 ? "One setting for every address of this file: " : "Its address: "}
+                  {addresses.map((a, i) => (
+                    <span key={a}>
+                      {i > 0 && " and "}
+                      <code className="font-mono [overflow-wrap:anywhere]">{a}</code>
+                    </span>
+                  ))}
+                  .
                 </p>
               ) : (
                 <p className="text-caption text-text-muted">Only the owner can change who can open it.</p>
@@ -383,14 +402,12 @@ export default function ShareDialog({
                 </button>
                 {moreOpen && (
                   <div id="md-share-more">
-                    {kind === "artifact" ? (
-                      <MoreOptions slug={slug} hasPassword={pw} onSaved={() => { purgeDocument(slug); void load(); onChanged?.(); }} />
-                    ) : (
-                      <p className="rounded-lg bg-surface-inset p-3 text-caption text-text-secondary">
-                        {pw ? "It has a password. " : ""}A document&apos;s password and expiry are set in its editor.{" "}
-                        {!state.encrypted && <a href={`/${encodeURIComponent(slug)}?edit=1`} className="font-semibold text-accent-text">Open the editor</a>}
-                      </p>
-                    )}
+                    <MoreOptions
+                      slug={slug}
+                      hasPassword={pw}
+                      expiresAt={state.expires_at ?? null}
+                      onSaved={() => { purgeDocument(slug); void load(); onChanged?.(); }}
+                    />
                   </div>
                 )}
               </div>
@@ -519,24 +536,40 @@ export default function ShareDialog({
   );
 }
 
-/** Artifacts: a password (only for people without access) and an expiry, owner only. */
-function MoreOptions({ slug, hasPassword, onSaved }: { slug: string; hasPassword: boolean; onSaved: () => void }) {
+/** "datetime-local" value for a Date, in local time. */
+function localInput(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
+ * Password (only for people without access) and expiry, owner only — for documents and files
+ * alike (`PATCH /documents/{slug}/settings`). A new password re-locks it for everyone who opened
+ * it with the old one; the server does that, this only asks.
+ */
+function MoreOptions({
+  slug, hasPassword, expiresAt, onSaved,
+}: { slug: string; hasPassword: boolean; expiresAt: string | null; onSaved: () => void }) {
   const toast = useToast();
   const [password, setPassword] = useState("");
   const [expiry, setExpiry] = useState<"" | ExpiresIn>("");
+  const [customAt, setCustomAt] = useState("");
   const [busy, setBusy] = useState<"" | "save" | "remove">("");
-  const dirty = !!password || !!expiry;
+  const customOk = expiry !== "custom" || (!!customAt && new Date(customAt).getTime() > Date.now() + 60_000);
+  const dirty = (!!password || !!expiry) && customOk;
+  const minAt = useMemo(() => localInput(new Date(Date.now() + 5 * 60_000)), []);
+  const expires = expiresAt ? new Date(expiresAt) : null;
 
   async function save(remove = false) {
     setBusy(remove ? "remove" : "save");
     try {
-      await updateArtifactSettings(slug, {
-        readPassword: remove ? undefined : password || undefined,
-        removePassword: remove,
-        expiresIn: remove ? undefined : expiry || undefined,
+      await updateDocumentSettings(slug, remove ? { removePassword: true } : {
+        readPassword: password || undefined,
+        expiresIn: expiry || undefined,
+        customExpiresAt: expiry === "custom" && customAt ? new Date(customAt).toISOString() : undefined,
       });
-      setPassword(""); setExpiry("");
-      toast.success(remove ? "Password removed." : "Saved.");
+      setPassword(""); setExpiry(""); setCustomAt("");
+      toast.success(remove ? "Password removed." : password ? "Saved. Anyone without access now needs the new password." : "Saved.");
       onSaved();
     } catch (e) {
       toast.error(e instanceof Error && e.message ? e.message : "That didn't save. Try again.");
@@ -547,6 +580,17 @@ function MoreOptions({ slug, hasPassword, onSaved }: { slug: string; hasPassword
 
   return (
     <div className="flex flex-col gap-3 rounded-lg bg-surface-inset p-3">
+      {(hasPassword || expires) && (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-text-secondary" role="status">
+          {hasPassword && <span className="inline-flex items-center gap-1"><Icon name="lock" size={12} />Has a password</span>}
+          {expires && (
+            <span className="inline-flex items-center gap-1">
+              <Icon name="clock" size={12} />
+              Expires {expires.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+            </span>
+          )}
+        </p>
+      )}
       <div className="grid min-w-0 gap-3 sm:grid-cols-2">
         <Field label="Password" hint="Only for people without access.">
           <Input type="password" placeholder={hasPassword ? "Set · type a new one" : "Add a password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" maxLength={100} />
@@ -555,6 +599,11 @@ function MoreOptions({ slug, hasPassword, onSaved }: { slug: string; hasPassword
           <Select value={expiry} onChange={(e) => setExpiry(e.target.value as "" | ExpiresIn)} options={EXPIRY} />
         </Field>
       </div>
+      {expiry === "custom" && (
+        <Field label="Expiry date" hint={customAt && !customOk ? "Pick a time in the future." : "It stops opening at this time (your time zone)."}>
+          <Input type="datetime-local" value={customAt} min={minAt} onChange={(e) => setCustomAt(e.target.value)} />
+        </Field>
+      )}
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" disabled={!dirty} loading={busy === "save"} onClick={() => void save()}>Save options</Button>
         {hasPassword && <Button size="sm" variant="ghost" loading={busy === "remove"} onClick={() => void save(true)}>Remove password</Button>}

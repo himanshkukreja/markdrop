@@ -34,6 +34,7 @@ function fixtures() {
     },
     ws_empty: {
       name: "Senseloaf AI", site_name: "Senseloaf", accent: null, member_count: 1, pending_invite_count: 0, domain_count: 0,
+      created_h: 2, // made two hours ago: "Get set up" shows only on new workspaces
       primary_host: null,
       settings: { viewer_chrome: "full", require_auth_to_view: false, members_can_share_folders: true, default_access: "workspace" },
     },
@@ -142,7 +143,7 @@ function wsOut(id, role) {
   const w = db.workspaces[id];
   const r = roleIn(role, id);
   return {
-    id, name: w.name, owner_id: r === "owner" ? "u_me" : "u_other", created_at: ago(2000), updated_at: ago(10),
+    id, name: w.name, owner_id: r === "owner" ? "u_me" : "u_other", created_at: ago(w.created_h ?? 2000), updated_at: ago(10),
     branding: { site_name: w.site_name, favicon_url: null, logo_url: null, accent_color: w.accent, hide_markdrop_branding: false, logo_well: null },
     settings: { ...w.settings },
     default_access: w.settings.default_access,
@@ -618,13 +619,33 @@ const server = http.createServer(async (req, res) => {
     if (!it && !per) return send(res, 404, { detail: "Document not found" });
     const mine = it ? it.owner === "me" : true;
     return send(res, 200, {
-      level: it ? it.access : per.access ?? "link", allow_resharing: false, is_password_protected: !!it?.has_password, encrypted: false,
+      level: it ? it.access : per.access ?? "link", allow_resharing: false, is_password_protected: !!(it ?? per)?.has_password, encrypted: false,
       in_workspace: !!it, workspace_id: it ? it.ws : null, workspace_name: it ? db.workspaces[it.ws].name : null, folder_id: it ? it.folder : null,
       your_role: mine ? "owner" : RANK[role] >= 1 ? "editor" : "viewer",
       owner_name: mine ? user.name : OWNERS[it.owner], owner_email: mine ? user.email : `${it.owner}@acme.test`,
       your_email: user.email, can_manage: mine, can_share: mine,
       grants: mine && it?.slug === "roadmap-q4" ? [{ email: "sam@partner.io", role: "viewer", created_at: ago(30), granted_by_email: user.email, notified: true }] : [],
+      url: `https://markdrop.in/${mm[1]}`, workspace_url: it && db.workspaces[it.ws]?.primary_host ? urlOf(it) : null,
+      expires_at: (it ?? per).expires_at ?? null,
     });
+  }
+  // Password and expiry (share dialog "More options"): owner only, like can(edit_settings).
+  if ((mm = m(/^\/api\/v1\/documents\/([^/]+)\/settings$/)) && req.method === "PATCH") {
+    const it = db.items.find((i) => i.slug === mm[1]) ?? db.personal.find((x) => x.slug === mm[1]);
+    if (!it) return send(res, 404, { detail: "Document not found" });
+    if (!user) return send(res, 401, { detail: "Sign in to do that." });
+    if ((it.owner ?? "me") !== "me") return send(res, 403, { detail: "Only the document's owner can change its password or expiry." });
+    const HOURS = { "1h": 1, "1d": 24, "7d": 168, "30d": 720 };
+    if (body.expires_in === "custom" || (!body.expires_in && body.custom_expires_at)) {
+      const at = Date.parse(body.custom_expires_at ?? "");
+      if (!at) return send(res, 422, { detail: "Choose a date for the custom expiry." });
+      if (at < Date.now() + 60_000) return send(res, 422, { detail: "The expiry date must be in the future." });
+      it.expires_at = new Date(at).toISOString();
+    } else if (body.expires_in === "never") it.expires_at = null;
+    else if (HOURS[body.expires_in]) it.expires_at = new Date(Date.now() + HOURS[body.expires_in] * 3600_000).toISOString();
+    if (body.remove_password || body.read_password === "") it.has_password = false;
+    else if (body.read_password) it.has_password = true;
+    return send(res, 200, { slug: it.slug, title: it.title, is_password_protected: !!it.has_password, expires_at: it.expires_at ?? null });
   }
   if (p === "/api/v1/documents/access/level" && req.method === "POST") {
     const results = (body.slugs ?? []).map((slug) => {
