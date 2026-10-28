@@ -3,7 +3,7 @@
 /**
  * A new workspace's first screen (NewWorkspace board): "Get set up" (Name ✓ · Invite your team · Add
  * your first file · Use your own domain, optional), dismissible and remembered per workspace on
- * this device, beside a big drop zone. Every step reads a fact the API already gives (member and
+ * this device, beside a big drop zone. Which workspaces count as new is `setupRule.ts`. Every step reads a fact the API already gives (member and
  * invitation counts, item counts, domains); nothing is tracked separately.
  */
 import { useEffect, useState } from "react";

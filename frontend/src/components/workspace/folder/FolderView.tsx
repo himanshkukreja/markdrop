@@ -50,6 +50,7 @@ import ItemSheet, { type SheetAction } from "./ItemSheet";
 import PreviewMode from "./PreviewMode";
 import RenameItemDialog, { type RenameTarget } from "./RenameItemDialog";
 import { DropArea, SetupChecklist, useChecklistHidden } from "./SetupChecklist";
+import { shouldShowSetup } from "./setupRule";
 import { accessLabel, displayAddress, itemTitle, teamName, toDocRow } from "./items";
 
 type Kind = "" | "markdown" | "artifact";
@@ -425,7 +426,10 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
       onCta: () => router.push(`/settings/workspaces/${encodeURIComponent(workspaceId)}?tab=look`),
     },
   ];
-  const showChecklist = !folderId && !query.unfiled && !query.q && isAdmin && checklistHidden === false && steps.some((s) => !s.done);
+  // Only on a genuinely new workspace (setupRule): made in the last 14 days with fewer than 3
+  // items, until name, invite and first file are done. Hidden for good once dismissed.
+  const showChecklist = !folderId && !query.unfiled && !query.q && isAdmin && checklistHidden === false && !!tree
+    && shouldShowSetup({ createdAt: meta?.created_at, itemCount: totalCount, invited: steps[1]!.done, hasFile: steps[2]!.done });
 
   /* ── Render ───────────────────────────────────────────────────────── */
   if (authLoading || !user) {
