@@ -274,7 +274,8 @@ def _rank(title: str | None, slug: str, q: str) -> tuple:
 
 async def quick(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, q: str,
                 limit: int = 8) -> dict:
-    q = (q or "").strip()[:100]
+    # NUL is dropped: Mongo refuses it inside a regex (a 500), and no title has one.
+    q = (q or "").replace("\x00", "").strip()[:100]
     limit = max(1, min(QUICK_MAX_LIMIT, int(limit or 8)))
     empty = {"files": [], "folders": [], "workspaces": []}
     if len(q) < QUICK_MIN:

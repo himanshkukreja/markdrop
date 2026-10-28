@@ -437,7 +437,9 @@ def search_clause(q: str | None) -> list[dict] | None:
     bracket is a 500 from Mongo) or turning into a catastrophic-backtracking
     regex that pins the database. Returns None for a blank query.
     """
-    q = (q or "").strip()[:MAX_SEARCH_LEN]
+    # A NUL can't appear in a Mongo regex (it answers BadValue, a 500 here):
+    # it never matches a title or slug anyway, so it is dropped.
+    q = (q or "").replace("\x00", "").strip()[:MAX_SEARCH_LEN]
     if not q:
         return None
     pattern = re.escape(q)

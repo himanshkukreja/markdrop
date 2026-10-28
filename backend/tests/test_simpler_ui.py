@@ -778,6 +778,21 @@ class QuickSearch(World):
         self.assertEqual({w["name"] for w in ws}, {"Acme", "Acme Private"})
         self.assertEqual((await self.search("wm", q="Roadmap", limit=2)).json()["files"].__len__(), 2)
 
+    async def test_nul_byte_in_a_query_is_ignored_not_a_500(self):
+        # Mongo refuses a NUL inside $regex (BadValue → 500); it is dropped instead.
+        r = await self.search("wm", q="road\x00map", limit=20)
+        self.assertEqual({f["slug"] for f in r.json()["files"]},
+                         {self.team["slug"], self.own["slug"], self.shared["slug"]})
+        self.assertEqual((await self.search("wm", q="\x00\x00")).json(),
+                         {"files": [], "folders": [], "workspaces": []})
+        # The other title searches share the escaping helper.
+        r = await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/items",
+                                params={"q": "road\x00map"}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertIn(self.team["slug"], r.text)
+        r = await self.http.get("/api/v1/me/documents", params={"q": "road\x00map"}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+
     async def test_auth(self):
         self.assertEqual((await self.http.get("/api/v1/search/quick?q=roadmap")).status_code, 401)
         r = await self.http.get("/api/v1/search/quick?q=roadmap", headers=self.tenant("wm", "W1"))

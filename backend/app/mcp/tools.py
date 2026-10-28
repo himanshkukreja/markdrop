@@ -1079,7 +1079,7 @@ async def get_document_stats(ctx: Context, args: dict) -> tuple[str, dict]:
 
 
 async def search(ctx: Context, args: dict) -> tuple[str, dict]:
-    query = args["query"].strip()[: doc_service.MAX_SEARCH_LEN]
+    query = args["query"].replace("\x00", "").strip()[: doc_service.MAX_SEARCH_LEN]
     scope = args.get("scope") or "mine"
     limit = 20
     docs, _total = await scoped_documents(ctx, scope, query=query, kind=None, page=1, limit=limit)
