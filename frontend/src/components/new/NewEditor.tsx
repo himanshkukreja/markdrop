@@ -97,7 +97,7 @@ function useKeyboardInset(enabled: boolean): number {
 
 export default function NewEditor() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const signedIn = !!user;
   const flags = useQueryFlags();
   const isClient = useIsClient();
@@ -685,8 +685,11 @@ export default function NewEditor() {
         {editorBody}
       </EditorFrame>
 
-      <p className="no-print shrink-0 text-caption text-text-muted max-sm:hidden">
-        No login required. Your document gets a shareable link instantly.
+      {/* "No login required" is only true for someone who isn't signed in; nothing until we know. */}
+      <p className="no-print shrink-0 text-caption text-text-muted max-sm:hidden" aria-hidden={authLoading || undefined}>
+        {authLoading ? "\u00a0" : signedIn
+          ? `It's saved to ${workspaceName ?? "your files"} and gets a shareable link instantly.`
+          : "No login required. Your document gets a shareable link instantly."}
       </p>
 
       {/* ── Phone: sticky bottom bar (formatting strip while typing, summary, Publish) ── */}
