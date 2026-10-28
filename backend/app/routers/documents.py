@@ -480,6 +480,26 @@ async def record_read(
     )
 
 
+async def _engage_viewer(token: str) -> str | None:
+    """The user behind an engagement beacon's ``u``: a session JWT or an API
+    token. A tenant token is treated as anonymous here — a body field carries
+    no Origin to hold it to the domain it was minted for."""
+    from app.routers.auth import _user_id_from_token
+    from app.services import api_token as api_token_service
+
+    if not token.startswith(api_token_service.TOKEN_PREFIX):
+        import jwt as pyjwt
+
+        from app.utils.auth import decode_access_token
+
+        try:
+            if decode_access_token(token).get("typ") == "tenant":
+                return None
+        except pyjwt.InvalidTokenError:
+            return None
+    return await _user_id_from_token(token)
+
+
 @router.post("/{slug}/engage", status_code=204)
 @limiter.limit("120/minute")
 async def record_engagement(
@@ -497,7 +517,6 @@ async def record_engagement(
     sessions are dropped, a workspace member's are marked internal. Always
     204, whatever happened.
     """
-    from app.routers.auth import _user_id_from_token
     from app.services import engage
 
     ua = request.headers.get("user-agent") or ""
@@ -511,7 +530,7 @@ async def record_engagement(
         doc = await _beacon_target(db, slug, msg["t"])
         if not doc:
             return
-        viewer_id = await _user_id_from_token(msg["u"]) if msg["u"] else None
+        viewer_id = await _engage_viewer(msg["u"]) if msg["u"] else None
         is_owner, internal = await _viewer_flags(db, doc, viewer_id)
         await engage.ingest(db, doc, msg, ip=get_client_ip(request), ua=ua,
                             viewer_id=viewer_id, internal=internal)

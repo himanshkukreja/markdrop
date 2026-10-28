@@ -12,8 +12,11 @@ encrypted one — gets a content-free card: no title, no opening text, nothing
 derived from the document beyond the address the link already shows.
 """
 
+import hashlib
 import logging
 import re
+import time
+from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -94,8 +97,47 @@ def _png(data: bytes, *, max_age: int) -> Response:
     return Response(
         content=data,
         media_type="image/png",
-        headers={"Cache-Control": f"public, max-age={max_age}"},
+        headers={
+            "Cache-Control": f"public, max-age={max_age}",
+            # Browsers and link-preview bots may cache it; a CDN in front of the
+            # API must not, or preview fetches after the first would never reach
+            # here and share signals (record_preview) would go uncounted.
+            "CDN-Cache-Control": "no-store",
+            "Cloudflare-CDN-Cache-Control": "no-store",
+        },
     )
+
+
+# Rendered cards, keyed by everything drawn on them, so the origin stays cheap
+# now that every preview fetch reaches it. Bounded, 10 minutes.
+_RENDER_TTL_S = 600
+_RENDER_MAX = 128
+_rendered: "OrderedDict[str, tuple[float, bytes]]" = OrderedDict()
+
+
+def _card_key(card: og_render.Card) -> str:
+    fields = {k: v for k, v in vars(card).items() if k != "poster"}
+    fields["brand"] = repr(card.brand)
+    poster = hashlib.sha256(card.poster).hexdigest() if card.poster else None
+    # The renderer's identity too: a different renderer (tests swap it) never
+    # serves the old one's bytes.
+    renderer = id(og_render.render_og_png)
+    return hashlib.sha256(repr((sorted(fields.items()), poster, renderer)).encode()).hexdigest()
+
+
+async def _render(card: og_render.Card) -> bytes:
+    key = _card_key(card)
+    hit = _rendered.get(key)
+    now = time.monotonic()
+    if hit is not None and now - hit[0] <= _RENDER_TTL_S:
+        _rendered.move_to_end(key)
+        return hit[1]
+    png = await run_in_threadpool(og_render.render_og_png, card)
+    _rendered[key] = (now, png)
+    _rendered.move_to_end(key)
+    while len(_rendered) > _RENDER_MAX:
+        _rendered.popitem(last=False)
+    return png
 
 
 async def _card_host(db: AsyncIOMotorDatabase, workspace_id: str, host: str | None) -> str | None:
@@ -209,7 +251,7 @@ async def og_image(
     if not raw:
         # Unknown/expired slug: the generic branded card (200) keeps the preview
         # from breaking and says nothing about the slug.
-        png = await run_in_threadpool(og_render.render_og_png, og_render.Card(kind="generic"))
+        png = await _render(og_render.Card(kind="generic"))
         return _png(png, max_age=300)
 
     await record_preview(db, raw, request.headers.get("user-agent"))
@@ -229,7 +271,7 @@ async def og_image(
         ):
             brand = _brand(workspace, domain_service.clean_host(host))
         card = og_render.Card(kind=gate, slug=slug, brand=brand)
-        png = await run_in_threadpool(og_render.render_og_png, card)
+        png = await _render(card)
         return _png(png, max_age=300)
 
     # Readable by anyone with the link: the full card.
@@ -274,7 +316,7 @@ async def og_image(
             brand=brand,
         )
 
-    png = await run_in_threadpool(og_render.render_og_png, card)
+    png = await _render(card)
     # 1h cache: title/snippet edits and access changes propagate within the
     # hour without hammering the renderer on every crawler hit.
     return _png(png, max_age=300)

@@ -82,6 +82,9 @@ class AccessWorld(unittest.IsolatedAsyncioTestCase):
         await self.db["document_grants"].create_index([("document_id", 1), ("email", 1)], unique=True)
         await self.db["memberships"].create_index([("workspace_id", 1), ("user_id", 1)], unique=True)
         limiter.reset()
+        from app.routers import og as _og
+
+        _og._rendered.clear()  # rendered preview cards are cached per process
         access.password_attempts.reset()
         oauth_server.clear_access_cache()
 

@@ -85,6 +85,14 @@ def remove(doc_id: str, sid: str) -> None:
             _presence.pop(doc_id, None)
 
 
+def forget_doc(doc_id: str) -> None:
+    """Drop every entry of a deleted document."""
+    global _count
+    entries = _presence.pop(doc_id, None)
+    if entries:
+        _count -= len(entries)
+
+
 def snapshot(doc_ids, *, include_internal: bool = False) -> dict[str, list[dict]]:
     """``{doc_id: [{pos, country, device, kind}, ...]}`` for the live entries of
     each asked-for document (documents with nobody on them are left out)."""

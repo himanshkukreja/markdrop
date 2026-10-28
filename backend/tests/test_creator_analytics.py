@@ -38,6 +38,7 @@ class World(AccessWorld):
         await engage.ensure_indexes(self.db)
         engage.clear_pending()
         presence.clear()
+        ca._hold_cache.clear()
         p = mock.patch.object(geo, "lookup", lambda ip: {"country": GEO.get(ip), "region": None, "city": None})
         p.start()
         self.addCleanup(p.stop)
@@ -821,3 +822,198 @@ class Insights(World):
         self.assertEqual(ins[0]["key"], "section_drop")
         self.assertEqual(ins[0]["section"], "intro")
         self.assertEqual(ins[0]["cta"], {"label": "See sections", "tab": "content"})
+
+
+# ── Review round 1 (adversarial review of a5d09a0) ────────────────────────────
+
+
+class ReviewRound1(World):
+    async def test_r1_pending_is_compact_and_bounded(self):
+        d = await self.mkdoc("L", ws=None)
+        s = sid()
+        await self.engage(d["slug"], {"sid": s, "seq": 1, "d": {
+            "active_s": 1, "sec": {f"h{i}": 1 for i in range(150)},
+            "reached": [f"h{i}" for i in range(150)], "links": {f"a.com/{i}|": 1 for i in range(150)}}})
+        held = engage._pending[(str(d["_id"]), s)][0]
+        self.assertLessEqual(len(held["sec"]), engage.PENDING_KEYS)
+        self.assertLessEqual(len(held["reached"]), engage.PENDING_KEYS)
+        self.assertLessEqual(len(held["links"]), engage.PENDING_KEYS)
+        v = await self.video()
+        s2 = sid()
+        await self.engage(v["slug"], {"sid": s2, "seq": 1, "d": {"media": {
+            "dur": 100, "err": None, "segs": []}, "active_s": 1}})
+        # Bounded: the oldest pending sessions go first.
+        self.assertEqual(engage.PENDING_MAX, 2000)
+        for i in range(engage.PENDING_MAX + 50):
+            engage._pending_put(("doc", f"sid{i:06d}"), {"seq": 1, "sec": {}})
+        self.assertEqual(len(engage._pending), engage.PENDING_MAX)
+        self.assertNotIn(("doc", "sid000000"), engage._pending)
+        # Once it qualifies, the stored row starts from the compact envelope.
+        engage.clear_pending()
+        await self.engage(d["slug"], {"sid": s, "seq": 1, "d": {
+            "active_s": 1, "sec": {f"h{i}": 1 for i in range(150)}}})
+        await self.engage(d["slug"], {"sid": s, "seq": 2, "d": {"active_s": 5}})
+        self.assertEqual(len((await self.row(d, s))["sec"]), engage.PENDING_KEYS)
+
+    async def test_r1_pending_media_segments_capped(self):
+        state = {"seq": 1, "media": {"segs": [[i, i + 0.5] for i in range(60)], "speed": {}, "watched_s": 30}}
+        engage._pending_put(("d", "s"), state)
+        m = engage._pending[("d", "s")][0]["media"]
+        self.assertEqual((len(m["segs"]), m["watched_s"]), (engage.PENDING_KEYS, 10.0))
+
+    async def test_r1_sampled_when_capped_and_copies_grouped(self):
+        d = await self.mkdoc("L", ws=None)
+        await self.seed(d, 3, depth=95, copies={"a|": 2, "b|x": 1}, links={"c．io/x|": 4})
+        with mock.patch.object(ca, "SESSION_CAP", 2):
+            r = await self.http.get(f"/api/v1/me/documents/{d['slug']}/analytics/overview",
+                                    headers=self.session("owner"))
+        out = r.json()
+        self.assertTrue(out["sampled"])
+        # Copies + clicks are summed in the database, over every session.
+        self.assertEqual({k["key"]: k["value"] for k in out["kpis"]}["copies_clicks"], 21)
+        self.assertEqual(ca.SESSION_CAP, 5000)
+
+    async def test_r1_other_videos_hold_cached_and_bounded(self):
+        v = await self.video()
+        others = [await self.video() for _ in range(2)]
+        for o in others:
+            await self.seed(o, 20, media={"dur": 100, "segs": [[0, 40]], "plays": 1, "watched_s": 40})
+        ca._hold_cache.clear()
+        calls = []
+        real = ca.load_sessions
+
+        async def counting(*a, **k):
+            calls.append(k.get("cap"))
+            return await real(*a, **k)
+
+        w = ca.window("30d")
+        with mock.patch.object(ca, "load_sessions", counting):
+            first = await ca._other_videos_hold30(self.db, v, w, False)
+            n = len(calls)
+            again = await ca._other_videos_hold30(self.db, others[0], w, False)
+        self.assertEqual(first, 100.0)
+        self.assertEqual(again, 100.0)  # its own hold is left out; the other video's remains
+        self.assertEqual(len(calls), n)  # served from the cache
+        self.assertTrue(all(c == ca.OTHER_VIDEO_SESSIONS for c in calls))
+        self.assertLessEqual(n, ca.OTHER_VIDEOS + 1)
+
+    def test_r1_rewatch_linear_matches_expectation(self):
+        sessions = [{"media": {"plays": 1, "segs": [[0, 50], [0, 50], [25, 75]]}}]
+        strip, detail = ca.rewatch(sessions, 100)
+        self.assertEqual(len(strip), 60)
+        ratios = {round(x["t"]): x["ratio"] for x in detail}
+        self.assertEqual((ratios[0], ratios[30], ratios[60], ratios[90]), (2.0, 3.0, 1.0, 0.0))
+
+    async def test_r1_npages_poisoning(self):
+        p = await self.mkdoc("L", ws=None, kind="artifact", mime="application/pdf")
+        await self.seed(p, 3, npages=4, pmax=4, pages={"1": 5, "4": 5})
+        await self.seed(p, 1, npages=4, pmax=2)
+        await self.seed(p, 1, npages=2000, pmax=2000, pages={"1999": 50, "2": 3}, rv={"1500": 1})
+        h = self.session("owner")
+        out = (await self.http.get(f"/api/v1/me/documents/{p['slug']}/analytics/pages", headers=h)).json()
+        self.assertEqual((out["npages"], len(out["reach"]), out["sessions"]), (4, 4, 5))
+        self.assertEqual([r["pct"] for r in out["reach"]], [100.0, 100.0, 80.0, 80.0])
+        ov = (await self.http.get(f"/api/v1/me/documents/{p['slug']}/analytics/overview", headers=h)).json()
+        self.assertEqual(ov["doc"]["npages"], 4)
+        self.assertEqual({k["key"]: k.get("note") for k in ov["kpis"]}["pages_npages"], "of 4")
+        self.assertEqual(ca.page_count([{"npages": 3}, {"npages": 5}]), 3)  # tie → smaller
+        self.assertEqual(ca.page_count([{"pmax": 3}, {"pmax": 900}, {"pmax": 3}]), 3)
+
+    async def test_r1_duration_prefers_probe_then_median(self):
+        unprobed = await self.mkdoc("L", ws=None, kind="artifact", mime="video/mp4", media=None)
+        await self.seed(unprobed, 3, media={"dur": 100, "segs": [[0, 50]], "plays": 1, "watched_s": 50})
+        await self.seed(unprobed, 1, media={"dur": 86_400, "segs": [[0, 50]], "plays": 1, "watched_s": 50})
+        out = (await self.http.get(f"/api/v1/me/documents/{unprobed['slug']}/analytics/media",
+                                   headers=self.session("owner"))).json()
+        self.assertEqual((out["dur"], len(out["retention"])), (100.0, 100))
+        probed = await self.video()
+        await self.seed(probed, 2, media={"dur": 5000, "segs": [[0, 50]], "plays": 1, "watched_s": 50})
+        out = (await self.http.get(f"/api/v1/me/documents/{probed['slug']}/analytics/overview",
+                                   headers=self.session("owner"))).json()
+        self.assertEqual({k["key"]: k["value"] for k in out["kpis"]}["avg_watched"], 50.0)
+
+    async def test_r1_home_excludes_deleted_and_destroy_cleans_up(self):
+        keep = await self.mkdoc("L", ws=None)
+        gone = await self.mkdoc("L", ws=None)
+        await self.seed_views(keep, [{"ip_hash": "a"}])
+        await self.seed_views(gone, [{"ip_hash": "b"}, {"ip_hash": "c"}])
+        await self.seed(gone, 2, depth=10)
+        await self.seed(keep, 1, depth=95)
+        await self.engage(gone["slug"], {"sid": sid(), "seq": 1, "d": {"active_s": 1}})
+        presence.touch(str(gone["_id"]), "x", pos=None, country=None, device=None, kind="doc")
+        r = await self.http.delete(f"/api/v1/documents/{gone['slug']}", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(await self.db["engage_sessions"].count_documents({"doc_id": str(gone["_id"])}), 0)
+        self.assertEqual(presence.count(str(gone["_id"])), 0)
+        self.assertFalse([k for k in engage._pending if k[0] == str(gone["_id"])])
+        # Rows another path left behind still don't count.
+        await self.seed(gone, 2, depth=10)
+        out = (await self.http.get("/api/v1/me/analytics", headers=self.session("owner"))).json()
+        kp = {k["key"]: k["value"] for k in out["kpis"]}
+        self.assertEqual((kp["views"], kp["people"], kp["read_end"]), (1, 1, 100.0))
+
+    async def test_r1_csv_formula_injection(self):
+        d = await self.mkdoc("L", ws=None, title="=HYPERLINK(\"http://x\",\"y\")")
+        await self.seed_views(d, [{"ip_hash": "a"}])
+        r = await self.http.get("/api/v1/me/analytics.csv", headers=self.session("owner"))
+        row = [ln for ln in r.text.splitlines() if ln.startswith(d["slug"])][0]
+        self.assertIn(",\"'=HYPERLINK(", row)
+        for v, want in (("+1", "'+1"), ("-x", "'-x"), ("@a", "'@a"), ("\tz", "'\tz"), ("ok", "ok"), (-3, -3)):
+            self.assertEqual(ca.csv_cell(v), want)
+
+    async def test_r1_phone_slow_k_anon_by_people(self):
+        one_person = [{"device": "Mobile", "country": "DE", "ip_hash": "same", "media": {"startup_ms": 9000}}] * 6
+        five = [{"device": "Mobile", "country": "FR", "ip_hash": f"p{i}", "media": {"startup_ms": 9000}}
+                for i in range(5)]
+        q = ca.qoe(one_person + five, size_bytes=None, dur=None)
+        self.assertEqual(q["phone_slow_by"], [{"country": "FR", "pct": 100.0}])
+
+    async def test_r1_tenant_token_in_u_is_anonymous(self):
+        d = await self.mkdoc("L")
+        token = self.tenant("wm", "W1")["Authorization"].split()[1]
+        s = sid()
+        await self.engage(d["slug"], {"sid": s, "seq": 1, "u": token, "d": {"active_s": 30}})
+        self.assertFalse((await self.row(d, s))["internal"])
+        # The owner's tenant token can't drop sessions either (anonymous).
+        owner_tenant = self.tenant("owner", "W1")["Authorization"].split()[1]
+        s2 = sid()
+        await self.engage(d["slug"], {"sid": s2, "seq": 1, "u": owner_tenant, "d": {"active_s": 30}})
+        self.assertIsNotNone(await self.row(d, s2))
+        # On the view beacon a tenant token only counts from its own domain.
+        await self.view(d["slug"], headers=self.tenant("wm", "W1", origin="https://evil.test"))
+        row = await self.db["events"].find_one({"doc_id": str(d["_id"])})
+        self.assertFalse(row["internal"])
+
+    async def test_r1_huge_numbers_dropped_cleanly(self):
+        self.assertIsNone(engage._num(10 ** 400, 0, 1))
+        d = await self.mkdoc("L", ws=None)
+        s = sid()
+        body = '{"sid": "%s", "seq": 1, "d": {"active_s": %s, "depth": 40}}' % (s, "9" * 400)
+        with self.assertNoLogs("app.routers.documents", level="WARNING"):
+            r = await self.engage(d["slug"], body)
+        self.assertEqual(r.status_code, 204)
+
+    async def test_r1_doc_head_encrypted(self):
+        d = await self.mkdoc("L", ws=None, encrypted=True)
+        out = (await self.http.get(f"/api/v1/me/documents/{d['slug']}/analytics/overview",
+                                   headers=self.session("owner"))).json()
+        self.assertIs(out["doc"]["encrypted"], True)
+
+    async def test_r1_og_cdn_headers_and_render_cache(self):
+        from app.services import og_render
+
+        d = await self.mkdoc("L", ws=None)
+        renders = []
+
+        def render(card):
+            renders.append(card)
+            return b"png"
+
+        with mock.patch.object(og_render, "render_og_png", render):
+            for ua in ("Slackbot 1.0", "LinkedInBot/1.0"):
+                r = await self.http.get(f"/api/v1/og/{d['slug']}.png", headers={"User-Agent": ua})
+                self.assertEqual(r.headers["cdn-cache-control"], "no-store")
+                self.assertEqual(r.headers["cloudflare-cdn-cache-control"], "no-store")
+                self.assertEqual(r.headers["cache-control"], "public, max-age=300")
+        self.assertEqual(len(renders), 1)  # the second fetch was served from the cache
+        self.assertEqual(await self.db["events"].count_documents({"type": "preview"}), 2)

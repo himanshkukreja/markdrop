@@ -61,8 +61,14 @@ _SID = re.compile(r"^[A-Za-z0-9_-]{12,64}$")
 _DOT, _DOLLAR = "．", "＄"  # ． ＄
 
 # Sessions not yet worth a row, waiting for their second active second.
+# While pending, a session keeps a compact envelope only: first-touch fields,
+# seq and the scalar counters, with each map, ``reached`` and the watched ranges
+# cut to PENDING_KEYS entries (a session that never reaches 2 active seconds
+# has nothing more worth keeping). Bounded to PENDING_MAX sessions, oldest out
+# first, so forged fresh-sid beacons can't grow the process.
 PENDING_TTL_S = 30 * 60
-PENDING_MAX = 20_000
+PENDING_MAX = 2000
+PENDING_KEYS = 20
 _pending: "OrderedDict[tuple[str, str], tuple[dict, float]]" = OrderedDict()
 
 
@@ -137,7 +143,10 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 def _num(v, lo: float, hi: float) -> float | None:
     if isinstance(v, bool) or not isinstance(v, (int, float)):
         return None
-    f = float(v)
+    try:
+        f = float(v)
+    except OverflowError:  # an integer too big for a float: just drop it
+        return None
     if f != f or f in (math.inf, -math.inf):
         return None
     return max(lo, min(hi, f))
@@ -418,11 +427,35 @@ def _pending_get(key: tuple[str, str]) -> dict | None:
     return state
 
 
+def _compact(state: dict) -> dict:
+    """The pending envelope: every map / list cut to PENDING_KEYS entries."""
+    for f in ("sec", "copies", "links", "pages", "rv"):
+        m = state.get(f)
+        if isinstance(m, dict) and len(m) > PENDING_KEYS:
+            state[f] = dict(list(m.items())[:PENDING_KEYS])
+    if len(state.get("reached") or []) > PENDING_KEYS:
+        state["reached"] = state["reached"][:PENDING_KEYS]
+    media = state.get("media")
+    if media:
+        if len(media.get("segs") or []) > PENDING_KEYS:
+            media["segs"] = media["segs"][:PENDING_KEYS]
+            media["watched_s"] = round(min(SESSION_CAP_S, union_len(media["segs"])), 1)
+        if len(media.get("speed") or {}) > PENDING_KEYS:
+            media["speed"] = dict(list(media["speed"].items())[:PENDING_KEYS])
+    return state
+
+
 def _pending_put(key: tuple[str, str], state: dict) -> None:
-    _pending[key] = (state, time.monotonic())
+    _pending[key] = (_compact(state), time.monotonic())
     _pending.move_to_end(key)
     while len(_pending) > PENDING_MAX:
         _pending.popitem(last=False)
+
+
+def forget_doc(doc_id: str) -> None:
+    """Drop the pending sessions of a deleted document."""
+    for key in [k for k in _pending if k[0] == doc_id]:
+        _pending.pop(key, None)
 
 
 def clear_pending() -> None:

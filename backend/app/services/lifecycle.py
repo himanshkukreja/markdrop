@@ -120,6 +120,12 @@ async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete"
     await revalidate.purge_doc(db, raw, extra_slugs=raw.get("old_slugs") or [], inline=True)  # B2
     live.gone(slug)
     await db["document_grants"].delete_many({"document_id": doc_id})
+    # Creator analytics: its engagement sessions and anyone shown as live on it.
+    from app.services import engage, presence
+
+    await db[engage.COLL].delete_many({"doc_id": doc_id})
+    engage.forget_doc(doc_id)
+    presence.forget_doc(doc_id)
     try:
         await _delete_objects(raw)
         if raw.get("kind") == "artifact":

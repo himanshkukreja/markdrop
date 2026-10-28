@@ -20,6 +20,7 @@ from __future__ import annotations
 import csv
 import io
 import math
+import time
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -28,12 +29,14 @@ from urllib.parse import urlsplit
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from fastapi.concurrency import run_in_threadpool
+
 from app.services import engage, insights, presence, traffic
 from app.services.analytics import FINISHED_AT, clean_referrer
 from app.services.engage import aware, decode_key, merge_segs
 
 RANGES = {"7d": 7, "30d": 30, "90d": 90, "all": None}
-SESSION_CAP = 20_000
+SESSION_CAP = 5_000
 K_ANON = 5
 RETENTION_POINTS = 600
 REWATCH_BUCKETS = 60
@@ -92,8 +95,10 @@ def sessions_match(scope: dict, start, end, internal: bool) -> dict:
 
 
 async def load_sessions(db: AsyncIOMotorDatabase, match: dict, projection: dict | None = None,
-                        cap: int = SESSION_CAP) -> tuple[list[dict], bool]:
-    """The newest ``cap`` sessions matching, and whether there were more."""
+                        cap: int | None = None) -> tuple[list[dict], bool]:
+    """The newest ``cap`` (default SESSION_CAP) sessions matching, and whether
+    there were more."""
+    cap = cap or SESSION_CAP
     rows = await db[engage.COLL].find(match, projection).sort("started_at", -1).limit(cap + 1) \
         .to_list(length=cap + 1)
     return rows[:cap], len(rows) > cap
@@ -146,12 +151,13 @@ def _media(s: dict) -> dict:
 
 def is_playing(s: dict) -> bool:
     m = _media(s)
-    return (m.get("plays") or 0) >= 1 or bool(m.get("segs"))
+    return (m.get("plays") or 0) >= 1 or bool(m.get("segs")) or (m.get("watched_s") or 0) > 0
 
 
 def watched_frac(s: dict, dur: float | None) -> float | None:
     m = _media(s)
-    d = m.get("dur") or dur
+    # The server-probed duration wins; a session's own report is a fallback.
+    d = dur or m.get("dur")
     if not d:
         return None
     return min(1.0, (m.get("watched_s") or 0) / d)
@@ -198,11 +204,11 @@ def primary_metric(sessions: list[dict], kind: str, dur: float | None = None) ->
     return {"label": "Median time", "unit": "seconds", "value": med(s.get("active_s") for s in sessions)}
 
 
-def engage_label(sessions: list[dict], kind: str) -> str | None:
+def engage_label(sessions: list[dict], kind: str, dur: float | None = None) -> str | None:
     """A one-line engagement summary for a link row ("62% watched")."""
     if not sessions:
         return None
-    m = primary_metric(sessions, kind)
+    m = primary_metric(sessions, kind, dur)
     if kind in MEDIA_KINDS:
         return f"{m['value']:.0f}% {'listened' if kind == 'audio' else 'watched'}"
     if kind == "pdf":
@@ -386,19 +392,24 @@ def rewatch(sessions: list[dict], dur: float) -> tuple[list[float], list[dict]]:
     if not dur or dur <= 0:
         return [0.0] * REWATCH_BUCKETS, []
     b = dur / REWATCH_BUCKETS
-    views = [0] * REWATCH_BUCKETS
-    watchers = [0] * REWATCH_BUCKETS
+    n = REWATCH_BUCKETS
+    views = [0] * n
+    watchers = [0] * n
     denom = 0
     for s in sessions:
         if not is_playing(s):
             continue
         denom += 1
-        cov = [0] * REWATCH_BUCKETS
+        # One difference array per session: O(ranges + buckets), not ranges × buckets.
+        diff = [0] * (n + 1)
         for st, en in _media(s).get("segs") or []:
-            i0, i1 = _bucket_range(st, en, b, REWATCH_BUCKETS)
-            for i in range(i0, i1):
-                cov[i] += 1
-        for i, c in enumerate(cov):
+            i0, i1 = _bucket_range(st, en, b, n)
+            if i1 > i0:
+                diff[i0] += 1
+                diff[i1] -= 1
+        c = 0
+        for i in range(n):
+            c += diff[i]
             if c:
                 views[i] += c
                 watchers[i] += 1
@@ -456,13 +467,18 @@ def qoe(sessions: list[dict], *, size_bytes: int | None, dur: float | None) -> d
     phones = [s for s in sessions if s.get("device") == "Mobile" and _media(s).get("startup_ms") is not None]
     slow = [s for s in phones if _media(s)["startup_ms"] > SLOW_START_MS]
     by_country: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    people_by_country: dict[str, set] = defaultdict(set)
     for s in phones:
         if s.get("country"):
             c = by_country[s["country"]]
             c[0] += 1
             c[1] += 1 if _media(s)["startup_ms"] > SLOW_START_MS else 0
+            if s.get("ip_hash"):
+                people_by_country[s["country"]].add(s["ip_hash"])
+    # k-anonymity counts people (distinct visitors), not sessions.
     phone_slow_by = sorted(
-        [{"country": k, "pct": pct(v[1], v[0])} for k, v in by_country.items() if v[0] >= K_ANON],
+        [{"country": k, "pct": pct(v[1], v[0])} for k, v in by_country.items()
+         if len(people_by_country.get(k, ())) >= K_ANON],
         key=lambda r: -r["pct"])
     bitrate = round(size_bytes * 8 / dur / 1000) if size_bytes and dur else None
     phone_slow_pct = pct(len(slow), len(phones))
@@ -512,11 +528,14 @@ def doc_dur(raw: dict, sessions: list[dict], row: dict | None = None) -> float |
     d = media.get("duration_s")
     if d:
         return float(d)
+    # No probed duration: the median of what sessions reported (one forged
+    # session can't stretch the timeline).
     ds = [_media(s).get("dur") for s in sessions if _media(s).get("dur")]
-    return float(max(ds)) if ds else None
+    return float(median(ds)) if ds else None
 
 
-async def doc_head(db, raw: dict, sessions: list[dict] | None = None) -> dict:
+async def doc_head(db, raw: dict, sessions: list[dict] | None = None, *,
+                   npages: int | None = None) -> dict:
     from app.services import urls
     from app.services import workspace as ws_service
 
@@ -526,9 +545,8 @@ async def doc_head(db, raw: dict, sessions: list[dict] | None = None) -> dict:
         w = await ws_service.get_workspace(db, raw["workspace_id"])
         if w is not None:
             ws = {"id": w.id, "name": w.name}
-    npages = None
-    if kind == "pdf" and sessions:
-        npages = max((s.get("npages") or 0 for s in sessions), default=0) or None
+    if kind == "pdf" and npages is None and sessions:
+        npages = page_count(sessions)
     head = {
         "slug": raw["slug"],
         "title": doc_title(raw),
@@ -539,6 +557,8 @@ async def doc_head(db, raw: dict, sessions: list[dict] | None = None) -> dict:
         "workspace": ws,
         "address": await urls.canonical_url(db, raw),
         "created_at": iso(raw.get("created_at")),
+        # Ciphertext to the server: the UI skips fetching it for headings.
+        "encrypted": bool(raw.get("encrypted")),
     }
     dur = (raw.get("media") or {}).get("duration_s")
     if kind in MEDIA_KINDS and dur:
@@ -553,6 +573,71 @@ _SESSION_FIELDS = {
     "country": 1, "device": 1, "channel": 1, "utm_source": 1, "utm_medium": 1, "utm_campaign": 1,
     "internal": 1, "active_s": 1, "depth": 1, "npages": 1, "pmax": 1, "media": 1,
 }
+#: Everything but the per-session maps and watched ranges: enough for every
+#: KPI (previous windows, home rows).
+_LIGHT_FIELDS = {
+    **{k: v for k, v in _SESSION_FIELDS.items() if k != "media"},
+    "media.dur": 1, "media.plays": 1, "media.ended": 1, "media.watched_s": 1,
+}
+
+
+def fields_for(kind: str) -> dict:
+    """One projection that serves a document's whole overview (KPIs and
+    insights), so its window is read once."""
+    if kind == "doc":
+        return {**_LIGHT_FIELDS, "reached": 1, "sec": 1}
+    if kind == "pdf":
+        return {**_LIGHT_FIELDS, "pages": 1, "rv": 1}
+    if kind in MEDIA_KINDS:
+        return _SESSION_FIELDS
+    return _LIGHT_FIELDS
+
+
+def page_count(sessions: list[dict]) -> int | None:
+    """A PDF's page count as its viewers report it: the most common ``npages``
+    (ties → the smaller), so one forged beacon can't stretch the document.
+    With no reports at all, the furthest page at least two sessions reached."""
+    counts: dict[int, int] = defaultdict(int)
+    for s in sessions:
+        n = s.get("npages")
+        if isinstance(n, int) and 0 < n <= engage.MAX_PAGES:
+            counts[n] += 1
+    if counts:
+        return min(counts, key=lambda n: (-counts[n], n))
+    reached: dict[int, int] = defaultdict(int)
+    for s in sessions:
+        p = s.get("pmax")
+        if isinstance(p, int) and 0 < p <= engage.MAX_PAGES:
+            reached[p] += 1
+    if not reached:
+        return None
+    if len(sessions) < 2:
+        return max(reached)
+    seen = 0
+    for p in sorted(reached, reverse=True):
+        seen += reached[p]
+        if seen >= 2:
+            return p
+    return None
+
+
+def normalize_pdf(sessions: list[dict]) -> int | None:
+    """Hold every session of a PDF to its page count (in place): ``npages`` is
+    set to it, ``pmax`` and page keys beyond it are clamped / dropped.
+    Returns the page count."""
+    n = page_count(sessions)
+    if not n:
+        return None
+    for s in sessions:
+        if s.get("npages"):
+            s["npages"] = n
+        if (s.get("pmax") or 0) > n:
+            s["pmax"] = n
+        for f in ("pages", "rv"):
+            m = s.get(f)
+            if m and any(not k.isdigit() or int(k) > n for k in m):
+                s[f] = {k: v for k, v in m.items() if k.isdigit() and int(k) <= n}
+    return n
 
 
 def _sections(sessions: list[dict]) -> list[dict]:
@@ -580,26 +665,40 @@ def _sections(sessions: list[dict]) -> list[dict]:
             for h in order[:engage.MAP_KEYS]]
 
 
-def _pages(sessions: list[dict]) -> dict:
+def _pages(sessions: list[dict], npages: int | None = None) -> dict:
+    """Reach, time and returns per page, in one counting pass: O(sessions +
+    page keys + pages). Sessions are expected normalised (normalize_pdf)."""
     known = [s for s in sessions if s.get("npages") or s.get("pmax")]
-    npages = max((s.get("npages") or s.get("pmax") or 0 for s in known), default=0)
+    if npages is None:
+        npages = page_count(known) or 0
     npages = min(npages, engage.MAX_PAGES)
     n = len(known)
-    reach, time, back = [], [], []
-    for p in range(1, npages + 1):
-        got = [s for s in known if (s.get("pmax") or 0) >= p]
-        reach.append({"page": p, "pct": pct(len(got), n)})
-        key = str(p)
-        time.append({"page": p, "median_s": med(
-            (s.get("pages") or {}).get(key) for s in known if (s.get("pages") or {}).get(key))})
-        back.append({"page": p, "pct": pct(sum(1 for s in got if ((s.get("rv") or {}).get(key) or 0) >= 1),
-                                           len(got))})
+    hist = [0] * (npages + 2)
+    times: dict[int, list[float]] = defaultdict(list)
+    backs = [0] * (npages + 2)
+    for s in known:
+        pm = min(int(s.get("pmax") or 0), npages)
+        hist[pm] += 1
+        for k, v in (s.get("pages") or {}).items():
+            if k.isdigit() and 1 <= int(k) <= npages and v:
+                times[int(k)].append(v)
+        for k, v in (s.get("rv") or {}).items():
+            if k.isdigit() and 1 <= int(k) <= pm and (v or 0) >= 1:
+                backs[int(k)] += 1
+    reach_n = [0] * (npages + 2)
+    run = 0
+    for p in range(npages, 0, -1):
+        run += hist[p]
+        reach_n[p] = run
+    reach = [{"page": p, "pct": pct(reach_n[p], n)} for p in range(1, npages + 1)]
+    per_page = [{"page": p, "median_s": med(times.get(p, []))} for p in range(1, npages + 1)]
+    back = [{"page": p, "pct": pct(backs[p], reach_n[p])} for p in range(1, npages + 1)]
     drop = None
     for a, b in zip(reach, reach[1:]):
         d = round(a["pct"] - b["pct"], 1)
         if d > 0 and (drop is None or d > drop["pct"]):
             drop = {"after_page": a["page"], "pct": d}
-    return {"sessions": n, "npages": npages, "reach": reach, "time": time, "back": back,
+    return {"sessions": n, "npages": npages, "reach": reach, "time": per_page, "back": back,
             "biggest_drop": drop}
 
 
@@ -617,29 +716,45 @@ def _by_ver(sessions: list[dict], raw: dict) -> dict[int, list[dict]]:
     return out
 
 
+OTHER_VIDEOS = 5
+OTHER_VIDEO_SESSIONS = 500
+HOLD_CACHE_TTL_S = 600
+_hold_cache: dict[tuple, tuple[float, dict[str, float]]] = {}
+
+
 async def _other_videos_hold30(db, raw: dict, w: Window, internal: bool) -> float | None:
     """Median retention at 0:30 across the owner's other videos with enough
-    playing sessions."""
+    playing sessions. Bounded (the owner's 5 most recently updated videos ×
+    500 sessions) and cached per owner and window for 10 minutes."""
     owner = raw.get("owner_id")
     if not owner:
         return None
-    others = await db["documents"].find(
-        {"owner_id": owner, "kind": "artifact", "mime": {"$regex": "^video/"}, "_id": {"$ne": raw["_id"]}},
-        {"_id": 1, "media": 1}).limit(20).to_list(length=20)
-    holds = []
-    for o in others:
-        rows, _ = await load_sessions(
-            db, sessions_match({"doc_id": str(o["_id"])}, w.start, w.end, internal),
-            {"media.segs": 1, "media.plays": 1, "media.dur": 1}, cap=2000)
-        dur = doc_dur(o, rows)
-        if not dur or dur <= 30:
-            continue
-        pts, playing = retention(rows, dur)
-        if playing >= insights.MIN_SESSIONS:
-            h = retention_at(pts, 30)
-            if h is not None:
-                holds.append(h)
-    return round(float(median(holds)), 1) if holds else None
+    key = (owner, w.key, bool(internal))
+    hit = _hold_cache.get(key)
+    if hit is None or time.monotonic() - hit[0] > HOLD_CACHE_TTL_S:
+        holds: dict[str, float] = {}
+        videos = await db["documents"].find(
+            {"owner_id": owner, "kind": "artifact", "mime": {"$regex": "^video/"}},
+            {"_id": 1, "media": 1}).sort("updated_at", -1).limit(OTHER_VIDEOS + 1) \
+            .to_list(length=OTHER_VIDEOS + 1)
+        for o in videos:
+            rows, _ = await load_sessions(
+                db, sessions_match({"doc_id": str(o["_id"])}, w.start, w.end, internal),
+                {"media.segs": 1, "media.plays": 1, "media.dur": 1, "media.watched_s": 1},
+                cap=OTHER_VIDEO_SESSIONS)
+            dur = doc_dur(o, rows)
+            if not dur or dur <= 30:
+                continue
+            pts, playing = await run_in_threadpool(retention, rows, dur)
+            if playing >= insights.MIN_SESSIONS:
+                h = retention_at(pts, 30)
+                if h is not None:
+                    holds[str(o["_id"])] = h
+        if len(_hold_cache) > 1000:
+            _hold_cache.clear()
+        hit = _hold_cache[key] = (time.monotonic(), holds)
+    others = [h for d, h in hit[1].items() if d != str(raw["_id"])]
+    return round(float(median(others)), 1) if others else None
 
 
 async def _channel_engagement(db, scope: dict, w: Window, internal: bool, sessions: list[dict],
@@ -653,12 +768,13 @@ async def _channel_engagement(db, scope: dict, w: Window, internal: bool, sessio
 
 async def doc_insights(db, raw: dict, w: Window, internal: bool, *, sessions: list[dict] | None = None,
                        views: int | None = None, prev_views: int | None = None) -> list[dict]:
-    """§5 rules for one document over the window."""
+    """§5 rules for one document over the window. ``sessions``, when given,
+    must have been loaded with ``fields_for(kind)``."""
     doc_id = str(raw["_id"])
     scope = {"doc_id": doc_id}
     kind = engage.kind_for(raw)
     if sessions is None:
-        sessions, _ = await load_sessions(db, sessions_match(scope, w.start, w.end, internal))
+        sessions, _ = await load_sessions(db, sessions_match(scope, w.start, w.end, internal), fields_for(kind))
     if views is None:
         views = await views_count(db, views_match(scope, w.start, w.end, internal))
     if prev_views is None and w.has_prev:
@@ -670,19 +786,16 @@ async def doc_insights(db, raw: dict, w: Window, internal: bool, *, sessions: li
     stats: dict = {"kind": kind, "slug": raw["slug"], "views": views,
                    "prev_views": prev_views if w.has_prev else None, "sessions": len(sessions)}
     if kind in MEDIA_KINDS and dur:
-        pts, playing = retention(cur_sessions, dur)
+        pts, playing = await run_in_threadpool(retention, cur_sessions, dur)
         stats.update(retention=pts, playing=playing, dur=dur, hold30=retention_at(pts, 30) if dur > 30 else None)
         if playing >= insights.MIN_SESSIONS and dur > 30:
             stats["other_hold30"] = await _other_videos_hold30(db, raw, w, internal)
         stats["phone"] = _phone(cur_sessions)
     if kind == "doc" and not raw.get("encrypted"):
-        full, _ = await load_sessions(db, sessions_match(scope, w.start, w.end, internal),
-                                      {"reached": 1, "sec": 1})
-        stats["sections"] = _sections(full)
+        stats["sections"] = await run_in_threadpool(_sections, sessions)
     if kind == "pdf":
-        full, _ = await load_sessions(db, sessions_match(scope, w.start, w.end, internal),
-                                      {"npages": 1, "pmax": 1})
-        stats["pages"] = _pages(full)
+        n = normalize_pdf(sessions)
+        stats["pages"] = await run_in_threadpool(_pages, sessions, n)
     if kind != "doc" and current > 1:
         by = _by_ver(sessions, raw)
         vs = []
@@ -702,12 +815,16 @@ async def overview(db, raw: dict, w: Window, internal: bool) -> dict:
     scope = {"doc_id": doc_id}
     kind = engage.kind_for(raw)
     vm = views_match(scope, w.start, w.end, internal)
-    sessions, sampled = await load_sessions(db, sessions_match(scope, w.start, w.end, internal), _SESSION_FIELDS)
+    sessions, sampled = await load_sessions(db, sessions_match(scope, w.start, w.end, internal),
+                                            fields_for(kind))
     prev_sessions: list[dict] = []
     if w.has_prev:
         prev_sessions, s2 = await load_sessions(
-            db, sessions_match(scope, w.prev_start, w.prev_end, internal), _SESSION_FIELDS)
+            db, sessions_match(scope, w.prev_start, w.prev_end, internal), _LIGHT_FIELDS)
         sampled = sampled or s2
+    npages = normalize_pdf(sessions) if kind == "pdf" else None
+    if kind == "pdf":
+        normalize_pdf(prev_sessions)
     views = await views_count(db, vm)
     people = await people_count(db, vm)
     prev_views = prev_people = None
@@ -739,7 +856,6 @@ async def overview(db, raw: dict, w: Window, internal: bool) -> dict:
         re_ = both(reached_end)
         rt = both(lambda ss: med(s.get("active_s") for s in ss))
         pg = both(lambda ss: med(s.get("pmax") for s in ss if s.get("pmax")))
-        npages = max((s.get("npages") or 0 for s in sessions), default=0)
         kpis += [kpi("reached_end", "Reached the last page", re_[0], "percent", re_[1], has_prev=hp),
                  kpi("read_time", "Median read time", rt[0], "seconds", rt[1], has_prev=hp),
                  kpi("pages_npages", "Pages read", pg[0], "count", pg[1],
@@ -775,7 +891,7 @@ async def overview(db, raw: dict, w: Window, internal: bool) -> dict:
             marks.append({"date": at.date().isoformat(), "version": r["version"]})
     marks.sort(key=lambda m: m["version"])
     return {
-        "doc": await doc_head(db, raw, sessions),
+        "doc": await doc_head(db, raw, sessions, npages=npages),
         "range": w.key,
         "has_engagement": first is not None,
         "tracking_since": iso(first["started_at"]) if first else None,
@@ -791,11 +907,15 @@ async def overview(db, raw: dict, w: Window, internal: bool) -> dict:
 
 
 async def _copies_clicks(db, match: dict) -> int:
-    total = 0
-    rows, _ = await load_sessions(db, match, {"copies": 1, "links": 1})
-    for s in rows:
-        total += sum((s.get("copies") or {}).values()) + sum((s.get("links") or {}).values())
-    return int(total)
+    """Copies + outbound link clicks, summed in the database."""
+    def total(field: str) -> dict:
+        return {"$sum": {"$map": {"input": {"$objectToArray": {"$ifNull": [f"${field}", {}]}},
+                                  "in": "$$this.v"}}}
+    rows = await db[engage.COLL].aggregate([
+        {"$match": match},
+        {"$group": {"_id": None, "c": {"$sum": total("copies")}, "l": {"$sum": total("links")}}},
+    ]).to_list(length=1)
+    return int((rows[0]["c"] or 0) + (rows[0]["l"] or 0)) if rows else 0
 
 
 async def media_report(db, raw: dict, w: Window, internal: bool, ver: int | None) -> dict:
@@ -808,8 +928,8 @@ async def media_report(db, raw: dict, w: Window, internal: bool, ver: int | None
     match = {**sessions_match({"doc_id": doc_id}, w.start, w.end, internal), **session_ver_filter(raw, ver)}
     sessions, sampled = await load_sessions(db, match, _SESSION_FIELDS)
     dur = doc_dur(raw if ver == current else {}, sessions, row)
-    pts, playing = retention(sessions, dur or 0)
-    strip, detail = rewatch(sessions, dur or 0)
+    pts, playing = await run_in_threadpool(retention, sessions, dur or 0)
+    strip, detail = await run_in_threadpool(rewatch, sessions, dur or 0)
     speed: dict[str, float] = defaultdict(float)
     for s in sessions:
         for k, v in (_media(s).get("speed") or {}).items():
@@ -863,7 +983,7 @@ async def content_report(db, raw: dict, w: Window, internal: bool) -> dict:
         "sessions": n,
         "read_all_pct": pct(sum(1 for s in sessions if engaged(s, "doc")), n),
         "median_active_s": med(s.get("active_s") for s in sessions),
-        "sections": _sections(sessions),
+        "sections": await run_in_threadpool(_sections, sessions),
         "copies": [{"hash": h, "section": sec or None, "n": c}
                    for (h, sec), c in sorted(copies.items(), key=lambda kv: -kv[1])[:10]],
         "links": [{"href": href, "section": sec or None, "n": c}
@@ -876,7 +996,8 @@ async def content_report(db, raw: dict, w: Window, internal: bool) -> dict:
 async def pages_report(db, raw: dict, w: Window, internal: bool) -> dict:
     match = sessions_match({"doc_id": str(raw["_id"])}, w.start, w.end, internal)
     sessions, sampled = await load_sessions(db, match, {"npages": 1, "pmax": 1, "pages": 1, "rv": 1})
-    out = _pages(sessions)
+    n = normalize_pdf(sessions)
+    out = await run_in_threadpool(_pages, sessions, n)
     if out["biggest_drop"] is None:
         out.pop("biggest_drop")
     out["sampled"] = sampled
@@ -890,7 +1011,9 @@ async def audience_report(db, raw: dict, w: Window, internal: bool) -> dict:
     scope = {"doc_id": doc_id}
     kind = engage.kind_for(raw)
     vm = views_match(scope, w.start, w.end, internal)
-    sessions, sampled = await load_sessions(db, sessions_match(scope, w.start, w.end, internal), _SESSION_FIELDS)
+    sessions, sampled = await load_sessions(db, sessions_match(scope, w.start, w.end, internal), _LIGHT_FIELDS)
+    if kind == "pdf":
+        normalize_pdf(sessions)
     dur = doc_dur(raw, sessions)
     new, returning = await returning_split(db, scope, w, internal)
     note = None
@@ -1012,10 +1135,14 @@ async def versions_report(db, raw: dict, internal: bool) -> dict:
     ]):
         v = r["_id"].get("v")
         views[int(v) if v else ver_at(r["ts"])] += r["n"]
-    sessions, _ = await load_sessions(db, {"doc_id": doc_id, **_internal(internal)}, _SESSION_FIELDS)
+    sessions, _ = await load_sessions(db, {"doc_id": doc_id, **_internal(internal)},
+                                      _SESSION_FIELDS if kind == "video" else _LIGHT_FIELDS)
     by: dict[int, list[dict]] = defaultdict(list)
     for s in sessions:
         by[int(s.get("ver") or ver_at(s.get("started_at")) or current)].append(s)
+    if kind == "pdf":
+        for ss in by.values():  # each version has its own page count
+            normalize_pdf(ss)
     out = []
     for r in rows:
         v = r["version"]
@@ -1025,7 +1152,7 @@ async def versions_report(db, raw: dict, internal: bool) -> dict:
         item = {"version": v, "created_at": iso(r.get("created_at")), "views": views.get(v, 0),
                 "sessions": len(ss), "primary_metric": {"label": m["label"], "value": m["value"]}}
         if kind == "video" and dur:
-            pts, playing = retention(ss, dur)
+            pts, playing = await run_in_threadpool(retention, ss, dur)
             if playing:
                 item["first_minute"] = [{"t": t, "pct": retention_at(pts, t) or 0.0}
                                         for t in range(0, 61, 2) if t <= dur]
@@ -1046,12 +1173,24 @@ async def daily_csv(db, raw: dict, w: Window, internal: bool) -> str:
         sess[r["_id"]] = r
     buf = io.StringIO()
     out = csv.writer(buf)
-    out.writerow(["date", "views", "people", "sessions", "active_s", "watched_s"])
+    _row(out, ["date", "views", "people", "sessions", "active_s", "watched_s"])
     for d in date_span(w, list(days) + list(sess), raw.get("created_at")):
         v, s = days.get(d, {}), sess.get(d, {})
-        out.writerow([d, v.get("views", 0), v.get("people", 0), s.get("n", 0),
+        _row(out, [d, v.get("views", 0), v.get("people", 0), s.get("n", 0),
                       round(s.get("a") or 0, 1), round(s.get("w") or 0, 1)])
     return buf.getvalue()
+
+
+def csv_cell(v):
+    """A CSV cell that a spreadsheet won't run as a formula (titles and slugs
+    are user-supplied): text starting with = + - @ tab or CR gets a leading '."""
+    if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + v
+    return v
+
+
+def _row(out, cells) -> None:
+    out.writerow([csv_cell(c) for c in cells])
 
 
 # ── Home (every document the caller owns) ────────────────────────────────────
@@ -1076,6 +1215,20 @@ async def _views_by_doc(db, match: dict) -> dict[str, dict]:
     return out
 
 
+_HOME_FIELDS = {"_id": 0, "doc_id": 1, "kind": 1, "depth": 1, "npages": 1, "pmax": 1, "active_s": 1,
+                "media.watched_s": 1, "media.dur": 1, "media.plays": 1, "media.ended": 1}
+
+
+def _normalize_by_doc(sessions: list[dict], owned: dict[str, dict]) -> None:
+    """Hold each PDF's sessions to that PDF's page count (normalize_pdf)."""
+    by: dict[str, list[dict]] = defaultdict(list)
+    for s in sessions:
+        if s.get("kind") == "pdf":
+            by[s["doc_id"]].append(s)
+    for ss in by.values():
+        normalize_pdf(ss)
+
+
 def _home_sessions_kpis(sessions: list[dict]) -> tuple[float, float]:
     watch = round(sum(_media(s).get("watched_s") or 0 for s in sessions), 1)
     reads = [s for s in sessions if s.get("kind") in ("doc", "pdf")
@@ -1089,20 +1242,23 @@ async def home(db, user_id: str, w: Window, internal: bool, *,
     """The home board. ``per_doc_out``, when given, receives each top link's
     own insights by slug (the weekly digest's notes reuse them)."""
     owned = await _owned(db, user_id)
-    scope = {"owner_id": user_id}
+    # Only documents that still exist: a deleted document's history doesn't
+    # count towards today's totals.
+    scope = {"owner_id": user_id, "doc_id": {"$in": list(owned)}}
     vm = views_match(scope, w.start, w.end, internal)
     by_doc = {k: v for k, v in (await _views_by_doc(db, vm)).items() if k in owned}
     views = sum(v["views"] for v in by_doc.values())
     people = await people_count(db, vm)
-    proj = {"_id": 0, "doc_id": 1, "kind": 1, "depth": 1, "npages": 1, "pmax": 1, "active_s": 1,
-            "media.watched_s": 1, "media.dur": 1, "media.plays": 1, "media.ended": 1, "media.segs": 1}
-    sessions, sampled = await load_sessions(db, sessions_match(scope, w.start, w.end, internal), proj)
+    sessions, sampled = await load_sessions(db, sessions_match(scope, w.start, w.end, internal), _HOME_FIELDS)
+    _normalize_by_doc(sessions, owned)
     watch, read_end = _home_sessions_kpis(sessions)
     hp = w.has_prev
     prev = {}
     if hp:
         pm = views_match(scope, w.prev_start, w.prev_end, internal)
-        prev_sessions, _ = await load_sessions(db, sessions_match(scope, w.prev_start, w.prev_end, internal), proj)
+        prev_sessions, _ = await load_sessions(
+            db, sessions_match(scope, w.prev_start, w.prev_end, internal), _HOME_FIELDS)
+        _normalize_by_doc(prev_sessions, owned)
         pw, pr = _home_sessions_kpis(prev_sessions)
         prev = {"views": await views_count(db, pm), "people": await people_count(db, pm),
                 "watch_time": pw, "read_end": pr}
@@ -1149,7 +1305,8 @@ async def home(db, user_id: str, w: Window, internal: bool, *,
             "icon": renderer or "doc",
             "views": v["views"],
             "spark": spark[doc_id],
-            "engage_label": engage_label(sess_by_doc.get(doc_id, []), kind),
+            "engage_label": engage_label(sess_by_doc.get(doc_id, []), kind,
+                                         (raw.get("media") or {}).get("duration_s")),
             "last_view": iso(v["last"]),
             "live": doc_id in live,
         })
@@ -1236,7 +1393,7 @@ async def live(db, user_id: str) -> dict:
 
 async def home_csv(db, user_id: str, w: Window, internal: bool) -> str:
     owned = await _owned(db, user_id)
-    scope = {"owner_id": user_id}
+    scope = {"owner_id": user_id, "doc_id": {"$in": list(owned)}}
     vm = views_match(scope, w.start, w.end, internal)
     by_doc = await _views_by_doc(db, vm)
     people: dict[str, int] = {}
@@ -1246,23 +1403,22 @@ async def home_csv(db, user_id: str, w: Window, internal: bool) -> str:
         {"$group": {"_id": "$_id.doc", "n": {"$sum": 1}}},
     ]):
         people[r["_id"]] = r["n"]
-    sessions, _ = await load_sessions(
-        db, sessions_match(scope, w.start, w.end, internal),
-        {"_id": 0, "doc_id": 1, "kind": 1, "depth": 1, "npages": 1, "pmax": 1, "active_s": 1,
-         "media.watched_s": 1, "media.dur": 1, "media.plays": 1, "media.ended": 1, "media.segs": 1})
+    sessions, _ = await load_sessions(db, sessions_match(scope, w.start, w.end, internal), _HOME_FIELDS)
+    _normalize_by_doc(sessions, owned)
     by_sess: dict[str, list[dict]] = defaultdict(list)
     for s in sessions:
         by_sess[s["doc_id"]].append(s)
     buf = io.StringIO()
     out = csv.writer(buf)
-    out.writerow(["slug", "title", "kind", "views", "people", "engaged_metric", "engaged_value"])
+    _row(out, ["slug", "title", "kind", "views", "people", "engaged_metric", "engaged_value"])
     order = sorted(owned.items(), key=lambda kv: (-(by_doc.get(kv[0], {}).get("views") or 0), kv[1]["slug"]))
     for doc_id, raw in order[:5000]:
         kind = engage.kind_for(raw)
         ss = by_sess.get(doc_id, [])
-        m = primary_metric(ss, kind) if ss else {"label": "", "value": ""}
-        out.writerow([raw["slug"], doc_title(raw) or "", kind, by_doc.get(doc_id, {}).get("views", 0),
-                      people.get(doc_id, 0), m["label"], m["value"]])
+        dur = (raw.get("media") or {}).get("duration_s")
+        m = primary_metric(ss, kind, dur) if ss else {"label": "", "value": ""}
+        _row(out, [raw["slug"], doc_title(raw) or "", kind, by_doc.get(doc_id, {}).get("views", 0),
+                   people.get(doc_id, 0), m["label"], m["value"]])
     return buf.getvalue()
 
 
