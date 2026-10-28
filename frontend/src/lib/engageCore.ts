@@ -55,6 +55,8 @@ export interface BridgeMessage {
   fs?: boolean;
   pip?: boolean;
   q?: { dropped: number; frames: number } | null;
+  /** seeking only: the playback position just before the seek. */
+  pt?: number;
   /** error only: MediaError.code, and the HTTP status of a 1-byte probe of the source (0: failed). */
   code?: number;
   http?: number;
@@ -245,6 +247,8 @@ export class MediaAgg {
         if (this.state === "playing") this.state = "waiting";
         break;
       case "seeking":
+        // Credit what played between the last report and the seek (the frame's pt).
+        if (this.state === "playing" && fin(m.pt) && m.pt >= 0) this.advance(m.pt, now);
         this.closeOpen();
         this.endWait(now);
         // One scrub fires a burst of seeks; it is one seek.

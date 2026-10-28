@@ -185,3 +185,20 @@ test("pdf: seconds per current page, furthest page, returns", () => {
   p.drain(f);
   assert.deepEqual(f, {});
 });
+
+test("a seek credits what played after the last report (pt)", () => {
+  const a = new MediaAgg();
+  a.handle(msg("playing", 0), 0);
+  a.handle(msg("timeupdate", 8), 8000);
+  a.handle(msg("seeking", 25, { pt: 9.7 }), 9700); // played 8 → 9.7 between reports, then jumped
+  a.handle(msg("playing", 25), 9800);
+  a.handle(msg("timeupdate", 27), 11800);
+  const d = a.drain(12000);
+  assert.deepEqual(d.segs, [[0, 9.7], [25, 27]]);
+  // An implausible pt (further than playback could have reached) is not credited.
+  const b = new MediaAgg();
+  b.handle(msg("playing", 0), 0);
+  b.handle(msg("timeupdate", 5), 5000);
+  b.handle(msg("seeking", 30, { pt: 20 }), 5500);
+  assert.deepEqual(b.drain(6000).segs, [[0, 5]]);
+});

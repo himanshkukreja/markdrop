@@ -543,7 +543,7 @@ const MEDIA_BRIDGE = `<script>
   try{
     var m=document.getElementById('v')||document.getElementById('a');
     if(!m||window.parent===window)return;
-    var lastTU=0;
+    var lastTU=0,lastT=0;
     var post=function(e,extra){
       try{
         var d=m.duration,pe=document.pictureInPictureElement;
@@ -558,9 +558,12 @@ const MEDIA_BRIDGE = `<script>
         window.parent.postMessage(msg,'*');
       }catch(_){}
     };
-    ['play','playing','pause','waiting','seeking','seeked','ratechange','ended','loadedmetadata','volumechange']
+    ['play','playing','pause','waiting','seeked','ratechange','ended','loadedmetadata','volumechange']
       .forEach(function(n){m.addEventListener(n,function(){post(n)})});
+    // By 'seeking' currentTime is already the new spot; pt is where playback was just before it.
+    m.addEventListener('seeking',function(){post('seeking',{pt:Math.round(lastT*100)/100})});
     m.addEventListener('timeupdate',function(){
+      if(!m.seeking)lastT=m.currentTime||0;
       var now=Date.now();if(now-lastTU<1000)return;lastTU=now;post('timeupdate');
     });
     document.addEventListener('fullscreenchange',function(){post('fullscreen')});
