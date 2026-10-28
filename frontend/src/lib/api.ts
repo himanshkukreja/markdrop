@@ -1,3 +1,5 @@
+import { utmFrom } from "@/lib/engageCore";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.markdrop.in";
 
 /**
@@ -124,6 +126,8 @@ export interface DocumentResponse {
   poster_url?: string | null;
   /** ffprobe's reading of a video or audio file; null until known. */
   media?: MediaInfo | null;
+  /** Artifacts: the live file version (1 for a never-replaced file). Sent as `ver` with analytics beacons. */
+  file_version?: number | null;
   /**
    * v2: HMAC ticket the live socket (`?t=`) and the view/read beacons (`ticket` / `t`) must carry
    * for any document an anonymous visitor couldn't read (access policy §2.7). Opaque.
@@ -472,7 +476,7 @@ export async function reportDocument(slug: string, reason?: string): Promise<voi
  * would credit all four to Twitter. The navigation entry names the URL that
  * was actually loaded; if we're still on it, this is the landing page.
  */
-function landingReferrer(): string | null {
+export function landingReferrer(): string | null {
   if (typeof window === "undefined" || !document.referrer) return null;
   try {
     const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
@@ -484,19 +488,50 @@ function landingReferrer(): string | null {
 }
 
 /**
+ * The campaign the visitor arrived with: utm_source / utm_medium / utm_campaign of the URL that was
+ * actually loaded, and only while they are still on that page (same rule as `landingReferrer`).
+ */
+export function landingUtm(): { source?: string; medium?: string; campaign?: string } | null {
+  if (typeof window === "undefined") return null;
+  let search = window.location.search;
+  try {
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (nav) {
+      const landed = new URL(nav.name);
+      if (landed.pathname !== window.location.pathname) return null;
+      search = landed.search; // survives a router.replace that tidied the address
+    }
+  } catch {
+    /* no Navigation Timing: this is the landing page */
+  }
+  return utmFrom(search);
+}
+
+/**
  * View / export / copy-link beacon. `ticket` is the document's `read_ticket` (access policy §2.7):
  * without it the API silently drops beacons for any document an anonymous visitor couldn't read.
+ *
+ * Sent with the session token when signed in, so the owner's own views are not counted (and a
+ * workspace member's are marked internal). A view also carries the campaign (`utm`) and, for an
+ * artifact, the file version (`ver`). `optOut` (lib/engage `engagementOptedOut`) still counts the
+ * view, but without where the visitor came from.
  */
 export function recordEvent(
   slug: string,
   type: "view" | "export_pdf" | "copy_url",
   ticket?: string | null,
+  { ver, optOut = false }: { ver?: number | null; optOut?: boolean } = {},
 ): void {
   try {
+    const view = type === "view";
+    const body: Record<string, unknown> = { type, ticket: ticket || null, referrer: view && !optOut ? landingReferrer() : null };
+    const utm = view && !optOut ? landingUtm() : null;
+    if (utm) body.utm = utm;
+    if (view && typeof ver === "number") body.ver = ver;
     fetch(`${API_BASE}/api/v1/documents/${slug}/events`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, ticket: ticket || null, referrer: type === "view" ? landingReferrer() : null }),
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
       keepalive: true,
     }).catch(() => {});
   } catch {

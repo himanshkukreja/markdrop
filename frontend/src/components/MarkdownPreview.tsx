@@ -61,12 +61,14 @@ interface ReadingSettings {
   anchors: boolean;
   encrypted: boolean;
   sectionBaseUrl?: string;
+  onCodeCopy?: (code: string, block: HTMLElement | null) => void;
 }
 const ReadingContext = createContext<ReadingSettings>({ anchors: false, encrypted: false });
 
 /* ── Markdown components (module-level so a parent re-render never remounts them) ── */
 
 function MdPre({ children }: ComponentProps<"pre"> & ExtraProps) {
+  const { onCodeCopy } = useContext(ReadingContext);
   const child = Children.toArray(children)[0];
   const className = isValidElement<{ className?: string }>(child) ? child.props.className ?? "" : "";
   const language = /(?:^|\s)language-([^\s]+)/.exec(className)?.[1];
@@ -74,7 +76,7 @@ function MdPre({ children }: ComponentProps<"pre"> & ExtraProps) {
   // A ```mermaid fence renders as a diagram (no <pre>, no copy strip).
   if (language === "mermaid") return <DiagramFrame code={text} />;
   return (
-    <CodeBlock code={text} language={language}>
+    <CodeBlock code={text} language={language} onCopy={onCodeCopy}>
       {children}
     </CodeBlock>
   );
@@ -210,6 +212,11 @@ export interface MarkdownPreviewProps {
   sectionBaseUrl?: string;
   /** Receives the h1–h4 list (ids match the DOM) after each render that changes it. */
   onHeadings?: (headings: Heading[]) => void;
+  /**
+   * A code block's Copy was used: its code and the block element (the viewer counts copies for the
+   * owner's analytics by a hash of the code, lib/engage.ts). Off unless given.
+   */
+  onCodeCopy?: (code: string, block: HTMLElement | null) => void;
   className?: string;
 }
 
@@ -220,6 +227,7 @@ export default function MarkdownPreview({
   encrypted = false,
   sectionBaseUrl,
   onHeadings,
+  onCodeCopy,
   className,
 }: MarkdownPreviewProps) {
   const collected = useRef<Heading[]>([]);
@@ -253,7 +261,10 @@ export default function MarkdownPreview({
     [content, rehypePlugins],
   );
 
-  const settings = useMemo(() => ({ anchors, encrypted, sectionBaseUrl }), [anchors, encrypted, sectionBaseUrl]);
+  const settings = useMemo(
+    () => ({ anchors, encrypted, sectionBaseUrl, onCodeCopy }),
+    [anchors, encrypted, sectionBaseUrl, onCodeCopy],
+  );
 
   useEffect(() => {
     const key = JSON.stringify(collected.current);

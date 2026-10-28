@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { CopyButton } from "@/components/ui";
 import { useOverflowFade } from "./ScrollBox";
 
@@ -14,6 +14,8 @@ export interface CodeBlockProps {
    * absent, `code` is rendered as plain text.
    */
   children?: ReactNode;
+  /** After a successful Copy: the code and this block's element (the viewer's analytics; never the text itself). */
+  onCopy?: (code: string, block: HTMLElement | null) => void;
   className?: string;
 }
 
@@ -23,14 +25,15 @@ export interface CodeBlockProps {
  * `code-bg` with a `code-border` hairline, `syntax-*` colours (styles/syntax.css), horizontal scroll
  * with a right-edge fade while more code is hidden. Follows the theme (D14).
  */
-export function CodeBlock({ code, language, children, className }: CodeBlockProps) {
+export function CodeBlock({ code, language, children, onCopy, className }: CodeBlockProps) {
   const [ref, { overflowing, more }] = useOverflowFade<HTMLPreElement>();
+  const blockRef = useRef<HTMLDivElement>(null);
   const lang = (language ?? "").trim();
   return (
-    <div className={["md-codeblock not-prose", className].filter(Boolean).join(" ")} role="group" aria-label={lang ? `Code, ${lang}` : "Code"}>
+    <div ref={blockRef} className={["md-codeblock not-prose", className].filter(Boolean).join(" ")} role="group" aria-label={lang ? `Code, ${lang}` : "Code"}>
       <div className="md-codeblock__head">
         <span className="md-codeblock__lang">{lang || "text"}</span>
-        <CopyButton text={code} label="Copy" copiedLabel="Copied" announceText="Code copied" variant="ghost" size="sm" className="md-codeblock__copy no-print" />
+        <CopyButton text={code} label="Copy" copiedLabel="Copied" announceText="Code copied" onCopy={onCopy ? () => onCopy(code, blockRef.current) : undefined} variant="ghost" size="sm" className="md-codeblock__copy no-print" />
       </div>
       <div className="md-codeblock__body" data-more={more ? "" : undefined}>
         <pre ref={ref} className="md-codeblock__pre" tabIndex={overflowing ? 0 : undefined}>

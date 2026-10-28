@@ -534,6 +534,51 @@ function unavailablePage(theme, status) {
   });
 }
 
+// Analytics bridge (creator analytics v1, §1c). The video and audio viewers tell the app that framed
+// them what the player is doing: positions and timings only, never content, never who is watching
+// (the frame doesn't know). The app accepts a message only from the frame it mounted and from this
+// origin. Its own <script>, and every line wrapped, so a failure here can never touch playback.
+const MEDIA_BRIDGE = `<script>
+(function(){
+  try{
+    var m=document.getElementById('v')||document.getElementById('a');
+    if(!m||window.parent===window)return;
+    var lastTU=0;
+    var post=function(e,extra){
+      try{
+        var d=m.duration,pe=document.pictureInPictureElement;
+        var msg={md:1,ev:'media',e:e,t:Math.round((m.currentTime||0)*100)/100,
+          dur:isFinite(d)&&d>0?Math.round(d*100)/100:null,rate:m.playbackRate||1,
+          muted:!!(m.muted||m.volume===0),fs:!!document.fullscreenElement,pip:!!pe&&pe===m};
+        if(m.getVideoPlaybackQuality){
+          var q=m.getVideoPlaybackQuality();
+          msg.q={dropped:q.droppedVideoFrames||0,frames:q.totalVideoFrames||0};
+        }
+        if(extra)for(var k in extra)msg[k]=extra[k];
+        window.parent.postMessage(msg,'*');
+      }catch(_){}
+    };
+    ['play','playing','pause','waiting','seeking','seeked','ratechange','ended','loadedmetadata','volumechange']
+      .forEach(function(n){m.addEventListener(n,function(){post(n)})});
+    m.addEventListener('timeupdate',function(){
+      var now=Date.now();if(now-lastTU<1000)return;lastTU=now;post('timeupdate');
+    });
+    document.addEventListener('fullscreenchange',function(){post('fullscreen')});
+    m.addEventListener('enterpictureinpicture',function(){post('pip')});
+    m.addEventListener('leavepictureinpicture',function(){post('pip')});
+    // The error code alone can't tell an expired link from a bad file: a 1-byte probe can.
+    m.addEventListener('error',function(){
+      var code=m.error?m.error.code:0;
+      try{
+        fetch(m.currentSrc||m.src,{headers:{Range:'bytes=0-0'}})
+          .then(function(r){post('error',{code:code,http:r.status})})
+          .catch(function(){post('error',{code:code,http:0})});
+      }catch(_){post('error',{code:code,http:0})}
+    });
+  }catch(_){}
+})();
+</script>`;
+
 // Shared by the viewers: swap the whole page for the unavailable state.
 const NA_SCRIPT = `
 function showUnavailable(){
@@ -598,6 +643,10 @@ const CSS_UNITS = 96 / 72, LIMIT = 50, FIT_MAX_PX = 1100;
 const STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 let pdfjs, doc, pages = [], fit = true, zoom = 1, busy = false, current = 0;
 const visible = new Set();
+// Analytics bridge (§1c): page count on load, the current page as it changes. Nothing else.
+function mdPost(msg) {
+  try { if (window.parent !== window) window.parent.postMessage(Object.assign({ md: 1 }, msg), '*'); } catch (_) {}
+}
 const say = (m) => { live.textContent = m; };
 
 function fitZoom() {
@@ -684,6 +733,7 @@ function track() {
   if (n !== current) {
     current = n;
     status.textContent = 'Page ' + n + ' of ' + doc.numPages;
+    mdPost({ ev: 'page', p: n });
   }
 }
 
@@ -737,6 +787,7 @@ try {
   zout.onclick = () => step(-1);
   fitBtn.onclick = () => { fit = true; layout(); say('Fit width, zoom ' + pct.textContent); };
   fitBtn.disabled = false;
+  mdPost({ ev: 'pdf', n: limit }); // pages this viewer shows, so "reached the end" is reachable past LIMIT
   layout();
   track();
   say(doc.numPages + (doc.numPages === 1 ? ' page' : ' pages'));
@@ -1089,7 +1140,8 @@ ${NA_SCRIPT}
     }).catch(function () {});
   });
 })();
-</script>`;
+</script>
+${MEDIA_BRIDGE}`;
   return page({ title: "Audio", theme, css, body });
 }
 
@@ -1355,5 +1407,6 @@ function videoViewer(src, poster = null) {
   });
 })();
 </script>
+${MEDIA_BRIDGE}
 </body></html>`;
 }

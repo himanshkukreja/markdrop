@@ -41,6 +41,7 @@ import { FrameCover } from "./artifact/FrameCover";
 import { ReportDialog } from "./artifact/ReportDialog";
 import { basePathOf, isPaper, linkPrefixOf, themedFrameSrc } from "./artifact/frame";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
+import { engageKindFor, engagementOptedOut, useArtifactEngagement } from "@/lib/engage";
 
 /**
  * Viewer for kind="artifact" documents.
@@ -85,6 +86,8 @@ interface Props {
   viewerChrome?: "full" | "minimal" | "none";
   /** The document's `read_ticket` (beacons + live socket, access policy §2.7). */
   readTicket?: string | null;
+  /** The live file version (API `file_version`), sent as `ver` with the analytics beacons. */
+  fileVersion?: number | null;
 }
 
 const EMPTY_SETTINGS: ArtifactSettingsState = {
@@ -115,10 +118,11 @@ export default function ArtifactView({
   docRef = null,
   viewerChrome = "full",
   readTicket: initialReadTicket = null,
+  fileVersion: initialFileVersion = null,
 }: Props) {
   useAnalyticsDoc({ ref: docRef, kind: "artifact", access: isPasswordProtected ? "protected" : "public" });
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   // Workspace domain: its own header/footer and a neutral loader, never Markdrop chrome.
   const tenant = useTenant();
   // undefined on the server and during hydration; the iframe waits for it (see frameSrc).
@@ -138,6 +142,10 @@ export default function ArtifactView({
   const [sizeBytes, setSizeBytes] = useState(initialSize);
   const [views, setViews] = useState(initialViews);
   const [isOwner, setIsOwner] = useState(false);
+  // The signed-in user the ownership check has answered for; engagement waits for it (never the owner).
+  const [ownerCheckedFor, setOwnerCheckedFor] = useState<string | null>(null);
+  const [fileVersion, setFileVersion] = useState<number | null>(initialFileVersion);
+  const frameRef = useRef<HTMLIFrameElement>(null);
   // `can.replace` from the server (Q6): editors and workspace members on a non-private file may
   // swap the bytes, but only the owner reaches the rest of the settings.
   const [canReplace, setCanReplace] = useState(false);
@@ -294,16 +302,18 @@ export default function ArtifactView({
     if (doc.type_label) setTypeLabel(doc.type_label);
     if (doc.size_bytes) setSizeBytes(doc.size_bytes);
     setViews(doc.views);
+    if (typeof doc.file_version === "number") setFileVersion(doc.file_version);
     setLocked(false);
   }
 
   // Count the view from the browser so the real visitor IP drives geo, matching
   // how markdown documents are counted.
+  // After auth has settled, so it carries the session token (the owner's own view isn't counted).
   useEffect(() => {
-    if (beaconSent.current || locked) return;
+    if (beaconSent.current || locked || authLoading) return;
     beaconSent.current = true;
-    recordEvent(slug, "view", readTicket);
-  }, [slug, locked]); // eslint-disable-line react-hooks/exhaustive-deps
+    recordEvent(slug, "view", readTicket, { ver: fileVersion, optOut: engagementOptedOut() });
+  }, [slug, locked, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live updates. The socket carries only a "changed" ping, so we refetch
   // through the normal authorized read path. Failures are no-ops.
@@ -366,15 +376,17 @@ export default function ArtifactView({
       return;
     }
     let cancelled = false;
+    const uid = user.id;
     getDocument(slug)
       .then((doc) => {
         if (cancelled) return;
+        setOwnerCheckedFor(uid);
         setIsOwner(!!doc.is_owner);
         setCanReplace(!!doc.can?.replace);
         setDocId(doc.id ?? null);
         if (doc.is_owner && doc.artifact_url) applyDoc(doc, { remount: false });
       })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setOwnerCheckedFor(uid); });
     return () => {
       cancelled = true;
     };
@@ -530,6 +542,22 @@ export default function ArtifactView({
     router.push("/dashboard");
   }
 
+  // Creator analytics (lib/engage.ts): the viewer frame's page / playback events, or time alone.
+  let frameOrigin: string | null = null;
+  try {
+    frameOrigin = artifactUrl ? new URL(artifactUrl).origin : null;
+  } catch {
+    /* not a URL: no bridge */
+  }
+  useArtifactEngagement(slug, {
+    enabled: !locked && !!artifactUrl && !authLoading && (!user || ownerCheckedFor === user.id) && !isOwner,
+    kind: engageKindFor(renderer),
+    ver: fileVersion,
+    ticket: readTicket,
+    frame: frameRef,
+    origin: frameOrigin,
+  });
+
   const fileRenderer = artifactFileRenderer(renderer);
   const paper = isPaper(renderer);
   const loadingLabel = `Loading ${typeLabel}…`;
@@ -544,6 +572,7 @@ export default function ArtifactView({
   const frame = frameSrc && (
     <iframe
       key={reloadKey}
+      ref={frameRef}
       src={frameSrc}
       sandbox={SANDBOX}
       // No referrer: the artifact origin never needs to know which page framed it.

@@ -142,6 +142,7 @@ export default async function SlugPage({ params }: Props) {
         posterUrl={doc.poster_url ?? null}
         docRef={doc.ref ?? null}
         readTicket={doc.read_ticket ?? null}
+        fileVersion={doc.file_version ?? null}
       />
       </Suspense>
       </div>

@@ -153,6 +153,7 @@ export default function DocumentView(props: DocumentViewProps) {
         posterUrl={artifactDoc.poster_url ?? null}
         docRef={artifactDoc.ref ?? null}
         readTicket={artifactDoc.read_ticket ?? null}
+        fileVersion={artifactDoc.file_version ?? null}
         viewerChrome={viewerChrome === "none" ? "none" : "full"}
       />
     );
@@ -468,6 +469,7 @@ export default function DocumentView(props: DocumentViewProps) {
                       anchors={!encrypted}
                       encrypted={encrypted}
                       onHeadings={setHeadings}
+                      onCodeCopy={encrypted ? undefined : v.onCodeCopy}
                     />
                   )}
                   {readable && !empty && <Colophon />}

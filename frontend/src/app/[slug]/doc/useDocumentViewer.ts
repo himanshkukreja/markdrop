@@ -20,6 +20,7 @@ import { consumeHandoffToken, peekHandoffToken } from "@/components/tenant/hando
 import { useAuth } from "@/contexts/AuthContext";
 import { track } from "@/lib/track";
 import { useReadDepth } from "@/lib/readDepth";
+import { engagementOptedOut, useDocEngagement } from "@/lib/engage";
 import { getAccess, type AccessState } from "@/lib/access";
 import type { DocumentViewProps } from "./types";
 
@@ -64,7 +65,7 @@ export function useDocumentViewer({
   const startInEdit = hasFlag("edit");
   const startCopy = hasFlag("copy");
   const startGoogleSync = hasFlag("gsync");
-  const { user, openAuthModal, refresh: refreshAuth } = useAuth();
+  const { user, loading: authLoading, openAuthModal, refresh: refreshAuth } = useAuth();
 
   // Claim-to-account state
   const [claimSecret, setClaimSecret] = useState<string | null>(initialSecret || null);
@@ -78,6 +79,9 @@ export function useDocumentViewer({
 
   // Google Docs sync state — populated once we confirm the viewer owns this doc
   const [isOwner, setIsOwner] = useState(false);
+  // The signed-in user the ownership check below has answered for. Engagement waits for it, so the
+  // owner never sends a beacon in the moment before we know it's them.
+  const [ownerCheckedFor, setOwnerCheckedFor] = useState<string | null>(null);
   const [docId, setDocId] = useState<string | null>(null);
   const [gConnected, setGConnected] = useState(false);
   const [googleDocUrl, setGoogleDocUrl] = useState<string | null>(null);
@@ -515,14 +519,25 @@ export function useDocumentViewer({
   const readRef = useRef<HTMLDivElement>(null);
   useReadDepth(slug, readRef, readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked), readTicket);
 
+  // Creator analytics (lib/engage.ts): sections read, copies, links, time. Never for the owner:
+  // with a signed-in user it waits until the ownership check has answered for them.
+  const ownerKnown = !authLoading && (!user || ownerCheckedFor === user.id);
+  const onCodeCopy = useDocEngagement(
+    slug,
+    readRef,
+    readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked) && ownerKnown && !isOwner,
+    { encrypted, ticket: readTicket },
+  );
+
   // Fire a single view beacon from the browser so the real visitor IP (not
-  // Vercel's SSR server) drives the view count + geography.
+  // Vercel's SSR server) drives the view count + geography. After auth has
+  // settled, so it carries the session token and the owner's own view isn't counted.
   useEffect(() => {
-    if (viewBeaconSent.current) return;
+    if (viewBeaconSent.current || authLoading) return;
     if (isPasswordProtected && pwdLocked) return; // wait until unlocked
     viewBeaconSent.current = true;
-    recordEvent(slug, "view", readTicket);
-  }, [pwdLocked, isPasswordProtected, slug]); // eslint-disable-line react-hooks/exhaustive-deps
+    recordEvent(slug, "view", readTicket, { optOut: engagementOptedOut() });
+  }, [pwdLocked, isPasswordProtected, slug, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If logged in, detect ownership so the owner can edit without the secret
   // (and view their own password-protected doc without the read password). We
@@ -538,9 +553,12 @@ export function useDocumentViewer({
       return;
     }
     let cancelled = false;
+    const uid = user.id;
     getDocument(slug)
       .then((doc) => {
-        if (cancelled || !doc.is_owner) return;
+        if (cancelled) return;
+        setOwnerCheckedFor(uid);
+        if (!doc.is_owner) return;
         setIsOwner(true);
         setDocId(doc.id ?? null);
         setGoogleDocUrl(doc.google_doc_url ?? null);
@@ -553,7 +571,7 @@ export function useDocumentViewer({
           adoptDoc(doc);
         }
       })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setOwnerCheckedFor(uid); });
     return () => { cancelled = true; };
   }, [user, slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1060,6 +1078,7 @@ export function useDocumentViewer({
     pwdVisible,
     readable,
     readRef,
+    onCodeCopy,
     remaining,
     reportBusy,
     reportDone,
