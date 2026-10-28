@@ -573,6 +573,24 @@ class RequestAccess(World):
         self.assertNotIn("<script>", html)
         self.assertNotIn("<img src=x", html)
 
+    async def test_hostile_display_name_and_title_stay_one_line_in_subjects(self):
+        # A display name (or title) with CR/LF must not reach a Subject header:
+        # the provider rejects it and the owner never hears about the request.
+        d = await self.mkdoc("P", ws=None, title="Plan\r\nX-Evil: 1")
+        await self.db["users"].update_one({"_id": ObjectId(self.uid["stranger"])},
+                                          {"$set": {"name": "Eve\r\nBcc: x@evil.io\x00"}})
+        r = await self.body("POST", self.path(d["slug"]), "stranger", json={})
+        self.assertEqual(r.status_code, 201, r.text)
+        subject = self.mail[0]["subject"]
+        for bad in ("\r", "\n", "\x00"):
+            self.assertNotIn(bad, subject)
+        self.assertIn("Eve Bcc: x@evil.io", subject)
+        r = await self.body("POST", f"/api/v1/access-requests/{r.json()['id']}/decision", "owner",
+                            json={"decision": "view"})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertNotIn("\n", self.mail[-1]["subject"])
+        self.assertIn("Plan X-Evil: 1", self.mail[-1]["subject"])
+
 
 # ── 5. Shared with me ─────────────────────────────────────────────────────────
 

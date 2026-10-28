@@ -646,6 +646,16 @@ async def send_document_share_email(
 # ── Access requests ────────────────────────────────────────────────────────────
 
 
+def _one_line(text: str, limit: int = 120) -> str:
+    """A header-safe single line: a display name or title is chosen by someone
+    else and may carry CR/LF or other control characters, which don't belong
+    in a Subject (providers reject them, so the email silently never goes)."""
+    cleaned = "".join(" " if (ord(ch) < 32 or ord(ch) == 127 or ch in "\u2028\u2029") else ch
+                      for ch in text)
+    cleaned = " ".join(cleaned.split())
+    return cleaned if len(cleaned) <= limit else cleaned[: limit - 1].rstrip() + "…"
+
+
 def _quote(message: str | None) -> str:
     if not message:
         return ""
@@ -714,7 +724,7 @@ async def send_access_request_email(
     await _post({
         "from": _sender("share"),
         "to": [to_email],
-        "subject": f"{requester_name} asked to open “{document_title}”",
+        "subject": f"{_one_line(requester_name, 60)} asked to open “{_one_line(document_title)}”",
         "reply_to": settings.email_reply_to,
         "html": _access_request_html(
             requester_name=requester_name, requester_email=requester_email,
@@ -757,8 +767,9 @@ async def send_access_decision_email(
 ) -> None:
     """Tell a requester what the owner decided. Raises on failure."""
     url = f"{_base()}/{slug}"
-    subject = (f"You can open “{document_title}”" if approved
-               else f"About your request to open “{document_title}”")
+    title = _one_line(document_title)
+    subject = (f"You can open “{title}”" if approved
+               else f"About your request to open “{title}”")
     await _post({
         "from": _sender("share"),
         "to": [to_email],
