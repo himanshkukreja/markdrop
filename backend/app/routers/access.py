@@ -20,7 +20,7 @@ from app.schemas.access import (
     ResharingUpdate,
 )
 from app.services import access as access_service
-from app.services import mailer
+from app.services import mailer, urls
 from app.utils.net import get_client_ip
 
 router = APIRouter(prefix="/api/v1/documents", tags=["access"])
@@ -134,6 +134,9 @@ async def get_access(
         can_manage=f.is_owner,
         can_share=(await access_service.can(actor, raw, "share", ctx)).allowed,
         grants=[_to_grant(g) for g in grants],
+        url=urls.markdrop_url(raw["slug"]),
+        workspace_url=await urls.workspace_url(db, raw) if f.ws_id else None,
+        expires_at=raw.get("expires_at"),
     )
 
 

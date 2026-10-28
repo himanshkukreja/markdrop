@@ -67,6 +67,14 @@ class AccessResponse(BaseModel):
     can_manage: bool
     can_share: bool
     grants: list[GrantResponse]
+    # Where it lives (services/urls.py): ``url`` is markdrop.in/<slug>,
+    # ``workspace_url`` the custom-domain address when it is filed in a
+    # workspace with a live primary domain (else null). The share box shows
+    # these rather than assuming markdrop.in.
+    url: str | None = None
+    workspace_url: str | None = None
+    # So "More options" can say when it expires.
+    expires_at: datetime | None = None
 
 
 # ── Share-dialog suggestions ──────────────────────────────────────────────────

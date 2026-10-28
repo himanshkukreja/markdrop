@@ -1,5 +1,6 @@
 """Simpler UI polish: document password / expiry from the share dialog
-(``PATCH /documents/{slug}/settings``).
+(``PATCH /documents/{slug}/settings``) and the share dialog's real addresses
+on ``GET …/access``.
 
 The settings route must behave exactly like the password / expiry fields of
 ``PUT /documents/{slug}`` (services/transitions.py): a new password narrows
@@ -141,3 +142,26 @@ class DocumentSettings(AccessWorld):
         raw = await self.doc(slug)
         self.assertIsNone(raw["expires_at"])
         self.assertEqual(raw["rev"], 1)
+
+
+class AccessAddresses(AccessWorld):
+    async def test_access_names_the_real_addresses(self):
+        d = await self.mkdoc("L")
+        await self.db["documents"].update_one({"_id": d["_id"]}, {"$set": {"folder_path": ["guides"]}})
+        r = await self.http.get(f"/api/v1/documents/{d['slug']}/access", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
+        body = r.json()
+        self.assertTrue(body["url"].endswith(f"/{d['slug']}"))
+        self.assertEqual(body["workspace_url"], f"https://docs.acme.test/guides/{d['slug']}")
+        self.assertIsNone(body["expires_at"])
+
+        u = await self.mkdoc("UL")
+        body = (await self.http.get(f"/api/v1/documents/{u['slug']}/access", headers=self.session("owner"))).json()
+        self.assertIsNone(body["workspace_url"])
+        self.assertTrue(body["url"].endswith(f"/{u['slug']}"))
+
+    async def test_no_live_domain_no_workspace_url(self):
+        await self.db["domains"].update_many({"workspace_id": self.ws["W1"]}, {"$set": {"status": "pending"}})
+        d = await self.mkdoc("L")
+        body = (await self.http.get(f"/api/v1/documents/{d['slug']}/access", headers=self.session("owner"))).json()
+        self.assertIsNone(body["workspace_url"])
