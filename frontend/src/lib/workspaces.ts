@@ -170,26 +170,41 @@ export interface Folder {
 
 // ── Workspaces ────────────────────────────────────────────────────────────────
 
+/** Fired after anything that changes the caller's list of workspaces or a workspace's own facts
+ *  (name, settings, people and invitation counts): the rail and the folder view's header and
+ *  "Get set up" checklist reload. Before this they loaded once per page session, so a workspace
+ *  made a moment ago was missing from the rail until a reload. */
+export const WORKSPACES_EVENT = "md:workspaces-change";
+export function workspacesChanged(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(WORKSPACES_EVENT));
+}
+function announce<T>(p: Promise<T>): Promise<T> {
+  return p.then((r) => {
+    workspacesChanged();
+    return r;
+  });
+}
+
 export const listWorkspaces = () =>
   request<{ workspaces: Workspace[] }>("/api/v1/workspaces").then((r) => r.workspaces);
 
 export const createWorkspace = (name: string) =>
-  request<Workspace>("/api/v1/workspaces", { method: "POST", body: JSON.stringify({ name }) });
+  announce(request<Workspace>("/api/v1/workspaces", { method: "POST", body: JSON.stringify({ name }) }));
 
 export const getWorkspace = (id: string) => request<Workspace>(`/api/v1/workspaces/${id}`);
 
 /** Delete a workspace. Owner only, and the exact name must be typed back.
  *  Shared documents are released to their owners, never deleted. */
 export const deleteWorkspace = (id: string, confirmName: string) =>
-  request<{ documents_released: number; domains_removed: number; members_removed: number }>(
+  announce(request<{ documents_released: number; domains_removed: number; members_removed: number }>(
     `/api/v1/workspaces/${id}`,
     { method: "DELETE", body: JSON.stringify({ confirm_name: confirmName }) }
-  );
+  ));
 
 export const updateWorkspace = (
   id: string,
   data: { name?: string; branding?: Branding; settings?: WorkspaceSettings }
-) => request<Workspace>(`/api/v1/workspaces/${id}`, { method: "PUT", body: JSON.stringify(data) });
+) => announce(request<Workspace>(`/api/v1/workspaces/${id}`, { method: "PUT", body: JSON.stringify(data) }));
 
 // ── Members ───────────────────────────────────────────────────────────────────
 
@@ -203,7 +218,7 @@ export const setMemberRole = (id: string, userId: string, role: Exclude<Role, "o
   });
 
 export const removeMember = (id: string, userId: string) =>
-  request<void>(`/api/v1/workspaces/${id}/members/${userId}`, { method: "DELETE" });
+  announce(request<void>(`/api/v1/workspaces/${id}/members/${userId}`, { method: "DELETE" }));
 
 // ── Invitations ───────────────────────────────────────────────────────────────
 //
@@ -245,22 +260,22 @@ export const listInvitations = (id: string) =>
   );
 
 export const inviteMember = (id: string, email: string, role: Exclude<Role, "owner">) =>
-  request<Invitation>(`/api/v1/workspaces/${id}/invitations`, {
+  announce(request<Invitation>(`/api/v1/workspaces/${id}/invitations`, {
     method: "POST",
     body: JSON.stringify({ email, role }),
-  });
+  }));
 
 export const revokeInvitation = (id: string, inviteId: string) =>
-  request<void>(`/api/v1/workspaces/${id}/invitations/${inviteId}`, { method: "DELETE" });
+  announce(request<void>(`/api/v1/workspaces/${id}/invitations/${inviteId}`, { method: "DELETE" }));
 
 export const previewInvite = (token: string) =>
   request<InvitePreview>(`/api/v1/invites/${encodeURIComponent(token)}`);
 
 export const acceptInvite = (token: string) =>
-  request<{ workspace_id: string; workspace_name: string; role: Role }>(
+  announce(request<{ workspace_id: string; workspace_name: string; role: Role }>(
     `/api/v1/invites/${encodeURIComponent(token)}/accept`,
     { method: "POST" }
-  );
+  ));
 
 export const declineInvite = (token: string) =>
   request<void>(`/api/v1/invites/${encodeURIComponent(token)}/decline`, { method: "POST" });

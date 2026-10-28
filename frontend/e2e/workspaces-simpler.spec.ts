@@ -4,6 +4,8 @@
  * Regression guards for what the live click-through found:
  *  - dropping files on a folder card or a rail folder left the page-wide "Drop to add to …"
  *    overlay stuck on screen (the folder's handler stops the drop, and no dragleave follows a drop);
+ *  - a workspace created in the app was missing from the rail until a reload, and its
+ *    "Get set up" checklist never ticked "Invite your team" (the counts it read were always 0).
  *
  * Needs E2E_FIXTURES (users.owner) and E2E_AUTH_SECRET, like the other signed-in smoke tests.
  */
@@ -57,4 +59,27 @@ test("a drop on a folder card or a rail folder files it there and clears the pag
     const r = await api<{ items: { folder?: { id: string } | null }[] }>(token, `/api/v1/workspaces/${ws.id}/items?folder=${folder.id}`);
     return r.items.length;
   }).toBe(2);
+});
+
+test("a new workspace shows in the rail at once and its checklist ticks the invite", async ({ page, context }) => {
+  const token = mintAccessToken(users!.owner);
+  await signIn(context, token);
+  const name = uniq("Team");
+  await visit(page, "/settings/workspaces");
+  await settle(page);
+  await page.getByRole("main").getByRole("button", { name: /New workspace/ }).first().click();
+  await page.getByRole("dialog").getByRole("textbox").first().fill(name);
+  await page.getByRole("dialog").getByRole("button", { name: /Create/ }).click();
+  await expect(page).toHaveURL(/\/w\/[0-9a-f]{24}/);
+  // The rail lists it without a reload.
+  await expect(page.getByRole("treeitem", { name: new RegExp(name) }).first()).toBeVisible();
+  await expect(page.getByText("1 of 4 done")).toBeVisible();
+
+  // Invite someone from the checklist: "Invite your team" is done straight away.
+  await page.getByRole("button", { name: "Invite", exact: true }).click();
+  const dlg = page.getByRole("dialog");
+  await dlg.getByLabel("Email addresses").fill(`${uniq("invitee")}@example.com`);
+  await dlg.getByRole("button", { name: /^Invite/ }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("2 of 4 done")).toBeVisible();
 });

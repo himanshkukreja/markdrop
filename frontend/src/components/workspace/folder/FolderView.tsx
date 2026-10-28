@@ -35,7 +35,7 @@ import { DeleteDocDialog, NewFolderDialog } from "@/components/dashboard/DocDial
 import { hasFiles, useUploads, type UploadTarget } from "@/components/workspace/uploads/UploadProvider";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  can, errorStatus, listWorkspaceItems, listWorkspaces, removeItems,
+  can, errorStatus, getWorkspace, listWorkspaceItems, removeItems, WORKSPACES_EVENT,
   type Folder, type ItemAccess, type PreviewAs, type RedactedItem, type TreeFolder, type Workspace, type WorkspaceItem,
 } from "@/lib/workspaces";
 import {
@@ -71,16 +71,32 @@ function readQuery(search: string) {
   };
 }
 
-/** Workspaces with branding, shared across folder views (one request per session, refreshable). */
-let wsCache: Promise<Workspace[]> | null = null;
+/**
+ * The workspace's own record (branding, settings, people/invite/domain counts), shared across
+ * folder views of it. The single GET carries the counts the "Get set up" checklist needs; the
+ * list endpoint doesn't (its member_count is always 0). Dropped whenever workspaces change
+ * (WORKSPACES_EVENT), so a new workspace, an invitation or a settings change shows at once.
+ */
+const wsCache = new Map<string, Promise<Workspace>>();
 function useWorkspaceMeta(id: string) {
   const [ws, setWs] = useState<Workspace | null>(null);
+  const [gen, setGen] = useState(0);
+  useEffect(() => {
+    const bump = () => { wsCache.clear(); setGen((g) => g + 1); };
+    window.addEventListener(WORKSPACES_EVENT, bump);
+    return () => window.removeEventListener(WORKSPACES_EVENT, bump);
+  }, []);
   useEffect(() => {
     let live = true;
-    wsCache ??= listWorkspaces().catch((e) => { wsCache = null; throw e; });
-    wsCache.then((all) => { if (live) setWs(all.find((w) => w.id === id) ?? null); }).catch(() => {});
+    let p = wsCache.get(id);
+    if (!p) {
+      p = getWorkspace(id);
+      wsCache.set(id, p);
+      p.catch(() => wsCache.delete(id));
+    }
+    p.then((w) => { if (live) setWs(w); }).catch(() => { if (live) setWs(null); });
     return () => { live = false; };
-  }, [id]);
+  }, [id, gen]);
   return ws;
 }
 

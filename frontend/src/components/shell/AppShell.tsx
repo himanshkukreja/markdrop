@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { listApiTokens } from "@/lib/api";
 import { listSharedWithMe } from "@/lib/me";
 import { LIGHT_ENABLED } from "@/lib/theme";
-import { can, listWorkspaces, type ItemAccess } from "@/lib/workspaces";
+import { can, listWorkspaces, WORKSPACES_EVENT, type ItemAccess } from "@/lib/workspaces";
 import { ancestry, peekTree, useWorkspaceTree } from "@/lib/workspaceStore";
 import { WorkspaceDndProvider } from "@/components/workspace/WorkspaceDnd";
 import { UploadProvider, useUploads } from "@/components/workspace/uploads/UploadProvider";
@@ -43,9 +43,13 @@ function useRailData(userId: string | null) {
     setData({});
     if (!userId) return;
     let live = true;
-    listWorkspaces()
-      .then((ws) => live && setData((d) => ({ ...d, workspaces: ws })))
-      .catch(() => {});
+    const loadWorkspaces = () =>
+      listWorkspaces()
+        .then((ws) => live && setData((d) => ({ ...d, workspaces: ws })))
+        .catch(() => {});
+    void loadWorkspaces();
+    // A workspace made, renamed, joined or deleted on any screen shows up here without a reload.
+    window.addEventListener(WORKSPACES_EVENT, loadWorkspaces);
     listApiTokens()
       .then((t) => live && setData((d) => ({ ...d, tokens: t.length })))
       .catch(() => {});
@@ -54,6 +58,7 @@ function useRailData(userId: string | null) {
       .catch(() => {});
     return () => {
       live = false;
+      window.removeEventListener(WORKSPACES_EVENT, loadWorkspaces);
     };
   }, [userId]);
 
