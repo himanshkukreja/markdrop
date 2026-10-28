@@ -17,6 +17,7 @@ settings = get_settings()
 
 _EXPIRY_DELTA: dict[str, timedelta | None] = {
     "never": None,
+    "1h": timedelta(hours=1),
     "1d": timedelta(days=1),
     "7d": timedelta(days=7),
     "30d": timedelta(days=30),
@@ -251,6 +252,72 @@ def _settings_requested(data: DocumentUpdate) -> bool:
     )
 
 
+def settings_sets(
+    *,
+    read_password: str | None,
+    remove_password: bool,
+    expires_in: str | None,
+    custom_expires_at: datetime | None,
+    now: datetime,
+) -> tuple[dict, bool]:
+    """The row fields a password / expiry change writes, and whether it
+    narrows (A3: a new or changed password bumps the epoch and guards the
+    bytes). One reading of these fields for every route that takes them —
+    the markdown PUT, the artifact PATCH and ``PATCH …/settings``. Raises 422
+    for an expiry that isn't in the future."""
+    sets: dict = {}
+    narrows = False
+    if remove_password or read_password == "":
+        sets["read_password_hash"] = None
+    elif read_password:
+        sets["read_password_hash"] = bcrypt.hashpw(read_password.encode(), bcrypt.gensalt()).decode()
+        narrows = True
+    if expires_in is not None:
+        _check_expiry(expires_in, custom_expires_at, now)
+        if expires_in == "custom":
+            sets["expires_at"] = custom_expires_at
+        else:
+            delta = _EXPIRY_DELTA.get(expires_in)
+            sets["expires_at"] = (now + delta) if delta else None
+    elif custom_expires_at is not None:
+        _check_expiry("custom", custom_expires_at, now)
+        sets["expires_at"] = custom_expires_at
+    return sets, narrows
+
+
+async def update_settings(
+    db: AsyncIOMotorDatabase,
+    slug: str,
+    actor,
+    ctx,
+    *,
+    read_password: str | None,
+    remove_password: bool,
+    expires_in: str | None,
+    custom_expires_at: datetime | None,
+) -> dict:
+    """Password and expiry only (the share dialog's "More options"), through
+    can(edit_settings): the owner or the edit secret. Any kind of document.
+    The same transition as the PUT route: a new password narrows (epoch bump,
+    bytes closed first, purge awaited), removing one widens, an expiry books
+    its purge. Returns the row after."""
+    from app.services import access, transitions
+
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "edit_settings", ctx)
+    now = datetime.now(timezone.utc)
+    sets, narrows = settings_sets(
+        read_password=read_password, remove_password=remove_password,
+        expires_in=expires_in, custom_expires_at=custom_expires_at, now=now)
+    if not sets:
+        raise HTTPException(status_code=422, detail="Nothing to change: set a password or an expiry.")
+    sets["updated_at"] = now
+    after = await transitions.change(db, raw, sets=sets, inc={"rev": 1}, narrows=narrows or None,
+                                     cas={"slug": slug})
+    ctx.forget(raw)
+    return after
+
+
 async def update_document(
     db: AsyncIOMotorDatabase,
     slug: str,
@@ -276,27 +343,10 @@ async def update_document(
     if raw.get("kind") != "artifact":
         sets["content"] = data.content
 
-    narrows = False
-    if data.remove_password or data.read_password == "":
-        sets["read_password_hash"] = None
-    elif data.read_password:
-        sets["read_password_hash"] = bcrypt.hashpw(
-            data.read_password.encode(), bcrypt.gensalt()
-        ).decode()
-        narrows = True  # A3: new or changed password ⇒ epoch bump, bytes guarded
-
-    if data.expires_in is not None:
-        _check_expiry(data.expires_in, data.custom_expires_at, now)
-        if data.expires_in == "never":
-            sets["expires_at"] = None
-        elif data.expires_in == "custom":
-            sets["expires_at"] = data.custom_expires_at
-        else:
-            delta = _EXPIRY_DELTA.get(data.expires_in)
-            sets["expires_at"] = (now + delta) if delta else None
-    elif data.custom_expires_at is not None:
-        _check_expiry("custom", data.custom_expires_at, now)
-        sets["expires_at"] = data.custom_expires_at
+    extra, narrows = settings_sets(
+        read_password=data.read_password, remove_password=data.remove_password,
+        expires_in=data.expires_in, custom_expires_at=data.custom_expires_at, now=now)
+    sets.update(extra)
 
     after = await transitions.change(
         db, raw, sets=sets, inc={"rev": 1}, narrows=narrows or None,

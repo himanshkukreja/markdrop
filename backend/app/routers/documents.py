@@ -15,6 +15,7 @@ from app.schemas.document import (
     DocumentCreate,
     DocumentCreateResponse,
     DocumentResponse,
+    DocumentSettingsRequest,
     DocumentUpdate,
     EventRequest,
     ReportRequest,
@@ -327,6 +328,33 @@ async def change_slug(
     actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
     ctx = _ctx(db, request)
     after = await doc_service.change_slug(db, slug, data.new_slug, actor, ctx)
+    return DocumentResponse(**await _full_response(db, after, actor, ctx))
+
+
+@router.patch("/{slug}/settings", response_model=DocumentResponse)
+@limiter.limit(settings.rate_limit_create)
+async def update_settings(
+    request: Request,
+    slug: str,
+    data: DocumentSettingsRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_edit_secret: str | None = Header(None),
+    user: User | None = Depends(optional_user),
+):
+    """A document's password and expiry, without its content (the share
+    dialog's "More options"). can(edit_settings): the owner or the edit
+    secret. Same transition as ``PUT /{slug}`` with those fields: a new
+    password narrows (epoch bump, bytes closed first, cache purge awaited);
+    removing it widens; an expiry books its purge. A past date is 422."""
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
+    ctx = _ctx(db, request)
+    after = await doc_service.update_settings(
+        db, slug, actor, ctx,
+        read_password=data.read_password,
+        remove_password=data.remove_password,
+        expires_in=data.expires_in,
+        custom_expires_at=data.custom_expires_at,
+    )
     return DocumentResponse(**await _full_response(db, after, actor, ctx))
 
 

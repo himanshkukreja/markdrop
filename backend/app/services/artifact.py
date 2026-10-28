@@ -351,11 +351,10 @@ async def update_settings(
     non-private files) or its password / expiry (can(edit_settings): owner or
     edit secret). Only what was supplied changes; the blob never does here.
     Returns the row after."""
-    import bcrypt
     from fastapi import HTTPException
 
     from app.services import access, transitions
-    from app.services.document import _EXPIRY_DELTA, _check_expiry
+    from app.services.document import settings_sets
 
     raw = await db["documents"].find_one({"slug": slug})
     await access.require(actor, raw, "edit_content", ctx)
@@ -368,24 +367,11 @@ async def update_settings(
 
     now = datetime.now(timezone.utc)
     sets: dict = {"updated_at": now}
-    narrows = False
     if title is not None:
         sets["title"] = title.strip() or None
-    if remove_password or read_password == "":
-        sets["read_password_hash"] = None
-    elif read_password:
-        sets["read_password_hash"] = bcrypt.hashpw(read_password.encode(), bcrypt.gensalt()).decode()
-        narrows = True
-    if expires_in is not None:
-        _check_expiry(expires_in, custom_expires_at, now)
-        if expires_in == "custom":
-            sets["expires_at"] = custom_expires_at
-        else:
-            delta = _EXPIRY_DELTA.get(expires_in)
-            sets["expires_at"] = (now + delta) if delta else None
-    elif custom_expires_at is not None:
-        _check_expiry("custom", custom_expires_at, now)
-        sets["expires_at"] = custom_expires_at
+    extra, narrows = settings_sets(read_password=read_password, remove_password=remove_password,
+                                   expires_in=expires_in, custom_expires_at=custom_expires_at, now=now)
+    sets.update(extra)
 
     after = await transitions.change(db, raw, sets=sets, inc={"rev": 1}, narrows=narrows or None,
                                      cas={"slug": slug})

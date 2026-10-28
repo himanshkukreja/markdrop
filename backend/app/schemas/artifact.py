@@ -132,7 +132,7 @@ class ArtifactSettingsRequest(BaseModel):
     # "" clears the password; None leaves it alone.
     read_password: str | None = Field(None, max_length=100)
     remove_password: bool = False
-    expires_in: Literal["never", "1d", "7d", "30d", "custom"] | None = None
+    expires_in: Literal["never", "1h", "1d", "7d", "30d", "custom"] | None = None
     custom_expires_at: datetime | None = None
 
 

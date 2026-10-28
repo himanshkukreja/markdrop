@@ -73,7 +73,7 @@ class DocumentUpdate(BaseModel):
     read_password: str | None = Field(None, max_length=100)
     remove_password: bool = False
     # Optional: update expiry. None = don't change. "never" = clear expiry.
-    expires_in: Literal["never", "1d", "7d", "30d", "custom"] | None = None
+    expires_in: Literal["never", "1h", "1d", "7d", "30d", "custom"] | None = None
     custom_expires_at: datetime | None = None
 
 
@@ -151,6 +151,18 @@ class DocumentCopyRequest(BaseModel):
     # Only needed when copying a password-protected source the caller has
     # unlocked; the copy itself is always created WITHOUT a password.
     read_password: str | None = Field(None, max_length=100)
+
+
+class DocumentSettingsRequest(BaseModel):
+    """``PATCH /documents/{slug}/settings``: a document's password and expiry
+    without resending its content (the share dialog's "More options"). Every
+    field is optional; omitted means unchanged. ``read_password: ""`` removes
+    the password, like ``remove_password: true``."""
+
+    read_password: str | None = Field(None, max_length=100)
+    remove_password: bool = False
+    expires_in: Literal["never", "1h", "1d", "7d", "30d", "custom"] | None = None
+    custom_expires_at: datetime | None = None
 
 
 class SlugChangeRequest(BaseModel):
