@@ -1,7 +1,7 @@
 "use client";
 
 /** Client bits of the docs chrome: the phone menu sheet and the home page's ask box / install box. */
-import Link from "next/link";
+import Link from "@/docs/client/Link";
 import { useState } from "react";
 import { Badge, Button, CopyButton, Drawer, Icon, IconButton, cx } from "@/components/ui";
 import type { NavGroup, SiteTab } from "../types";

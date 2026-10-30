@@ -6,7 +6,7 @@
  *
  * Pipeline: gfm → math → directive → remarkDocs | highlight → rehypeDocs (ids, code lines) → katex.
  */
-import Link from "next/link";
+import Link from "@/docs/client/Link";
 import Markdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";

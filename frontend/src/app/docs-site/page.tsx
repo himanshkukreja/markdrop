@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/docs/client/Link";
 import { Button, Icon } from "@/components/ui";
 import { getChangelog, getNav, getPage, getSite } from "@/docs/content";
 import { formatDate } from "@/docs/outputs";

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/docs/client/Link";
 import { Button } from "@/components/ui";
 import { getSite } from "@/docs/content";
 import { DocsFooter, DocsHeader } from "@/docs/ui/Chrome";

@@ -5,7 +5,7 @@
  * from the OpenAPI description (openapi.mjs); the section ids match the headings of the page's
  * Markdown twin, so search results, "Copy section" and links land on the same places.
  */
-import Link from "next/link";
+import Link from "@/docs/client/Link";
 import type { ReactNode } from "react";
 import { Badge, CopyButton, Icon } from "@/components/ui";
 import { createSlugger } from "@/components/reading/slug";

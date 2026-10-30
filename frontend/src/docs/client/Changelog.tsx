@@ -6,7 +6,7 @@
  * my CLI version"), a "Jump to" rail with scroll-spy on wide screens, and "New to you" from the
  * reader's last visit. Bodies and media arrive rendered on the server; everything else is plain data.
  */
-import Link from "next/link";
+import Link from "@/docs/client/Link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button, CopyButton, Drawer, Dropdown, EmptyState, Icon, Input, Popover, SegmentedControl, Select, VSCodeIcon, announce, copyText, cx } from "@/components/ui";
 import type { ChangeKind } from "../types";

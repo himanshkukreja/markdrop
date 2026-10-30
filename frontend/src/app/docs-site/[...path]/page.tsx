@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/docs/client/Link";
 import { notFound } from "next/navigation";
 import { Badge, Breadcrumb, Icon } from "@/components/ui";
 import { absoluteUrl, agentMarkdown, getAllPages, getPage, getSite, groupOf, mdUrl, navLabel, prevNext, sectionMarkdown, withPrerequisites } from "@/docs/content";

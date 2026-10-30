@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "@/docs/changelog.css";
-import Link from "next/link";
+import Link from "@/docs/client/Link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/components/ui";
 import { getChangelog, getSite } from "@/docs/content";

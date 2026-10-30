@@ -2,7 +2,7 @@
  * Server-rendered docs chrome: header, sidebar and footer. Everything they show comes from
  * site.json; the client islands (search, menu sheet, theme) are imported from ../client.
  */
-import Link from "next/link";
+import Link from "@/docs/client/Link";
 import { Button, MarkdropMark, Wordmark } from "@/components/ui";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { aiSettings, headerBrand, type HeaderBrand } from "../brand";
