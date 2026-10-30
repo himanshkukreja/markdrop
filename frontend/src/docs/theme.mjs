@@ -396,6 +396,12 @@ const BANNED = [
 const GROUPING = new Set(["media", "supports", "container", "layer"]);
 /** At-rules whose block is kept as written (after the checks above and the url() rule). */
 const VERBATIM = new Set(["keyframes", "-webkit-keyframes", "font-face", "property"]);
+/**
+ * A browser ends a string at a line break, so a string that runs across lines would be read
+ * differently here and there (what looks like one rule to us could be several to the browser).
+ */
+const STRING_BREAK = "a string has a line break in it (close the quote on the same line)";
+const isBreak = (c) => c === "\n" || c === "\r" || c === "\f";
 
 /** Splits on `sep` outside strings, (), []. */
 function splitTop(s, sep) {
@@ -407,6 +413,7 @@ function splitTop(s, sep) {
     const c = s[i];
     if (quote) {
       if (c === quote) quote = null;
+      else if (isBreak(c)) throw new Error(STRING_BREAK);
     } else if (c === '"' || c === "'") quote = c;
     else if (c === "(" || c === "[") depth++;
     else if (c === ")" || c === "]") depth--;
@@ -420,25 +427,64 @@ function splitTop(s, sep) {
 }
 
 /**
+ * What follows the scope in a scoped selector stays inside it: the rest of the scope's own compound
+ * (`:hover`, `.x`, `[a]`), then a descendant or child combinator. `~` and `+` would reach the
+ * scope's siblings, outside the docs root, so they are refused there.
+ */
+function checkAfterScope(rest, sel) {
+  let i = 0;
+  let depth = 0;
+  let quote = null;
+  for (; i < rest.length; i++) {
+    const c = rest[i];
+    if (quote) {
+      if (c === quote) quote = null;
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === "(" || c === "[") depth++;
+    else if (c === ")" || c === "]") depth--;
+    else if (depth <= 0 && (/\s/.test(c) || c === ">" || c === "+" || c === "~")) break;
+  }
+  while (i < rest.length && /\s/.test(rest[i])) i++;
+  if (rest[i] === "~" || rest[i] === "+") throw new Error(`"${sel.slice(0, 40)}" reaches outside the docs root (~ or + can't follow the root itself)`);
+}
+
+/**
  * One selector under the scope: `.x` → `.dx-root .x`; `:root`, `html` and `body` are the scope
  * itself (`html[data-theme="dark"] .x` keeps the theme switch in front: `html[data-theme="dark"]
- * .dx-root .x`); a selector already starting with the scope is left alone.
+ * .dx-root .x`); a selector already starting with the scope is left alone. Throws when the
+ * selector would reach the scope's siblings or has a [ without a ].
  */
 function scopeSelector(sel, scope) {
   const s = sel.trim().replace(/\s+/g, " ");
   if (!s) return null;
-  if (s === scope || s.startsWith(scope + " ") || s.startsWith(scope + ".") || s.startsWith(scope + "[") || s.startsWith(scope + ":")) return s;
+  if (s === scope || s.startsWith(scope + " ") || s.startsWith(scope + ".") || s.startsWith(scope + "[") || s.startsWith(scope + ":") || s.startsWith(scope + ">") || s.startsWith(scope + "+") || s.startsWith(scope + "~")) {
+    checkAfterScope(s.slice(scope.length), s);
+    return s;
+  }
   const m = /^(html|:root|body)((?:\[[^\]]*\])*)(?=$|[\s>+~:.#[])(.*)$/i.exec(s);
   if (m) {
     const [, el, attrs, rest] = m;
-    if (el.toLowerCase() === "body" || !attrs) return `${scope}${rest}`;
-    return `${el}${attrs} ${scope}${rest.startsWith(" ") || !rest ? rest : " " + rest}`.trim();
+    if (el.toLowerCase() === "body" || !attrs) {
+      checkAfterScope(rest, s);
+      return `${scope}${rest}`;
+    }
+    const after = rest.startsWith(" ") || !rest ? rest : " " + rest;
+    checkAfterScope(after, s);
+    return `${el}${attrs} ${scope}${after}`.trim();
   }
   if (/^\[data-theme/i.test(s)) {
     const t = /^((?:\[[^\]]*\])+)(.*)$/.exec(s);
+    if (!t) throw new Error(`"${s.slice(0, 40)}" has a [ without a matching ]`);
+    checkAfterScope(t[2], s);
     return `${t[1]} ${scope}${t[2]}`;
   }
   return `${scope} ${s}`;
+}
+
+/** A site file's path stays in /docs-assets/: no `..` segment (also spelled %2e), `//` or backslash. */
+function assetPathOk(u) {
+  const path = u.split(/[?#]/)[0];
+  return !path.includes("//") && !path.includes("\\") && !path.split("/").some((seg) => /^(?:\.|%2e){2}$/i.test(seg));
 }
 
 /** Every url() is https or a site file (/docs-assets/…). */
@@ -447,7 +493,9 @@ function checkUrls(text, errors) {
   let m;
   while ((m = re.exec(text))) {
     const u = m[2].trim();
-    if (!(/^https:\/\/[^\s]+$/i.test(u) || /^\/docs-assets\/[^\s]*$/.test(u))) errors.push(`url(${u}) must be an https URL or a /docs-assets/ file`);
+    if (/^https:\/\/[^\s]+$/i.test(u)) continue;
+    if (!/^\/docs-assets\/[^\s]*$/.test(u)) errors.push(`url(${u}) must be an https URL or a /docs-assets/ file`);
+    else if (!assetPathOk(u)) errors.push(`url(${u}): a /docs-assets/ path can't have "..", "//" or a backslash in it`);
   }
   if (/url\s*\(/i.test(text.replace(re, ""))) errors.push("a url() that isn't a plain address");
 }
@@ -465,6 +513,7 @@ function scopeRules(src, scope, errors, depth = 0) {
       const c = src[j];
       if (quote) {
         if (c === quote) quote = null;
+        else if (isBreak(c)) throw new Error(STRING_BREAK);
       } else if (c === '"' || c === "'") quote = c;
       else if (c === "{") d++;
       else if (c === "}" && --d === 0) return j;
@@ -482,6 +531,7 @@ function scopeRules(src, scope, errors, depth = 0) {
       const c = src[j];
       if (quote) {
         if (c === quote) quote = null;
+        else if (isBreak(c)) throw new Error(STRING_BREAK);
       } else if (c === '"' || c === "'") quote = c;
       else if (c === "(") paren++;
       else if (c === ")") paren--;
@@ -509,7 +559,8 @@ function scopeRules(src, scope, errors, depth = 0) {
       } else throw new Error(`@${name} is not allowed (only @media, @supports, @container, @layer, @keyframes, @font-face, @property)`);
     } else {
       if (!prelude) throw new Error("a { … } block has no selector");
-      if (body.replace(/"[^"]*"|'[^']*'/g, "").includes("{")) throw new Error(`"${prelude.slice(0, 40)}" has a nested block (CSS nesting isn't supported here)`);
+      // Strings never span a line break (readBlock refused those already).
+      if (body.replace(/"[^"\n\r\f]*"|'[^'\n\r\f]*'/g, "").includes("{")) throw new Error(`"${prelude.slice(0, 40)}" has a nested block (CSS nesting isn't supported here)`);
       const sels = splitTop(prelude, ",").map((s) => scopeSelector(s, scope));
       if (sels.some((s) => !s)) throw new Error(`"${prelude.slice(0, 40)}" has an empty selector`);
       out += `${sels.join(",")}{${body.trim()}}`;
@@ -521,8 +572,11 @@ function scopeRules(src, scope, errors, depth = 0) {
 
 /**
  * Custom CSS made safe to inline in a <style>: comments dropped; no `<`, backslash escapes,
- * @import, expression(), javascript:, bindings, or url() other than https and /docs-assets/; every
- * selector scoped under `scope` (default the docs root). Returns the CSS, or errors and no CSS.
+ * @import, expression(), javascript:, bindings, or url() other than https and /docs-assets/ (with
+ * no `..` or `//`); no string across a line break; every selector scoped under `scope` (default the
+ * docs root) and none reaching its siblings with ~ or +. Returns the CSS, or errors and no CSS.
+ * The API ports the accept/reject half (backend/app/services/docs_site_settings.py css_problem);
+ * change both together and regenerate customCss.corpus.json, which both test suites run.
  */
 export function sanitizeCss(input, scope = ".dx-root") {
   const errors = [];

@@ -5,6 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   PRESETS,
   FONTS,
@@ -184,6 +185,13 @@ test("custom CSS: rejects what could escape the stylesheet or load from elsewher
     ".a { color: red } }": "no matching {",
     ".a { .b { c: d } }": "nested block",
     "{ color: red }": "no selector",
+    // A browser ends a string at a line break: `body {…}` would land outside the scope.
+    '.a { content: "x\n} body { color: red } .b { content: " }': "line break",
+    ".dx-root ~ footer { display: none }": "outside the docs root",
+    "body + x { b: c }": "outside the docs root",
+    ".a { background: url(/docs-assets/a/../../api/me) }": '".."',
+    ".a { background: url(/docs-assets//x.png) }": '"//"',
+    "[data-theme=dark .a { b: c }": "[ without a matching ]",
   };
   for (const [input, want] of Object.entries(bad)) {
     const { css, errors } = sanitizeCss(input);
@@ -192,6 +200,19 @@ test("custom CSS: rejects what could escape the stylesheet or load from elsewher
   }
   assert.ok(sanitizeCss("a{}".padEnd(20 * 1024 + 1, " ")).errors[0].includes("limit"));
   assert.deepEqual(sanitizeCss(42).errors, ["customCss must be a string"]);
+});
+
+test("custom CSS: the corpus the API's validator (docs_site_settings.css_problem) also runs", () => {
+  // Shared with backend/tests/test_docs_site_css.py so the API refuses exactly what the engine drops.
+  const corpus = JSON.parse(readFileSync(new URL("./customCss.corpus.json", import.meta.url), "utf8"));
+  assert.ok(corpus.length >= 40);
+  for (const { css, ok, why } of corpus) {
+    const { errors } = sanitizeCss(css);
+    assert.equal(errors.length === 0, ok, `${why}: ${JSON.stringify(css)} → ${errors.join(" | ")}`);
+  }
+  // The limit counts UTF-16 units: a non-BMP character is two.
+  assert.deepEqual(sanitizeCss("a{}".padEnd(20 * 1024, " ")).errors, []);
+  assert.ok(sanitizeCss("a{}".padEnd(20 * 1024 - 1, " ") + "😀").errors[0].includes("limit"));
 });
 
 test("validation: what docs:check reports", () => {

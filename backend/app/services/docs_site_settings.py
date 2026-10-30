@@ -2,9 +2,9 @@
 
 A PATCH sends only what changes; it is merged onto the stored settings and the
 whole result is validated, so a partial update can never leave an invalid mix.
-Custom CSS is checked rather than rewritten: anything that could load from an
-insecure origin, run script or close the <style> it is placed in is refused
-with a message saying what to remove.
+Custom CSS is checked rather than rewritten, by the same rules as the docs
+engine's sanitizeCss(): CSS the engine would drop is refused with a message
+saying what to change.
 """
 
 from __future__ import annotations
@@ -48,59 +48,269 @@ def _image_url(value: str | None) -> str | None:
 
 
 # ── Custom CSS ────────────────────────────────────────────────────────────────
+#
+# A port of the accept/reject logic of sanitizeCss() in
+# frontend/src/docs/theme.mjs, the engine that inlines the CSS: the API refuses
+# exactly what the engine would drop. Both test suites run the shared corpus
+# frontend/src/docs/customCss.corpus.json to keep the two in step.
+# JavaScript regex semantics are reproduced on purpose:
+#   * ``\s`` and String.prototype.trim() use the JS whitespace set (it has
+#     U+FEFF, lacks U+0085 and U+001C-U+001F), not Python's str.isspace();
+#   * ``\w``, ``\b`` and the ``i`` flag are ASCII-only (no ``u`` flag in JS), so
+#     every pattern is compiled with re.ASCII ("ſrc(" is not "src(");
+#   * ``$`` without the ``m`` flag is the very end of the string (``\Z`` here);
+#   * the 20 KB limit counts UTF-16 code units, like ``input.length``.
 
-_CSS_COMMENT = re.compile(r"/\*.*?\*/", re.S)
-_CSS_HEX_ESCAPE = re.compile(r"\\([0-9a-fA-F]{1,6})\s?")
-_CSS_CHAR_ESCAPE = re.compile(r"\\(.)", re.S)
-_URL_FN = re.compile(r"url\(\s*(?P<arg>\"[^\"]*\"|'[^']*'|[^)]*)\s*\)", re.I)
-_IMAGE_SET = re.compile(r"image-set\((?P<args>[^)]*)\)", re.I)
-_STRING = re.compile(r"\"([^\"]*)\"|'([^']*)'")
+_JS_WS = ("\t\n\x0b\x0c\r   " + "".join(chr(c) for c in range(0x2000, 0x200B))
+          + "    　﻿")
+_JS_WS_SET = frozenset(_JS_WS)
+_S = f"[{_JS_WS}]"  # JS \s
+_NS = f"[^{_JS_WS}]"  # JS [^\s]
+_RX = re.ASCII
+_RXI = re.ASCII | re.IGNORECASE
 
 
-def _decode_css(css: str) -> str:
-    """What the CSS means once escapes and comments are gone (``\\65`` is "e"),
-    so ``@\\69mport`` or ``expr/**/ession(`` can't slip past the checks."""
-    out = _CSS_COMMENT.sub("", css)
+def _js_trim(s: str) -> str:
+    return s.strip(_JS_WS)
 
-    def hex_char(m: re.Match) -> str:
-        try:
-            return chr(int(m.group(1), 16))
-        except (ValueError, OverflowError):
-            return ""
 
-    out = _CSS_HEX_ESCAPE.sub(hex_char, out)
-    out = _CSS_CHAR_ESCAPE.sub(lambda m: m.group(1), out)
+def _utf16_len(s: str) -> int:
+    return len(s.encode("utf-16-le", "surrogatepass")) // 2
+
+
+_CSS_COMMENT = re.compile(r"/\*[\s\S]*?\*/", _RX)
+# (pattern, what the dashboard says), in the order of the engine's BANNED list.
+_CSS_BANNED = [
+    (re.compile(rf"</?{_S}*style", _RXI), "Custom CSS can't contain </style> or other HTML."),
+    (re.compile(r"<"), "Custom CSS can't contain the < character."),
+    (re.compile(r"\\"), "Custom CSS can't use backslash escapes (\\)."),
+    (re.compile(rf"expression{_S}*\(", _RXI), "Custom CSS can't use expression()."),
+    (re.compile(rf"javascript{_S}*:", _RXI), "Custom CSS can't contain javascript: links."),
+    (re.compile(rf"vbscript{_S}*:", _RXI), "Custom CSS can't contain vbscript: links."),
+    (re.compile(r"-moz-binding", _RXI), "Custom CSS can't use -moz-binding."),
+    (re.compile(rf"\bbehaviou?r{_S}*:", _RXI), "Custom CSS can't use the behavior property."),
+    (re.compile(r"@import", _RXI), "Custom CSS can't use @import."),
+    (re.compile(rf"\bsrc{_S}*\(", _RXI), "Custom CSS can't use src(); use url() with an https:// address."),
+    (re.compile(rf"image-set{_S}*\(", _RXI), "Custom CSS can't use image-set(); use url() with an https:// address."),
+]
+_CSS_URL = re.compile(rf"url{_S}*\({_S}*(['\"]?)([^'\")]*)\1{_S}*\)", _RXI)
+_CSS_URL_OPEN = re.compile(rf"url{_S}*\(", _RXI)
+_CSS_URL_HTTPS = re.compile(rf"https://{_NS}+\Z", _RXI)
+_CSS_URL_ASSET = re.compile(rf"/docs-assets/{_NS}*\Z", _RX)
+_CSS_WS_RUN = re.compile(rf"{_S}+")
+_CSS_LAYER_STATEMENT = re.compile(rf"@layer{_S}+[\w-]+(?:{_S}*,{_S}*[\w-]+)*\Z", _RXI)
+_CSS_AT_NAME = re.compile(r"@([\w-]+)", _RX)
+_CSS_STRINGS = re.compile(r"\"[^\"\n\r\f]*\"|'[^'\n\r\f]*'")
+_CSS_ROOT_SELECTOR = re.compile(rf"(html|:root|body)((?:\[[^\]]*\])*)(?=\Z|[{_JS_WS}>+~:.#\[])", _RXI)
+_CSS_DATA_THEME = re.compile(r"\[data-theme", _RXI)
+_CSS_ATTRS = re.compile(r"(?:\[[^\]]*\])+")
+# At-rules whose block holds rules (checked like the top level) / is kept as written.
+_CSS_GROUPING = frozenset({"media", "supports", "container", "layer"})
+_CSS_VERBATIM = frozenset({"keyframes", "-webkit-keyframes", "font-face", "property"})
+_CSS_SCOPE = ".dx-root"
+_CSS_QUERY_OR_FRAGMENT = re.compile(r"[?#]")
+_CSS_DOT_DOT = re.compile(r"(?:\.|%2e){2}\Z", _RXI)
+# A browser ends a string at a line break; one running across lines would be read differently.
+_CSS_BREAKS = "\n\r\f"
+_CSS_STRING_BREAK = "Custom CSS has a string with a line break in it; close the quote on the same line."
+
+
+class _CssError(Exception):
+    """Where the engine's parser throws; the message is the dashboard's."""
+
+
+def _css_split_top(s: str, sep: str) -> list[str]:
+    """splitTop(): split on ``sep`` outside strings, () and []."""
+    out, depth, quote, start = [], 0, None, 0
+    for i, c in enumerate(s):
+        if quote:
+            if c == quote:
+                quote = None
+            elif c in _CSS_BREAKS:
+                raise _CssError(_CSS_STRING_BREAK)
+        elif c in "\"'":
+            quote = c
+        elif c in "([":
+            depth += 1
+        elif c in ")]":
+            depth -= 1
+        elif c == sep and depth == 0:
+            out.append(s[start:i])
+            start = i + 1
+    out.append(s[start:])
     return out
 
 
+def _css_check_after_scope(rest: str, sel: str) -> None:
+    """checkAfterScope(): past the rest of the scope's own compound, ``~`` or
+    ``+`` would reach the docs root's siblings."""
+    i, depth, quote, n = 0, 0, None, len(rest)
+    while i < n:
+        c = rest[i]
+        if quote:
+            if c == quote:
+                quote = None
+        elif c in "\"'":
+            quote = c
+        elif c in "([":
+            depth += 1
+        elif c in ")]":
+            depth -= 1
+        elif depth <= 0 and (c in _JS_WS_SET or c in ">+~"):
+            break
+        i += 1
+    while i < n and rest[i] in _JS_WS_SET:
+        i += 1
+    if i < n and rest[i] in "~+":
+        raise _CssError(f'Custom CSS: "{sel[:40]}" reaches outside the docs root '
+                        "(~ or + can't follow the root, :root, html or body).")
+
+
+def _css_selector_ok(sel: str) -> bool:
+    """scopeSelector(), reduced to what decides acceptance: False for an empty
+    selector; raises where the engine throws (a selector reaching the scope's
+    siblings, or ``[data-theme`` with no ``]``)."""
+    s = _CSS_WS_RUN.sub(" ", _js_trim(sel))
+    if not s:
+        return False
+    if s == _CSS_SCOPE or any(s.startswith(_CSS_SCOPE + x) for x in " .[:>+~"):
+        _css_check_after_scope(s[len(_CSS_SCOPE):], s)
+        return True
+    m = _CSS_ROOT_SELECTOR.match(s)
+    if m:
+        rest = s[m.end():]
+        if m.group(1).lower() != "body" and m.group(2) and rest and not rest.startswith(" "):
+            rest = " " + rest
+        _css_check_after_scope(rest, s)
+        return True
+    if _CSS_DATA_THEME.match(s):
+        t = _CSS_ATTRS.match(s)
+        if not t:
+            raise _CssError(f'Custom CSS: the selector "{s[:40]}" has a [ without a matching ].')
+        _css_check_after_scope(s[t.end():], s)
+    return True
+
+
+def _css_check_rules(src: str, depth: int = 0) -> None:
+    """scopeRules() without the output: raises :class:`_CssError` where the
+    engine's parser throws."""
+    n = len(src)
+
+    def read_block(start: int) -> int:
+        # start: just after "{"; returns the index of the matching "}".
+        d, quote = 1, None
+        for j in range(start, n):
+            c = src[j]
+            if quote:
+                if c == quote:
+                    quote = None
+                elif c in _CSS_BREAKS:
+                    raise _CssError(_CSS_STRING_BREAK)
+            elif c in "\"'":
+                quote = c
+            elif c == "{":
+                d += 1
+            elif c == "}":
+                d -= 1
+                if d == 0:
+                    return j
+        raise _CssError("Custom CSS has a { without a matching }.")
+
+    i = 0
+    while i < n:
+        while i < n and src[i] in _JS_WS_SET:
+            i += 1
+        if i >= n:
+            break
+        # Prelude: up to "{", ";" or "}" outside strings and parentheses.
+        j, quote, paren = i, None, 0
+        while j < n:
+            c = src[j]
+            if quote:
+                if c == quote:
+                    quote = None
+                elif c in _CSS_BREAKS:
+                    raise _CssError(_CSS_STRING_BREAK)
+            elif c in "\"'":
+                quote = c
+            elif c == "(":
+                paren += 1
+            elif c == ")":
+                paren -= 1
+            elif paren == 0 and c in "{;}":
+                break
+            j += 1
+        prelude = _js_trim(src[i:j])
+        if j >= n:
+            raise _CssError(f'Custom CSS: "{prelude[:40]}" needs a {{ … }} block after it.')
+        if src[j] == "}":
+            raise _CssError("Custom CSS has a } without a matching {.")
+        if src[j] == ";":
+            # The only statement at-rule is `@layer a, b;`.
+            if not _CSS_LAYER_STATEMENT.match(prelude):
+                what = f'"{prelude[:40]};"' if prelude else "a stray ;"
+                raise _CssError(f"Custom CSS can't have {what} there (the only statement allowed is @layer name, …;).")
+            i = j + 1
+            continue
+        end = read_block(j + 1)
+        body = src[j + 1:end]
+        if prelude.startswith("@"):
+            m = _CSS_AT_NAME.match(prelude)
+            name = m.group(1).lower() if m else ""
+            if name in _CSS_GROUPING:
+                if depth > 3:
+                    raise _CssError("Custom CSS nests @media, @supports, @container or @layer too deeply "
+                                    "(at most 4 levels).")
+                _css_check_rules(body, depth + 1)
+            elif name not in _CSS_VERBATIM:
+                raise _CssError(f"Custom CSS can't use @{name} (only @media, @supports, @container, @layer, "
+                                "@keyframes, @font-face and @property).")
+        else:
+            if not prelude:
+                raise _CssError("Custom CSS has a { … } block with no selector in front of it.")
+            if "{" in _CSS_STRINGS.sub("", body):
+                raise _CssError(f'Custom CSS: "{prelude[:40]}" has a nested block (CSS nesting isn\'t supported here).')
+            # Every selector is looked at before the empty check, as the engine's map() does.
+            oks = [_css_selector_ok(s) for s in _css_split_top(prelude, ",")]
+            if not all(oks):
+                raise _CssError(f'Custom CSS: "{prelude[:40]}" has an empty selector (check for a stray comma).')
+        i = end + 1
+
+
+def _css_asset_path_ok(u: str) -> bool:
+    """assetPathOk(): the path stays in /docs-assets/ (no ``..`` segment, also
+    spelled %2e, no ``//`` or backslash)."""
+    path = _CSS_QUERY_OR_FRAGMENT.split(u, 1)[0]
+    return "//" not in path and "\\" not in path and not any(_CSS_DOT_DOT.match(seg) for seg in path.split("/"))
+
+
 def css_problem(css: str) -> str | None:
-    """Why this custom CSS can't be used, or None when it is fine."""
-    if len(css.encode("utf-8")) > CUSTOM_CSS_MAX:
+    """Why the docs engine would refuse this custom CSS (its first reason,
+    phrased for the dashboard), or None when the engine accepts it."""
+    if not isinstance(css, str):
+        return "Custom CSS must be text."
+    if _utf16_len(css) > CUSTOM_CSS_MAX:
         return "Custom CSS can be at most 20 KB."
-    if "\x00" in css:
-        return "Custom CSS can't contain null characters."
-    for text in (css, _decode_css(css)):
-        low = text.lower()
-        if "</style" in low or "<script" in low or "<!--" in low:
-            return "Custom CSS can't contain HTML tags such as </style>."
-        if "@import" in low:
-            return "Custom CSS can't use @import."
-        if "expression(" in low.replace(" ", ""):
-            return "Custom CSS can't use expression()."
-        if "javascript:" in low.replace(" ", "") or "vbscript:" in low.replace(" ", ""):
-            return "Custom CSS can't contain javascript: links."
-        if "-moz-binding" in low or re.search(r"(^|[;{\s])behavior\s*:", low):
-            return "Custom CSS can't use behavior or -moz-binding."
-        for m in _URL_FN.finditer(text):
-            arg = m.group("arg").strip().strip("\"'").strip()
-            if not arg.lower().startswith("https://"):
-                return "url() in custom CSS must point to an https:// address."
-        if re.search(r"(^|[^a-z-])src\(", low):
-            return "Custom CSS can't use src(); use url() with an https:// address."
-        for m in _IMAGE_SET.finditer(text):
-            for s in _STRING.finditer(m.group("args")):
-                if not (s.group(1) or s.group(2) or "").lower().startswith("https://"):
-                    return "image-set() in custom CSS must point to https:// addresses."
+    src = _CSS_COMMENT.sub(" ", css)
+    if "/*" in src:
+        return "Custom CSS has a /* comment that is never closed with */."
+    for rx, message in _CSS_BANNED:
+        if rx.search(src):
+            return message
+    for m in _CSS_URL.finditer(src):
+        u = _js_trim(m.group(2))
+        if _CSS_URL_HTTPS.match(u):
+            continue
+        if not _CSS_URL_ASSET.match(u):
+            return "url() in custom CSS must be an https:// address or an uploaded file (/docs-assets/…)."
+        if not _css_asset_path_ok(u):
+            return "url() in custom CSS: a /docs-assets/ path can't have \"..\", \"//\" or a backslash in it."
+    if _CSS_URL_OPEN.search(_CSS_URL.sub("", src)):
+        return "Custom CSS has a url() that isn't a plain address; write url(https://…) or url(\"https://…\")."
+    try:
+        _css_check_rules(src)
+    except _CssError as exc:
+        return str(exc)
     return None
 
 

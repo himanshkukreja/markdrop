@@ -228,7 +228,8 @@ class Settings(DocsSitesCase):
             "a { background: url(http://x.test/a.png) }",
             "a { background: url(data:image/png;base64,AAAA) }",
             "a { width: expression(alert(1)) }",
-            "a { width: expr/**/ession(alert(1)) }",
+            # Comments become spaces first, as the engine does ("expr/**/ession(" is harmless "expr ession(").
+            "a { width: expression/**/(alert(1)) }",
             "a { background: url(javascript:alert(1)) }",
             "</style><script>alert(1)</script>",
             "a { behavior: url(https://x.test/x.htc) }",
