@@ -71,6 +71,15 @@ export class FsStore {
     walk(path.join(this.root, prefix), prefix);
     return out;
   }
+  /** Keys under a prefix with their size and an ETag (the MD5 of the bytes, as R2 gives for a single PUT). */
+  async listObjects(prefix) {
+    const out = [];
+    for (const key of await this.list(prefix)) {
+      const body = fs.readFileSync(this.file(key));
+      out.push({ key, size: body.length, etag: crypto.createHash("md5").update(body).digest("hex") });
+    }
+    return out;
+  }
 }
 
 /** An R2 bucket binding (Worker, or Miniflare's getR2Bucket) behind the same three calls. */
@@ -98,6 +107,16 @@ export class R2Store {
     do {
       const page = await this.bucket.list({ prefix, cursor });
       for (const o of page.objects) out.push(o.key);
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+    return out;
+  }
+  async listObjects(prefix) {
+    const out = [];
+    let cursor;
+    do {
+      const page = await this.bucket.list({ prefix, cursor });
+      for (const o of page.objects) out.push({ key: o.key, size: o.size, etag: String(o.etag || "").replace(/"/g, "") });
       cursor = page.truncated ? page.cursor : undefined;
     } while (cursor);
     return out;
@@ -148,6 +167,10 @@ export class S3Store {
   }
   /** Keys under a prefix (ListObjectsV2, paged). */
   async list(prefix) {
+    return (await this.listObjects(prefix)).map((o) => o.key);
+  }
+  /** Keys under a prefix with their size and ETag (unquoted; the MD5 of the bytes for a single PUT). */
+  async listObjects(prefix) {
     const out = [];
     const unxml = (t) => t.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
     let token;
@@ -156,7 +179,13 @@ export class S3Store {
       const r = await (await this.client()).fetch(`${this.base}?${q}`);
       if (!r.ok) throw new Error(`R2 LIST ${prefix}: ${r.status}`);
       const xml = await r.text();
-      for (const m of xml.matchAll(/<Key>([^<]*)<\/Key>/g)) out.push(unxml(m[1]));
+      for (const m of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
+        const key = /<Key>([^<]*)<\/Key>/.exec(m[1])?.[1];
+        if (key === undefined) continue;
+        const size = Number(/<Size>(\d+)<\/Size>/.exec(m[1])?.[1] ?? 0);
+        const etag = unxml(/<ETag>([^<]*)<\/ETag>/.exec(m[1])?.[1] ?? "").replace(/"/g, "");
+        out.push({ key: unxml(key), size, etag });
+      }
       token = /<IsTruncated>true<\/IsTruncated>/.test(xml) ? unxml(/<NextContinuationToken>([^<]*)</.exec(xml)?.[1] || "") || undefined : undefined;
     } while (token);
     return out;
@@ -225,6 +254,27 @@ export async function publish({ distDir, store, site, hosts = [], concurrency = 
     for (const h of hosts) await store.put(`hosts/${h.toLowerCase()}.json`, JSON.stringify({ site: siteId }));
   }
   return { site: siteId, manifest: manifestHash, objects: wanted.length, knownFromPrevious, checked, uploaded, uploadedBytes, uploadedKeys, unchanged: false };
+}
+
+/**
+ * Point a site at a manifest the store already has: the restore (an earlier build goes live again
+ * with no rebuild and no upload; manifests and objects are never deleted). The pointer is the one
+ * object a publish rewrites, so this is the same atomic switch, and `previous` keeps the build it
+ * replaced (the assets sync keeps that one's engine files too). Refuses a manifest of another site
+ * unless `force`.
+ */
+export async function pointSite({ store, site, manifest, force = false, dryRun = false }) {
+  if (!site || !/^[A-Za-z0-9_-]{1,64}$/.test(site)) throw new Error(`bad site id ${site}`);
+  if (!/^[0-9a-f]{64}$/.test(String(manifest))) throw new Error("the manifest must be a sha256 hex hash");
+  const raw = await store.getText(`manifests/${manifest}.json`);
+  if (!raw) throw new Error(`manifest ${manifest} is not in the store`);
+  const m = JSON.parse(raw);
+  if (!force && m.site?.id && m.site.id !== site) throw new Error(`manifest ${manifest.slice(0, 12)} belongs to site "${m.site.id}", not "${site}"`);
+  const pointer = await store.getText(`sites/${site}/current.json`).then((t) => (t ? JSON.parse(t) : null)).catch(() => null);
+  if (pointer?.manifest === manifest) return { site, manifest, engine: m.engine, previous: pointer.previous ?? null, unchanged: true };
+  const next = { manifest, engine: m.engine, publishedAt: new Date().toISOString(), previous: pointer?.manifest ?? null, restored: true };
+  if (!dryRun) await store.put(`sites/${site}/current.json`, JSON.stringify(next));
+  return { site, manifest, engine: m.engine, previous: next.previous, unchanged: false };
 }
 
 /**
