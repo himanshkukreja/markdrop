@@ -4,10 +4,12 @@
     POST /api/v1/docs/ask/feedback    {request_id, helpful, comment?}
     POST /api/v1/docs/feedback        {path, helpful, comment?}   ("Did this page help?")
     GET  /api/v1/docs/ai/status       {available, reason?}        (show Ask AI or Open-in links)
+                                      (+ {name, suggestions} for a Docs Studio site)
 
 Every endpoint serves one docs site (services/docs_sites.py), named by a `site`
 field in the body (a `site` query parameter on the status endpoint) or the
-X-Docs-Site header; neither means "markdrop". An unregistered site is a 404.
+X-Docs-Site header; neither means "markdrop". A Docs Studio site is named by
+its id and is known while it is live. Any other site is a 404.
 
 CORS for the docs origins is middleware/docs_cors.py. Sign-in is optional: a
 Markdrop session or API token unlocks the personal tools for that account; a
@@ -82,11 +84,11 @@ async def docs_caller(request: Request) -> User | None:
 SITE_HEADER = "x-docs-site"
 
 
-def resolve_site(request: Request, site: str | None) -> str:
+async def resolve_site(request: Request, site: str | None, db: AsyncIOMotorDatabase) -> str:
     """The request's docs site: the body/query `site`, else X-Docs-Site, else "markdrop"."""
     raw = site if site not in (None, "") else request.headers.get(SITE_HEADER)
     try:
-        return docs_sites.resolve(raw)[0]
+        return await docs_sites.aresolve(db, raw)
     except docs_sites.UnknownSite:
         raise HTTPException(status_code=404, detail="Unknown docs site")
 
@@ -113,7 +115,7 @@ async def ask(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User | None = Depends(docs_caller),
 ):
-    site = resolve_site(request, body.site)
+    site = await resolve_site(request, body.site, db)
     req = docs_agent.AskRequest(
         question=body.question, history=body.history, page_path=body.page_path,
         conversation_id=body.conversation_id, user=user, ip=get_client_ip(request), site=site,
@@ -162,7 +164,7 @@ class AnswerFeedbackBody(BaseModel):
 @router.post("/ask/feedback")
 @limiter.limit("30/minute")
 async def ask_feedback(request: Request, body: AnswerFeedbackBody, db: AsyncIOMotorDatabase = Depends(get_db)):
-    site = resolve_site(request, body.site)
+    site = await resolve_site(request, body.site, db)
     ok = await docs_agent.answer_feedback(db, body.request_id, body.helpful, body.comment, site=site)
     return {"status": "received" if ok else "unknown"}
 
@@ -185,7 +187,7 @@ async def page_feedback(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User | None = Depends(docs_caller),
 ):
-    site = resolve_site(request, body.site)
+    site = await resolve_site(request, body.site, db)
     path = body.path.split("#", 1)[0].split("?", 1)[0].strip()
     path = path.rstrip("/") or "/"
     if not _PATH.match(path):
@@ -197,10 +199,12 @@ async def page_feedback(
 
 @router.get("/ai/status")
 @limiter.limit("60/minute")
-async def ai_status(request: Request, site: str | None = Query(None, max_length=64)):
-    cfg = docs_sites.config(resolve_site(request, site))
+async def ai_status(request: Request, site: str | None = Query(None, max_length=64),
+                    db: AsyncIOMotorDatabase = Depends(get_db)):
+    cfg = await docs_sites.aconfig(db, await resolve_site(request, site, db))
+    extra = cfg.status_extra()
     if not docs_agent.enabled() or not cfg.ai_enabled:
-        return {"available": False, "reason": "disabled"}
+        return {"available": False, **extra, "reason": "disabled"}
     if not docs_agent.configured():
-        return {"available": False, "reason": "not_configured"}
-    return {"available": True}
+        return {"available": False, **extra, "reason": "not_configured"}
+    return {"available": True, **extra}

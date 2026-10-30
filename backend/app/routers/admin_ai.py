@@ -278,18 +278,22 @@ async def _by_site(db, feature: str, rows: list[dict]) -> list[dict]:
     for r in rows:
         per[_site_of(r)].append(r)
     registered = {c.id: c for c in docs_sites.configs()}
+    others = sorted(k for k in per if k not in registered)
+    studio = await _studio_sites(db, [k for k in others if docs_sites.is_studio_id(k)])
     out = []
-    for sid in list(registered) + sorted(k for k in per if k not in registered):
+    for sid in list(registered) + others:
         cfg = registered.get(sid)
+        st = studio.get(sid)
         site_rows = per.get(sid, [])
         served = [r for r in site_rows if r.get("outcome") != "limit"]
         outcomes = Counter(r.get("outcome") or "error" for r in site_rows)
         scope = ai_usage.site_scope(feature, sid)
         out.append({
             "site": sid,
-            "name": cfg.name if cfg else None,
-            "url": (cfg.url or None) if cfg else None,
+            "name": cfg.name if cfg else (st or {}).get("name"),
+            "url": (cfg.url or None) if cfg else (st or {}).get("url"),
             "registered": cfg is not None,
+            "studio": st is not None,
             "ai_enabled": cfg.ai_enabled if cfg else None,
             "product_tools": cfg.product_tools if cfg else None,
             "questions": len(site_rows),
@@ -303,7 +307,21 @@ async def _by_site(db, feature: str, rows: list[dict]) -> list[dict]:
             "month_usd": round(await ai_usage.spend_month(db, scope), 6),
             "daily_cap_usd": cfg.daily_cap if cfg else None,
             "monthly_cap_usd": cfg.monthly_cap if cfg else None,
+            "monthly_answers_cap": get_settings().docs_ai_answers_per_month if st else None,
         })
+    return out
+
+
+async def _studio_sites(db, ids: list[str]) -> dict[str, dict]:
+    """Docs Studio sites among the ledger's site ids (deleted ones too): {id: {name, url}}."""
+    if not ids:
+        return {}
+    from app.services import docs_snapshot
+    from app.services.docs_site_store import SITES
+
+    out = {}
+    async for r in db[SITES].find({"_id": {"$in": [ObjectId(i) for i in ids]}}, {"name": 1, "slug": 1, "domains": 1}):
+        out[str(r["_id"])] = {"name": r.get("name"), "url": docs_snapshot.site_url(r)}
     return out
 
 
