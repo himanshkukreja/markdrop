@@ -12,7 +12,7 @@ import { AppTrackers } from "@/docs/client/AppTrackers";
 import { themeScript } from "@/lib/themeScript";
 
 const SITE_DESCRIPTION =
-  "Publish markdown and AI docs with no account, or upload HTML, PDFs, sheets, Word docs, video and zipped sites. One link that opens in any browser.";
+  "Publish markdown and AI docs with no account, upload HTML, PDFs, sheets, Word docs and video, or build a docs site with Docs Studio. Links that open in any browser.";
 
 export const metadata: Metadata = {
   title: "Markdrop — Docs and files as links that render",
