@@ -21,11 +21,14 @@ Search is a small pure-Python BM25 over sections with field boosts (page title,
 heading, keywords + description, body), with the site's ai.json synonyms added
 to queries. Indexes are built on first use and kept for the most recently used
 sites (settings.docs_sites_cache_size); each rebuilds itself when a file under
-its folder changes (checked at most every few seconds).
+its folder changes (checked at most every few seconds). A Docs Studio site has
+no folder: its index is built from its live build's snapshot (aget_index) and
+rebuilt when the live build changes.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import os
@@ -515,23 +518,41 @@ class Index:
             return {}
 
     def load(self) -> "Index":
+        """The site's folder: its Markdown files, site.json, ai.json, changelog and videos."""
         self.signature = scan_signature(self.root)
         self.cfg = docs_sites.SiteConfig.load(self.site_id, self.root)
-        self.site = self.cfg.site
-        self.synonyms = self.cfg.synonyms
         self.changelog = self._json("changelog.json")
         self.videos = self._json("videos.json")
+
+        def sources():
+            for rel in _walk(self.root):
+                try:
+                    yield rel, (self.root / rel).read_text("utf-8")
+                except Exception:
+                    continue
+
+        return self._build(sources())
+
+    def load_files(self, files: dict[str, str], cfg, signature: tuple) -> "Index":
+        """The same, from a content folder held in memory ({relative path: text}, the
+        files docs_snapshot.content_files writes for the engine) and the site's settings."""
+        self.signature = signature
+        self.cfg = cfg
+        self.changelog = _parse_json(files.get("changelog.json"))
+        self.videos = _parse_json(files.get("videos.json"))
+        rels = sorted((r for r in files if _walkable(r)), key=_walk_order)
+        return self._build((r, files[r]) for r in rels)
+
+    def _build(self, sources) -> "Index":
+        self.site = self.cfg.site
+        self.synonyms = self.cfg.synonyms
         groups: dict[str, str] = {}
         for g in self.site.get("nav") or []:
             if isinstance(g, dict):
                 for p in g.get("pages") or []:
                     if isinstance(p, str):
                         groups.setdefault(p, str(g.get("group") or ""))
-        for rel in _walk(self.root):
-            try:
-                src = (self.root / rel).read_text("utf-8")
-            except Exception:
-                continue
+        for rel, src in sources:
             data, body = parse_frontmatter(src)
             path = file_to_path(rel)
             page = Page(
@@ -742,6 +763,28 @@ def _walk(root: Path) -> list[str]:
     return out
 
 
+def _walkable(rel: str) -> bool:
+    """A Markdown file _walk would pick up (for a folder held in memory)."""
+    parts = rel.split("/")
+    if not rel.endswith(".md") or any(not p for p in parts):
+        return False
+    return not any(p.startswith((".", "_")) for p in parts) and not any(p in SKIP_DIRS for p in parts[:-1])
+
+
+def _walk_order(rel: str) -> tuple:
+    """_walk's order: a folder's files (sorted), then its sub-folders (sorted), depth first."""
+    parts = rel.split("/")
+    return tuple(parts[:-1]), parts[-1]
+
+
+def _parse_json(text: str | None) -> dict:
+    try:
+        v = json.loads(text) if text else {}
+        return v if isinstance(v, dict) else {}
+    except Exception:
+        return {}
+
+
 def scan_signature(root: Path) -> tuple:
     sig = []
     for rel in _walk(root):
@@ -794,6 +837,68 @@ def get_index(site: str | None = DEFAULT_SITE, force: bool = False) -> Index:
         while len(_entries) > max(1, get_settings().docs_sites_cache_size):
             _entries.popitem(last=False)
         return index
+
+
+_studio_loads: dict[tuple, asyncio.Future] = {}
+
+
+async def aget_index(db, site: str | None = DEFAULT_SITE) -> Index:
+    """get_index() that also serves live Docs Studio sites (services/docs_sites.py).
+
+    A studio site's index is its live build's snapshot, turned into the content
+    folder the engine builds from (docs_snapshot.content_files) and indexed
+    exactly like a folder on disk, so page paths and section anchors are the
+    ones the built site has. It shares the LRU with the file-based sites, keyed
+    by site id, and is rebuilt when the site's live build changes. Raises
+    docs_sites.UnknownSite.
+    """
+    try:
+        return get_index(site)
+    except UnknownSite:
+        st = await docs_sites.studio_site(db, docs_sites.normalize_id(site))
+        if st is None:
+            raise
+    signature = ("docs-studio", st.live_build_id)
+    with _lock:
+        entry = _entries.get(st.id)
+        if entry is not None and entry.index.signature == signature:
+            _entries.move_to_end(st.id)
+            entry.index.cfg.state = st  # the AI switch, name and suggestions, as read just now
+            return entry.index
+    key = (db.name, st.id, st.live_build_id)
+    fut = _studio_loads.get(key)
+    if fut is None:
+        fut = asyncio.ensure_future(_load_studio(db, st, signature))
+        _studio_loads[key] = fut
+        fut.add_done_callback(lambda _f: _studio_loads.pop(key, None))
+    index = await asyncio.shield(fut)
+    index.cfg.state = st
+    return index
+
+
+async def _load_studio(db, st, signature: tuple) -> Index:
+    from app.services import docs_snapshot
+    from app.services.docs_site_store import SNAPSHOTS
+
+    snap = await db[SNAPSHOTS].find_one({"_id": st.snapshot_id})
+    if snap is None:
+        raise UnknownSite(st.id)
+    await docs_snapshot._page_ids(db, snap)  # older snapshots: nav refers to page ids
+    files, _warnings = docs_snapshot.content_files(st.row, snap, url=st.url, ai_api="")
+
+    def build() -> Index:
+        site = _parse_json(files.get("site.json"))
+        return Index(Path("docs-studio") / st.id, st.id).load_files(
+            files, docs_sites.StudioSiteConfig(st, site), signature)
+
+    index = await asyncio.to_thread(build)
+    with _lock:
+        # Last one in wins: a request that finds another build's index rebuilds it.
+        _entries[st.id] = _Entry(index=index, checked=time.monotonic())
+        _entries.move_to_end(st.id)
+        while len(_entries) > max(1, get_settings().docs_sites_cache_size):
+            _entries.popitem(last=False)
+    return index
 
 
 def cached_sites() -> list[str]:

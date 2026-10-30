@@ -33,14 +33,27 @@ apply, search synonyms and spend caps from ``ai.json``::
 
 Every key is optional. Malformed files read as empty; nothing here throws on
 content.
+
+Docs Studio sites (the dashboard's sites, ``docs_sites`` in MongoDB) are served
+too, under their 24-hex site id (their built site.json sets ``ai.site`` to it).
+A file-based site of the same id wins. A studio site is known while it is live
+and not deleted; its settings come from the row (``settings.ai``: on/off,
+assistant name, suggestions) and its docs from the live build's snapshot (see
+docs_index.aget_index). It never gets the Markdrop account tools, links only to
+its own address(es), and has a monthly answer cap
+(settings.docs_ai_answers_per_month) inside the global spend caps. A site whose
+access isn't public gets no Ask AI: the API can't tell its readers apart.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
 import threading
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -283,6 +296,23 @@ class SiteConfig:
     def monthly_cap(self) -> float | None:
         return _usd(_dict(self.ai.get("budget")).get("monthlyUsd"))
 
+    # ── what Docs Studio sites set differently ──
+    studio = False
+
+    @property
+    def alias_hosts(self) -> tuple[str, ...]:
+        """Other hosts serving these same pages (links to them are checked like the docs host's)."""
+        return ()
+
+    @property
+    def monthly_answers(self) -> int | None:
+        """Answers this site may give per UTC month (None: no cap besides the spend caps)."""
+        return None
+
+    def status_extra(self) -> dict:
+        """Extra fields for GET /docs/ai/status (file-based sites: none)."""
+        return {}
+
 
 def _stat(path: Path) -> tuple | None:
     try:
@@ -334,9 +364,221 @@ def origins() -> set[str]:
     return out
 
 
+# ── Docs Studio sites ─────────────────────────────────────────────────────────
+
+STUDIO_ID = re.compile(r"^[0-9a-f]{24}$")
+# A studio site's row is re-read at most this often (publish, unpublish, the AI
+# switch and a deletion show within this many seconds).
+STUDIO_TTL_S = 5.0
+STUDIO_CACHE_MAX = 1024
+# The origins of live studio sites (CORS): re-read this often, and on an unknown
+# origin at most this often (a site that just went live works within seconds).
+ORIGINS_TTL_S = 60.0
+ORIGINS_MISS_S = 5.0
+ORIGINS_MAX_SITES = 20_000
+
+
+def is_studio_id(value: Any) -> bool:
+    return isinstance(value, str) and bool(STUDIO_ID.match(value))
+
+
+@dataclass(frozen=True)
+class StudioSite:
+    """What Ask AI needs to know about a live Docs Studio site, from its row and live build."""
+
+    id: str
+    name: str
+    url: str                        # the live address (an own domain when it has one)
+    hosts: tuple[str, ...]          # every host serving the live build
+    live_build_id: str
+    snapshot_id: Any                # ObjectId of the live build's snapshot
+    ai_enabled: bool                # settings.ai.enabled, and a public site
+    ai_name: str | None
+    suggestions: tuple[str, ...]
+    row: dict = field(repr=False, compare=False, default_factory=dict)
+
+
+def _studio_from(row: dict, build: dict, snap_site: dict) -> StudioSite:
+    from app.services import docs_snapshot
+
+    settings = _dict(row.get("settings"))
+    ai = _dict(settings.get("ai"))
+    public = (_dict(settings.get("access")).get("level") or "public") == "public"
+    slug = _str(snap_site.get("slug")) or row.get("slug")
+    name = _str(snap_site.get("name")) or _str(row.get("name")) or "Docs"
+    raw = ai.get("suggestions") if isinstance(ai.get("suggestions"), list) else []
+    suggestions = tuple(x for x in (_str(v)[:120] for v in raw) if x)[:5]
+    return StudioSite(
+        id=str(row["_id"]), name=name, url=docs_snapshot.site_url(row, slug),
+        hosts=tuple(h.lower() for h in docs_snapshot.site_hosts(row, slug)), live_build_id=str(build["_id"]),
+        snapshot_id=build["snapshot_id"], ai_enabled=ai.get("enabled") is True and public,
+        ai_name=_str(ai.get("name"))[:40] or None, suggestions=suggestions, row=row)
+
+
+_studio_cache: dict[tuple[str, str], tuple[float, StudioSite | None]] = {}
+
+
+async def studio_site(db, site_id: Any) -> StudioSite | None:
+    """A live, undeleted Docs Studio site with a live build, or None. Cached a few seconds."""
+    if not is_studio_id(site_id):
+        return None
+    from bson import ObjectId
+
+    from app.services.docs_site_store import BUILDS, SITES, SNAPSHOTS
+
+    key = (db.name, site_id)
+    hit = _studio_cache.get(key)
+    if hit is not None and time.monotonic() - hit[0] < STUDIO_TTL_S:
+        return hit[1]
+    out = None
+    row = await db[SITES].find_one(
+        {"_id": ObjectId(site_id), "deleted_at": None, "status": "live"},
+        {"name": 1, "slug": 1, "domains": 1, "settings": 1, "engine_extra": 1, "live_build_id": 1})
+    if row is not None and row.get("live_build_id"):
+        build = await db[BUILDS].find_one({"_id": row["live_build_id"], "site_id": row["_id"]}, {"snapshot_id": 1})
+        if build is not None and build.get("snapshot_id"):
+            snap = await db[SNAPSHOTS].find_one({"_id": build["snapshot_id"]}, {"site": 1})
+            if snap is not None:
+                out = _studio_from(row, build, _dict(snap.get("site")))
+    if len(_studio_cache) >= STUDIO_CACHE_MAX:
+        _studio_cache.clear()
+    _studio_cache[key] = (time.monotonic(), out)
+    return out
+
+
+class StudioSiteConfig(SiteConfig):
+    """A Docs Studio site's settings: ``site`` is its built site.json (or the row's
+    name and address before the index is loaded); the AI settings are the row's,
+    read live (``state``)."""
+
+    studio = True
+
+    def __init__(self, st: StudioSite, site: dict | None = None):
+        super().__init__(st.id, Path("docs-studio") / st.id, site or {
+            "id": st.id, "name": st.name, "url": st.url, "brand": {"name": st.name}}, {"productTools": False})
+        self.state = st
+
+    @property
+    def url(self) -> str:
+        return (_str(self.site.get("url")) or self.state.url).rstrip("/")
+
+    @property
+    def ai_enabled(self) -> bool:
+        return self.state.ai_enabled
+
+    @property
+    def alias_hosts(self) -> tuple[str, ...]:
+        return tuple(h for h in self.state.hosts if h != self.host)
+
+    @property
+    def monthly_answers(self) -> int | None:
+        return max(0, int(get_settings().docs_ai_answers_per_month))
+
+    def status_extra(self) -> dict:
+        return {"name": self.state.ai_name or "Ask AI", "suggestions": list(self.state.suggestions)}
+
+
+async def aresolve(db, site: Any = None) -> str:
+    """resolve() that also knows live Docs Studio sites: the site id, or UnknownSite."""
+    try:
+        return resolve(site)[0]
+    except UnknownSite:
+        sid = normalize_id(site)
+        if sid is None or await studio_site(db, sid) is None:
+            raise
+        return sid
+
+
+async def aconfig(db, site: Any = None) -> SiteConfig:
+    """config() that also knows live Docs Studio sites (from the row; no snapshot is read)."""
+    try:
+        return config(site)
+    except UnknownSite:
+        st = await studio_site(db, normalize_id(site))
+        if st is None:
+            raise
+        return StudioSiteConfig(st)
+
+
+_origins: dict = {"db": None, "at": float("-inf"), "set": frozenset()}
+_origins_lock: asyncio.Lock | None = None
+_origins_loop: Any = None
+
+
+async def _load_studio_origins(db) -> frozenset[str]:
+    from app.services import docs_snapshot
+    from app.services.docs_site_store import BUILDS, SITES, SNAPSHOTS
+
+    rows = await db[SITES].find(
+        {"status": "live", "deleted_at": None, "live_build_id": {"$ne": None}},
+        {"slug": 1, "domains": 1, "live_build_id": 1}).to_list(ORIGINS_MAX_SITES)
+    snap_of = {b["_id"]: b.get("snapshot_id") async for b in db[BUILDS].find(
+        {"_id": {"$in": [r["live_build_id"] for r in rows]}}, {"snapshot_id": 1})}
+    slug_of = {s["_id"]: _str(_dict(s.get("site")).get("slug")) async for s in db[SNAPSHOTS].find(
+        {"_id": {"$in": [v for v in snap_of.values() if v]}}, {"site.slug": 1})}
+    out: set[str] = set()
+    for r in rows:
+        snap = snap_of.get(r["live_build_id"])
+        if not snap:
+            continue
+        # The live build's address, and the current slug's (a renamed site moves with its next build).
+        for slug in {slug_of.get(snap) or r.get("slug"), r.get("slug")}:
+            for h in docs_snapshot.site_hosts(r, slug):
+                out.add(f"https://{h.lower()}")
+    return frozenset(out)
+
+
+async def studio_origin_allowed(origin: str | None) -> bool:
+    """Is ``origin`` a live Docs Studio site's address? (CORS for /api/v1/docs/*.)
+
+    Cheap: a set lookup. The set is re-read every minute, or when an unknown
+    origin asks and it is a few seconds old. Never raises (no database: no).
+    """
+    global _origins_lock, _origins_loop
+    if not origin:
+        return False
+    o = origin.strip().rstrip("/").lower()
+    if not o.startswith("https://"):
+        return False
+    try:
+        from app.database import get_database
+
+        db = get_database()
+    except Exception:
+        return False
+    loop = asyncio.get_running_loop()
+    if _origins_lock is None or _origins_loop is not loop:
+        _origins_lock, _origins_loop = asyncio.Lock(), loop
+
+    def known() -> bool | None:
+        if _origins["db"] != db.name:
+            return None
+        age = time.monotonic() - _origins["at"]
+        if o in _origins["set"]:
+            return True if age < ORIGINS_TTL_S else None
+        return False if age < ORIGINS_MISS_S else None
+
+    hit = known()
+    if hit is not None:
+        return hit
+    async with _origins_lock:
+        hit = known()  # another request may have just re-read it
+        if hit is not None:
+            return hit
+        try:
+            found = await _load_studio_origins(db)
+        except Exception:
+            log.warning("docs studio origins: reading the live sites failed", exc_info=True)
+            found = _origins["set"] if _origins["db"] == db.name else frozenset()
+        _origins.update(db=db.name, at=time.monotonic(), set=found)
+    return o in found
+
+
 def reset() -> None:
     """Tests: forget cached settings."""
     global _parsed
     with _cfg_lock:
         _cfg_cache.clear()
     _parsed = None
+    _studio_cache.clear()
+    _origins.update(db=None, at=float("-inf"), set=frozenset())
