@@ -64,6 +64,44 @@ export class R2Store {
   }
 }
 
+/**
+ * An R2 bucket over its S3 API, for publishing from a laptop or CI (the Worker reads the same keys
+ * through its binding). Credentials: an R2 API token's access key pair; endpoint from the account id.
+ */
+export class S3Store {
+  constructor({ accountId, accessKeyId, secretAccessKey, bucket }) {
+    if (!accountId || !accessKeyId || !secretAccessKey || !bucket) throw new Error("S3Store needs accountId, accessKeyId, secretAccessKey and bucket");
+    this.base = `https://${accountId}.r2.cloudflarestorage.com/${bucket}`;
+    this.keys = { accessKeyId, secretAccessKey };
+  }
+  async client() {
+    if (!this.aws) {
+      const { AwsClient } = await import("aws4fetch");
+      this.aws = new AwsClient({ ...this.keys, service: "s3", region: "auto" });
+    }
+    return this.aws;
+  }
+  url(key) {
+    return `${this.base}/${key.split("/").map(encodeURIComponent).join("/")}`;
+  }
+  async has(key) {
+    const r = await (await this.client()).fetch(this.url(key), { method: "HEAD" });
+    if (r.status === 404) return false;
+    if (!r.ok) throw new Error(`R2 HEAD ${key}: ${r.status}`);
+    return true;
+  }
+  async put(key, body) {
+    const r = await (await this.client()).fetch(this.url(key), { method: "PUT", body });
+    if (!r.ok) throw new Error(`R2 PUT ${key}: ${r.status} ${(await r.text()).slice(0, 200)}`);
+  }
+  async getText(key) {
+    const r = await (await this.client()).fetch(this.url(key));
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(`R2 GET ${key}: ${r.status}`);
+    return await r.text();
+  }
+}
+
 /** Every object hash a manifest references. */
 export function manifestObjects(m) {
   const out = new Map();

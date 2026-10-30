@@ -4,16 +4,23 @@
   "private": true,
   "type": "module",
   "description": "Build a Markdrop Docs content folder into static output, and serve it from R2 + a Worker or a self-host server.",
-  "bin": { "markdrop-docs": "builder/cli.mjs" },
+  "bin": {
+    "markdrop-docs": "builder/cli.mjs"
+  },
   "scripts": {
     "build-site": "node builder/cli.mjs build",
     "serve": "node server/server.mjs",
     "bundle": "node builder/cli.mjs bundle",
     "test": "node builder/cli.mjs bundle && node --test test/*.test.mjs"
   },
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "esbuild": "0.28.2",
     "wrangler": "4.156.0"
+  },
+  "dependencies": {
+    "aws4fetch": "1.0.20"
   }
 }

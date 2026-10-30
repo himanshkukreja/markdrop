@@ -86,7 +86,11 @@ function run(cmd, args, { cwd, env, log }) {
   });
 }
 
-/** The site's redirects.json ({status, redirects:[{from,to,same?}]}) as edge rules. */
+/**
+ * The site's redirects.json as edge rules. Either the engine's map ({"/old": "/new", …}, what the
+ * importers write and the docs host serves; each key also answers its `.md` twin, like the engine's
+ * redirects()) or {status, redirects:[{from,to,same?}]}.
+ */
 function readRedirects(contentDir) {
   let doc;
   try {
@@ -94,7 +98,16 @@ function readRedirects(contentDir) {
   } catch {
     return [];
   }
-  const list = Array.isArray(doc) ? doc : Array.isArray(doc?.redirects) ? doc.redirects : [];
+  const isMap = doc && typeof doc === "object" && !Array.isArray(doc) && !Array.isArray(doc.redirects);
+  const list = isMap
+    ? Object.entries(doc).flatMap(([from, to]) => {
+        if (typeof to !== "string") return [];
+        const rules = [{ from, to }];
+        const page = to.split("#")[0];
+        if (!from.endsWith(".md")) rules.push({ from: `${from.replace(/\/+$/, "")}.md`, to: `${page === "/" ? "/index" : page.replace(/\/+$/, "")}.md` });
+        return rules;
+      })
+    : Array.isArray(doc) ? doc : Array.isArray(doc?.redirects) ? doc.redirects : [];
   const status = [301, 302, 307, 308].includes(doc?.status) ? doc.status : 308;
   const out = [];
   for (const r of list) {

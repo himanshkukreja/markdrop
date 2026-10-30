@@ -38,6 +38,11 @@ export default {
   async fetch(request, env, ctx) {
     // One handler per isolate: its host/pointer/manifest caches live as long as the isolate.
     handler ??= createHandler(r2Store(env.DOCS), { pointerTtlMs: Number(env.POINTER_TTL_MS || 5000) });
-    return handler.fetch(request, ctx);
+    const res = await handler.fetch(request, ctx);
+    // Preview addresses (*.workers.dev) copy a real docs site: keep them out of search results.
+    if (!new URL(request.url).hostname.endsWith(".workers.dev")) return res;
+    const out = new Response(res.body, res);
+    out.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return out;
   },
 };

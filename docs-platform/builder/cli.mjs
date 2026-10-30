@@ -4,13 +4,13 @@
  *
  *   markdrop-docs build <content-dir> --out <dist> [--engine <frontend>] [--work <dir>]
  *                       [--assets <dir>=<url-prefix>]... [--port 3591] [--force]
- *   markdrop-docs publish <dist> --store <dir> [--site <id>] [--host <hostname>]... [--dry-run]
+ *   markdrop-docs publish <dist> (--store <dir> | --r2 <bucket>) [--site <id>] [--host <hostname>]... [--dry-run]
  *   markdrop-docs bundle            (build edge/dist/: the Worker and the Node handler)
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "./build.mjs";
-import { FsStore, publish } from "./store.mjs";
+import { FsStore, S3Store, publish } from "./store.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..");
@@ -73,9 +73,13 @@ async function main() {
     for (const [p, f] of Object.entries(m.files)) p.startsWith("/_next/static/") ? (sizes.chunks += f.s) : (sizes.files += f.s);
     console.log(JSON.stringify({ site: m.site.id, engine: m.engine, timings: res.timings, stats: res.stats, bytes: Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, fmtBytes(v)])) }, null, 2));
   } else if (cmd === "publish") {
-    if (!pos[0] || !opt.store) throw new Error("usage: publish <dist> --store <dir>");
+    if (!pos[0] || (!opt.store && !opt.r2)) throw new Error("usage: publish <dist> (--store <dir> | --r2 <bucket>)");
     const t = Date.now();
-    const res = await publish({ distDir: pos[0], store: new FsStore(opt.store), site: opt.site, hosts: opt.host, dryRun: !!opt["dry-run"] });
+    // --r2 <bucket>: the account's R2 over S3 (CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY in the env).
+    const store = opt.r2
+      ? new S3Store({ accountId: process.env.CF_ACCOUNT_ID, accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY, bucket: opt.r2 })
+      : new FsStore(opt.store);
+    const res = await publish({ distDir: pos[0], store, site: opt.site, hosts: opt.host, dryRun: !!opt["dry-run"] });
     const { uploadedKeys, ...summary } = res;
     console.log(JSON.stringify({ ...summary, uploadedBytes: fmtBytes(res.uploadedBytes || 0), ms: Date.now() - t }, null, 2));
   } else if (cmd === "diff") {
