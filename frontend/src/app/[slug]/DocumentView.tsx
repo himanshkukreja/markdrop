@@ -29,13 +29,16 @@ import vs from "./doc/viewer.module.css";
 // load carries the reading view only (REVAMP_BUILD §8.5 budget for /[slug]). Each still renders on the
 // server when the state calls for it (dynamic() keeps SSR), so artifact pages and gates are unchanged.
 const ArtifactView = dynamic(() => import("./ArtifactView"));
-const ShareDialog = dynamic(() => import("@/components/access/ShareDialog"));
-const PublishedPanel = dynamic(() => import("@/components/kit/PublishedPanel").then((m) => m.PublishedPanel));
-const GoogleDocsCard = dynamic(() => import("./doc/GoogleDocsCard").then((m) => m.GoogleDocsCard));
-const EditorScreen = dynamic(() => import("./doc/EditorScreen").then((m) => m.EditorScreen));
-const SecretUnlock = dynamic(() => import("./doc/EditorScreen").then((m) => m.SecretUnlock));
-const ReportDialog = dynamic(() => import("./doc/ReportDialog").then((m) => m.ReportDialog));
-const SaveCopyDialog = dynamic(() => import("./doc/SaveCopyDialog").then((m) => m.SaveCopyDialog));
+// The parts below load on first use with their own (empty) placeholder: without one, the first
+// render of a lazy part suspends up to the page's Suspense and the whole view flashes the
+// page loader (e.g. between Publish and the Published panel).
+const ShareDialog = dynamic(() => import("@/components/access/ShareDialog"), { loading: () => null });
+const PublishedPanel = dynamic(() => import("@/components/kit/PublishedPanel").then((m) => m.PublishedPanel), { loading: () => null });
+const GoogleDocsCard = dynamic(() => import("./doc/GoogleDocsCard").then((m) => m.GoogleDocsCard), { loading: () => null });
+const EditorScreen = dynamic(() => import("./doc/EditorScreen").then((m) => m.EditorScreen), { loading: () => null });
+const SecretUnlock = dynamic(() => import("./doc/EditorScreen").then((m) => m.SecretUnlock), { loading: () => null });
+const ReportDialog = dynamic(() => import("./doc/ReportDialog").then((m) => m.ReportDialog), { loading: () => null });
+const SaveCopyDialog = dynamic(() => import("./doc/SaveCopyDialog").then((m) => m.SaveCopyDialog), { loading: () => null });
 
 /**
  * Does the document already open with a heading that says what the title says?

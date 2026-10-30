@@ -930,14 +930,14 @@
   "/docs-assets/videos/password-and-expiry.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 35.3,
-    "bytes": 1147539,
+    "duration": 33.57,
+    "bytes": 1146458,
     "kind": "video"
   },
   "/docs-assets/videos/password-and-expiry.webp": {
     "w": 1920,
     "h": 1080,
-    "bytes": 54516,
+    "bytes": 54248,
     "kind": "poster"
   },
   "/docs-assets/videos/publish-first-document.mp4": {
