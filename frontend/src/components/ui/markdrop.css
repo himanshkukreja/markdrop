@@ -77,6 +77,8 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-input--invalid, .md-textarea--invalid, .md-select--invalid, .md-input--invalid:hover { border-color: var(--danger); }
 .md-input--invalid:focus, .md-textarea--invalid:focus, .md-select--invalid:focus { border-color: var(--danger); }
 .md-input:disabled, .md-textarea:disabled, .md-select:disabled { opacity: .55; cursor: not-allowed; background: var(--surface-inset); }
+/* Locked ("Admins only"): focusable for the tooltip, but looks and acts unavailable. */
+.md-input[aria-disabled="true"], .md-select[aria-disabled="true"] { opacity: .55; cursor: not-allowed; background: var(--surface-inset); }
 .md-input--mono { font-family: var(--font-mono); font-size: 13px; }
 .md-input-wrap--prefix .md-input { padding-left: 34px; }
 .md-input-wrap--suffix .md-input { padding-right: 34px; }

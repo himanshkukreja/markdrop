@@ -135,25 +135,33 @@ export default function LookTab(props: WsTabProps) {
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <section aria-label="Names" className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4 rounded-xl border border-border bg-surface p-5">
-        <Field label="Workspace name">
-          <Input
-            value={draft.name}
-            maxLength={80}
-            readOnly={locked}
-            aria-disabled={locked || undefined}
-            onChange={(e) => set("name", e.target.value)}
-          />
-        </Field>
-        <Field label="Site name on your pages" hint="Shown in the header and link previews.">
-          <Input
-            placeholder={`e.g. ${ws.name}`}
-            maxLength={60}
-            value={draft.site_name}
-            readOnly={locked}
-            aria-disabled={locked || undefined}
-            onChange={(e) => set("site_name", e.target.value)}
-          />
-        </Field>
+        <Locked locked={locked}>
+          <div className="min-w-0">
+            <Field label="Workspace name">
+              <Input
+                value={draft.name}
+                maxLength={80}
+                readOnly={locked}
+                aria-disabled={locked || undefined}
+                onChange={(e) => set("name", e.target.value)}
+              />
+            </Field>
+          </div>
+        </Locked>
+        <Locked locked={locked}>
+          <div className="min-w-0">
+            <Field label="Site name on your pages" hint="Shown in the header and link previews.">
+              <Input
+                placeholder={`e.g. ${ws.name}`}
+                maxLength={60}
+                value={draft.site_name}
+                readOnly={locked}
+                aria-disabled={locked || undefined}
+                onChange={(e) => set("site_name", e.target.value)}
+              />
+            </Field>
+          </div>
+        </Locked>
       </section>
 
       <DomainsCard {...props} />

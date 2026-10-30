@@ -15,12 +15,13 @@ Everyone in a workspace has one role. The role decides what they can open and ch
 | **Can view** | Open everything the team can open. |
 | **Can edit** | Also add files, change files the team can open, and make folders. |
 | **Admin** | Also invite people, manage folders, and change the workspace's privacy, domains and branding. |
-| **Owner** | Everything an admin can do, plus manage admins and delete the workspace. Each workspace has one owner: the person who created it. |
+| **Owner** | Everything an admin can do, plus manage admins, hand the workspace on and delete it. Each workspace has one owner. At first it's the person who created it. |
 
 A few things only the owner can do:
 
 - Invite someone as **Admin**, or withdraw an invitation sent as Admin.
 - Change an admin's role, or remove an admin.
+- Make someone else the owner.
 - Delete the workspace.
 
 :::note
@@ -63,11 +64,25 @@ On the **People** tab, admins change a person's role from the select next to the
 
 When someone is removed, they lose access to the workspace right away. Files they added stay in the workspace, and they still own them. People they shared things with through the workspace lose that access too.
 
-You can't change your own role or remove yourself from this list. To leave, choose **Leave Acme…** (with your workspace's name) under **Leave workspace** on the **Advanced** tab. The owner can't leave; the owner can delete the workspace instead.
+You can't change your own role or remove yourself from this list. To leave, choose **Leave Acme…** (with your workspace's name) under **Leave workspace** on the **Advanced** tab. The owner can't leave. To go, the owner first makes someone else the owner, or deletes the workspace.
+
+## Transfer ownership
+
+The owner can hand the workspace to anyone already in it, whatever their role.
+
+::::steps
+### Open their menu
+On the **People** tab, open the menu on the person's row and choose **Make owner…**.
+
+### Confirm
+Read the dialog and choose **Transfer ownership**.
+::::
+
+They become the owner right away, and you become an admin. Files, links, grants and domains don't change. Only the new owner can hand it back.
 
 ## Who sees what in settings
 
-Everyone in the workspace can open its settings, but only admins change them. Controls that need the Admin role don't respond, and pointing at one or tabbing to it shows "Admins only". Members see which domains the workspace has and whether each one is live, but not the DNS records behind them.
+Everyone in the workspace can open its settings, but only admins change them. Controls that need the Admin role, such as **Privacy**, **Invite people**, **New items start as**, the workspace's names and **Add a domain**, don't respond, and pointing at one or tabbing to it shows "Admins only". Row menus with admin actions, like the one on a person or a domain, don't show at all. Members see which domains the workspace has and whether each one is live, but not the DNS records behind them.
 
 ## Related
 

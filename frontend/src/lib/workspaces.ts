@@ -221,6 +221,13 @@ export const setMemberRole = (id: string, userId: string, role: Exclude<Role, "o
 export const removeMember = (id: string, userId: string) =>
   announce(request<void>(`/api/v1/workspaces/${id}/members/${userId}`, { method: "DELETE" }));
 
+/** Owner only: hand the workspace to an existing member. The old owner becomes an admin. */
+export const transferOwnership = (id: string, userId: string) =>
+  announce(request<{ workspace_id: string; owner_id: string }>(`/api/v1/workspaces/${id}/transfer`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  }));
+
 // ── Invitations ───────────────────────────────────────────────────────────────
 //
 // There is no "add member" call. Joining a workspace is the invitee's decision,
