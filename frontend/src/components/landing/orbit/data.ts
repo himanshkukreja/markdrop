@@ -185,7 +185,7 @@ const INFO_DESKTOP: Record<InfoId, Info> = {
   send: { eyebrow: "Device to device", title: "Send files straight to a device", line: "Share one link or QR code with up to 10 people. From a terminal: markdrop send and markdrop get.", req: "No account", tone: "success", host: "markdrop.in/", path: "share/7fK2q", note: SEND_NOTE, noteLink: SEND_NOTE_LINK, icon: "send", cat: "var(--cat-share)", href: "/share", cta: "Send a file" },
   domain: { eyebrow: "Workspaces", title: "Publish under your own domain", line: "Run a workspace on docs.example.com with your logo, accent and name. Folders become URL paths.", req: "Workspaces", tone: "neutral", host: "docs.example.com/", path: "guides/onboarding", note: "Each page can be private, workspace only, shared with named people or open to anyone with the link.", icon: "globe", cat: "var(--text-secondary)", href: "/enterprise" },
   builder: { eyebrow: "README builder", title: "Build a README from blocks", line: "Drag in ready-made sections, diagrams and math included, then publish it as a page or export it to PDF.", req: "No account", tone: "success", host: "markdrop.in/", path: "my-project", note: "", icon: "builder", cat: "var(--cat-builder)", href: "/builder" },
-  docs: { eyebrow: "Docs Studio", title: "Write docs. Publish a docs site.", line: "Edit pages visually or in Markdown, pick a theme or match your brand, and publish on your own domain. Readers ask questions and get answers that cite your pages.", req: "Free account", tone: "info", host: "docs.example.com/", path: "quickstart", note: "Free plan: 3 sites per workspace and 1,000 Ask AI answers a month per site. Open source, so you can host it yourself.", icon: "studio", cat: "var(--studio)", href: "/docs-studio", cta: "Start a docs site" },
+  docs: { eyebrow: "Docs Studio", title: "Write docs. Publish a docs site.", line: "Edit pages visually or in Markdown, pick a theme or match your brand, and publish on your own domain. Readers ask questions and get answers that cite your pages.", req: "Free account", tone: "info", host: "docs.example.com/", path: "quickstart", note: "Free while in beta. Open source, so you can host it yourself.", icon: "studio", cat: "var(--studio)", href: "/docs-studio", cta: "Start a docs site" },
   finale: { eyebrow: "8 of 8 discovered", title: "You found all eight", line: "Documents you write and files you upload end the same way: one link that opens in any browser. Start with a document; it needs no account.", host: "markdrop.in/", path: "new", icon: "checkCircle", cat: "var(--success)", href: "/new" },
 };
 
@@ -199,7 +199,7 @@ const INFO_MOBILE: Record<InfoId, Info> = {
   send: { ...INFO_DESKTOP.send, line: "One link or QR code, up to 10 people. In a terminal: markdrop send and markdrop get." },
   domain: INFO_DESKTOP.domain,
   builder: INFO_DESKTOP.builder,
-  docs: { ...INFO_DESKTOP.docs, line: "Edit visually or in Markdown, pick a theme or match your brand, publish on your domain. Readers get answers that cite your pages.", note: "Free plan: 3 sites per workspace. Open source and self-hostable." },
+  docs: { ...INFO_DESKTOP.docs, line: "Edit visually or in Markdown, pick a theme or match your brand, publish on your domain. Readers get answers that cite your pages.", note: "Free while in beta. Open source and self-hostable." },
   finale: INFO_DESKTOP.finale,
 };
 

@@ -34,7 +34,7 @@ const FEATURES: Array<{ icon: string; title: string; line: string }> = [
   { icon: "download", title: "GitBook import", line: "Bring an existing GitBook site over, pages and navigation included." },
   { icon: "users", title: "Review and restore", line: "Changes go live after review. Restore an earlier version in one click." },
   { icon: "globe", title: "Your domain", line: "Serve the site on a domain you own, like docs.example.com." },
-  { icon: "zap", title: "Free plan", line: "3 sites per workspace, 1,000 pages and 1,000 Ask AI answers a month per site. Unlimited editors." },
+  { icon: "zap", title: "Free while in beta", line: "Every feature, with no per-editor pricing. Bring your whole team." },
   { icon: "server", title: "Open source", line: "Host it yourself with Docker, or let Markdrop host it for you." },
 ];
 
