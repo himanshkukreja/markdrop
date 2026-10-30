@@ -36,5 +36,11 @@ binding = "DOCS"
 bucket_name = "markdrop-docs-sites"
 
 [vars]
-# How long an isolate trusts the pointer it read: the publish → live delay.
+# How long an isolate trusts the pointer it read: the publish → live delay. The same for a site's
+# access policy (sites/<site>/access.json): a new password or level applies within this long.
 POINTER_TTL_MS = "5000"
+# Password and members-only sites (edge/access.mjs): the sign-in page posts passwords to the API and
+# sends members to the app's /auth/docs-access. The shared secret is a Worker secret, never a var:
+#   npx wrangler secret put DOCS_ACCESS_SECRET     (the API's MARKDROP_DOCS_ACCESS_SECRET)
+MARKDROP_API_ORIGIN = "https://api.markdrop.in"
+MARKDROP_APP_ORIGIN = "https://markdrop.in"

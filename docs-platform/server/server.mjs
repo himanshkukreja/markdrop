@@ -59,6 +59,8 @@ function toRequest(req, port) {
 
 async function send(res, req, response) {
   const headers = Object.fromEntries(response.headers);
+  const cookies = response.headers.getSetCookie?.() || [];
+  if (cookies.length) headers["set-cookie"] = cookies; // one header line each (the sign-in sets two)
   const type = headers["content-type"] || "";
   const ae = String(req.headers["accept-encoding"] || "");
   const enc = response.body && response.status === 200 && compressible(type) ? (/\bbr\b/.test(ae) ? "br" : /\bgzip\b/.test(ae) ? "gzip" : null) : null;
@@ -77,7 +79,9 @@ async function send(res, req, response) {
 
 export async function listen({ store, site, port = 8080, log = console.error }) {
   const { createHandler } = await import(path.join(ROOT, "edge", "dist", "handler.mjs"));
-  const handler = createHandler(store, { fixedSite: site || undefined, pointerTtlMs: 1000 });
+  // Password and members-only sites (edge/access.mjs) need the secret the API signs grants with.
+  const access = { secret: process.env.DOCS_ACCESS_SECRET, apiOrigin: process.env.MARKDROP_API_ORIGIN, appOrigin: process.env.MARKDROP_APP_ORIGIN };
+  const handler = createHandler(store, { fixedSite: site || undefined, pointerTtlMs: 1000, access });
   const server = http.createServer(async (req, res) => {
     try {
       const response = await handler.fetch(toRequest(req, port), { waitUntil: (p) => p.catch?.(() => {}) });

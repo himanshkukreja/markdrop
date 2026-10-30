@@ -69,6 +69,7 @@ objects/<sha256>              immutable (cached forever; never purged)
 manifests/<sha256>.json       immutable
 sites/<site>/current.json     the pointer {manifest, engine, publishedAt, previous}
 hosts/<hostname>.json         {site}
+sites/<site>/access.json      {site, level, policy_version}: password / members-only (no object = public)
 ```
 
 A publish uploads only the objects the store lacks. Objects referenced by the site's current
@@ -212,6 +213,36 @@ then. `test/edge.test.mjs` (4 tests) covers routing, negotiation, caching, Range
 and the host check; `test/assets.test.mjs` covers which engine files are shared, the additive export
 with its collision guard, and the `assets` rebuild/prune.
 
+## Password and members-only sites
+
+A Docs Studio site can be public, password protected or members-only (`settings.access.level`).
+The edge enforces it; the API holds the password and decides who may read.
+
+- **Policy.** `sites/<site>/access.json` = `{site, level, policy_version}`, written by the API's
+  `access` job on every change and by `publish` before it flips the pointer (`--access
+  <level>:<version>`, or the runner spec's `publish.access`), never to a lower version. No
+  password, no hash. No object = public. An unknown level or an unreadable object = closed (503),
+  a read error = 500: never open. Isolates trust it for `POINTER_TTL_MS`, like the pointer.
+- **Gate.** For a non-public site every address (pages, RSC payloads, `.md`, text outputs, search
+  index, OG images, site files, `/_next/static` through the Worker, redirects, 404s, `/mcp`,
+  `/api/geo`) needs the session cookie; a browser navigation without it gets a branded sign-in page
+  (inline CSS, no script; the logo and favicon files stay readable), anything else a bare 401.
+  `robots.txt` disallows everything. Every response is `private, no-store` + `noindex`, and the
+  site's objects skip the colo Cache API. Engine chunks served by Workers Static Assets never reach
+  the Worker; they hold engine code only, never site content.
+- **Sign-in.** The password form posts straight to the API (`/api/v1/docs-access/password`, rate
+  limited per IP and site): the edge never sees a password. Members-only links to markdrop.in's
+  `/auth/docs-access`, which asks the API with the reader's session (Docs Studio role viewer or
+  more). Either way the API answers with a two-minute grant (HMAC with the secret it shares with the
+  Worker, `DOCS_ACCESS_SECRET`) for this site, host, policy version and browser (the hash of a
+  random state in an HttpOnly cookie), in the URL fragment of `/_access/callback`. That page posts
+  it to `/_access/session`, which sets `__Host-docs_access`: HttpOnly, Secure, SameSite=Lax,
+  host-only, 12 hours, signed for the site and policy version (a new password or level signs
+  everyone out). `/_access/logout` clears it.
+- **Setup.** `npx wrangler secret put DOCS_ACCESS_SECRET` (32+ characters, the API's
+  `MARKDROP_DOCS_ACCESS_SECRET`); vars `MARKDROP_API_ORIGIN`, `MARKDROP_APP_ORIGIN` (wrangler.toml).
+  Without the secret a non-public site answers only "private". Self-host: the same three as env.
+
 ## Commands
 
 ```bash
@@ -268,13 +299,15 @@ builder/  cli.mjs (build, publish, point, assets, media, diff, bundle) · stage.
 runner/   run-job.mjs + lib.mjs (one build or import job, from the API or a spec file) ·
           github-workflow.yml (the private builder repo's workflow) · README.md (setup, routing,
           measurements, the local worker's systemd unit)
-edge/     handler.mjs (the fetch handler) · worker.mjs (R2 + Cache API) · wrangler.toml ·
+edge/     handler.mjs (the fetch handler) · access.mjs (private sites: policy, tokens, sign-in pages) ·
+          worker.mjs (R2 + Cache API) · wrangler.toml ·
           mcp-entry.mjs + shims/ (fs, path, next/server for the bundled MCP route) ·
           assets/ (git-ignored: the shared engine files, deployed as Static Assets)
 server/   server.mjs (Node: serve a store, or build + serve + watch a folder)
 docker/   Dockerfile (+ .dockerignore; context = repo root)
 examples/ minimal/ (a 2-page site; also warms the Docker image's build cache)
-test/     edge.test.mjs · assets.test.mjs · runner.test.mjs · verify.mjs · miniflare.mjs · pageview.mjs
+test/     edge.test.mjs · access.test.mjs · assets.test.mjs · runner.test.mjs · verify.mjs · miniflare.mjs ·
+          pageview.mjs
 ```
 
 ## Open decisions for the owner
