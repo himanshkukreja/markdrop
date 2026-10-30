@@ -15,7 +15,7 @@ There are two Markdrop servers. Which one you add depends on where your AI app r
 | Address | `https://api.markdrop.in/mcp` | `markdrop mcp`, part of the CLI |
 | Runs | On Markdrop | On your computer, started by the AI app |
 | Works with | claude.ai and the Claude apps, ChatGPT, Claude Code, Cursor, VS Code, Windsurf and other apps that add remote servers | Claude Code, Claude Desktop, Cursor, VS Code and other apps that start local servers |
-| Signs in with | Markdrop's approval screen (OAuth). No key to paste. | An API token (`MARKDROP_TOKEN`) for publishing |
+| Signs in with | Markdrop's approval screen (OAuth). No key to paste. | An API token (`MARKDROP_TOKEN` or `markdrop login`) for publishing |
 | Best for | Publishing what the assistant writes, reading and updating your documents, access, analytics, workspaces | Publishing and replacing files from your disk (videos up to 2 GB), sending and receiving files peer to peer |
 | Tools | 26 | 11 |
 

@@ -35,7 +35,7 @@ irm https://github.com/himanshkukreja/markdrop/releases/latest/download/install.
 
 The script installs `markdrop.exe` to `%LOCALAPPDATA%\markdrop` and adds that folder to your user `PATH`. Open a new terminal before you run `markdrop`.
 
-Windows builds are 64-bit x86 (amd64) only. There is no build for Windows on Arm yet.
+Windows builds are 64-bit x86 (amd64) only. On Windows on Arm, the script installs the x64 build, which runs under emulation.
 :::
 
 :::tab[Linux]
@@ -111,7 +111,28 @@ Then extract the archive and move `markdrop` (or `markdrop.exe`) to a folder on 
 ## Uninstall
 
 1. Run `markdrop logout` to delete the API token saved on this computer, if you saved one. See [Sign in and API tokens](/cli/login-and-tokens).
-2. Remove the binary: `brew uninstall markdrop`, or delete `/usr/local/bin/markdrop` or `~/bin/markdrop`. On Windows, delete the `%LOCALAPPDATA%\markdrop` folder.
+2. Remove the binary the way you installed it:
+
+| You installed with | Remove with |
+|---|---|
+| Homebrew | `brew uninstall markdrop` |
+| The install script | Delete `/usr/local/bin/markdrop` or `~/bin/markdrop`. On Windows, delete the `%LOCALAPPDATA%\markdrop` folder. |
+| A `.deb` package | `sudo apt remove markdrop` |
+| An `.rpm` package | `sudo dnf remove markdrop` |
+| An `.apk` package | `sudo apk del markdrop` |
+
+Packages install the binary at `/usr/bin/markdrop`.
+
+## Build from source
+
+You need Go 1.25 or later and `make`. The module path isn't the repository's, so `go install …@latest` doesn't work. Clone the repository and build in `cli/`:
+
+```bash title="Build from source"
+git clone https://github.com/himanshkukreja/markdrop
+cd markdrop/cli
+make build      # writes ./markdrop
+make install    # or put markdrop in $GOBIN (default ~/go/bin)
+```
 
 ## Next steps
 

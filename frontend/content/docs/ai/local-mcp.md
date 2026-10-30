@@ -23,9 +23,9 @@ Install markdrop 0.5.0 or later and check with `markdrop --version`. See [Instal
 Earlier versions have fewer tools: 0.3.0 added the peer-to-peer tools, 0.4.0 the file tools and 0.5.0 the workspace tools.
 
 ### Create an API token
-Publishing and replacing files need an API token. Create one at [markdrop.in/settings/tokens](https://markdrop.in/settings/tokens). Sharing peer to peer works without it, but with a token your shares are listed under your account, where the hosted server's `list_shares` can see them.
+Publishing and replacing files need an API token, and so do the workspace tools. Create one at [markdrop.in/settings/tokens](https://markdrop.in/settings/tokens). Sharing peer to peer works without it, but with a token your shares are listed under your account, where the hosted server's `list_shares` can see them.
 
-You can give the token to the server in its configuration, as below, or run `markdrop login` once: the server also uses the token that command saves.
+You can give the token to the server as `MARKDROP_TOKEN` in its configuration, as below, or run `markdrop login` once and leave `env` out. The server uses the same token for every tool: publishing, workspaces and listing your shares. If both are set, `MARKDROP_TOKEN` wins.
 
 ### Add the server to your app
 Register it once, as `markdrop-p2p`. The app starts and stops it.
@@ -124,7 +124,7 @@ Inputs and results for each tool are in [MCP tools](/ai/tools#local-server-tools
 
 `upload_file` and `replace_file` work like [`markdrop upload` and `markdrop replace`](/cli/upload-and-replace): the file is hashed, sent in parts and checked by Markdrop before it goes live, and nothing changes if the check fails. If the app cancels a long upload, calling the tool again with the same arguments resumes it. Apps that show progress get progress updates with the bytes sent.
 
-New uploads are open to anyone with the link unless the assistant sets `access` to `private`, `password` or `workspace`. With `workspace` and `folder`, the file goes into one of your workspaces, and the link returned is on the workspace's custom domain when it has a live one.
+New uploads are open to anyone with the link unless the assistant sets `access` to `private`, `password` or `workspace`. With `workspace` (and optionally `folder`), the file goes into one of your workspaces, and the link returned is on the workspace's custom domain when it has a live one. A file uploaded into a workspace with no `access` set gets `workspace` access: only the workspace's members can open it.
 
 ### Sharing peer to peer
 

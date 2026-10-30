@@ -104,13 +104,13 @@ The hosted server can't send or receive files; that needs the [local server](/ai
 
 ## Local server tools
 
-These run on your computer, inside `markdrop mcp`. They have no permissions to approve; the file and workspace tools act as the owner of the API token the server was given. See [Add the local MCP server](/ai/local-mcp).
+These run on your computer, inside `markdrop mcp`. They have no permissions to approve; the file and workspace tools act as the owner of the server's API token: `MARKDROP_TOKEN` in its environment, or else the token saved by `markdrop login`. See [Add the local MCP server](/ai/local-mcp).
 
 ### Publish files from disk
 
 | Tool | Token | What it does | Main inputs |
 |---|---|---|---|
-| `upload_file` | Yes | Publishes a file from this computer (video and audio up to 2 GB) and returns its link. Resumes when called again with the same arguments. | `path`, `title`, `access` (`link`, `private`, `password`, `workspace`), `password`, `workspace`, `folder`, `slug` |
+| `upload_file` | Yes | Publishes a file from this computer (video and audio up to 2 GB) and returns its link. Resumes when called again with the same arguments. | `path`, `title`, `access` (`link`, `private`, `password`, `workspace`; default `link`, or `password` when a password is given, else `workspace` when a workspace is), `password`, `workspace`, `folder`, `slug` |
 | `replace_file` | Yes | Replaces the file behind an existing link with a file from this computer. Link, access, title and views stay; the previous version is kept. | `document`, `path`, `title` |
 | `list_file_versions` | Yes | A file's versions, newest first. Up to five are kept. | `document` |
 | `restore_file_version` | Yes | Makes an earlier version current again, as a new version. | `document`, `version` |
@@ -134,7 +134,7 @@ Results of `upload_file` and `replace_file` carry `url`, `markdrop_url`, `slug`,
 | `stop_share` | No | Stops a share; anyone downloading is told the sender stopped. Given a receive id, cancels that download. | `share_id` |
 | `receive_share` | No | Downloads a share link into `~/Downloads/Markdrop` or a folder you name, in the background. Never overwrites. | `link`, `directory` |
 
-With a token, shares started by `share_files` are also listed by the hosted server's `list_shares`.
+With a token (`MARKDROP_TOKEN` or the one saved by `markdrop login`), shares started by `share_files` are listed under your account, so the hosted server's `list_shares` shows them.
 
 ## Same name, two servers
 

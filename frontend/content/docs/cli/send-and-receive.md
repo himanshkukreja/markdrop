@@ -47,10 +47,12 @@ A folder is compressed into one zip before it is sent. `markdrop get` unpacks it
 
 ### Link the share to your account
 
-Shares from the CLI are anonymous unless `MARKDROP_TOKEN` is set. With a token, the share is listed under your account, where an AI app connected to Markdrop can see it with `list_shares`. Without one, the CLI tells Markdrop nothing about the file.
+Shares from the CLI are anonymous unless `send` has an API token. It uses `--token`, then `MARKDROP_TOKEN`, then the token saved by [`markdrop login`](/cli/login-and-tokens). With a token, the share is listed under your account, where an AI app connected to Markdrop can see it with `list_shares`. Without one, the CLI tells Markdrop nothing about the file.
 
 ```bash
-MARKDROP_TOKEN=mdk_•••• markdrop send report.pdf
+markdrop login                      # once; later sends use the saved token
+markdrop send report.pdf
+MARKDROP_TOKEN=mdk_•••• markdrop send report.pdf   # or give a token for one send
 ```
 
 ## Receive a file

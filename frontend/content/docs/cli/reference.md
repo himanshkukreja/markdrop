@@ -23,7 +23,7 @@ This page covers the markdrop CLI 0.5.0. Run `markdrop <command> --help` for the
 | [`workspaces [workspace]`](#workspaces) | List your workspaces, or one workspace's folders | Yes |
 | [`login`](#login) | Save an API token on this computer | No |
 | [`logout`](#logout) | Delete the saved API token | No |
-| [`mcp`](#mcp) | Run the local MCP server for AI apps (stdio) | For file tools |
+| [`mcp`](#mcp) | Run the local MCP server for AI apps (stdio) | For file and workspace tools |
 | `completion <shell>` | Print a shell completion script (bash, zsh, fish, powershell) | No |
 | `help [command]` | Show help | No |
 
@@ -48,10 +48,10 @@ You only need `--server`, `--origin` and `--web` when you run your own Markdrop 
 ### send
 
 ```text
-markdrop send <file|folder>
+markdrop send <file|folder> [--token T]
 ```
 
-Prints a share link, room id and QR code, waits for a recipient, sends the file and exits. A folder is zipped before sending. With `MARKDROP_TOKEN` set, the share is listed under your account. :kbd[Ctrl+C] stops it. Guide: [Send and receive files](/cli/send-and-receive).
+Prints a share link, room id and QR code, waits for a recipient, sends the file and exits. A folder is zipped before sending. With a token (`--token`, `MARKDROP_TOKEN`, or the one saved by `markdrop login`), the share is listed under your account; without one it is anonymous. :kbd[Ctrl+C] stops it. Guide: [Send and receive files](/cli/send-and-receive).
 
 ### get
 
@@ -165,7 +165,7 @@ Runs Markdrop's local MCP server over standard input and output. AI apps start i
 | Variable | Used by | Effect |
 |---|---|---|
 | `MARKDROP_TOKEN` | File commands, `send`, `mcp` | API token. Beats the saved token; `--token` beats it. |
-| `MARKDROP_CONFIG_DIR` | `login`, `logout`, file commands | Folder for the saved token (`<dir>/token`). Default: your user config folder plus `markdrop`. |
+| `MARKDROP_CONFIG_DIR` | `login`, `logout`, file commands, `send`, `mcp` | Folder for the saved token (`<dir>/token`). Default: your user config folder plus `markdrop`. |
 | `MARKDROP_CACHE_DIR` | `upload`, `replace`, `mcp` | Folder for unfinished uploads (`<dir>/uploads`). Default: your user cache folder plus `markdrop`. |
 | `MARKDROP_MCP_ALLOW_ANY_PATH` | `mcp` | `1` turns off the guard that refuses to share or publish secret locations such as `~/.ssh`. |
 | `MARKDROP_DEBUG` | `send`, `get`, `mcp` shares | Any value prints connection state changes and the chosen route on standard error. |

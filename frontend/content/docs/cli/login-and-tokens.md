@@ -8,7 +8,7 @@ since: CLI 0.4.0
 keywords: [login, logout, token, api token, mdk, MARKDROP_TOKEN, ci, authentication]
 ---
 
-The CLI acts as you through an API token, a long string that starts with `mdk_`. Commands that publish or look up your files need one. Peer-to-peer `send` and `get` work without it.
+The CLI acts as you through an API token, a long string that starts with `mdk_`. Commands that publish or look up your files need one. Peer-to-peer `send` and `get` work without it; with one, `send` and the shares `markdrop mcp` starts are listed under your account.
 
 | Needs a token | Works without one |
 |---|---|
