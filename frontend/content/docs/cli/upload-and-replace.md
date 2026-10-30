@@ -111,7 +111,10 @@ Everyone who has the link now gets the new file. You can name the file by its li
 
 Replacing works like uploading: hashed, sent in parts, verified, and resumable by running the same command again. If the check fails, the link keeps serving the old file.
 
-You can replace a file you own, a file shared with you as an editor, or a file in your workspace that isn't private. The new version counts against the owner's storage. When that storage is full you get an error, and the owner's earlier versions are left alone.
+You can replace a file you own, a file shared with you as an editor, or a file in your workspace that isn't private. The new version counts against the owner's storage. When that storage is full:
+
+- If it's your own file, Markdrop drops that file's oldest versions to make room. You get an error only if that still isn't enough.
+- If it's someone else's file, you get an error, and their earlier versions are left alone.
 
 :::note[Markdown documents and zipped sites]
 `replace` is for files. A Markdown document is changed by editing it on markdrop.in, from [VS Code](/vscode/sync), or with an AI app's `update_document` tool. A zipped website has no versions: replace it from the Markdrop website.
@@ -144,6 +147,8 @@ version 3
 ```
 
 A restore never deletes anything: the old file comes back as a new version, so you can undo a restore the same way. `v1` works as well as `1`.
+
+To delete an old version and free its space, open the file's **Settings** on markdrop.in and use **Versions**. See [Replace a file and restore versions](/files/replace-and-versions#delete-an-old-version).
 
 ## Check a published file
 

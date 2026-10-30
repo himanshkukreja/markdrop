@@ -17,7 +17,7 @@ Every document and file has one setting that decides who can open it: **Who can 
 | **{Team} team**, for example **Acme team** | Everyone in the workspace it's filed in, plus people you add by email. Nobody else, link or not. | Needed. |
 | **Anyone with the link** | Anyone who has the address. | Not needed. |
 
-**Anyone with the link** is the default. Everything published without an account uses it, and it's how Markdrop links have always worked.
+Outside a workspace, **Anyone with the link** is the default. Everything published without an account uses it, and it's how Markdrop links have always worked. Something published into a workspace starts with that workspace's default instead (or its folder's, if the folder sets one). That's the team choice, unless an admin changed it.
 
 The team choice is named after your workspace's site name, or its name if it has no site name, so a workspace called Acme shows **Acme team**. It's only available once the document is in a workspace.
 
@@ -74,13 +74,15 @@ Putting a document in a workspace folder doesn't change who can open it. A docum
 | Person | Read | Edit the text or replace the file | Password, expiry, link, delete | Who can open it, add people |
 | --- | --- | --- | --- | --- |
 | Owner | Yes | Yes | Yes | Yes |
-| Edit secret holder | Yes | Yes | Yes | No |
+| Edit secret holder | Yes | A document's text, not a file | Yes | No |
 | Added with **Can edit** | Yes | Yes | No | Add others, if allowed |
 | Added with **Can view** | Yes | No | No | Add others, if allowed |
 | Workspace member, team choice or link | Yes | Yes, except **Can view** members | No | Add others, if allowed |
 | Anyone else, link choice | Yes | No | No | No |
 
 "If allowed" means you turned on **Let people I share with add others**. See [Share with specific people](/sharing/share-with-people#let-people-share-it-on).
+
+Replacing a file always needs a signed-in account that can edit it. The edit secret doesn't replace files.
 
 ## More about sharing
 

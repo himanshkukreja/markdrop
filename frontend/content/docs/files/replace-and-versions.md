@@ -53,7 +53,7 @@ You can pass the link or the full URL. The CLI uploads in parts and resumes if i
 - People you added with **Can edit**.
 - Members of the file's workspace who can edit, unless the file is set to **Only people added**.
 
-Only the owner changes the title, link, password and expiry, or deletes the file. A replacement counts against the owner's storage.
+People who can edit the file can change its title too: in the **Replace file** drawer, with `--title` in the CLI, or through the API. Only the owner changes the link, password and expiry, deletes old versions, or deletes the file. A replacement counts against the owner's storage.
 
 ## Versions
 
@@ -61,13 +61,28 @@ Markdrop keeps the last **5 versions** of each file, the current one included. E
 
 ::clip{src="/docs-assets/files/replace-and-versions/replace-keeps-link" alt="Animation: the link markdrop.in/q3-deck stays fixed while versions stack under it; restoring version 2 adds a copy as version 4 on top, and when a sixth version arrives the oldest drops off, keeping 5." theme="light"}
 
-Old versions count against the owner's 20 GB of storage. If a replacement wouldn't fit, Markdrop drops that file's oldest versions first. See [File size and storage limits](/files/limits).
+Old versions count against the owner's 20 GB of storage. If the owner's replacement wouldn't fit, Markdrop drops that file's oldest versions first. If someone else's replacement wouldn't fit, it's refused and the owner's versions stay. See [File size and storage limits](/files/limits).
 
 Old versions are never public. Only the current file is served at the link.
 
-### See and restore versions
+### See and restore versions in the browser
 
-The web app doesn't list versions. Use the CLI, or ask an AI assistant connected through MCP.
+::::steps
+### Open the file's settings
+Open the file, press :kbd[Esc] or choose **Show details**, then choose **More artifact actions › Settings**. If you can edit the file but don't own it, choose **Replace file**.
+
+### Find Versions
+The **Versions** section lists each kept version, newest first, with its size and when it was added. The live one is marked **Current**.
+
+### Restore one
+Choose **Restore** next to an earlier version, then **Restore** again to confirm. It goes live at the same link straight away.
+::::
+
+### Delete an old version
+
+To free space, the owner can delete an earlier version: in **Versions**, choose the bin button next to it, then **Delete version**. It's gone for good, and its space comes back to your storage. You can't delete the current version; restore another one first, or delete the file.
+
+### See and restore versions from the terminal
 
 ```bash
 markdrop versions q3-deck
@@ -88,7 +103,7 @@ markdrop restore q3-deck 2
 
 A restore doesn't delete anything: it adds a new version that's a copy of version 2. So version 2 becomes version 4, and you can undo the restore by restoring version 3.
 
-Seeing and restoring versions is for the owner and people who can edit the file. With MCP, the tools are `list_file_versions` and `restore_file_version`. See [MCP tools](/ai/tools).
+Seeing and restoring versions is for the owner and people who can edit the file. With MCP, the tools are `list_file_versions` and `restore_file_version`. See [MCP tools](/ai/tools). Deleting a version is in the browser, or [through the API](/api/files/delete-a-file-version).
 
 ## Zipped websites
 
