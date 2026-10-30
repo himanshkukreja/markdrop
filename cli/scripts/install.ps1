@@ -1,6 +1,6 @@
 # markdrop Windows installer
-# Run in PowerShell:
-#   irm https://markdrop.in/install.ps1 | iex
+# Run in PowerShell (the script is attached to every GitHub release):
+#   irm https://github.com/himanshkukreja/markdrop/releases/latest/download/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
@@ -15,9 +15,14 @@ Write-Host ""
 
 # ── Detect architecture ───────────────────────────────────────────────────────
 
+# Releases have no Windows on Arm build. Windows 11 on Arm runs x64 programs
+# under emulation, so ARM64 machines get the amd64 build.
 $Arch = switch ($Env:PROCESSOR_ARCHITECTURE) {
     "AMD64" { "amd64" }
-    "ARM64" { "arm64" }
+    "ARM64" {
+        Write-Host "  Windows on Arm: installing the x64 build, which runs under emulation." -ForegroundColor DarkGray
+        "amd64"
+    }
     default { throw "Unsupported architecture: $Env:PROCESSOR_ARCHITECTURE" }
 }
 

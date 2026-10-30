@@ -1,11 +1,11 @@
-¸¸ǥit#!/usr/bin/env sh
+#!/usr/bin/env sh
 # markdrop installer — Linux & macOS
 #
-# One-liner (once hosted at markdrop.in/install.sh):
-#   curl -fsSL https://markdrop.in/install.sh | sh
+# One-liner (the script is attached to every GitHub release):
+#   curl -fsSL https://github.com/himanshkukreja/markdrop/releases/latest/download/install.sh | sh
 #
-# For Ubuntu/Debian users who prefer "sudo apt install markdrop", use the
-# APT repo setup instead — see https://markdrop.in or the README.
+# Prefer a package? Each release also has .deb, .rpm and .apk files — see
+# https://docs.markdrop.in/cli/install
 #
 # This script installs the binary directly to /usr/local/bin (or ~/bin if no
 # write permission). No package manager or root required when using ~/bin.
