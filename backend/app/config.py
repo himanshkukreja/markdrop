@@ -434,7 +434,10 @@ class Settings(BaseSettings):
     docs_private_sites_enabled: bool = False
     docs_asset_max_bytes: int = 25 * 1024 * 1024
     docs_site_storage_bytes: int = 2 * 1024 * 1024 * 1024
-    docs_ai_answers_per_month: int = 1000  # Ask AI answers per site per month
+    # Ask AI answers per site per UTC month: shown on the dashboard and enforced by Ask AI
+    # (services/docs_agent.py; a reader past it gets the `limit` answer with Open-in links).
+    # Inside the global docs_ai_daily_usd / docs_ai_monthly_usd spend caps.
+    docs_ai_answers_per_month: int = 1000
     # One page's Markdown. A publish snapshot is one MongoDB document (16 MB).
     docs_page_max_chars: int = 300_000
 

@@ -16,6 +16,9 @@ How it works
   site (default "markdrop"); the site's folder supplies the docs, its prompt
   section, the hosts answers may link to, search synonyms, spend caps and
   whether Markdrop's own account tools apply. Nothing about a site is in code.
+  A Docs Studio site (named by its id) supplies the same from its row and its
+  live build's snapshot: the neutral prompt, its own address(es) only, no
+  account tools.
 * The model drives: it decides which read-only tools to call (search the docs
   with rephrased queries, read sections or pages, changelog, and on Markdrop's
   site exact limits and, for a signed-in reader, their own account and who can
@@ -34,7 +37,8 @@ How it works
   shape (only user/assistant text from the client, re-validated, citation
   markers stripped), per-visitor hourly limit, a concurrency cap, daily and
   monthly spend caps from real usage (services/ai_usage.py), global and per
-  site, the kill switch (global, and per site in site.json),
+  site, a Docs Studio site's monthly answer cap, the kill switch (global, and
+  per site in site.json or the studio site's settings),
   refusal handling, the output link allow-list, personal tools scoped to the
   signed-in caller (tenant tokens count as signed out), and no secrets in any
   tool result.
@@ -80,6 +84,7 @@ EFFORTS = ("low", "medium", "high", "xhigh", "max")
 # Within this process.
 _inflight = 0
 _inflight_by_visitor: dict[str, int] = {}
+_inflight_by_site: dict[str, int] = {}
 _pending_records: set[asyncio.Task] = set()
 
 
@@ -551,10 +556,15 @@ class AnswerFilter:
 
 
 def make_link_check(index) -> Callable[[str], str | None]:
-    """The site's own pages (that exist), its ai.json linkHosts, mailto: its mailDomains."""
+    """The site's own pages (that exist), its ai.json linkHosts, mailto: its mailDomains.
+
+    A link to one of the site's alias hosts (a Docs Studio site's free address
+    besides its own domain) is checked like a docs link and rewritten to the
+    docs host."""
     cfg = index.cfg
     docs_host = (urlsplit(index.site_url).hostname or "").lower() or None
-    app_hosts = frozenset(cfg.link_hosts) - {docs_host}
+    docs_hosts = frozenset(h for h in (docs_host, *cfg.alias_hosts) if h)
+    app_hosts = frozenset(cfg.link_hosts) - docs_hosts
     mail_domains = tuple("@" + d for d in cfg.mail_domains)
 
     def docs_url(path: str, anchor: str | None) -> str | None:
@@ -586,7 +596,7 @@ def make_link_check(index) -> Callable[[str], str | None]:
         if parts.scheme.lower() not in ("http", "https") or parts.username or parts.password:
             return None
         host = (parts.hostname or "").lower()
-        if docs_host and host == docs_host:
+        if host in docs_hosts:
             return docs_url(parts.path or "/", parts.fragment or None)
         if host in app_hosts:
             return "https://" + u.split("://", 1)[1]
@@ -1119,7 +1129,7 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
     global _inflight
     s = get_settings()
     try:
-        index = docs_index_mod.get_index(req.site)
+        index = await docs_index_mod.aget_index(db, req.site)
     except UnknownSite:
         yield "error", {"message": "Ask AI isn't set up for this docs site.", "code": "unknown_site"}
         return
@@ -1181,6 +1191,15 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
         await record_limit(f"budget_{state.reason}")
         yield limit_event("budget")
         return
+    # A Docs Studio site's monthly answers (the count its dashboard shows).
+    if cfg.monthly_answers is not None:
+        from app.services import docs_site_store
+
+        answered = (await docs_site_store.ai_answers(db, [site_id])).get(site_id, 0)
+        if answered + _inflight_by_site.get(site_id, 0) >= cfg.monthly_answers:
+            await record_limit("site_answers_monthly")
+            yield limit_event("budget")
+            return
     # The site's own caps (ai.json "budget"), inside the global ones.
     site_capped = cfg.daily_cap is not None or cfg.monthly_cap is not None
     if site_capped:
@@ -1200,6 +1219,7 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
     # ── Run ──
     _inflight += 1
     _inflight_by_visitor[visitor] = _inflight_by_visitor.get(visitor, 0) + 1
+    _inflight_by_site[site_id] = _inflight_by_site.get(site_id, 0) + 1
     ai_usage.hold(FEATURE, RESERVE_USD)
     ai_usage.hold(site_scope, RESERVE_USD)
     sources = Sources(index)
@@ -1386,6 +1406,11 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
             _inflight_by_visitor.pop(visitor, None)
         else:
             _inflight_by_visitor[visitor] = n
+        n = _inflight_by_site.get(site_id, 1) - 1
+        if n <= 0:
+            _inflight_by_site.pop(site_id, None)
+        else:
+            _inflight_by_site[site_id] = n
         ai_usage.release(FEATURE, RESERVE_USD)
         ai_usage.release(site_scope, RESERVE_USD)
         if not recorded:
@@ -1419,7 +1444,7 @@ async def answer_feedback(db: AsyncIOMotorDatabase, request_id: str, helpful: bo
 
 async def page_feedback(db: AsyncIOMotorDatabase, *, path: str, helpful: bool, comment: str | None,
                         user_id: str | None, ip: str | None, site: str = DEFAULT_SITE) -> None:
-    index = docs_index_mod.get_index(site)
+    index = await docs_index_mod.aget_index(db, site)
     await db["docs_feedback"].insert_one({
         "site": index.site_id,
         "path": path,
