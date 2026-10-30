@@ -5,23 +5,56 @@
 import Link from "next/link";
 import { Button, MarkdropMark, Wordmark } from "@/components/ui";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { aiSettings, headerBrand, type HeaderBrand } from "../brand";
+import { cx } from "../cx";
 import { getNav, getSite } from "../content";
 import { MobileMenu, NavLinks } from "../client/Chrome";
 import { AskButton } from "../client/ask/entry";
 import { SearchTrigger } from "../client/Search";
 import { isAppPath } from "../markdown";
 
+/** The header's logo: the Markdrop mark and wordmark, the site's images, or its name as text. */
+function BrandMark({ brand }: { brand: HeaderBrand }) {
+  const label = brand.label ? <span className="dx-brand__docs">{brand.label}</span> : null;
+  if (brand.kind === "markdrop")
+    return (
+      <>
+        <MarkdropMark size={28} />
+        <Wordmark className="dx-brand__word" />
+        {label}
+      </>
+    );
+  if (brand.kind === "image")
+    return (
+      <>
+        {/* eslint-disable-next-line @next/next/no-img-element -- a logo from site.json: any size, maybe another origin */}
+        <img src={brand.light} alt={brand.text ? "" : brand.alt} className={cx("dx-brand__logo", brand.dark && "dx-themed-light")} />
+        {brand.dark && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={brand.dark} alt={brand.text ? "" : brand.alt} className="dx-brand__logo dx-themed-dark" />
+        )}
+        {brand.text && <span className="dx-brand__word dx-brand__name">{brand.text}</span>}
+        {label}
+      </>
+    );
+  return (
+    <>
+      <span className="dx-brand__word dx-brand__name">{brand.text}</span>
+      {label}
+    </>
+  );
+}
+
 export function DocsHeader({ activeTab, current }: { activeTab?: string; current?: string }) {
   const site = getSite();
   const nav = getNav();
+  const ai = !!aiSettings(site);
   return (
     <header className="dx-header">
       <div className="dx-header__in">
         <MobileMenu tabs={site.tabs} groups={nav} activeTab={activeTab} current={current} title={site.name} />
         <Link href="/" className="dx-brand" aria-label={`${site.name} home`}>
-          <MarkdropMark size={28} />
-          <Wordmark className="dx-brand__word" />
-          <span className="dx-brand__docs">Docs</span>
+          <BrandMark brand={headerBrand(site)} />
         </Link>
         <nav aria-label="Docs sections" className="dx-tabsnav">
           {site.tabs.map((t) => (
@@ -37,12 +70,16 @@ export function DocsHeader({ activeTab, current }: { activeTab?: string; current
           <span className="dx-only-narrow">
             <SearchTrigger variant="icon" />
           </span>
-          <span className="dx-only-wide">
-            <AskButton />
-          </span>
-          <span className="dx-only-narrow">
-            <AskButton variant="icon" />
-          </span>
+          {ai && (
+            <>
+              <span className="dx-only-wide">
+                <AskButton />
+              </span>
+              <span className="dx-only-narrow">
+                <AskButton variant="icon" />
+              </span>
+            </>
+          )}
           <ThemeToggle />
           {site.product && (
             <span className="dx-only-xwide">

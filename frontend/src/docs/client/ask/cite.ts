@@ -1,14 +1,15 @@
 "use client";
 
 /**
- * Going to a cited section: answers carry absolute docs URLs (https://docs.markdrop.in/page#id),
+ * Going to a cited section: answers carry absolute docs URLs (https://<the site's url>/page#id),
  * which become in-app paths here so they work on any docs host (and locally). The same page
  * scrolls; another page navigates first. Either way the section is briefly highlighted
  * (accent-soft with a ring, about 2 s) and its heading takes focus.
  */
-import { DOCS_HOST } from "../../host";
+import { DOCS_HOSTS } from "../../host";
 
-const KNOWN_HOSTS = new Set([DOCS_HOST, "docs.markdrop.in"]);
+/** The docs hosts, plus (per call) the site's own url and the host on screen. */
+const KNOWN_HOSTS = DOCS_HOSTS;
 
 /** "/path#anchor" for a docs URL (or an in-app path), or null for anything else. */
 export function docsPath(url: string, siteUrl?: string): string | null {

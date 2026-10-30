@@ -7,6 +7,7 @@ import { Badge, Button, CopyButton, Drawer, Icon, IconButton, cx } from "@/compo
 import type { NavGroup, SiteTab } from "../types";
 import { openSearch, setSyncedChoice, useSyncedChoice } from "./state";
 import { ensureStatus, openAsk, useAsk } from "./ask/store";
+import { useDocsSite } from "./site";
 
 export function NavLinks({ groups, current, onPick }: { groups: NavGroup[]; current?: string; onPick?: () => void }) {
   return (
@@ -79,15 +80,18 @@ export function MobileMenu({ tabs, groups, activeTab, current, title }: { tabs: 
 
 /**
  * The home hero's ask box: the question goes to the Ask AI panel (the sheet on phones). When the
- * server says Ask AI is off, it searches the docs instead.
+ * server says Ask AI is off, it searches the docs instead; on a site without Ask AI it is a
+ * search box.
  */
 export function HomeAsk({ chips = [], placeholder }: { chips?: string[]; placeholder?: string }) {
   const [q, setQ] = useState("");
   const { availability } = useAsk();
+  const { ai } = useDocsSite();
   const off = availability === "unavailable";
   const go = (question: string) => {
     const text = question.trim();
     if (!text) return;
+    if (!ai) return openSearch(text);
     void ensureStatus().then((ok) => {
       if (ok) {
         openAsk({ question: text });
@@ -104,15 +108,15 @@ export function HomeAsk({ chips = [], placeholder }: { chips?: string[]; placeho
       }}
     >
       <label htmlFor="dx-ask-home" className="dx-sr">
-        Ask a question about these docs
+        {ai ? "Ask a question about these docs" : "Search these docs"}
       </label>
       <div className="dx-ask__box">
-        <Icon name="zap" className="dx-ask__glyph" />
+        <Icon name={ai ? "zap" : "search"} className="dx-ask__glyph" />
         <input
           id="dx-ask-home"
           type="text"
           className="dx-ask__input"
-          placeholder={placeholder ?? "Ask anything"}
+          placeholder={placeholder ?? (ai ? "Ask anything" : "Search the docs")}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => void ensureStatus()}
@@ -120,7 +124,7 @@ export function HomeAsk({ chips = [], placeholder }: { chips?: string[]; placeho
           maxLength={2000}
         />
         <Button type="submit" iconRight="arrowRight">
-          {off ? "Search" : "Ask"}
+          {off || !ai ? "Search" : "Ask"}
         </Button>
       </div>
       {chips.length > 0 && (
@@ -132,7 +136,7 @@ export function HomeAsk({ chips = [], placeholder }: { chips?: string[]; placeho
           ))}
         </div>
       )}
-      <p className="dx-ask__hint">{off ? "Ask AI is off right now, so Ask searches these docs." : "Answers come only from these docs, with links to the exact sections they used."}</p>
+      {ai && <p className="dx-ask__hint">{off ? `${ai.name} is off right now, so Ask searches these docs.` : "Answers come only from these docs, with links to the exact sections they used."}</p>}
     </form>
   );
 }

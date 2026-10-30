@@ -4,10 +4,11 @@
  * Mounted once by the docs layout. Picks how the conversation shows (docked panel ≥1024px, right
  * drawer on tablets, bottom sheet on phones), loads the panel on first open, pushes the page over
  * while the docked panel is open (html[data-docs-ask]), and owns the shortcuts: ⌘I or ⌘/ toggles,
- * Esc closes.
+ * Esc closes. Only mounted for a site with Ask AI on; it hands the store the site's settings.
  */
 import dynamic from "next/dynamic";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { useDocsSite } from "../site";
 import { closeAsk, configureAsk, ensureStatus, toggleAsk, useAsk } from "./store";
 
 const AskPanel = dynamic(() => import("./AskPanel"), { ssr: false });
@@ -30,8 +31,11 @@ export function AskRoot({ siteUrl, suggestions = [] }: { siteUrl: string; sugges
   const phone = useMedia("(max-width: 639px)");
   const mode = wide ? "docked" : phone ? "sheet" : "drawer";
   const [loaded, setLoaded] = useState(false);
+  const { ai, name } = useDocsSite();
 
-  useEffect(() => configureAsk(siteUrl), [siteUrl]);
+  useEffect(() => {
+    if (ai) configureAsk(siteUrl, ai, name);
+  }, [siteUrl, ai, name]);
 
   useEffect(() => {
     if (!s.open) return;

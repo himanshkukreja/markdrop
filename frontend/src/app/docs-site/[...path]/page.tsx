@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Badge, Breadcrumb, Icon } from "@/components/ui";
 import { absoluteUrl, agentMarkdown, getAllPages, getPage, getSite, groupOf, mdUrl, navLabel, prevNext, sectionMarkdown, withPrerequisites } from "@/docs/content";
 import { formatDate } from "@/docs/outputs";
+import { aiSettings } from "@/docs/brand";
 import { DocsMarkdown } from "@/docs/render/DocsMarkdown";
 import { DocPageProvider, type DocPageInfo } from "@/docs/client/page";
 import { CopyPageButton, MobileBottomBar, RailActions } from "@/docs/client/PageActions";
@@ -48,6 +49,7 @@ export default async function DocsArticle({ params }: Props) {
   const page = await load(params);
   if (!page) notFound();
   const site = getSite();
+  const ai = aiSettings(site);
   const group = groupOf(page.path);
   const tab = site.tabs.find((t) => t.id === group?.tab) ?? site.tabs[0];
   const { prev, next } = prevNext(page.path);
@@ -192,11 +194,13 @@ export default async function DocsArticle({ params }: Props) {
           <div className="dx-rail">
             <DocsToc entries={toc} />
             <RailActions />
-            <div className="dx-askcard">
-              <strong>Have a question about this page?</strong>
-              <span>Ask AI answers from these docs, with links to the sections it used.</span>
-              <AskAboutPageButton />
-            </div>
+            {ai && (
+              <div className="dx-askcard">
+                <strong>Have a question about this page?</strong>
+                <span>{`${ai.name} answers from these docs, with links to the sections it used.`}</span>
+                <AskAboutPageButton />
+              </div>
+            )}
           </div>
         </aside>
       </div>

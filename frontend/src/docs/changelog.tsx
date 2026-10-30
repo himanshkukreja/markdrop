@@ -3,7 +3,8 @@
  * media rendered on the server. Media renders only when it really exists (a video filled in
  * videos.json, or an image): the hub never shows a placeholder.
  */
-import { getChangelog, getMedia, getPage, getVideos, navLabel } from "./content";
+import { getChangelog, getMedia, getPage, getSite, getVideos, navLabel } from "./content";
+import { videoLink } from "./brand";
 import { plainText } from "./markdown";
 import { formatDate } from "./outputs";
 import { DocsMarkdown, VideoSlot } from "./render/DocsMarkdown";
@@ -38,10 +39,13 @@ export function toHubEntry(e: ChangelogEntry): HubEntry {
   };
 }
 
-/** True when a videos.json entry is filled: a Markdrop link (`markdrop`, or the older `url`) or a self-hosted `src`. */
+/**
+ * True when a videos.json entry is filled: a Markdrop link (`markdrop`, or the older `url`, on
+ * Markdrop's own docs) or a self-hosted `src`.
+ */
 function videoReady(id: string | undefined): boolean {
   const v = id ? getVideos()[id] : undefined;
-  return !!(v && (v.markdrop || v.url || v.src));
+  return !!(v && (videoLink(v, getSite()) || v.src));
 }
 
 /** True when the entry has media worth showing: an image, or a video that is filled in. */

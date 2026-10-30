@@ -9,7 +9,7 @@ import { Button, Icon, IconButton, copyText, useToast } from "@/components/ui";
 import { openSearch } from "../state";
 import { answerForCopy } from "./Answer";
 import { OpenInLinks, TurnView, fallbackOpenIn } from "./Conversation";
-import { claudeHref, continueInPanel, isStreaming, useAsk } from "./store";
+import { assistantName, claudeHref, continueInPanel, isStreaming, useAsk } from "./store";
 
 export default function PaletteAsk({ suggestions, onAsk, onContinued, onNavigate }: { suggestions: string[]; onAsk: (q: string) => void; onContinued: () => void; onNavigate: () => void }) {
   const s = useAsk();
@@ -21,8 +21,8 @@ export default function PaletteAsk({ suggestions, onAsk, onContinued, onNavigate
       <div className="dx-palask dx-palask--off" role="status">
         <p>
           {s.unavailableReason === "not_configured"
-            ? "Ask AI isn't set up on this server yet. Search the docs instead, or open them in your own assistant."
-            : "Ask AI is turned off right now. Search the docs instead, or open them in your own assistant."}
+            ? `${assistantName()} isn't set up on this server yet. Search the docs instead, or open them in your own assistant.`
+            : `${assistantName()} is turned off right now. Search the docs instead, or open them in your own assistant.`}
         </p>
         <OpenInLinks links={fallbackOpenIn("", s.page, s.siteUrl)} />
         <Button variant="ghost" size="sm" iconLeft="search" onClick={() => openSearch()}>

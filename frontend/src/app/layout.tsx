@@ -8,6 +8,7 @@ import { StatusRegion } from "@/components/ui";
 import VercelInsights from "@/components/VercelInsights";
 import SiteTracker from "@/components/SiteTracker";
 import ThirdPartyAnalytics from "@/components/analytics/ThirdPartyAnalytics";
+import { AppTrackers } from "@/docs/client/AppTrackers";
 import { themeScript } from "@/lib/themeScript";
 
 const SITE_DESCRIPTION =
@@ -76,9 +77,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </ToastProvider>
           </AuthProvider>
         </NextLinkProvider>
-        <VercelInsights />
-        <SiteTracker />
-        <ThirdPartyAnalytics />
+        {/* Markdrop's trackers: everywhere but a docs site that isn't Markdrop's (docs/client/AppTrackers). */}
+        <AppTrackers>
+          <VercelInsights />
+          <SiteTracker />
+          <ThirdPartyAnalytics />
+        </AppTrackers>
       </body>
     </html>
   );

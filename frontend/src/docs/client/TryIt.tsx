@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Badge, Button, Checkbox, Icon, Input, Kbd, Select, Switch, Textarea, copyText, useToast } from "@/components/ui";
 import { curlCommand, headerName, requestUrl, type ApiAuth, type ApiRequestValues } from "../openapi.mjs";
-import { API_BASE } from "./ask/api";
+import { useDocsSite } from "./site";
 
 export interface TryItOperation {
   method: string;
@@ -53,9 +53,9 @@ function saveToken(v: string) {
   }
 }
 
-export function mask(token: string): string {
+export function mask(token: string, prefix = ""): string {
   if (!token) return "";
-  const head = token.startsWith("mdk_") ? "mdk_" : token.slice(0, 2);
+  const head = prefix && token.startsWith(prefix) ? prefix : token.slice(0, 2);
   return `${head}••••${token.slice(-4)}`;
 }
 
@@ -260,6 +260,9 @@ export function TryIt({ op }: { op: TryItOperation }) {
   const toasts = useToast();
   const [values, setValues] = useState(() => initial(op));
   const [token, setToken] = useState("");
+  const { tryIt } = useDocsSite();
+  // Markdrop's own docs send to NEXT_PUBLIC_API_URL when set (local and preview backends); others to the operation's server.
+  const sendTo = tryIt.sendTo || op.server;
   const [showToken, setShowToken] = useState(false);
   const [all, setAll] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -289,8 +292,8 @@ export function TryIt({ op }: { op: TryItOperation }) {
   const wantsToken = op.auth === "token" || op.auth === "optional";
   const multipart = op.body?.contentType === "multipart/form-data";
   const { values: req, error } = useMemo(() => toRequest(op, values, fileNames), [op, values, fileNames]);
-  const command = useMemo(() => curlCommand(op, req, { token: token || (op.auth === "optional" ? "" : undefined) }), [op, req, token]);
-  const shown = useMemo(() => (token ? command.split(token).join(mask(token)) : command), [command, token]);
+  const command = useMemo(() => curlCommand(op, req, { token: token || (op.auth === "optional" ? "" : undefined), tokenEnv: tryIt.tokenEnv }), [op, req, token, tryIt.tokenEnv]);
+  const shown = useMemo(() => (token ? command.split(token).join(mask(token, tryIt.tokenPrefix)) : command), [command, token, tryIt.tokenPrefix]);
   const missing = op.params.filter((p) => p.in === "path" && p.required && !values.path[p.name]).map((p) => p.name);
   const blocked = missing.length ? `Fill in ${missing.join(", ")} first.` : error;
   const canSend = !sending && !blocked && (!writes || confirmed);
@@ -304,7 +307,7 @@ export function TryIt({ op }: { op: TryItOperation }) {
 
   const send = useCallback(async () => {
     if (!canSend) return;
-    const url = requestUrl({ apiPath: op.apiPath, server: API_BASE }, req);
+    const url = requestUrl({ apiPath: op.apiPath, server: sendTo }, req);
     const headers: Record<string, string> = { Accept: "application/json" };
     if (token && (wantsToken || op.auth === "session")) headers.Authorization = `Bearer ${token}`;
     for (const [k, v] of Object.entries(req.header)) if (v !== undefined && v !== "") headers[headerName(k)] = String(v);
@@ -391,7 +394,7 @@ export function TryIt({ op }: { op: TryItOperation }) {
       if (abort.current === ctrl) abort.current = null;
       setSending(false);
     }
-  }, [canSend, op, req, token, wantsToken, method, multipart]);
+  }, [canSend, op, req, token, wantsToken, method, multipart, sendTo]);
 
   return (
     <form
@@ -411,7 +414,7 @@ export function TryIt({ op }: { op: TryItOperation }) {
         </strong>
         {wantsToken && token && (
           <Badge tone="info" size="sm" icon="lock">
-            Token {mask(token)}
+            Token {mask(token, tryIt.tokenPrefix)}
           </Badge>
         )}
       </div>
@@ -427,7 +430,7 @@ export function TryIt({ op }: { op: TryItOperation }) {
             mono
             type={showToken ? "text" : "password"}
             value={token}
-            placeholder="mdk_…"
+            placeholder={tryIt.tokenPrefix ? `${tryIt.tokenPrefix}…` : "Your API token"}
             autoComplete="off"
             spellCheck={false}
             onChange={(e) => {
@@ -441,10 +444,15 @@ export function TryIt({ op }: { op: TryItOperation }) {
             }
           />
           <span className="dx-tryit__hint">
-            {op.auth === "optional" ? "Leave it empty to send the request anonymously. " : ""}Kept in this tab only, and sent only to the API.{" "}
-            <a href="https://markdrop.in/settings/tokens" target="_blank" rel="noopener noreferrer">
-              Create a token
-            </a>
+            {op.auth === "optional" ? "Leave it empty to send the request anonymously. " : ""}Kept in this tab only, and sent only to the API.
+            {tryIt.tokenHelpUrl && (
+              <>
+                {" "}
+                <a href={tryIt.tokenHelpUrl} target="_blank" rel="noopener noreferrer">
+                  Create a token
+                </a>
+              </>
+            )}
           </span>
         </div>
       )}
@@ -546,7 +554,7 @@ export function TryIt({ op }: { op: TryItOperation }) {
           <>
             <Icon name="info" />
             <span>
-              Sends to <code className="dx-icode">{API_BASE.replace(/^https?:\/\//, "")}</code> from your browser. <Kbd>{mac ? "⌘" : "Ctrl"}</Kbd> <Kbd>↵</Kbd> sends too.
+              Sends to <code className="dx-icode">{sendTo.replace(/^https?:\/\//, "")}</code> from your browser. <Kbd>{mac ? "⌘" : "Ctrl"}</Kbd> <Kbd>↵</Kbd> sends too.
             </span>
           </>
         )}

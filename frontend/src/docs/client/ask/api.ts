@@ -1,11 +1,19 @@
 /**
- * Ask AI's three calls: availability, the answer stream, and answer feedback. The docs host is a
- * different origin from markdrop.in, so there is no Markdrop session here: a bearer is sent only
- * if one was stored for this origin (none is today), and the personal tools stay off.
+ * Ask AI's three calls: availability, the answer stream, and answer feedback, against the site's
+ * Ask AI backend (site.json `ai.api`), naming the site (`ai.site`) in every request. The docs host
+ * is a different origin from the app, so there is no app session here: on Markdrop's own docs
+ * (`integrations.markdropApp`) a bearer is sent only if one was stored for this origin (none is
+ * today), and the personal tools stay off; other sites never send one.
  */
 import { readSse, type SseMessage } from "./sse";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "https://api.markdrop.in").replace(/\/+$/, "");
+/** Where and as which site to ask: from DocsClientSite.ai, set by AskRoot (configureAsk). */
+export interface AskApi {
+  /** Backend origin, no trailing slash. */
+  api: string;
+  site: string;
+  appSession: boolean;
+}
 
 export type Phase = "searching" | "reading" | "checking" | "writing";
 
@@ -48,7 +56,8 @@ export class AskHttpError extends Error {
   }
 }
 
-function bearer(): Record<string, string> {
+function bearer(cfg: AskApi): Record<string, string> {
+  if (!cfg.appSession) return {};
   try {
     const t = localStorage.getItem("markdrop_token");
     return t ? { Authorization: `Bearer ${t}` } : {};
@@ -62,8 +71,8 @@ export type Availability = { available: true } | { available: false; reason: str
 let statusPromise: Promise<Availability> | null = null;
 
 /** GET /docs/ai/status, once per page load. A network failure is "unknown": the composer stays, and an ask surfaces the error. */
-export function fetchStatus(): Promise<Availability> {
-  statusPromise ??= fetch(`${API_BASE}/api/v1/docs/ai/status`, { headers: { Accept: "application/json" }, cache: "no-store" })
+export function fetchStatus(cfg: AskApi): Promise<Availability> {
+  statusPromise ??= fetch(`${cfg.api}/api/v1/docs/ai/status`, { headers: { Accept: "application/json", "X-Docs-Site": cfg.site }, cache: "no-store" })
     .then(async (r) => {
       if (!r.ok) return { available: null } as Availability;
       const j = (await r.json()) as { available?: boolean; reason?: string };
@@ -76,11 +85,11 @@ export function fetchStatus(): Promise<Availability> {
   return statusPromise;
 }
 
-export async function streamAsk(body: AskBody, signal: AbortSignal, onMessage: (m: SseMessage) => void): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/v1/docs/ask`, {
+export async function streamAsk(cfg: AskApi, body: AskBody, signal: AbortSignal, onMessage: (m: SseMessage) => void): Promise<void> {
+  const res = await fetch(`${cfg.api}/api/v1/docs/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...bearer() },
-    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream", "X-Docs-Site": cfg.site, ...bearer(cfg) },
+    body: JSON.stringify({ ...body, site: cfg.site }),
     signal,
     cache: "no-store",
   });
@@ -89,12 +98,12 @@ export async function streamAsk(body: AskBody, signal: AbortSignal, onMessage: (
 }
 
 /** Fire and forget: feedback never shows an error. */
-export function sendAnswerFeedback(requestId: string, helpful: boolean, comment?: string) {
+export function sendAnswerFeedback(cfg: AskApi, requestId: string, helpful: boolean, comment?: string) {
   try {
-    void fetch(`${API_BASE}/api/v1/docs/ask/feedback`, {
+    void fetch(`${cfg.api}/api/v1/docs/ask/feedback`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ request_id: requestId, helpful, comment: comment || undefined }),
+      body: JSON.stringify({ request_id: requestId, helpful, comment: comment || undefined, site: cfg.site }),
       keepalive: true,
     }).catch(() => {});
   } catch {
