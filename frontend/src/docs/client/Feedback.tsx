@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button, Textarea } from "@/components/ui";
 import { useDocPage } from "./page";
-import { SoonButton } from "./PageActions";
+import { AskAboutPageButton } from "./ask/entry";
 
 /**
  * "Did this page help?" Sends {path, helpful, comment?} to the site's feedback endpoint and thanks
@@ -77,9 +77,7 @@ export function Feedback() {
       <Button variant="secondary" size="sm" iconLeft="x" onClick={() => setState("comment")}>
         Not quite
       </Button>
-      <SoonButton variant="ghost" icon="zap">
-        Ask about this page
-      </SoonButton>
+      <AskAboutPageButton variant="ghost" />
     </div>
   );
 }

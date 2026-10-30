@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Badge, Button, CopyButton, Drawer, Icon, IconButton, cx } from "@/components/ui";
 import type { NavGroup, SiteTab } from "../types";
 import { openSearch, setSyncedChoice, useSyncedChoice } from "./state";
+import { ensureStatus, openAsk, useAsk } from "./ask/store";
 
 export function NavLinks({ groups, current, onPick }: { groups: NavGroup[]; current?: string; onPick?: () => void }) {
   return (
@@ -71,15 +72,30 @@ export function MobileMenu({ tabs, groups, activeTab, current, title }: { tabs: 
   );
 }
 
-/** The home hero's ask box. Until Ask AI ships it searches the docs with the question. */
+/**
+ * The home hero's ask box: the question goes to the Ask AI panel (the sheet on phones). When the
+ * server says Ask AI is off, it searches the docs instead.
+ */
 export function HomeAsk({ chips = [], placeholder }: { chips?: string[]; placeholder?: string }) {
   const [q, setQ] = useState("");
+  const { availability } = useAsk();
+  const off = availability === "unavailable";
+  const go = (question: string) => {
+    const text = question.trim();
+    if (!text) return;
+    void ensureStatus().then((ok) => {
+      if (ok) {
+        openAsk({ question: text });
+        setQ("");
+      } else openSearch(text);
+    });
+  };
   return (
     <form
       className="dx-ask"
       onSubmit={(e) => {
         e.preventDefault();
-        openSearch(q);
+        go(q);
       }}
     >
       <label htmlFor="dx-ask-home" className="dx-sr">
@@ -87,21 +103,31 @@ export function HomeAsk({ chips = [], placeholder }: { chips?: string[]; placeho
       </label>
       <div className="dx-ask__box">
         <Icon name="zap" className="dx-ask__glyph" />
-        <input id="dx-ask-home" type="text" className="dx-ask__input" placeholder={placeholder ?? "Ask anything"} value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
+        <input
+          id="dx-ask-home"
+          type="text"
+          className="dx-ask__input"
+          placeholder={placeholder ?? "Ask anything"}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onFocus={() => void ensureStatus()}
+          autoComplete="off"
+          maxLength={2000}
+        />
         <Button type="submit" iconRight="arrowRight">
-          Ask
+          {off ? "Search" : "Ask"}
         </Button>
       </div>
       {chips.length > 0 && (
         <div className="dx-ask__chips">
           {chips.map((c) => (
-            <button key={c} type="button" className="dx-chip" onClick={() => openSearch(c)}>
+            <button key={c} type="button" className="dx-chip" onClick={() => go(c)}>
               {c}
             </button>
           ))}
         </div>
       )}
-      <p className="dx-ask__hint">AI answers with links to the exact section are coming soon. Until then, Ask searches these docs.</p>
+      <p className="dx-ask__hint">{off ? "Ask AI is off right now, so Ask searches these docs." : "Answers come only from these docs, with links to the exact sections they used."}</p>
     </form>
   );
 }

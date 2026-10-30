@@ -7,7 +7,7 @@ import { Button, MarkdropMark, Wordmark } from "@/components/ui";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { getNav, getSite } from "../content";
 import { MobileMenu, NavLinks } from "../client/Chrome";
-import { SoonButton } from "../client/PageActions";
+import { AskButton } from "../client/ask/entry";
 import { SearchTrigger } from "../client/Search";
 import { isAppPath } from "../markdown";
 
@@ -38,7 +38,10 @@ export function DocsHeader({ activeTab, current }: { activeTab?: string; current
             <SearchTrigger variant="icon" />
           </span>
           <span className="dx-only-wide">
-            <SoonButton icon="zap">Ask AI</SoonButton>
+            <AskButton />
+          </span>
+          <span className="dx-only-narrow">
+            <AskButton variant="icon" />
           </span>
           <ThemeToggle />
           {site.product && (

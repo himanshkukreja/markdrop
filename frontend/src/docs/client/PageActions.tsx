@@ -3,23 +3,10 @@
 /**
  * Page and section actions: the heading hover bar (# link · Copy section · Ask about this), the
  * split "Copy page ▾" button, the right rail's action list, and the phone's bottom bar.
- * "Ask" actions are present but disabled until Ask AI ships ("Coming soon").
  */
-import { Button, Dropdown, Icon, Tooltip, copyText, cx, useToast, type MenuEntry } from "@/components/ui";
+import { Button, Dropdown, Icon, copyText, cx, useToast, type MenuEntry } from "@/components/ui";
 import { OPEN_IN, openInHref, usePageCopy } from "./page";
-
-export const COMING_SOON = "Coming soon";
-
-/** A control that is shown but can't be used yet: focusable, announced as disabled, with a tooltip. */
-export function SoonButton({ children, className, icon, variant = "secondary", size = "sm", block }: { children: React.ReactNode; className?: string; icon?: string; variant?: "secondary" | "ghost" | "primary"; size?: "sm" | "md"; block?: boolean }) {
-  return (
-    <Tooltip content={COMING_SOON}>
-      <Button variant={variant} size={size} iconLeft={icon} block={block} aria-disabled="true" className={cx("dx-soon", className)} onClick={(e) => e.preventDefault()}>
-        {children}
-      </Button>
-    </Tooltip>
-  );
-}
+import { askAboutPage, askAboutSection, openAsk } from "./ask/store";
 
 export function HeadingActions({ id, label }: { id: string; label: string }) {
   const { page, copySection } = usePageCopy();
@@ -44,12 +31,10 @@ export function HeadingActions({ id, label }: { id: string; label: string }) {
           Copy section
         </button>
       )}
-      <Tooltip content={COMING_SOON}>
-        <button type="button" className="dx-hactions__btn dx-soon" aria-disabled="true" onClick={(e) => e.preventDefault()}>
-          <Icon name="zap" />
-          Ask about this
-        </button>
-      </Tooltip>
+      <button type="button" className="dx-hactions__btn" onClick={() => askAboutSection(id, label)} aria-label={`Ask AI about this section: ${label}`}>
+        <Icon name="zap" />
+        Ask about this
+      </button>
     </span>
   );
 }
@@ -66,7 +51,7 @@ export function CopyPageButton({ compact }: { compact?: boolean }) {
       : []),
     { label: "View as Markdown", description: "Opens the .md version", icon: "doc", href: page.mdUrl, external: true },
     ...OPEN_IN.map((o, i) => ({ label: o.label, description: o.hint, icon: "external", href: openInHref(o.base, page.mdUrl), external: true, separated: i === 0, onClick: copyForAssistant })),
-    { label: "Ask AI here", description: `Answers from these docs, with sources. ${COMING_SOON}.`, icon: "zap", disabled: true, separated: true },
+    { label: "Ask AI about this page", description: "Answers from these docs, with sources", icon: "zap", onClick: askAboutPage, separated: true },
   ];
   return (
     <div className={cx("dx-split", compact && "dx-split--compact")}>
@@ -138,9 +123,9 @@ export function MobileBottomBar() {
       <Button variant="secondary" iconLeft="copy" onClick={copyPage} className="dx-bottombar__btn">
         Copy page
       </Button>
-      <SoonButton variant="primary" icon="zap" size="md" className="dx-bottombar__btn">
+      <Button variant="primary" iconLeft="zap" onClick={() => openAsk()} className="dx-bottombar__btn">
         Ask AI
-      </SoonButton>
+      </Button>
     </div>
   );
 }

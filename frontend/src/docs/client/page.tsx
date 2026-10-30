@@ -5,8 +5,9 @@
  * (Copy section), section hashes (changed dots) and the addresses built from them. Provided once
  * per article by the server page.
  */
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect } from "react";
 import { copyText, useToast } from "@/components/ui";
+import { setAskPage } from "./ask/store";
 
 export interface DocPageInfo {
   path: string;
@@ -27,6 +28,12 @@ export interface DocPageInfo {
 const Ctx = createContext<DocPageInfo | null>(null);
 
 export function DocPageProvider({ value, children }: { value: DocPageInfo; children: React.ReactNode }) {
+  const { path, title, mdUrl } = value;
+  // Ask AI's context tag follows the page on screen.
+  useEffect(() => {
+    setAskPage({ path, title, mdUrl });
+    return () => setAskPage(null);
+  }, [path, title, mdUrl]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

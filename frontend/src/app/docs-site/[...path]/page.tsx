@@ -6,7 +6,8 @@ import { absoluteUrl, agentMarkdown, getAllPages, getPage, getSite, groupOf, mdU
 import { formatDate } from "@/docs/outputs";
 import { DocsMarkdown } from "@/docs/render/DocsMarkdown";
 import { DocPageProvider, type DocPageInfo } from "@/docs/client/page";
-import { CopyPageButton, MobileBottomBar, RailActions, SoonButton } from "@/docs/client/PageActions";
+import { CopyPageButton, MobileBottomBar, RailActions } from "@/docs/client/PageActions";
+import { AskAboutPageButton } from "@/docs/client/ask/entry";
 import { ChangedBadge, DocsToc, OnThisPageBar, type TocEntry } from "@/docs/client/Toc";
 import { Feedback } from "@/docs/client/Feedback";
 import { DocsFooter, DocsHeader, DocsSidebar } from "@/docs/ui/Chrome";
@@ -155,10 +156,8 @@ export default async function DocsArticle({ params }: Props) {
             <RailActions />
             <div className="dx-askcard">
               <strong>Have a question about this page?</strong>
-              <span>Ask AI will answer from these docs, with the section it used.</span>
-              <SoonButton variant="primary" icon="zap">
-                Ask about this page
-              </SoonButton>
+              <span>Ask AI answers from these docs, with links to the sections it used.</span>
+              <AskAboutPageButton />
             </div>
           </div>
         </aside>

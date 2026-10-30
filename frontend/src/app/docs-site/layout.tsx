@@ -3,6 +3,7 @@ import "katex/dist/katex.min.css";
 import "@/docs/docs.css";
 import { getSite } from "@/docs/content";
 import { SearchPalette } from "@/docs/client/Search";
+import { AskRoot } from "@/docs/client/ask/AskRoot";
 
 /**
  * The docs site (docs.<host>, reached only through the middleware rewrite to /docs-site/…). The
@@ -30,6 +31,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
     <div className="dx-root">
       {children}
       <SearchPalette suggestions={site.home?.chips} />
+      <AskRoot siteUrl={site.url} suggestions={site.home?.chips} />
     </div>
   );
 }
