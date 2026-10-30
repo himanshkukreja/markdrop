@@ -135,7 +135,7 @@ func (m *Manager) checkUploadPath(p string) (string, error) {
 		return "", err
 	}
 	if fi.IsDir() {
-		return "", fmt.Errorf("%s is a folder; upload_file and replace_file take one file (zip the folder first)", abs)
+		return "", fmt.Errorf("%s is a folder; upload_file and replace_file take one file. To publish a website (a zipped folder), the user can upload it at markdrop.in/upload; to send a folder peer to peer, use share_files", abs)
 	}
 	return abs, nil
 }

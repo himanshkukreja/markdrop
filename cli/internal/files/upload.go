@@ -115,7 +115,7 @@ func (u *Uploader) Upload(ctx context.Context, opts UploadOptions) (*Result, err
 		return nil, fmt.Errorf("cannot read %s: %w", opts.Path, unwrapPath(err))
 	}
 	if fi.IsDir() {
-		return nil, fmt.Errorf("%s is a folder; upload a single file (zip the folder first)", abs)
+		return nil, fmt.Errorf("%s is a folder; files are published one at a time. To publish a website (a zipped folder), use markdrop.in/upload; to send a folder peer to peer, use markdrop send", abs)
 	}
 	if !fi.Mode().IsRegular() {
 		return nil, fmt.Errorf("%s is not a regular file", abs)
