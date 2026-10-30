@@ -1,0 +1,15 @@
+# BuildKit reads this file for docs-platform/docker/Dockerfile (context: the repo root).
+# Only the engine (frontend) and the platform go in; nothing generated, nothing secret.
+**
+!frontend/
+!docs-platform/
+frontend/node_modules
+frontend/.next
+frontend/.next-*
+frontend/e2e
+frontend/.env*
+frontend/public/docs-assets
+frontend/content/docs/video-scenes
+docs-platform/node_modules
+docs-platform/edge/dist
+**/.DS_Store

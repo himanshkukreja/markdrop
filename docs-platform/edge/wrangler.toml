@@ -1,0 +1,21 @@
+# The docs edge Worker (prototype; nothing is deployed). Build the bundle first:
+#   node builder/cli.mjs bundle        → edge/dist/worker.mjs
+# Local run with an emulated bucket: node test/miniflare.mjs (syncs a local store into it).
+name = "markdrop-docs-edge"
+main = "dist/worker.mjs"
+compatibility_date = "2026-01-01"
+
+# Every docs hostname routes here: <site>.docs.markdrop.in (wildcard route on the zone) and
+# customer domains through Cloudflare for SaaS (custom hostnames → this Worker as the fallback origin).
+# routes = [
+#   { pattern = "*.docs.markdrop.in/*", zone_name = "markdrop.in" },
+# ]
+
+# Objects, manifests, pointers and host map (see builder/store.mjs for the key layout).
+[[r2_buckets]]
+binding = "DOCS"
+bucket_name = "markdrop-docs"
+
+[vars]
+# How long an isolate trusts the pointer it read: the publish → live delay.
+POINTER_TTL_MS = "5000"
