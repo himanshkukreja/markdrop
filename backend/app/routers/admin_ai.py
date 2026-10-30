@@ -7,6 +7,11 @@ admin JWT as every other admin tab (routers/admin.require_admin).
 Raw IPs are never stored, so never shown: a signed-out asker appears as the
 first 8 characters of their salted IP hash.
 
+Docs Ask AI serves several docs sites (services/docs_sites.py). Every list
+takes an optional `site` filter (none: every site), rows say which site they
+came from, and the overview adds `by_site`: questions, outcomes, spend and caps
+per site. Rows written before sites existed count as "markdrop".
+
 Aggregation happens in Python over one window's rows (projected, no answers):
 the budget caps keep this collection small (a $50 month at Haiku prices is a
 few thousand questions), and it keeps the numbers identical under mongomock.
@@ -26,7 +31,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.routers.admin import get_db, require_admin
-from app.services import ai_usage, docs_agent
+from app.services import ai_usage, docs_agent, docs_sites
 
 router = APIRouter(prefix="/api/v1/admin/ai", tags=["admin"])
 
@@ -98,10 +103,27 @@ async def _emails(db, ids: set[str]) -> dict[str, str]:
     return {str(r["_id"]): r.get("email") or "" for r in rows}
 
 
-async def _rows(db, feature: str | None, since: datetime, until: datetime, projection: dict | None = None) -> list[dict]:
-    q: dict = {"ts": {"$gte": since, "$lt": until}}
+def _site_param(site: str | None) -> str | None:
+    """A `site` filter: None for every site; a malformed id is a 404."""
+    if site is None or not site.strip():
+        return None
+    sid = docs_sites.normalize_id(site)
+    if sid is None:
+        raise HTTPException(404, "Unknown docs site")
+    return sid
+
+
+def _site_of(row: dict) -> str:
+    return row.get("site") or ai_usage.LEGACY_SITE
+
+
+async def _rows(db, feature: str | None, since: datetime, until: datetime, projection: dict | None = None,
+                site: str | None = None) -> list[dict]:
+    q: dict = {"ts": {"$gte": since, "$lt": until}, **ai_usage.site_filter(site)}
     if feature:
         q["feature"] = feature
+    if projection:
+        projection = {**projection, "site": 1}
     return await db[ai_usage.REQUESTS].find(q, projection or _LIST_FIELDS).sort("ts", -1).to_list(length=ROW_CAP)
 
 
@@ -123,14 +145,17 @@ async def overview(
     range_: str = Query("30d", alias="range"),
     tz: str = "UTC",
     feature: str = Query(docs_agent.FEATURE, max_length=40),
+    site: str | None = Query(None, max_length=64),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
     s = get_settings()
+    site = _site_param(site)
     since, until, key = _window(range_)
     zone = _tz(tz)
     all_rows = await _rows(db, None, since, until)
-    rows = [r for r in all_rows if r.get("feature") == feature]
+    feature_rows = [r for r in all_rows if r.get("feature") == feature]
+    rows = [r for r in feature_rows if site is None or _site_of(r) == site]
     served = [r for r in rows if r.get("outcome") != "limit"]
     tokens = Counter()
     for r in rows:
@@ -196,6 +221,8 @@ async def overview(
     return {
         "range": key,
         "feature": feature,
+        "site": site,
+        "by_site": await _by_site(db, feature, feature_rows),
         "status": {
             "enabled": docs_agent.enabled(),
             "configured": docs_agent.configured(),
@@ -245,6 +272,41 @@ async def overview(
     }
 
 
+async def _by_site(db, feature: str, rows: list[dict]) -> list[dict]:
+    """Per docs site: questions, outcomes and cost in the window, today's and this month's spend, caps."""
+    per: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        per[_site_of(r)].append(r)
+    registered = {c.id: c for c in docs_sites.configs()}
+    out = []
+    for sid in list(registered) + sorted(k for k in per if k not in registered):
+        cfg = registered.get(sid)
+        site_rows = per.get(sid, [])
+        served = [r for r in site_rows if r.get("outcome") != "limit"]
+        outcomes = Counter(r.get("outcome") or "error" for r in site_rows)
+        scope = ai_usage.site_scope(feature, sid)
+        out.append({
+            "site": sid,
+            "name": cfg.name if cfg else None,
+            "url": (cfg.url or None) if cfg else None,
+            "registered": cfg is not None,
+            "ai_enabled": cfg.ai_enabled if cfg else None,
+            "product_tools": cfg.product_tools if cfg else None,
+            "questions": len(site_rows),
+            "served": len(served),
+            "answered": outcomes["answered"],
+            "limited": outcomes["limit"],
+            "answered_pct": _ratio(outcomes["answered"], len(served)),
+            "people": len({r.get("visitor") for r in site_rows if r.get("visitor")}),
+            "cost_usd": round(sum(float(r.get("cost_usd") or 0) for r in site_rows), 6),
+            "today_usd": round(await ai_usage.spend_today(db, scope), 6),
+            "month_usd": round(await ai_usage.spend_month(db, scope), 6),
+            "daily_cap_usd": cfg.daily_cap if cfg else None,
+            "monthly_cap_usd": cfg.monthly_cap if cfg else None,
+        })
+    return out
+
+
 # ── Questions and gaps ────────────────────────────────────────────────────────
 
 
@@ -252,12 +314,14 @@ async def overview(
 async def top_questions(
     range_: str = Query("30d", alias="range"),
     limit: int = Query(50, ge=1, le=200),
+    site: str | None = Query(None, max_length=64),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
     since, until, key = _window(range_)
     rows = await _rows(db, docs_agent.FEATURE, since, until,
-                       {"question": 1, "outcome": 1, "ts": 1, "feedback": 1, "conversation_id": 1, "request_id": 1})
+                       {"question": 1, "outcome": 1, "ts": 1, "feedback": 1, "conversation_id": 1, "request_id": 1},
+                       site=_site_param(site))
     groups: dict[str, dict] = {}
     for r in rows:  # newest first
         k = normalize_question(r.get("question") or "")
@@ -282,6 +346,7 @@ async def top_questions(
 @router.get("/gaps")
 async def content_gaps(
     range_: str = Query("30d", alias="range"),
+    site: str | None = Query(None, max_length=64),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
@@ -289,7 +354,7 @@ async def content_gaps(
     since, until, key = _window(range_)
     rows = await _rows(db, docs_agent.FEATURE, since, until,
                        {"question": 1, "outcome": 1, "ts": 1, "feedback": 1, "gaps": 1, "conversation_id": 1,
-                        "page_path": 1})
+                        "page_path": 1}, site=_site_param(site))
     groups: dict[str, dict] = {}
     off_topic = 0
     for r in rows:
@@ -342,6 +407,7 @@ def _row_summary(r: dict, emails: dict[str, str]) -> dict:
     return {
         "request_id": r.get("request_id"),
         "conversation_id": r.get("conversation_id"),
+        "site": _site_of(r),
         "turn": r.get("turn"),
         "ts": _iso(r.get("ts")),
         "question": (r.get("question") or "")[:300],
@@ -368,11 +434,13 @@ async def conversations(
     outcome: str | None = Query(None, max_length=20),
     q: str | None = Query(None, max_length=200),
     signed_in: bool | None = None,
+    site: str | None = Query(None, max_length=64),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
     since, until, key = _window(range_)
-    query: dict = {"feature": docs_agent.FEATURE, "ts": {"$gte": since, "$lt": until}}
+    query: dict = {"feature": docs_agent.FEATURE, "ts": {"$gte": since, "$lt": until},
+                   **ai_usage.site_filter(_site_param(site))}
     if outcome in OUTCOMES:
         query["outcome"] = outcome
     if q and q.strip():
@@ -399,7 +467,8 @@ async def conversation(
         k: 1 for k in ("request_id", "turn", "ts", "question", "answer", "citations", "tools", "usage", "cost_usd",
                        "latency_ms", "ttft_ms", "model", "effort", "stop_reason", "stop_details", "outcome",
                        "feedback", "gaps", "page_path", "links_removed", "error_code", "limit_reason", "calls",
-                       "conversation_id", "feature", "long_context_calls", "max_prompt_tokens", "signed_in")}}
+                       "conversation_id", "feature", "long_context_calls", "max_prompt_tokens", "signed_in",
+                       "site")}}
     ).sort([("ts", 1)]).to_list(length=200)
     if not rows:
         raise HTTPException(404, "Conversation not found")
@@ -435,21 +504,23 @@ async def conversation(
 @router.get("/page-feedback")
 async def page_feedback(
     range_: str = Query("30d", alias="range"),
+    site: str | None = Query(None, max_length=64),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
     since, until, key = _window(range_)
-    rows = await db["docs_feedback"].find({"ts": {"$gte": since, "$lt": until}},
-                                          {"path": 1, "helpful": 1, "comment": 1, "ts": 1, "known_page": 1}
+    rows = await db["docs_feedback"].find({"ts": {"$gte": since, "$lt": until}, **ai_usage.site_filter(_site_param(site))},
+                                          {"path": 1, "helpful": 1, "comment": 1, "ts": 1, "known_page": 1, "site": 1}
                                           ).sort("ts", -1).to_list(length=ROW_CAP)
-    pages: dict[str, dict] = {}
+    pages: dict[tuple[str, str], dict] = {}
     for r in rows:
-        p = pages.setdefault(r.get("path") or "/", {"path": r.get("path") or "/", "up": 0, "down": 0, "comments": [],
-                                                    "known_page": r.get("known_page", True), "last_ts": _iso(r.get("ts"))})
+        path, sid = r.get("path") or "/", _site_of(r)
+        p = pages.setdefault((sid, path), {"path": path, "site": sid, "up": 0, "down": 0, "comments": [],
+                                           "known_page": r.get("known_page", True), "last_ts": _iso(r.get("ts"))})
         p["up" if r.get("helpful") else "down"] += 1
         if r.get("comment") and len(p["comments"]) < 5:
             p["comments"].append({"text": r["comment"], "helpful": bool(r.get("helpful")), "ts": _iso(r.get("ts"))})
-    out = sorted(pages.values(), key=lambda p: (-p["down"], -(p["up"] + p["down"]), p["path"]))
+    out = sorted(pages.values(), key=lambda p: (-p["down"], -(p["up"] + p["down"]), p["path"], p["site"]))
     for p in out:
         p["helpful_pct"] = _ratio(p["up"], p["up"] + p["down"])
     up = sum(p["up"] for p in out)

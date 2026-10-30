@@ -18,6 +18,10 @@ needs `Allow-Credentials: true` on the preflight and the response, so the
 browser refuses it, and the markdrop.in session can never be read or used from
 here. Without a cookie the request is exactly what curl could send.
 
+Every registered docs site (services/docs_sites.py) gets the same treatment
+for its own endpoints: its site.json `url` origin may call /api/v1/docs/*. Try
+it stays with docs_cors_origins (the public API documented there is Markdrop's).
+
 Every other path and every other origin passes straight through to the app's
 CORS layers unchanged, and an origin the app itself lists (markdrop.in) is never
 touched here, so it keeps its credentialed CORS.
@@ -37,7 +41,7 @@ PREFIX = "/api/v1/docs/"
 API_PREFIX = "/api/v1/"
 _LOCAL = re.compile(r"^http://docs\.localhost(:\d{1,5})?$")
 _HEADER_LIST = re.compile(r"^[A-Za-z0-9!#$%&'*+\-.^_`|~,\s]{0,1000}$")
-_DEFAULT_HEADERS = "Authorization, Content-Type, Accept, Last-Event-ID"
+_DEFAULT_HEADERS = "Authorization, Content-Type, Accept, Last-Event-ID, X-Docs-Site"
 
 # Try it: the public API. Spelled out rather than echoed: these are every
 # header the documented endpoints read (a test checks it against the schema).
@@ -80,6 +84,17 @@ def origin_allowed(origin: str | None) -> bool:
     if _LOCAL.match(origin):
         return True
     return origin.rstrip("/") in {o.rstrip("/") for o in get_settings().docs_cors_origins}
+
+
+def docs_origin_allowed(origin: str | None) -> bool:
+    """For /api/v1/docs/*: the docs origins above, or any registered site's own origin."""
+    if origin_allowed(origin):
+        return True
+    if not origin:
+        return False
+    from app.services import docs_sites
+
+    return origin.rstrip("/").lower() in docs_sites.origins()
 
 
 def _denied(path: str) -> bool:
@@ -155,7 +170,7 @@ class DocsCORSMiddleware:
     async def _docs(self, scope, receive, send):
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers") or []}
         origin = headers.get("origin")
-        allowed = origin_allowed(origin)
+        allowed = docs_origin_allowed(origin)
         if scope["method"] == "OPTIONS" and origin and headers.get("access-control-request-method"):
             if not allowed:
                 return await self.app(scope, receive, send)

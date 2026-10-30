@@ -1,9 +1,13 @@
-"""docs.markdrop.in: Ask AI (SSE) and the two feedback widgets.
+"""Docs sites (docs.markdrop.in and any other registered site): Ask AI (SSE) and the two feedback widgets.
 
     POST /api/v1/docs/ask             Server-Sent Events, see services/docs_agent.py
     POST /api/v1/docs/ask/feedback    {request_id, helpful, comment?}
     POST /api/v1/docs/feedback        {path, helpful, comment?}   ("Did this page help?")
     GET  /api/v1/docs/ai/status       {available, reason?}        (show Ask AI or Open-in links)
+
+Every endpoint serves one docs site (services/docs_sites.py), named by a `site`
+field in the body (a `site` query parameter on the status endpoint) or the
+X-Docs-Site header; neither means "markdrop". An unregistered site is a 404.
 
 CORS for the docs origins is middleware/docs_cors.py. Sign-in is optional: a
 Markdrop session or API token unlocks the personal tools for that account; a
@@ -19,7 +23,7 @@ import re
 from typing import Any
 
 import jwt
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
@@ -27,7 +31,7 @@ from pydantic import BaseModel, Field
 from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
-from app.services import api_token, docs_agent
+from app.services import api_token, docs_agent, docs_sites
 from app.services import user as user_service
 from app.utils.auth import decode_access_token
 from app.utils.net import get_client_ip
@@ -75,6 +79,18 @@ async def docs_caller(request: Request) -> User | None:
     return await user_service.get_user_by_id(db, user_id)
 
 
+SITE_HEADER = "x-docs-site"
+
+
+def resolve_site(request: Request, site: str | None) -> str:
+    """The request's docs site: the body/query `site`, else X-Docs-Site, else "markdrop"."""
+    raw = site if site not in (None, "") else request.headers.get(SITE_HEADER)
+    try:
+        return docs_sites.resolve(raw)[0]
+    except docs_sites.UnknownSite:
+        raise HTTPException(status_code=404, detail="Unknown docs site")
+
+
 class AskBody(BaseModel):
     # The 2,000-character limit is enforced by the agent (an `error` event the
     # panel can show); this bound only rejects absurd bodies outright.
@@ -82,6 +98,7 @@ class AskBody(BaseModel):
     history: list[Any] = Field(default_factory=list, max_length=60)
     page_path: str | None = Field(None, max_length=300)
     conversation_id: str | None = Field(None, max_length=64)
+    site: str | None = Field(None, max_length=64)
 
 
 def _sse(event: str, data: dict) -> bytes:
@@ -96,9 +113,10 @@ async def ask(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User | None = Depends(docs_caller),
 ):
+    site = resolve_site(request, body.site)
     req = docs_agent.AskRequest(
         question=body.question, history=body.history, page_path=body.page_path,
-        conversation_id=body.conversation_id, user=user, ip=get_client_ip(request),
+        conversation_id=body.conversation_id, user=user, ip=get_client_ip(request), site=site,
     )
 
     async def stream():
@@ -138,12 +156,14 @@ class AnswerFeedbackBody(BaseModel):
     request_id: str = Field(..., pattern=r"^[a-f0-9]{32}$")
     helpful: bool
     comment: str | None = Field(None, max_length=2000)
+    site: str | None = Field(None, max_length=64)
 
 
 @router.post("/ask/feedback")
 @limiter.limit("30/minute")
 async def ask_feedback(request: Request, body: AnswerFeedbackBody, db: AsyncIOMotorDatabase = Depends(get_db)):
-    ok = await docs_agent.answer_feedback(db, body.request_id, body.helpful, body.comment)
+    site = resolve_site(request, body.site)
+    ok = await docs_agent.answer_feedback(db, body.request_id, body.helpful, body.comment, site=site)
     return {"status": "received" if ok else "unknown"}
 
 
@@ -154,6 +174,7 @@ class PageFeedbackBody(BaseModel):
     path: str = Field(..., max_length=400)
     helpful: bool
     comment: str | None = Field(None, max_length=4000)
+    site: str | None = Field(None, max_length=64)
 
 
 @router.post("/feedback")
@@ -164,19 +185,21 @@ async def page_feedback(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User | None = Depends(docs_caller),
 ):
+    site = resolve_site(request, body.site)
     path = body.path.split("#", 1)[0].split("?", 1)[0].strip()
     path = path.rstrip("/") or "/"
     if not _PATH.match(path):
         return {"status": "ignored"}
     await docs_agent.page_feedback(db, path=path, helpful=body.helpful, comment=body.comment,
-                                   user_id=user.id if user else None, ip=get_client_ip(request))
+                                   user_id=user.id if user else None, ip=get_client_ip(request), site=site)
     return {"status": "received"}
 
 
 @router.get("/ai/status")
 @limiter.limit("60/minute")
-async def ai_status(request: Request):
-    if not docs_agent.enabled():
+async def ai_status(request: Request, site: str | None = Query(None, max_length=64)):
+    cfg = docs_sites.config(resolve_site(request, site))
+    if not docs_agent.enabled() or not cfg.ai_enabled:
         return {"available": False, "reason": "disabled"}
     if not docs_agent.configured():
         return {"available": False, "reason": "not_configured"}

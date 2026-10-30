@@ -15,8 +15,9 @@ long tier for the whole call. Summing per call matters: a tool loop's later
 rounds carry bigger prompts than its first.
 
 Spend counters live in MongoDB (`ai_spend`, one row per feature per UTC day and
-month, plus "*" for all features), bumped with $inc in the same step as the
-ledger row. That makes the caps exact across API workers and restarts. A small
+month, plus "*" for all features, plus "<feature>@<site>" for a feature that
+serves several sites, like docs Ask AI), bumped with $inc in the same step as
+the ledger row. That makes the caps exact across API workers and restarts. A small
 in-process reservation per running request keeps a burst of concurrent
 questions from all passing the check before any of them is recorded.
 """
@@ -39,6 +40,22 @@ REQUESTS = "ai_requests"
 SPEND = "ai_spend"
 RETENTION_DAYS = 180
 ALL = "*"
+# Ledger rows written before sites existed have no `site`: they were all this one.
+LEGACY_SITE = "markdrop"
+
+
+def site_scope(feature: str, site: str) -> str:
+    """The spend-counter and reservation key for one site of a feature."""
+    return f"{feature}@{site}"
+
+
+def site_filter(site: str | None) -> dict:
+    """A ledger query clause for one site's rows (none: every site)."""
+    if not site:
+        return {}
+    if site == LEGACY_SITE:
+        return {"site": {"$in": [site, None]}}
+    return {"site": site}
 
 
 # ── Pricing ───────────────────────────────────────────────────────────────────
@@ -199,6 +216,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[REQUESTS].create_index([("feature", 1), ("ts", -1)])
     await db[REQUESTS].create_index([("feature", 1), ("visitor", 1), ("ts", -1)])
     await db[REQUESTS].create_index([("conversation_id", 1), ("turn", 1)])
+    await db[REQUESTS].create_index([("site", 1), ("feature", 1), ("ts", -1)])
     # Day rows are only read for today; month rows for this month. A year is plenty.
     await db[SPEND].create_index("expires_at", expireAfterSeconds=0)
 
@@ -218,10 +236,14 @@ async def record(
     user_id: str | None = None,
     ip_hash: str | None = None,
     visitor: str | None = None,
+    site: str | None = None,
     meta: dict | None = None,
     ts: datetime | None = None,
 ) -> dict:
-    """Write one ledger row and bump the spend counters. Returns the row."""
+    """Write one ledger row and bump the spend counters. Returns the row.
+
+    With `site`, the row carries it and the site's own counters are bumped too.
+    """
     ts = ts or now_utc()
     _p, known = pricing_for(meter.model)
     row = {
@@ -242,19 +264,20 @@ async def record(
         "user_id": user_id,
         "ip_hash": ip_hash,
         "visitor": visitor,
+        **({"site": site} if site else {}),
         **(meta or {}),
     }
     await db[REQUESTS].insert_one(dict(row))
     if meter.cost_usd > 0:
-        await _bump(db, feature, ts, meter.cost_usd)
+        await _bump(db, feature, ts, meter.cost_usd, site=site)
     return row
 
 
-async def _bump(db: AsyncIOMotorDatabase, feature: str, ts: datetime, usd: float) -> None:
+async def _bump(db: AsyncIOMotorDatabase, feature: str, ts: datetime, usd: float, site: str | None = None) -> None:
     d, m = day_key(ts), month_key(ts)
     day_exp = ts + timedelta(days=40)
     month_exp = ts + timedelta(days=400)
-    for f in (feature, ALL):
+    for f in (feature, ALL) + ((site_scope(feature, site),) if site else ()):
         await db[SPEND].update_one({"_id": f"{f}:d:{d}"},
                                    {"$inc": {"usd": usd, "n": 1}, "$set": {"expires_at": day_exp}}, upsert=True)
         await db[SPEND].update_one({"_id": f"{f}:m:{m}"},
@@ -294,7 +317,8 @@ async def budget(db: AsyncIOMotorDatabase, feature: str, *, daily_cap: float, mo
                  reserve: float = 0.0, now: datetime | None = None) -> BudgetState:
     """Would one more request (estimated at `reserve` USD) stay inside both caps?
 
-    Includes what running requests of this feature have reserved. A cap of 0
+    `feature` may be a site_scope() key for one site's caps. Includes what
+    running requests of this feature (or site) have reserved. A cap of 0
     (or less) blocks everything: that is how an operator says "no spend".
     """
     today = await spend_today(db, feature, now)
