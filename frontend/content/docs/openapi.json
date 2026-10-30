@@ -1381,6 +1381,57 @@
         }
       }
     },
+    "/api/v1/files/{slug}/versions/{version}": {
+      "delete": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Delete File Version",
+        "description": "Delete an old version to free its space. Owner only: editors may restore\na version but not destroy one, and the space is the owner's. Never the\ncurrent version (409).",
+        "operationId": "delete_file_version_api_v1_files__slug__versions__version__delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/google/diagram.png": {
       "get": {
         "tags": [

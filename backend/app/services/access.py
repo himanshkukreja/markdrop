@@ -66,7 +66,7 @@ MCP_WRITE = "documents:write"
 # Policy §2.1. `list` is answered for many rows at once by `readable_filter`.
 ACTIONS = frozenset({
     "read", "list", "edit_content", "replace_file", "replace_bundle", "list_versions",
-    "restore_version", "edit_settings", "set_resharing", "change_access", "rename_slug",
+    "restore_version", "delete_version", "edit_settings", "set_resharing", "change_access", "rename_slug",
     "delete", "share", "revoke_grant", "see_grants", "file_into_workspace",
     "move_in_workspace", "unshare", "view_stats", "copy", "claim", "sync", "gdocs_export",
     "subscribe", "beacon",
@@ -518,6 +518,12 @@ async def _action(actor: Actor, doc: dict, f: Facts, action: str, ctx: Ctx) -> D
         verb = {"replace_file": "replace", "list_versions": "see the versions of",
                 "restore_version": "restore versions of"}[action]
         return _forbid(f"You can only {verb} files you own or can edit.") if uid else _account()
+    if action == "delete_version":
+        # Old versions are the owner's storage and can't be brought back once
+        # deleted: editors may restore one, but only the owner throws one away.
+        if owner:
+            return allow
+        return _forbid("Only the file's owner can delete its old versions.") if uid else _account()
     if action == "replace_bundle":
         if owner:
             return allow

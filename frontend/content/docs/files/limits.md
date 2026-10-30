@@ -28,11 +28,11 @@ A website in a `.zip` has extra limits, checked when Markdrop unpacks it:
 | What | Limit |
 | --- | --- |
 | The `.zip` itself | 25 MB |
-| Files inside | 500 |
-| Any one file inside | 25 MB |
-| Everything inside, unpacked | 100 MB |
+| Files inside that Markdrop keeps | 500 |
+| Any one file it keeps | 25 MB |
+| Everything it keeps, unpacked | 100 MB |
 
-See [Publish a zipped website](/files/websites).
+Files Markdrop skips don't count: hidden files and folders like `.git`, macOS `__MACOSX` folders, and types a site doesn't serve. See [Publish a zipped website](/files/websites).
 
 ## Per account
 
@@ -40,10 +40,10 @@ Each account can store **20 GB** of files. That counts every file you own, plus 
 
 When an upload would go over:
 
-- If you're replacing a file, Markdrop first drops that file's oldest kept versions to make room.
-- If that's not enough, or it's a new upload, the upload is refused with "Storage quota exceeded" and how much you're using.
+- If you're replacing your own file, Markdrop first drops that file's oldest kept versions to make room.
+- If that's not enough, or it's a new upload, the upload is refused with "Storage quota exceeded". A new upload on markdrop.in also says how much you're using. Replacing a single file, and uploads from the CLI or an AI assistant, get a shorter message without it.
 
-To free space, delete files you no longer need from **My files**. Replacing a file with a smaller one doesn't free space while older versions are kept. See [Replace a file and restore versions](/files/replace-and-versions).
+To free space, delete files you no longer need from **My files**, or delete a file's old versions from its **Settings**, under **Versions**. Replacing a file with a smaller one doesn't free space while older versions are kept. See [Replace a file and restore versions](/files/replace-and-versions).
 
 When someone you've given edit access replaces one of your files, the new file counts against your storage, not theirs. If it would only fit by dropping your old versions, their upload is refused instead.
 

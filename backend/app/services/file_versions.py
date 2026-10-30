@@ -21,6 +21,8 @@ Rules (owner decisions, 2026-10-27):
 * Old versions count towards the account quota. When an upload would go over,
   the oldest non-current versions of the *same* file are dropped first, then the
   upload is refused (507).
+* The owner can delete any old version (never the current one) to free its
+  space; editors can list and restore versions, not delete them.
 * Publicity: the current blob (and its poster) follows ``publicity.is_public``
   like every other artifact write; a non-current version is never public.
 
@@ -187,7 +189,7 @@ def quota_message() -> str:
     gb = settings.artifact_user_quota_bytes / (1024 ** 3)
     quota = f"{gb:.0f} GB" if gb >= 1 else f"{settings.artifact_user_quota_bytes // (1024 * 1024)} MB"
     return (f"Storage quota exceeded ({quota} per account, old versions included). "
-            "Delete files or old versions to free space.")
+            "Delete files, or old versions from a file's Settings, to free space.")
 
 
 # ── Swapping ──────────────────────────────────────────────────────────────────

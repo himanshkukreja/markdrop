@@ -66,11 +66,13 @@ When an editor opens the editor, Markdrop tells them: "You can edit the text. It
 
 A person marked "Added without an email" was added with **Email them** off. One marked "No longer active: whoever shared it lost access" was added by someone who no longer has access themselves, so their access went with it.
 
-To remove someone, open the `⋯` menu on their row and choose **Remove**. They lose access straight away. People you added can remove themselves with **Remove me**.
+To remove someone, open the `⋯` menu on their row and choose **Remove**. They lose access straight away.
+
+People you added can take themselves off: they choose **Remove me** from the item's menu or from their own row in the Share dialog. On a file, it's **More artifact actions › Remove me**. It disappears from their **Shared with me**.
 
 ## Let people share it on
 
-Turn on **Let people I share with add others** to let the people you added share it with others. They can never give more access than they have: someone with **Can view** can only add people with **Can view**.
+Turn on **Let people I share with add others** to let the people you added share it with others. They open **Share** the same way you do (on a file, **More artifact actions › Share**). They can never give more access than they have: someone with **Can view** can only add people with **Can view**.
 
 If you remove someone, everyone they added loses the access that came through them.
 

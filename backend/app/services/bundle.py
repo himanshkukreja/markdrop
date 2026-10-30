@@ -10,6 +10,12 @@ Extraction is the one place we handle attacker-controlled archive structure, so
 it is deliberately paranoid: entry count, per-file size and total uncompressed
 size are all capped (zip bombs), and any entry that escapes the prefix via ``..``
 or an absolute path is refused outright.
+
+What we skip doesn't count: macOS ``__MACOSX`` folders, hidden files and folders
+(``.DS_Store``, ``.git/…``) and types we wouldn't serve are dropped *before* the
+caps are applied, so a site zipped with its ``.git`` folder isn't refused for
+files nobody would ever see. Skipped entries are never decompressed; the caps
+bound everything that is.
 """
 
 from __future__ import annotations
@@ -54,12 +60,19 @@ def _safe_member_path(name: str) -> str | None:
     if not name or name.endswith("/"):
         return None
     n = name.replace("\\", "/").lstrip("/")
-    if n.startswith("__MACOSX/") or "/." in f"/{n}" and posixpath.basename(n).startswith("."):
-        return None
     norm = posixpath.normpath(n)
     if norm.startswith("../") or norm == ".." or posixpath.isabs(norm):
         return None
+    # macOS resource forks, and hidden files or anything inside a hidden folder.
+    if any(part == "__MACOSX" or part.startswith(".") for part in norm.split("/")):
+        return None
     return norm
+
+
+def _mime_for(path: str) -> str | None:
+    """The type we'd serve ``path`` as, or None to skip it."""
+    ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+    return _EXT_MIME.get(ext)
 
 
 def _strip_common_root(paths: list[str]) -> list[tuple[str, str]]:
@@ -100,41 +113,44 @@ def extract(data: bytes) -> tuple[str, list[tuple[str, bytes, str]]]:
     members = [i for i in zf.infolist() if not i.is_dir()]
     if not members:
         raise BundleError("The archive is empty.")
-    if len(members) > MAX_ENTRIES:
-        raise BundleError(f"Archive has too many files (limit {MAX_ENTRIES}).")
 
-    total = sum(i.file_size for i in members)
+    # Skip first, then count: only what we would serve is checked against the
+    # caps, and only that is ever decompressed (below).
+    safe: list[tuple[str, zipfile.ZipInfo, str]] = []
+    for info in members:
+        path = _safe_member_path(info.filename)
+        if path is None:
+            continue
+        mime = _mime_for(path)
+        if not mime:
+            continue  # skip anything we wouldn't serve
+        safe.append((path, info, mime))
+
+    if not safe:
+        raise BundleError("The archive contains no usable files.")
+    if len(safe) > MAX_ENTRIES:
+        raise BundleError(f"Archive has too many files (limit {MAX_ENTRIES}).")
+    for path, info, _ in safe:
+        if info.file_size > MAX_ENTRY_BYTES:
+            raise BundleError(f"'{path}' is larger than {MAX_ENTRY_BYTES // (1024*1024)} MB.")
+    total = sum(info.file_size for _, info, _ in safe)
     if total > MAX_TOTAL_UNCOMPRESSED:
         raise BundleError(
             f"Archive expands to {total // (1024*1024)} MB — the limit is "
             f"{MAX_TOTAL_UNCOMPRESSED // (1024*1024)} MB."
         )
 
-    safe: list[tuple[str, zipfile.ZipInfo]] = []
-    for info in members:
-        path = _safe_member_path(info.filename)
-        if path is None:
-            continue
-        if info.file_size > MAX_ENTRY_BYTES:
-            raise BundleError(f"'{path}' is larger than {MAX_ENTRY_BYTES // (1024*1024)} MB.")
-        safe.append((path, info))
-
-    if not safe:
-        raise BundleError("The archive contains no usable files.")
-
-    mapping = dict(_strip_common_root([p for p, _ in safe]))
+    mapping = dict(_strip_common_root([p for p, _, _ in safe]))
     served_names = list(mapping.values())
     entry = _pick_entry(served_names)
     if not entry:
         raise BundleError("No .html file found — a bundle needs an index.html.")
 
+    # The sizes above come from the archive's own directory, which can lie, so
+    # what is actually decompressed is bounded again as it is read.
     out: list[tuple[str, bytes, str]] = []
     read = 0
-    for path, info in safe:
-        ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
-        mime = _EXT_MIME.get(ext)
-        if not mime:
-            continue  # skip anything we wouldn't serve
+    for path, info, mime in safe:
         with zf.open(info) as fh:
             content = fh.read(MAX_ENTRY_BYTES + 1)
         if len(content) > MAX_ENTRY_BYTES:

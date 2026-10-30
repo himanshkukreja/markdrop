@@ -14,6 +14,7 @@ token).
     GET    /api/v1/files/{slug}                        file info
     GET    /api/v1/files/{slug}/versions               versions, newest first
     POST   /api/v1/files/{slug}/versions/{n}/restore   make version n current again
+    DELETE /api/v1/files/{slug}/versions/{n}           delete old version n (owner only)
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -152,3 +153,23 @@ async def restore_file_version(
         raise HTTPException(status_code=422, detail="Versions start at 1.")
     raw = await file_uploads.owned_artifact(db, user, slug, action="restore versions of")
     return await file_uploads.restore(db, user, raw, version)
+
+
+@router.delete("/{slug}/versions/{version}", status_code=204)
+@limiter.limit("30/minute")
+async def delete_file_version(
+    request: Request,
+    slug: str,
+    version: int,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Delete an old version to free its space. Owner only: editors may restore
+    a version but not destroy one, and the space is the owner's. Never the
+    current version (409)."""
+    _require_configured()
+    if version < 1:
+        raise HTTPException(status_code=422, detail="Versions start at 1.")
+    raw = await file_uploads.owned_artifact(db, user, slug, action="delete versions of")
+    await file_uploads.delete_version(db, raw, version)
+    return Response(status_code=204)

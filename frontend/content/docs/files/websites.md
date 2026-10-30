@@ -63,16 +63,18 @@ Markdrop keeps the files a web page uses:
 | Fonts | `.woff`, `.woff2`, `.ttf`, `.otf` |
 | Documents | `.pdf` |
 
-Other files in the zip, including video, are skipped. So are macOS `__MACOSX` folders and hidden files.
+Other files in the zip, including video, are skipped. So are macOS `__MACOSX` folders, hidden files, and everything in a hidden folder such as `.git`.
 
 ## Limits
 
 | What | Limit |
 | --- | --- |
 | The `.zip` itself | 25 MB |
-| Files inside | 500 |
-| Any one file inside | 25 MB |
-| Everything inside, unpacked | 100 MB |
+| Files inside that Markdrop keeps | 500 |
+| Any one file it keeps | 25 MB |
+| Everything it keeps, unpacked | 100 MB |
+
+Skipped files don't count towards these limits, so a folder zipped with its `.git` folder or a large video still publishes. Only the `.zip` itself must stay under 25 MB.
 
 If a zip breaks a rule, Markdrop says which, for example "Archive has too many files (limit 500)." or "No .html file found — a bundle needs an index.html."
 

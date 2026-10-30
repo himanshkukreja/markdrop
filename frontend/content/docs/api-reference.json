@@ -235,7 +235,7 @@
     },
     "GET /api/v1/files/{slug}/versions": {
       "title": "List file versions",
-      "description": "Every version of a file you own. Replacing a file keeps the previous version.",
+      "description": "Every version of a file you own or can edit. Replacing a file keeps the previous version.",
       "cli": "markdrop versions k3x9q2m",
       "mcp": "list_file_versions",
       "guide": { "label": "Replace and versions", "href": "/files/replace-and-versions" }
@@ -245,6 +245,17 @@
       "description": "Makes an earlier version current again, at the same link. Versions start at 1.",
       "cli": "markdrop restore k3x9q2m 1",
       "mcp": "restore_file_version",
+      "guide": { "label": "Replace and versions", "href": "/files/replace-and-versions" }
+    },
+    "DELETE /api/v1/files/{slug}/versions/{version}": {
+      "title": "Delete a file version",
+      "description": "Deletes one earlier version for good and frees its space. Only the file's owner can do this, and never for the current version.",
+      "responses": {
+        "204": "Deleted.",
+        "403": "You can edit the file but don't own it.",
+        "404": "That version isn't kept.",
+        "409": "That's the current version. Restore another one first, or delete the file."
+      },
       "guide": { "label": "Replace and versions", "href": "/files/replace-and-versions" }
     },
     "POST /api/v1/artifacts/paste": {

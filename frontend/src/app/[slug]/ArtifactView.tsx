@@ -12,7 +12,7 @@ import { artifactFileRenderer } from "@/components/ArtifactBadge";
 import { useQueryFlags } from "@/lib/useQueryFlags";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/contexts/AuthContext";
-import { getAccess } from "@/lib/access";
+import { getAccess, removePerson } from "@/lib/access";
 import { purgeDocument } from "@/lib/workspaces";
 import { signInUrlFor } from "@/lib/hosts";
 
@@ -37,6 +37,7 @@ import {
 } from "@/lib/api";
 import { ArtifactBar } from "./artifact/ArtifactBar";
 import { ArtifactSettingsDrawer, type ArtifactSettingsState } from "./artifact/ArtifactSettingsDrawer";
+import { ArtifactVersions } from "./artifact/ArtifactVersions";
 import { FrameCover } from "./artifact/FrameCover";
 import { ReportDialog } from "./artifact/ReportDialog";
 import { basePathOf, isPaper, linkPrefixOf, themedFrameSrc } from "./artifact/frame";
@@ -149,6 +150,14 @@ export default function ArtifactView({
   // `can.replace` from the server (Q6): editors and workspace members on a non-private file may
   // swap the bytes, but only the owner reaches the rest of the settings.
   const [canReplace, setCanReplace] = useState(false);
+  // `can.edit`: the title, for an editor in the Replace file drawer. `can.share`: the owner, or
+  // someone added to it while the owner lets people share it on.
+  const [canEditTitle, setCanEditTitle] = useState(false);
+  const [canShare, setCanShare] = useState(false);
+  // The viewer's own grant on the file, when they were added to it: offers "Remove me".
+  const [ownGrantEmail, setOwnGrantEmail] = useState<string | null>(null);
+  // Bumped after a replace, so the Versions list shows the new version.
+  const [versionsKey, setVersionsKey] = useState(0);
   const [docId, setDocId] = useState<string | null>(null);
   // Immersive mode: the artifact fills the viewport with all app chrome hidden,
   // so a published page reads as the content itself rather than something in a
@@ -193,9 +202,13 @@ export default function ArtifactView({
       if (edit.file) {
         const doc = await replaceArtifactFile(slug, edit.file, setEProgress);
         applyDoc(doc);
+        setVersionsKey((k) => k + 1);
       }
       if (!isOwner) {
-        // Everything past the file is the owner's (title, link, password, expiry).
+        // An editor may change the title too; the link, password and expiry are the owner's.
+        if (canEditTitle && edit.title !== (title || "")) {
+          applyDoc(await updateArtifactSettings(slug, { title: edit.title }), { remount: false });
+        }
         purgeDocument(slug);
         setShowEdit(false);
         return;
@@ -248,6 +261,7 @@ export default function ArtifactView({
   const [showDelete, setShowDelete] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showLeave, setShowLeave] = useState(false);
 
   // ?new=1: the floating compact PublishedPanel over the immersive landing.
   const [panelOpen, setPanelOpen] = useState(true);
@@ -374,6 +388,9 @@ export default function ArtifactView({
     if (!user) {
       setIsOwner(false);
       setCanReplace(false);
+      setCanEditTitle(false);
+      setCanShare(false);
+      setOwnGrantEmail(null);
       return;
     }
     let cancelled = false;
@@ -384,8 +401,26 @@ export default function ArtifactView({
         setOwnerCheckedFor(uid);
         setIsOwner(!!doc.is_owner);
         setCanReplace(!!doc.can?.replace);
+        setCanEditTitle(!!doc.can?.edit);
+        setCanShare(!!doc.is_owner || !!doc.can?.share);
         setDocId(doc.id ?? null);
         if (doc.is_owner && doc.artifact_url) applyDoc(doc, { remount: false });
+        // Added to someone else's file? Then they may take themselves off it ("Remove me"). Not on
+        // a workspace's own domain, whose session can only read.
+        if (!doc.is_owner && !tenant) {
+          getAccess(slug)
+            .then((s) => {
+              if (cancelled) return;
+              const me = s.your_email?.toLowerCase() ?? null;
+              // Outside a workspace a role can only come from being added; inside one it may come
+              // from membership, so look for the grant itself.
+              const added = !!me && (s.grants.some((g) => g.email.toLowerCase() === me) || (!s.in_workspace && !s.can_manage));
+              setOwnGrantEmail(added ? me : null);
+            })
+            .catch(() => { if (!cancelled) setOwnGrantEmail(null); });
+        } else {
+          setOwnGrantEmail(null);
+        }
       })
       .catch(() => { if (!cancelled) setOwnerCheckedFor(uid); });
     return () => {
@@ -543,6 +578,25 @@ export default function ArtifactView({
     router.push("/dashboard");
   }
 
+  async function handleLeave() {
+    if (!ownGrantEmail) return;
+    await removePerson(slug, ownGrantEmail);
+    setShowLeave(false);
+    // Back to where shared files are listed; it no longer shows there.
+    router.push("/shared");
+  }
+
+  // A restored version is a new current file: re-read the document so the page shows it.
+  async function handleRestored() {
+    purgeDocument(slug);
+    try {
+      const cachedPwd = isPasswordProtected ? sessionStorage.getItem(`pwd:${slug}`) || undefined : undefined;
+      applyDoc(await getDocument(slug, cachedPwd));
+    } catch {
+      /* the live socket's "changed" ping re-reads it too */
+    }
+  }
+
   // Creator analytics (lib/engage.ts): the viewer frame's page / playback events, or time alone.
   let frameOrigin: string | null = null;
   try {
@@ -606,8 +660,10 @@ export default function ArtifactView({
   );
 
   const menu: MenuEntry[] = [];
-  if (isOwner) {
+  if (canShare && !locked) {
     menu.push({ label: "Share", icon: "share", onClick: () => setShowShare(true) });
+  }
+  if (isOwner) {
     menu.push({ label: "Settings", icon: "settings", onClick: openEdit });
   }
   if (!isOwner && canReplace && !locked) {
@@ -618,6 +674,9 @@ export default function ArtifactView({
   }
   if (isOwner) {
     menu.push({ label: "Delete artifact", icon: "trash", danger: true, separated: true, onClick: () => setShowDelete(true) });
+  }
+  if (!isOwner && ownGrantEmail) {
+    menu.push({ label: "Remove me", icon: "x", danger: true, separated: true, onClick: () => setShowLeave(true) });
   }
 
   const showPanel = isNew && panelOpen && immersive && !!artifactUrl && !locked && access !== null;
@@ -730,6 +789,20 @@ export default function ArtifactView({
       {(isOwner || canReplace) && (
         <ArtifactSettingsDrawer
           fileOnly={!isOwner}
+          titleEditable={canEditTitle}
+          savedTitle={title || ""}
+          versions={
+            // A zipped site keeps no versions; a workspace's own domain session can't reach them.
+            renderer !== "bundle" && !tenant ? (
+              <ArtifactVersions
+                slug={slug}
+                canDelete={isOwner}
+                disabled={eBusy}
+                refreshKey={versionsKey}
+                onRestored={handleRestored}
+              />
+            ) : undefined
+          }
           open={showEdit}
           onClose={() => !eBusy && setShowEdit(false)}
           value={edit}
@@ -759,6 +832,15 @@ export default function ArtifactView({
         title="Delete this artifact?"
         body="The file and its link are removed for good, and the space comes back to your storage. This can't be undone."
         confirmLabel="Delete artifact"
+      />
+
+      <ConfirmDialog
+        open={showLeave}
+        onClose={() => setShowLeave(false)}
+        onConfirm={handleLeave}
+        title="Remove yourself from this file?"
+        body="It leaves your Shared with me list. If it's open to anyone with the link you can still open it that way; otherwise you'll need to be added again."
+        confirmLabel="Remove me"
       />
 
       <ReportDialog open={showReport} onClose={() => setShowReport(false)} slug={slug} />

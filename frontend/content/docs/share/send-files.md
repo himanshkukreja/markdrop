@@ -43,7 +43,7 @@ Open the link. Markdrop connects your device to the sender's, then shows the fil
 
 ![The receiving page on a phone: 2 files are ready, with a Direct badge between Their device and This device, Q3 report.pdf and demo-notes.txt each with a download button, and Download all 2 at the bottom.](/docs-assets/share/send-files/p2p-receiver.webp)
 
-- Choose **Download all** to get everything, or **Save** next to a single file.
+- Choose **Download all** to get everything, or the download button next to a single file.
 - On a computer, each file saves to your Downloads as it arrives. If your browser asks to download multiple files, choose **Allow**.
 - On an iPhone, files collect in the page as they arrive, then one tap saves them to Photos or Files.
 
