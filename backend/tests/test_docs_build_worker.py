@@ -719,5 +719,45 @@ class InternalApiTests(DbCase):
         self.assertEqual(r.status_code, 503)
 
 
+class WorkerTests(DbCase):
+    """The local worker's guards and its server jobs (no Node: the build path is the e2e's)."""
+
+    def worker(self):
+        from scripts import docs_build_worker as w
+
+        cfg = w.Config({})
+        return w, w.Worker(self.db, cfg)
+
+    async def test_guards(self):
+        w, worker = self.worker()
+        s = await self.make_site()
+        await self.job("build", s, target="local")
+        self.assertIn("build", await worker.kinds_now())
+        # Not enough free memory: builds wait (restores, imports and unpublishes still run).
+        with mock.patch.object(w, "mem_available_mb", lambda: 600):
+            self.assertEqual(await worker.kinds_now(), ("import", "restore", "unpublish"))
+        # Another local build is running somewhere: one at a time.
+        other = await self.make_site("other")
+        await self.job("build", other, target="local", status="running", locked_until=utc(minutes=1), claimed_at=utc())
+        self.assertNotIn("build", await worker.kinds_now())
+        self.assertIsNone(await worker.claim())
+        env_ = worker.runner_env(0, heavy=True)
+        self.assertEqual((env_["NODE_OPTIONS"], env_["MARKDROP_DOCS_BUILD_CPUS"]), ("--max-old-space-size=768", "1"))
+        self.assertNotIn("MARKDROP_MONGODB_URI", env_)  # the runner never sees the database
+
+    async def test_restore_job_through_the_worker(self):
+        w, worker = self.worker()
+        s = await self.make_site()
+        h1 = self.put_manifest(str(s["_id"]))
+        b1 = (await self.db[BUILDS].insert_one({"site_id": s["_id"], "number": 1, "status": "superseded", "manifest_hash": h1})).inserted_id
+        await self.job("restore", s, {"build_id": str(b1), "requested_by": "u1"}, target="local")
+        job = await worker.claim()
+        run = w.Running(job, 0)
+        await worker.run_job(run)
+        row = await self.db[JOBS].find_one({"_id": job["_id"]})
+        self.assertEqual((row["status"], row["result"]["number"]), ("done", 1))
+        self.assertEqual((await self.db[SITES].find_one({"_id": s["_id"]}))["live_build_id"], b1)
+
+
 if __name__ == "__main__":
     unittest.main()
