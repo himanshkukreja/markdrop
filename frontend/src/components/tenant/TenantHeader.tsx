@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Anchor, Avatar, Button, Dropdown, Skeleton, SkipLink, cx } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { getToken } from "@/lib/api";
@@ -34,35 +34,62 @@ const CHECKER: React.CSSProperties = {
     "repeating-conic-gradient(var(--logo-well-light) 0 25%, color-mix(in oklab, var(--logo-well-light) 78%, var(--logo-well-dark)) 0 50%) 0 0 / 10px 10px",
 };
 
-/** The tenant's logo on its well, or its name as text when there is no logo (or it fails to load). */
+/**
+ * The tenant's logo and name, or its name alone when there is no logo (or it fails to load).
+ *
+ * A mark-style logo (square-ish) sits next to the site's name, the way people recognise a site;
+ * a wide wordmark already spells the name, so it stands alone, a little larger. The logo gets a
+ * tile only when the workspace chose one (light, dark or checker, for a logo that needs a
+ * particular background to read); with no choice it sits straight on the header, so a light
+ * logo is not boxed in a stray white square.
+ */
 export function TenantBrand({ tenant, className }: { tenant: TenantChrome; className?: string }) {
   const [broken, setBroken] = useState(false);
+  // Decided from the image itself once it loads: ≥ 2.2:1 is a wordmark.
+  const [wordmark, setWordmark] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const measure = (img: HTMLImageElement | null) => {
+    if (img && img.naturalHeight > 0) setWordmark(img.naturalWidth / img.naturalHeight >= 2.2);
+  };
+  // A cached logo can finish loading before hydration, when React's onLoad never fires.
+  useEffect(() => {
+    if (imgRef.current?.complete) measure(imgRef.current);
+  }, [tenant.logoUrl]);
   const showLogo = !!tenant.logoUrl && !broken;
+  const tiled = showLogo && tenant.logoWell !== null;
+  const showName = !showLogo || !wordmark;
   return (
     <Anchor
       href="/"
       className={cx(
-        "md-focus inline-flex min-h-11 min-w-0 items-center gap-2 rounded-md text-text no-underline",
+        "md-focus inline-flex min-h-11 min-w-0 items-center gap-2.5 rounded-md text-text no-underline",
         className,
       )}
     >
-      {showLogo ? (
+      {showLogo && (
         <span
-          className={cx("inline-flex h-9 shrink-0 items-center rounded-md px-2", wellClass(tenant.logoWell))}
+          className={cx(
+            "inline-flex shrink-0 items-center justify-center",
+            tiled && "h-9 rounded-lg px-1.5 ring-1 ring-border",
+            tiled && wellClass(tenant.logoWell),
+          )}
           style={tenant.logoWell === "checker" ? CHECKER : undefined}
         >
           {/* A customer-hosted image of unknown size: next/image would need its host allow-listed. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={tenant.logoUrl!}
-            alt={tenant.name}
-            className="block h-6 w-auto max-w-36 object-contain"
+            alt={showName ? "" : tenant.name}
+            className={cx("block w-auto object-contain", wordmark ? "h-7 max-w-44" : "h-7 max-w-7 rounded-md")}
             referrerPolicy="no-referrer"
+            ref={imgRef}
+            onLoad={(e) => measure(e.currentTarget)}
             onError={() => setBroken(true)}
           />
         </span>
-      ) : (
-        <span dir="auto" className="truncate text-h4 text-text">
+      )}
+      {showName && (
+        <span dir="auto" className="truncate text-[15px] font-semibold leading-6 text-text">
           {tenant.name}
         </span>
       )}
@@ -103,8 +130,10 @@ export function TenantHeader({ tenant: override, returnPath, hideAuth, className
       )}
     >
       <SkipLink />
-      <div className="w-full px-4 sm:px-6">
-        <div className="mx-auto flex h-14 min-w-0 max-w-tool items-center gap-3">
+      {/* The same container as the document bar below it (DocumentBar), so the brand and the
+          document's title line up on one left edge. */}
+      <div className="w-full">
+        <div className="mx-auto flex h-14 min-w-0 max-w-marketing items-center gap-3 px-4 sm:px-6">
           <TenantBrand tenant={tenant} className="min-w-0" />
 
           {!hideAuth && (
