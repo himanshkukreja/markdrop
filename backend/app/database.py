@@ -241,6 +241,17 @@ async def connect() -> None:
     await db["feedback"].create_index([("created_at", -1)])
     await db["feedback"].create_index([("status", 1), ("type", 1), ("created_at", -1)])
 
+    # AI usage ledger (services/ai_usage.py; 180-day TTL) and the docs site's
+    # "Did this page help?" votes (routers/docs_ai.py; kept a year).
+    try:
+        from app.services import ai_usage as _ai_usage
+
+        await _ai_usage.ensure_indexes(db)
+        await db["docs_feedback"].create_index("ts", expireAfterSeconds=365 * 24 * 3600)
+        await db["docs_feedback"].create_index([("path", 1), ("ts", -1)])
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] AI usage indexes skipped: {exc}")
+
     # Folders created before slugs existed have none, and fall back to their
     # ObjectId in URLs. Idempotent and a no-op once done, so it runs on every
     # start rather than needing anyone to remember a migration step. Never fatal:

@@ -12,10 +12,12 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import get_settings
 from app.database import connect, disconnect
 from app.limiter import limiter
+from app.middleware.docs_cors import DocsCORSMiddleware
 from app.middleware.internal import InternalRequestMiddleware
 from app.middleware.public_cors import PublicCORSMiddleware
 from app.middleware.tenant_cors import TenantCORSMiddleware
 from app.routers.admin import router as admin_router
+from app.routers.admin_ai import router as admin_ai_router
 from app.routers.admin_analytics import router as admin_analytics_router
 from app.routers.admin_email import router as admin_email_router
 from app.routers.admin_journeys import router as admin_journeys_router
@@ -23,6 +25,7 @@ from app.routers.beat import router as beat_router
 from app.routers.artifacts import router as artifacts_router
 from app.routers.auth import router as auth_router
 from app.routers.auth import unsubscribe_alias_router
+from app.routers.docs_ai import router as docs_ai_router
 from app.routers.documents import router as documents_router
 from app.routers.feedback import router as feedback_router
 from app.routers.files import router as files_router
@@ -113,6 +116,10 @@ app.add_middleware(TenantCORSMiddleware)
 # sees their preflights first; every other path passes through untouched.
 app.add_middleware(PublicCORSMiddleware)
 
+# The docs site (docs.markdrop.in) calling /api/v1/docs/* without credentials
+# (middleware/docs_cors.py). Pure ASGI, so Ask AI's event stream isn't buffered.
+app.add_middleware(DocsCORSMiddleware)
+
 # Rate limiting
 app.state.limiter = limiter
 def _rate_limited(request: Request, exc: RateLimitExceeded) -> JSONResponse:
@@ -162,6 +169,7 @@ app.include_router(share_router)
 app.include_router(google_router)
 app.include_router(admin_router)
 app.include_router(admin_analytics_router)
+app.include_router(admin_ai_router)
 app.include_router(admin_journeys_router)
 app.include_router(admin_email_router)
 app.include_router(email_public_router)
@@ -175,6 +183,7 @@ app.include_router(sync_router)
 app.include_router(og_router)
 app.include_router(live_router)
 app.include_router(feedback_router)
+app.include_router(docs_ai_router)
 app.include_router(workspaces_router)
 app.include_router(domains_router)
 app.include_router(folders_router)

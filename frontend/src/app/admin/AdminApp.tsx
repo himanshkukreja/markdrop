@@ -22,6 +22,12 @@ import { JOURNEYS_KEYS, type Patch } from "./journeys/bits";
 const JOURNEYS_CLEAR = Object.fromEntries(JOURNEYS_KEYS.map((k) => [k, null]));
 
 // Live polls PostHog and carries the replay player: loaded when it is first opened.
+// The AI tab (docs Ask AI usage and cost): loaded when it is first opened.
+const AiPanel = dynamic(() => import("./ai/AiPanel"), {
+  ssr: false,
+  loading: () => <LoadingBlock size="md" label="Loading AI usage" minHeight={480} />,
+});
+
 const LivePanel = dynamic(() => import("./live/LivePanel"), {
   ssr: false,
   loading: () => <LoadingBlock size="md" label="Loading live activity" minHeight={480} />,
@@ -177,6 +183,9 @@ export default function AdminApp() {
           break;
         case "journeys":
           page = <JourneysPanel token={token} />;
+          break;
+        case "ai":
+          page = <AiPanel token={token} />;
           break;
         case "users":
           page = <UsersPanel token={token} />;

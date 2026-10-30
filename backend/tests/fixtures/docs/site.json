@@ -1,0 +1,11 @@
+{
+  "name": "Markdrop Docs",
+  "description": "Guides for publishing documents and files with Markdrop.",
+  "url": "https://docs.markdrop.in",
+  "product": {"name": "Markdrop", "url": "https://markdrop.in"},
+  "nav": [
+    {"group": "Get started", "pages": ["/get-started/what-is-markdrop", "/get-started/missing-page"]},
+    {"group": "Workspaces and domains", "pages": ["/workspaces/custom-domain"]},
+    {"group": "Account", "pages": ["/account/limits"]}
+  ]
+}

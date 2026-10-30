@@ -1,0 +1,14 @@
+{
+  "products": [{"id": "web", "label": "Web app"}, {"id": "cli", "label": "CLI"}],
+  "entries": [
+    {"id": "creator-analytics", "date": "2026-10-28", "title": "Creator analytics", "kind": "new", "area": "Analytics",
+     "products": ["web", "api"], "summary": "See who watched and read what you published.",
+     "body": "Per-second retention for video.", "docs": ["/get-started/what-is-markdrop"],
+     "highlights": ["Your own views never count"]},
+    {"id": "cli-replace", "date": "2026-09-01", "title": "Replace a file from the CLI", "kind": "improved", "area": "CLI",
+     "products": ["cli"], "versions": {"cli": "0.4.0"}, "summary": "markdrop replace swaps a file in place."},
+    {"id": "cli-workspaces", "date": "2026-10-20", "title": "Workspaces in the CLI", "kind": "new", "area": "CLI",
+     "products": ["cli"], "versions": {"cli": "0.5.0"}, "summary": "File uploads into a workspace folder."},
+    {"id": "bad id with spaces", "date": "2026-10-01", "title": "Ignored"}
+  ]
+}

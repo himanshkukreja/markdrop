@@ -368,6 +368,38 @@ class Settings(BaseSettings):
     def turn_configured(self) -> bool:
         return bool(self.cf_turn_key_id and self.cf_turn_api_token)
 
+    # ── Docs Ask AI (routers/docs_ai.py, services/docs_agent.py) ─────────────
+    # Blank key: the endpoint answers with a `limit` event ("not configured")
+    # and the docs site offers its Open-in-Claude links instead. Never logged.
+    anthropic_api_key: str = ""
+    # Kill switch. Off: same as no key, whatever the budget says.
+    docs_ai_enabled: bool = True
+    docs_ai_model: str = "claude-haiku-5-5"
+    # low | medium | high | xhigh | max (output_config.effort).
+    docs_ai_effort: str = "medium"
+    # Spend caps in USD, computed from the real usage of every call (cache
+    # reads/writes and the >100k-token price tier included). Days and months
+    # are UTC. Reaching either answers `limit` until it rolls over.
+    docs_ai_daily_usd: float = 5.0
+    docs_ai_monthly_usd: float = 50.0
+    # Questions per visitor (account, or hashed IP when signed out) per hour.
+    docs_ai_per_visitor_hour: int = 20
+    # Answers being written at once by this API process.
+    docs_ai_max_concurrent: int = 8
+    # Per model call. Thinking counts towards it, so leave room.
+    docs_ai_max_tokens: int = 4000
+    # Tool-calling rounds per question before the model must answer.
+    docs_ai_max_tool_rounds: int = 6
+    # The docs content (Markdown + site.json + changelog.json). Blank: the
+    # repo's frontend/content/docs next to this backend.
+    docs_content_dir: str = ""
+    docs_site_url: str = "https://docs.markdrop.in"
+    # Origins allowed to call /api/v1/docs/* from a browser (no credentials:
+    # the Authorization header is the only credential these routes read).
+    # http://docs.localhost:<any port> is always allowed for local development:
+    # that origin can only exist on the reader's own machine.
+    docs_cors_origins: list[str] = ["https://docs.markdrop.in"]
+
     # Analytics geo-IP (Phase 4) — MaxMind GeoLite2 City DB
     geoip_db_path: str = ""  # e.g. /opt/markdrop/geoip/GeoLite2-City.mmdb
     ip_hash_salt: str = "change-this-ip-hash-salt-in-production"
