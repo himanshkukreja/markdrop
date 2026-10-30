@@ -614,7 +614,9 @@ if (!changelog.missing) {
 }
 
 /* ── media ───────────────────────────────────────────────────────────────── */
-const PUBLIC = path.join(ROOT, "public");
+// A site's own public/ folder (DOCS_CONTENT_DIR/public, as the importers write it) or DOCS_PUBLIC_DIR.
+const OWN_PUBLIC = path.join(CONTENT, "public");
+const PUBLIC = process.env.DOCS_PUBLIC_DIR || (process.env.DOCS_CONTENT_DIR && fs.existsSync(OWN_PUBLIC) ? OWN_PUBLIC : path.join(ROOT, "public"));
 const ASSETS_DIR = path.join(PUBLIC, "docs-assets");
 const KB = 1024;
 const BUDGET = { image: 220 * KB, poster: 220 * KB, clip: 1.6 * KB * KB, video: 25 * KB * KB };
