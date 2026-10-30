@@ -412,9 +412,9 @@ export default function ArtifactView({
             .then((s) => {
               if (cancelled) return;
               const me = s.your_email?.toLowerCase() ?? null;
-              // Outside a workspace a role can only come from being added; inside one it may come
-              // from membership, so look for the grant itself.
-              const added = !!me && (s.grants.some((g) => g.email.toLowerCase() === me) || (!s.in_workspace && !s.can_manage));
+              // your_grant is the role your own email grant gives (null when your access comes from
+              // a workspace or the link), so even a viewer, who can't see the grant list, knows.
+              const added = !!me && !!s.your_grant;
               setOwnGrantEmail(added ? me : null);
             })
             .catch(() => { if (!cancelled) setOwnGrantEmail(null); });
