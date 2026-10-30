@@ -10,6 +10,8 @@
 import { Extension, Mark, Node, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Code from "@tiptap/extension-code";
+import CodeBlock from "@tiptap/extension-code-block";
+import { ListItem } from "@tiptap/extension-list";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 
 /* ── attribute helpers ───────────────────────────────────────────────────── */
@@ -266,6 +268,8 @@ export function baseExtensions() {
   return [
     StarterKit.configure({
       code: false,
+      codeBlock: false,
+      listItem: false,
       underline: false,
       heading: { levels: [1, 2, 3, 4, 5, 6] },
       link: {
@@ -277,6 +281,9 @@ export function baseExtensions() {
       },
       dropcursor: { color: "var(--accent)", width: 2 },
     }),
+    // Separate from StarterKit so the editor can give them node views (withOverrides).
+    CodeBlock.configure({ defaultLanguage: null, enableTabIndentation: true }),
+    ListItem,
     InlineCode,
     Kbd,
     MarkdownAttrs,

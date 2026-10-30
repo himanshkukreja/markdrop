@@ -59,7 +59,7 @@ export function yamlScalar(value) {
  * rewritten in place (with its indented continuation lines, for multi-line values); a new key goes
  * before the closing `---`. With no frontmatter yet, one is created.
  */
-export function writeFrontmatter(front, patch) {
+export function writeFrontmatter(front, patch, { keep = [] } = {}) {
   const eol = /\r\n/.test(front) ? "\r\n" : "\n";
   let lines;
   let trailer = "";
@@ -76,7 +76,7 @@ export function writeFrontmatter(front, patch) {
   }
   for (const [key, value] of Object.entries(patch)) {
     const at = lines.findIndex((l, i) => i > 0 && i < lines.length - 1 && new RegExp(`^${key}\\s*:`).test(l));
-    const remove = value === null || value === undefined || value === "";
+    const remove = value === null || value === undefined || (value === "" && !keep.includes(key));
     if (at >= 0) {
       let endAt = at + 1;
       while (endAt < lines.length - 1 && /^(?:[ \t]+\S|- )/.test(lines[endAt])) endAt++;

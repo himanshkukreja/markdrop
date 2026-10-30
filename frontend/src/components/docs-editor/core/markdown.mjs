@@ -684,8 +684,10 @@ function serializeLeaf(node) {
 
 /* Tables ---------------------------------------------------------------------------- */
 
+/** A cell's inline content on one line, pipes escaped (a line break can't exist in a GFM cell). */
 function cellText(cell) {
-  const md = mdString({ type: "paragraph", children: phrasing(cell.content ?? []) });
+  const inline = (cell.content ?? []).map((k) => (k.type === "hardBreak" ? { type: "text", text: " ", marks: k.marks } : k));
+  const md = mdString({ type: "paragraph", children: phrasing(inline) });
   return md.replace(/\n/g, " ").replace(/(^|[^\\])((?:\\\\)*)\|/g, "$1$2\\|").replace(/(^|[^\\])((?:\\\\)*)\|/g, "$1$2\\|");
 }
 

@@ -1,4 +1,7 @@
 import type { AnyExtension, Extension, Mark, Node } from "@tiptap/core";
+// The extensions' command typings (setHeading, toggleBulletList, insertTable…) come with their packages.
+import type {} from "@tiptap/starter-kit";
+import type {} from "@tiptap/extension-table";
 
 export const Callout: Node;
 export const Steps: Node;
