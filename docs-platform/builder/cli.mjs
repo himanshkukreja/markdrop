@@ -4,7 +4,12 @@
  *
  *   markdrop-docs build <content-dir> --out <dist> [--engine <frontend>] [--work <dir>]
  *                       [--assets <dir>=<url-prefix>]... [--port 3591] [--force]
+ *                       [--engine-assets <dir> | none]   (shared engine files for the Worker's
+ *                                                         static assets; default edge/assets)
  *   markdrop-docs publish <dist> (--store <dir> | --r2 <bucket>) [--site <id>] [--host <hostname>]... [--dry-run]
+ *   markdrop-docs assets <dir> (--store <dir> | --r2 <bucket>) [--prune] [--dry-run]
+ *                                   (the Worker's static assets folder from every site's live
+ *                                    manifests: fetch missing engine files, --prune unused ones)
  *   markdrop-docs bundle            (build edge/dist/: the Worker and the Node handler)
  */
 import path from "node:path";
@@ -25,7 +30,7 @@ function parse(argv) {
       continue;
     }
     const key = a.slice(2);
-    if (key === "force" || key === "dry-run" || key === "quiet") {
+    if (key === "force" || key === "dry-run" || key === "quiet" || key === "prune") {
       opt[key] = true;
       continue;
     }
@@ -37,7 +42,14 @@ function parse(argv) {
   return { pos, opt };
 }
 
-const fmtBytes = (n) => (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : n > 1e3 ? `${(n / 1e3).toFixed(1)} KB` : `${n} B`);
+/** --store <dir>, or --r2 <bucket>: the account's R2 over S3 (CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY in the env). */
+function storeOf(opt) {
+  return opt.r2
+    ? new S3Store({ accountId: process.env.CF_ACCOUNT_ID, accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY, bucket: opt.r2 })
+    : new FsStore(opt.store);
+}
+
+const fmtBytes =(n) => (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : n > 1e3 ? `${(n / 1e3).toFixed(1)} KB` : `${n} B`);
 
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
@@ -57,10 +69,11 @@ async function main() {
       assets,
       port: opt.port ? Number(opt.port) : undefined,
       force: !!opt.force,
+      engineAssetsDir: opt["engine-assets"] === "none" ? undefined : path.resolve(opt["engine-assets"] || path.join(HERE, "..", "edge", "assets")),
       log,
     });
     if (res.skipped) {
-      console.log(JSON.stringify({ skipped: true, inputs: res.manifest.inputs, timings: res.timings }));
+      console.log(JSON.stringify({ skipped: true, inputs: res.manifest.inputs, engineAssets: res.engineAssets, timings: res.timings }));
       return;
     }
     const m = res.manifest;
@@ -75,13 +88,15 @@ async function main() {
   } else if (cmd === "publish") {
     if (!pos[0] || (!opt.store && !opt.r2)) throw new Error("usage: publish <dist> (--store <dir> | --r2 <bucket>)");
     const t = Date.now();
-    // --r2 <bucket>: the account's R2 over S3 (CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY in the env).
-    const store = opt.r2
-      ? new S3Store({ accountId: process.env.CF_ACCOUNT_ID, accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY, bucket: opt.r2 })
-      : new FsStore(opt.store);
-    const res = await publish({ distDir: pos[0], store, site: opt.site, hosts: opt.host, dryRun: !!opt["dry-run"] });
+    const res = await publish({ distDir: pos[0], store: storeOf(opt), site: opt.site, hosts: opt.host, dryRun: !!opt["dry-run"] });
     const { uploadedKeys, ...summary } = res;
     console.log(JSON.stringify({ ...summary, uploadedBytes: fmtBytes(res.uploadedBytes || 0), ms: Date.now() - t }, null, 2));
+  } else if (cmd === "assets") {
+    // The Worker's static assets folder from the live manifests: fetch missing engine files, --prune the rest.
+    if (!pos[0] || (!opt.store && !opt.r2)) throw new Error("usage: assets <dir> (--store <dir> | --r2 <bucket>) [--prune] [--dry-run]");
+    const { syncEngineAssets } = await import("./store.mjs");
+    const res = await syncEngineAssets({ store: storeOf(opt), dir: path.resolve(pos[0]), prune: !!opt.prune, dryRun: !!opt["dry-run"] });
+    console.log(JSON.stringify(res, null, 2));
   } else if (cmd === "diff") {
     // What changed between two manifests (objects a publish of B over A would upload).
     const fs = await import("node:fs");
@@ -108,7 +123,7 @@ async function main() {
     const { bundle } = await import("./bundle.mjs");
     console.log(JSON.stringify(await bundle(), null, 2));
   } else {
-    console.error("commands: build, publish, bundle (see the header of builder/cli.mjs)");
+    console.error("commands: build, publish, assets, diff, bundle (see the header of builder/cli.mjs)");
     process.exit(2);
   }
 }

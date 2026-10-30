@@ -64,6 +64,8 @@ const common = {
 
 export async function bundle() {
   fs.mkdirSync(OUT, { recursive: true });
+  // wrangler.toml's [assets] folder must exist even before a build has filled it.
+  fs.mkdirSync(path.join(ROOT, "edge", "assets"), { recursive: true });
   // 1. The MCP engine, wrapped so each site gets its own module instance over its own files.
   const eng = await esbuild.build({
     ...common,

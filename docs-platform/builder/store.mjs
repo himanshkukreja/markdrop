@@ -45,6 +45,32 @@ export class FsStore {
       return null;
     }
   }
+  async getBytes(key) {
+    try {
+      return fs.readFileSync(this.file(key));
+    } catch {
+      return null;
+    }
+  }
+  /** Keys under a prefix ending in "/" (recursive). */
+  async list(prefix) {
+    const out = [];
+    const walk = (dir, rel) => {
+      let entries = [];
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const e of entries) {
+        if (e.name.endsWith(".tmp")) continue;
+        if (e.isDirectory()) walk(path.join(dir, e.name), `${rel}${e.name}/`);
+        else if (e.isFile()) out.push(`${rel}${e.name}`);
+      }
+    };
+    walk(path.join(this.root, prefix), prefix);
+    return out;
+  }
 }
 
 /** An R2 bucket binding (Worker, or Miniflare's getR2Bucket) behind the same three calls. */
@@ -61,6 +87,20 @@ export class R2Store {
   async getText(key) {
     const o = await this.bucket.get(key);
     return o ? await o.text() : null;
+  }
+  async getBytes(key) {
+    const o = await this.bucket.get(key);
+    return o ? Buffer.from(await o.arrayBuffer()) : null;
+  }
+  async list(prefix) {
+    const out = [];
+    let cursor;
+    do {
+      const page = await this.bucket.list({ prefix, cursor });
+      for (const o of page.objects) out.push(o.key);
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+    return out;
   }
 }
 
@@ -99,6 +139,27 @@ export class S3Store {
     if (r.status === 404) return null;
     if (!r.ok) throw new Error(`R2 GET ${key}: ${r.status}`);
     return await r.text();
+  }
+  async getBytes(key) {
+    const r = await (await this.client()).fetch(this.url(key));
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(`R2 GET ${key}: ${r.status}`);
+    return Buffer.from(await r.arrayBuffer());
+  }
+  /** Keys under a prefix (ListObjectsV2, paged). */
+  async list(prefix) {
+    const out = [];
+    const unxml = (t) => t.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+    let token;
+    do {
+      const q = new URLSearchParams({ "list-type": "2", prefix, ...(token ? { "continuation-token": token } : {}) });
+      const r = await (await this.client()).fetch(`${this.base}?${q}`);
+      if (!r.ok) throw new Error(`R2 LIST ${prefix}: ${r.status}`);
+      const xml = await r.text();
+      for (const m of xml.matchAll(/<Key>([^<]*)<\/Key>/g)) out.push(unxml(m[1]));
+      token = /<IsTruncated>true<\/IsTruncated>/.test(xml) ? unxml(/<NextContinuationToken>([^<]*)</.exec(xml)?.[1] || "") || undefined : undefined;
+    } while (token);
+    return out;
   }
 }
 
@@ -164,4 +225,62 @@ export async function publish({ distDir, store, site, hosts = [], concurrency = 
     for (const h of hosts) await store.put(`hosts/${h.toLowerCase()}.json`, JSON.stringify({ site: siteId }));
   }
   return { site: siteId, manifest: manifestHash, objects: wanted.length, knownFromPrevious, checked, uploaded, uploadedBytes, uploadedKeys, unchanged: false };
+}
+
+/**
+ * The Worker's static assets folder from what is live: the shared engine files of every site's
+ * current and previous manifest (the rollback) in `store`. Files the folder lacks are fetched from
+ * the store's objects (a fresh CI machine rebuilds the folder this way); with `prune`, engine files
+ * no live manifest references are deleted. Deploy the Worker afterwards. Pruning never breaks a
+ * page: an older page still open in a tab that asks for a pruned chunk gets it from R2 through the
+ * Worker (objects are never deleted there).
+ */
+export async function syncEngineAssets({ store, dir, prune = false, dryRun = false }) {
+  const pointers = (await store.list("sites/")).filter((k) => /^sites\/[^/]+\/current\.json$/.test(k));
+  const wanted = new Map();
+  const manifests = new Set();
+  for (const key of pointers) {
+    const ptr = JSON.parse((await store.getText(key)) || "null");
+    for (const h of [ptr?.manifest, ptr?.previous]) {
+      if (!h || manifests.has(h)) continue;
+      const raw = await store.getText(`manifests/${h}.json`);
+      if (!raw) continue;
+      manifests.add(h);
+      for (const [p, f] of Object.entries(JSON.parse(raw).files)) if (f.shared) wanted.set(p, f.o);
+    }
+  }
+  let fetched = 0;
+  for (const [p, hash] of wanted) {
+    const out = path.join(dir, ...p.split("/").filter(Boolean));
+    if (fs.existsSync(out)) continue;
+    fetched++;
+    if (dryRun) continue;
+    const body = await store.getBytes(`objects/${hash}`);
+    if (!body) throw new Error(`object ${hash} (${p}) missing from the store`);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, body);
+  }
+  if (!dryRun) {
+    const { writeAssetHeaders } = await import("./build.mjs");
+    writeAssetHeaders(dir);
+  }
+  const removed = [];
+  if (prune) {
+    const walk = (d) => {
+      for (const e of fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }) : []) {
+        const abs = path.join(d, e.name);
+        if (e.isDirectory()) {
+          walk(abs);
+          if (!dryRun && fs.readdirSync(abs).length === 0) fs.rmdirSync(abs);
+          continue;
+        }
+        const p = `/${path.relative(dir, abs).split(path.sep).join("/")}`;
+        if (wanted.has(p)) continue;
+        removed.push(p);
+        if (!dryRun) fs.rmSync(abs);
+      }
+    };
+    walk(path.join(dir, "_next", "static"));
+  }
+  return { sites: pointers.length, manifests: manifests.size, shared: wanted.size, fetched, removed: removed.length, removedExamples: removed.slice(0, 5) };
 }

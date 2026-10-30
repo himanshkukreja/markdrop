@@ -11,6 +11,25 @@ compatibility_date = "2026-01-01"
 #   { pattern = "*.docs.markdrop.in/*", zone_name = "markdrop.in" },
 # ]
 
+# The engine's shared files (/_next/static/{chunks,css,media}: content-hashed, identical for every
+# site an engine version builds) as Workers Static Assets: served at the edge without invoking the
+# Worker, so they cost no requests. `build` copies them here (--engine-assets, default this folder;
+# deploy another one with `wrangler deploy --assets <dir>`). The folder is additive across builds and
+# must hold the files of every engine version a live site uses (README: "Engine files as static
+# assets").
+#
+# Routing: assets first, then the Worker. The folder holds nothing but /_next/static/ files, so every
+# docs address (pages, payloads, .md, files, /mcp) misses it and runs the Worker, and so does an
+# engine file the deployed folder lacks, which the Worker serves from R2 (the manifest still lists
+# it). No run_worker_first rules on purpose: a path a rule sends to the assets (`!/_next/static/*`)
+# is answered by the assets alone, and a miss there is a bare 404 that never reaches the Worker
+# (measured on the preview), which would break that fallback. html_handling "none": no implicit
+# index.html / trailing-slash lookups.
+[assets]
+directory = "./assets"
+html_handling = "none"
+not_found_handling = "none"
+
 # Objects, manifests, pointers and host map (see builder/store.mjs for the key layout).
 [[r2_buckets]]
 binding = "DOCS"

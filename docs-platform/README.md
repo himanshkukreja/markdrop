@@ -7,8 +7,9 @@ self-host server (Docker). The renderer is the docs engine of docs.markdrop.in i
 frontend's `src/docs` and `src/app/docs-site`, built by its own Next app. There is no second
 renderer.
 
-Status: prototype. Nothing is deployed and no Cloudflare account is used. The Worker runs locally
-in Miniflare (workerd).
+Status: prototype. Deployed only as two noindex previews on a separate Cloudflare account used for
+docs previews (`markdrop-docs-edge` serving docs.markdrop.in's content, and `senseloaf-preview`, both
+on workers.dev). Locally the Worker runs in Miniflare (workerd).
 
 ## Decision: prerender with the real Next app, then crawl it (option A, on a staged copy)
 
@@ -36,7 +37,8 @@ favicon, apple-icon) are fetched as well.
 | `<page>.md`, `/index.md`, `Accept: text/markdown` | Static objects, negotiated at the edge | Uses the engine's own `docsRewritePath` / `prefersMarkdown` (`src/docs/host.ts`, bundled into the edge) |
 | `llms.txt`, `llms-full.txt`, `skill.md`, `sitemap.xml`, `robots.txt`, `search-index.json`, `changelog.{md,rss,json}` | Static, with the engine's own cache headers | |
 | `/og/**` | Static PNG | Rendered by `next/og` at build time |
-| `/_next/static/**` | Static, immutable | Byte-identical across sites built by the same engine (192/192 chunks shared between Markdrop and Senseloaf), so they upload once |
+| `/_next/static/{chunks,css,media}/**` | **Workers Static Assets** (no Worker invocation), immutable | Content-hashed engine output, shared by every site an engine builds (175 of 190 between Markdrop and Senseloaf; the rest differ only by inlined `NEXT_PUBLIC_*` values, so they have other names). Also in R2: the Worker serves one from there when the deployed assets lack it. See "Engine files as static assets" |
+| `/_next/static/<build id>/*` | Static, from R2 through the Worker | `_buildManifest.js` carries the site's rewrites (its docs hosts), so it differs per site under one name. The app router never requests it |
 | `/docs-assets/**` (site files) | Static, `Range` supported (video) | Copied from `<content>/public` |
 | 404 | The engine's 404 page (status 404) | The Next server renders the 404 per request: same page, but the requested path appears in its payload |
 | `redirects.json` | Edge | Applied only when no page or file matches |
@@ -83,6 +85,40 @@ publish.
 No-change detection: `inputs` = hash(engine version, content snapshot, asset list). When it
 matches the manifest already in `--out`, the build is skipped (28–120 ms).
 
+### Engine files as static assets
+
+`build` also copies the shared engine files (manifest `files` entries marked `shared`:
+`/_next/static/{chunks,css,media}/**`) into an assets folder (`--engine-assets`, default
+`edge/assets`, git-ignored), with a `_headers` file that makes them immutable. `wrangler deploy`
+uploads that folder as the Worker's static assets (`[assets]` in `edge/wrangler.toml`, or
+`--assets <dir>`); Cloudflare answers those paths itself, free and not counted as requests.
+
+- **Routing.** Assets first, then the Worker. The folder holds only `/_next/static/` files, so every
+  docs address misses it and runs the Worker. No `run_worker_first` rules: a path that a rule sends
+  to the assets (`["/*", "!/_next/static/*"]`) is answered by the assets alone, and a miss there is
+  a bare 404 that never reaches the Worker (tried on the preview). That would break the fallback.
+- **Fallback.** Manifests still list every chunk and `publish` still uploads them to R2. A chunk
+  missing from the deployed assets (a deploy from a fresh folder, a pruned version) runs the
+  Worker, which serves it from R2. It costs a request; nothing breaks.
+- **Versions.** The folder is additive: a build adds its engine's files and never removes any, so
+  one deployment carries the files of every engine version a live site uses. Two sites built by
+  different engines both work. Names are content hashes, so files never collide. A build fails if a
+  name already in the folder has other bytes, rather than serve one site's file to another. Chunks
+  hold engine code and public env, never site content: a site's text reaches readers only through
+  its HTML, payloads and files.
+- **Order.** Build → deploy the Worker (wrangler uploads only new files) → publish (flip the
+  pointer). Any order works: a site published before the deploy gets its new chunks from R2 until
+  the deploy.
+- **Rebuild and cleanup.** `markdrop-docs assets <dir> --r2 <bucket> [--prune] [--dry-run]` reads
+  every site's pointer (current and previous manifest, so a rollback keeps its files). It fetches the
+  shared files the folder lacks from R2, which is how a fresh CI machine rebuilds the folder. With
+  `--prune`, it deletes engine files that no live manifest references. Then deploy. Pruning never
+  breaks a page: an old page still open in a tab that lazy-loads a pruned chunk gets it from R2
+  through the Worker (R2 objects are never deleted). Plan: run `assets --prune` and redeploy after
+  an engine release once every site has been rebuilt on it, or weekly. The folder stays a few MB
+  per live engine version (about 200 files, 6.5 MB), well under the free plan's 20,000 files per
+  Worker version.
+
 ## Measurements (Apple-silicon laptop, Next 15.5.14, Node 22.18)
 
 | | Markdrop docs | Senseloaf (imported from GitBook) |
@@ -120,25 +156,43 @@ so a view costs 10–20 Worker invocations for prefetches alone. If the chunks a
 it costs 2–4. On the Workers free plan (100k requests a day), that is the difference between about
 4–7k page views a day and about 30k.
 
+### After: hover prefetch + engine files as static assets (live previews, `pageview.mjs --live`)
+
+Measured on the deployed previews (workers.dev) before and after the change. Counts are Worker
+invocations: requests that left the browser and that the Worker answered (Static Assets answers
+carry no `X-Robots-Tag`, which the Worker sets on every preview response). The scripted visit
+loads the page, idles 3 s, scrolls, opens search, then hovers and clicks a sidebar link.
+
+| | First view | Repeat view | Click (hover, then click) |
+|---|---|---|---|
+| Markdrop `/cli/install`, before | 44 = 1 page + 30 chunks + 10 prefetches + 1 search index + 2 × 404 | 12 | 4 prefetches |
+| Markdrop `/cli/install`, after | **4** = 1 page + 1 search index + 2 × 404 (`/_vercel/*insights`, open decision 7); 25 chunks from Static Assets | **3** | **1** (the hover prefetch; the click used it) |
+| Senseloaf `/hiring-agents/sia-hiring-ai`, before | 50 = 1 page + 27 chunks + 20 prefetches + 1 image + 1 search index | 21 | 1 image |
+| Senseloaf `/hiring-agents/sia-hiring-ai`, after | **3** = 1 page + 1 image + 1 search index; 26 chunks from Static Assets | **1** | **2** (hover prefetch + 1 image) |
+
+A reader moving the pointer over the sidebar adds one prefetch per link they pass over (the
+router's cache makes a second pass free). On the free plan (100k requests a day) a first view now
+costs 3–4 requests instead of 44–50.
+
 ## Verification (`test/verify.mjs`: every route compared against `next start` of the same build)
 
 | Server | Markdrop | Senseloaf |
 |---|---|---|
-| Self-host (Node, `server/server.mjs serve`) | 1,316 / 1,319 byte-identical | 673 / 676 byte-identical |
-| Worker in Miniflare (`test/miniflare.mjs`) | 1,316 / 1,319 byte-identical | — (same handler) |
+| Self-host (Node, `server/server.mjs serve`) | 1,329 / 1,331 byte-identical (after the hover-prefetch build) | 673 / 676 byte-identical (before) |
+| Worker in Miniflare (`test/miniflare.mjs`) | 1,316 / 1,319 byte-identical (before) | — (same handler) |
 
 The checks cover every route as HTML, RSC, prefetch and `Accept: text/markdown`, a trailing-slash
-variant of every page, chunks and 404s. The 3 differences are the 404 cases:
-- The requested path appears in the 404 payload.
-- `/docs-assets/missing.png`: Next answers with the **Markdrop app's** 404 page there. The edge
-  answers with the docs 404, which is better on a customer domain.
+variant of every page, chunks and 404s. The 2 differences are the page 404s (`/no/such/page` and its
+`.md`): the requested path appears in the 404 payload. A missing `/docs-assets/` file is now the same
+plain-text 404 on both (it used to be the Markdrop app's 404 page on Next).
 
 Also checked: Range on site files (206 with correct bytes), ETag → 304, the MCP `initialize`,
 `search_docs` and `read_page` (identical to Next's `/mcp`), and redirects (unit test). Full-app
 build vs staged build: the rendered DOM of all 190 Markdrop pages is identical. Self-host
 `--watch`: an edit went live in 16 s with 6 objects uploaded, and the old build was served until
 then. `test/edge.test.mjs` (4 tests) covers routing, negotiation, caching, Range, redirects, 404
-and the host check.
+and the host check; `test/assets.test.mjs` covers which engine files are shared, the additive export
+with its collision guard, and the `assets` rebuild/prune.
 
 ## Commands
 
@@ -149,14 +203,21 @@ npm test                                 # bundle the edge + unit tests
 
 # Build (the engine is ../frontend; it needs its node_modules)
 node builder/cli.mjs build <content-dir> --out <dist> [--work <dir>] \
-     [--assets <dir>=<url-prefix>]... [--port 3591] [--force]
+     [--assets <dir>=<url-prefix>]... [--port 3591] [--force] [--engine-assets <dir>|none]
 #   Markdrop's own docs keep their files in frontend/public:
 node builder/cli.mjs build ../frontend/content/docs --out /tmp/md-dist \
      --assets ../frontend/public/docs-assets=/docs-assets
 
-# Publish to a store (a folder here; R2 in production), flip the pointer, map hostnames
+# Publish to a store (a folder, or R2 over its S3 API), flip the pointer, map hostnames
 node builder/cli.mjs publish <dist> --store <dir> [--site <id>] [--host <hostname>]... [--dry-run]
+node builder/cli.mjs publish <dist> --r2 <bucket> ...    # CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
 node builder/cli.mjs diff <old manifest.json> <new manifest.json>    # what a publish would upload
+
+# Engine files for the Worker's static assets: rebuild the folder from the live manifests, prune
+node builder/cli.mjs assets edge/assets --r2 <bucket> [--prune] [--dry-run]
+
+# Deploy the Worker (bundle first) with the engine files as its static assets
+cd edge && CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… npx wrangler deploy [--assets <dir>] [--name <worker>]
 
 # Serve
 node builder/cli.mjs bundle                                     # edge/dist/{worker,handler,mcp-engine}.mjs
@@ -166,7 +227,8 @@ node server/server.mjs start --content <dir> --data <dir> --port 8080 --watch   
 
 # Verify
 node test/verify.mjs --manifest <dist>/manifest.json --next <next-start port> --edge <port> --edge-host <host>
-node test/pageview.mjs --origin http://<host>.localhost:3563 --path /some/page
+node test/pageview.mjs --origin http://<host>.localhost:3563 --path /some/page   # Miniflare (counts chunks too)
+node test/pageview.mjs --live --origin https://<worker>.workers.dev --path /some/page  # a deployed Worker
 
 # Docker (not built here: no Docker on the dev machine; the Node server above is what it runs)
 docker build -f docs-platform/docker/Dockerfile -t markdrop-docs .
@@ -176,29 +238,27 @@ docker run --rm -p 8080:8080 -v "$PWD/my-docs:/site:ro" -v markdrop-docs-data:/d
 ## Layout
 
 ```
-builder/  cli.mjs (build, publish, diff, bundle) · stage.mjs (the engine stage) · crawl.mjs ·
-          build.mjs (objects + manifest) · store.mjs (stores + publish) · bundle.mjs (esbuild) · mime.mjs
+builder/  cli.mjs (build, publish, assets, diff, bundle) · stage.mjs (the engine stage) · crawl.mjs ·
+          build.mjs (objects + manifest + engine assets) · store.mjs (stores, publish, assets sync) ·
+          bundle.mjs (esbuild) · mime.mjs
 edge/     handler.mjs (the fetch handler) · worker.mjs (R2 + Cache API) · wrangler.toml ·
-          mcp-entry.mjs + shims/ (fs, path, next/server for the bundled MCP route)
+          mcp-entry.mjs + shims/ (fs, path, next/server for the bundled MCP route) ·
+          assets/ (git-ignored: the shared engine files, deployed as Static Assets)
 server/   server.mjs (Node: serve a store, or build + serve + watch a folder)
 docker/   Dockerfile (+ .dockerignore; context = repo root)
 examples/ minimal/ (a 2-page site; also warms the Docker image's build cache)
-test/     edge.test.mjs · verify.mjs · miniflare.mjs · pageview.mjs
+test/     edge.test.mjs · assets.test.mjs · verify.mjs · miniflare.mjs · pageview.mjs
 ```
 
 ## Open decisions for the owner
 
-1. **Next's link prefetch** is most of a page view's Worker cost (10–20 per view). Options: keep it;
-   sidebar `prefetch={false}` (hover prefetch); or turn it off on the docs entirely. This is an
-   engine change.
-2. **Where engine chunks are served.** They are identical across sites, so they can skip the
-   Worker:
-   - (a) Ship them as Workers Static Assets with the Worker deployment. Free, not counted as
-     requests, still on the customer's domain. Needs the deployed Worker to carry the chunks of
-     every live engine version.
-   - (b) Use an `assetPrefix` host on R2's public custom domain. The CDN caches it, but the chunks
-     move off the customer's domain, which affects CSP.
-   - (c) Keep them in the Worker as now. This costs the most requests.
+1. ~~Next's link prefetch~~ **Decided and built: prefetch on intent.** Docs links
+   (`src/docs/client/Link.tsx`) prefetch on pointerenter, touchstart and focus, not when they
+   scroll into view.
+2. ~~Where engine chunks are served~~ **Decided and built: (a) Workers Static Assets**, with the
+   R2 fallback and the cleanup plan in "Engine files as static assets". (The other options were an
+   `assetPrefix` host on R2's public domain, which moves chunks off the customer's domain and
+   affects CSP, or keeping them in the Worker.)
 3. **Builds in customer CI vs our build workers.** A build needs the full frontend
    `node_modules` (Next, React, Tailwind) and about 10–35 s. The CLI could ship as a prebuilt
    engine tarball or Docker image (the Dockerfile here). Upload to R2 needs a credential: presigned
@@ -211,28 +271,33 @@ test/     edge.test.mjs · verify.mjs · miniflare.mjs · pageview.mjs
    self-host image should also accept prebuilt dists (`serve --store`) so it can run without the
    engine's `node_modules` (an image of about 1 GB vs about 100 MB).
 7. **Markdrop's own docs on this path.** The static output still references `/_vercel/insights`
-   and `/_vercel/speed-insights` scripts, which 404 off Vercel. Drop or replace them, and build
-   with the production `NEXT_PUBLIC_*` env (these are inlined at build time).
+   and `/_vercel/speed-insights` scripts, which 404 off Vercel. That is 2 of the 4 Worker requests
+   a first view now costs. Drop or replace them, and build with the production `NEXT_PUBLIC_*` env
+   (these are inlined at build time).
 8. **Cold/warm cache variance.** Persist `.next/cache` per build worker, or accept a one-time
    re-upload after a cache loss.
 
-## Engine issues found (for the engine owner; reproducible on `next start` too)
+## Engine issues found (all fixed)
 
-- Every docs page links `<link rel="manifest" href="/manifest.webmanifest">` (the root's
-  file-based manifest wins over the docs layout's `manifest: null`). On the docs host that address
-  is a 404, and on a customer site it would be Markdrop's manifest. The stage keeps `manifest.ts`
-  only for parity.
-- `AuthContext` (root layout, not inside `AppTrackers`) sends `POST https://api.markdrop.in/api/v1/beat`
-  on **every** docs site, including Senseloaf's (seen twice per view).
-- A missing file under a pass-through path (`/docs-assets/x.png`) renders the **Markdrop app's**
-  404 page on the docs host.
+- ~~Every docs page linked `/manifest.webmanifest`~~ (a 404 on the docs host; on a customer site
+  it would have been Markdrop's manifest). The root's file-based manifest was re-applied below the
+  docs layout, so its `manifest: null` had no effect. Fixed: the manifest is a route
+  (`app/manifest.webmanifest/route.ts`), linked from the root layout's metadata, and the docs
+  layout drops it. App pages are unchanged.
+- ~~`AuthContext` sent `POST https://api.markdrop.in/api/v1/beat` on every docs site~~. Fixed in
+  4f7f941; no `/api/v1/beat` on either preview.
+- ~~A missing `/docs-assets/x.png` rendered the Markdrop app's 404 page~~ on the docs host. Fixed:
+  the docs-assets rewrite exists for every docs site, so a miss gets the route's plain-text 404, on
+  Next and on the edge alike.
 
 ## Known limits of the prototype
 
 - One build at a time per work folder (the stage and its `.next` are shared). Use one work folder
   per build worker. `--port` picks the crawl port.
-- No R2 upload client yet. `publish` takes a folder store; `R2Store` wraps a bucket binding
-  (Worker or Miniflare). Production upload needs the S3 API or presigned URLs.
+- `publish --r2` uploads with an R2 API key pair (S3 API). Customer CI would need presigned URLs
+  or a per-site token instead (open decision 3).
+- `test/miniflare.mjs` doesn't emulate Static Assets: its counts still include chunks. Use
+  `pageview.mjs --live` against a deployed Worker for real numbers.
 - `--watch` uses `fs.watch` (recursive). Docker Desktop bind mounts on macOS may need polling.
 - The asset hash uses path, size and mtime (not content) for the change key. Objects themselves
   are content-hashed.

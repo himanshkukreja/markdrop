@@ -144,6 +144,58 @@ class ObjectWriter {
   }
 }
 
+/**
+ * The engine files every site can share: Next's content-hashed output under /_next/static/
+ * (chunks/, css/, media/). A name there changes whenever its bytes do (NEXT_PUBLIC_* values are
+ * inlined, so two sites with different env get different names, never different bytes under one
+ * name). Not shared: /_next/static/<build id>/ (_buildManifest.js carries the site's rewrites, so
+ * two sites on one engine version have different bytes under the same name) and anything else.
+ * Chunks hold engine code and public env only, never site content: anything a site writes reaches
+ * the reader through its HTML, RSC payload or files.
+ */
+export function isSharedEngineFile(rel) {
+  return /^(chunks|css|media)\//.test(rel);
+}
+
+/** Workers Static Assets headers for the shared engine files (they never change under a name). */
+const ASSET_HEADERS = "/_next/static/*\n  Cache-Control: public, max-age=31536000, immutable\n";
+
+/** Write the assets folder's _headers (wrangler reads it; it is not served). */
+export function writeAssetHeaders(dir) {
+  const headers = path.join(dir, "_headers");
+  fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(headers) || fs.readFileSync(headers, "utf8") !== ASSET_HEADERS) fs.writeFileSync(headers, ASSET_HEADERS);
+}
+
+/**
+ * Copy a build's shared engine files (manifest files marked `shared`; bodies from `readObject(hash)`)
+ * into `dir`: the Worker's static assets folder, served at the same paths without invoking the
+ * Worker. The manifest still lists them, so the Worker serves them from R2 whenever the deployed
+ * assets lack one (a deploy from a fresh folder, a pruned old version). Additive: files of other engine versions stay, because sites
+ * built by an older engine still reference them (see docs-platform/README.md, "Engine files as
+ * static assets", for the cleanup). A name that already exists with other bytes breaks the
+ * content-hash rule, so it fails the build instead of serving one site's file to another.
+ */
+export function exportEngineAssets(manifest, readObject, dir) {
+  let written = 0;
+  let kept = 0;
+  for (const [p, f] of Object.entries(manifest.files)) {
+    if (!f.shared) continue;
+    const out = path.join(dir, ...p.split("/").filter(Boolean));
+    const body = readObject(f.o);
+    if (fs.existsSync(out)) {
+      if (!fs.readFileSync(out).equals(body)) throw new Error(`engine assets: ${p} already exists in ${dir} with other bytes`);
+      kept++;
+      continue;
+    }
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, body);
+    written++;
+  }
+  writeAssetHeaders(dir);
+  return { written, kept };
+}
+
 /** Drop the headers every object of a kind shares (the edge sets those). */
 function slimHeaders(h, type) {
   const out = { ...h };
@@ -158,7 +210,9 @@ function slimHeaders(h, type) {
 
 /**
  * Build one site. Options: contentDir, outDir, engineDir (the frontend), workDir (stage + cache,
- * reused between builds), assets ([{dir, prefix}], default <content>/public at /), port, force.
+ * reused between builds), assets ([{dir, prefix}], default <content>/public at /), port, force,
+ * engineAssetsDir (copy the shared engine files there for the Worker's static assets; also done
+ * when the build is skipped, so a new folder still gets them).
  */
 export async function build(opts) {
   const t0 = Date.now();
@@ -185,7 +239,8 @@ export async function build(opts) {
       const prev = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
       if (prev.inputs === inputs) {
         log(`no change (inputs ${inputs.slice(0, 12)}): kept ${manifestFile}`);
-        return { skipped: true, manifest: prev, timings: { ...timings, total: Date.now() - t0 } };
+        const engineAssets = opts.engineAssetsDir ? exportEngineAssets(prev, (h) => fs.readFileSync(path.join(outDir, "objects", h)), opts.engineAssetsDir) : undefined;
+        return { skipped: true, manifest: prev, engineAssets, timings: { ...timings, total: Date.now() - t0 } };
       }
     } catch {
       /* rebuild */
@@ -225,7 +280,7 @@ export async function build(opts) {
   // Framework chunks (content-hashed by Next, the same for every site built by this engine).
   const staticDir = path.join(stageDir, ".next", "static");
   for (const f of walkFiles(staticDir)) {
-    files[`/_next/static/${f.rel}`] = { o: objects.putFile(f.abs), t: mimeOf(f.rel), s: f.size, immutable: true };
+    files[`/_next/static/${f.rel}`] = { o: objects.putFile(f.abs), t: mimeOf(f.rel), s: f.size, immutable: true, ...(isSharedEngineFile(f.rel) ? { shared: true } : {}) };
   }
   const port = opts.port || 3591;
   const server = await startServer({ stageDir, port, env });
@@ -279,6 +334,7 @@ export async function build(opts) {
   };
   const manifestJson = JSON.stringify(manifest);
   fs.writeFileSync(manifestFile, manifestJson);
+  const engineAssets = opts.engineAssetsDir ? exportEngineAssets(manifest, (h) => fs.readFileSync(path.join(objects.dir, h)), opts.engineAssetsDir) : undefined;
   timings.total = Date.now() - t0;
 
   // Objects a previous build left behind (not referenced any more) are pruned from dist.
@@ -300,6 +356,7 @@ export async function build(opts) {
       objects: objects.hashes.size,
       objectsWritten: objects.written,
       objectsPruned: pruned,
+      ...(engineAssets ? { engineAssets } : {}),
       manifestBytes: manifestJson.length,
     },
   };
