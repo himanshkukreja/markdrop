@@ -122,7 +122,8 @@ async def editable_artifact(db: AsyncIOMotorDatabase, user, slug: str, *, action
         if d.status in (401, 404):
             raise HTTPException(status_code=404, detail=f"There's no document at {slug}.")
         raise HTTPException(status_code=d.status, detail=(
-            f"You can only {action} files you own or can edit." if d.code == "forbidden" else d.detail))
+            f"You can only {action} files you own or can edit."
+            if d.code == "forbidden" and perm != "delete_version" else d.detail))
     if raw.get("kind") != "artifact":
         raise HTTPException(
             status_code=409,
@@ -134,7 +135,8 @@ async def editable_artifact(db: AsyncIOMotorDatabase, user, slug: str, *, action
 async def owned_artifact(db: AsyncIOMotorDatabase, user, slug: str, *, action: str) -> dict:
     """Kept for callers: now means "a file this user may change" (editable_artifact)."""
     perm = {"replace": "replace_file", "see the versions of": "list_versions",
-            "restore versions of": "restore_version"}.get(action, "replace_file")
+            "restore versions of": "restore_version",
+            "delete versions of": "delete_version"}.get(action, "replace_file")
     return await editable_artifact(db, user, slug, action=action, perm=perm)
 
 
@@ -926,3 +928,24 @@ async def restore(db: AsyncIOMotorDatabase, user, raw: dict, version: int) -> di
         await after_swap(db, before, after, new_version, action="restore", user_id=user.id, probe=True)
     fresh = await db["documents"].find_one({"_id": raw["_id"]})
     return await file_info_for(db, fresh or after)
+
+
+async def delete_version(db: AsyncIOMotorDatabase, raw: dict, version: int) -> None:
+    """Throw away one old version: its row, then its blob and poster once nothing
+    else points at them (a restore can share a blob), so the owner's usage drops
+    by what that frees. Never the current version."""
+    require_single_blob(raw)
+    if version == file_versions.current_version(raw):
+        raise HTTPException(
+            status_code=409,
+            detail=(f"Version {version} is the current file at {raw['slug']}. Restore another "
+                    "version first, or delete the file."),
+        )
+    row = await db[file_versions.VERSIONS].find_one({"doc_id": str(raw["_id"]), "version": int(version)})
+    if row is None:
+        kept = [r["version"] for r in await file_versions.rows_for(db, raw)]
+        raise HTTPException(
+            status_code=404,
+            detail=f"Version {version} of {raw['slug']} isn't kept. Kept versions: {sorted(kept)}.",
+        )
+    await file_versions.drop_rows(db, [row])

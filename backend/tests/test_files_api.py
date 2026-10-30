@@ -509,6 +509,81 @@ class Replace(FilesTestCase):
         r = await self.http.post(f"/api/v1/files/{self.slug}/versions/2/restore", headers=self.other_auth)
         self.assertEqual(r.status_code, 403)
 
+    async def test_delete_an_old_version(self):
+        v2, v3 = blob("del2", 5 * KB), blob("del3", 6 * KB)
+        await self.replace(v2)
+        await self.replace(v3)
+        v1_key, v2_key = [r["blob_key"] for r in (await self.rows(self.slug))[:2]]
+        used = await file_versions.usage_bytes(self.db, self.user_id)
+        rev = (await self.doc(self.slug))["rev"]
+
+        r = await self.http.delete(f"/api/v1/files/{self.slug}/versions/2", headers=self.auth)
+        self.assertEqual(r.status_code, 204, r.text)
+        self.assertEqual([r["version"] for r in await self.rows(self.slug)], [1, 3])
+        self.assertNotIn(v2_key, self.r2.objects)
+        self.assertIn(v1_key, self.r2.objects)
+        self.assertEqual(await file_versions.usage_bytes(self.db, self.user_id), used - len(v2))
+        raw = await self.doc(self.slug)
+        self.assertEqual((raw["file_version"], raw["sha256"], raw["rev"]), (3, sha(v3), rev))  # untouched
+        vs = (await self.http.get(f"/api/v1/files/{self.slug}/versions", headers=self.auth)).json()["versions"]
+        self.assertEqual([v["version"] for v in vs], [3, 1])
+
+        # Gone already, never kept, the current one, or not a version number.
+        r = await self.http.delete(f"/api/v1/files/{self.slug}/versions/2", headers=self.auth)
+        self.assertEqual(r.status_code, 404)
+        self.assertIn("Kept versions: [1, 3]", r.json()["detail"])
+        r = await self.http.delete(f"/api/v1/files/{self.slug}/versions/3", headers=self.auth)
+        self.assertEqual(r.status_code, 409)
+        self.assertIn("current file", r.json()["detail"])
+        self.assertEqual((await self.doc(self.slug))["blob_key"], raw["blob_key"])
+        r = await self.http.delete(f"/api/v1/files/{self.slug}/versions/0", headers=self.auth)
+        self.assertEqual(r.status_code, 422)
+
+    async def test_deleting_a_version_keeps_a_blob_another_row_uses(self):
+        await self.replace(blob("s2"))
+        await self.http.post(f"/api/v1/files/{self.slug}/versions/1/restore", headers=self.auth)  # v3 → v1's blob
+        await self.replace(blob("s4"))
+        v1_key = (await self.rows(self.slug))[0]["blob_key"]
+        used = await file_versions.usage_bytes(self.db, self.user_id)
+        r = await self.http.delete(f"/api/v1/files/{self.slug}/versions/1", headers=self.auth)
+        self.assertEqual(r.status_code, 204, r.text)
+        self.assertIn(v1_key, self.r2.objects)  # v3 still points at it
+        self.assertEqual(await file_versions.usage_bytes(self.db, self.user_id), used)
+        r = await self.http.delete(f"/api/v1/files/{self.slug}/versions/3", headers=self.auth)
+        self.assertEqual(r.status_code, 204, r.text)
+        self.assertNotIn(v1_key, self.r2.objects)
+        self.assertEqual(await file_versions.usage_bytes(self.db, self.user_id), used - len(self.v1))
+
+    async def test_only_the_owner_deletes_versions(self):
+        await self.replace(blob("o2"))
+        raw = await self.doc(self.slug)
+        await self.db["document_grants"].insert_one({
+            "document_id": str(raw["_id"]), "email": "sam@example.com", "role": "editor",
+            "created_at": datetime.now(timezone.utc), "granted_by_email": "priya@example.com",
+            "granted_by_user_id": self.user_id, "granted_via": None})
+        # An editor sees and restores versions, but can't throw one away.
+        r = await self.http.get(f"/api/v1/files/{self.slug}/versions", headers=self.other_auth)
+        self.assertEqual(r.status_code, 200, r.text)
+        r = await self.http.delete(f"/api/v1/files/{self.slug}/versions/1", headers=self.other_auth)
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("Only the file's owner", r.json()["detail"])
+        self.assertEqual([r["version"] for r in await self.rows(self.slug)], [1, 2])
+        r = await self.http.post(f"/api/v1/files/{self.slug}/versions/1/restore", headers=self.other_auth)
+        self.assertEqual(r.status_code, 200, r.text)
+        # Someone without access: nothing there.
+        await self.db["document_grants"].delete_many({})
+        await self.db["documents"].update_one({"slug": self.slug}, {"$set": {"access_level": "private"}})
+        r = await self.http.delete(f"/api/v1/files/{self.slug}/versions/1", headers=self.other_auth)
+        self.assertEqual(r.status_code, 404)
+        r = await self.http.delete(f"/api/v1/files/{self.slug}/versions/1")
+        self.assertEqual(r.status_code, 401)
+
+    async def test_quota_message_says_where_to_free_space(self):
+        with mock.patch.object(settings, "artifact_user_quota_bytes", 6 * KB):
+            r = await self.start(blob("big", 8 * KB), "big.mp4")
+        self.assertEqual(r.status_code, 507, r.text)
+        self.assertIn("old versions from a file's Settings", r.json()["detail"])
+
     async def test_shared_blob_survives_pruning_one_row(self):
         await self.replace(blob("b2"))
         await self.http.post(f"/api/v1/files/{self.slug}/versions/1/restore", headers=self.auth)  # v3 → v1's blob
