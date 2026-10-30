@@ -1,5 +1,6 @@
 "use client";
 
+import { ReadMore } from "@/components/ReadMore";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Alert, Anchor, Avatar, Badge, Button, ConfirmDialog, Dialog, EmptyState, Field, Icon, Skeleton, Spinner, Textarea, useToast, type Tone } from "@/components/ui";
 import {
@@ -250,7 +251,8 @@ export default function PublishScreen() {
             <p className="text-body text-text-secondary">
               {site.status === "live"
                 ? count === 0 ? "Readers see exactly what's in the editor." : mustReview ? "Readers keep seeing the live site until this is approved and published." : "Readers keep seeing the live site until you publish."
-                : "Nothing is public until the first publish."}
+                : "Nothing is public until the first publish."}{" "}
+              <ReadMore topic="studioPublish" />
             </p>
           </div>
 
@@ -298,6 +300,7 @@ export default function PublishScreen() {
                 <div className="flex items-center gap-2">
                   <Icon name="shield" size={18} />
                   <strong className="flex-1 text-text">This site requires a review</strong>
+                  <ReadMore topic="studioReviews" className="text-[13px]" />
                 </div>
               ) : (
                 <div className="flex flex-col gap-1">
@@ -403,7 +406,8 @@ export default function PublishScreen() {
             </ol>
           )}
           <p className="text-[13px] text-text-muted">
-            Restoring puts an earlier version live in a few seconds. Nothing is deleted; you can switch back.
+            Restoring puts an earlier version live in a few seconds. Nothing is deleted; you can switch back.{" "}
+            <ReadMore topic="studioRestore" />
             {live && site.last_published_at ? ` Live since ${timeAgo(site.last_published_at)}.` : ""}
           </p>
         </section>

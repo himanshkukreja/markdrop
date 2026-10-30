@@ -112,7 +112,8 @@ export default function StudioHome() {
         <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-1.5">
           <h1 className="text-[28px] font-extrabold leading-9 tracking-[-0.02em] text-text">Your docs sites</h1>
           <p className="max-w-[640px] text-[15px] leading-6 text-text-secondary">
-            Documentation websites your team writes here and publishes to their own address, with search, Ask AI and a changelog built in.
+            Documentation websites your team writes here and publishes to their own address, with search, Ask AI and a changelog built in.{" "}
+            <ReadMore topic="docsStudio" />
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -212,7 +213,7 @@ export default function StudioHome() {
             <h2 id="docs-usage-h" className="text-body-strong text-text">Free plan</h2>
             <p className="text-body text-text-secondary">
               {num(all.usage.limit)} sites per workspace, 1,000 pages per site, {num(all.usage.ai_limit ?? FREE_AI)} Ask AI answers a month per site, unlimited editors.{" "}
-              <ReadMore topic="limits" />
+              <ReadMore topic="studioFaq" />
             </p>
           </div>
           <Meter

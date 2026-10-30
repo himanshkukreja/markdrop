@@ -1,5 +1,6 @@
 "use client";
 
+import { ReadMore } from "@/components/ReadMore";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Anchor, Badge, Button, Icon, Progress, Spinner, type Tone } from "@/components/ui";
 import { useLocationSearch } from "@/components/shell/useLocation";
@@ -281,7 +282,7 @@ export default function ImportProgress() {
 
           {!isTemplate && jobId && (
             <section aria-labelledby="needs-h" className="flex flex-col gap-3">
-              <h2 id="needs-h" className="text-[16px] font-semibold text-text">Needs a look before you publish</h2>
+              <div className="flex flex-wrap items-baseline gap-x-3"><h2 id="needs-h" className="text-[16px] font-semibold text-text">Needs a look before you publish</h2><ReadMore topic="studioImportReport" className="text-[13px]" /></div>
               {needs.length > 0 ? (
                 needs.map((item) => <ReportRow key={item.kind} item={item} editorHref={(pid) => `${base}?page=${encodeURIComponent(pid)}`} />)
               ) : done ? (

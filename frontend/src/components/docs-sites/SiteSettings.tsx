@@ -178,12 +178,13 @@ export default function SiteSettings() {
             </div>
           ))}
           <p className="text-[13px] text-text-muted">
-            Soon: one CNAME record pointing to <code className="font-mono">sites.markdrop.in</code>, with the certificate handled for you. Want it at a path like <code className="font-mono">acme.com/docs</code>? We&apos;ll show you the one rewrite rule to add.
+            Soon: one CNAME record pointing to <code className="font-mono">sites.markdrop.in</code>, with the certificate handled for you. Want it at a path like <code className="font-mono">acme.com/docs</code>? We&apos;ll show you the one rewrite rule to add.{" "}
+            <ReadMore topic="studioDomain" />
           </p>
         </Card>
 
         <Card id="ai" title="Ask AI" aside={<Switch label={s.ai.enabled ? "On" : "Off"} checked={s.ai.enabled} disabled={locked || saving === "ai"} onChange={(e) => void patch("ai", { settings: { ai: { enabled: e.target.checked } } }, e.target.checked ? "Ask AI is on." : "Ask AI is off.")} />}>
-          <p className="text-body text-text-secondary">Readers ask questions and get answers from these docs, with a link to the exact section each part came from.</p>
+          <p className="text-body text-text-secondary">Readers ask questions and get answers from these docs, with a link to the exact section each part came from. <ReadMore topic="studioAskAi" /></p>
           <Meter size="sm" value={aiUsed} max={aiLimit} threshold={0.9} label={`This month: ${num(aiUsed)} of ${num(aiLimit)} answers`} valueText={`${aiUsed} of ${aiLimit} answers`} />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Name readers see" htmlFor={`${uid}-ainame`}>
@@ -250,7 +251,7 @@ export default function SiteSettings() {
             disabled={locked || saving === "review"}
             onChange={(e) => void patch("review", { settings: { review: { required: e.target.checked } } }, e.target.checked ? "Editors' changes now need an approval." : "Editors publish directly now.")}
           />
-          <p className="text-[13px] text-text-muted">Admins can always publish. Reviewers approve other people&apos;s changes, never their own.</p>
+          <p className="text-[13px] text-text-muted">Admins can always publish. Reviewers approve other people&apos;s changes, never their own. <ReadMore topic="studioReviews" /></p>
         </Card>
 
         {canManagePeople ? (
@@ -278,7 +279,7 @@ export default function SiteSettings() {
             ) : (
               <>
                 <div className="flex items-center gap-2 text-text-secondary"><Icon name="github" size={16} /> Not connected</div>
-                <p className="text-[13px] text-text-muted">Keep the Markdown in a repo: pushes publish, pull requests get a preview link, and browser edits come back as commits.</p>
+                <p className="text-[13px] text-text-muted">Keep the Markdown in a repo: pushes publish, pull requests get a preview link, and browser edits come back as commits. <ReadMore topic="studioGithub" /></p>
               </>
             )}
           </Card>
@@ -301,7 +302,8 @@ export default function SiteSettings() {
         <Card id="redirects" title="Redirects" aside={redirects.length ? <Badge size="sm">{num(redirects.length)}</Badge> : null}>
           <p className="text-body text-text-secondary">
             Moved or renamed a page? Send its old address to the new one, so links people saved keep working.
-            {site.source.kind === "gitbook" ? " The old GitBook addresses the import found keep working on their own." : ""} Changes go live at the next publish.
+            {site.source.kind === "gitbook" ? " The old GitBook addresses the import found keep working on their own." : ""} Changes go live at the next publish.{" "}
+            <ReadMore topic="studioRedirects" />
           </p>
           <RedirectsEditor
             siteId={site.id}

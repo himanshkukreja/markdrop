@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { DOCS_URL } from "@/components/shell/links";
+import { docsUrl } from "@/components/shell/links";
+import { DOCS_PAGES } from "@/lib/docsLinks";
 import { Icon, StudioGlyph } from "../orbit/ds";
 import s from "./DocsStudio.module.css";
 
@@ -12,8 +13,8 @@ import s from "./DocsStudio.module.css";
  * Nothing in it moves on its own, so reduced motion and the page's one-autoplay rule have nothing to stop.
  */
 
-/** The docs page that explains Docs Studio. Not written yet: a plain href, so docs:check skips it. */
-const SEE_IT_LIVE = `${DOCS_URL}/docs-studio/overview`;
+/** The docs page that explains Docs Studio (docs:check checks DOCS_PAGES entries exist). */
+const SEE_IT_LIVE = docsUrl(DOCS_PAGES.docsStudio);
 
 const THEMES: Array<{ id: string; label: string }> = [
   { id: "brand", label: "Your brand" },

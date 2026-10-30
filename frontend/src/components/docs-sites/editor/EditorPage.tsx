@@ -1,5 +1,6 @@
 "use client";
 
+import { ReadMore } from "@/components/ReadMore";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
@@ -214,7 +215,8 @@ export default function EditorPage() {
         title={`${who} is editing this page`}
         actions={isAdmin ? <Button size="sm" variant="secondary" onClick={() => void session.takeOver().catch((e) => toast.error(docsErrorMessage(e)))}>Take over</Button> : undefined}
       >
-        You can read it. It opens for editing when {firstName(who)} is done{isAdmin ? ", or take over now (their unsaved typing is lost)" : ""}.
+        You can read it. It opens for editing when {firstName(who)} is done{isAdmin ? ", or take over now (their unsaved typing is lost)" : ""}.{" "}
+        <ReadMore topic="studioLocks" />
       </Alert>
     );
   })();
@@ -446,7 +448,7 @@ function NewPageDialog({ open, onClose, groups, currentGroup, afterId, onCreate 
       open={open}
       onClose={onClose}
       title="New page"
-      description="It starts as a draft. Readers see it after the next publish."
+      description={<>It starts as a draft. Readers see it after the next publish. <ReadMore topic="studioPages" /></>}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
