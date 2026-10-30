@@ -19,8 +19,11 @@ browser refuses it, and the markdrop.in session can never be read or used from
 here. Without a cookie the request is exactly what curl could send.
 
 Every registered docs site (services/docs_sites.py) gets the same treatment
-for its own endpoints: its site.json `url` origin may call /api/v1/docs/*. Try
-it stays with docs_cors_origins (the public API documented there is Markdrop's).
+for its own endpoints: its site.json `url` origin may call /api/v1/docs/*. So
+does every live Docs Studio site's address (its free address and its own
+domains; a set read from MongoDB and cached, see
+docs_sites.studio_origin_allowed). Try it stays with docs_cors_origins (the
+public API documented there is Markdrop's).
 
 Every other path and every other origin passes straight through to the app's
 CORS layers unchanged, and an origin the app itself lists (markdrop.in) is never
@@ -97,6 +100,17 @@ def docs_origin_allowed(origin: str | None) -> bool:
     return origin.rstrip("/").lower() in docs_sites.origins()
 
 
+async def docs_origin_allowed_async(origin: str | None) -> bool:
+    """docs_origin_allowed, or a live Docs Studio site's address."""
+    if docs_origin_allowed(origin):
+        return True
+    if not origin:
+        return False
+    from app.services import docs_sites
+
+    return await docs_sites.studio_origin_allowed(origin)
+
+
 def _denied(path: str) -> bool:
     if path in ALLOWED_EXTRA:
         return False
@@ -170,7 +184,7 @@ class DocsCORSMiddleware:
     async def _docs(self, scope, receive, send):
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers") or []}
         origin = headers.get("origin")
-        allowed = docs_origin_allowed(origin)
+        allowed = await docs_origin_allowed_async(origin)
         if scope["method"] == "OPTIONS" and origin and headers.get("access-control-request-method"):
             if not allowed:
                 return await self.app(scope, receive, send)
