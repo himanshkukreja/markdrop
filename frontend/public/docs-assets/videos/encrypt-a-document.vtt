@@ -1,0 +1,29 @@
+WEBVTT
+
+1
+00:00:00.406 --> 00:00:06.597
+Write the document as usual
+
+2
+00:00:06.597 --> 00:00:14.229
+Encryption › Encrypt in this browser
+
+3
+00:00:14.229 --> 00:00:17.904
+Publish: your browser encrypts it first
+
+4
+00:00:17.904 --> 00:00:23.090
+Published: the key is in the link, after #k=
+
+5
+00:00:23.090 --> 00:00:26.099
+Copied: markdrop.in/Boxe7Pk#k=svBVj_…
+
+6
+00:00:26.099 --> 00:00:32.654
+Someone with the whole link: it opens
+
+7
+00:00:37.764 --> 00:00:42.167
+The same link without the #k= part: nobody can read it, not even Markdrop

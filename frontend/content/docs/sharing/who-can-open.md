@@ -33,6 +33,8 @@ From **My files**, choose **Share…** in the row's menu. Or open the document o
 
 ### Pick a choice
 Under **Who can open it**, choose one of the three cards. It saves straight away: "Who can open it is updated."
+
+![The Share dialog for Release notes — v2.4 in Acme › Releases, with Who can open it showing three cards, Only people added, Acme team (selected) and Anyone with the link, and a line listing docs.acme.com/releases/release-notes-2-4 and markdrop.in/release-notes-2-4.](/docs-assets/sharing/who-can-open/share-dialog-access.webp)
 ::::
 
 The dialog lists every address the setting covers, for example `docs.acme.com/guides/setup` and `markdrop.in/setup`. One setting covers them all.
@@ -46,6 +48,8 @@ Narrowing takes effect at once. Make a document private and people who aren't on
 | "This document is private" and **Sign in to open** | They aren't signed in, and the document isn't open to anyone with the link. |
 | "You don't have access yet" and **Request access** | They're signed in, but not with an address that has access. They can ask you. See [Request access](/sharing/request-access). |
 | "This document is password protected" | It's open to anyone with the link, behind a password. |
+
+![The ‘This document is private’ screen a signed-out reader gets, with a Sign in to open button.](/docs-assets/sharing/who-can-open/gate-private.webp)
 
 ## How the extras fit
 

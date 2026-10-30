@@ -20,6 +20,8 @@ Paste it into a text editor and save it with an `.html` extension, for example `
 ### Upload it
 Go to [markdrop.in/upload](https://markdrop.in/upload) and drop the file in. The **Preview** shows the page running, in your browser, before anything uploads.
 
+![The upload page with q3-dashboard.html chosen and its dashboard running in the Preview, beside the Publish panel with the Title q3 dashboard and the Link markdrop.in/q3-dashboard filled in from the file name.](/docs-assets/files/html-pages/html-upload-preview.webp)
+
 ### Publish
 Check the **Title** and **Link** (both come from the file name), then choose **Publish**.
 ::::

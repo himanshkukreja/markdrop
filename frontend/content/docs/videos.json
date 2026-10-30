@@ -11,6 +11,12 @@
     "duration": "0:34",
     "chapters": "/docs-assets/videos/custom-domain.vtt"
   },
+  "encrypt-a-document": {
+    "src": "/docs-assets/videos/encrypt-a-document.mp4",
+    "poster": "/docs-assets/videos/encrypt-a-document.webp",
+    "duration": "0:42",
+    "chapters": "/docs-assets/videos/encrypt-a-document.vtt"
+  },
   "password-and-expiry": {
     "src": "/docs-assets/videos/password-and-expiry.mp4",
     "poster": "/docs-assets/videos/password-and-expiry.webp",
@@ -29,10 +35,40 @@
     "duration": "0:38",
     "chapters": "/docs-assets/videos/publish-first-file.vtt"
   },
+  "publish-zipped-site": {
+    "src": "/docs-assets/videos/publish-zipped-site.mp4",
+    "poster": "/docs-assets/videos/publish-zipped-site.webp",
+    "duration": "0:32",
+    "chapters": "/docs-assets/videos/publish-zipped-site.vtt"
+  },
   "readme-builder": {
     "src": "/docs-assets/videos/readme-builder.mp4",
     "poster": "/docs-assets/videos/readme-builder.webp",
     "duration": "0:39",
     "chapters": "/docs-assets/videos/readme-builder.vtt"
+  },
+  "replace-a-file": {
+    "src": "/docs-assets/videos/replace-a-file.mp4",
+    "poster": "/docs-assets/videos/replace-a-file.webp",
+    "duration": "0:32",
+    "chapters": "/docs-assets/videos/replace-a-file.vtt"
+  },
+  "request-access": {
+    "src": "/docs-assets/videos/request-access.mp4",
+    "poster": "/docs-assets/videos/request-access.webp",
+    "duration": "0:37",
+    "chapters": "/docs-assets/videos/request-access.vtt"
+  },
+  "share-with-people": {
+    "src": "/docs-assets/videos/share-with-people.mp4",
+    "poster": "/docs-assets/videos/share-with-people.webp",
+    "duration": "0:37",
+    "chapters": "/docs-assets/videos/share-with-people.vtt"
+  },
+  "video-player": {
+    "src": "/docs-assets/videos/video-player.mp4",
+    "poster": "/docs-assets/videos/video-player.webp",
+    "duration": "0:43",
+    "chapters": "/docs-assets/videos/video-player.vtt"
   }
 }

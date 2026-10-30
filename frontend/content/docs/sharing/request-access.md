@@ -8,7 +8,7 @@ keywords: [request access, ask for access, denied, permission, approve, decline]
 
 Opened a link and got "You don't have access yet"? You can ask the owner from that page. They get an email with your note and decide with one click, and you get an email when they do. Nothing opens until they say yes.
 
-::video{id="request-access" title="Request access" duration="0:40"}
+::video{id="request-access" title="Request access" duration="0:37"}
 
 ## Ask for access
 
@@ -27,6 +27,8 @@ Under **Message (optional)**, say who you are or why you need it, in up to 500 c
 ### Choose Request access
 The page says "Request sent. You'll get an email when the owner decides."
 ::::
+
+![The ‘You don’t have access yet’ screen: You’re signed in as dana@globex.com, a Message (optional) box with a note, a Request access button and Switch account.](/docs-assets/sharing/request-access/request-access-gate.webp)
 
 If you've already asked, the page says "You've already asked for this" instead. You can have one open request per document.
 
@@ -47,6 +49,8 @@ You can send up to 10 requests an hour.
 When someone asks, you get an email with their name, address and note, and three buttons: **Let them view**, **Let them edit** and **Decline**.
 
 You can also answer in the app: open **Shared with me** in the sidebar. **Access requests** lists what's waiting; choose **Review** on one.
+
+![The access request page: Dana asked to open “Q3 plan — internal notes”, with her address, her note, and the buttons Let them view, Let them edit and Decline.](/docs-assets/sharing/request-access/request-review.webp)
 
 | Choose | What happens |
 | --- | --- |

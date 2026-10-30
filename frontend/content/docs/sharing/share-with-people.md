@@ -8,7 +8,7 @@ keywords: [share, invite, email, grant, collaborator, can view, can edit, reshar
 
 Add people by email when a document or file is for them and not for everyone with the link. They sign in with that address and it opens. You can give each person **Can view** or **Can edit**, and take it back whenever you like.
 
-::video{id="share-with-people" title="Share with specific people" duration="0:45"}
+::video{id="share-with-people" title="Share with specific people" duration="0:37"}
 
 ## Add people
 
@@ -18,6 +18,8 @@ From **My files**, choose **Share…** in the row's menu. Or open the document o
 
 ### Type their addresses
 Under **People with access**, type an address in **Add people by email** and press :kbd[Enter]. Add as many as you like. Suggestions come from people you've shared with before and from your workspaces, never from a search of other Markdrop users.
+
+![The Share dialog's People with access section: dana@globex.com added with Can view, Share, Email them ticked and Add a message; below, Riya Sharma (you) as Owner, Everyone in Acme · 4 people with Members can edit, alex@acme.com with Can edit, priya@northwind.com marked Added without an email, and sam@acme.com with Can view, then the Let people I share with add others switch.](/docs-assets/sharing/share-with-people/share-people-section.webp)
 
 ### Choose their access
 Pick **Can view** or **Can edit** for the people you're adding.

@@ -9,7 +9,7 @@ Turn on encryption and your browser encrypts the document's title and text befor
 
 The trade-off is plain: **the link is the key**. Anyone with the full link can read the document, and if every copy of the link is lost, so is the document.
 
-::video{id="encrypt-a-document" title="Encrypt a document in your browser" duration="0:45"}
+::video{id="encrypt-a-document" title="Encrypt a document in your browser" duration="0:42"}
 
 ## Encrypt a document
 
@@ -19,6 +19,8 @@ Go to [markdrop.in/new](https://markdrop.in/new), and write or paste your text.
 
 ### Turn on encryption
 Choose the **Encrypt** chip and turn on **Encrypt in this browser**. The chip changes to **Encrypted**.
+
+![The Encryption popover under the Encrypted chip above the editor: Encrypt in this browser switched on, how the key goes in the # part of the link, and the warning ‘The link is the key’.](/docs-assets/sharing/end-to-end-encryption/encrypt-chip.webp)
 
 ### Publish
 Choose **Publish**. The button says "Encrypting in your browser…", then "Publishing…".

@@ -1,0 +1,25 @@
+WEBVTT
+
+1
+00:00:00.414 --> 00:00:03.417
+A site folder (index.html, guides/, faq.html, css/, js/) zipped as site.zip
+
+2
+00:00:03.417 --> 00:00:05.569
+Drop site.zip on markdrop.in/upload
+
+3
+00:00:05.569 --> 00:00:08.818
+Markdrop recognises it as a multi-page site
+
+4
+00:00:08.818 --> 00:00:15.762
+Give it a title and a link
+
+5
+00:00:15.762 --> 00:00:20.393
+Publish: Markdrop unpacks it and opens index.html
+
+6
+00:00:20.393 --> 00:00:31.170
+Links between the pages work, like on any website

@@ -24,6 +24,8 @@ Name it after the device or script that will use it, like `My laptop` or `Nightl
 
 ### Copy it now
 Choose **Create token**, then **Copy token**. This is the only time the full token is shown. Markdrop keeps only a hash of it, so it can't show it to you again.
+
+![The Copy your token now dialog for Work laptop: ‘This is the only time the full token is shown.’, the new mdk_ token (masked here) and a Copy token button.](/docs-assets/account/api-tokens/token-created.webp)
 ::::
 
 Make one token for each device or script. Then you can revoke one without breaking the others.
@@ -52,5 +54,7 @@ The hosted MCP server at `https://api.markdrop.in/mcp` doesn't accept API tokens
 ## See and revoke tokens
 
 The list shows each token's **Name**, the start of the **Token**, when it was **Created**, and when it was **Last used** ("Never" if it hasn't been).
+
+![The API tokens list with Nightly report, VS Code and My laptop, the start of each token, their Created and Last used dates, and the row menu of Nightly report open showing Revoke.](/docs-assets/account/api-tokens/tokens-list.webp)
 
 To revoke one, open its menu and choose **Revoke**, then **Revoke token**. Anything using it stops working at once; a VS Code extension using it stops syncing. This can't be undone. Create a new token if you need one again.

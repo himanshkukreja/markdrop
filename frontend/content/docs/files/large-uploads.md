@@ -12,6 +12,8 @@ Screen recordings and long audio are big. Markdrop accepts video and audio up to
 
 Upload at [markdrop.in/upload](https://markdrop.in/upload) as with any file. The file goes straight from your browser to storage, with a progress bar that says how much has gone, for example "412 MB of 1.6 GB. Keep this tab open until it finishes."
 
+![The upload page during a large video upload: Uploading all-hands-recording.mp4 at 25%, a progress bar, and ‘409.6 MB of 1.6 GB. Keep this tab open until it finishes.’ above the Uploading… button.](/docs-assets/files/large-uploads/upload-progress-large.webp)
+
 A browser upload is one continuous transfer. If the connection drops or you close the tab, it stops and you start again. For a large file on a shaky connection, use the CLI.
 
 ## From the terminal

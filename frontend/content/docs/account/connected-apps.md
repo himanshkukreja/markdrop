@@ -24,6 +24,8 @@ An app gets only what you approved, never your whole account.
 
 Each row shows the app's name and web address, badges for what it may do, when you connected it, and when it was last used ("Not used yet" if it hasn't been).
 
+![The Connected apps page listing Cursor (cursor.com) with a Read badge, connected Oct 29 and Not used yet, and Claude (claude.ai) with Read and Publish and edit badges, last used today; each row has a menu.](/docs-assets/account/connected-apps/connected-apps-list.webp)
+
 ## Disconnect an app
 
 Open the app's menu and choose **Disconnect**, then confirm. The app loses access to your Markdrop account, and everything it was given to stay signed in is revoked. What it published stays yours, with the same links.

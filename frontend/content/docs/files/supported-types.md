@@ -36,13 +36,19 @@ An HTML file is served as the page, so its scripts, styles and fonts work. It ru
 
 PDFs open in a built-in reader with page-by-page scrolling and zoom. It shows the first 50 pages; for a longer PDF it says "Showing the first 50 of N pages. Download to see the rest."
 
+![A PDF opened on Markdrop in the built-in reader, with the toolbar showing Page 1 of 12, zoom out and zoom in around 86%, Fit width and Download.](/docs-assets/files/supported-types/viewer-pdf.webp)
+
 ### Spreadsheets
 
 Excel workbooks open with a tab for each sheet; use the arrow keys to move between tabs. CSV files open as a single sheet. Markdrop shows the values in each cell; charts and pictures in a workbook aren't drawn.
 
+![An Excel workbook opened on Markdrop as a grid with row numbers and column letters, tabs for its Summary, By region and Assumptions sheets, and ‘5 rows · 4 columns’.](/docs-assets/files/supported-types/viewer-sheet.webp)
+
 ### Word documents
 
 A `.docx` is converted to clean web text: headings, paragraphs, lists, tables, links and images. The structure comes through; exact page layout, fonts and spacing don't. If the layout matters, export a PDF and upload that instead.
+
+![A Word document opened on Markdrop as clean web text: its headings, paragraphs and bullet points, without Word's page layout.](/docs-assets/files/supported-types/viewer-docx.webp)
 
 ### Images
 
@@ -51,6 +57,8 @@ Images open at full size. An SVG can contain scripts, so it gets the same sandbo
 ### Text and JSON
 
 Text opens with line numbers. Very large files are cut at 2,000,000 characters or 100,000 lines, and the viewer says so; **Download** still gives the whole file.
+
+![A JSON file opened on Markdrop with line numbers, ‘18 lines’ and a Wrap lines button in the toolbar.](/docs-assets/files/supported-types/viewer-text.webp)
 
 ### Video and audio
 

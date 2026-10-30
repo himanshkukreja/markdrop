@@ -1,4 +1,40 @@
 {
+  "/docs-assets/account/api-tokens/token-created.dark.webp": {
+    "w": 896,
+    "h": 574,
+    "bytes": 17502,
+    "kind": "image"
+  },
+  "/docs-assets/account/api-tokens/token-created.webp": {
+    "w": 896,
+    "h": 574,
+    "bytes": 18446,
+    "kind": "image"
+  },
+  "/docs-assets/account/api-tokens/tokens-list.dark.webp": {
+    "w": 1180,
+    "h": 454,
+    "bytes": 15404,
+    "kind": "image"
+  },
+  "/docs-assets/account/api-tokens/tokens-list.webp": {
+    "w": 1180,
+    "h": 454,
+    "bytes": 15956,
+    "kind": "image"
+  },
+  "/docs-assets/account/connected-apps/connected-apps-list.dark.webp": {
+    "w": 1184,
+    "h": 526,
+    "bytes": 12144,
+    "kind": "image"
+  },
+  "/docs-assets/account/connected-apps/connected-apps-list.webp": {
+    "w": 1184,
+    "h": 526,
+    "bytes": 12706,
+    "kind": "image"
+  },
   "/docs-assets/analytics/video-and-audio/retention-curve.dark.webp": {
     "w": 2280,
     "h": 960,
@@ -175,6 +211,66 @@
     "bytes": 82414,
     "kind": "poster"
   },
+  "/docs-assets/files/html-pages/html-upload-preview.dark.webp": {
+    "w": 2528,
+    "h": 1432,
+    "bytes": 114620,
+    "kind": "image"
+  },
+  "/docs-assets/files/html-pages/html-upload-preview.webp": {
+    "w": 2528,
+    "h": 1432,
+    "bytes": 116712,
+    "kind": "image"
+  },
+  "/docs-assets/files/large-uploads/upload-progress-large.dark.webp": {
+    "w": 986,
+    "h": 264,
+    "bytes": 8366,
+    "kind": "image"
+  },
+  "/docs-assets/files/large-uploads/upload-progress-large.webp": {
+    "w": 986,
+    "h": 264,
+    "bytes": 8524,
+    "kind": "image"
+  },
+  "/docs-assets/files/limits/storage-meter.dark.webp": {
+    "w": 986,
+    "h": 484,
+    "bytes": 13046,
+    "kind": "image"
+  },
+  "/docs-assets/files/limits/storage-meter.webp": {
+    "w": 986,
+    "h": 484,
+    "bytes": 14092,
+    "kind": "image"
+  },
+  "/docs-assets/files/replace-and-versions/settings-file-tile.dark.webp": {
+    "w": 880,
+    "h": 678,
+    "bytes": 21228,
+    "kind": "image"
+  },
+  "/docs-assets/files/replace-and-versions/settings-file-tile.webp": {
+    "w": 880,
+    "h": 678,
+    "bytes": 22948,
+    "kind": "image"
+  },
+  "/docs-assets/files/supported-types/viewer-docx.dark.webp": {
+    "w": 2460,
+    "h": 1492,
+    "bytes": 46932,
+    "kind": "image"
+  },
+  "/docs-assets/files/supported-types/viewer-docx.webp": {
+    "w": 2460,
+    "h": 1492,
+    "bytes": 46844,
+    "kind": "image"
+  },
   "/docs-assets/files/supported-types/viewer-pdf.dark.webp": {
     "w": 2460,
     "h": 1492,
@@ -185,6 +281,66 @@
     "w": 2460,
     "h": 1492,
     "bytes": 38558,
+    "kind": "image"
+  },
+  "/docs-assets/files/supported-types/viewer-sheet.dark.webp": {
+    "w": 2460,
+    "h": 400,
+    "bytes": 15360,
+    "kind": "image"
+  },
+  "/docs-assets/files/supported-types/viewer-sheet.webp": {
+    "w": 2460,
+    "h": 400,
+    "bytes": 15940,
+    "kind": "image"
+  },
+  "/docs-assets/files/supported-types/viewer-text.dark.webp": {
+    "w": 2460,
+    "h": 880,
+    "bytes": 38530,
+    "kind": "image"
+  },
+  "/docs-assets/files/supported-types/viewer-text.webp": {
+    "w": 2460,
+    "h": 880,
+    "bytes": 38308,
+    "kind": "image"
+  },
+  "/docs-assets/files/video-and-audio/video-cant-play.dark.webp": {
+    "w": 2460,
+    "h": 1492,
+    "bytes": 15846,
+    "kind": "image"
+  },
+  "/docs-assets/files/video-and-audio/video-cant-play.webp": {
+    "w": 2460,
+    "h": 1492,
+    "bytes": 15992,
+    "kind": "image"
+  },
+  "/docs-assets/files/video-and-audio/video-player-controls.dark.webp": {
+    "w": 2460,
+    "h": 1492,
+    "bytes": 48582,
+    "kind": "image"
+  },
+  "/docs-assets/files/video-and-audio/video-player-controls.webp": {
+    "w": 2460,
+    "h": 1492,
+    "bytes": 48416,
+    "kind": "image"
+  },
+  "/docs-assets/files/websites/zip-detected.dark.webp": {
+    "w": 1492,
+    "h": 300,
+    "bytes": 11018,
+    "kind": "image"
+  },
+  "/docs-assets/files/websites/zip-detected.webp": {
+    "w": 1492,
+    "h": 300,
+    "bytes": 11458,
     "kind": "image"
   },
   "/docs-assets/get-started/accounts/sign-in-options.dark.webp": {
@@ -339,6 +495,66 @@
     "bytes": 79876,
     "kind": "image"
   },
+  "/docs-assets/sharing/end-to-end-encryption/encrypt-chip.dark.webp": {
+    "w": 1944,
+    "h": 984,
+    "bytes": 64956,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/end-to-end-encryption/encrypt-chip.webp": {
+    "w": 1944,
+    "h": 984,
+    "bytes": 68354,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/request-access/request-access-gate.dark.webp": {
+    "w": 1008,
+    "h": 948,
+    "bytes": 25670,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/request-access/request-access-gate.webp": {
+    "w": 1008,
+    "h": 948,
+    "bytes": 25334,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/request-access/request-review.dark.webp": {
+    "w": 1760,
+    "h": 700,
+    "bytes": 27666,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/request-access/request-review.webp": {
+    "w": 1760,
+    "h": 700,
+    "bytes": 28640,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/share-with-people/share-people-section.dark.webp": {
+    "w": 1136,
+    "h": 784,
+    "bytes": 34278,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/share-with-people/share-people-section.webp": {
+    "w": 1136,
+    "h": 784,
+    "bytes": 35506,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/who-can-open/gate-private.dark.webp": {
+    "w": 1008,
+    "h": 680,
+    "bytes": 16170,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/who-can-open/gate-private.webp": {
+    "w": 1008,
+    "h": 680,
+    "bytes": 15960,
+    "kind": "image"
+  },
   "/docs-assets/sharing/who-can-open/share-dialog-access.dark.webp": {
     "w": 1136,
     "h": 638,
@@ -375,6 +591,19 @@
     "w": 1920,
     "h": 1080,
     "bytes": 32134,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/encrypt-a-document.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 41.9,
+    "bytes": 1201024,
+    "kind": "video"
+  },
+  "/docs-assets/videos/encrypt-a-document.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 67714,
     "kind": "poster"
   },
   "/docs-assets/videos/password-and-expiry.mp4": {
@@ -416,6 +645,19 @@
     "bytes": 74360,
     "kind": "poster"
   },
+  "/docs-assets/videos/publish-zipped-site.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 31.7,
+    "bytes": 835021,
+    "kind": "video"
+  },
+  "/docs-assets/videos/publish-zipped-site.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 58280,
+    "kind": "poster"
+  },
   "/docs-assets/videos/readme-builder.mp4": {
     "w": 1920,
     "h": 1080,
@@ -427,6 +669,58 @@
     "w": 1920,
     "h": 1080,
     "bytes": 44122,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/replace-a-file.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 31.97,
+    "bytes": 920996,
+    "kind": "video"
+  },
+  "/docs-assets/videos/replace-a-file.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 76058,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/request-access.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 37.43,
+    "bytes": 1001483,
+    "kind": "video"
+  },
+  "/docs-assets/videos/request-access.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 18414,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/share-with-people.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 37.3,
+    "bytes": 1131293,
+    "kind": "video"
+  },
+  "/docs-assets/videos/share-with-people.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 42714,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/video-player.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 43.33,
+    "bytes": 2171135,
+    "kind": "video"
+  },
+  "/docs-assets/videos/video-player.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 27390,
     "kind": "poster"
   },
   "/docs-assets/workspaces/custom-domain/dns-records.dark.webp": {

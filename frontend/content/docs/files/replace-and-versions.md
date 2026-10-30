@@ -8,7 +8,7 @@ keywords: [replace, update file, versions, restore, rollback, same link, history
 
 You shared `markdrop.in/q3-deck` and then found a typo on slide 4. Replace the file and the link stays the same: everyone who has it sees the new version, and people with the page open get it without reloading. The earlier file is kept, so you can put it back.
 
-::video{id="replace-a-file" title="Replace a file, keep the link" duration="0:45"}
+::video{id="replace-a-file" title="Replace a file, keep the link" duration="0:32"}
 
 ## What stays and what changes
 
@@ -32,6 +32,8 @@ Choose **More artifact actions › Settings**. If you can edit the file but don'
 
 ### Choose the new file
 Under **File**, choose the current file and pick the new one. It says "Replaces the current file when you save". Choose **Keep the current file** to change your mind.
+
+![The Artifact settings drawer after choosing a new file: under File, Q3 Board Deck v2.pdf with ‘446.4 KB · Replaces the current file when you save’, a Keep the current file link, and the Title field below.](/docs-assets/files/replace-and-versions/settings-file-tile.webp)
 
 ### Save
 Choose **Save changes** (or **Replace file**). The upload progress shows in the drawer, then the new version goes live.

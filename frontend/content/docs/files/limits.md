@@ -7,6 +7,8 @@ keywords: [limits, size, quota, storage, 25 mb, 2 gb, 20 gb, max file size]
 
 Markdrop limits how big one file can be and how much each account stores in total. The upload page shows both: the per-file limits above the drop area, and a **Storage** meter with how much you've used.
 
+![The bottom of the upload page's Publish panel: the Storage meter reading 1.2 GB of 20 GB used, above the Publish button.](/docs-assets/files/limits/storage-meter.webp)
+
 ## Per file
 
 | What | Limit |

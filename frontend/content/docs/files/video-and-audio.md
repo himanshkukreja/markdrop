@@ -7,7 +7,7 @@ keywords: [video, audio, mp4, mov, webm, mp3, player, screen recording, codec, p
 
 Send a link instead of a 900 MB attachment. Upload a screen recording or a voice memo and readers press play in their browser: it streams, seeks instantly, and never asks them to download the whole file.
 
-::video{id="video-player" title="Share a screen recording" duration="0:40"}
+::video{id="video-player" title="Share a screen recording" duration="0:43"}
 
 ## What you can upload
 
@@ -23,6 +23,8 @@ Markdrop doesn't convert your file. Readers get exactly the bytes you uploaded, 
 ## The video player
 
 Markdrop's player looks and works the same in every browser. It has play and pause, a scrubber that shows what has loaded, back and forward 10 seconds, volume, playback speed from 0.25× to 2×, picture in picture where the browser supports it, and full screen.
+
+![The Markdrop video player paused mid-video with the speed menu open from 0.25× to 2×, and the control bar: play, back and forward 10 seconds, volume, the time, the speed, picture in picture and full screen.](/docs-assets/files/video-and-audio/video-player-controls.webp)
 
 ### Keyboard shortcuts
 
@@ -69,6 +71,8 @@ The player tells you which of three things went wrong:
 | "This video can't be played here." | The browser can't decode the codec inside the file. This is common with `.mov` recordings. | **Download** it to play locally, or re-encode it as H.264 MP4 and [replace the file](/files/replace-and-versions). |
 | "You don't have access to this video." | The video is protected and the reader isn't signed in with an address it was shared with. | Open it from its Markdrop page while signed in. See [Who can open what](/sharing/who-can-open). |
 | "This video is no longer available." | The file was deleted or has expired. | Ask whoever shared it for a new link. |
+
+![The video player showing ‘This video can’t be played here.’: the browser accepted the file but not the codec inside it, common with .mov recordings; download it to play locally, or re-encode to H.264 MP4.](/docs-assets/files/video-and-audio/video-cant-play.webp)
 
 ## Private videos
 
