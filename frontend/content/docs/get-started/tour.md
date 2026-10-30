@@ -34,23 +34,23 @@ Once you sign in, Markdrop works like a drive for things that render. This page 
 | **Connected apps** | AI assistants and other apps you've allowed in. See [Connected apps](/account/connected-apps). |
 | **Settings** | Your display name, theme and the weekly analytics email. |
 
-Each row in **My files** has a menu with **Open**, **Copy link**, **Edit**, **Analytics**, **Share…**, **Change URL** and **Delete**, plus **Move to folder…** or **Add to a workspace…** where they apply.
+Each row in **My files** has a **Copy link** button and a menu with **Open**, **Edit** (documents only), **Analytics**, **Share…**, **Change URL** and **Delete**, plus **Move to folder…** or **Add to a workspace…** where they apply. On a phone, **Copy link** is in the menu instead.
 
 ## On a document
 
-The bar above a document has:
+A document opens full screen, with nothing but the text. Press :kbd[Esc] or choose **Show details** in the corner to bring back the bar above it. The bar has:
 
 - **Copy link**: copies the address. For an encrypted document, it includes the key.
 - **Edit**: shown to the owner, to people who can edit it, and to whoever holds the edit secret in this tab. Everyone else finds **Edit** in **More actions**, where it asks for the edit secret.
 - **Share**: shown to the owner, and to people allowed to share it on. See [Share with specific people](/sharing/share-with-people).
-- **Read full screen**: hides everything but the text. Press :kbd[F]; press :kbd[Esc] to come back.
+- **Read full screen**: hides everything but the text again. Press :kbd[F]; press :kbd[Esc] to come back.
 - **More actions**: **View raw**, **Export PDF**, **Save a copy** (on other people's documents), **Report** and, on your own documents once you've connected Google, **Publish to Google Docs**.
 
-**Details** lists when it was published, when it expires, its views and who can open it. On a wide screen it sits beside the text, with **Contents** built from the headings.
+**Details** lists when it was published, its views, its reading time and when it expires. The owner, and people allowed to share it, also see an **Access** card with who can open it and a **Share** button. On a wide screen it sits beside the text, with **Contents** built from the headings.
 
 ## On a file
 
-A file page has **Copy link**, **Download**, **Read full screen**, and **More artifact actions**. The owner's menu has **Share**, **Settings** and **Delete artifact**. Someone allowed to edit sees **Replace file**, and readers see **Report**.
+A file also opens full screen. Press :kbd[Esc] or choose **Show details** to see its bar, which has **Copy link**, **Download**, **Read full screen**, and **More artifact actions**. The owner's menu has **Share**, **Settings** and **Delete artifact**. Someone allowed to edit sees **Replace file**, and readers see **Report**.
 
 ## Search and shortcuts
 

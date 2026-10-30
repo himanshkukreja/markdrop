@@ -6,7 +6,7 @@ prerequisites: [/workspaces/create, /sharing/who-can-open]
 keywords: [privacy, open, team, locked, custom, sign in, require sign-in, default access, preview as]
 ---
 
-Every item in a workspace has its own "Who can open it" setting: **Only people added**, **Acme team** or **Anyone with the link**. ("Acme" stands for your workspace's site name, or its name if it has none.) Workspace privacy sets two things on top of that: what new items start as, and whether visitors must sign in to open anything at all.
+Every item in a workspace has its own "Who can open it" setting: **Only people added**, **Acme team** or **Anyone with the link**. (Here the workspace is called Acme and its site name is Acme. The team choice uses the site name, or the workspace's name if it has no site name.) Workspace privacy sets two things on top of that: what new items start as, and whether visitors must sign in to open anything at all.
 
 Admins choose privacy on the **People** tab of the workspace's settings.
 
@@ -32,17 +32,17 @@ In a Locked workspace, sign-in is enforced on every address an item has, includi
 - **Acme team**: everyone in the workspace, after signing in. Can view members read it; Can edit members, admins and the owner can also change it.
 - **Anyone with the link**: anyone who has the link, unless the workspace is Locked. A password, if the item has one, still applies.
 
-To change one item, open its menu in the workspace and choose **Who can open it**.
+To change one item, choose the who-can-open button on its row in the workspace, the one that shows its current setting, like **Acme team**. On a phone, open the item's menu and choose **Who can open it**.
 
 ## The switches behind the presets
 
-The **Advanced** tab has the individual switches. Most workspaces never need them.
+The **Advanced** tab has the individual settings behind the presets. Most workspaces never need them.
 
-- **New items start as**: Only people added, Acme team, or Anyone with the link. A starting point only; each item keeps its own setting.
+- **New items start as**: a list with **Only people added**, **Acme team** and **Anyone with the link**. A starting point only; each item keeps its own setting.
 - **Members can share folders with a link**: on by default. Admins always can. See [Share a folder](/workspaces/share-a-folder).
 - **Visitors must sign in to open anything**: the Locked switch. Enforced everywhere, including markdrop.in links.
 
-If the switches don't match a preset, the People tab shows **Custom**. Pick a preset to replace them.
+If these settings don't match a preset, no preset is selected and **Privacy** on the People tab gets a **Custom** badge. Pick a preset to replace them.
 
 A folder can have its own starting point too. An admin opens the folder, chooses **More folder actions**, then **New items start as…**. Items filed into that folder start with the folder's choice instead of the workspace's.
 

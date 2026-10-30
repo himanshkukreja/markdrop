@@ -27,7 +27,7 @@ A password only matters when **Who can open it** is **Anyone with the link**. A 
 
 ### Wrong guesses
 
-After 10 wrong passwords in a minute, or 50 in an hour, from the same IP address, Markdrop stops checking for a while and says "Too many wrong passwords. Try again in a few minutes."
+After 10 wrong passwords in a minute, or 50 in an hour, from the same IP address, Markdrop stops checking passwords for a while, and the password box shows an error even for the right one. Wait a few minutes and try again.
 
 ## Set an expiry
 
@@ -45,17 +45,17 @@ You need to be the owner, or hold the edit secret. The share dialog and file set
 
 ::::tabs
 :::tab[Share dialog]
-Choose **Share** on the document, then **More options: password and expiry**.
+Open the document, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Share**. Then choose **More options: password and expiry**.
 
 - Type a new **Password** and choose **Save options**. Anyone without access now needs the new password.
 - Choose **Remove password** to open it to anyone with the link again.
-- Pick a new **Expires** value: **Never**, **In 1 hour**, **In 1 day**, **In 7 days**, **In 30 days** or **On a date…**, then **Save options**.
+- Pick a new **Expires** value: **Never**, **In 1 hour**, **In 1 day**, **In 7 days**, **In 30 days** or **On a date…**, then **Save options**. The list starts on **Don't change**, which leaves the expiry as it is.
 :::
 :::tab[Document editor]
-Choose **Edit**, then **Settings**. Under **Password**, choose **Add a password** or **Remove password**. Under **Expiry**, choose **Remove expiry**, a new period, or **On a date…**. Settings are saved when you choose **Save changes**.
+Choose **Edit**, then **Settings** to open **Document settings**. Under **Password**, type one in **Add a password**, or, if the document already has one, tick **Remove password**. Under **Expiry**, pick **Remove expiry**, a new period such as **Expire in 7 days**, or **On a date…** from **Expires**. Settings are saved when you choose **Save changes**.
 :::
 :::tab[File settings]
-Open the file and choose **More artifact actions › Settings**. Change **Password** (or **Remove the password**) and **Expires**, then choose **Save changes**.
+Open the file, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **More artifact actions › Settings**. Change **Password** (or **Remove the password**) and **Expires**, then choose **Save changes**.
 :::
 ::::
 

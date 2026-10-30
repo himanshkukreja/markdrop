@@ -17,13 +17,13 @@ You need a Markdrop account. You can own up to 10 workspaces, and be a member of
 
 ::::steps
 ### Open New workspace
-In the sidebar, under **Workspaces**, choose **New workspace**. You can also go to [Settings › Workspaces](https://markdrop.in/settings/workspaces) and choose **New workspace**.
+In the sidebar, under **Workspaces**, choose **New workspace**. It takes you to [Settings › Workspaces](https://markdrop.in/settings/workspaces); choose the **New workspace** button there.
 
 ### Name it
-Type a name, like `Acme Docs`, and choose **Create workspace**. Names can be up to 80 characters, and you can change the name later.
+Type a **Name**, like `Acme`, and choose **Create workspace**. Names can be up to 80 characters, and you can change the name later.
 
 ### Follow Get set up
-The new workspace opens with a **Get set up** checklist: name your workspace, invite your team, add your first file, and (optional) use your own domain. Each step ticks itself off when it's done. You can hide the checklist; it stays hidden on that device.
+The new workspace opens with a **Get set up** checklist for admins: name your workspace, invite your team, add your first file, and (optional) use your own domain. Each step ticks itself off when it's done. Choose **Hide this checklist** to hide it; it stays hidden on that device. It shows only while the workspace is new (its first 14 days, with fewer than 3 items) and until the first three steps are done.
 ::::
 
 You are the workspace's **Owner**. Only the owner can delete it.
@@ -54,8 +54,8 @@ Admins invite people. Choose **Share** at the top of the workspace, or open the 
 
 Both live in the workspace's settings, on the **Advanced** tab.
 
-- **Leave workspace** is for everyone except the owner. You lose access right away. Files you added stay in the workspace, and you still own them. To come back, an admin has to invite you again.
-- **Delete workspace** is for the owner only. You type the workspace's name to confirm.
+- **Leave workspace** is for everyone except the owner, who doesn't see it. Choose **Leave Acme…** (with your workspace's name) and confirm. You lose access right away. Files you added stay in the workspace, and you still own them. To come back, an admin has to invite you again.
+- **Delete workspace** is for the owner only. Choose **Delete Acme…** and type the workspace's name to confirm.
 
 Deleting a workspace removes its members, folders and domains. It doesn't delete anyone's files: each file goes back to the person who owns it, with the same link and analytics. Anything that was open to the team becomes "Only people added", and your domain stops serving.
 

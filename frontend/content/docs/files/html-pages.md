@@ -59,7 +59,7 @@ It runs inside a sandbox on a separate domain, never on markdrop.in. It can't re
 
 ## Update the page
 
-To change it, open the page and choose **More artifact actions › Settings**, choose the **File** tile, pick the new `.html` and choose **Save changes**. The link stays the same and readers with the page open get the new version. Your assistant can also update it in place through MCP. See [Replace a file and restore versions](/files/replace-and-versions).
+To change it, open the page, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **More artifact actions › Settings**. Choose the **File** tile, pick the new `.html` and choose **Save changes**. The link stays the same and readers with the page open get the new version. Your assistant can also update it in place through MCP. See [Replace a file and restore versions](/files/replace-and-versions).
 
 ## Related
 

@@ -21,7 +21,7 @@ A password manager or a private note is a good place for it. Treat it like a pas
 
 ::::steps
 ### Open the document
-Go to its link, for example `markdrop.in/q3-plan`.
+Go to its link, for example `markdrop.in/q3-plan`. It opens full screen: press :kbd[Esc] or choose **Show details** to bring back the bar above it.
 
 ### Choose Edit
 Choose **More actions › Edit**. Markdrop asks you to **Enter your edit secret**.
@@ -30,7 +30,7 @@ Choose **More actions › Edit**. Markdrop asks you to **Enter your edit secret*
 Paste the `sk_…` code and choose **Unlock editor**.
 
 ### Make your changes
-Edit the text, then choose **Save changes**. **Settings** in the editor holds the password, expiry and **Delete document**.
+Edit the text, then choose **Save changes**. **Settings** in the editor opens **Document settings**, with the password, expiry and **Delete document**.
 ::::
 
 ## What the secret can and can't do

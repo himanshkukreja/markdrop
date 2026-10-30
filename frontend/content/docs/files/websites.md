@@ -76,7 +76,7 @@ If a zip breaks a rule, Markdrop says which, for example "Archive has too many f
 
 ## Update a site
 
-Open the site, choose **More artifact actions › Settings**, pick the new `.zip` under **File**, and choose **Save changes**. The link stays the same and the old files are removed.
+Open the site, press :kbd[Esc] or choose **Show details** to leave full screen, then choose **More artifact actions › Settings**, pick the new `.zip` under **File**, and choose **Save changes**. The link stays the same and the old files are removed.
 
 A few things work differently from single files:
 

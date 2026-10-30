@@ -14,18 +14,19 @@ Each page has a **Copy page** button next to its title. Its menu has:
 
 | Item | What it does |
 |---|---|
-| Copy page as Markdown | Copies the page's Markdown to your clipboard. |
-| Copy page with prerequisites | Copies the page together with the pages it lists as prerequisites, so an assistant has everything it needs in one paste. |
+| Copy page | Copies the page's Markdown to your clipboard. |
+| Copy page with what it builds on | Copies the page together with the pages it lists as prerequisites, so an assistant has everything it needs in one paste. Only on pages that have prerequisites. |
 | View as Markdown | Opens the page's Markdown in the browser. |
 | Open in Claude | Opens claude.ai with a prompt to read this page. |
 | Open in ChatGPT | Opens ChatGPT with the same prompt. |
 | Open in Perplexity | Opens Perplexity with the same prompt. |
 | Add docs to Cursor | Installs the [docs MCP server](#connect-the-docs-to-your-ai-app) in Cursor. |
 | Add docs to VS Code | Installs the docs MCP server in VS Code, for Copilot Chat. |
+| Ask AI about this page | Opens [Ask AI](#ask-the-docs) with this page as the context. |
 
 The prompt is "Read {page}.md and answer my questions about it." When you open an assistant, the page's Markdown is also copied to your clipboard, in case the assistant can't open the link: paste it into the chat.
 
-To copy one section, hover over its heading and choose **Copy section**.
+To copy one section, hover over its heading and choose **Copy section**. The heading buttons need a mouse or trackpad, so they don't show on touch screens.
 
 ## Get any page as Markdown
 
@@ -57,7 +58,7 @@ Read https://docs.markdrop.in/llms.txt, then use the markdrop CLI to publish bui
 
 ## Ask the docs
 
-**Ask AI** answers questions from these docs, with a numbered link to the exact section each part of the answer came from. Choose **Ask AI** in the header, press :kbd[⌘I], use **Ask about this** next to any heading, or press :kbd[⌘K] and then :kbd[Tab]. Selecting a source scrolls to that section and highlights it.
+**Ask AI** answers questions from these docs, with a numbered link to the exact section each part of the answer came from. Choose **Ask AI** in the header, press :kbd[⌘I], use **Ask about this** next to any heading (when you hover over it), or press :kbd[⌘K] and then :kbd[Tab]. Selecting a source scrolls to that section and highlights it.
 
 - It only answers from these docs. When they don't cover something, it says so instead of guessing.
 - It can't change anything in your account; it explains how to do things.

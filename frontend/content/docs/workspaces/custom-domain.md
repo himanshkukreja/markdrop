@@ -16,7 +16,7 @@ You need to be an **Admin** or the **Owner** of the workspace, and able to add D
 
 ::::steps
 ### Add the domain
-Open the workspace's settings and go to the **Look and domain** tab. Under **Your own domain**, choose **Add a domain**. Type the hostname, like `docs.acme.com`, leave **What it serves** on **Documents and files**, and choose **Add domain**.
+Open the workspace's settings and go to the **Look and domain** tab. Under **Your own domain**, choose **Add a domain** (**Add another domain** if the workspace already has one). Type the hostname, like `docs.acme.com`, leave **What it serves** on **Documents and files**, and choose **Add domain**.
 
 ### Prove it's yours
 Markdrop shows two records. The first is the **Ownership record**, a TXT record. Add it where you manage DNS for `acme.com`.

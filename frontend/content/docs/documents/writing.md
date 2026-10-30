@@ -75,7 +75,7 @@ The **Title** field is optional. Without one, Markdrop uses the document's first
 
 ## Edit after publishing
 
-Open the document and choose **Edit**. The editor opens with the same views and toolbar, plus **Settings** for the password and expiry. Choose **Save changes**, or press :kbd[⌘ S].
+Open the document, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Edit**. The editor opens with the same views and toolbar, plus **Settings**, which opens **Document settings** for the password and expiry. Choose **Save changes**, or press :kbd[⌘ S].
 
 Readers who have the page open see the change appear, marked "Updated just now".
 

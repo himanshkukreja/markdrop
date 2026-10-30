@@ -33,7 +33,10 @@ Admins and the owner manage folders. Open the folder and choose **More folder ac
 
 - **Rename folder…** shows the new address as you type. Links that use the old name redirect to the new address.
 - **Move folder to…** moves it with everything inside. The move is refused if it would nest anything deeper than 8 levels.
+- **New items start as…** sets who can open new items filed into the folder. See [Workspace privacy](/workspaces/privacy).
 - **Delete folder…** removes only the folder. What's inside stays in the workspace, and nobody loses access. If the folder is inside another one, you choose whether everything moves up one level or the items move to the top of the workspace.
+
+The same menu has **Workspace settings** and, when the workspace has its own domain, an item like **Copy docs.acme.com address** that copies the folder's address there. At the top level of the workspace it's called **More workspace actions**, and the folder actions aren't there.
 
 markdrop.in links never change when you rename, move or delete a folder. Only addresses on your own domain include folders.
 

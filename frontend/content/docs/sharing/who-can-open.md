@@ -13,13 +13,13 @@ Every document and file has one setting that decides who can open it: **Who can 
 
 | Choice | Who can open it | Sign-in |
 | --- | --- | --- |
-| **Anyone with the link** | Anyone who has the address. | Not needed. |
-| **{Team} team**, for example **Acme team** | Everyone in the workspace it's filed in, plus people you add by email. Nobody else, link or not. | Needed. |
 | **Only people added** | You and the people you add by email. | Needed. |
+| **{Team} team**, for example **Acme team** | Everyone in the workspace it's filed in, plus people you add by email. Nobody else, link or not. | Needed. |
+| **Anyone with the link** | Anyone who has the address. | Not needed. |
 
 **Anyone with the link** is the default. Everything published without an account uses it, and it's how Markdrop links have always worked.
 
-The team choice is named after your workspace, so a workspace called Acme shows **Acme team**. It's only available once the document is in a workspace.
+The team choice is named after your workspace's site name, or its name if it has no site name, so a workspace called Acme shows **Acme team**. It's only available once the document is in a workspace.
 
 People you add by email always get in, whatever the choice, as long as they sign in with that address. See [Share with specific people](/sharing/share-with-people).
 
@@ -29,7 +29,7 @@ You need to be the document's owner, signed in.
 
 ::::steps
 ### Open Share
-On the document, choose **Share**. From **My files**, choose **Share…** in the row's menu. On a file, choose **More artifact actions › Share**.
+From **My files**, choose **Share…** in the row's menu. Or open the document or file, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Share** (on a file, **More artifact actions › Share**).
 
 ### Pick a choice
 Under **Who can open it**, choose one of the three cards. It saves straight away: "Who can open it is updated."

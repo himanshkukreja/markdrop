@@ -25,7 +25,7 @@ The new file can be a different size, and even a different type: a PDF can repla
 
 ::::steps
 ### Open the file
-Go to its link while signed in.
+Go to its link while signed in. It opens full screen: press :kbd[Esc] or choose **Show details** to bring back the bar above it.
 
 ### Open Settings
 Choose **More artifact actions › Settings**. If you can edit the file but don't own it, choose **Replace file** instead.

@@ -14,7 +14,7 @@ Add people by email when a document or file is for them and not for everyone wit
 
 ::::steps
 ### Open Share
-On the document, choose **Share**. From **My files**, choose **Share…** in the row's menu. On a file, choose **More artifact actions › Share**.
+From **My files**, choose **Share…** in the row's menu. Or open the document or file, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Share** (on a file, **More artifact actions › Share**).
 
 ### Type their addresses
 Under **People with access**, type an address in **Add people by email** and press :kbd[Enter]. Add as many as you like. Suggestions come from people you've shared with before and from your workspaces, never from a search of other Markdrop users.
@@ -23,7 +23,7 @@ Under **People with access**, type an address in **Add people by email** and pre
 Pick **Can view** or **Can edit** for the people you're adding.
 
 ### Decide whether to email them
-**Email them** is on by default. Choose **Add a message** to include a note of up to 500 characters, like "Here's the Q3 plan for Thursday." Turn **Email them** off to add people quietly.
+Once you've typed an address, an **Email them** checkbox appears, ticked. Choose **Add a message** to include a note of up to 500 characters, like "Here's the Q3 plan for Thursday." Untick **Email them** to add people quietly.
 
 ### Choose Share
 Markdrop confirms what happened, for example "Shared with alice@acme.com and emailed them."
@@ -59,7 +59,7 @@ When an editor opens the editor, Markdrop tells them: "You can edit the text. It
 **People with access** shows:
 
 - you, as **Owner**;
-- **Everyone in {workspace}**, when the document is open to its workspace team (**Members can edit**);
+- **Everyone in {workspace}** and how many people that is, when the document is in a workspace and isn't set to **Only people added** (**Members can edit**);
 - each person you added, with **Can view** or **Can edit**.
 
 A person marked "Added without an email" was added with **Email them** off. One marked "No longer active: whoever shared it lost access" was added by someone who no longer has access themselves, so their access went with it.

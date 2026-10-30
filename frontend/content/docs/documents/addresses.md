@@ -38,7 +38,7 @@ Open the row's menu and choose **Change URL**.
 Type it after `markdrop.in/` and choose **Change URL**.
 ::::
 
-For a file, you can also open it and choose **More artifact actions › Settings**, then edit **Link** and choose **Save changes**.
+For a file, you can also open it, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **More artifact actions › Settings**. Edit **Link** and choose **Save changes**.
 
 Views and analytics stay with the document.
 

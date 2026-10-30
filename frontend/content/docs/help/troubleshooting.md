@@ -40,7 +40,7 @@ The document is shared with specific people, and the account you're signed in wi
 :::
 
 :::details[This document is password protected]
-Enter the password you were given. After too many wrong passwords, Markdrop asks you to wait a few minutes before trying again.
+Enter the password you were given. After too many wrong passwords, Markdrop stops checking for a few minutes and shows an error even for the right one. Wait a few minutes and try again.
 :::
 
 :::details[It opens on markdrop.in but not on our own domain]

@@ -326,7 +326,7 @@
         "web"
       ],
       "summary": "Markdrop's MCP server lets your AI assistant publish, read and update your documents, after you approve it on Markdrop.",
-      "body": "Paste `https://api.markdrop.in/mcp` into Claude, ChatGPT, Claude Code, Cursor, VS Code or another MCP app, sign in to Markdrop and approve. There's no key to copy.\n\n- Ask for \"a Markdrop doc of these notes\" and get a link that renders.\n- Publish HTML pages, read and update documents, change who can open them, and see how they're read.\n- Two permissions, *See your documents and files* and *Publish and manage documents for you*, approved per app.\n- Disconnect any app from **Settings → Connected apps**.\n\nAssistants can't read end-to-end encrypted documents or get past a password.",
+      "body": "Paste `https://api.markdrop.in/mcp` into Claude, ChatGPT, Claude Code, Cursor, VS Code or another MCP app, sign in to Markdrop and approve. There's no key to copy.\n\n- Ask for \"a Markdrop doc of these notes\" and get a link that renders.\n- Publish HTML pages, read and update documents, change who can open them, and see how they're read.\n- Two permissions, *Read your documents* and *Publish and change documents*, approved per app.\n- Disconnect any app from **Settings → Connected apps**.\n\nAssistants can't read end-to-end encrypted documents or get past a password.",
       "media": {
         "video": "connect-claude"
       },

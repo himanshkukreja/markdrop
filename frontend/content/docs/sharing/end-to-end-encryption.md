@@ -44,7 +44,7 @@ Markdrop can't verify, read, search or recover the text. Signing in doesn't unlo
 Lose every copy of the full link and the document can't be opened again, by anyone. Markdrop has nothing to recover it with.
 :::
 
-As a safety net, the browser you published from remembers the key. If you open the document there without the key, it opens anyway and says "Opened with the key saved in this browser", with **Copy full link** so you can get the link back. On a shared or borrowed computer, choose **More actions › Forget key on this device**.
+As a safety net, the browser you published from remembers the key. If you open the document there without the key, it opens anyway and says "Opened with the key saved in this browser", with **Copy full link** so you can get the link back. On a shared or borrowed computer, press :kbd[Esc] or choose **Show details** to leave full screen, then choose **More actions › Forget key on this device**.
 
 People who open the link in a browser without the key see "This document is end-to-end encrypted. Ask whoever shared it for the full link."
 
@@ -66,7 +66,7 @@ Encryption sits on top of [who can open it](/sharing/who-can-open). Set it to **
 
 ## Edit and change the key
 
-To edit, open the full link and choose **Edit**. Your browser decrypts the text, you change it, and it's encrypted again before it's saved. Without the key you can still change the password and expiry, or delete the document, but not the text.
+To edit, open the full link, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Edit**. Your browser decrypts the text, you change it, and it's encrypted again before it's saved. Without the key you can still change the password and expiry, or delete the document, but not the text.
 
 If the link has spread further than you wanted, issue a new key: choose **Edit**, then **Settings**, turn on **Issue a new key**, and choose **Save with new key**. Markdrop shows "New key generated — this is the link now." The old link stops working. Anyone who already read the document keeps what they read.
 

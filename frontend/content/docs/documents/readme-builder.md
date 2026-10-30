@@ -13,7 +13,7 @@ The README builder at [markdrop.in/builder](https://markdrop.in/builder) puts a 
 
 ::::steps
 ### Add sections
-Under **Add a section**, choose any section to add it to **Your README**. Search with **Search sections**, or filter by group:
+Under **Add a section**, choose any section to add it to **Your README**. Search with **Search sections**. Sections are listed in these groups, and on a screen narrower than 1024 pixels you can also filter by group:
 
 | Group | Includes |
 | --- | --- |
@@ -57,7 +57,7 @@ Diagram and math sections render on Markdrop. GitHub renders Mermaid and math to
 
 Choose **Publish…**. The **Publish README** dialog has the same settings as any document: **Link**, **Who can open it**, **Encrypt in this browser**, **Password** and **Expires**, plus **Location** if you're in a workspace. Choose **Publish** and the README opens at its new link.
 
-From then on it's an ordinary Markdrop document: edit it, share it, or check who read it. Later changes in the builder don't reach the published copy, and publishing again makes a new link. To update the same link, open the document and choose **Edit**.
+From then on it's an ordinary Markdrop document: edit it, share it, or check who read it. Later changes in the builder don't reach the published copy, and publishing again makes a new link. To update the same link, open the document, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Edit**.
 
 ## Related
 

@@ -54,7 +54,7 @@ Markdrop serves what you upload from a different domain than markdrop.in, inside
 
 ## Change it later
 
-The file is in **My files**, under **Artifacts**. Open it and choose **More artifact actions** (the `⋯` button):
+The file is in **My files**, under **Artifacts**. Open it; it opens full screen, so press :kbd[Esc] or choose **Show details** to bring back its bar. Then choose **More artifact actions** (the `⋯` button):
 
 - **Settings** changes the title, link, password and expiry, and lets you replace the file. The link stays the same. See [Replace a file and restore versions](/files/replace-and-versions).
 - **Share** chooses who can open it and adds people by email. See [Share with specific people](/sharing/share-with-people).

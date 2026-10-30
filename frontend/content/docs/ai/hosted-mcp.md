@@ -103,8 +103,8 @@ The approval link works once, for 10 minutes. If it has expired, start again fro
 
 | Permission | On the approval screen | Lets the app |
 |---|---|---|
-| `documents:read` | See your documents and files | Read titles, contents, links and view counts; list and search; check files, uploads, shares and workspaces. |
-| `documents:write` | Publish and manage documents for you | Publish, update, change access to and delete documents and files; upload and replace files; file documents in workspaces. |
+| `documents:read` | Read your documents | Read titles, contents, links and view counts; list and search; check files, uploads, shares and workspaces. |
+| `documents:write` | Publish and change documents | Publish, update, change access to and delete documents and files; upload and replace files; file documents in workspaces. |
 
 Each tool needs one of them; [MCP tools](/ai/tools) lists which. If an app calls a tool it wasn't given permission for, it is asked to reconnect and approve the missing permission.
 

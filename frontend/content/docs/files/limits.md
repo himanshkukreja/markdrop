@@ -56,7 +56,7 @@ Some viewers show part of a very large file, and readers can choose **Download**
 
 ## Uploading in a hurry
 
-If you upload a lot in a short time, Markdrop asks you to wait: "Too many uploads in a short time". Wait a minute and publish again; your file and settings stay on the page.
+If you upload a lot in a short time, Markdrop stops accepting new uploads for a little while, and publishing fails with an error. Wait a minute and publish again; your file and settings stay on the page.
 
 ## Related
 

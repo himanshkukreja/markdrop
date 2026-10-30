@@ -13,7 +13,7 @@ Branding shows on your own domains. Admins and the owner change it on the **Look
 ## Names
 
 - **Workspace name** is what members see inside Markdrop. Up to 80 characters.
-- **Site name on your pages** is shown in the header and link previews on your domain, like `Acme Docs`. Up to 60 characters. Members also see it as the team's name, as in "Acme team".
+- **Site name on your pages** is shown in the header and link previews on your domain, like `Acme`. Up to 60 characters. Members also see it as the team's name, as in "Acme team". If you leave it blank, the team takes the workspace name instead.
 
 ## Logo, colours and favicon
 

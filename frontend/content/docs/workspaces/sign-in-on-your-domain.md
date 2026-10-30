@@ -14,13 +14,13 @@ Readers only need to sign in for things that aren't open to anyone: items for th
 
 ::::steps
 ### Choose Sign in
-On your domain, the header shows **Sign in to read Acme Docs** (on a phone, **Sign in**). In a Locked workspace, signed-out visitors see **Sign in to read Acme Docs** in the middle of the page instead.
+On your domain, the header shows **Sign in to read Acme**, with your workspace's site name, or the domain if it has none (on a phone, **Sign in**). In a Locked workspace, signed-out visitors see **Sign in to read Acme** in the middle of the page instead.
 
 ### Sign in on markdrop.in
 The reader goes to markdrop.in and signs in there, if they aren't already.
 
 ### Confirm the site
-Readers who aren't members of the workspace are asked once: **Continue to docs.acme.com as Dana?** The page says that the site can see their display name, never their email address, and can't change anything in their account. **Don't ask again for docs.acme.com** is ticked by default. They choose **Continue**.
+Readers who aren't members of the workspace are asked once, with their full display name: **Continue to docs.acme.com as Dana Park?** The page says that the site can see their display name, never their email address, and can't change anything in their account. **Don't ask again for docs.acme.com** is ticked by default. They choose **Continue**.
 
 ### Back on your domain
 They land back on the page they started from, signed in, and can read what's been shared with them.
