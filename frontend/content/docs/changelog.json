@@ -1,0 +1,489 @@
+{
+  "products": [
+    {
+      "id": "web",
+      "label": "Web app"
+    },
+    {
+      "id": "cli",
+      "label": "CLI"
+    },
+    {
+      "id": "vscode",
+      "label": "VS Code"
+    },
+    {
+      "id": "mcp",
+      "label": "MCP server"
+    },
+    {
+      "id": "api",
+      "label": "API"
+    }
+  ],
+  "next": [
+    {
+      "title": "Ask AI on docs.markdrop.in",
+      "body": "Ask questions in plain words and get answers drawn from these docs.",
+      "area": "Docs"
+    },
+    {
+      "title": "A docs MCP server",
+      "body": "Connect your AI app to `https://docs.markdrop.in/mcp` so it can search and read these docs as tools.",
+      "area": "Docs"
+    }
+  ],
+  "entries": [
+    {
+      "id": "creator-analytics",
+      "date": "2026-10-28",
+      "title": "Creator analytics",
+      "kind": "new",
+      "area": "Analytics",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "See how each document, PDF, video and audio file you publish is read or watched, live and over time.",
+      "body": "Every document and file you own now has its own analytics page, and **Analytics** in your dashboard shows them all together.\n\n- **Video and audio:** how many people are still watching at 0:30, 25%, 50%, 75% and the end, where most of them leave, and how playback went.\n- **Markdown documents:** how many read to the end, how far readers get section by section, and what they copy and which links they click.\n- **PDFs:** how many readers reach each page.\n- **Live now:** who is reading or watching right now.\n\nYour own views are never counted, and you can download a document's numbers as CSV. AI apps connected to Markdrop can ask for the same numbers with the new `get_document_analytics` tool.",
+      "media": {
+        "video": "analytics-tour"
+      },
+      "try": {
+        "label": "Open analytics",
+        "href": "https://markdrop.in/dashboard/analytics"
+      },
+      "docs": [
+        "/analytics/overview",
+        "/analytics/video-and-audio",
+        "/analytics/documents-and-pdfs",
+        "/analytics/live",
+        "/analytics/what-gets-counted",
+        "/ai/tools"
+      ],
+      "highlights": [
+        "Your own views never count",
+        "Retention for video and audio",
+        "Section-by-section reading depth",
+        "Live now"
+      ]
+    },
+    {
+      "id": "light-theme-default",
+      "date": "2026-10-28",
+      "title": "Light is the default theme",
+      "kind": "improved",
+      "area": "Design",
+      "products": [
+        "web"
+      ],
+      "summary": "Markdrop now opens in the light theme unless you choose dark or system.",
+      "body": "New visitors see Markdrop in the light theme. Your choice is remembered per browser: pick dark, or system to follow your device, from the theme switch.",
+      "docs": [
+        "/get-started/tour"
+      ]
+    },
+    {
+      "id": "simpler-workspaces",
+      "date": "2026-10-28",
+      "title": "Simpler workspaces",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "One sidebar for your files and workspaces, folders you can drop files onto, and sharing in one dialog.",
+      "body": "Workspaces were redesigned around one drive-style sidebar: **My files**, **Shared with me**, **Recent** and each workspace's folder tree.\n\n- **Folder view** shows who can open what in a folder at a glance, and you can drop files onto it to upload them.\n- **Preview as** shows a workspace the way someone else would see it.\n- **One share dialog** with three presets: *Only people added*, *{Workspace} team* and *Anyone with the link*. Passwords and expiry are under **More options**, for documents too.\n- **Request access:** people who can't open a document can ask for access, and you decide from an email or the app.\n- **Search** with :kbd[⌘K] across your documents, files and folders.\n\nDocuments and files now open in a new tab, at the address **Copy link** gives you, on your workspace's own domain when it has one.",
+      "try": {
+        "label": "Open Shared with me",
+        "href": "https://markdrop.in/shared"
+      },
+      "docs": [
+        "/workspaces/folders",
+        "/workspaces/privacy",
+        "/sharing/share-with-people",
+        "/sharing/request-access",
+        "/sharing/who-can-open"
+      ],
+      "highlights": [
+        "Drop files onto a folder",
+        "Preview as",
+        "Request access",
+        "Shared with me and Recent"
+      ]
+    },
+    {
+      "id": "password-and-expiry-in-share-dialog",
+      "date": "2026-10-28",
+      "title": "Passwords and expiry from the share dialog",
+      "kind": "improved",
+      "area": "Sharing",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Set or remove a document's password and expiry from the share dialog, including a new one-hour expiry.",
+      "body": "The share dialog's **More options** now sets a password and an expiry for Markdown documents as well as files, including **On a date…**, and the new one-hour option. The dialog also shows the document's real address.\n\nFor scripts, `PATCH /api/v1/documents/{slug}/settings` changes the password and expiry without resending the content.\n\nA document published without a title now takes one from its first heading or first line.",
+      "docs": [
+        "/documents/passwords-and-expiry",
+        "/api/overview"
+      ]
+    },
+    {
+      "id": "workspaces-v2",
+      "date": "2026-10-28",
+      "title": "Workspaces, folders and custom domains, rebuilt",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "api",
+        "mcp",
+        "cli"
+      ],
+      "versions": {
+        "cli": "0.5.0"
+      },
+      "summary": "Share whole folders, keep one access level per document at every address, and run your workspace on your own domain more safely.",
+      "body": "Workspaces, folders and custom domains were rebuilt on one access rule: a document has one access level at every address it has, on markdrop.in and on your workspace's domain alike.\n\n- **Share a folder** with a single link. People see only the items they can already open.\n- **Renamed addresses** send readers to the new one, and old addresses are never handed to someone else.\n- **Custom domains** are re-checked every day. A domain whose DNS no longer points at Markdrop stops serving after three days of failed checks.\n- **Editors and workspace members** can replace a file from the viewer.\n- **AI apps** can list workspaces and folders, file documents, create folders and move items, and the CLI can upload straight into a folder.\n\nExisting workspace links keep working.",
+      "try": {
+        "label": "Open your workspaces",
+        "href": "https://markdrop.in/settings/workspaces"
+      },
+      "docs": [
+        "/workspaces/folders",
+        "/workspaces/share-a-folder",
+        "/workspaces/custom-domain",
+        "/workspaces/sign-in-on-your-domain",
+        "/sharing/who-can-open",
+        "/cli/workspaces"
+      ],
+      "highlights": [
+        "Folder share links",
+        "One access level per document",
+        "Daily domain checks",
+        "Workspace tools for AI apps"
+      ]
+    },
+    {
+      "id": "cli-0-5-0",
+      "date": "2026-10-28",
+      "title": "CLI 0.5.0: publish into workspaces",
+      "kind": "new",
+      "area": "CLI",
+      "products": [
+        "cli",
+        "mcp"
+      ],
+      "versions": {
+        "cli": "0.5.0"
+      },
+      "summary": "Upload straight into a workspace folder, choose the address, and list your workspaces from the terminal.",
+      "body": "```bash\nmarkdrop workspaces                     # your workspaces, roles and live domains\nmarkdrop workspaces Acme                # its folders\nmarkdrop upload spec.pdf --workspace Acme --folder guides/setup\nmarkdrop upload demo.mp4 --slug q3-demo\n```\n\n- `--workspace` takes a workspace's id, name or custom domain; `--folder` an existing folder path.\n- The printed link is on the workspace's custom domain when it has a live one.\n- `--slug` picks the address and fails before uploading if it is taken.\n- `markdrop mcp` gains `list_workspaces` and `list_folders`, and its `upload_file` takes `workspace`, `folder` and `slug`.\n\nOn the hosted MCP server, seven workspace tools arrived at the same time: `list_workspaces`, `list_folders`, `list_workspace_items`, `add_to_workspace`, `remove_from_workspace`, `create_folder` and `move_to_folder`.",
+      "try": {
+        "label": "Install the CLI",
+        "href": "https://github.com/himanshkukreja/markdrop/releases/latest"
+      },
+      "docs": [
+        "/cli/workspaces",
+        "/cli/upload-and-replace",
+        "/cli/reference",
+        "/ai/local-mcp",
+        "/ai/tools"
+      ]
+    },
+    {
+      "id": "replace-files-keep-the-link",
+      "date": "2026-10-27",
+      "title": "Replace a file and keep its link",
+      "kind": "new",
+      "area": "Files",
+      "products": [
+        "web",
+        "api",
+        "mcp",
+        "cli"
+      ],
+      "versions": {
+        "cli": "0.4.0"
+      },
+      "summary": "Swap the video, PDF or page behind a link you already shared, keep the last five versions, and publish videos up to 2 GB.",
+      "body": "Re-recorded the demo? Revised the PDF? Replace the file and everyone with the link gets the new one. The link, its access, title and view count stay the same.\n\n- **Versions:** the last five versions of each file are kept, and you can restore any of them. A restore is itself a new version, so nothing is lost.\n- **Bigger files:** video and audio up to 2 GB each, sent in parts and checked by SHA-256 before they go live. Storage is 20 GB per account, earlier versions included.\n- **Audio files** (MP3, M4A, WAV, OGG) get their own player, and videos show a poster frame before they play.\n- **From anywhere:** replace a file on markdrop.in, with `markdrop replace`, or from an AI app.",
+      "media": {
+        "video": "replace-keep-link"
+      },
+      "try": {
+        "label": "Upload a file",
+        "href": "https://markdrop.in/upload"
+      },
+      "docs": [
+        "/files/replace-and-versions",
+        "/files/large-uploads",
+        "/files/limits",
+        "/files/video-and-audio",
+        "/cli/upload-and-replace"
+      ],
+      "highlights": [
+        "Same link, new file",
+        "Five versions kept",
+        "Video and audio up to 2 GB",
+        "Audio player"
+      ]
+    },
+    {
+      "id": "cli-0-4-0",
+      "date": "2026-10-27",
+      "title": "CLI 0.4.0: upload, replace and versions",
+      "kind": "new",
+      "area": "CLI",
+      "products": [
+        "cli",
+        "mcp"
+      ],
+      "versions": {
+        "cli": "0.4.0"
+      },
+      "summary": "Publish files from the terminal and swap them behind the same link, with resumable uploads and JSON output for scripts.",
+      "body": "New commands: `upload`, `replace`, `versions`, `restore`, `info`, `login` and `logout`.\n\n- Uploads are hashed, sent four parts at a time, verified by Markdrop, and resume when you run the same command again.\n- `--json` prints one JSON object and nothing else, for scripts and CI.\n- `markdrop login` saves an API token so you don't need `MARKDROP_TOKEN` in every shell.\n- `markdrop mcp` gains `upload_file`, `replace_file`, `list_file_versions`, `restore_file_version` and `get_file_info`, so an AI app on your computer can publish files from disk.",
+      "try": {
+        "label": "Create an API token",
+        "href": "https://markdrop.in/settings/tokens"
+      },
+      "docs": [
+        "/cli/upload-and-replace",
+        "/cli/login-and-tokens",
+        "/ai/local-mcp"
+      ]
+    },
+    {
+      "id": "large-video-replace",
+      "date": "2026-10-27",
+      "title": "Replacing a video over 25 MB works again",
+      "kind": "fixed",
+      "area": "Files",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Replacing a video file used the 25 MB limit for documents and refused larger videos.",
+      "body": "Replacing the file behind a video link now uses the video size limit, and checks your storage with the old file counted as freed.",
+      "docs": [
+        "/files/replace-and-versions",
+        "/files/limits"
+      ]
+    },
+    {
+      "id": "local-mcp-server",
+      "date": "2026-10-25",
+      "title": "Send files from an AI app on your computer",
+      "kind": "new",
+      "area": "AI and MCP",
+      "products": [
+        "cli",
+        "mcp"
+      ],
+      "versions": {
+        "cli": "0.3.0"
+      },
+      "summary": "markdrop mcp, a local MCP server in the CLI, lets Claude Code, Claude Desktop, Cursor and VS Code share and receive files peer to peer.",
+      "body": "Add `markdrop mcp` to an AI app on your computer and ask it to \"share these three PDFs\" or \"download this share link into ~/Projects\".\n\n- `share_files`, `share_status`, `stop_share` and `receive_share` run on your machine; files go straight to the recipient.\n- Well-known secret locations such as `~/.ssh` and `.env` files are refused.\n- `markdrop send` and `get` now use a relay when a direct connection between networks isn't possible.\n- On the hosted server, `list_shares` and `get_share_status` show your shares and check a share link.",
+      "try": {
+        "label": "See the setup",
+        "href": "https://markdrop.in/mcp"
+      },
+      "docs": [
+        "/ai/local-mcp",
+        "/ai/tools",
+        "/cli/send-and-receive"
+      ]
+    },
+    {
+      "id": "mcp-server",
+      "date": "2026-10-25",
+      "title": "Connect Claude, ChatGPT and other AI apps",
+      "kind": "new",
+      "area": "AI and MCP",
+      "products": [
+        "mcp",
+        "web"
+      ],
+      "summary": "Markdrop's MCP server lets your AI assistant publish, read and update your documents, after you approve it on Markdrop.",
+      "body": "Paste `https://api.markdrop.in/mcp` into Claude, ChatGPT, Claude Code, Cursor, VS Code or another MCP app, sign in to Markdrop and approve. There's no key to copy.\n\n- Ask for \"a Markdrop doc of these notes\" and get a link that renders.\n- Publish HTML pages, read and update documents, change who can open them, and see how they're read.\n- Two permissions, *See your documents and files* and *Publish and manage documents for you*, approved per app.\n- Disconnect any app from **Settings → Connected apps**.\n\nAssistants can't read end-to-end encrypted documents or get past a password.",
+      "media": {
+        "video": "connect-claude"
+      },
+      "try": {
+        "label": "Connect an AI app",
+        "href": "https://markdrop.in/mcp"
+      },
+      "docs": [
+        "/ai/overview",
+        "/ai/hosted-mcp",
+        "/ai/tools",
+        "/account/connected-apps"
+      ],
+      "highlights": [
+        "One URL, no API key",
+        "Approve per app",
+        "Disconnect anytime"
+      ]
+    },
+    {
+      "id": "share-reconnect",
+      "date": "2026-10-20",
+      "title": "Peer-to-peer shares survive a dropped connection",
+      "kind": "fixed",
+      "area": "Peer-to-peer",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "A sender whose connection drops takes their link back, recipients wait for them, and transfers between different networks go through a relay.",
+      "body": "- A sender whose browser reconnects takes its share link back instead of being locked out of it.\n- Recipients who open the link while the sender is away wait up to 10 minutes for them to return.\n- When the two computers can't connect directly, the transfer goes through a relay. The relay can't read the encrypted connection.",
+      "try": {
+        "label": "Send files",
+        "href": "https://markdrop.in/share"
+      },
+      "docs": [
+        "/share/send-files",
+        "/share/troubleshooting"
+      ]
+    },
+    {
+      "id": "vscode-large-html",
+      "date": "2026-10-20",
+      "title": "Large HTML files publish from VS Code",
+      "kind": "fixed",
+      "area": "VS Code",
+      "products": [
+        "vscode",
+        "api"
+      ],
+      "summary": "HTML and other text files up to 25 MB now publish and sync from VS Code; larger self-contained pages used to fail.",
+      "body": "Self-contained HTML pages with inlined images or fonts between 10 and 25 MB failed to publish from VS Code. The limit for files synced from the editor is now 25 MB, the same as for uploads.",
+      "docs": [
+        "/vscode/sync",
+        "/vscode/conflicts"
+      ]
+    },
+    {
+      "id": "privacy-choices",
+      "date": "2026-10-16",
+      "title": "Privacy page and privacy choices",
+      "kind": "new",
+      "area": "Privacy",
+      "products": [
+        "web"
+      ],
+      "summary": "A privacy page explains what Markdrop collects, and visitors from the EU, EEA, UK and Switzerland choose whether to allow analytics.",
+      "body": "- The new [privacy page](https://markdrop.in/privacy) explains what Markdrop collects and why.\n- Visitors from the EU, EEA, UK and Switzerland are asked before product analytics run. Declining, or sending Global Privacy Control, keeps analytics from storing anything in your browser.\n- **Privacy choices** in the footer reopens the choice at any time.\n- Product analytics never see your documents' addresses or what you type.",
+      "try": {
+        "label": "Read the privacy page",
+        "href": "https://markdrop.in/privacy"
+      },
+      "docs": [
+        "/security/privacy"
+      ]
+    },
+    {
+      "id": "redesign",
+      "date": "2026-10-14",
+      "title": "A new Markdrop",
+      "kind": "improved",
+      "area": "Design",
+      "products": [
+        "web"
+      ],
+      "summary": "Every screen was redesigned on one design system, with a new reader, a new upload page and a light theme.",
+      "body": "- A new reader for documents and files, full screen or framed, with clearer messages when a link needs a password or a sign-in.\n- A new upload page, editor and publish settings.\n- Settings pages for your account, API tokens and workspaces.\n- A light theme alongside dark.",
+      "try": {
+        "label": "Open Markdrop",
+        "href": "https://markdrop.in"
+      },
+      "docs": [
+        "/get-started/tour",
+        "/get-started/what-is-markdrop"
+      ]
+    },
+    {
+      "id": "share-many-recipients",
+      "date": "2026-10-04",
+      "title": "Send many files to many people from one link",
+      "kind": "new",
+      "area": "Peer-to-peer",
+      "products": [
+        "web",
+        "cli"
+      ],
+      "summary": "One share link now serves up to 10 recipients at once, carries several files, and shows who is downloading.",
+      "body": "- Add several files to one share and send them all with one link.\n- Up to 10 people can download from the link at the same time.\n- See who is connected and how far along each download is.\n- Recipients are told when the sender closes the link.\n- Links made in the browser work with `markdrop get`.",
+      "try": {
+        "label": "Send files",
+        "href": "https://markdrop.in/share"
+      },
+      "docs": [
+        "/share/send-files",
+        "/cli/send-and-receive"
+      ]
+    },
+    {
+      "id": "share-with-people",
+      "date": "2026-09-14",
+      "title": "Share documents with people",
+      "kind": "new",
+      "area": "Sharing",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Choose who can open a document when you publish it, and add people by email as viewers or editors.",
+      "body": "- Pick who can open a document when you create it, and change it later from the document.\n- Add people by email with **Can view** or **Can edit**. They sign in to open it.\n- Folders in a workspace are part of the address, so a document's link shows where it is filed.",
+      "docs": [
+        "/sharing/who-can-open",
+        "/sharing/share-with-people",
+        "/workspaces/folders"
+      ]
+    },
+    {
+      "id": "custom-domains",
+      "date": "2026-09-13",
+      "title": "Workspaces on your own domain",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Create a workspace, invite your team, and serve its documents on your own domain with your branding.",
+      "body": "- Workspaces with members and roles, and invitations people accept.\n- Serve a workspace's documents on a domain you own, verified through DNS.\n- Your logo and accent colour on your domain, and link previews in your brand.\n- Video files with their own player.",
+      "try": {
+        "label": "Create a workspace",
+        "href": "https://markdrop.in/settings/workspaces"
+      },
+      "docs": [
+        "/workspaces/create",
+        "/workspaces/members-and-roles",
+        "/workspaces/custom-domain",
+        "/workspaces/branding"
+      ]
+    },
+    {
+      "id": "end-to-end-encryption",
+      "date": "2026-09-13",
+      "title": "End-to-end encrypted documents",
+      "kind": "new",
+      "area": "Security",
+      "products": [
+        "web"
+      ],
+      "summary": "Encrypt a document in your browser so Markdrop stores only ciphertext and the key lives in the link.",
+      "body": "Turn on encryption when you publish and the document is encrypted in your browser with AES-256-GCM before it is sent. The key is part of the link after `#k=`, which browsers never send to a server, so Markdrop can't read the document.\n\nAnyone with the full link can read it; anyone without the key part can't, including Markdrop and AI apps.",
+      "docs": [
+        "/sharing/end-to-end-encryption",
+        "/security/how-files-are-served"
+      ]
+    }
+  ]
+}

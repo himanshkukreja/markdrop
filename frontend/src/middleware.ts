@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TENANT_HOST_HEADER, isPrimaryHost, normalizeHost } from "@/components/tenant/hosts";
+import { DOCS_INTERNAL, docsOrigin, docsRewritePath, isDocsHost } from "@/docs/host";
 
 /**
  * Route requests that arrived on a customer's own domain to the tenant renderer.
@@ -45,10 +46,29 @@ export function middleware(request: NextRequest) {
   const host = normalizeHost(request.headers.get("host"));
   const { pathname } = request.nextUrl;
 
+  // The docs site (docs.markdrop.in, docs.localhost in dev) is neither a tenant nor the app: every
+  // path is rewritten to the internal /docs-site tree, and Accept: text/markdown picks the
+  // Markdown twin of a page (so the response varies on Accept).
+  if (isDocsHost(host)) {
+    const target = docsRewritePath(pathname, request.headers.get("accept"));
+    if (target === null) return NextResponse.next();
+    const url = request.nextUrl.clone();
+    url.pathname = target;
+    const res = NextResponse.rewrite(url);
+    res.headers.set("Vary", "Accept");
+    return res;
+  }
+
   if (isPrimaryHost(host)) {
     // The tenant renderer is internal: reachable only through the rewrite below.
     // (`/h` alone is left to /[slug]: it is not the tenant renderer.)
     if (pathname.startsWith("/h/")) return notFound();
+    // So is the docs tree; /docs on the app moves to the docs host for good.
+    if (pathname === DOCS_INTERNAL || pathname.startsWith(`${DOCS_INTERNAL}/`)) return notFound();
+    if (pathname === "/docs" || pathname.startsWith("/docs/")) {
+      const rest = pathname.slice("/docs".length) || "/";
+      return NextResponse.redirect(`${docsOrigin(host, request.nextUrl.port)}${rest}${request.nextUrl.search}`, 308);
+    }
     return NextResponse.next();
   }
 

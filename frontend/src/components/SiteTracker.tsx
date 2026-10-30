@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { trackPageview } from "@/lib/track";
+import { isDocsHost } from "@/docs/host";
 
 /**
  * Reports a page view on every route change. usePathname (unlike
@@ -11,7 +12,8 @@ import { trackPageview } from "@/lib/track";
 export default function SiteTracker() {
   const pathname = usePathname();
   useEffect(() => {
-    if (pathname) trackPageview(pathname);
+    // The docs host isn't wired into first-party analytics yet (the beat API doesn't accept its origin).
+    if (pathname && !isDocsHost(location.hostname)) trackPageview(pathname);
   }, [pathname]);
   return null;
 }

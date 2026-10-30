@@ -1,0 +1,298 @@
+{
+  "name": "Markdrop Docs",
+  "description": "Guides for publishing documents and files, sharing them safely, running workspaces on your own domain, and using Markdrop from your editor, terminal and AI assistant.",
+  "url": "https://docs.markdrop.in",
+  "product": {
+    "name": "Markdrop",
+    "url": "https://markdrop.in",
+    "openLabel": "Open Markdrop"
+  },
+  "repo": "https://github.com/himanshkukreja/markdrop",
+  "edit": "https://github.com/himanshkukreja/markdrop/edit/main/frontend/content/docs",
+  "feedback": "https://api.markdrop.in/api/v1/docs/feedback",
+  "embedHosts": [
+    "markdrop.in",
+    "www.markdrop.in"
+  ],
+  "eyebrow": "Markdrop documentation",
+  "headline": "Drop it. It renders. Here’s everything it can do.",
+  "tabs": [
+    {
+      "id": "guides",
+      "label": "Guides",
+      "href": "/"
+    },
+    {
+      "id": "api",
+      "label": "API reference",
+      "href": "/api/overview"
+    },
+    {
+      "id": "cli",
+      "label": "CLI",
+      "href": "/cli/install"
+    },
+    {
+      "id": "ai",
+      "label": "AI and MCP",
+      "href": "/ai/overview"
+    },
+    {
+      "id": "changelog",
+      "label": "Changelog",
+      "href": "/changelog"
+    }
+  ],
+  "home": {
+    "chips": [
+      "Put my workspace on my own domain",
+      "Publish a PDF from the terminal",
+      "Who can see a “team” document?",
+      "Connect Claude to Markdrop"
+    ],
+    "start": [
+      {
+        "page": "/get-started/first-document",
+        "icon": "lines",
+        "time": "2 min"
+      },
+      {
+        "page": "/get-started/first-file",
+        "icon": "upload",
+        "time": "3 min"
+      },
+      {
+        "page": "/ai/overview",
+        "icon": "zap",
+        "time": "2 min"
+      }
+    ],
+    "areas": [
+      "Documents",
+      "Files",
+      "Sharing and access",
+      "Workspaces and domains",
+      "Analytics",
+      "CLI",
+      "VS Code",
+      "AI and MCP"
+    ],
+    "askPlaceholder": "Ask anything, like “how do I put my workspace on my own domain?”",
+    "install": {
+      "title": "Install the CLI",
+      "sync": "os",
+      "commands": {
+        "macOS": "brew install himanshkukreja/tap/markdrop",
+        "Windows": "irm https://github.com/himanshkukreja/markdrop/releases/latest/download/install.ps1 | iex",
+        "Linux": "curl -fsSL https://github.com/himanshkukreja/markdrop/releases/latest/download/install.sh | sh"
+      },
+      "note": "Then `markdrop login` and `markdrop upload deck.pdf`. Your choice of system is remembered on every page.",
+      "href": "/cli/install"
+    },
+    "ai": {
+      "title": "These docs work for your AI too",
+      "body": "Every page has a Markdown version at the same address plus `.md`, and the whole site is in `/llms.txt`. Copy page hands any page to your assistant, with a link it can fetch.",
+      "links": [
+        {
+          "label": "llms.txt",
+          "href": "/llms.txt"
+        },
+        {
+          "label": "Copy a page for your assistant",
+          "href": "/ai/use-these-docs"
+        },
+        {
+          "label": "Connect Markdrop to your assistant",
+          "href": "/ai/overview"
+        }
+      ]
+    }
+  },
+  "nav": [
+    {
+      "group": "Get started",
+      "icon": "home",
+      "tab": "guides",
+      "pages": [
+        "/get-started/what-is-markdrop",
+        "/get-started/first-document",
+        "/get-started/first-file",
+        "/get-started/accounts",
+        "/get-started/tour"
+      ]
+    },
+    {
+      "group": "Documents",
+      "icon": "doc",
+      "tab": "guides",
+      "pages": [
+        "/documents/writing",
+        "/documents/addresses",
+        "/documents/edit-key",
+        "/documents/passwords-and-expiry",
+        "/documents/link-previews",
+        "/documents/readme-builder"
+      ]
+    },
+    {
+      "group": "Files",
+      "icon": "film",
+      "tab": "guides",
+      "pages": [
+        "/files/supported-types",
+        "/files/limits",
+        "/files/large-uploads",
+        "/files/html-pages",
+        "/files/websites",
+        "/files/replace-and-versions",
+        "/files/video-and-audio"
+      ]
+    },
+    {
+      "group": "Sharing and access",
+      "icon": "lock",
+      "tab": "guides",
+      "pages": [
+        "/sharing/who-can-open",
+        "/sharing/share-with-people",
+        "/sharing/request-access",
+        "/sharing/end-to-end-encryption"
+      ]
+    },
+    {
+      "group": "Workspaces and domains",
+      "icon": "globe",
+      "tab": "guides",
+      "pages": [
+        "/workspaces/create",
+        "/workspaces/members-and-roles",
+        "/workspaces/privacy",
+        "/workspaces/folders",
+        "/workspaces/share-a-folder",
+        "/workspaces/custom-domain",
+        "/workspaces/branding",
+        "/workspaces/sign-in-on-your-domain"
+      ]
+    },
+    {
+      "group": "Analytics",
+      "icon": "table",
+      "tab": "guides",
+      "new": true,
+      "pages": [
+        "/analytics/overview",
+        "/analytics/what-gets-counted",
+        "/analytics/video-and-audio",
+        "/analytics/documents-and-pdfs",
+        "/analytics/live",
+        "/analytics/weekly-email"
+      ]
+    },
+    {
+      "group": "Send files peer to peer",
+      "icon": "wave",
+      "tab": "guides",
+      "pages": [
+        "/share/send-files",
+        "/share/troubleshooting"
+      ]
+    },
+    {
+      "group": "VS Code",
+      "icon": "edit",
+      "tab": "guides",
+      "pages": [
+        "/vscode/sync",
+        "/vscode/conflicts",
+        "/vscode/settings"
+      ]
+    },
+    {
+      "group": "Account",
+      "icon": "user",
+      "tab": "guides",
+      "pages": [
+        "/account/limits",
+        "/account/api-tokens",
+        "/account/connected-apps"
+      ]
+    },
+    {
+      "group": "Security and privacy",
+      "icon": "eye",
+      "tab": "guides",
+      "pages": [
+        "/security/how-files-are-served",
+        "/security/privacy"
+      ]
+    },
+    {
+      "group": "Help",
+      "icon": "info",
+      "tab": "guides",
+      "pages": [
+        "/help/troubleshooting",
+        "/help/faq"
+      ]
+    },
+    {
+      "group": "CLI",
+      "icon": "code",
+      "tab": "cli",
+      "pages": [
+        "/cli/install",
+        "/cli/login-and-tokens",
+        "/cli/upload-and-replace",
+        "/cli/workspaces",
+        "/cli/send-and-receive",
+        "/cli/reference"
+      ]
+    },
+    {
+      "group": "AI and MCP",
+      "icon": "zap",
+      "tab": "ai",
+      "pages": [
+        "/ai/overview",
+        "/ai/hosted-mcp",
+        "/ai/local-mcp",
+        "/ai/tools",
+        "/ai/use-these-docs"
+      ]
+    },
+    {
+      "group": "API",
+      "icon": "code",
+      "tab": "api",
+      "pages": [
+        "/api/overview"
+      ]
+    }
+  ],
+  "changelog": {
+    "title": "What’s new in Markdrop",
+    "description": "Every change, the docs it touched, and the CLI version you need."
+  },
+  "footer": [
+    {
+      "label": "Markdrop",
+      "href": "https://markdrop.in"
+    },
+    {
+      "label": "Privacy",
+      "href": "https://markdrop.in/privacy"
+    },
+    {
+      "label": "llms.txt",
+      "href": "/llms.txt"
+    },
+    {
+      "label": "RSS",
+      "href": "/changelog.rss"
+    },
+    {
+      "label": "Edit these docs on GitHub",
+      "href": "https://github.com/himanshkukreja/markdrop/tree/main/frontend/content/docs"
+    }
+  ]
+}
