@@ -123,6 +123,18 @@ export class R2Store {
   }
 }
 
+/** R2's own error code and message from an S3 error body (no keys or signatures are in it). */
+async function r2Error(r) {
+  try {
+    const t = await r.text();
+    const code = /<Code>([^<]{1,80})<\/Code>/.exec(t)?.[1];
+    const msg = /<Message>([^<]{1,200})<\/Message>/.exec(t)?.[1];
+    return code ? ` ${code}${msg ? `: ${msg}` : ""}` : "";
+  } catch {
+    return "";
+  }
+}
+
 /**
  * An R2 bucket over its S3 API, for publishing from a laptop or CI (the Worker reads the same keys
  * through its binding). Credentials: an R2 API token's access key pair; endpoint from the account id.
@@ -146,7 +158,7 @@ export class S3Store {
   async has(key) {
     const r = await (await this.client()).fetch(this.url(key), { method: "HEAD" });
     if (r.status === 404) return false;
-    if (!r.ok) throw new Error(`R2 HEAD ${key}: ${r.status}`);
+    if (!r.ok) throw new Error(`R2 HEAD ${key}: ${r.status}${await r2Error(r)}`);
     return true;
   }
   async put(key, body) {
@@ -156,13 +168,13 @@ export class S3Store {
   async getText(key) {
     const r = await (await this.client()).fetch(this.url(key));
     if (r.status === 404) return null;
-    if (!r.ok) throw new Error(`R2 GET ${key}: ${r.status}`);
+    if (!r.ok) throw new Error(`R2 GET ${key}: ${r.status}${await r2Error(r)}`);
     return await r.text();
   }
   async getBytes(key) {
     const r = await (await this.client()).fetch(this.url(key));
     if (r.status === 404) return null;
-    if (!r.ok) throw new Error(`R2 GET ${key}: ${r.status}`);
+    if (!r.ok) throw new Error(`R2 GET ${key}: ${r.status}${await r2Error(r)}`);
     return Buffer.from(await r.arrayBuffer());
   }
   /** Keys under a prefix (ListObjectsV2, paged). */
@@ -177,7 +189,7 @@ export class S3Store {
     do {
       const q = new URLSearchParams({ "list-type": "2", prefix, ...(token ? { "continuation-token": token } : {}) });
       const r = await (await this.client()).fetch(`${this.base}?${q}`);
-      if (!r.ok) throw new Error(`R2 LIST ${prefix}: ${r.status}`);
+      if (!r.ok) throw new Error(`R2 LIST ${prefix}: ${r.status}${await r2Error(r)}`);
       const xml = await r.text();
       for (const m of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
         const key = /<Key>([^<]*)<\/Key>/.exec(m[1])?.[1];
