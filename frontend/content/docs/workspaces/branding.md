@@ -25,6 +25,8 @@ Branding shows on your own domains. Admins and the owner change it on the **Look
 | **Accent colour** | Buttons, links and highlights on your domain use it. Blank uses Markdrop's blue. |
 | **White-label preview cards** | Removes "Published with Markdrop" from cards and titles. |
 
+![The Logo, colours and favicon card with Favicon, Logo, Logo background, Accent colour #0F766E and White-label preview cards, beside the How your links look preview showing Acme's logo and teal accent in a browser tab and on a link preview card.](/docs-assets/workspaces/branding/branding-form.webp)
+
 The favicon and logo save as soon as they upload. Everything else waits for **Save changes** in the bar at the bottom; **Discard** throws away unsaved edits.
 
 Markdrop re-encodes every uploaded image as a fresh PNG and keeps only the pixels, so an animated GIF keeps only its first frame.
@@ -41,6 +43,8 @@ Under **Viewer**, choose what readers get around a document on your own domain:
 - **View only**: no controls for signed-out visitors. The page is the document and nothing else.
 
 This setting only ever applies on your own verified domains, never on markdrop.in.
+
+![The Getting started with Acme document at docs.acme.com/guides/setup/getting-started, with Acme's logo and name in the header, a teal Copy link button and Sign in to read Acme.](/docs-assets/workspaces/branding/tenant-branded-page.webp "With Full, signed-out readers get the document bar and its details.")
 
 ## Related
 

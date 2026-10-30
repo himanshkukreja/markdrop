@@ -33,11 +33,15 @@ The files come from your device, so keep the tab open until everyone has what th
 
 While you're sharing, the page shows who's connected under **People**, with up to 10 at once, and how far each one has got. Forgot something? Drop more files on the page or choose **Add files**; everyone connected sees them right away.
 
+![The Sharing 2 files page: the share link with Copy link and Share…, a QR code, the Right now map, and People listing an iPhone and a Windows PC, each with a Direct badge, a progress bar and a percentage.](/docs-assets/share/send-files/p2p-sender.webp "Each person picks what to download: the iPhone is getting both files, the PC only the video.")
+
 When you're done, choose **End sharing**. The link stops working. If people are still downloading, Markdrop asks first; they keep what they've already saved.
 
 ## Receive files
 
 Open the link. Markdrop connects your device to the sender's, then shows the files.
+
+![The receiving page on a phone: 2 files are ready, with a Direct badge between Their device and This device, Q3 report.pdf and demo-notes.txt each with a download button, and Download all 2 at the bottom.](/docs-assets/share/send-files/p2p-receiver.webp)
 
 - Choose **Download all** to get everything, or **Save** next to a single file.
 - On a computer, each file saves to your Downloads as it arrives. If your browser asks to download multiple files, choose **Allow**.
@@ -65,6 +69,8 @@ The CLI writes straight to disk, so very large files are easier to receive there
 - **Encrypted in transit.** The connection between the two devices is encrypted with DTLS, the standard encryption for browser-to-browser connections.
 - **Direct when the network allows.** When two networks can't reach each other directly, an encrypted relay forwards the bytes. The relay can't read them. The page shows **Direct** or **Relayed** while a file is moving.
 
+::clip{src="/docs-assets/share/send-files/p2p-direct-vs-relay" alt="Animation: Markdrop's server introduces two devices, then files flow directly between them; on a blocked network the encrypted bytes go through a relay that can't read them, and the badge changes from Direct to Relayed." theme="light"}
+
 Markdrop's server introduces the two devices to each other. It keeps the name, type and size of the files, how many there were, a hashed IP address, your account if you're signed in, and connection details (route, timing, browser). Choose **What we record** on the page to see this list.
 
 :::note
@@ -73,4 +79,4 @@ Files inside a folder you drop are sent as separate files. Between two browsers,
 
 ## Watch it once
 
-::video{id="send-files-p2p" title="Send a file from a laptop to a phone" duration="0:40"}
+::video{id="send-files-p2p" title="Send a file from a laptop to a phone" duration="0:31"}

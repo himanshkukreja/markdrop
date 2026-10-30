@@ -21,6 +21,8 @@ Open the workspace's settings and go to the **Look and domain** tab. Under **You
 ### Prove it's yours
 Markdrop shows two records. The first is the **Ownership record**, a TXT record. Add it where you manage DNS for `acme.com`.
 
+![The help.acme.com domain card awaiting DNS: the steps Added, DNS records, Verified and Live, "Your DNS is at Cloudflare" with Open Cloudflare DNS, the Ownership record (TXT) and the Routing record (CNAME to edge.markdrop.in), each Name and Value with a copy button, and Check DNS.](/docs-assets/workspaces/custom-domain/dns-records.webp)
+
 ### Point it at Markdrop
 The second is the **Routing record**. A subdomain like `docs.acme.com` uses a CNAME. An apex domain like `acme.com` uses an A record instead, because DNS doesn't allow a CNAME there.
 
@@ -41,6 +43,8 @@ For an apex domain, `acme.com`:
 | --- | --- | --- |
 | TXT | `_markdrop-verify` | `markdrop-verify=…` (your value) |
 | A | `@` | `76.76.21.21` |
+
+::clip{src="/docs-assets/workspaces/custom-domain/custom-domain-routing" alt="Animation: a TXT record proves acme.com is yours, a CNAME points docs at edge.markdrop.in, Check DNS finds both, the status goes from Awaiting DNS to Live, and a reader's request to docs.acme.com reaches the workspace's documents." theme="light"}
 
 Markdrop works out which panel your DNS lives in from your nameservers. When it knows, it says so ("Your DNS is at Cloudflare"), offers a button to open that provider's DNS page, and writes each name the way that provider expects it.
 
@@ -124,6 +128,8 @@ The response includes the records to add: `dns_record_name` and `dns_record_valu
 :::warning
 DNS changes can take up to an hour to show up, sometimes longer. If **Check DNS** says a record isn't visible yet, wait and check again. Each record shows **Found** or **Not found yet**, so you know which one to look at.
 :::
+
+![After Check DNS on help.acme.com: the Ownership record (TXT) shows Not found yet and the Routing record (CNAME) shows Found.](/docs-assets/workspaces/custom-domain/dns-check-partial.webp)
 
 Markdrop doesn't check a new domain on its own: choose **Check DNS** when you've added the records. A domain that's never verified is dropped after 7 days, and you can add it again.
 

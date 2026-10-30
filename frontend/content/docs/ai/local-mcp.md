@@ -12,7 +12,7 @@ The markdrop CLI includes a local MCP server, `markdrop mcp`. An AI app on your 
 
 Use it alongside the [hosted server](/ai/hosted-mcp): the hosted one works with documents in your account, the local one with files on your disk. Apps in the cloud, such as claude.ai and ChatGPT, can't use the local server.
 
-::video{id="local-mcp-publish" title="Ask Claude Code to publish and replace a video" duration="0:55"}
+::video{id="local-mcp-publish" title="Ask an AI app to publish and replace a video" duration="0:44"}
 
 ## Set it up
 

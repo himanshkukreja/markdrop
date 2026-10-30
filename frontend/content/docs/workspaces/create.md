@@ -22,8 +22,12 @@ In the sidebar, under **Workspaces**, choose **New workspace**. It takes you to 
 ### Name it
 Type a **Name**, like `Acme`, and choose **Create workspace**. Names can be up to 80 characters, and you can change the name later.
 
+::clip{src="/docs-assets/workspaces/create/new-workspace" alt="Choosing New workspace in the sidebar, then the New workspace button on Settings › Workspaces, typing Marketing and choosing Create workspace; the new workspace opens with its Get set up checklist."}
+
 ### Follow Get set up
 The new workspace opens with a **Get set up** checklist for admins: name your workspace, invite your team, add your first file, and (optional) use your own domain. Each step ticks itself off when it's done. Choose **Hide this checklist** to hide it; it stays hidden on that device. It shows only while the workspace is new (its first 14 days, with fewer than 3 items) and until the first three steps are done.
+
+![A new workspace's Get set up checklist at 1 of 4 done: Name your workspace ticked, Invite your team with Invite, Add your first file with Upload, and Use your own domain with Set up, beside the Drop files here area.](/docs-assets/workspaces/create/get-set-up.webp)
 ::::
 
 You are the workspace's **Owner**. Only the owner can delete it.
@@ -31,6 +35,8 @@ You are the workspace's **Owner**. Only the owner can delete it.
 ## Add things to it
 
 Open the workspace and choose **New**:
+
+![The Acme workspace with the New menu open: New document, Upload, New folder and Add existing…](/docs-assets/workspaces/create/workspace-new-menu.webp)
 
 | Choice | What it does |
 | --- | --- |

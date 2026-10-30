@@ -12,6 +12,8 @@ Every page on docs.markdrop.in is also plain Markdown, so you can hand it to an 
 
 Each page has a **Copy page** button next to its title. Its menu has:
 
+![A docs page with the Copy page menu open: Copy page, Copy page with what it builds on, View as Markdown, Open in Claude, Open in ChatGPT, Open in Perplexity, Add docs to Cursor, Add docs to VS Code and Ask AI about this page.](/docs-assets/ai/use-these-docs/docs-copy-page-menu.webp)
+
 | Item | What it does |
 |---|---|
 | Copy page | Copies the page's Markdown to your clipboard. |
@@ -59,6 +61,8 @@ Read https://docs.markdrop.in/llms.txt, then use the markdrop CLI to publish bui
 ## Ask the docs
 
 **Ask AI** answers questions from these docs, with a numbered link to the exact section each part of the answer came from. Choose **Ask AI** in the header, press :kbd[⌘I], use **Ask about this** next to any heading (when you hover over it), or press :kbd[⌘K] and then :kbd[Tab]. Selecting a source scrolls to that section and highlights it.
+
+::clip{src="/docs-assets/ai/use-these-docs/docs-ask-ai" alt="Opening Ask AI on a docs page, asking how to put a workspace on docs.acme.com, the answer streaming in with numbered sources, and choosing source 1 to jump to the highlighted Add your domain section."}
 
 - It only answers from these docs. When they don't cover something, it says so instead of guessing.
 - It can't change anything in your account; it explains how to do things.

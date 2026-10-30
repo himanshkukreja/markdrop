@@ -24,6 +24,8 @@ The header says how many people are on how many links, like **5 people across 2 
 
 The page updates every 10 seconds while the tab is open.
 
+![The Live now page: 5 people across 2 links; a Product demo panel with three viewer dots on its timeline and lines like "0:15 · someone in the US, on a phone"; Reading now with Getting started with Acme; and the Last 30 minutes feed.](/docs-assets/analytics/live/live-now.webp)
+
 ## How live is worked out
 
 A visitor's page sends a small signal every 15 seconds while it's visible. Someone counts as live for 45 seconds after their last signal, so a reader who closes the tab drops off within a minute. Signals pause after 5 minutes without any activity, unless media is playing.

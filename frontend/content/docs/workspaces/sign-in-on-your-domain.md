@@ -16,11 +16,15 @@ Readers only need to sign in for things that aren't open to anyone: items for th
 ### Choose Sign in
 On your domain, the header shows **Sign in to read Acme**, with your workspace's site name, or the domain if it has none (on a phone, **Sign in**). In a Locked workspace, signed-out visitors see **Sign in to read Acme** in the middle of the page instead.
 
+![The header on docs.acme.com: Acme's logo and name on the left, Sign in to read Acme on the right.](/docs-assets/workspaces/sign-in-on-your-domain/tenant-sign-in.webp)
+
 ### Sign in on markdrop.in
 The reader goes to markdrop.in and signs in there, if they aren't already.
 
 ### Confirm the site
 Readers who aren't members of the workspace are asked once, with their full display name: **Continue to docs.acme.com as Dana Park?** The page says that the site can see their display name, never their email address, and can't change anything in their account. **Don't ask again for docs.acme.com** is ticked by default. They choose **Continue**.
+
+![The screen asking "Continue to docs.acme.com as Dana Park?": the site can see her display name, never her email address, and can't change anything in her account; Don't ask again for docs.acme.com is ticked, with Continue and Cancel.](/docs-assets/workspaces/sign-in-on-your-domain/handoff-consent.webp)
 
 ### Back on your domain
 They land back on the page they started from, signed in, and can read what's been shared with them.

@@ -30,4 +30,6 @@ The email goes out on Mondays, from 03:30 UTC. You get it only if at least one o
 
 Go to [Settings › Account](https://markdrop.in/settings/account). Under **Email**, switch **Weekly analytics email** on or off. It's on unless you turn it off.
 
+![The Email card in Settings › Account with the Weekly analytics email switch on.](/docs-assets/analytics/weekly-email/weekly-email-toggle.webp)
+
 You can also choose **Turn off weekly emails** at the bottom of any weekly email. Markdrop asks you to confirm, then stops sending it. To get it again, switch it back on in Settings.

@@ -15,7 +15,7 @@ https://api.markdrop.in/mcp
 
 You need a Markdrop account. Connecting and using the tools is free.
 
-::video{id="connect-claude" title="Connect Claude to Markdrop and publish a doc" duration="0:45"}
+::video{id="connect-claude" title="Connect an AI app to Markdrop and publish a doc" duration="0:27"}
 
 ## Add it to your app
 
@@ -97,6 +97,8 @@ Windsurf and any other MCP app that connects to remote servers:
 
 When the app sends you to Markdrop, you see which app is asking, the account you're signed in as, and what it will be able to do. Choose **Approve** to connect it, or **Cancel** to send it away with nothing shared.
 
+![Markdrop's approval screen: Claude wants to access your Markdrop account, signed in as riya@acme.com, with Read your documents and Publish and change documents under It will be able to, and Cancel and Approve buttons.](/docs-assets/ai/hosted-mcp/oauth-consent.webp)
+
 The approval link works once, for 10 minutes. If it has expired, start again from your AI app.
 
 ### The two permissions
@@ -123,6 +125,8 @@ Say it the way you would to a colleague:
 ## Manage connected apps
 
 Every app you approve is listed in [Settings → Connected apps](https://markdrop.in/settings/connections). Choose **Disconnect** on an app to end its access: its current sign-in stops working and it can't renew it. To use it again, connect it from the app as before. More in [Connected apps](/account/connected-apps).
+
+![Settings › Connected apps listing Cursor (Read) and Claude (Read, Publish and edit), with the menu on Claude's row open on Disconnect.](/docs-assets/ai/hosted-mcp/connected-apps.webp "Disconnect is in each app's row menu.")
 
 ## Privacy
 

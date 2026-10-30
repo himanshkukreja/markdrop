@@ -42,6 +42,8 @@ Type one or more addresses in **Email addresses**. Separate several with commas.
 Under **Their access**, choose **Can view**, **Can edit** or **Admin**, then choose **Send invitation**.
 ::::
 
+![The Invite people to Acme dialog with two addresses in Email addresses, Can edit chosen under Their access, and a Send invitation button.](/docs-assets/workspaces/members-and-roles/invite-dialog.webp)
+
 Each person gets an email with a link. Once they accept, they can open everything the team can open. You can also invite from a folder: choose **Share**, then the **Invite people** tab. Type the addresses, pick **Can view**, **Can edit** or **Admin** from the list beside them, and choose **Invite**. They still join the whole workspace, not only that folder.
 
 ### How invitations work
@@ -56,6 +58,8 @@ A workspace can have up to 200 members and up to 100 invitations waiting for a r
 ## Change a role or remove someone
 
 On the **People** tab, admins change a person's role from the select next to their name. To remove someone, open the menu on their row and choose **Remove from workspace**.
+
+![The People list in Acme's settings: Riya Sharma (you) as Owner, Maya Patel as Admin, Alex Chen as Can edit and Sam Lee as Can view, each with a role select and a row menu, and a pending invitation for lee@contractors.io with Resend.](/docs-assets/workspaces/members-and-roles/people-tab.webp)
 
 When someone is removed, they lose access to the workspace right away. Files they added stay in the workspace, and they still own them. People they shared things with through the workspace lose that access too.
 

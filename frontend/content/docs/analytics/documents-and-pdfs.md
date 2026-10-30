@@ -33,6 +33,8 @@ The **Content** tab breaks the document down by its headings.
 
 The tiles at the top are **Readers** (reading sessions), **Read it all** (reached the last section), **Time spent reading** (typical reader, active time only) and **Copies and clicks**.
 
+![The Content tab for Getting started with Acme: tiles for Readers, Read it all, Time spent reading and Copies and clicks; How far people read, section by section, with a bar and time per heading and flags for Most copied, Most time and Readers leave here; Most copied and Links people click on the right.](/docs-assets/analytics/documents-and-pdfs/content-tab.webp)
+
 A section counts as reached when its heading passes about a third of the way down the reader's screen. Time in a section is active time while that heading is the current one.
 
 :::tip
@@ -55,6 +57,8 @@ Long sections that most people never finish are a good place to split or trim. T
 - **Viewers who reached each page** shows how many readers got to each page. Markdrop tells you where the biggest drop is, like "The biggest drop is after page 3".
 - **Time spent on each page** shows where readers slow down.
 - **Every page** lists each page with **Reached**, **Typical time** and **Came back to it** (readers who returned to that page).
+
+![The Pages tab for a 12-page PDF: Viewers who reached each page, with page 4 marked −30% and the note "The biggest drop is after page 3", and Time spent on each page, where page 4 holds attention longest.](/docs-assets/analytics/documents-and-pdfs/pages-tab.webp)
 
 A page counts as current when it's about a third of the way down the reader's screen.
 

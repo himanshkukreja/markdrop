@@ -21,9 +21,13 @@ Open the folder in the workspace and choose **Share**, then the **Folder link** 
 - **Acme team**: a link for teammates. They sign in to open it. People outside the workspace get a sign-in page, then nothing.
 - **Anyone with the link**: no sign-in. Visitors see only the items open to anyone.
 
+![The Share "Releases" dialog on the Folder link tab with Anyone with the link selected, the folder link with Copy link, a warning that 3 of 12 items won't show for visitors, and See it as a visitor →.](/docs-assets/workspaces/share-a-folder/folder-link-tab.webp)
+
 ### Copy the link
 Choose **Copy link** and send it.
 ::::
+
+![The shared folder page for Releases, "Shared from Acme", listing the 9 items open to anyone, such as Launch notes: Workflows beta, the Product demo video and the release notes.](/docs-assets/workspaces/share-a-folder/shared-folder-page.webp "A visitor sees only what's open to anyone: 9 of the folder's 12 items.")
 
 Admins can always share folders. Members with **Can edit** can too, unless an admin turned off **Members can share folders with a link** on the **Advanced** tab of the workspace's settings.
 

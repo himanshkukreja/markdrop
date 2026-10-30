@@ -1,4 +1,10 @@
 {
+  "analytics-tour": {
+    "src": "/docs-assets/videos/analytics-tour.mp4",
+    "poster": "/docs-assets/videos/analytics-tour.webp",
+    "duration": "0:52",
+    "chapters": "/docs-assets/videos/analytics-tour.vtt"
+  },
   "app-tour": {
     "src": "/docs-assets/videos/app-tour.mp4",
     "poster": "/docs-assets/videos/app-tour.webp",
@@ -87,11 +93,23 @@
     "duration": "0:37",
     "chapters": "/docs-assets/videos/request-access.vtt"
   },
+  "send-files-p2p": {
+    "src": "/docs-assets/videos/send-files-p2p.mp4",
+    "poster": "/docs-assets/videos/send-files-p2p.webp",
+    "duration": "0:31",
+    "chapters": "/docs-assets/videos/send-files-p2p.vtt"
+  },
   "share-with-people": {
     "src": "/docs-assets/videos/share-with-people.mp4",
     "poster": "/docs-assets/videos/share-with-people.webp",
     "duration": "0:37",
     "chapters": "/docs-assets/videos/share-with-people.vtt"
+  },
+  "video-analytics": {
+    "src": "/docs-assets/videos/video-analytics.mp4",
+    "poster": "/docs-assets/videos/video-analytics.webp",
+    "duration": "0:45",
+    "chapters": "/docs-assets/videos/video-analytics.vtt"
   },
   "video-player": {
     "src": "/docs-assets/videos/video-player.mp4",

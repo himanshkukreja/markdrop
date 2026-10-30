@@ -14,6 +14,8 @@ Folders decide where something appears and what its address is. They never decid
 
 Open the workspace (or the folder you want it inside), choose **New**, then **New folder**. Members with **Can edit**, admins and the owner can make folders.
 
+![The Guides folder of the Acme workspace: the sidebar tree shows Guides open with Setup inside, then Releases and Sales; the page shows the folder's address docs.acme.com/guides, the Setup folder and three items.](/docs-assets/workspaces/folders/folders-overview.webp)
+
 | Limit | Value |
 | --- | --- |
 | Folders per workspace | 500 |
@@ -35,6 +37,8 @@ Admins and the owner manage folders. Open the folder and choose **More folder ac
 - **Move folder to…** moves it with everything inside. The move is refused if it would nest anything deeper than 8 levels.
 - **New items start as…** sets who can open new items filed into the folder. See [Workspace privacy](/workspaces/privacy).
 - **Delete folder…** removes only the folder. What's inside stays in the workspace, and nobody loses access. If the folder is inside another one, you choose whether everything moves up one level or the items move to the top of the workspace.
+
+::clip{src="/docs-assets/workspaces/folders/folder-rename" alt="Opening More folder actions on the Releases folder, choosing Rename folder…, and typing Release notes while the address below changes to docs.acme.com/release-notes/; then Cancel."}
 
 The same menu has **Workspace settings** and, when the workspace has its own domain, an item like **Copy docs.acme.com address** that copies the folder's address there. At the top level of the workspace it's called **More workspace actions**, and the folder actions aren't there.
 

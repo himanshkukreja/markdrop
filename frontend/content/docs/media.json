@@ -35,6 +35,122 @@
     "bytes": 12706,
     "kind": "image"
   },
+  "/docs-assets/ai/hosted-mcp/connected-apps.dark.webp": {
+    "w": 1740,
+    "h": 800,
+    "bytes": 38904,
+    "kind": "image"
+  },
+  "/docs-assets/ai/hosted-mcp/connected-apps.webp": {
+    "w": 1740,
+    "h": 800,
+    "bytes": 39738,
+    "kind": "image"
+  },
+  "/docs-assets/ai/hosted-mcp/oauth-consent.dark.webp": {
+    "w": 1016,
+    "h": 1594,
+    "bytes": 55072,
+    "kind": "image"
+  },
+  "/docs-assets/ai/hosted-mcp/oauth-consent.webp": {
+    "w": 1016,
+    "h": 1594,
+    "bytes": 56528,
+    "kind": "image"
+  },
+  "/docs-assets/ai/use-these-docs/docs-ask-ai.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 11.07,
+    "bytes": 748333,
+    "kind": "clip"
+  },
+  "/docs-assets/ai/use-these-docs/docs-ask-ai.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 11.07,
+    "bytes": 557724,
+    "kind": "clip"
+  },
+  "/docs-assets/ai/use-these-docs/docs-ask-ai.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 109942,
+    "kind": "poster"
+  },
+  "/docs-assets/ai/use-these-docs/docs-copy-page-menu.dark.webp": {
+    "w": 1600,
+    "h": 1314,
+    "bytes": 116916,
+    "kind": "image"
+  },
+  "/docs-assets/ai/use-these-docs/docs-copy-page-menu.webp": {
+    "w": 1600,
+    "h": 1314,
+    "bytes": 120132,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/documents-and-pdfs/content-tab.dark.webp": {
+    "w": 2300,
+    "h": 1120,
+    "bytes": 77898,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/documents-and-pdfs/content-tab.webp": {
+    "w": 2300,
+    "h": 1120,
+    "bytes": 80412,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/documents-and-pdfs/pages-tab.dark.webp": {
+    "w": 2300,
+    "h": 760,
+    "bytes": 32652,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/documents-and-pdfs/pages-tab.webp": {
+    "w": 2300,
+    "h": 760,
+    "bytes": 33562,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/live/live-now.dark.webp": {
+    "w": 2300,
+    "h": 1208,
+    "bytes": 62214,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/live/live-now.webp": {
+    "w": 2300,
+    "h": 1208,
+    "bytes": 63000,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/overview/analytics-home.dark.webp": {
+    "w": 2300,
+    "h": 1090,
+    "bytes": 90142,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/overview/analytics-home.webp": {
+    "w": 2300,
+    "h": 1090,
+    "bytes": 94588,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/overview/link-analytics-overview.dark.webp": {
+    "w": 2300,
+    "h": 1740,
+    "bytes": 86422,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/overview/link-analytics-overview.webp": {
+    "w": 2300,
+    "h": 1740,
+    "bytes": 87414,
+    "kind": "image"
+  },
   "/docs-assets/analytics/video-and-audio/analytics-retention.mp4": {
     "w": 1600,
     "h": 900,
@@ -55,6 +171,18 @@
     "bytes": 53494,
     "kind": "poster"
   },
+  "/docs-assets/analytics/video-and-audio/playback-health.dark.webp": {
+    "w": 2232,
+    "h": 468,
+    "bytes": 37370,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/video-and-audio/playback-health.webp": {
+    "w": 2232,
+    "h": 468,
+    "bytes": 36032,
+    "kind": "image"
+  },
   "/docs-assets/analytics/video-and-audio/retention-curve.dark.webp": {
     "w": 2280,
     "h": 960,
@@ -65,6 +193,30 @@
     "w": 2280,
     "h": 960,
     "bytes": 55858,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/weekly-email/weekly-email-toggle.dark.webp": {
+    "w": 1712,
+    "h": 300,
+    "bytes": 11834,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/weekly-email/weekly-email-toggle.webp": {
+    "w": 1712,
+    "h": 300,
+    "bytes": 12552,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/what-gets-counted/audience-internal-toggle.dark.webp": {
+    "w": 2300,
+    "h": 992,
+    "bytes": 49984,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/what-gets-counted/audience-internal-toggle.webp": {
+    "w": 2300,
+    "h": 992,
+    "bytes": 51454,
     "kind": "image"
   },
   "/docs-assets/documents/addresses/change-url.mp4": {
@@ -555,6 +707,30 @@
     "bytes": 49952,
     "kind": "poster"
   },
+  "/docs-assets/share/send-files/p2p-receiver.dark.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 39368,
+    "kind": "image"
+  },
+  "/docs-assets/share/send-files/p2p-receiver.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 38840,
+    "kind": "image"
+  },
+  "/docs-assets/share/send-files/p2p-sender.dark.webp": {
+    "w": 2112,
+    "h": 1624,
+    "bytes": 104016,
+    "kind": "image"
+  },
+  "/docs-assets/share/send-files/p2p-sender.webp": {
+    "w": 2112,
+    "h": 1624,
+    "bytes": 111088,
+    "kind": "image"
+  },
   "/docs-assets/sharing/end-to-end-encryption/e2e-key-in-link.mp4": {
     "w": 1600,
     "h": 900,
@@ -646,6 +822,19 @@
     "h": 638,
     "bytes": 37396,
     "kind": "image"
+  },
+  "/docs-assets/videos/analytics-tour.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 51.83,
+    "bytes": 2972170,
+    "kind": "video"
+  },
+  "/docs-assets/videos/analytics-tour.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 95696,
+    "kind": "poster"
   },
   "/docs-assets/videos/app-tour.mp4": {
     "w": 1920,
@@ -829,6 +1018,19 @@
     "bytes": 18414,
     "kind": "poster"
   },
+  "/docs-assets/videos/send-files-p2p.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 30.57,
+    "bytes": 1386675,
+    "kind": "video"
+  },
+  "/docs-assets/videos/send-files-p2p.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 66380,
+    "kind": "poster"
+  },
   "/docs-assets/videos/share-with-people.mp4": {
     "w": 1920,
     "h": 1080,
@@ -840,6 +1042,19 @@
     "w": 1920,
     "h": 1080,
     "bytes": 42714,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/video-analytics.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 45.13,
+    "bytes": 1108828,
+    "kind": "video"
+  },
+  "/docs-assets/videos/video-analytics.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 71088,
     "kind": "poster"
   },
   "/docs-assets/videos/video-player.mp4": {
@@ -918,6 +1133,74 @@
     "bytes": 25558,
     "kind": "image"
   },
+  "/docs-assets/workspaces/branding/branding-form.dark.webp": {
+    "w": 1712,
+    "h": 1350,
+    "bytes": 85028,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/branding/branding-form.webp": {
+    "w": 1712,
+    "h": 1350,
+    "bytes": 89518,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/branding/tenant-branded-page.dark.webp": {
+    "w": 2880,
+    "h": 1240,
+    "bytes": 96546,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/branding/tenant-branded-page.webp": {
+    "w": 2880,
+    "h": 1240,
+    "bytes": 95544,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/create/get-set-up.dark.webp": {
+    "w": 1984,
+    "h": 878,
+    "bytes": 48258,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/create/get-set-up.webp": {
+    "w": 1984,
+    "h": 878,
+    "bytes": 49292,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/create/new-workspace.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 10.07,
+    "bytes": 213962,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/create/new-workspace.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 10.07,
+    "bytes": 253933,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/create/new-workspace.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 45072,
+    "kind": "poster"
+  },
+  "/docs-assets/workspaces/create/workspace-new-menu.dark.webp": {
+    "w": 2024,
+    "h": 702,
+    "bytes": 38390,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/create/workspace-new-menu.webp": {
+    "w": 2024,
+    "h": 702,
+    "bytes": 40072,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/custom-domain/custom-domain-routing.mp4": {
     "w": 1600,
     "h": 900,
@@ -938,6 +1221,18 @@
     "bytes": 52886,
     "kind": "poster"
   },
+  "/docs-assets/workspaces/custom-domain/dns-check-partial.dark.webp": {
+    "w": 1528,
+    "h": 568,
+    "bytes": 24126,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/custom-domain/dns-check-partial.webp": {
+    "w": 1528,
+    "h": 568,
+    "bytes": 24184,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/custom-domain/dns-records.dark.webp": {
     "w": 1644,
     "h": 1422,
@@ -948,6 +1243,142 @@
     "w": 1644,
     "h": 1422,
     "bytes": 80222,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/folders/folder-rename.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 10.03,
+    "bytes": 309562,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/folders/folder-rename.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 10.03,
+    "bytes": 308339,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/folders/folder-rename.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 21328,
+    "kind": "poster"
+  },
+  "/docs-assets/workspaces/folders/folders-overview.dark.webp": {
+    "w": 2720,
+    "h": 1280,
+    "bytes": 81454,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/folders/folders-overview.webp": {
+    "w": 2720,
+    "h": 1280,
+    "bytes": 82600,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/members-and-roles/invite-dialog.dark.webp": {
+    "w": 896,
+    "h": 898,
+    "bytes": 32808,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/members-and-roles/invite-dialog.webp": {
+    "w": 896,
+    "h": 898,
+    "bytes": 34736,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/members-and-roles/people-tab.dark.webp": {
+    "w": 1712,
+    "h": 854,
+    "bytes": 34754,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/members-and-roles/people-tab.webp": {
+    "w": 1712,
+    "h": 854,
+    "bytes": 36812,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/privacy/preview-as.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 10.9,
+    "bytes": 250454,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/privacy/preview-as.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 10.9,
+    "bytes": 260171,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/privacy/preview-as.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 28082,
+    "kind": "poster"
+  },
+  "/docs-assets/workspaces/privacy/privacy-presets.dark.webp": {
+    "w": 1712,
+    "h": 380,
+    "bytes": 17196,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/privacy/privacy-presets.webp": {
+    "w": 1712,
+    "h": 380,
+    "bytes": 17912,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/share-a-folder/folder-link-tab.dark.webp": {
+    "w": 1136,
+    "h": 1286,
+    "bytes": 48040,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/share-a-folder/folder-link-tab.webp": {
+    "w": 1136,
+    "h": 1286,
+    "bytes": 50000,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/share-a-folder/shared-folder-page.dark.webp": {
+    "w": 1800,
+    "h": 1200,
+    "bytes": 40112,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/share-a-folder/shared-folder-page.webp": {
+    "w": 1800,
+    "h": 1200,
+    "bytes": 40864,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/sign-in-on-your-domain/handoff-consent.dark.webp": {
+    "w": 1056,
+    "h": 852,
+    "bytes": 34912,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/sign-in-on-your-domain/handoff-consent.webp": {
+    "w": 1056,
+    "h": 852,
+    "bytes": 35022,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/sign-in-on-your-domain/tenant-sign-in.dark.webp": {
+    "w": 1920,
+    "h": 124,
+    "bytes": 4442,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/sign-in-on-your-domain/tenant-sign-in.webp": {
+    "w": 1920,
+    "h": 124,
+    "bytes": 4582,
     "kind": "image"
   }
 }

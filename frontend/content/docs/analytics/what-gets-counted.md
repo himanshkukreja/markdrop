@@ -25,6 +25,8 @@ Each open also starts a reading or watching session, which records how far peopl
 - **Bots and crawlers.** Requests that identify as bots, crawlers or scripts aren't counted.
 - **Link previews.** When Slack, LinkedIn, WhatsApp or another app fetches your link to show a preview, it's counted under **Share signals**, not as a view.
 
+![The Audience tab of a workspace document with the Hide views from Acme members switch on and a note of how many member views are hidden, above New and returning, Devices and Countries.](/docs-assets/analytics/what-gets-counted/audience-internal-toggle.webp)
+
 ## Global Privacy Control
 
 If a visitor's browser sends [Global Privacy Control](https://globalprivacycontrol.org/), Markdrop sends no reading or watching data for them at all. Their visit still counts as a view, but without where they came from.

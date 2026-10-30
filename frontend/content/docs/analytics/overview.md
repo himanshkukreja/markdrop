@@ -25,6 +25,8 @@ Below the tiles:
 - **Your links** lists each link with its views, a trend line, how engaged people were, and the last view. A green dot means someone is on it now.
 - **Worth a look** points out things that stand out, like where people stop watching. Insights appear once your links have about 20 visits.
 
+![The Analytics home board: tiles for Views, People, Watch time and Read to the end, each compared with the previous 30 days, the Your links table with views, trend lines, engagement and last view, and Worth a look on the right.](/docs-assets/analytics/overview/analytics-home.webp)
+
 Choose the period with the range picker: **7 days**, **30 days** (the default), **90 days** or **All time**. Each number is compared with the period of the same length right before it, like "+12% vs previous 30 days". Days run in UTC.
 
 Choose **CSV** to download the numbers for the period.
@@ -48,11 +50,13 @@ Files you've replaced with a new version also get a **Versions** tab that compar
 - **Overview** has the headline numbers for that kind, **Views per day**, **Where views come from**, and **What stands out**.
 - **Audience** shows **New and returning** visitors, **Devices**, **Countries**, **Channels**, **Share signals** (times an app showed a preview of your link) and **Campaigns**.
 
+![The analytics page for the Getting started with Acme document: tabs Overview, Content and Audience; tiles for Views, People, Read to the end, Median read time and Copies & link clicks; What stands out; Views per day; and Where views come from.](/docs-assets/analytics/overview/link-analytics-overview.webp)
+
 The other tabs are covered in [Documents and PDFs](/analytics/documents-and-pdfs) and [Video and audio](/analytics/video-and-audio).
 
 ## Watch it once
 
-::video{id="analytics-tour" title="A tour of analytics" duration="1:00"}
+::video{id="analytics-tour" title="A tour of analytics" duration="0:52"}
 
 ## Ask your AI assistant
 

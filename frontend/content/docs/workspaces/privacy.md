@@ -20,6 +20,8 @@ Admins choose privacy on the **People** tab of the workspace's settings.
 
 A new workspace starts as **Team**.
 
+![The Privacy section at the top of the People tab in Acme's settings, with three presets: Open, Team (selected) and Locked, each with a one-line description.](/docs-assets/workspaces/privacy/privacy-presets.webp)
+
 Changing the preset never changes items that are already in the workspace, with one exception: Locked. When visitors must sign in, that applies to every item at once, including ones set to "Anyone with the link".
 
 :::warning[Locked applies everywhere]
@@ -55,6 +57,8 @@ Before you share, open the workspace or a folder and choose **Preview as**. It's
 - **Someone by email…** (admins only)
 
 Markdrop shows the folder as that person would see it, and how many of its items and folders they'd see. Items they can't open are listed with the reason, like **People added**, **Password** or **Sign-in needed**.
+
+::clip{src="/docs-assets/workspaces/privacy/preview-as" alt="Choosing Preview as on the Sales folder: as Anyone with the link they'd see 2 of 6 items, with the hidden ones listed under Hidden from them with reasons such as Acme team, Password and People added; as An Acme member they'd see 5 of 6; then Exit preview."}
 
 ## Related
 
