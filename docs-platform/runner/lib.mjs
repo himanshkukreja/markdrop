@@ -169,7 +169,8 @@ export async function fetchAssets({ store, siteId, contentDir, text, cacheDir, p
 /* ── build ─────────────────────────────────────────────────────────────── */
 
 /**
- * spec: { job, build, bundle: { site_id, files }, publish: { site, hosts } }.
+ * spec: { job, build, bundle: { site_id, files }, publish: { site, hosts, access? } } (access: the
+ * site's {level, policy_version}, written before the pointer flips; reported back as `access`).
  * Writes the content folder, fetches the site's files, writes media.json, builds, publishes, and
  * returns { manifest_hash, unchanged, stats, timings }. One build at a time per work folder.
  */
@@ -206,7 +207,7 @@ export async function runBuild(spec, { store, cfg, progress = () => {}, log = ()
 
     progress({ step: "publish", done: 2, total: 4, message: `Uploading (${pages} pages)` });
     const tp = Date.now();
-    const pub = await publish({ distDir: outDir, store, site: spec.publish?.site || siteId, hosts: spec.publish?.hosts || [] });
+    const pub = await publish({ distDir: outDir, store, site: spec.publish?.site || siteId, hosts: spec.publish?.hosts || [], access: spec.publish?.access || null });
     timings.publish = Date.now() - tp;
     progress({ step: "done", done: 4, total: 4, message: "Live" });
     let totalBytes = 0;
@@ -214,6 +215,7 @@ export async function runBuild(spec, { store, cfg, progress = () => {}, log = ()
     for (const f of Object.values(res.manifest.files)) totalBytes += f.s || 0;
     return {
       manifest_hash: pub.manifest,
+      ...(pub.access ? { access: { level: pub.access.level, policy_version: pub.access.policy_version } } : {}),
       unchanged: !!pub.unchanged,
       engine: res.manifest.engine,
       stats: {
