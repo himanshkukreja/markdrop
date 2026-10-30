@@ -137,6 +137,8 @@
 .dxc-spot__media .dx-video { margin: 0; }
 .dxc-spot__media .dx-video__frame { border: 0; border-radius: 0; }
 .dxc-spot__media .dx-video__cap { display: none; }
+/* The player already titles each chapter on the video; the full list would crowd a release card. */
+.dxc-spot__media .dx-chapters, .dxc-card__media .dx-chapters { display: none; }
 
 /* ── Generated cover ─────────────────────────────────────────────────────── */
 .dxc-visual { position: relative; height: 232px; overflow: hidden; background: var(--surface-inset); border-bottom: 1px solid var(--border); isolation: isolate; }

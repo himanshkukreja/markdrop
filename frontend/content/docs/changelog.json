@@ -24,6 +24,47 @@
   "next": [],
   "entries": [
     {
+      "id": "docs-try-it-and-media",
+      "date": "2026-10-30",
+      "title": "Send API requests from the docs, and see each feature",
+      "kind": "improved",
+      "area": "Docs",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Try it on every API page now calls the live API, and the guides have screenshots in light and dark, short clips and narrated videos.",
+      "body": "- **Try it sends the request.** Fill in the form on an endpoint page and choose **Send request** to call the live API from your browser. You see the status, the time it took, the headers and the body. Requests that create, change or delete something ask you to confirm first, and a document published from Try it expires after a day.\n- **Screenshots, clips and videos** across the guides, from publishing and sharing to workspaces, analytics, Send and the AI pages. Screenshots follow your light or dark theme; click one to enlarge it.\n- **A new changelog.** Search, filter by product, and see what changed since the CLI version you have.",
+      "highlights": [
+        "Try it calls the live API",
+        "Screenshots in light and dark",
+        "Search and filter the changelog"
+      ],
+      "try": {
+        "label": "Try the API",
+        "href": "/api/overview#try-it"
+      },
+      "docs": [
+        "/api/overview"
+      ]
+    },
+    {
+      "id": "workspace-header-and-publish-fixes",
+      "date": "2026-10-30",
+      "title": "Workspace header and password publishing fixes",
+      "kind": "fixed",
+      "area": "Workspaces",
+      "products": [
+        "web"
+      ],
+      "summary": "Pages on a workspace's own domain show its logo and name together, and publishing a password-protected document opens its Published panel again.",
+      "body": "- On a workspace's own domain, the top bar shows the workspace logo next to its name, lined up with the rest of the page. A wide logo that already contains the name is shown on its own.\n- Publishing a password-protected document while signed in could leave the page loading forever. It now opens the Published panel with your links.\n- Parts of a document's page that load when you first use them, like the share dialog, no longer flash the full-page loader.",
+      "docs": [
+        "/workspaces/branding",
+        "/documents/passwords-and-expiry"
+      ]
+    },
+    {
       "id": "docs-site",
       "date": "2026-10-30",
       "title": "Docs with Ask AI",
