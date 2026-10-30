@@ -24,7 +24,8 @@
  * Output (all inside --out):
  *   site.json, index.md, <section>/<page>.md, media.json, videos.json (when there are videos),
  *   public/docs-assets/<id>/…, redirects.json (every GitBook address that changes → its new path),
- *   _IMPORT_REPORT.md (the leading _ keeps the engine and docs:check from reading it as a page).
+ *   _IMPORT_REPORT.md (the leading _ keeps the engine and docs:check from reading it as a page),
+ *   _import-report.json (the same findings for programs: counts + the "needs a look" items).
  *   Pages carry GitBook's look where the engine has a setting for it: the description under the
  *   title (site.json pages.showDescription), page icons (frontmatter icon + pages.icons), old
  *   heading ids (frontmatter anchors), soft-wrapped prompts (```text wrap).
@@ -741,6 +742,53 @@ R.push(`redirects.json maps the ${Object.keys(redirectMap).length} GitBook addre
 R.push("## Assets", "");
 R.push(`This site's files are in \`${PUBLIC}${ASSET_BASE}/\`. The engine serves a site's own \`<content>/public/docs-assets/\` on the docs host (next.config.ts → app/docs-site/docs-assets), so nothing needs copying or linking; docs:check reads them there too.`, "");
 fs.writeFileSync(path.join(OUT, "_IMPORT_REPORT.md"), R.join("\n"));
+
+// The same findings for programs (the Markdrop Docs dashboard's "needs a look" list): counts, and
+// the items with the page's new path beside GitBook's.
+{
+  const ourOf = (gb) => byGb.get(gb)?.our ?? null;
+  const byIcon = new Map();
+  for (const p of live) if (p.gbIcon && !p.icon) byIcon.set(p.gbIcon, [...(byIcon.get(p.gbIcon) ?? []), p.our]);
+  const unmatchedIcons = [...byIcon].map(([icon, ps]) => ({ icon, pages: ps }));
+  const at = (x) => ({ page: ourOf(x.page), gitbook: x.page, line: x.line || null });
+  const json = {
+    format: "markdrop-docs-import/1",
+    source: ORIGIN + BASE,
+    site: brand.siteName,
+    imported: TODAY,
+    counts: {
+      pages: live.length,
+      failed: pages.length - live.length,
+      inNav: live.filter((p) => p.inNav).length,
+      hidden: hidden.length,
+      groups: nav.length,
+      tabs: tabs.length,
+      images: [...assets.values()].filter((a) => a.kind === "image" && !a.failed).length,
+      files: [...assets.values()].filter((a) => a.kind === "file" && !a.failed).length,
+      assetBytes: bytesTotal,
+      gifsConverted: gifStats.n,
+      gifsKept: !FFMPEG,
+      notes: issues.length,
+      brokenLinks: broken.length,
+      missing: missing.length,
+      altGenerated: altGenerated.length,
+      unmatchedIcons: unmatchedIcons.length,
+      headingIdsChanged: idChanges.length,
+      redirects: Object.keys(redirectMap).length,
+      http: http.stats,
+    },
+    items: {
+      altGenerated: altGenerated.map((x) => ({ ...at(x), alt: x.alt })),
+      hidden: hidden.map((p) => ({ page: p.our, title: p.title })),
+      brokenLinks: broken.map((x) => ({ ...at(x), href: x.href, reason: x.reason })),
+      missing: missing.map((x) => ({ ...at(x), src: x.src, reason: x.reason })),
+      unmatchedIcons,
+      notes: issues.map((x) => ({ ...at(x), kind: x.kind, message: x.msg })),
+      external: external.map((x) => ({ title: x.title, href: x.href })),
+    },
+  };
+  fs.writeFileSync(path.join(OUT, "_import-report.json"), JSON.stringify(json, null, 2) + "\n");
+}
 
 log(`done: ${live.length} pages, ${assets.size} assets, ${issues.length} notes, ${broken.length} broken links, ${missing.length} missing → ${path.join(OUT, "_IMPORT_REPORT.md")}`);
 log(`HTTP: ${http.stats.network} network, ${http.stats.cached} cached, ${http.stats.failed} failed`);
