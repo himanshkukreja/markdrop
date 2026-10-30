@@ -117,6 +117,7 @@ class Pages(DocsSitesCase):
         # Only admins take over.
         await self.db["memberships"].insert_one({"workspace_id": self.ws, "user_id": self.uid["stranger"],
                                                  "role": "member"})
+        await self.grant("stranger", "editor")
         await self.call("POST", f"/{self.sid}/pages/{page['id']}/lock", "stranger", 403, params={"takeover": 1})
         took = (await self.call("POST", f"/{self.sid}/pages/{page['id']}/lock", "admin",
                                 params={"takeover": 1}))["lock"]

@@ -388,7 +388,7 @@ async def lock(db: AsyncIOMotorDatabase, site: dict, page: dict, user: User, rol
         {"$set": {"lock": _lock_for(user)}}, return_document=ReturnDocument.AFTER)
     if held is None and takeover:
         if not store.is_admin(role):
-            raise HTTPException(status_code=403, detail="Only workspace admins can take over a page.")
+            raise HTTPException(status_code=403, detail="Only Docs Studio admins can take over a page.")
         held = await db[PAGES].find_one_and_update(
             {"_id": page["_id"], "deleted_at": None}, {"$set": {"lock": _lock_for(user)}},
             return_document=ReturnDocument.AFTER)

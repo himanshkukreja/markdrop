@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useRouter } from "next/navigation";
 import { Button, EmptyState, MarkdropLoader } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
-import { canEditRole, docsErrorMessage, docsErrorStatus, getSite, isAdminRole, type DocsRole, type Site } from "@/lib/docsSites";
+import { canEditRole, canReviewRole, docsErrorMessage, docsErrorStatus, getSite, isAdminRole, type DocsRole, type Site } from "@/lib/docsSites";
 import { scopeOf, siteBase, studioHome } from "./routes";
 import { useStudio } from "./studio/StudioContext";
 
@@ -28,12 +28,23 @@ export function StudioLoader({ label = "Loading" }: { label?: string }) {
 }
 
 /**
- * What a role may do in Docs Studio. The one place the UI decides it: from `your_role`, which the
- * API derives (today from the workspace role; separate Studio roles can change the API's mapping
- * without touching the screens).
+ * What a role may do in Docs Studio. The one place the UI decides it: from `your_role`, the
+ * caller's effective Docs Studio role on the site, which only the API decides (workspace owner and
+ * admins → admin; otherwise the role a studio admin gave, per workspace or per site).
+ *
+ *   admin     settings, design, people, approve, publish, restore, delete, take over a page
+ *   reviewer  edit + publish (or submit) + approve / send back other people's reviews
+ *   editor    edit pages, upload, publish (or submit for review when it's required)
+ *   viewer    read drafts, preview, history
  */
 export function studioPermissions(role: DocsRole) {
-  return { role, isAdmin: isAdminRole(role), canEdit: canEditRole(role) };
+  return {
+    role,
+    isAdmin: isAdminRole(role),
+    canReview: canReviewRole(role),
+    canEdit: canEditRole(role),
+    canManagePeople: isAdminRole(role),
+  };
 }
 
 export interface SiteCtx {
@@ -48,7 +59,11 @@ export interface SiteCtx {
   listHref: string;
   role: DocsRole;
   isAdmin: boolean;
+  /** Approve or send back other people's reviews (reviewers and admins). */
+  canReview: boolean;
   canEdit: boolean;
+  /** Site › Settings › People (admins). */
+  canManagePeople: boolean;
 }
 
 const Ctx = createContext<SiteCtx | null>(null);
@@ -107,7 +122,7 @@ export function SiteProvider({ siteId, children }: { siteId: string; children: R
         <EmptyState
           icon="alertCircle"
           title={error.status === 404 ? "This docs site doesn't exist" : error.status === 403 ? "You don't have access to this docs site" : "We couldn't open this docs site"}
-          description={error.status === 404 || error.status === 403 ? "It may have been deleted, or you may no longer be a member of its workspace." : error.message}
+          description={error.status === 404 || error.status === 403 ? "It may have been deleted, or you don't have a Docs Studio role on it. A Docs Studio admin of its workspace can give you one." : error.message}
           actions={
             <>
               {error.status !== 404 && error.status !== 403 && <Button variant="primary" onClick={() => void reload()}>Try again</Button>}

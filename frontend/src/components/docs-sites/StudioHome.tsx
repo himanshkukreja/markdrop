@@ -5,11 +5,12 @@ import { Alert, Badge, Button, EmptyState, Meter, Select, Skeleton, type Tone } 
 import { ReadMore } from "@/components/ReadMore";
 import { useLocationSearch } from "@/components/shell/useLocation";
 import { preloadDocsEditor } from "@/components/docs-editor";
-import { presetName, primaryAddress, type SiteSummary } from "@/lib/docsSites";
+import { canEditRole, presetName, primaryAddress, type SiteSummary } from "@/lib/docsSites";
 import { firstName, num, plural, timeAgo } from "./format";
 import SiteThumb from "./SiteThumb";
 import { StudioLoader, useStudioSession } from "./SiteContext";
-import { PERSONAL, siteBase, STUDIO, studioHome, studioNew } from "./routes";
+import { RoleBadge } from "./people/roles";
+import { PERSONAL, siteBase, STUDIO, studioHome, studioMembers, studioNew } from "./routes";
 import { useStudio } from "./studio/StudioContext";
 import { groupSites } from "./studio/StudioShell";
 
@@ -34,8 +35,6 @@ function metaOf(s: SiteSummary): string {
   return parts.join(" · ");
 }
 
-const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", editor: "Can edit", viewer: "Can view" };
-
 export function SiteCard({ site }: { site: SiteSummary }) {
   const st = statusOf(site);
   const base = siteBase(site.id);
@@ -48,12 +47,15 @@ export function SiteCard({ site }: { site: SiteSummary }) {
           <h3 className="min-w-0 flex-1 truncate text-[16px] font-semibold leading-6 text-text" dir="auto">{site.name}</h3>
           <Badge tone={st.tone} size="sm" dot>{st.label}</Badge>
         </div>
+        {site.workspace_id && site.your_role_source === "site" && (
+          <div className="-mt-1"><RoleBadge role={site.your_role} title="Your role on this site (different from your workspace role)" /> <span className="text-[12px] text-text-muted">on this site</span></div>
+        )}
         <code className="font-mono text-[12.5px] text-text-secondary [overflow-wrap:anywhere]">{address}</code>
         <p className="text-[13px] leading-5 text-text-muted">{metaOf(site)}</p>
         <div className="mt-auto flex flex-wrap gap-2 pt-1">
           <span onPointerEnter={preloadDocsEditor} onFocus={preloadDocsEditor}>
             <Button variant="secondary" size="sm" iconLeft="edit" href={base}>
-              {site.your_role === "viewer" ? "Open" : "Open editor"}
+              {canEditRole(site.your_role) ? "Open editor" : "Open"}
             </Button>
           </span>
           {site.status === "live" && (
@@ -101,6 +103,7 @@ export default function StudioHome() {
   const usageOf = (scope: string) => (scope === PERSONAL ? all?.personal.usage : all?.workspaces.find((w) => w.id === scope)?.usage);
   const canCreateIn = (scope: string) => (scope === PERSONAL ? !!all?.personal.can_create : !!all?.workspaces.find((w) => w.id === scope)?.can_create);
   const total = all?.sites.length ?? 0;
+  const noRole = all?.workspaces.filter((w) => w.your_role === "none") ?? [];
   const busiest = all?.sites.reduce<SiteSummary | null>((m, s) => (!m || s.ai_used > m.ai_used ? s : m), null) ?? null;
 
   return (
@@ -144,7 +147,9 @@ export default function StudioHome() {
         <EmptyState
           icon="layers"
           title="No docs sites yet"
-          description="Start blank, from a template, or bring your GitBook docs across. Nothing is public until you publish."
+          description={noRole.length > 0
+            ? `You don't have a Docs Studio role in ${noRole.map((w) => w.name).join(", ")} yet. A Docs Studio admin there can give you one; until then its docs sites don't show here. You can still start a personal site.`
+            : "Start blank, from a template, or bring your GitBook docs across. Nothing is public until you publish."}
           actions={<Button variant="primary" iconLeft="plus" href={studioNew()}>New docs site</Button>}
         />
       )}
@@ -162,7 +167,7 @@ export default function StudioHome() {
           <section key={g.scope} aria-labelledby={`grp-${g.scope}`} className="flex flex-col gap-3.5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border pb-2.5">
               <h2 id={`grp-${g.scope}`} className="min-w-0 truncate text-[17px] font-semibold text-text" dir="auto">{g.name}</h2>
-              {ws && <Badge size="sm">{ROLE_LABEL[ws.your_role] ?? ws.your_role}</Badge>}
+              {ws && <RoleBadge role={ws.your_role} title="Your Docs Studio role in this workspace" />}
               {usage && (
                 <Meter
                   className="w-[150px]"
@@ -174,8 +179,11 @@ export default function StudioHome() {
                   valueText={`${usage.sites} of ${usage.limit} sites`}
                 />
               )}
+              {ws?.can_manage_people && (
+                <Button className="ml-auto" variant="ghost" size="sm" iconLeft="users" href={studioMembers(ws.id)}>Members</Button>
+              )}
               {canCreate && (
-                <Button className="ml-auto" variant="ghost" size="sm" iconLeft="plus" href={full ? undefined : studioNew(g.scope)} disabled={full}
+                <Button className={ws?.can_manage_people ? undefined : "ml-auto"} variant="ghost" size="sm" iconLeft="plus" href={full ? undefined : studioNew(g.scope)} disabled={full}
                   title={full ? `The free plan has ${usage?.limit} docs sites per workspace.` : undefined}>
                   New site here
                 </Button>
@@ -189,7 +197,9 @@ export default function StudioHome() {
               <p className="text-body text-text-muted">
                 {g.scope === PERSONAL
                   ? "Sites only you can edit. Create one to try things out."
-                  : canCreate ? "No docs sites in this workspace yet." : "No docs sites yet. A workspace admin can create one; you can edit it once it exists."}
+                  : canCreate ? "No docs sites in this workspace yet."
+                  : ws?.your_role === "none" ? "You don't have a Docs Studio role here yet. A Docs Studio admin of this workspace can give you one."
+                  : "No docs sites yet. A Docs Studio admin can create one."}
               </p>
             )}
           </section>

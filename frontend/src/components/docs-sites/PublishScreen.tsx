@@ -67,12 +67,12 @@ const STEP: Record<string, string> = {
 
 /**
  * /docs-studio/<site>/publish (Publish board): what changed since the last publish, then Publish —
- * or "Submit for review" when the site requires one and you aren't an admin. Admins see open
- * reviews (Approve and publish · Request changes). Every publish is numbered; an admin can put an
+ * or "Submit for review" when the site requires one and you aren't an admin. Reviewers and admins
+ * see other people's open reviews (Approve and publish · Request changes). Every publish is numbered; an admin can put an
  * earlier one live again (Restore) without a rebuild.
  */
 export default function PublishScreen() {
-  const { site, base, isAdmin, canEdit, reload: reloadSite } = useSite();
+  const { site, base, isAdmin, canReview, canEdit, reload: reloadSite } = useSite();
   const { user } = useAuth();
   const toast = useToast();
   const uid = useId();
@@ -318,7 +318,7 @@ export default function PublishScreen() {
                     {reviewers?.length ? <Avatar name={reviewers[0]!.name} size="sm" /> : <Icon name="users" size={16} />}
                     {reviewers?.length
                       ? `${reviewers[0]!.name}${reviewers.length > 1 ? ` and ${plural(reviewers.length - 1, "other admin")}` : ""} will be asked`
-                      : "The workspace's admins will be asked"}
+                      : "The site's reviewers and admins will be asked"}
                   </span>
                 ) : <span className="flex-1" />}
                 {mustReview ? (
@@ -357,13 +357,13 @@ export default function PublishScreen() {
                 <span className="text-[12px] text-text-secondary">{timeAgo(r.created_at)}</span>
               </div>
               {r.note && <p className="text-body text-text-secondary">&ldquo;{r.note}&rdquo;</p>}
-              {isAdmin ? (
+              {canReview ? (
                 <div className="flex flex-wrap gap-2">
                   <Button variant="primary" size="sm" iconLeft="check" loading={busy === `approve:${r.id}`} disabled={running.length > 0} onClick={() => void approve(r)}>Approve and publish</Button>
                   <Button variant="secondary" size="sm" onClick={() => { setRejectFor(r); setComment(""); }}>Request changes</Button>
                 </div>
               ) : (
-                <p className="text-[13px] text-text-muted">Waiting for an admin.</p>
+                <p className="text-[13px] text-text-muted">Waiting for a reviewer or an admin.</p>
               )}
             </div>
           ))}

@@ -30,6 +30,7 @@ API = "https://api.markdrop.in"
 BASE = "/api/v1/docs-sites"
 _DOCS_R2 = ("docs_r2_bucket", "docs_r2_account_id", "docs_r2_access_key_id", "docs_r2_secret_access_key")
 PEOPLE = {"owner": "owner", "admin": "admin", "editor": "member", "viewer": "viewer", "stranger": None}
+STUDIO_GRANTS = {"editor": "editor", "viewer": "viewer"}
 
 
 def now() -> datetime:
@@ -107,6 +108,10 @@ class DocsSitesCase(unittest.IsolatedAsyncioTestCase):
                 await self.db["memberships"].insert_one({
                     "workspace_id": self.ws, "user_id": self.uid[who], "role": role, "created_at": now(),
                     "email": f"{who}@example.com", "name": who.capitalize()})
+        # Docs Studio roles are their own (services/docs_studio_roles.py): the owner and admin are
+        # studio admins by their workspace role; the member and the viewer are given theirs.
+        for who in STUDIO_GRANTS:
+            await self.grant(who, STUDIO_GRANTS[who])
 
     async def asyncTearDown(self):
         settings.docs_private_sites_enabled = self._saved_private
@@ -119,6 +124,12 @@ class DocsSitesCase(unittest.IsolatedAsyncioTestCase):
             setattr(settings, k, v)
 
     # ── helpers ──
+
+    async def grant(self, who: str, role: str, workspace_id: str | None = None) -> None:
+        """A Docs Studio role in the workspace, written directly (the API is tested elsewhere)."""
+        await self.db["docs_studio_members"].update_one(
+            {"workspace_id": workspace_id or self.ws, "user_id": self.uid[who]},
+            {"$set": {"role": role, "granted_by": self.uid["owner"], "granted_at": now()}}, upsert=True)
 
     async def create(self, slug: str = "acme", who: str = "owner", *, workspace: bool = True,
                      source: dict | None = None, name: str = "Acme Docs", expect: int = 201) -> dict:

@@ -1,17 +1,14 @@
 """Hosted docs sites: the collections, roles, limits, sites and events.
 
 A docs site lives in a workspace (or, personal, belongs to one person). Who may
-do what comes from the workspace role, never from a list on the site:
+do what is the caller's Docs Studio role on the site (services/docs_studio_roles.py:
+admin, reviewer, editor, viewer, or none), resolved in one place, :func:`site_role`:
+the workspace owner and admins are always admins; everyone else has the role a
+studio admin gave them in the workspace, or a per-site override; a personal site
+is its owner's alone (as admin).
 
-    workspace owner / admin  → "owner" / "admin": everything, incl. settings,
-                                approving reviews, restoring builds, delete
-    workspace member         → "editor": edit pages, publish (or submit for
-                                review when the site requires one)
-    workspace viewer         → "viewer": read drafts and history only
-    personal site            → its owner only ("owner")
-
-Anyone else gets a 404, so the API never confirms a site exists to someone who
-can't see it. Pages, publishing and reviews are in docs_site_pages.py and
+Anyone with no role gets a 404, so the API never confirms a site exists to someone
+who can't see it. Pages, publishing and reviews are in docs_site_pages.py and
 docs_site_publish.py; this module holds what they share.
 
 Collections (ids are ObjectIds; ``site_id``/``page_id``/``build_id``/
@@ -39,6 +36,7 @@ from app.models.user import User
 from app.services import docs_site_redirects as site_redirects
 from app.services import docs_site_settings as site_settings
 from app.services import docs_site_templates as templates
+from app.services import docs_studio_roles as studio_roles
 from app.services import workspace as ws_service
 from app.services.docs_site_jobs import enqueue_job
 
@@ -55,8 +53,7 @@ JOBS = "docs_jobs"
 ASSETS = "docs_assets"
 EVENTS = "docs_events"
 
-ROLE_RANK = {"viewer": 0, "editor": 1, "admin": 2, "owner": 3}
-_WS_TO_SITE_ROLE = {"owner": "owner", "admin": "admin", "member": "editor", "viewer": "viewer"}
+ROLE_RANK = studio_roles.ROLE_RANK
 
 SLUG_MIN, SLUG_MAX = 3, 40
 _SLUG = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
@@ -153,6 +150,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[EVENTS].create_index([("kind", 1), ("ts", -1)])
     await db[EVENTS].create_index([("site_id", 1), ("ts", -1)])
     await db[EVENTS].create_index([("user_id", 1), ("ts", -1)])
+    await db[EVENTS].create_index([("workspace_id", 1), ("kind", 1), ("ts", -1)])
+
+    await studio_roles.ensure_indexes(db)
 
 
 # ── Events (admin feature usage) ──────────────────────────────────────────────
@@ -179,47 +179,48 @@ async def log_event(db: AsyncIOMotorDatabase, kind: str, site: dict | None, user
 
 
 def role_at_least(role: str | None, need: str) -> bool:
-    return role is not None and ROLE_RANK.get(role, -1) >= ROLE_RANK[need]
+    return studio_roles.role_at_least(role, need)
 
 
 def is_admin(role: str | None) -> bool:
     return role_at_least(role, "admin")
 
 
-def studio_role(ws_role: str | None) -> str | None:
-    """The caller's Docs Studio role from their workspace role (None: not a member). Every role
-    check goes through this and :func:`site_role`, so separate Studio roles (per workspace member,
-    with per-site overrides) can replace the mapping here without touching the routes or the UI,
-    which reads ``your_role`` from the API."""
-    return _WS_TO_SITE_ROLE.get(ws_role or "")
+def can_review(role: str | None) -> bool:
+    return role_at_least(role, "reviewer")
 
 
 async def site_role(db: AsyncIOMotorDatabase, site: dict, user_id: str | None) -> str | None:
-    if not user_id:
-        return None
-    if site.get("workspace_id"):
-        return studio_role(await ws_service.role_for(db, site["workspace_id"], user_id))
-    return "owner" if site.get("owner_id") == user_id else None
+    """The caller's effective Docs Studio role on the site (None: no access)."""
+    return (await studio_roles.resolve(db, site, user_id)).role
 
 
 _NEED_MESSAGE = {
-    "editor": "You need Can edit access to this docs site to do that.",
-    "admin": "Only workspace admins can do that.",
+    "editor": "You need edit access to this docs site to do that.",
+    "reviewer": "Only this site's reviewers and admins can do that.",
+    "admin": "Only Docs Studio admins can do that.",
     "owner": "Only the owner can do that.",
 }
 
 
-async def load_site(db: AsyncIOMotorDatabase, site_id: str, user: User, need: str = "viewer") -> tuple[dict, str]:
-    """(site row, caller's role), or 404 for no access / 403 for too little."""
+async def site_access(db: AsyncIOMotorDatabase, site_id: str, user: User,
+                      need: str = "viewer") -> tuple[dict, studio_roles.Resolved]:
+    """(site row, caller's role and where it comes from), or 404 for no access / 403 for too little."""
     site = await db[SITES].find_one({"_id": oid(site_id), "deleted_at": None})
     if site is None:
         raise HTTPException(status_code=404, detail="Docs site not found")
-    role = await site_role(db, site, user.id)
-    if role is None:
+    access = await studio_roles.resolve(db, site, user.id)
+    if access.role is None:
         raise HTTPException(status_code=404, detail="Docs site not found")
-    if not role_at_least(role, need):
+    if not role_at_least(access.role, need):
         raise HTTPException(status_code=403, detail=_NEED_MESSAGE.get(need, "Not allowed."))
-    return site, role
+    return site, access
+
+
+async def load_site(db: AsyncIOMotorDatabase, site_id: str, user: User, need: str = "viewer") -> tuple[dict, str]:
+    """(site row, caller's role), or 404 for no access / 403 for too little."""
+    site, access = await site_access(db, site_id, user, need)
+    return site, access.role
 
 
 async def user_names(db: AsyncIOMotorDatabase, ids) -> dict[str, str]:
@@ -363,8 +364,16 @@ async def page_count(db: AsyncIOMotorDatabase, site_id: ObjectId) -> int:
     return await db[PAGES].count_documents({"site_id": site_id, "deleted_at": None})
 
 
-async def site_summary(db: AsyncIOMotorDatabase, site: dict, role: str, *, pages: int, ai_used: int,
-                       open_review: dict | None, names: dict[str, str]) -> dict:
+def _role_fields(role: str | studio_roles.Resolved) -> tuple[str | None, str | None]:
+    if isinstance(role, studio_roles.Resolved):
+        return role.role, role.source
+    return role, None
+
+
+async def site_summary(db: AsyncIOMotorDatabase, site: dict, role: str | studio_roles.Resolved, *, pages: int,
+                       ai_used: int, open_review: dict | None, names: dict[str, str]) -> dict:
+    """``role``: the caller's effective role (with its source when it's a Resolved)."""
+    your_role, source = _role_fields(role)
     return {
         "id": str(site["_id"]),
         "workspace_id": site.get("workspace_id"),
@@ -383,11 +392,15 @@ async def site_summary(db: AsyncIOMotorDatabase, site: dict, role: str, *, pages
         "last_published_by_name": names.get(site.get("last_published_by") or ""),
         "updated_at": aware(site.get("updated_at")),
         "created_at": aware(site.get("created_at")),
-        "your_role": role,
+        "your_role": your_role,
+        # Where the role comes from: workspace_owner / workspace_admin (always admin), workspace
+        # (their studio role there), site (this site's override), personal (a personal site's owner).
+        "your_role_source": source,
     }
 
 
-async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str, *, job: dict | None = None) -> dict:
+async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_roles.Resolved, *,
+                    job: dict | None = None) -> dict:
     sid = site["_id"]
     live = await db[BUILDS].find_one({"_id": site["live_build_id"]}) if site.get("live_build_id") else None
     latest = await db[BUILDS].find_one({"site_id": sid}, sort=[("number", -1)])
@@ -446,20 +459,28 @@ async def _summaries(db: AsyncIOMotorDatabase, rows: list[dict], role_of) -> tup
 
 
 async def list_sites(db: AsyncIOMotorDatabase, user: User, workspace_id: str | None) -> dict:
+    """A workspace's sites the caller can open (any member; sites they have no role on are left
+    out), or with no workspace their personal ones. ``your_role``: their studio role across the
+    workspace ("none" when they have none, though a site's override may still show them a site)."""
     if workspace_id:
         ws_role = await ws_service.role_for(db, workspace_id, user.id)
         if ws_role is None:
             raise HTTPException(status_code=404, detail="Workspace not found")
-        role = studio_role(ws_role)
+        ws_access = await studio_roles.workspace_role(db, workspace_id, user.id, ws_role)
+        ws_roles = {workspace_id: ws_role}
     else:
-        role = "owner"
+        ws_access = studio_roles.Resolved("admin", studio_roles.SRC_PERSONAL)
+        ws_roles = {}
     rows = await db[SITES].find(_scope_query(workspace_id, user.id)).sort("created_at", 1).to_list(length=100)
-    sites, ai = await _summaries(db, rows, lambda _r: role)
+    access = await studio_roles.resolve_many(db, user.id, rows, ws_roles)
+    visible = [r for r in rows if access[r["_id"]].role]
+    sites, ai = await _summaries(db, visible, lambda r: access[r["_id"]])
     return {
         "sites": sites,
-        "your_role": role,
+        "your_role": ws_access.role or "none",
+        "your_role_source": ws_access.source,
         "usage": {
-            "sites": len(rows),
+            "sites": len(rows) if is_admin(ws_access.role) else len(visible),
             "limit": settings.docs_sites_per_workspace,
             "ai_used": sum(ai.values()),
             "ai_limit": settings.docs_ai_answers_per_month,
@@ -476,8 +497,9 @@ def _workspace_brand(ws) -> dict:
 async def list_all_sites(db: AsyncIOMotorDatabase, user: User) -> dict:
     """Docs Studio's home (``GET /docs-sites?scope=all``): every site the caller can open, across
     all their workspaces plus their personal ones, each carrying its workspace (for grouping);
-    every workspace with the caller's role, its usage and whether they may create a site there
-    (workspace owner/admin, and not being deleted); and the personal scope's usage."""
+    every workspace with the caller's studio role there ("none" until an admin gives one), its
+    usage and whether they may create a site (studio admin, and not being deleted) or manage its
+    people; and the personal scope's usage. Sites they have no role on are left out."""
     memberships = await ws_service.list_for_user(db, user.id)
     roles = {ws.id: ws_role for ws, ws_role in memberships}
     by_id = {ws.id: ws for ws, _ in memberships}
@@ -485,38 +507,43 @@ async def list_all_sites(db: AsyncIOMotorDatabase, user: User) -> dict:
         "deleted_at": None,
         "$or": [{"workspace_id": {"$in": list(roles)}}, {"workspace_id": None, "owner_id": user.id}],
     }).sort("created_at", 1).to_list(length=500)
+    access = await studio_roles.resolve_many(db, user.id, rows, roles)
+    visible = [r for r in rows if access[r["_id"]].role]
+    ws_access = await studio_roles.workspace_roles_for(db, user.id, roles)
 
-    def role_of(r: dict) -> str:
-        wid = r.get("workspace_id")
-        return (studio_role(roles.get(wid)) or "viewer") if wid else "owner"
-
-    sites, ai = await _summaries(db, rows, role_of)
+    sites, ai = await _summaries(db, visible, lambda r: access[r["_id"]])
     per_scope: dict[str | None, int] = {}
+    seen: dict[str | None, int] = {}
     for r in rows:
         per_scope[r.get("workspace_id")] = per_scope.get(r.get("workspace_id"), 0) + 1
+    for r in visible:
+        seen[r.get("workspace_id")] = seen.get(r.get("workspace_id"), 0) + 1
     for s in sites:
         ws = by_id.get(s["workspace_id"]) if s["workspace_id"] else None
         s["workspace"] = {"id": ws.id, "name": ws.name, **_workspace_brand(ws)} if ws else None
     limit = settings.docs_sites_per_workspace
     workspaces = []
     for ws, ws_role in memberships:
-        role = studio_role(ws_role) or "viewer"
+        a = ws_access[ws.id]
+        admin = is_admin(a.role)
         workspaces.append({
             "id": ws.id,
             "name": ws.name,
             **_workspace_brand(ws),
             "workspace_role": ws_role,
-            "your_role": role,
-            "can_create": is_admin(role) and not ws.deleting,
-            "usage": {"sites": per_scope.get(ws.id, 0), "limit": limit},
+            "your_role": a.role or "none",
+            "your_role_source": a.source,
+            "can_create": admin and not ws.deleting,
+            "can_manage_people": admin,
+            "usage": {"sites": (per_scope if admin else seen).get(ws.id, 0), "limit": limit},
         })
     return {
         "sites": sites,
         "workspaces": workspaces,
-        "personal": {"your_role": "owner", "can_create": True,
+        "personal": {"your_role": "admin", "your_role_source": studio_roles.SRC_PERSONAL, "can_create": True,
                      "usage": {"sites": per_scope.get(None, 0), "limit": limit}},
         "usage": {
-            "sites": len(rows),
+            "sites": len(visible),
             "limit": limit,
             "ai_used": sum(ai.values()),
             "ai_limit": settings.docs_ai_answers_per_month,
@@ -589,7 +616,7 @@ async def seed_pages(db: AsyncIOMotorDatabase, site_id: ObjectId, user: User, te
 
 
 async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str | None, name: str, slug: str,
-                      source: dict) -> tuple[dict, str, dict | None]:
+                      source: dict) -> tuple[dict, studio_roles.Resolved, dict | None]:
     """(site, caller's role, job or None)."""
     name = (name or "").strip()
     if not name:
@@ -602,11 +629,11 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
         ws_role = await ws_service.role_for(db, workspace_id, user.id)
         if ws_role is None:
             raise HTTPException(status_code=404, detail="Workspace not found")
-        role = studio_role(ws_role)
-        if not is_admin(role):
-            raise HTTPException(status_code=403, detail="Only workspace admins can create docs sites.")
+        role = await studio_roles.workspace_role(db, workspace_id, user.id, ws_role)
+        if not is_admin(role.role):
+            raise HTTPException(status_code=403, detail="Only Docs Studio admins of this workspace can create docs sites.")
     else:
-        role = "owner"
+        role = studio_roles.Resolved("admin", studio_roles.SRC_PERSONAL)
 
     existing = await db[SITES].count_documents(_scope_query(workspace_id, user.id))
     if existing >= settings.docs_sites_per_workspace:

@@ -7,7 +7,8 @@
  *   /docs-studio/<site>/import      the GitBook import (?job=<id>, else the site's last import)
  *   /docs-studio/<site>/design      themes, brand, fonts, custom CSS
  *   /docs-studio/<site>/publish     changes, publish, reviews, history
- *   /docs-studio/<site>/settings    address, Ask AI, access, redirects, delete
+ *   /docs-studio/<site>/settings    address, Ask AI, access, redirects, people, delete
+ *   /docs-studio/members            Docs Studio roles in a workspace (?ws=<id>; studio admins)
  *
  * The old /w/<ws>/docs… addresses redirect here (next.config.ts).
  */
@@ -27,3 +28,5 @@ export const studioHome = (scope?: StudioScope | null) => withScope(STUDIO, scop
 export const studioNew = (scope?: StudioScope | null) => withScope(`${STUDIO}/new`, scope);
 /** A site's screens hang off this (the editor itself is the bare address). */
 export const siteBase = (siteId: string) => `${STUDIO}/${encodeURIComponent(siteId)}`;
+/** Docs Studio › Members: a workspace's people and their Docs Studio roles (studio admins). */
+export const studioMembers = (workspaceId?: string | null) => withScope(`${STUDIO}/members`, workspaceId);
