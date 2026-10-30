@@ -226,6 +226,11 @@ export function createHandler(store, options = {}) {
         options.onServe?.({ kind: "redirect", status: redirect.status, size: 0 });
         return new Response(null, { status: redirect.status, headers: { location: redirect.to + url.search, "cache-control": CACHE.file } });
       }
+      // A missing site file: the engine's plain 404 (src/app/docs-site/docs-assets), not a page.
+      if (pathname.startsWith("/docs-assets/")) {
+        options.onServe?.({ kind: "404", status: 404, size: 0 });
+        return text("Not found", 404);
+      }
       return notFound(req, m);
     },
   };

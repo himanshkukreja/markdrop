@@ -1,9 +1,9 @@
 /**
  * A docs site's own assets: `/docs-assets/<path>` read from `<content>/public/docs-assets/<path>`.
  *
- * Reached only through next.config.ts's afterFiles rewrite, which exists when the content folder
- * has a public/docs-assets/ folder and fires only on the docs hosts for a file the app's public/
- * doesn't have (so Markdrop's own media is still served as static files). Paths are confined to that
+ * Reached only through next.config.ts's afterFiles rewrite, which fires only on the docs hosts for
+ * a file the app's public/ doesn't have (so Markdrop's own media is still served as static files,
+ * and a missing one gets the plain 404 below, not the app's 404 page). Paths are confined to that
  * folder (siteFiles.resolveAsset); Range requests are answered so Safari can play clips; hashed
  * names are cached for a year, others for an hour.
  */

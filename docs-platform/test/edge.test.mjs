@@ -91,7 +91,11 @@ test("redirects, 404s, unknown hosts", async () => {
   const nf = await go("/nope");
   assert.equal(nf.status, 404);
   assert.equal(await nf.text(), "<html>404</html>");
-  assert.equal((await go("/docs-assets/missing.png")).status, 404);
+  // A missing site file: the engine's plain 404, not the docs (or app) 404 page.
+  const nfa = await go("/docs-assets/missing.png");
+  assert.equal(nfa.status, 404);
+  assert.equal(nfa.headers.get("content-type"), "text/plain; charset=utf-8");
+  assert.equal(await nfa.text(), "Not found");
   const other = await edge.fetch(new Request("https://elsewhere.test/"), {});
   assert.equal(other.status, 404);
   assert.equal((await go("/guide/start", {}, "POST")).status, 405);

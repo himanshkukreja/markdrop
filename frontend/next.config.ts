@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { NextConfig } from "next";
-import { docsHostsFromEnv, hasSiteAssets, hostPattern, nextRedirects } from "./src/docs/siteFiles.mjs";
+import { docsHostsFromEnv, hostPattern, nextRedirects } from "./src/docs/siteFiles.mjs";
 
 /** The docs content folder, as src/docs/content.ts reads it. */
 const DOCS_CONTENT = process.env.DOCS_CONTENT_DIR || path.join(process.cwd(), "content", "docs");
@@ -56,12 +56,11 @@ const nextConfig: NextConfig = {
       { source: "/mdp/static/:path*", destination: "https://us-assets.i.posthog.com/static/:path*" },
       { source: "/mdp/array/:path*", destination: "https://us-assets.i.posthog.com/array/:path*" },
       { source: "/mdp/:path*", destination: "https://us.i.posthog.com/:path*" },
-      // A docs site with its own assets (<content>/public/docs-assets, as an importer writes them):
-      // a /docs-assets/ file the app's public/ doesn't have is read from there (afterFiles: the
-      // app's own public files still win). Markdrop's docs keep theirs in public/ and skip this.
-      ...(hasSiteAssets(DOCS_CONTENT)
-        ? [{ source: "/docs-assets/:path+", has: [{ type: "host" as const, value: hostPattern(DOCS_HOSTS) }], destination: "/docs-site/docs-assets/:path+" }]
-        : []),
+      // A /docs-assets/ file the app's public/ doesn't have, on a docs host: read from the site's
+      // own assets (<content>/public/docs-assets, as an importer writes them), else a plain 404
+      // (afterFiles: the app's own public files still win, so Markdrop's docs media, kept in
+      // public/, never reaches the handler). Without this a missing file rendered the app's 404.
+      { source: "/docs-assets/:path+", has: [{ type: "host" as const, value: hostPattern(DOCS_HOSTS) }], destination: "/docs-site/docs-assets/:path+" },
     ];
   },
 };
