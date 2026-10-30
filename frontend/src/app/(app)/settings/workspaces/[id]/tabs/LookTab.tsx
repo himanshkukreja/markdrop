@@ -135,7 +135,7 @@ export default function LookTab(props: WsTabProps) {
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <section aria-label="Names" className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4 rounded-xl border border-border bg-surface p-5">
-        <Locked locked={locked}>
+        <Locked locked={locked} className="w-full [&>:first-child]:min-w-0 [&>:first-child]:flex-1">
           <div className="min-w-0">
             <Field label="Workspace name">
               <Input
@@ -148,7 +148,7 @@ export default function LookTab(props: WsTabProps) {
             </Field>
           </div>
         </Locked>
-        <Locked locked={locked}>
+        <Locked locked={locked} className="w-full [&>:first-child]:min-w-0 [&>:first-child]:flex-1">
           <div className="min-w-0">
             <Field label="Site name on your pages" hint="Shown in the header and link previews.">
               <Input

@@ -138,7 +138,7 @@ export default function PeopleTab({ id, ws, isOwner, isAdmin, meId, members, inv
           {!privacy && <Badge size="sm" tone="info">Custom</Badge>}
           <ReadMore topic="workspacePrivacy" className="ml-auto text-caption" />
         </div>
-        <Locked locked={!isAdmin}>
+        <Locked locked={!isAdmin} className="w-full [&>:first-child]:min-w-0 [&>:first-child]:flex-1">
           <PresetCards<Privacy>
             legend="Privacy"
             legendHidden
