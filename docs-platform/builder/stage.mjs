@@ -38,15 +38,21 @@ const PROJECT_FILES = ["package.json", "tsconfig.json", "postcss.config.mjs", "n
  *   build id, so a random one would change every object on every publish; an engine-version id
  *   means a content edit only changes the pages it touches.
  * - no type-check / lint: that is the engine's CI's job, not every site build's.
+ * - MARKDROP_DOCS_BUILD_CPUS (optional): how many worker processes Next starts for rendering. Each
+ *   is a Node process of its own, so on a small box (the 2 GB API server) 1 keeps the peak memory
+ *   down; unset, Next uses the machine's cores.
  */
 const CONFIG = `import base from "./next.config.base";
 import type { NextConfig } from "next";
+
+const cpus = Number(process.env.MARKDROP_DOCS_BUILD_CPUS) || 0;
 
 const config: NextConfig = {
   ...base,
   generateBuildId: async () => process.env.MARKDROP_DOCS_BUILD_ID || null,
   typescript: { ...(base.typescript || {}), ignoreBuildErrors: true },
   eslint: { ...(base.eslint || {}), ignoreDuringBuilds: true },
+  ...(cpus ? { experimental: { ...(base.experimental || {}), cpus, workerThreads: false } } : {}),
 };
 
 export default config;

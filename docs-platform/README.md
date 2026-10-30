@@ -230,6 +230,12 @@ node builder/cli.mjs build ../frontend/content/docs --out /tmp/md-dist \
 node builder/cli.mjs publish <dist> --store <dir> [--site <id>] [--host <hostname>]... [--dry-run]
 node builder/cli.mjs publish <dist> --r2 <bucket> ...    # CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
 node builder/cli.mjs diff <old manifest.json> <new manifest.json>    # what a publish would upload
+node builder/cli.mjs point --r2 <bucket> --site <id> --manifest <sha256>   # restore: re-point to an earlier build
+node builder/cli.mjs media <content-dir>       # media.json from <content>/public/docs-assets (sizes, clips)
+
+# Run one dashboard job (build or GitBook import): see runner/README.md
+node runner/run-job.mjs --job <id> --api <base>          # GitHub Actions (MARKDROP_DOCS_JOB_TOKEN in the env)
+node runner/run-job.mjs --spec spec.json --result r.json  # the backend's local worker
 
 # Engine files for the Worker's static assets: rebuild the folder from the live manifests, prune
 node builder/cli.mjs assets edge/assets --r2 <bucket> [--prune] [--dry-run]
@@ -256,16 +262,19 @@ docker run --rm -p 8080:8080 -v "$PWD/my-docs:/site:ro" -v markdrop-docs-data:/d
 ## Layout
 
 ```
-builder/  cli.mjs (build, publish, assets, diff, bundle) · stage.mjs (the engine stage) · crawl.mjs ·
-          build.mjs (objects + manifest + engine assets) · store.mjs (stores, publish, assets sync) ·
-          bundle.mjs (esbuild) · mime.mjs
+builder/  cli.mjs (build, publish, point, assets, media, diff, bundle) · stage.mjs (the engine stage) ·
+          crawl.mjs · build.mjs (objects + manifest + engine assets) · store.mjs (stores, publish,
+          point, assets sync) · media.mjs (media.json) · bundle.mjs (esbuild) · mime.mjs
+runner/   run-job.mjs + lib.mjs (one build or import job, from the API or a spec file) ·
+          github-workflow.yml (the private builder repo's workflow) · README.md (setup, routing,
+          measurements, the local worker's systemd unit)
 edge/     handler.mjs (the fetch handler) · worker.mjs (R2 + Cache API) · wrangler.toml ·
           mcp-entry.mjs + shims/ (fs, path, next/server for the bundled MCP route) ·
           assets/ (git-ignored: the shared engine files, deployed as Static Assets)
 server/   server.mjs (Node: serve a store, or build + serve + watch a folder)
 docker/   Dockerfile (+ .dockerignore; context = repo root)
 examples/ minimal/ (a 2-page site; also warms the Docker image's build cache)
-test/     edge.test.mjs · assets.test.mjs · verify.mjs · miniflare.mjs · pageview.mjs
+test/     edge.test.mjs · assets.test.mjs · runner.test.mjs · verify.mjs · miniflare.mjs · pageview.mjs
 ```
 
 ## Open decisions for the owner

@@ -10,6 +10,12 @@
  *   markdrop-docs assets <dir> (--store <dir> | --r2 <bucket>) [--prune] [--dry-run]
  *                                   (the Worker's static assets folder from every site's live
  *                                    manifests: fetch missing engine files, --prune unused ones)
+ *   markdrop-docs point (--store <dir> | --r2 <bucket>) --site <id> --manifest <sha256> [--force] [--dry-run]
+ *                                   (restore: point the site at a manifest the store already has;
+ *                                    no rebuild, no upload)
+ *   markdrop-docs media <content-dir> [--engine <frontend>]
+ *                                   (write <content>/media.json from <content>/public/docs-assets:
+ *                                    image sizes, clip lengths, dark variants)
  *   markdrop-docs bundle            (build edge/dist/: the Worker and the Node handler)
  */
 import path from "node:path";
@@ -119,11 +125,19 @@ async function main() {
     const have = manifestObjects(A);
     const upload = [...manifestObjects(B)].filter(([h]) => !have.has(h));
     console.log(JSON.stringify({ changedByKind: byKind, newObjects: upload.length, newBytes: fmtBytes(upload.reduce((n, [, s]) => n + s, 0)), examples }, null, 2));
+  } else if (cmd === "point") {
+    if ((!opt.store && !opt.r2) || !opt.site || !opt.manifest) throw new Error("usage: point (--store <dir> | --r2 <bucket>) --site <id> --manifest <sha256>");
+    const { pointSite } = await import("./store.mjs");
+    console.log(JSON.stringify(await pointSite({ store: storeOf(opt), site: opt.site, manifest: opt.manifest, force: !!opt.force, dryRun: !!opt["dry-run"] }), null, 2));
+  } else if (cmd === "media") {
+    if (!pos[0]) throw new Error("usage: media <content-dir> [--engine <frontend>]");
+    const { writeMediaManifest } = await import("./media.mjs");
+    console.log(JSON.stringify(await writeMediaManifest(pos[0], { engineDir: opt.engine || path.join(REPO, "frontend") }), null, 2));
   } else if (cmd === "bundle") {
     const { bundle } = await import("./bundle.mjs");
     console.log(JSON.stringify(await bundle(), null, 2));
   } else {
-    console.error("commands: build, publish, assets, diff, bundle (see the header of builder/cli.mjs)");
+    console.error("commands: build, publish, point, assets, media, diff, bundle (see the header of builder/cli.mjs)");
     process.exit(2);
   }
 }

@@ -1,0 +1,144 @@
+# Markdrop Docs job runner: copy to the PRIVATE builder repo as .github/workflows/docs-job.yml
+# (the server's MARKDROP_DOCS_BUILDER_WORKFLOW names this file). Setup: docs-platform/runner/README.md.
+#
+# The API starts one run per job (workflow_dispatch). The run checks out the public markdrop repo
+# for the engine, restores node_modules and the build cache, and runs runner/run-job.mjs, which
+# asks the API for the job, builds and publishes to R2 (or imports from GitBook), and reports back.
+# Logs carry counts and timings only: never page content.
+name: docs-job
+run-name: docs ${{ inputs.kind }} ${{ inputs.job_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: docs_jobs id
+        required: true
+        type: string
+      site_id:
+        description: docs site id (one build per site at a time)
+        required: true
+        type: string
+      kind:
+        description: build | import
+        required: true
+        type: string
+      api_base:
+        description: API the runner calls back (vars.DOCS_API_BASE wins when set)
+        required: true
+        type: string
+      token:
+        description: per-job token (unused when the repo has the DOCS_JOB_SECRET secret)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# One run per site at a time. The API already serialises builds per site; this is the backstop.
+# (A newer pending run replaces an older pending one; the API re-dispatches whatever is left queued.)
+concurrency:
+  group: docs-site-${{ inputs.site_id }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    # A self-hosted runner on a spare machine (no minutes used): set the repo variable DOCS_RUNNER
+    # to its label (e.g. "self-hosted" or "docs-builder"). Unset: GitHub-hosted ubuntu-latest.
+    runs-on: ${{ vars.DOCS_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    env:
+      ENGINE_REPO: ${{ vars.ENGINE_REPO || 'himanshkukreja/markdrop' }}
+      ENGINE_REF: ${{ vars.ENGINE_REF || 'main' }}
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Start
+        id: start
+        env:
+          JOB_ID: ${{ inputs.job_id }}
+          SITE_ID: ${{ inputs.site_id }}
+          KIND: ${{ inputs.kind }}
+        run: |
+          echo "at=$(date +%s)" >> "$GITHUB_OUTPUT"
+          # Inputs come from our API, but never trust them in a shell: ids are hex, kind is a word.
+          [[ "$JOB_ID" =~ ^[a-f0-9]{24}$ && "$SITE_ID" =~ ^[a-f0-9]{24}$ && "$KIND" =~ ^(build|import)$ ]] || { echo "bad inputs"; exit 1; }
+
+      - name: Check out the engine
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.ENGINE_REPO }}
+          ref: ${{ env.ENGINE_REF }}
+          path: engine
+          fetch-depth: 1
+          sparse-checkout: |
+            frontend
+            docs-platform
+
+      - name: Engine version
+        id: engine
+        run: echo "sha=$(git -C engine rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # node_modules themselves (not the npm cache): a hit skips npm ci entirely (~1 min saved).
+      - name: Restore node_modules
+        id: nm
+        uses: actions/cache@v4
+        with:
+          path: |
+            engine/frontend/node_modules
+            engine/docs-platform/node_modules
+          key: nm-${{ runner.os }}-${{ runner.arch }}-node22-${{ hashFiles('engine/frontend/package-lock.json', 'engine/docs-platform/package-lock.json') }}
+
+      - name: Install (cache miss only)
+        if: steps.nm.outputs.cache-hit != 'true'
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          npm ci --prefix engine/frontend --no-audit --no-fund --loglevel=error
+          npm ci --prefix engine/docs-platform --no-audit --no-fund --loglevel=error
+
+      # The builder's work folder: the staged engine and Next's .next/cache (webpack). Keyed by
+      # engine commit and site, falling back to the same engine (any site), then any engine: a warm
+      # cache turns a ~35 s cold render into ~20 s and keeps unchanged pages byte-identical.
+      - name: Restore the build cache
+        if: inputs.kind == 'build'
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.docs-work/engine
+          key: docs-work-${{ runner.os }}-${{ steps.engine.outputs.sha }}-${{ inputs.site_id }}-${{ github.run_id }}
+          restore-keys: |
+            docs-work-${{ runner.os }}-${{ steps.engine.outputs.sha }}-${{ inputs.site_id }}-
+            docs-work-${{ runner.os }}-${{ steps.engine.outputs.sha }}-
+            docs-work-${{ runner.os }}-
+
+      # GitBook imports turn animated GIFs into MP4 clips with ffmpeg (most runner images lack it).
+      - name: ffmpeg
+        if: inputs.kind == 'import'
+        run: command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null)
+
+      - name: Run the job
+        working-directory: engine/docs-platform
+        env:
+          JOB_ID: ${{ inputs.job_id }}
+          API_BASE: ${{ vars.DOCS_API_BASE || inputs.api_base }}
+          MARKDROP_DOCS_JOB_TOKEN: ${{ inputs.token }}
+          MARKDROP_DOCS_JOB_SECRET: ${{ secrets.DOCS_JOB_SECRET }}
+          MARKDROP_DOCS_JOB_STARTED_AT: ${{ steps.start.outputs.at }}
+          MARKDROP_DOCS_R2_BUCKET: ${{ vars.DOCS_R2_BUCKET || 'markdrop-docs-sites' }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          MARKDROP_DOCS_WORK_DIR: ${{ github.workspace }}/.docs-work
+          MARKDROP_DOCS_BUILD_CPUS: ${{ vars.DOCS_BUILD_CPUS }}
+        run: |
+          # With the shared secret the runner mints its own token and the input is not needed.
+          if [ -n "$MARKDROP_DOCS_JOB_SECRET" ]; then unset MARKDROP_DOCS_JOB_TOKEN; fi
+          set +e
+          node runner/run-job.mjs --job "$JOB_ID" --api "$API_BASE" --runner "gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          code=$?
+          # 3: the job wasn't ours to run (another run has it, it finished, or the site is busy).
+          if [ "$code" -eq 3 ]; then echo "nothing to do"; exit 0; fi
+          exit "$code"
