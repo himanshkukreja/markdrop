@@ -245,6 +245,14 @@ async def connect() -> None:
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] AI usage indexes skipped: {exc}")
 
+    # Hosted docs sites (services/docs_site_store.py): every docs_* collection.
+    try:
+        from app.services import docs_site_store as _docs_site_store
+
+        await _docs_site_store.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] docs site indexes skipped: {exc}")
+
     # Folders created before slugs existed have none, and fall back to their
     # ObjectId in URLs. Idempotent and a no-op once done, so it runs on every
     # start rather than needing anyone to remember a migration step. Never fatal:

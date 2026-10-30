@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -409,6 +410,35 @@ class Settings(BaseSettings):
     docs_sites: str = ""
     # Site indexes kept in memory at once (least recently used goes first).
     docs_sites_cache_size: int = 8
+
+    # ── Docs sites (routers/docs_sites.py, services/docs_site_*.py) ──────────
+    # Hosted docs sites live at <slug>.<docs_sites_domain>.
+    docs_sites_domain: str = "docs.markdrop.in"
+    # The docs hosting Cloudflare account is separate from the artifacts one,
+    # so its R2 credentials are too. Each also reads the plain names the build
+    # worker and docs-platform/.env use (CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, …).
+    docs_r2_bucket: str = Field("", validation_alias=AliasChoices("MARKDROP_DOCS_R2_BUCKET"))
+    docs_r2_account_id: str = Field(
+        "", validation_alias=AliasChoices("MARKDROP_DOCS_R2_ACCOUNT_ID", "CF_ACCOUNT_ID"))
+    docs_r2_access_key_id: str = Field(
+        "", validation_alias=AliasChoices("MARKDROP_DOCS_R2_ACCESS_KEY_ID", "R2_ACCESS_KEY_ID"))
+    docs_r2_secret_access_key: str = Field(
+        "", validation_alias=AliasChoices("MARKDROP_DOCS_R2_SECRET_ACCESS_KEY", "R2_SECRET_ACCESS_KEY"))
+    # Free plan (there is no paid plan yet). Per workspace, or per person for
+    # personal sites.
+    docs_sites_per_workspace: int = 3
+    docs_pages_per_site: int = 1000
+    docs_builds_per_day: int = 30          # server builds per site per UTC day
+    docs_asset_max_bytes: int = 25 * 1024 * 1024
+    docs_site_storage_bytes: int = 2 * 1024 * 1024 * 1024
+    docs_ai_answers_per_month: int = 1000  # Ask AI answers per site per month
+    # One page's Markdown. A publish snapshot is one MongoDB document (16 MB).
+    docs_page_max_chars: int = 300_000
+
+    @property
+    def docs_r2_configured(self) -> bool:
+        return bool(self.docs_r2_bucket and self.docs_r2_account_id
+                    and self.docs_r2_access_key_id and self.docs_r2_secret_access_key)
 
     # Analytics geo-IP (Phase 4) — MaxMind GeoLite2 City DB
     geoip_db_path: str = ""  # e.g. /opt/markdrop/geoip/GeoLite2-City.mmdb
