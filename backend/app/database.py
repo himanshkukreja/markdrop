@@ -130,18 +130,11 @@ async def connect() -> None:
     # Reading sessions update one row in place (analytics.record_read).
     await db["events"].create_index([("rid", 1), ("doc_id", 1)], sparse=True)
 
-    # First-party site analytics (services/traffic.py). Raw rows are kept 13
-    # months — long enough for year-over-year — then Mongo drops them itself.
-    # Visitors carry no TTL: one small row each, and retention needs them.
-    year = 400 * 24 * 3600
-    await db["traffic_pageviews"].create_index("ts", expireAfterSeconds=year)
-    await db["traffic_pageviews"].create_index([("vid", 1), ("ts", 1)])
-    await db["traffic_pageviews"].create_index([("path", 1), ("ts", 1)])
-    await db["traffic_events"].create_index("ts", expireAfterSeconds=year)
-    await db["traffic_events"].create_index([("name", 1), ("ts", 1)])
-    await db["traffic_sessions"].create_index("started_at", expireAfterSeconds=year)
-    await db["traffic_sessions"].create_index("last_seen")
-    await db["traffic_visitors"].create_index("first_seen")
+    # First-party site analytics (services/traffic.py): every collection is
+    # kept about 13 months, then Mongo drops it itself.
+    from app.services import traffic as _traffic
+
+    await _traffic.ensure_indexes(db)
 
     # Email campaigns + opt-out lookups for building an audience
     await db["campaigns"].create_index([("created_at", -1)])

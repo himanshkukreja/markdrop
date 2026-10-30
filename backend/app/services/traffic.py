@@ -41,6 +41,25 @@ from app.services.analytics import clean_referrer
 
 settings = get_settings()
 
+# How long raw rows live: 13 months and a bit, long enough for year-over-year.
+RETENTION_SECONDS = 400 * 24 * 3600
+
+
+async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
+    """Indexes, and the TTLs that keep the privacy page's "about 13 months"
+    true. A visitor row (a random id, first and last seen, first channel, an
+    account id once signed in) goes 400 days after it was last seen: the
+    same window as its sessions."""
+    await db["traffic_pageviews"].create_index("ts", expireAfterSeconds=RETENTION_SECONDS)
+    await db["traffic_pageviews"].create_index([("vid", 1), ("ts", 1)])
+    await db["traffic_pageviews"].create_index([("path", 1), ("ts", 1)])
+    await db["traffic_events"].create_index("ts", expireAfterSeconds=RETENTION_SECONDS)
+    await db["traffic_events"].create_index([("name", 1), ("ts", 1)])
+    await db["traffic_sessions"].create_index("started_at", expireAfterSeconds=RETENTION_SECONDS)
+    await db["traffic_sessions"].create_index("last_seen")
+    await db["traffic_visitors"].create_index("first_seen")
+    await db["traffic_visitors"].create_index("last_seen", expireAfterSeconds=RETENTION_SECONDS)
+
 # Every real top-level route. Anything else with a single segment is a
 # document slug. Mirror of frontend/src/lib/analyticsPath.ts — keep in step.
 APP_ROUTES = {

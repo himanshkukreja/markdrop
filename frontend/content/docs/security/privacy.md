@@ -31,7 +31,7 @@ Reading and watching sessions are deleted after 395 days. [What gets counted](/a
 
 Markdrop uses three kinds of analytics to understand how the product is used and what to fix:
 
-- **Its own analytics**: page views, time on page, where visits come from, and product events such as "published". No cookies: a random id in your browser's storage. Your IP address is used once to look up your country and city and isn't stored. Kept for about 13 months.
+- **Its own analytics**: page views, time on page, where visits come from, and product events such as "published". No cookies: a random id in your browser's storage. Your IP address is used once to look up your country and city and isn't stored. Each visit is kept for about 13 months. The record of the random id itself goes about 13 months after its last visit.
 - **PostHog**: product analytics and session recordings. When you sign in, your visits are linked to your account's email.
 - **Google Analytics**: aggregate traffic reports.
 
