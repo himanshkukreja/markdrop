@@ -51,16 +51,17 @@
     {
       "id": "workspace-header-and-publish-fixes",
       "date": "2026-10-30",
-      "title": "Workspace header and password publishing fixes",
+      "title": "Workspace header, account menu and title fixes",
       "kind": "fixed",
       "area": "Workspaces",
       "products": [
         "web"
       ],
-      "summary": "Pages on a workspace's own domain show its logo and name together, and publishing a password-protected document opens its Published panel again.",
-      "body": "- On a workspace's own domain, the top bar shows the workspace logo next to its name, lined up with the rest of the page. A wide logo that already contains the name is shown on its own.\n- Publishing a password-protected document while signed in could leave the page loading forever. It now opens the Published panel with your links.\n- Parts of a document's page that load when you first use them, like the share dialog, no longer flash the full-page loader.",
+      "summary": "Pages on a workspace's own domain show its logo and name together, account menus open over the document bar, and a document that starts with its own title no longer shows it twice.",
+      "body": "- On a workspace's own domain, the top bar shows the workspace logo next to its name, lined up with the rest of the page. A wide logo that already contains the name is shown on its own.\n- The account menu in the top bar opened behind the document's toolbar. It now opens on top, on markdrop.in and on workspace domains.\n- A document whose Markdown starts with its own main heading shows only that heading, even when it differs from the document's title. The title still names the page in the top bar, the browser tab and link previews.\n- Publishing a password-protected document while signed in could leave the page loading forever. It now opens the Published panel with your links.\n- Parts of a document's page that load when you first use them, like the share dialog, no longer flash the full-page loader.",
       "docs": [
         "/workspaces/branding",
+        "/documents/writing",
         "/documents/passwords-and-expiry"
       ]
     },

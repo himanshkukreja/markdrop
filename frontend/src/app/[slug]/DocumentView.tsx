@@ -41,20 +41,39 @@ const ReportDialog = dynamic(() => import("./doc/ReportDialog").then((m) => m.Re
 const SaveCopyDialog = dynamic(() => import("./doc/SaveCopyDialog").then((m) => m.SaveCopyDialog), { loading: () => null });
 
 /**
- * Does the document already open with a heading that says what the title says?
+ * Does the document already open with its own title?
  *
  * Full screen hides the chrome, so the stored title has to be drawn into the
  * reading column or a document whose markdown starts with prose loses it
- * entirely. But most documents *do* lead with their own H1, and printing ours
- * above it just says the same thing twice in two different sizes.
+ * entirely. But most documents lead with their own heading, and printing ours
+ * above it says the same thing twice in two sizes. A leading H1 is the author's
+ * title whatever it says; a leading H2 or H3 counts only when it matches ours
+ * (ignoring emphasis, code marks and link syntax).
  */
 function opensWithOwnTitle(content: string, title: string | null): boolean {
   if (!title) return true;
-  const firstLine = content.split("\n").find((l) => l.trim());
-  const heading = firstLine?.match(/^\s{0,3}#{1,3}\s+(.+?)\s*#*\s*$/)?.[1];
-  if (!heading) return false;
-  const norm = (v: string) => v.trim().replace(/\s+/g, " ").toLowerCase();
-  return norm(heading) === norm(title);
+  const lines = content.replace(/^\uFEFF/, "").split("\n");
+  const i = lines.findIndex((l) => l.trim());
+  if (i < 0) return false;
+  const first = lines[i] ?? "";
+  let depth = 0, text = "";
+  const atx = first.match(/^\s{0,3}(#{1,3})\s+(.+?)\s*#*\s*$/);
+  // An underlined (setext) heading: a plain line, then === (H1) or --- (H2). Not a list, quote, table or fence.
+  const plain = !/^\s{0,3}([-*+>|#]|\d+[.)]|```|~~~)/.test(first);
+  if (atx) [depth, text] = [atx[1].length, atx[2]];
+  else if (plain && /^\s{0,3}=+\s*$/.test(lines[i + 1] ?? "")) [depth, text] = [1, first];
+  else if (plain && /^\s{0,3}-+\s*$/.test(lines[i + 1] ?? "")) [depth, text] = [2, first];
+  if (!depth) return false;
+  if (depth === 1) return true;
+  const norm = (v: string) =>
+    v
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/<[^>]+>/g, "")
+      .replace(/[*_`~]/g, "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+  return norm(text) === norm(title);
 }
 
 /**

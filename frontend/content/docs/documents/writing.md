@@ -75,7 +75,7 @@ A document can be up to 500,000 characters. The meter above the editor shows how
 
 ## Titles
 
-The **Title** field is optional. Without one, Markdrop uses the document's first `#` heading, or else its first line, cut to 120 characters. The title shows in the browser tab, in **My files** and in link previews.
+The **Title** field is optional. Without one, Markdrop uses the document's first `#` heading, or else its first line, cut to 120 characters. The title shows in the browser tab, in **My files** and in link previews. Readers also see it above the document, unless the document starts with its own `#` heading: then only that heading shows.
 
 ## Edit after publishing
 

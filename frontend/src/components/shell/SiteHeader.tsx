@@ -98,7 +98,8 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
   return (
     <header
       className={cx(
-        "no-print sticky top-0 z-(--z-sticky) w-full shrink-0 border-b",
+        // A layer above the sticky document bar under it, so this header's menus open over the bar.
+        "no-print sticky top-0 z-[calc(var(--z-sticky)+1)] w-full shrink-0 border-b",
         marketing
           ? cx(
               "h-14 transition-[background-color,border-color,backdrop-filter] duration-(--duration-fast) ease-(--ease-out)",
