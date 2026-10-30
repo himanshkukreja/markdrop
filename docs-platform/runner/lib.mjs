@@ -9,7 +9,8 @@
  * The spec is built by the backend (services/docs_snapshot.py): the content folder as a map of
  * files (site.json, pages with frontmatter, redirects.json), the site id and its hostnames. A site's
  * own files (images, clips, downloads) live in the docs R2 bucket under sites/<site>/assets/<rel>
- * and are served at /docs-assets/<site>/<rel>; the runner fetches the ones the content refers to.
+ * and are served at /docs-assets/<rel> (an upload: <sha256>.<ext>; an import: import/<page>/<name>);
+ * the runner fetches the ones the content refers to into <content>/public/docs-assets/<rel>.
  *
  * Nothing here prints page content: logs carry counts, sizes and timings only.
  */
@@ -23,6 +24,10 @@ import { fileURLToPath } from "node:url";
 import { build } from "../builder/build.mjs";
 import { FsStore, S3Store, publish } from "../builder/store.mjs";
 import { writeMediaManifest } from "../builder/media.mjs";
+import { mimeOf } from "../builder/mime.mjs";
+
+/** The importer's asset folder name (its --id): files land at /docs-assets/import/<page>/<name>. */
+export const IMPORT_ASSET_ID = "import";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "..", "..");
@@ -100,7 +105,7 @@ const baseOf = (u) => u.replace(/\.[a-z0-9]+$/i, "");
  */
 export function referencedAssets(objects, siteId, text) {
   const prefix = `sites/${siteId}/assets/`;
-  const urlBase = `/docs-assets/${siteId}/`;
+  const urlBase = "/docs-assets/";
   return objects.filter((o) => {
     if (!o.key.startsWith(prefix)) return false;
     const rel = safeRel(o.key.slice(prefix.length));
@@ -123,7 +128,7 @@ async function pool(items, n, fn) {
 }
 
 /**
- * Fetch the referenced files into `<content>/public/docs-assets/<site>/<rel>`. A local cache
+ * Fetch the referenced files into `<content>/public/docs-assets/<rel>`. A local cache
  * (keyed by key + ETag) means a warm build machine downloads only what changed; files are
  * hard-linked from it (copied across filesystems), so their mtime, part of the build's change
  * key, stays stable between builds.
@@ -147,7 +152,7 @@ export async function fetchAssets({ store, siteId, contentDir, text, cacheDir, p
       fs.renameSync(tmp, cached);
       fetched++;
     }
-    const out = path.join(contentDir, "public", "docs-assets", siteId, ...rel.split("/"));
+    const out = path.join(contentDir, "public", "docs-assets", ...rel.split("/"));
     fs.mkdirSync(path.dirname(out), { recursive: true });
     try {
       fs.linkSync(cached, out);
@@ -339,9 +344,13 @@ export function readImportFolder(dir, { parseYaml }) {
   };
 }
 
-/** Upload `<dir>/public/docs-assets/<site>/**` to sites/<site>/assets/** (skipping files the store has with the same bytes). */
+/**
+ * Upload `<dir>/public/docs-assets/**` to sites/<site>/assets/** (skipping files the store has with
+ * the same bytes). Returns counts plus one item per file (rel, size, sha256, content type) for the
+ * API's asset rows.
+ */
 export async function uploadImportAssets({ store, siteId, dir, progress = () => {}, concurrency = 8 }) {
-  const root = path.join(dir, "public", "docs-assets", siteId);
+  const root = path.join(dir, "public", "docs-assets");
   const files = [];
   const walk = (d, rel = "") => {
     for (const e of fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }) : []) {
@@ -357,11 +366,13 @@ export async function uploadImportAssets({ store, siteId, dir, progress = () => 
   let uploadedBytes = 0;
   let bytes = 0;
   let done = 0;
+  const items = [];
   await pool(files, concurrency, async (rel) => {
     const body = fs.readFileSync(path.join(root, ...rel.split("/")));
     const key = `sites/${siteId}/assets/${rel}`;
     bytes += body.length;
     const md5 = crypto.createHash("md5").update(body).digest("hex");
+    items.push({ rel, size: body.length, sha256: crypto.createHash("sha256").update(body).digest("hex"), content_type: mimeOf(rel) });
     const cur = have.get(key);
     if (!cur || cur.size !== body.length || cur.etag !== md5) {
       await store.put(key, body);
@@ -371,7 +382,8 @@ export async function uploadImportAssets({ store, siteId, dir, progress = () => 
     done++;
     if (done % 25 === 0 || done === files.length) progress({ step: "upload", done, total: files.length, message: `${done} of ${files.length} files` });
   });
-  return { files: files.length, bytes, uploaded, uploaded_bytes: uploadedBytes };
+  items.sort((a, b) => (a.rel < b.rel ? -1 : 1));
+  return { files: files.length, bytes, uploaded, uploaded_bytes: uploadedBytes, items };
 }
 
 /**
@@ -398,7 +410,7 @@ export async function runImport(spec, { store, cfg, progress = () => {}, log = (
   fs.mkdirSync(out, { recursive: true });
   try {
     progress({ step: "fetch", done: 0, total: 3, message: "Reading the GitBook site" });
-    const args = [path.join(cfg.engineDir, "scripts", "docs-import", "gitbook.mjs"), url.href, "--out", out, "--id", siteId];
+    const args = [path.join(cfg.engineDir, "scripts", "docs-import", "gitbook.mjs"), url.href, "--out", out, "--id", IMPORT_ASSET_ID];
     if (cfg.importCache) args.push("--cache", path.join(cfg.importCache, url.hostname));
     if (cfg.keepGifs || imp.keep_gifs) args.push("--keep-gifs");
     let total = 0;

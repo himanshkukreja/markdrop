@@ -37,15 +37,8 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-JOBS = "docs_jobs"
-BUILDS = "docs_builds"
-SITES = "docs_sites"
-SNAPSHOTS = "docs_snapshots"
-PAGES = "docs_pages"
-VERSIONS = "docs_page_versions"
-EVENTS = "docs_site_events"
-
-KINDS = ("build", "import", "restore")
+from app.services.docs_site_jobs import KINDS  # noqa: E402  (build, import, restore, unpublish)
+from app.services.docs_site_store import ASSETS, BUILDS, JOBS, PAGES, SITES, SNAPSHOTS, VERSIONS  # noqa: E402,F401
 
 
 class DocsJobsSettings(BaseSettings):
@@ -65,11 +58,11 @@ class DocsJobsSettings(BaseSettings):
     # long) is failed by the sweeper.
     docs_job_running_timeout_minutes: int = 25
     docs_job_queued_timeout_minutes: int = 180
-    docs_builds_per_day: int = 30
 
-    # Where sites are served and what their pages call for Ask AI.
-    docs_site_host_template: str = "{slug}.docs.markdrop.in"
-    docs_ai_api: str = ""  # blank: api_base_url
+    # Where sites are served (blank: "{slug}.<docs_sites_domain>"; a fixed host for a preview
+    # Worker) and what their pages call for Ask AI (blank: api_base_url).
+    docs_site_host_template: str = ""
+    docs_ai_api: str = ""
 
     # Routing (services/docs_dispatch.py).
     docs_build_targets: str = "actions,local"
@@ -88,21 +81,12 @@ class DocsJobsSettings(BaseSettings):
     docs_local_build_max_mb: int = 768
     docs_local_min_free_mb: int = 1200
     docs_local_build_timeout_seconds: int = 900
-
-    # The docs Cloudflare account's R2 (restores flip the pointer from here;
-    # the local worker passes the same keys to the Node runner).
-    docs_r2_account_id: str = ""
-    docs_r2_access_key_id: str = ""
-    docs_r2_secret_access_key: str = ""
-    docs_r2_bucket: str = "markdrop-docs-sites"
+    # The docs bucket's keys are the app's (config.py docs_r2_*: MARKDROP_DOCS_R2_* or CF_ACCOUNT_ID /
+    # R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY + MARKDROP_DOCS_R2_BUCKET).
 
     @property
     def targets(self) -> list[str]:
         return [t.strip() for t in self.docs_build_targets.split(",") if t.strip() in ("actions", "local")]
-
-    @property
-    def r2_configured(self) -> bool:
-        return bool(self.docs_r2_account_id and self.docs_r2_access_key_id and self.docs_r2_secret_access_key and self.docs_r2_bucket)
 
     @property
     def actions_configured(self) -> bool:
@@ -166,26 +150,13 @@ def verify_job_token(job_id: str, token: str | None, *, secret: str | None = Non
 
 
 async def insert_job(db: AsyncIOMotorDatabase, kind: str, site_id: Any, payload: dict, *, target: str | None = None) -> dict:
-    if kind not in KINDS:
-        raise ValueError(f"unknown job kind {kind}")
-    t = now()
-    job = {
-        "kind": kind,
-        "site_id": oid(site_id),
-        "payload": payload,
-        "status": "queued",
-        "attempts": 0,
-        "locked_by": None,
-        "locked_until": None,
-        "progress": None,
-        "result": None,
-        "error": None,
-        "target": target,
-        "created_at": t,
-        "updated_at": t,
-    }
-    res = await db[JOBS].insert_one(job)
-    job["_id"] = res.inserted_id
+    """A job row (through docs_site_jobs.enqueue_job, so builds coalesce), optionally pre-routed."""
+    from app.services.docs_site_jobs import enqueue_job
+
+    job = await enqueue_job(db, kind, site_id, payload)
+    if target is not None:
+        await db[JOBS].update_one({"_id": job["_id"]}, {"$set": {"target": target, "routed_at": now()}})
+        job["target"] = target
     return job
 
 
@@ -370,18 +341,15 @@ async def exhausted_jobs(db: AsyncIOMotorDatabase) -> list[dict]:
     return [r async for r in rows]
 
 
-async def emit(db: AsyncIOMotorDatabase, kind: str, site_id: Any, user_id: Any = None, **meta: Any) -> None:
-    """A docs-sites usage event (docs_site_published / docs_site_imported / docs_site_restored) for
-    the admin's feature tracking. Best effort: never fails the caller."""
-    try:
-        await db[EVENTS].insert_one({"type": kind, "site_id": oid(site_id), "user_id": str(user_id) if user_id else None,
-                                     "ts": now(), "meta": meta})
-    except Exception:  # pragma: no cover
-        pass
+async def log_event(db: AsyncIOMotorDatabase, kind: str, site_id: Any, user_id: Any = None, **meta: Any) -> None:
+    """A docs_events row (docs_build_live, docs_build_failed, docs_import_finished, docs_restored,
+    docs_unpublished) through the API's event log. Never fails the caller."""
+    from app.services import docs_site_store
+
+    site = await db[SITES].find_one({"_id": oid(site_id)}, {"workspace_id": 1})
+    await docs_site_store.log_event(db, kind, site, str(user_id) if user_id else None, **meta)
 
 
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
-    """The queue's own indexes (the API agent may define the same; create_index is idempotent)."""
+    """The routing index (the API's docs_site_store.ensure_indexes makes the rest)."""
     await db[JOBS].create_index([("status", 1), ("target", 1), ("created_at", 1)])
-    await db[JOBS].create_index([("site_id", 1), ("kind", 1), ("status", 1)])
-    await db[BUILDS].create_index([("site_id", 1), ("number", -1)])

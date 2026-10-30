@@ -36,7 +36,7 @@ test("a build fetches the files the content refers to, with dark variants and cl
   const p = "sites/s1/assets/";
   const objects = ["a.png", "a.dark.png", "unused.png", "clip.mp4", "clip.webm", "clip.webp", "clip.dark.mp4", "g/b.jpg", "../x.png"].map((k) => ({ key: p + k, size: 1, etag: "e" }));
   objects.push({ key: "sites/s2/assets/a.png", size: 1, etag: "e" });
-  const text = 'see ![a](/docs-assets/s1/a.png) and ::clip{src="/docs-assets/s1/clip"} and /docs-assets/s1/g/b.jpg';
+  const text = 'see ![a](/docs-assets/a.png) and ::clip{src="/docs-assets/clip"} and /docs-assets/g/b.jpg';
   assert.deepEqual(referencedAssets(objects, "s1", text).map((o) => o.key.slice(p.length)).sort(), ["a.dark.png", "a.png", "clip.dark.mp4", "clip.mp4", "clip.webm", "clip.webp", "g/b.jpg"]);
 });
 
@@ -47,15 +47,15 @@ test("fetchAssets: downloads once into the cache, links into the content folder"
   await store.put("sites/s1/assets/sub/b.png", "PNG-B");
   await store.put("sites/s1/assets/unused.png", "U");
   const cache = tmp("cache-");
-  const text = "/docs-assets/s1/a.png /docs-assets/s1/sub/b.png";
+  const text = "/docs-assets/a.png /docs-assets/sub/b.png";
   for (const expectFetched of [2, 0]) {
     const content = tmp("content-");
     const res = await fetchAssets({ store, siteId: "s1", contentDir: content, text, cacheDir: cache });
     assert.equal(res.used, 2);
     assert.equal(res.listed, 3);
     assert.equal(res.fetched, expectFetched);
-    assert.equal(fs.readFileSync(path.join(content, "public/docs-assets/s1/sub/b.png"), "utf8"), "PNG-B");
-    assert.ok(!fs.existsSync(path.join(content, "public/docs-assets/s1/unused.png")));
+    assert.equal(fs.readFileSync(path.join(content, "public/docs-assets/sub/b.png"), "utf8"), "PNG-B");
+    assert.ok(!fs.existsSync(path.join(content, "public/docs-assets/unused.png")));
     fs.rmSync(content, { recursive: true, force: true });
   }
   // Same key, new bytes (a re-import): a new ETag, so a new download.
@@ -63,7 +63,7 @@ test("fetchAssets: downloads once into the cache, links into the content folder"
   const content = tmp("content-");
   const res = await fetchAssets({ store, siteId: "s1", contentDir: content, text, cacheDir: cache });
   assert.equal(res.fetched, 1);
-  assert.equal(fs.readFileSync(path.join(content, "public/docs-assets/s1/a.png"), "utf8"), "PNG-A2");
+  assert.equal(fs.readFileSync(path.join(content, "public/docs-assets/a.png"), "utf8"), "PNG-A2");
   for (const d of [root, cache, content]) fs.rmSync(d, { recursive: true, force: true });
 });
 
@@ -108,13 +108,17 @@ test("import upload: only files the bucket doesn't already have with the same by
   const dir = tmp("import-");
   const root = tmp("store-");
   const store = new FsStore(root);
-  fs.mkdirSync(path.join(dir, "public/docs-assets/s1/g"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "public/docs-assets/s1/g/a.png"), "A");
-  fs.writeFileSync(path.join(dir, "public/docs-assets/s1/b.png"), "B");
-  await store.put("sites/s1/assets/b.png", "B");
+  fs.mkdirSync(path.join(dir, "public/docs-assets/import/g"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "public/docs-assets/import/g/a.png"), "A");
+  fs.writeFileSync(path.join(dir, "public/docs-assets/import/b.png"), "B");
+  await store.put("sites/s1/assets/import/b.png", "B");
   const res = await uploadImportAssets({ store, siteId: "s1", dir });
-  assert.deepEqual(res, { files: 2, bytes: 2, uploaded: 1, uploaded_bytes: 1 });
-  assert.equal(await store.getText("sites/s1/assets/g/a.png"), "A");
+  const sha = (s) => crypto.createHash("sha256").update(s).digest("hex");
+  assert.deepEqual(res, { files: 2, bytes: 2, uploaded: 1, uploaded_bytes: 1, items: [
+    { rel: "import/b.png", size: 1, sha256: sha("B"), content_type: "image/png" },
+    { rel: "import/g/a.png", size: 1, sha256: sha("A"), content_type: "image/png" },
+  ] });
+  assert.equal(await store.getText("sites/s1/assets/import/g/a.png"), "A");
   assert.equal((await uploadImportAssets({ store, siteId: "s1", dir })).uploaded, 0);
   for (const d of [dir, root]) fs.rmSync(d, { recursive: true, force: true });
 });

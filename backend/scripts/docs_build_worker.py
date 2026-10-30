@@ -1,4 +1,4 @@
-"""Markdrop Docs local worker: runs the docs jobs routed to "local" (builds, imports, restores).
+"""Markdrop Docs local worker: runs the docs jobs routed to "local" (builds, imports, restores, unpublishes).
 
 GitHub Actions runs most builds (services/docs_dispatch.py). This worker runs
 what the dispatcher sends to the server (restores, small imports, builds when
@@ -12,12 +12,12 @@ uses (docs-platform/runner/run-job.mjs), fed a spec file instead of the API.
 
 Config is the environment only (MARKDROP_ prefix, plus backend/.env on the
 server like the API): MONGODB_URI / MONGODB_DB, DOCS_R2_* (the docs Cloudflare
-account's bucket keys), DOCS_BUILD_TARGETS, DOCS_LOCAL_BUILD_MAX_MB,
+account's bucket keys, config.py), DOCS_BUILD_TARGETS, DOCS_LOCAL_BUILD_MAX_MB,
 DOCS_LOCAL_MIN_FREE_MB, DOCS_LOCAL_BUILD_TIMEOUT_SECONDS (services/docs_jobs.py),
 and for this process:
 
     MARKDROP_DOCS_WORKER_CONCURRENCY   jobs at once (default 1; builds are 1 at a time regardless)
-    MARKDROP_DOCS_WORKER_KINDS         build,import,restore
+    MARKDROP_DOCS_WORKER_KINDS         build,import,restore,unpublish
     MARKDROP_DOCS_WORKER_POLL_SECONDS  5
     MARKDROP_DOCS_WORKER_GRACE_SECONDS 120 (on SIGTERM: let running jobs finish this long, then hand them back)
     MARKDROP_DOCS_WORKER_DISPATCH      1 = also run the dispatcher pass (routing + sweeper; a lease, so
@@ -69,7 +69,7 @@ def log(event: str, level: str = "info", **kw) -> None:
 class Config:
     def __init__(self, env=os.environ):
         self.concurrency = max(1, int(env.get("MARKDROP_DOCS_WORKER_CONCURRENCY", "1")))
-        self.kinds = tuple(k for k in env.get("MARKDROP_DOCS_WORKER_KINDS", "build,import,restore").split(",") if k in docs_jobs.KINDS)
+        self.kinds = tuple(k for k in env.get("MARKDROP_DOCS_WORKER_KINDS", "build,import,restore,unpublish").split(",") if k in docs_jobs.KINDS)
         self.poll = float(env.get("MARKDROP_DOCS_WORKER_POLL_SECONDS", "5"))
         self.grace = float(env.get("MARKDROP_DOCS_WORKER_GRACE_SECONDS", "120"))
         self.dispatch = env.get("MARKDROP_DOCS_WORKER_DISPATCH", "1") == "1"
@@ -170,6 +170,7 @@ class Worker:
 
     def runner_env(self, slot: int, heavy: bool) -> dict:
         s = get_jobs_settings()
+        app_s = get_settings()
         env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG", "TMPDIR", "SYSTEMROOT") if k in os.environ}
         env.update({
             "MARKDROP_DOCS_WORK_DIR": str(self.cfg.work / f"slot-{slot}"),
@@ -180,8 +181,8 @@ class Worker:
         })
         env.update(self.cfg.passthrough)
         if "MARKDROP_DOCS_STORE_DIR" not in env:
-            env.update({"MARKDROP_DOCS_R2_BUCKET": s.docs_r2_bucket, "CF_ACCOUNT_ID": s.docs_r2_account_id,
-                        "R2_ACCESS_KEY_ID": s.docs_r2_access_key_id, "R2_SECRET_ACCESS_KEY": s.docs_r2_secret_access_key})
+            env.update({"MARKDROP_DOCS_R2_BUCKET": app_s.docs_r2_bucket, "CF_ACCOUNT_ID": app_s.docs_r2_account_id,
+                        "R2_ACCESS_KEY_ID": app_s.docs_r2_access_key_id, "R2_SECRET_ACCESS_KEY": app_s.docs_r2_secret_access_key})
         if heavy and s.docs_local_build_max_mb:
             env["NODE_OPTIONS"] = f"--max-old-space-size={int(s.docs_local_build_max_mb)}"
         # One Next render worker: every worker is a Node process of its own (11 on an 11-core
@@ -284,11 +285,9 @@ class Worker:
         log("job_start", job=job["_id"], site=job["site_id"], kind=job["kind"], attempt=job.get("attempts"), slot=run.slot)
         ok = False
         try:
-            if job["kind"] == "restore":
-                p = job.get("payload") or {}
-                res = await docs_build.restore_build(db, job["site_id"], p.get("build_id"), p.get("by"))
-                await docs_jobs.complete(db, job["_id"], self.id, {"ok": True, **res})
-                ok = True
+            if job["kind"] in ("restore", "unpublish"):
+                res = await docs_build.run_server_job(db, job, self.id)
+                ok = bool(res.get("ok"))
             elif job["kind"] == "build":
                 try:
                     build = await docs_build.start_build(db, job)
@@ -317,8 +316,6 @@ class Worker:
                                                                                   **(result.get("timings") or {})})
                 else:
                     await docs_jobs.fail(db, job["_id"], self.id, str(result.get("error") or "the import failed"))
-        except docs_build.RestoreError as e:
-            await docs_jobs.fail(db, job["_id"], self.id, str(e))
         except Exception as e:  # never leave a claimed job hanging
             log("job_error", level="error", job=job["_id"], error=f"{type(e).__name__}: {e}"[:500])
             if job["kind"] == "build":

@@ -98,7 +98,7 @@ async def get_job(request: Request, job_id: str, runner: str = ""):
         else:
             await docs_jobs.release(db, job["_id"], runner)
             return JSONResponse({"detail": f"{job['kind']} jobs run on the server"}, status_code=409)
-    except (LookupError, PermissionError) as e:
+    except LookupError as e:
         if job["kind"] == "build":
             await docs_build.fail_build_job(db, job, runner, str(e))
         else:

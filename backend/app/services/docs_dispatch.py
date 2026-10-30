@@ -12,7 +12,9 @@ Targets (MARKDROP_DOCS_BUILD_TARGETS, default "actions,local"):
   time, a free-memory floor, nice/ionice, a Node heap cap, a hard timeout).
 
 Routing:
-- restore → local (a pointer flip; the API usually does it inline anyway).
+- restore, unpublish → the server: a pointer flip or a few deletes in R2, run
+  inline by whichever process holds the docs bucket keys (the API, right after
+  the job is queued; else the local worker).
 - import → local when the source is small (its llms.txt lists at most
   MARKDROP_DOCS_LOCAL_IMPORT_MAX_PAGES pages; local imports keep GIFs as GIFs, so
   no ffmpeg runs on the box), else Actions (GIF → clip conversion included).
@@ -31,7 +33,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
+import socket
 from datetime import datetime, timedelta
 from typing import Any, Callable
 
@@ -49,6 +53,9 @@ GITHUB_API = "https://api.github.com"
 EST_MINUTES_IN_FLIGHT = 3  # a dispatched run not finished yet counts this much against the budget
 FALLBACK_RECHECK = timedelta(minutes=2)
 DOWN_FOR = timedelta(minutes=5)
+
+SERVER_KINDS = ("restore", "unpublish")
+HOLDER = f"api:{socket.gethostname()}:{os.getpid()}"
 
 _state: dict[str, Any] = {"down_until": None, "down_reason": None}
 _TASK: list[asyncio.Task] = []
@@ -113,10 +120,12 @@ async def choose_target(db: AsyncIOMotorDatabase, job: dict, *, probe: Callable 
     local = "local" in s.targets
     actions_ok, why = await actions_status(db)
     kind = job["kind"]
-    if kind == "restore":
-        return "local", "restores run on the server"
+    if kind in SERVER_KINDS:
+        return "local", f"{kind} runs on the server"
     if kind == "import":
-        url = ((job.get("payload") or {}).get("source") or {}).get("url") or ""
+        from app.services.docs_import_job import source_of
+
+        url = source_of(job).get("url") or ""
         if local:
             pages = await (probe or probe_import_pages)(url)
             if pages is not None and pages <= s.docs_local_import_max_pages:
@@ -143,6 +152,20 @@ async def route(db: AsyncIOMotorDatabase, job: dict, *, probe: Callable | None =
     if got:
         log.info("docs job %s (%s) → %s: %s", job["_id"], job["kind"], target, reason)
     return target if got else None
+
+
+async def run_server_job_here(db: AsyncIOMotorDatabase, job: dict, holder: str = HOLDER) -> bool:
+    """Run a restore / unpublish in this process when it holds the docs bucket keys."""
+    from app.services import docs_build
+
+    if not docs_build.store_available():
+        return False
+    claimed, _why = await docs_jobs.claim_job(db, job["_id"], holder)
+    if claimed is None:
+        return False
+    res = await docs_build.run_server_job(db, claimed, holder)
+    log.info("docs %s job %s ran inline: %s", job["kind"], job["_id"], "ok" if res.get("ok") else res.get("error"))
+    return True
 
 
 def api_base() -> str:
@@ -210,6 +233,8 @@ async def kick(db: AsyncIOMotorDatabase, job_id: Any = None, *, site_id: Any = N
         if site_id is not None:
             q["site_id"] = oid(site_id)
         async for job in db[JOBS].find(q).sort("created_at", 1).limit(20):
+            if job["kind"] == "import" and job.get("target") is None:
+                continue  # routed by the next pass, which looks at the source's size first
             await _advance(db, job, await docs_jobs.busy_sites(db))
     except Exception:
         log.warning("docs dispatch kick failed", exc_info=True)
@@ -232,6 +257,8 @@ async def _advance(db: AsyncIOMotorDatabase, job: dict, busy: set, *, client: ht
                 await route(db, job, probe=probe)
             return
         await _dispatch_one(db, job, client=client)
+    elif job["target"] == "local" and job["kind"] in SERVER_KINDS:
+        await run_server_job_here(db, job)
     elif job["target"] == "local" and job.get("fallback") and job["kind"] == "build":
         routed = docs_jobs.aware(job.get("routed_at"))
         if routed and now() - routed > FALLBACK_RECHECK and (await actions_status(db))[0]:

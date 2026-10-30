@@ -1,17 +1,26 @@
 """A docs snapshot → the engine's content folder, as data.
 
-A snapshot (``docs_snapshots``) is the exact content one build uses: every
-page's draft at publish time plus the site settings. The engine reads a
-content folder (frontend/content/docs is site #1): ``site.json``, one Markdown
-file per page with frontmatter, ``index.md`` for the home, ``redirects.json``.
-This module writes that folder as a map of relative path → text, the
-``bundle`` a runner writes to disk (docs-platform/runner/lib.mjs writeContent)
-before it builds. One implementation for every runner: the Python worker and
-GitHub Actions get the same bundle.
+A snapshot (``docs_snapshots``, written by services/docs_site_publish.py) is the
+exact content one build uses: every page's draft at publish time, the site's
+name and address, and its settings. The engine reads a content folder
+(frontend/content/docs is site #1): ``site.json``, one Markdown file per page
+with frontmatter, ``index.md`` for the home, ``redirects.json``. This module
+writes that folder as a map of relative path → text, the ``bundle`` a runner
+writes to disk (docs-platform/runner/lib.mjs writeContent) before it builds.
+One implementation for every runner: the Python worker and GitHub Actions get
+the same bundle.
 
 A site's own files (images, clips, downloads) are not in the bundle: they live
 in the docs R2 bucket under ``sites/<site>/assets/<rel>`` and pages refer to
-them as ``/docs-assets/<site>/<rel>``; the runner fetches the ones referred to.
+them as ``/docs-assets/<rel>`` (an upload: ``<sha256>.<ext>``; an import:
+``import/<page>/<name>``); the runner fetches the ones referred to.
+
+Engine settings the dashboard doesn't edit (yet) live beside ``settings`` on the
+site row, in ``engine_extra`` (an import fills it): description, hero, home
+cards, page options, footer, tabs, redirects, videos, extra brand fields
+(logo alt/tile/wordmark, favicon, OG colours) and nav group icons. ``settings``
+stays exactly the API's validated model. Nothing from ``settings.access``
+(the password hash) is ever written.
 """
 
 from __future__ import annotations
@@ -80,13 +89,15 @@ def page_text(page: dict, updated: str) -> str:
     return "\n".join(lines) + body.rstrip() + "\n"
 
 
-def site_host(site: dict) -> str:
-    return get_jobs_settings().docs_site_host_template.format(slug=site.get("slug") or str(site["_id"]), id=str(site["_id"]))
+def host_for(slug: str | None, site_id: Any = None) -> str:
+    """The free address: <slug>.<docs_sites_domain>, or MARKDROP_DOCS_SITE_HOST_TEMPLATE."""
+    tpl = get_jobs_settings().docs_site_host_template or ("{slug}." + get_settings().docs_sites_domain)
+    return tpl.format(slug=slug or str(site_id), id=str(site_id))
 
 
-def site_hosts(site: dict) -> list[str]:
-    """The free address plus every verified own domain."""
-    hosts = [site_host(site)]
+def site_hosts(site: dict, slug: str | None = None) -> list[str]:
+    """The free address (for ``slug``, default the site's) plus every verified own domain."""
+    hosts = [host_for(slug or site.get("slug"), site.get("_id"))]
     for d in site.get("domains") or []:
         host = str((d or {}).get("host") or "").strip().lower()
         if host and (d or {}).get("status") in ("active", "verified", "live") and host not in hosts:
@@ -94,29 +105,28 @@ def site_hosts(site: dict) -> list[str]:
     return hosts
 
 
-def site_url(site: dict) -> str:
-    hosts = site_hosts(site)
+def site_url(site: dict, slug: str | None = None) -> str:
+    hosts = site_hosts(site, slug)
     return "https://" + (hosts[1] if len(hosts) > 1 else hosts[0])
 
 
-def _brand(site: dict, settings: dict) -> dict:
-    theme = settings.get("theme") or {}
-    b = theme.get("brand") or {}
-    out: dict = {"name": site.get("name") or "Docs", "label": "Docs"}
-    has_any = any(b.get(k) for k in ("logo_url", "accent", "colors", "favicon_url"))
-    if b.get("enabled") is False or (b.get("enabled") is None and not has_any):
+def _brand(name: str, settings: dict, extra: dict) -> dict:
+    b = (settings.get("theme") or {}).get("brand") or {}
+    x = extra.get("brand") or {}
+    out: dict = {"name": name or "Docs", "label": "Docs"}
+    if not b.get("enabled"):
         return out
     if b.get("logo_url"):
-        logo: dict = {"light": b["logo_url"], "alt": b.get("logo_alt") or out["name"]}
+        logo: dict = {"light": b["logo_url"], "alt": x.get("logo_alt") or out["name"]}
         if b.get("logo_dark_url"):
             logo["dark"] = b["logo_dark_url"]
-        if b.get("logo_wordmark"):
+        if x.get("logo_wordmark"):
             logo["wordmark"] = True
-        if b.get("logo_tile"):
+        if x.get("logo_tile"):
             logo["tile"] = True
         out["logo"] = logo
-    if b.get("favicon_url") or b.get("logo_url"):
-        out["favicon"] = b.get("favicon_url") or b["logo_url"]
+    if x.get("favicon_url") or b.get("logo_url"):
+        out["favicon"] = x.get("favicon_url") or b["logo_url"]
     colors = [c for c in (b.get("colors") or []) if isinstance(c, str)]
     accent = b.get("accent") or (colors[0] if colors else None)
     if accent:
@@ -125,15 +135,18 @@ def _brand(site: dict, settings: dict) -> dict:
         out["accentDark"] = b["accent_dark"]
     if colors:
         out["colors"] = colors
-    if isinstance(b.get("og"), dict):
-        out["og"] = b["og"]
+    if isinstance(x.get("og"), dict):
+        out["og"] = x["og"]
     return out
 
 
 def _theme(settings: dict) -> dict:
     t = settings.get("theme") or {}
     out: dict = {"preset": t.get("preset") or "clean"}
-    for k in ("fonts", "mode", "corners"):
+    fonts = {k: v for k, v in (t.get("fonts") or {}).items() if v}
+    if fonts:
+        out["fonts"] = fonts
+    for k in ("mode", "corners"):
         if t.get(k):
             out[k] = t[k]
     if t.get("custom_css"):
@@ -141,35 +154,33 @@ def _theme(settings: dict) -> dict:
     return out
 
 
-def site_json(site: dict, settings: dict, nav: list[dict], *, url: str, ai_api: str) -> dict:
-    sid = str(site["_id"])
-    name = site.get("name") or "Docs"
-    home = dict(settings.get("home") or {})
+def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[dict], *, url: str, ai_api: str) -> dict:
+    home = dict(extra.get("home") or {})
     ai = settings.get("ai") or {}
     suggestions = [s for s in (ai.get("suggestions") or []) if isinstance(s, str) and s.strip()][:5]
     if suggestions and not home.get("chips"):
         home["chips"] = suggestions
     out: dict = {
-        "id": sid,
-        "name": name,
-        "description": settings.get("description") or f"Documentation for {name}.",
+        "id": site_id,
+        "name": name or "Docs",
+        "description": extra.get("description") or f"Documentation for {name or 'this product'}.",
         "url": url,
     }
     for k in ("eyebrow", "headline"):
-        if settings.get(k):
-            out[k] = settings[k]
-    out["tabs"] = settings.get("tabs") or []
+        if extra.get(k):
+            out[k] = extra[k]
+    out["tabs"] = extra.get("tabs") or []
     if home:
         out["home"] = home
     out["nav"] = nav
-    out["pages"] = settings.get("pages") or {}
-    out["footer"] = settings.get("footer") or [{"label": "llms.txt", "href": "/llms.txt"}]
-    if settings.get("embed_hosts"):
-        out["embedHosts"] = settings["embed_hosts"]
-    out["brand"] = _brand(site, settings)
+    out["pages"] = extra.get("pages") or {}
+    out["footer"] = extra.get("footer") or [{"label": "llms.txt", "href": "/llms.txt"}]
+    if extra.get("embed_hosts"):
+        out["embedHosts"] = extra["embed_hosts"]
+    out["brand"] = _brand(name, settings, extra)
     out["theme"] = _theme(settings)
     out["ai"] = (
-        {"enabled": True, "api": ai_api, "site": sid, "assistantName": ai.get("name") or "Ask AI"}
+        {"enabled": True, "api": ai_api, "site": site_id, "assistantName": ai.get("name") or "Ask AI"}
         if ai.get("enabled") else {"enabled": False}
     )
     out["seo"] = {"index": bool((settings.get("seo") or {}).get("index", True))}
@@ -177,10 +188,17 @@ def site_json(site: dict, settings: dict, nav: list[dict], *, url: str, ai_api: 
     return out
 
 
-def build_nav(settings: dict, pages: list[dict]) -> list[dict]:
-    """settings.nav ({group, pages: [page id | path]}) → the engine's nav by path. Hidden and
-    unknown pages are left out; visible pages no group lists go into a last "More" group."""
-    by_id = {str(p["id"]): p for p in pages if p.get("id")}
+def _pid(p: dict) -> str | None:
+    v = p.get("page_id") or p.get("id")
+    return str(v) if v else None
+
+
+def build_nav(settings: dict, pages: list[dict], extra: dict | None = None) -> list[dict]:
+    """settings.nav ({group, pages: [page id | path]}) → the engine's nav by path. Hidden pages, the
+    home ("/", the engine's front page) and unknown ids are left out; visible pages no group lists
+    go into a last "More" group. Group icons/tabs come from engine_extra.nav[<group>]."""
+    meta = (extra or {}).get("nav") or {}
+    by_id = {_pid(p): p for p in pages if _pid(p)}
     by_path = {p["path"]: p for p in pages}
     listed: set[str] = set()
     out: list[dict] = []
@@ -194,12 +212,12 @@ def build_nav(settings: dict, pages: list[dict]) -> list[dict]:
             paths.append(p["path"])
         if not paths:
             continue
-        group: dict = {"group": str(g.get("group") or "Pages")}
+        name = str(g.get("group") or "Pages")
+        group: dict = {"group": name}
+        m = meta.get(name) if isinstance(meta.get(name), dict) else {}
         for k in ("icon", "tab"):
-            if g.get(k):
-                group[k] = g[k]
-        if g.get("new"):
-            group["new"] = True
+            if g.get(k) or m.get(k):
+                group[k] = g.get(k) or m.get(k)
         group["pages"] = paths
         out.append(group)
     rest = [p["path"] for p in pages if p["path"] != "/" and not p.get("hidden") and p["path"] not in listed]
@@ -219,6 +237,8 @@ def _date(v: Any) -> str | None:
 def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str) -> tuple[dict[str, str], list[str]]:
     """The content folder for ``snapshot`` as {relative path: text}, plus warnings (pages skipped)."""
     settings = snapshot.get("settings") or site.get("settings") or {}
+    extra = site.get("engine_extra") or {}
+    name = (snapshot.get("site") or {}).get("name") or site.get("name") or "Docs"
     default_updated = _date(snapshot.get("created_at")) or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     warnings: list[str] = []
     pages: list[dict] = []
@@ -237,15 +257,16 @@ def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str) -> tuple
     for p in pages:
         updated = _date(p.get("updated")) or _date(p.get("updated_at")) or default_updated
         files[page_file(p["path"])] = page_text(p, updated)
-    nav = build_nav(settings, pages)
-    files["site.json"] = json.dumps(site_json(site, settings, nav, url=url, ai_api=ai_api), indent=2, ensure_ascii=False) + "\n"
-    redirects = settings.get("redirects")
+    nav = build_nav(settings, pages, extra)
+    files["site.json"] = json.dumps(site_json(str(site["_id"]), name, settings, extra, nav, url=url, ai_api=ai_api),
+                                    indent=2, ensure_ascii=False) + "\n"
+    redirects = settings.get("redirects") or extra.get("redirects")
     if isinstance(redirects, list):
         redirects = {r.get("from"): r.get("to") for r in redirects if isinstance(r, dict) and r.get("from") and r.get("to")}
     if isinstance(redirects, dict) and redirects:
         files["redirects.json"] = json.dumps(redirects, indent=2, ensure_ascii=False) + "\n"
-    if isinstance(settings.get("videos"), dict) and settings["videos"]:
-        files["videos.json"] = json.dumps(settings["videos"], indent=2, ensure_ascii=False) + "\n"
+    if isinstance(extra.get("videos"), dict) and extra["videos"]:
+        files["videos.json"] = json.dumps(extra["videos"], indent=2, ensure_ascii=False) + "\n"
     return files, warnings
 
 
@@ -253,17 +274,18 @@ async def _page_ids(db: AsyncIOMotorDatabase, snapshot: dict) -> None:
     """Snapshots written without page ids: fill them from docs_pages by path, so settings.nav
     (page ids) still resolves."""
     pages = snapshot.get("pages") or []
-    if not pages or all(p.get("id") for p in pages):
+    if not pages or all(_pid(p) for p in pages):
         return
     rows = db[PAGES].find({"site_id": snapshot["site_id"], "deleted_at": None}, {"path": 1})
     by_path = {r["path"]: str(r["_id"]) async for r in rows}
     for p in pages:
-        if not p.get("id") and p.get("path") in by_path:
-            p["id"] = by_path[p["path"]]
+        if not _pid(p) and p.get("path") in by_path:
+            p["page_id"] = by_path[p["path"]]
 
 
 async def bundle(db: AsyncIOMotorDatabase, build: dict) -> dict:
-    """The runner's view of a build: {site_id, files, warnings} + where it publishes."""
+    """The runner's view of a build: {bundle: {site_id, files, warnings}, publish: {site, hosts}}.
+    The address is the snapshot's (a slug change goes live with the publish that carries it)."""
     snapshot = await db[SNAPSHOTS].find_one({"_id": oid(build["snapshot_id"])})
     if snapshot is None:
         raise LookupError(f"snapshot {build.get('snapshot_id')} not found")
@@ -271,10 +293,10 @@ async def bundle(db: AsyncIOMotorDatabase, build: dict) -> dict:
     if site is None:
         raise LookupError(f"site {build.get('site_id')} not found")
     await _page_ids(db, snapshot)
-    s = get_jobs_settings()
-    ai_api = s.docs_ai_api or get_settings().api_base_url
-    files, warnings = content_files(site, snapshot, url=site_url(site), ai_api=ai_api)
+    slug = (snapshot.get("site") or {}).get("slug") or site.get("slug")
+    ai_api = get_jobs_settings().docs_ai_api or get_settings().api_base_url
+    files, warnings = content_files(site, snapshot, url=site_url(site, slug), ai_api=ai_api)
     return {
         "bundle": {"site_id": str(site["_id"]), "files": files, "warnings": warnings},
-        "publish": {"site": str(site["_id"]), "hosts": site_hosts(site)},
+        "publish": {"site": str(site["_id"]), "hosts": site_hosts(site, slug)},
     }
