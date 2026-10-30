@@ -6,7 +6,7 @@
  * to CSS-module classes. A counter of 0 means "no animation": the END state.
  */
 import {
-  ACH, COPY, DESKTOP, FILES, MOBILE, MOONS, PAD, PLAY_SC,
+  ACH, COPY, DESKTOP, FILES, MOBILE, MOONS, PAD, PLAY_SC, TOTAL,
   mod, par, seatDeg, seatXY,
   type FeatId, type FileDef, type FileId, type Form, type Info, type MoonId, type ScreenId, type Tone, type ViewId,
 } from "./data";
@@ -65,7 +65,7 @@ function hintFor(s: State, fin: boolean, isCombo: boolean): string {
   if (!s.found.render) return C.hintRender;
   if (!s.ach.encFile) return C.hintEncFile;
   if (P2P_RELAY_LIVE && s.found.send && !s.ach.relay) return C.hintRelay;
-  if (count < 7) return C.hintNext;
+  if (count < TOTAL) return C.hintNext;
   if (!s.ach.files) return "Render all five file types.";
   return "";
 }
@@ -222,14 +222,14 @@ export function deriveDesktop(s: State) {
     paused: s.paused, fin, dragging,
     card: cardVM, hint,
     connDot: flip(s.cardN),
-    stageLabel: "Orbit playground, " + count + " of 7 discovered. The drop flies to the next feature. Arrow keys move between moons or between files; Enter picks.",
+    stageLabel: "Orbit playground, " + count + " of " + TOTAL + " discovered. The drop flies to the next feature. Arrow keys move between moons or between files; Enter picks.",
     cons: cons(s, "desktop"),
     pd, file, combo, pill, pk: flip(s.fileN), band, station,
     tiles: tilesVM, moons: moons(s, "desktop", nextId, view),
     dock: s.dock, dioN: s.dioN, send,
     dfly, dockRip: s.launch && !toSt ? flip(s.launchN) : "", ffly, aim,
-    padLabel: nextF ? "Launch the drop to the next feature: " + nextF.label + ". " + nextF.quest + ". You can also drag it onto a moon, a file or the screen." : "All 7 found. Replay the finale.",
-    padNext: nextF ? "Next: " + nextF.quest : "All 7 found. Click for the finale.",
+    padLabel: nextF ? "Launch the drop to the next feature: " + nextF.label + ". " + nextF.quest + ". You can also drag it onto a moon, a file or the screen." : "All " + TOTAL + " found. Replay the finale.",
+    padNext: nextF ? "Next: " + nextF.quest : "All " + TOTAL + " found. Click for the finale.",
     carry,
     padDrop: s.launch ? flip(s.launchN) : "",
     ghost: s.drag,
@@ -304,7 +304,7 @@ export function deriveMobile(s: State) {
   /* Caption: the nameplate under the front seat. In the first beat it carries the document half. */
   const vf = C.feats.find((f) => f.id === view);
   let cap: { icon: string; cat: string; label: string; sep: string; tail: string; mono: boolean };
-  if (fin) cap = { icon: "checkCircle", cat: "var(--success)", label: "All 7 found", sep: "·", tail: "markdrop.in/new", mono: true };
+  if (fin) cap = { icon: "checkCircle", cat: "var(--success)", label: "All " + TOTAL + " found", sep: "·", tail: "markdrop.in/new", mono: true };
   else if (view === "intro") cap = { icon: "lines", cat: "var(--cat-document)", label: "release-notes.md", sep: "→", tail: "markdrop.in/release-notes", mono: true };
   else if (view === "render") cap = { icon: combo ? "lock" : file.bicon, cat: "var(--cat-artifact)", label: combo ? "Password instead" : file.badge, sep: "·", tail: "Free account", mono: false };
   else if (vf) cap = { icon: vf.id === "send" ? "arrowRight" : vf.icon, cat: vf.cat, label: vf.label, sep: "·", tail: vf.req ?? "", mono: false };
@@ -314,7 +314,7 @@ export function deriveMobile(s: State) {
 
   const cardVM = card(s, view, file, combo);
   const hint = hintFor(s, fin, cardVM.isCombo);
-  const heroHint = !play ? "Demo playing. Tap to play." : count < 7 ? "Swipe to spin the orbit." : "All 7 found.";
+  const heroHint = !play ? "Demo playing. Tap to play." : count < TOTAL ? "Swipe to spin the orbit." : "All " + TOTAL + " found.";
 
   const stamps = C.feats.map((f, i) => ({
     id: f.id as FeatId, n: i + 1, icon: f.icon, cat: f.cat,
@@ -325,7 +325,7 @@ export function deriveMobile(s: State) {
   return {
     form: "mobile" as const,
     paused: s.paused, fin, isPlay, isHero: !isPlay, sheetOpen, sc, heroAnim: flip(s.heroN),
-    stageLabel: "Orbit playground, " + count + " of 7 discovered. Swipe or use the arrow buttons to spin the orbit. Tap a moon, a file or the screen. Arrow keys move between moons or between files; Enter picks.",
+    stageLabel: "Orbit playground, " + count + " of " + TOTAL + " discovered. Swipe or use the arrow buttons to spin the orbit. Tap a moon, a file or the screen. Arrow keys move between moons or between files; Enter picks.",
     cons: cons(s, "mobile"), band, station,
     screen: s.screen as ScreenId, screenN: s.screenN, paneAnim: flip(s.screenN), pd: s.pd.toFixed(2) + "s", combo,
     pill, pk: flip(s.screenN), send,
@@ -338,7 +338,7 @@ export function deriveMobile(s: State) {
     ppAria: s.paused ? "Play the demo and ambient motion" : "Pause the demo and ambient motion",
     count, heroHint, hint, sheetHint: !!hint && !cardVM.note && !cardVM.isIntro,
     carry: { kicker: nextF ? "Next" : "Done", text: !nextF ? "Finale" : nextId === "render" ? nfF.badge : nextF.label },
-    courierAria: nextF ? "Send the drop to the next feature: " + nextF.label + ". " + nextF.quest + "." : "All 7 found. Replay the finale.",
+    courierAria: nextF ? "Send the drop to the next feature: " + nextF.label + ". " + nextF.quest + "." : "All " + TOTAL + " found. Replay the finale.",
     stamps, achs: achs(s),
     showPeek: isPlay && !s.sheet,
     card: cardVM,

@@ -4,7 +4,7 @@
  * client Game renders it with handlers. Everything it draws comes from deriveView(state).
  */
 import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from "react";
-import { COPY, GLYPHS_DESKTOP, GLYPHS_MOBILE, STARS_DESKTOP, STARS_MOBILE, BURST, type FeatId, type FileId, type Form, type MoonId } from "./data";
+import { COPY, GLYPHS_DESKTOP, GLYPHS_MOBILE, STARS_DESKTOP, STARS_MOBILE, BURST, TOTAL, type FeatId, type FileId, type Form, type MoonId } from "./data";
 import { deriveDesktop, deriveMobile, type CardVM } from "./derive";
 import type { Aim, State } from "./model";
 import { Badge, ButtonLink, DropSvg, FileIcon, Glyph, Icon, MarkdropMark, Progress } from "./ds";
@@ -129,7 +129,7 @@ function DesktopView({ state, on }: { state: State; on?: On }) {
               </>
             )}
 
-            {/* the launch pad comes first in the tab order: one key walks all seven features */}
+            {/* the launch pad comes first in the tab order: one key walks all eight features */}
             <div className={k("pad-wrap")}>
               <div className={k("pad-rim")} aria-hidden="true" />
               <div className={k("pad-top")} aria-hidden="true" />
@@ -141,7 +141,7 @@ function DesktopView({ state, on }: { state: State; on?: On }) {
                   <span className={k("pad-bob", "loop")}><DropSvg w={28} h={36} eyes pathCls={k("drop-p")} eyeCls={k("drop-eye")} blinkCls={k("blink", "loop")} /></span>
                 </span>
               </button>
-              <span className={k("carry", vm.carry.anim && "c" + vm.carry.anim)} aria-hidden="true"><Icon name={vm.carry.icon} size={12} />{vm.carry.text}</span>
+              <span className={k("carry", vm.carry.anim && "c" + vm.carry.anim)} aria-hidden="true"><Glyph icon={vm.carry.icon} size={12} />{vm.carry.text}</span>
               <span className={k("pad-lbl")} aria-hidden="true"><span>Click or drag the drop</span><b>{vm.padNext}</b></span>
             </div>
 
@@ -228,7 +228,7 @@ function DesktopView({ state, on }: { state: State; on?: On }) {
               <path className={k("ring-f")} d="M 618 390 A 372 150 0 0 0 1362 390" />
             </svg>
 
-            {/* the six moons */}
+            {/* the seven moons */}
             <div role="group" aria-label="Feature moons">
               {vm.moons.map((m) => (
                 <div key={m.id} className={k("moon", m.fin && "fin")} style={v({
@@ -296,8 +296,8 @@ function DesktopView({ state, on }: { state: State; on?: On }) {
           {vm.paused ? <PlaySvg /> : <PauseSvg />}<span>{vm.ppText}</span>
         </button>
         <div className={k("cnt")}>
-          <span className={k("cnt-t")}><b>{vm.count} of 7</b> discovered</span>
-          <Progress value={vm.count} max={7} label="Features discovered" />
+          <span className={k("cnt-t")}><b>{vm.count} of {TOTAL}</b> discovered</span>
+          <Progress value={vm.count} max={TOTAL} label="Features discovered" />
         </div>
         <div className={k("pips")}>
           {vm.pips.map((p) => (
@@ -422,7 +422,7 @@ function MobileView({ state, on }: { state: State; on?: On }) {
                 <path className={k("ring-f")} d="M 31 192 A 164 78 0 0 0 359 192" />
               </svg>
 
-              {/* the six moons */}
+              {/* the seven moons */}
               <div role="group" aria-label="Feature moons">
                 {vm.moons.map((m) => (
                   <div key={m.id} className={k("moon", m.fin && "fin")} style={v({
@@ -470,7 +470,7 @@ function MobileView({ state, on }: { state: State; on?: On }) {
               <div className={k("cap-row")}>
                 <button type="button" className={k("cyc")} aria-label={vm.prevAria} onClick={on && ((e) => on.spin(-1, e))}><Icon name="chevronLeft" size={18} /></button>
                 <div className={k("capc", vm.cap.anim && "c" + vm.cap.anim)} style={v({ "--cat": vm.cap.cat })} aria-hidden="true">
-                  <Icon name={vm.cap.icon} size={14} /><span>{vm.cap.label}</span><span className={k("sep")}>{vm.cap.sep}</span><span className={k("tl", vm.cap.mono && "mono")}>{vm.cap.tail}</span>
+                  <Glyph icon={vm.cap.icon} size={14} /><span>{vm.cap.label}</span><span className={k("sep")}>{vm.cap.sep}</span><span className={k("tl", vm.cap.mono && "mono")}>{vm.cap.tail}</span>
                 </div>
                 <button type="button" className={k("cyc")} aria-label={vm.nextAria} onClick={on && ((e) => on.spin(1, e))}><Icon name="chevronRight" size={18} /></button>
               </div>
@@ -489,14 +489,14 @@ function MobileView({ state, on }: { state: State; on?: On }) {
         <div className={k("hhud", vm.heroAnim && "c" + vm.heroAnim)} role="group" aria-label="Discovery" {...still(poster)}>
           {pp}
           <div className={k("meter")}>
-            <span className={k("meter-t")}><span className={k("meter-h")}>{vm.heroHint}</span><span><b>{vm.count} of 7</b></span></span>
-            <Progress value={vm.count} max={7} label="Features discovered" />
+            <span className={k("meter-t")}><span className={k("meter-h")}>{vm.heroHint}</span><span><b>{vm.count} of {TOTAL}</b></span></span>
+            <Progress value={vm.count} max={TOTAL} label="Features discovered" />
           </div>
           <Courier vm={vm} on={on} />
         </div>
       )}
 
-      {/* Play HUD (fixed under the header): pause + the passport of seven stamps */}
+      {/* Play HUD (fixed under the header): pause + the passport of eight stamps */}
       {vm.isPlay && (
         <div className={k("phud")} role="group" aria-label="Discovery">
           <div className={k("phud-r1")}>
@@ -512,8 +512,8 @@ function MobileView({ state, on }: { state: State; on?: On }) {
             </div>
           </div>
           <div className={k("phud-r2")}>
-            <span className={k("cnt-t")}><b>{vm.count} of 7</b> discovered</span>
-            <Progress value={vm.count} max={7} label="Features discovered" className={k("prog")} />
+            <span className={k("cnt-t")}><b>{vm.count} of {TOTAL}</b> discovered</span>
+            <Progress value={vm.count} max={TOTAL} label="Features discovered" className={k("prog")} />
             <div className={k("ach")}>
               {vm.achs.map((a) => <span key={a.id} className={k("ach-i", a.on && "on")} role="img" aria-label={a.aria} title={a.title}><Icon name={a.icon} size={10} /></span>)}
             </div>

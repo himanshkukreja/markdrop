@@ -33,7 +33,7 @@
  * the Game mounts with the identical state, so the swap is invisible.
  */
 import {
-  ACH, BEATS, COPY, FILES, MOONS, TICK,
+  ACH, BEATS, COPY, FILES, MOONS, TICK, TOTAL,
   geo, mod,
   type AchId, type FeatId, type FileId, type Form, type MoonId, type ScreenId, type ViewId,
 } from "./data";
@@ -172,7 +172,7 @@ const touch = (t: Timers): Timers => ({ ...t, lastInput: t.clock });
 
 /**
  * The attract boot frame at its END state: the planet with the HTML page on the screen, Publish in
- * front, the intro card, 0 of 7. Identical on the server (poster) and in the Game's first render.
+ * front, the intro card, 0 of 8. Identical on the server (poster) and in the Game's first render.
  */
 export function initialState(form: Form, opts: { paused?: boolean } = {}): State {
   return {
@@ -214,13 +214,13 @@ function finale(s: State, t: Timers): State {
     return {
       ...s, t, finale: true, finaleDone: true, view: "finale", mode: "play", layout: "play", sheet: true, combo: false,
       cardN: s.cardN + 1, consN: s.consN + 1, launch: false, fileFly: false,
-      announce: "All 7 discovered. The moons frame the Markdrop mark. Start writing at markdrop.in/new, no account needed.",
+      announce: "All " + TOTAL + " discovered. The moons frame the Markdrop mark. Start writing at markdrop.in/new, no account needed.",
     };
   }
   return {
     ...s, t, finale: true, finaleDone: true, view: "finale", dock: null, mode: "play", combo: false, aim: false,
     cardN: s.cardN + 1, fileN: s.fileN + 1, fileDelay: 2.0, consN: s.consN + 1,
-    announce: "All 7 discovered. The moons form the Markdrop mark. Start writing at markdrop.in/new, no account needed.",
+    announce: "All " + TOTAL + " discovered. The moons form the Markdrop mark. Start writing at markdrop.in/new, no account needed.",
   };
 }
 
@@ -255,9 +255,9 @@ function pickMoon(s: State, id: MoonId, from?: Pt | null): State {
   const was = !!s.found[id];
   const found = { ...s.found, [id]: true as const };
   const n = countOf(s, found);
-  if (n === 7 && !s.finaleDone) t.finAt = t.real + geo(s.form).FIN_MS;
+  if (n === TOTAL && !s.finaleDone) t.finAt = t.real + geo(s.form).FIN_MS;
   const lab = C.feats.find((f) => f.id === id)!.label;
-  let msg = was ? lab + "." : lab + " discovered. " + n + " of 7.";
+  let msg = was ? lab + "." : lab + " discovered. " + n + " of " + TOTAL + ".";
   if (id === "encrypt") msg += C.encryptOn;
   const common: Partial<State> = {
     ...rotTo(s, id), mode: "play", view: id, cardN: s.cardN + 1, launchN: s.launchN + 1, launch: true, flyTo: "front",
@@ -283,9 +283,9 @@ function pickFile(s: State, fid: FileId, how: How): State {
   if (combo && !ach.encFile) { ach.encFile = true; extra += " Achievement: read the fine print."; }
   if (FILES.every((x) => seen[x.id]) && !ach.files) { ach.files = true; extra += " Achievement: all five file types rendered."; }
   const n = countOf(s, found);
-  if (n === 7 && !s.finaleDone) t.finAt = t.real + geo(s.form).FIN_MS;
+  if (n === TOTAL && !s.finaleDone) t.finAt = t.real + geo(s.form).FIN_MS;
   const announce = (combo ? "Honest answer: encryption is for documents. Files get a password or access level instead. " : "")
-    + f.name + " opens at markdrop.in/" + f.slug + "." + (was ? "" : " Render any file discovered. " + n + " of 7.") + extra;
+    + f.name + " opens at markdrop.in/" + f.slug + "." + (was ? "" : " Render any file discovered. " + n + " of " + TOTAL + ".") + extra;
   const common: Partial<State> = {
     mode: "play", file: f.id, fileN: s.fileN + 1, view: "render", cardN: s.cardN + 1,
     found, seen, combo, ach, finale: false, announce, interacted: true,
@@ -319,7 +319,7 @@ function resetGame(s: State): State {
     ...rotTo(s, "publish"),
     found: {}, seen: {}, ach: {}, finale: false, finaleDone: false, relay: false, combo: false,
     mode: "play", view: "intro", launchN: s.launchN + 1, launch: true, flyTo: "front",
-    cardN: s.cardN + 1, consN: s.consN + 1, announce: "New game. 0 of 7 discovered.", interacted: true,
+    cardN: s.cardN + 1, consN: s.consN + 1, announce: "New game. 0 of " + TOTAL + " discovered.", interacted: true,
   };
   if (s.form === "mobile") {
     Object.assign(base, { layout: "play", sheet: true, screen: "html", file: "html", screenN: s.screenN + 1, pd: 0.85, fileFly: false });

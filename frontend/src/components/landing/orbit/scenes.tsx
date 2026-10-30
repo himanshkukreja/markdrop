@@ -6,7 +6,7 @@
  */
 import type { CSSProperties, ReactNode } from "react";
 import S from "./Orbit.module.css";
-import { DropSvg, FileIcon, Icon, MarkdropMark, RouteBadge, Badge, VSCodeIcon } from "./ds";
+import { DropSvg, FileIcon, Icon, MarkdropMark, RouteBadge, Badge, StudioGlyph, VSCodeIcon } from "./ds";
 import type { FileDef, FileId, ScreenId } from "./data";
 
 export const k = (...names: Array<string | false | null | undefined>) =>
@@ -461,6 +461,79 @@ function DioBuilder({ a }: DioProps) {
   );
 }
 
+/* Docs Studio: the editor on the left (visual mode, a slash menu open), the published docs site on the
+   right (its theme in the studio violet, Ask AI answering with a citation). Shared by both layouts. */
+
+function DocsEditor({ a, mobile }: DioProps & { mobile?: boolean }) {
+  return (
+    <>
+      <div className={k("t-hd")}>
+        <span style={{ display: "inline-flex", color: "var(--studio)" }}><StudioGlyph size={12} /></span>Quickstart
+        {!mobile && <span className={k("ds-seg")}><b>Visual</b><span>Markdown</span></span>}
+      </div>
+      <div style={{ padding: mobile ? "8px 9px" : "9px 10px", display: "flex", flexDirection: "column", gap: mobile ? 5 : 6 }}>
+        <span className={an(a, "ty")} style={v({ "--d": mobile ? ".1s" : "1.25s", fontSize: mobile ? 12.5 : 13, lineHeight: "16px", fontWeight: 800, color: "var(--text)" })}>Quickstart</span>
+        <span className={k("sb")} style={{ width: "94%" }} />
+        <span className={k("sb")} style={{ width: "70%" }} />
+        <span className={an(a, "rv", "ds-call")} style={v({ "--d": mobile ? ".3s" : "1.45s" })}><b>Tip</b><span className={k("sb")} style={{ width: "80%" }} /></span>
+        <span className={an(a, "ty", "m10")} style={v({ "--d": mobile ? ".5s" : "1.65s", color: "var(--text)" })}>/api<span className={k("ds-caret")} /></span>
+        <span className={an(a, "rv", "ds-menu")} style={v({ "--d": mobile ? ".65s" : "1.8s" })}>
+          <span className={k("on")}><Icon name="code" size={11} />API endpoint</span>
+          {!mobile && <span><Icon name="history" size={11} />Changelog entry</span>}
+        </span>
+      </div>
+    </>
+  );
+}
+
+function DocsSite({ a, mobile }: DioProps & { mobile?: boolean }) {
+  return (
+    <>
+      <div className={k("t-chrome")}><span className={k("dots")}><i /><i /><i /></span><span className={k("t-addr")}><span className={k("mu")}>docs.example.com/</span>quickstart</span></div>
+      <div style={{ display: "flex", height: "100%" }}>
+        <div className={k("ds-side")}>
+          <span className={k("ds-brand")}><span className={k("brand-tile")} style={{ background: "var(--studio-fill)" }}>E</span>{!mobile && "Example"}</span>
+          <span className={k("on")}>Quickstart</span>
+          <span>Guides</span>
+          <span>API</span>
+          {!mobile && <span>Changelog</span>}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, position: "relative", padding: mobile ? "8px 8px" : "9px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ position: "absolute", left: 0, right: 0, top: 0, height: 3, background: "var(--studio-fill)" }} />
+          <span style={{ fontSize: mobile ? 12 : 12.5, lineHeight: "15px", fontWeight: 800, color: "var(--text)" }}>Quickstart</span>
+          <span className={k("sb")} style={{ width: "92%" }} />
+          {!mobile && <span className={k("sb")} style={{ width: "72%" }} />}
+          <span className={an(a, "rv", "ds-ask")} style={v({ "--d": mobile ? "1.15s" : "2.3s" })}>
+            <span className={k("ds-ask-h")}><Icon name="sparkle" size={11} />Ask AI</span>
+            <span className={k("sb")} style={{ width: "96%", height: 4 }} />
+            <span className={k("sb")} style={{ width: "64%", height: 4 }} />
+            <span className={k("ds-cite")}>[1] Quickstart</span>
+          </span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DioDocs({ a }: DioProps) {
+  const sw = ["var(--studio-fill)", "var(--accent)", "var(--success-fill)", "var(--warning-fill)", "var(--danger-fill)", "var(--text-secondary)"];
+  return (
+    <div className={k("dio-sc")} aria-hidden="true">
+      <Plate />
+      <div className={k("csh")} style={{ left: 28, top: 188, width: 186 }} />
+      <div className={k("csh")} style={{ left: 266, top: 188, width: 192 }} />
+      <div className={an(a, "toy", "pop")} style={{ left: 20, top: 14, width: 198, height: 182 }}><DocsEditor a={a} /></div>
+      <div className={an(a, "toy", "pop")} style={v({ left: 262, top: 8, width: 200, height: 188, "--d": ".12s" })}><DocsSite a={a} /></div>
+      <div className={an(a, "pub-btn", "ds-pub", "pop")} style={v({ left: 204, top: 166, "--d": ".3s" })}><StudioGlyph size={12} />Publish</div>
+      <div className={an(a, "rider", "flyd")} style={{ offsetPath: "path('M 250 164 Q 274 124 306 146')" }}><DropSvg w={12} h={15} pathCls={k("drop-p")} /></div>
+      <div className={an(a, "chip", "pop")} style={v({ left: 40, top: 216, "--d": "1.55s" })}>
+        <span className={k("ds-sw")}>{sw.map((c) => <i key={c} style={{ background: c }} />)}</span>Six themes or your brand
+      </div>
+      <div className={an(a, "chip", "pop")} style={v({ left: 262, top: 216, "--d": "1.65s" })}><span style={{ display: "inline-flex", color: "var(--studio)" }}><Icon name="sparkle" size={12} /></span>Answers cite your pages</div>
+    </div>
+  );
+}
+
 export function Diorama({ dock, a, file, combo, send, onRelay }: {
   dock: string | null; a: boolean; file: FileDef; combo: boolean;
   send: { relay: boolean; d: string; path: string; route: "relay" | "direct"; btn: string };
@@ -475,6 +548,7 @@ export function Diorama({ dock, a, file, combo, send, onRelay }: {
   else if (dock === "send") body = <DioSend a={a} send={send} onRelay={onRelay} />;
   else if (dock === "domain") body = <DioDomain a={a} />;
   else if (dock === "builder") body = <DioBuilder a={a} />;
+  else if (dock === "docs") body = <DioDocs a={a} />;
   return <div className={k("dio", a && "anim")}>{body}</div>;
 }
 
@@ -666,6 +740,16 @@ function MBuilder({ a }: DioProps) {
   );
 }
 
+function MDocs({ a }: DioProps) {
+  return (
+    <>
+      <div className={k("toy")} style={{ left: 12, top: 26, width: 140, height: 154 }}><DocsEditor a={a} mobile /></div>
+      <div className={an(a, "rider", "flyd")} style={{ offsetPath: "path('M 146 66 Q 158 34 172 60')" }}><DropSvg w={14} h={18} pathCls={k("drop-p")} /></div>
+      <div className={k("toy")} style={{ left: 162, top: 26, width: 140, height: 154 }}><DocsSite a={a} mobile /></div>
+    </>
+  );
+}
+
 /** One mobile screen pane, mounted per screen change (the key replays its one-shots). */
 export function MobilePane({ screen, a, pd, send }: { screen: ScreenId; a: boolean; pd: string; send: { relay: boolean; d: string; path: string; route: "relay" | "direct" } }) {
   const isFile = screen === "html" || screen === "pdf" || screen === "xlsx" || screen === "mp4" || screen === "zip";
@@ -676,6 +760,7 @@ export function MobilePane({ screen, a, pd, send }: { screen: ScreenId; a: boole
   else if (screen === "sync") body = <MSync a={a} />;
   else if (screen === "send") body = <MSend send={send} />;
   else if (screen === "domain") body = <MDomain a={a} />;
+  else if (screen === "docs") body = <MDocs a={a} />;
   else body = <MBuilder a={a} />;
   return (
     <div className={k("pane", a && "anim")} style={v({ "--pd": pd, ...(isFile ? PANE_STYLE[screen as FileId] : {}) })}>

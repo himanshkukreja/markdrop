@@ -64,10 +64,21 @@ export function SendGlyph({ size = 16 }: { size?: number }) {
   );
 }
 
-/** Moon, card and stamp glyphs: the DS icon, or the VS Code mark, or the send glyph. */
+/** Docs Studio: a docs site (frame, sidebar, page lines), drawn with the DS icon stroke. */
+const STUDIO_D = "M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9.5 4v16M13 9h4.5M13 12.5h4.5M13 16h2.5M5.75 8.5h1.25M5.75 11.5h1.25";
+export function StudioGlyph({ size = 16, className }: { size?: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className={cx("md-icon", className)} style={{ fontSize: size }}>
+      <path d={STUDIO_D} />
+    </svg>
+  );
+}
+
+/** Moon, card and stamp glyphs: the DS icon, or the VS Code mark, or the send glyph, or Docs Studio. */
 export function Glyph({ icon, size }: { icon: string; size: number }) {
   if (icon === "vscode") return <VSCodeIcon size={size - 2} />;
   if (icon === "send") return <SendGlyph size={size} />;
+  if (icon === "studio") return <StudioGlyph size={size} />;
   return <Icon name={icon} size={size} />;
 }
 

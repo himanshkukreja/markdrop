@@ -1,9 +1,10 @@
 /* ══ Orbit hero ══
    Ported from design/revamp-canvas/PlayFinal.dc.html (desktop, ≥768) and PlayFinalMobile.dc.html (<768).
    A link planet sits at the centre; its surface IS the artifact station (a big clickable screen with the
-   link pill on top and a rack of five file buttons in front). Six feature moons ride a tilted orbit with
-   SEVEN seats; the seat behind the screen is always the empty one. The angle --t is a registered
-   property, so a transition on it moves each moon along the ellipse (sin/cos), never across it.
+   link pill on top and a rack of five file buttons in front). Seven feature moons ride a tilted orbit with
+   SEVEN seats, one each (Docs Studio took the seat that used to stay empty; none is behind the screen).
+   The angle --t is a registered property, so a transition on it moves each moon along the ellipse
+   (sin/cos), never across it.
    .once = one-shot (always plays). .loop = ambient (Pause stops it). Every element's base style is its
    END state, so prefers-reduced-motion (animation:none) shows the finished picture instantly.
    One-shot classes are only applied after the first change (counter > 0), so the server poster and the
@@ -102,6 +103,14 @@
     --sheet-sh: 0 -10px 28px -12px var(--toy-sh);
     --carry-bg: var(--surface-raised);
   }
+}
+
+/* Docs Studio's own accent (a violet, distinct from Markdrop blue): its moon, pip, stamp and scene.
+   --studio is the text/icon ink, --studio-fill a fill that carries white text, --studio-soft a tint. */
+.hero { --studio: #a99bff; --studio-fill: #7357f5; --studio-soft: color-mix(in srgb, #7357f5 24%, transparent); }
+:global([data-theme="light"]) .hero { --studio: #5b3fd0; --studio-fill: #6a4cf0; --studio-soft: color-mix(in srgb, #6a4cf0 12%, transparent); }
+@media (prefers-color-scheme: light) {
+  :global(:root:not([data-theme])) .hero { --studio: #5b3fd0; --studio-fill: #6a4cf0; --studio-soft: color-mix(in srgb, #6a4cf0 12%, transparent); }
 }
 
 /* The hero glow bleeds up behind the transparent header. */
@@ -499,9 +508,32 @@
 .r-link { position: absolute; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 7px; border-radius: var(--radius-full); background: var(--surface-raised); border: 1px solid var(--accent-ring); font-family: var(--font-mono); font-size: 11px; line-height: 1; font-weight: 500; color: var(--text); box-shadow: var(--shadow-md); white-space: nowrap; }
 .r-cap { position: absolute; font-size: 11px; line-height: 1; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
 .fold { position: absolute; right: -1px; top: -1px; width: 18px; height: 18px; background: var(--border-strong); clip-path: polygon(0 0, 100% 100%, 0 100%); }
+/* Docs Studio scene (both layouts): editor with a slash menu, the published site with Ask AI */
+.ds-seg { margin-left: auto; display: inline-flex; padding: 1px; border-radius: 5px; background: var(--surface); border: 1px solid var(--border); font-size: 9px; font-weight: 600; color: var(--text-muted); }
+.ds-seg > * { padding: 2px 5px; border-radius: 4px; }
+.ds-seg b { background: var(--studio-soft); color: var(--studio); font-weight: 700; }
+.ds-call { display: flex; align-items: center; gap: 6px; padding: 6px 7px; border-radius: 5px; border-left: 2px solid var(--studio-fill); background: var(--studio-soft); font-size: 9.5px; line-height: 1; color: var(--studio); }
+.ds-call .sb { flex: 1; height: 4px; }
+.ds-caret { display: inline-block; width: 1.5px; height: 11px; margin-left: 1px; vertical-align: -2px; background: var(--studio); }
+.ds-menu { display: flex; flex-direction: column; gap: 2px; padding: 3px; margin-top: -2px; border-radius: 7px; background: var(--surface-raised); border: 1px solid var(--edge); box-shadow: var(--shadow-md); font-size: 10px; line-height: 1; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+.ds-menu > span { display: flex; align-items: center; gap: 5px; height: 18px; padding: 0 6px; border-radius: 4px; }
+.ds-menu > .on { background: var(--studio-soft); color: var(--studio); }
+.ds-side { width: 66px; flex: none; padding: 7px 5px; display: flex; flex-direction: column; gap: 3px; background: var(--surface-inset); border-right: 1px solid var(--border); font-size: 9px; line-height: 15px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; }
+.ds-side > span { padding: 0 3px; border-radius: 4px; }
+.mb .ds-side { width: 58px; padding: 6px 3px; font-size: 8.5px; }
+.ds-brand .brand-tile { flex: none; }
+.ds-side > .on { background: var(--studio-soft); color: var(--studio); font-weight: 700; }
+.ds-brand { display: flex; align-items: center; gap: 4px; margin-bottom: 3px; padding: 0 !important; font-weight: 800; color: var(--text); }
+.ds-ask { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; padding: 6px 7px; border-radius: 7px; background: var(--surface-raised); border: 1px solid color-mix(in srgb, var(--studio-fill) 45%, var(--border)); box-shadow: var(--shadow-sm); }
+.ds-ask-h { display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px; line-height: 1; font-weight: 700; color: var(--studio); }
+.ds-cite { align-self: flex-start; padding: 2px 5px; white-space: nowrap; border-radius: 4px; background: var(--studio-soft); font-family: var(--font-mono); font-size: 8.5px; line-height: 1; font-weight: 600; color: var(--studio); }
+.ds-sw { display: inline-flex; gap: 2px; }
+.ds-sw i { width: 8px; height: 8px; border-radius: 50%; }
+.ds-pub { background: var(--studio-fill); box-shadow: 0 6px 16px -6px var(--studio-fill); }
 
 /* ── Finale: the moons align into the mark around the core ── */
-.dk .fin { position: absolute; left: 0; top: 0; width: 1440px; height: 1000px; z-index: 28; pointer-events: none; }
+/* :not(.moon): a moon in the finale carries .fin too and must keep its orbit centre (it flies by --fx/--fy). */
+.dk .fin:not(.moon) { position: absolute; left: 0; top: 0; width: 1440px; height: 1000px; z-index: 28; pointer-events: none; }
 .fin-frame { position: absolute; left: 0; top: 0; overflow: visible; }
 .fin-frame rect { fill: none; stroke: var(--accent-text); stroke-width: 1.5; stroke-dasharray: 4 6; opacity: .7; }
 .fin-frame.anim { animation: fadein .6s ease 1s both; }
@@ -713,7 +745,7 @@
 .mb .ffly-in { position: absolute; left: -15px; top: -18px; width: 30px; height: 36px; display: grid; place-items: center; border-radius: 5px; background: var(--surface); border: 1px solid var(--edge); border-top: 4px solid var(--tint); box-shadow: var(--shadow-lg); }
 
 /* Finale: the moons frame the mark, a drop lands in its dot, drops burst out */
-.mb .fin { position: absolute; left: 0; top: 0; width: 390px; height: 344px; z-index: 28; pointer-events: none; }
+.mb .fin:not(.moon) { position: absolute; left: 0; top: 0; width: 390px; height: 344px; z-index: 28; pointer-events: none; }
 .mb .fin-mark { position: absolute; left: 125px; top: 29px; width: 140px; height: 140px; border-radius: 35px; box-shadow: var(--shadow-xl), var(--shadow-glow); }
 .mb .fin-drop { position: absolute; left: 105px; top: 68px; width: 13px; height: 17px; opacity: 0; }
 .mb .fin-drop.anim { animation: findrop-m 1s linear 1.8s both; }
@@ -754,9 +786,10 @@
 .phud { position: fixed; left: 0; right: 0; top: var(--hdr-h, 56px); z-index: var(--z-sticky); height: 76px; padding: 4px 16px 0; background: color-mix(in srgb, var(--bg) 92%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); animation: phud-in .45s cubic-bezier(.16,1,.3,1) both; }
 @keyframes phud-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
 .phud-r1 { display: flex; align-items: center; gap: 6px; height: 44px; max-width: 560px; margin: 0 auto; }
-.stamps { display: flex; align-items: center; min-width: 0; }
-.stamp { position: relative; width: 44px; height: 44px; flex: none; padding: 0; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer; color: var(--text-subtle); }
-.stamp-c { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; border: 1.5px dashed var(--border-strong); background: var(--raise); transition: background-color .2s, border-color .2s; }
+/* Eight stamps share the row with Pause: each gives up a few px on a 390 phone (never under 36). */
+.stamps { flex: 1; display: flex; align-items: center; min-width: 0; }
+.stamp { position: relative; width: 44px; min-width: 36px; height: 44px; flex: 0 1 44px; padding: 0; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer; color: var(--text-subtle); }
+.stamp-c { width: min(38px, calc(100% - 2px)); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; border: 1.5px dashed var(--border-strong); background: var(--raise); transition: background-color .2s, border-color .2s; }
 .stamp.big .stamp-c { border-color: var(--cat-artifact); border-width: 2px; }
 .stamp.got { color: var(--accent-text); }
 .stamp.got .stamp-c { border: 2px solid var(--accent); background: var(--accent-soft); transform: rotate(-8deg); }
