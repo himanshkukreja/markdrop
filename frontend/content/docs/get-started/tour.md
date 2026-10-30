@@ -28,7 +28,7 @@ Once you sign in, Markdrop works like a drive for things that render. This page 
 | Item | What's there |
 | --- | --- |
 | **My files** | Everything you own. Filter by **All**, **Documents** or **Artifacts**, and search by title or link. |
-| **Shared with me** | Documents and files people added you to by email, and **Access requests** waiting for your answer. |
+| **Shared with me** | Documents and files people added you to by email, and **Access requests** waiting for your answer. A row's menu has **Remove me** to take yourself off. |
 | **Recent** | What you opened lately, signed in. |
 | **Analytics** | Views and engagement across everything you own. See [Analytics](/analytics/overview). |
 | **Workspaces** | Each workspace you belong to, with its folders. Drop files onto a folder to upload them there. **New workspace** creates one. |
@@ -50,7 +50,7 @@ A document opens full screen, with nothing but the text. Press :kbd[Esc] or choo
 - **Edit**: shown to the owner, to people who can edit it, and to whoever holds the edit secret in this tab. Everyone else finds **Edit** in **More actions**, where it asks for the edit secret.
 - **Share**: shown to the owner, and to people allowed to share it on. See [Share with specific people](/sharing/share-with-people).
 - **Read full screen**: hides everything but the text again. Press :kbd[F]; press :kbd[Esc] to come back.
-- **More actions**: **View raw**, **Export PDF**, **Save a copy** (on other people's documents), **Report** and, on your own documents once you've connected Google, **Publish to Google Docs**.
+- **More actions**: **View raw**, **Export PDF**, **Save a copy** (on other people's documents), **Report** and, on your own documents once you've connected Google, **Publish to Google Docs**. If someone added you by email, it also has **Remove me**.
 
 ![The bar above a document with Copy link, Edit, Share and Read full screen, and More actions open showing View raw and Export PDF, with the Details and Access panels on the right.](/docs-assets/get-started/tour/document-bar.webp)
 
@@ -64,7 +64,7 @@ A file also opens full screen. Press :kbd[Esc] or choose **Show details** to see
 
 Press :kbd[⌘K] (:kbd[Ctrl K] on Windows and Linux) anywhere in the app to search your files and jump to pages.
 
-Single-key shortcuts like :kbd[F] for full screen are on by default. Turn them off under **Settings › Keyboard shortcuts**.
+Two single-key shortcuts work when you aren't typing in a box: :kbd[F] reads a document full screen, and :kbd[/] jumps to the search box in **My files**. They're on by default. To turn them off, open **Settings › Account** and switch off **Keyboard shortcuts**. The setting applies to this browser.
 
 ## Related
 

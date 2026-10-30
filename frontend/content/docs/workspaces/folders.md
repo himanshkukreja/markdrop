@@ -33,7 +33,7 @@ Two folders in the same place can't share a name that gives the same address. A 
 
 Admins and the owner manage folders. Open the folder and choose **More folder actions**:
 
-- **Rename folder…** shows the new address as you type. Links that use the old name redirect to the new address.
+- **Rename folder…** shows the new address as you type. Links to documents inside it that use the old name redirect to the new address. The folder's own page moves, and its old address stops working.
 - **Move folder to…** moves it with everything inside. The move is refused if it would nest anything deeper than 8 levels.
 - **New items start as…** sets who can open new items filed into the folder. See [Workspace privacy](/workspaces/privacy).
 - **Delete folder…** removes only the folder. What's inside stays in the workspace, and nobody loses access. If the folder is inside another one, you choose whether everything moves up one level or the items move to the top of the workspace.

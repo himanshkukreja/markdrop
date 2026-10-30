@@ -82,6 +82,9 @@ export interface AccessState {
   grants: Grant[];
   /** The viewer's own address, so a grantee can find their row to leave. */
   your_email?: string | null;
+  /** The role the caller's own email grant gives, or null (none, or they own it). Lets a viewer,
+   *  who can't see the grant list, take themselves off. */
+  your_grant?: "editor" | "viewer" | null;
   /** markdrop.in/<slug> (a local sandbox: its own frontend). */
   url?: string | null;
   /** The custom-domain address when its workspace has a live primary domain, else null. */

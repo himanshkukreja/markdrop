@@ -7,7 +7,7 @@ import { ReadMore } from "@/components/ReadMore";
 import { teamName } from "@/components/workspace/folder/items";
 import { deleteWorkspace, removeMember, updateWorkspace, type ItemAccess, type WorkspaceSettings } from "@/lib/workspaces";
 import { SwitchRow } from "../../../settings-shared";
-import { Locked, lockProps, type WsTabProps } from "../ws-shared";
+import { Locked, lockProps, lockSelectProps, type WsTabProps } from "../ws-shared";
 
 /**
  * Advanced (Settings board): the individual switches behind Privacy — what new items start as,
@@ -41,22 +41,28 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
     <div className="flex min-w-0 flex-col gap-5">
       <section aria-label="Switches" className="flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-surface p-5">
         <p className="text-[13px] leading-5 text-text-secondary">The fine-grained switches behind Privacy. Most workspaces never need these.</p>
-        <Field label="New items start as" hint="A starting point only. Each item keeps its own setting.">
-          <Select
-            value={current}
-            disabled={!isAdmin || saving === "default"}
-            onChange={(e) => {
-              const v = e.target.value as ItemAccess;
-              void save("default", { default_access: v }, "New items start differently now. Nothing already here changed.");
-            }}
-            options={[
-              { value: "private", label: "Only people added" },
-              { value: "workspace", label: `${team} team` },
-              { value: "link", label: "Anyone with the link" },
-            ]}
-            className="max-w-[280px]"
-          />
-        </Field>
+        <Locked locked={!isAdmin}>
+          <div>
+            <Field label="New items start as" hint="A starting point only. Each item keeps its own setting.">
+              <Select
+                value={current}
+                disabled={saving === "default"}
+                {...lockSelectProps(!isAdmin)}
+                onChange={(e) => {
+                  if (!isAdmin) return;
+                  const v = e.target.value as ItemAccess;
+                  void save("default", { default_access: v }, "New items start differently now. Nothing already here changed.");
+                }}
+                options={[
+                  { value: "private", label: "Only people added" },
+                  { value: "workspace", label: `${team} team` },
+                  { value: "link", label: "Anyone with the link" },
+                ]}
+                className="max-w-[280px]"
+              />
+            </Field>
+          </div>
+        </Locked>
         <Locked locked={!isAdmin}>
           <div>
             <SwitchRow
@@ -84,6 +90,15 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
           </div>
         </Locked>
       </section>
+
+      {isOwner && (
+        <section aria-labelledby="ws-transfer-h" className="flex min-w-0 flex-col gap-0.5 rounded-xl border border-border bg-surface p-5">
+          <h2 id="ws-transfer-h" className="text-body-strong text-text">Transfer ownership</h2>
+          <p className="text-[13px] text-text-muted">
+            The owner can&apos;t leave. To hand the workspace on, open <strong>People</strong>, then a member&apos;s <strong>⋯</strong> menu, and choose <strong>Make owner</strong>. You become an admin.
+          </p>
+        </section>
+      )}
 
       {!isOwner && (
         <section aria-labelledby="ws-leave-h" className="flex min-w-0 flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-5">

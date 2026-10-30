@@ -325,6 +325,24 @@ class Grants(AccessWorld):
         self.assertEqual(body["grants"], [])
         self.assertIsNone(body["owner_email"])
 
+    async def test_c041b_your_grant_lets_a_viewer_leave(self):
+        """A viewer can't see the grant list, so `your_grant` says they have one to remove."""
+        d = await self.mkdoc("P", ws=None)
+        body = (await self.http.get(f"/api/v1/documents/{d['slug']}/access", headers=self.session("gv"))).json()
+        self.assertEqual(body["your_grant"], "viewer")
+        owner = (await self.http.get(f"/api/v1/documents/{d['slug']}/access", headers=self.session("owner"))).json()
+        self.assertIsNone(owner["your_grant"])
+        r = await self.http.delete(f"/api/v1/documents/{d['slug']}/access/people/{self.email['gv']}",
+                                   headers=self.session("gv"))
+        self.assertEqual(r.status_code, 204, r.text)
+        self.assertEqual(await self.db["document_grants"].count_documents(
+            {"document_id": str(d["_id"]), "email": self.email["gv"]}), 0)
+
+    async def test_c041c_member_without_grant_has_no_your_grant(self):
+        d = await self.mkdoc("L")
+        body = (await self.http.get(f"/api/v1/documents/{d['slug']}/access", headers=self.session("wm"))).json()
+        self.assertIsNone(body["your_grant"])
+
     async def test_c042_editor_sees_grants(self):
         d = await self.mkdoc("P", ws=None)
         body = (await self.http.get(f"/api/v1/documents/{d['slug']}/access", headers=self.session("ge"))).json()

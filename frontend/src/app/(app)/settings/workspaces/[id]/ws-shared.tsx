@@ -58,10 +58,24 @@ export function lockProps(locked: boolean) {
     : {};
 }
 
+/**
+ * The same for a native select: aria-disabled, and neither the pointer nor the keyboard opens it or
+ * changes its value (Tab still moves on, so the tooltip is reachable). Inputs use readOnly instead.
+ */
+export function lockSelectProps(locked: boolean) {
+  return locked
+    ? {
+        "aria-disabled": true as const,
+        onMouseDown: (e: React.MouseEvent) => e.preventDefault(),
+        onKeyDown: (e: React.KeyboardEvent) => { if (e.key !== "Tab" && e.key !== "Escape") e.preventDefault(); },
+      }
+    : {};
+}
+
 /** Wraps a control in the "Admins only" tooltip when it is locked. */
-export function Locked({ locked, reason = ADMINS_ONLY, children }: { locked: boolean; reason?: string; children: ReactElement }) {
+export function Locked({ locked, reason = ADMINS_ONLY, className, children }: { locked: boolean; reason?: string; className?: string; children: ReactElement }) {
   if (!locked) return children;
-  return <Tooltip content={reason}>{children}</Tooltip>;
+  return <Tooltip content={reason} className={className}>{children}</Tooltip>;
 }
 
 /** URL-safe folder segment (one implementation, `lib/folderSlug.ts`, mirroring the server). */

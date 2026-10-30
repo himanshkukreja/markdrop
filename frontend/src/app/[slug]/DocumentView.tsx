@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import ImmersiveExit from "@/components/ImmersiveExit";
 import AccessGate from "@/components/access/AccessGate";
-import { Alert, Button, CopyButton, Drawer, EmptyState, Skeleton, type MenuEntry } from "@/components/ui";
+import { Alert, Button, ConfirmDialog, CopyButton, Drawer, EmptyState, Skeleton, useToast, type MenuEntry } from "@/components/ui";
 import { SiteHeader } from "@/components/shell/SiteHeader";
 import { TenantHeader, useTenant } from "@/components/tenant";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import { ReadingProgress, Toc, TocTicks, tocHeadings, useReadingProgress, type Heading } from "@/components/reading";
 import * as e2e from "@/lib/e2e";
+import { removePerson } from "@/lib/access";
 import { recordEvent } from "@/lib/api";
 import { track } from "@/lib/track";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
@@ -113,6 +114,9 @@ export default function DocumentView(props: DocumentViewProps) {
 
   const tenant = useTenant();
   const pathname = usePathname();
+  const router = useRouter();
+  const toast = useToast();
+  const [leaving, setLeaving] = useState(false);
   const phone = useMediaQuery(PHONE_QUERY);
   const layerRef = useRef<HTMLDivElement>(null);
   const [headings, setHeadings] = useState<Heading[]>([]);
@@ -196,6 +200,7 @@ export default function DocumentView(props: DocumentViewProps) {
           {secretUnlocked ? (
             <EditorScreen
               v={v}
+              slug={slug}
               isPasswordProtected={isPasswordProtected}
               encrypted={encrypted}
               displayTitle={displayTitle}
@@ -240,6 +245,7 @@ export default function DocumentView(props: DocumentViewProps) {
   const canFullScreen = readable && !empty;
   const googleOn = isOwner && gConnected && !pwdLocked && !encrypted;
 
+  const myGrant = !isOwner && !!user && !!v.access?.your_grant;
   const menu: MenuEntry[] = gated ? [] : [
     ...(readable && !empty ? [{ label: showRaw ? "View rendered" : "View raw", icon: "code", onClick: () => setShowRaw(!showRaw) }] : []),
     ...(readable ? [{ label: "Export PDF", icon: "printer", onClick: exportPdf }] : []),
@@ -264,7 +270,9 @@ export default function DocumentView(props: DocumentViewProps) {
         }]
       : []),
     ...(!secretUnlocked ? [{ label: "Edit", icon: "edit", disabled: editBlocked, onClick: startEdit }] : []),
-    ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: true, onClick: openReport }] : []),
+    // Someone added by email can take themselves off, even when they can't open Share.
+    ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),
+    ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: !myGrant, onClick: openReport }] : []),
   ];
 
   const google = googleOn ? (
@@ -568,6 +576,20 @@ export default function DocumentView(props: DocumentViewProps) {
           onChanged={v.loadAccess}
         />
       )}
+
+      <ConfirmDialog
+        open={leaving}
+        onClose={() => setLeaving(false)}
+        title={`Remove yourself from “${shownTitle || slug}”?`}
+        body="It leaves Shared with me, and you can't open it with your email any more. If the link is open to more people, it still works for you like it does for them. To get back in, ask the owner to add you again."
+        confirmLabel="Remove me"
+        onConfirm={async () => {
+          await removePerson(slug, v.access?.your_email || user!.email);
+          setLeaving(false);
+          toast.success(`You were removed from “${shownTitle || slug}”.`);
+          router.push("/shared");
+        }}
+      />
 
       <ReportDialog
         open={showReport}

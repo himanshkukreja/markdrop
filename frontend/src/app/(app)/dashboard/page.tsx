@@ -28,6 +28,7 @@ import { ListFooter, ListSkeleton } from "@/components/dashboard/ListParts";
 import { ChangeUrlDialog, DeleteDocDialog } from "@/components/dashboard/DocDialogs";
 import { addressOf, displayTitle, plural } from "@/components/dashboard/format";
 import { shouldHandleSlash, usePhone } from "@/components/dashboard/hooks";
+import { useShortcutsEnabled } from "@/lib/shortcuts";
 import styles from "@/components/dashboard/dashboard.module.css";
 
 const PER_PAGE = 20;
@@ -114,6 +115,9 @@ export default function DashboardPage() {
     navigate({ q: null }, true);
   }, [navigate]);
 
+  // The "/" hint shows only while single-key shortcuts are on (Settings › Account).
+  const [shortcutsOn] = useShortcutsEnabled();
+  const slashOn = shortcutsOn !== false;
   // "/" focuses search (single-key rules: not in a field, no dialog or menu open, no modifiers).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -371,7 +375,7 @@ export default function DashboardPage() {
         ref={searchRef}
         size={phone ? "md" : "sm"}
         iconPrefix="search"
-        iconSuffix={!phone && !qInput ? <Kbd>/</Kbd> : undefined}
+        iconSuffix={!phone && !qInput && slashOn ? <Kbd>/</Kbd> : undefined}
         type="search"
         value={qInput}
         onChange={(e) => { typing.current = true; setQInput(e.target.value); }}
@@ -380,7 +384,7 @@ export default function DashboardPage() {
         }}
         placeholder="Search by title or link"
         aria-label="Search by title or link"
-        aria-keyshortcuts="/"
+        aria-keyshortcuts={slashOn ? "/" : undefined}
         maxLength={200}
         className="w-full"
         wrapClassName="w-full"

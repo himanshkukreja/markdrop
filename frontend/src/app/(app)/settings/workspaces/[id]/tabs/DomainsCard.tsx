@@ -255,10 +255,13 @@ export default function DomainsCard({ id, ws, isAdmin, domains, refresh }: WsTab
         </ul>
       )}
 
-      {isAdmin && domains !== null && (
-        <Button variant={domains.length ? "secondary" : "primary"} iconLeft="plus" className="self-start" onClick={() => { setAddOpen(true); setAddError(""); }}>
-          {domains.length ? "Add another domain" : "Add a domain"}
-        </Button>
+      {domains !== null && (
+        <Locked locked={!isAdmin} className="self-start">
+          <Button variant={domains.length ? "secondary" : "primary"} iconLeft="plus" className="self-start" {...lockProps(!isAdmin)}
+            onClick={isAdmin ? () => { setAddOpen(true); setAddError(""); } : lockProps(true).onClick}>
+            {domains.length ? "Add another domain" : "Add a domain"}
+          </Button>
+        </Locked>
       )}
       {!isAdmin && domains !== null && domains.length === 0 && (
         <p className="text-caption text-text-muted">An admin of this workspace sets up domains.</p>

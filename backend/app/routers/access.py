@@ -131,6 +131,7 @@ async def get_access(
         owner_name=owner_name,
         owner_email=owner_email if sees_grants else None,
         your_email=user.email,
+        your_grant=None if f.is_owner else f.grant_role,
         can_manage=f.is_owner,
         can_share=(await access_service.can(actor, raw, "share", ctx)).allowed,
         grants=[_to_grant(g) for g in grants],

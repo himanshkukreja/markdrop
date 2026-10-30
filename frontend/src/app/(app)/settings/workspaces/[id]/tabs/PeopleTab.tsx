@@ -8,7 +8,7 @@ import { ReadMore } from "@/components/ReadMore";
 import { PresetCards } from "@/components/access/PresetCards";
 import { ROLE_HINT, ROLE_WORDS, teamName } from "@/components/workspace/folder/items";
 import {
-  inviteMember, removeMember, revokeInvitation, setMemberRole, updateWorkspace,
+  inviteMember, removeMember, revokeInvitation, setMemberRole, transferOwnership, updateWorkspace,
   type Invitation, type ItemAccess, type Member, type Role,
 } from "@/lib/workspaces";
 import { relativeDays } from "../../../settings-shared";
@@ -49,7 +49,7 @@ const PRESET: Record<Privacy, { require_auth_to_view: boolean; default_access: I
  * when Advanced doesn't match one), then everyone in the workspace with a three-role select
  * (Can view · Can edit · Admin; the owner is a badge), pending invitations, and Invite people.
  */
-export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, refresh, setWs }: WsTabProps) {
+export default function PeopleTab({ id, ws, isOwner, isAdmin, meId, members, invites, refresh, setWs }: WsTabProps) {
   const toast = useToast();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [email, setEmail] = useState("");
@@ -58,6 +58,7 @@ export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, ref
   const [busy, setBusy] = useState("");
   const [removing, setRemoving] = useState<Member | null>(null);
   const [revoking, setRevoking] = useState<Invitation | null>(null);
+  const [handingOver, setHandingOver] = useState<Member | null>(null);
   const team = teamName(ws);
   const defaultAccess: ItemAccess = ws.settings.default_access ?? ws.default_access ?? "workspace";
   // The server says which preset the settings amount to; older servers: work it out the same way.
@@ -137,21 +138,24 @@ export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, ref
           {!privacy && <Badge size="sm" tone="info">Custom</Badge>}
           <ReadMore topic="workspacePrivacy" className="ml-auto text-caption" />
         </div>
-        <PresetCards<Privacy>
-          legend="Privacy"
-          legendHidden
-          name="ws-privacy"
-          layout="auto"
-          value={privacy}
-          onChange={(v) => void choosePrivacy(v)}
-          disabled={!isAdmin || busy === "privacy"}
-          busy={busy === "privacy"}
-          options={[
-            { value: "open", label: "Open", hint: "Links work for anyone. Each item still chooses who can open it." },
-            { value: "team", label: "Team", hint: "New items are for the team. Public links stay possible, one by one." },
-            { value: "locked", label: "Locked", hint: "Only members and people added by name. No public links." },
-          ]}
-        />
+        <Locked locked={!isAdmin}>
+          <PresetCards<Privacy>
+            legend="Privacy"
+            legendHidden
+            name="ws-privacy"
+            layout="auto"
+            value={privacy}
+            onChange={(v) => void choosePrivacy(v)}
+            disabled={busy === "privacy"}
+            locked={!isAdmin}
+            busy={busy === "privacy"}
+            options={[
+              { value: "open", label: "Open", hint: "Links work for anyone. Each item still chooses who can open it." },
+              { value: "team", label: "Team", hint: "New items are for the team. Public links stay possible, one by one." },
+              { value: "locked", label: "Locked", hint: "Only members and people added by name. No public links." },
+            ]}
+          />
+        </Locked>
         {!privacy && (
           <p className="text-caption text-text-muted">
             Custom: the switches in Advanced don&apos;t match a preset. Pick one to replace them.
@@ -207,7 +211,10 @@ export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, ref
                   )}
                   {editable && (
                     <RowMenu portal align="right" label={`More actions for ${m.name || m.email}`}
-                      items={[{ label: "Remove from workspace", icon: "userX", danger: true, onClick: () => setRemoving(m) }]} />
+                      items={[
+                        ...(isOwner ? [{ label: "Make owner…", icon: "key" as const, onClick: () => setHandingOver(m) }] : []),
+                        { label: "Remove from workspace", icon: "userX", danger: true, onClick: () => setRemoving(m) },
+                      ]} />
                   )}
                 </li>
               );
@@ -283,6 +290,21 @@ export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, ref
           setRemoving(null);
           await refresh("people");
           toast.success(`${m.name || m.email} was removed.`);
+        }}
+      />
+      <ConfirmDialog
+        open={!!handingOver}
+        onClose={() => setHandingOver(null)}
+        tone="default"
+        title={handingOver ? `Make ${handingOver.name || handingOver.email} the owner?` : "Transfer ownership?"}
+        body={`They own ${ws.name} from now on: only they can delete it or hand it on. You become an admin. Files, links and domains don't change. You can't undo this yourself.`}
+        confirmLabel="Transfer ownership"
+        onConfirm={async () => {
+          const m = handingOver!;
+          await transferOwnership(id, m.user_id);
+          setHandingOver(null);
+          await refresh("people");
+          toast.success(`${m.name || m.email} owns ${ws.name} now. You're an admin.`);
         }}
       />
       <ConfirmDialog

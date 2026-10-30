@@ -62,6 +62,9 @@ class AccessResponse(BaseModel):
     owner_email: str | None = None
     # The viewer's own address, so a grantee can find their row to leave.
     your_email: str | None = None
+    # The role the caller's own email grant gives (null when they have none, or own it). A viewer
+    # doesn't see the grant list, so this is how the reader knows to offer "Remove me".
+    your_grant: Literal["editor", "viewer"] | None = None
     # Derived server-side so the client never re-implements the rules and gets
     # them subtly different.
     can_manage: bool
