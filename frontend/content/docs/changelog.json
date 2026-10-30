@@ -24,6 +24,48 @@
   "next": [],
   "entries": [
     {
+      "id": "cli-0-5-1",
+      "date": "2026-10-30",
+      "title": "CLI 0.5.1: install fix, Windows on Arm, sends listed under your account",
+      "kind": "fixed",
+      "area": "CLI",
+      "products": [
+        "cli",
+        "mcp"
+      ],
+      "versions": {
+        "cli": "0.5.1"
+      },
+      "summary": "The one-line installer no longer prints an error, Windows on Arm gets a working build, and send and the local MCP server use the token saved by markdrop login.",
+      "body": "- The install script for macOS and Linux started with stray characters, so `curl … | sh` printed a \"not found\" error before installing. It now runs cleanly.\n- On Windows on Arm, the PowerShell installer installs the x64 build, which runs under emulation, instead of failing.\n- `markdrop send` and the local MCP server now use the token saved by `markdrop login` when `MARKDROP_TOKEN` isn't set, so your shares appear in your account. `send` also takes `--token`.\n- `markdrop mcp --help` lists all eleven tools, and `markdrop upload` on a folder explains how to publish a website or send the folder instead.",
+      "docs": [
+        "/cli/install",
+        "/cli/send-and-receive",
+        "/cli/reference",
+        "/ai/local-mcp"
+      ]
+    },
+    {
+      "id": "versions-ownership-remove-me",
+      "date": "2026-10-30",
+      "title": "Restore old file versions, transfer a workspace, and leave what's shared with you",
+      "kind": "new",
+      "area": "Files",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "A file's Settings lists its versions to restore or delete, workspace owners can hand over ownership, and people added to a document or file can remove themselves.",
+      "body": "- **Versions:** a file's **Settings** lists its last five versions. Restore one to make it current again at the same link, or delete an old one to free space.\n- **Transfer ownership:** a workspace owner can make another member the owner from the **People** tab, and becomes an admin.\n- **Remove me:** people added to a document or file can take themselves off it from **Shared with me** or the item's menu.\n- **New edit secret:** the owner of a document can replace a leaked edit secret from **Document settings**.\n- **Fixes:** the keyboard-shortcuts setting now turns off F and /, admin-only workspace controls say \"Admins only\" consistently, and zipped sites no longer count skipped files towards their limits.",
+      "docs": [
+        "/files/replace-and-versions",
+        "/workspaces/members-and-roles",
+        "/sharing/share-with-people",
+        "/documents/edit-key",
+        "/files/websites"
+      ]
+    },
+    {
       "id": "docs-try-it-and-media",
       "date": "2026-10-30",
       "title": "Send API requests from the docs, and see each feature",
