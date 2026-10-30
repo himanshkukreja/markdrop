@@ -26,10 +26,6 @@ const KEEP_APP = new Set([
   "not-found.tsx",
   "error.tsx",
   "global-error.tsx",
-  // Kept for parity: the root's file-based manifest puts <link rel="manifest"> on every page,
-  // docs ones included (the docs layout's `manifest: null` doesn't remove it). On a docs host that
-  // address is a 404 — an engine issue, flagged in docs-platform/README.md.
-  "manifest.ts",
   "docs-site",
 ]);
 

@@ -17,6 +17,8 @@ const SITE_DESCRIPTION =
 export const metadata: Metadata = {
   title: "Markdrop — Docs and files as links that render",
   description: SITE_DESCRIPTION,
+  // app/manifest.webmanifest/route.ts (a route, so the docs layout's `manifest: null` can drop it).
+  manifest: "/manifest.webmanifest",
   openGraph: {
     title: "Drop it. It renders.",
     description: SITE_DESCRIPTION,
