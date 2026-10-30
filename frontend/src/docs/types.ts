@@ -1,6 +1,7 @@
 import type { ApiOperation } from "./openapi.mjs";
+import type { ThemeConfig } from "./theme.mjs";
 
-export type { ApiOperation };
+export type { ApiOperation, ThemeConfig };
 
 /**
  * The docs engine's data model. Everything site-specific lives in the content folder
@@ -68,6 +69,12 @@ export interface BrandConfig {
   /** Accent colour (#rgb or #rrggbb) for the light theme; also dark's unless `accentDark` is set. */
   accent?: string;
   accentDark?: string;
+  /**
+   * Match my brand: brand colours (say, from the logo). The theme builds light and dark palettes
+   * from them: the most colourful is the accent (unless `accent` is set), the darkest the text
+   * ink, the lightest the accent wash (src/docs/theme.mjs).
+   */
+  colors?: string[];
   /** The Open Graph card: ground colour, accent (eyebrow, the mark's dot) and mark. */
   og?: { background?: string; accent?: string; mark?: "markdrop" | "none" };
 }
@@ -155,6 +162,8 @@ export interface SiteConfig {
   pages?: PagesConfig;
   openapi?: OpenApiConfig;
   brand?: BrandConfig;
+  /** Look: preset, fonts, corners, colour mode, brand colours, custom CSS (theme.mjs). Absent: Markdrop's own look. */
+  theme?: ThemeConfig;
   ai?: AiConfig;
   tryIt?: TryItConfig;
   mcp?: McpConfig;

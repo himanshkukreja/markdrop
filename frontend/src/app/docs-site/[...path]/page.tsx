@@ -13,7 +13,8 @@ import { CopyPageButton, MobileBottomBar, RailActions } from "@/docs/client/Page
 import { AskAboutPageButton } from "@/docs/client/ask/entry";
 import { ChangedBadge, DocsToc, OnThisPageBar, type TocEntry } from "@/docs/client/Toc";
 import { Feedback } from "@/docs/client/Feedback";
-import { DocsFooter, DocsHeader, DocsSidebar } from "@/docs/ui/Chrome";
+import { DocsFooter, DocsHeader, DocsSidebar, DocsTopNav, SectionPages } from "@/docs/ui/Chrome";
+import { themeLayout } from "@/docs/themeSite";
 import { ApiAside, ApiHead, ApiMain } from "@/docs/ui/ApiArticle";
 
 /** Every page is generated at build time; an address with no page is a 404, never a render. */
@@ -168,6 +169,115 @@ export default async function DocsArticle({ params }: Props) {
     );
   }
 
+  // The article's parts, shared by the theme layouts (each is one element, so the sidebar layout's
+  // tree is exactly what it was before themes).
+  const meta = (
+    <div className="dx-meta">
+      <span className="dx-meta__item">
+        <Icon name="clock" />
+        {page.minutes} min read
+      </span>
+      {page.meta.updated && <span className="dx-meta__item">Updated {formatDate(page.meta.updated)}</span>}
+      {page.meta.checked && (
+        <Badge tone="success" size="sm" icon="checkCircle">
+          Checked against the live app, {formatDate(page.meta.checked)}
+        </Badge>
+      )}
+      {page.meta.since && (
+        <Badge tone="neutral" size="sm" icon="code">
+          Since {page.meta.since}
+        </Badge>
+      )}
+      <ChangedBadge />
+    </div>
+  );
+  const builds = prereqPages.length > 0 && (
+    <p className="dx-prereq">
+      <Icon name="bulb" />
+      <span>
+        Builds on{" "}
+        {prereqPages.map((p, i) => (
+          <span key={p.path}>
+            {i > 0 && (i === prereqPages.length - 1 ? " and " : ", ")}
+            <Link href={p.path}>{navLabel(p)}</Link>
+          </span>
+        ))}
+        .
+      </span>
+    </p>
+  );
+  const askCard = ai && (
+    <div className="dx-askcard">
+      <strong>Have a question about this page?</strong>
+      <span>{`${ai.name} answers from these docs, with links to the sections it used.`}</span>
+      <AskAboutPageButton />
+    </div>
+  );
+  const layout = themeLayout(site);
+
+  if (layout === "top") {
+    // No sidebar: the tab's sections in a row under the header, one centred column, the group's
+    // pages under the article, contents in the right margin (or the bar on narrower screens).
+    return (
+      <DocPageProvider value={info}>
+        <DocsHeader activeTab={tab?.id} current={page.path} />
+        <DocsTopNav tab={tab?.id} current={page.path} />
+        <OnThisPageBar entries={toc} />
+        <div className="dx-layout dx-layout--top">
+          <main id="main" className="dx-article">
+            <Breadcrumb items={crumbs} className="dx-crumbs" />
+            <ArticleTitle title={page.meta.title} icon={icon} lede={lede} />
+            {meta}
+            {builds}
+            <DocsMarkdown source={page.body} anchors={page.meta.anchors} />
+            {group && <SectionPages group={group} current={page.path} title={`In ${group.group}`} />}
+            <Feedback />
+            {pager}
+          </main>
+          <aside className="dx-layout__rail" aria-label="On this page">
+            <div className="dx-rail">
+              <DocsToc entries={toc} />
+              <RailActions />
+              {askCard}
+            </div>
+          </aside>
+        </div>
+        <DocsFooter />
+        <MobileBottomBar />
+      </DocPageProvider>
+    );
+  }
+
+  if (layout === "helpcenter") {
+    // An article: one column, with the rest of its category and the contents beside it.
+    return (
+      <DocPageProvider value={info}>
+        <DocsHeader activeTab={tab?.id} current={page.path} />
+        <OnThisPageBar entries={toc} />
+        <div className="dx-layout dx-layout--hc">
+          <main id="main" className="dx-article">
+            <Breadcrumb items={crumbs} className="dx-crumbs" />
+            <ArticleTitle title={page.meta.title} icon={icon} lede={lede} />
+            {meta}
+            {builds}
+            <DocsMarkdown source={page.body} anchors={page.meta.anchors} />
+            <Feedback />
+            {pager}
+          </main>
+          <aside className="dx-layout__rail" aria-label="In this category">
+            <div className="dx-rail">
+              {group && <SectionPages group={group} current={page.path} title="In this category" />}
+              <DocsToc entries={toc} />
+              {askCard}
+            </div>
+          </aside>
+        </div>
+        <DocsFooter />
+        <MobileBottomBar />
+      </DocPageProvider>
+    );
+  }
+
   return (
     <DocPageProvider value={info}>
       <DocsHeader activeTab={tab?.id} current={page.path} />
@@ -180,39 +290,8 @@ export default async function DocsArticle({ params }: Props) {
         <main id="main" className="dx-article">
           <Breadcrumb items={crumbs} className="dx-crumbs" />
           <ArticleTitle title={page.meta.title} icon={icon} lede={lede} />
-          <div className="dx-meta">
-            <span className="dx-meta__item">
-              <Icon name="clock" />
-              {page.minutes} min read
-            </span>
-            {page.meta.updated && <span className="dx-meta__item">Updated {formatDate(page.meta.updated)}</span>}
-            {page.meta.checked && (
-              <Badge tone="success" size="sm" icon="checkCircle">
-                Checked against the live app, {formatDate(page.meta.checked)}
-              </Badge>
-            )}
-            {page.meta.since && (
-              <Badge tone="neutral" size="sm" icon="code">
-                Since {page.meta.since}
-              </Badge>
-            )}
-            <ChangedBadge />
-          </div>
-          {prereqPages.length > 0 && (
-            <p className="dx-prereq">
-              <Icon name="bulb" />
-              <span>
-                Builds on{" "}
-                {prereqPages.map((p, i) => (
-                  <span key={p.path}>
-                    {i > 0 && (i === prereqPages.length - 1 ? " and " : ", ")}
-                    <Link href={p.path}>{navLabel(p)}</Link>
-                  </span>
-                ))}
-                .
-              </span>
-            </p>
-          )}
+          {meta}
+          {builds}
 
           <DocsMarkdown source={page.body} anchors={page.meta.anchors} />
 
@@ -225,13 +304,7 @@ export default async function DocsArticle({ params }: Props) {
           <div className="dx-rail">
             <DocsToc entries={toc} />
             <RailActions />
-            {ai && (
-              <div className="dx-askcard">
-                <strong>Have a question about this page?</strong>
-                <span>{`${ai.name} answers from these docs, with links to the sections it used.`}</span>
-                <AskAboutPageButton />
-              </div>
-            )}
+            {askCard}
           </div>
         </aside>
       </div>

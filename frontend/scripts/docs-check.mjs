@@ -11,7 +11,8 @@
  * prerequisites, card hrefs, changelog docs), directive names / attributes / balance, card icons,
  * tabs structure, one video slot per page, headings (no H1, unique ids), changelog.json and
  * videos.json, site.json's settings (id, brand, ai, tryIt, mcp, integrations: types, hex colours,
- * the logo's shape and files; pages: lede and icons; home.start cards), frontmatter icon and anchors
+ * the logo's shape and files; pages: lede and icons; home.start cards; theme: preset, font
+ * allow-list, corners, mode, brand colours, custom CSS through the sanitiser), frontmatter icon and anchors
  * (old ids → headings that exist), redirects.json (shape, targets exist, no page hidden, no chains),
  * and media (see "media" below). Errors exit 1; warnings (pages not written yet,
  * orphans) don't, unless --strict.
@@ -33,6 +34,7 @@ import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { buildApiReference } from "../src/docs/openapi.mjs";
 import { expandRedirects } from "../src/docs/siteFiles.mjs";
+import { validateBrandColors, validateTheme } from "../src/docs/theme.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONTENT = process.env.DOCS_CONTENT_DIR || path.join(ROOT, "content", "docs");
@@ -453,7 +455,7 @@ const brandAssets = [];
     } else if (!httpsUrl(v)) err(S, `${key} "${v}" must be a /docs-assets/ path or an https URL`);
   };
   const colour = (key, v) => {
-    if (v !== undefined && !(typeof v === "string" && HEX.test(v))) err(S, `${key} "${v}" must be a hex colour like #2563eb`);
+    if (v !== undefined && v !== null && !(typeof v === "string" && HEX.test(v))) err(S, `${key} "${v}" must be a hex colour like #2563eb`);
   };
   const ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
@@ -463,7 +465,7 @@ const brandAssets = [];
   if (b !== undefined) {
     if (!isObj(b)) err(S, "brand must be an object");
     else {
-      unknown("brand", b, ["name", "label", "logo", "favicon", "accent", "accentDark", "og"]);
+      unknown("brand", b, ["name", "label", "logo", "favicon", "accent", "accentDark", "colors", "og"]);
       for (const k of ["name", "label"]) if (b[k] !== undefined && typeof b[k] !== "string") err(S, `brand.${k} must be a string`);
       if (b.logo !== undefined) {
         const l = b.logo;
@@ -488,6 +490,7 @@ const brandAssets = [];
       if (b.favicon !== undefined && b.favicon !== "/icon.svg") assetRef("brand.favicon", b.favicon);
       colour("brand.accent", b.accent);
       colour("brand.accentDark", b.accentDark);
+      for (const m of validateBrandColors(b.colors)) err(S, m);
       if (b.og !== undefined) {
         if (!isObj(b.og)) err(S, "brand.og must be an object");
         else {
@@ -545,6 +548,9 @@ const brandAssets = [];
       }
     }
   }
+
+  // theme: preset, fonts (allow-list), corners, mode, brand colours, custom CSS (src/docs/theme.mjs).
+  for (const p of validateTheme(site.theme)) report(p.level, S, p.msg);
 
   const pg = site.pages;
   if (pg !== undefined) {
