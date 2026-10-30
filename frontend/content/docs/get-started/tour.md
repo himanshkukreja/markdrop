@@ -64,7 +64,7 @@ A file also opens full screen. Press :kbd[Esc] or choose **Show details** to see
 
 Press :kbd[⌘K] (:kbd[Ctrl K] on Windows and Linux) anywhere in the app to search your files and jump to pages.
 
-Single-key shortcuts like :kbd[F] for full screen are on by default. Turn them off under **Settings › Keyboard shortcuts**.
+Two single-key shortcuts work when you aren't typing in a box: :kbd[F] reads a document full screen, and :kbd[/] jumps to the search box in **My files**. They're on by default. To turn them off, open **Settings › Account** and switch off **Keyboard shortcuts**. The setting applies to this browser.
 
 ## Related
 

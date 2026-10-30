@@ -22,6 +22,7 @@ import { track } from "@/lib/track";
 import { useReadDepth } from "@/lib/readDepth";
 import { engagementOptedOut, useAuthSettled, useDocEngagement } from "@/lib/engage";
 import { getAccess, type AccessState } from "@/lib/access";
+import { shortcutsEnabled } from "@/lib/shortcuts";
 import type { DocumentViewProps } from "./types";
 
 export type ViewMode = "write" | "split" | "preview";
@@ -1033,12 +1034,14 @@ export function useDocumentViewer({
   const canEditSettings = isOwner || !!secretInput.trim();
 
   // `F` returns to full screen from the framed reader (REVAMP_PLAN 7.6 "Keys").
-  // Single-key shortcuts never fire while typing or while a dialog is open.
+  // Single-key shortcuts never fire while typing or while a dialog is open, nor when they're
+  // turned off in Settings › Account (read at keypress, so the switch applies at once).
   useEffect(() => {
     if (showImmersive || editing || pwdLocked || pwdFetching || artifactDoc || !readable || !displayContent.trim()) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key !== "f" && e.key !== "F") return;
+      if (!shortcutsEnabled()) return;
       const t = e.target as HTMLElement | null;
       if (t?.closest?.("input, textarea, select, [contenteditable=''], [contenteditable='true']")) return;
       if (document.querySelector('[role="dialog"][aria-modal="true"], [role="menu"]')) return;

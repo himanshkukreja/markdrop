@@ -4,6 +4,7 @@ import {
   Badge, Button, CopyButton, Dropdown, IconButton, Kbd, Tooltip, type MenuEntry,
 } from "@/components/ui";
 import { LinkPill } from "@/components/kit/LinkPill";
+import { useShortcutsEnabled } from "@/lib/shortcuts";
 import { linkParts } from "@/components/kit/publish-utils";
 import { navigateToHeading, tocHeadings, type Heading } from "@/components/reading";
 
@@ -40,6 +41,8 @@ export interface DocumentBarProps {
  * (`DocumentActionBar`) and this keeps the title, Details and full screen.
  */
 export function DocumentBar(p: DocumentBarProps) {
+  // The F hint only shows while single-key shortcuts are on (Settings › Account).
+  const [shortcuts] = useShortcutsEnabled();
   const { host, fragment } = linkParts(p.shareUrl);
   const path = linkParts(p.url).slug || p.slug;
   const entries = tocHeadings(p.headings ?? []);
@@ -112,8 +115,8 @@ export function DocumentBar(p: DocumentBarProps) {
               <IconButton icon="info" label="Details" onClick={p.onDetails} className="xl:hidden" />
             )}
             {p.onFullScreen && (
-              <Tooltip side="left" content={<span className="inline-flex items-center gap-1.5">Read full screen <Kbd>F</Kbd></span>}>
-                <IconButton icon="expand" label="Read full screen" title="" aria-keyshortcuts="F" onClick={p.onFullScreen} />
+              <Tooltip side="left" content={<span className="inline-flex items-center gap-1.5">Read full screen{shortcuts !== false && <> <Kbd>F</Kbd></>}</span>}>
+                <IconButton icon="expand" label="Read full screen" title="" aria-keyshortcuts={shortcuts !== false ? "F" : undefined} onClick={p.onFullScreen} />
               </Tooltip>
             )}
             {p.menu && p.menu.length > 0 && (

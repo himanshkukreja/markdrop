@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { shortcutsEnabled } from "@/lib/shortcuts";
 
 /** A CSS media query as state; `false` on the server and during hydration. */
 export function useMediaQuery(query: string): boolean {
@@ -21,10 +22,12 @@ export const usePhone = () => useMediaQuery("(max-width: 639.98px)");
 
 /**
  * The "/" search shortcut (REVAMP_PLAN 7.6 "Keys"): only a bare "/" with no modifiers, never while
- * focus is in a field or an editable element, and never while a dialog, drawer or menu is open.
+ * focus is in a field or an editable element, never while a dialog, drawer or menu is open, and
+ * not when single-key shortcuts are off (Settings › Account).
  */
 export function shouldHandleSlash(e: KeyboardEvent): boolean {
   if (e.key !== "/" || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return false;
+  if (!shortcutsEnabled()) return false;
   const t = e.target as HTMLElement | null;
   if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return false;
   const a = document.activeElement as HTMLElement | null;
