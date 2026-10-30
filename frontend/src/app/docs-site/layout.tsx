@@ -41,15 +41,21 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
   const site = getSite();
   const client = clientSite(site);
   const theme = siteTheme(site);
-  // A theme palette already carries the brand accent (brand.accent / accentDark win inside it).
-  const css = theme?.palette ? null : accentCss(site);
-  const themeCss = themeStylesheet(site);
+  // One stylesheet: the accent's (unless a theme palette carries it: brand.accent / accentDark win
+  // inside it), then the theme's. Kept in the one child slot the accent stylesheet always had, so
+  // a site without a theme renders the very same tree and payload.
+  const css = [theme?.palette ? null : accentCss(site), themeStylesheet(site)].filter(Boolean).join("\n") || null;
   const forced = forcedModeScript(site);
   return (
     <div className="dx-root" data-docs-trackers={markdropApp(site) ? undefined : "off"} {...(theme ? { "data-preset": theme.preset, "data-layout": theme.layout } : {})}>
-      {forced && <script dangerouslySetInnerHTML={{ __html: forced }} />}
-      {css && <style dangerouslySetInnerHTML={{ __html: css }} />}
-      {themeCss && <style dangerouslySetInnerHTML={{ __html: themeCss }} />}
+      {forced ? (
+        <>
+          <script dangerouslySetInnerHTML={{ __html: forced }} />
+          <style dangerouslySetInnerHTML={{ __html: css ?? "" }} />
+        </>
+      ) : (
+        css && <style dangerouslySetInnerHTML={{ __html: css }} />
+      )}
       <DocsSiteProvider value={client}>
         {children}
         <SearchPalette suggestions={site.home?.chips} />
