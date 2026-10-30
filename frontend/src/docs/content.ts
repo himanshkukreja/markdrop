@@ -12,6 +12,7 @@ import path from "node:path";
 import { parseFrontmatter } from "./frontmatter";
 import { introOf, plainText, readingMinutes, scanHeadings, snippet, splitSections, toPlainMarkdown } from "./markdown";
 import { buildApiReference, type ApiReference } from "./openapi.mjs";
+import { clipVariants, formatDuration, type MediaManifest } from "./media";
 import type { Changelog, ChangelogEntry, DocPage, NavGroup, SiteConfig, VideoRef } from "./types";
 
 export const CONTENT_DIR = process.env.DOCS_CONTENT_DIR || path.join(process.cwd(), "content", "docs");
@@ -244,6 +245,12 @@ export function prevNext(p: string): { prev?: DocPage; next?: DocPage } {
 
 export const getVideos = memo((): Record<string, VideoRef> => readJson<Record<string, VideoRef>>("videos.json", {}));
 
+/** media.json: sizes, bytes and kinds of everything under public/docs-assets (see media.ts). */
+export const getMedia = memo((): MediaManifest => {
+  const m = readJson<MediaManifest>("media.json", {});
+  return m && typeof m === "object" && !Array.isArray(m) ? m : {};
+});
+
 const KINDS = new Set(["new", "improved", "fixed"]);
 export const getChangelog = memo((): Changelog => {
   const raw = readJson<Partial<Changelog>>("changelog.json", {});
@@ -278,7 +285,21 @@ function yamlList(xs: string[]): string {
   return `[${xs.join(", ")}]`;
 }
 
-const videoResolver = (id: string) => getVideos()[id];
+/** Where a filled `::video` slot points agents: the Markdrop link, else the MP4 itself. */
+function videoResolver(id: string): { url: string; duration?: string } | undefined {
+  const v = getVideos()[id];
+  const link = v?.markdrop || v?.url || (v?.src?.startsWith("/") ? getSite().url + v.src : undefined);
+  return link ? { url: link, duration: v?.duration } : undefined;
+}
+
+/** A `::clip` for agents: its MP4 (absolute) and length from the manifest. */
+function clipResolver(src: string): { url: string; duration?: string } {
+  const c = clipVariants(getMedia(), src);
+  const file = c.light.mp4 ?? c.light.webm ?? `${src}.mp4`;
+  return { url: getSite().url + file, duration: formatDuration(c.duration) };
+}
+
+const resolvers = { video: videoResolver, clip: clipResolver };
 
 /** The page as served at `<path>.md`: frontmatter for agents, the title, then plain Markdown. */
 export function agentMarkdown(page: DocPage): string {
@@ -296,13 +317,13 @@ export function agentMarkdown(page: DocPage): string {
     `index: ${site.url}/llms.txt`,
     "---",
   ].filter(Boolean);
-  return `${fm.join("\n")}\n\n# ${page.meta.title}\n\n${toPlainMarkdown(page.body, { base: site.url, video: videoResolver })}\n`;
+  return `${fm.join("\n")}\n\n# ${page.meta.title}\n\n${toPlainMarkdown(page.body, { base: site.url, ...resolvers })}\n`;
 }
 
 /** One section (h2/h3) as plain Markdown, for "Copy section". */
 export function sectionMarkdown(page: DocPage, raw: string): string {
   const site = getSite();
-  return `${toPlainMarkdown(raw, { base: site.url, video: videoResolver })}\n\nSource: ${absoluteUrl(page.path)}\n`;
+  return `${toPlainMarkdown(raw, { base: site.url, ...resolvers })}\n\nSource: ${absoluteUrl(page.path)}\n`;
 }
 
 /** The page plus the pages it lists as prerequisites (each once, prerequisites first). */
@@ -316,10 +337,10 @@ export function homeMarkdown(): string {
   const site = getSite();
   const home = getHome();
   const head = `---\ntitle: ${JSON.stringify(home?.meta.title || site.name)}\ncanonical_url: ${site.url}/\nindex: ${site.url}/llms.txt\n---\n\n`;
-  if (home) return `${head}# ${home.meta.title}\n\n${toPlainMarkdown(home.body, { base: site.url })}\n`;
+  if (home) return `${head}# ${home.meta.title}\n\n${toPlainMarkdown(home.body, { base: site.url, ...resolvers })}\n`;
   return `${head}# ${site.name}\n\n> ${site.description}\n\nSee ${site.url}/llms.txt for every page.\n`;
 }
 
 export function plainOf(md: string, base?: string): string {
-  return toPlainMarkdown(md, { base, video: videoResolver });
+  return toPlainMarkdown(md, { base, ...resolvers });
 }

@@ -4,6 +4,7 @@ import "@/docs/docs.css";
 import { getSite } from "@/docs/content";
 import { SearchPalette } from "@/docs/client/Search";
 import { AskRoot } from "@/docs/client/ask/AskRoot";
+import { MediaLightbox } from "@/docs/client/Media";
 
 /**
  * The docs site (docs.<host>, reached only through the middleware rewrite to /docs-site/…). The
@@ -32,6 +33,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
       {children}
       <SearchPalette suggestions={site.home?.chips} />
       <AskRoot siteUrl={site.url} suggestions={site.home?.chips} />
+      <MediaLightbox />
     </div>
   );
 }

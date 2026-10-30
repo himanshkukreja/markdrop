@@ -176,6 +176,83 @@
 .dx-embed__open { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-text); text-decoration: none; }
 .dx-embed__frame { width: 100%; height: 480px; border: 0; border-top: 1px solid var(--border); background: var(--bg); }
 
+/* Video player (a filled ::video slot) */
+.dx-player__frame { display: block; background: #000; }
+.dx-player__frame video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.dx-player__frame video:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.dx-player__start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; background: linear-gradient(to top, rgb(0 0 0 / 0.28), transparent 45%); cursor: pointer; }
+.dx-player__start .dx-video__play { transition: transform var(--duration-fast) var(--ease-out); }
+.dx-player__start:hover .dx-video__play { transform: scale(1.06); }
+.dx-player__start:focus-visible { outline: none; }
+.dx-player__start:focus-visible .dx-video__play { outline: 3px solid var(--border-focus); outline-offset: 3px; }
+.dx-player .dx-video__chip { pointer-events: none; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dx-player .dx-video__cap { display: flex; align-items: baseline; gap: 8px; }
+.dx-video__title { font-weight: 600; color: var(--text-secondary); }
+.dx-video__len { font-variant-numeric: tabular-nums; }
+.dx-chapters { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.dx-chapters__item { display: flex; gap: 12px; width: 100%; padding: 6px 10px; border: 0; border-radius: var(--radius-md); background: none; font: inherit; font-size: 13px; line-height: 20px; color: var(--text-secondary); text-align: left; cursor: pointer; }
+.dx-chapters__item:hover { background: var(--surface-hover); color: var(--text); }
+.dx-chapters__item[aria-current="true"] { background: var(--surface-active); color: var(--text); font-weight: 600; }
+.dx-chapters__item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.dx-chapters__t { min-width: 36px; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* Figures (a paragraph that is one image) and clips. Images are 2x captures: they show at half
+   their pixel width (--dx-w), never wider than the column. */
+.dx-fig, .dx-clip { margin: 24px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.dx-fig__frame, .dx-clip__frame { position: relative; display: block; width: 100%; max-width: min(100%, var(--dx-w, 100%)); box-sizing: border-box; margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface-inset); }
+[data-theme="light"] .dx-fig__frame, [data-theme="light"] .dx-clip__frame { box-shadow: var(--shadow-sm); }
+.dx-fig__frame { font: inherit; color: inherit; cursor: zoom-in; }
+.dx-fig__img { display: block; width: 100%; height: auto; }
+.dx-fig__zoom { position: absolute; top: 8px; right: 8px; display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: var(--radius-md); background: var(--surface-raised); color: var(--text-secondary); box-shadow: var(--shadow-sm); font-size: 16px; opacity: 0; transition: opacity var(--duration-fast); }
+.dx-fig__frame:hover .dx-fig__zoom, .dx-fig__frame:focus-visible .dx-fig__zoom { opacity: 1; }
+.dx-fig__frame:focus-visible, .dx-clip__frame:has(:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.dx-fig__cap { max-width: min(100%, 640px); font-size: 13px; line-height: 20px; color: var(--text-muted); text-align: center; text-wrap: pretty; }
+@media (hover: none) { .dx-fig__zoom { opacity: 1; } }
+.dx-clip__video { display: block; width: 100%; height: auto; }
+.dx-clip__big { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; background: rgb(0 0 0 / 0.12); cursor: pointer; }
+.dx-clip__big .md-icon { display: inline-flex; width: 56px; height: 56px; padding: 16px; box-sizing: border-box; border-radius: var(--radius-full); background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-lg); }
+.dx-clip__big:focus-visible { outline: none; }
+.dx-clip__big:focus-visible .md-icon { outline: 3px solid var(--border-focus); outline-offset: 3px; }
+.dx-clip__toggle { position: absolute; right: 8px; bottom: 8px; display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface-raised); color: var(--text-secondary); box-shadow: var(--shadow-sm); font-size: 16px; cursor: pointer; }
+.dx-clip__toggle:hover { color: var(--text); }
+.dx-clip__toggle:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+/* Theme variants: both are in the page, CSS shows the one for <html data-theme>. A hidden lazy
+   image or preload="none" video never downloads. */
+.dx-themed-dark { display: none !important; }
+[data-theme="dark"] .dx-themed-dark { display: block !important; }
+[data-theme="dark"] .dx-themed-light { display: none !important; }
+
+/* Lightbox */
+html.dx-modal-open { overflow: hidden; }
+.dx-lightbox { position: fixed; inset: 0; width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: 0; border: 0; background: rgb(8 10 14 / 0.9); color: var(--text); overflow: hidden; }
+.dx-lightbox[open] { display: flex; flex-direction: column; }
+.dx-lightbox::backdrop { background: transparent; }
+@media (prefers-reduced-motion: no-preference) {
+  .dx-lightbox[open] { animation: dx-lightbox-in var(--duration-fast, 150ms) var(--ease-out, ease-out); }
+}
+@keyframes dx-lightbox-in { from { opacity: 0; } to { opacity: 1; } }
+.dx-lightbox__bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px 10px 16px; color: #f5f6f8; }
+.dx-lightbox__title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 20px; font-weight: 600; }
+.dx-lightbox__btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; min-width: 36px; justify-content: center; padding: 0 10px; border: 1px solid rgb(255 255 255 / 0.18); border-radius: var(--radius-lg); background: rgb(255 255 255 / 0.08); color: #f5f6f8; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.dx-lightbox__btn:hover { background: rgb(255 255 255 / 0.16); }
+.dx-lightbox__btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.dx-lightbox__btn .md-icon { font-size: 18px; }
+.dx-lightbox__stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 8px 16px 24px; overflow: auto; overscroll-behavior: contain; touch-action: pan-x pan-y pinch-zoom; }
+.dx-lightbox__img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: var(--radius-lg); background: var(--surface); cursor: zoom-in; }
+.dx-lightbox.is-zoomed .dx-lightbox__stage { align-items: flex-start; justify-content: flex-start; }
+.dx-lightbox.is-zoomed .dx-lightbox__img { margin: auto; cursor: zoom-out; }
+@media (max-width: 639px) {
+  .dx-lightbox__btnlabel { display: none; }
+  .dx-lightbox__stage { padding: 4px 8px 16px; }
+  .dx-fig, .dx-clip { margin: 20px 0; }
+}
+@media print {
+  .dx-themed-dark { display: none !important; }
+  .dx-themed-light { display: block !important; }
+  .dx-fig__zoom, .dx-clip__toggle, .dx-clip__big, .dx-player__start { display: none !important; }
+}
+
 /* Feedback + prev/next */
 .dx-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 48px; padding: 16px 0; border-top: 1px solid var(--border); font-size: 14px; }
 .dx-feedback__q { flex: 1 1 200px; color: var(--text-secondary); }
@@ -364,9 +441,7 @@
 .dx-entry__docslabel { color: var(--text-muted); }
 .dx-pill { padding: 3px 10px; border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface); text-decoration: none; }
 .dx-pill:hover { border-color: var(--border-strong); }
-.dx-entry__media { margin: 0; }
-.dx-entry__media img { display: block; max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius-xl); }
-.dx-entry .dx-video { margin: 4px 0; }
+.dx-entry .dx-video, .dx-entry .dx-fig { margin: 4px 0; }
 .dx-entrypage { display: flex; flex-direction: column; gap: 14px; }
 .dx-entrypage__date { font-size: 13px; color: var(--text-muted); }
 .dx-entrypage .dx-prose { margin: 8px 0; }

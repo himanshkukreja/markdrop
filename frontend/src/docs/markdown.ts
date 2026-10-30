@@ -10,7 +10,7 @@ import type { Heading, Section } from "./types";
 
 /** Every directive name the renderer understands. `docs:check` flags anything else. */
 export const CONTAINER_DIRECTIVES = ["note", "tip", "warning", "danger", "steps", "tabs", "tab", "cards", "card", "details"] as const;
-export const LEAF_DIRECTIVES = ["video", "embed"] as const;
+export const LEAF_DIRECTIVES = ["video", "clip", "embed"] as const;
 export const TEXT_DIRECTIVES = ["kbd"] as const;
 export const CALLOUTS: Record<string, string> = { note: "Note", tip: "Tip", warning: "Warning", danger: "Danger" };
 
@@ -132,8 +132,10 @@ export function readingMinutes(body: string): number {
 export interface PlainOptions {
   /** Absolute origin for root-relative links (`/a/b` → `${base}/a/b`). */
   base?: string;
-  /** Resolves a `::video` id to its published link, if any. */
-  video?: (id: string) => { url: string } | undefined;
+  /** Resolves a `::video` id to its published link (and length), if any. */
+  video?: (id: string) => { url: string; duration?: string } | undefined;
+  /** Resolves a `::clip` src (no extension) to its file and length. */
+  clip?: (src: string) => { url: string; duration?: string };
 }
 
 function absolutize(line: string, base?: string): string {
@@ -150,7 +152,8 @@ function textDirectives(line: string): string {
 /**
  * Directive syntax → plain GitHub Markdown, for agents, llms-full.txt, clipboard and search.
  * Callouts become blockquotes with a bold label, tabs/cards/details become bold labels, steps keep
- * their headings, videos become links (or vanish while unpublished), embeds become links.
+ * their headings, videos and clips become `[Video: title (0:45)](url)` lines (an unfilled video slot
+ * vanishes), embeds become links, images keep their Markdown with absolute URLs.
  * Code is never touched. Unbalanced fences (a section cut out of a container) are tolerated.
  */
 export function toPlainMarkdown(body: string, opts: PlainOptions = {}): string {
@@ -201,7 +204,14 @@ export function toPlainMarkdown(body: string, opts: PlainOptions = {}): string {
       const a = parseAttrs(attrs);
       if (name === "video") {
         const v = a.id ? opts.video?.(a.id) : undefined;
-        if (v) emit(`[Video: ${a.title || label || a.id}${a.duration ? ` (${a.duration})` : ""}](${v.url})`);
+        const d = a.duration || v?.duration;
+        if (v) emit(`[Video: ${a.title || label || a.id}${d ? ` (${d})` : ""}](${v.url})`);
+      } else if (name === "clip" && a.src) {
+        const c = opts.clip?.(a.src) ?? { url: `${opts.base ?? ""}${a.src}.mp4` };
+        const title = (a.alt || a.caption || label || a.src.split("/").pop() || "").replace(/[[\]]/g, "");
+        emit("");
+        emit(`[Video: ${title}${c.duration ? ` (${c.duration})` : ""}](${c.url})`);
+        emit("");
       } else if (name === "embed" && a.src) {
         emit(`[${a.title || label || a.src}](${a.src})`);
       }
@@ -222,7 +232,7 @@ export function plainText(md: string, { code = true }: { code?: boolean } = {}):
     }
     let l = line.replace(QUOTE, "").trim();
     if (!l || /^\|?\s*:?-{3,}/.test(l)) continue;
-    l = l.replace(/^#{1,6}\s+/, "").replace(/^(?:[-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?/, "").replace(/\|/g, " ");
+    l = l.replace(/!\[([^\]]*)\]\([^)]*\)/g, " $1 ").replace(/^#{1,6}\s+/, "").replace(/^(?:[-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?/, "").replace(/\|/g, " ");
     parts.push(inlineText(l));
   }
   return parts.join(" ").replace(/\s+/g, " ").trim();

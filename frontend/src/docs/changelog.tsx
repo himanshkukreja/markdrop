@@ -4,7 +4,7 @@
  */
 import { getChangelog, getPage, navLabel } from "./content";
 import { formatDate } from "./outputs";
-import { VideoSlot } from "./render/DocsMarkdown";
+import { Figure, VideoSlot } from "./render/DocsMarkdown";
 import type { ChangelogEntry } from "./types";
 import type { HubEntry } from "./client/Changelog";
 
@@ -33,13 +33,7 @@ export function toHubEntry(e: ChangelogEntry): HubEntry {
 
 export function EntryMedia({ e }: { e: ChangelogEntry }) {
   if (e.media?.video) return <VideoSlot vid={e.media.video} label={e.title} />;
-  if (e.media?.image)
-    return (
-      <figure className="dx-entry__media">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={e.media.image} alt={e.media.alt ?? ""} loading="lazy" decoding="async" />
-      </figure>
-    );
+  if (e.media?.image) return <Figure src={e.media.image} alt={e.media.alt ?? ""} />;
   return null;
 }
 

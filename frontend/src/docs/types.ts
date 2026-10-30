@@ -163,10 +163,23 @@ export interface Changelog {
   entries: ChangelogEntry[];
 }
 
+/**
+ * One entry of videos.json, filling a `::video{id=…}` slot. A self-hosted video (`src`, an MP4
+ * under /docs-assets/videos/) plays in the docs' own player; `markdrop` (a published Markdrop link)
+ * is framed instead when set. `url` is the older name of `markdrop`.
+ */
 export interface VideoRef {
-  url: string;
+  src?: string;
   poster?: string;
+  /** "0:45" */
   duration?: string;
+  title?: string;
+  /** WebVTT chapters, listed under the player too. */
+  chapters?: string;
+  /** WebVTT captions (English). */
+  captions?: string;
+  markdrop?: string;
+  url?: string;
 }
 
 /** One row of the client-side search index. */

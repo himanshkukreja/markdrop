@@ -3,7 +3,8 @@
  *
  * remarkDocs (after remark-directive): turns the directive nodes into custom elements the
  * component map renders (`docs-callout`, `docs-steps`/`docs-step`, `docs-tabs`/`docs-tab`,
- * `docs-cards`/`docs-card`, `docs-details`, `docs-video`, `docs-embed`, `docs-kbd`), and reads
+ * `docs-cards`/`docs-card`, `docs-details`, `docs-video`, `docs-clip`, `docs-embed`, `docs-kbd`),
+ * turns a paragraph that is just one image into a `docs-figure` (title → caption), and reads
  * code-fence meta (`title="…"`, `{2,4-5}`). Only whitelisted attributes are carried over; an
  * unknown directive keeps its content (containers) or reads as the literal text it was.
  *
@@ -22,6 +23,9 @@ interface MdNode {
   children?: MdNode[];
   value?: string;
   depth?: number;
+  url?: string;
+  alt?: string | null;
+  title?: string | null;
   lang?: string | null;
   meta?: string | null;
   data?: { hName?: string; hProperties?: Record<string, unknown>; directiveLabel?: boolean; [k: string]: unknown };
@@ -142,11 +146,26 @@ function transformContainer(node: MdNode) {
   }
 }
 
+/** A paragraph holding one image and nothing else (whitespace aside): a block figure. */
+function loneImage(node: MdNode): MdNode | undefined {
+  const kids = (node.children ?? []).filter((k) => !(k.type === "text" && !(k.value ?? "").trim()));
+  return kids.length === 1 && kids[0].type === "image" ? kids[0] : undefined;
+}
+
 function transform(node: MdNode, parent: MdNode | null, index: number) {
+  const img = node.type === "paragraph" ? loneImage(node) : undefined;
+  if (img) {
+    set(node, "docs-figure", { src: img.url, alt: img.alt ?? "", caption: img.title ?? undefined });
+    node.children = [];
+    return;
+  }
   if (node.type === "containerDirective") transformContainer(node);
   else if (node.type === "leafDirective") {
     if (node.name === "video") {
       set(node, "docs-video", { vid: attr(node, "id"), label: attr(node, "title") || textOf(node).trim(), duration: attr(node, "duration") });
+      node.children = [];
+    } else if (node.name === "clip") {
+      set(node, "docs-clip", { src: attr(node, "src"), alt: attr(node, "alt") || textOf(node).trim(), caption: attr(node, "caption"), theme: attr(node, "theme") });
       node.children = [];
     } else if (node.name === "embed") {
       set(node, "docs-embed", { src: attr(node, "src"), label: attr(node, "title") || textOf(node).trim() });

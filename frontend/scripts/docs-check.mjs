@@ -10,7 +10,17 @@
  * (listed but not written, written but not listed), internal links and #anchors (to pages,
  * prerequisites, card hrefs, changelog docs), directive names / attributes / balance, card icons,
  * tabs structure, one video slot per page, headings (no H1, unique ids), changelog.json and
- * videos.json. Errors exit 1; warnings (pages not written yet, orphans) don't, unless --strict.
+ * videos.json, and media (see "media" below). Errors exit 1; warnings (pages not written yet,
+ * orphans) don't, unless --strict.
+ *
+ * Media (files under public/docs-assets, sizes in content/docs/media.json):
+ *   error  a referenced file is missing from public/ or from media.json (npm run docs:media-manifest)
+ *   error  an image or clip has no alt text, or alt text that reads like a file name
+ *   error  a clip has no .mp4 or no poster (<src>.webp); theme="both" without the .dark files
+ *   error  videos.json: bad shape, missing files, bad duration, chapters/captions that aren't WebVTT
+ *   warn   a UI screenshot without a .dark variant (names starting diagram-, photo-, art- or logo-
+ *          are not UI screenshots), over budget (image 220 KB, clip 1.6 MB, video 25 MB), a clip
+ *          without .webm, a file in docs-assets nothing uses, a stale media.json entry
  *
  * Heading slugs mirror src/components/reading/slug.ts (createSlugger + inlineText); keep in step.
  */
@@ -27,7 +37,7 @@ const STRICT = args.includes("--strict");
 const ONLY = args.filter((a) => !a.startsWith("--")).map((a) => a.replace(/^\/+|\/+$/g, ""));
 
 const CONTAINERS = new Set(["note", "tip", "warning", "danger", "steps", "tabs", "tab", "cards", "card", "details"]);
-const LEAVES = new Set(["video", "embed"]);
+const LEAVES = new Set(["video", "clip", "embed"]);
 const TEXTS = new Set(["kbd"]);
 const SYNC = new Set(["os", "lang", "dns"]);
 const KINDS = new Set(["new", "improved", "fixed"]);
@@ -150,6 +160,10 @@ if (!fs.existsSync(CONTENT)) {
 const site = readJson("site.json", {}).value;
 const changelog = readJson("changelog.json", { entries: [] });
 const videos = readJson("videos.json", {}).value;
+const mediaJson = readJson("media.json", {});
+const media = mediaJson.value && typeof mediaJson.value === "object" && !Array.isArray(mediaJson.value) ? mediaJson.value : {};
+const mediaRefs = []; // { file, line, type: image | clip, src, alt, theme }
+const videoIds = new Set();
 
 const files = walk(CONTENT);
 const pages = new Map(); // path → { file, fm, body, lines, ids:Set, links:[] }
@@ -321,8 +335,10 @@ for (const [p, pg] of pages) {
       const [, name, , attrs] = leaf;
       const a = parseAttrs(attrs);
       if (!LEAVES.has(name)) err(file, `unknown directive ::${name} (known: ${[...LEAVES].join(", ")})`, ln(i));
+      if (name === "clip") mediaRefs.push({ file, line: ln(i), type: "clip", src: a.src, alt: a.alt, theme: a.theme });
       if (name === "video") {
         videos++;
+        if (a.id) videoIds.add(a.id);
         if (!a.id) err(file, "::video needs an id, like ::video{id=\"publish-first-document\" title=\"…\"}", ln(i));
         else if (!/^[a-z0-9][a-z0-9-]*$/.test(a.id)) err(file, `video id "${a.id}" should be lowercase-with-dashes`, ln(i));
         if (!a.title) warn(file, "::video should have a title", ln(i));
@@ -337,6 +353,8 @@ for (const [p, pg] of pages) {
       if (t[2].length !== 1) continue;
       if (!TEXTS.has(t[3])) err(file, `unknown text directive :${t[3]}[…] (known: ${[...TEXTS].join(", ")})`, ln(i));
     }
+    // Images
+    for (const im of prose.matchAll(/!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"([^"]*)")?\s*\)/g)) mediaRefs.push({ file, line: ln(i), type: "image", src: im[2], alt: im[1] });
     // Links
     for (const l of prose.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) pg.links.push({ href: l[1], line: ln(i), what: "link" });
     if (/\]\(\.{0,2}\/?[a-z][\w-]*\/[\w-]+\.md\)/.test(prose)) warn(file, "link to a .md file: use the page address (/section/page)", ln(i));
@@ -419,8 +437,165 @@ if (!changelog.missing) {
     if (e.body && /^\s*#\s/m.test(e.body)) warn("changelog.json", `${where}: body shouldn't contain an H1`);
   });
 }
-if (videos && (typeof videos !== "object" || Array.isArray(videos))) err("videos.json", "must be an object: { id: { url, poster?, duration? } }");
-else for (const [id, v] of Object.entries(videos ?? {})) if (!v || typeof v.url !== "string" || !/^https:\/\//.test(v.url)) err("videos.json", `${id}: url must be an https link`);
+
+/* ── media ───────────────────────────────────────────────────────────────── */
+const PUBLIC = path.join(ROOT, "public");
+const ASSETS_DIR = path.join(PUBLIC, "docs-assets");
+const KB = 1024;
+const BUDGET = { image: 220 * KB, poster: 220 * KB, clip: 1.6 * KB * KB, video: 25 * KB * KB };
+const usedAssets = new Set();
+const exists = (rel) => {
+  try {
+    return fs.statSync(path.join(PUBLIC, rel)).isFile();
+  } catch {
+    return false;
+  }
+};
+const darkOf = (p) => (/\.[a-z0-9]+$/i.test(p) ? p.replace(/(\.[a-z0-9]+)$/i, ".dark$1") : `${p}.dark`);
+const isDark = (p) => /\.dark(\.[a-z0-9]+)?$/i.test(p);
+const fmtBytes = (n) => (n >= KB * KB ? `${(n / KB / KB).toFixed(2)} MB` : `${Math.round(n / KB)} KB`);
+/** "IMG_2041", "settings-page.webp", "screenshot 3": a file name, not a description. */
+function filenameLike(alt) {
+  const t = alt.trim();
+  return /\.(webp|png|jpe?g|gif|svg|avif|mp4|webm)$/i.test(t) || (/^[\w.@-]+$/.test(t) && /[-_]/.test(t)) || /^(image|img|screenshot|screen ?shot|picture|photo|clip|video|gif|untitled|alt)\s*\d*$/i.test(t);
+}
+function checkAlt(r, what) {
+  const alt = (r.alt ?? "").trim();
+  if (!alt) err(r.file, `${what} ${r.src}: alt text is required (what it shows and why it matters)`, r.line);
+  else if (filenameLike(alt)) err(r.file, `${what} ${r.src}: alt "${alt}" reads like a file name; describe what it shows`, r.line);
+}
+const budgetWarned = new Set();
+/** A file the docs use: in public/, in media.json, within budget. Returns false when missing. */
+function checkAsset(file, line, rel, budget, what = "") {
+  usedAssets.add(rel);
+  if (!exists(rel)) {
+    err(file, `${what}${rel} doesn't exist in public/`, line);
+    return false;
+  }
+  const m = media[rel];
+  if (!m) err(file, `${what}${rel} isn't in media.json: run npm run docs:media-manifest`, line);
+  const bytes = m?.bytes ?? fs.statSync(path.join(PUBLIC, rel)).size;
+  if (budget && bytes > BUDGET[budget] && !budgetWarned.has(rel)) {
+    budgetWarned.add(rel);
+    warn(file, `${what}${rel} is ${fmtBytes(bytes)} (budget for ${budget === "image" ? "an" : "a"} ${budget}: ${fmtBytes(BUDGET[budget])})`, line);
+  }
+  return true;
+}
+const NOT_UI = /^(diagram|photo|art|logo)-/;
+
+for (const r of mediaRefs) {
+  if (r.type === "image") {
+    checkAlt(r, "image");
+    if (/^https?:\/\//.test(r.src)) {
+      warn(r.file, `image ${r.src}: keep docs images under /docs-assets/ (an external image can move, change or track readers)`, r.line);
+      continue;
+    }
+    if (!r.src.startsWith("/docs-assets/")) {
+      err(r.file, `image ${r.src}: images live under /docs-assets/<page>/ in frontend/public`, r.line);
+      continue;
+    }
+    if (isDark(r.src)) warn(r.file, `image ${r.src}: reference the light file; its .dark variant is picked up automatically`, r.line);
+    if (!checkAsset(r.file, r.line, r.src, "image", "image ")) continue;
+    const dark = darkOf(r.src);
+    if (exists(dark)) checkAsset(r.file, r.line, dark, "image", "dark variant ");
+    else if (!isDark(r.src) && !NOT_UI.test(path.basename(r.src))) warn(r.file, `image ${r.src}: no dark variant (${path.basename(dark)}); dark-theme readers get the light screenshot`, r.line);
+    continue;
+  }
+  // ::clip
+  if (!r.src) {
+    err(r.file, '::clip needs src="/docs-assets/<page>/<name>" (no extension)', r.line);
+    continue;
+  }
+  checkAlt(r, "clip");
+  if (!r.src.startsWith("/docs-assets/")) {
+    err(r.file, `clip ${r.src}: clips live under /docs-assets/<page>/ in frontend/public`, r.line);
+    continue;
+  }
+  if (/\.(mp4|webm|webp|gif|mov)$/i.test(r.src)) {
+    err(r.file, `clip ${r.src}: give src without an extension; .webm, .mp4 and the .webp poster are picked up`, r.line);
+    continue;
+  }
+  if (r.theme !== undefined && r.theme !== "light" && r.theme !== "both") err(r.file, `clip ${r.src}: theme must be "light" or "both"`, r.line);
+  const variants = [r.src];
+  const dark = darkOf(r.src);
+  const hasDark = exists(`${dark}.mp4`) || exists(`${dark}.webm`);
+  if (r.theme === "both") variants.push(dark);
+  else if (hasDark) {
+    warn(r.file, `clip ${r.src}: has a dark variant; add theme="both" to use it`, r.line);
+    for (const x of [".mp4", ".webm", ".webp"]) if (exists(dark + x)) usedAssets.add(dark + x);
+  }
+  for (const base of variants) {
+    const label = base === r.src ? "clip " : "dark clip ";
+    const mp4 = checkAsset(r.file, r.line, `${base}.mp4`, "clip", label);
+    if (exists(`${base}.webm`)) checkAsset(r.file, r.line, `${base}.webm`, "clip", label);
+    else if (mp4) warn(r.file, `${label}${base}.webm is missing (browsers that prefer WebM download the larger MP4)`, r.line);
+    if (!exists(`${base}.webp`)) err(r.file, `${label}${base}: no poster (${path.basename(base)}.webp)`, r.line);
+    else checkAsset(r.file, r.line, `${base}.webp`, "poster", "poster ");
+  }
+}
+
+// Changelog images
+(changelog.value.entries ?? []).forEach((e, i) => {
+  const img = e?.media?.image;
+  if (typeof img === "string" && img.startsWith("/docs-assets/")) checkAsset("changelog.json", undefined, img, "image", `entries[${i}] media.image `);
+  if (e?.media?.video) videoIds.add(e.media.video);
+});
+
+// videos.json
+const VIDEO_KEYS = new Set(["src", "poster", "duration", "title", "chapters", "captions", "markdrop", "url"]);
+function checkVtt(id, key, rel) {
+  if (typeof rel !== "string" || !rel.startsWith("/docs-assets/") || !rel.endsWith(".vtt")) return err("videos.json", `${id}: ${key} must be a /docs-assets/….vtt path`);
+  usedAssets.add(rel);
+  if (!exists(rel)) return err("videos.json", `${id}: ${key} ${rel} doesn't exist in public/`);
+  if (!/^\uFEFF?WEBVTT/.test(fs.readFileSync(path.join(PUBLIC, rel), "utf8"))) err("videos.json", `${id}: ${key} ${rel} isn't WebVTT (it must start with WEBVTT)`);
+}
+if (videos && (typeof videos !== "object" || Array.isArray(videos))) err("videos.json", 'must be an object: { "<id>": { "src": "/docs-assets/videos/<id>.mp4", "poster", "duration", "chapters"?, "captions"?, "markdrop"? } }');
+else
+  for (const [id, v] of Object.entries(videos ?? {})) {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) err("videos.json", `${id}: id should be lowercase-with-dashes`);
+    if (!v || typeof v !== "object" || Array.isArray(v)) {
+      err("videos.json", `${id}: must be an object`);
+      continue;
+    }
+    for (const k of Object.keys(v)) if (!VIDEO_KEYS.has(k)) warn("videos.json", `${id}: unknown field "${k}" (ignored)`);
+    for (const k of ["markdrop", "url"]) if (v[k] !== undefined && (typeof v[k] !== "string" || !/^https:\/\//.test(v[k]))) err("videos.json", `${id}: ${k} must be an https link`);
+    if (v.src === undefined && !v.markdrop && !v.url) err("videos.json", `${id}: needs src (an MP4 under /docs-assets/videos/) or markdrop (a Markdrop link)`);
+    if (v.src !== undefined) {
+      if (typeof v.src !== "string" || !v.src.startsWith("/docs-assets/") || !/\.mp4$/i.test(v.src)) err("videos.json", `${id}: src must be a /docs-assets/….mp4 path`);
+      else checkAsset("videos.json", undefined, v.src, "video", `${id}: `);
+      if (v.poster === undefined) warn("videos.json", `${id}: no poster (the player shows a black frame until it plays)`);
+    }
+    if (v.poster !== undefined) {
+      if (typeof v.poster !== "string" || !v.poster.startsWith("/docs-assets/")) err("videos.json", `${id}: poster must be a /docs-assets/ path`);
+      else checkAsset("videos.json", undefined, v.poster, "poster", `${id}: poster `);
+    }
+    if (v.duration === undefined) warn("videos.json", `${id}: no duration (shown on the poster, like "0:45")`);
+    else if (typeof v.duration !== "string" || !/^(\d+:)?\d{1,2}:\d{2}$/.test(v.duration)) err("videos.json", `${id}: duration "${v.duration}" should look like 0:45 or 1:02:03`);
+    if (v.chapters !== undefined) checkVtt(id, "chapters", v.chapters);
+    if (v.captions !== undefined) checkVtt(id, "captions", v.captions);
+    if (!videoIds.has(id)) warn("videos.json", `${id}: no page has ::video{id="${id}"} (and no changelog entry uses it)`);
+  }
+
+// Every file in docs-assets is used; every media.json entry still exists.
+function walkAssets(dir) {
+  let out = [];
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const e of entries) {
+    if (e.name.startsWith(".")) continue;
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) out = out.concat(walkAssets(p));
+    else out.push("/" + path.relative(PUBLIC, p).split(path.sep).join("/"));
+  }
+  return out;
+}
+const assetFiles = walkAssets(ASSETS_DIR);
+for (const rel of assetFiles) if (!usedAssets.has(rel)) warn("public/docs-assets", `${rel} isn't used by any page, changelog entry or videos.json`);
+for (const rel of Object.keys(media)) if (!exists(rel)) warn("media.json", `${rel} no longer exists: run npm run docs:media-manifest`);
 
 /* ── print ───────────────────────────────────────────────────────────────── */
 const inScope = (f) => !ONLY.length || ONLY.some((s) => f === s || f.startsWith(`${s}/`) || f.startsWith(s));
