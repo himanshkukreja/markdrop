@@ -23,7 +23,7 @@ class Create(DocsSitesCase):
     async def test_blank_site_in_a_workspace(self):
         site = await self.create("acme")
         self.assertEqual((site["name"], site["slug"], site["status"], site["your_role"]),
-                         ("Acme Docs", "acme", "draft", "owner"))
+                         ("Acme Docs", "acme", "draft", "admin"))
         self.assertEqual(site["url"], "https://acme.docs.markdrop.in")
         self.assertEqual(site["workspace_id"], self.ws)
         self.assertEqual(site["source"], {"kind": "blank"})
@@ -48,7 +48,7 @@ class Create(DocsSitesCase):
         await self.create("by-stranger", "stranger", expect=404)
         # A personal site: anyone signed in, owner only.
         mine = await self.create("strangers-own", "stranger", workspace=False)
-        self.assertEqual((mine["workspace_id"], mine["your_role"]), (None, "owner"))
+        self.assertEqual((mine["workspace_id"], mine["your_role"]), (None, "admin"))
         await self.get(f"/{mine['id']}", "owner", expect=404)
         r = await self.http.post(BASE, json={"name": "x", "slug": "nobody"})
         self.assertEqual(r.status_code, 401)
@@ -139,7 +139,7 @@ class ListAndRead(DocsSitesCase):
     async def test_list_by_workspace_and_personal(self):
         a = await self.create("acme")
         await self.create("mine", workspace=False)
-        for who, role in (("owner", "owner"), ("admin", "admin"), ("editor", "editor"), ("viewer", "viewer")):
+        for who, role in (("owner", "admin"), ("admin", "admin"), ("editor", "editor"), ("viewer", "viewer")):
             res = await self.get("", who, params={"workspace_id": self.ws})
             self.assertEqual([s["slug"] for s in res["sites"]], ["acme"])
             self.assertEqual(res["sites"][0]["your_role"], role)
@@ -388,6 +388,7 @@ class Reviews(DocsSitesCase):
         # Another editor can't withdraw it; the submitter or an admin can.
         await self.db["memberships"].insert_one({"workspace_id": self.ws, "user_id": self.uid["stranger"],
                                                  "role": "member"})
+        await self.grant("stranger", "editor")
         await self.call("POST", f"/{self.sid}/reviews/{rv2['id']}/withdraw", "stranger", 403)
         out = await self.call("POST", f"/{self.sid}/reviews/{rv2['id']}/withdraw", "editor")
         self.assertEqual(out["status"], "withdrawn")

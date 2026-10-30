@@ -252,6 +252,17 @@ async def connect() -> None:
         await _docs_site_store.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] docs site indexes skipped: {exc}")
+    # Docs Studio roles (services/docs_studio_roles.py): once, members of workspaces that already
+    # had docs sites keep the access the old workspace-role mapping gave them. Idempotent (a marker
+    # row; insert-only grants), so it runs on every start. Never fatal.
+    try:
+        from app.services import docs_studio_roles as _studio_roles
+
+        carried = await _studio_roles.carry_over_legacy_roles(db)
+        if carried:
+            print(f"[startup] carried over {carried} Docs Studio role(s) from workspace roles")
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] Docs Studio role carry-over skipped: {exc}")
 
     # Folders created before slugs existed have none, and fall back to their
     # ObjectId in URLs. Idempotent and a no-op once done, so it runs on every

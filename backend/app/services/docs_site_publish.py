@@ -266,9 +266,17 @@ async def _decide(db: AsyncIOMotorDatabase, review: dict, status: str, user: Use
     return res
 
 
+def _not_own(review: dict, role: str, user: User) -> None:
+    """A reviewer decides other people's reviews; their own goes to someone else (an admin, who
+    publishes directly anyway, may decide their own)."""
+    if review.get("requested_by") == user.id and not store.is_admin(role):
+        raise HTTPException(status_code=403, detail="Someone else has to review your own changes.")
+
+
 async def approve_review(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, review_id: str,
                          comment: str | None) -> dict:
     review = await _load_review(db, site, review_id)
+    _not_own(review, role, user)
     decided = await _decide(db, review, "approved", user, comment)
     try:
         build = await publish(db, site, role, user, note=review.get("note") or comment,
@@ -286,9 +294,10 @@ async def approve_review(db: AsyncIOMotorDatabase, site: dict, role: str, user: 
     return {"review": await _review_out(db, decided), "build": build}
 
 
-async def request_changes(db: AsyncIOMotorDatabase, site: dict, user: User, review_id: str,
+async def request_changes(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, review_id: str,
                           comment: str | None) -> dict:
     review = await _load_review(db, site, review_id)
+    _not_own(review, role, user)
     return await _review_out(db, await _decide(db, review, "changes_requested", user, comment))
 
 

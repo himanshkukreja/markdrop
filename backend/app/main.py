@@ -28,6 +28,7 @@ from app.routers.auth import unsubscribe_alias_router
 from app.routers.docs_ai import router as docs_ai_router
 from app.routers.docs_jobs_internal import router as docs_jobs_internal_router
 from app.routers.docs_sites import router as docs_sites_router
+from app.routers.docs_studio import router as docs_studio_router
 from app.routers.documents import router as documents_router
 from app.routers.feedback import router as feedback_router
 from app.routers.files import router as files_router
@@ -199,6 +200,7 @@ app.include_router(feedback_router)
 app.include_router(docs_ai_router)
 # Hosted docs sites (dashboard/editor API; app-internal, see routers/docs_sites.py).
 app.include_router(docs_sites_router, include_in_schema=False)
+app.include_router(docs_studio_router, include_in_schema=False)
 # Docs job runners (GitHub Actions) call back here with a per-job token.
 app.include_router(docs_jobs_internal_router, include_in_schema=False)
 app.include_router(workspaces_router)

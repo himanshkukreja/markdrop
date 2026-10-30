@@ -21,6 +21,7 @@ from app.models.user import User
 from app.routers.auth import require_user
 from app.routers.docs_site_pages import DocsRoute
 from app.routers.docs_site_pages import router as pages_router
+from app.routers.docs_site_people import router as people_router
 from app.schemas.docs_site import PublishRequest, ReviewCreate, ReviewDecision, SiteCreate, SiteUpdate
 from app.services import docs_site_assets as assets
 from app.services import docs_site_publish as publishing
@@ -75,7 +76,7 @@ async def create_site(request: Request, body: SiteCreate, db: AsyncIOMotorDataba
 @limiter.limit("240/minute")
 async def get_site(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
                    user: User = Depends(require_user)):
-    site, role = await store.load_site(db, site_id, user)
+    site, role = await store.site_access(db, site_id, user)
     return await store.site_view(db, site, role)
 
 
@@ -83,7 +84,7 @@ async def get_site(request: Request, site_id: str, db: AsyncIOMotorDatabase = De
 @limiter.limit("60/minute")
 async def update_site(request: Request, site_id: str, body: SiteUpdate, db: AsyncIOMotorDatabase = Depends(get_db),
                       user: User = Depends(require_user)):
-    site, role = await store.load_site(db, site_id, user, "admin")
+    site, role = await store.site_access(db, site_id, user, "admin")
     site = await store.update_site(db, site, name=body.name, slug=body.slug, settings_patch=body.settings)
     return await store.site_view(db, site, role)
 
@@ -101,7 +102,7 @@ async def delete_site(request: Request, site_id: str, db: AsyncIOMotorDatabase =
 @limiter.limit("10/minute")
 async def unpublish_site(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
                          user: User = Depends(require_user)):
-    site, role = await store.load_site(db, site_id, user, "admin")
+    site, role = await store.site_access(db, site_id, user, "admin")
     job = await store.unpublish_site(db, site)
     fresh = await db[store.SITES].find_one({"_id": site["_id"]})
     return await store.site_view(db, fresh, role, job=job)
@@ -148,7 +149,7 @@ async def list_reviews(request: Request, site_id: str,
 @limiter.limit("20/minute")
 async def approve_review(request: Request, site_id: str, review_id: str, body: ReviewDecision | None = None,
                          db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
-    site, role = await store.load_site(db, site_id, user, "admin")
+    site, role = await store.load_site(db, site_id, user, "reviewer")
     return await publishing.approve_review(db, site, role, user, review_id, body.comment if body else None)
 
 
@@ -156,8 +157,8 @@ async def approve_review(request: Request, site_id: str, review_id: str, body: R
 @limiter.limit("20/minute")
 async def request_changes(request: Request, site_id: str, review_id: str, body: ReviewDecision | None = None,
                           db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
-    site, _role = await store.load_site(db, site_id, user, "admin")
-    return await publishing.request_changes(db, site, user, review_id, body.comment if body else None)
+    site, role = await store.load_site(db, site_id, user, "reviewer")
+    return await publishing.request_changes(db, site, role, user, review_id, body.comment if body else None)
 
 
 @router.post("/{site_id}/reviews/{review_id}/withdraw")
@@ -234,3 +235,6 @@ async def asset_preview(request: Request, site_id: str, name: str, db: AsyncIOMo
 
 # Pages, locks, versions and nav (routers/docs_site_pages.py).
 router.include_router(pages_router)
+
+# Per-site Docs Studio role overrides (routers/docs_site_people.py).
+router.include_router(people_router)

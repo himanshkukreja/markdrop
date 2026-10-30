@@ -263,6 +263,10 @@ async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
     res = await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id})
     if res.deleted_count:
         await lifecycle.member_left(db, workspace_id, user_id)
+        # Their Docs Studio roles there go too (read time already ignores them).
+        from app.services import docs_studio_roles
+
+        await docs_studio_roles.member_left(db, workspace_id, user_id, actor_id=actor_id)
 
 
 async def transfer_ownership(db: AsyncIOMotorDatabase, workspace_id: str, actor_id: str,
@@ -386,6 +390,9 @@ async def delete_workspace(
     await db["folders"].delete_many({"workspace_id": workspace_id})
     await db["invitations"].delete_many({"workspace_id": workspace_id})
     members = await db["memberships"].delete_many({"workspace_id": workspace_id})
+    from app.services import docs_studio_roles
+
+    await docs_studio_roles.workspace_deleted(db, workspace_id)
     await db["workspaces"].delete_one({"_id": ObjectId(workspace_id)})
     # C-N6: a filing that passed its checks before ``deleting`` was set can
     # still land after the release pass. Sweep again, database first: out of

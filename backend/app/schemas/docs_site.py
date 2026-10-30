@@ -134,3 +134,21 @@ class ReviewCreate(_Body):
 
 class ReviewDecision(_Body):
     comment: str | None = Field(None, max_length=2000)
+
+
+StudioRole = Literal["admin", "reviewer", "editor", "viewer", "none"]
+
+
+class StudioRoleUpdate(_Body):
+    """A Docs Studio role: for a workspace member ("none" removes it), or a site override
+    ("none" hides the site from them)."""
+    role: StudioRole
+
+
+class StudioMemberRole(_Body):
+    user_id: str = Field(..., min_length=1, max_length=64)
+    role: StudioRole
+
+
+class StudioMembersUpdate(_Body):
+    members: list[StudioMemberRole] = Field(..., min_length=1, max_length=200)

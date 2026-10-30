@@ -38,16 +38,17 @@ class AllScopes(DocsSitesCase):
         for who, role in (("stranger", "owner"), ("owner", "viewer")):
             await self.db["memberships"].insert_one({"workspace_id": other, "user_id": self.uid[who], "role": role,
                                                      "created_at": now()})
-        beta = await self.call("POST", "", "stranger", 201, json={
+        await self.grant("owner", "viewer", other)  # a viewer in Docs Studio there
+        beta =await self.call("POST", "", "stranger", 201, json={
             "workspace_id": other, "name": "Beta Docs", "slug": "beta", "source": {"kind": "blank"}})
 
         out = await self.get("", params={"scope": "all"})
         by_id = {s["id"]: s for s in out["sites"]}
         self.assertEqual(set(by_id), {ws_site["id"], mine["id"], beta["id"]})
         self.assertEqual(by_id[ws_site["id"]]["workspace"]["name"], "Acme")
-        self.assertEqual(by_id[ws_site["id"]]["your_role"], "owner")
+        self.assertEqual(by_id[ws_site["id"]]["your_role"], "admin")
         self.assertIsNone(by_id[mine["id"]]["workspace"])
-        self.assertEqual(by_id[mine["id"]]["your_role"], "owner")
+        self.assertEqual(by_id[mine["id"]]["your_role"], "admin")
         self.assertEqual(by_id[beta["id"]]["your_role"], "viewer")
         self.assertEqual(by_id[beta["id"]]["workspace"],
                          {"id": other, "name": "Beta", "accent": "#0f766e", "logo_url": "https://beta.example/logo.png"})
