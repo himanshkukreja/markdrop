@@ -28,6 +28,7 @@ const SETTING: Record<string, { label: string; badge: string; href: string }> = 
   seo: { label: "Search indexing", badge: "Settings", href: "/settings#access" },
   name: { label: "Site name", badge: "Settings", href: "/settings" },
   address: { label: "Address", badge: "Settings", href: "/settings#address" },
+  redirects: { label: "Redirects", badge: "Settings", href: "/settings#redirects" },
 };
 
 function changeMeta(c: PageChange): string {
@@ -46,6 +47,7 @@ function buildTitle(b: Build): string {
 function buildMeta(b: Build, first: boolean): string {
   const parts = [whenShort(b.finished_at ?? b.created_at)];
   if (b.status === "failed") parts.push("failed");
+  else if (b.status === "superseded" && !b.stats) parts.push(b.error || "replaced by a newer publish before it was built");
   else if (b.stats) {
     parts.push(`built in ${Math.max(1, Math.round(b.stats.ms / 1000))} s`);
     parts.push(first ? "first publish" : `${plural(b.stats.uploaded, "file")} updated`);
@@ -54,9 +56,17 @@ function buildMeta(b: Build, first: boolean): string {
 }
 
 const STAGE: Record<string, string> = { queued: "Waiting to build", building: "Building the site", publishing: "Putting it live" };
+/** The build job's steps (docs-platform/runner: prepare → assets → build → publish → done). */
+const STEP: Record<string, string> = {
+  prepare: "Writing the pages",
+  assets: "Fetching images and files",
+  build: "Rendering the site",
+  publish: "Uploading",
+  done: "Going live",
+};
 
 /**
- * /w/<ws>/docs/<site>/publish (Publish board): what changed since the last publish, then Publish —
+ * /docs-studio/<site>/publish (Publish board): what changed since the last publish, then Publish —
  * or "Submit for review" when the site requires one and you aren't an admin. Admins see open
  * reviews (Approve and publish · Request changes). Every publish is numbered; an admin can put an
  * earlier one live again (Restore) without a rebuild.
@@ -76,6 +86,8 @@ export default function PublishScreen() {
   const [rejectFor, setRejectFor] = useState<Review | null>(null);
   const [comment, setComment] = useState("");
   const [restoreFor, setRestoreFor] = useState<Build | null>(null);
+  /** The running builds' job progress: build id → "Fetching images and files · 12 of 40 files". */
+  const [stage, setStage] = useState<Record<string, string>>({});
   const watching = useRef<Set<string>>(new Set());
 
   const reviewRequired = !!site.settings.review.required;
@@ -103,6 +115,11 @@ export default function PublishScreen() {
       try {
         const next = await listBuilds(site.id);
         setBuilds(next);
+        const jobs = await Promise.all(next.filter((b) => RUNNING.has(b.status) && b.job_id).map((b) => getJob(site.id, b.job_id!).then((j) => [b.id, j] as const).catch(() => null)));
+        setStage(Object.fromEntries(jobs.filter((x) => !!x).map(([id, j]) => {
+          const step = typeof j.progress?.step === "string" ? STEP[j.progress.step] : undefined;
+          return [id, [step, j.progress?.message && j.progress.message !== step ? j.progress.message : null].filter(Boolean).join(" · ")];
+        })));
         for (const b of next) {
           if (!watching.current.has(b.id) || RUNNING.has(b.status)) continue;
           watching.current.delete(b.id);
@@ -371,7 +388,7 @@ export default function PublishScreen() {
                     <span className="min-w-0 flex-[1_1_220px]">
                       <strong className="block truncate font-semibold text-text" dir="auto">{buildTitle(b)}</strong>
                       <span className="block text-[12px] text-text-muted">
-                        {isRunning ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} /> {STAGE[b.status]}…</span> : buildMeta(b, b.id === oldest)}
+                        {isRunning ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} /> {stage[b.id] || `${STAGE[b.status]}…`}</span> : buildMeta(b, b.id === oldest)}
                       </span>
                       {b.status === "failed" && b.error && <span className="block text-[12px] text-danger">{b.error}</span>}
                     </span>

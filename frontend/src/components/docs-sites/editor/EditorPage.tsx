@@ -3,22 +3,23 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
-  Alert, Badge, Button, ConfirmDialog, Dialog, Drawer, EmptyState, Field, Icon, IconButton, Input, SegmentedControl, Select, Spinner,
+  Alert, Badge, Button, ConfirmDialog, Dialog, Drawer, EmptyState, Field, IconButton, Input, SegmentedControl, Select, Spinner,
   copyText, useToast,
 } from "@/components/ui";
+import { DocsEditor, preloadDocsEditor, type EditorMode, type UploadImage } from "@/components/docs-editor";
 import { useLocationSearch } from "@/components/shell/useLocation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  createPage, deletePage, docsErrorMessage, listPages, saveNav, slugFrom, uploadAsset,
+  assetPreviewUrl, createPage, deletePage, docsErrorMessage, listPages, saveNav, slugFrom, uploadAsset,
   type NavGroup, type Page, type PageSummary, type PagesResponse, type SaveConflict,
 } from "@/lib/docsSites";
 import { firstName, timeAgo } from "../format";
-import SiteBar from "../SiteBar";
+import SiteBar, { STUDIO_CHROME_H } from "../SiteBar";
 import { useSite } from "../SiteContext";
-import { EditorMount, useEditorAvailable, type EditorMode } from "./EditorMount";
 import PageSidePanel from "./PageSidePanel";
 import { PageTree, groupsOf } from "./PageTree";
-import { usePageSession, type LockState, type SaveState } from "./usePageSession";
+import { composeDoc, parseDoc, setDocKeys } from "./pageDoc";
+import { usePageSession, type LockState, type PageFields, type SaveState } from "./usePageSession";
 
 const MarkdownPreview = dynamic(() => import("@/components/MarkdownPreview"), { ssr: false });
 
@@ -62,7 +63,7 @@ function moveTo(nav: NavGroup[], id: string, group: string): NavGroup[] {
 }
 
 /**
- * /w/<ws>/docs/<site>?page=<id> (Editor board): the page tree (locks, unpublished dots, new page,
+ * /docs-studio/<site>?page=<id> (Editor board): the page tree (locks, unpublished dots, new page,
  * move, delete), the page itself (title, description, then the docs editor in Visual or Markdown
  * mode), and the page panel (address, sidebar, icon, history). Drafts autosave; the top bar says
  * where the draft stands, and Publish… goes to the Publish screen.
@@ -71,7 +72,6 @@ export default function EditorPage() {
   const { site, base, canEdit, isAdmin } = useSite();
   const { user } = useAuth();
   const toast = useToast();
-  const uid = useId();
   const search = useLocationSearch();
   const wanted = new URLSearchParams(search).get("page");
   const [tree, setTree] = useState<PagesResponse | null>(null);
@@ -82,7 +82,9 @@ export default function EditorPage() {
   const [preview, setPreview] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [deleting, setDeleting] = useState<PageSummary | null>(null);
-  const editorAvailable = useEditorAvailable();
+
+  // The editor's chunk: start loading it now, while the page tree and the page load.
+  useEffect(() => { preloadDocsEditor(); }, []);
 
   useEffect(() => {
     try {
@@ -149,7 +151,41 @@ export default function EditorPage() {
     }
   }
 
-  const onUploadImage = useCallback(async (file: File) => (await uploadAsset(site.id, file)).url, [site.id]);
+  /**
+   * The page as one document for the editor (header in the frontmatter, see pageDoc.ts), rebuilt
+   * from the fields each time a version is loaded from the server, then the editor's own text.
+   */
+  const loadedDoc = useMemo(() => (fields ? composeDoc(fields) : ""), [session.loadSeq, page?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [edited, setEdited] = useState<{ seq: number; doc: string } | null>(null);
+  const doc = edited && edited.seq === session.loadSeq ? edited.doc : loadedDoc;
+  const docRef = useRef(doc);
+  docRef.current = doc;
+  const seqRef = useRef(session.loadSeq);
+  seqRef.current = session.loadSeq;
+  const extraRef = useRef<Record<string, unknown>>({});
+  extraRef.current = fields?.frontmatter_extra ?? {};
+
+  const onDocChange = useCallback((md: string) => {
+    setEdited({ seq: seqRef.current, doc: md });
+    session.update(parseDoc(md, extraRef.current));
+  }, [session.update]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The page panel edits fields; the ones the document carries (icon; hidden only when someone
+  // typed it into the frontmatter) are written back into it, the editor's way.
+  const onPanelChange = useCallback((patch: Partial<PageFields>) => {
+    session.update(patch);
+    const keys: Record<string, string | null> = {};
+    if ("icon" in patch) keys.icon = patch.icon ?? null;
+    if ("hidden" in patch) keys.hidden = null;
+    if (Object.keys(keys).length) setEdited({ seq: seqRef.current, doc: setDocKeys(docRef.current, keys) });
+  }, [session.update]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Images: an upload goes to the site's files; a dark-theme version is stored where the engine
+  // looks for it (x.png → x.dark.png). In the editor, /docs-assets/… addresses load through the API.
+  const onUploadImage = useCallback<UploadImage>(async (file, info) => (
+    await uploadAsset(site.id, file, info.variant === "dark" ? { variant: "dark", for: info.for } : undefined)
+  ).url, [site.id]);
+  const resolveAssetUrl = useCallback((src: string) => assetPreviewUrl(site.id, src) ?? src, [site.id]);
 
   const lockBanner = (() => {
     if (lock.kind !== "theirs") return null;
@@ -161,7 +197,7 @@ export default function EditorPage() {
           title={`${who} took over this page`}
           actions={
             <>
-              {fields && <Button size="sm" variant="secondary" iconLeft="copy" onClick={async () => { if (await copyText(fields.markdown)) toast.success("Your text is on the clipboard."); }}>Copy my text</Button>}
+              {fields && <Button size="sm" variant="secondary" iconLeft="copy" onClick={async () => { if (await copyText(doc)) toast.success("Your text is on the clipboard."); }}>Copy my text</Button>}
               <Button size="sm" variant="secondary" onClick={() => void session.reloadLatest()}>Load their version</Button>
               {isAdmin && <Button size="sm" variant="primary" onClick={() => void session.takeOver().catch((e) => toast.error(docsErrorMessage(e)))}>Take it back</Button>}
             </>
@@ -187,7 +223,7 @@ export default function EditorPage() {
   const isHome = page?.path === "/";
 
   const panel = page && fields ? (
-    <PageSidePanel page={page} fields={fields} readOnly={!editable} isHome={isHome} onChange={session.update} onRestore={session.restore} />
+    <PageSidePanel page={page} fields={fields} readOnly={!editable} isHome={isHome} onChange={onPanelChange} onRestore={session.restore} />
   ) : null;
 
   const treeEl = (
@@ -221,10 +257,10 @@ export default function EditorPage() {
             <SegmentedControl
               aria-label="Editor mode"
               size="sm"
-              value={editorAvailable === false ? "markdown" : mode}
+              value={mode}
               onChange={setMode}
               options={[
-                { value: "visual", label: "Visual", disabled: editorAvailable === false },
+                { value: "visual", label: "Visual" },
                 { value: "markdown", label: "Markdown" },
               ]}
             />
@@ -236,7 +272,11 @@ export default function EditorPage() {
       />
 
       <div className="flex min-h-0 min-w-0 flex-1">
-        <aside className="sticky top-[57px] hidden h-[calc(100dvh-57px)] w-[250px] shrink-0 overflow-y-auto border-r border-border bg-surface px-2.5 py-4 lg:block">
+        <aside
+          className="sticky hidden w-[250px] shrink-0 overflow-y-auto border-r border-border bg-surface px-2.5 py-4 lg:block"
+          style={{ top: STUDIO_CHROME_H, height: `calc(100dvh - ${STUDIO_CHROME_H}px)` }}
+          onPointerEnter={preloadDocsEditor}
+        >
           {treeEl}
         </aside>
 
@@ -254,9 +294,6 @@ export default function EditorPage() {
             )}
             {lockBanner}
             {lock.kind === "acquiring" && <p className="flex items-center gap-2 text-[13px] text-text-muted"><Spinner size={12} /> Opening for editing…</p>}
-            {editorAvailable === false && fields && mode === "visual" && (
-              <p className="text-[13px] text-text-muted">The visual editor isn&apos;t in this build yet, so the page shows as Markdown.</p>
-            )}
 
             {fields && page && (
               <>
@@ -264,46 +301,25 @@ export default function EditorPage() {
                   <span className="text-[13px] text-text-muted">{page.path}</span>
                   <Button variant="ghost" size="sm" iconLeft="settings" onClick={() => setPanelOpen(true)}>Page settings</Button>
                 </div>
-                {fields.icon && <span className="inline-flex text-text-muted" aria-hidden><Icon name={fields.icon} size={22} /></span>}
-                <label htmlFor={`${uid}-title`} className="md-visually-hidden">Title</label>
-                <input
-                  id={`${uid}-title`}
-                  value={fields.title}
-                  readOnly={!editable}
-                  placeholder="Page title"
-                  onChange={(e) => session.update({ title: e.target.value })}
-                  className="w-full border-0 bg-transparent p-0 text-[30px] font-extrabold leading-[38px] tracking-[-0.02em] text-text outline-none placeholder:text-text-subtle sm:text-[36px] sm:leading-[44px]"
-                  dir="auto"
-                />
-                <label htmlFor={`${uid}-desc`} className="md-visually-hidden">Description</label>
-                <textarea
-                  id={`${uid}-desc`}
-                  value={fields.description}
-                  readOnly={!editable}
-                  rows={2}
-                  maxLength={300}
-                  placeholder="One sentence on what this page helps with"
-                  onChange={(e) => session.update({ description: e.target.value })}
-                  className="field-sizing-content min-h-[26px] w-full resize-none border-0 bg-transparent p-0 text-[17px] leading-[26px] text-text-secondary outline-none placeholder:text-text-subtle"
-                  dir="auto"
-                />
-                <EditorMount
+                <DocsEditor
                   key={page.id}
-                  label={`Content of ${fields.title || "this page"}`}
-                  value={fields.markdown}
-                  onChange={(markdown) => session.update({ markdown })}
-                  mode={editorAvailable === false ? "markdown" : mode}
+                  aria-label={`Content of ${fields.title || "this page"}`}
+                  value={doc}
+                  onChange={onDocChange}
+                  mode={mode}
                   onModeChange={setMode}
+                  showModeSwitch={false}
                   onUploadImage={onUploadImage}
+                  resolveAssetUrl={resolveAssetUrl}
                   readOnly={!editable}
+                  placeholder="Type / for blocks: callouts, steps, tabs, code, images…"
                 />
-                {editorAvailable !== false && mode === "markdown" && <p className="text-[13px] text-text-muted">The same page as plain Markdown. Switch back any time; nothing is lost.</p>}
               </>
             )}
           </div>
         </main>
 
-        <aside aria-label="Page settings" className="sticky top-[57px] hidden h-[calc(100dvh-57px)] w-[300px] shrink-0 overflow-y-auto border-l border-border bg-surface p-5 xl:block">
+        <aside aria-label="Page settings" className="sticky hidden w-[300px] shrink-0 overflow-y-auto border-l border-border bg-surface p-5 xl:block" style={{ top: STUDIO_CHROME_H, height: `calc(100dvh - ${STUDIO_CHROME_H}px)` }}>
           {panel}
         </aside>
       </div>
@@ -332,7 +348,7 @@ export default function EditorPage() {
 
       <ConflictDialog
         conflict={session.conflict}
-        mine={fields?.markdown ?? ""}
+        mine={doc}
         onResolve={(c) => void session.resolveConflict(c)}
       />
 

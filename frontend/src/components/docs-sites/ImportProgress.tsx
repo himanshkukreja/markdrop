@@ -1,24 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Alert, Anchor, Badge, Button, Icon, IconButton, Progress, Spinner, type Tone } from "@/components/ui";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, Anchor, Badge, Button, Icon, Progress, Spinner, type Tone } from "@/components/ui";
 import { useLocationSearch } from "@/components/shell/useLocation";
-import { assetPreviewUrl, presetName, type ImportReport, type Job, type JobStep, type ReportItem } from "@/lib/docsSites";
-import { num } from "./format";
+import {
+  assetPreviewUrl, listPages, presetName, type ImportReport, type Job, type JobStep, type ReportItem, type WorkerImportResult,
+} from "@/lib/docsSites";
+import { num, plural } from "./format";
 import { previewTokens } from "./presets";
+import SiteBar from "./SiteBar";
 import { useSite } from "./SiteContext";
+import { studioNew, scopeOf } from "./routes";
 import { useJob } from "./useJob";
 
 interface StepDef { id: string; running: string; done: string; detail?: (r: ImportReport["summary"]) => string | null }
 
-/** The worker's step ids for a GitBook import, in order (progress.step names one of these). */
+/** The worker's steps for a GitBook import, in order (progress.step names one of these; docs-platform/runner). */
 export const IMPORT_STEPS: StepDef[] = [
-  { id: "discover", running: "Reading the navigation and page list", done: "Read the navigation and page list", detail: (s) => (s?.pages ? `${num(s.groups ?? 0)} groups · ${num(s.pages)} pages` : null) },
-  { id: "pages", running: "Copying pages and converting blocks", done: "Copied pages and converted blocks", detail: () => "hints, tabs, steps, cards, code" },
-  { id: "assets", running: "Copying images and files", done: "Copied images and files", detail: (s) => (s?.images !== undefined ? `${num(s.images)} images · ${num(s.files ?? 0)} ${s.files === 1 ? "file" : "files"}` : null) },
-  { id: "redirects", running: "Keeping old links working", done: "Kept old links working", detail: (s) => (s?.redirects !== undefined ? `${num(s.redirects)} page redirects · ${num(s.anchors ?? 0)} section links` : null) },
-  { id: "media", running: "Turning animated GIFs into short videos", done: "Turned animated GIFs into short videos", detail: (s) => (s?.gifs ? `${num(s.gifs)} GIFs · ${num(s.mb_before ?? 0)} MB → ${num(s.mb_after ?? 0)} MB` : null) },
-  { id: "check", running: "Checking links and building a preview", done: "Checked links and built a preview" },
+  { id: "fetch", running: "Reading the navigation and page list", done: "Read the navigation and page list", detail: (s) => (s?.pages ? `${num(s.groups ?? 0)} groups · ${num(s.pages)} pages` : null) },
+  { id: "convert", running: "Copying pages and converting blocks", done: "Copied pages and converted blocks", detail: () => "hints, tabs, steps, cards, code" },
+  { id: "upload", running: "Copying images and files", done: "Copied images and files", detail: (s) => (s?.images !== undefined ? `${num(s.images)} images · ${num(s.files ?? 0)} ${s.files === 1 ? "file" : "files"}` : null) },
+  { id: "save", running: "Saving the pages as drafts", done: "Saved the pages as drafts", detail: (s) => (s?.redirects ? `${num(s.redirects)} old links kept working` : null) },
 ];
 
 const TEMPLATE_STEPS: StepDef[] = [
@@ -27,13 +29,59 @@ const TEMPLATE_STEPS: StepDef[] = [
 ];
 
 const REPORT_COPY: Record<string, { tone: Tone; title: string; body: string; action: string }> = {
-  alt_text: { tone: "warning", title: "Images without a description", body: "Screen readers and search need one. GitBook had no alt text for these.", action: "Describe" },
-  hidden_pages: { tone: "neutral", title: "Pages hidden from the sidebar in GitBook", body: "Imported and reachable by link. Keep them hidden, show them, or leave them out.", action: "Review" },
+  alt_text: { tone: "warning", title: "Image descriptions we wrote for you", body: "GitBook had no alt text for these, so we used the file names. Screen readers and search read them: check they make sense.", action: "Show" },
+  hidden_pages: { tone: "neutral", title: "Pages hidden from the sidebar in GitBook", body: "Imported and reachable by link. Keep them hidden or show them.", action: "Review" },
   broken_links: { tone: "danger", title: "Links that were already broken", body: "Fix or remove them.", action: "Show links" },
-  icons: { tone: "neutral", title: "Page icons we couldn't match", body: "Brand logos and single letters. Pick an icon or leave them blank.", action: "Pick icons" },
+  icons: { tone: "neutral", title: "Page icons we couldn't match", body: "Brand logos and single letters. Pick an icon or leave them blank.", action: "Show" },
   missing_assets: { tone: "warning", title: "Images or files we couldn't copy", body: "They were missing or unreachable on the old site.", action: "Show" },
   lossy: { tone: "neutral", title: "Blocks converted approximately", body: "GitBook blocks with no exact match here. Check they read right.", action: "Show" },
 };
+
+type Row = { page?: string | null; line?: number | null; [k: string]: unknown };
+
+/**
+ * The worker's import result (services/docs_import_job.py: pages, nav_groups, assets, report
+ * {counts, items, truncated}) → what this screen shows: a summary for the steps and the "needs a
+ * look" rows. `pageIds` maps page paths to ids so a row can open the page in the editor.
+ */
+export function importReportOf(job: Job | null, pageIds: Map<string, string>): ImportReport | null {
+  const r = job?.result as WorkerImportResult | ImportReport | null | undefined;
+  if (!r) return null;
+  if ("needs_look" in r || "summary" in r) return r as ImportReport;
+  const w = r as WorkerImportResult;
+  const counts = w.report?.counts ?? {};
+  const items = w.report?.items ?? {};
+  const total = (k: string) => (w.report?.truncated?.[k] ?? (typeof counts[k] === "number" ? (counts[k] as number) : ((items as Record<string, unknown[] | undefined>)[k]?.length ?? 0)));
+  const row = (x: Row, detail: string | null) => {
+    const path = typeof x.page === "string" ? x.page : "";
+    return { page_id: pageIds.get(path) ?? null, path: path || "(site)", line: typeof x.line === "number" ? x.line : null, detail };
+  };
+  const q = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const needs: ReportItem[] = [
+    { kind: "missing_assets", count: total("missing"), items: (items.missing ?? []).map((x) => row(x, [q(x.src), q(x.reason)].filter(Boolean).join(" · ") || null)) },
+    { kind: "broken_links", count: total("brokenLinks"), items: (items.brokenLinks ?? []).map((x) => row(x, [q(x.href), q(x.reason)].filter(Boolean).join(" · ") || null)) },
+    { kind: "alt_text", count: total("altGenerated"), items: (items.altGenerated ?? []).map((x) => row(x, q(x.alt) ? `“${x.alt}”` : null)) },
+    { kind: "hidden_pages", count: total("hidden"), items: (items.hidden ?? []).map((x) => row(x, q(x.title))) },
+    {
+      kind: "icons",
+      count: (items.unmatchedIcons ?? []).reduce((n, x) => n + (Array.isArray(x.pages) ? x.pages.length : 1), 0),
+      items: (items.unmatchedIcons ?? []).flatMap((x) => (Array.isArray(x.pages) ? (x.pages as string[]) : []).map((page) => row({ page }, `GitBook icon “${String(x.icon ?? "")}”`))),
+    },
+    { kind: "lossy", count: total("notes"), items: (items.notes ?? []).map((x) => row(x, q(x.message))) },
+  ];
+  return {
+    summary: {
+      pages: w.pages?.total ?? (counts.pages as number | undefined),
+      groups: w.nav_groups ?? (counts.groups as number | undefined),
+      images: counts.images as number | undefined,
+      files: counts.files as number | undefined,
+      redirects: counts.redirects as number | undefined,
+      anchors: counts.headingIdsChanged as number | undefined,
+    },
+    needs_look: needs.filter((n) => n.count > 0),
+    skipped: w.skipped ?? [],
+  };
+}
 
 /** The step index a job is on (0-based), from `progress.step` (an id or a 1-based number). */
 function stepIndex(job: Job | null, steps: StepDef[]): number {
@@ -44,11 +92,6 @@ function stepIndex(job: Job | null, steps: StepDef[]): number {
   const i = steps.findIndex((d) => d.id === s);
   if (i >= 0) return i;
   return Math.max(0, Math.min(steps.length - 1, job.progress?.done ?? 0));
-}
-
-function reportOf(job: Job | null): ImportReport | null {
-  if (!job?.result) return null;
-  return job.result.report ?? job.result;
 }
 
 function StepDot({ status }: { status: JobStep["status"] }) {
@@ -135,19 +178,21 @@ function MiniSite({ name }: { name: string }) {
 }
 
 /**
- * /w/<ws>/docs/<site>/import?job=<id> (Import board): the import's steps with live progress (the
+ * /docs-studio/<site>/import?job=<id> (Import board): the import's steps with live progress (the
  * job is polled every 2 s), then "Needs a look before you publish" from the importer's report, and
- * a preview of the site in its matched theme. Safe to leave: the job runs on the server.
+ * a preview of the site in its matched theme. Safe to leave: the job runs on the server, and the
+ * screen reopens from the site's last import (Settings › Imported from GitBook).
  */
 export default function ImportProgress() {
-  const { site, base, listHref, reload } = useSite();
+  const { site, base, reload } = useSite();
   const search = useLocationSearch();
-  const jobId = new URLSearchParams(search).get("job") || site.job?.id || null;
+  const jobId = new URLSearchParams(search).get("job") || site.job?.id || site.last_import_job_id || null;
   const { job, error } = useJob(site.id, jobId);
   const isTemplate = site.source.kind === "template";
   const steps = isTemplate ? TEMPLATE_STEPS : IMPORT_STEPS;
   const at = stepIndex(job, steps);
-  const report = reportOf(job);
+  const [pageIds, setPageIds] = useState<Map<string, string>>(new Map());
+  const report = useMemo(() => importReportOf(job, pageIds), [job, pageIds]);
   const done = job?.status === "done";
   const failed = job?.status === "failed";
   const fromHost = (() => {
@@ -160,24 +205,29 @@ export default function ImportProgress() {
     status: failed && i === at ? "failed" : i < at ? "done" : i === at ? "running" : "waiting",
     detail: i < at ? d.detail?.(report?.summary) ?? null : i === at ? job?.progress?.message ?? null : i === at + 1 ? "next" : null,
   }));
-  const total = job?.progress?.total ?? steps.length;
-  const value = done ? total : job?.progress?.done ?? at;
+  // Progress counts steps; the running step's own count ("12 of 40 files") is its detail.
+  const total = steps.length;
+  const value = done ? total : at;
   const needs = report?.needs_look?.filter((x) => x.count > 0) ?? [];
 
-  // The site finished importing: refresh it once so the editor opens with its pages and brand.
+  // The site finished importing: refresh it once so the editor opens with its pages and brand, and
+  // learn the pages' ids so a "needs a look" row opens its page.
   useEffect(() => {
-    if (done) void reload();
-  }, [done, reload]);
+    if (!done) return;
+    void reload();
+    listPages(site.id).then((r) => setPageIds(new Map(r.pages.map((p) => [p.path, p.id])))).catch(() => {});
+  }, [done, reload, site.id]);
+
+  const queued = job?.status === "queued";
+  const skipped = report?.skipped ?? [];
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-surface px-3 py-2.5 sm:px-6">
-        <IconButton icon="x" label="Close" href={listHref} />
-        <span className="truncate text-body-strong text-text" dir="auto">{site.name}</span>
-        <span className="truncate text-body text-text-muted">
-          {isTemplate ? "Setting up from a template" : fromHost ? `Importing from ${fromHost}` : "Importing"}
-        </span>
-      </header>
+      <SiteBar
+        section={null}
+        crumb={isTemplate ? "Setting up from a template" : fromHost ? `Import from ${fromHost}` : "Import"}
+        status={job ? <Badge size="sm" tone={failed ? "danger" : done ? "success" : "neutral"} dot>{failed ? "Failed" : done ? "Imported" : queued ? "Waiting to start" : "Importing"}</Badge> : null}
+      />
 
       <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-8 px-4 pb-16 pt-8 outline-none sm:px-6 sm:pt-10">
         <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-6">
@@ -201,7 +251,7 @@ export default function ImportProgress() {
           )}
           {error && !job && <Alert tone="danger" title="We couldn't check the import">{error}</Alert>}
           {failed && (
-            <Alert tone="danger" title="Import failed" actions={<Button size="sm" variant="secondary" href={`${listHref}/new`}>Start again</Button>}>
+            <Alert tone="danger" title="Import failed" actions={<Button size="sm" variant="secondary" href={studioNew(scopeOf(site))}>Start again</Button>}>
               {job?.error || "Something went wrong on our side."}
             </Alert>
           )}
@@ -211,7 +261,7 @@ export default function ImportProgress() {
               <Progress
                 value={value}
                 max={total}
-                label={done ? "Done" : job ? `Step ${Math.min(at + 1, total)} of ${total}` : "Starting…"}
+                label={done ? "Done" : queued ? "Waiting for a builder to pick it up…" : job ? `Step ${Math.min(at + 1, total)} of ${total}` : "Starting…"}
                 showValue={!!job}
                 indeterminate={!job}
                 tone={failed ? "danger" : done ? "success" : "accent"}
@@ -238,6 +288,11 @@ export default function ImportProgress() {
                 <p className="text-body text-text-secondary">Nothing. Everything came across cleanly.</p>
               ) : (
                 <p className="flex items-center gap-2 text-body text-text-muted"><Spinner size={14} /> We list anything that needs your eyes as we find it.</p>
+              )}
+              {skipped.length > 0 && (
+                <Alert tone="warning" title={`${plural(skipped.length, "thing")} we left out`}>
+                  <ul className="flex list-disc flex-col gap-1 pl-4 text-[13px]">{skipped.slice(0, 20).map((x) => <li key={x} className="[overflow-wrap:anywhere]">{x}</li>)}</ul>
+                </Alert>
               )}
               {report?.markdown && (
                 <details className="rounded-lg border border-border bg-surface px-4 py-3 text-[13px]">

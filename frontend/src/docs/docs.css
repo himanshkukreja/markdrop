@@ -189,6 +189,18 @@
 .dx-embed__open { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-text); text-decoration: none; }
 .dx-embed__frame { width: 100%; height: 480px; border: 0; border-top: 1px solid var(--border); background: var(--bg); }
 
+/* API operation (::api{op="GET /path"}): a card to its reference page, or just method + path */
+.dx-apiop { display: flex; flex-direction: column; gap: 6px; margin: 24px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); color: var(--text); text-decoration: none; }
+.dx-apiop--link:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
+.dx-apiop--link:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.dx-apiop__head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dx-apiop__title { flex: 1; min-width: 0; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--text); }
+.dx-apiop__go { flex-shrink: 0; color: var(--text-muted); }
+.dx-apiop--link:hover .dx-apiop__go { color: var(--accent-text); }
+.dx-apiop__path { font-family: var(--font-mono); font-size: 13.5px; line-height: 20px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.dx-apiop__head > .dx-apiop__path { color: var(--text); }
+.dx-apiop__summary { font-size: 14px; line-height: 22px; color: var(--text-secondary); }
+
 /* Video player (a filled ::video slot) */
 .dx-player__frame { display: block; background: #000; }
 .dx-player__frame video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }

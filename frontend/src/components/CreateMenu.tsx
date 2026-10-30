@@ -4,7 +4,7 @@ import { CreateMenu as DSCreateMenu, type ButtonSize } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 
 /**
- * The one Create entry point (REVAMP_PLAN 4.4): a design-system Dropdown with four rows, each a
+ * The one Create entry point (REVAMP_PLAN 4.4): a design-system Dropdown with five rows, each a
  * cat-* tile, a label and one line of description:
  *   Markdown document / "Write or paste markdown, publish a link"            → /new
  *   Artifact (New) / "HTML page, PDF, spreadsheet, Word doc or video"          → /upload
@@ -12,6 +12,8 @@ import { useAuth } from "@/contexts/AuthContext";
  *       and asks for sign-in before publishing)
  *   README builder / "Assemble a README from ready-made blocks"               → /builder
  *   Send a file / "Peer-to-peer. Files are never stored on our servers."      → /share
+ *   Docs site / "A documentation website, in Docs Studio"                     → /docs-studio/new
+ *       (signed out: "Needs an account"; the studio asks for sign-in first)
  * Keyboard: Enter/Space/ArrowDown open and focus the first row, arrows move, Escape closes and
  * returns focus to the trigger. Below 360px the trigger is the plus alone (label kept for AT).
  *

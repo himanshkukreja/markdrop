@@ -110,6 +110,57 @@ def url_for(name: str) -> str:
     return f"/docs-assets/{name}"
 
 
+IMMUTABLE = "public, max-age=31536000, immutable"
+SHORT = "public, max-age=3600"
+
+# An address under /docs-assets/: an upload (<sha256>.<ext>) or an imported file (import/<page>/<name>).
+_REL = re.compile(r"^(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,199})(?:/[A-Za-z0-9_][A-Za-z0-9._-]{0,199}){0,7}$")
+
+
+def rel_of(url: str) -> str | None:
+    """``/docs-assets/<rel>`` → ``<rel>`` when it is a safe relative path (no ``..``, no hidden
+    segments, no query), else None."""
+    if not isinstance(url, str) or not url.startswith("/docs-assets/"):
+        return None
+    rel = url[len("/docs-assets/"):]
+    if not _REL.match(rel) or any(seg in (".", "..") or seg.startswith(".") for seg in rel.split("/")):
+        return None
+    return rel
+
+
+def dark_name(rel: str) -> str | None:
+    """``x.png`` → ``x.dark.png`` (the docs engine's dark-theme variant of an image, and what the
+    editor's darkVariantPath gives). None for a name without an extension or already dark."""
+    m = re.match(r"^(.*?)(\.[a-z0-9]{2,5})$", rel, re.I)
+    if not m or m.group(1).endswith(".dark"):
+        return None
+    return f"{m.group(1)}.dark{m.group(2).lower()}"
+
+
+_RASTER = {"png": "PNG", "jpg": "JPEG", "webp": "WEBP", "gif": "GIF"}
+
+
+def convert_image(data: bytes, ext: str) -> bytes | None:
+    """The image re-encoded as ``ext`` (png/jpg/webp/gif), or None when it can't be."""
+    fmt = _RASTER.get(ext)
+    if fmt is None:
+        return None
+    try:
+        import io
+
+        from PIL import Image
+
+        with Image.open(io.BytesIO(data)) as im:
+            im.load()
+            if fmt == "JPEG" and im.mode not in ("RGB", "L"):
+                im = im.convert("RGB")
+            out = io.BytesIO()
+            im.save(out, format=fmt, **({"quality": 90} if fmt in ("JPEG", "WEBP") else {}))
+            return out.getvalue()
+    except Exception:
+        return None
+
+
 def is_configured() -> bool:
     return settings.docs_r2_configured
 
@@ -132,12 +183,12 @@ def _client():
 # ── Network calls — wrap these in run_in_threadpool ────────────────────────────
 
 
-def put_bytes(key: str, data: bytes, content_type: str) -> bool:
+def put_bytes(key: str, data: bytes, content_type: str, cache_control: str = IMMUTABLE) -> bool:
     try:
         _client().put_object(
             Bucket=settings.docs_r2_bucket, Key=key, Body=data, ContentType=content_type,
-            # Content-addressed: the name changes whenever the bytes do.
-            CacheControl="public, max-age=31536000, immutable",
+            # Content-addressed names never change their bytes; a dark version (replaceable) is SHORT.
+            CacheControl=cache_control,
         )
         return True
     except Exception:

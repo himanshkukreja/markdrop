@@ -17,7 +17,9 @@ export interface PageFields {
   icon: string | null;
   hidden: boolean;
   path: string;
+  /** The body (no frontmatter); the header is the fields above, other keys frontmatter_extra. */
   markdown: string;
+  frontmatter_extra: Record<string, unknown>;
 }
 
 export type SaveState =
@@ -42,6 +44,7 @@ const fieldsOf = (p: Page): PageFields => ({
   hidden: !!p.hidden,
   path: p.path,
   markdown: p.markdown ?? "",
+  frontmatter_extra: p.frontmatter_extra ?? {},
 });
 
 const lockFrom = (e: unknown, fallback: PageLock | null): PageLock | null => {
@@ -84,6 +87,8 @@ export function usePageSession({ siteId, pageId, canEdit, onSaved }: {
   const [save, setSave] = useState<SaveState>({ state: "saved", at: null });
   const [lock, setLockState] = useState<LockState>({ kind: "none" });
   const [conflict, setConflict] = useState<SaveConflict | null>(null);
+  /** Moves each time a version is loaded from the server (open, reload, restore, conflict): the editor re-reads it. */
+  const [loadSeq, setLoadSeq] = useState(0);
 
   const baseRev = useRef(0);
   const fieldsRef = useRef<PageFields | null>(null);
@@ -108,6 +113,7 @@ export function usePageSession({ siteId, pageId, canEdit, onSaved }: {
     baseRev.current = p.rev ?? 0;
     dirty.current = false;
     setSave({ state: "saved", at: p.updated_at ?? null });
+    setLoadSeq((n) => n + 1);
   }, []);
 
   const clearTimer = () => {
@@ -329,5 +335,5 @@ export function usePageSession({ siteId, pageId, canEdit, onSaved }: {
     if (!ok && p.lock) setLock((l) => (l.kind === "theirs" && !l.lock ? { kind: "theirs", lock: p.lock } : l));
   }, [siteId, pageId, canEdit, apply, acquire, setLock]);
 
-  return { page, fields, loadError, save, lock, conflict, update, saveNow: doSave, retry, resolveConflict, takeOver, restore, reloadLatest };
+  return { page, fields, loadSeq, loadError, save, lock, conflict, update, saveNow: doSave, retry, resolveConflict, takeOver, restore, reloadLatest };
 }

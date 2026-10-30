@@ -57,7 +57,7 @@ function PresetCard({ id, name, blurb, checked, onSelect, accent, disabled, grou
 }
 
 /**
- * /w/<ws>/docs/<site>/design (Themes board): six presets with a live preview, "Match my brand"
+ * /docs-studio/<site>/design (Themes board): six presets with a live preview, "Match my brand"
  * (logo → colours → a contrast-checked light and dark palette), fonts, colour mode, corners and
  * custom CSS. Nothing applies until "Save design"; the published site changes at the next publish.
  */

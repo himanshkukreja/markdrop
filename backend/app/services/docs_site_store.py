@@ -36,7 +36,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.config import get_settings
 from app.models.user import User
-from app.models.workspace import role_allows
+from app.services import docs_site_redirects as site_redirects
 from app.services import docs_site_settings as site_settings
 from app.services import docs_site_templates as templates
 from app.services import workspace as ws_service
@@ -186,12 +186,19 @@ def is_admin(role: str | None) -> bool:
     return role_at_least(role, "admin")
 
 
+def studio_role(ws_role: str | None) -> str | None:
+    """The caller's Docs Studio role from their workspace role (None: not a member). Every role
+    check goes through this and :func:`site_role`, so separate Studio roles (per workspace member,
+    with per-site overrides) can replace the mapping here without touching the routes or the UI,
+    which reads ``your_role`` from the API."""
+    return _WS_TO_SITE_ROLE.get(ws_role or "")
+
+
 async def site_role(db: AsyncIOMotorDatabase, site: dict, user_id: str | None) -> str | None:
     if not user_id:
         return None
     if site.get("workspace_id"):
-        ws_role = await ws_service.role_for(db, site["workspace_id"], user_id)
-        return _WS_TO_SITE_ROLE.get(ws_role or "")
+        return studio_role(await ws_service.role_for(db, site["workspace_id"], user_id))
     return "owner" if site.get("owner_id") == user_id else None
 
 
@@ -397,6 +404,7 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str, *, job: dic
         "settings": site_settings.public_view(site.get("settings") or {}),
         "domains": site.get("domains") or [],
         "live_build_id": str(site["live_build_id"]) if site.get("live_build_id") else None,
+        "last_import_job_id": str(site["last_import_job_id"]) if site.get("last_import_job_id") else None,
         "live_build": build_view(live, names),
         "latest_build": build_view(latest, names),
         "open_review_id": str(open_review["_id"]) if open_review else None,
@@ -418,15 +426,8 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str, *, job: dic
 # ── Listing ───────────────────────────────────────────────────────────────────
 
 
-async def list_sites(db: AsyncIOMotorDatabase, user: User, workspace_id: str | None) -> dict:
-    if workspace_id:
-        ws_role = await ws_service.role_for(db, workspace_id, user.id)
-        if ws_role is None:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-        role = _WS_TO_SITE_ROLE[ws_role]
-    else:
-        role = "owner"
-    rows = await db[SITES].find(_scope_query(workspace_id, user.id)).sort("created_at", 1).to_list(length=100)
+async def _summaries(db: AsyncIOMotorDatabase, rows: list[dict], role_of) -> tuple[list[dict], dict[str, int]]:
+    """SiteSummary for each row (``role_of(row)`` → the caller's role), plus Ask AI use per site id."""
     ids = [r["_id"] for r in rows]
     counts: dict = {}
     async for c in db[PAGES].aggregate([
@@ -439,14 +440,84 @@ async def list_sites(db: AsyncIOMotorDatabase, user: User, workspace_id: str | N
     ai = await ai_answers(db, [str(i) for i in ids])
     names = await user_names(db, [r.get("last_published_by") for r in rows]
                              + [r.get("requested_by") for r in reviews.values()])
-    sites = [await site_summary(db, r, role, pages=counts.get(r["_id"], 0), ai_used=ai.get(str(r["_id"]), 0),
+    sites = [await site_summary(db, r, role_of(r), pages=counts.get(r["_id"], 0), ai_used=ai.get(str(r["_id"]), 0),
                                 open_review=reviews.get(r["_id"]), names=names) for r in rows]
+    return sites, ai
+
+
+async def list_sites(db: AsyncIOMotorDatabase, user: User, workspace_id: str | None) -> dict:
+    if workspace_id:
+        ws_role = await ws_service.role_for(db, workspace_id, user.id)
+        if ws_role is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        role = studio_role(ws_role)
+    else:
+        role = "owner"
+    rows = await db[SITES].find(_scope_query(workspace_id, user.id)).sort("created_at", 1).to_list(length=100)
+    sites, ai = await _summaries(db, rows, lambda _r: role)
     return {
         "sites": sites,
         "your_role": role,
         "usage": {
             "sites": len(rows),
             "limit": settings.docs_sites_per_workspace,
+            "ai_used": sum(ai.values()),
+            "ai_limit": settings.docs_ai_answers_per_month,
+        },
+    }
+
+
+def _workspace_brand(ws) -> dict:
+    """What Docs Studio shows of a workspace beside its sites: its accent and logo, if set."""
+    b = ws.branding
+    return {"accent": b.accent_color or None, "logo_url": b.logo_url or None}
+
+
+async def list_all_sites(db: AsyncIOMotorDatabase, user: User) -> dict:
+    """Docs Studio's home (``GET /docs-sites?scope=all``): every site the caller can open, across
+    all their workspaces plus their personal ones, each carrying its workspace (for grouping);
+    every workspace with the caller's role, its usage and whether they may create a site there
+    (workspace owner/admin, and not being deleted); and the personal scope's usage."""
+    memberships = await ws_service.list_for_user(db, user.id)
+    roles = {ws.id: ws_role for ws, ws_role in memberships}
+    by_id = {ws.id: ws for ws, _ in memberships}
+    rows = await db[SITES].find({
+        "deleted_at": None,
+        "$or": [{"workspace_id": {"$in": list(roles)}}, {"workspace_id": None, "owner_id": user.id}],
+    }).sort("created_at", 1).to_list(length=500)
+
+    def role_of(r: dict) -> str:
+        wid = r.get("workspace_id")
+        return (studio_role(roles.get(wid)) or "viewer") if wid else "owner"
+
+    sites, ai = await _summaries(db, rows, role_of)
+    per_scope: dict[str | None, int] = {}
+    for r in rows:
+        per_scope[r.get("workspace_id")] = per_scope.get(r.get("workspace_id"), 0) + 1
+    for s in sites:
+        ws = by_id.get(s["workspace_id"]) if s["workspace_id"] else None
+        s["workspace"] = {"id": ws.id, "name": ws.name, **_workspace_brand(ws)} if ws else None
+    limit = settings.docs_sites_per_workspace
+    workspaces = []
+    for ws, ws_role in memberships:
+        role = studio_role(ws_role) or "viewer"
+        workspaces.append({
+            "id": ws.id,
+            "name": ws.name,
+            **_workspace_brand(ws),
+            "workspace_role": ws_role,
+            "your_role": role,
+            "can_create": is_admin(role) and not ws.deleting,
+            "usage": {"sites": per_scope.get(ws.id, 0), "limit": limit},
+        })
+    return {
+        "sites": sites,
+        "workspaces": workspaces,
+        "personal": {"your_role": "owner", "can_create": True,
+                     "usage": {"sites": per_scope.get(None, 0), "limit": limit}},
+        "usage": {
+            "sites": len(rows),
+            "limit": limit,
             "ai_used": sum(ai.values()),
             "ai_limit": settings.docs_ai_answers_per_month,
         },
@@ -531,9 +602,9 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
         ws_role = await ws_service.role_for(db, workspace_id, user.id)
         if ws_role is None:
             raise HTTPException(status_code=404, detail="Workspace not found")
-        if not role_allows(ws_role, "admin"):
+        role = studio_role(ws_role)
+        if not is_admin(role):
             raise HTTPException(status_code=403, detail="Only workspace admins can create docs sites.")
-        role = _WS_TO_SITE_ROLE[ws_role]
     else:
         role = "owner"
 
@@ -589,6 +660,9 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
         row["settings"]["nav"] = nav
     elif kind == "gitbook":
         job = await enqueue_job(db, "import", row["_id"], {"source": "gitbook", "url": source["url"]})
+        # The import screen can be reopened from the site (Settings, the editor) after it's closed.
+        await db[SITES].update_one({"_id": row["_id"]}, {"$set": {"last_import_job_id": job["_id"]}})
+        row["last_import_job_id"] = job["_id"]
         await log_event(db, "docs_imported", row, user.id, source="gitbook", url=source["url"],
                         job_id=str(job["_id"]))
     await log_event(db, "docs_site_created", row, user.id, source=kind,
@@ -641,6 +715,13 @@ async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None,
             raise HTTPException(status_code=422, detail="Set a password for password-protected access.")
         # nav is managed by PUT /nav; keep exactly what is stored.
         validated["nav"] = (site.get("settings") or {}).get("nav") or []
+        if "redirects" in patch and validated.get("redirects"):
+            paths = {r["path"] for r in await db[PAGES].find(
+                {"site_id": site["_id"], "deleted_at": None}, {"path": 1}).to_list(length=settings.docs_pages_per_site + 50)}
+            problems = site_redirects.problems_against(validated["redirects"], paths)
+            if problems:
+                raise HTTPException(status_code=422, detail=[
+                    {"loc": ["settings", "redirects"], "msg": m, "type": "value_error"} for m in problems])
         updates["settings"] = validated
     if not updates:
         return site

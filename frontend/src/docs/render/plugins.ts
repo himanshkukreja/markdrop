@@ -3,8 +3,9 @@
  *
  * remarkDocs (after remark-directive): turns the directive nodes into custom elements the
  * component map renders (`docs-callout`, `docs-steps`/`docs-step`, `docs-tabs`/`docs-tab`,
- * `docs-cards`/`docs-card`, `docs-details`, `docs-video`, `docs-clip`, `docs-embed`, `docs-kbd`),
- * turns a paragraph that is just one image into a `docs-figure` (title → caption), and reads
+ * `docs-cards`/`docs-card`, `docs-details`, `docs-video`, `docs-clip`, `docs-embed`, `docs-api`,
+ * `docs-kbd`), turns a paragraph that is just one image into a `docs-figure` (title → caption),
+ * recomputes image alt text the directive syntax cut short ("0:15", see rules.mjs), and reads
  * code-fence meta (`title="…"`, `{2,4-5}`). Only whitelisted attributes are carried over; an
  * unknown directive keeps its content (containers) or reads as the literal text it was. Fence meta
  * also takes a bare `wrap` (```text wrap title="…"): long lines soft-wrap.
@@ -15,7 +16,7 @@
  */
 import { createSlugger, headingSourceText } from "@/components/reading/slug";
 import { CALLOUTS, CONTAINER_DIRECTIVES } from "../markdown";
-import { aliasNodes, aliasesByTarget, hasWrapFlag } from "./rules.mjs";
+import { aliasNodes, aliasesByTarget, fixImageAlts, hasWrapFlag, parserOptions } from "./rules.mjs";
 
 /* ── mdast ───────────────────────────────────────────────────────────────── */
 
@@ -174,6 +175,10 @@ function transform(node: MdNode, parent: MdNode | null, index: number) {
     } else if (node.name === "embed") {
       set(node, "docs-embed", { src: attr(node, "src"), label: attr(node, "title") || textOf(node).trim() });
       node.children = [];
+    } else if (node.name === "api") {
+      // ::api[label]{op="GET /v1/things/{id}"}: a card for that operation (DocsMarkdown ApiOp).
+      set(node, "docs-api", { op: attr(node, "op"), label: textOf(node).trim() });
+      node.children = [];
     } else if (parent) {
       // Unknown leaf: show what was written rather than dropping it silently.
       parent.children![index] = { type: "paragraph", children: [{ type: "text", value: `::${node.name}` }, ...(node.children ?? [])] };
@@ -190,8 +195,17 @@ function transform(node: MdNode, parent: MdNode | null, index: number) {
   if (kids) for (let i = 0; i < kids.length; i++) transform(kids[i], node, i);
 }
 
-export function remarkDocs() {
-  return (tree: MdNode) => transform(tree, null, 0);
+/**
+ * `this` is the processor (unified attachers run bound to it): its data holds the parser
+ * extensions, read when the transformer runs so every plugin has registered its own.
+ */
+export function remarkDocs(this: unknown) {
+  const processor = this as { data?: () => unknown } | undefined;
+  return (tree: MdNode, file?: { value?: unknown }) => {
+    const source = typeof file?.value === "string" ? file.value : null;
+    if (source !== null) fixImageAlts(tree, source, parserOptions(typeof processor?.data === "function" ? processor.data() : undefined));
+    transform(tree, null, 0);
+  };
 }
 
 export const KNOWN_CONTAINERS: readonly string[] = CONTAINER_DIRECTIVES;

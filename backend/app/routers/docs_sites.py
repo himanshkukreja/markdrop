@@ -10,7 +10,7 @@ product does).
 
 import re
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -22,6 +22,7 @@ from app.routers.auth import require_user
 from app.routers.docs_site_pages import DocsRoute
 from app.routers.docs_site_pages import router as pages_router
 from app.schemas.docs_site import PublishRequest, ReviewCreate, ReviewDecision, SiteCreate, SiteUpdate
+from app.services import docs_site_assets as assets
 from app.services import docs_site_publish as publishing
 from app.services import docs_site_store as store
 
@@ -41,8 +42,13 @@ def get_db() -> AsyncIOMotorDatabase:
 @router.get("")
 @limiter.limit("120/minute")
 async def list_sites(request: Request, workspace_id: str | None = Query(None),
+                     scope: str | None = Query(None, pattern="^all$"),
                      db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
-    """A workspace's sites (any member), or with no workspace_id your personal ones."""
+    """A workspace's sites (any member), or with no workspace_id your personal ones. With
+    ``scope=all`` (Docs Studio's home): every site across your workspaces and your personal ones,
+    each with its ``workspace``, plus ``workspaces`` and ``personal`` (usage, may you create there)."""
+    if scope == "all":
+        return await store.list_all_sites(db, user)
     return await store.list_sites(db, user, workspace_id or None)
 
 
@@ -192,21 +198,33 @@ async def get_job(request: Request, site_id: str, job_id: str, db: AsyncIOMotorD
 @router.post("/{site_id}/assets", status_code=201)
 @limiter.limit("60/minute")
 async def upload_asset(request: Request, site_id: str, file: UploadFile = File(...),
+                       variant: str = Form("light", pattern="^(light|dark)$"),
+                       for_: str | None = Form(None, alias="for", max_length=300),
                        db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
-    """One image or file (≤ 25 MB) → ``{url: "/docs-assets/<sha256>.<ext>", …}`` for the Markdown."""
+    """One image or file (≤ 25 MB) → ``{url: "/docs-assets/<sha256>.<ext>", …}`` for the Markdown.
+
+    ``variant=dark`` with ``for=/docs-assets/<sha256>.<ext>`` (an uploaded image): the dark-theme
+    version of that image, stored as ``<sha256>.dark.<ext>`` (where the engine looks for it,
+    the build fetches it with its image) and replacing any earlier dark version."""
     site, _role = await store.load_site(db, site_id, user, "editor")
     data = await file.read(settings.docs_asset_max_bytes + 1)
+    if variant == "dark":
+        return await publishing.upload_dark_asset(db, site, user, data, file.filename, for_ or "")
     return await publishing.upload_asset(db, site, user, data, file.filename)
 
 
-@router.get("/{site_id}/assets/{name}")
+@router.get("/{site_id}/assets/{name:path}")
 @limiter.limit("600/minute")
 async def asset_preview(request: Request, site_id: str, name: str, db: AsyncIOMotorDatabase = Depends(get_db)):
     """The editor's preview of an uploaded file: a redirect to a short-lived link.
 
-    No sign-in (an <img> can't send one): the name is the file's sha256, so
-    only someone who has the file, or the page that uses it, can ask for it."""
-    if not re.fullmatch(r"[0-9a-f]{64}\.[a-z0-9]{2,5}", name):
+    No sign-in (an <img> can't send one): the name is the file's sha256 (a dark
+    version: its image's sha256 + ``.dark``), so only someone who has the file,
+    or the page that uses it, can ask for it. Files an import brought in
+    (``import/<page>/<name>``, copied from a public site) are answered only when
+    the site has a row for that exact name."""
+    if not re.fullmatch(r"[0-9a-f]{64}(?:\.dark)?\.[a-z0-9]{2,5}", name) and not (
+            name.startswith("import/") and assets.rel_of(f"/docs-assets/{name}")):
         raise HTTPException(status_code=404, detail="Not found")
     url = await publishing.asset_preview_url(db, site_id, name)
     if url is None:

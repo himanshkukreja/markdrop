@@ -163,7 +163,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const folder = activeFolderId ? activeTree?.folders.find((f) => f.id === activeFolderId) : undefined;
       activeLabel = folder
         ? `${ws.name} / ${folder.name}`
-        : active?.endsWith(":settings") ? `${ws.name} settings` : active?.endsWith(":docs") ? `${ws.name} / Docs sites` : ws.name;
+        : active?.endsWith(":settings") ? `${ws.name} settings` : ws.name;
     }
   }
 

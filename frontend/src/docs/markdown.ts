@@ -10,18 +10,25 @@ import type { Heading, Section } from "./types";
 
 /** Every directive name the renderer understands. `docs:check` flags anything else. */
 export const CONTAINER_DIRECTIVES = ["note", "tip", "warning", "danger", "steps", "tabs", "tab", "cards", "card", "details"] as const;
-export const LEAF_DIRECTIVES = ["video", "clip", "embed"] as const;
+export const LEAF_DIRECTIVES = ["video", "clip", "embed", "api"] as const;
 export const TEXT_DIRECTIVES = ["kbd"] as const;
 export const CALLOUTS: Record<string, string> = { note: "Note", tip: "Tip", warning: "Warning", danger: "Danger" };
 
 const FENCE_OPEN = /^\s{0,3}(`{3,}|~{3,})(.*)$/;
 const QUOTE = /^\s{0,3}(?:>\s?)+/;
-export const DIRECTIVE_OPEN = /^\s*(:{3,})([A-Za-z][\w-]*)(?:\[([^\]]*)\])?(?:\{([^}]*)\})?\s*$/;
+/*
+ * `{…}` attributes: like remark-directive (micromark), a quoted value may hold `}` (`op="GET /a/{id}"`),
+ * so the braces close at the first `}` outside quotes. An unclosed quote never matches, as there.
+ */
+export const DIRECTIVE_OPEN = /^\s*(:{3,})([A-Za-z][\w-]*)(?:\[([^\]]*)\])?(?:\{((?:[^}"']|"[^"]*"|'[^']*')*)\})?\s*$/;
 export const DIRECTIVE_CLOSE = /^\s*(:{3,})\s*$/;
-export const DIRECTIVE_LEAF = /^\s*::([A-Za-z][\w-]*)(?:\[([^\]]*)\])?(?:\{([^}]*)\})?\s*$/;
-const TEXT_DIRECTIVE = /(^|[^\w:\\]):([A-Za-z][\w-]*)\[([^\]]*)\](?:\{[^}]*\})?/g;
+export const DIRECTIVE_LEAF = /^\s*::([A-Za-z][\w-]*)(?:\[([^\]]*)\])?(?:\{((?:[^}"']|"[^"]*"|'[^']*')*)\})?\s*$/;
+const TEXT_DIRECTIVE = /(^|[^\w:\\]):([A-Za-z][\w-]*)\[([^\]]*)\](?:\{(?:[^}"']|"[^"]*"|'[^']*')*\})?/g;
 
-/** `{id="x" title='y' flag}` → {id: "x", title: "y", flag: ""}. */
+/**
+ * `{id="x" title='y' flag}` → {id: "x", title: "y", flag: ""}. A quoted value is taken whole, so it
+ * may hold spaces, braces and `#`/`.` (`op="GET /a/{id}"`).
+ */
 export function parseAttrs(src: string | undefined): Record<string, string> {
   const out: Record<string, string> = {};
   if (!src) return out;
@@ -149,11 +156,25 @@ function textDirectives(line: string): string {
   );
 }
 
+/** `METHOD /path` with the method upper-cased, or the trimmed text when it isn't shaped that way. */
+export function normalizeApiOp(op: string): string {
+  const t = op.trim().replace(/\s+/, " ");
+  const m = /^([A-Za-z]+) (\S.*)$/.exec(t);
+  return m ? `${m[1].toUpperCase()} ${m[2]}` : t;
+}
+
+/** `::api[label]{op="GET /a/{id}"}` → "label: `GET /a/{id}`" (no label: just the code span). */
+function apiLine(op: string, label?: string): string {
+  const code = `\`${normalizeApiOp(op).replace(/`/g, "")}\``;
+  return label?.trim() ? `${label.trim()}: ${code}` : code;
+}
+
 /**
  * Directive syntax → plain GitHub Markdown, for agents, llms-full.txt, clipboard and search.
  * Callouts become blockquotes with a bold label, tabs/cards/details become bold labels, steps keep
  * their headings, videos and clips become `[Video: title (0:45)](url)` lines (an unfilled video slot
- * vanishes), embeds become links, images keep their Markdown with absolute URLs.
+ * vanishes), embeds become links, an API operation becomes `` `GET /a/{id}` `` (after its label,
+ * if it has one), images keep their Markdown with absolute URLs.
  * Code is never touched. Unbalanced fences (a section cut out of a container) are tolerated.
  */
 export function toPlainMarkdown(body: string, opts: PlainOptions = {}): string {
@@ -214,6 +235,8 @@ export function toPlainMarkdown(body: string, opts: PlainOptions = {}): string {
         emit("");
       } else if (name === "embed" && a.src) {
         emit(`[${a.title || label || a.src}](${a.src})`);
+      } else if (name === "api" && a.op?.trim()) {
+        emit(apiLine(a.op, label));
       }
       continue;
     }

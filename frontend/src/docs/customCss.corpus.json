@@ -1,0 +1,832 @@
+[
+  {
+    "css": "\n    /* a comment */\n    :root { --accent: #f00 }\n    h1, .dx-title:hover { letter-spacing: 0 }\n    html[data-theme=\"dark\"] .dx-card { border-color: #333 }\n    [data-theme=\"light\"] p { color: #111 }\n    body > main { padding: 0 }\n    .dx-root .x { margin: 0 }\n    @media (max-width: 600px) { .a { b: c } @supports (display: grid) { .d { e: f } } }\n    @keyframes spin { from { transform: rotate(0) } to { transform: rotate(360deg) } }\n    .bg { background: url(\"https://cdn.example.com/a.png\") center / cover, url(/docs-assets/b.png) }\n    a[href^=\"https://x\"] { content: \"a, b { }\" }\n  ",
+    "ok": true,
+    "why": "theme.test: the full scoping example"
+  },
+  {
+    "css": "</style><script>alert(1)</script>",
+    "ok": false,
+    "why": "theme.test: closes the style element (engine: </style isn't allowed)"
+  },
+  {
+    "css": ".a { color: red } </STYLE >",
+    "ok": false,
+    "why": "theme.test: uppercase </STYLE (engine: </style isn't allowed)"
+  },
+  {
+    "css": "@import url(https://evil.example/x.css);",
+    "ok": false,
+    "why": "theme.test: @import (engine: @import isn't allowed)"
+  },
+  {
+    "css": ".a { width: expression(alert(1)) }",
+    "ok": false,
+    "why": "theme.test: expression() (engine: expression() isn't allowed)"
+  },
+  {
+    "css": ".a { background: url(javascript:alert(1)) }",
+    "ok": false,
+    "why": "theme.test: javascript: url (engine: javascript: isn't allowed)"
+  },
+  {
+    "css": ".a { background: url(http://insecure.example/a.png) }",
+    "ok": false,
+    "why": "theme.test: http url (engine: url(http://insecure.example/a.png) must be an https URL or a /docs-assets/ file)"
+  },
+  {
+    "css": ".a { background: url(data:image/png;base64,AAAA) }",
+    "ok": false,
+    "why": "theme.test: data: url (engine: url(data:image/png;base64,AAAA) must be an https URL or a /docs-assets/ file)"
+  },
+  {
+    "css": ".a { background: url(//evil.example/a.png) }",
+    "ok": false,
+    "why": "theme.test: protocol-relative url (engine: url(//evil.example/a.png) must be an https URL or a /docs-assets/ file)"
+  },
+  {
+    "css": ".a { -moz-binding: url(https://x/x.xml#x) }",
+    "ok": false,
+    "why": "theme.test: -moz-binding (engine: -moz-binding isn't allowed)"
+  },
+  {
+    "css": ".a { behavior: url(https://x/x.htc) }",
+    "ok": false,
+    "why": "theme.test: behavior: (engine: behavior: isn't allowed)"
+  },
+  {
+    "css": ".a { b\\61ckground: red }",
+    "ok": false,
+    "why": "theme.test: backslash escape (engine: backslash escapes isn't allowed)"
+  },
+  {
+    "css": ".a { background: image-set('https://x/a.png' 1x) }",
+    "ok": false,
+    "why": "theme.test: image-set() even with https (engine: image-set() isn't allowed)"
+  },
+  {
+    "css": "@font-face { font-family: X; src: url(http://x/a.woff2) }",
+    "ok": false,
+    "why": "theme.test: @font-face with an http src (engine: url(http://x/a.woff2) must be an https URL or a /docs-assets/ file)"
+  },
+  {
+    "css": "@page { margin: 0 }",
+    "ok": false,
+    "why": "theme.test: @page (engine: @page is not allowed (only @media, @supports, @container, @layer, @keyframes, @font-face, @property))"
+  },
+  {
+    "css": "@namespace svg url(https://x);",
+    "ok": false,
+    "why": "theme.test: @namespace statement (engine: \"@namespace svg url(https://x)\" is not allowed here)"
+  },
+  {
+    "css": ".a { color: red",
+    "ok": false,
+    "why": "theme.test: { without } (engine: a { has no matching })"
+  },
+  {
+    "css": ".a { color: red } }",
+    "ok": false,
+    "why": "theme.test: } without { (engine: a } has no matching {)"
+  },
+  {
+    "css": ".a { .b { c: d } }",
+    "ok": false,
+    "why": "theme.test: nested block (engine: \".a\" has a nested block (CSS nesting isn't supported here))"
+  },
+  {
+    "css": "{ color: red }",
+    "ok": false,
+    "why": "theme.test: no selector (engine: a { … } block has no selector)"
+  },
+  {
+    "css": ".a{b:c}",
+    "ok": true,
+    "why": "minimal rule"
+  },
+  {
+    "css": ".docs-callout { border-radius: 0; } .hero { background: url(\"https://cdn.acme.test/bg.png\") }",
+    "ok": true,
+    "why": "API test: ordinary css with a quoted https url"
+  },
+  {
+    "css": ".a > .b { color: #fff }",
+    "ok": true,
+    "why": "child combinator"
+  },
+  {
+    "css": ".a::before { content: \"→\" }",
+    "ok": true,
+    "why": "non-ASCII in a string"
+  },
+  {
+    "css": ".a::before { content: \"😀 ok\" }",
+    "ok": true,
+    "why": "non-BMP char in a string"
+  },
+  {
+    "css": "@\\69mport 'x';",
+    "ok": false,
+    "why": "escaped @import (backslash) (engine: backslash escapes isn't allowed)"
+  },
+  {
+    "css": "a { width: expr/**/ession(alert(1)) }",
+    "ok": true,
+    "why": "comment splitting expression: becomes 'expr ession(' (harmless)"
+  },
+  {
+    "css": "a { width: expression/**/(alert(1)) }",
+    "ok": false,
+    "why": "comment between expression and ( becomes a space (engine: expression() isn't allowed)"
+  },
+  {
+    "css": "/* </style> */ .a { b: c }",
+    "ok": true,
+    "why": "</style> hidden in a comment is stripped first"
+  },
+  {
+    "css": "/* @import url(http://x); */ .a { b: c }",
+    "ok": true,
+    "why": "@import hidden in a comment"
+  },
+  {
+    "css": ".a { b: c } /* never closed",
+    "ok": false,
+    "why": "unclosed comment (engine: an unclosed /* comment)"
+  },
+  {
+    "css": ".a { b: c } /**/",
+    "ok": true,
+    "why": "empty comment"
+  },
+  {
+    "css": "/* a */ /* b */ .a /* c */ { b: /* d */ c }",
+    "ok": true,
+    "why": "comments everywhere"
+  },
+  {
+    "css": "@imp/**/ort url(https://x/a.css);",
+    "ok": false,
+    "why": "comment inside @import: becomes '@imp ort' statement (engine: \"@imp ort url(https://x/a.css)\" is not allowed here)"
+  },
+  {
+    "css": ".a { background: url( 'https://x.test/a.png' ) }",
+    "ok": true,
+    "why": "single-quoted url with spaces"
+  },
+  {
+    "css": ".a { background: url(\"https://x.test/a b.png\") }",
+    "ok": false,
+    "why": "space inside a quoted url (engine: url(https://x.test/a b.png) must be an https URL or a /docs-assets/ file)"
+  },
+  {
+    "css": ".a { background: url(https://x.test/a.png\") }",
+    "ok": false,
+    "why": "mismatched quote in url (engine: a url() that isn't a plain address)"
+  },
+  {
+    "css": ".a { background: url(\"https://x.test/a)b.png\") }",
+    "ok": false,
+    "why": "a ) inside a quoted url (engine: a url() that isn't a plain address)"
+  },
+  {
+    "css": ".a { background: url(/docs-assets/logo.png) }",
+    "ok": true,
+    "why": "/docs-assets/ url"
+  },
+  {
+    "css": ".a { background: url('/docs-assets/x/y.svg#frag') }",
+    "ok": true,
+    "why": "quoted /docs-assets/ url with fragment"
+  },
+  {
+    "css": ".a { background: url(/docs-assets/../api/me) }",
+    "ok": false,
+    "why": "/docs-assets/ url with .. (engine: url(/docs-assets/../api/me): a /docs-assets/ path can't have \"..\", \"//\" or a backslash in it)"
+  },
+  {
+    "css": ".a { background: url(/DOCS-ASSETS/a.png) }",
+    "ok": false,
+    "why": "/docs-assets/ is case-sensitive (engine: url(/DOCS-ASSETS/a.png) must be an https URL or a /docs-assets/ file)"
+  },
+  {
+    "css": ".a { background: url(HTTPS://X.TEST/A.PNG) }",
+    "ok": true,
+    "why": "uppercase HTTPS"
+  },
+  {
+    "css": ".a { background: URL(https://x.test/a.png) }",
+    "ok": true,
+    "why": "uppercase URL("
+  },
+  {
+    "css": ".a { background: url (https://x.test/a.png) }",
+    "ok": true,
+    "why": "space between url and ("
+  },
+  {
+    "css": ".a { background: url() }",
+    "ok": false,
+    "why": "empty url() (engine: url() must be an https URL or a /docs-assets/ file)"
+  },
+  {
+    "css": ".a { background: url(https://) }",
+    "ok": false,
+    "why": "https:// with nothing after it (engine: url(https://) must be an https URL or a /docs-assets/ file)"
+  },
+  {
+    "css": ".a { background: url(/a.png) }",
+    "ok": false,
+    "why": "site path outside /docs-assets/ (engine: url(/a.png) must be an https URL or a /docs-assets/ file)"
+  },
+  {
+    "css": ".a { content: \"url(x)\" }",
+    "ok": false,
+    "why": "url() inside a string is still checked (engine: url(x) must be an https URL or a /docs-assets/ file)"
+  },
+  {
+    "css": ".a { background: url(https://x.test/a.png), url(http://x.test/b.png) }",
+    "ok": false,
+    "why": "second url insecure (engine: url(http://x.test/b.png) must be an https URL or a /docs-assets/ file)"
+  },
+  {
+    "css": ".a { --u: url(https://x.test/a.png) }",
+    "ok": true,
+    "why": "url in a custom property"
+  },
+  {
+    "css": ".a { background: url(\"https://x.test/a.png\"; }",
+    "ok": false,
+    "why": "url( never closed (engine: a url() that isn't a plain address)"
+  },
+  {
+    "css": "@font-face { font-family: Acme; src: url(https://fonts.acme.test/a.woff2) format('woff2'); font-display: swap }",
+    "ok": true,
+    "why": "@font-face with an https src url"
+  },
+  {
+    "css": "@font-face { font-family: Acme; src: url(/docs-assets/a.woff2) }",
+    "ok": true,
+    "why": "@font-face with a /docs-assets/ src"
+  },
+  {
+    "css": "@property --x { syntax: '*'; inherits: false; initial-value: 0 }",
+    "ok": true,
+    "why": "@property with syntax '*'"
+  },
+  {
+    "css": "@property --x { syntax: '<length>'; inherits: false; initial-value: 0px }",
+    "ok": false,
+    "why": "@property with a <length> syntax hits the < ban (engine: < isn't allowed)"
+  },
+  {
+    "css": "@layer base, theme;",
+    "ok": true,
+    "why": "@layer statement"
+  },
+  {
+    "css": "@layer base;",
+    "ok": true,
+    "why": "@layer statement, one name"
+  },
+  {
+    "css": "@layer base.inner;",
+    "ok": false,
+    "why": "dotted layer name (engine: \"@layer base.inner\" is not allowed here)"
+  },
+  {
+    "css": "@layer;",
+    "ok": false,
+    "why": "@layer statement without a name (engine: \"@layer\" is not allowed here)"
+  },
+  {
+    "css": "@layer theme { .a { b: c } }",
+    "ok": true,
+    "why": "@layer block"
+  },
+  {
+    "css": "@layer { .a { b: c } }",
+    "ok": true,
+    "why": "anonymous @layer block"
+  },
+  {
+    "css": "@media print { @layer x, y; .a { b: c } }",
+    "ok": true,
+    "why": "@layer statement inside @media"
+  },
+  {
+    "css": "@container sidebar (min-width: 400px) { .card { display: grid } }",
+    "ok": true,
+    "why": "@container"
+  },
+  {
+    "css": "@supports (display: grid) and (not (display: inline-grid)) { .a { b: c } }",
+    "ok": true,
+    "why": "@supports"
+  },
+  {
+    "css": "@-webkit-keyframes spin { from { opacity: 0 } to { opacity: 1 } }",
+    "ok": true,
+    "why": "@-webkit-keyframes"
+  },
+  {
+    "css": "@KEYFRAMES spin { from { opacity: 0 } }",
+    "ok": true,
+    "why": "uppercase at-rule name"
+  },
+  {
+    "css": "@MEDIA screen { .a { b: c } }",
+    "ok": true,
+    "why": "uppercase @MEDIA"
+  },
+  {
+    "css": "@charset \"utf-8\";",
+    "ok": false,
+    "why": "@charset (engine: \"@charset \"utf-8\"\" is not allowed here)"
+  },
+  {
+    "css": "@document url-prefix(https://x) { .a { b: c } }",
+    "ok": false,
+    "why": "@document (engine: @document is not allowed (only @media, @supports, @container, @layer, @keyframes, @font-face, @property))"
+  },
+  {
+    "css": "@scope (.card) { img { b: c } }",
+    "ok": false,
+    "why": "@scope (engine: @scope is not allowed (only @media, @supports, @container, @layer, @keyframes, @font-face, @property))"
+  },
+  {
+    "css": "@media screen;",
+    "ok": false,
+    "why": "@media as a statement (engine: \"@media screen\" is not allowed here)"
+  },
+  {
+    "css": "@ { .a { b: c } }",
+    "ok": false,
+    "why": "bare @ (engine: @ is not allowed (only @media, @supports, @container, @layer, @keyframes, @font-face, @property))"
+  },
+  {
+    "css": "@media a { @media b { @media c { @media d { .x { y: z } } } } }",
+    "ok": true,
+    "why": "4 nested grouping at-rules (limit)"
+  },
+  {
+    "css": "@media a { @media b { @media c { @media d { @media e { .x { y: z } } } } } }",
+    "ok": false,
+    "why": "5 nested grouping at-rules (engine: at-rules nest too deep)"
+  },
+  {
+    "css": "@layer a { @supports (x: y) { @container (min-width: 1px) { @media d { @layer e { } } } } }",
+    "ok": false,
+    "why": "5 levels mixing grouping rules (engine: at-rules nest too deep)"
+  },
+  {
+    "css": ".a::after { content: \"} .b { color: red; }\" }",
+    "ok": true,
+    "why": "braces and semicolon inside a string"
+  },
+  {
+    "css": ".a::after { content: '{' }",
+    "ok": true,
+    "why": "{ in a single-quoted string"
+  },
+  {
+    "css": "a[title=\"x{y\"] { b: c }",
+    "ok": true,
+    "why": "{ inside an attribute selector string"
+  },
+  {
+    "css": "a[title=\"x;y\"], b { c: d }",
+    "ok": true,
+    "why": "; inside a selector string"
+  },
+  {
+    "css": ".a { content: \"unterminated }",
+    "ok": false,
+    "why": "string never closed (engine: a { has no matching })"
+  },
+  {
+    "css": ".a { content: \"x\n} body { background: red } .b { content: \" }",
+    "ok": false,
+    "why": "newline inside a string (a browser ends the string there; the next rule would escape the scope) (engine: a string has a line break in it (close the quote on the same line))"
+  },
+  {
+    "css": ".a { b: c };",
+    "ok": false,
+    "why": "stray ; after a rule (engine: \"\" is not allowed here)"
+  },
+  {
+    "css": ";",
+    "ok": false,
+    "why": "lone ; (engine: \"\" is not allowed here)"
+  },
+  {
+    "css": "color: red;",
+    "ok": false,
+    "why": "declaration at top level (engine: \"color: red\" is not allowed here)"
+  },
+  {
+    "css": ".a, { b: c }",
+    "ok": false,
+    "why": "trailing comma: empty selector (engine: \".a,\" has an empty selector)"
+  },
+  {
+    "css": ".a,, .b { b: c }",
+    "ok": false,
+    "why": "double comma (engine: \".a,, .b\" has an empty selector)"
+  },
+  {
+    "css": ":is(.a, .b) > .c { b: c }",
+    "ok": true,
+    "why": "comma inside :is() is not a split"
+  },
+  {
+    "css": "[data-theme=\"dark\"] .a { b: c }",
+    "ok": true,
+    "why": "theme attribute selector"
+  },
+  {
+    "css": "[data-theme=dark .a { b: c }",
+    "ok": false,
+    "why": "[data-theme with no closing ] (engine: \"[data-theme=dark .a\" has a [ without a matching ])"
+  },
+  {
+    "css": "html[data-theme=\"dark\"] body { b: c }",
+    "ok": true,
+    "why": "html with theme attribute"
+  },
+  {
+    "css": "HTML, BODY, :ROOT { --x: 1 }",
+    "ok": true,
+    "why": "uppercase root selectors"
+  },
+  {
+    "css": ".dx-root ~ * { display: none }",
+    "ok": false,
+    "why": "~ right after the scope reaches its siblings (engine: \".dx-root ~ *\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": "",
+    "ok": true,
+    "why": "empty string"
+  },
+  {
+    "css": "   \n\t  ",
+    "ok": true,
+    "why": "whitespace only"
+  },
+  {
+    "css": "﻿.a { b: c }",
+    "ok": true,
+    "why": "BOM before a rule (JS \\s includes U+FEFF)"
+  },
+  {
+    "css": ".a { b: c }",
+    "ok": true,
+    "why": "NEL before a rule (not JS whitespace)"
+  },
+  {
+    "css": "\u001c",
+    "ok": false,
+    "why": "U+001C alone (Python whitespace, not JS) (engine: \"\u001c\" has no { … } block)"
+  },
+  {
+    "css": ".a { b: c } .d { e: f }",
+    "ok": true,
+    "why": "U+2028 between rules"
+  },
+  {
+    "css": ".a { background: IMAGE-SET(\"https://x/a.png\" 1x) }",
+    "ok": false,
+    "why": "uppercase image-set (engine: image-set() isn't allowed)"
+  },
+  {
+    "css": ".a { background: -webkit-image-set(url(https://x/a.png) 1x) }",
+    "ok": false,
+    "why": "-webkit-image-set (engine: image-set() isn't allowed)"
+  },
+  {
+    "css": "@font-face { font-family: X; src: src(\"https://x/a.woff2\") }",
+    "ok": false,
+    "why": "src() function (engine: src() isn't allowed)"
+  },
+  {
+    "css": ".a { --src: 1 } .b { mask: src (x) }",
+    "ok": false,
+    "why": "src ( with a space (engine: src() isn't allowed)"
+  },
+  {
+    "css": ".a { --my-src: x(1) } .b { --resrc: y }",
+    "ok": true,
+    "why": "src as part of other words"
+  },
+  {
+    "css": ".a { --a: x-src(1) }",
+    "ok": false,
+    "why": "x-src( matches \\bsrc( (engine: src() isn't allowed)"
+  },
+  {
+    "css": ".a { behaviour: url(https://x/x.htc) }",
+    "ok": false,
+    "why": "behaviour: (British spelling) (engine: behavior: isn't allowed)"
+  },
+  {
+    "css": ".a { BEHAVIOR : url(https://x/x.htc) }",
+    "ok": false,
+    "why": "uppercase BEHAVIOR with space (engine: behavior: isn't allowed)"
+  },
+  {
+    "css": ".a { -ms-behavior: url(https://x/x.htc) }",
+    "ok": false,
+    "why": "-ms-behavior: (engine: behavior: isn't allowed)"
+  },
+  {
+    "css": ".a { --misbehavior: 1 }",
+    "ok": true,
+    "why": "behavior inside a word (no \\b)"
+  },
+  {
+    "css": ".a { -MOZ-BINDING: none }",
+    "ok": false,
+    "why": "uppercase -MOZ-BINDING (engine: -moz-binding isn't allowed)"
+  },
+  {
+    "css": ".a { b: JavaScript :x }",
+    "ok": false,
+    "why": "JavaScript : with a space (engine: javascript: isn't allowed)"
+  },
+  {
+    "css": ".a { b: vbscript:x }",
+    "ok": false,
+    "why": "vbscript: (engine: vbscript: isn't allowed)"
+  },
+  {
+    "css": ".a { b: EXPRESSION (1) }",
+    "ok": false,
+    "why": "uppercase EXPRESSION ( (engine: expression() isn't allowed)"
+  },
+  {
+    "css": "@IMPORT 'x.css';",
+    "ok": false,
+    "why": "uppercase @IMPORT (engine: @import isn't allowed)"
+  },
+  {
+    "css": "@ımport 'x.css';",
+    "ok": false,
+    "why": "dotless-i @ımport (not ASCII-casefolded) (engine: \"@ımport 'x.css'\" is not allowed here)"
+  },
+  {
+    "css": ".a { b: ſrc(1) }",
+    "ok": true,
+    "why": "long s 'ſrc(' (not ASCII-casefolded)"
+  },
+  {
+    "css": "@Keyframes spin { from { opacity: 0 } }",
+    "ok": false,
+    "why": "Kelvin-sign K in @keyframes is not \\w (bad at-rule name) (engine: @ is not allowed (only @media, @supports, @container, @layer, @keyframes, @font-face, @property))"
+  },
+  {
+    "css": "html[data-theme=dark .a { b: c }",
+    "ok": true,
+    "why": "html[ with no closing ] (html branch, no crash)"
+  },
+  {
+    "css": ".a { b: jaſva }",
+    "ok": true,
+    "why": "non-ASCII lookalikes are fine where nothing is banned"
+  },
+  {
+    "css": ".a { b: 1 < 2 }",
+    "ok": false,
+    "why": "< anywhere (engine: < isn't allowed)"
+  },
+  {
+    "css": ".a { content: \"<b>\" }",
+    "ok": false,
+    "why": "< inside a string (engine: < isn't allowed)"
+  },
+  {
+    "css": ".a { content: \"\u0000\" }",
+    "ok": true,
+    "why": "null char inside a string"
+  },
+  {
+    "css": ".a\u0000 { b: c }",
+    "ok": true,
+    "why": "null char in a selector"
+  },
+  {
+    "css": ".a { content: \"\\\\\" }",
+    "ok": false,
+    "why": "escaped backslash in a string (engine: backslash escapes isn't allowed)"
+  },
+  {
+    "css": ".a { content: 'x\n} body { color: red } .b { content: ' }",
+    "ok": false,
+    "why": "LF in a single-quoted string (engine: a string has a line break in it (close the quote on the same line))"
+  },
+  {
+    "css": ".a { content: \"x\r\" }",
+    "ok": false,
+    "why": "CR in a string (engine: a string has a line break in it (close the quote on the same line))"
+  },
+  {
+    "css": ".a { content: \"x\f\" }",
+    "ok": false,
+    "why": "form feed in a string (engine: a string has a line break in it (close the quote on the same line))"
+  },
+  {
+    "css": ".a { content: \"x\r\n\" }",
+    "ok": false,
+    "why": "CRLF in a string (engine: a string has a line break in it (close the quote on the same line))"
+  },
+  {
+    "css": "a[title=\"x\ny\"] { b: c }",
+    "ok": false,
+    "why": "line break in a selector string (engine: a string has a line break in it (close the quote on the same line))"
+  },
+  {
+    "css": "@media \"x\ny\" { .a { b: c } }",
+    "ok": false,
+    "why": "line break in an at-rule prelude string (engine: a string has a line break in it (close the quote on the same line))"
+  },
+  {
+    "css": "@font-face { font-family: \"A\nB\" }",
+    "ok": false,
+    "why": "line break in a string inside a verbatim block (engine: a string has a line break in it (close the quote on the same line))"
+  },
+  {
+    "css": "@media screen { .a { content: \"x\ny\" } }",
+    "ok": false,
+    "why": "line break in a string inside @media (engine: a string has a line break in it (close the quote on the same line))"
+  },
+  {
+    "css": ".a { font-family: Don't\n}",
+    "ok": false,
+    "why": "a stray apostrophe opens a string that hits a line break (engine: a string has a line break in it (close the quote on the same line))"
+  },
+  {
+    "css": ".a { content: \"x y\" }",
+    "ok": true,
+    "why": "U+2028 in a string is not a CSS line break"
+  },
+  {
+    "css": ".a {\n  content: \"x\";\n  color: red;\n}\n",
+    "ok": true,
+    "why": "line breaks outside strings are fine"
+  },
+  {
+    "css": ".dx-root+.x { b: c }",
+    "ok": false,
+    "why": "+ glued to the scope (engine: \".dx-root+.x\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": ".dx-root~x { b: c }",
+    "ok": false,
+    "why": "~ glued to the scope (engine: \".dx-root~x\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": ".dx-root:hover ~ .x { b: c }",
+    "ok": false,
+    "why": "~ after the scope with a pseudo-class (engine: \".dx-root:hover ~ .x\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": ".dx-root.dark + footer { b: c }",
+    "ok": false,
+    "why": "+ after the scope with a class (engine: \".dx-root.dark + footer\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": ".dx-root[data-x=\"a b\"] ~ y { b: c }",
+    "ok": false,
+    "why": "~ after the scope with an attribute holding a space (engine: \".dx-root[data-x=\"a b\"] ~ y\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": ":root ~ x { b: c }",
+    "ok": false,
+    "why": ":root is the scope: ~ after it (engine: \":root ~ x\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": "body + x { b: c }",
+    "ok": false,
+    "why": "body is the scope: + after it (engine: \"body + x\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": "html[data-theme=\"dark\"] ~ x { b: c }",
+    "ok": false,
+    "why": "theme html: ~ after it lands right after the scope (engine: \"html[data-theme=\"dark\"] ~ x\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": "html[data-theme=\"dark\"]:hover ~ x { b: c }",
+    "ok": true,
+    "why": "theme html with :hover becomes a descendant (' :hover ~ x')"
+  },
+  {
+    "css": "[data-theme=\"dark\"] ~ x { b: c }",
+    "ok": false,
+    "why": "theme attribute: ~ after it (engine: \"[data-theme=\"dark\"] ~ x\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": "[data-theme=dark].x + y { b: c }",
+    "ok": false,
+    "why": "theme attribute with a class: + after the scope compound (engine: \"[data-theme=dark].x + y\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": ".a, .dx-root ~ .b { c: d }",
+    "ok": false,
+    "why": "one escaping selector in a list (engine: \".dx-root ~ .b\" reaches outside the docs root (~ or + can't follow the root itself))"
+  },
+  {
+    "css": ".dx-root > .a { b: c }",
+    "ok": true,
+    "why": "child of the scope"
+  },
+  {
+    "css": ".dx-root>.a { b: c }",
+    "ok": true,
+    "why": "child of the scope, no spaces"
+  },
+  {
+    "css": ".dx-root .a ~ .b { c: d }",
+    "ok": true,
+    "why": "siblings inside the scope"
+  },
+  {
+    "css": ".dx-root .a + .b { c: d }",
+    "ok": true,
+    "why": "adjacent siblings inside the scope"
+  },
+  {
+    "css": ".dx-root:not(.a ~ .b) .c { d: e }",
+    "ok": true,
+    "why": "~ inside :not() after the scope"
+  },
+  {
+    "css": ".dx-root:has(+ .x) { b: c }",
+    "ok": true,
+    "why": "+ inside :has() on the scope itself"
+  },
+  {
+    "css": ".a ~ .b { c: d }",
+    "ok": true,
+    "why": "plain siblings get scoped as descendants"
+  },
+  {
+    "css": "html > body ~ x { b: c }",
+    "ok": true,
+    "why": "html > body ~ x: the ~ is past a child combinator"
+  },
+  {
+    "css": ".a { background: url(/docs-assets/a/../../b.png) }",
+    "ok": false,
+    "why": ".. segments (engine: url(/docs-assets/a/../../b.png): a /docs-assets/ path can't have \"..\", \"//\" or a backslash in it)"
+  },
+  {
+    "css": ".a { background: url(/docs-assets/..) }",
+    "ok": false,
+    "why": "a trailing .. segment (engine: url(/docs-assets/..): a /docs-assets/ path can't have \"..\", \"//\" or a backslash in it)"
+  },
+  {
+    "css": ".a { background: url(/docs-assets/%2e%2e/api) }",
+    "ok": false,
+    "why": "%2e%2e segment (engine: url(/docs-assets/%2e%2e/api): a /docs-assets/ path can't have \"..\", \"//\" or a backslash in it)"
+  },
+  {
+    "css": ".a { background: url(\"/docs-assets/.%2E/api\") }",
+    "ok": false,
+    "why": ".%2E segment (engine: url(/docs-assets/.%2E/api): a /docs-assets/ path can't have \"..\", \"//\" or a backslash in it)"
+  },
+  {
+    "css": ".a { background: url(/docs-assets//evil.example/a.png) }",
+    "ok": false,
+    "why": "// right after /docs-assets/ (engine: url(/docs-assets//evil.example/a.png): a /docs-assets/ path can't have \"..\", \"//\" or a backslash in it)"
+  },
+  {
+    "css": ".a { background: url(/docs-assets/a//b.png) }",
+    "ok": false,
+    "why": "// inside the path (engine: url(/docs-assets/a//b.png): a /docs-assets/ path can't have \"..\", \"//\" or a backslash in it)"
+  },
+  {
+    "css": ".a { background: url(/docs-assets/a..b.png) }",
+    "ok": true,
+    "why": ".. inside a name is not a segment"
+  },
+  {
+    "css": ".a { background: url(/docs-assets/..hidden/a.png) }",
+    "ok": true,
+    "why": "..hidden is not a .. segment"
+  },
+  {
+    "css": ".a { background: url(/docs-assets/./a.png) }",
+    "ok": true,
+    "why": "a . segment stays inside"
+  },
+  {
+    "css": ".a { background: url(/docs-assets/a.png?v=../..//x) }",
+    "ok": true,
+    "why": ".. and // in the query are not the path"
+  },
+  {
+    "css": ".a { background: url(/docs-assets/a.svg#//x) }",
+    "ok": true,
+    "why": "// in the fragment"
+  }
+]

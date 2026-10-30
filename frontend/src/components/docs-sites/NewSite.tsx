@@ -2,14 +2,15 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Badge, Button, Field, Icon, IconButton, Input, Spinner, cx } from "@/components/ui";
-import { getWorkspace, type Workspace } from "@/lib/workspaces";
+import { Alert, Anchor, Badge, Button, Field, Icon, Input, Select, Spinner, cx } from "@/components/ui";
+import { useLocationSearch } from "@/components/shell/useLocation";
 import {
-  DOCS_HOST_SUFFIX, createSite, docsErrorMessage, isAdminRole, listSites, slugAvailable, slugFrom, slugProblem,
-  type DocsRole, type Usage,
+  DOCS_HOST_SUFFIX, createSite, docsErrorMessage, slugAvailable, slugFrom, slugProblem,
   type SourceKind, type TemplateId,
 } from "@/lib/docsSites";
-import { StudioLoader, docsListHref, siteBase, useStudioSession } from "./SiteContext";
+import { StudioLoader, useStudioSession } from "./SiteContext";
+import { PERSONAL, siteBase, studioHome, studioNew } from "./routes";
+import { useStudio } from "./studio/StudioContext";
 
 const SOURCES: Array<{ id: SourceKind; icon: string; title: string; body: string }> = [
   { id: "blank", icon: "doc", title: "Blank site", body: "Start with a home page and write in the editor." },
@@ -68,17 +69,19 @@ function ChoiceCard({ checked, onSelect, icon, title, body, name, value }: {
 }
 
 /**
- * /w/<ws>/docs/new (New site board): how to start (blank, template, GitBook import, GitHub repo),
- * then the name and the free address `<slug>.docs.markdrop.in` (checked as you type). Imports and
- * templates start a job and land on the import screen; a blank site opens Design ("You'll pick a
- * theme next").
+ * /docs-studio/new (New site board): where the site lives (a workspace you're an admin of, or
+ * personal; ?ws= preselects), how to start (blank, template, GitBook import, GitHub repo), then the
+ * name and the free address `<slug>.docs.markdrop.in` (checked as you type). Imports start a job
+ * and land on the import screen; blank and template sites open Design ("You'll pick a theme next").
  */
-export default function NewSite({ wsId }: { wsId: string }) {
-  const listHref = docsListHref(wsId);
-  const { ready } = useStudioSession(`${listHref}/new`);
+export default function NewSite() {
+  const search = useLocationSearch();
+  const wanted = new URLSearchParams(search).get("ws");
+  const { ready } = useStudioSession(studioNew(wanted));
+  const { all, reloadAll } = useStudio();
   const router = useRouter();
   const uid = useId();
-  const [ws, setWs] = useState<Workspace | null>(null);
+  const [scopeChoice, setScopeChoice] = useState<string | null>(null);
   const [source, setSource] = useState<SourceKind>("gitbook");
   const [template, setTemplate] = useState<TemplateId>("product");
   const [url, setUrl] = useState("");
@@ -89,14 +92,18 @@ export default function NewSite({ wsId }: { wsId: string }) {
   const [slugState, setSlugState] = useState<SlugState>({ state: "idle" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [scope, setScope] = useState<{ role: DocsRole; usage: Usage } | null>(null);
 
-  useEffect(() => {
-    if (!ready) return;
-    getWorkspace(wsId).then(setWs).catch(() => setWs(null));
-    // Who may create here, and whether the workspace has room (only admins create; 3 sites on free).
-    listSites(wsId).then((r) => setScope({ role: r.your_role, usage: r.usage })).catch(() => setScope(null));
-  }, [ready, wsId]);
+  // Where it can live: workspaces you're an admin of (with room on the free plan), or personal.
+  const options = all
+    ? [
+        ...all.workspaces.map((w) => ({ id: w.id, name: w.name, ok: w.can_create, usage: w.usage, why: w.can_create ? "" : "admins only" })),
+        { id: PERSONAL, name: "Personal (only you)", ok: all.personal.can_create, usage: all.personal.usage, why: "" },
+      ]
+    : [];
+  const roomy = (o: (typeof options)[number]) => o.ok && o.usage.sites < o.usage.limit;
+  const fallback = options.find((o) => o.id === wanted && o.ok)?.id ?? options.find(roomy)?.id ?? options.find((o) => o.ok)?.id ?? null;
+  const scope = scopeChoice ?? fallback;
+  const chosen = options.find((o) => o.id === scope) ?? null;
 
   // Suggest a name and address from the GitBook address (docs.acme.com → "Acme Docs", "acme").
   useEffect(() => {
@@ -127,10 +134,11 @@ export default function NewSite({ wsId }: { wsId: string }) {
   if (!ready) return <StudioLoader />;
 
   const urlInvalid = source === "gitbook" && urlTouched && !validUrl(url);
-  const notAdmin = !!scope && !isAdminRole(scope.role);
-  const full = !!scope && scope.usage.sites >= scope.usage.limit;
+  const notAdmin = !!chosen && !chosen.ok;
+  const full = !!chosen && chosen.usage.sites >= chosen.usage.limit;
+  const listHref = studioHome(wanted);
   const canSubmit =
-    !busy && !notAdmin && !full && name.trim().length > 0 && slugState.state !== "invalid" && slugState.state !== "taken" && !!slug &&
+    !busy && !!chosen && !notAdmin && !full && name.trim().length > 0 && slugState.state !== "invalid" && slugState.state !== "taken" && !!slug &&
     (source !== "gitbook" || validUrl(url)) && source !== "github";
 
   async function submit(e: React.FormEvent) {
@@ -141,13 +149,14 @@ export default function NewSite({ wsId }: { wsId: string }) {
     setError("");
     try {
       const site = await createSite({
-        workspace_id: wsId,
+        workspace_id: scope === PERSONAL ? null : scope,
         name: name.trim(),
         slug,
         source: source === "gitbook" ? { kind: "gitbook", url: url.trim() } : source === "template" ? { kind: "template", template } : { kind: source },
       });
       const job = site.job?.id;
-      const base = siteBase(wsId, site.id);
+      const base = siteBase(site.id);
+      void reloadAll();
       router.push(job ? `${base}/import?job=${encodeURIComponent(job)}` : `${base}/design?new=1`);
     } catch (err) {
       setError(docsErrorMessage(err, "We couldn't create the site. Try again."));
@@ -170,14 +179,38 @@ export default function NewSite({ wsId }: { wsId: string }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-surface px-3 py-2.5 sm:px-6">
-        <IconButton icon="x" label="Close" href={listHref} />
-        <span className="text-body-strong text-text">New docs site</span>
-        {ws && <span className="truncate text-body text-text-muted">in {ws.name}</span>}
-      </header>
-
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[880px] px-4 pb-16 pt-8 outline-none sm:px-6 sm:pt-10">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[880px] px-4 pb-16 pt-6 outline-none sm:px-6 sm:pt-8">
+        <Anchor href={listHref} className="md-focus mb-3 inline-flex items-center gap-1.5 rounded text-[13px] text-text-secondary no-underline hover:text-text">
+          <Icon name="arrowLeft" size={14} /> All docs sites
+        </Anchor>
+        <h1 className="mb-6 text-[28px] font-extrabold leading-9 tracking-[-0.02em] text-text">New docs site</h1>
         <form onSubmit={submit} className="flex flex-col gap-8" noValidate>
+          <section aria-labelledby={`${uid}-where`} className="flex flex-col gap-2">
+            <h2 id={`${uid}-where`} className="text-[16px] font-semibold text-text">Where it lives</h2>
+            {all ? (
+              <Field
+                label="Workspace"
+                htmlFor={`${uid}-ws`}
+                hint={scope === PERSONAL
+                  ? "A personal site: only you can open and edit it."
+                  : "Everyone in the workspace can open it: members who can edit write and publish pages, admins change its settings."}
+              >
+                <Select
+                  id={`${uid}-ws`}
+                  value={scope ?? ""}
+                  onChange={(e) => setScopeChoice(e.target.value)}
+                  options={options.map((o) => ({
+                    value: o.id,
+                    label: `${o.name}${o.why ? ` (${o.why})` : o.usage.sites >= o.usage.limit ? ` (${o.usage.sites} of ${o.usage.limit} sites used)` : ""}`,
+                    disabled: !o.ok,
+                  }))}
+                />
+              </Field>
+            ) : (
+              <p className="flex items-center gap-2 text-body text-text-muted"><Spinner size={14} /> Loading your workspaces…</p>
+            )}
+          </section>
+
           <fieldset className="flex flex-col gap-3.5">
             <legend className="mb-3.5 text-[24px] font-bold leading-8 text-text">How do you want to start?</legend>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -274,10 +307,10 @@ export default function NewSite({ wsId }: { wsId: string }) {
             </div>
           </section>
 
-          {notAdmin && <Alert tone="warning" title="Only workspace admins create docs sites">Ask an admin of {ws?.name ?? "this workspace"} to create it; you can edit it once it exists.</Alert>}
-          {!notAdmin && full && (
-            <Alert tone="warning" title={`${ws?.name ?? "This workspace"} has ${scope!.usage.sites} of ${scope!.usage.limit} docs sites`}>
-              That&apos;s the most on the free plan. Delete one in its Settings to make room.
+          {notAdmin && <Alert tone="warning" title="Only workspace admins create docs sites">Ask an admin of {chosen?.name ?? "this workspace"} to create it; you can edit it once it exists.</Alert>}
+          {!notAdmin && full && chosen && (
+            <Alert tone="warning" title={`${chosen.id === PERSONAL ? "You have" : `${chosen.name} has`} ${chosen.usage.sites} of ${chosen.usage.limit} docs sites`}>
+              That&apos;s the most on the free plan. Delete one in its Settings to make room, or choose another workspace.
             </Alert>
           )}
           {error && <Alert tone="danger" title="We couldn't create the site">{error}</Alert>}
