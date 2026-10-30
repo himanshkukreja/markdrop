@@ -9,7 +9,7 @@ renderer.
 
 Status: prototype. Deployed only as two noindex previews on a separate Cloudflare account used for
 docs previews (`markdrop-docs-edge` serving docs.markdrop.in's content, and `senseloaf-preview`, both
-on workers.dev). Locally the Worker runs in Miniflare (workerd).
+on workers.dev), plus the theme previews below. Locally the Worker runs in Miniflare (workerd).
 
 ## Decision: prerender with the real Next app, then crawl it (option A, on a staged copy)
 
@@ -173,6 +173,24 @@ loads the page, idles 3 s, scrolls, opens search, then hovers and clicks a sideb
 A reader moving the pointer over the sidebar adds one prefetch per link they pass over (the
 router's cache makes a second pass free). On the free plan (100k requests a day) a first view now
 costs 3–4 requests instead of 44–50.
+
+## Theme previews
+
+site.json `theme` (presets, fonts, corners, mode, brand colours, custom CSS: see
+`frontend/src/docs/theme.mjs`) is rendered by the engine, so a themed site builds and publishes
+like any other. The previews are one small demo site (synthetic "Acme" content) built seven times,
+once per preset plus one Match my brand variant, each published under its own site id
+(`theme-<v>`) and served by its own Worker: `docs-themes-<v>.markdrop-docs.workers.dev` for
+clean, editorial, technical, minimal, playful, helpcenter and brand.
+
+Why seven Workers and not one with a site switch: a workers.dev Worker answers one hostname, and
+the edge maps hostname → site. Seven deployments of the same bundle (`wrangler deploy --name
+docs-themes-<v> --assets <engine-assets>`, the same R2 bucket) give every preview its own real
+hostname and exercise exactly the production mapping (`publish --host`). A `?site=` or path
+switch would have needed preview-only routing in the production handler (and a cookie, because
+the engine's links are absolute), which is code that must never run on a real host. The theme
+fonts ship as engine files (`/_next/static/media`), so they come from Static Assets like the
+chunks.
 
 ## Verification (`test/verify.mjs`: every route compared against `next start` of the same build)
 
