@@ -167,6 +167,9 @@ const mediaRefs = []; // { file, line, type: image | clip, src, alt, theme }
 const videoIds = new Set();
 
 const files = walk(CONTENT);
+// A site's own public/ folder (DOCS_CONTENT_DIR/public, as the importers write it) or DOCS_PUBLIC_DIR.
+const OWN_PUBLIC = path.join(CONTENT, "public");
+const PUBLIC = process.env.DOCS_PUBLIC_DIR || (process.env.DOCS_CONTENT_DIR && fs.existsSync(OWN_PUBLIC) ? OWN_PUBLIC : path.join(ROOT, "public"));
 const pages = new Map(); // path → { file, fm, body, lines, ids:Set, links:[] }
 for (const file of files) {
   const src = fs.readFileSync(path.join(CONTENT, file), "utf8").replace(/^\uFEFF/, "");
@@ -424,7 +427,7 @@ const brandAssets = [];
     if (!isStr(v)) return err(S, `${key} must be a path like /docs-assets/brand/logo.svg or an https URL`);
     if (v.startsWith("/") && !v.startsWith("//")) {
       if (!v.startsWith("/docs-assets/")) err(S, `${key} ${v} must be under /docs-assets/ (the docs host serves nothing else from public/)`);
-      else if (!fs.existsSync(path.join(ROOT, "public", v.split(/[?#]/)[0]))) err(S, `${key} ${v} doesn't exist in public/`);
+      else if (!fs.existsSync(path.join(PUBLIC, v.split(/[?#]/)[0]))) err(S, `${key} ${v} doesn't exist in public/`);
       else brandAssets.push(v.split(/[?#]/)[0]);
     } else if (!httpsUrl(v)) err(S, `${key} "${v}" must be a /docs-assets/ path or an https URL`);
   };
@@ -614,9 +617,6 @@ if (!changelog.missing) {
 }
 
 /* ── media ───────────────────────────────────────────────────────────────── */
-// A site's own public/ folder (DOCS_CONTENT_DIR/public, as the importers write it) or DOCS_PUBLIC_DIR.
-const OWN_PUBLIC = path.join(CONTENT, "public");
-const PUBLIC = process.env.DOCS_PUBLIC_DIR || (process.env.DOCS_CONTENT_DIR && fs.existsSync(OWN_PUBLIC) ? OWN_PUBLIC : path.join(ROOT, "public"));
 const ASSETS_DIR = path.join(PUBLIC, "docs-assets");
 const KB = 1024;
 const BUDGET = { image: 220 * KB, poster: 220 * KB, clip: 1.6 * KB * KB, video: 25 * KB * KB };
