@@ -71,5 +71,5 @@ notes.local/
 # them, kept for review and never imported by the app. Ignored because they are
 # a megabyte of binaries that would live in a public repo forever to settle one
 # decision that is made once.
-design/
+/design/
 frontend/tsconfig.tsbuildinfo
