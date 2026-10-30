@@ -10,10 +10,15 @@
  *                                       extra responses — written by people, checked by docs:check
  *   the operation's FastAPI docstring   description, tidied (internal ticket refs dropped)
  *   the schema                          parameters, body fields, types, limits, enums, defaults
- *   x-markdrop (backend export)         auth ("token" | "optional" | "none" | "session") and the
- *                                       route's rate limits as written in the code
+ *   the vendor extension                auth ("token" | "optional" | "none" | "session") and the
+ *   (opts.extension, default x-docs;    route's rate limits as written in the code
+ *   Markdrop's export writes x-markdrop)
  * Hidden: overlay.hide.tags / hide.operations. An operation no group claims lands in "More", and
  * docs:check warns until someone places it.
+ *
+ * Token wording comes from opts: `tokenEnv` (the variable samples read, default API_TOKEN),
+ * `tokenPrefix` (placeholders like `mdk_…`) and `sessionHost` (whose sign-in a session-only route
+ * takes).
  */
 
 const METHODS = ["get", "post", "put", "patch", "delete"];
@@ -268,19 +273,24 @@ export function requestUrl(op, values) {
   return op.server + p;
 }
 
-const TOKEN_ENV = "MARKDROP_TOKEN";
+const TOKEN_ENV = "API_TOKEN";
+
+/** The environment variable samples read the token from (a safe name, else API_TOKEN). */
+function envName(v) {
+  return typeof v === "string" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(v) ? v : TOKEN_ENV;
+}
 
 /**
  * `curl` for one request. `token`: the literal token to put in the command (Try it), else the
- * command reads $MARKDROP_TOKEN. Headers with an empty value are left out.
+ * command reads $<tokenEnv> (default $API_TOKEN). Headers with an empty value are left out.
  */
-export function curlCommand(op, values, { token } = {}) {
+export function curlCommand(op, values, { token, tokenEnv } = {}) {
   const lines = [];
   const method = op.method.toUpperCase();
   const url = requestUrl(op, values);
   lines.push(`curl ${method === "GET" ? "" : `-X ${method} `}${/^[\w.:/%-]+$/.test(url) ? url : shq(url)}`);
   if (op.auth === "token" || op.auth === "optional" || token) {
-    if (token !== "") lines.push(`-H ${token ? shq(`Authorization: Bearer ${token}`) : `"Authorization: Bearer $${TOKEN_ENV}"`}`);
+    if (token !== "") lines.push(`-H ${token ? shq(`Authorization: Bearer ${token}`) : `"Authorization: Bearer $${envName(tokenEnv)}"`}`);
   }
   for (const [k, v] of Object.entries(values.header || {})) if (v !== undefined && v !== "") lines.push(`-H ${shq(`${headerName(k)}: ${v}`)}`);
   if (op.body && op.body.contentType === "multipart/form-data") {
@@ -296,11 +306,11 @@ export function curlCommand(op, values, { token } = {}) {
   return lines.join(" \\\n  ");
 }
 
-function jsSample(op, values) {
+function jsSample(op, values, tokenEnv) {
   const url = requestUrl(op, values);
   const method = op.method.toUpperCase();
   const headers = [];
-  if (op.auth === "token" || op.auth === "optional") headers.push(`Authorization: \`Bearer \${process.env.${TOKEN_ENV}}\``);
+  if (op.auth === "token" || op.auth === "optional") headers.push(`Authorization: \`Bearer \${process.env.${envName(tokenEnv)}}\``);
   for (const [k, v] of Object.entries(values.header || {})) if (v) headers.push(`${JSON.stringify(headerName(k))}: ${JSON.stringify(String(v))}`);
   const opts = [];
   if (method !== "GET") opts.push(`method: ${JSON.stringify(method)}`);
@@ -328,13 +338,13 @@ function jsSample(op, values) {
   return `${pre}const res = ${call};\n${read}`;
 }
 
-function pySample(op, values) {
+function pySample(op, values, tokenEnv) {
   const url = requestUrl(op, values);
   const method = op.method.toLowerCase();
   const args = [JSON.stringify(url)];
   const needsOs = op.auth === "token" || op.auth === "optional";
   const headers = [];
-  if (needsOs) headers.push(`"Authorization": f"Bearer {os.environ['${TOKEN_ENV}']}"`);
+  if (needsOs) headers.push(`"Authorization": f"Bearer {os.environ['${envName(tokenEnv)}']}"`);
   for (const [k, v] of Object.entries(values.header || {})) if (v) headers.push(`${JSON.stringify(headerName(k))}: ${JSON.stringify(String(v))}`);
   if (headers.length) args.push(`headers={${headers.join(", ")}}`);
   if (op.body?.contentType === "multipart/form-data") {
@@ -411,10 +421,12 @@ export function buildApiReference(spec, overlay = {}, opts = {}) {
   const server = (opts.server || spec?.servers?.[0]?.url || "").replace(/\/+$/, "");
   const base = (opts.base || "/api").replace(/\/+$/, "");
   const resolve = makeResolver(spec || {});
+  const extension = opts.extension || "x-docs";
   const ctx = {
     resolve,
     notes: overlay.fields || {},
     examples: overlay.examples || {},
+    auth: { tokenEnv: envName(opts.tokenEnv), tokenPrefix: opts.tokenPrefix || "", sessionHost: opts.sessionHost || "" },
   };
   const hideTags = new Set(overlay.hide?.tags || []);
   const hideOps = new Set(overlay.hide?.operations || []);
@@ -446,7 +458,7 @@ export function buildApiReference(spec, overlay = {}, opts = {}) {
       if (usedPaths.has(path)) problems.push(`${key}: page ${path} is also ${usedPaths.get(path)}; set a different "slug"`);
       usedPaths.set(path, key);
 
-      const x = raw["x-markdrop"] || {};
+      const x = raw[extension] || {};
       const params = [];
       const pathItemParams = Array.isArray(item.parameters) ? item.parameters : [];
       for (const p0 of [...pathItemParams, ...(raw.parameters || [])]) {
@@ -553,7 +565,7 @@ export function buildApiReference(spec, overlay = {}, opts = {}) {
         overlay: ov,
       };
       op.samples = samplesFor(op, ctx);
-      op.markdown = operationMarkdown(op);
+      op.markdown = operationMarkdown(op, ctx.auth);
       group.ops.push(op);
     }
   }
@@ -577,9 +589,9 @@ function samplesFor(op, ctx) {
   const v = sampleValues(op, ctx);
   op.example = v;
   const samples = [
-    { label: "curl", lang: "bash", code: curlCommand(op, v) },
-    { label: "JavaScript", lang: "javascript", code: jsSample(op, v) },
-    { label: "Python", lang: "python", code: pySample(op, v) },
+    { label: "curl", lang: "bash", code: curlCommand(op, v, { tokenEnv: ctx.auth.tokenEnv }) },
+    { label: "JavaScript", lang: "javascript", code: jsSample(op, v, ctx.auth.tokenEnv) },
+    { label: "Python", lang: "python", code: pySample(op, v, ctx.auth.tokenEnv) },
   ];
   if (op.cli) samples.push({ label: "CLI", lang: "bash", code: op.cli });
   return samples;
@@ -611,25 +623,26 @@ const PARAM_SECTIONS = [
   ["header", "Headers"],
 ];
 
-export function authSentence(op) {
+export function authSentence(op, { tokenPrefix = "", sessionHost = "" } = {}) {
   const extra = [op.editSecret ? "or the document's edit secret in `X-Edit-Secret`" : "", op.readPassword ? "`X-Read-Password` for a password-protected document" : ""].filter(Boolean);
+  const bearer = `\`Authorization: Bearer ${tokenPrefix ? `${tokenPrefix}…` : "<token>"}\``;
   switch (op.auth) {
     case "token":
-      return `API token required: \`Authorization: Bearer mdk_…\`.`;
+      return `API token required: ${bearer}.`;
     case "optional":
-      return `Token optional: send \`Authorization: Bearer mdk_…\` to act as your account${extra.length ? `, ${extra.join("; ")}` : ""}.`;
+      return `Token optional: send ${bearer} to act as your account${extra.length ? `, ${extra.join("; ")}` : ""}.`;
     case "session":
-      return "Only markdrop.in's own sign-in works here, not an API token.";
+      return sessionHost ? `Only ${sessionHost}'s own sign-in works here, not an API token.` : "Only a signed-in browser session works here, not an API token.";
     default:
       return extra.length ? `No token needed. ${extra.map((e) => e[0].toUpperCase() + e.slice(1)).join("; ")}.` : "No token needed.";
   }
 }
 
-export function operationMarkdown(op) {
+export function operationMarkdown(op, auth = {}) {
   const L = [];
   L.push(`\`${op.method} ${op.url}\``, "");
   if (op.description) L.push(op.description, "");
-  const facts = [`- **Authentication:** ${authSentence(op)}`];
+  const facts = [`- **Authentication:** ${authSentence(op, auth)}`];
   if (op.rateLimits.length) facts.push(`- **Rate limit:** ${op.rateLimits.join(", ")} per IP address.`);
   if (op.cli) facts.push(`- **CLI:** \`${op.cli.split("\n")[0]}\``);
   if (op.mcp) facts.push(`- **MCP tool:** \`${op.mcp}\` ([tools](/ai/tools))`);

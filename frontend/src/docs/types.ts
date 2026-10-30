@@ -40,9 +40,78 @@ export interface OpenApiConfig {
   base?: string;
   /** The API's origin, for URLs and samples. */
   server?: string;
+  /**
+   * The vendor extension the backend export writes on each operation (auth, rate limits) and on
+   * `info` (`<extension>-exported`, the export date). Default "x-docs".
+   */
+  extension?: string;
+}
+
+/**
+ * The header logo: the built-in Markdrop mark (followed by the Markdrop wordmark), or images
+ * (/docs-assets/… paths or https URLs) for the light and dark themes. `wordmark: true` means the
+ * image already spells the name, so no name text is shown beside it.
+ */
+export type LogoConfig = { builtin: "markdrop" } | { light: string; dark?: string; alt?: string; wordmark?: boolean };
+
+/** Branding. Every key is optional: absent, the site shows no logo and its own name in plain text. */
+export interface BrandConfig {
+  /** The product name in UI copy ("Ask a question about {name}") and beside an image logo. */
+  name?: string;
+  /** Text after the logo in the header (default "Docs"; "" for none). */
+  label?: string;
+  logo?: LogoConfig;
+  /** A /docs-assets/… path or https URL ("/icon.svg" keeps the app's own). Absent, no icon. */
+  favicon?: string;
+  /** Accent colour (#rgb or #rrggbb) for the light theme; also dark's unless `accentDark` is set. */
+  accent?: string;
+  accentDark?: string;
+  /** The Open Graph card: ground colour, accent (eyebrow, the mark's dot) and mark. */
+  og?: { background?: string; accent?: string; mark?: "markdrop" | "none" };
+}
+
+/** Ask AI. Off unless `enabled` is true and `api` is set. */
+export interface AiConfig {
+  enabled?: boolean;
+  /** Base URL of the Ask AI backend (it serves /api/v1/docs/ask…). */
+  api?: string;
+  /** The backend's key for this site (defaults to the top-level `id`). */
+  site?: string;
+  /** What the assistant is called in the UI (default "Ask AI"). */
+  assistantName?: string;
+}
+
+/** Try it on generated API pages. */
+export interface TryItConfig {
+  /** Where readers create a token (the "Create a token" link). */
+  tokenHelpUrl?: string;
+  /** The environment variable the code samples read the token from (default API_TOKEN). */
+  tokenEnv?: string;
+  /** The token's fixed prefix, for placeholders and masking (like "mdk_"). */
+  tokenPrefix?: string;
+}
+
+/** The docs MCP server (/mcp). */
+export interface McpConfig {
+  /** serverInfo.name, and the name editors install it under (default "<id>-docs", else "docs"). */
+  name?: string;
+  /** Examples in the tool descriptions. Absent, they come from the site's own pages. */
+  examples?: { queries?: string[]; page?: string; path?: string; report?: string };
+}
+
+/** Features that only make sense for Markdrop's own docs (all off by default). */
+export interface IntegrationsConfig {
+  /**
+   * Markdrop's app: Ask AI sends a Markdrop session token stored for the docs origin, videos.json
+   * `markdrop` links are framed, Markdrop's trackers run on the docs host, Ask AI and Try it follow
+   * NEXT_PUBLIC_API_URL, and the docs MCP server points readers at Markdrop's own MCP server.
+   */
+  markdropApp?: boolean;
 }
 
 export interface SiteConfig {
+  /** Stable site id (backend key, cache tags). Default "default". */
+  id?: string;
   name: string;
   description: string;
   /** Canonical origin, no trailing slash (https://docs.example.com). */
@@ -70,6 +139,11 @@ export interface SiteConfig {
   footer?: LinkConfig[];
   nav: NavGroupConfig[];
   openapi?: OpenApiConfig;
+  brand?: BrandConfig;
+  ai?: AiConfig;
+  tryIt?: TryItConfig;
+  mcp?: McpConfig;
+  integrations?: IntegrationsConfig;
 }
 
 export interface Frontmatter {
@@ -166,7 +240,8 @@ export interface Changelog {
 /**
  * One entry of videos.json, filling a `::video{id=…}` slot. A self-hosted video (`src`, an MP4
  * under /docs-assets/videos/) plays in the docs' own player; `markdrop` (a published Markdrop link)
- * is framed instead when set. `url` is the older name of `markdrop`.
+ * is framed instead when set, on a site with `integrations.markdropApp`. `url` is the older name of
+ * `markdrop`.
  */
 export interface VideoRef {
   src?: string;

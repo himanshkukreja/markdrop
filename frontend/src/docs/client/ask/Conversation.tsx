@@ -11,10 +11,10 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button, Icon, IconButton, Spinner, Tag, Textarea, copyText, cx, useToast } from "@/components/ui";
 import { OPEN_IN, openInHref } from "../page";
 import { loadDocs } from "../searchIndex";
-import { sendAnswerFeedback, type OpenIn, type Source } from "./api";
+import type { OpenIn, Source } from "./api";
 import { Answer, answerForCopy } from "./Answer";
 import { docsPath, goToSource } from "./cite";
-import { claudeHref, contextUrl, isStreaming, setContext, setDraft, setFeedback, stopTurn, type AskContext, type Turn } from "./store";
+import { aboutProduct, claudeHref, contextUrl, isStreaming, sendFeedback, setContext, setDraft, setFeedback, stopTurn, type AskContext, type Turn } from "./store";
 
 export type Variant = "panel" | "sheet" | "palette";
 
@@ -101,7 +101,7 @@ export function OpenInLinks({ links }: { links: OpenIn[] }) {
 /** Open-in links for a context (when the server gave none). */
 export function fallbackOpenIn(question: string, ctx: AskContext | null | undefined, siteUrl: string): OpenIn[] {
   if (question) {
-    const prompt = `Read ${contextUrl(ctx, siteUrl)} and answer my question about Markdrop: ${question}`.slice(0, 1500);
+    const prompt = `Read ${contextUrl(ctx, siteUrl)} and answer my question ${aboutProduct()}: ${question}`.slice(0, 1500);
     return OPEN_IN.map((o) => ({ label: o.label, href: o.base + encodeURIComponent(prompt) }));
   }
   return OPEN_IN.map((o) => ({ label: o.label, href: openInHref(o.base, contextUrl(ctx, siteUrl)) }));
@@ -133,7 +133,7 @@ function TurnActions({ turn, siteUrl, compact }: { turn: Turn; siteUrl: string; 
               label="Helpful"
               size="sm"
               onClick={() => {
-                sendAnswerFeedback(turn.requestId!, true);
+                sendFeedback(turn.requestId!, true);
                 setFeedback(turn.id, "up");
               }}
             />
@@ -156,7 +156,7 @@ function TurnActions({ turn, siteUrl, compact }: { turn: Turn; siteUrl: string; 
           className="dx-askfb"
           onSubmit={(e) => {
             e.preventDefault();
-            sendAnswerFeedback(turn.requestId!, false, comment.trim() || undefined);
+            sendFeedback(turn.requestId!, false, comment.trim() || undefined);
             setFeedback(turn.id, "down");
             setAsking(false);
           }}
@@ -173,7 +173,7 @@ function TurnActions({ turn, siteUrl, compact }: { turn: Turn; siteUrl: string; 
               variant="ghost"
               size="sm"
               onClick={() => {
-                sendAnswerFeedback(turn.requestId!, false);
+                sendFeedback(turn.requestId!, false);
                 setFeedback(turn.id, "down");
                 setAsking(false);
               }}
@@ -348,7 +348,7 @@ export function Composer({
         </div>
       )}
       <label htmlFor={id} className="dx-sr">
-        {followUp ? "Ask a follow-up" : "Ask a question about Markdrop"}
+        {followUp ? "Ask a follow-up" : `Ask a question ${aboutProduct()}`}
       </label>
       <div className="dx-composer__box">
         <textarea
@@ -356,7 +356,7 @@ export function Composer({
           id={id}
           rows={variant === "sheet" ? 1 : 2}
           className="dx-composer__input"
-          placeholder={followUp ? "Ask a follow-up…" : "Ask a question about Markdrop…"}
+          placeholder={followUp ? "Ask a follow-up…" : `Ask a question ${aboutProduct()}…`}
           value={draft}
           maxLength={4000}
           onChange={(e) => setDraft(e.target.value)}

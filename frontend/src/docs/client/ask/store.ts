@@ -12,8 +12,26 @@
  * at most once per animation frame.
  */
 import { useSyncExternalStore } from "react";
-import { AskHttpError, fetchStatus, streamAsk, type AskStatus, type Availability, type HistoryMessage, type OpenIn, type Source } from "./api";
+import { AskHttpError, fetchStatus, sendAnswerFeedback, streamAsk, type AskApi, type AskStatus, type Availability, type HistoryMessage, type OpenIn, type Source } from "./api";
 import type { SseMessage } from "./sse";
+import type { AiSettings } from "../../brand";
+import { aboutText } from "../site";
+
+/* ── the site's settings (configureAsk, from AskRoot) ────────────────────── */
+
+let api: AskApi | null = null;
+let assistant = "Ask AI";
+let product: string | undefined;
+
+/** What the assistant is called (site.json `ai.assistantName`), for messages. */
+export function assistantName(): string {
+  return assistant;
+}
+
+/** "about Markdrop" (the site's product), or "about these docs". */
+export function aboutProduct(): string {
+  return aboutText(product);
+}
 
 export interface AskContext {
   path: string;
@@ -76,7 +94,7 @@ const initial: AskState = {
   draft: "",
   focusNonce: 0,
   availability: "unknown",
-  siteUrl: "https://docs.markdrop.in",
+  siteUrl: "",
 };
 
 let state: AskState = initial;
@@ -243,7 +261,7 @@ function onEvent(turnId: string, m: SseMessage) {
       break;
     case "limit": {
       const reason = typeof d.reason === "string" ? d.reason : "";
-      patchTurn(turnId, { state: "limit", status: null, message: typeof d.message === "string" ? d.message : "Ask AI can't answer right now.", openIn: openInList(d.open_in) });
+      patchTurn(turnId, { state: "limit", status: null, message: typeof d.message === "string" ? d.message : `${assistant} can't answer right now.`, openIn: openInList(d.open_in) });
       if (reason === "disabled" || reason === "not_configured") set({ availability: "unavailable", unavailableReason: reason });
       break;
     }
@@ -251,7 +269,7 @@ function onEvent(turnId: string, m: SseMessage) {
       patchTurn(turnId, {
         state: "error",
         status: null,
-        message: typeof d.message === "string" ? d.message : "Ask AI hit a problem answering that. Try again.",
+        message: typeof d.message === "string" ? d.message : `${assistant} hit a problem answering that. Try again.`,
         requestId: typeof d.request_id === "string" ? d.request_id : undefined,
         openIn: openInList(d.open_in),
       });
@@ -260,9 +278,13 @@ function onEvent(turnId: string, m: SseMessage) {
 }
 
 function httpMessage(status: number): string {
-  if (status === 429) return "You're asking faster than Ask AI can answer. Wait a minute and try again.";
+  if (status === 429) return `You're asking faster than ${assistant} can answer. Wait a minute and try again.`;
   if (status === 413 || status === 422) return "That question couldn't be sent. Shorten it and try again.";
-  return "Ask AI couldn't be reached. Check your connection and try again.";
+  return unreachable();
+}
+
+function unreachable(): string {
+  return `${assistant} couldn't be reached. Check your connection and try again.`;
 }
 
 /** Stops one streaming answer, keeping what arrived. */
@@ -293,16 +315,19 @@ export function askIn(key: ThreadKey, question: string, ctx: AskContext | null) 
   set({ [key]: { ...th, turns: [...th.turns, turn] } } as Partial<AskState>, true);
   const ac = new AbortController();
   controllers.set(turn.id, ac);
-  streamAsk(body, ac.signal, (m) => {
-    if (!ac.signal.aborted) onEvent(turn.id, m);
-  })
+  const call = api
+    ? streamAsk(api, body, ac.signal, (m) => {
+        if (!ac.signal.aborted) onEvent(turn.id, m);
+      })
+    : Promise.reject(new Error("Ask AI is off for this site"));
+  call
     .then(() => {
       if (ac.signal.aborted) return;
       patchTurn(turn.id, (t) => (isStreaming(t) ? { state: t.answer ? "stopped" : "error", status: null, message: t.answer ? undefined : "The answer stopped before it finished. Try again." } : {}));
     })
     .catch((err: unknown) => {
       if (ac.signal.aborted) return;
-      const message = err instanceof AskHttpError ? httpMessage(err.status) : "Ask AI couldn't be reached. Check your connection and try again.";
+      const message = err instanceof AskHttpError ? httpMessage(err.status) : unreachable();
       patchTurn(turn.id, (t) => (isStreaming(t) ? { state: "error", status: null, message } : {}));
     })
     .finally(() => {
@@ -313,9 +338,14 @@ export function askIn(key: ThreadKey, question: string, ctx: AskContext | null) 
 /* ── availability ────────────────────────────────────────────────────────── */
 
 let statusAsked: Promise<Availability> | null = null;
-/** Checks /docs/ai/status once; resolves false only when the server says Ask AI is off. */
+/**
+ * Checks /docs/ai/status once; resolves false only when the server says Ask AI is off, or the
+ * site has no Ask AI at all (then nothing is asked).
+ */
 export function ensureStatus(): Promise<boolean> {
-  statusAsked ??= fetchStatus().then((a) => {
+  if (!api) return Promise.resolve(false);
+  const cfg = api;
+  statusAsked ??= fetchStatus(cfg).then((a) => {
     if (a.available === false) set({ availability: "unavailable", unavailableReason: a.reason });
     else if (a.available === true) set({ availability: "available" });
     else statusAsked = null;
@@ -402,8 +432,17 @@ export function setFeedback(turnId: string, feedback: "up" | "down") {
   patchTurn(turnId, { feedback });
 }
 
-export function configureAsk(siteUrl: string) {
+/** The site's Ask AI settings (AskRoot, from the docs layout). Until then nothing is asked. */
+export function configureAsk(siteUrl: string, ai: AiSettings, productName?: string) {
+  api = { api: ai.api, site: ai.site, appSession: ai.appSession };
+  assistant = ai.name;
+  product = productName;
   if (state.siteUrl !== siteUrl) set({ siteUrl });
+}
+
+/** Answer feedback for a turn, to the site's Ask AI backend. */
+export function sendFeedback(requestId: string, helpful: boolean, comment?: string) {
+  if (api) sendAnswerFeedback(api, requestId, helpful, comment);
 }
 
 /** Called by DocPageProvider: the page on screen. A new page resets the context tag to it. */
@@ -442,6 +481,6 @@ export function contextUrl(ctx: AskContext | null | undefined, siteUrl: string):
 }
 
 export function claudeHref(question: string, ctx: AskContext | null | undefined, siteUrl: string): string {
-  const prompt = `Read ${contextUrl(ctx, siteUrl)} and answer my question about Markdrop: ${question}`.slice(0, 1500);
+  const prompt = `Read ${contextUrl(ctx, siteUrl)} and answer my question ${aboutProduct()}: ${question}`.slice(0, 1500);
   return `https://claude.ai/new?q=${encodeURIComponent(prompt)}`;
 }

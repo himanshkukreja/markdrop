@@ -11,10 +11,11 @@
  * except report_problem, which forwards to the docs feedback endpoint after the response is sent.
  */
 import MiniSearch from "minisearch";
-import { absoluteUrl, agentMarkdown, getChangelog, getPage, getSite, withPrerequisites } from "./content";
+import { absoluteUrl, agentMarkdown, defaultSite, getChangelog, getPage, getSite, orderedPages, withPrerequisites, type SiteBundle } from "./content";
+import { brandName, markdropApp, mcpName } from "./brand";
 import { buildSearchIndex, entryMarkdown } from "./outputs";
 import { apiBoost } from "./searchBoost";
-import type { ChangelogEntry, SearchDoc } from "./types";
+import type { ChangelogEntry, SearchDoc, SiteConfig } from "./types";
 
 export const HANDSHAKE_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
 export const MODERN_VERSIONS = ["2026-07-28"];
@@ -35,7 +36,12 @@ const CAPABILITIES = { tools: { listChanged: false } };
 
 function serverInfo() {
   const site = getSite();
-  return { name: "markdrop-docs", title: site.name, version: "1.0.0" };
+  return { name: mcpName(site), title: site.name, version: "1.0.0" };
+}
+
+/** True when the changelog tracks CLI releases (entries with `versions.cli`): whats_changed then takes since_cli_version. */
+function tracksCli(): boolean {
+  return getChangelog().entries.some((e) => !!e.versions?.cli);
 }
 
 function instructions(): string {
@@ -44,10 +50,11 @@ function instructions(): string {
   return (
     `The official ${product} documentation (${site.url}). Use search_docs to find the sections that answer a question, ` +
     `then read_page for the full page (with include_prerequisites when the user is new to the topic). ` +
-    `Link the user to the exact section url you used. whats_changed lists recent changes, by date or since a CLI version. ` +
+    `Link the user to the exact section url you used. whats_changed lists recent changes, ${tracksCli() ? "by date or since a CLI version" : "by date"}. ` +
     `If the docs are wrong, unclear or missing something, call report_problem with the page and what is wrong. ` +
-    `If the docs don't answer the question, say so rather than guessing. This server only reads the docs: ` +
-    `to publish or manage documents, use ${product}'s own MCP server.`
+    `If the docs don't answer the question, say so rather than guessing. This server only reads the docs` +
+    // Markdrop has its own MCP server for publishing; another site's product may not.
+    (markdropApp(site) ? `: to publish or manage documents, use ${product}'s own MCP server.` : ".")
   );
 }
 
@@ -64,8 +71,11 @@ interface Tool {
   run: (args: Record<string, unknown>) => Promise<{ text: string; structured?: Record<string, unknown> }>;
 }
 
-let mini: MiniSearch<SearchDoc> | null = null;
+/** One search index per loaded site. */
+const indexes = new WeakMap<SiteBundle, MiniSearch<SearchDoc>>();
 function index(): MiniSearch<SearchDoc> {
+  const bundle = defaultSite();
+  let mini = indexes.get(bundle);
   if (!mini) {
     mini = new MiniSearch<SearchDoc>({
       fields: ["title", "keywords", "where", "text"],
@@ -73,8 +83,24 @@ function index(): MiniSearch<SearchDoc> {
       searchOptions: { boost: { title: 4, keywords: 2, where: 1.2 }, prefix: true, fuzzy: 0.15, boostDocument: apiBoost, combineWith: "OR" },
     });
     mini.addAll(buildSearchIndex());
+    indexes.set(bundle, mini);
   }
   return mini;
+}
+
+/**
+ * Examples for the tool descriptions: site.json `mcp.examples`, else the site's first pages (and
+ * no example queries).
+ */
+function examples(site: SiteConfig): { queries: string[]; page?: string; path?: string; report?: string } {
+  const ex = site.mcp?.examples ?? {};
+  const pages = orderedPages().filter((p) => !p.api).map((p) => p.path);
+  return {
+    queries: Array.isArray(ex.queries) ? ex.queries.filter((q) => typeof q === "string" && q) : [],
+    page: ex.page || pages[1] || pages[0],
+    path: ex.path || pages[0],
+    report: ex.report || pages[2] || pages[0],
+  };
 }
 
 /** "/cli/install", "cli/install", "https://docs…/cli/install.md#x" → "/cli/install". */
@@ -129,139 +155,158 @@ function semverCmp(a: number[], b: number[]): number {
   return 0;
 }
 
-const TOOLS: Tool[] = [
-  {
-    name: "search_docs",
-    title: "Search the docs",
-    description:
-      "Search Markdrop's documentation. Returns the best-matching sections and pages, each with its title, the page it is on, a url that links straight to the section, and a short snippet. Then read the page with read_page.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "What to look for, in plain words: \"custom domain DNS\", \"replace a file and keep the link\".", maxLength: 500 },
-        limit: { type: "integer", description: "How many results (1–20). Default 8.", minimum: 1, maximum: 20 },
-      },
-      required: ["query"],
-      additionalProperties: false,
-    },
-    annotations: { readOnlyHint: true, openWorldHint: false },
-    async run(args) {
-      const query = str(args, "query", { required: true, max: 500 })!;
-      const raw = args.limit;
-      if (raw !== undefined && (typeof raw !== "number" || !Number.isInteger(raw))) throw new ToolError("limit must be an integer.");
-      const limit = Math.max(1, Math.min(20, (raw as number | undefined) ?? 8));
-      const results = search(query, limit);
-      if (!results.length) return { text: `No sections match "${query}". Try other words, or read ${getSite().url}/llms.txt for the list of pages.`, structured: { results: [] } };
-      const text = results.map((r, i) => `${i + 1}. ${r.title} (${r.page})\n   ${r.url}\n   ${r.snippet}`).join("\n\n");
-      return { text, structured: { results } };
-    },
-  },
-  {
-    name: "read_page",
-    title: "Read a docs page",
-    description:
-      "Read one documentation page as Markdown, with frontmatter (title, canonical url, last update, prerequisites). Pass the page path from search_docs or llms.txt, like /workspaces/custom-domain. Set include_prerequisites to also get the pages it builds on, first.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: { type: "string", description: "The page's path (/cli/install) or full docs url.", maxLength: 400 },
-        include_prerequisites: { type: "boolean", description: "Also return the pages this one assumes you have read. Default false." },
-      },
-      required: ["path"],
-      additionalProperties: false,
-    },
-    annotations: { readOnlyHint: true, openWorldHint: false },
-    async run(args) {
-      const raw = str(args, "path", { required: true, max: 400 })!;
-      const pre = args.include_prerequisites;
-      if (pre !== undefined && typeof pre !== "boolean") throw new ToolError("include_prerequisites must be true or false.");
-      const path = normalizePath(raw);
-      const page = getPage(path);
-      if (!page) {
-        const near = search(path.replace(/[/-]+/g, " ").trim(), 3);
-        throw new ToolError(
-          `No page at ${path}.` + (near.length ? ` Did you mean: ${near.map((n) => n.url.replace(getSite().url, "").split("#")[0]).filter((v, i, a) => a.indexOf(v) === i).join(", ")}?` : "") + ` Every page is listed at ${getSite().url}/llms.txt.`,
-        );
-      }
-      const bundle = pre ? withPrerequisites(page) : { markdown: agentMarkdown(page), count: 0 };
-      return {
-        text: bundle.markdown,
-        structured: { path: page.path, title: page.meta.title, url: absoluteUrl(page.path), updated: page.meta.updated || null, prerequisites: page.meta.prerequisites ?? [], included_prerequisites: bundle.count },
-      };
-    },
-  },
-  {
-    name: "whats_changed",
-    title: "What changed",
-    description:
-      "Recent changes to Markdrop from its changelog, newest first, with the docs pages each one touched. Pass since_date (YYYY-MM-DD) for changes on or after a date, or since_cli_version (like 0.4.0) for what changed after that CLI release. With neither, returns the latest 10.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        since_date: { type: "string", description: "Changes on or after this date, YYYY-MM-DD.", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
-        since_cli_version: { type: "string", description: "Changes after this CLI version, like 0.4.0.", maxLength: 20 },
-      },
-      additionalProperties: false,
-    },
-    annotations: { readOnlyHint: true, openWorldHint: false },
-    async run(args) {
-      const date = str(args, "since_date", { max: 10 });
-      const ver = str(args, "since_cli_version", { max: 20 });
-      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ToolError("since_date must be YYYY-MM-DD.");
-      const cl = getChangelog();
-      let entries: ChangelogEntry[] = cl.entries;
-      let scope = "Latest changes";
-      if (date) {
-        entries = entries.filter((e) => e.date >= date);
-        scope = `Changes since ${date}`;
-      }
-      if (ver) {
-        const v = semverParts(ver);
-        if (!v) throw new ToolError("since_cli_version must look like 0.4.0.");
-        const release = cl.entries.filter((e) => e.versions?.cli && semverParts(e.versions.cli) && semverCmp(semverParts(e.versions.cli)!, v) === 0).map((e) => e.date).sort()[0];
-        entries = entries.filter((e) => {
-          const ev = e.versions?.cli ? semverParts(e.versions.cli) : null;
-          return (ev && semverCmp(ev, v) > 0) || (release !== undefined && e.date > release);
-        });
-        scope = `Changes after CLI ${ver.replace(/^v/, "")}`;
-      }
-      if (!date && !ver) entries = entries.slice(0, 10);
-      const site = getSite();
-      if (!entries.length) return { text: `${scope}: nothing in the changelog. Full changelog: ${site.url}/changelog.md`, structured: { entries: [] } };
-      const text = `# ${scope}\n\n${entries.map((e) => entryMarkdown(e)).join("\n\n")}\n`;
-      return {
-        text,
-        structured: {
-          entries: entries.map((e) => ({ id: e.id, date: e.date, title: e.title, kind: e.kind, area: e.area, products: e.products, versions: e.versions ?? {}, summary: e.summary, url: `${site.url}/changelog/${e.id}`, docs: e.docs ?? [] })),
+/** The tools, worded for the site: its brand name, example paths and whether it tracks CLI releases. */
+function tools(): Tool[] {
+  const site = getSite();
+  const name = brandName(site);
+  const ex = examples(site);
+  const like = (p: string | undefined) => (p ? `, like ${p}` : "");
+  const cli = tracksCli();
+  return [
+    {
+      name: "search_docs",
+      title: "Search the docs",
+      description:
+        `Search ${name ? `${name}'s` : "the"} documentation. Returns the best-matching sections and pages, each with its title, the page it is on, a url that links straight to the section, and a short snippet. Then read the page with read_page.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: `What to look for, in plain words${ex.queries.length ? `: ${ex.queries.map((q) => JSON.stringify(q)).join(", ")}` : ""}.`, maxLength: 500 },
+          limit: { type: "integer", description: "How many results (1–20). Default 8.", minimum: 1, maximum: 20 },
         },
-      };
-    },
-  },
-  {
-    name: "report_problem",
-    title: "Report a docs problem",
-    description:
-      "Tell the Markdrop docs team that a page is wrong, out of date, unclear or missing something. Say which page and what the problem is, in a sentence or two. Never include personal data or secrets.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        page: { type: "string", description: "The page's path or url, like /cli/upload-and-replace.", maxLength: 400 },
-        problem: { type: "string", description: "What is wrong or missing.", maxLength: 2000 },
+        required: ["query"],
+        additionalProperties: false,
       },
-      required: ["page", "problem"],
-      additionalProperties: false,
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      async run(args) {
+        const query = str(args, "query", { required: true, max: 500 })!;
+        const raw = args.limit;
+        if (raw !== undefined && (typeof raw !== "number" || !Number.isInteger(raw))) throw new ToolError("limit must be an integer.");
+        const limit = Math.max(1, Math.min(20, (raw as number | undefined) ?? 8));
+        const results = search(query, limit);
+        if (!results.length) return { text: `No sections match "${query}". Try other words, or read ${getSite().url}/llms.txt for the list of pages.`, structured: { results: [] } };
+        const text = results.map((r, i) => `${i + 1}. ${r.title} (${r.page})\n   ${r.url}\n   ${r.snippet}`).join("\n\n");
+        return { text, structured: { results } };
+      },
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-    async run(args) {
-      const page = normalizePath(str(args, "page", { required: true, max: 400 })!);
-      const problem = str(args, "problem", { required: true, max: 2000 })!;
-      sendReport(page, problem);
-      return { text: `Thanks. The report on ${absoluteUrl(page)} was sent to the Markdrop docs team.`, structured: { ok: true, page } };
+    {
+      name: "read_page",
+      title: "Read a docs page",
+      description:
+        `Read one documentation page as Markdown, with frontmatter (title, canonical url, last update, prerequisites). Pass the page path from search_docs or llms.txt${like(ex.page)}. Set include_prerequisites to also get the pages it builds on, first.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: `The page's path${ex.path ? ` (${ex.path})` : ""} or full docs url.`, maxLength: 400 },
+          include_prerequisites: { type: "boolean", description: "Also return the pages this one assumes you have read. Default false." },
+        },
+        required: ["path"],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      async run(args) {
+        const raw = str(args, "path", { required: true, max: 400 })!;
+        const pre = args.include_prerequisites;
+        if (pre !== undefined && typeof pre !== "boolean") throw new ToolError("include_prerequisites must be true or false.");
+        const path = normalizePath(raw);
+        const page = getPage(path);
+        if (!page) {
+          const near = search(path.replace(/[/-]+/g, " ").trim(), 3);
+          throw new ToolError(
+            `No page at ${path}.` + (near.length ? ` Did you mean: ${near.map((n) => n.url.replace(getSite().url, "").split("#")[0]).filter((v, i, a) => a.indexOf(v) === i).join(", ")}?` : "") + ` Every page is listed at ${getSite().url}/llms.txt.`,
+          );
+        }
+        const bundle = pre ? withPrerequisites(page) : { markdown: agentMarkdown(page), count: 0 };
+        return {
+          text: bundle.markdown,
+          structured: { path: page.path, title: page.meta.title, url: absoluteUrl(page.path), updated: page.meta.updated || null, prerequisites: page.meta.prerequisites ?? [], included_prerequisites: bundle.count },
+        };
+      },
     },
-  },
-];
+    {
+      name: "whats_changed",
+      title: "What changed",
+      description:
+        `Recent changes${name ? ` to ${name}` : ""} from ${name ? "its" : "the"} changelog, newest first, with the docs pages each one touched. Pass since_date (YYYY-MM-DD) for changes on or after a date${cli ? ", or since_cli_version (like 0.4.0) for what changed after that CLI release" : ""}. With ${cli ? "neither" : "none"}, returns the latest 10.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          since_date: { type: "string", description: "Changes on or after this date, YYYY-MM-DD.", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+          ...(cli ? { since_cli_version: { type: "string", description: "Changes after this CLI version, like 0.4.0.", maxLength: 20 } } : {}),
+        },
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      async run(args) {
+        const date = str(args, "since_date", { max: 10 });
+        const ver = str(args, "since_cli_version", { max: 20 });
+        if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ToolError("since_date must be YYYY-MM-DD.");
+        const cl = getChangelog();
+        let entries: ChangelogEntry[] = cl.entries;
+        let scope = "Latest changes";
+        if (date) {
+          entries = entries.filter((e) => e.date >= date);
+          scope = `Changes since ${date}`;
+        }
+        if (ver) {
+          const v = semverParts(ver);
+          if (!v) throw new ToolError("since_cli_version must look like 0.4.0.");
+          const release = cl.entries.filter((e) => e.versions?.cli && semverParts(e.versions.cli) && semverCmp(semverParts(e.versions.cli)!, v) === 0).map((e) => e.date).sort()[0];
+          entries = entries.filter((e) => {
+            const ev = e.versions?.cli ? semverParts(e.versions.cli) : null;
+            return (ev && semverCmp(ev, v) > 0) || (release !== undefined && e.date > release);
+          });
+          scope = `Changes after CLI ${ver.replace(/^v/, "")}`;
+        }
+        if (!date && !ver) entries = entries.slice(0, 10);
+        const site = getSite();
+        if (!entries.length) return { text: `${scope}: nothing in the changelog. Full changelog: ${site.url}/changelog.md`, structured: { entries: [] } };
+        const text = `# ${scope}\n\n${entries.map((e) => entryMarkdown(e)).join("\n\n")}\n`;
+        return {
+          text,
+          structured: {
+            entries: entries.map((e) => ({ id: e.id, date: e.date, title: e.title, kind: e.kind, area: e.area, products: e.products, versions: e.versions ?? {}, summary: e.summary, url: `${site.url}/changelog/${e.id}`, docs: e.docs ?? [] })),
+          },
+        };
+      },
+    },
+    {
+      name: "report_problem",
+      title: "Report a docs problem",
+      description:
+        `Tell the ${name ? `${name} ` : ""}docs team that a page is wrong, out of date, unclear or missing something. Say which page and what the problem is, in a sentence or two. Never include personal data or secrets.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          page: { type: "string", description: `The page's path or url${like(ex.report)}.`, maxLength: 400 },
+          problem: { type: "string", description: "What is wrong or missing.", maxLength: 2000 },
+        },
+        required: ["page", "problem"],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      async run(args) {
+        const page = normalizePath(str(args, "page", { required: true, max: 400 })!);
+        const problem = str(args, "problem", { required: true, max: 2000 })!;
+        sendReport(page, problem);
+        return { text: `Thanks. The report on ${absoluteUrl(page)} was sent to the ${name ? `${name} ` : ""}docs team.`, structured: { ok: true, page } };
+      },
+    },
+  ];
+}
 
-const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
+/** The tools for the site's current settings (rebuilt when the site's config object changes). */
+const toolCache = new WeakMap<SiteConfig, { list: Tool[]; byName: Map<string, Tool> }>();
+function toolSet(): { list: Tool[]; byName: Map<string, Tool> } {
+  const site = getSite();
+  let t = toolCache.get(site);
+  if (!t) {
+    const list = tools();
+    t = { list, byName: new Map(list.map((x) => [x.name, x])) };
+    toolCache.set(site, t);
+  }
+  return t;
+}
 
 /** Scheduled by the route handler (Next's `after`), so the reply never waits on the API. */
 let schedule: (task: () => Promise<void>) => void = (task) => void task();
@@ -320,7 +365,7 @@ function decodeHeader(v: string | null): string | null {
 
 async function callTool(id: Id, params: Msg, modern: boolean): Promise<Reply> {
   const name = params.name;
-  const tool = typeof name === "string" ? BY_NAME.get(name) : undefined;
+  const tool = typeof name === "string" ? toolSet().byName.get(name) : undefined;
   if (!tool) return error(modern ? 400 : 200, id, INVALID_PARAMS, `Unknown tool: ${String(name).slice(0, 80)}`);
   const args = params.arguments ?? {};
   let out: Record<string, unknown>;
@@ -353,7 +398,7 @@ async function handshake(id: Id, method: string, params: Msg, headers: Headers):
     case "ping":
       return result(id, {});
     case "tools/list":
-      return result(id, { tools: TOOLS.map(listing) });
+      return result(id, { tools: toolSet().list.map(listing) });
     case "tools/call":
       return callTool(id, params, false);
     case "resources/list":
@@ -383,7 +428,7 @@ async function modern(id: Id, method: string, params: Msg, meta: Msg, headers: H
     case "server/discover":
       return result(id, cacheable({ supportedVersions: ALL_VERSIONS, capabilities: CAPABILITIES, instructions: instructions(), _meta: { [SERVER_INFO_META]: serverInfo() } }));
     case "tools/list":
-      return result(id, cacheable({ tools: TOOLS.map(listing) }));
+      return result(id, cacheable({ tools: toolSet().list.map(listing) }));
     case "tools/call":
       return callTool(id, params, true);
     case "resources/list":
@@ -418,4 +463,4 @@ export async function handleMessage(message: unknown, headers: Headers): Promise
   return handshake(id, m.method, p, headers);
 }
 
-export const DOCS_MCP_TOOLS = TOOLS.map((t) => t.name);
+export const DOCS_MCP_TOOLS = ["search_docs", "read_page", "whats_changed", "report_problem"];

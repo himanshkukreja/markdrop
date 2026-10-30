@@ -7,9 +7,11 @@
 import { Button, Dropdown, Icon, copyText, cx, useToast, type MenuEntry } from "@/components/ui";
 import { OPEN_IN, mcpInstallLinks, openInHref, usePageCopy } from "./page";
 import { askAboutPage, askAboutSection, openAsk } from "./ask/store";
+import { useDocsSite } from "./site";
 
 export function HeadingActions({ id, label }: { id: string; label: string }) {
   const { page, copySection } = usePageCopy();
+  const { ai } = useDocsSite();
   const toasts = useToast();
   return (
     <span className="dx-hactions no-print" data-heading-actions="">
@@ -31,10 +33,12 @@ export function HeadingActions({ id, label }: { id: string; label: string }) {
           Copy section
         </button>
       )}
-      <button type="button" className="dx-hactions__btn" onClick={() => askAboutSection(id, label)} aria-label={`Ask AI about this section: ${label}`}>
-        <Icon name="zap" />
-        Ask about this
-      </button>
+      {ai && (
+        <button type="button" className="dx-hactions__btn" onClick={() => askAboutSection(id, label)} aria-label={`${ai.name} about this section: ${label}`}>
+          <Icon name="zap" />
+          Ask about this
+        </button>
+      )}
     </span>
   );
 }
@@ -42,9 +46,10 @@ export function HeadingActions({ id, label }: { id: string; label: string }) {
 /** The split button next to the title. */
 export function CopyPageButton({ compact }: { compact?: boolean }) {
   const { page, copyPage, copyWithPrereqs, copyForAssistant } = usePageCopy();
+  const { ai, mcpName } = useDocsSite();
   if (!page) return null;
   const n = page.prereq?.count ?? 0;
-  const mcp = mcpInstallLinks(page.url);
+  const mcp = mcpInstallLinks(page.url, mcpName);
   const items: MenuEntry[] = [
     { label: "Copy page", description: "As Markdown, ready for any assistant", icon: "copy", onClick: copyPage },
     ...(n
@@ -61,7 +66,7 @@ export function CopyPageButton({ compact }: { compact?: boolean }) {
       onClick: () => window.location.assign(mcp.cursor),
     },
     { label: "Add docs to VS Code", description: "Installs the docs MCP server for Copilot Chat", icon: "code", href: mcp.vscode, external: true },
-    { label: "Ask AI about this page", description: "Answers from these docs, with sources", icon: "zap", onClick: askAboutPage, separated: true },
+    ...(ai ? [{ label: `${ai.name} about this page`, description: "Answers from these docs, with sources", icon: "zap", onClick: askAboutPage, separated: true }] : []),
   ];
   return (
     <div className={cx("dx-split", compact && "dx-split--compact")}>
@@ -124,18 +129,21 @@ export function RailActions() {
   );
 }
 
-/** Phones: Copy page and Ask AI, pinned to the bottom. */
+/** Phones: Copy page and Ask AI (when the site has it), pinned to the bottom. */
 export function MobileBottomBar() {
   const { page, copyPage } = usePageCopy();
+  const { ai } = useDocsSite();
   if (!page) return null;
   return (
     <div className="dx-bottombar no-print">
       <Button variant="secondary" iconLeft="copy" onClick={copyPage} className="dx-bottombar__btn">
         Copy page
       </Button>
-      <Button variant="primary" iconLeft="zap" onClick={() => openAsk()} className="dx-bottombar__btn">
-        Ask AI
-      </Button>
+      {ai && (
+        <Button variant="primary" iconLeft="zap" onClick={() => openAsk()} className="dx-bottombar__btn">
+          {ai.name}
+        </Button>
+      )}
     </div>
   );
 }

@@ -9,14 +9,16 @@ import { useEffect, useMemo, useRef } from "react";
 import { Button, Drawer, Icon, IconButton, cx } from "@/components/ui";
 import { openSearch } from "../state";
 import { Composer, FollowUps, OpenInLinks, TurnView, fallbackOpenIn, useFollowUps } from "./Conversation";
-import { askIn, closeAsk, isStreaming, newConversation, setDraft, setFull, useAsk, type AskState } from "./store";
+import { aboutProduct, askIn, assistantName, closeAsk, isStreaming, newConversation, setDraft, setFull, useAsk, type AskState } from "./store";
 
 export type PanelMode = "docked" | "drawer" | "sheet";
 
-const UNAVAILABLE: Record<string, string> = {
-  disabled: "Ask AI is turned off right now. You can still search the docs, or open this page in your own assistant.",
-  not_configured: "Ask AI isn't set up on this server yet. You can still search the docs, or open this page in your own assistant.",
-};
+function unavailableText(reason: string | undefined): string {
+  const name = assistantName();
+  return reason === "not_configured"
+    ? `${name} isn't set up on this server yet. You can still search the docs, or open this page in your own assistant.`
+    : `${name} is turned off right now. You can still search the docs, or open this page in your own assistant.`;
+}
 
 function liveText(s: AskState): string {
   const last = s.panel.turns[s.panel.turns.length - 1];
@@ -33,7 +35,7 @@ function Empty({ suggestions, onPick }: { suggestions: string[]; onPick: (q: str
       <span className="dx-tile" aria-hidden>
         <Icon name="zap" />
       </span>
-      <strong className="dx-askempty__title">Ask about Markdrop</strong>
+      <strong className="dx-askempty__title">{`Ask ${aboutProduct()}`}</strong>
       <p className="dx-askempty__text">Answers come from these docs, with numbered links to the exact sections they used.</p>
       {suggestions.length > 0 && <FollowUps title="Try" items={suggestions.slice(0, 4)} onPick={onPick} />}
     </div>
@@ -43,8 +45,8 @@ function Empty({ suggestions, onPick }: { suggestions: string[]; onPick: (q: str
 function Unavailable({ s }: { s: AskState }) {
   return (
     <div className="dx-askoff" role="status">
-      <strong className="dx-askempty__title">Ask AI is off</strong>
-      <p>{UNAVAILABLE[s.unavailableReason ?? ""] ?? UNAVAILABLE.disabled}</p>
+      <strong className="dx-askempty__title">{`${assistantName()} is off`}</strong>
+      <p>{unavailableText(s.unavailableReason)}</p>
       <OpenInLinks links={fallbackOpenIn("", s.context ?? s.page, s.siteUrl)} />
       <Button variant="ghost" size="sm" iconLeft="search" onClick={() => openSearch()}>
         Search the docs
@@ -122,7 +124,7 @@ export default function AskPanel({ mode, suggestions }: { mode: PanelMode; sugge
         title={
           <span className="dx-askdrawer__title">
             {mode === "drawer" && <Icon name="zap" />}
-            Ask AI
+            {assistantName()}
           </span>
         }
         className={cx("dx-askdrawer", `dx-askdrawer--${mode}`)}
@@ -146,7 +148,7 @@ export default function AskPanel({ mode, suggestions }: { mode: PanelMode; sugge
   return (
     <aside
       className={cx("dx-askpanel", s.full && "dx-askpanel--full")}
-      aria-label="Ask AI"
+      aria-label={assistantName()}
       onKeyDown={(e) => {
         if (e.key === "Escape" && !e.defaultPrevented) {
           e.preventDefault();
@@ -156,10 +158,10 @@ export default function AskPanel({ mode, suggestions }: { mode: PanelMode; sugge
     >
       <div className="dx-askpanel__head">
         <Icon name="zap" className="dx-askpanel__glyph" />
-        <h2 className="dx-askpanel__title">Ask AI</h2>
+        <h2 className="dx-askpanel__title">{assistantName()}</h2>
         <IconButton icon="plus" label="New conversation" size="sm" onClick={newConversation} disabled={!turns.length && !s.draft} />
         <IconButton icon={s.full ? "minimize" : "expand"} label={s.full ? "Exit full screen" : "Open full screen"} size="sm" onClick={() => setFull(!s.full)} />
-        <IconButton icon="x" label="Close Ask AI" size="sm" onClick={() => closeAsk()} aria-keyshortcuts="Escape" />
+        <IconButton icon="x" label={`Close ${assistantName()}`} size="sm" onClick={() => closeAsk()} aria-keyshortcuts="Escape" />
       </div>
       <div ref={body} className="dx-askpanel__body">
         <div className="dx-askpanel__col">{conversation}</div>

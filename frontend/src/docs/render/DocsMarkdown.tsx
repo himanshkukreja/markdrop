@@ -20,6 +20,7 @@ import { CodeBlock } from "@/components/reading/CodeBlock";
 import { DiagramFrame } from "@/components/reading/DiagramFrame";
 import { ScrollBox } from "@/components/reading/ScrollBox";
 import { getMedia, getSite, getVideos } from "../content";
+import { videoLink } from "../brand";
 import { assetPath, clipVariants, imageVariants, readVttCues } from "../media";
 import { DocsTabs } from "../client/Tabs";
 import { ClipPlayer, VideoPlayer } from "../client/Media";
@@ -289,14 +290,14 @@ function Clip({ src, alt, caption, theme }: P) {
 
 /**
  * `::video{id title duration}`. Filled from videos.json: a Markdrop link (`markdrop`, or the older
- * `url`) is framed; a self-hosted `src` plays in the docs player with its poster, chapters and
- * captions. Unfilled, it stays the "coming soon" slot.
+ * `url`, on a site with `integrations.markdropApp`) is framed; a self-hosted `src` plays in the docs
+ * player with its poster, chapters and captions. Unfilled, it stays the "coming soon" slot.
  */
 export function VideoSlot({ vid, label, duration }: P) {
   const id = typeof vid === "string" ? vid : "";
   const ref = id ? getVideos()[id] : undefined;
   const title = (typeof label === "string" && label) || ref?.title || "Video";
-  const src = safeUrl(ref?.markdrop ?? ref?.url);
+  const src = safeUrl(videoLink(ref, getSite()));
   const dur = (typeof duration === "string" && duration) || ref?.duration;
   const file = !src ? assetPath(ref?.src) : null;
   if (file && ref) {

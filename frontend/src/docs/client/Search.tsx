@@ -17,6 +17,7 @@ import { Icon, IconButton, Kbd, Spinner, cx } from "@/components/ui";
 import type { SearchDoc } from "../types";
 import { loadIndex } from "./searchIndex";
 import { askInPalette, clearPalette, ensureStatus } from "./ask/store";
+import { aboutText, useDocsSite } from "./site";
 
 const PaletteAsk = dynamic(() => import("./ask/PaletteAsk"), { ssr: false, loading: () => <div className="dx-palette__status"><Spinner /> Loading…</div> });
 
@@ -61,6 +62,7 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
   const listRef = useRef<HTMLDivElement>(null);
   const returnTo = useRef<HTMLElement | null>(null);
   const uid = useId().replace(/:/g, "");
+  const { ai, name } = useDocsSite();
 
   // Load the index once the page is idle, so the first ⌘K is instant (and works offline after).
   useEffect(() => {
@@ -77,7 +79,7 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
       returnTo.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setQuery(q);
       setActive(0);
-      setMode(detail?.mode === "ask" ? "ask" : "search");
+      setMode(detail?.mode === "ask" && ai ? "ask" : "search");
       setOpen(true);
       if (!ms) loadIndex().then(setMs, () => setFailed(true));
     };
@@ -99,7 +101,7 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
       window.removeEventListener(SEARCH_EVENT, onOpen);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, ms]);
+  }, [open, ms, ai]);
 
   // Scroll lock + focus while open; focus returns to whatever opened it.
   useEffect(() => {
@@ -165,7 +167,7 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
       e.preventDefault();
       e.stopPropagation();
       close();
-    } else if (e.key === "Tab" && !e.shiftKey && e.target === input.current) {
+    } else if (ai && e.key === "Tab" && !e.shiftKey && e.target === input.current) {
       // Tab in the box switches between Search and Ask AI (board "Search").
       e.preventDefault();
       switchMode(mode === "search" ? "ask" : "search");
@@ -220,23 +222,25 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
             aria-controls={asking ? undefined : `${uid}-list`}
             aria-activedescendant={!asking && rowCount ? optionId(active) : undefined}
             aria-autocomplete={asking ? undefined : "list"}
-            aria-label={asking ? "Ask a question about Markdrop" : "Search the docs"}
-            placeholder={asking ? "Ask a question about Markdrop" : "Search the docs"}
+            aria-label={asking ? `Ask a question ${aboutText(name)}` : "Search the docs"}
+            placeholder={asking ? `Ask a question ${aboutText(name)}` : "Search the docs"}
             autoComplete="off"
             spellCheck={false}
             maxLength={asking ? 2000 : undefined}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <div role="radiogroup" aria-label="Mode" className="dx-seg">
-            <button type="button" role="radio" aria-checked={!asking} className="dx-seg__opt" data-on={!asking ? "" : undefined} onClick={() => switchMode("search")}>
-              Search
-            </button>
-            <button type="button" role="radio" aria-checked={asking} className="dx-seg__opt" data-on={asking ? "" : undefined} onClick={() => switchMode("ask")}>
-              <Icon name="zap" />
-              Ask AI
-            </button>
-          </div>
+          {ai && (
+            <div role="radiogroup" aria-label="Mode" className="dx-seg">
+              <button type="button" role="radio" aria-checked={!asking} className="dx-seg__opt" data-on={!asking ? "" : undefined} onClick={() => switchMode("search")}>
+                Search
+              </button>
+              <button type="button" role="radio" aria-checked={asking} className="dx-seg__opt" data-on={asking ? "" : undefined} onClick={() => switchMode("ask")}>
+                <Icon name="zap" />
+                {ai.name}
+              </button>
+            </div>
+          )}
           <IconButton icon="x" label="Close search" size="sm" onClick={close} className="dx-palette__close" />
         </div>
 
@@ -254,11 +258,13 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
           </div>
         ) : (
           <div ref={listRef} id={`${uid}-list`} role="listbox" aria-label={q ? "Results" : recent.length ? "Recent searches" : "Suggestions"} className="dx-palette__body">
-            {q && (
+            {q && ai && (
               <button type="button" className="dx-palette__askrow" onClick={() => ask(query)}>
                 <Icon name="zap" className="dx-palette__askicon" />
                 <span className="dx-palette__main">
-                  <strong className="dx-palette__title">Ask AI: “{q}”</strong>
+                  <strong className="dx-palette__title">
+                    {ai.name}: “{q}”
+                  </strong>
                   <span className="dx-palette__snippet">An answer from these docs, with links to the sections it used</span>
                 </span>
                 <Kbd>Tab</Kbd>
@@ -353,15 +359,17 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
             <Kbd>↵</Kbd>
             {asking ? "ask" : "open"}
           </span>
-          <span>
-            <Kbd>Tab</Kbd>
-            {asking ? "back to results" : "ask AI instead"}
-          </span>
+          {ai && (
+            <span>
+              <Kbd>Tab</Kbd>
+              {asking ? "back to results" : "ask AI instead"}
+            </span>
+          )}
           <span>
             <Kbd>esc</Kbd>close
           </span>
           <span className="dx-palette__spacer" />
-          <span className="dx-palette__note">{asking ? "Your question is sent to Ask AI. Answers come only from these docs." : "Search runs in your browser. Nothing you type is sent."}</span>
+          <span className="dx-palette__note">{asking && ai ? `Your question is sent to ${ai.name}. Answers come only from these docs.` : "Search runs in your browser. Nothing you type is sent."}</span>
         </div>
       </div>
     </div>,
@@ -372,12 +380,13 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
 /** The header's search box (a button that looks like one). */
 export function SearchTrigger({ variant = "box" }: { variant?: "box" | "icon" }) {
   const [mac, setMac] = useState(true);
+  const { ai } = useDocsSite();
   useEffect(() => setMac(/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent)), []);
   if (variant === "icon") return <IconButton icon="search" label="Search the docs" onClick={() => openSearch()} className="dx-searchicon" />;
   return (
     <button type="button" className={cx("dx-searchbox")} onClick={() => openSearch()} aria-label="Search the docs" aria-keyshortcuts="Meta+K Control+K">
       <Icon name="search" />
-      <span className="dx-searchbox__ph">Search or ask…</span>
+      <span className="dx-searchbox__ph">{ai ? "Search or ask…" : "Search…"}</span>
       <Kbd>{mac ? "⌘K" : "Ctrl K"}</Kbd>
     </button>
   );

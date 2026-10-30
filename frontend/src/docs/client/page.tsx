@@ -47,10 +47,13 @@ export const OPEN_IN = [
   { id: "perplexity", label: "Open in Perplexity", hint: "Searches with this page as context", base: "https://www.perplexity.ai/search?q=" },
 ] as const;
 
-/** One-click installs of the docs MCP server (`<docs origin>/mcp`) in editors that support them. */
-export function mcpInstallLinks(pageUrl: string): { cursor: string; vscode: string; server: string } {
+/**
+ * One-click installs of the docs MCP server (`<docs origin>/mcp`) in editors that support them,
+ * under the site's MCP name (site.json `mcp.name`).
+ */
+export function mcpInstallLinks(pageUrl: string, mcpName: string): { cursor: string; vscode: string; server: string } {
   const server = `${new URL(pageUrl).origin}/mcp`;
-  const name = "markdrop-docs";
+  const name = encodeURIComponent(mcpName);
   return {
     server,
     cursor: `cursor://anysphere.cursor-deeplink/mcp/install?name=${name}&config=${btoa(JSON.stringify({ url: server }))}`,
