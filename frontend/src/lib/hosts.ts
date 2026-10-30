@@ -29,3 +29,20 @@ export function signInUrlFor(host: string, path: string): string {
  *  it is a credential, and fragments are not sent to servers, logged by
  *  proxies, or put in a Referer header. */
 export const HANDOFF_FRAGMENT = "mdt";
+
+/** A silent handoff's "nothing to hand over" answer (signed out on markdrop.in, or this site
+ *  still needs the reader's yes). Carries no data; it only stops the page asking again. */
+export const HANDOFF_NONE_FRAGMENT = "mdt-none";
+
+/** The same handoff, but never showing a screen: it comes straight back either way. A gated
+ *  page on a workspace domain tries this once per tab, so a reader already signed in on
+ *  markdrop.in is not asked to "sign in" to a page they can already open. */
+export function silentSignInUrl(signInUrl: string): string {
+  try {
+    const u = new URL(signInUrl);
+    u.searchParams.set("silent", "1");
+    return u.toString();
+  } catch {
+    return signInUrl;
+  }
+}

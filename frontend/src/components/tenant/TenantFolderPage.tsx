@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchTenantFolderAsReader, type TenantFolderListing } from "./folderIndex";
 import { TenantFolderIndex } from "./TenantFolderIndex";
-import { Button, EmptyState } from "@/components/ui";
+import { Button, EmptyState, MarkdropLoader } from "@/components/ui";
+import { HANDOFF_FRAGMENT, HANDOFF_NONE_FRAGMENT, silentSignInUrl } from "@/lib/hosts";
 import { TenantFooter } from "./TenantFooter";
 import { TenantHandoff } from "./TenantHandoff";
 import { TenantHeader } from "./TenantHeader";
@@ -64,6 +65,35 @@ export function TenantFolderPage({ host, siteName, path, initial, signInHref = n
 
 /** A sign-in-required workspace (D3), seen signed out: say so and offer the way in. */
 function TenantSignInGate({ siteName, signInHref }: { siteName: string; signInHref: string }) {
+  // Before asking anyone to sign in, check quietly (once per tab and page) whether they already
+  // are on markdrop.in — see useDocumentViewer's handoff effect for the same rule on documents.
+  const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.startsWith(`#${HANDOFF_NONE_FRAGMENT}=`)) {
+      history.replaceState(history.state, "", window.location.pathname + window.location.search);
+      return;
+    }
+    if (hash.startsWith(`#${HANDOFF_FRAGMENT}=`)) return; // TenantHandoff takes it
+    if (localStorage.getItem("markdrop_token")) return;
+    const key = `md_silent_handoff:${window.location.host}${window.location.pathname}`;
+    try {
+      if (sessionStorage.getItem(key) === "1") return;
+      sessionStorage.setItem(key, "1");
+    } catch {
+      return; // storage blocked: never loop, just show the gate
+    }
+    setChecking(true);
+    window.location.replace(silentSignInUrl(signInHref));
+  }, [signInHref]);
+
+  if (checking) {
+    return (
+      <main className="flex w-full flex-1 items-center justify-center py-16">
+        <MarkdropLoader label="Opening…" />
+      </main>
+    );
+  }
   return (
     <>
       <TenantHandoff />

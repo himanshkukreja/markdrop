@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button, Checkbox, MarkdropLoader, VisuallyHidden } from "@/components/ui";
 import { FocusState } from "@/components/auth/FocusState";
-import { HANDOFF_FRAGMENT } from "@/lib/hosts";
+import { HANDOFF_FRAGMENT, HANDOFF_NONE_FRAGMENT } from "@/lib/hosts";
 import { getHandoffConsent, HandoffError, mintHandoffToken, type HandoffConsent } from "./handoffApi";
 
 /**
@@ -62,6 +62,15 @@ export default function HandoffClient() {
   // Only ever show a host that passes the same check the redirect uses.
   const shownHost = HOST_RE.test(rawHost) ? rawHost : null;
   const next = params.get("next") || "/";
+  // Silent: a gated page checking whether the reader is already signed in here. It never shows
+  // the login page or the consent screen; anything short of a straight hand-over goes back with
+  // "nothing to hand over", and the page shows its own Sign in.
+  const silent = params.get("silent") === "1";
+
+  const giveUp = useCallback(
+    (host: string) => window.location.replace(`https://${host}${next}#${HANDOFF_NONE_FRAGMENT}=1`),
+    [next],
+  );
 
   const handOver = useCallback(
     async (host: string, agreed: boolean, keep: boolean) => {
@@ -69,6 +78,7 @@ export default function HandoffClient() {
         const scoped = await mintHandoffToken(host, agreed, keep);
         window.location.replace(`https://${host}${next}#${HANDOFF_FRAGMENT}=${encodeURIComponent(scoped)}`);
       } catch (e) {
+        if (silent) { giveUp(host); return; }
         if (e instanceof HandoffError && e.status === 401) {
           setSigningIn(true);
           window.location.replace(loginUrl(host, next));
@@ -78,7 +88,7 @@ export default function HandoffClient() {
         setBusy(false);
       }
     },
-    [next],
+    [next, silent, giveUp],
   );
 
   useEffect(() => {
@@ -94,6 +104,7 @@ export default function HandoffClient() {
     if (!hostOk || !nextOk) { setError("invalid"); return; }
 
     if (!localStorage.getItem("markdrop_token")) {
+      if (silent) { giveUp(host); return; }
       // Not signed in here either. Sign in first, then come back and finish.
       setSigningIn(true);
       window.location.replace(loginUrl(host, next));
@@ -102,10 +113,14 @@ export default function HandoffClient() {
 
     getHandoffConsent(host)
       .then((info) => {
-        if (info.needs_consent) setConsent(info);
-        else void handOver(host, false, false);
+        if (info.needs_consent) {
+          // Asking is the reader's call, never a silent one.
+          if (silent) { giveUp(host); return; }
+          setConsent(info);
+        } else void handOver(host, false, false);
       })
       .catch((e) => {
+        if (silent) { giveUp(host); return; }
         if (e instanceof HandoffError && e.status === 401) {
           setSigningIn(true);
           window.location.replace(loginUrl(host, next));
@@ -113,7 +128,7 @@ export default function HandoffClient() {
         }
         setError("mint");
       });
-  }, [rawHost, next, handOver]);
+  }, [rawHost, next, handOver, silent, giveUp]);
 
   if (error) {
     return (

@@ -14,7 +14,7 @@ import { useQueryFlags } from "@/lib/useQueryFlags";
 import * as e2e from "@/lib/e2e";
 import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl, type DeniedInfo } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
-import { HANDOFF_FRAGMENT } from "@/lib/hosts";
+import { HANDOFF_FRAGMENT, HANDOFF_NONE_FRAGMENT, silentSignInUrl } from "@/lib/hosts";
 import { isPrimaryHost } from "@/components/tenant/hosts";
 import { consumeHandoffToken, peekHandoffToken } from "@/components/tenant/handoff";
 import { useAuth } from "@/contexts/AuthContext";
@@ -706,7 +706,37 @@ export function useDocumentViewer({
   // token from it let a crafted link swap the reader's session (login CSRF).
   // A refused token is still stripped from the address bar.
   useEffect(() => {
-    if (!window.location.hash.startsWith(`#${HANDOFF_FRAGMENT}=`)) { setHandoffDone(true); return; }
+    const hash = window.location.hash;
+    if (hash.startsWith(`#${HANDOFF_NONE_FRAGMENT}=`)) {
+      // The silent check came back empty-handed: show the gate as it is.
+      history.replaceState(history.state, "", window.location.pathname + window.location.search);
+      setHandoffDone(true);
+      return;
+    }
+    if (!hash.startsWith(`#${HANDOFF_FRAGMENT}=`)) {
+      // A gated page on a workspace's own domain, with no session for this origin yet: the
+      // reader may well be signed in on markdrop.in already (they usually came from there). Ask
+      // it quietly, once per tab and page, before showing "Sign in" to someone who already is.
+      // Members, and readers who said yes to this site before, come straight back signed in;
+      // everyone else comes straight back to the gate. No screen is ever shown on the way.
+      if (isPasswordProtected && signInUrl && !localStorage.getItem("markdrop_token")) {
+        const key = `md_silent_handoff:${window.location.host}${window.location.pathname}`;
+        let tried = true;
+        try {
+          tried = sessionStorage.getItem(key) === "1";
+          if (!tried) sessionStorage.setItem(key, "1");
+        } catch {
+          /* storage blocked: never loop, just show the gate */
+        }
+        if (!tried) {
+          setPwdFetching(true); // "Opening…", not a Sign in screen that is about to vanish
+          window.location.replace(silentSignInUrl(signInUrl));
+          return;
+        }
+      }
+      setHandoffDone(true);
+      return;
+    }
     const token = consumeHandoffToken();
     setHandoffDone(true);
     // The header (Site or Tenant) reads the session from AuthContext, which
