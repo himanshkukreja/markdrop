@@ -4,12 +4,20 @@ nav: Overview
 description: Base URL, authentication with API tokens and edit secrets, the X-Read-Password and X-Edit-Secret headers, errors and rate limits of the Markdrop REST API.
 updated: 2026-10-30
 checked: 2026-10-30
-keywords: [api, rest, http, curl, authentication, bearer, mdk, edit secret, X-Edit-Secret, X-Read-Password, errors, rate limits, openapi]
+keywords: [api, rest, http, curl, try it, authentication, bearer, mdk, edit secret, X-Edit-Secret, X-Read-Password, errors, rate limits, openapi]
 ---
 
 Everything you can do on markdrop.in goes through a JSON API at `https://api.markdrop.in`. Use it to publish from your own scripts and services. For publishing files from a terminal, the [CLI](/cli/install) is usually simpler; for AI apps, use the [MCP server](/ai/overview).
 
 Every endpoint has its own page in this section, grouped in the sidebar: what it does, the token it needs, its rate limit, parameters, request body, responses, and samples in curl, JavaScript and Python. The pages are generated from the API's own description. The machine-readable OpenAPI description is at [`https://api.markdrop.in/openapi.json`](https://api.markdrop.in/openapi.json).
+
+## Try it
+
+Each endpoint page has a **Try it** form. Fill it in and choose **Send request** (or press `⌘ Enter`, `Ctrl Enter` on Windows) to call the live API from your browser. You see the status, how long it took, the response headers and the body.
+
+- **Your token.** For endpoints that need an API token, paste one into the form. It stays in that browser tab until you close it, and it is sent only to the API. You don't need one for endpoints that work without an account, such as publishing a document.
+- **Changes are real.** Try it calls the same API as everything else, as you. Before it sends anything that creates, changes or deletes, it asks you to confirm once on that page. Publishing a document from Try it sets it to expire after a day, so test documents delete themselves.
+- **Copy command** gives you the same request as a `curl` command, to run in a terminal or a script.
 
 Endpoints that only markdrop.in's own pages use, such as sign-in, Google Docs export and the VS Code extension's sync, are left out.
 
