@@ -99,8 +99,8 @@ export function PageTree({
                     </span>
                   )}
                   {p.has_changes && (
-                    <span className="size-[7px] shrink-0 rounded-full bg-accent" title={p.is_new ? "New, not published yet" : "Unpublished changes"}>
-                      <span className="md-visually-hidden">{p.is_new ? ", new, not published yet" : ", unpublished changes"}</span>
+                    <span className="size-[7px] shrink-0 rounded-full bg-accent" title="Unpublished changes">
+                      <span className="md-visually-hidden">, unpublished changes</span>
                     </span>
                   )}
                 </a>

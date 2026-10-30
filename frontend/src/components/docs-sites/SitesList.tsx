@@ -7,7 +7,7 @@ import { ReadMore } from "@/components/ReadMore";
 import { useAuth } from "@/contexts/AuthContext";
 import { can, getWorkspace, type Workspace } from "@/lib/workspaces";
 import {
-  docsErrorMessage, listSites, presetName, primaryAddress, type SiteSummary, type Usage,
+  docsErrorMessage, isAdminRole, listSites, presetName, primaryAddress, type DocsRole, type SiteSummary, type Usage,
 } from "@/lib/docsSites";
 import { firstName, num, plural, timeAgo } from "./format";
 import SiteThumb from "./SiteThumb";
@@ -17,16 +17,16 @@ const FREE_SITES = 3;
 const FREE_AI = 1000;
 
 function statusOf(s: SiteSummary): { label: string; tone: Tone } {
-  if ((s.open_reviews ?? 0) > 0) return { label: "In review", tone: "warning" };
+  if (s.in_review) return { label: "In review", tone: "warning" };
   if (s.status === "live") return { label: "Live", tone: "success" };
   if (s.status === "unpublished") return { label: "Unpublished", tone: "neutral" };
   return { label: "Draft", tone: "neutral" };
 }
 
 function metaOf(s: SiteSummary): string {
-  const parts = [`${presetName(s.theme?.preset ?? s.preset)} theme`];
+  const parts = [`${presetName(s.preset)} theme`];
   if (s.page_count !== undefined) parts.push(plural(s.page_count, "page"));
-  if ((s.open_reviews ?? 0) > 0) parts.push(`${plural(s.open_reviews!, "change")} waiting for review`);
+  if (s.in_review) parts.push(s.review_requested_by_name ? `${firstName(s.review_requested_by_name)}'s changes waiting for review` : "changes waiting for review");
   else if (s.status === "live" && s.last_published_at) {
     const who = s.last_published_by_name ? ` by ${firstName(s.last_published_by_name)}` : "";
     parts.push(`published ${timeAgo(s.last_published_at)}${who}`);
@@ -41,7 +41,7 @@ function SiteCard({ wsId, site }: { wsId: string; site: SiteSummary }) {
   const address = primaryAddress(site);
   return (
     <article className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
-      <SiteThumb preset={site.theme?.preset ?? site.preset} accent={site.theme?.accent} />
+      <SiteThumb preset={site.preset} />
       <div className="flex min-w-0 flex-1 flex-col gap-2.5 px-[18px] pb-[18px] pt-4">
         <div className="flex min-w-0 items-center gap-2">
           <h2 className="min-w-0 flex-1 truncate text-[16px] font-semibold leading-6 text-text" dir="auto">{site.name}</h2>
@@ -72,6 +72,7 @@ export default function SitesList({ wsId }: { wsId: string }) {
   const [ws, setWs] = useState<Workspace | null>(null);
   const [sites, setSites] = useState<SiteSummary[] | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [role, setRole] = useState<DocsRole | null>(null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -81,6 +82,7 @@ export default function SitesList({ wsId }: { wsId: string }) {
       setWs(w);
       setSites(r.sites);
       setUsage(r.usage ?? null);
+      setRole(r.your_role ?? null);
     } catch (e) {
       setError(docsErrorMessage(e, "Couldn't load this workspace's docs sites."));
     }
@@ -90,7 +92,9 @@ export default function SitesList({ wsId }: { wsId: string }) {
     if (!authLoading && user) void load();
   }, [authLoading, user, load]);
 
-  const isAdmin = ws ? can(ws.role, "admin") : false;
+  const isAdmin = role ? isAdminRole(role) : ws ? can(ws.role, "admin") : false;
+  // Ask AI is allowed per site: show the busiest site against its own allowance.
+  const busiest = sites?.reduce<SiteSummary | null>((m, s) => (!m || s.ai_used > m.ai_used ? s : m), null) ?? null;
   const limit = usage?.limit ?? FREE_SITES;
   const used = usage?.sites ?? sites?.length ?? 0;
   const atLimit = used >= limit;
@@ -168,14 +172,14 @@ export default function SitesList({ wsId }: { wsId: string }) {
             size="sm"
             label={
               <span className="text-caption text-text-muted">
-                Ask AI this month · {num(usage?.ai_used ?? 0)} of {num(usage?.ai_limit ?? FREE_AI)}
-                {usage?.ai_site_name ? ` (${usage.ai_site_name})` : ""}
+                Ask AI this month · {num(busiest?.ai_used ?? 0)} of {num(usage?.ai_limit ?? FREE_AI)}
+                {busiest && busiest.ai_used > 0 && sites && sites.length > 1 ? ` (${busiest.name})` : ""}
               </span>
             }
-            value={usage?.ai_used ?? 0}
+            value={busiest?.ai_used ?? 0}
             max={usage?.ai_limit ?? FREE_AI}
             threshold={0.9}
-            valueText={`${usage?.ai_used ?? 0} of ${usage?.ai_limit ?? FREE_AI} answers`}
+            valueText={`${busiest?.ai_used ?? 0} of ${usage?.ai_limit ?? FREE_AI} answers`}
           />
         </section>
       )}

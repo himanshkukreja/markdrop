@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Alert, Badge, Button, Field, Icon, IconButton, Input, Spinner, cx } from "@/components/ui";
 import { getWorkspace, type Workspace } from "@/lib/workspaces";
 import {
-  DOCS_HOST_SUFFIX, createSite, docsErrorMessage, slugAvailable, slugFrom, slugProblem,
+  DOCS_HOST_SUFFIX, createSite, docsErrorMessage, isAdminRole, listSites, slugAvailable, slugFrom, slugProblem,
+  type DocsRole, type Usage,
   type SourceKind, type TemplateId,
 } from "@/lib/docsSites";
 import { StudioLoader, docsListHref, siteBase, useStudioSession } from "./SiteContext";
@@ -25,10 +26,17 @@ const TEMPLATES: Array<{ id: TemplateId; title: string; body: string }> = [
 
 type SlugState = { state: "idle" | "checking" | "ok" | "taken" | "invalid"; message?: string; suggestion?: string | null };
 
+/** Another address to offer when one is taken or reserved ("acme" → "acme-docs", "acme-docs" → "acme-docs-2"). */
+function altSlug(slug: string): string {
+  const base = slug.endsWith("-docs") ? `${slug}-2` : `${slug}-docs`;
+  return base.slice(0, 40).replace(/-+$/, "");
+}
+
+/** The API takes public https:// addresses only. */
 function validUrl(v: string): boolean {
   try {
     const u = new URL(v.trim());
-    return u.protocol === "https:" || u.protocol === "http:";
+    return u.protocol === "https:" && u.hostname.includes(".");
   } catch {
     return false;
   }
@@ -81,9 +89,13 @@ export default function NewSite({ wsId }: { wsId: string }) {
   const [slugState, setSlugState] = useState<SlugState>({ state: "idle" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [scope, setScope] = useState<{ role: DocsRole; usage: Usage } | null>(null);
 
   useEffect(() => {
-    if (ready) getWorkspace(wsId).then(setWs).catch(() => setWs(null));
+    if (!ready) return;
+    getWorkspace(wsId).then(setWs).catch(() => setWs(null));
+    // Who may create here, and whether the workspace has room (only admins create; 3 sites on free).
+    listSites(wsId).then((r) => setScope({ role: r.your_role, usage: r.usage })).catch(() => setScope(null));
   }, [ready, wsId]);
 
   // Suggest a name and address from the GitBook address (docs.acme.com → "Acme Docs", "acme").
@@ -106,7 +118,7 @@ export default function NewSite({ wsId }: { wsId: string }) {
     let live = true;
     const t = window.setTimeout(() => {
       slugAvailable(slug)
-        .then((r) => live && setSlugState(r.available ? { state: "ok" } : { state: "taken", message: r.reason || "That address is taken.", suggestion: r.suggestion }))
+        .then((r) => live && setSlugState(r.available ? { state: "ok" } : { state: r.reason === "invalid" ? "invalid" : "taken", message: r.message || "That address is taken.", suggestion: r.reason === "invalid" ? null : altSlug(slug) }))
         .catch(() => live && setSlugState({ state: "idle" }));
     }, 350);
     return () => { live = false; window.clearTimeout(t); };
@@ -115,8 +127,10 @@ export default function NewSite({ wsId }: { wsId: string }) {
   if (!ready) return <StudioLoader />;
 
   const urlInvalid = source === "gitbook" && urlTouched && !validUrl(url);
+  const notAdmin = !!scope && !isAdminRole(scope.role);
+  const full = !!scope && scope.usage.sites >= scope.usage.limit;
   const canSubmit =
-    !busy && name.trim().length > 0 && slugState.state !== "invalid" && slugState.state !== "taken" && !!slug &&
+    !busy && !notAdmin && !full && name.trim().length > 0 && slugState.state !== "invalid" && slugState.state !== "taken" && !!slug &&
     (source !== "gitbook" || validUrl(url)) && source !== "github";
 
   async function submit(e: React.FormEvent) {
@@ -132,7 +146,7 @@ export default function NewSite({ wsId }: { wsId: string }) {
         slug,
         source: source === "gitbook" ? { kind: "gitbook", url: url.trim() } : source === "template" ? { kind: "template", template } : { kind: source },
       });
-      const job = site.job_id ?? site.import_job_id;
+      const job = site.job?.id;
       const base = siteBase(wsId, site.id);
       router.push(job ? `${base}/import?job=${encodeURIComponent(job)}` : `${base}/design?new=1`);
     } catch (err) {
@@ -260,6 +274,12 @@ export default function NewSite({ wsId }: { wsId: string }) {
             </div>
           </section>
 
+          {notAdmin && <Alert tone="warning" title="Only workspace admins create docs sites">Ask an admin of {ws?.name ?? "this workspace"} to create it; you can edit it once it exists.</Alert>}
+          {!notAdmin && full && (
+            <Alert tone="warning" title={`${ws?.name ?? "This workspace"} has ${scope!.usage.sites} of ${scope!.usage.limit} docs sites`}>
+              That&apos;s the most on the free plan. Delete one in its Settings to make room.
+            </Alert>
+          )}
           {error && <Alert tone="danger" title="We couldn't create the site">{error}</Alert>}
 
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">

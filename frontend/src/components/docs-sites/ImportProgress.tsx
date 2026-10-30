@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Anchor, Badge, Button, Icon, IconButton, Progress, Spinner, type Tone } from "@/components/ui";
 import { useLocationSearch } from "@/components/shell/useLocation";
-import { presetName, type ImportReport, type Job, type JobStep, type ReportItem } from "@/lib/docsSites";
+import { assetPreviewUrl, presetName, type ImportReport, type Job, type JobStep, type ReportItem } from "@/lib/docsSites";
 import { num } from "./format";
 import { previewTokens } from "./presets";
 import { useSite } from "./SiteContext";
@@ -106,7 +106,7 @@ function ReportRow({ item, editorHref }: { item: ReportItem; editorHref: (pageId
 function MiniSite({ name }: { name: string }) {
   const { site } = useSite();
   const t = previewTokens(site.settings.theme, false);
-  const logo = site.settings.theme.brand.enabled ? site.settings.theme.brand.logo_url : null;
+  const logo = site.settings.theme.brand.enabled ? assetPreviewUrl(site.id, site.settings.theme.brand.logo_url) : null;
   const bar = (w: string | number, h: number, bg: string, extra?: React.CSSProperties) => <span className="block" style={{ width: w, height: h, borderRadius: 3, background: bg, ...extra }} />;
   return (
     <div aria-hidden className="overflow-hidden rounded-xl border border-border shadow-md" style={{ background: t.bg }}>
@@ -142,7 +142,7 @@ function MiniSite({ name }: { name: string }) {
 export default function ImportProgress() {
   const { site, base, listHref, reload } = useSite();
   const search = useLocationSearch();
-  const jobId = new URLSearchParams(search).get("job") || site.import_job_id || site.job_id || null;
+  const jobId = new URLSearchParams(search).get("job") || site.job?.id || null;
   const { job, error } = useJob(site.id, jobId);
   const isTemplate = site.source.kind === "template";
   const steps = isTemplate ? TEMPLATE_STEPS : IMPORT_STEPS;

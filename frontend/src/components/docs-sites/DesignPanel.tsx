@@ -5,7 +5,7 @@ import { Alert, Anchor, Badge, Button, Field, Icon, SegmentedControl, Select, Sp
 import { useLocationSearch } from "@/components/shell/useLocation";
 import { parseHex } from "@/components/tenant/branding";
 import {
-  FONTS, PRESETS, customCssProblem, docsErrorMessage, presetName, updateSite, uploadAsset,
+  FONTS, PRESETS, assetPreviewUrl, customCssProblem, docsErrorMessage, presetName, updateSite, uploadAsset,
   type Corners, type SiteTheme, type ThemeMode, type ThemePreset,
 } from "@/lib/docsSites";
 import { ratio } from "./format";
@@ -72,6 +72,9 @@ export default function DesignPanel() {
   const [dark, setDark] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [picked, setPicked] = useState<{ name: string; url: string } | null>(null);
+  const pickedName = picked?.name;
+  const pickedFor = picked?.url;
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const dirty = !same(theme, saved);
@@ -120,6 +123,7 @@ export default function DesignPanel() {
       URL.revokeObjectURL(local);
       const { url } = await uploadAsset(site.id, file);
       setBrand({ enabled: true, logo_url: url, colors: colours.length ? colours : theme.brand.colors, accent: colours[0] ?? theme.brand.accent });
+      setPicked({ name: file.name, url });
     } catch (e) {
       setError(docsErrorMessage(e, "That logo didn't upload. Try again."));
     } finally {
@@ -144,7 +148,8 @@ export default function DesignPanel() {
   }
 
   const fontOptions = [{ value: "", label: "Theme default" }, ...FONTS.map((f) => ({ value: f.id, label: f.label }))];
-  const logoName = theme.brand.logo_url ? decodeURIComponent(theme.brand.logo_url.split("/").pop() || "logo") : null;
+  // Uploads are stored by content hash: name the file you picked, else just "Your logo".
+  const logoName = theme.brand.logo_url ? (pickedName && pickedFor === theme.brand.logo_url ? pickedName : "Your logo") : null;
 
   return (
     <>
@@ -186,7 +191,7 @@ export default function DesignPanel() {
             <div className="flex items-center gap-3">
               {theme.brand.logo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={theme.brand.logo_url} alt="" className="size-11 shrink-0 rounded-[10px] bg-logo-well-light object-contain p-1" />
+                <img src={assetPreviewUrl(site.id, theme.brand.logo_url) ?? undefined} alt="" className="size-11 shrink-0 rounded-[10px] bg-logo-well-light object-contain p-1" />
               ) : (
                 <span className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[20px] font-extrabold text-white" style={{ background: brandAccent && parseHex(brandAccent) ? brandAccent : LOOKS[theme.preset].accent }} aria-hidden>
                   {site.name.charAt(0).toUpperCase()}
@@ -311,7 +316,7 @@ export default function DesignPanel() {
               ]}
             />
           </div>
-          <ThemePreview theme={theme} dark={dark} name={site.name} logo={theme.brand.enabled ? theme.brand.logo_url : null} />
+          <ThemePreview theme={theme} dark={dark} name={site.name} logo={theme.brand.enabled ? assetPreviewUrl(site.id, theme.brand.logo_url) : null} />
           {dirty && isAdmin && <p className="text-[13px] text-text-muted">Not saved yet. Readers see the new design after you save it and publish.</p>}
         </section>
       </main>

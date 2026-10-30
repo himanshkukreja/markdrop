@@ -10,7 +10,7 @@ import { useLocationSearch } from "@/components/shell/useLocation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   createPage, deletePage, docsErrorMessage, listPages, saveNav, slugFrom, uploadAsset,
-  type NavGroup, type Page, type PageSummary, type PagesResponse,
+  type NavGroup, type Page, type PageSummary, type PagesResponse, type SaveConflict,
 } from "@/lib/docsSites";
 import { firstName, timeAgo } from "../format";
 import SiteBar from "../SiteBar";
@@ -355,7 +355,7 @@ export default function EditorPage() {
         open={!!deleting}
         onClose={() => setDeleting(null)}
         title={`Delete “${deleting?.title ?? ""}”?`}
-        body={deleting && !deleting.is_new ? "It disappears from the site at the next publish. Old links to it stop working unless you add a redirect." : "It hasn't been published, so readers never saw it."}
+        body="If it's on the published site, it disappears at the next publish. Old links to it stop working."
         confirmLabel="Delete page"
         onConfirm={async () => {
           if (!deleting) return;
@@ -372,9 +372,9 @@ export default function EditorPage() {
 }
 
 /** 409 on save: someone saved a newer version since this draft was loaded. */
-function ConflictDialog({ conflict, mine, onResolve }: { conflict: Page | null; mine: string; onResolve: (c: "mine" | "theirs") => void }) {
+function ConflictDialog({ conflict, mine, onResolve }: { conflict: SaveConflict | null; mine: string; onResolve: (c: "mine" | "theirs") => void }) {
   const toast = useToast();
-  const who = conflict?.draft.updated_by_name ?? "Someone";
+  const who = conflict?.updated_by_name ?? "Someone";
   return (
     <Dialog
       open={!!conflict}
@@ -382,7 +382,7 @@ function ConflictDialog({ conflict, mine, onResolve }: { conflict: Page | null; 
       dismissible={false}
       hideClose
       title="Someone saved a newer version"
-      description={`${who} saved this page ${conflict ? timeAgo(conflict.draft.updated_at) : ""} while you were editing. Your latest changes aren't saved yet.`}
+      description={`${who} saved this page ${conflict?.updated_at ? timeAgo(conflict.updated_at) : "just now"} while you were editing. Your latest changes aren't saved yet.`}
       footer={
         <>
           <Button variant="ghost" iconLeft="copy" onClick={async () => { if (await copyText(mine)) toast.success("Your text is on the clipboard."); }}>Copy my text</Button>

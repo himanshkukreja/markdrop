@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Alert, Badge, Button, ConfirmDialog, CopyButton, Dialog, Field, Icon, IconButton, Input, Meter, RadioGroup, Switch, Tag, Textarea, useToast,
+  Alert, Badge, Button, ConfirmDialog, CopyButton, Field, Icon, IconButton, Input, Meter, RadioGroup, Switch, Tag, useToast,
 } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
 import { getWorkspace } from "@/lib/workspaces";
 import {
   DOCS_HOST_SUFFIX, deleteSite, docsErrorMessage, siteHost, slugAvailable, slugProblem, unpublishSite, updateSite,
-  type AccessLevel, type Redirect, type SettingsPatch,
+  type AccessLevel, type SettingsPatch,
 } from "@/lib/docsSites";
 import { num, plural, timeAgo } from "./format";
 import SiteBar from "./SiteBar";
@@ -31,31 +31,6 @@ function Card({ id, title, aside, children, tone }: { id: string; title: React.R
       {children}
     </section>
   );
-}
-
-/** "/old": "/new" lines → [{from, to}] with problems; accepts JSON (map or list) or "from,to"/"from -> to" lines. */
-export function parseRedirects(text: string): { redirects: Redirect[]; problem: string } {
-  const t = text.trim();
-  if (!t) return { redirects: [], problem: "" };
-  let pairs: Array<[string, string]> = [];
-  if (t.startsWith("{") || t.startsWith("[")) {
-    try {
-      const j = JSON.parse(t);
-      pairs = Array.isArray(j) ? j.map((r: Redirect) => [String(r.from), String(r.to)]) : Object.entries(j).map(([a, b]) => [a, String(b)]);
-    } catch {
-      return { redirects: [], problem: "That file isn't valid JSON." };
-    }
-  } else {
-    pairs = t.split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).map((l) => {
-      const [a, b] = l.split(/\s*(?:,|->|→|\s)\s*/).filter(Boolean);
-      return [a ?? "", b ?? ""];
-    });
-  }
-  for (const [from, to] of pairs) {
-    if (!from.startsWith("/") || from.startsWith("//")) return { redirects: [], problem: `"${from}" must be a path starting with /.` };
-    if (!(to.startsWith("/") && !to.startsWith("//")) && !/^https:\/\//i.test(to)) return { redirects: [], problem: `"${to}" must be a path or an https:// address.` };
-  }
-  return { redirects: pairs.map(([from, to]) => ({ from, to })), problem: "" };
 }
 
 /**
@@ -85,10 +60,6 @@ export default function SiteSettings() {
   // Access
   const [password, setPassword] = useState("");
   const [pendingLevel, setPendingLevel] = useState<AccessLevel | null>(null);
-  // Redirects
-  const [redirectsOpen, setRedirectsOpen] = useState(false);
-  const [redirectsText, setRedirectsText] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
   // Danger
   const [confirm, setConfirm] = useState<"unpublish" | "delete" | null>(null);
 
@@ -118,8 +89,8 @@ export default function SiteSettings() {
     if (problem) { setSlugMsg(problem); return; }
     if (slug === site.slug) { setEditSlug(false); return; }
     try {
-      const r = await slugAvailable(slug);
-      if (!r.available) { setSlugMsg(r.reason || "That address is taken."); return; }
+      const r = await slugAvailable(slug, site.id);
+      if (!r.available) { setSlugMsg(r.message || "That address is taken."); return; }
     } catch { /* the PATCH checks too */ }
     if (await patch("slug", { slug }, `The address is now ${slug}${DOCS_HOST_SUFFIX}. The old one stops working.`)) setEditSlug(false);
   }
@@ -131,11 +102,9 @@ export default function SiteSettings() {
     void patch("ai", { settings: { ai: { suggestions: [...suggestions, q] } } }, "Suggested question added.").then((ok) => ok && setSuggestion(""));
   };
 
-  const usage = site.usage;
-  const aiUsed = usage?.ai_used ?? 0;
-  const aiLimit = usage?.ai_limit ?? 1000;
+  const aiUsed = site.counts?.ai_answers_this_month ?? site.ai_used ?? 0;
+  const aiLimit = site.limits?.ai_answers_per_month ?? 1000;
   const redirects = s.redirects ?? [];
-  const parsed = parseRedirects(redirectsText);
   const host = siteHost(site);
   const repo = site.source.kind === "github" ? site.source.repo : null;
 
@@ -294,31 +263,22 @@ export default function SiteSettings() {
             )}
           </Card>
 
-          <Card id="redirects" title="Redirects">
+          <Card id="redirects" title="Redirects" aside={<Badge tone="info" size="sm">Editing soon</Badge>}>
             <p className="text-body text-text-secondary">
               {redirects.length
                 ? `${plural(redirects.length, "old address", "old addresses")} send${redirects.length === 1 ? "s" : ""} readers to ${redirects.length === 1 ? "its new page" : "their new pages"}${site.source.kind === "gitbook" ? ", including the ones kept from GitBook" : ""}.`
-                : "Moved a page? Send its old address to the new one so links keep working."}
+                : site.source.kind === "gitbook"
+                  ? "Old GitBook addresses keep working: the import sends them to their new pages."
+                  : "Moved a page? Soon you'll send its old address to the new one here, so links keep working."}
             </p>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" size="sm" disabled={locked} onClick={() => { setRedirectsText(redirects.map((r) => `${r.from} -> ${r.to}`).join("\n")); setRedirectsOpen(true); }}>Edit redirects</Button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".json,.csv,.txt,application/json,text/csv,text/plain"
-                className="md-visually-hidden"
-                tabIndex={-1}
-                aria-hidden
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  setRedirectsText(await f.text());
-                  setRedirectsOpen(true);
-                  e.target.value = "";
-                }}
-              />
-              <Button variant="ghost" size="sm" iconLeft="upload" disabled={locked} onClick={() => fileRef.current?.click()}>Upload a file</Button>
-            </div>
+            {redirects.length > 0 && (
+              <details className="text-[13px]">
+                <summary className="cursor-pointer text-accent-text">Show them</summary>
+                <ul className="mt-2 flex flex-col gap-1 font-mono text-text-secondary">
+                  {redirects.map((r) => <li key={r.from} className="[overflow-wrap:anywhere]">{r.from} → {r.to}</li>)}
+                </ul>
+              </details>
+            )}
           </Card>
         </div>
 
@@ -333,39 +293,6 @@ export default function SiteSettings() {
           </Card>
         )}
       </main>
-
-      <Dialog
-        open={redirectsOpen}
-        onClose={() => setRedirectsOpen(false)}
-        title="Redirects"
-        description="One per line: the old path, then where it goes now. A JSON file like { &quot;/old&quot;: &quot;/new&quot; } works too."
-        size="lg"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setRedirectsOpen(false)}>Cancel</Button>
-            <Button
-              variant="primary"
-              loading={saving === "redirects"}
-              disabled={!!parsed.problem}
-              onClick={async () => {
-                if (await patch("redirects", { settings: { redirects: parsed.redirects } }, `${plural(parsed.redirects.length, "redirect")} saved. They work after the next publish.`)) setRedirectsOpen(false);
-              }}
-            >
-              Save {plural(parsed.redirects.length, "redirect")}
-            </Button>
-          </>
-        }
-      >
-        <Field label="Redirects" htmlFor={`${uid}-redir`} error={parsed.problem || undefined} hint="Example: /getting-started/install -> /getting-started/quickstart">
-          <Textarea
-            mono
-            className="min-h-[220px] w-full"
-            value={redirectsText}
-            spellCheck={false}
-            onChange={(e) => setRedirectsText(e.target.value)}
-          />
-        </Field>
-      </Dialog>
 
       <ConfirmDialog
         open={confirm === "unpublish"}

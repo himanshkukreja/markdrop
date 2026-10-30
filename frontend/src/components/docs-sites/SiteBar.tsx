@@ -2,18 +2,18 @@
 
 import { Anchor, Badge, IconButton, cx } from "@/components/ui";
 import { parseHex } from "@/components/tenant/branding";
-import type { Site, SiteSummary } from "@/lib/docsSites";
+import { assetPreviewUrl, type Site, type SiteSummary } from "@/lib/docsSites";
 import { thumbColours } from "./presets";
 import { useSite } from "./SiteContext";
 
 export type SiteSection = "pages" | "design" | "publish" | "settings";
 
 /** The site's letter tile on its accent (the brand's when "Match my brand" is on). */
-export function SiteTile({ site, size = 22 }: { site: Pick<SiteSummary, "name" | "preset" | "theme"> & { settings?: Site["settings"] }; size?: number }) {
+export function SiteTile({ site, size = 22 }: { site: Pick<SiteSummary, "id" | "name" | "preset"> & { settings?: Site["settings"] }; size?: number }) {
   const brand = site.settings?.theme.brand;
-  const accent = (brand?.enabled && (brand.accent || brand.colors?.[0])) || site.theme?.accent || null;
-  const c = thumbColours(site.settings?.theme.preset ?? site.preset ?? site.theme?.preset, parseHex(accent) ? accent : null);
-  const logo = brand?.enabled ? brand.logo_url : null;
+  const accent = (brand?.enabled && (brand.accent || brand.colors?.[0])) || null;
+  const c = thumbColours(site.settings?.theme.preset ?? site.preset, parseHex(accent) ? accent : null);
+  const logo = brand?.enabled ? assetPreviewUrl(site.id, brand.logo_url) : null;
   const box = { width: size, height: size, borderRadius: Math.max(4, Math.round(size * 0.27)) };
   if (logo) {
     return (

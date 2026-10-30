@@ -1,12 +1,13 @@
 /**
- * Docs sites API (Markdrop Docs, Phase 1): a typed client for every `/api/v1/docs-sites` endpoint.
+ * Docs sites API (Markdrop Docs, Phase 1): a typed client for every `/api/v1/docs-sites` endpoint
+ * (backend/app/routers/docs_sites.py + docs_site_pages.py).
  *
  * Kept out of lib/api.ts for the same reason lib/workspaces.ts is: nothing here is reachable without
  * a session, and lib/api.ts loads on every public document page.
  *
  * Errors keep their HTTP status and the parsed body, because the editor acts on three of them:
- * 409 on a page save (someone saved a newer version: `base_rev` is stale), 423 (the page is locked by
- * someone else: the body carries the lock) and 409 on publish (this site requires a review).
+ * 409 on a page save (`base_rev` is stale: the body says the current `rev` and who saved it), 423
+ * (someone else holds the page lock: the body carries `lock`) and 409 "review required" on publish.
  */
 import { API_BASE } from "@/lib/api";
 
@@ -18,20 +19,21 @@ function authHeaders(): Record<string, string> {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
-/** A refused docs-sites call: the status, the server's message and whatever else the body said. */
+/** A refused docs-sites call: the status, the server's message and the rest of its body. */
 export class DocsApiError extends Error {
   status: number;
-  /** The parsed JSON body (`detail` and anything beside it), or null. */
+  /** The parsed JSON body, or null. */
   body: unknown;
-  /** `detail` when it was an object (e.g. `{message, lock}` on a 423, `{message, current}` on a 409). */
-  detail: Record<string, unknown> | null;
+  /** The body's fields beside `detail` (409 on save: `rev`, `updated_by_name`, `updated_at`; 423: `lock`). */
+  info: Record<string, unknown>;
   constructor(message: string, status: number, body: unknown = null) {
     super(message);
     this.name = "DocsApiError";
     this.status = status;
     this.body = body;
-    const d = (body as { detail?: unknown } | null)?.detail;
-    this.detail = d && typeof d === "object" && !Array.isArray(d) ? (d as Record<string, unknown>) : null;
+    const b = body && typeof body === "object" && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
+    const d = b.detail && typeof b.detail === "object" && !Array.isArray(b.detail) ? (b.detail as Record<string, unknown>) : {};
+    this.info = { ...b, ...d };
   }
 }
 
@@ -41,16 +43,19 @@ export const docsErrorMessage = (e: unknown, fallback = "That didn't work. Try a
 
 function messageOf(body: unknown, status: number): string {
   const detail = (body as { detail?: unknown } | null)?.detail;
+  if (status === 409 && detail === "review required") return "This site needs a review before it's published.";
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) return (detail[0] as { msg?: string } | undefined)?.msg || "That value isn't valid.";
   if (detail && typeof detail === "object") {
     const m = (detail as { message?: unknown }).message;
     if (typeof m === "string") return m;
   }
-  const m = (body as { message?: unknown } | null)?.message;
-  if (typeof m === "string") return m;
   if (status === 423) return "Someone else is editing this page.";
   if (status === 409) return "Someone saved a newer version.";
+  if (status === 413) return "That file is too big. Files can be up to 25 MB.";
+  if (status === 415) return "That kind of file can't be uploaded here.";
+  if (status === 429) return "That's the limit for now. Try again later.";
+  if (status === 503) return "Uploads aren't available right now.";
   return `Request failed (${status})`;
 }
 
@@ -85,9 +90,9 @@ const q = (params: Record<string, string | number | boolean | null | undefined>)
 };
 const enc = encodeURIComponent;
 
-// ── Types (the spec's contract) ──────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────────
 
-/** Workspace owner/admin → "owner"/"admin"; "Can edit" → "editor"; "Can view" → "viewer". */
+/** Workspace owner/admin → "owner"/"admin"; "Can edit" → "editor"; "Can view" → "viewer". Personal: "owner". */
 export type DocsRole = "owner" | "admin" | "editor" | "viewer";
 export type SiteStatus = "draft" | "live" | "unpublished";
 export type SourceKind = "blank" | "template" | "gitbook" | "github";
@@ -99,13 +104,14 @@ export type TemplateId = "product" | "api" | "helpcenter";
 
 export interface SiteSource {
   kind: SourceKind;
-  url?: string;
-  template?: TemplateId | string;
-  repo?: { owner: string; name: string; branch: string; path: string };
+  url?: string | null;
+  template?: TemplateId | string | null;
+  repo?: { owner: string; name: string; branch: string; path: string } | null;
 }
 
 export interface SiteBrand {
   enabled: boolean;
+  /** An https:// address or an uploaded file (`/docs-assets/<sha256>.<ext>`). */
   logo_url?: string | null;
   logo_dark_url?: string | null;
   colors: string[];
@@ -116,6 +122,7 @@ export interface SiteBrand {
 export interface SiteTheme {
   preset: ThemePreset;
   brand: SiteBrand;
+  /** Font ids (FONTS); null = the preset's own. */
   fonts: { heading?: string | null; body?: string | null };
   mode: ThemeMode;
   corners?: Corners | null;
@@ -136,12 +143,12 @@ export interface Redirect {
 export interface SiteSettings {
   theme: SiteTheme;
   ai: { enabled: boolean; name?: string | null; suggestions?: string[] };
-  /** `password` is write-only: send it to set a password; the API never returns it (only `has_password`). */
-  access: { level: AccessLevel; password?: string; has_password?: boolean };
+  /** `password` is write-only (6–200 chars); the API only says `has_password`. */
+  access: { level: AccessLevel; has_password?: boolean };
   seo: { index: boolean };
   review: { required: boolean };
   nav: NavGroup[];
-  /** Optional until the API grows it: old addresses kept working (GitBook import fills it). */
+  /** Not in the settings model yet (GitBook imports keep theirs in the build); shown when present. */
   redirects?: Redirect[];
 }
 
@@ -158,36 +165,36 @@ export interface Build {
   number: number;
   status: BuildStatus;
   requested_by: string;
-  /** Display name for `requested_by` when the API includes it. */
   requested_by_name?: string | null;
   review_id?: string | null;
   note?: string | null;
-  snapshot_id?: string;
+  snapshot_id?: string | null;
+  job_id?: string | null;
   manifest_hash?: string | null;
   stats?: { pages: number; objects: number; uploaded: number; bytes: number; ms: number } | null;
   error?: string | null;
-  /** The build job, when the API links it (progress on the Publish screen). */
-  job_id?: string | null;
+  /** On GET /builds: this is the build readers see now. */
+  live?: boolean;
   created_at: string;
   started_at?: string | null;
   finished_at?: string | null;
 }
 
 export interface Usage {
-  /** Workspace scope (list): sites used / allowed. */
-  sites?: number;
-  limit?: number;
-  /** Ask AI answers this month and the monthly allowance (per site; on the list, the busiest site's). */
-  ai_used?: number;
-  ai_limit?: number;
-  /** Which site `ai_used` belongs to on the list. */
-  ai_site_name?: string | null;
-  pages?: number;
-  page_limit?: number;
-  asset_bytes?: number;
-  asset_limit?: number;
-  builds_today?: number;
-  build_limit?: number;
+  sites: number;
+  limit: number;
+  /** Ask AI answers this month across the scope's sites, and the per-site monthly allowance. */
+  ai_used: number;
+  ai_limit: number;
+}
+
+export interface Limits {
+  sites: number;
+  pages: number;
+  builds_per_day: number;
+  asset_bytes: number;
+  storage_bytes: number;
+  ai_answers_per_month: number;
 }
 
 export interface SiteSummary {
@@ -195,38 +202,54 @@ export interface SiteSummary {
   workspace_id: string | null;
   name: string;
   slug: string;
+  /** `https://<slug>.docs.markdrop.in` */
+  url: string | null;
   status: SiteStatus;
-  /** The free address host: `<slug>.docs.markdrop.in`. */
-  host?: string;
-  domains?: SiteDomain[];
-  preset?: ThemePreset;
-  /** A light snapshot of the theme for the card thumbnail. */
-  theme?: Pick<SiteTheme, "preset" | "mode"> & { accent?: string | null };
-  page_count?: number;
-  /** Pages with unpublished drafts. */
-  changes?: number;
-  open_reviews?: number;
-  last_published_at?: string | null;
-  last_published_by?: string | null;
+  /** An open review is waiting. */
+  in_review: boolean;
+  review_requested_by_name?: string | null;
+  preset: ThemePreset;
+  source_kind?: SourceKind | null;
+  page_count: number;
+  /** Ask AI answers this month. */
+  ai_used: number;
+  last_published_at: string | null;
+  last_published_by: string | null;
   last_published_by_name?: string | null;
-  your_role?: DocsRole;
-  updated_at?: string;
+  updated_at: string;
+  created_at: string;
+  your_role: DocsRole;
+  /** Only on the full Site today; the list falls back to the free address. */
+  domains?: SiteDomain[];
+}
+
+export interface Job {
+  id: string;
+  kind: "build" | "import" | "restore" | "unpublish" | "delete" | string;
+  site_id: string;
+  status: JobStatus;
+  attempts?: number;
+  payload?: Record<string, unknown>;
+  progress?: { step: string | number; done: number; total: number; message?: string | null; steps?: JobStep[] } | null;
+  result?: ({ report?: ImportReport; build_id?: string } & ImportReport) | null;
+  error?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Site extends SiteSummary {
   owner_id: string;
   source: SiteSource;
   settings: SiteSettings;
+  domains: SiteDomain[];
   live_build_id: string | null;
-  live_build?: Build | null;
-  counts?: { pages?: number; changes?: number; open_reviews?: number; hidden?: number };
-  usage?: Usage;
-  your_role: DocsRole;
-  /** The import/seed job a new gitbook/template site started (POST response and while it runs). */
-  job_id?: string | null;
-  import_job_id?: string | null;
-  created_at: string;
-  updated_at: string;
+  live_build: Build | null;
+  latest_build: Build | null;
+  open_review_id: string | null;
+  counts: { pages: number; hidden_pages: number; open_reviews: number; builds_today: number; storage_bytes: number; ai_answers_this_month: number };
+  limits: Limits;
+  /** POST /docs-sites (GitBook import, template seed) and POST …/unpublish: the job it started. */
+  job?: Job | null;
 }
 
 export interface PageLock {
@@ -241,10 +264,12 @@ export interface PageSummary {
   title: string;
   icon?: string | null;
   hidden: boolean;
+  /** Differs from what's live (or was never published). */
   has_changes: boolean;
-  /** Never published yet. */
-  is_new?: boolean;
   lock: PageLock | null;
+  rev: number;
+  updated_at: string;
+  updated_by: string;
 }
 
 export interface PagesResponse {
@@ -252,60 +277,56 @@ export interface PagesResponse {
   pages: PageSummary[];
 }
 
-export interface PageDraft {
+export interface Page extends PageSummary {
+  site_id: string;
+  description: string;
   markdown: string;
   frontmatter_extra?: Record<string, unknown> | null;
-  rev: number;
-  updated_by: string;
   updated_by_name?: string | null;
-  updated_at: string;
-}
-
-export interface Page {
-  id: string;
-  site_id: string;
-  path: string;
-  title: string;
-  description: string;
-  icon?: string | null;
-  hidden: boolean;
-  draft: PageDraft;
-  published: { markdown: string; rev: number; published_build_id: string } | null;
-  lock: PageLock | null;
   created_at: string;
 }
 
 export interface PageVersion {
-  id: string;
-  page_id: string;
-  site_id: string;
   rev: number;
-  markdown: string;
   title: string;
   description: string;
   by: string;
   by_name?: string | null;
   at: string;
-  kind: "save" | "import" | "restore";
+  kind: "save" | "import" | "restore" | string;
+  chars?: number;
+  /** Only from GET …/versions/<rev>. */
+  markdown?: string;
+}
+
+/** 409 on a page save: what's there now. */
+export interface SaveConflict {
+  rev: number;
+  updated_by?: string | null;
+  updated_by_name?: string | null;
+  updated_at?: string | null;
 }
 
 export interface PageChange {
-  page_id: string;
+  id: string;
   path: string;
   title: string;
-  kind: "new" | "edited" | "deleted" | "moved";
-  by?: string | null;
-  by_name?: string | null;
+  change: "added" | "modified" | "deleted";
   lines_changed?: number | null;
-  group?: string | null;
+  moved_from?: string | null;
+  updated_by?: string | null;
+  updated_by_name?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ChangesResponse {
+  live_build: Build | null;
+  last_published_at: string | null;
   pages: PageChange[];
-  settings_changed: boolean;
-  /** Which settings changed (e.g. ["theme", "nav"]), when the API says. */
-  settings?: string[];
-  settings_by_name?: string | null;
+  /** "theme" | "ai" | "access" | "seo" | "nav" | "name" | "address" */
+  settings_changed: string[];
+  count: number;
+  ever_published: boolean;
 }
 
 export type ReviewStatus = "open" | "approved" | "changes_requested" | "withdrawn";
@@ -315,15 +336,16 @@ export interface Review {
   site_id: string;
   requested_by: string;
   requested_by_name?: string | null;
-  note: string;
+  note: string | null;
   page_ids: string[];
   status: ReviewStatus;
   decided_by?: string | null;
   decided_by_name?: string | null;
   decided_at?: string | null;
   comment?: string | null;
+  build_id?: string | null;
   created_at: string;
-  /** Who will be asked (admins), when the API includes it. */
+  /** Who will be asked, if the API ever says. */
   reviewers?: Array<{ user_id: string; name: string }>;
 }
 
@@ -354,23 +376,20 @@ export interface ImportReport {
   brand?: { name?: string; logo_url?: string | null; accent?: string | null; favicon_url?: string | null };
 }
 
-export interface Job {
-  id: string;
-  kind: "build" | "import";
-  site_id: string;
-  status: JobStatus;
-  attempts?: number;
-  progress?: { step: string | number; done: number; total: number; message?: string | null; steps?: JobStep[] } | null;
-  result?: ({ report?: ImportReport; build_id?: string } & ImportReport) | null;
-  error?: string | null;
-  created_at: string;
-  updated_at: string;
+export interface UploadedAsset {
+  /** `/docs-assets/<sha256>.<ext>`: what goes in the Markdown and settings. */
+  url: string;
+  name: string;
+  size: number;
+  content_type: string;
+  sha256: string;
 }
 
 // ── Sites ────────────────────────────────────────────────────────────────────
 
-export function listSites(workspaceId: string | null): Promise<{ sites: SiteSummary[]; usage?: Usage }> {
-  return request(q({ workspace_id: workspaceId ?? undefined }) || "");
+/** A workspace's sites, or with `null` your personal ones. */
+export function listSites(workspaceId: string | null): Promise<{ sites: SiteSummary[]; your_role: DocsRole; usage: Usage }> {
+  return request(q({ workspace_id: workspaceId ?? undefined }));
 }
 
 export interface CreateSiteInput {
@@ -380,6 +399,7 @@ export interface CreateSiteInput {
   source: SiteSource;
 }
 
+/** Workspace admins and owners only (editors get 403). GitBook/template sources start a job (`site.job`). */
 export function createSite(input: CreateSiteInput): Promise<Site> {
   return request("", { method: "POST", json: input });
 }
@@ -388,22 +408,21 @@ export function getSite(id: string): Promise<Site> {
   return request(`/${enc(id)}`);
 }
 
-/** A partial `settings` (the API deep-merges and validates; arrays replace). */
+/** A partial `settings` (the API deep-merges, then validates the whole; arrays replace). Nav: use saveNav. */
 export interface SettingsPatch {
   theme?: Partial<Omit<SiteTheme, "brand">> & { brand?: Partial<SiteBrand> };
   ai?: Partial<SiteSettings["ai"]>;
-  access?: Partial<SiteSettings["access"]>;
+  access?: { level?: AccessLevel; password?: string };
   seo?: Partial<SiteSettings["seo"]>;
   review?: Partial<SiteSettings["review"]>;
-  nav?: NavGroup[];
-  redirects?: Redirect[];
 }
 
 export function updateSite(id: string, patch: { name?: string; slug?: string; settings?: SettingsPatch }): Promise<Site> {
   return request(`/${enc(id)}`, { method: "PATCH", json: patch });
 }
 
-export function deleteSite(id: string): Promise<void> {
+/** Admins: soft delete (a job takes the published files down). */
+export function deleteSite(id: string): Promise<{ deleted: true; job: Job | null }> {
   return request(`/${enc(id)}`, { method: "DELETE" });
 }
 
@@ -411,8 +430,17 @@ export function unpublishSite(id: string): Promise<Site> {
   return request(`/${enc(id)}/unpublish`, { method: "POST" });
 }
 
-export function slugAvailable(slug: string): Promise<{ available: boolean; reason?: string | null; suggestion?: string | null }> {
-  return request(`/slug-available${q({ slug })}`);
+export interface SlugStatus {
+  slug: string;
+  available: boolean;
+  reason: "invalid" | "reserved" | "taken" | null;
+  message: string | null;
+  url?: string;
+}
+
+/** `siteId`: changing an existing site's address (its own slug counts as free). */
+export function slugAvailable(slug: string, siteId?: string): Promise<SlugStatus> {
+  return request(`/slug-available${q({ slug, site_id: siteId })}`);
 }
 
 // ── Pages ────────────────────────────────────────────────────────────────────
@@ -421,7 +449,7 @@ export function listPages(siteId: string): Promise<PagesResponse> {
   return request(`/${enc(siteId)}/pages`);
 }
 
-export function createPage(siteId: string, input: { path: string; title: string; group?: string; after_page_id?: string }): Promise<Page> {
+export function createPage(siteId: string, input: { path: string; title: string; group?: string; after_page_id?: string; markdown?: string; description?: string; icon?: string | null }): Promise<Page> {
   return request(`/${enc(siteId)}/pages`, { method: "POST", json: input });
 }
 
@@ -430,44 +458,50 @@ export function getPage(siteId: string, pageId: string): Promise<Page> {
 }
 
 export interface SavePageInput {
-  markdown: string;
-  title: string;
-  description: string;
+  base_rev: number;
+  markdown?: string;
+  title?: string;
+  description?: string;
   icon?: string | null;
   hidden?: boolean;
   path?: string;
-  base_rev: number;
+  frontmatter_extra?: Record<string, unknown>;
 }
 
-/** 409: `base_rev` is stale (someone saved a newer version). 423: someone else holds the lock. */
+/** 409: `base_rev` is stale (`info` holds SaveConflict). 423: someone else holds the lock (`info.lock`). */
 export function savePage(siteId: string, pageId: string, input: SavePageInput): Promise<Page> {
   return request(`/${enc(siteId)}/pages/${enc(pageId)}`, { method: "PUT", json: input });
 }
 
-export function deletePage(siteId: string, pageId: string): Promise<void> {
+/** "/" (the home page) can't be deleted. */
+export function deletePage(siteId: string, pageId: string): Promise<{ deleted: true }> {
   return request(`/${enc(siteId)}/pages/${enc(pageId)}`, { method: "DELETE" });
 }
 
-/** Acquire or extend (heartbeat) the page lock. 423 when someone else holds it; admins may `takeover`. */
-export function lockPage(siteId: string, pageId: string, takeover = false): Promise<{ lock: PageLock }> {
-  return request(`/${enc(siteId)}/pages/${enc(pageId)}/lock${takeover ? "?takeover=1" : ""}`, { method: "POST" });
+/** Acquire or renew (heartbeat every 30 s; a lock lapses 2 min after the last). 423 when someone else holds it; admins may `takeover`. */
+export function lockPage(siteId: string, pageId: string, takeover = false): Promise<{ lock: PageLock | null }> {
+  return request(`/${enc(siteId)}/pages/${enc(pageId)}/lock${takeover ? "?takeover=true" : ""}`, { method: "POST" });
 }
 
-export function unlockPage(siteId: string, pageId: string, opts?: { keepalive?: boolean }): Promise<void> {
+export function unlockPage(siteId: string, pageId: string, opts?: { keepalive?: boolean }): Promise<{ lock: null }> {
   return request(`/${enc(siteId)}/pages/${enc(pageId)}/lock`, { method: "DELETE", keepalive: opts?.keepalive });
 }
 
+/** Newest first, without the Markdown (getVersion has it). */
 export function listVersions(siteId: string, pageId: string): Promise<PageVersion[]> {
-  return request<PageVersion[] | { versions: PageVersion[] }>(`/${enc(siteId)}/pages/${enc(pageId)}/versions`).then((r) =>
-    Array.isArray(r) ? r : r.versions,
-  );
+  return request(`/${enc(siteId)}/pages/${enc(pageId)}/versions`);
 }
 
+export function getVersion(siteId: string, pageId: string, rev: number): Promise<PageVersion> {
+  return request(`/${enc(siteId)}/pages/${enc(pageId)}/versions/${rev}`);
+}
+
+/** The version becomes the newest draft (a new rev). */
 export function restoreVersion(siteId: string, pageId: string, rev: number): Promise<Page> {
   return request(`/${enc(siteId)}/pages/${enc(pageId)}/versions/${rev}/restore`, { method: "POST" });
 }
 
-export function saveNav(siteId: string, nav: NavGroup[]): Promise<{ nav: NavGroup[] } | Site> {
+export function saveNav(siteId: string, nav: NavGroup[]): Promise<{ nav: NavGroup[] }> {
   return request(`/${enc(siteId)}/nav`, { method: "PUT", json: { nav } });
 }
 
@@ -477,24 +511,22 @@ export function getChanges(siteId: string): Promise<ChangesResponse> {
   return request(`/${enc(siteId)}/changes`);
 }
 
-/** 409 with "review required" when the site needs a review and you aren't an admin. */
-export function publishSite(siteId: string, note?: string): Promise<Build> {
+/** 202: the queued build and its job. 409 "review required" for editors when the site needs a review; 429 at the daily cap. */
+export function publishSite(siteId: string, note?: string): Promise<Build & { job: Job | null }> {
   return request(`/${enc(siteId)}/publish`, { method: "POST", json: { note: note || undefined } });
 }
 
 export function createReview(siteId: string, note: string): Promise<Review> {
-  return request(`/${enc(siteId)}/reviews`, { method: "POST", json: { note } });
+  return request(`/${enc(siteId)}/reviews`, { method: "POST", json: { note: note || undefined } });
 }
 
 export function listReviews(siteId: string, status?: ReviewStatus): Promise<Review[]> {
-  return request<Review[] | { reviews: Review[] }>(`/${enc(siteId)}/reviews${q({ status })}`).then((r) =>
-    Array.isArray(r) ? r : r.reviews,
-  );
+  return request(`/${enc(siteId)}/reviews${q({ status })}`);
 }
 
-/** Approve publishes: the response is the build it started (or the updated review). */
-export function approveReview(siteId: string, reviewId: string): Promise<Build | Review> {
-  return request(`/${enc(siteId)}/reviews/${enc(reviewId)}/approve`, { method: "POST" });
+/** Admins: approve publishes (202 with the review and the build it queued). */
+export function approveReview(siteId: string, reviewId: string, comment?: string): Promise<{ review: Review; build: Build & { job?: Job | null } }> {
+  return request(`/${enc(siteId)}/reviews/${enc(reviewId)}/approve`, { method: "POST", json: { comment: comment || undefined } });
 }
 
 export function requestChanges(siteId: string, reviewId: string, comment: string): Promise<Review> {
@@ -505,12 +537,13 @@ export function withdrawReview(siteId: string, reviewId: string): Promise<Review
   return request(`/${enc(siteId)}/reviews/${enc(reviewId)}/withdraw`, { method: "POST" });
 }
 
-export function listBuilds(siteId: string): Promise<Build[]> {
-  return request<Build[] | { builds: Build[] }>(`/${enc(siteId)}/builds`).then((r) => (Array.isArray(r) ? r : r.builds));
+/** Newest first; `live` marks the one readers see. */
+export function listBuilds(siteId: string, limit?: number): Promise<Build[]> {
+  return request(`/${enc(siteId)}/builds${q({ limit })}`);
 }
 
-/** Admins: put an earlier build live again (no rebuild). */
-export function restoreBuild(siteId: string, buildId: string): Promise<Build | Site> {
+/** Admins: put an earlier build live again (no rebuild; a job re-points the site). */
+export function restoreBuild(siteId: string, buildId: string): Promise<{ build: Build; job: Job | null }> {
   return request(`/${enc(siteId)}/builds/${enc(buildId)}/restore`, { method: "POST" });
 }
 
@@ -522,17 +555,26 @@ export function getJob(siteId: string, jobId: string): Promise<Job> {
 
 export const MAX_ASSET_BYTES = 25 * 1024 * 1024;
 
-export async function uploadAsset(siteId: string, file: File): Promise<{ url: string }> {
+export async function uploadAsset(siteId: string, file: File): Promise<UploadedAsset> {
   if (file.size > MAX_ASSET_BYTES) throw new DocsApiError("Files can be up to 25 MB.", 413);
   const form = new FormData();
   form.append("file", file);
   return request(`/${enc(siteId)}/assets`, { method: "POST", body: form });
 }
 
+/**
+ * Where the dashboard can show an uploaded file: `/docs-assets/<name>` only exists on the published
+ * site, so in the app it goes through the API's preview redirect. Anything else is returned as is.
+ */
+export function assetPreviewUrl(siteId: string, url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = /^\/docs-assets\/([^/?#]+)$/.exec(url);
+  return m ? `${API_BASE}${BASE}/${enc(siteId)}/assets/${m[1]}` : url;
+}
+
 // ── Helpers shared by the screens ────────────────────────────────────────────
 
 export const DOCS_HOST_SUFFIX = ".docs.markdrop.in";
-export const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
 
 /** "Acme Docs!" → "acme-docs" (3–40 chars of [a-z0-9-], no leading/trailing dash). */
 export function slugFrom(name: string): string {
@@ -546,20 +588,26 @@ export function slugFrom(name: string): string {
     .replace(/-+$/g, "");
 }
 
-/** Why a slug can't be used, or "" when its shape is fine (the API still checks availability). */
+/** Why a slug can't be used, or "" when its shape is fine (the API also checks reserved and taken). */
 export function slugProblem(slug: string): string {
   if (!slug) return "Choose an address.";
   if (slug.length < 3) return "Use at least 3 characters.";
   if (slug.length > 40) return "Use at most 40 characters.";
-  if (/[^a-z0-9-]/.test(slug)) return "Use lowercase letters, numbers and dashes.";
+  if (/[^a-z0-9-]/.test(slug)) return "Use lowercase letters, numbers and hyphens.";
   if (slug.startsWith("-") || slug.endsWith("-")) return "Start and end with a letter or number.";
   return "";
 }
 
-export const siteHost = (s: Pick<SiteSummary, "slug" | "host">): string => s.host || `${s.slug}${DOCS_HOST_SUFFIX}`;
+/** The free address's host: from `url` when the API gave one, else `<slug>.docs.markdrop.in`. */
+export function siteHost(s: Pick<SiteSummary, "slug" | "url">): string {
+  if (s.url) {
+    try { return new URL(s.url).host; } catch { /* fall through */ }
+  }
+  return `${s.slug}${DOCS_HOST_SUFFIX}`;
+}
 
 /** The address readers use: a live custom domain first, else the free one. */
-export function primaryAddress(s: Pick<SiteSummary, "slug" | "host" | "domains">): string {
+export function primaryAddress(s: Pick<SiteSummary, "slug" | "url" | "domains">): string {
   const own = s.domains?.find((d) => d.status === "live" || d.status === "verified");
   return own?.host ?? siteHost(s);
 }
@@ -578,21 +626,26 @@ export const PRESETS: Array<{ id: ThemePreset; name: string; blurb: string }> = 
 
 export const presetName = (p: ThemePreset | undefined | null): string => PRESETS.find((x) => x.id === p)?.name ?? "Clean";
 
-/** Fonts the engine allows (ids → labels). "theme" = the preset's own. */
+/** The font ids the API accepts (services/docs_site_settings.py FONT_IDS); null = the preset's own. */
 export const FONTS: Array<{ id: string; label: string; family: string }> = [
-  { id: "manrope", label: "Manrope", family: "Manrope, sans-serif" },
+  { id: "system", label: "System UI", family: "system-ui, sans-serif" },
   { id: "inter", label: "Inter", family: "Inter, sans-serif" },
-  { id: "newsreader", label: "Newsreader", family: "Newsreader, Georgia, serif" },
-  { id: "source-sans-3", label: "Source Sans 3", family: '"Source Sans 3", sans-serif' },
-  { id: "ibm-plex-sans", label: "IBM Plex Sans", family: '"IBM Plex Sans", sans-serif' },
-  { id: "dm-sans", label: "DM Sans", family: '"DM Sans", sans-serif' },
-  { id: "nunito", label: "Nunito", family: "Nunito, sans-serif" },
+  { id: "manrope", label: "Manrope", family: "Manrope, var(--font-sans)" },
   { id: "geist", label: "Geist", family: "Geist, sans-serif" },
+  { id: "dmsans", label: "DM Sans", family: '"DM Sans", sans-serif' },
+  { id: "plex", label: "IBM Plex Sans", family: '"IBM Plex Sans", sans-serif' },
+  { id: "nunito", label: "Nunito", family: "Nunito, sans-serif" },
+  { id: "source-sans-3", label: "Source Sans 3", family: '"Source Sans 3", sans-serif' },
+  { id: "newsreader", label: "Newsreader", family: "Newsreader, Georgia, serif" },
+  { id: "source-serif-4", label: "Source Serif 4", family: '"Source Serif 4", Georgia, serif' },
+  { id: "lora", label: "Lora", family: "Lora, Georgia, serif" },
+  { id: "jetbrains-mono", label: "JetBrains Mono", family: '"JetBrains Mono", var(--font-mono)' },
+  { id: "plex-mono", label: "IBM Plex Mono", family: '"IBM Plex Mono", var(--font-mono)' },
 ];
 
 export const CUSTOM_CSS_MAX = 20 * 1024;
 
-/** The same rules the API enforces, so the panel can say what's wrong before saving. */
+/** A first check of the rules the API enforces, so the panel can say what's wrong before saving. */
 export function customCssProblem(css: string): string {
   if (new Blob([css]).size > CUSTOM_CSS_MAX) return "Custom CSS can be up to 20 KB.";
   if (/@import\s+(url\()?\s*["']?\s*(https?:)?\/\//i.test(css)) return "Remote @import isn't allowed. Paste the rules instead.";
@@ -601,3 +654,4 @@ export function customCssProblem(css: string): string {
   if (/<\/?\s*(script|style)/i.test(css)) return "Only CSS rules go here, no HTML tags.";
   return "";
 }
+

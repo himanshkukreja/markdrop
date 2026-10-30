@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Alert, Anchor, Avatar, Badge, Button, ConfirmDialog, Dialog, EmptyState, Field, Icon, Skeleton, Spinner, Textarea, useToast, type Tone } from "@/components/ui";
 import {
   approveReview, createReview, docsErrorMessage, docsErrorStatus, getChanges, listBuilds, listReviews, primaryAddress,
-  publishSite, requestChanges, restoreBuild, withdrawReview,
+  getJob, publishSite, requestChanges, restoreBuild, withdrawReview,
   type Build, type ChangesResponse, type PageChange, type Review,
 } from "@/lib/docsSites";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,17 +13,29 @@ import SiteBar from "./SiteBar";
 import { useSite } from "./SiteContext";
 
 const RUNNING = new Set(["queued", "building", "publishing"]);
-const KIND: Record<PageChange["kind"], { label: string; tone: Tone }> = {
-  edited: { label: "Edited", tone: "info" },
-  new: { label: "New", tone: "success" },
+const KIND: Record<PageChange["change"], { label: string; tone: Tone }> = {
+  modified: { label: "Edited", tone: "info" },
+  added: { label: "New", tone: "success" },
   deleted: { label: "Deleted", tone: "danger" },
-  moved: { label: "Moved", tone: "neutral" },
 };
-const SETTING_LABEL: Record<string, string> = { theme: "Design", nav: "Navigation", ai: "Ask AI", access: "Access", seo: "Search indexing", redirects: "Redirects" };
+
+/** Site settings the changes list names (GET /changes `settings_changed`), with where to change them. */
+const SETTING: Record<string, { label: string; badge: string; href: string }> = {
+  theme: { label: "Theme and brand", badge: "Design", href: "/design" },
+  nav: { label: "Sidebar order", badge: "Pages", href: "" },
+  ai: { label: "Ask AI", badge: "Settings", href: "/settings#ai" },
+  access: { label: "Who can read it", badge: "Settings", href: "/settings#access" },
+  seo: { label: "Search indexing", badge: "Settings", href: "/settings#access" },
+  name: { label: "Site name", badge: "Settings", href: "/settings" },
+  address: { label: "Address", badge: "Settings", href: "/settings#address" },
+};
 
 function changeMeta(c: PageChange): string {
-  const who = c.by_name ? firstName(c.by_name) : null;
-  const what = c.kind === "new" ? `new page${c.group ? ` in ${c.group}` : ""}` : c.kind === "deleted" ? "removed" : c.kind === "moved" ? "moved" : c.lines_changed ? `${plural(c.lines_changed, "line")} changed` : "edited";
+  const who = c.updated_by_name ? firstName(c.updated_by_name) : null;
+  const what = c.change === "added" ? "new page" : c.change === "deleted" ? "removed" : [
+    c.lines_changed ? `${plural(c.lines_changed, "line")} changed` : "edited",
+    c.moved_from ? `moved from ${c.moved_from}` : null,
+  ].filter(Boolean).join(", ");
   return [who, what].filter(Boolean).join(" · ");
 }
 
@@ -142,7 +154,7 @@ export default function PublishScreen() {
   const approve = (r: Review) => run(`approve:${r.id}`, async () => {
     const out = await approveReview(site.id, r.id);
     setReviews((list) => (list ?? []).filter((x) => x.id !== r.id));
-    if ((out as Build).number !== undefined) track(out as Build);
+    if (out?.build?.id) track(out.build);
     else void load();
     toast.info(`Approved. Publishing ${firstName(r.requested_by_name)}'s changes…`);
   });
@@ -163,24 +175,39 @@ export default function PublishScreen() {
     toast.success("Review withdrawn. Your drafts are unchanged.");
   });
 
+  // Restore runs as a job (the site is re-pointed, no rebuild): wait for it, then refresh.
+  const [restoring, setRestoring] = useState<string | null>(null);
   const restore = async () => {
     if (!restoreFor) return;
     const b = restoreFor;
-    await restoreBuild(site.id, b.id);
+    const { job } = await restoreBuild(site.id, b.id);
     setRestoreFor(null);
-    toast.success(`Publish #${b.number} is live again.`);
-    setBuilds(await listBuilds(site.id));
-    void reloadSite();
+    setRestoring(b.id);
+    try {
+      let status = job?.status ?? "done";
+      let error: string | null | undefined = null;
+      for (let i = 0; job && i < 60 && (status === "queued" || status === "running"); i++) {
+        await new Promise((r) => window.setTimeout(r, 1500));
+        const j = await getJob(site.id, job.id);
+        status = j.status;
+        error = j.error;
+      }
+      if (status === "failed") toast.error(error || `Publish #${b.number} couldn't be put back. Nothing changed for readers.`);
+      else if (status === "done") toast.success(`Publish #${b.number} is live again.`);
+      else toast.info(`Putting publish #${b.number} back is taking a while. Check again in a minute.`);
+    } finally {
+      setRestoring(null);
+      setBuilds(await listBuilds(site.id).catch(() => builds ?? []));
+      void reloadSite();
+    }
   };
 
   const pageChanges = changes?.pages ?? [];
-  const settingsRows: PageChange[] = changes?.settings_changed
-    ? [{ page_id: "", path: "", title: (changes.settings?.length ? changes.settings.map((s) => SETTING_LABEL[s] ?? s).join(", ") : "Site settings"), kind: "edited", by_name: changes.settings_by_name ?? null }]
-    : [];
-  const count = pageChanges.length + settingsRows.length;
+  const settingKeys = changes?.settings_changed ?? [];
+  const count = changes?.count ?? pageChanges.length + settingKeys.length;
   const mine = reviews?.filter((r) => r.requested_by === user?.id) ?? [];
   const othersOpen = reviews?.filter((r) => r.requested_by !== user?.id) ?? [];
-  const live = builds?.find((b) => b.status === "live") ?? null;
+  const live = builds?.find((b) => b.live) ?? builds?.find((b) => b.status === "live") ?? null;
   const address = primaryAddress(site);
   const reviewers = reviews?.[0]?.reviewers ?? null;
   const oldest = builds && builds.length ? builds[builds.length - 1]!.id : null;
@@ -218,20 +245,31 @@ export default function PublishScreen() {
 
           {count > 0 && (
             <ul className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
-              {[...pageChanges, ...settingsRows].map((c, i) => (
-                <li key={c.page_id || `settings-${i}`} className={`flex items-center gap-3 px-4 py-3 ${i ? "border-t border-border" : ""}`}>
-                  <Badge tone={c.page_id ? KIND[c.kind].tone : "neutral"} size="sm">{c.page_id ? KIND[c.kind].label : "Design"}</Badge>
+              {pageChanges.map((c, i) => (
+                <li key={c.id} className={`flex items-center gap-3 px-4 py-3 ${i ? "border-t border-border" : ""}`}>
+                  <Badge tone={KIND[c.change]?.tone ?? "neutral"} size="sm">{KIND[c.change]?.label ?? "Changed"}</Badge>
                   <span className="min-w-0 flex-1">
                     <strong className="block truncate font-semibold text-text" dir="auto">{c.title}</strong>
-                    <span className="block text-[12px] text-text-muted">{c.page_id ? changeMeta(c) : [c.by_name && firstName(c.by_name), "site settings"].filter(Boolean).join(" · ")}</span>
+                    <span className="block text-[12px] text-text-muted">{changeMeta(c)}</span>
                   </span>
-                  {c.page_id && c.kind !== "deleted" ? (
-                    <Anchor href={`${base}?page=${encodeURIComponent(c.page_id)}`} className="shrink-0 text-[13px] text-accent-text underline-offset-2 hover:underline">View changes</Anchor>
-                  ) : !c.page_id ? (
-                    <Anchor href={`${base}/design`} className="shrink-0 text-[13px] text-accent-text underline-offset-2 hover:underline">Open Design</Anchor>
-                  ) : null}
+                  {c.change !== "deleted" && (
+                    <Anchor href={`${base}?page=${encodeURIComponent(c.id)}`} className="shrink-0 text-[13px] text-accent-text underline-offset-2 hover:underline">View changes</Anchor>
+                  )}
                 </li>
               ))}
+              {settingKeys.map((k, i) => {
+                const s = SETTING[k] ?? { label: k, badge: "Settings", href: "/settings" };
+                return (
+                  <li key={`setting-${k}`} className={`flex items-center gap-3 px-4 py-3 ${i || pageChanges.length ? "border-t border-border" : ""}`}>
+                    <Badge size="sm">{s.badge}</Badge>
+                    <span className="min-w-0 flex-1">
+                      <strong className="block truncate font-semibold text-text">{s.label}</strong>
+                      <span className="block text-[12px] text-text-muted">site settings</span>
+                    </span>
+                    <Anchor href={`${base}${s.href}`} className="shrink-0 text-[13px] text-accent-text underline-offset-2 hover:underline">Open</Anchor>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
@@ -324,7 +362,9 @@ export default function PublishScreen() {
             <ol className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
               {builds.map((b, i) => {
                 const isRunning = RUNNING.has(b.status);
-                const canRestore = isAdmin && !isRunning && b.status !== "live" && b.status !== "failed" && !!b.stats;
+                const isLive = b.live ?? b.status === "live";
+                // Only a build that went live once can be put back (the API also wants its manifest).
+                const canRestore = isAdmin && !isRunning && !isLive && (b.status === "live" || b.status === "superseded") && !!b.manifest_hash;
                 return (
                   <li key={b.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${i ? "border-t border-border" : ""}`}>
                     <Avatar name={b.requested_by_name || "Someone"} size="sm" />
@@ -335,9 +375,11 @@ export default function PublishScreen() {
                       </span>
                       {b.status === "failed" && b.error && <span className="block text-[12px] text-danger">{b.error}</span>}
                     </span>
-                    {b.status === "live" && <Badge tone="success" size="sm" dot>Live</Badge>}
+                    {isLive && <Badge tone="success" size="sm" dot>Live</Badge>}
                     {b.status === "failed" && <Badge tone="danger" size="sm">Failed</Badge>}
-                    {canRestore && <Button variant="ghost" size="sm" iconLeft="rotate" onClick={() => setRestoreFor(b)}>Restore</Button>}
+                    {restoring === b.id
+                      ? <Badge size="sm"><Spinner size={11} /> Restoring…</Badge>
+                      : canRestore && <Button variant="ghost" size="sm" iconLeft="rotate" disabled={!!restoring} onClick={() => setRestoreFor(b)}>Restore</Button>}
                   </li>
                 );
               })}

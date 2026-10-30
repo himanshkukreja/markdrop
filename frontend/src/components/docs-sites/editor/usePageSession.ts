@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DocsApiError, docsErrorMessage, docsErrorStatus, getPage, lockPage, restoreVersion, savePage, unlockPage,
-  type Page, type PageLock,
+  type Page, type PageLock, type SaveConflict,
 } from "@/lib/docsSites";
 
 /** Lock heartbeat: the server lets a lock lapse 2 minutes after the last one. */
 export const HEARTBEAT_MS = 30_000;
 /** Autosave this long after the last keystroke. */
-export const AUTOSAVE_MS = 1200;
+export const AUTOSAVE_MS = 2000;
 
 export interface PageFields {
   title: string;
@@ -41,19 +41,28 @@ const fieldsOf = (p: Page): PageFields => ({
   icon: p.icon ?? null,
   hidden: !!p.hidden,
   path: p.path,
-  markdown: p.draft?.markdown ?? "",
+  markdown: p.markdown ?? "",
 });
 
 const lockFrom = (e: unknown, fallback: PageLock | null): PageLock | null => {
-  const l = e instanceof DocsApiError ? (e.detail?.lock as PageLock | undefined) : undefined;
+  const l = e instanceof DocsApiError ? (e.info.lock as PageLock | undefined) : undefined;
   return l && typeof l === "object" && l.name ? l : fallback;
 };
 
+/** First path segments the docs site uses itself (the API refuses them too). */
+const RESERVED_SEGMENTS = new Set(["docs-assets", "mcp", "md", "og", "changelog"]);
+
+/** The API's page-address rules: "/" or up to 6 segments of [a-z0-9-]. */
 export function pathProblem(path: string): string {
+  if (path === "/") return "";
   if (!path.startsWith("/")) return "The address starts with /.";
-  if (path !== "/" && path.endsWith("/")) return "The address can't end with /.";
-  if (/[^a-z0-9\-/_.]/.test(path)) return "Use lowercase letters, numbers, dashes and /.";
-  if (/\/\//.test(path)) return "The address can't have //.";
+  if (path.endsWith("/")) return "The address can't end with /.";
+  const parts = path.slice(1).split("/");
+  if (parts.some((p) => !p)) return "The address can't have //.";
+  if (parts.some((p) => !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(p))) return "Use lowercase letters, numbers and hyphens between the slashes.";
+  if (parts.length > 6) return "Use at most 6 levels.";
+  if (path.length > 200) return "That address is too long.";
+  if (RESERVED_SEGMENTS.has(parts[0]!)) return `/${parts[0]} is used by the docs site itself.`;
   return "";
 }
 
@@ -74,7 +83,7 @@ export function usePageSession({ siteId, pageId, canEdit, onSaved }: {
   const [loadError, setLoadError] = useState<{ status: number; message: string } | null>(null);
   const [save, setSave] = useState<SaveState>({ state: "saved", at: null });
   const [lock, setLockState] = useState<LockState>({ kind: "none" });
-  const [conflict, setConflict] = useState<Page | null>(null);
+  const [conflict, setConflict] = useState<SaveConflict | null>(null);
 
   const baseRev = useRef(0);
   const fieldsRef = useRef<PageFields | null>(null);
@@ -96,9 +105,9 @@ export function usePageSession({ siteId, pageId, canEdit, onSaved }: {
     setPage(p);
     setFields(f);
     fieldsRef.current = f;
-    baseRev.current = p.draft?.rev ?? 0;
+    baseRev.current = p.rev ?? 0;
     dirty.current = false;
-    setSave({ state: "saved", at: p.draft?.updated_at ?? null });
+    setSave({ state: "saved", at: p.updated_at ?? null });
   }, []);
 
   const clearTimer = () => {
@@ -118,17 +127,22 @@ export function usePageSession({ siteId, pageId, canEdit, onSaved }: {
     setSave({ state: "saving" });
     try {
       const p = await savePage(siteId, pageId, { ...f, title: f.title.trim(), base_rev: baseRev.current });
-      baseRev.current = p.draft.rev;
+      baseRev.current = p.rev;
       setPage(p);
       onSavedRef.current?.(p);
       if (dirty.current) setSave({ state: "dirty" });
-      else setSave({ state: "saved", at: p.draft.updated_at });
+      else setSave({ state: "saved", at: p.updated_at });
     } catch (e) {
       dirty.current = true;
       const status = docsErrorStatus(e);
-      if (status === 409) {
-        const current = (e instanceof DocsApiError ? (e.detail?.current as Page | undefined) : undefined) ?? (await getPage(siteId, pageId).catch(() => null));
-        setConflict(current);
+      const info = e instanceof DocsApiError ? e.info : {};
+      if (status === 409 && typeof info.rev === "number") {
+        setConflict({
+          rev: info.rev,
+          updated_by: (info.updated_by as string | undefined) ?? null,
+          updated_by_name: (info.updated_by_name as string | undefined) ?? null,
+          updated_at: (info.updated_at as string | undefined) ?? null,
+        });
         setSave({ state: "error", message: "Someone saved a newer version." });
       } else if (status === 423) {
         setLock({ kind: "theirs", lock: lockFrom(e, null), lost: true });
@@ -266,14 +280,17 @@ export function usePageSession({ siteId, pageId, canEdit, onSaved }: {
   /** 409: keep mine (overwrite their version) or take theirs (drop my unsaved changes). */
   const resolveConflict = useCallback(async (choice: "mine" | "theirs") => {
     if (!pageId) return;
-    const current = conflict ?? (await getPage(siteId, pageId).catch(() => null));
+    const known = conflict;
     setConflict(null);
-    if (!current) return;
     if (choice === "theirs") {
-      apply(current);
+      const current = await getPage(siteId, pageId).catch(() => null);
+      if (current) apply(current);
       return;
     }
-    baseRev.current = current.draft.rev;
+    // Save on top of their version: the next save names their rev as its base.
+    const rev = known?.rev ?? (await getPage(siteId, pageId).catch(() => null))?.rev;
+    if (rev === undefined) return;
+    baseRev.current = rev;
     dirty.current = true;
     await doSave();
   }, [siteId, pageId, conflict, apply, doSave]);

@@ -36,7 +36,7 @@ export const LOOKS: Record<ThemePreset, PresetLook> = {
 
 /** The Google Fonts the preview needs (presets + the font picker), loaded once by the Design panel. */
 export const PREVIEW_FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@400;700;800&family=DM+Sans:wght@400;600;700&family=Geist:wght@400;600&family=Inter:wght@400;600;700&display=swap";
+  "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@400;700;800&family=DM+Sans:wght@400;600;700&family=Geist:wght@400;600&family=Inter:wght@400;600;700&family=Lora:wght@500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap";
 
 const CORNER_R: Record<Corners, string> = { sharp: "3px", soft: "8px", round: "16px" };
 
@@ -177,7 +177,10 @@ export async function coloursFromImage(src: string, n = 4): Promise<string[]> {
     if (out.every((o) => Math.abs(o[0] - c[0]) + Math.abs(o[1] - c[1]) + Math.abs(o[2] - c[2]) > 60)) out.push(c);
     if (out.length >= n) break;
   }
-  // Most saturated first: that's usually the brand colour, not the white or black around it.
+  // Coloured before neutral (the white or black around a logo is rarely the brand), then by area.
   const sat = ([r, g, b]: RGB) => Math.max(r, g, b) - Math.min(r, g, b);
-  return out.sort((a, b) => sat(b) - sat(a)).map(toHex);
+  return out
+    .map((c, i) => ({ c, i, neutral: sat(c) < 40 }))
+    .sort((a, b) => Number(a.neutral) - Number(b.neutral) || a.i - b.i)
+    .map((x) => toHex(x.c));
 }
