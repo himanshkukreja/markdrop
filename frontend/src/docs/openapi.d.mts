@@ -112,8 +112,18 @@ export interface ApiRequestShape {
   auth: ApiAuth;
   body: { contentType: string; fields: Array<{ name: string; binary?: boolean }> } | null;
 }
-export function curlCommand(op: ApiRequestShape, values: ApiRequestValues, opts?: { token?: string }): string;
-export function authSentence(op: ApiOperation): string;
-export function operationMarkdown(op: ApiOperation): string;
+/** Token wording: the env var samples read, the token's prefix, whose sign-in a session route takes. */
+export interface ApiAuthWording {
+  tokenEnv?: string;
+  tokenPrefix?: string;
+  sessionHost?: string;
+}
+export function curlCommand(op: ApiRequestShape, values: ApiRequestValues, opts?: { token?: string; tokenEnv?: string }): string;
+export function authSentence(op: ApiOperation, auth?: ApiAuthWording): string;
+export function operationMarkdown(op: ApiOperation, auth?: ApiAuthWording): string;
 export function samplesMarkdown(op: Pick<ApiOperation, "samples">): string;
-export function buildApiReference(spec: unknown, overlay?: unknown, opts?: { server?: string; base?: string }): ApiReference;
+export function buildApiReference(
+  spec: unknown,
+  overlay?: unknown,
+  opts?: { server?: string; base?: string; /** Vendor extension with auth and rate limits (default "x-docs"). */ extension?: string } & ApiAuthWording,
+): ApiReference;

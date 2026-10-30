@@ -4,14 +4,23 @@
  */
 import { normalizeHost } from "@/components/tenant/hosts";
 
+/** The primary docs host: where markdrop.in/docs redirects, and the app's Docs links. */
 export const DOCS_HOST = normalizeHost(process.env.NEXT_PUBLIC_DOCS_HOST || "docs.markdrop.in");
 /** Local development: http://docs.localhost:<port> resolves to 127.0.0.1 in every modern browser. */
 export const DOCS_DEV_HOST = "docs.localhost";
 /** The internal route tree the docs host is rewritten to (404 on every other host). */
 export const DOCS_INTERNAL = "/docs-site";
 
+/**
+ * Every host that serves the docs: the primary host, the dev host, and any listed in
+ * NEXT_PUBLIC_DOCS_HOSTS (comma-separated). They all serve the same site for now.
+ */
+export const DOCS_HOSTS: ReadonlySet<string> = new Set(
+  [DOCS_HOST, DOCS_DEV_HOST, ...(process.env.NEXT_PUBLIC_DOCS_HOSTS || "").split(",").map((h) => normalizeHost(h.trim()))].filter(Boolean),
+);
+
 export function isDocsHost(host: string): boolean {
-  return host === DOCS_HOST || host === DOCS_DEV_HOST;
+  return DOCS_HOSTS.has(host);
 }
 
 /** Where markdrop.in/docs/... goes: the docs host (http + the same port when running locally). */
