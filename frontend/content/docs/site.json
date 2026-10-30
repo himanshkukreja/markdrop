@@ -1,4 +1,5 @@
 {
+  "id": "markdrop",
   "name": "Markdrop Docs",
   "description": "Guides for publishing documents and files, sharing them safely, running workspaces on your own domain, and using Markdrop from your editor, terminal and AI assistant.",
   "url": "https://docs.markdrop.in",
@@ -300,6 +301,46 @@
     "overlay": "api-reference.json",
     "tab": "api",
     "base": "/api",
-    "server": "https://api.markdrop.in"
+    "server": "https://api.markdrop.in",
+    "extension": "x-markdrop"
+  },
+  "brand": {
+    "name": "Markdrop",
+    "label": "Docs",
+    "logo": {
+      "builtin": "markdrop"
+    },
+    "favicon": "/icon.svg",
+    "og": {
+      "background": "#0f172a",
+      "accent": "#3b82f6",
+      "mark": "markdrop"
+    }
+  },
+  "ai": {
+    "enabled": true,
+    "api": "https://api.markdrop.in",
+    "site": "markdrop",
+    "assistantName": "Ask AI"
+  },
+  "tryIt": {
+    "tokenHelpUrl": "https://markdrop.in/settings/tokens",
+    "tokenEnv": "MARKDROP_TOKEN",
+    "tokenPrefix": "mdk_"
+  },
+  "mcp": {
+    "name": "markdrop-docs",
+    "examples": {
+      "queries": [
+        "custom domain DNS",
+        "replace a file and keep the link"
+      ],
+      "page": "/workspaces/custom-domain",
+      "path": "/cli/install",
+      "report": "/cli/upload-and-replace"
+    }
+  },
+  "integrations": {
+    "markdropApp": true
   }
 }

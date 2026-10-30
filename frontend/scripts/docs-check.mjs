@@ -10,7 +10,8 @@
  * (listed but not written, written but not listed), internal links and #anchors (to pages,
  * prerequisites, card hrefs, changelog docs), directive names / attributes / balance, card icons,
  * tabs structure, one video slot per page, headings (no H1, unique ids), changelog.json and
- * videos.json, and media (see "media" below). Errors exit 1; warnings (pages not written yet,
+ * videos.json, site.json's settings (id, brand, ai, tryIt, mcp, integrations: types, hex colours,
+ * the logo's shape and files), and media (see "media" below). Errors exit 1; warnings (pages not written yet,
  * orphans) don't, unless --strict.
  *
  * Media (files under public/docs-assets, sizes in content/docs/media.json):
@@ -201,16 +202,23 @@ if (site.openapi?.spec) {
   if (spec.missing || !spec.value) err("site.json", `openapi.spec ${cfg.spec} is missing: run npm run docs:openapi`);
   else {
     let ref = null;
+    const extension = cfg.extension || "x-docs";
+    let sessionHost;
     try {
-      ref = buildApiReference(spec.value, overlay, { server: cfg.server, base: cfg.base });
+      sessionHost = site.product?.url ? new URL(site.product.url).host : undefined;
+    } catch {
+      sessionHost = undefined;
+    }
+    try {
+      ref = buildApiReference(spec.value, overlay, { server: cfg.server, base: cfg.base, extension, tokenEnv: site.tryIt?.tokenEnv, tokenPrefix: site.tryIt?.tokenPrefix, sessionHost });
     } catch (e) {
       err(cfg.overlay || cfg.spec, `the API reference doesn't build: ${e.message}`);
     }
     if (ref) {
       if (cfg.tab && !(site.tabs ?? []).some((t) => t.id === cfg.tab)) err("site.json", `openapi.tab "${cfg.tab}" isn't in tabs`);
       for (const msg of ref.problems) (/no title|no group/.test(msg) ? warn : err)(cfg.overlay || cfg.spec, msg);
-      const updated = spec.value.info?.["x-markdrop-exported"];
-      if (!updated) err(cfg.spec, "no info.x-markdrop-exported date: refresh it with npm run docs:openapi");
+      const updated = spec.value.info?.[`${extension}-exported`];
+      if (!updated) err(cfg.spec, `no info.${extension}-exported date: refresh it with npm run docs:openapi`);
       for (const op of ref.ops) {
         if (pages.has(op.path)) {
           warn(pages.get(op.path).file, `${op.path} is also generated for ${op.key}; the written page wins`);
@@ -382,6 +390,149 @@ for (const a of site.home?.areas ?? []) if (!(site.nav ?? []).some((g) => g.grou
 for (const [p, g] of apiPaths) if (!listed.has(p)) listed.set(p, g);
 for (const [p, pg] of pages) if (pg.file !== "index.md" && !listed.has(p)) warn(pg.file, `${p} is not in site.json nav (it builds, but nobody can find it)`);
 
+/* ── site settings (brand, ai, tryIt, mcp, integrations) ─────────────────── */
+// All optional; absent, the engine is neutral (no Markdrop branding, Ask AI off). See src/docs/brand.ts.
+/** Logo and favicon files under /docs-assets/, counted as used below. */
+const brandAssets = [];
+{
+  const S = "site.json";
+  const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+  const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+  const isStr = (v) => typeof v === "string" && v.trim().length > 0;
+  const httpsUrl = (v) => {
+    try {
+      return new URL(v).protocol === "https:";
+    } catch {
+      return false;
+    }
+  };
+  const httpUrl = (v) => {
+    try {
+      return /^https?:$/.test(new URL(v).protocol);
+    } catch {
+      return false;
+    }
+  };
+  const unknown = (key, obj, known) => {
+    for (const k of Object.keys(obj)) if (!known.includes(k)) warn(S, `${key}.${k} is not a setting (ignored)`);
+  };
+  /**
+   * A file under /docs-assets/ (the only public folder the docs host serves as-is: see
+   * src/docs/host.ts) that exists in public/, or an https URL.
+   */
+  const assetRef = (key, v) => {
+    if (!isStr(v)) return err(S, `${key} must be a path like /docs-assets/brand/logo.svg or an https URL`);
+    if (v.startsWith("/") && !v.startsWith("//")) {
+      if (!v.startsWith("/docs-assets/")) err(S, `${key} ${v} must be under /docs-assets/ (the docs host serves nothing else from public/)`);
+      else if (!fs.existsSync(path.join(ROOT, "public", v.split(/[?#]/)[0]))) err(S, `${key} ${v} doesn't exist in public/`);
+      else brandAssets.push(v.split(/[?#]/)[0]);
+    } else if (!httpsUrl(v)) err(S, `${key} "${v}" must be a /docs-assets/ path or an https URL`);
+  };
+  const colour = (key, v) => {
+    if (v !== undefined && !(typeof v === "string" && HEX.test(v))) err(S, `${key} "${v}" must be a hex colour like #2563eb`);
+  };
+  const ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+  if (site.id !== undefined && !(typeof site.id === "string" && ID.test(site.id))) err(S, `id "${site.id}" must be lowercase letters, digits and dashes`);
+
+  const b = site.brand;
+  if (b !== undefined) {
+    if (!isObj(b)) err(S, "brand must be an object");
+    else {
+      unknown("brand", b, ["name", "label", "logo", "favicon", "accent", "accentDark", "og"]);
+      for (const k of ["name", "label"]) if (b[k] !== undefined && typeof b[k] !== "string") err(S, `brand.${k} must be a string`);
+      if (b.logo !== undefined) {
+        const l = b.logo;
+        if (!isObj(l)) err(S, 'brand.logo must be { "builtin": "markdrop" } or { "light": "…", "dark"?: "…", "alt"?: "…", "wordmark"?: true }');
+        else if ("builtin" in l) {
+          if (l.builtin !== "markdrop") err(S, `brand.logo.builtin "${l.builtin}" isn't a built-in logo (only "markdrop")`);
+          if ("light" in l || "dark" in l) err(S, "brand.logo has both builtin and images: pick one");
+          unknown("brand.logo", l, ["builtin"]);
+        } else {
+          unknown("brand.logo", l, ["light", "dark", "alt", "wordmark"]);
+          if (l.light === undefined) err(S, "brand.logo needs light (the image for the light theme), or builtin");
+          else assetRef("brand.logo.light", l.light);
+          if (l.dark !== undefined) assetRef("brand.logo.dark", l.dark);
+          if (l.alt !== undefined && !isStr(l.alt)) err(S, "brand.logo.alt must be a non-empty string");
+          if (l.wordmark !== undefined && typeof l.wordmark !== "boolean") err(S, "brand.logo.wordmark must be true or false");
+          if (l.wordmark && !isStr(l.alt) && !isStr(b.name)) warn(S, "brand.logo is a wordmark with no alt or brand.name: screen readers get the site name");
+        }
+      }
+      // "/icon.svg" is the app's own icon (src/app/icon.svg, served by a route, not from public/).
+      if (b.favicon !== undefined && b.favicon !== "/icon.svg") assetRef("brand.favicon", b.favicon);
+      colour("brand.accent", b.accent);
+      colour("brand.accentDark", b.accentDark);
+      if (b.og !== undefined) {
+        if (!isObj(b.og)) err(S, "brand.og must be an object");
+        else {
+          unknown("brand.og", b.og, ["background", "accent", "mark"]);
+          colour("brand.og.background", b.og.background);
+          colour("brand.og.accent", b.og.accent);
+          if (b.og.mark !== undefined && !["markdrop", "none"].includes(b.og.mark)) err(S, `brand.og.mark "${b.og.mark}" must be "markdrop" or "none"`);
+        }
+      }
+    }
+  }
+
+  const ai = site.ai;
+  if (ai !== undefined) {
+    if (!isObj(ai)) err(S, "ai must be an object");
+    else {
+      unknown("ai", ai, ["enabled", "api", "site", "assistantName"]);
+      if (ai.enabled !== undefined && typeof ai.enabled !== "boolean") err(S, "ai.enabled must be true or false");
+      if (ai.api !== undefined && !(typeof ai.api === "string" && httpUrl(ai.api))) err(S, `ai.api "${ai.api}" must be an http(s) URL`);
+      if (ai.enabled === true && ai.api === undefined) err(S, "ai.enabled is true but ai.api is missing: Ask AI stays off");
+      if (ai.site !== undefined && !(typeof ai.site === "string" && ID.test(ai.site))) err(S, `ai.site "${ai.site}" must be lowercase letters, digits and dashes`);
+      if (ai.assistantName !== undefined && !(isStr(ai.assistantName) && ai.assistantName.length <= 40)) err(S, "ai.assistantName must be a short non-empty string (40 characters at most)");
+    }
+  }
+
+  const t = site.tryIt;
+  if (t !== undefined) {
+    if (!isObj(t)) err(S, "tryIt must be an object");
+    else {
+      unknown("tryIt", t, ["tokenHelpUrl", "tokenEnv", "tokenPrefix"]);
+      if (t.tokenHelpUrl !== undefined && !(typeof t.tokenHelpUrl === "string" && httpsUrl(t.tokenHelpUrl))) err(S, `tryIt.tokenHelpUrl "${t.tokenHelpUrl}" must be an https URL`);
+      if (t.tokenEnv !== undefined && !(typeof t.tokenEnv === "string" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(t.tokenEnv))) err(S, `tryIt.tokenEnv "${t.tokenEnv}" must be an environment variable name like API_TOKEN`);
+      if (t.tokenPrefix !== undefined && !(typeof t.tokenPrefix === "string" && /^[A-Za-z0-9_-]{1,16}$/.test(t.tokenPrefix))) err(S, `tryIt.tokenPrefix "${t.tokenPrefix}" must be up to 16 letters, digits, - or _`);
+    }
+  }
+
+  const m = site.mcp;
+  if (m !== undefined) {
+    if (!isObj(m)) err(S, "mcp must be an object");
+    else {
+      unknown("mcp", m, ["name", "examples"]);
+      if (m.name !== undefined && !(typeof m.name === "string" && /^[a-z0-9][a-z0-9._-]{0,63}$/i.test(m.name))) err(S, `mcp.name "${m.name}" must be letters, digits, dots, dashes or underscores`);
+      const ex = m.examples;
+      if (ex !== undefined) {
+        if (!isObj(ex)) err(S, "mcp.examples must be an object");
+        else {
+          unknown("mcp.examples", ex, ["queries", "page", "path", "report"]);
+          if (ex.queries !== undefined && !(Array.isArray(ex.queries) && ex.queries.every(isStr))) err(S, "mcp.examples.queries must be a list of strings");
+          for (const k of ["page", "path", "report"]) {
+            if (ex[k] === undefined) continue;
+            if (typeof ex[k] !== "string") err(S, `mcp.examples.${k} must be a page path`);
+            else if (!pages.has(ex[k])) err(S, `mcp.examples.${k} ${ex[k]} isn't a page`);
+          }
+        }
+      }
+    }
+  }
+
+  const ig = site.integrations;
+  if (ig !== undefined) {
+    if (!isObj(ig)) err(S, "integrations must be an object");
+    else {
+      unknown("integrations", ig, ["markdropApp"]);
+      if (ig.markdropApp !== undefined && typeof ig.markdropApp !== "boolean") err(S, "integrations.markdropApp must be true or false");
+    }
+  }
+
+  if (site.openapi?.extension !== undefined && !(typeof site.openapi.extension === "string" && /^x-[a-z0-9-]+$/i.test(site.openapi.extension)))
+    err(S, `openapi.extension "${site.openapi.extension}" must be a vendor extension name like x-docs`);
+}
+
 /* ── links ───────────────────────────────────────────────────────────────── */
 const entryIds = new Set((changelog.value.entries ?? []).map((e) => e.id));
 function checkLink(file, href, line, what) {
@@ -405,8 +556,10 @@ function checkLink(file, href, line, what) {
   }
   if (hash && !target.ids.has(hash)) err(file, `${what} ${href}: no heading #${hash} on ${p} (has: ${[...target.ids].slice(0, 8).join(", ")}${target.ids.size > 8 ? ", …" : ""})`, line);
 }
-// The app's links into the docs: DOCS_PAGES (src/lib/docsLinks.ts) and docsUrl("/…") calls.
-{
+// The app's links into the docs: DOCS_PAGES (src/lib/docsLinks.ts) and docsUrl("/…") calls. Only
+// for Markdrop's own docs (`integrations.markdropApp`): another site's content isn't the app's.
+const MARKDROP_DOCS = site.integrations?.markdropApp === true;
+if (MARKDROP_DOCS) {
   const SRC = new URL("../src/", import.meta.url).pathname;
   const files = [];
   const scan = (d) => {
@@ -465,7 +618,7 @@ const PUBLIC = path.join(ROOT, "public");
 const ASSETS_DIR = path.join(PUBLIC, "docs-assets");
 const KB = 1024;
 const BUDGET = { image: 220 * KB, poster: 220 * KB, clip: 1.6 * KB * KB, video: 25 * KB * KB };
-const usedAssets = new Set();
+const usedAssets = new Set(brandAssets);
 const exists = (rel) => {
   try {
     return fs.statSync(path.join(PUBLIC, rel)).isFile();
@@ -616,7 +769,8 @@ function walkAssets(dir) {
   return out;
 }
 const assetFiles = walkAssets(ASSETS_DIR);
-for (const rel of assetFiles) if (!usedAssets.has(rel)) warn("public/docs-assets", `${rel} isn't used by any page, changelog entry or videos.json`);
+// public/docs-assets holds Markdrop's docs media: "unused" only means something for that site.
+if (MARKDROP_DOCS) for (const rel of assetFiles) if (!usedAssets.has(rel)) warn("public/docs-assets", `${rel} isn't used by any page, changelog entry or videos.json`);
 for (const rel of Object.keys(media)) if (!exists(rel)) warn("media.json", `${rel} no longer exists: run npm run docs:media-manifest`);
 
 /* ── print ───────────────────────────────────────────────────────────────── */
