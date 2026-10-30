@@ -28,7 +28,7 @@ function BrandMark({ brand }: { brand: HeaderBrand }) {
     return (
       <>
         {/* eslint-disable-next-line @next/next/no-img-element -- a logo from site.json: any size, maybe another origin */}
-        <img src={brand.light} alt={brand.text ? "" : brand.alt} className={cx("dx-brand__logo", brand.dark && "dx-themed-light")} />
+        <img src={brand.light} alt={brand.text ? "" : brand.alt} className={cx("dx-brand__logo", brand.dark && "dx-themed-light", brand.tile && "dx-brand__logo--tile")} />
         {brand.dark && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={brand.dark} alt={brand.text ? "" : brand.alt} className="dx-brand__logo dx-themed-dark" />

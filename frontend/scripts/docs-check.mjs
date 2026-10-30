@@ -11,7 +11,9 @@
  * prerequisites, card hrefs, changelog docs), directive names / attributes / balance, card icons,
  * tabs structure, one video slot per page, headings (no H1, unique ids), changelog.json and
  * videos.json, site.json's settings (id, brand, ai, tryIt, mcp, integrations: types, hex colours,
- * the logo's shape and files), and media (see "media" below). Errors exit 1; warnings (pages not written yet,
+ * the logo's shape and files; pages: lede and icons; home.start cards), frontmatter icon and anchors
+ * (old ids → headings that exist), redirects.json (shape, targets exist, no page hidden, no chains),
+ * and media (see "media" below). Errors exit 1; warnings (pages not written yet,
  * orphans) don't, unless --strict.
  *
  * Media (files under public/docs-assets, sizes in content/docs/media.json):
@@ -30,6 +32,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { buildApiReference } from "../src/docs/openapi.mjs";
+import { expandRedirects } from "../src/docs/siteFiles.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONTENT = process.env.DOCS_CONTENT_DIR || path.join(ROOT, "content", "docs");
@@ -261,8 +264,13 @@ for (const [p, pg] of pages) {
   if (fm.prerequisites != null && !Array.isArray(fm.prerequisites)) err(file, "frontmatter: prerequisites must be a list like [/a/b, /c/d]", 1);
   for (const pre of Array.isArray(fm.prerequisites) ? fm.prerequisites : []) pg.links.push({ href: String(pre), line: 1, what: "prerequisite" });
   if (fm.keywords != null && !Array.isArray(fm.keywords)) err(file, "frontmatter: keywords must be a list like [a, b]", 1);
-  const known = new Set(["title", "description", "updated", "checked", "prerequisites", "since", "keywords", "nav"]);
+  const known = new Set(["title", "description", "updated", "checked", "prerequisites", "since", "keywords", "nav", "icon", "anchors"]);
   for (const k of Object.keys(fm)) if (!known.has(k)) warn(file, `frontmatter: unknown field "${k}" (ignored)`, 1);
+  if (fm.icon != null) {
+    if (typeof fm.icon !== "string" || !fm.icon.trim()) err(file, "frontmatter: icon must be a design-system icon name", 1);
+    else if (ICONS && !ICONS.has(fm.icon.trim())) err(file, `frontmatter: icon "${fm.icon}" is not a design-system icon`, 1);
+  }
+  if (fm.anchors != null && (typeof fm.anchors !== "object" || Array.isArray(fm.anchors))) err(file, "frontmatter: anchors must be a map of old heading ids to current ones, like { old-id: new-id }", 1);
 
   // Body scan
   const slug = createSlugger();
@@ -373,6 +381,19 @@ for (const [p, pg] of pages) {
   if (fence) err(file, "code fence is never closed", ln(fence.line));
   for (const s of stack) err(file, `:::${s.name} is never closed`, ln(s.line));
   if (videos > 1) warn(file, `${videos} ::video slots (at most 1 per page)`);
+  // frontmatter `anchors`: old ids land on current headings (render/plugins.ts rehypeDocs).
+  pg.aliases = new Set();
+  if (fm.anchors && typeof fm.anchors === "object" && !Array.isArray(fm.anchors)) {
+    for (const [rawFrom, rawTo] of Object.entries(fm.anchors)) {
+      const from = String(rawFrom).trim().replace(/^#/, "");
+      const to = typeof rawTo === "string" ? rawTo.trim().replace(/^#/, "") : "";
+      if (!from || /\s/.test(from)) err(file, `frontmatter: anchors key "${rawFrom}" must be an id without spaces`, 1);
+      else if (!to) err(file, `frontmatter: anchors.${from} must be the id of a heading on this page`, 1);
+      else if (!pg.ids.has(to)) err(file, `frontmatter: anchors.${from} → #${to}: no such heading on this page`, 1);
+      else if (pg.ids.has(from)) err(file, `frontmatter: anchors.${from} is already a heading id on this page`, 1);
+      else pg.aliases.add(from);
+    }
+  }
 }
 
 /* ── nav ↔ pages ─────────────────────────────────────────────────────────── */
@@ -452,7 +473,9 @@ const brandAssets = [];
           if ("light" in l || "dark" in l) err(S, "brand.logo has both builtin and images: pick one");
           unknown("brand.logo", l, ["builtin"]);
         } else {
-          unknown("brand.logo", l, ["light", "dark", "alt", "wordmark"]);
+          unknown("brand.logo", l, ["light", "dark", "alt", "wordmark", "tile"]);
+          if (l.tile !== undefined && typeof l.tile !== "boolean") err(S, "brand.logo.tile must be true or false");
+          if (l.tile === true && l.dark !== undefined) warn(S, "brand.logo.tile is ignored: the dark theme shows brand.logo.dark");
           if (l.light === undefined) err(S, "brand.logo needs light (the image for the light theme), or builtin");
           else assetRef("brand.logo.light", l.light);
           if (l.dark !== undefined) assetRef("brand.logo.dark", l.dark);
@@ -523,6 +546,26 @@ const brandAssets = [];
     }
   }
 
+  const pg = site.pages;
+  if (pg !== undefined) {
+    if (!isObj(pg)) err(S, "pages must be an object");
+    else {
+      unknown("pages", pg, ["showDescription", "icons"]);
+      for (const k of ["showDescription", "icons"]) if (pg[k] !== undefined && typeof pg[k] !== "boolean") err(S, `pages.${k} must be true or false`);
+      if (pg.icons === true && ![...pages.values()].some((p) => p.fm?.icon)) warn(S, "pages.icons is on but no page has an icon in its frontmatter");
+    }
+  }
+
+  (site.home?.start ?? []).forEach((s, i) => {
+    if (!isObj(s)) return err(S, `home.start[${i}] must be an object like { "page": "/a/b" }`);
+    unknown(`home.start[${i}]`, s, ["page", "icon", "time", "title", "description"]);
+    if (typeof s.page !== "string" || !pages.has(s.page)) err(S, `home.start[${i}].page ${s.page} isn't a page`);
+    if (s.icon !== undefined && ICONS && !ICONS.has(s.icon)) err(S, `home.start[${i}].icon "${s.icon}" is not a design-system icon`);
+    for (const k of ["title", "description", "time"]) if (s[k] !== undefined && !isStr(s[k])) err(S, `home.start[${i}].${k} must be a non-empty string`);
+    if (isStr(s.title) && s.title.length > 60) warn(S, `home.start[${i}].title is ${s.title.length} characters (keep it under 60)`);
+    if (isStr(s.description) && s.description.length > 160) warn(S, `home.start[${i}].description is ${s.description.length} characters (keep it under 160)`);
+  });
+
   const ig = site.integrations;
   if (ig !== undefined) {
     if (!isObj(ig)) err(S, "integrations must be an object");
@@ -557,7 +600,7 @@ function checkLink(file, href, line, what) {
     else err(file, `${what} ${href}: no such page`, line);
     return;
   }
-  if (hash && !target.ids.has(hash)) err(file, `${what} ${href}: no heading #${hash} on ${p} (has: ${[...target.ids].slice(0, 8).join(", ")}${target.ids.size > 8 ? ", …" : ""})`, line);
+  if (hash && !target.ids.has(hash) && !target.aliases?.has(hash)) err(file,`${what} ${href}: no heading #${hash} on ${p} (has: ${[...target.ids].slice(0, 8).join(", ")}${target.ids.size > 8 ? ", …" : ""})`, line);
 }
 // The app's links into the docs: DOCS_PAGES (src/lib/docsLinks.ts) and docsUrl("/…") calls. Only
 // for Markdrop's own docs (`integrations.markdropApp`): another site's content isn't the app's.
@@ -585,8 +628,30 @@ if (MARKDROP_DOCS) {
 }
 for (const [, pg] of pages) for (const l of pg.links) {
   if (l.href.startsWith("#")) {
-    if (l.href.length > 1 && !pg.ids.has(l.href.slice(1))) err(pg.file, `link ${l.href}: no such heading on this page`, l.line);
+    if (l.href.length > 1 && !pg.ids.has(l.href.slice(1)) && !pg.aliases?.has(l.href.slice(1))) err(pg.file, `link ${l.href}: no such heading on this page`, l.line);
   } else checkLink(pg.file, l.href, l.line, l.what);
+}
+
+/* ── redirects.json ──────────────────────────────────────────────────────── */
+// { "/old/path": "/new/path" }: 308s on the docs host before any page (src/docs/siteFiles.mjs).
+{
+  const R = "redirects.json";
+  const { value: raw, missing: none } = readJson(R, null);
+  if (!none && raw !== null) {
+    const { problems: shape } = expandRedirects(raw);
+    for (const msg of shape) err(R, msg);
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      const sources = new Set(Object.keys(raw).map((k) => k.replace(/(.)\/+$/, "$1")));
+      for (const [from, to] of Object.entries(raw)) {
+        if (typeof to !== "string" || !from.startsWith("/")) continue;
+        const f = from.replace(/(.)\/+$/, "$1");
+        if (pages.has(f.replace(/\.md$/, ""))) err(R, `${from}: ${f.replace(/\.md$/, "")} is a page; the redirect would hide it`);
+        if (FIXED_ROUTES.has(f)) err(R, `${from}: ${f} is one of the site's own addresses`);
+        checkLink(R, to, undefined, `${from} →`);
+        if (to.startsWith("/") && sources.has(to.split("#")[0].replace(/(.)\/+$/, "$1"))) warn(R, `${from} → ${to}, which redirects again: point it at the final page`);
+      }
+    }
+  }
 }
 
 /* ── changelog.json ──────────────────────────────────────────────────────── */

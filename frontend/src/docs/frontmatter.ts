@@ -27,6 +27,18 @@ function toList(v: unknown): string[] | undefined {
   return undefined;
 }
 
+/** `anchors: { old-id: new-id }` → the string pairs (anything else dropped; docs:check reports it). */
+function toAnchors(v: unknown): Record<string, string> | undefined {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, id] of Object.entries(v as Record<string, unknown>)) {
+    const from = String(k).trim().replace(/^#/, "");
+    const to = typeof id === "string" ? id.trim().replace(/^#/, "") : "";
+    if (from && to && from !== to) out[from] = to;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function unquote(v: string): string {
   const t = v.trim();
   return /^(["']).*\1$/.test(t) ? t.slice(1, -1) : t;
@@ -71,6 +83,8 @@ export function parseFrontmatter(source: string): ParsedFrontmatter {
   data.keywords = toList(raw.keywords);
   if (raw.since !== undefined) data.since = String(raw.since).trim();
   if (raw.nav !== undefined) data.nav = String(raw.nav).trim() || undefined;
+  data.icon = typeof raw.icon === "string" && raw.icon.trim() ? raw.icon.trim() : undefined;
+  data.anchors = toAnchors(raw.anchors);
 
   if (!data.title) problems.push("frontmatter: title is required");
   if (!data.description) problems.push("frontmatter: description is required");

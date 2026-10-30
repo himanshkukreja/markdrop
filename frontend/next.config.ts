@@ -1,4 +1,10 @@
+import path from "node:path";
 import type { NextConfig } from "next";
+import { docsHostsFromEnv, hasSiteAssets, hostPattern, nextRedirects } from "./src/docs/siteFiles.mjs";
+
+/** The docs content folder, as src/docs/content.ts reads it. */
+const DOCS_CONTENT = process.env.DOCS_CONTENT_DIR || path.join(process.cwd(), "content", "docs");
+const DOCS_HOSTS = docsHostsFromEnv();
 
 const nextConfig: NextConfig = {
   // Lets a dev server (NEXT_DIST_DIR=.next-dev) run alongside `next build` without the two
@@ -38,11 +44,24 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  /**
+   * The docs site's redirects.json (src/docs/siteFiles.mjs): 308s on the docs hosts, answered
+   * before the middleware and any page. None for a site without one (Markdrop's has none).
+   */
+  async redirects() {
+    return nextRedirects(DOCS_CONTENT, DOCS_HOSTS);
+  },
   async rewrites() {
     return [
       { source: "/mdp/static/:path*", destination: "https://us-assets.i.posthog.com/static/:path*" },
       { source: "/mdp/array/:path*", destination: "https://us-assets.i.posthog.com/array/:path*" },
       { source: "/mdp/:path*", destination: "https://us.i.posthog.com/:path*" },
+      // A docs site with its own assets (<content>/public/docs-assets, as an importer writes them):
+      // a /docs-assets/ file the app's public/ doesn't have is read from there (afterFiles: the
+      // app's own public files still win). Markdrop's docs keep theirs in public/ and skip this.
+      ...(hasSiteAssets(DOCS_CONTENT)
+        ? [{ source: "/docs-assets/:path+", has: [{ type: "host" as const, value: hostPattern(DOCS_HOSTS) }], destination: "/docs-site/docs-assets/:path+" }]
+        : []),
     ];
   },
 };

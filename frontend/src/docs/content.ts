@@ -124,6 +124,8 @@ export class SiteBundle {
         prerequisites: data.prerequisites,
         since: data.since,
         keywords: data.keywords,
+        ...(data.icon ? { icon: data.icon } : {}),
+        ...(data.anchors ? { anchors: data.anchors } : {}),
       },
       body,
       headings,
@@ -232,6 +234,7 @@ export class SiteBundle {
   private readonly navMemo = memo((): NavGroup[] => {
     const site = this.site;
     const fallbackTab = site.tabs[0]?.id ?? "guides";
+    const icons = site.pages?.icons === true;
     const written: NavGroup[] = site.nav
       .map((g) => ({
         group: g.group,
@@ -240,7 +243,8 @@ export class SiteBundle {
         items: g.pages
           .map((p) => {
             const page = this.page(p);
-            return { path: p, title: page ? navLabel(page) : p.split("/").pop()!.replace(/-/g, " "), available: !!page, isNew: !!g.new };
+            const icon = icons ? page?.meta.icon : undefined;
+            return { path: p, title: page ? navLabel(page) : p.split("/").pop()!.replace(/-/g, " "), available: !!page, isNew: !!g.new, ...(icon ? { icon } : {}) };
           })
           .filter((it) => it.available || DEV),
       }))

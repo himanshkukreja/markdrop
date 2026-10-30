@@ -23,22 +23,24 @@
  *
  * Output (all inside --out):
  *   site.json, index.md, <section>/<page>.md, media.json, videos.json (when there are videos),
- *   public/docs-assets/<id>/…, redirects.json (every GitBook path → its new path),
+ *   public/docs-assets/<id>/…, redirects.json (every GitBook address that changes → its new path),
  *   _IMPORT_REPORT.md (the leading _ keeps the engine and docs:check from reading it as a page).
+ *   Pages carry GitBook's look where the engine has a setting for it: the description under the
+ *   title (site.json pages.showDescription), page icons (frontmatter icon + pages.icons), old
+ *   heading ids (frontmatter anchors), soft-wrapped prompts (```text wrap).
  *
- * Assets: the engine serves /docs-assets/ from the app's public/ folder, so for now a site's
- * assets live in <out>/public/docs-assets/<id>/ and have to be copied (or linked) into the app's
- * public/docs-assets/<id>/ to render; docs:check finds them in <out>/public on its own.
+ * Assets: the engine serves a site's own <out>/public/docs-assets/ on the docs host, so the
+ * imported folder renders as it is (DOCS_CONTENT_DIR=<out>); docs:check reads it there too.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createFetcher } from "./lib/fetch.mjs";
 import { decodeEntities, lighten } from "./lib/html.mjs";
-import { createSite } from "./lib/site.mjs";
+import { createSite, isOpaqueImage } from "./lib/site.mjs";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { convertBody, firstParagraph, parseGitbookPage, trimDescription, unescapeMd, videoEmbedUrl } from "./lib/convert.mjs";
+import { convertBody, faName, firstParagraph, parseGitbookPage, trimDescription, unescapeMd, videoEmbedUrl } from "./lib/convert.mjs";
 import { headingIds, looseId, slugify } from "./lib/slug.mjs";
 import { imageSize, videoInfo } from "../docs-media-manifest.mjs";
 
@@ -108,7 +110,7 @@ function count(kind, how) {
 }
 
 /* ── 1. discover ─────────────────────────────────────────────────────────── */
-const { abs, gbPathOf, parseLlms, parseSidebar, detectBrand, fileLinks } = createSite(ORIGIN, BASE);
+const { abs, gbPathOf, parseLlms, parseSidebar, detectBrand, fileLinks, pageIcons } = createSite(ORIGIN, BASE);
 
 /* ── main ────────────────────────────────────────────────────────────────── */
 log(`GitBook import: ${ORIGIN}${BASE} → ${OUT} (site id "${ID}", cache ${CACHE})`);
@@ -127,11 +129,14 @@ const brand = detectBrand(rootHtml);
 
 // Sidebar per section (one section: the root page's sidebar).
 const sidebars = [];
+// Page icons (Font Awesome names) from each section's sidebar data.
+const gbIcons = new Map();
 for (let si = 0; si < Math.max(1, sections.length); si++) {
   const first = sections[si]?.pages[0];
   const html = si === 0 || !first ? rootHtml : (await http.text(abs(first.gb.slice(1)))).text;
   const sb = parseSidebar(html);
   if (sb) sidebars.push({ section: si, ...sb });
+  for (const [gb, icon] of pageIcons(html)) if (!gbIcons.has(gb)) gbIcons.set(gb, icon);
 }
 const multiSection = sections.length > 1 && sidebars.length > 1;
 
@@ -186,6 +191,10 @@ for (const p of pages) {
   // --keep-dates: GitBook's "Last updated" (<time dateTime="…">) instead of the import date.
   p.gbUpdated = /dateTime="(\d{4}-\d{2}-\d{2})T/.exec(p.html)?.[1];
   p.updated = (args["keep-dates"] && p.gbUpdated) || TODAY;
+  // The page's sidebar icon, as a design-system icon (frontmatter `icon`, shown with pages.icons).
+  p.gbIcon = gbIcons.get(p.gb);
+  p.icon = p.gbIcon ? faName(p.gbIcon) : undefined;
+  if (p.gbIcon) count("page icon", p.icon ? "frontmatter icon" : "dropped (no matching icon)");
 }
 const live = pages.filter((p) => !p.failed);
 
@@ -436,9 +445,10 @@ for (const p of live) p.out = detok(p.out);
 /* ── 5. descriptions, anchors ────────────────────────────────────────────── */
 for (const p of live) {
   const d = p.gbDescription || p.llmsDesc;
-  // GitBook shows the description under the title; the engine only uses it as metadata, so it
-  // also stays in the page as the opening paragraph.
-  if (p.gbDescription) p.out = `${p.gbDescription}\n\n${p.out}`;
+  // GitBook shows the description under the title; so does the engine with site.json
+  // pages.showDescription (set below). One too long for the frontmatter stays in the page as its
+  // opening paragraph too (the engine then leaves the lede out rather than say it twice).
+  if (p.gbDescription && p.gbDescription.length > 160) p.out = `${p.gbDescription}\n\n${p.out}`;
   if (d && d.length <= 160) p.description = d;
   else if (d) {
     p.description = trimDescription(d);
@@ -466,14 +476,16 @@ for (const p of live) {
     return target ? `](${target})` : m.replace(/#[^)\s]+/, "#");
   });
 }
-// Deep links into GitBook pages that now land on a different #id.
+// Deep links into GitBook pages that now land on a different #id: kept working through the
+// frontmatter `anchors` map (old id → heading), which the engine renders as hidden anchors.
 const idChanges = [];
 for (const p of live) {
   const ours = p.ids.map((h) => h.id);
   for (const gid of p.gbIds) {
-    if (ours.includes(gid) || /^undefined(-\d+)?$/.test(gid)) continue;
+    if (ours.includes(gid) || /^undefined(-\d+)?$/.test(gid) || /\s/.test(gid)) continue;
     const loose = p.ids.find((h) => anchorKey(h.id) === anchorKey(gid));
     idChanges.push({ page: p.our, from: gid, to: loose?.id ?? null });
+    if (loose) (p.anchors ??= {})[gid] = loose.id;
   }
 }
 
@@ -521,14 +533,24 @@ const root = byGb.get("/");
 const brandName = brand.siteName.replace(/\s+(docs|documentation|help center|help|developer docs)$/i, "").trim() || brand.siteName;
 const embedHosts = [...new Set(live.flatMap((p) => [...p.out.matchAll(/::embed\{src="https:\/\/([^/"]+)/g)].map((m) => m[1])))];
 
-// Home: hero from the root page, start cards from its first card grid.
+// Home: hero from the root page, start cards from its first card grid, with GitBook's own card
+// titles and texts where they differ from the page's title and description.
 const start = [];
 if (root?.out) {
   const grid = /::::cards\n([\s\S]*?)\n::::/.exec(root.out)?.[1] ?? "";
-  for (const m of grid.matchAll(/:::card\[[^\]]*\]\{([^}]*)\}/g)) {
-    const href = /href="(\/[^"#]*)"/.exec(m[1])?.[1];
-    const icon = /icon="([^"]+)"/.exec(m[1])?.[1];
-    if (href && byOur.has(href) && !start.some((s) => s.page === href)) start.push({ page: href, ...(icon ? { icon } : {}) });
+  for (const m of grid.matchAll(/:::card\[([^\]]*)\]\{([^}]*)\}((?:\n(?!:::)[^\n]*)*)/g)) {
+    const href = /href="(\/[^"#]*)"/.exec(m[2])?.[1];
+    const icon = /icon="([^"]+)"/.exec(m[2])?.[1];
+    const target = href && byOur.get(href);
+    if (!target || start.some((s) => s.page === href)) continue;
+    const title = m[1].trim();
+    const text = firstParagraph(m[3]);
+    start.push({
+      page: href,
+      ...(icon ? { icon } : {}),
+      ...(title && title !== target.title ? { title } : {}),
+      ...(text && text !== target.description ? { description: trimDescription(text) } : {}),
+    });
   }
 }
 const intro = root?.out ? firstParagraph(root.out) : "";
@@ -547,11 +569,25 @@ async function brandAsset(url, stem) {
   const rel = `${ASSET_BASE}/brand/${stem}.${ext}`;
   write(rel, r.body);
   media[rel] = { ...(imageSize(r.body) ?? {}), bytes: r.body.length, kind: "image" };
+  brandFiles.set(rel, r.body);
   return rel;
 }
+const brandFiles = new Map(); // rel → bytes
 const logoRel = await brandAsset(brand.logo, "logo");
+// GitBook's dark-theme logo, when the site has a different one.
+const logoDarkRel = logoRel && brand.logoDark ? await brandAsset(brand.logoDark, "logo-dark") : null;
+// No dark logo and an image that can't be transparent (a logo on a white square): the engine
+// sets it on a light tile in the dark theme instead of showing a white box.
+const logoTile = !!logoRel && !logoDarkRel && isOpaqueImage(brandFiles.get(logoRel));
 const faviconRel = brand.favicon === brand.logo ? logoRel : await brandAsset(brand.favicon, "favicon");
-if (logoRel) brandOut.logo = { light: logoRel, alt: brand.logoAlt || brandName, ...(brand.wordmark ? { wordmark: true } : {}) };
+if (logoRel)
+  brandOut.logo = {
+    light: logoRel,
+    ...(logoDarkRel ? { dark: logoDarkRel } : {}),
+    alt: brand.logoAlt || brandName,
+    ...(brand.wordmark ? { wordmark: true } : {}),
+    ...(logoTile ? { tile: true } : {}),
+  };
 if (faviconRel) brandOut.favicon = faviconRel;
 if (brand.accent) {
   brandOut.accent = brand.accent;
@@ -559,6 +595,9 @@ if (brand.accent) {
   brandOut.og = { background: brand.tint && brand.tint !== brand.accent ? "#17131f" : "#111111", accent: lighten(brand.accent, 0.45) };
 }
 
+// The hero: GitBook's root description as the headline, the root page's first paragraph under it
+// (the engine leaves the subtitle out when the two say the same thing).
+const headline = root?.gbDescription || root?.title || brand.siteName;
 const site = {
   id: ID,
   name: brand.siteName,
@@ -566,13 +605,15 @@ const site = {
   url: ORIGIN + BASE,
   ...(embedHosts.length ? { embedHosts } : {}),
   eyebrow: brand.siteName,
-  headline: root?.gbDescription || root?.title || brand.siteName,
+  headline,
   tabs,
   home: {
     ...(start.length ? { start } : {}),
     askPlaceholder: `Search the ${brandName} docs`,
   },
   nav,
+  // Like GitBook: the description under each title, and the sidebar's page icons.
+  pages: { showDescription: true, ...(live.some((p) => p.icon) ? { icons: true } : {}) },
   footer: [{ label: "llms.txt", href: "/llms.txt" }],
   brand: brandOut,
   ai: { enabled: false },
@@ -589,7 +630,10 @@ for (const p of live) {
   const fm = ["---", `title: ${yamlStr(p.title)}`];
   if (p.navTitle && p.navTitle !== p.title && p.navTitle.length <= 40) fm.push(`nav: ${yamlStr(p.navTitle)}`);
   else if (p.title.length > 40 && p.navTitle && p.navTitle.length <= 40) fm.push(`nav: ${yamlStr(p.navTitle)}`);
-  fm.push(`description: ${yamlStr(p.description)}`, `updated: ${p.updated}`, "---", "");
+  fm.push(`description: ${yamlStr(p.description)}`, `updated: ${p.updated}`);
+  if (p.icon) fm.push(`icon: ${p.icon}`);
+  if (p.anchors) fm.push("anchors:", ...Object.entries(p.anchors).map(([from, to]) => `  ${yamlStr(from)}: ${yamlStr(to)}`));
+  fm.push("---", "");
   const f = path.join(OUT, p.file);
   fs.mkdirSync(path.dirname(f), { recursive: true });
   fs.writeFileSync(f, fm.join("\n") + "\n" + p.out);
@@ -602,16 +646,21 @@ fs.writeFileSync(path.join(OUT, "site.json"), JSON.stringify(site, null, 2) + "\
 fs.writeFileSync(path.join(OUT, "media.json"), JSON.stringify(Object.fromEntries(Object.entries(media).sort()), null, 2) + "\n");
 if (Object.keys(videos).length) fs.writeFileSync(path.join(OUT, "videos.json"), JSON.stringify(videos, null, 2) + "\n");
 
-const redirects = [];
-for (const p of pages) {
-  // GitBook's root page is the site's "/": it stays "/" (the home); its content is also at p.our.
-  const to = p.failed ? null : p.gb === "/" ? "/" : p.our;
-  redirects.push({ from: p.gb, to, ...(p.gb === to ? { same: true } : {}) });
-  if (p.gb !== "/" && to) redirects.push({ from: `${p.gb}.md`, to: `${to}.md`, ...(p.gb === to ? { same: true } : {}) });
+// redirects.json: every GitBook address that changes, { "/old": "/new" } (the engine answers the
+// trailing-slash and .md forms too). GitBook's root page stays the home ("/"), and its /readme
+// alias goes there; paths that are unchanged need nothing.
+const redirectMap = {};
+const redirectNotes = [];
+const ourPaths = new Set(live.map((p) => p.our));
+function addRedirect(from, to, why) {
+  if (!from || from === "/" || from === to) return;
+  if (ourPaths.has(from)) return redirectNotes.push(`${from} → ${to} not added: ${from} is a page of the import (${why})`);
+  redirectMap[from] = to;
 }
-redirects.push({ from: "/readme.md", to: "/index.md" });
-for (const [from, to] of moved) redirects.push({ from, to: byGb.get(to).our, via: "GitBook redirect (found through a link)" });
-fs.writeFileSync(path.join(OUT, "redirects.json"), JSON.stringify({ source: ORIGIN + BASE, generated: TODAY, status: 301, note: "every GitBook path → its Markdrop path; same:true means the path is unchanged", redirects }, null, 2) + "\n");
+for (const p of pages) if (!p.failed && p.gb !== "/") addRedirect(p.gb, p.our, "renamed");
+addRedirect("/readme", "/", "GitBook's root page");
+for (const [from, to] of moved) addRedirect(from, byGb.get(to).our, "GitBook redirect found through a link");
+fs.writeFileSync(path.join(OUT, "redirects.json"), JSON.stringify(Object.fromEntries(Object.entries(redirectMap).sort()), null, 2) + "\n");
 
 // Remove assets from earlier runs that this run didn't write.
 {
@@ -654,6 +703,7 @@ R.push("");
 R.push("## Brand detected", "");
 R.push(`- Name: ${brand.siteName} (brand.name "${brandName}")`);
 R.push(`- Logo: ${brand.logo ? `${brand.logo} → ${logoRel ?? "not saved"}${brand.wordmark ? " (wordmark)" : ""}` : "none found"}`);
+R.push(`- Dark logo: ${logoDarkRel ? `${brand.logoDark} → ${logoDarkRel}` : brand.logoDark ? `${brand.logoDark} (not saved)` : `none (GitBook shows the same image)${logoTile ? "; the logo is opaque, so brand.logo.tile sets it on a light tile in the dark theme" : ""}`}`);
 R.push(`- Favicon: ${brand.favicon ? `${brand.favicon} → ${faviconRel ?? "not saved"}` : "none found"}`);
 R.push(`- Accent: ${brand.accent ?? "not found"}${brand.accent ? ` (GitBook --primary-original); accentDark ${brandOut.accentDark} is derived, not read` : ""}`);
 R.push(`- GitBook theme classes: \`${brand.themeClass.split(/\s+/).filter((c) => /theme|tint|corners|sidebar|font/.test(c)).join(" ")}\` (not carried over)`, "");
@@ -672,15 +722,24 @@ section("Sidebar links that aren't pages (not imported)", external, (x) => `- [$
 section("Links to moved pages (GitBook redirects them; rewritten, and added to redirects.json)", [...moved], ([from, to]) => `- \`${from}\` → \`${byGb.get(to).our}\``);
 section("#anchor links rewritten to the engine's heading ids", anchorFixes, (x) => `- \`${x.page}\` ${x.href} → ${x.to}`);
 R.push("## Heading ids that changed (deep links from outside)", "");
-R.push(`${idChanges.length} GitBook heading ids differ from the engine's ids (GitBook collapses repeated dashes; the engine keeps one per removed character). A link like \`/page#id\` from elsewhere lands on the page but not the heading:`, "");
+const kept = idChanges.filter((c) => c.to);
+R.push(`${idChanges.length} GitBook heading ids differ from the engine's ids (GitBook collapses repeated dashes and spells a leading number \`id-1.\`; the engine slugs the heading text). ${kept.length} are kept as frontmatter \`anchors\` (old id → heading), so a link like \`/page#old-id\` from elsewhere still lands on its heading${idChanges.length - kept.length ? `; ${idChanges.length - kept.length} have no matching heading and land on the page` : ""}:`, "");
 for (const c of idChanges.slice(0, 60)) R.push(`- \`${c.page}#${c.from}\` → ${c.to ? `\`#${c.to}\`` : "no matching heading"}`);
 if (idChanges.length > 60) R.push(`- … and ${idChanges.length - 60} more`);
 R.push("");
-section("Other notes", notes, (n) => `- ${n}`);
+{
+  const unmapped = new Map();
+  for (const p of live) if (p.gbIcon && !p.icon) unmapped.set(p.gbIcon, [...(unmapped.get(p.gbIcon) ?? []), p.our]);
+  R.push("## Page icons", "");
+  R.push(`${live.filter((p) => p.icon).length} of ${live.filter((p) => p.gbIcon).length} GitBook page icons have a design-system match (frontmatter \`icon\`, shown with site.json \`pages.icons\`).${unmapped.size ? " No match (left without an icon):" : ""}`, "");
+  for (const [icon, ps] of unmapped) R.push(`- \`${icon}\`: ${ps.join(", ")}`);
+  R.push("");
+}
+section("Other notes", [...notes, ...redirectNotes], (n) => `- ${n}`);
 R.push("## Redirects", "");
-R.push(`redirects.json maps all ${pages.length} GitBook paths (and their .md twins). ${redirects.filter((r) => r.to && !r.same).length} change; the rest keep their path, so pointing ${SITE.hostname} at the new site keeps every old URL working once those few redirects are served.`, "");
+R.push(`redirects.json maps the ${Object.keys(redirectMap).length} GitBook addresses that change (their trailing-slash and .md forms follow); the other ${live.filter((p) => p.gb === p.our).length} pages keep their path, so pointing ${SITE.hostname} at the new site keeps every old URL working. The docs host answers them with 308s.`, "");
 R.push("## Assets", "");
-R.push(`The engine serves /docs-assets/ from the app's public/ folder. This site's files are in \`${PUBLIC}${ASSET_BASE}/\`; copy or link that folder to \`frontend/public${ASSET_BASE}/\` to render it (docs:check reads them from \`${PUBLIC}\` when DOCS_CONTENT_DIR is set).`, "");
+R.push(`This site's files are in \`${PUBLIC}${ASSET_BASE}/\`. The engine serves a site's own \`<content>/public/docs-assets/\` on the docs host (next.config.ts → app/docs-site/docs-assets), so nothing needs copying or linking; docs:check reads them there too.`, "");
 fs.writeFileSync(path.join(OUT, "_IMPORT_REPORT.md"), R.join("\n"));
 
 log(`done: ${live.length} pages, ${assets.size} assets, ${issues.length} notes, ${broken.length} broken links, ${missing.length} missing → ${path.join(OUT, "_IMPORT_REPORT.md")}`);

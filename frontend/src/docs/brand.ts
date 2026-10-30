@@ -29,13 +29,14 @@ export function markdropApp(site: SiteConfig): boolean {
 
 export type HeaderBrand =
   | { kind: "markdrop"; label: string }
-  | { kind: "image"; light: string; dark?: string; alt: string; text?: string; label: string }
+  | { kind: "image"; light: string; dark?: string; alt: string; text?: string; label: string; tile?: boolean }
   | { kind: "text"; text: string; label: string };
 
 /**
  * What the header shows left of the tabs. The built-in mark comes with its wordmark; an image is
  * followed by the brand name unless it is a wordmark itself; no logo shows the name as text (the
- * brand name, else the site's name, whose own "Docs" makes the label redundant).
+ * brand name, else the site's name, whose own "Docs" makes the label redundant). An opaque light
+ * logo with no dark image (`tile: true`) sits on a light tile in the dark theme.
  */
 export function headerBrand(site: SiteConfig): HeaderBrand {
   const b = site.brand ?? {};
@@ -44,7 +45,8 @@ export function headerBrand(site: SiteConfig): HeaderBrand {
   const logo = b.logo;
   if (logo && "builtin" in logo && logo.builtin === "markdrop") return { kind: "markdrop", label };
   if (logo && "light" in logo && typeof logo.light === "string" && logo.light) {
-    return { kind: "image", light: logo.light, dark: logo.dark || undefined, alt: logo.alt || name || site.name, text: logo.wordmark ? undefined : name, label };
+    const dark = logo.dark || undefined;
+    return { kind: "image", light: logo.light, dark, alt: logo.alt || name || site.name, text: logo.wordmark ? undefined : name, label, ...(logo.tile === true && !dark ? { tile: true } : {}) };
   }
   return { kind: "text", text: name || site.name, label };
 }

@@ -6,13 +6,16 @@
  * `docs-cards`/`docs-card`, `docs-details`, `docs-video`, `docs-clip`, `docs-embed`, `docs-kbd`),
  * turns a paragraph that is just one image into a `docs-figure` (title → caption), and reads
  * code-fence meta (`title="…"`, `{2,4-5}`). Only whitelisted attributes are carried over; an
- * unknown directive keeps its content (containers) or reads as the literal text it was.
+ * unknown directive keeps its content (containers) or reads as the literal text it was. Fence meta
+ * also takes a bare `wrap` (```text wrap title="…"): long lines soft-wrap.
  *
  * rehypeDocs (after rehype-highlight): heading ids slugged from the heading's source text exactly
- * like `scanHeadings`, and per-line spans for code blocks that highlight lines.
+ * like `scanHeadings`, hidden anchors for the page's old heading ids (frontmatter `anchors`), and
+ * per-line spans for code blocks that highlight lines.
  */
 import { createSlugger, headingSourceText } from "@/components/reading/slug";
 import { CALLOUTS, CONTAINER_DIRECTIVES } from "../markdown";
+import { aliasNodes, aliasesByTarget, hasWrapFlag } from "./rules.mjs";
 
 /* ── mdast ───────────────────────────────────────────────────────────────── */
 
@@ -81,6 +84,7 @@ function codeMeta(node: MdNode) {
     const lines = parseLineRanges(hl[1]);
     if (lines.length) props.dataHl = lines.join(",");
   }
+  if (hasWrapFlag(meta)) props.dataWrap = "true";
   node.data = { ...(node.data ?? {}), hProperties: props };
 }
 
@@ -232,16 +236,29 @@ function splitCodeLines(code: HNode, highlight: Set<number>) {
   }));
 }
 
-export function rehypeDocs() {
+export interface RehypeDocsOptions {
+  /**
+   * Old heading ids → current ones (frontmatter `anchors`). Each old id becomes an empty, hidden
+   * anchor at the start of its heading, so `#old-id` still scrolls to it. Unknown targets are ignored.
+   */
+  anchors?: Record<string, string>;
+}
+
+export function rehypeDocs(options: RehypeDocsOptions = {}) {
+  const aliases = aliasesByTarget(options.anchors);
   return (tree: HNode, file?: { value?: unknown }) => {
     const source = typeof file?.value === "string" ? file.value : null;
     const slug = createSlugger();
+    const ids = new Set<string>();
     const walk = (n: HNode) => {
       if (n.type === "element") {
         if (/^h[1-4]$/.test(n.tagName ?? "") && !n.properties?.id) {
           const s = n.position?.start.offset, e = n.position?.end.offset;
           const text = source !== null && s !== undefined && e !== undefined ? headingSourceText(source.slice(s, e)) : hText(n).trim();
-          n.properties = { ...n.properties, id: slug(text) };
+          const id = slug(text);
+          n.properties = { ...n.properties, id };
+          ids.add(id);
+          if (aliases.has(id)) n.children = [...aliasNodes(aliases, id, ids), ...(n.children ?? [])];
         }
         if (n.tagName === "code" && typeof n.properties?.dataHl === "string") {
           splitCodeLines(n, new Set(String(n.properties.dataHl).split(",").map(Number)));

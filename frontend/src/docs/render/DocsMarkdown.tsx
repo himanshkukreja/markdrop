@@ -64,12 +64,14 @@ function safeUrl(u: unknown): string | null {
 
 function Pre({ children }: P) {
   const child = Children.toArray(children)[0];
-  const props = (isValidElement(child) ? child.props : {}) as { className?: string; "data-title"?: string; children?: ReactNode };
+  const props = (isValidElement(child) ? child.props : {}) as { className?: string; "data-title"?: string; "data-wrap"?: string; children?: ReactNode };
   const lang = /(?:^|\s)language-([^\s]+)/.exec(props.className ?? "")?.[1];
   const text = codeText(props.children);
   if (lang === "mermaid") return <DiagramFrame code={text} />;
+  // Fence meta: title="…" names the block, `wrap` soft-wraps long lines (prompts, prose).
+  const cls = cx(props["data-title"] && "dx-code--titled", props["data-wrap"] && "dx-code--wrap") || undefined;
   return (
-    <CodeBlock code={text} language={props["data-title"] || lang} className={props["data-title"] ? "dx-code--titled" : undefined}>
+    <CodeBlock code={text} language={props["data-title"] || lang} className={cls}>
       {children}
     </CodeBlock>
   );
@@ -394,12 +396,13 @@ function urlTransform(url: string): string {
   return APP_LINK.test(url) ? url : defaultUrlTransform(url);
 }
 
-export function DocsMarkdown({ source, className }: { source: string; className?: string }) {
+/** `anchors`: the page's old heading ids (frontmatter), kept as hidden anchors on their headings. */
+export function DocsMarkdown({ source, className, anchors }: { source: string; className?: string; anchors?: Record<string, string> }) {
   return (
     <div className={cx("prose md-prose md-prose--reading dx-prose", className)}>
       <Markdown
         remarkPlugins={[remarkGfm, remarkMath, remarkDirective, remarkDocs]}
-        rehypePlugins={[[rehypeHighlight, { detect: false }], rehypeDocs, [rehypeKatex, KATEX]]}
+        rehypePlugins={[[rehypeHighlight, { detect: false }], [rehypeDocs, { anchors }], [rehypeKatex, KATEX]]}
         components={COMPONENTS}
         urlTransform={urlTransform}
       >

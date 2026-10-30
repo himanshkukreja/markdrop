@@ -4,6 +4,7 @@ import { Button, Icon } from "@/components/ui";
 import { getChangelog, getNav, getPage, getSite } from "@/docs/content";
 import { formatDate } from "@/docs/outputs";
 import { isAppPath } from "@/docs/markdown";
+import { heroLede, startCardText } from "@/docs/present.mjs";
 import { HomeAsk, InstallBox } from "@/docs/client/Chrome";
 import { DocsFooter, DocsHeader, InlineCode } from "@/docs/ui/Chrome";
 
@@ -26,6 +27,9 @@ export default function DocsHome() {
   const start = (home.start ?? []).map((s) => ({ ...s, page: getPage(s.page) })).filter((s) => s.page);
   const areas = (home.areas?.length ? home.areas.map((a) => nav.find((g) => g.group === a)) : nav).filter((g): g is NonNullable<typeof g> => !!g);
   const news = getChangelog().entries.slice(0, 3);
+  const headline = site.headline ?? site.name;
+  // A description that only repeats the headline isn't shown twice.
+  const lede = heroLede(headline, site.description);
 
   return (
     <>
@@ -34,9 +38,9 @@ export default function DocsHome() {
         <section aria-labelledby="dx-hero-h" className="dx-hero">
           {site.eyebrow && <span className="dx-eyebrow">{site.eyebrow}</span>}
           <h1 id="dx-hero-h" className="dx-hero__title">
-            {site.headline ?? site.name}
+            {headline}
           </h1>
-          <p className="dx-hero__lede">{site.description}</p>
+          {lede && <p className="dx-hero__lede">{lede}</p>}
           <HomeAsk chips={home.chips} placeholder={home.askPlaceholder} />
         </section>
 
@@ -46,18 +50,21 @@ export default function DocsHome() {
               Start here
             </h2>
             <div className="dx-grid dx-grid--3">
-              {start.map((s) => (
-                <Link key={s.page!.path} href={s.page!.path} className="dx-startcard">
-                  <span className="dx-startcard__top">
-                    <span className="dx-tile" aria-hidden>
-                      <Icon name={s.icon ?? "doc"} />
+              {start.map((s) => {
+                const text = startCardText(s, s.page!.meta);
+                return (
+                  <Link key={s.page!.path} href={s.page!.path} className="dx-startcard">
+                    <span className="dx-startcard__top">
+                      <span className="dx-tile" aria-hidden>
+                        <Icon name={s.icon ?? "doc"} />
+                      </span>
+                      {s.time && <span className="dx-startcard__time">{s.time}</span>}
                     </span>
-                    {s.time && <span className="dx-startcard__time">{s.time}</span>}
-                  </span>
-                  <strong className="dx-startcard__title">{s.page!.meta.title}</strong>
-                  <span className="dx-startcard__body">{s.page!.meta.description}</span>
-                </Link>
-              ))}
+                    <strong className="dx-startcard__title">{text.title}</strong>
+                    <span className="dx-startcard__body">{text.description}</span>
+                  </Link>
+                );
+              })}
             </div>
           </section>
         )}

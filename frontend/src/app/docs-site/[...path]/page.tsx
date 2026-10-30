@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { Badge, Breadcrumb, Icon } from "@/components/ui";
 import { absoluteUrl, agentMarkdown, getAllPages, getPage, getSite, groupOf, mdUrl, navLabel, prevNext, sectionMarkdown, withPrerequisites } from "@/docs/content";
 import { formatDate } from "@/docs/outputs";
+import { introOf, plainText } from "@/docs/markdown";
+import { pageLede } from "@/docs/present.mjs";
 import { aiSettings } from "@/docs/brand";
 import { DocsMarkdown } from "@/docs/render/DocsMarkdown";
 import { DocPageProvider, type DocPageInfo } from "@/docs/client/page";
@@ -45,6 +47,37 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+/**
+ * The title row, with the page's icon (site.json `pages.icons`) and the lede under it (`pages.showDescription`).
+ * Without either it is exactly the plain title row, element for element.
+ */
+function ArticleTitle({ title, icon, lede }: { title: string; icon?: string; lede?: string }) {
+  const row = (
+    <div className="dx-titlerow">
+      <h1 className="dx-title">
+        {icon ? (
+          <>
+            <Icon name={icon} className="dx-title__icon" />
+            {title}
+          </>
+        ) : (
+          title
+        )}
+      </h1>
+      <span className="dx-only-wide">
+        <CopyPageButton />
+      </span>
+    </div>
+  );
+  if (!lede) return row;
+  return (
+    <>
+      {row}
+      <p className="dx-lede">{lede}</p>
+    </>
+  );
+}
+
 export default async function DocsArticle({ params }: Props) {
   const page = await load(params);
   if (!page) notFound();
@@ -57,6 +90,9 @@ export default async function DocsArticle({ params }: Props) {
   const prereq = withPrerequisites(page);
   const prereqPages = (page.meta.prerequisites ?? []).map((p) => getPage(p)).filter((p): p is NonNullable<typeof p> => !!p);
   const firstOfGroup = group?.items.find((it) => it.available)?.path;
+  // site.json `pages`: the description under the title, the page's icon beside it.
+  const lede = pageLede(site.pages, page.meta.description, plainText(introOf(page.body, page.headings), { code: false }));
+  const icon = site.pages?.icons === true ? page.meta.icon : undefined;
 
   const info: DocPageInfo = {
     path: page.path,
@@ -143,12 +179,7 @@ export default async function DocsArticle({ params }: Props) {
 
         <main id="main" className="dx-article">
           <Breadcrumb items={crumbs} className="dx-crumbs" />
-          <div className="dx-titlerow">
-            <h1 className="dx-title">{page.meta.title}</h1>
-            <span className="dx-only-wide">
-              <CopyPageButton />
-            </span>
-          </div>
+          <ArticleTitle title={page.meta.title} icon={icon} lede={lede} />
           <div className="dx-meta">
             <span className="dx-meta__item">
               <Icon name="clock" />
@@ -183,7 +214,7 @@ export default async function DocsArticle({ params }: Props) {
             </p>
           )}
 
-          <DocsMarkdown source={page.body} />
+          <DocsMarkdown source={page.body} anchors={page.meta.anchors} />
 
           <Feedback />
 

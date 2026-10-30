@@ -8,6 +8,37 @@
  */
 import { decodeEntities, parseHtml, rgbToHex, textOf } from "./html.mjs";
 
+/**
+ * True when an image can't be transparent: a PNG without an alpha channel or tRNS chunk, a JPEG,
+ * a lossy WebP without alpha. Such a logo shows its own background (often a white square), so on
+ * the dark theme it belongs on a light tile (site.json brand.logo.tile). Unknown formats: false.
+ */
+export function isOpaqueImage(buf) {
+  if (!buf || buf.length < 32) return false;
+  if (buf.readUInt32BE(0) === 0x89504e47) {
+    const colorType = buf[25];
+    if (colorType === 4 || colorType === 6) return false;
+    // tRNS comes before IDAT; look through the chunks.
+    let at = 8;
+    while (at + 8 <= buf.length) {
+      const len = buf.readUInt32BE(at);
+      const type = buf.toString("latin1", at + 4, at + 8);
+      if (type === "tRNS") return false;
+      if (type === "IDAT" || type === "IEND") break;
+      at += 12 + len;
+    }
+    return true;
+  }
+  if (buf[0] === 0xff && buf[1] === 0xd8) return true;
+  if (buf.toString("latin1", 0, 4) === "RIFF" && buf.toString("latin1", 8, 12) === "WEBP") {
+    const chunk = buf.toString("latin1", 12, 16);
+    if (chunk === "VP8 ") return true;
+    if (chunk === "VP8X") return (buf[20] & 0x10) === 0;
+    return false; // VP8L: may carry alpha
+  }
+  return false;
+}
+
 export function createSite(origin, base = "") {
   const host = new URL(origin).hostname;
   const abs = (p) => new URL(p, origin + base + "/").href;
@@ -121,8 +152,15 @@ export function createSite(origin, base = "") {
     const at = html.indexOf("data-gb-site-header");
     const header = at < 0 ? "" : html.slice(at, at + 30000);
     const homeLink = /<a\b[^>]*href="\/"[^>]*>([\s\S]*?)<\/a>/.exec(header)?.[1] ?? "";
-    const img = /<img\b[^>]*\ssrc="([^"]+)"[^>]*>/.exec(homeLink)?.[1];
-    const imgAlt = /<img\b[^>]*\salt="([^"]*)"/.exec(homeLink)?.[1];
+    // GitBook writes the logo twice: `dark:hidden` for the light theme, `dark:block` for the dark one.
+    const imgs = [...homeLink.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+    const srcOf = (tag) => /\ssrc="([^"]+)"/.exec(tag ?? "")?.[1];
+    const classOf = (tag) => /\sclass="([^"]*)"/.exec(tag ?? "")?.[1] ?? "";
+    const lightTag = imgs.find((t) => /(^|\s)dark:hidden(\s|$)/.test(classOf(t))) ?? imgs.find((t) => !/(^|\s)dark:block(\s|$)/.test(classOf(t))) ?? imgs[0];
+    const darkTag = imgs.find((t) => t !== lightTag && /(^|\s)dark:block(\s|$)/.test(classOf(t)));
+    const img = srcOf(lightTag);
+    const darkImg = srcOf(darkTag);
+    const imgAlt = /\salt="([^"]*)"/.exec(lightTag ?? "")?.[1];
     const name = textOf(parseHtml(homeLink.replace(/<svg[\s\S]*?<\/svg>/g, ""))).replace(/\s+/g, " ").trim();
     const title = decodeEntities(/<title>([^<]*)<\/title>/.exec(html)?.[1] ?? "");
     const icon = /<link\b[^>]*rel="icon"[^>]*href="([^"]+)"/.exec(html)?.[1] ?? /<link\b[^>]*href="([^"]+)"[^>]*rel="icon"/.exec(html)?.[1];
@@ -131,6 +169,8 @@ export function createSite(origin, base = "") {
     return {
       siteName: name || title.split(" | ").pop() || host,
       logo: img ? originalImageUrl(img) : null,
+      // The dark theme's logo, only when it is a different image.
+      logoDark: darkImg && img && originalImageUrl(darkImg) !== originalImageUrl(img) ? originalImageUrl(darkImg) : null,
       logoAlt: decodeEntities(imgAlt ?? ""),
       wordmark: !!img && !name,
       favicon: icon ? originalImageUrl(icon) : null,
@@ -138,6 +178,21 @@ export function createSite(origin, base = "") {
       tint: tint ? rgbToHex(tint) : null,
       themeClass: /<html[^>]*class="([^"]*)"/.exec(html)?.[1] ?? "",
     };
+  }
+
+  /**
+   * Page icons from the sidebar data GitBook embeds in its pages (the React payload lists every
+   * page as { id, title, href, icon, … }): Map(GitBook path → Font Awesome name). The rendered
+   * sidebar only has inline SVG paths, so this is the one place the names are readable.
+   */
+  function pageIcons(html) {
+    const out = new Map();
+    const text = String(html ?? "").replace(/\\"/g, '"');
+    for (const m of text.matchAll(/"href":"([^"]*)","icon":"([a-z0-9-]+)"/g)) {
+      const gb = gbPathOf(m[1]);
+      if (gb && !out.has(gb)) out.set(gb, m[2]);
+    }
+    return out;
   }
 
   /** {% file %} blocks in a page's HTML, in order: [{ url, name, size }]. */
@@ -155,5 +210,5 @@ export function createSite(origin, base = "") {
     return out;
   }
 
-  return { abs, gbPathOf, parseLlms, parseSidebar, detectBrand, fileLinks, originalImageUrl };
+  return { abs, gbPathOf, parseLlms, parseSidebar, detectBrand, fileLinks, originalImageUrl, pageIcons };
 }

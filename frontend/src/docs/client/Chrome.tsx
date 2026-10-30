@@ -12,38 +12,43 @@ import { useDocsSite } from "./site";
 export function NavLinks({ groups, current, onPick }: { groups: NavGroup[]; current?: string; onPick?: () => void }) {
   return (
     <>
-      {groups.map((g) => (
-        <div key={g.group} className="dx-nav__group">
-          <p className="dx-eyebrow dx-nav__title">{g.group}</p>
-          <ul>
-            {g.items.map((it) =>
-              it.available ? (
-                <li key={it.path}>
-                  <Link href={it.path} className="dx-nav__item" aria-current={it.path === current ? "page" : undefined} onClick={onPick}>
-                    {it.method && (
-                      <span className="dx-nav__method dx-method" data-method={it.method}>
-                        {it.method === "DELETE" ? "DEL" : it.method}
-                      </span>
-                    )}
-                    <span className="dx-nav__label">{it.title}</span>
-                    {it.isNew && (
-                      <Badge tone="info" size="sm" upper>
-                        New
-                      </Badge>
-                    )}
-                  </Link>
-                </li>
-              ) : (
-                <li key={it.path}>
-                  <span className="dx-nav__item dx-nav__item--missing" title="Not written yet">
-                    <span className="dx-nav__label">{it.title}</span>
-                  </span>
-                </li>
-              ),
-            )}
-          </ul>
-        </div>
-      ))}
+      {groups.map((g) => {
+        // Page icons (site.json pages.icons): a page without one keeps the column, so labels line up.
+        const icons = g.items.some((it) => it.icon);
+        return (
+          <div key={g.group} className="dx-nav__group">
+            <p className="dx-eyebrow dx-nav__title">{g.group}</p>
+            <ul>
+              {g.items.map((it) =>
+                it.available ? (
+                  <li key={it.path}>
+                    <Link href={it.path} className="dx-nav__item" aria-current={it.path === current ? "page" : undefined} onClick={onPick}>
+                      {icons && (it.icon ? <Icon name={it.icon} className="dx-nav__icon" /> : <span className="dx-nav__icon" aria-hidden />)}
+                      {it.method && (
+                        <span className="dx-nav__method dx-method" data-method={it.method}>
+                          {it.method === "DELETE" ? "DEL" : it.method}
+                        </span>
+                      )}
+                      <span className="dx-nav__label">{it.title}</span>
+                      {it.isNew && (
+                        <Badge tone="info" size="sm" upper>
+                          New
+                        </Badge>
+                      )}
+                    </Link>
+                  </li>
+                ) : (
+                  <li key={it.path}>
+                    <span className="dx-nav__item dx-nav__item--missing" title="Not written yet">
+                      <span className="dx-nav__label">{it.title}</span>
+                    </span>
+                  </li>
+                ),
+              )}
+            </ul>
+          </div>
+        );
+      })}
     </>
   );
 }
