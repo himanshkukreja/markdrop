@@ -116,8 +116,11 @@ app.add_middleware(TenantCORSMiddleware)
 # sees their preflights first; every other path passes through untouched.
 app.add_middleware(PublicCORSMiddleware)
 
-# The docs site (docs.markdrop.in) calling /api/v1/docs/* without credentials
-# (middleware/docs_cors.py). Pure ASGI, so Ask AI's event stream isn't buffered.
+# The docs site (docs.markdrop.in) calling /api/v1/docs/*, and the public API for
+# Try it, without credentials (middleware/docs_cors.py). Outermost, so it answers
+# a docs-origin preflight before CORSMiddleware refuses it; internal routes and
+# every other origin pass through untouched. Pure ASGI, so Ask AI's event stream
+# isn't buffered.
 app.add_middleware(DocsCORSMiddleware)
 
 # Rate limiting

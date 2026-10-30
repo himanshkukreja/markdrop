@@ -636,9 +636,45 @@ html.dx-modal-open { overflow: hidden; }
 .dx-tryit__cmdhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--code-border); font-size: 12px; line-height: 18px; color: var(--text-muted); }
 .dx-tryit__err { color: var(--danger); }
 .dx-tryit__pre { margin: 0; padding: 10px 12px; overflow-x: auto; font-family: var(--font-mono); font-size: 12px; line-height: 19px; color: var(--text); white-space: pre; }
-.dx-tryit__actions { display: flex; justify-content: flex-end; }
+.dx-tryit__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .dx-tryit__note { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 12px; line-height: 18px; color: var(--text-muted); }
 .dx-tryit__note .md-icon { flex-shrink: 0; margin-top: 2px; }
+.dx-tryit__note .md-kbd { font-size: 11px; }
+.dx-tryit__file { font-size: 13px; color: var(--text-secondary); max-width: 100%; }
+.dx-tryit__warn { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--radius-lg); background: var(--warning-soft); }
+.dx-tryit__warnline { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 19px; font-weight: 600; color: var(--warning); }
+.dx-tryit__warnline .md-icon { flex-shrink: 0; margin-top: 2px; }
+.dx-tryit__warn .md-check { font-size: 13px; color: var(--text); }
+.dx-tryit__respwrap:empty { display: none; }
+.dx-tryit__resp { border: 1px solid var(--code-border); border-radius: var(--radius-lg); background: var(--code-bg); overflow: hidden; }
+.dx-tryit__resphead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--code-border); }
+.dx-tryit__status { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.dx-tryit__meta { font-size: 12px; line-height: 18px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.dx-tryit__spacer { flex: 1; }
+.dx-tryit__iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; }
+.dx-tryit__iconbtn:hover { color: var(--text); background: var(--surface-hover); }
+.dx-tryit__iconbtn:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.dx-tryit__body { max-height: 420px; overflow: auto; }
+.dx-tryit__body:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.dx-tryit__trunc { color: var(--text-muted); }
+.dx-tryit__img { display: block; max-width: 100%; height: auto; margin: 12px; border-radius: var(--radius-sm); }
+.dx-tryit__empty { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--text-muted); }
+.dx-tryit__errbody { padding: 10px 12px; font-size: 13px; line-height: 19px; color: var(--text); }
+.dx-tryit__errbody p { margin: 4px 0 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+.dx-tryit__headers { border-top: 1px solid var(--code-border); }
+.dx-tryit__headers > summary { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 12px; line-height: 18px; color: var(--text-secondary); cursor: pointer; list-style: none; }
+.dx-tryit__headers > summary::-webkit-details-marker { display: none; }
+.dx-tryit__headers[open] > summary .dx-details__chev { transform: rotate(90deg); }
+.dx-tryit__headers dl { margin: 0; padding: 0 12px 6px; font-family: var(--font-mono); font-size: 12px; line-height: 18px; }
+.dx-tryit__headers dl > div { display: grid; grid-template-columns: minmax(96px, 38%) minmax(0, 1fr); gap: 12px; padding: 3px 0; }
+.dx-tryit__headers dt { color: var(--text-muted); overflow-wrap: anywhere; }
+.dx-tryit__headers dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.dx-tryit__headers .dx-tryit__hint { display: block; padding: 0 12px 10px; }
+@media (max-width: 599px) {
+  .dx-tryit { padding: 12px; }
+  .dx-tryit__actions > .md-btn { flex: 1; }
+  .dx-tryit__headers dl > div { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 4px 0; }
+}
 @media (max-width: 1279px) {
   .dx-api__jump { display: inline-flex; }
   .dx-layout--api { grid-template-columns: 220px minmax(0, 1fr); }

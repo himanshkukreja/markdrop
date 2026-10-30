@@ -852,8 +852,9 @@ class EndpointTests(DocsAIBase):
                     "Origin": origin, "Access-Control-Request-Method": "POST",
                     "Access-Control-Request-Headers": "content-type, authorization"})
                 self.assertEqual(r.headers.get("access-control-allow-origin") == origin, ok, origin)
-            # Other paths are untouched by the docs CORS layer.
-            r = await c.options("/api/v1/documents", headers={"Origin": DOCS, "Access-Control-Request-Method": "POST"})
+            # Internal paths are untouched by the docs CORS layer (the public API is
+            # open to Try it: tests/test_docs_cors.py).
+            r = await c.options("/api/v1/admin/documents", headers={"Origin": DOCS, "Access-Control-Request-Method": "GET"})
             self.assertNotEqual(r.headers.get("access-control-allow-origin"), DOCS)
 
     async def test_page_and_answer_feedback(self):
