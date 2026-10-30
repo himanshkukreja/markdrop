@@ -504,7 +504,12 @@ async function pollActive() {
   polling = true;
   try {
     const res = await api("GET", `/api/v1/sync/${link.id}/rev`);
-    if (res.status === 404) { await deleteLink(uri); updateStatus(); return; }
+    if (res.status === 404) {
+      await deleteLink(uri);
+      vscode.window.showWarningMessage("This document no longer exists on Markdrop — unlinked.");
+      updateStatus();
+      return;
+    }
     if (!res.ok) return;
     const { rev } = await res.json() as { rev: number };
     if (rev <= link.baseRev) return; // nothing new on the server
