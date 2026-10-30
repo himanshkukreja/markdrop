@@ -20,7 +20,9 @@ site row, in ``engine_extra`` (an import fills it): description, hero, home
 cards, page options, footer, tabs, redirects, videos, extra brand fields
 (logo alt/tile/wordmark, favicon, OG colours) and nav group icons. ``settings``
 stays exactly the API's validated model. Nothing from ``settings.access``
-(the password hash) is ever written.
+(the password hash) is ever written; the runner gets the access level and policy
+version only (services/docs_site_access.py), and a non-public site is built
+with Ask AI off and indexing off.
 """
 
 from __future__ import annotations
@@ -154,7 +156,8 @@ def _theme(settings: dict) -> dict:
     return out
 
 
-def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[dict], *, url: str, ai_api: str) -> dict:
+def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[dict], *, url: str, ai_api: str,
+              public: bool = True) -> dict:
     home = dict(extra.get("home") or {})
     ai = settings.get("ai") or {}
     suggestions = [s for s in (ai.get("suggestions") or []) if isinstance(s, str) and s.strip()][:5]
@@ -179,11 +182,13 @@ def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[di
         out["embedHosts"] = extra["embed_hosts"]
     out["brand"] = _brand(name, settings, extra)
     out["theme"] = _theme(settings)
+    # A password or members-only site: the edge gates every address, but Ask AI is answered by the
+    # API, which doesn't check the edge's session yet, so it stays off; and nothing is indexed.
     out["ai"] = (
         {"enabled": True, "api": ai_api, "site": site_id, "assistantName": ai.get("name") or "Ask AI"}
-        if ai.get("enabled") else {"enabled": False}
+        if ai.get("enabled") and public else {"enabled": False}
     )
-    out["seo"] = {"index": bool((settings.get("seo") or {}).get("index", True))}
+    out["seo"] = {"index": bool((settings.get("seo") or {}).get("index", True)) and public}
     out["integrations"] = {"markdropApp": False}
     return out
 
@@ -258,7 +263,10 @@ def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str) -> tuple
         updated = _date(p.get("updated")) or _date(p.get("updated_at")) or default_updated
         files[page_file(p["path"])] = page_text(p, updated)
     nav = build_nav(settings, pages, extra)
-    files["site.json"] = json.dumps(site_json(str(site["_id"]), name, settings, extra, nav, url=url, ai_api=ai_api),
+    from app.services.docs_site_access import is_public
+
+    files["site.json"] = json.dumps(site_json(str(site["_id"]), name, settings, extra, nav, url=url, ai_api=ai_api,
+                                              public=is_public(site)),
                                     indent=2, ensure_ascii=False) + "\n"
     redirects = settings.get("redirects") or extra.get("redirects")
     if isinstance(redirects, list):
@@ -284,7 +292,7 @@ async def _page_ids(db: AsyncIOMotorDatabase, snapshot: dict) -> None:
 
 
 async def bundle(db: AsyncIOMotorDatabase, build: dict) -> dict:
-    """The runner's view of a build: {bundle: {site_id, files, warnings}, publish: {site, hosts}}.
+    """The runner's view of a build: {bundle: {site_id, files, warnings}, publish: {site, hosts, access}}.
     The address is the snapshot's (a slug change goes live with the publish that carries it)."""
     snapshot = await db[SNAPSHOTS].find_one({"_id": oid(build["snapshot_id"])})
     if snapshot is None:
@@ -292,11 +300,15 @@ async def bundle(db: AsyncIOMotorDatabase, build: dict) -> dict:
     site = await db[SITES].find_one({"_id": oid(build["site_id"])})
     if site is None:
         raise LookupError(f"site {build.get('site_id')} not found")
+    from app.services.docs_site_access import policy
+
     await _page_ids(db, snapshot)
     slug = (snapshot.get("site") or {}).get("slug") or site.get("slug")
     ai_api = get_jobs_settings().docs_ai_api or get_settings().api_base_url
     files, warnings = content_files(site, snapshot, url=site_url(site, slug), ai_api=ai_api)
     return {
         "bundle": {"site_id": str(site["_id"]), "files": files, "warnings": warnings},
-        "publish": {"site": str(site["_id"]), "hosts": site_hosts(site, slug)},
+        # access: the policy the runner writes (sites/<id>/access.json) before it flips the pointer,
+        # so a password or members-only site is never live without it (services/docs_site_access.py).
+        "publish": {"site": str(site["_id"]), "hosts": site_hosts(site, slug), "access": policy(site)},
     }

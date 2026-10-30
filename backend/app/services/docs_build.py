@@ -285,11 +285,28 @@ async def finish_build(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
            "unchanged": bool(result.get("unchanged")), "stats": stats}
     if moved:
         out["old_hosts_removed"] = moved
+    await _reconcile_access(db, build["site_id"], result.get("access"))
     await docs_jobs.complete(db, job["_id"], worker, out)
     await docs_jobs.log_event(db, "docs_build_live", build["site_id"], build.get("requested_by"),
                               build_id=str(build["_id"]), number=build.get("number"), pages=stats.get("pages"),
                               ms=stats.get("ms"), target=job.get("target"))
     return out
+
+
+async def _reconcile_access(db: AsyncIOMotorDatabase, site_id: Any, written: Any) -> None:
+    """The runner writes the access policy the spec carried before it flips the pointer. When the
+    site's policy changed since (or an older runner wrote none), queue the access job, which writes
+    the current one."""
+    from app.services import docs_site_access
+
+    site = await db[SITES].find_one({"_id": site_id}, {"settings.access.level": 1, "access_version": 1})
+    if site is None or not docs_site_access.needs_policy(site):
+        return
+    want = docs_site_access.policy(site)
+    if isinstance(written, dict) and written.get("level") == want["level"] \
+            and written.get("policy_version") == want["policy_version"]:
+        return
+    await docs_site_access.queue_sync(db, site_id, "build")
 
 
 async def _drop_old_address(db: AsyncIOMotorDatabase, site: dict, build: dict, prev: dict | None) -> list[str]:
@@ -386,7 +403,7 @@ async def unpublish(db: AsyncIOMotorDatabase, site_id: Any, slug: str | None, *,
 
 
 async def run_server_job(db: AsyncIOMotorDatabase, job: dict, worker: str) -> dict:
-    """A claimed restore or unpublish job, start to finish (the API inline, or the local worker)."""
+    """A claimed restore, unpublish or access job, start to finish (the API inline, or the local worker)."""
     p = job.get("payload") or {}
     try:
         if job["kind"] == "restore":
@@ -394,6 +411,10 @@ async def run_server_job(db: AsyncIOMotorDatabase, job: dict, worker: str) -> di
         elif job["kind"] == "unpublish":
             res = await unpublish(db, job["site_id"], p.get("slug"))
             await docs_jobs.log_event(db, "docs_unpublished", job["site_id"], None, reason=p.get("reason"), **res)
+        elif job["kind"] == "access":
+            from app.services import docs_site_access
+
+            res = await docs_site_access.sync_policy(db, job["site_id"])
         else:
             raise RestoreError(f"{job['kind']} jobs don't run on the server")
     except RestoreError as e:

@@ -429,9 +429,17 @@ class Settings(BaseSettings):
     docs_sites_per_workspace: int = 3
     docs_pages_per_site: int = 1000
     docs_builds_per_day: int = 30          # server builds per site per UTC day
-    # Password and members-only docs sites need the edge to enforce access. Until it does, the API
-    # refuses non-public access, and refuses to publish or restore a non-public site.
+    # Password and members-only docs sites. The edge enforces them (docs-platform/edge/access.mjs,
+    # services/docs_site_access.py); turn this on only once the docs Worker runs that code with its
+    # DOCS_ACCESS_SECRET set to docs_access_secret below. Off: the API refuses non-public access,
+    # and refuses to publish or restore a non-public site.
     docs_private_sites_enabled: bool = False
+    # The secret the API shares with the docs edge Worker (its DOCS_ACCESS_SECRET): the API signs
+    # short sign-in grants for password and members-only sites with it, the edge checks them and
+    # signs its session cookie (services/docs_site_access.py). 32+ characters; blank = nobody can
+    # sign in to a non-public site (the edge still keeps it closed).
+    docs_access_secret: str = ""
+    docs_access_grant_ttl_seconds: int = 120
     docs_asset_max_bytes: int = 25 * 1024 * 1024
     docs_site_storage_bytes: int = 2 * 1024 * 1024 * 1024
     docs_ai_answers_per_month: int = 1000  # Ask AI answers per site per month

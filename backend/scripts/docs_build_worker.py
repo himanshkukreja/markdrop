@@ -1,4 +1,4 @@
-"""Markdrop Docs local worker: runs the docs jobs routed to "local" (builds, imports, restores, unpublishes).
+"""Markdrop Docs local worker: runs the docs jobs routed to "local" (builds, imports, restores, unpublishes, access policies).
 
 GitHub Actions runs most builds (services/docs_dispatch.py). This worker runs
 what the dispatcher sends to the server (restores, small imports, builds when
@@ -17,7 +17,7 @@ DOCS_LOCAL_MIN_FREE_MB, DOCS_LOCAL_BUILD_TIMEOUT_SECONDS (services/docs_jobs.py)
 and for this process:
 
     MARKDROP_DOCS_WORKER_CONCURRENCY   jobs at once (default 1; builds are 1 at a time regardless)
-    MARKDROP_DOCS_WORKER_KINDS         build,import,restore,unpublish
+    MARKDROP_DOCS_WORKER_KINDS         build,import,restore,unpublish,access
     MARKDROP_DOCS_WORKER_POLL_SECONDS  5
     MARKDROP_DOCS_WORKER_GRACE_SECONDS 120 (on SIGTERM: let running jobs finish this long, then hand them back)
     MARKDROP_DOCS_WORKER_DISPATCH      1 = also run the dispatcher pass (routing + sweeper; a lease, so
@@ -69,7 +69,7 @@ def log(event: str, level: str = "info", **kw) -> None:
 class Config:
     def __init__(self, env=os.environ):
         self.concurrency = max(1, int(env.get("MARKDROP_DOCS_WORKER_CONCURRENCY", "1")))
-        self.kinds = tuple(k for k in env.get("MARKDROP_DOCS_WORKER_KINDS", "build,import,restore,unpublish").split(",") if k in docs_jobs.KINDS)
+        self.kinds = tuple(k for k in env.get("MARKDROP_DOCS_WORKER_KINDS", "build,import,restore,unpublish,access").split(",") if k in docs_jobs.KINDS)
         self.poll = float(env.get("MARKDROP_DOCS_WORKER_POLL_SECONDS", "5"))
         self.grace = float(env.get("MARKDROP_DOCS_WORKER_GRACE_SECONDS", "120"))
         self.dispatch = env.get("MARKDROP_DOCS_WORKER_DISPATCH", "1") == "1"
@@ -285,7 +285,7 @@ class Worker:
         log("job_start", job=job["_id"], site=job["site_id"], kind=job["kind"], attempt=job.get("attempts"), slot=run.slot)
         ok = False
         try:
-            if job["kind"] in ("restore", "unpublish"):
+            if job["kind"] in ("restore", "unpublish", "access"):
                 res = await docs_build.run_server_job(db, job, self.id)
                 ok = bool(res.get("ok"))
             elif job["kind"] == "build":
