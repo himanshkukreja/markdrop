@@ -4,8 +4,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { convertBody, faIcon, firstParagraph, parseGitbookPage, tagAttrs, trimDescription, videoEmbedUrl } from "../lib/convert.mjs";
-import { createSite } from "../lib/site.mjs";
+import { convertBody, faIcon, faName, firstParagraph, parseGitbookPage, tagAttrs, trimDescription, videoEmbedUrl } from "../lib/convert.mjs";
+import { createSite, isOpaqueImage } from "../lib/site.mjs";
 import { decodeEntities, inlineMarkdown, parseHtml } from "../lib/html.mjs";
 import { createSlugger, headingIds } from "../lib/slug.mjs";
 
@@ -142,11 +142,23 @@ test("file blocks become a download card", () => {
   assert.ok(none.issues.some((i) => i.kind === "file"));
 });
 
-test("code titles move into the fence; prompts become titled text fences", () => {
+test("code titles move into the fence; prompts become soft-wrapped titled text fences", () => {
   const { out, counts } = convert(['{% code title="app.js" lineNumbers="true" %}', "```js", "run()", "```", "{% endcode %}", "", '{% prompt description="Summarise" icon="star" %}', "", "```markdown", "Summarise [doc].", "```", "", "{% endprompt %}"].join("\n"));
   assert.match(out, /^```js title="app\.js"$/m);
-  assert.match(out, /^```text title="Summarise"$/m);
+  assert.match(out, /^```text wrap title="Summarise"$/m);
   assert.ok(counts.some((c) => c.includes("dropped: lineNumbers")));
+  // A prompt without its own fence gets one.
+  const bare = convert(['{% prompt description="Find people" %}', "Find candidates in Berlin.", "{% endprompt %}"].join("\n")).out;
+  assert.match(bare, /^```text wrap title="Find people"\nFind candidates in Berlin\.\n```$/m);
+});
+
+test("Font Awesome names → design-system icons", () => {
+  assert.equal(faName("bolt"), "zap");
+  assert.equal(faName("fa-hand-wave"), "wave");
+  assert.equal(faName("desktop"), "monitor");
+  assert.equal(faName("lightbulb-regular"), "bulb");
+  assert.equal(faName("chess-rook"), undefined);
+  assert.equal(faIcon("fa-regular fa-lightbulb"), "bulb", "the style class is skipped");
 });
 
 test("tags inside code fences are left alone", () => {
@@ -284,4 +296,63 @@ test("site: llms.txt sections, sidebar groups, brand, file links", () => {
   assert.equal(site.gbPathOf("https://other.example.com/a"), null);
   const files = site.fileLinks('<div><a class="hover:underline" target="_blank" href="https://x-files.gitbook.io/~/files/v0/b/o/a.xlsx?alt=media&amp;t=1">a.xlsx</a></div><div class="s">10KB</div>');
   assert.deepEqual(files, [{ url: "https://x-files.gitbook.io/~/files/v0/b/o/a.xlsx?alt=media&t=1", name: "a.xlsx", size: "10KB" }]);
+});
+
+test("brand: GitBook's light and dark logos; one image for both means no dark logo", () => {
+  const site = createSite("https://docs.example.com");
+  const head = (light, dark) =>
+    `<header data-gb-site-header="true"><a href="/"><img alt="" class="block dark:hidden size-8" src="https://docs.example.com/~gitbook/image?url=${encodeURIComponent(light)}&amp;width=32"/>` +
+    `<img alt="" class="hidden dark:block size-8" src="https://docs.example.com/~gitbook/image?url=${encodeURIComponent(dark)}&amp;width=32"/><div>Example</div></a></header>`;
+  const two = site.detectBrand(head("https://cdn.example.com/logo.png", "https://cdn.example.com/logo-dark.png"));
+  assert.equal(two.logo, "https://cdn.example.com/logo.png");
+  assert.equal(two.logoDark, "https://cdn.example.com/logo-dark.png");
+  const one = site.detectBrand(head("https://cdn.example.com/logo.png", "https://cdn.example.com/logo.png"));
+  assert.equal(one.logo, "https://cdn.example.com/logo.png");
+  assert.equal(one.logoDark, null);
+});
+
+test("page icons from GitBook's sidebar data", () => {
+  const site = createSite("https://docs.example.com");
+  const html =
+    '<script>self.__next_f.push([1,"{\\"pages\\":[{\\"id\\":\\"a\\",\\"title\\":\\"Welcome\\",\\"href\\":\\"/\\",\\"icon\\":\\"hand-wave\\",\\"type\\":\\"document\\"},' +
+    '{\\"id\\":\\"b\\",\\"title\\":\\"Setup\\",\\"href\\":\\"/guides/setup\\",\\"icon\\":\\"bolt\\"},{\\"id\\":\\"c\\",\\"title\\":\\"Plain\\",\\"href\\":\\"/guides/plain\\"}]}"])</script>';
+  assert.deepEqual([...site.pageIcons(html)], [["/", "hand-wave"], ["/guides/setup", "bolt"]]);
+  assert.equal(site.pageIcons("").size, 0);
+});
+
+test("isOpaqueImage: PNG colour types and tRNS, JPEG, WebP", () => {
+  const png = (colorType, chunks = []) => {
+    const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const ihdr = Buffer.alloc(25);
+    ihdr.writeUInt32BE(13, 0);
+    ihdr.write("IHDR", 4, "latin1");
+    ihdr.writeUInt32BE(32, 8);
+    ihdr.writeUInt32BE(32, 12);
+    ihdr[16] = 8;
+    ihdr[17] = colorType;
+    const rest = chunks.map((t) => {
+      const c = Buffer.alloc(13);
+      c.writeUInt32BE(1, 0);
+      c.write(t, 4, "latin1");
+      return c;
+    });
+    return Buffer.concat([sig, ihdr, ...rest, Buffer.from([0, 0, 0, 0, 0x49, 0x44, 0x41, 0x54, 0, 0, 0, 0])]);
+  };
+  assert.equal(isOpaqueImage(png(2)), true, "RGB");
+  assert.equal(isOpaqueImage(png(3)), true, "palette without tRNS");
+  assert.equal(isOpaqueImage(png(3, ["tRNS"])), false, "palette with tRNS");
+  assert.equal(isOpaqueImage(png(6)), false, "RGBA");
+  assert.equal(isOpaqueImage(Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(40)])), true, "JPEG");
+  const webp = (chunk, flags = 0) => {
+    const b = Buffer.alloc(40);
+    b.write("RIFF", 0, "latin1");
+    b.write("WEBP", 8, "latin1");
+    b.write(chunk, 12, "latin1");
+    b[20] = flags;
+    return b;
+  };
+  assert.equal(isOpaqueImage(webp("VP8 ")), true);
+  assert.equal(isOpaqueImage(webp("VP8X", 0x10)), false);
+  assert.equal(isOpaqueImage(webp("VP8L")), false);
+  assert.equal(isOpaqueImage(Buffer.from("<svg/>")), false);
 });

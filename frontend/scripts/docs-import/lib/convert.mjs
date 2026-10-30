@@ -13,7 +13,7 @@
  *   {% embed url %}                               → ::video (YouTube/Vimeo/Loom, first per page) or ::embed
  *   {% file src %}                                → :::card[name]{href icon="download"} (file downloaded)
  *   {% code title lineNumbers overflow %}         → fence meta title="…" (the rest dropped)
- *   {% prompt description %}                      → a ```text fence titled with the description
+ *   {% prompt description %}                      → a soft-wrapped ```text wrap fence titled with the description
  *   {% columns %} / {% column %}                  → content kept, one column after another
  *   {% if %}                                      → content kept, condition dropped (reported)
  *   {% updates %} / {% update date %}             → a **date** line per update (reported)
@@ -43,12 +43,33 @@ export const FA_ICONS = {
   "circle-info": "info", "circle-question": "info", lightbulb: "bulb", video: "film", film: "film", image: "image", table: "table",
   folder: "folder", download: "download", upload: "upload", message: "message", comments: "message", "paper-plane": "send",
   clock: "clock", "clipboard-list": "clipboard", clipboard: "clipboard", flag: "flag", server: "server", robot: "sparkle", brain: "sparkle",
+  // Page icons GitBook sites use often.
+  "hand-wave": "wave", desktop: "monitor", "picture-in-picture": "film", "rocketchat": "message", laptop: "laptop", mobile: "phone", "mobile-screen": "phone", tablet: "tablet", rotate: "rotate",
+  recycle: "refresh", "arrows-rotate": "refresh", "arrows-spin": "refresh", play: "play", "circle-play": "play", memo: "lines", text: "lines",
+  "file-image": "image", "file-chart-column": "chart", "file-magnifying-glass": "search", "file-user": "user", "filter-list": "filter",
+  "envelope-open-text": "mail", "envelope-open": "mail", "comments-question": "message", "comment-sms": "message", comment: "message",
+  "chart-simple-horizontal": "chart", "chart-mixed": "chart", "chart-mixed-up-circle-currency": "chart", calendars: "calendar",
+  "calendar-star": "calendar", "calendar-days": "calendar", "badge-check": "checkCircle", "table-cells": "table", "table-cells-header": "table",
+  "users-line": "users", "object-exclude": "layers", "sliders-simple": "settings", "gear-complex": "settings", hashtag: "hash", tag: "hash",
+  "wand-magic": "sparkle", "sparkles-simple": "sparkle", "bullhorn": "send", "history": "history", "clock-rotate-left": "history",
+  "shield-halved": "shield", "user-shield": "shield", "building-shield": "shield", "list-ul": "list", "list-ol": "list", "list-tree": "listTree",
+  "sitemap": "listTree", "diagram-project": "listTree", "github": "github", "google": "google", "palette": "palette", "droplet": "droplet",
+  "music": "music", "print": "printer", "qrcode": "qr", "inbox": "inbox", "archive": "archive", "box-archive": "archive", "bug": "bug",
+  "share": "share", "share-nodes": "share", "arrow-up-right-from-square": "external", "up-right-from-square": "external",
 };
 
+/** A Font Awesome name (`bolt`, `fa-bolt`, `fa-regular fa-bolt`) → a design-system icon, or undefined. */
+export function faName(name) {
+  const n = String(name ?? "").toLowerCase().replace(/^fa-/, "");
+  return FA_ICONS[n] ?? FA_ICONS[n.replace(/-(solid|regular|light|duotone|thin)$/, "")];
+}
+
 export function faIcon(cls) {
-  const m = /\bfa-([a-z0-9-]+)/.exec(cls ?? "");
-  if (!m) return undefined;
-  return FA_ICONS[m[1]] ?? FA_ICONS[m[1].replace(/-(solid|regular|light|duotone)$/, "")];
+  for (const m of String(cls ?? "").matchAll(/\bfa-([a-z0-9-]+)/g)) {
+    const icon = faName(m[1]);
+    if (icon) return icon;
+  }
+  return undefined;
 }
 
 const norm = (s) => decodeEntities(String(s ?? "")).replace(/[\s ]+/g, " ").trim();
@@ -457,16 +478,17 @@ function renderBlock(n, ctx, state) {
       return lines;
     }
     case "prompt": {
-      ctx.count("prompt", "```text fence titled with the description (copy button)");
+      // A prompt is prose to copy: soft-wrapped (`wrap`), never a sideways scroll.
+      ctx.count("prompt", "```text wrap fence titled with the description (copy button)");
       const lines = trimBlank(inner());
       const title = n.attrs.description || n.attrs.title || "Prompt";
       const at = lines.findIndex((l) => FENCE.test(l));
       if (at >= 0) {
         const m = FENCE.exec(lines[at]);
-        lines[at] = `${lines[at].slice(0, lines[at].indexOf(m[1]))}${m[1]}text title="${attrVal(title)}"`;
+        lines[at] = `${lines[at].slice(0, lines[at].indexOf(m[1]))}${m[1]}text wrap title="${attrVal(title)}"`;
         return ["", ...lines, ""];
       }
-      return ["", `${ind}\`\`\`text title="${attrVal(title)}"`, ...lines.map((l) => l.replace(ind, "")), `${ind}\`\`\``, ""];
+      return ["", `${ind}\`\`\`text wrap title="${attrVal(title)}"`, ...lines.map((l) => l.replace(ind, "")), `${ind}\`\`\``, ""];
     }
     case "embed": {
       const url = n.attrs.url ?? n.attrs._ ?? "";
