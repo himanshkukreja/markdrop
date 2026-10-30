@@ -161,7 +161,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const ws = data.workspaces?.find((w) => w.id === activeWs);
     if (ws) {
       const folder = activeFolderId ? activeTree?.folders.find((f) => f.id === activeFolderId) : undefined;
-      activeLabel = folder ? `${ws.name} / ${folder.name}` : active?.endsWith(":settings") ? `${ws.name} settings` : ws.name;
+      activeLabel = folder
+        ? `${ws.name} / ${folder.name}`
+        : active?.endsWith(":settings") ? `${ws.name} settings` : active?.endsWith(":docs") ? `${ws.name} / Docs sites` : ws.name;
     }
   }
 
