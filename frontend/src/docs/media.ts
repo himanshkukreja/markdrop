@@ -24,6 +24,11 @@ export interface MediaEntry {
 export type MediaManifest = Record<string, MediaEntry>;
 
 export const PUBLIC_DIR = path.join(process.cwd(), "public");
+/**
+ * A site's own public folder (`<content>/public`, as the importers write it): its /docs-assets/
+ * files are served from there when the app's public/ doesn't have them (siteFiles.mjs).
+ */
+export const SITE_PUBLIC_DIR = path.join(process.env.DOCS_CONTENT_DIR || path.join(process.cwd(), "content", "docs"), "public");
 export const ASSETS_PREFIX = "/docs-assets/";
 
 /** A root-relative /docs-assets/ path (no `..`, no query), or null. */
@@ -123,10 +128,13 @@ export function readVttCues(publicPath: string | undefined): Cue[] {
   const p = assetPath(publicPath);
   if (!p) return [];
   let src = "";
-  try {
-    src = fs.readFileSync(path.join(PUBLIC_DIR, p), "utf8");
-  } catch {
-    return [];
+  for (const dir of [PUBLIC_DIR, SITE_PUBLIC_DIR]) {
+    try {
+      src = fs.readFileSync(path.join(dir, p), "utf8");
+      break;
+    } catch {
+      /* the next folder */
+    }
   }
   if (!/^﻿?WEBVTT/.test(src)) return [];
   const out: Cue[] = [];
