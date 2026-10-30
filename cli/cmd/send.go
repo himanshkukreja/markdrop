@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/markdrop/cli/internal/files"
 	"github.com/markdrop/cli/internal/peer"
 	"github.com/markdrop/cli/internal/signaling"
 	"github.com/markdrop/cli/internal/ui"
@@ -29,10 +30,19 @@ var sendCmd = &cobra.Command{
   automatically extracted on the CLI receiver side. The recipient gets
   the original folder structure, not a zip file.
 
-  Set MARKDROP_TOKEN to an API token (Settings → API tokens on markdrop.in)
-  to have the share listed under your account.`,
+  With an API token the share is listed under your account: --token,
+  MARKDROP_TOKEN, or the one saved by ` + "`markdrop login`" + ` (create one at
+  https://markdrop.in/settings/tokens). Without one the share is anonymous.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runSend,
+}
+
+// sendToken is send's --token flag.
+var sendToken string
+
+func init() {
+	sendCmd.Flags().StringVar(&sendToken, "token", "",
+		"API token that lists the share under your account (default: $MARKDROP_TOKEN, then the one saved by markdrop login)")
 }
 
 func runSend(_ *cobra.Command, args []string) error {
@@ -103,7 +113,7 @@ func runSend(_ *cobra.Command, args []string) error {
 		_ = bar.Set64(sent)
 	}
 
-	err = peer.ServeOne(ctx, sig, src, peer.HostOptions{OnProgress: onProgress, Blob: shareBlob(src)})
+	err = peer.ServeOne(ctx, sig, src, peer.HostOptions{OnProgress: onProgress, Blob: shareBlob(src, sendToken)})
 	if err != nil {
 		if ctx.Err() != nil {
 			fmt.Println()
@@ -141,11 +151,13 @@ func waitForGuest(ctx context.Context, sig *signaling.Client) error {
 	}
 }
 
-// shareBlob is the share-metadata blob for the offer when MARKDROP_TOKEN is
-// set (so the share is listed under the token owner's account), else "".
-// Without a token the CLI tells the server nothing about the file, as before.
-func shareBlob(src *peer.Source) string {
-	token := strings.TrimSpace(os.Getenv("MARKDROP_TOKEN"))
+// shareBlob is the share-metadata blob for the offer when there is an API
+// token (so the share is listed under the token owner's account), else "".
+// The token is resolved like the file commands': explicit (--token), then
+// $MARKDROP_TOKEN, then the one saved by `markdrop login`. Without a token the
+// CLI tells the server nothing about the file, as before.
+func shareBlob(src *peer.Source, explicit string) string {
+	token, _ := files.ResolveToken(explicit)
 	if token == "" {
 		return ""
 	}

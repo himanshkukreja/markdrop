@@ -1,8 +1,16 @@
 package cmd
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
+
+	"github.com/markdrop/cli/internal/files"
+	"github.com/markdrop/cli/internal/peer"
 )
 
 func TestBuildShareURL(t *testing.T) {
@@ -45,5 +53,67 @@ func TestGeneratedIDs(t *testing.T) {
 	}
 	if version != "0.5.0" {
 		t.Errorf("default version %q", version)
+	}
+}
+
+// send and mcp attribute shares with the same token the file commands use:
+// --token, then $MARKDROP_TOKEN, then the one saved by `markdrop login`.
+func TestShareBlobUsesTheResolvedToken(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(files.ConfigDirEnv, filepath.Join(dir, "config"))
+	t.Setenv(files.TokenEnv, "")
+	path := filepath.Join(dir, "a.txt")
+	if err := os.WriteFile(path, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	src, err := peer.SourceFromPath(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer src.Close()
+	tokenOf := func(blob string) *string {
+		t.Helper()
+		raw, err := base64.RawURLEncoding.DecodeString(blob)
+		if err != nil {
+			t.Fatalf("blob %q: %v", blob, err)
+		}
+		var p struct {
+			T *string `json:"t"`
+		}
+		if err := json.Unmarshal(raw, &p); err != nil {
+			t.Fatal(err)
+		}
+		return p.T
+	}
+
+	if b := shareBlob(src, ""); b != "" {
+		t.Fatalf("anonymous send should carry no blob, got %q", b)
+	}
+	if _, err := files.SaveToken("mdk_saved"); err != nil {
+		t.Fatal(err)
+	}
+	if tok := tokenOf(shareBlob(src, "")); tok == nil || *tok != "mdk_saved" {
+		t.Errorf("saved login token not used: %v", tok)
+	}
+	t.Setenv(files.TokenEnv, "mdk_env")
+	if tok := tokenOf(shareBlob(src, "")); tok == nil || *tok != "mdk_env" {
+		t.Errorf("MARKDROP_TOKEN should beat the saved token: %v", tok)
+	}
+	if tok := tokenOf(shareBlob(src, "mdk_flag")); tok == nil || *tok != "mdk_flag" {
+		t.Errorf("--token should win: %v", tok)
+	}
+	if sendCmd.Flags().Lookup("token") == nil {
+		t.Error("send has no --token flag")
+	}
+}
+
+func TestMCPHelpListsEveryTool(t *testing.T) {
+	for _, name := range []string{
+		"upload_file", "replace_file", "list_file_versions", "restore_file_version", "get_file_info",
+		"list_workspaces", "list_folders", "share_files", "share_status", "stop_share", "receive_share",
+	} {
+		if !strings.Contains(mcpCmd.Long, name) {
+			t.Errorf("markdrop mcp --help doesn't list %s", name)
+		}
 	}
 }

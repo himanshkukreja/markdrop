@@ -38,7 +38,7 @@ type Config struct {
 	Server     string // API base URL
 	Origin     string // WebSocket Origin header
 	ShareURL   func(roomID string) string
-	Token      string // MARKDROP_TOKEN, for attribution
+	Token      string // MARKDROP_TOKEN or the saved login token, for share attribution
 	Guard      *Guard
 	Downloads  string // default receive directory
 	Log        *log.Logger

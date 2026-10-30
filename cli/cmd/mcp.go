@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -31,23 +30,28 @@ var mcpCmd = &cobra.Command{
     list_file_versions    a published file's versions
     restore_file_version  make an earlier version current again
     get_file_info         size, sha256, version, media details of a published file
+    list_workspaces       your workspaces and their custom domains (for upload_file)
+    list_folders          a workspace's folders (for upload_file's folder)
 
     share_files    share files or folders peer-to-peer and get a markdrop.in/share link
     share_status   progress of shares and downloads
     stop_share     stop a share (or cancel a download)
     receive_share  download a Markdrop share link into ~/Downloads/Markdrop
 
-  The file tools need an API token. Peer-to-peer shares live as long as this
-  process: when the app closes, every share link stops.
+  The file and workspace tools need an API token. Peer-to-peer shares live as
+  long as this process: when the app closes, every share link stops.
 
   Claude Code:  claude mcp add markdrop-p2p -e MARKDROP_TOKEN=mdk_… -- markdrop mcp
   Others:       {"mcpServers": {"markdrop-p2p": {"command": "markdrop", "args": ["mcp"],
                  "env": {"MARKDROP_TOKEN": "mdk_…"}}}}
+  After markdrop login, the env entry can be left out.
 
 Environment:
-  MARKDROP_TOKEN               API token (markdrop.in → Settings → API tokens), needed
-                               by the file tools (or run markdrop login once); shares
-                               then also appear in your account (list_shares).
+  MARKDROP_TOKEN               API token (markdrop.in → Settings → API tokens). Without
+                               it, the token saved by markdrop login is used. Needed by
+                               the file and workspace tools; with it, shares also appear
+                               in your account.
+  MARKDROP_CONFIG_DIR          folder holding the token saved by markdrop login.
   MARKDROP_MCP_ALLOW_ANY_PATH  set to 1 to allow sharing secret locations
                                (~/.ssh, ~/.aws, .env files, …), refused by default.`,
 	Args: cobra.NoArgs,
@@ -74,7 +78,7 @@ func runMCP(_ *cobra.Command, _ []string) error {
 		Server:      flagServer,
 		Origin:      flagOrigin,
 		ShareURL:    func(id string) string { return buildShareURL(flagServer, flagWeb, id) },
-		Token:       strings.TrimSpace(os.Getenv("MARKDROP_TOKEN")),
+		Token:       filesToken,
 		Downloads:   downloads,
 		Log:         logger,
 		NewRoomID:   generateRoomID,
