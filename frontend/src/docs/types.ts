@@ -50,9 +50,11 @@ export interface OpenApiConfig {
 /**
  * The header logo: the built-in Markdrop mark (followed by the Markdrop wordmark), or images
  * (/docs-assets/… paths or https URLs) for the light and dark themes. `wordmark: true` means the
- * image already spells the name, so no name text is shown beside it.
+ * image already spells the name, so no name text is shown beside it. `tile: true` (an opaque
+ * image, like a logo on a white square) sets the light image on a light tile in the dark theme
+ * when there is no `dark` image.
  */
-export type LogoConfig = { builtin: "markdrop" } | { light: string; dark?: string; alt?: string; wordmark?: boolean };
+export type LogoConfig = { builtin: "markdrop" } | { light: string; dark?: string; alt?: string; wordmark?: boolean; tile?: boolean };
 
 /** Branding. Every key is optional: absent, the site shows no logo and its own name in plain text. */
 export interface BrandConfig {
@@ -99,6 +101,17 @@ export interface McpConfig {
   examples?: { queries?: string[]; page?: string; path?: string; report?: string };
 }
 
+/** How article pages present themselves (all off by default). */
+export interface PagesConfig {
+  /**
+   * Show the frontmatter description under the title, as a lede. Left out on a page whose first
+   * paragraph already says it.
+   */
+  showDescription?: boolean;
+  /** Show each page's frontmatter `icon` in the sidebar and beside its title. */
+  icons?: boolean;
+}
+
 /** Features that only make sense for Markdrop's own docs (all off by default). */
 export interface IntegrationsConfig {
   /**
@@ -129,7 +142,8 @@ export interface SiteConfig {
   tabs: SiteTab[];
   home?: {
     chips?: string[];
-    start?: Array<{ page: string; icon?: string; time?: string }>;
+    /** "Start here" cards: a page, shown with its title and description unless overridden here. */
+    start?: Array<{ page: string; icon?: string; time?: string; title?: string; description?: string }>;
     areas?: string[];
     askPlaceholder?: string;
     install?: { title: string; sync?: string; commands: Record<string, string>; note?: string; href?: string };
@@ -138,6 +152,7 @@ export interface SiteConfig {
   changelog?: { title?: string; description?: string };
   footer?: LinkConfig[];
   nav: NavGroupConfig[];
+  pages?: PagesConfig;
   openapi?: OpenApiConfig;
   brand?: BrandConfig;
   ai?: AiConfig;
@@ -156,6 +171,13 @@ export interface Frontmatter {
   prerequisites?: string[];
   since?: string;
   keywords?: string[];
+  /** A design-system icon name, shown in the sidebar and by the title when site.json `pages.icons` is on. */
+  icon?: string;
+  /**
+   * Old heading ids that still land on a heading: `{ "old-id": "current-id" }` (deep links into an
+   * earlier version of the docs, or into the site an importer read).
+   */
+  anchors?: Record<string, string>;
 }
 
 export interface Heading {
@@ -202,6 +224,8 @@ export interface NavItem {
   isNew: boolean;
   /** HTTP method, for generated API reference pages. */
   method?: string;
+  /** The page's icon, when site.json `pages.icons` is on and the page has one. */
+  icon?: string;
 }
 
 export interface NavGroup {
