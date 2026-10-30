@@ -1301,6 +1301,46 @@ export async function replaceArtifactFile(
   return res.json();
 }
 
+/** One kept version of a file (`GET /api/v1/files/{slug}/versions`), newest first. */
+export interface FileVersion {
+  version: number;
+  size_bytes: number;
+  sha256: string | null;
+  content_type: string;
+  created_at: string | null;
+  current: boolean;
+  filename: string | null;
+}
+
+/** A file's kept versions, newest first. Anyone whose `can.replace` is true (owner, editors). */
+export async function listFileVersions(slug: string): Promise<FileVersion[]> {
+  const res = await fetch(`${API_BASE}/api/v1/files/${encodeURIComponent(slug)}/versions`, {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, "Couldn't load the versions");
+  return (await res.json()).versions;
+}
+
+/** Make `version` current again, as a new version at the same link. Returns the new version number. */
+export async function restoreFileVersion(slug: string, version: number): Promise<number> {
+  const res = await fetch(`${API_BASE}/api/v1/files/${encodeURIComponent(slug)}/versions/${version}/restore`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, "Couldn't restore that version");
+  return (await res.json()).version;
+}
+
+/** Delete one old version for good (never the current one). The file's owner only. */
+export async function deleteFileVersion(slug: string, version: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/files/${encodeURIComponent(slug)}/versions/${version}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, "Couldn't delete that version");
+}
+
 /**
  * Exchange this browser's markdrop.in session for one scoped to a workspace's
  * own domain. Only callable from the primary host, where the session lives.

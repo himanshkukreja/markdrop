@@ -23,8 +23,12 @@ export interface ArtifactSettingsState {
  * zone. Purely presentational: the view owns the state and the save order (file, settings, slug).
  *
  * `fileOnly` is the same drawer for someone who may replace the file but isn't the owner (an
- * editor, or a workspace member on a non-private file — `can.replace`): just the File tile.
- * Title, link, password, expiry and delete stay the owner's.
+ * editor, or a workspace member on a non-private file — `can.replace`): the File tile, the Title
+ * when `titleEditable` (`can.edit`) and the versions. Link, password, expiry and delete stay the
+ * owner's.
+ *
+ * `versions` is the Versions section (ArtifactVersions), which acts on its own rather than on
+ * Save; omitted for a zipped site, which keeps no versions.
  */
 export function ArtifactSettingsDrawer({
   open,
@@ -44,6 +48,9 @@ export function ArtifactSettingsDrawer({
   onSave,
   onDelete,
   fileOnly = false,
+  titleEditable = false,
+  savedTitle = "",
+  versions,
 }: {
   open: boolean;
   onClose: () => void;
@@ -62,11 +69,29 @@ export function ArtifactSettingsDrawer({
   onSave: () => void;
   onDelete: () => void;
   fileOnly?: boolean;
+  titleEditable?: boolean;
+  /** The title as saved, so the file-only drawer can tell a title change from none. */
+  savedTitle?: string;
+  versions?: React.ReactNode;
 }) {
   const replaceInput = useRef<HTMLInputElement>(null);
   const set = <K extends keyof ArtifactSettingsState>(k: K, v: ArtifactSettingsState[K]) => onChange({ ...value, [k]: v });
   const uploading = busy && progress > 0 && progress < 100;
   const slugShort = !!value.slug && value.slug.length < 3;
+  const titleChanged = titleEditable && value.title !== savedTitle;
+
+  const titleField = (
+    <Field label="Title" hint="Shown in the browser tab and in link previews.">
+      <Input
+        value={value.title}
+        onChange={(e) => set("title", e.target.value)}
+        maxLength={200}
+        placeholder="Untitled"
+        dir="auto"
+        disabled={busy}
+      />
+    </Field>
+  );
 
   return (
     <Drawer
@@ -86,8 +111,8 @@ export function ArtifactSettingsDrawer({
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={onSave} loading={busy} disabled={fileOnly ? !value.file : slugShort}>
-            {busy ? (uploading ? `Uploading ${progress}%` : "Saving…") : fileOnly ? "Replace file" : "Save changes"}
+          <Button variant="primary" onClick={onSave} loading={busy} disabled={fileOnly ? !value.file && !titleChanged : slugShort}>
+            {busy ? (uploading ? `Uploading ${progress}%` : "Saving…") : fileOnly && !titleChanged ? "Replace file" : "Save changes"}
           </Button>
         </div>
       }
@@ -147,19 +172,14 @@ export function ArtifactSettingsDrawer({
         </div>
 
         {fileOnly ? (
-          error && <Alert tone="danger">{error}</Alert>
+          <>
+            {titleEditable && titleField}
+            {error && <Alert tone="danger">{error}</Alert>}
+            {versions}
+          </>
         ) : (
           <>
-            <Field label="Title" hint="Shown in the browser tab and in link previews.">
-              <Input
-                value={value.title}
-                onChange={(e) => set("title", e.target.value)}
-                maxLength={200}
-                placeholder="Untitled"
-                dir="auto"
-                disabled={busy}
-              />
-            </Field>
+            {titleField}
 
             <Field
               label="Link"
@@ -246,6 +266,8 @@ export function ArtifactSettingsDrawer({
             )}
 
             {error && <Alert tone="danger">{error}</Alert>}
+
+            {versions}
 
             <section aria-labelledby="artifact-danger" className="flex flex-col gap-2 rounded-lg border border-border p-4">
               <h3 id="artifact-danger" className="m-0 text-body-strong text-text">
