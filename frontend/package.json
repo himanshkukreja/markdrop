@@ -10,7 +10,7 @@
     "e2e": "playwright test",
     "ds:check": "node ../design-system/scripts/sync-frontend.mjs --check",
     "docs:check": "node scripts/docs-check.mjs",
-    "docs:test": "node --test src/docs/siteFiles.test.mjs src/docs/present.test.mjs src/docs/theme.test.mjs src/docs/render/render.test.mjs scripts/docs-import/test/convert.test.mjs",
+    "docs:test": "node --test src/docs/siteFiles.test.mjs src/docs/present.test.mjs src/docs/theme.test.mjs src/docs/render/render.test.mjs src/components/docs-sites/editor/pageDoc.test.mjs scripts/docs-import/test/convert.test.mjs",
     "docs:editor-test": "node --test src/components/docs-editor/test/*.test.mjs",
     "docs:media-manifest": "node scripts/docs-media-manifest.mjs",
     "docs:openapi": "node scripts/docs-openapi.mjs",
