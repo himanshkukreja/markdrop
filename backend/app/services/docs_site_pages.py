@@ -259,6 +259,14 @@ def _free_or_mine(user_id: str) -> dict:
     return {"$or": [{"lock": None}, {"lock.user_id": user_id}, {"lock.expires_at": {"$lte": now()}}]}
 
 
+def _not_redirected(site: dict, path: str) -> None:
+    """A page can't live at an address a redirect sends away (it would never be seen)."""
+    for r in (site.get("settings") or {}).get("redirects") or []:
+        if r.get("from") == path:
+            raise HTTPException(status_code=409, detail=f"{path} redirects to {r.get('to')}. Remove that redirect "
+                                                        "in Settings first, or choose another address.")
+
+
 def _locked(page: dict) -> DocsError:
     lock = lock_view(page.get("lock"))
     name = (lock or {}).get("name") or "Someone"
@@ -269,6 +277,7 @@ async def create_page(db: AsyncIOMotorDatabase, site: dict, user: User, *, path:
                       group: str | None, after_page_id: str | None, markdown: str = "",
                       description: str = "", icon: str | None = None) -> dict:
     path = normalize_path(path)
+    _not_redirected(site, path)
     check_markdown(markdown)
     if await store.page_count(db, site["_id"]) >= settings.docs_pages_per_site:
         raise HTTPException(status_code=429,
@@ -314,6 +323,7 @@ async def save_page(db: AsyncIOMotorDatabase, site: dict, page: dict, user: User
                 raise HTTPException(status_code=422, detail="The home page's address can't change.")
             if new_path == "/":
                 raise HTTPException(status_code=409, detail="Another page already has that address.")
+            _not_redirected(site, new_path)
             sets["path"] = new_path
     at = now()
     sets.update({"draft.updated_by": user.id, "draft.updated_at": at, "lock": _lock_for(user)})

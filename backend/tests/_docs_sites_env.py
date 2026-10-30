@@ -50,10 +50,10 @@ class FakeDocsBucket:
                               lambda key, expires_in=3600: f"https://r2.example/{key}?sig=1"),
         ]
 
-    def put_bytes(self, key, data, content_type):
+    def put_bytes(self, key, data, content_type, cache_control=None):
         if self.fail:
             return False
-        self.objects[key] = {"data": data, "content_type": content_type}
+        self.objects[key] = {"data": data, "content_type": content_type, "cache_control": cache_control}
         return True
 
 

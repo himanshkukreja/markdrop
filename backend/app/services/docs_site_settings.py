@@ -408,6 +408,16 @@ class SiteSettings(_Strict):
     seo: SEO = Field(default_factory=SEO)
     review: Review = Field(default_factory=Review)
     nav: list[NavGroup] = Field(default_factory=list, max_length=100)
+    # [{from, to}] → the build's redirects.json. Shape checked here; against the site's pages
+    # (targets exist, no page hidden, no chains) on save (docs_site_redirects.problems_against).
+    redirects: list[dict] = Field(default_factory=list)
+
+    @field_validator("redirects", mode="before")
+    @classmethod
+    def _redirects(cls, v):
+        from app.services.docs_site_redirects import clean
+
+        return clean(v)
 
 
 def default_settings() -> dict:

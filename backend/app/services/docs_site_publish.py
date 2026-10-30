@@ -38,7 +38,7 @@ settings = get_settings()
 
 SNAPSHOT_MAX_BYTES = 15 * 1024 * 1024
 # Settings that change what readers see (review rules don't).
-_COMPARED_SETTINGS = ("theme", "ai", "access", "seo", "nav")
+_COMPARED_SETTINGS = ("theme", "ai", "access", "seo", "nav", "redirects")
 
 
 # ── Changes since the live build ─────────────────────────────────────────────
@@ -378,6 +378,57 @@ async def upload_asset(db: AsyncIOMotorDatabase, site: dict, user: User, data: b
             pass
     return {"url": assets.url_for(name), "name": name, "size": len(data), "content_type": assets.TYPES[ext],
             "sha256": digest}
+
+
+async def upload_dark_asset(db: AsyncIOMotorDatabase, site: dict, user: User, data: bytes,
+                            filename: str | None, for_url: str) -> dict:
+    """The dark-theme version of an image already on this site (``for_url``: its
+    ``/docs-assets/…`` address). Stored at the engine's dark address, ``x.png`` →
+    ``x.dark.png``, in the image's own format (a different raster format is converted;
+    an SVG stays SVG). One dark version per image: a new one replaces the old."""
+    rel = assets.rel_of(for_url)
+    dark_rel = assets.dark_name(rel) if rel else None
+    if not rel or not dark_rel:
+        raise HTTPException(status_code=422, detail="Add a dark version to an image uploaded to this site.")
+    light = await db[ASSETS].find_one({"site_id": site["_id"], "name": rel})
+    if light is None or not str(light.get("content_type") or "").startswith("image/"):
+        raise HTTPException(status_code=422, detail="Add a dark version to an image uploaded to this site.")
+    if len(data) > settings.docs_asset_max_bytes:
+        raise HTTPException(status_code=413,
+                            detail=f"Files can be at most {settings.docs_asset_max_bytes // (1024 * 1024)} MB.")
+    if not data:
+        raise HTTPException(status_code=422, detail="That file is empty.")
+    try:
+        ext = assets.sniff(data, filename)
+    except assets.AssetRejected as exc:
+        raise HTTPException(status_code=415, detail=str(exc)) from None
+    want = dark_rel.rsplit(".", 1)[-1]
+    if ext != want:
+        converted = assets.convert_image(data, want) if ext in ("png", "jpg", "webp", "gif") else None
+        if converted is None:
+            raise HTTPException(status_code=415,
+                                detail=f"Upload the dark version as {want.upper()}, like the original image.")
+        data, ext = converted, want
+    key = assets.key_for(str(site["_id"]), dark_rel)
+    marker = f"{light.get('sha256') or rel}.dark"
+    old = await db[ASSETS].find_one({"site_id": site["_id"], "sha256": marker}, {"size": 1})
+    used = await store.storage_bytes(db, site["_id"]) - int((old or {}).get("size") or 0)
+    if used + len(data) > settings.docs_site_storage_bytes:
+        raise HTTPException(status_code=413, detail="This site has used its 2 GB of storage.")
+    if not assets.is_configured():
+        raise HTTPException(status_code=503, detail="File uploads aren't available right now.")
+    ok = await run_in_threadpool(assets.put_bytes, key, data, assets.TYPES[ext], assets.SHORT)
+    if not ok:
+        raise HTTPException(status_code=502, detail="The upload didn't go through. Try again.")
+    digest = assets.sha256(data)
+    # The unique (site, sha256) key is "<image's sha256>.dark": one row per image's dark version.
+    await db[ASSETS].update_one({"site_id": site["_id"], "sha256": marker}, {"$set": {
+        "ext": ext, "name": dark_rel, "key": key, "url": assets.url_for(dark_rel), "size": len(data),
+        "content_type": assets.TYPES[ext], "content_sha256": digest, "variant": "dark", "dark_for": rel,
+        "original_name": (filename or "")[:200] or None, "by": user.id, "updated_at": now(),
+    }, "$setOnInsert": {"created_at": now()}}, upsert=True)
+    return {"url": assets.url_for(dark_rel), "name": dark_rel, "size": len(data), "content_type": assets.TYPES[ext],
+            "sha256": digest, "variant": "dark", "for": assets.url_for(rel)}
 
 
 async def asset_preview_url(db: AsyncIOMotorDatabase, site_id: str, name: str) -> str | None:
