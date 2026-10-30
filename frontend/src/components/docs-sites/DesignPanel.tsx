@@ -1,5 +1,6 @@
 "use client";
 
+import { ReadMore } from "@/components/ReadMore";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Alert, Anchor, Badge, Button, Field, Icon, SegmentedControl, Select, Spinner, Switch, Textarea, cx, useToast } from "@/components/ui";
 import { useLocationSearch } from "@/components/shell/useLocation";
@@ -168,7 +169,7 @@ export default function DesignPanel() {
         <section aria-label="Design settings" className="flex w-full min-w-0 flex-col gap-6 border-border bg-surface p-4 sm:p-6 lg:max-w-[460px] lg:flex-[1_1_400px] lg:border-r">
           {isNew && (
             <Alert tone="info" title={`Pick a look for ${site.name}`}>
-              You can change it any time. <Anchor href={base} className="font-semibold text-accent-text underline">Skip to the editor</Anchor>
+              You can change it any time. <ReadMore topic="studioThemes">About the themes</ReadMore> · <Anchor href={base} className="font-semibold text-accent-text underline">Skip to the editor</Anchor>
             </Alert>
           )}
           {locked && <Alert tone="neutral" title="Only admins change the design">You can look around; ask an admin of this workspace to change it.</Alert>}
@@ -245,7 +246,7 @@ export default function DesignPanel() {
                 </label>
               </div>
             )}
-            <p className="text-[13px] text-text-secondary">We build a light and a dark palette from these. Links, buttons and callouts keep readable contrast in both.</p>
+            <p className="text-[13px] text-text-secondary">We build a light and a dark palette from these. Links, buttons and callouts keep readable contrast in both. <ReadMore topic="studioBrand" /></p>
             <div className="flex flex-wrap gap-1.5" aria-label="Contrast checks">
               {checks.map((c) => (
                 <Badge key={c.label} tone={c.ok ? "success" : "warning"} size="sm" icon={c.ok ? "check" : "alert"}>{c.label} {ratio(c.ratio)}</Badge>
@@ -296,7 +297,7 @@ export default function DesignPanel() {
               {cssProblem ? (
                 <p className="flex items-center gap-1.5 text-[12px] text-danger" role="alert"><Icon name="alertCircle" size={13} /> {cssProblem}</p>
               ) : (
-                <p id={`${uid}-css-hint`} className="text-[12px] text-text-muted">Applied after the theme, on the published site. Scripts aren&apos;t allowed.</p>
+                <p id={`${uid}-css-hint`} className="text-[12px] text-text-muted">Applied after the theme, on the published site. Scripts aren&apos;t allowed. <ReadMore topic="studioCustomCss">What&apos;s allowed</ReadMore></p>
               )}
             </div>
           </details>

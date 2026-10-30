@@ -510,13 +510,27 @@ def rebase() -> None:
     if abs(delta) < timedelta(minutes=1):
         print("rebase: already current")
         return
+    def shift(v):
+        # Nested too (a docs page's draft.updated_at, a build's stats…), so relative ages hold.
+        if isinstance(v, datetime):
+            return v + delta
+        if isinstance(v, dict):
+            return {k: shift(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [shift(x) for x in v]
+        return v
+
+    def has_dt(v):
+        return isinstance(v, datetime) or (isinstance(v, dict) and any(map(has_dt, v.values()))) or \
+            (isinstance(v, list) and any(map(has_dt, v)))
+
     n = 0
     for name in db.list_collection_names():
         if name.startswith("system."):
             continue
         coll = db[name]
         for row in coll.find({}):
-            sets = {k: v + delta for k, v in row.items() if isinstance(v, datetime)}
+            sets = {k: shift(v) for k, v in row.items() if k != "_id" and has_dt(v)}
             if sets:
                 coll.update_one({"_id": row["_id"]}, {"$set": sets})
                 n += 1

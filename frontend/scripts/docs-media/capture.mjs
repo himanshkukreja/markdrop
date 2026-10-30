@@ -61,7 +61,7 @@ const REPO = path.resolve(FRONTEND, "..");
 // Several stacks can run side by side: STACK_ID=N (default 0) targets instance N
 // (API 8180+10N, Worker 8787+10N, Next 3400+10N, data .data/N/). See stack/stack.sh.
 const STACK_ID = Number(process.env.STACK_ID || 0);
-const PORTS = { app: 3400 + 10 * STACK_ID, api: 8180 + 10 * STACK_ID, worker: 8787 + 10 * STACK_ID };
+const PORTS = { app: 3400 + 10 * STACK_ID, api: 8180 + 10 * STACK_ID, worker: 8787 + 10 * STACK_ID, sites: 3405 + 10 * STACK_ID };
 const BASE_DATA = process.env.DOCS_MEDIA_DATA || path.join(HERE, ".data");
 const DATA = STACK_ID ? path.join(BASE_DATA, String(STACK_ID)) : BASE_DATA;
 const PUBLIC = path.join(FRONTEND, "public");
@@ -78,6 +78,10 @@ export const DOCS = process.env.DOCS_MEDIA_DOCS || `http://docs.localhost:${PORT
 /** Workspace domains of the demo world; the capture browser resolves them to 127.0.0.1. */
 export const TENANT_HOSTS = ["docs.acme.com", "help.acme.com", "docs.acme.test", "help.acme.test"];
 export const tenant = (host, p = "/") => `http://${host}:${new URL(APP).port}${p}`;
+/** Docs Studio sites published in the stack (stack.sh serves .data/docs-store by hostname): the
+ *  capture browser resolves <slug>.docs.markdrop.in to 127.0.0.1, so production is never reached. */
+const SITES_SUFFIX = ".docs.markdrop.in";
+export const studioSite = (slug, p = "/") => `http://${slug}${SITES_SUFFIX}:${PORTS.sites}${p}`;
 
 const BUDGET = { screenshot: 180 * 1024, clip: 1.5 * 1024 * 1024, video: 12 * 1024 * 1024 };
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "docs.localhost", ...TENANT_HOSTS]);
@@ -155,6 +159,9 @@ function initScript({ token, theme, cursor, scrub, ports }) {
     if (token) localStorage.setItem("markdrop_token", token);
     else localStorage.removeItem("markdrop_token");
     localStorage.setItem("md_theme", theme);
+    // Docs Studio sites are built by the engine without NEXT_PUBLIC_LIGHT_THEME: the beta flag lets
+    // them honour md_theme too (the app itself is built with light on).
+    localStorage.setItem("md_theme_beta", "1");
     localStorage.setItem("md_consent", "denied"); // no consent banner in shots (and no third-party analytics)
   } catch {}
   const css = `nextjs-portal, [data-nextjs-toast], #__next-build-watcher { display: none !important; }
@@ -227,8 +234,10 @@ function initScript({ token, theme, cursor, scrub, ports }) {
       [new RegExp(`((?:docs|help)\\.acme\\.(?:com|test)):${P}`, "g"), "$1"],
       [new RegExp(`https?://127\\.0\\.0\\.1:${A}`, "g"), "https://api.markdrop.in"],
       [new RegExp(`https?://127\\.0\\.0\\.1:${W}`, "g"), "https://markdrop-artifacts.markdrop-in.workers.dev"],
+      [new RegExp(`http://([a-z0-9-]+\\.docs\\.markdrop\\.in):${ports.sites}`, "g"), "https://$1"],
+      [new RegExp(`([a-z0-9-]+\\.docs\\.markdrop\\.in):${ports.sites}`, "g"), "$1"],
     ];
-    const LOCAL = new RegExp(`localhost:${P}|127\\.0\\.0\\.1:(${P}|${A}|${W})|acme\\.(com|test):${P}`);
+    const LOCAL = new RegExp(`localhost:${P}|127\\.0\\.0\\.1:(${P}|${A}|${W})|acme\\.(com|test):${P}|docs\\.markdrop\\.in:${ports.sites}`);
     const LOCAL_INPUT = new RegExp(`localhost:${P}|acme\\.(com|test):${P}`);
     const fix = (s) => {
       let out = s;
@@ -298,6 +307,7 @@ function helpers(page, ctx, shot, fx, rec) {
     API,
     DOCS,
     tenant,
+    studioSite,
     sandbox,
     loc: (spec) => loc(page, spec),
     sleep,
@@ -390,6 +400,16 @@ function helpers(page, ctx, shot, fx, rec) {
       await sleep(rec ? 350 : 100);
     },
     /** On-screen caption (videos); also becomes a WebVTT cue / chapter. Empty text hides it. */
+    /** Recordings: run `fn` (a wait: a build, an import) and leave that stretch out of the video,
+     *  so it jumps from the moment before to the moment after. Screenshots: just runs `fn`. */
+    async cut(fn) {
+      if (rec) rec.cutStart();
+      try {
+        return await fn();
+      } finally {
+        if (rec) rec.cutEnd();
+      }
+    },
     async caption(text, hold = 0) {
       const t = rec ? rec.elapsed() : 0;
       if (cues.length && cues[cues.length - 1].end == null) cues[cues.length - 1].end = t;
@@ -422,8 +442,13 @@ async function startScreencast(page, dir, size) {
   });
   await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: size.width, maxHeight: size.height, everyNthFrame: 1 });
   const wall0 = Date.now();
+  const cuts = []; // [start, end] wall-clock ms left out of the video (h.cut)
+  const cutBefore = (t) => cuts.reduce((n, [a, b]) => n + Math.max(0, Math.min(t, b ?? t) - a), 0);
   return {
-    elapsed: () => (Date.now() - wall0) / 1000,
+    // Seconds into the finished video: wall clock minus the cut stretches.
+    elapsed: () => (Date.now() - wall0 - cutBefore(Date.now())) / 1000,
+    cutStart: () => cuts.push([Date.now(), null]),
+    cutEnd: () => { if (cuts.length && cuts[cuts.length - 1][1] == null) cuts[cuts.length - 1][1] = Date.now(); },
     async stop() {
       // Chrome only sends frames when something changes; hold the last one to the real end.
       const end = Date.now();
@@ -431,9 +456,37 @@ async function startScreencast(page, dir, size) {
       await sleep(150);
       await cdp.detach().catch(() => {});
       void t0;
-      return { frames, start: frames[0]?.t ?? wall0, end };
+      if (cuts.length && cuts[cuts.length - 1][1] == null) cuts[cuts.length - 1][1] = end;
+      return { frames: dropCuts(frames, cuts), start: wall0, end: end - cutBefore(end) };
     },
   };
+}
+
+/**
+ * Frames on the video's own clock: wall clock minus the cut stretches before each frame. Frames
+ * inside a cut are dropped, except the last one, which shows at the cut's end (the screen as it was
+ * when recording resumed: Chrome sends no frame while nothing changes).
+ */
+function dropCuts(frames, cuts) {
+  if (!cuts.length) return frames;
+  const before = (t) => cuts.reduce((n, [a, b]) => n + Math.max(0, Math.min(t, b) - a), 0);
+  const inCut = (t) => cuts.find(([a, b]) => t > a && t < b);
+  const out = [];
+  let pending = null;
+  for (const f of frames) {
+    const c = inCut(f.t);
+    if (c) {
+      pending = { file: f.file, at: c[1] };
+      continue;
+    }
+    if (pending && pending.at <= f.t) {
+      out.push({ file: pending.file, t: pending.at - before(pending.at) });
+      pending = null;
+    }
+    out.push({ file: f.file, t: f.t - before(f.t) });
+  }
+  if (pending) out.push({ file: pending.file, t: pending.at - before(pending.at) });
+  return out;
 }
 
 function framesToVideo({ frames, end }, out, { fps = 30, trimStart = 0, trimEnd = 0, width }) {
@@ -595,7 +648,8 @@ async function runShot(browser, shot, theme, fx, manifest, videosJson) {
   await context.route("**/*", (route) => {
     const u = new URL(route.request().url());
     // Only http(s) can reach the network; chrome-extension:// (the PDF viewer), blob: and data: stay.
-    if (!/^https?:$/.test(u.protocol) || LOCAL_HOSTS.has(u.hostname) || CDN.test(u.hostname)) return route.continue();
+    const studio = u.hostname.endsWith(SITES_SUFFIX) && u.port === String(PORTS.sites);
+    if (!/^https?:$/.test(u.protocol) || LOCAL_HOSTS.has(u.hostname) || studio || CDN.test(u.hostname)) return route.continue();
     return route.abort("blockedbyclient");
   });
   await context.clock.install({ time: new Date(fx.demo_now) });
@@ -682,7 +736,7 @@ async function runShot(browser, shot, theme, fx, manifest, videosJson) {
 async function main() {
   const fx = await ensureStack();
   const chosen = ids.length ? ids.map((id) => SHOTS.find((s) => s.id === id) || (() => { throw new Error(`unknown shot ${id} (try --list)`); })()) : SHOTS;
-  const args = [`--host-resolver-rules=${TENANT_HOSTS.map((h) => `MAP ${h} 127.0.0.1`).join(", ")}`, "--hide-scrollbars", "--force-color-profile=srgb", "--font-render-hinting=none"];
+  const args = [`--host-resolver-rules=${[...TENANT_HOSTS, `*${SITES_SUFFIX}`].map((h) => `MAP ${h} 127.0.0.1`).join(", ")}`, "--hide-scrollbars", "--force-color-profile=srgb", "--font-render-hinting=none"];
   const browser = await chromium.launch({ channel: "chrome", headless: !flag("--headed"), args });
   // Some things only render in a headed browser (Chrome's built-in PDF viewer in a blob iframe,
   // used by the upload preview): shots with `headed: true` get a real window, parked off-screen.

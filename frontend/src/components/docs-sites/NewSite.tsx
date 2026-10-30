@@ -1,5 +1,6 @@
 "use client";
 
+import { ReadMore } from "@/components/ReadMore";
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Anchor, Badge, Button, Field, Icon, Input, Select, Spinner, cx } from "@/components/ui";
@@ -242,7 +243,8 @@ export default function NewSite() {
                 />
               </Field>
               <p className="text-[13px] text-text-muted">
-                Private GitBook spaces: export with Git Sync and choose <strong>Connect a GitHub repo</strong> instead.
+                Private GitBook spaces: export with Git Sync and choose <strong>Connect a GitHub repo</strong> instead.{" "}
+                <ReadMore topic="studioImport" />
               </p>
             </section>
           )}
@@ -270,7 +272,7 @@ export default function NewSite() {
                   Pick a repo and folder. Every push to the main branch publishes; pull requests get a preview link. Edits in the browser come back as commits.
                 </span>
               </div>
-              <p className="text-[13px] text-text-muted">Until then, start blank or import from GitBook; you can connect the repo to this site later in Settings.</p>
+              <p className="text-[13px] text-text-muted">Until then, start blank or import from GitBook; you can connect the repo to this site later in Settings. <ReadMore topic="studioGithub" /></p>
             </section>
           )}
 
@@ -316,7 +318,7 @@ export default function NewSite() {
           {error && <Alert tone="danger" title="We couldn't create the site">{error}</Alert>}
 
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-            <p className="min-w-0 flex-[1_1_300px] text-[13px] text-text-muted">Nothing is public until you publish. You&apos;ll pick a theme next.</p>
+            <p className="min-w-0 flex-[1_1_300px] text-[13px] text-text-muted">Nothing is public until you publish. You&apos;ll pick a theme next. <ReadMore topic="studioCreate" /></p>
             <Button variant="ghost" href={listHref}>Cancel</Button>
             <Button variant="primary" type="submit" iconRight="arrowRight" loading={busy} disabled={!canSubmit && !busy}>
               {source === "gitbook" ? "Import" : "Create site"}

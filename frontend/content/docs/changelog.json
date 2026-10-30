@@ -24,6 +24,31 @@
   "next": [],
   "entries": [
     {
+      "id": "docs-studio-beta",
+      "date": "2026-10-31",
+      "title": "Docs Studio (beta): build and host a docs site for your product",
+      "kind": "new",
+      "area": "Docs Studio",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Write documentation in the browser, pick a theme, and publish a fast docs site with search and Ask AI. Free while it's in beta.",
+      "body": "- **Create a site** in a workspace or on your own, blank or from a template (product docs, API reference, help center), at a free `<name>.docs.markdrop.in` address.\n- **Import from GitBook:** pages, images, navigation, icons, brand and old links come across, with a report of what needs a look before you publish.\n- **A visual editor** with a slash menu for callouts, steps, tabs, cards, code and images with dark versions, or plain Markdown. Drafts save as you type, every save is a version, and one person edits a page at a time.\n- **Six themes** (Clean, Editorial, Technical, Minimal, Playful, Help center), your logo and colours with checked contrast, fonts, corners, colour mode and custom CSS.\n- **Publish** when you're ready: see what changed, follow the build, and put an earlier publish back in seconds. Turn on reviews to have changes approved first.\n- **Docs Studio roles** (Admin, Reviewer, Editor, Viewer), separate from workspace roles, with per-site roles and a history of changes.\n- **For readers:** search, Ask AI with sources, light and dark, and a Markdown copy of every page, `llms.txt` and an MCP server for AI tools.\n- Coming soon: your own domain, password-protected and members-only sites, and GitHub sync.",
+      "docs": [
+        "/docs-studio/overview",
+        "/docs-studio/create-a-site",
+        "/docs-studio/import-from-gitbook",
+        "/docs-studio/editor",
+        "/docs-studio/themes",
+        "/docs-studio/publishing",
+        "/docs-studio/reviews",
+        "/docs-studio/members-and-roles",
+        "/docs-studio/ask-ai",
+        "/docs-studio/what-readers-get"
+      ]
+    },
+    {
       "id": "cli-0-5-1",
       "date": "2026-10-30",
       "title": "CLI 0.5.1: install fix, Windows on Arm, sends listed under your account",

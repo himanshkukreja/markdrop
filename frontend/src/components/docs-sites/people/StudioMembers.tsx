@@ -1,5 +1,6 @@
 "use client";
 
+import { ReadMore } from "@/components/ReadMore";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -132,7 +133,8 @@ export default function StudioMembers() {
           <h1 className="text-[28px] font-extrabold leading-9 tracking-[-0.02em] text-text">Members</h1>
           <p className="max-w-[680px] text-[15px] leading-6 text-text-secondary">
             Who can do what in {wsName ? <strong className="font-semibold text-text" dir="auto">{wsName}</strong> : "this workspace"}&apos;s docs sites.
-            Docs Studio has its own roles: people in the workspace see nothing here until you give them one.
+            Docs Studio has its own roles: people in the workspace see nothing here until you give them one.{" "}
+            <ReadMore topic="studioRoles" />
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

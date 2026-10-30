@@ -1,5 +1,6 @@
 "use client";
 
+import { ReadMore } from "@/components/ReadMore";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
   Alert, Avatar, Badge, Button, Dialog, Disclosure, Field, IconButton, Select, Skeleton, useToast,
@@ -123,7 +124,8 @@ export function SitePeople() {
     <div className="flex min-w-0 flex-col gap-3">
       <p className="text-body text-text-secondary">
         Everyone in the workspace has their Docs Studio role from <a className="text-accent-text underline-offset-2 hover:underline" href={studioMembers(wsId)}>Members</a>.
-        Give someone a different role on this site only, higher or lower. No access hides the site from them.
+        Give someone a different role on this site only, higher or lower. No access hides the site from them.{" "}
+        <ReadMore topic="studioSiteRoles" />
       </p>
       {error && <Alert tone="danger" actions={<Button size="sm" variant="secondary" onClick={() => void load()}>Try again</Button>}>{error}</Alert>}
       {!data && !error && <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading people"><Skeleton variant="rect" height={44} /><Skeleton variant="rect" height={44} /></div>}

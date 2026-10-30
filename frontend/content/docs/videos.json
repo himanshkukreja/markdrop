@@ -38,6 +38,20 @@
     "duration": "0:34",
     "chapters": "/docs-assets/videos/custom-domain.vtt"
   },
+  "docs-studio-first-site": {
+    "src": "/docs-assets/videos/docs-studio-first-site.mp4",
+    "poster": "/docs-assets/videos/docs-studio-first-site.webp",
+    "duration": "0:48",
+    "title": "Create and publish your first docs site",
+    "chapters": "/docs-assets/videos/docs-studio-first-site.vtt"
+  },
+  "docs-studio-gitbook-import": {
+    "src": "/docs-assets/videos/docs-studio-gitbook-import.mp4",
+    "poster": "/docs-assets/videos/docs-studio-gitbook-import.webp",
+    "duration": "0:45",
+    "title": "Import a GitBook site into Docs Studio",
+    "chapters": "/docs-assets/videos/docs-studio-gitbook-import.vtt"
+  },
   "encrypt-a-document": {
     "src": "/docs-assets/videos/encrypt-a-document.mp4",
     "poster": "/docs-assets/videos/encrypt-a-document.webp",
