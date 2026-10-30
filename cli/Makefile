@@ -1,5 +1,6 @@
 APP     := markdrop
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+# Only release tags (v*): the repo has other tags that aren't CLI versions.
+VERSION ?= $(shell git describe --tags --match 'v*' --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -s -w -X github.com/markdrop/cli/cmd.version=$(VERSION)
 OUT     := dist
 
@@ -11,9 +12,11 @@ all: build
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(APP) .
 
-## install — install to $GOPATH/bin (or ~/go/bin)
+## install — install as markdrop to $GOBIN (default $GOPATH/bin, i.e. ~/go/bin).
+## Not `go install`: it would name the binary after the module path ("cli").
+GOBIN_DIR := $(or $(shell go env GOBIN),$(shell go env GOPATH)/bin)
 install:
-	go install -ldflags "$(LDFLAGS)" .
+	go build -ldflags "$(LDFLAGS)" -o "$(GOBIN_DIR)/$(APP)" .
 
 ## build-all — cross-compile for all supported platforms
 build-all: build-mac build-linux build-windows

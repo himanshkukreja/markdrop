@@ -19,7 +19,7 @@ A cross-platform terminal tool that does two things with files:
 - **Encrypted device to device** — WebRTC DTLS encryption by default
 - **QR code** — scan from any phone instead of typing the URL
 - **Browser compatible** — receiver can download from `markdrop.in` in a browser without installing anything
-- **Cross-platform** — single statically linked binary for macOS, Linux, and Windows (amd64 + arm64)
+- **Cross-platform** — single statically linked binary for macOS and Linux (amd64 and arm64) and Windows (amd64)
 - **Large file support** — 64 KB chunking with backpressure; no memory limits on file size
 - **Auto-accept mode** — `-y` flag for scripted / unattended use
 - **AI assistants** — `markdrop mcp` lets Claude Code, Claude Desktop, Cursor or VS Code publish, replace, share and receive files for you
@@ -28,90 +28,53 @@ A cross-platform terminal tool that does two things with files:
 
 ## Installation
 
-No Go installation required.
+No Go installation required. Full guide: [docs.markdrop.in/cli/install](https://docs.markdrop.in/cli/install).
 
 ### macOS
 
 ```bash
-brew install markdrop/tap/markdrop
+brew install himanshkukreja/tap/markdrop
 ```
 
-> **How it works:** Homebrew taps are just GitHub repos.
-> `brew install himanshkukreja/tap/markdrop` tells Homebrew to look at
-> `github.com/himanshkukreja/homebrew-tap` for a formula file, then install the
-> binary from there. It also manages upgrades (`brew upgrade markdrop`).
+Homebrew also handles upgrades (`brew upgrade markdrop`). Without Homebrew, use the install script below.
 
----
-
-### Linux — Ubuntu / Debian (apt)
+### Linux and macOS — install script
 
 ```bash
-# 1. Add the markdrop apt repository (one-time setup)
-curl -fsSL https://markdrop.fury.io/apt-key.gpg \
-  | sudo gpg --dearmor -o /usr/share/keyrings/markdrop.gpg
-
-echo "deb [signed-by=/usr/share/keyrings/markdrop.gpg] \
-https://markdrop.fury.io/apt/ any main" \
-  | sudo tee /etc/apt/sources.list.d/markdrop.list
-
-sudo apt update
-
-# 2. Install (and future upgrades)
-sudo apt install markdrop
+curl -fsSL https://github.com/himanshkukreja/markdrop/releases/latest/download/install.sh | sh
 ```
 
-### Linux — Fedora / RHEL / CentOS (dnf / yum)
+Picks the build for your machine (amd64 or arm64) and installs to `/usr/local/bin`, or to `~/bin` when it
+can't write there — no root required. Run it again to update.
+
+### Linux — packages
+
+Every release has `.deb`, `.rpm` and `.apk` files for `amd64` and `arm64`. Download the one for your
+system from the [latest release](https://github.com/himanshkukreja/markdrop/releases/latest), then:
 
 ```bash
-# 1. Add the markdrop RPM repository (one-time setup)
-sudo tee /etc/yum.repos.d/markdrop.repo <<'EOF'
-[markdrop]
-name=markdrop
-baseurl=https://markdrop.fury.io/rpm/
-enabled=1
-gpgcheck=0
-EOF
-
-# 2. Install
-sudo dnf install markdrop
+sudo apt install ./markdrop_<version>_linux_amd64.deb                 # Debian, Ubuntu
+sudo dnf install ./markdrop_<version>_linux_amd64.rpm                 # Fedora, RHEL
+sudo apk add --allow-untrusted ./markdrop_<version>_linux_amd64.apk   # Alpine
 ```
 
-### Linux — quick install (no repo setup)
-
-If you don't want to add a repo, use the one-liner instead:
-
-```bash
-curl -fsSL https://markdrop.in/install.sh | sh
-```
-
-Installs to `/usr/local/bin`. Falls back to `~/bin` if no write access — no root required.
-
----
+There is no apt or dnf repository, so packages don't update themselves: install the newer package to update.
 
 ### Windows (PowerShell)
 
 ```powershell
-irm https://markdrop.in/install.ps1 | iex
+irm https://github.com/himanshkukreja/markdrop/releases/latest/download/install.ps1 | iex
 ```
 
-Installs to `%LOCALAPPDATA%\markdrop` and adds it to your user `PATH` automatically. No admin rights required.
-
-Or with [Scoop](https://scoop.sh):
-
-```powershell
-scoop bucket add markdrop https://github.com/himanshkukreja/scoop-bucket
-scoop install markdrop
-```
-
----
+Installs to `%LOCALAPPDATA%\markdrop` and adds it to your user `PATH`. No admin rights required.
+Windows builds are x64 (amd64) only; on Windows on Arm the script installs the x64 build, which runs
+under emulation.
 
 ### Verify the install
 
 ```bash
 markdrop --version
 ```
-
----
 
 <details>
 <summary>Manual binary download</summary>
@@ -125,6 +88,8 @@ Go to the [Releases](https://github.com/himanshkukreja/markdrop/releases) page a
 | Linux x64           | `markdrop_<version>_linux_amd64.tar.gz`       |
 | Linux ARM64         | `markdrop_<version>_linux_arm64.tar.gz`       |
 | Windows x64         | `markdrop_<version>_windows_amd64.zip`        |
+
+`checksums.txt` in the same release has the SHA-256 of every file.
 
 ```bash
 # Extract and install manually
@@ -417,7 +382,7 @@ the call, calling the tool again with the same arguments resumes where it stoppe
 
 | Variable | Effect |
 |----------|--------|
-| `MARKDROP_TOKEN` | An API token (markdrop.in → Settings → API tokens). Required by the file tools (unless you ran `markdrop login`, whose saved token they also use). Peer-to-peer shares you start are then listed under your account, e.g. by the remote MCP server's `list_shares` (also honoured by `markdrop send`); without it the peer-to-peer tools tell the server nothing about your files. |
+| `MARKDROP_TOKEN` | An API token (markdrop.in → Settings → API tokens). Without it, the token saved by `markdrop login` is used. The file and workspace tools need one. With a token, peer-to-peer shares you start are listed under your account, e.g. by the remote MCP server's `list_shares` (the same goes for `markdrop send`); without one the peer-to-peer tools tell the server nothing about your files. |
 | `MARKDROP_MCP_ALLOW_ANY_PATH` | `1` disables the secret-path guard. |
 | `MARKDROP_CACHE_DIR` | Where resumable uploads are remembered (default: your user cache folder). |
 | `MARKDROP_CONFIG_DIR` | Where `markdrop login` keeps the token (default: your user config folder). |
@@ -440,26 +405,27 @@ Logs go to stderr (your app's MCP log); stdout carries only the protocol.
 
 ## Command reference
 
-### `markdrop send <file>`
+### `markdrop send <file|folder>`
 
-Share a file by generating a unique room ID and waiting for a recipient.
+Share a file or folder by generating a unique room ID and waiting for a recipient.
 
 ```
 Usage:
-  markdrop send <file> [flags]
+  markdrop send <file|folder> [flags]
 
 Flags:
-  -h, --help   help for send
-
-Global Flags:
-      --origin string   Origin header for the WebSocket handshake (default "https://www.markdrop.in")
-      --server string   API base URL of the markdrop signalling server (default "https://api.markdrop.in")
+  -h, --help           help for send
+      --token string   API token that lists the share under your account (default: $MARKDROP_TOKEN, then the one saved by markdrop login)
 ```
+
+Plus the [global flags](#global-flags).
 
 **Behaviour:**
 - Generates a cryptographically random 10-character room ID via `crypto/rand`
 - Prints the share URL and a QR code
 - Blocks until a recipient connects and the full file is transferred
+- With a token (`--token`, `MARKDROP_TOKEN`, or the one saved by `markdrop login`) the share is listed
+  under your account; without one it's anonymous
 - Exits with code `0` on success, non-zero on error
 
 ---
@@ -616,15 +582,21 @@ markdrop send file.pdf
 > **Only needed if you want to contribute or self-host.  
 > Regular users should use the one-line installers above.**
 
-Requires Go 1.25+.
+Requires Go 1.25 or newer (see `go.mod`). The CLI's module path is `github.com/markdrop/cli`, not the
+repository's path, so `go install github.com/himanshkukreja/markdrop/...@latest` doesn't work: clone
+the repository and build in `cli/`.
 
 ```bash
 git clone https://github.com/himanshkukreja/markdrop
-cd cli
+cd markdrop/cli
 make build          # ./markdrop for the current platform
-make install        # installs to $GOPATH/bin / ~/go/bin
-make build-all      # cross-compile for all 6 platform/arch combos
+make install        # puts markdrop in $GOBIN (default ~/go/bin)
+make build-all      # cross-compile every platform/arch into dist/
+make test           # go test ./...
 ```
+
+The version `markdrop --version` reports comes from the latest `v*` tag (`git describe`); set it
+yourself with `make build VERSION=0.5.0`.
 
 ---
 
@@ -649,7 +621,7 @@ cli/
     │   ├── host.go                 WebRTC host: creates offer, streams file chunks
     │   ├── guest.go                WebRTC guest: answers offer, assembles chunks
     │   ├── source.go               What a host serves: a file, or a zip of a folder / several paths
-    │   └── blob.go                 Share-metadata blob (attribution via MARKDROP_TOKEN)
+    │   └── blob.go                 Share-metadata blob (attribution with your API token)
     ├── mcpserver/                  MCP tools, share/receive manager, secret-path guard
     └── ui/
         └── display.go              Terminal output: box, QR code, spinner, progress bar
