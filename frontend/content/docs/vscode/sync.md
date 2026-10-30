@@ -75,7 +75,7 @@ PDFs, Word documents, spreadsheets and zipped sites can't be edited as text, so 
 
 Files in other tabs, or in a VS Code window that isn't focused, are checked when you come back to them.
 
-**Sync now.** **Markdrop: Sync now (push)** sends your saved changes and then checks for web changes straight away.
+**Sync now.** **Markdrop: Sync now (push)** sends what's in the editor now, including changes you haven't saved, and then checks for web changes straight away (when `markdrop.autoPull` is on).
 
 ### The status bar
 
@@ -93,7 +93,7 @@ The tooltip on a linked file shows its address and revision.
 
 Run **Markdrop: Unlink current file**. The file stops syncing; the document on markdrop.in stays as it is. Publish again to make a new link.
 
-If the document is deleted on markdrop.in, the extension unlinks the file the next time it checks and tells you.
+If the document is deleted on markdrop.in, the extension unlinks the file the next time it checks for web changes or sends a change, and shows "This document no longer exists on Markdrop — unlinked." The local file is kept.
 
 ## Where links are kept
 

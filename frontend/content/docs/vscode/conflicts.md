@@ -64,5 +64,6 @@ If someone changes the document on the web again before you save, you get a new 
 | Message | Meaning |
 |---|---|
 | "This document no longer exists on Markdrop — unlinked." | The document was deleted on markdrop.in, or isn't owned by the account you're signed in with. The local file is kept and stops syncing. |
-| "Markdrop sync failed" | Markdrop refused the change: for example, the file is over 25 MB, or the document is end-to-end encrypted, which can't sync from VS Code. Changes sent on save fail quietly and the status bar stays on **Markdrop: unsynced**; run **Markdrop: Sync now (push)** to see the message. |
+| "Markdrop sync failed: …" | Markdrop refused the change because the document is end-to-end encrypted or isn't a text file, so it can't sync from VS Code. You see this on save too. A Markdown file over 500,000 characters also fails, but quietly on save: the status bar stays on **Markdrop: unsynced**; run **Markdrop: Sync now (push)** to see the message. |
+| "Markdrop sync paused: This file is … MB; files synced to Markdrop can be up to 25 MB. …" | The file is over 25 MB, so the extension doesn't send it. On save nothing is sent and nothing is shown: the status bar stays on **Markdrop: unsynced**. Run **Markdrop: Sync now (push)** to see the message. Move large images or fonts out of the page, or upload the file at [markdrop.in/upload](https://markdrop.in/upload). |
 | "Session expired — sign in again." | The API token was revoked. Run **Markdrop: Sign in**. |

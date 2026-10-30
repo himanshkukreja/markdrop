@@ -45,7 +45,7 @@ Run these from the Command Palette (:kbd[⌘⇧P] on macOS, :kbd[Ctrl+Shift+P] e
 | Markdrop: Sign in with API token | Paste an API token from [markdrop.in/settings/tokens](https://markdrop.in/settings/tokens) instead. |
 | Markdrop: Sign out | Forget the token on this computer. To end it everywhere, revoke it on the API tokens page. |
 | Markdrop: Publish / link current file | Publish the current file and link it. |
-| Markdrop: Sync now (push) | Send your saved changes, then check for web changes. |
+| Markdrop: Sync now (push) | Send what's in the editor now, including unsaved changes, then check for web changes (when `markdrop.autoPull` is on). |
 | Markdrop: Open current document in browser | Open the linked document on markdrop.in. |
 | Markdrop: Unlink current file | Stop syncing this file. The web document stays as it is. |
 
