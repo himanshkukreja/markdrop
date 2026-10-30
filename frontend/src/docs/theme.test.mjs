@@ -19,6 +19,7 @@ import {
   resolveTheme,
   sanitizeCss,
   themeCss,
+  validateBrandColors,
   validateTheme,
 } from "./theme.mjs";
 
@@ -45,15 +46,28 @@ test("presets: layouts, fonts and corners as designed", () => {
   const layout = Object.fromEntries(Object.keys(PRESETS).map((p) => [p, resolveTheme({ preset: p }).layout]));
   assert.deepEqual(layout, { clean: "sidebar", editorial: "top", technical: "sidebar", minimal: "top", playful: "sidebar", helpcenter: "helpcenter" });
   assert.equal(resolveTheme({ preset: "editorial" }).fonts.heading, "newsreader");
-  assert.equal(resolveTheme({ preset: "technical" }).fonts.mono, "ibm-plex-mono");
+  assert.equal(resolveTheme({ preset: "technical" }).fonts.mono, "plex-mono");
   assert.equal(resolveTheme({ preset: "technical" }).radius.lg, 3);
   assert.equal(resolveTheme({ preset: "playful" }).radius.xl, 16);
   // corners and fonts override the preset; a code font can't be the body.
   const t = resolveTheme({ preset: "technical", corners: "round", fonts: { heading: "lora", body: "jetbrains-mono" } });
   assert.deepEqual(t.radius, CORNERS.round);
   assert.equal(t.fonts.heading, "lora");
-  assert.equal(t.fonts.body, "ibm-plex-sans");
+  assert.equal(t.fonts.body, "plex");
   for (const p of Object.values(PRESETS)) for (const id of Object.values(p.fonts)) assert.ok(FONTS[id], `${id} is in the allow-list`);
+});
+
+test("the API's shape: its font ids, nulls for defaults, brand colours in brand.colors", () => {
+  for (const id of ["system", "inter", "manrope", "geist", "dmsans", "plex", "nunito", "source-sans-3", "newsreader", "source-serif-4", "lora", "jetbrains-mono", "plex-mono"]) assert.ok(FONTS[id], id);
+  const t = resolveTheme({ preset: "editorial", fonts: { heading: null, body: "plex" }, corners: null, mode: "both", customCss: null }, { name: "Acme", accent: null, accentDark: null, colors: ["#0f766e", "#13203a"] });
+  assert.equal(t.fonts.heading, "newsreader");
+  assert.equal(t.fonts.body, "plex");
+  assert.deepEqual(t.radius, PRESETS.editorial.corners);
+  assert.equal(t.palette.accent, "#0f766e");
+  assert.equal(t.palette.light.text, "#13203a");
+  // Brand colours without a theme key still build a palette on the clean layout.
+  assert.equal(resolveTheme(undefined, { colors: ["#7c3aed"] }).palette.accent, "#7c3aed");
+  assert.equal(resolveTheme(undefined, { colors: [] }), null);
 });
 
 function assertReport(r, what) {
@@ -182,7 +196,9 @@ test("custom CSS: rejects what could escape the stylesheet or load from elsewher
 
 test("validation: what docs:check reports", () => {
   assert.deepEqual(validateTheme(undefined), []);
-  assert.deepEqual(validateTheme({ preset: "editorial", fonts: { heading: "lora" }, corners: "round", mode: "dark", colors: ["#0f766e"], customCss: ".a{b:c}" }), []);
+  assert.deepEqual(validateTheme({ preset: "editorial", fonts: { heading: "lora" }, corners: "round", mode: "dark", customCss: ".a{b:c}" }), []);
+  // What the API writes for "Theme default": nulls.
+  assert.deepEqual(validateTheme({ preset: "clean", fonts: { heading: null, body: null }, corners: null, mode: "both", customCss: null }), []);
   const msgs = (t) => validateTheme(t).map((p) => `${p.level}: ${p.msg}`);
   assert.match(msgs("x")[0], /theme must be an object/);
   assert.match(msgs({ preset: "fancy" })[0], /^error: theme.preset "fancy"/);
@@ -191,8 +207,11 @@ test("validation: what docs:check reports", () => {
   assert.match(msgs({ fonts: { body: "geist-mono" } })[0], /is a code font/);
   assert.match(msgs({ corners: "pointy" })[0], /sharp, soft or round/);
   assert.match(msgs({ mode: "auto" })[0], /both, light or dark/);
-  assert.match(msgs({ colors: [] })[0], /1 to 8 hex colours/);
-  assert.match(msgs({ colors: ["teal"] })[0], /theme.colors\[0\] "teal"/);
+  assert.match(msgs({ colors: ["#000"] })[0], /^warn: theme.colors is not a setting/);
+  assert.deepEqual(validateBrandColors(undefined), []);
+  assert.deepEqual(validateBrandColors(["#0f766e", "#13203a"]), []);
+  assert.match(validateBrandColors(["teal"])[0], /brand.colors\[0\] "teal"/);
+  assert.match(validateBrandColors("teal")[0], /up to 8 hex colours/);
   assert.match(msgs({ customCss: "@import url(https://x)" })[0], /^error: theme.customCss: @import/);
   assert.match(msgs({ layout: "x" })[0], /^warn: theme.layout is not a setting/);
 });

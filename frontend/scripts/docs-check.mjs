@@ -34,7 +34,7 @@ import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { buildApiReference } from "../src/docs/openapi.mjs";
 import { expandRedirects } from "../src/docs/siteFiles.mjs";
-import { validateTheme } from "../src/docs/theme.mjs";
+import { validateBrandColors, validateTheme } from "../src/docs/theme.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONTENT = process.env.DOCS_CONTENT_DIR || path.join(ROOT, "content", "docs");
@@ -455,7 +455,7 @@ const brandAssets = [];
     } else if (!httpsUrl(v)) err(S, `${key} "${v}" must be a /docs-assets/ path or an https URL`);
   };
   const colour = (key, v) => {
-    if (v !== undefined && !(typeof v === "string" && HEX.test(v))) err(S, `${key} "${v}" must be a hex colour like #2563eb`);
+    if (v !== undefined && v !== null && !(typeof v === "string" && HEX.test(v))) err(S, `${key} "${v}" must be a hex colour like #2563eb`);
   };
   const ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
@@ -465,7 +465,7 @@ const brandAssets = [];
   if (b !== undefined) {
     if (!isObj(b)) err(S, "brand must be an object");
     else {
-      unknown("brand", b, ["name", "label", "logo", "favicon", "accent", "accentDark", "og"]);
+      unknown("brand", b, ["name", "label", "logo", "favicon", "accent", "accentDark", "colors", "og"]);
       for (const k of ["name", "label"]) if (b[k] !== undefined && typeof b[k] !== "string") err(S, `brand.${k} must be a string`);
       if (b.logo !== undefined) {
         const l = b.logo;
@@ -490,6 +490,7 @@ const brandAssets = [];
       if (b.favicon !== undefined && b.favicon !== "/icon.svg") assetRef("brand.favicon", b.favicon);
       colour("brand.accent", b.accent);
       colour("brand.accentDark", b.accentDark);
+      for (const m of validateBrandColors(b.colors)) err(S, m);
       if (b.og !== undefined) {
         if (!isObj(b.og)) err(S, "brand.og must be an object");
         else {
@@ -550,7 +551,6 @@ const brandAssets = [];
 
   // theme: preset, fonts (allow-list), corners, mode, brand colours, custom CSS (src/docs/theme.mjs).
   for (const p of validateTheme(site.theme)) report(p.level, S, p.msg);
-  if (site.theme?.colors !== undefined && b?.accent !== undefined) warn(S, "brand.accent and theme.colors both set: brand.accent is the accent, theme.colors give the ink and tint");
 
   const pg = site.pages;
   if (pg !== undefined) {

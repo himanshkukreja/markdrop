@@ -5,15 +5,18 @@
  *
  *   "theme": {
  *     "preset": "clean" | "editorial" | "technical" | "minimal" | "playful" | "helpcenter",
- *     "fonts": { "heading": "newsreader", "body": "source-sans-3", "mono": "ibm-plex-mono" },
+ *     "fonts": { "heading": "newsreader", "body": "source-sans-3", "mono": "plex-mono" },
  *     "corners": "sharp" | "soft" | "round",          // overrides the preset's radius scale
  *     "mode": "both" | "light" | "dark",               // light-only / dark-only hide the switch
- *     "colors": ["#0f766e", "#13203a", "#e6f4f1"],     // Match my brand: accent, ink, soft tint
  *     "customCss": ".dx-title { letter-spacing: 0 }"   // sanitised, scoped under .dx-root
- *   }
+ *   },
+ *   "brand": { "colors": ["#0f766e", "#13203a", "#e6f4f1"], "accent": "#0f766e", … }
+ *                                                       // Match my brand: accent, ink, soft tint
  *
- * Every key is optional. No `theme` at all is today's docs.markdrop.in look, token for token: the
- * engine adds nothing (no attribute, no stylesheet).
+ * Every key is optional, and null means "the preset's default" (what the API writes for "Theme
+ * default"). Font ids are the API's (docs_sites settings.theme.fonts). No `theme` and no
+ * `brand.colors` is today's docs.markdrop.in look, token for token: the engine adds nothing (no
+ * attribute, no stylesheet).
  *
  * Colour maths: the same model as components/tenant/branding.ts (WCAG relative luminance, sRGB
  * mixing, the accent fill / on-accent / clamped accent-text split and its 14 % / 28 % washes).
@@ -72,7 +75,7 @@ export const PRESETS = {
     label: "Technical",
     blurb: "Dense, mono accents, API-first.",
     layout: "sidebar",
-    fonts: { heading: "ibm-plex-sans", body: "ibm-plex-sans", mono: "ibm-plex-mono" },
+    fonts: { heading: "plex", body: "plex", mono: "plex-mono" },
     corners: "sharp",
     headingWeight: 600,
     palette: {
@@ -111,7 +114,7 @@ export const PRESETS = {
     label: "Help center",
     blurb: "Search first, then categories.",
     layout: "helpcenter",
-    fonts: { heading: "dm-sans", body: "dm-sans", mono: "jetbrains-mono" },
+    fonts: { heading: "dmsans", body: "dmsans", mono: "jetbrains-mono" },
     corners: { sm: 6, md: 8, lg: 10, xl: 12, "2xl": 16, "3xl": 24 },
     headingWeight: 700,
     palette: {
@@ -143,15 +146,15 @@ export const FONTS = {
   manrope: { label: "Manrope", kind: "sans" },
   inter: { label: "Inter", kind: "sans" },
   geist: { label: "Geist", kind: "sans" },
-  "ibm-plex-sans": { label: "IBM Plex Sans", kind: "sans" },
+  plex: { label: "IBM Plex Sans", kind: "sans" },
   "source-sans-3": { label: "Source Sans 3", kind: "sans" },
-  "dm-sans": { label: "DM Sans", kind: "sans" },
+  dmsans: { label: "DM Sans", kind: "sans" },
   nunito: { label: "Nunito", kind: "sans" },
   newsreader: { label: "Newsreader", kind: "serif" },
   "source-serif-4": { label: "Source Serif 4", kind: "serif" },
   lora: { label: "Lora", kind: "serif" },
   "jetbrains-mono": { label: "JetBrains Mono", kind: "mono" },
-  "ibm-plex-mono": { label: "IBM Plex Mono", kind: "mono" },
+  "plex-mono": { label: "IBM Plex Mono", kind: "mono" },
   "geist-mono": { label: "Geist Mono", kind: "mono" },
   system: { label: "System UI", kind: "sans" },
 };
@@ -542,12 +545,16 @@ export function sanitizeCss(input, scope = ".dx-root") {
 const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 
 /**
- * site.json `theme` (+ brand accent) → what the engine renders, or null when the site has no
- * theme key (today's look, nothing added). Bad values fall back to the preset's (docs:check
- * reports them).
+ * site.json `theme` (+ `brand`: colours and accent) → what the engine renders, or null when the
+ * site has neither a theme nor brand colours (today's look, nothing added). Bad values fall back
+ * to the preset's (docs:check reports them).
  */
 export function resolveTheme(theme, brand) {
-  if (!isObj(theme)) return null;
+  const colors = Array.isArray(brand?.colors) && brand.colors.length ? brand.colors : undefined;
+  if (!isObj(theme)) {
+    if (!colors) return null;
+    theme = {};
+  }
   const presetId = Object.hasOwn(PRESETS, theme.preset) ? theme.preset : "clean";
   const preset = PRESETS[presetId];
   const font = (key, kinds) => {
@@ -564,7 +571,7 @@ export function resolveTheme(theme, brand) {
     headingWeight: preset.headingWeight,
     radius: corners,
     mode,
-    palette: buildPalette(presetId, { colors: theme.colors, accent: brand?.accent, accentDark: brand?.accentDark }),
+    palette: buildPalette(presetId, { colors, accent: brand?.accent, accentDark: brand?.accentDark }),
     customCss: custom.css,
     customCssErrors: custom.errors,
   };
@@ -615,35 +622,37 @@ export function validateTheme(theme) {
   const warn = (msg) => out.push({ level: "warn", msg });
   if (theme === undefined) return out;
   if (!isObj(theme)) return [{ level: "error", msg: "theme must be an object" }];
-  for (const k of Object.keys(theme)) if (!["preset", "fonts", "corners", "mode", "colors", "customCss"].includes(k)) warn(`theme.${k} is not a setting (ignored)`);
-  if (theme.preset !== undefined && !Object.hasOwn(PRESETS, theme.preset)) err(`theme.preset "${theme.preset}" must be one of ${Object.keys(PRESETS).join(", ")}`);
-  if (theme.fonts !== undefined) {
+  for (const k of Object.keys(theme)) if (!["preset", "fonts", "corners", "mode", "customCss"].includes(k)) warn(`theme.${k} is not a setting (ignored)`);
+  // null is "the preset's default" (the API's "Theme default").
+  const set = (v) => v !== undefined && v !== null;
+  if (set(theme.preset) && !Object.hasOwn(PRESETS, theme.preset)) err(`theme.preset "${theme.preset}" must be one of ${Object.keys(PRESETS).join(", ")}`);
+  if (set(theme.fonts)) {
     if (!isObj(theme.fonts)) err("theme.fonts must be an object like { \"heading\": \"newsreader\", \"body\": \"inter\" }");
     else {
       for (const k of Object.keys(theme.fonts)) if (!["heading", "body", "mono"].includes(k)) warn(`theme.fonts.${k} is not a setting (ignored)`);
       for (const k of ["heading", "body", "mono"]) {
         const id = theme.fonts[k];
-        if (id === undefined) continue;
+        if (!set(id)) continue;
         if (!Object.hasOwn(FONTS, id)) err(`theme.fonts.${k} "${id}" isn't an available font (${Object.keys(FONTS).join(", ")})`);
         else if (k === "mono" && FONTS[id].kind !== "mono") err(`theme.fonts.mono "${id}" isn't a monospaced font`);
         else if (k !== "mono" && FONTS[id].kind === "mono") err(`theme.fonts.${k} "${id}" is a code font; pick a sans or serif`);
       }
     }
   }
-  if (theme.corners !== undefined && !Object.hasOwn(CORNERS, theme.corners)) err(`theme.corners "${theme.corners}" must be sharp, soft or round`);
-  if (theme.mode !== undefined && !MODES.includes(theme.mode)) err(`theme.mode "${theme.mode}" must be both, light or dark`);
-  if (theme.colors !== undefined) {
-    if (!Array.isArray(theme.colors) || !theme.colors.length || theme.colors.length > 8) err("theme.colors must be a list of 1 to 8 hex colours");
-    else {
-      theme.colors.forEach((c, i) => {
-        if (!parseHex(c)) err(`theme.colors[${i}] "${c}" must be a hex colour like #0f766e`);
-      });
-      if (theme.colors.every((c) => parseHex(c)) && !brandRoles(theme.colors)) err("theme.colors has no usable colour");
-    }
-  }
-  if (theme.customCss !== undefined) {
+  if (set(theme.corners) && !Object.hasOwn(CORNERS, theme.corners)) err(`theme.corners "${theme.corners}" must be sharp, soft or round`);
+  if (set(theme.mode) && !MODES.includes(theme.mode)) err(`theme.mode "${theme.mode}" must be both, light or dark`);
+  if (set(theme.customCss)) {
     if (typeof theme.customCss !== "string") err("theme.customCss must be a string");
     else for (const e of sanitizeCss(theme.customCss).errors) err(`theme.customCss: ${e}`);
   }
+  return out;
+}
+
+/** Problems with site.json `brand.colors` (Match my brand): error messages. */
+export function validateBrandColors(colors) {
+  if (colors === undefined || colors === null) return [];
+  if (!Array.isArray(colors) || colors.length > 8) return ["brand.colors must be a list of up to 8 hex colours"];
+  const out = colors.flatMap((c, i) => (parseHex(c) ? [] : [`brand.colors[${i}] "${c}" must be a hex colour like #0f766e`]));
+  if (!out.length && colors.length && !brandRoles(colors)) out.push("brand.colors has no usable colour");
   return out;
 }

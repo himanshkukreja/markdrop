@@ -45,15 +45,15 @@ export const THEME_FONT_FAMILIES: Record<string, string> = {
   "jetbrains-mono": "var(--font-jetbrains)",
   inter: inter.style.fontFamily,
   geist: geist.style.fontFamily,
-  "ibm-plex-sans": plexSans.style.fontFamily,
+  plex: plexSans.style.fontFamily,
   "source-sans-3": sourceSans.style.fontFamily,
-  "dm-sans": dmSans.style.fontFamily,
+  dmsans: dmSans.style.fontFamily,
   nunito: nunito.style.fontFamily,
   newsreader: newsreader.style.fontFamily,
   "source-serif-4": sourceSerif.style.fontFamily,
   lora: lora.style.fontFamily,
   "geist-mono": geistMono.style.fontFamily,
-  "ibm-plex-mono": plexMono.style.fontFamily,
+  "plex-mono": plexMono.style.fontFamily,
 };
 
 /** The theme's stylesheet (fonts, corners, palette, custom CSS), or null for a site without a theme. */

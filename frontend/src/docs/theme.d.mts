@@ -63,13 +63,13 @@ export declare function paletteReport(palette: Palette): Record<"light" | "dark"
 
 export declare function sanitizeCss(input: unknown, scope?: string): { css: string; errors: string[] };
 
+/** site.json `theme`. null is "the preset's default". Brand colours live in `brand.colors`. */
 export interface ThemeConfig {
-  preset?: string;
-  fonts?: { heading?: string; body?: string; mono?: string };
-  corners?: string;
-  mode?: string;
-  colors?: string[];
-  customCss?: string;
+  preset?: string | null;
+  fonts?: { heading?: string | null; body?: string | null; mono?: string | null } | null;
+  corners?: string | null;
+  mode?: string | null;
+  customCss?: string | null;
 }
 
 export interface ResolvedTheme {
@@ -84,6 +84,7 @@ export interface ResolvedTheme {
   customCssErrors: string[];
 }
 
-export declare function resolveTheme(theme: unknown, brand?: { accent?: string; accentDark?: string }): ResolvedTheme | null;
+export declare function resolveTheme(theme: unknown, brand?: { accent?: string; accentDark?: string; colors?: unknown }): ResolvedTheme | null;
 export declare function themeCss(t: ResolvedTheme, families: Record<string, string>): string;
 export declare function validateTheme(theme: unknown): Array<{ level: "error" | "warn"; msg: string }>;
+export declare function validateBrandColors(colors: unknown): string[];
