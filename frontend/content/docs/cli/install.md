@@ -7,7 +7,7 @@ checked: 2026-10-30
 keywords: [cli, install, homebrew, brew, curl, powershell, deb, rpm, apk, terminal]
 ---
 
-The markdrop CLI is a single binary for macOS, Linux and Windows. It sends files peer to peer (`send`, `get`), publishes files behind a link you can replace later (`upload`, `replace`), and runs a local MCP server for AI apps on your computer (`mcp`). The current release is 0.5.0.
+The markdrop CLI is a single binary for macOS, Linux and Windows. It sends files peer to peer (`send`, `get`), publishes files behind a link you can replace later (`upload`, `replace`), and runs a local MCP server for AI apps on your computer (`mcp`). The current release is 0.5.1.
 
 ## Install
 
@@ -48,9 +48,9 @@ curl -fsSL https://github.com/himanshkukreja/markdrop/releases/latest/download/i
 Prefer a package? Every release has `.deb`, `.rpm` and `.apk` files for `amd64` and `arm64`. Download the one for your system from the [releases page](https://github.com/himanshkukreja/markdrop/releases/latest), then install it:
 
 ```bash title="Install a downloaded package"
-sudo apt install ./markdrop_0.5.0_linux_amd64.deb      # Debian, Ubuntu
-sudo dnf install ./markdrop_0.5.0_linux_amd64.rpm      # Fedora, RHEL
-sudo apk add --allow-untrusted ./markdrop_0.5.0_linux_amd64.apk   # Alpine
+sudo apt install ./markdrop_0.5.1_linux_amd64.deb      # Debian, Ubuntu
+sudo dnf install ./markdrop_0.5.1_linux_amd64.rpm      # Fedora, RHEL
+sudo apk add --allow-untrusted ./markdrop_0.5.1_linux_amd64.apk   # Alpine
 ```
 
 Markdrop doesn't run an apt or dnf repository, so packages don't update themselves. Download the new package to update.
@@ -64,7 +64,7 @@ markdrop --version
 ```
 
 ```text
-markdrop version 0.5.0
+markdrop version 0.5.1
 ```
 
 If your shell says `markdrop: command not found`, the folder it was installed to isn't on your `PATH`. The install script prints where it put the binary. When it falls back to `~/bin`, add that folder to your `PATH`:
@@ -85,14 +85,14 @@ Use `~/.zshrc` instead of `~/.bashrc` if your shell is zsh.
 
 ## Download a binary yourself
 
-Each [GitHub release](https://github.com/himanshkukreja/markdrop/releases/latest) has these files, where `0.5.0` is the version:
+Each [GitHub release](https://github.com/himanshkukreja/markdrop/releases/latest) has these files, where `0.5.1` is the version:
 
 | File | For |
 |---|---|
-| `markdrop_0.5.0_darwin_arm64.tar.gz` | macOS on Apple silicon |
-| `markdrop_0.5.0_darwin_amd64.tar.gz` | macOS on Intel |
-| `markdrop_0.5.0_linux_amd64.tar.gz`, `markdrop_0.5.0_linux_arm64.tar.gz` | Linux |
-| `markdrop_0.5.0_windows_amd64.zip` | Windows (x86-64) |
+| `markdrop_0.5.1_darwin_arm64.tar.gz` | macOS on Apple silicon |
+| `markdrop_0.5.1_darwin_amd64.tar.gz` | macOS on Intel |
+| `markdrop_0.5.1_linux_amd64.tar.gz`, `markdrop_0.5.1_linux_arm64.tar.gz` | Linux |
+| `markdrop_0.5.1_windows_amd64.zip` | Windows (x86-64) |
 | `checksums.txt` | SHA-256 of every file above |
 
 Check the download against `checksums.txt` before you run it:
@@ -102,7 +102,7 @@ sha256sum --ignore-missing -c checksums.txt
 ```
 
 ```bash title="macOS"
-shasum -a 256 markdrop_0.5.0_darwin_arm64.tar.gz
+shasum -a 256 markdrop_0.5.1_darwin_arm64.tar.gz
 # compare with the matching line in checksums.txt
 ```
 

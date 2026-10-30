@@ -1,13 +1,13 @@
 ---
 title: CLI reference
 nav: Command reference
-description: Every markdrop command, flag, default, environment variable and exit code in CLI 0.5.0.
+description: Every markdrop command, flag, default, environment variable and exit code in CLI 0.5.1.
 updated: 2026-10-30
 since: CLI 0.5.0
 keywords: [reference, flags, commands, options, environment variables, exit codes, help, completion]
 ---
 
-This page covers the markdrop CLI 0.5.0. Run `markdrop <command> --help` for the same details in your terminal, and `markdrop --version` to see which version you have.
+This page covers the markdrop CLI 0.5.1. Run `markdrop <command> --help` for the same details in your terminal, and `markdrop --version` to see which version you have.
 
 ## Commands
 
