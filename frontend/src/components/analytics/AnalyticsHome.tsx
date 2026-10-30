@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import { Anchor, Badge, Button, EmptyState, FileIcon, Icon, useToast } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { relativeTime } from "@/components/dashboard/format";
 import { RANGES, downloadHomeCsv, getHome, isRange, type AnalyticsRange, type HomeLink, type Insight } from "@/lib/analytics";
 import { Sparkline, trendWords } from "./charts";
@@ -49,7 +50,7 @@ export default function AnalyticsHome() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-[1_1_300px]">
           <h1 className="m-0 text-h2 text-text sm:text-h1">Analytics</h1>
-          <p className="mt-0.5 mb-0 text-[13px] text-text-muted">Everything you&apos;ve published, {rangeLong}. Your own views aren&apos;t counted.</p>
+          <p className="mt-0.5 mb-0 text-[13px] text-text-muted">Everything you&apos;ve published, {rangeLong}. Your own views aren&apos;t counted. <ReadMore topic="whatGetsCounted">What counts</ReadMore></p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {h && h.live.people > 0 ? (

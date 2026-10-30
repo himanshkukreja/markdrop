@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, ConfirmDialog, Field, Select, useToast } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { teamName } from "@/components/workspace/folder/items";
 import { deleteWorkspace, removeMember, updateWorkspace, type ItemAccess, type WorkspaceSettings } from "@/lib/workspaces";
 import { SwitchRow } from "../../../settings-shared";
@@ -74,7 +75,7 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
             <SwitchRow
               id="ws-require-auth"
               label="Visitors must sign in to open anything"
-              hint="Enforced everywhere, including markdrop.in links. No public links."
+              hint={<>Enforced everywhere, including markdrop.in links. No public links. <ReadMore topic="domainSignIn" /></>}
               checked={ws.settings.require_auth_to_view}
               disabled={saving === "auth"}
               locked={!isAdmin}

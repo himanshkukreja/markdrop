@@ -13,7 +13,7 @@ export function SiteFooter({ className }: { className?: string }) {
   return (
     <footer className={`no-print w-full border-t border-border bg-bg ${className ?? ""}`}>
       <div className="mx-auto w-full max-w-marketing px-4 pt-12 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-6 lg:pt-14">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))]">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,1fr))]">
           <div className="flex min-w-0 flex-col items-start gap-4">
             <MarkdropLogo size={28} />
             <p className="max-w-[18rem] text-body text-text-secondary">Docs and files as links that render</p>

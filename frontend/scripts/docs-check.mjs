@@ -405,6 +405,28 @@ function checkLink(file, href, line, what) {
   }
   if (hash && !target.ids.has(hash)) err(file, `${what} ${href}: no heading #${hash} on ${p} (has: ${[...target.ids].slice(0, 8).join(", ")}${target.ids.size > 8 ? ", …" : ""})`, line);
 }
+// The app's links into the docs: DOCS_PAGES (src/lib/docsLinks.ts) and docsUrl("/…") calls.
+{
+  const SRC = new URL("../src/", import.meta.url).pathname;
+  const files = [];
+  const scan = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const f = path.join(d, e.name);
+      if (e.isDirectory()) { if (e.name !== "docs" && e.name !== "docs-site") scan(f); }
+      else if (/\.(ts|tsx)$/.test(e.name)) files.push(f);
+    }
+  };
+  scan(SRC);
+  for (const f of files) {
+    const rel = path.relative(path.join(SRC, ".."), f);
+    const text = fs.readFileSync(f, "utf8");
+    const isMap = rel.endsWith(path.join("lib", "docsLinks.ts"));
+    text.split("\n").forEach((l, i) => {
+      for (const m of l.matchAll(/docsUrl\("([^"]+)"\)/g)) checkLink(rel, m[1], i + 1, "app link");
+      if (isMap) for (const m of l.matchAll(/^\s+\w+:\s*"(\/[^"]*)"/g)) checkLink(rel, m[1], i + 1, "app link");
+    });
+  }
+}
 for (const [, pg] of pages) for (const l of pg.links) {
   if (l.href.startsWith("#")) {
     if (l.href.length > 1 && !pg.ids.has(l.href.slice(1))) err(pg.file, `link ${l.href}: no such heading on this page`, l.line);

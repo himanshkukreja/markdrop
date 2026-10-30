@@ -19,6 +19,7 @@ import {
   useToast,
   type MenuItem,
 } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { EditorFrame } from "@/components/kit/EditorFrame";
 import {
   DEFAULT_PUBLISH_SETTINGS,
@@ -410,7 +411,7 @@ export default function BuilderApp() {
               <EmptyState
                 icon="builder"
                 title="Pick a section to edit"
-                description="Sections you add appear in Your README. Drag to reorder."
+                description={<>Sections you add appear in Your README. Drag to reorder. <ReadMore topic="readmeBuilder" /></>}
                 actions={
                   <Button variant="primary" iconLeft="plus" onClick={() => addSection(TEMPLATES_BY_ID[TITLE_TEMPLATE])}>
                     Add title and description

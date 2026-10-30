@@ -6,6 +6,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Anchor, Badge, EmptyState, FileIcon, Icon } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { getLive, type LiveAnalytics, type LivePos } from "@/lib/analytics";
 import { clock, countryInSentence, deviceInSentence, docHref, num, prettyHeadingId } from "./format";
 import { LoadError, Panel, PanelSkeleton, Quiet, useAnalyticsGate } from "./parts";
@@ -86,7 +87,7 @@ export default function LiveNow() {
       ) : (
         <div className="flex flex-col gap-4" aria-live="off">
           {data.docs.length === 0 && (
-            <EmptyState icon="wave" title="Nobody is on your links right now" description="This page updates every 10 seconds." />
+            <EmptyState icon="wave" title="Nobody is on your links right now" description={<>This page updates every 10 seconds. <ReadMore topic="liveViewers" /></>} />
           )}
 
           {media.map((d) => {

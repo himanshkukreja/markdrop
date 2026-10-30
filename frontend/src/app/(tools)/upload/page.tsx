@@ -18,6 +18,7 @@ import {
   Textarea,
   cx,
 } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { DropZone } from "@/components/kit/DropZone";
 import { BrowserFrame } from "@/components/kit/BrowserFrame";
 import { PublishSettings } from "@/components/kit/PublishSettings";
@@ -485,7 +486,7 @@ export default function UploadArtifactPage() {
             ) : (
               <span className="text-body-strong text-text">{tab === "paste" ? "Your page" : "Your file"}</span>
             )}
-            {limits && <span className="text-caption text-text-muted">{limits}</span>}
+            {limits && <span className="text-caption text-text-muted">{limits} · <ReadMore topic="fileLimits">Limits</ReadMore></span>}
           </div>
 
           {tab === "paste" ? (
@@ -531,7 +532,7 @@ export default function UploadArtifactPage() {
               <section aria-labelledby="upload-kinds" className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <h2 id="upload-kinds" className="m-0 text-eyebrow uppercase text-text-muted">What you can publish</h2>
-                  <span className="text-caption text-text-muted">Each one renders in the browser, not as a download</span>
+                  <span className="text-caption text-text-muted">Each one renders in the browser, not as a download. <ReadMore topic="supportedTypes" /></span>
                 </div>
                 <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-4 xl:grid-cols-7">
                   {KINDS.map((k) => (

@@ -17,6 +17,7 @@ import { createPortal } from "react-dom";
 import {
   Alert, Badge, Button, ConfirmDialog, Icon, Input, SegmentedControl, Skeleton, useToast,
 } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { relativeTime } from "@/components/dashboard/format";
 import { setAccessLevel } from "@/lib/access";
 import {
@@ -229,7 +230,8 @@ export default function PreviewMode({
         <aside aria-labelledby="md-preview-hidden" className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 lg:max-w-[400px]">
           <h2 id="md-preview-hidden" className="text-h3 text-text">Hidden from them</h2>
           <p className="text-[13px] leading-5 text-text-secondary">
-            Nothing changes until you choose. A shared folder never opens what&apos;s inside it by itself.
+            Nothing changes until you choose. A shared folder never opens what&apos;s inside it by itself.{" "}
+            <ReadMore topic="previewAs" />
           </p>
           {loading && !data ? (
             <Skeleton variant="rect" height={72} />

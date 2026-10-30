@@ -13,10 +13,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Badge, Button, ConfirmDialog, CopyButton, Disclosure, Drawer, Icon, Input, Progress, cx, useToast,
 } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { DropZone } from "@/components/kit/DropZone";
 import { QRFrame } from "@/components/kit/QRFrame";
 import { CommandBlock } from "@/components/kit/CommandBlock";
-import { CLI_URL } from "@/components/shell/links";
 import TransferExplainer from "@/components/share/TransferExplainer";
 import CliGuide from "@/components/share/CliGuide";
 import BulkGuide from "@/components/share/BulkGuide";
@@ -226,7 +226,7 @@ export default function SharePage() {
               Send files <span className="text-accent-text">straight to their device</span>
             </h1>
             <p className="mt-3 max-w-[560px] text-body text-text-secondary sm:text-body-lg">
-              Drop one file or a hundred photos, share the link, and they stream directly from your device to theirs, encrypted, with no copy left on any server.
+              Drop one file or a hundred photos, share the link, and they stream directly from your device to theirs, encrypted, with no copy left on any server. <ReadMore topic="sendFiles">How it works</ReadMore>
             </p>
             <ul className="mt-5 hidden flex-wrap gap-2 sm:flex" aria-label="How your files travel">
               <li><Badge icon="key">Encrypted device to device</Badge></li>
@@ -312,7 +312,8 @@ export default function SharePage() {
             <Button variant="primary" size="sm" iconLeft="refresh" onClick={shareAgain}>Share again</Button>
             <Button variant="secondary" size="sm" onClick={stopAndReset}>Start over</Button>
           </>}>
-          {FAILURE_COPY[snap.failure].detail} Share again to send the same files under a new link.
+          {FAILURE_COPY[snap.failure].detail} Share again to send the same files under a new link.{" "}
+          <ReadMore topic="sendTroubleshooting">Troubleshooting</ReadMore>
         </Alert>
       )}
 
@@ -405,9 +406,7 @@ export default function SharePage() {
             <CommandBlock command={`markdrop get ${roomId}`} />
             <p className="text-caption text-text-muted">
               They need the Markdrop CLI.{" "}
-              <a href={CLI_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-accent-text underline-offset-2 hover:underline">
-                How to install it
-              </a>
+              <ReadMore topic="cliInstall">How to install it</ReadMore>
             </p>
           </div>
         </Disclosure>

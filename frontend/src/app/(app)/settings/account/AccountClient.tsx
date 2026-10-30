@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button, Card, Field, Input, useToast } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { UserAvatar } from "@/components/shell/AccountMenu";
 import { ThemeSegmented } from "@/components/theme/ThemeSegmented";
@@ -160,7 +161,7 @@ export default function AccountClient() {
         <SwitchRow
           id="analytics-digest"
           label="Weekly analytics email"
-          hint="On Mondays: last week's views, your top links and what's worth a look. Only sent when something was viewed."
+          hint={<>On Mondays: last week&apos;s views, your top links and what&apos;s worth a look. Only sent when something was viewed. <ReadMore topic="weeklyEmail" /></>}
           checked={(user.analytics_digest ?? "weekly") !== "off"}
           disabled={savingDigest}
           onChange={setDigest}

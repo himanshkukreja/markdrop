@@ -3,6 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Anchor, Icon, cx } from "@/components/ui";
 import VSCodeIcon from "@/components/VSCodeIcon";
+import { DOCS_URL } from "./links";
 import { TreeView, type TreeNode } from "@/components/workspace/FolderTree";
 import { useUploads } from "@/components/workspace/uploads/UploadProvider";
 import { can, type TreeFolder, type Workspace } from "@/lib/workspaces";
@@ -317,6 +318,9 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
         </RailLink>
         <RailLink k="settings" href="/settings/account" active={active} onNavigate={onNavigate}>
           <Icon name="settings" size={16} /> <span className="truncate">Settings</span>
+        </RailLink>
+        <RailLink k="docs" href={DOCS_URL} active={active} onNavigate={onNavigate}>
+          <Icon name="doc" size={16} /> <span className="truncate">Docs</span>
         </RailLink>
         <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={onFeedback}>
           <Icon name="message" size={16} /> <span className="truncate">Send feedback</span>

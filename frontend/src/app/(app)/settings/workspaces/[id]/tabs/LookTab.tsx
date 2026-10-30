@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button, Card, Disclosure, Field, Input, RadioGroup, SegmentedControl, Skeleton, ThemeScope, useToast,
 } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { BrowserFrame } from "@/components/kit/BrowserFrame";
 import AssetUpload from "@/components/workspace/AssetUpload";
 import ColorPicker from "@/components/workspace/ColorPicker";
@@ -171,7 +172,15 @@ export default function LookTab(props: WsTabProps) {
 
       <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="flex min-w-0 flex-col gap-5">
-          <Card title="Logo, colours and favicon" description="On your own domains: page titles, the favicon and link preview cards. Anything left blank falls back to Markdrop's.">
+          <Card
+            title="Logo, colours and favicon"
+            description={
+              <>
+                On your own domains: page titles, the favicon and link preview cards. Anything left blank falls back to Markdrop&apos;s.{" "}
+                <ReadMore topic="branding" />
+              </>
+            }
+          >
             <div className="flex min-w-0 flex-col gap-5">
               <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 <AssetUpload
@@ -251,7 +260,7 @@ export default function LookTab(props: WsTabProps) {
         </div>
 
         <div className="hidden min-w-0 xl:sticky xl:top-20 xl:block">
-          <Card title="How your links look" description="Updates as you edit.">{preview}</Card>
+          <Card title="How your links look" description={<>Updates as you edit. <ReadMore topic="linkPreviews" /></>}>{preview}</Card>
         </div>
       </div>
 

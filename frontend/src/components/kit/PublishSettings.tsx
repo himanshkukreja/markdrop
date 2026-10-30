@@ -22,6 +22,7 @@
  */
 import React, { useId, useRef, useState } from "react";
 import { Alert, Badge, Drawer, Field, Icon, IconButton, Input, Popover, Radio, Select, Switch, Tooltip } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { SettingChip } from "./SettingChip";
 import { DateTimePicker } from "./DateTimePicker";
 import {
@@ -311,7 +312,7 @@ function AccessPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean })
           );
         })}
       </div>
-      <p className={s.caption}>You can name specific people from Share once the {ctx.noun} exists.</p>
+      <p className={s.caption}>You can name specific people from Share once the {ctx.noun} exists. <ReadMore topic="whoCanOpen" /></p>
     </div>
   );
 }
@@ -332,7 +333,7 @@ function EncryptPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }
       </div>
       {e2eSupported ? (
         <p id={descId} className={s.body}>
-          Your browser encrypts the title and the text before publishing. The key goes in the # part of the link, which browsers never send to a server — so only ciphertext ever reaches Markdrop.
+          Your browser encrypts the title and the text before publishing. The key goes in the # part of the link, which browsers never send to a server — so only ciphertext ever reaches Markdrop. <ReadMore topic="encryption" />
         </p>
       ) : (
         <p id={descId} className={s.hintWarn}><Icon name="alert" /> Unavailable — this browser doesn&apos;t expose WebCrypto on an insecure connection.</p>
@@ -366,7 +367,7 @@ function PasswordPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean 
   const { value, set, disabled, errors, noun, passwordMaxLength, layout } = ctx;
   const [reveal, setReveal] = useState(false);
   return (
-    <Field label={labelFor("password", inPopover)} hint={`Readers are asked for this before the ${noun} opens.`} error={errors.password}>
+    <Field label={labelFor("password", inPopover)} hint={<>Readers are asked for this before the {noun} opens. <ReadMore topic="passwordsAndExpiry" /></>} error={errors.password}>
       <Input type={reveal ? "text" : "password"} value={value.password ?? ""} placeholder="Optional" autoComplete="new-password"
         autoCapitalize="off" spellCheck={false} maxLength={passwordMaxLength} disabled={disabled}
         wrapClassName={layout === "sheet" ? s.pwWrapLg : s.pwWrap}
@@ -404,7 +405,7 @@ function ExpiresPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }
 function LinkPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }) {
   const { value, set, disabled, errors, prefix, fullPrefix, slugMaxLength } = ctx;
   return (
-    <Field label={labelFor("slug", inPopover)} hint="Leave blank for a short random link." error={errors.slug}>
+    <Field label={labelFor("slug", inPopover)} hint={<>Leave blank for a short random link. <ReadMore topic="addresses" /></>} error={errors.slug}>
       <Input mono textPrefix={prefix} value={value.slug} placeholder="random" maxLength={slugMaxLength} disabled={disabled}
         autoCapitalize="off" autoCorrect="off" autoComplete="off" spellCheck={false} title={fullPrefix !== prefix ? fullPrefix : undefined}
         onChange={(e) => set("slug", e.target.value)} />

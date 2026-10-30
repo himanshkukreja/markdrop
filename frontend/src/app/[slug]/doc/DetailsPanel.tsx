@@ -1,6 +1,7 @@
 "use client";
 
 import { Avatar, AvatarGroup, Badge, Button, Icon, VSCodeIcon } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { MetaList } from "@/components/kit/MetaList";
 import { KeyAnatomy } from "@/components/kit/KeyAnatomy";
 import { useIsClient } from "@/components/kit/publish-utils";
@@ -131,7 +132,7 @@ export function DetailsPanel(p: DetailsPanelProps) {
           </h2>
           <p className="text-caption text-text-secondary">
             Markdrop stores ciphertext it has no key for. The key is the part after the #, and
-            browsers never send it to a server.
+            browsers never send it to a server. <ReadMore topic="encryption" />
           </p>
           <KeyAnatomy url={p.url} fragment={p.keyFragment ? `#k=${p.keyFragment}` : undefined} layout="compact" />
         </section>

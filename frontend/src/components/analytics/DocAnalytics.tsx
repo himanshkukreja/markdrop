@@ -7,6 +7,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Anchor, Badge, Button, FileIcon, Icon, IconButton, Skeleton, Tabs, cx, useToast, type TabItem } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
+import type { DocsTopic } from "@/lib/docsLinks";
 import { usePhone } from "@/components/dashboard/hooks";
 import { extractHeadings, type Heading } from "@/components/reading/slug";
 import {
@@ -49,6 +51,10 @@ function KindTile({ doc }: { doc: AnalyticsDoc }) {
     </span>
   );
 }
+
+/** The docs page that explains this kind's numbers. */
+const readMoreFor = (kind: string): DocsTopic =>
+  kind === "video" || kind === "audio" ? "videoAnalytics" : kind === "doc" || kind === "pdf" ? "documentAnalytics" : "analytics";
 
 function metaLine(ov: { doc: AnalyticsDoc; versions_marks: { date: string; version: number }[] }) {
   const d = ov.doc;
@@ -177,7 +183,7 @@ export default function DocAnalytics({ slug }: { slug: string }) {
             <KindTile doc={doc} />
             <div className="min-w-0 flex-[1_1_320px]">
               <h1 className="m-0 text-h1 text-text break-words" dir="auto">{title}</h1>
-              <p className="mt-1 mb-0 text-[13px] text-text-muted">{metaLine(ov)}</p>
+              <p className="mt-1 mb-0 text-[13px] text-text-muted">{metaLine(ov)} · <ReadMore topic={readMoreFor(ov.doc.kind)} /></p>
             </div>
             {controls}
           </div>

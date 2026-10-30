@@ -23,6 +23,7 @@ import {
   Alert, Badge, Button, ConfirmDialog, Drawer, Dropdown, Icon, IconButton, Kbd, Meter, Progress, RowMenu, Spinner, Tabs, Tooltip, announce, cx,
   type MenuItem,
 } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { EditorFrame } from "@/components/kit/EditorFrame";
 import { PublishSettings } from "@/components/kit/PublishSettings";
 import {
@@ -690,6 +691,7 @@ export default function NewEditor() {
         {authLoading ? "\u00a0" : signedIn
           ? `It's saved to ${workspaceName ?? "your files"} and gets a shareable link instantly.`
           : "No login required. Your document gets a shareable link instantly."}
+        {!authLoading && <>{" "}<ReadMore topic="writing">Formatting guide</ReadMore></>}
       </p>
 
       {/* ── Phone: sticky bottom bar (formatting strip while typing, summary, Publish) ── */}

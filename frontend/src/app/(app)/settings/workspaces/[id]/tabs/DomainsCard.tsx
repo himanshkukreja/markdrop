@@ -8,6 +8,7 @@ import {
 import DnsInstructions from "@/components/workspace/DnsInstructions";
 import DomainStepper from "@/components/workspace/DomainStepper";
 import { downloadDnsCsv } from "@/lib/dnsCsv";
+import { ReadMore } from "@/components/ReadMore";
 import {
   addDomain, attachDomain, detachDomain, errorStatus, removeDomain, setPrimaryDomain, verifyDomain,
   type Domain, type DomainKind,
@@ -183,6 +184,7 @@ export default function DomainsCard({ id, ws, isAdmin, domains, refresh }: WsTab
     <section aria-labelledby="ws-domain-h" className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-surface p-5">
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         <h2 id="ws-domain-h" className="flex-1 text-h3 text-text">Your own domain</h2>
+        <ReadMore topic="customDomain" className="text-caption">Setup guide</ReadMore>
         {isAdmin && domains && domains.length > 1 && (
           <Button variant="ghost" size="sm" iconLeft="download" onClick={() => downloadDnsCsv(domains)} title="Download every DNS record for this workspace as CSV">
             Records as CSV

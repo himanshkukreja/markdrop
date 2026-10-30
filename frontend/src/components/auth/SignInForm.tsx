@@ -15,6 +15,7 @@
  */
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Alert, Button, Field, Icon, Input, MarkdropLogo, Spinner, announce } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { OtpInput, type OtpInputHandle } from "@/components/kit/OtpInput";
 import { API_BASE, googleLoginUrl, type MeUser } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -355,11 +356,11 @@ export function SignInForm({
                 <MarkdropLogo className="max-lg:hidden" />
                 <div className="flex flex-col gap-1">
                   <Heading className="m-0 text-h2 text-text">{title}</Heading>
-                  <p className="m-0 text-body text-text-secondary">{message ?? SIGN_IN_BODY}</p>
+                  <p className="m-0 text-body text-text-secondary">{message ?? <>{SIGN_IN_BODY} <ReadMore topic="accounts" /></>}</p>
                 </div>
               </>
             )}
-            {!isPage && !message && <p className="m-0 text-body text-text-secondary">{SIGN_IN_BODY}</p>}
+            {!isPage && !message && <p className="m-0 text-body text-text-secondary">{SIGN_IN_BODY} <ReadMore topic="accounts" /></p>}
 
             {failureSlot}
 

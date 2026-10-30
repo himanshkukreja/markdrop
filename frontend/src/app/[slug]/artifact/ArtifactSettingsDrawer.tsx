@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { Alert, Button, Checkbox, Drawer, Field, FileIcon, Input, Progress, Select, type FileRenderer } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { DateTimePicker } from "@/components/kit/DateTimePicker";
 import { formatBytes } from "@/components/ArtifactBadge";
 import type { ExpiresIn } from "@/lib/api";
@@ -74,7 +75,7 @@ export function ArtifactSettingsDrawer({
       title={fileOnly ? "Replace file" : "Artifact settings"}
       description={
         fileOnly
-          ? "Upload a new version. The link and its settings stay the same, and the space counts against the owner's storage."
+          ? <>Upload a new version. The link and its settings stay the same, and the space counts against the owner&apos;s storage. <ReadMore topic="versions" /></>
           : "Saved changes apply to the same link right away."
       }
       side="right"

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   Avatar, Badge, Button, ConfirmDialog, Dialog, Field, Input, RadioGroup, RowMenu, Select, Skeleton, useToast,
 } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { PresetCards } from "@/components/access/PresetCards";
 import { ROLE_HINT, ROLE_WORDS, teamName } from "@/components/workspace/folder/items";
 import {
@@ -134,6 +135,7 @@ export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, ref
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h2 id="ws-privacy-h" className="text-h3 text-text">Privacy</h2>
           {!privacy && <Badge size="sm" tone="info">Custom</Badge>}
+          <ReadMore topic="workspacePrivacy" className="ml-auto text-caption" />
         </div>
         <PresetCards<Privacy>
           legend="Privacy"
@@ -168,7 +170,7 @@ export default function PeopleTab({ id, ws, isAdmin, meId, members, invites, ref
             </Button>
           </Locked>
         </div>
-        <p className="text-caption text-text-muted">{ROLE_HINT}</p>
+        <p className="text-caption text-text-muted">{ROLE_HINT} <ReadMore topic="members" /></p>
 
         {members === null ? (
           <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading people">

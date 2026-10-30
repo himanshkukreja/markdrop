@@ -6,6 +6,7 @@ import {
   Alert, Avatar, Button, Checkbox, CopyButton, Dialog, Field, Icon, Input, RowMenu, Select, Skeleton,
   Switch, Textarea,
 } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { Combobox, type ComboboxSuggestion } from "@/components/kit/Combobox";
 import { useToast } from "@/components/Toast";
 import { API_BASE, updateDocumentSettings, type ExpiresIn } from "@/lib/api";
@@ -297,6 +298,7 @@ export default function ShareDialog({
       footer={
         <div className="flex w-full flex-wrap items-center gap-2">
           {wsId && <Button variant="ghost" iconLeft="eye" onClick={preview}>Preview as</Button>}
+          <ReadMore topic="whoCanOpen" className="px-2 text-caption">How sharing works</ReadMore>
           <span className="ml-auto" />
           {copyUrl && <CopyButton text={copyUrl} label="Copy link" variant="secondary" size="md" />}
           <Button variant="primary" onClick={onClose}>Done</Button>

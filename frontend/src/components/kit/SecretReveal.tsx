@@ -17,6 +17,7 @@
  */
 import React, { useEffect, useId, useRef, useState } from "react";
 import { Badge, Button, CopyButton, Icon, Input } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import s from "./publish.module.css";
 
 export interface SecretRevealProps {
@@ -89,7 +90,7 @@ export function SecretReveal({ value, signedIn, isOwner, onCopy, copied: copiedP
       </div>
       <p id={`${uid}-note`} className={s.secretNote}>
         <Icon name="alert" className={s.secretNoteIcon} />
-        <span><strong>You&apos;ll only see this in this tab.</strong> Copy it now — it&apos;s the only way to edit or delete this document without an account.</span>
+        <span><strong>You&apos;ll only see this in this tab.</strong> Copy it now — it&apos;s the only way to edit or delete this document without an account. <ReadMore topic="editSecret" /></span>
       </p>
       {signedIn ? (
         onSaveToAccount || saved ? (

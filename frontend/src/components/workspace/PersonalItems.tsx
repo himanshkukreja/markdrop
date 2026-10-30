@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Anchor, Avatar, Badge, Button, EmptyState, copyText, useToast, type MenuEntry } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { useMounted } from "@/components/shell/useLocation";
 import { ListSkeleton } from "@/components/dashboard/ListParts";
@@ -126,7 +127,7 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
           <h2 id="md-requests-h" className="flex items-center gap-2 text-h4 text-text">
             Access requests <Badge size="sm" tone="info">{requests.length}</Badge>
           </h2>
-          <p className="text-caption text-text-muted">People asking to open something of yours.</p>
+          <p className="text-caption text-text-muted">People asking to open something of yours. <ReadMore topic="requestAccess" /></p>
           <ul className="m-0 flex list-none flex-col p-0">
             {requests.map((r) => (
               <li key={r.id} className="flex min-w-0 flex-wrap items-center gap-3 border-t border-border py-2.5">

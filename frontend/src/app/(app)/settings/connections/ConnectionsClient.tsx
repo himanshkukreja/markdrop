@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Badge, Button, Card, ConfirmDialog, EmptyState, Icon, RowMenu, useToast } from "@/components/ui";
 import { PageHeader } from "@/components/shell/PageHeader";
+import { ReadMore } from "@/components/ReadMore";
 import { ClientLogo } from "@/components/oauth/ClientLogo";
 import { SCOPE_LABELS, disconnectApp, hostOf, listConnections, type OAuthConnection } from "@/lib/oauthClient";
 import { SettingsLoader, relativeDays, shortDate, useRequireUser } from "../settings-shared";
@@ -87,7 +88,12 @@ export default function ConnectionsClient() {
     <div className="flex min-w-0 flex-col gap-6">
       <PageHeader
         title="Connected apps"
-        description="AI apps you've allowed to use your Markdrop account. Disconnect one and its access ends."
+        description={
+          <>
+            AI apps you&apos;ve allowed to use your Markdrop account. Disconnect one and its access ends.{" "}
+            <ReadMore topic="connectedApps" />
+          </>
+        }
       />
 
       <div className={`grid min-w-0 items-start gap-6 ${apps?.length === 0 ? "" : "lg:grid-cols-[minmax(0,1fr)_248px]"}`}>

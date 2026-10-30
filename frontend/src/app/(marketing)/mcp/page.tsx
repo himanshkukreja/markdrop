@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { ReadMore } from "@/components/ReadMore";
 import { Anchor, Badge, Button, Icon, MarkdropMark } from "@/components/ui";
 import { CommandBlock } from "@/components/kit/CommandBlock";
 import { CLI_URL } from "@/components/shell/links";
@@ -262,7 +263,7 @@ export default function McpPage() {
             eyebrow="Set up"
             id="connect-title"
             title="Connect your app"
-            lead="One URL, then a sign-in on Markdrop. Pick your app for the exact steps."
+            lead={<>One URL, then a sign-in on Markdrop. Pick your app for the exact steps. <ReadMore topic="connectAiApp">Full guide</ReadMore></>}
           />
           <ConnectTabs />
         </div>
@@ -334,7 +335,10 @@ export default function McpPage() {
           <div className="mt-12 grid min-w-0 gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)] lg:gap-16">
             {/* Setup */}
             <div className="min-w-0">
-              <h3 className="m-0 text-h3 text-text">Set up the local server</h3>
+              <div className="flex flex-wrap items-baseline gap-x-3">
+                <h3 className="m-0 text-h3 text-text">Set up the local server</h3>
+                <ReadMore topic="localMcp" className="text-body">Full guide</ReadMore>
+              </div>
               <ol className="m-0 mt-6 flex list-none flex-col gap-8 p-0">
                 <li className="flex min-w-0 gap-3">
                   <StepNumber n={1} />

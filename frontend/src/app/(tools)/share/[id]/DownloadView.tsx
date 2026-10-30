@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Icon, Progress, Skeleton, VisuallyHidden, cx, isImage } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import TransferStage from "@/components/share/TransferStage";
 import ReceivedFileRow from "@/components/share/ReceivedFileRow";
 import WhatWeRecord from "@/components/share/WhatWeRecord";
@@ -199,7 +200,7 @@ export default function DownloadView({ roomId }: { roomId: string }) {
           <VisuallyHidden role="status" aria-live="polite">{title}</VisuallyHidden>
           <p className="text-body text-text-secondary">
             {failure
-              ? FAILURE_COPY[failure].detail
+              ? <>{FAILURE_COPY[failure].detail} <ReadMore topic="sendTroubleshooting">Troubleshooting</ReadMore></>
               : away
                 ? "Their share page isn't connected right now, often because their phone put it in the background. Ask them to reopen it; this picks up on its own for the next 10 minutes."
                 : "Setting up an encrypted connection between your devices."}

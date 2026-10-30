@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Badge, Breadcrumb, Button, Dialog, EmptyState, Field, Icon, Input, Skeleton, useToast,
 } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { BrowserFrame } from "@/components/kit/BrowserFrame";
 import { BrandTile, type BrandingWithWell } from "@/components/workspace/BrandTile";
@@ -69,7 +70,12 @@ export default function WorkspacesClient() {
       <PageHeader
         breadcrumb={<Breadcrumb items={[{ label: "Settings", href: "/settings" }, { label: "Workspaces" }]} />}
         title="Workspaces"
-        description="A workspace holds your own domains, branding and team. Documents outside a workspace keep working exactly as they do now."
+        description={
+          <>
+            A workspace holds your own domains, branding and team. Documents outside a workspace keep working exactly as they do now.{" "}
+            <ReadMore topic="createWorkspace" />
+          </>
+        }
         actions={workspaces && workspaces.length > 0 ? <span className="hidden sm:inline-flex">{newButton()}</span> : undefined}
       />
 

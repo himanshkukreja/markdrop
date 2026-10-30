@@ -7,6 +7,7 @@ import { FeedbackDialog, openFeedback } from "@/components/FeedbackWidget";
 import { useAuth } from "@/contexts/AuthContext";
 import { getToken, type MeUser } from "@/lib/api";
 import { LIGHT_ENABLED } from "@/lib/theme";
+import { DOCS_URL } from "./links";
 import { useMounted, useSignInHref } from "./useLocation";
 
 /** Initials for the avatar: two words → two letters, else the first letter of the name or email. */
@@ -57,6 +58,7 @@ export function AccountMenu({ user, align = "right" }: { user: MeUser; align?: "
     { label: "API tokens", href: "/settings/tokens", icon: "key" },
     { label: "Connected apps", href: "/settings/connections", icon: "sparkle" },
     { label: "Account settings", href: "/settings/account", icon: "settings" },
+    { label: "Docs", href: DOCS_URL, icon: "doc" },
     ...(LIGHT_ENABLED
       ? [{
           custom: (

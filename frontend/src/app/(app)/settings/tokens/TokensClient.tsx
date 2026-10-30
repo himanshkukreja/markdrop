@@ -7,6 +7,7 @@ import {
 } from "@/components/ui";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { VSCODE_URL } from "@/components/shell/links";
+import { ReadMore } from "@/components/ReadMore";
 import { createApiToken, listApiTokens, revokeApiToken, type ApiTokenItem } from "@/lib/api";
 import { SettingsLoader, shortDate, useRequireUser } from "../settings-shared";
 
@@ -116,7 +117,12 @@ export default function TokensClient() {
     <div className="flex min-w-0 flex-col gap-6">
       <PageHeader
         title="API tokens"
-        description="Tokens let the Markdrop VS Code extension and the API act as you. Keep them secret; revoke anytime."
+        description={
+          <>
+            Tokens let the Markdrop VS Code extension and the API act as you. Keep them secret; revoke anytime.{" "}
+            <ReadMore topic="apiTokens" />
+          </>
+        }
         actions={tokens && tokens.length > 0 ? createButton : undefined}
       />
 
@@ -169,7 +175,7 @@ export default function TokensClient() {
             </span>
             <p className="text-caption text-text-secondary">
               Install Markdrop Sync, run <strong className="font-semibold text-text">Markdrop: Sign in</strong>, and
-              approve in the browser. We create the token for you.
+              approve in the browser. We create the token for you. <ReadMore topic="vscode" />
             </p>
             <Button variant="secondary" size="sm" href={VSCODE_URL} target="_blank" rel="noreferrer noopener" iconRight="external">
               Get the extension

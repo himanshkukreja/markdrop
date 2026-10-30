@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, ConfirmDialog, Dialog, Field, Input, Select } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { changeSlug, deleteDocument, type MyDocListItem } from "@/lib/api";
 import { createFolder, fileDocument, listFolders, purgeDocument, type Folder } from "@/lib/workspaces";
 import { SLUG_RE } from "./format";
@@ -44,7 +45,7 @@ export function ChangeUrlDialog({
   const unchanged = !!doc && trimmed === doc.slug;
   const hint = invalid
     ? undefined
-    : "Existing links to the old URL will stop working. Analytics are preserved.";
+    : <>Existing links to the old URL will stop working. Analytics are preserved. <ReadMore topic="addresses" /></>;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -276,7 +277,7 @@ export function NewFolderDialog({
       }
     >
       <form id="md-new-folder" onSubmit={submit} className="flex flex-col gap-3">
-        <Field label="Folder name" hint="Becomes part of the address on the workspace's own domain.">
+        <Field label="Folder name" hint={<>Becomes part of the address on the workspace&apos;s own domain. <ReadMore topic="folders" /></>}>
           <Input ref={inputRef} value={name} maxLength={80} onChange={(e) => { setName(e.target.value); setError(""); }} placeholder="Reports" />
         </Field>
         {error && <Alert tone="danger">{error}</Alert>}

@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Avatar, Badge, Button, CopyButton, Dialog, Icon, Input, Select, Skeleton, Tabs, useToast,
 } from "@/components/ui";
+import { ReadMore } from "@/components/ReadMore";
 import { PresetCards } from "@/components/access/PresetCards";
 import { plural } from "@/components/dashboard/format";
 import {
@@ -69,7 +70,7 @@ export default function ShareFolderDialog({
       className="!max-w-[568px]"
       glyph={<Icon name={f ? "folder" : "users"} size={18} />}
       title={`Share “${name}”`}
-      description={f ? `In ${workspaceName} · ${plural(itemCount, "item")}` : `${plural(itemCount, "item")} at the top level`}
+      description={<>{f ? `In ${workspaceName} · ${plural(itemCount, "item")}` : `${plural(itemCount, "item")} at the top level`} · <ReadMore topic="shareFolder" /></>}
       footer={<Button variant="secondary" onClick={onClose}>Done</Button>}
     >
       <div className="flex min-w-0 flex-col gap-5">
