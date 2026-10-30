@@ -69,7 +69,7 @@ function ChoiceCard({ checked, onSelect, icon, title, body, name, value }: {
 }
 
 /**
- * /docs-studio/new (New site board): where the site lives (a workspace you're an admin of, or
+ * /docs-studio/new (New site board): where the site lives (a workspace you're a Docs Studio admin of, or
  * personal; ?ws= preselects), how to start (blank, template, GitBook import, GitHub repo), then the
  * name and the free address `<slug>.docs.markdrop.in` (checked as you type). Imports start a job
  * and land on the import screen; blank and template sites open Design ("You'll pick a theme next").
@@ -96,7 +96,7 @@ export default function NewSite() {
   // Where it can live: workspaces you're an admin of (with room on the free plan), or personal.
   const options = all
     ? [
-        ...all.workspaces.map((w) => ({ id: w.id, name: w.name, ok: w.can_create, usage: w.usage, why: w.can_create ? "" : "admins only" })),
+        ...all.workspaces.map((w) => ({ id: w.id, name: w.name, ok: w.can_create, usage: w.usage, why: w.can_create ? "" : "Docs Studio admins only" })),
         { id: PERSONAL, name: "Personal (only you)", ok: all.personal.can_create, usage: all.personal.usage, why: "" },
       ]
     : [];
@@ -193,7 +193,7 @@ export default function NewSite() {
                 htmlFor={`${uid}-ws`}
                 hint={scope === PERSONAL
                   ? "A personal site: only you can open and edit it."
-                  : "Everyone in the workspace can open it: members who can edit write and publish pages, admins change its settings."}
+                  : "Who can open it follows Docs Studio roles: admins of the workspace, and the people they give a role in Members."}
               >
                 <Select
                   id={`${uid}-ws`}
@@ -307,7 +307,7 @@ export default function NewSite() {
             </div>
           </section>
 
-          {notAdmin && <Alert tone="warning" title="Only workspace admins create docs sites">Ask an admin of {chosen?.name ?? "this workspace"} to create it; you can edit it once it exists.</Alert>}
+          {notAdmin && <Alert tone="warning" title="Only Docs Studio admins create docs sites">Ask a Docs Studio admin of {chosen?.name ?? "this workspace"} to create it, and to give you a role on it.</Alert>}
           {!notAdmin && full && chosen && (
             <Alert tone="warning" title={`${chosen.id === PERSONAL ? "You have" : `${chosen.name} has`} ${chosen.usage.sites} of ${chosen.usage.limit} docs sites`}>
               That&apos;s the most on the free plan. Delete one in its Settings to make room, or choose another workspace.

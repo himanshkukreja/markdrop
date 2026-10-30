@@ -60,12 +60,12 @@ function messageOf(body: unknown, status: number): string {
   return `Request failed (${status})`;
 }
 
-async function request<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
+async function request<T>(path: string, init?: RequestInit & { json?: unknown }, base: string = BASE): Promise<T> {
   const { json, ...rest } = init ?? {};
   const isForm = typeof FormData !== "undefined" && rest.body instanceof FormData;
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${BASE}${path}`, {
+    res = await fetch(`${API_BASE}${base}${path}`, {
       ...rest,
       cache: "no-store",
       body: json !== undefined ? JSON.stringify(json) : rest.body,
@@ -93,8 +93,20 @@ const enc = encodeURIComponent;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-/** Workspace owner/admin → "owner"/"admin"; "Can edit" → "editor"; "Can view" → "viewer". Personal: "owner". */
-export type DocsRole = "owner" | "admin" | "editor" | "viewer";
+/**
+ * Your Docs Studio role on a site (the API's `your_role`): its own roles, not the workspace's. The
+ * workspace owner and admins are always "admin"; everyone else has what a studio admin gave them,
+ * per workspace or per site. A personal site's owner is "admin". ("owner" is the old name, kept
+ * so an older API's answer still reads as admin.)
+ */
+export type DocsRole = "owner" | "admin" | "reviewer" | "editor" | "viewer";
+/** A role you can give in Docs Studio; "none" = no access (the sites are invisible). */
+export type StudioRole = "admin" | "reviewer" | "editor" | "viewer" | "none";
+/**
+ * Where a role comes from: workspace_owner / workspace_admin (always admin, can't be changed),
+ * workspace (their studio role in the workspace), site (this site's override), personal, none.
+ */
+export type RoleSource = "workspace_owner" | "workspace_admin" | "workspace" | "site" | "personal" | "none";
 export type SiteStatus = "draft" | "live" | "unpublished";
 export type SourceKind = "blank" | "template" | "gitbook" | "github";
 export type ThemePreset = "clean" | "editorial" | "technical" | "minimal" | "playful" | "helpcenter";
@@ -221,6 +233,8 @@ export interface SiteSummary {
   updated_at: string;
   created_at: string;
   your_role: DocsRole;
+  /** Where `your_role` comes from (absent from an older API). */
+  your_role_source?: RoleSource | null;
   /** Only on the full Site today; the list falls back to the free address. */
   domains?: SiteDomain[];
   /** GET /docs-sites?scope=all: the site's workspace (null: a personal site). */
@@ -236,11 +250,15 @@ export interface StudioWorkspaceRef {
 }
 
 export interface StudioWorkspace extends StudioWorkspaceRef {
-  /** The workspace role (owner/admin/member/viewer) and what it means in Docs Studio. */
+  /** The workspace role (owner/admin/member/viewer); Docs Studio's own role is `your_role`. */
   workspace_role: string;
-  your_role: DocsRole;
-  /** Workspace owners and admins, while the workspace isn't being deleted. */
+  /** Your Docs Studio role across the workspace; "none" until a studio admin gives you one. */
+  your_role: DocsRole | "none";
+  your_role_source?: RoleSource | null;
+  /** Studio admins, while the workspace isn't being deleted. */
   can_create: boolean;
+  /** Studio admins: Docs Studio › Members for this workspace. */
+  can_manage_people?: boolean;
   usage: { sites: number; limit: number };
 }
 
@@ -682,8 +700,142 @@ export function primaryAddress(s: Pick<SiteSummary, "slug" | "url" | "domains">)
   return own?.host ?? siteHost(s);
 }
 
-export const isAdminRole = (r: DocsRole | undefined | null): boolean => r === "owner" || r === "admin";
-export const canEditRole = (r: DocsRole | undefined | null): boolean => isAdminRole(r) || r === "editor";
+export const isAdminRole = (r: DocsRole | StudioRole | undefined | null): boolean => r === "owner" || r === "admin";
+export const canReviewRole = (r: DocsRole | StudioRole | undefined | null): boolean => isAdminRole(r) || r === "reviewer";
+export const canEditRole = (r: DocsRole | StudioRole | undefined | null): boolean => canReviewRole(r) || r === "editor";
+
+/** The roles you can give, highest first, with what each may do (the Members screen's explainer). */
+export const STUDIO_ROLES: Array<{ id: StudioRole; label: string; short: string; can: string[] }> = [
+  { id: "admin", label: "Admin", short: "Everything, including settings and people", can: ["Change site settings, design and domains", "Give people roles", "Approve reviews, publish, restore, delete"] },
+  { id: "reviewer", label: "Reviewer", short: "Edit, publish and approve reviews", can: ["Everything an editor can", "Approve or send back other people's changes", "No settings"] },
+  { id: "editor", label: "Editor", short: "Edit pages and publish", can: ["Create, edit and delete pages", "Upload images and files", "Publish, or submit for review when it's required"] },
+  { id: "viewer", label: "Viewer", short: "Read drafts and history", can: ["Read drafts and preview", "See publish history", "No edits"] },
+  { id: "none", label: "No access", short: "Can't see the sites", can: ["The workspace's docs sites are invisible to them"] },
+];
+
+export function roleLabel(r: DocsRole | StudioRole | "none" | null | undefined): string {
+  if (r === "owner") return "Admin";
+  return STUDIO_ROLES.find((x) => x.id === r)?.label ?? "No access";
+}
+
+/** "Workspace owner", "Workspace admin", "This site only"… for a role's source. */
+export function roleSourceLabel(s: RoleSource | null | undefined): string {
+  switch (s) {
+    case "workspace_owner": return "Workspace owner";
+    case "workspace_admin": return "Workspace admin";
+    case "site": return "This site only";
+    case "personal": return "Your personal site";
+    case "workspace": return "Docs Studio role";
+    default: return "";
+  }
+}
+
+// ── People (Docs Studio roles) ──────────────────────────────────────────────
+
+const STUDIO_BASE = "/api/v1/docs-studio";
+
+export interface StudioPerson {
+  user_id: string;
+  name: string;
+  email: string | null;
+  picture?: string | null;
+  /** owner / admin / member / viewer in the workspace. */
+  workspace_role: string | null;
+}
+
+export interface StudioMember extends StudioPerson {
+  role: StudioRole;
+  source: RoleSource;
+  /** The workspace owner and admins: always admin, can't be changed. */
+  locked: boolean;
+  granted_by: string | null;
+  granted_by_name: string | null;
+  granted_at: string | null;
+  site_overrides: Array<{ site_id: string; site_name: string | null; role: StudioRole }>;
+}
+
+export interface StudioMembersResponse {
+  workspace: { id: string; name: string };
+  your_role: DocsRole;
+  your_role_source?: RoleSource | null;
+  /** Your user id (you can't change your own role). */
+  you: string;
+  members: StudioMember[];
+  sites: Array<{ id: string; name: string }>;
+}
+
+export interface SitePerson extends StudioPerson {
+  /** Their role across the workspace. */
+  studio_role: StudioRole;
+  studio_source: RoleSource;
+  /** This site's override, or null. */
+  override: StudioRole | null;
+  override_by: string | null;
+  override_by_name: string | null;
+  override_at: string | null;
+  /** What they have on this site. */
+  effective_role: StudioRole;
+  source: RoleSource;
+  locked: boolean;
+}
+
+export interface SitePeopleResponse {
+  site_id: string;
+  workspace_id: string | null;
+  personal: boolean;
+  your_role: DocsRole;
+  you: string;
+  members: SitePerson[];
+}
+
+export interface RoleEvent {
+  kind: "docs_role_granted" | "docs_role_changed" | "docs_role_removed";
+  at: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  target_user_id: string;
+  target_name: string | null;
+  scope: "workspace" | "site";
+  site_id: string | null;
+  site_name: string | null;
+  role: StudioRole | null;
+  previous: StudioRole | null;
+  /** "left_workspace" when it went because they left. */
+  reason?: string | null;
+}
+
+/** Docs Studio › Members (studio admins only; 403 otherwise). */
+export function getStudioMembers(workspaceId: string): Promise<StudioMembersResponse> {
+  return request(`/workspaces/${enc(workspaceId)}/members`, undefined, STUDIO_BASE);
+}
+
+/** One member's studio role ("none" takes it away). */
+export function setStudioMember(workspaceId: string, userId: string, role: StudioRole): Promise<StudioMember> {
+  return request(`/workspaces/${enc(workspaceId)}/members/${enc(userId)}`, { method: "PUT", json: { role } }, STUDIO_BASE);
+}
+
+export function getStudioHistory(workspaceId: string, limit = 50): Promise<{ events: RoleEvent[] }> {
+  return request(`/workspaces/${enc(workspaceId)}/history${q({ limit })}`, undefined, STUDIO_BASE);
+}
+
+/** Site › Settings › People: everyone in the workspace, with this site's overrides (site admins). */
+export function getSitePeople(siteId: string): Promise<SitePeopleResponse> {
+  return request(`/${enc(siteId)}/members`);
+}
+
+/** This site's role for a workspace member, whatever their workspace-wide one ("none" hides it). */
+export function setSitePerson(siteId: string, userId: string, role: StudioRole): Promise<SitePerson> {
+  return request(`/${enc(siteId)}/members/${enc(userId)}`, { method: "PUT", json: { role } });
+}
+
+/** Back to their workspace-wide role on this site. */
+export function removeSitePerson(siteId: string, userId: string): Promise<SitePerson> {
+  return request(`/${enc(siteId)}/members/${enc(userId)}`, { method: "DELETE" });
+}
+
+export function getSitePeopleHistory(siteId: string, limit = 50): Promise<{ events: RoleEvent[] }> {
+  return request(`/${enc(siteId)}/members-history${q({ limit })}`);
+}
 
 export const PRESETS: Array<{ id: ThemePreset; name: string; blurb: string }> = [
   { id: "clean", name: "Clean", blurb: "Sidebar docs. Calm and familiar." },

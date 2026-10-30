@@ -4,9 +4,10 @@ import "./studio.css";
 import { useEffect } from "react";
 import { Anchor, Badge, Dropdown, Icon, IconButton, MarkdropMark, cx, type MenuEntry } from "@/components/ui";
 import { HeaderAuthSlot } from "@/components/shell/AccountMenu";
-import type { SiteSummary } from "@/lib/docsSites";
+import { roleLabel, type SiteSummary } from "@/lib/docsSites";
+import { RoleBadge } from "../people/roles";
 import { SiteTile } from "../SiteBar";
-import { PERSONAL, scopeOf, siteBase, studioHome, studioNew } from "../routes";
+import { PERSONAL, scopeOf, siteBase, studioHome, studioMembers, studioNew } from "../routes";
 import { StudioProvider, useStudio, useWorkspaceName } from "./StudioContext";
 
 /** "Docs Studio" beside the Markdrop mark: the studio's own name, same family as the app's logo. */
@@ -42,6 +43,7 @@ function SiteSwitcher() {
           label: <span className="truncate" dir="auto">{s.name}</span>,
           href: siteBase(s.id),
           tile: <SiteTile site={s} size={20} />,
+          description: roleLabel(s.your_role),
           icon: s.id === current.id ? "check" : undefined,
         });
       }
@@ -49,6 +51,8 @@ function SiteSwitcher() {
   }
   items.push({ label: "All docs sites", href: studioHome(), icon: "layers", separated: items.length > 0 });
   items.push({ label: "New docs site", href: studioNew(scopeOf(current)), icon: "plus" });
+  const ws = current.workspace_id ? all?.workspaces.find((w) => w.id === current.workspace_id) : null;
+  if (ws?.can_manage_people) items.push({ label: `Members of ${ws.name}`, href: studioMembers(ws.id), icon: "users" });
   return (
     <Dropdown
       align="left"
@@ -119,6 +123,7 @@ export function StudioHeader() {
           <span aria-hidden className="text-[18px] font-light text-text-subtle">/</span>
           <SiteSwitcher />
           <WorkspaceBadge />
+          <RoleBadge role={current.your_role} className="max-sm:hidden" title="Your Docs Studio role on this site" />
         </>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">

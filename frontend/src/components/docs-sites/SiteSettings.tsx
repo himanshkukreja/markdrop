@@ -8,10 +8,12 @@ import {
 import { ReadMore } from "@/components/ReadMore";
 import { getWorkspace } from "@/lib/workspaces";
 import {
-  DOCS_HOST_SUFFIX, deleteSite, docsErrorMessage, siteHost, slugAvailable, slugProblem, unpublishSite, updateSite,
+  DOCS_HOST_SUFFIX, deleteSite, docsErrorMessage, roleLabel, roleSourceLabel, siteHost, slugAvailable, slugProblem, unpublishSite, updateSite,
   type AccessLevel, type SettingsPatch,
 } from "@/lib/docsSites";
 import { num, plural, timeAgo } from "./format";
+import { aRole, RoleBadge } from "./people/roles";
+import SitePeople from "./people/SitePeople";
 import RedirectsEditor from "./RedirectsEditor";
 import SiteBar from "./SiteBar";
 import { useStudio } from "./studio/StudioContext";
@@ -42,7 +44,7 @@ function Card({ id, title, aside, children, tone }: { id: string; title: React.R
  * change; everyone else sees the values.
  */
 export default function SiteSettings() {
-  const { site, setSite, isAdmin, listHref, base } = useSite();
+  const { site, setSite, isAdmin, canManagePeople, role, listHref, base } = useSite();
   const { reloadAll } = useStudio();
   const toast = useToast();
   const router = useRouter();
@@ -139,7 +141,7 @@ export default function SiteSettings() {
       <SiteBar section="settings" />
       <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[880px] flex-col gap-5 px-4 pb-16 pt-6 outline-none sm:px-6 sm:pt-8">
         <h1 className="text-[24px] font-bold leading-8 text-text">Settings</h1>
-        {locked && <Alert tone="neutral" title="Only admins change these settings">You can see how this site is set up. Ask an admin of {wsName ?? "this workspace"} to change it.</Alert>}
+        {locked && <Alert tone="neutral" title="Only Docs Studio admins change these settings">You can see how this site is set up. Ask a Docs Studio admin of {wsName ?? "this workspace"} to change it.</Alert>}
         {error && <Alert tone="danger" onDismiss={() => setError("")}>{error}</Alert>}
 
         <Card id="address" title="Address" aside={isAdmin && !editSlug ? <Button variant="ghost" size="sm" onClick={() => { setSlug(site.slug); setSlugMsg(""); setEditSlug(true); }}>Change</Button> : null}>
@@ -243,13 +245,28 @@ export default function SiteSettings() {
 
         <Card id="review" title="Reviews">
           <Switch
-            label="Editors submit changes for an admin to approve before they're published"
+            label="Editors and reviewers submit changes for approval before they're published"
             checked={s.review.required}
             disabled={locked || saving === "review"}
             onChange={(e) => void patch("review", { settings: { review: { required: e.target.checked } } }, e.target.checked ? "Editors' changes now need an approval." : "Editors publish directly now.")}
           />
-          <p className="text-[13px] text-text-muted">Admins can always publish. <ReadMore topic="members">Roles in a workspace</ReadMore></p>
+          <p className="text-[13px] text-text-muted">Admins can always publish. Reviewers approve other people&apos;s changes, never their own.</p>
         </Card>
+
+        {canManagePeople ? (
+          <Card id="people" title="People" aside={<RoleBadge role={role} title={`Your role: ${roleSourceLabel(site.your_role_source) || roleLabel(role)}`} />}>
+            <SitePeople />
+          </Card>
+        ) : (
+          <Card id="people" title="Your role" aside={<RoleBadge role={role} size="md" />}>
+            <p className="text-body text-text-secondary">
+              {site.your_role_source === "site"
+                ? `You're ${aRole(role)} on this site only.`
+                : `You're ${aRole(role)} in ${wsName ?? "this workspace"}'s Docs Studio.`}{" "}
+              A Docs Studio admin gives people their roles.
+            </p>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <Card id="github" title="GitHub sync" aside={repo ? <Badge tone="success" size="sm" dot>Connected</Badge> : <Badge tone="info" size="sm">Coming soon</Badge>}>
