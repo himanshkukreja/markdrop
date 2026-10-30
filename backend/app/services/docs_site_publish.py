@@ -137,8 +137,17 @@ async def _snapshot(db: AsyncIOMotorDatabase, site: dict, user: User) -> dict:
     return snap
 
 
+def _public_only(site: dict) -> None:
+    """Non-public sites aren't enforced at the edge yet: never put one live (see config)."""
+    level = (((site.get("settings") or {}).get("access") or {}).get("level")) or "public"
+    if level != "public" and not settings.docs_private_sites_enabled:
+        raise HTTPException(status_code=409, detail="Password and members-only sites are coming soon. "
+                                                    "Make the site public to publish it.")
+
+
 async def publish(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, *, note: str | None,
                   review_id: ObjectId | None = None, enforce_review: bool = True) -> dict:
+    _public_only(site)
     if enforce_review and ((site.get("settings") or {}).get("review") or {}).get("required") \
             and not store.is_admin(role):
         raise DocsError(409, {"detail": "review required"})
@@ -314,6 +323,7 @@ async def list_builds(db: AsyncIOMotorDatabase, site: dict, limit: int = 50) -> 
 
 
 async def restore_build(db: AsyncIOMotorDatabase, site: dict, user: User, build_id: str) -> dict:
+    _public_only(site)
     build = await db[BUILDS].find_one({"_id": store.oid(build_id, "Build"), "site_id": site["_id"]})
     if build is None:
         raise HTTPException(status_code=404, detail="Build not found")

@@ -177,6 +177,14 @@ class Access(_Strict):
     level: Literal["public", "password", "members"] = "public"
     password_hash: str | None = None
 
+    @field_validator("level")
+    @classmethod
+    def _private_needs_edge(cls, v: str) -> str:
+        from app.config import get_settings
+        if v != "public" and not get_settings().docs_private_sites_enabled:
+            raise ValueError("Password and members-only sites are coming soon. For now a docs site is public.")
+        return v
+
 
 class SEO(_Strict):
     index: bool = True

@@ -429,6 +429,9 @@ class Settings(BaseSettings):
     docs_sites_per_workspace: int = 3
     docs_pages_per_site: int = 1000
     docs_builds_per_day: int = 30          # server builds per site per UTC day
+    # Password and members-only docs sites need the edge to enforce access. Until it does, the API
+    # refuses non-public access, and refuses to publish or restore a non-public site.
+    docs_private_sites_enabled: bool = False
     docs_asset_max_bytes: int = 25 * 1024 * 1024
     docs_site_storage_bytes: int = 2 * 1024 * 1024 * 1024
     docs_ai_answers_per_month: int = 1000  # Ask AI answers per site per month

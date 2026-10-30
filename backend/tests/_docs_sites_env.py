@@ -70,6 +70,9 @@ class DocsSitesCase(unittest.IsolatedAsyncioTestCase):
             self.client = AsyncMongoMockClient()
         self.db = self.client[self.db_name]
         self._saved = (database._client, settings.mongodb_db)
+        # The suite exercises password and members-only sites; production keeps them off for now.
+        self._saved_private = settings.docs_private_sites_enabled
+        settings.docs_private_sites_enabled = True
         database._client = self.client
         settings.mongodb_db = self.db_name
         self._saved_r2 = {k: getattr(settings, k) for k in _DOCS_R2}
@@ -106,6 +109,7 @@ class DocsSitesCase(unittest.IsolatedAsyncioTestCase):
                     "email": f"{who}@example.com", "name": who.capitalize()})
 
     async def asyncTearDown(self):
+        settings.docs_private_sites_enabled = self._saved_private
         await self.http.aclose()
         if env.MONGO:
             await self.client.drop_database(self.db_name)
