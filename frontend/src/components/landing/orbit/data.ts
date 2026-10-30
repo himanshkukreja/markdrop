@@ -12,7 +12,7 @@ import { P2P_RELAY_LIVE } from "@/lib/marketingFlags";
 import { VSCODE_URL } from "./flags";
 
 export type Form = "desktop" | "mobile";
-export type MoonId = "publish" | "encrypt" | "sync" | "send" | "domain" | "builder";
+export type MoonId = "publish" | "encrypt" | "sync" | "send" | "domain" | "builder" | "docs";
 export type FeatId = MoonId | "render";
 export type FileId = "html" | "pdf" | "xlsx" | "mp4" | "zip";
 export type ViewId = FeatId | "intro" | "finale";
@@ -27,6 +27,7 @@ export const TICK = 100;
 export interface Geo {
   CX: number; CY: number; RX: number; RY: number;
   SEATS: number[];
+  /** Seat count, and the one seat left empty (-1: none; every seat holds a moon since Docs Studio joined). */
   NS: number; GAP: number;
   FRONT: [number, number];
   STATION: [number, number];
@@ -41,11 +42,11 @@ export interface Geo {
 export const DESKTOP: Geo = {
   CX: 990, CY: 390, RX: 372, RY: 150,
   SEATS: [0, 47, 93, 140, 220, 267, 313],
-  NS: 7, GAP: 6,
+  NS: 7, GAP: -1,
   FRONT: [990, 540],
   STATION: [990, 309],
   BEAT_MS: 4200, IDLE_MS: 20000, FIN_MS: 3800,
-  FIN_POS: [[800, 180], [1180, 180], [1180, 340], [1180, 500], [800, 500], [800, 340]],
+  FIN_POS: [[800, 180], [1180, 180], [1180, 340], [1180, 500], [800, 500], [800, 340], [990, 128]],
   TILE_X: [870, 930, 990, 1050, 1110],
   /* Top of a rack tile so its foot sits on the disc's front edge (disc centre 990,410, radii 220 by 70). */
   tileTop: (x) => { const dx = (x - 990) / 220; return Math.round(410 + 70 * Math.sqrt(1 - dx * dx) - 4 - 62); },
@@ -56,11 +57,11 @@ export const PAD: [number, number] = [1327, 750];
 export const MOBILE: Geo = {
   CX: 195, CY: 192, RX: 164, RY: 78,
   SEATS: [0, 40, 80, 120, 240, 280, 320],
-  NS: 7, GAP: 6,
+  NS: 7, GAP: -1,
   FRONT: [195, 270],
   STATION: [195, 99],
   BEAT_MS: 4000, IDLE_MS: 20000, FIN_MS: 3600,
-  FIN_POS: [[95, 30], [295, 30], [295, 104], [295, 178], [95, 178], [95, 104]],
+  FIN_POS: [[95, 30], [295, 30], [295, 104], [295, 178], [95, 178], [95, 104], [195, 214]],
   TILE_X: [101, 148, 195, 242, 289],
   /* Top of a rack tile so its foot sits on the disc front edge (disc centre 195,186, radii 124 by 40). */
   tileTop: (x) => { const dx = (x - 195) / 124; return Math.round(186 + 40 * Math.sqrt(Math.max(0, 1 - dx * dx)) - 4 - 54); },
@@ -83,7 +84,11 @@ export const seatXY = (g: Geo, u: number): [number, number] => {
 export interface Pill { host: string; path: string; frag?: string; badge: string; icon: string; tone: Tone }
 export interface Moon { id: MoonId; label: string; icon: string; cat: string; pill: Pill }
 
-/** Six moons in orbit order. Render any file is not a moon: it is the planet itself. */
+/**
+ * Seven moons in orbit order. Render any file is not a moon: it is the planet itself. Docs Studio sits
+ * last, on the seat that used to stay empty (front left of Publish), so it is in view from the first
+ * frame and the second attract beat swings it to the front in one step.
+ */
 export const MOONS: Moon[] = [
   { id: "publish", label: "Publish", icon: "lines", cat: "var(--cat-document)", pill: { host: "markdrop.in/", path: "release-notes", badge: "Page", icon: "lines", tone: "neutral" } },
   { id: "encrypt", label: "Encrypt", icon: "lock", cat: "var(--accent-text)", pill: { host: "markdrop.in/", path: "plan", frag: "#k=7Qx2…", badge: "Encrypted", icon: "lock", tone: "info" } },
@@ -91,6 +96,7 @@ export const MOONS: Moon[] = [
   { id: "send", label: "Send a file", icon: "send", cat: "var(--cat-share)", pill: { host: "markdrop.in/", path: "share/7fK2q", badge: "Direct", icon: "arrowRight", tone: "neutral" } },
   { id: "domain", label: "Your domain", icon: "globe", cat: "var(--text-secondary)", pill: { host: "docs.example.com/", path: "guides/onboarding", badge: "", icon: "globe", tone: "neutral" } },
   { id: "builder", label: "README builder", icon: "builder", cat: "var(--cat-builder)", pill: { host: "markdrop.in/", path: "my-project", badge: "README", icon: "builder", tone: "neutral" } },
+  { id: "docs", label: "Docs Studio", icon: "studio", cat: "var(--studio)", pill: { host: "docs.example.com/", path: "quickstart", badge: "Docs site", icon: "listTree", tone: "neutral" } },
 ];
 
 export interface FileDef { id: FileId; ext: string; name: string; mime: string; slug: string; badge: string; bicon: string; tint: string }
@@ -101,13 +107,17 @@ export const FILES: FileDef[] = [
   { id: "mp4", ext: "MP4", name: "product-demo.mp4", mime: "video/mp4", slug: "product-demo", badge: "Video", bicon: "film", tint: "var(--cat-share)" },
   { id: "zip", ext: "ZIP", name: "docs-site.zip", mime: "application/zip", slug: "docs-site", badge: "Zipped site", bicon: "archive", tint: "var(--cat-artifact)" },
 ];
-export const SCREENS: ScreenId[] = ["html", "pdf", "xlsx", "mp4", "zip", "publish", "encrypt", "sync", "send", "domain", "builder"];
+export const SCREENS: ScreenId[] = ["html", "pdf", "xlsx", "mp4", "zip", "publish", "encrypt", "sync", "send", "domain", "builder", "docs"];
 
 export interface Feat { id: FeatId; label: string; cat: string; quest: string; icon: string; req?: string }
-/** The seven features, each with the job it does for you. Only the mobile set carries `req`. */
+/**
+ * The eight features, each with the job it does for you. Only the mobile set carries `req`. Docs Studio
+ * comes third: documents, files and docs sites are the three things Markdrop publishes.
+ */
 const FEATS_DESKTOP: Feat[] = [
   { id: "publish", label: "Publish", cat: "var(--cat-document)", quest: "Turn notes into a page", icon: "lines" },
   { id: "render", label: "Render any file", cat: "var(--cat-artifact)", quest: "Open a PDF without downloading it", icon: "archive" },
+  { id: "docs", label: "Docs Studio", cat: "var(--studio)", quest: "Build and host a docs site", icon: "studio" },
   { id: "encrypt", label: "Encrypt", cat: "var(--accent-text)", quest: "Lock a document with a key in its link", icon: "lock" },
   { id: "sync", label: "VS Code sync", cat: "var(--cat-sync)", quest: "Publish straight from VS Code", icon: "code" },
   { id: "send", label: "Send a file", cat: "var(--cat-share)", quest: "Send photos to your phone", icon: "arrowRight" },
@@ -117,17 +127,24 @@ const FEATS_DESKTOP: Feat[] = [
 const FEATS_MOBILE: Feat[] = [
   { id: "publish", label: "Publish", cat: "var(--cat-document)", quest: "Turn notes into a page", icon: "lines", req: "No account" },
   { id: "render", label: "Render any file", cat: "var(--cat-artifact)", quest: "Open a PDF without downloading it", icon: "archive", req: "Free account" },
+  { id: "docs", label: "Docs Studio", cat: "var(--studio)", quest: "Build and host a docs site", icon: "studio", req: "Free account" },
   { id: "encrypt", label: "Encrypt", cat: "var(--accent-text)", quest: "Lock a document with a key in its link", icon: "lock", req: "No account" },
   { id: "sync", label: "VS Code sync", cat: "var(--cat-sync)", quest: "Publish straight from VS Code", icon: "code", req: "Free account" },
   { id: "send", label: "Send a file", cat: "var(--cat-share)", quest: "Send photos to your phone", icon: "send", req: "No account" },
   { id: "domain", label: "Your domain", cat: "var(--text-secondary)", quest: "Put docs on your own domain", icon: "globe", req: "Workspaces" },
   { id: "builder", label: "README builder", cat: "var(--cat-builder)", quest: "Build a README from blocks", icon: "builder", req: "No account" },
 ];
+/** How many features there are to discover (the HUD's "n of 8", the finale trigger). */
+export const TOTAL = FEATS_DESKTOP.length;
 
-/** Attract mode: both halves of the promise in the first beat, files every other beat after. */
+/**
+ * Attract mode: both halves of the promise in the first beat, Docs Studio in the second, then files
+ * every other beat.
+ */
 export interface Beat { moon?: MoonId; file?: FileId; intro?: boolean }
 export const BEATS: Beat[] = [
   { moon: "publish", file: "html", intro: true },
+  { moon: "docs" },
   { file: "pdf" },
   { moon: "encrypt" },
   { file: "xlsx" },
@@ -168,7 +185,8 @@ const INFO_DESKTOP: Record<InfoId, Info> = {
   send: { eyebrow: "Device to device", title: "Send files straight to a device", line: "Share one link or QR code with up to 10 people. From a terminal: markdrop send and markdrop get.", req: "No account", tone: "success", host: "markdrop.in/", path: "share/7fK2q", note: SEND_NOTE, noteLink: SEND_NOTE_LINK, icon: "send", cat: "var(--cat-share)", href: "/share", cta: "Send a file" },
   domain: { eyebrow: "Workspaces", title: "Publish under your own domain", line: "Run a workspace on docs.example.com with your logo, accent and name. Folders become URL paths.", req: "Workspaces", tone: "neutral", host: "docs.example.com/", path: "guides/onboarding", note: "Each page can be private, workspace only, shared with named people or open to anyone with the link.", icon: "globe", cat: "var(--text-secondary)", href: "/enterprise" },
   builder: { eyebrow: "README builder", title: "Build a README from blocks", line: "Drag in ready-made sections, diagrams and math included, then publish it as a page or export it to PDF.", req: "No account", tone: "success", host: "markdrop.in/", path: "my-project", note: "", icon: "builder", cat: "var(--cat-builder)", href: "/builder" },
-  finale: { eyebrow: "7 of 7 discovered", title: "You found all seven", line: "Documents you write and files you upload end the same way: one link that opens in any browser. Start with a document; it needs no account.", host: "markdrop.in/", path: "new", icon: "checkCircle", cat: "var(--success)", href: "/new" },
+  docs: { eyebrow: "Docs Studio", title: "Write docs. Publish a docs site.", line: "Edit pages visually or in Markdown, pick a theme or match your brand, and publish on your own domain. Readers ask questions and get answers that cite your pages.", req: "Free account", tone: "info", host: "docs.example.com/", path: "quickstart", note: "Free plan: 3 sites per workspace and 1,000 Ask AI answers a month per site. Open source, so you can host it yourself.", icon: "studio", cat: "var(--studio)", href: "/docs-studio", cta: "Start a docs site" },
+  finale: { eyebrow: "8 of 8 discovered", title: "You found all eight", line: "Documents you write and files you upload end the same way: one link that opens in any browser. Start with a document; it needs no account.", host: "markdrop.in/", path: "new", icon: "checkCircle", cat: "var(--success)", href: "/new" },
 };
 
 const INFO_MOBILE: Record<InfoId, Info> = {
@@ -181,6 +199,7 @@ const INFO_MOBILE: Record<InfoId, Info> = {
   send: { ...INFO_DESKTOP.send, line: "One link or QR code, up to 10 people. In a terminal: markdrop send and markdrop get." },
   domain: INFO_DESKTOP.domain,
   builder: INFO_DESKTOP.builder,
+  docs: { ...INFO_DESKTOP.docs, line: "Edit visually or in Markdown, pick a theme or match your brand, publish on your domain. Readers get answers that cite your pages.", note: "Free plan: 3 sites per workspace. Open source and self-hostable." },
   finale: INFO_DESKTOP.finale,
 };
 
