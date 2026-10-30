@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
+import "@/docs/changelog.css";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Breadcrumb } from "@/components/ui";
+import { Icon } from "@/components/ui";
 import { getChangelog, getSite } from "@/docs/content";
-import { EntryMedia, toHubEntry } from "@/docs/changelog";
-import { EntryFooter, EntryMeta } from "@/docs/client/Changelog";
+import { EntryMedia, hasMedia, toHubEntry } from "@/docs/changelog";
+import { DocsUpdated, KindPill, Spotlight } from "@/docs/client/Changelog";
 import { DocsMarkdown } from "@/docs/render/DocsMarkdown";
+import { formatDate } from "@/docs/outputs";
 import { DocsFooter, DocsHeader } from "@/docs/ui/Chrome";
-import { InlineCode } from "@/docs/ui/InlineCode";
+import type { ChangelogEntry } from "@/docs/types";
 
 export const dynamicParams = false;
 
@@ -41,6 +43,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+function Neighbour({ e, dir }: { e: ChangelogEntry; dir: "Newer" | "Older" }) {
+  return (
+    <Link href={`/changelog/${e.id}`} className={`dxc-pn__link dxc-pn__link--${dir.toLowerCase()}`}>
+      <span className="dxc-pn__dir">
+        {dir === "Newer" && <Icon name="arrowLeft" />}
+        {dir} release
+        {dir === "Older" && <Icon name="arrowRight" />}
+      </span>
+      <strong className="dxc-pn__title">{e.title}</strong>
+      <span className="dxc-pn__meta">
+        <KindPill kind={e.kind} />
+        <time dateTime={e.date}>{formatDate(e.date)}</time>
+      </span>
+    </Link>
+  );
+}
+
 export default async function ChangelogEntryPage({ params }: Props) {
   const r = await load(params);
   if (!r) notFound();
@@ -51,38 +70,24 @@ export default async function ChangelogEntryPage({ params }: Props) {
   return (
     <>
       <DocsHeader activeTab={tab?.id} />
-      <main id="main" className="dx-changelog dx-changelog--entry">
-        <Breadcrumb items={[{ label: site.changelog?.title ?? "Changelog", href: "/changelog" }, { label: entry.title }]} className="dx-crumbs" />
-        <article className="dx-entrypage">
-          <time dateTime={entry.date} className="dx-entrypage__date">
-            {e.dateLabel}
-          </time>
-          <h1 className="dx-title">{entry.title}</h1>
-          <EntryMeta e={e} />
-          <p className="dx-lede"><InlineCode text={entry.summary} /></p>
-          <EntryMedia e={entry} />
-          {entry.body && <DocsMarkdown source={entry.body} />}
-          <EntryFooter e={e} siteUrl={site.url} />
-        </article>
-        <nav aria-label="More changes" className="dx-prevnext">
-          {newer ? (
-            <Link href={`/changelog/${newer.id}`} className="dx-prevnext__link">
-              <span className="dx-prevnext__dir">Newer</span>
-              <strong>{newer.title}</strong>
-            </Link>
-          ) : (
-            <Link href="/changelog" className="dx-prevnext__link">
-              <span className="dx-prevnext__dir">All changes</span>
-              <strong>{site.changelog?.title ?? "Changelog"}</strong>
-            </Link>
+      <main id="main" className="dxc-page dxc-page--entry">
+        <div className="dxc-entry">
+          <Link href="/changelog" className="dxc-back">
+            <Icon name="arrowLeft" />
+            All releases
+          </Link>
+          <Spotlight e={e} media={hasMedia(entry) ? <EntryMedia e={entry} /> : undefined} siteUrl={site.url} permalink />
+          {entry.body && (
+            <section className="dxc-entry__body" aria-label="Details">
+              <DocsMarkdown source={entry.body} className="dxc-prose dxc-prose--page" />
+            </section>
           )}
-          {older && (
-            <Link href={`/changelog/${older.id}`} className="dx-prevnext__link dx-prevnext__link--next">
-              <span className="dx-prevnext__dir">Older</span>
-              <strong>{older.title}</strong>
-            </Link>
-          )}
-        </nav>
+          <DocsUpdated docs={e.docs} />
+          <nav aria-label="More releases" className="dxc-pn">
+            {newer ? <Neighbour e={newer} dir="Newer" /> : <span className="dxc-pn__spacer" />}
+            {older ? <Neighbour e={older} dir="Older" /> : <span className="dxc-pn__spacer" />}
+          </nav>
+        </div>
       </main>
       <DocsFooter />
     </>
