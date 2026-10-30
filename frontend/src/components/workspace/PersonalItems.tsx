@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Anchor, Avatar, Badge, Button, EmptyState, copyText, useToast, type MenuEntry } from "@/components/ui";
+import { Alert, Anchor, Avatar, Badge, Button, ConfirmDialog, EmptyState, copyText, useToast, type MenuEntry } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { useMounted } from "@/components/shell/useLocation";
@@ -18,6 +18,7 @@ import { ListSkeleton } from "@/components/dashboard/ListParts";
 import { relativeTime } from "@/components/dashboard/format";
 import { usePhone } from "@/components/dashboard/hooks";
 import ShareDialog from "@/components/access/ShareDialog";
+import { removePerson } from "@/lib/access";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   listAccessRequests, listRecent, listSharedWithMe, requestTitle, requesterName, type AccessRequest, type PersonalItem,
@@ -62,6 +63,7 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
   const [more, setMore] = useState(false);
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [shareFor, setShareFor] = useState<PersonalItem | null>(null);
+  const [leaving, setLeaving] = useState<PersonalItem | null>(null);
 
   const load = useCallback(async () => {
     setError("");
@@ -113,6 +115,8 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
       out.push({ label: "Copy link", icon: "copy", onClick: () => { void copyText(it.url).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy the link"))); } });
     }
     if (it.workspace && it.folder) out.push({ label: `Open “${it.folder.name}”`, icon: "folder", href: `/w/${encodeURIComponent(it.workspace.id)}/f/${encodeURIComponent(it.folder.id)}` });
+    // Anyone added by email can take themselves off, whether or not they may share it on.
+    if (mode === "shared" && user?.email) out.push({ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(it) });
     return out;
   };
 
@@ -201,6 +205,21 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
           )}
         </section>
       ) : null}
+
+      <ConfirmDialog
+        open={!!leaving}
+        onClose={() => setLeaving(null)}
+        title={leaving ? `Remove yourself from “${itemTitle(leaving)}”?` : "Remove yourself?"}
+        body="It leaves Shared with me, and you can't open it with your email any more. If the link is open to more people, it still works for you like it does for them. To get back in, ask the owner to add you again."
+        confirmLabel="Remove me"
+        onConfirm={async () => {
+          const it = leaving!;
+          await removePerson(it.slug, user!.email);
+          setLeaving(null);
+          setItems((xs) => (xs ?? []).filter((x) => x.slug !== it.slug));
+          toast.success(`You were removed from “${itemTitle(it)}”.`);
+        }}
+      />
 
       {shareFor && (
         <ShareDialog
