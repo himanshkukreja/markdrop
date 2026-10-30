@@ -285,6 +285,9 @@ export default function DocumentView(props: DocumentViewProps) {
     : v.access?.level === "workspace" ? "workspace" as const
     : isPasswordProtected ? "password" as const : "link" as const;
   const showPanel = isNew && !panelDismissed && !gated;
+  // Already in an account: the server render's flag (which a password hides), what the reads made
+  // here say, or the signed-in reader is the owner. None of those asks to be saved to an account.
+  const owned = isOwned || isOwner || v.docOwned;
   const guardActive = isNew && !!claimSecret && !secretCopied && !panelDismissed && !isOwner;
 
   return (
@@ -347,7 +350,7 @@ export default function DocumentView(props: DocumentViewProps) {
                     signedIn={!!user}
                     isOwner={isOwner}
                     onOpenFullScreen={canFullScreen ? () => v.toggleImmersive(true) : undefined}
-                    onSaveToAccount={user && !isOwned && !claimed ? handleClaim : undefined}
+                    onSaveToAccount={user && !owned && !claimed ? handleClaim : undefined}
                     secretSaved={claimed}
                     signInHref={signInHref}
                     workspaceShareFailed={wsShareFailed}
@@ -359,7 +362,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 )}
                 {/* Save to account, for a secret holder who isn't on the
                     publish panel (a reload, or ?edit). */}
-                {!showPanel && !isOwned && !claimed && claimSecret && (
+                {!showPanel && !owned && !claimed && claimSecret && v.ownerKnown && (
                   user ? (
                     <Alert
                       tone="info"

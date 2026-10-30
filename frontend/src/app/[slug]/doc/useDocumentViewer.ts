@@ -71,6 +71,10 @@ export function useDocumentViewer({
   const [claimSecret, setClaimSecret] = useState<string | null>(initialSecret || null);
   const [claimed, setClaimed] = useState(false);
   const [claimMsg, setClaimMsg] = useState("");
+  // Whether some account owns the document, from the reads made here. The server render's
+  // `isOwned` can't say for a document behind a password (that read is refused), so without this
+  // a signed-in owner holding the edit secret was asked to save their own document to their account.
+  const [docOwned, setDocOwned] = useState(false);
   const viewBeaconSent = useRef(false);
   const editOpened = useRef(false);
   // The document's read ticket (§2.7): every beacon and the live socket carry it, or the API
@@ -249,6 +253,7 @@ export function useDocumentViewer({
    */
   function adoptDoc(doc: import("@/lib/api").DocumentResponse, opts?: { created?: boolean }): boolean {
     if (doc.read_ticket) setReadTicket(doc.read_ticket);
+    if (doc.is_owned || doc.is_owner) setDocOwned(true);
     // An old slug of a renamed document (the signed-in retry of a gated page): go to the current
     // one, keeping the query and the #k= key. The server render redirects the anonymous case.
     if (doc.moved && doc.slug && doc.slug !== slug) {
@@ -410,7 +415,16 @@ export function useDocumentViewer({
   // `false` on the server, which has no storage to look in — that is also the
   // only value the prerendered HTML can honestly carry.
   const [pwdFetching, setPwdFetching] = useState(isPasswordProtected && !!initialSecret);
+  // Raised once per mounted view, never again. Every `true` needs a fetch that is going to put it
+  // back, and this one's is the signed-in retry below. "On mount" is not "once": when something
+  // lazily loaded first renders here (the Published panel on ?new=1, the editor, a dialog) it
+  // suspends, React hides this view, and on showing it again re-runs every effect with the state
+  // kept. Raising the flag a second time then, with the retry long finished and nothing left to
+  // clear it, left a published password document on the loading skeleton for good.
+  const fetchHinted = useRef(false);
   useEffect(() => {
+    if (fetchHinted.current) return;
+    fetchHinted.current = true;
     if (!isPasswordProtected) return;
     if (peekHandoffToken() || localStorage.getItem("markdrop_token")) {
       setPwdFetching(true);
@@ -558,6 +572,7 @@ export function useDocumentViewer({
     getDocument(slug)
       .then((doc) => {
         if (cancelled) return;
+        if (doc.is_owned || doc.is_owner) setDocOwned(true);
         setOwnerCheckedFor(uid);
         if (!doc.is_owner) return;
         setIsOwner(true);
@@ -1059,6 +1074,8 @@ export function useDocumentViewer({
     claimed,
     claimMsg,
     claimSecret,
+    docOwned,
+    ownerKnown,
     copyBusy,
     copyError,
     cryptoKey,
