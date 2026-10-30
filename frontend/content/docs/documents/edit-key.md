@@ -33,6 +33,8 @@ Paste the `sk_…` code and choose **Unlock editor**.
 Edit the text, then choose **Save changes**. **Settings** in the editor opens **Document settings**, with the password, expiry and **Delete document**.
 ::::
 
+![The "Enter your edit secret" screen with an Edit secret field holding an sk_ code, and Unlock editor and Cancel buttons.](/docs-assets/documents/edit-key/edit-secret-prompt.webp)
+
 ## What the secret can and can't do
 
 | With the edit secret you can | Only the signed-in owner can |
@@ -48,6 +50,8 @@ Edit the text, then choose **Save changes**. **Settings** in the editor opens **
 Attach an anonymous document to your account and you won't need the secret again. It then shows in **My files** with its analytics, and you can choose who can open it.
 
 In the tab you published from, sign in and choose **Save to my account** on the document. Markdrop uses the secret held in that tab to prove the document is yours.
+
+![The Published panel of a document published without an account, now signed in: the Edit secret with Copy secret, and a Save to my account button.](/docs-assets/documents/edit-key/save-to-my-account.webp)
 
 If that tab is gone but you still have the secret, you can claim it through the API with your [API token](/account/api-tokens):
 

@@ -44,6 +44,8 @@ flowchart LR
 
 Flowcharts, sequence, class, state and entity-relationship diagrams, Gantt and pie charts, user journeys, Git graphs, mind maps, timelines and more all work. To see several at once, open the editor and choose **Try the diagrams sample**.
 
+![A rendered document section with a flowchart drawn from a mermaid code block, a YAML code block, inline math and a display equation rendered by KaTeX.](/docs-assets/documents/writing/writing-diagram-math.webp)
+
 ## What doesn't render
 
 HTML tags inside a document aren't rendered: Markdrop drops them, so a document can't run scripts or change how the page around it looks. To publish an HTML page, upload it as a file. See [Publish an HTML page](/files/html-pages).
@@ -51,6 +53,8 @@ HTML tags inside a document aren't rendered: Markdrop drops them, so a document 
 ## The editor
 
 The editor at [markdrop.in/new](https://markdrop.in/new) has three views: **Write**, **Split** (text and preview side by side, scrolling together) and **Preview**. Markdrop remembers which one you used last.
+
+::clip{src="/docs-assets/documents/writing/writing-editor-views" alt="The editor switching from Write to Split, where the text and the rendered preview scroll together, then to Preview."}
 
 The toolbar adds **Bold**, **Italic**, **Heading**, **Inline code**, **Code block**, **Link** and **List item** around your selection.
 

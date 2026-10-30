@@ -39,6 +39,8 @@ There is no password to remember. Go to [markdrop.in/login](https://markdrop.in/
 - **Continue with Google.**
 - **Email me a code.** Markdrop emails you a 6-digit code and a sign-in link. Enter the code, or open the link on the same device.
 
+![The "Sign in to Markdrop" page with a Continue with Google button, an Email field and an Email me a code button, beside a list of what signing in adds.](/docs-assets/get-started/accounts/sign-in-options.webp)
+
 Your first sign-in creates the account. You stay signed in on that browser for 30 days, or until you choose **Sign out**.
 
 :::note

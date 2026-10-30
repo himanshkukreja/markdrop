@@ -7,7 +7,7 @@ keywords: [readme, builder, template, github profile, sections, readme.md]
 
 The README builder at [markdrop.in/builder](https://markdrop.in/builder) puts a README together from ready-made sections: a title, badges, installation steps, a feature list, a license. You fill in the blanks, drag the sections into order, and watch the result render. Then you copy the Markdown, download `README.md`, or publish it as a Markdrop link. No account needed.
 
-::video{id="readme-builder" title="Build a README" duration="0:50"}
+::video{id="readme-builder" title="Build a README" duration="0:39"}
 
 ## Build it
 
@@ -25,11 +25,15 @@ Under **Add a section**, choose any section to add it to **Your README**. Search
 | GitHub profile | Profile Intro, About Me, Skills, Profile Links, Other (working on…) |
 | More | Optimizations, Lessons Learned, Appendix, Custom section |
 
+![The README builder: Your README with five sections and the Add a section catalog on the left, the Installation section's Markdown in the middle, and the rendered Full README preview on the right.](/docs-assets/documents/readme-builder/builder-layout.webp)
+
 ### Fill them in
 Select a section in **Your README** to edit its Markdown. The editor has the same formatting toolbar as [markdrop.in/new](https://markdrop.in/new). Type a title at the top, in **README title (optional)**.
 
 ### Put them in order
 Drag a section by its handle. With a keyboard, press :kbd[Space] or :kbd[Enter] on the handle, move it with the arrow keys, and press :kbd[Space] or :kbd[Enter] again to drop it. Each section's menu also has **Move up**, **Move down**, **Duplicate** and **Remove**.
+
+::clip{src="/docs-assets/documents/readme-builder/builder-reorder" alt="Dragging the Features section by its handle above Installation in Your README; the preview reorders to match."}
 
 ### Check the preview
 The preview shows the **Full README** or **This section**, rendered the way readers will see it, diagrams and math included.

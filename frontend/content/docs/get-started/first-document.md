@@ -7,7 +7,7 @@ keywords: [publish, new document, markdown, quickstart, edit secret]
 
 You can publish a document in under a minute, without an account. You paste text, Markdrop gives you a link, and anyone who opens it sees a formatted page.
 
-::video{id="publish-first-document" title="Publish your first document" duration="0:45"}
+::video{id="publish-first-document" title="Publish your first document" duration="0:32"}
 
 ## Publish it
 
@@ -23,15 +23,21 @@ Switch between **Write**, **Split** and **Preview** to see the result as readers
 ### Check the settings (optional)
 The chips above the editor say how the document is published. By default it's **Anyone with the link**, has **No password**, **Never expires** and gets a **Random link**. Choose a chip to change it. For example, set **Link** to `q3-plan` to publish at `markdrop.in/q3-plan`.
 
+![The publish settings chips above the editor: Anyone with the link, Encrypt, No password, Never expires and Random link, with the Publish button on the right.](/docs-assets/get-started/first-document/editor-settings-chips.webp)
+
 ### Choose Publish
 Choose **Publish**, or press :kbd[⌘ Enter] (:kbd[Ctrl Enter] on Windows and Linux).
 ::::
+
+::clip{src="/docs-assets/get-started/first-document/publish-from-new" alt="Typing a title, pasting Markdown, switching to Split to check the preview, and choosing Publish; the document opens at its new link with the Published panel."}
 
 The document opens with a **Published** panel. Choose **Copy link** and share it anywhere: Slack, email, a ticket. Choose **Show QR code** to open it on a phone.
 
 ## Keep your edit secret
 
 If you published without signing in, the panel also shows your **Edit secret**, a code that starts with `sk_`. It's the only way to edit or delete the document without an account.
+
+![The Published panel after publishing without an account: the link markdrop.in/q3-plan with Copy link, Open full screen and Show QR code, and the Edit secret box with a Copy secret button.](/docs-assets/get-started/first-document/published-panel.webp "Copy the secret before you close the tab.")
 
 :::warning[Copy it now]
 The secret stays visible in this browser tab, but nowhere else. Choose **Copy secret** and keep it somewhere safe. Markdrop can't show it to you again.

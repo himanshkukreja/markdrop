@@ -16,6 +16,8 @@ For a document anyone with the link can open, the card has:
 - a reading time, like "4 min read";
 - the address, like `markdrop.in/q3-plan`.
 
+![The link preview card for markdrop.in/q3-plan: the Markdrop name, the title Q3 plan, the first lines of the text, the address and "1 min read".](/docs-assets/documents/link-previews/art-preview-card.webp)
+
 For a file, the card shows the title (or the file name), its type and size. A video that anyone with the link can open also shows its poster frame.
 
 The page's own title and description, which some apps show instead of the card, follow the same rules.
@@ -28,6 +30,8 @@ Anything a stranger couldn't open gets a card with no content: no title, no text
 - protected by a password;
 - in a workspace where visitors must sign in;
 - end-to-end encrypted.
+
+![A content-free link preview card for markdrop.in/sales-playbook that says only "Private document" and "Only people with access can open it", with no title or text.](/docs-assets/documents/link-previews/art-preview-card-private.webp)
 
 An encrypted document's title and text are ciphertext to Markdrop, so its card reads "Encrypted document" and nothing more. A link to a document that doesn't exist, or has expired, gets a plain Markdrop card that doesn't say whether it ever existed.
 

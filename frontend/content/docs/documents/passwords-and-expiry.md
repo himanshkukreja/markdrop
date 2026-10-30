@@ -7,13 +7,15 @@ keywords: [password, expiry, expire, ttl, self-destruct, X-Read-Password]
 
 A password makes readers type something before a link opens. An expiry makes the link stop working at a time you choose. Both work on documents and files, and you can set them when you publish or change them later.
 
-::video{id="password-and-expiry" title="Add a password and an expiry" duration="0:40"}
+::video{id="password-and-expiry" title="Add a password and an expiry" duration="0:35"}
 
 ## Add a password
 
 When you publish, choose the **Password** chip (or the **Password** field on the upload page) and type it. Passwords can be up to 100 characters.
 
 Readers then see "This document is password protected" and a password box before anything loads. The page title and link preview don't show the title or the text either. See [Link previews](/documents/link-previews).
+
+![The "This document is password protected" screen with a Password field and an Unlock button, and nothing of the document's title or text.](/docs-assets/documents/passwords-and-expiry/password-gate.webp)
 
 ### Who the password applies to
 
@@ -32,6 +34,8 @@ After 10 wrong passwords in a minute, or 50 in an hour, from the same IP address
 ## Set an expiry
 
 When you publish, choose the **Expires** chip and pick **In 1 day**, **In 7 days**, **In 30 days** or **On a date…** to choose an exact day and time. The hint underneath says when that is, in your time zone.
+
+![The Expires popover above the editor with In 7 days selected and a hint saying the date the link stops working.](/docs-assets/documents/passwords-and-expiry/expires-chip.webp)
 
 When the time comes, the link stops working for everyone and Markdrop deletes the document. For a file, that includes the file and its old versions. An expiry has to be at least a minute in the future.
 

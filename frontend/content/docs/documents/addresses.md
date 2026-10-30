@@ -11,6 +11,8 @@ Every document and file has an address. By default Markdrop picks a short random
 
 In the editor, choose the **Link** chip (it says **Random link** until you set it) and type the part after `markdrop.in/`. Leave it blank for a short random link, made of 7 letters and digits that are hard to confuse (no `0`, `1`, `O`, `I` or `l`).
 
+::clip{src="/docs-assets/documents/addresses/link-chip" alt="Choosing the Random link chip in the editor, typing q3-plan after markdrop.in/, and the chip changing to markdrop.in/q3-plan."}
+
 A link can be 3 to 50 characters long, using letters, numbers, hyphens (`-`) and underscores (`_`). Links are case-sensitive: `markdrop.in/Q3-Plan` and `markdrop.in/q3-plan` are different addresses.
 
 When you upload a file, the link fills in from the file name. `Q3 Board Deck.pdf` becomes `q3-board-deck`: accents are folded (`résumé` → `resume`), spaces and punctuation become hyphens, and the result is cut to 40 characters. You can change it before you publish.
@@ -37,6 +39,8 @@ Open the row's menu and choose **Change URL**.
 ### Type the new link
 Type it after `markdrop.in/` and choose **Change URL**.
 ::::
+
+::clip{src="/docs-assets/documents/addresses/change-url" alt="Opening a row's actions menu in My files, choosing Change URL, typing q3-plan-final and choosing Change URL; the row then shows markdrop.in/q3-plan-final."}
 
 For a file, you can also open it, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **More artifact actions › Settings**. Edit **Link** and choose **Save changes**.
 

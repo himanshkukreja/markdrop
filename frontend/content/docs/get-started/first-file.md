@@ -10,7 +10,7 @@ Upload a file and Markdrop gives you a link that opens it, rendered, in any brow
 
 Publishing a file needs a free Markdrop account. You can fill everything in first: signed out, the button reads **Sign in and publish**, and everything you entered is still there after you sign in.
 
-::video{id="publish-first-file" title="Publish your first file" duration="0:50"}
+::video{id="publish-first-file" title="Publish your first file" duration="0:38"}
 
 ## Upload it
 
@@ -25,6 +25,8 @@ Markdrop shows a **Preview** of how the file will render. It's drawn in your bro
 
 ### Check the title and link
 The **Title** and **Link** fill in from the file name: `Q3 Board Deck.pdf` becomes the title `Q3 Board Deck` and the link `markdrop.in/q3-board-deck`. Change either one. The title shows in the browser tab and in link previews.
+
+![The upload page with Q3 Board Deck.pdf chosen: the PDF preview on the left, and the Title, Link, Location, Who can open it, Password and Expires settings with a Publish button on the right.](/docs-assets/get-started/first-file/upload-form.webp)
 
 ### Choose who can open it (optional)
 **Who can open it** starts as **Anyone with the link**. You can choose **Only people added** instead, add a **Password**, or set an **Expires** date. Members of a workspace can also pick a **Location** to file it in a workspace folder.
@@ -55,6 +57,8 @@ Markdrop serves what you upload from a different domain than markdrop.in, inside
 ## Change it later
 
 The file is in **My files**, under **Artifacts**. Open it; it opens full screen, so press :kbd[Esc] or choose **Show details** to bring back its bar. Then choose **More artifact actions** (the `⋯` button):
+
+![A file page with the More artifact actions menu open, showing Share, Settings and Delete artifact.](/docs-assets/get-started/first-file/artifact-actions-menu.webp)
 
 - **Settings** changes the title, link, password and expiry, and lets you replace the file. The link stays the same. See [Replace a file and restore versions](/files/replace-and-versions).
 - **Share** chooses who can open it and adds people by email. See [Share with specific people](/sharing/share-with-people).

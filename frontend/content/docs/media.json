@@ -11,6 +11,170 @@
     "bytes": 55858,
     "kind": "image"
   },
+  "/docs-assets/documents/addresses/change-url.mp4": {
+    "w": 1440,
+    "h": 810,
+    "duration": 10.47,
+    "bytes": 250662,
+    "kind": "clip"
+  },
+  "/docs-assets/documents/addresses/change-url.webm": {
+    "w": 1440,
+    "h": 810,
+    "duration": 10.47,
+    "bytes": 305360,
+    "kind": "clip"
+  },
+  "/docs-assets/documents/addresses/change-url.webp": {
+    "w": 1440,
+    "h": 810,
+    "bytes": 17178,
+    "kind": "poster"
+  },
+  "/docs-assets/documents/addresses/link-chip.mp4": {
+    "w": 1440,
+    "h": 720,
+    "duration": 7.27,
+    "bytes": 83863,
+    "kind": "clip"
+  },
+  "/docs-assets/documents/addresses/link-chip.webm": {
+    "w": 1440,
+    "h": 720,
+    "duration": 7.27,
+    "bytes": 123118,
+    "kind": "clip"
+  },
+  "/docs-assets/documents/addresses/link-chip.webp": {
+    "w": 1440,
+    "h": 720,
+    "bytes": 38466,
+    "kind": "poster"
+  },
+  "/docs-assets/documents/edit-key/edit-secret-prompt.dark.webp": {
+    "w": 812,
+    "h": 640,
+    "bytes": 17046,
+    "kind": "image"
+  },
+  "/docs-assets/documents/edit-key/edit-secret-prompt.webp": {
+    "w": 812,
+    "h": 640,
+    "bytes": 17172,
+    "kind": "image"
+  },
+  "/docs-assets/documents/edit-key/save-to-my-account.dark.webp": {
+    "w": 1424,
+    "h": 1052,
+    "bytes": 41458,
+    "kind": "image"
+  },
+  "/docs-assets/documents/edit-key/save-to-my-account.webp": {
+    "w": 1424,
+    "h": 1052,
+    "bytes": 43974,
+    "kind": "image"
+  },
+  "/docs-assets/documents/link-previews/art-preview-card-private.webp": {
+    "w": 1200,
+    "h": 630,
+    "bytes": 19240,
+    "kind": "image"
+  },
+  "/docs-assets/documents/link-previews/art-preview-card.webp": {
+    "w": 1200,
+    "h": 630,
+    "bytes": 26220,
+    "kind": "image"
+  },
+  "/docs-assets/documents/passwords-and-expiry/expires-chip.dark.webp": {
+    "w": 1944,
+    "h": 444,
+    "bytes": 32268,
+    "kind": "image"
+  },
+  "/docs-assets/documents/passwords-and-expiry/expires-chip.webp": {
+    "w": 1944,
+    "h": 444,
+    "bytes": 33772,
+    "kind": "image"
+  },
+  "/docs-assets/documents/passwords-and-expiry/password-gate.dark.webp": {
+    "w": 1008,
+    "h": 640,
+    "bytes": 14538,
+    "kind": "image"
+  },
+  "/docs-assets/documents/passwords-and-expiry/password-gate.webp": {
+    "w": 1008,
+    "h": 640,
+    "bytes": 14568,
+    "kind": "image"
+  },
+  "/docs-assets/documents/readme-builder/builder-layout.dark.webp": {
+    "w": 2880,
+    "h": 1688,
+    "bytes": 96938,
+    "kind": "image"
+  },
+  "/docs-assets/documents/readme-builder/builder-layout.webp": {
+    "w": 2880,
+    "h": 1688,
+    "bytes": 97892,
+    "kind": "image"
+  },
+  "/docs-assets/documents/readme-builder/builder-reorder.mp4": {
+    "w": 1440,
+    "h": 810,
+    "duration": 7.67,
+    "bytes": 85972,
+    "kind": "clip"
+  },
+  "/docs-assets/documents/readme-builder/builder-reorder.webm": {
+    "w": 1440,
+    "h": 810,
+    "duration": 7.67,
+    "bytes": 133864,
+    "kind": "clip"
+  },
+  "/docs-assets/documents/readme-builder/builder-reorder.webp": {
+    "w": 1440,
+    "h": 810,
+    "bytes": 45750,
+    "kind": "poster"
+  },
+  "/docs-assets/documents/writing/writing-diagram-math.dark.webp": {
+    "w": 1456,
+    "h": 1842,
+    "bytes": 72640,
+    "kind": "image"
+  },
+  "/docs-assets/documents/writing/writing-diagram-math.webp": {
+    "w": 1456,
+    "h": 1842,
+    "bytes": 73342,
+    "kind": "image"
+  },
+  "/docs-assets/documents/writing/writing-editor-views.mp4": {
+    "w": 1440,
+    "h": 856,
+    "duration": 10.73,
+    "bytes": 744785,
+    "kind": "clip"
+  },
+  "/docs-assets/documents/writing/writing-editor-views.webm": {
+    "w": 1440,
+    "h": 856,
+    "duration": 10.73,
+    "bytes": 423600,
+    "kind": "clip"
+  },
+  "/docs-assets/documents/writing/writing-editor-views.webp": {
+    "w": 1440,
+    "h": 856,
+    "bytes": 82414,
+    "kind": "poster"
+  },
   "/docs-assets/files/supported-types/viewer-pdf.dark.webp": {
     "w": 2460,
     "h": 1492,
@@ -21,6 +185,30 @@
     "w": 2460,
     "h": 1492,
     "bytes": 38558,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/accounts/sign-in-options.dark.webp": {
+    "w": 2172,
+    "h": 1056,
+    "bytes": 67452,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/accounts/sign-in-options.webp": {
+    "w": 2172,
+    "h": 1056,
+    "bytes": 68562,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/first-document/editor-settings-chips.dark.webp": {
+    "w": 2528,
+    "h": 262,
+    "bytes": 20842,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/first-document/editor-settings-chips.webp": {
+    "w": 2528,
+    "h": 262,
+    "bytes": 20790,
     "kind": "image"
   },
   "/docs-assets/get-started/first-document/publish-from-new.mp4": {
@@ -43,6 +231,30 @@
     "bytes": 37008,
     "kind": "poster"
   },
+  "/docs-assets/get-started/first-document/published-panel.dark.webp": {
+    "w": 1424,
+    "h": 1028,
+    "bytes": 42064,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/first-document/published-panel.webp": {
+    "w": 1424,
+    "h": 1028,
+    "bytes": 45282,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/first-file/artifact-actions-menu.dark.webp": {
+    "w": 2548,
+    "h": 428,
+    "bytes": 17854,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/first-file/artifact-actions-menu.webp": {
+    "w": 2548,
+    "h": 428,
+    "bytes": 17874,
+    "kind": "image"
+  },
   "/docs-assets/get-started/first-file/upload-form.dark.webp": {
     "w": 2560,
     "h": 2252,
@@ -53,6 +265,30 @@
     "w": 2560,
     "h": 2252,
     "bytes": 147010,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/tour/create-menu.dark.webp": {
+    "w": 740,
+    "h": 708,
+    "bytes": 22940,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/tour/create-menu.webp": {
+    "w": 740,
+    "h": 708,
+    "bytes": 24878,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/tour/document-bar.dark.webp": {
+    "w": 2880,
+    "h": 880,
+    "bytes": 85850,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/tour/document-bar.webp": {
+    "w": 2880,
+    "h": 880,
+    "bytes": 85738,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/my-files.dark.webp": {
@@ -67,6 +303,42 @@
     "bytes": 100376,
     "kind": "image"
   },
+  "/docs-assets/get-started/tour/sidebar.dark.webp": {
+    "w": 496,
+    "h": 1488,
+    "bytes": 22694,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/tour/sidebar.webp": {
+    "w": 496,
+    "h": 1488,
+    "bytes": 21698,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/what-is-markdrop/what-is-rendered-document.dark.webp": {
+    "w": 2880,
+    "h": 1912,
+    "bytes": 111126,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/what-is-markdrop/what-is-rendered-document.webp": {
+    "w": 2880,
+    "h": 1912,
+    "bytes": 111860,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/what-is-markdrop/what-is-rendered-html.dark.webp": {
+    "w": 2880,
+    "h": 1688,
+    "bytes": 81880,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/what-is-markdrop/what-is-rendered-html.webp": {
+    "w": 2880,
+    "h": 1688,
+    "bytes": 79876,
+    "kind": "image"
+  },
   "/docs-assets/sharing/who-can-open/share-dialog-access.dark.webp": {
     "w": 1136,
     "h": 638,
@@ -79,6 +351,19 @@
     "bytes": 37396,
     "kind": "image"
   },
+  "/docs-assets/videos/app-tour.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 56.33,
+    "bytes": 2399056,
+    "kind": "video"
+  },
+  "/docs-assets/videos/app-tour.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 79054,
+    "kind": "poster"
+  },
   "/docs-assets/videos/custom-domain.mp4": {
     "w": 1920,
     "h": 1080,
@@ -90,6 +375,58 @@
     "w": 1920,
     "h": 1080,
     "bytes": 32134,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/password-and-expiry.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 35.3,
+    "bytes": 1147539,
+    "kind": "video"
+  },
+  "/docs-assets/videos/password-and-expiry.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 54516,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/publish-first-document.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 31.97,
+    "bytes": 908677,
+    "kind": "video"
+  },
+  "/docs-assets/videos/publish-first-document.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 80126,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/publish-first-file.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 37.97,
+    "bytes": 1151409,
+    "kind": "video"
+  },
+  "/docs-assets/videos/publish-first-file.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 74360,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/readme-builder.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 38.77,
+    "bytes": 1206168,
+    "kind": "video"
+  },
+  "/docs-assets/videos/readme-builder.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 44122,
     "kind": "poster"
   },
   "/docs-assets/workspaces/custom-domain/dns-records.dark.webp": {

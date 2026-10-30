@@ -15,11 +15,15 @@ Anything you would otherwise paste as raw text, or send as an attachment someone
 
 A document is text you write or paste: notes, specs, an AI assistant's answer, a README. Markdrop renders it with headings, tables, task lists, code highlighting, math and diagrams.
 
+![A Markdrop document page: the "Getting started with Acme" guide rendered with headings, a highlighted SQL code block and a flowchart diagram, with Contents on the left and Details on the right.](/docs-assets/get-started/what-is-markdrop/what-is-rendered-document.webp "What readers see when they open a document link.")
+
 You don't need an account to publish a document. You get a link right away, plus an edit secret that lets you change or delete it later.
 
 ### Files
 
 A file (the app also calls these *artifacts*) is something you upload: an HTML page, a PDF, an Excel or CSV sheet, a Word document, images, video, audio, or a whole website in a `.zip`. Each one opens in a viewer made for it: a PDF reader, a spreadsheet with tabs, a video player.
+
+![An uploaded HTML page, "Workflows beta landing page", running live inside the Markdrop page frame, with Copy link and Download above it.](/docs-assets/get-started/what-is-markdrop/what-is-rendered-html.webp)
 
 Files need a free account, because they're stored against it.
 

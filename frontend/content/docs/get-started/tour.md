@@ -8,11 +8,13 @@ keywords: [dashboard, my files, sidebar, navigation, shortcuts, command palette]
 
 Once you sign in, Markdrop works like a drive for things that render. This page walks through the sidebar, the **Create** menu, and the bar on top of every document and file.
 
-::video{id="app-tour" title="A tour of the app" duration="1:00"}
+::video{id="app-tour" title="A tour of the app" duration="0:56"}
 
 ## Create something
 
 **Create** sits at the top of the app. It has four choices:
+
+![The Create menu open in the app header, listing Markdown document, Artifact, README builder and Send a file, each with a one-line description.](/docs-assets/get-started/tour/create-menu.webp)
 
 | Choice | What it does |
 | --- | --- |
@@ -34,7 +36,11 @@ Once you sign in, Markdrop works like a drive for things that render. This page 
 | **Connected apps** | AI assistants and other apps you've allowed in. See [Connected apps](/account/connected-apps). |
 | **Settings** | Your display name, theme and the weekly analytics email. |
 
+![The app sidebar with My files, Shared with me (2 new), Recent, Analytics, the Workspaces section showing Acme with its Guides, Releases and Sales folders, then VS Code (3 tokens), Connected apps and Settings.](/docs-assets/get-started/tour/sidebar.webp)
+
 Each row in **My files** has a **Copy link** button and a menu with **Open**, **Edit** (documents only), **Analytics**, **Share…**, **Change URL** and **Delete**, plus **Move to folder…** or **Add to a workspace…** where they apply. On a phone, **Copy link** is in the menu instead.
+
+![My files with the All, Documents and Artifacts filters, and rows showing each title, its folder, its link, views, who can open it and Copy link.](/docs-assets/get-started/tour/my-files.webp)
 
 ## On a document
 
@@ -45,6 +51,8 @@ A document opens full screen, with nothing but the text. Press :kbd[Esc] or choo
 - **Share**: shown to the owner, and to people allowed to share it on. See [Share with specific people](/sharing/share-with-people).
 - **Read full screen**: hides everything but the text again. Press :kbd[F]; press :kbd[Esc] to come back.
 - **More actions**: **View raw**, **Export PDF**, **Save a copy** (on other people's documents), **Report** and, on your own documents once you've connected Google, **Publish to Google Docs**.
+
+![The bar above a document with Copy link, Edit, Share and Read full screen, and More actions open showing View raw and Export PDF, with the Details and Access panels on the right.](/docs-assets/get-started/tour/document-bar.webp)
 
 **Details** lists when it was published, its views, its reading time and when it expires. The owner, and people allowed to share it, also see an **Access** card with who can open it and a **Share** button. On a wide screen it sits beside the text, with **Contents** built from the headings.
 

@@ -1,8 +1,38 @@
 {
+  "app-tour": {
+    "src": "/docs-assets/videos/app-tour.mp4",
+    "poster": "/docs-assets/videos/app-tour.webp",
+    "duration": "0:56",
+    "chapters": "/docs-assets/videos/app-tour.vtt"
+  },
   "custom-domain": {
     "src": "/docs-assets/videos/custom-domain.mp4",
     "poster": "/docs-assets/videos/custom-domain.webp",
     "duration": "0:34",
     "chapters": "/docs-assets/videos/custom-domain.vtt"
+  },
+  "password-and-expiry": {
+    "src": "/docs-assets/videos/password-and-expiry.mp4",
+    "poster": "/docs-assets/videos/password-and-expiry.webp",
+    "duration": "0:35",
+    "chapters": "/docs-assets/videos/password-and-expiry.vtt"
+  },
+  "publish-first-document": {
+    "src": "/docs-assets/videos/publish-first-document.mp4",
+    "poster": "/docs-assets/videos/publish-first-document.webp",
+    "duration": "0:32",
+    "chapters": "/docs-assets/videos/publish-first-document.vtt"
+  },
+  "publish-first-file": {
+    "src": "/docs-assets/videos/publish-first-file.mp4",
+    "poster": "/docs-assets/videos/publish-first-file.webp",
+    "duration": "0:38",
+    "chapters": "/docs-assets/videos/publish-first-file.vtt"
+  },
+  "readme-builder": {
+    "src": "/docs-assets/videos/readme-builder.mp4",
+    "poster": "/docs-assets/videos/readme-builder.webp",
+    "duration": "0:39",
+    "chapters": "/docs-assets/videos/readme-builder.vtt"
   }
 }
