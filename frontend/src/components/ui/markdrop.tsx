@@ -90,12 +90,13 @@ export function AppHeader({ nav = [], user, onSignIn, onToggleTheme, theme = "da
 }
 
 /* ── Create menu ──────────────────────────────────────────────────────── */
-type CreateKey = "document" | "artifact" | "builder" | "share";
+type CreateKey = "document" | "artifact" | "builder" | "share" | "docs";
 const CREATE: Array<{ key: CreateKey; href: string; label: React.ReactNode; description: string; icon: string; tint: string }> = [
   { key: "document", href: "/new", label: "Markdown document", description: "Write or paste markdown, publish a link", icon: "lines", tint: "cat-document" },
   { key: "artifact", href: "/upload", label: <>Artifact <Badge tone="warning" size="sm" upper>New</Badge></>, description: "HTML page, PDF, spreadsheet, Word doc or video", icon: "doc", tint: "cat-artifact" },
   { key: "builder", href: "/builder", label: "README builder", description: "Assemble a README from ready-made blocks", icon: "builder", tint: "cat-builder" },
   { key: "share", href: "/share", label: "Send a file", description: "Peer-to-peer. Files are never stored on our servers.", icon: "send", tint: "cat-share" },
+  { key: "docs", href: "/docs-studio/new", label: "Docs site", description: "A documentation website, in Docs Studio", icon: "layers", tint: "cat-docs" },
 ];
 export interface CreateMenuProps {
   defaultOpen?: boolean;
@@ -112,7 +113,7 @@ export function CreateMenu({ defaultOpen, signedIn = true, variant = "secondary"
   const items: MenuItem[] = CREATE.map(({ key, tint, icon, href, ...it }) => ({
     ...it,
     href: hrefs?.[key] ?? href,
-    caption: key === "artifact" && !signedIn ? "Needs an account" : undefined,
+    caption: (key === "artifact" || key === "docs") && !signedIn ? "Needs an account" : undefined,
     tile: <span className="md-menu__tile" style={{ color: `var(--${tint})`, background: "color-mix(in srgb, currentColor 12%, transparent)" }}><Icon name={icon} /></span>,
   }));
   return <Dropdown defaultOpen={defaultOpen} align={align} minWidth={304} trigger={<Button variant={variant} size={size} iconLeft="plus" iconRight="chevronDown" className="md-create"><span className="md-create__label">Create</span></Button>} items={items} />;

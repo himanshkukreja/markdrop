@@ -12,7 +12,9 @@ import {
   type AccessLevel, type SettingsPatch,
 } from "@/lib/docsSites";
 import { num, plural, timeAgo } from "./format";
+import RedirectsEditor from "./RedirectsEditor";
 import SiteBar from "./SiteBar";
+import { useStudio } from "./studio/StudioContext";
 import { useSite } from "./SiteContext";
 
 const MAX_SUGGESTIONS = 5;
@@ -34,13 +36,14 @@ function Card({ id, title, aside, children, tone }: { id: string; title: React.R
 }
 
 /**
- * /w/<ws>/docs/<site>/settings (Settings board): the free address (and changing it), your own
+ * /docs-studio/<site>/settings (Settings board): the free address (and changing it), your own
  * domain (coming soon), Ask AI (on/off, usage, name, suggested questions), who can read it,
  * search indexing, reviews, GitHub sync status, redirects, and unpublish/delete. Admin-only to
  * change; everyone else sees the values.
  */
 export default function SiteSettings() {
-  const { site, setSite, isAdmin, listHref } = useSite();
+  const { site, setSite, isAdmin, listHref, base } = useSite();
+  const { reloadAll } = useStudio();
   const toast = useToast();
   const router = useRouter();
   const uid = useId();
@@ -263,24 +266,34 @@ export default function SiteSettings() {
             )}
           </Card>
 
-          <Card id="redirects" title="Redirects" aside={<Badge tone="info" size="sm">Editing soon</Badge>}>
-            <p className="text-body text-text-secondary">
-              {redirects.length
-                ? `${plural(redirects.length, "old address", "old addresses")} send${redirects.length === 1 ? "s" : ""} readers to ${redirects.length === 1 ? "its new page" : "their new pages"}${site.source.kind === "gitbook" ? ", including the ones kept from GitBook" : ""}.`
-                : site.source.kind === "gitbook"
-                  ? "Old GitBook addresses keep working: the import sends them to their new pages."
-                  : "Moved a page? Soon you'll send its old address to the new one here, so links keep working."}
-            </p>
-            {redirects.length > 0 && (
-              <details className="text-[13px]">
-                <summary className="cursor-pointer text-accent-text">Show them</summary>
-                <ul className="mt-2 flex flex-col gap-1 font-mono text-text-secondary">
-                  {redirects.map((r) => <li key={r.from} className="[overflow-wrap:anywhere]">{r.from} → {r.to}</li>)}
-                </ul>
-              </details>
-            )}
-          </Card>
+          {site.source.kind === "gitbook" ? (
+            <Card id="import" title="Imported from GitBook" aside={site.last_import_job_id ? <Badge size="sm" icon="download">Import</Badge> : null}>
+              <p className="text-body text-text-secondary">
+                {site.source.url ? <>From <code className="font-mono [overflow-wrap:anywhere]">{site.source.url}</code>. </> : null}
+                The import&apos;s report lists what needs a look: image descriptions, broken links, hidden pages.
+              </p>
+              {site.last_import_job_id && <Button variant="secondary" size="sm" iconLeft="listTree" href={`${base}/import`} className="self-start">Open the import report</Button>}
+            </Card>
+          ) : (
+            <Card id="source" title="Started from" aside={<Badge size="sm">{site.source.kind === "template" ? "Template" : "Blank"}</Badge>}>
+              <p className="text-body text-text-secondary">{site.source.kind === "template" ? "A template's pages, now yours to edit." : "A blank site."} Every page&apos;s history is in the editor.</p>
+            </Card>
+          )}
         </div>
+
+        <Card id="redirects" title="Redirects" aside={redirects.length ? <Badge size="sm">{num(redirects.length)}</Badge> : null}>
+          <p className="text-body text-text-secondary">
+            Moved or renamed a page? Send its old address to the new one, so links people saved keep working.
+            {site.source.kind === "gitbook" ? " The old GitBook addresses the import found keep working on their own." : ""} Changes go live at the next publish.
+          </p>
+          <RedirectsEditor
+            siteId={site.id}
+            value={redirects}
+            locked={locked}
+            saving={saving === "redirects"}
+            onSave={(rows) => patch("redirects", { settings: { redirects: rows } }, rows.length ? `${plural(rows.length, "redirect")} saved. They go live at the next publish.` : "Redirects removed.")}
+          />
+        </Card>
 
         {isAdmin && (
           <Card id="danger" title="Take the site down" tone="danger" aside={
@@ -316,6 +329,7 @@ export default function SiteSettings() {
         onConfirm={async () => {
           await deleteSite(site.id);
           toast.success(`${site.name} was deleted.`);
+          void reloadAll();
           router.replace(listHref);
         }}
       />

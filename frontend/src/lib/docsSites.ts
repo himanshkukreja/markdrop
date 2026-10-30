@@ -10,6 +10,7 @@
  * (someone else holds the page lock: the body carries `lock`) and 409 "review required" on publish.
  */
 import { API_BASE } from "@/lib/api";
+import { sanitizeCss } from "@/docs/theme.mjs";
 
 const TOKEN_KEY = "markdrop_token";
 const BASE = "/api/v1/docs-sites";
@@ -148,7 +149,8 @@ export interface SiteSettings {
   seo: { index: boolean };
   review: { required: boolean };
   nav: NavGroup[];
-  /** Not in the settings model yet (GitBook imports keep theirs in the build); shown when present. */
+  /** Old addresses → their new pages (the build writes redirects.json). Checked on save: targets
+   * exist, no page is hidden by one, no chains. A GitBook import's own redirects stay in the build. */
   redirects?: Redirect[];
 }
 
@@ -221,6 +223,33 @@ export interface SiteSummary {
   your_role: DocsRole;
   /** Only on the full Site today; the list falls back to the free address. */
   domains?: SiteDomain[];
+  /** GET /docs-sites?scope=all: the site's workspace (null: a personal site). */
+  workspace?: StudioWorkspaceRef | null;
+}
+
+/** A workspace as Docs Studio shows it beside its sites. */
+export interface StudioWorkspaceRef {
+  id: string;
+  name: string;
+  accent?: string | null;
+  logo_url?: string | null;
+}
+
+export interface StudioWorkspace extends StudioWorkspaceRef {
+  /** The workspace role (owner/admin/member/viewer) and what it means in Docs Studio. */
+  workspace_role: string;
+  your_role: DocsRole;
+  /** Workspace owners and admins, while the workspace isn't being deleted. */
+  can_create: boolean;
+  usage: { sites: number; limit: number };
+}
+
+/** GET /docs-sites?scope=all (Docs Studio's home and site switcher). */
+export interface AllSitesResponse {
+  sites: SiteSummary[];
+  workspaces: StudioWorkspace[];
+  personal: { your_role: DocsRole; can_create: boolean; usage: { sites: number; limit: number } };
+  usage: Usage;
 }
 
 export interface Job {
@@ -231,7 +260,8 @@ export interface Job {
   attempts?: number;
   payload?: Record<string, unknown>;
   progress?: { step: string | number; done: number; total: number; message?: string | null; steps?: JobStep[] } | null;
-  result?: ({ report?: ImportReport; build_id?: string } & ImportReport) | null;
+  /** Import: WorkerImportResult. Build: what the worker recorded (build_id…). */
+  result?: (WorkerImportResult & { build_id?: string }) | ImportReport | null;
   error?: string | null;
   created_at: string;
   updated_at: string;
@@ -243,6 +273,8 @@ export interface Site extends SiteSummary {
   settings: SiteSettings;
   domains: SiteDomain[];
   live_build_id: string | null;
+  /** The GitBook import that filled this site (its screen can be reopened while the job is kept). */
+  last_import_job_id?: string | null;
   live_build: Build | null;
   latest_build: Build | null;
   open_review_id: string | null;
@@ -371,9 +403,30 @@ export interface ReportItem {
 export interface ImportReport {
   summary?: { pages?: number; groups?: number; images?: number; files?: number; redirects?: number; anchors?: number; gifs?: number; mb_before?: number; mb_after?: number };
   needs_look?: ReportItem[];
+  /** What the import couldn't take (a page over the limit, an unusable path…). */
+  skipped?: string[];
   /** The importer's full Markdown report (_IMPORT_REPORT.md). */
   markdown?: string;
   brand?: { name?: string; logo_url?: string | null; accent?: string | null; favicon_url?: string | null };
+}
+
+/**
+ * An import job's `result` as the worker stores it (backend/app/services/docs_import_job.py). The
+ * report's lists are the importer's (scripts/docs-import/gitbook.mjs `_import-report.json`), capped
+ * at 200 each; `truncated` gives the full length of a capped list.
+ */
+export interface WorkerImportResult {
+  ok?: boolean;
+  pages?: { created: number; updated: number; total: number; hidden: number };
+  nav_groups?: number;
+  assets?: { files?: number; bytes?: number; uploaded?: number; rows?: number };
+  report?: {
+    source?: string;
+    counts?: Record<string, number | boolean>;
+    items?: Partial<Record<"altGenerated" | "hidden" | "brokenLinks" | "missing" | "unmatchedIcons" | "notes" | "external", Array<Record<string, unknown>>>>;
+    truncated?: Record<string, number>;
+  };
+  skipped?: string[];
 }
 
 export interface UploadedAsset {
@@ -386,6 +439,11 @@ export interface UploadedAsset {
 }
 
 // ── Sites ────────────────────────────────────────────────────────────────────
+
+/** Every site you can open, across your workspaces and your personal ones (Docs Studio). */
+export function listAllSites(): Promise<AllSitesResponse> {
+  return request(q({ scope: "all" }));
+}
 
 /** A workspace's sites, or with `null` your personal ones. */
 export function listSites(workspaceId: string | null): Promise<{ sites: SiteSummary[]; your_role: DocsRole; usage: Usage }> {
@@ -415,6 +473,8 @@ export interface SettingsPatch {
   access?: { level?: AccessLevel; password?: string };
   seo?: Partial<SiteSettings["seo"]>;
   review?: Partial<SiteSettings["review"]>;
+  /** Replaces the whole list. */
+  redirects?: Redirect[];
 }
 
 export function updateSite(id: string, patch: { name?: string; slug?: string; settings?: SettingsPatch }): Promise<Site> {
@@ -555,10 +615,19 @@ export function getJob(siteId: string, jobId: string): Promise<Job> {
 
 export const MAX_ASSET_BYTES = 25 * 1024 * 1024;
 
-export async function uploadAsset(siteId: string, file: File): Promise<UploadedAsset> {
+/**
+ * `{variant: "dark", for: "/docs-assets/<image>"}`: the dark-theme version of an image on this site.
+ * The API stores it where the engine looks (`x.png` → `x.dark.png`, the editor's darkVariantPath),
+ * converting other raster formats to the image's own, and replaces any earlier dark version.
+ */
+export async function uploadAsset(siteId: string, file: File, opts?: { variant?: "light" | "dark"; for?: string }): Promise<UploadedAsset> {
   if (file.size > MAX_ASSET_BYTES) throw new DocsApiError("Files can be up to 25 MB.", 413);
   const form = new FormData();
   form.append("file", file);
+  if (opts?.variant === "dark") {
+    form.append("variant", "dark");
+    if (opts.for) form.append("for", opts.for);
+  }
   return request(`/${enc(siteId)}/assets`, { method: "POST", body: form });
 }
 
@@ -568,8 +637,9 @@ export async function uploadAsset(siteId: string, file: File): Promise<UploadedA
  */
 export function assetPreviewUrl(siteId: string, url: string | null | undefined): string | null {
   if (!url) return null;
-  const m = /^\/docs-assets\/([^/?#]+)$/.exec(url);
-  return m ? `${API_BASE}${BASE}/${enc(siteId)}/assets/${m[1]}` : url;
+  // An upload (<sha256>.<ext>, its dark version <sha256>.dark.<ext>) or an imported file (import/<page>/<name>).
+  const m = /^\/docs-assets\/((?:[A-Za-z0-9_][A-Za-z0-9._-]*\/){0,7}[A-Za-z0-9_][A-Za-z0-9._-]*)$/.exec(url);
+  return m ? `${API_BASE}${BASE}/${enc(siteId)}/assets/${m[1].split("/").map(enc).join("/")}` : url;
 }
 
 // ── Helpers shared by the screens ────────────────────────────────────────────
@@ -645,13 +715,14 @@ export const FONTS: Array<{ id: string; label: string; family: string }> = [
 
 export const CUSTOM_CSS_MAX = 20 * 1024;
 
-/** A first check of the rules the API enforces, so the panel can say what's wrong before saving. */
+/**
+ * Why the docs engine would refuse this custom CSS ("" when it's fine). The engine's own
+ * sanitizeCss decides, the same rules the API applies on save (services/docs_site_settings.py is a
+ * port of it, tested against one shared corpus), so the panel says what's wrong before saving.
+ */
 export function customCssProblem(css: string): string {
-  if (new Blob([css]).size > CUSTOM_CSS_MAX) return "Custom CSS can be up to 20 KB.";
-  if (/@import\s+(url\()?\s*["']?\s*(https?:)?\/\//i.test(css)) return "Remote @import isn't allowed. Paste the rules instead.";
-  if (/url\(\s*["']?\s*(?!https:|data:|#|\/(?!\/))[a-z]+:/i.test(css) || /url\(\s*["']?\s*http:/i.test(css)) return "url() must point at an https:// address.";
-  if (/expression\s*\(|javascript:|behavior\s*:|-moz-binding/i.test(css)) return "Scripts and expressions aren't allowed.";
-  if (/<\/?\s*(script|style)/i.test(css)) return "Only CSS rules go here, no HTML tags.";
-  return "";
+  if (!css.trim()) return "";
+  const { errors } = sanitizeCss(css);
+  return errors.length ? `Custom CSS: ${errors[0]}.` : "";
 }
 

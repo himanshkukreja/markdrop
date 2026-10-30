@@ -49,7 +49,16 @@ const nextConfig: NextConfig = {
    * before the middleware and any page. None for a site without one (Markdrop's has none).
    */
   async redirects() {
-    return nextRedirects(DOCS_CONTENT, DOCS_HOSTS);
+    // Docs sites moved out of the workspace (/w/<ws>/docs…) into Docs Studio (/docs-studio…). The
+    // query string carries over (?page=, ?job=, ?new=). Never on a docs host: a page there may
+    // legitimately live at /w/….
+    const app = { missing: [{ type: "host" as const, value: hostPattern(DOCS_HOSTS) }], permanent: false };
+    return [
+      { source: "/w/:wsId/docs", destination: "/docs-studio?ws=:wsId", ...app },
+      { source: "/w/:wsId/docs/new", destination: "/docs-studio/new?ws=:wsId", ...app },
+      { source: "/w/:wsId/docs/:siteId/:rest*", destination: "/docs-studio/:siteId/:rest*", ...app },
+      ...nextRedirects(DOCS_CONTENT, DOCS_HOSTS),
+    ];
   },
   async rewrites() {
     return [
