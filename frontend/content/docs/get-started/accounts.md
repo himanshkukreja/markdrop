@@ -37,7 +37,7 @@ Everything you publish without an account is open to anyone with the link. "Only
 There is no password to remember. Go to [markdrop.in/login](https://markdrop.in/login) and choose one:
 
 - **Continue with Google.**
-- **Email me a code.** Markdrop emails you a 6-digit code and a sign-in link. Enter the code, or open the link on the same device.
+- **Email me a code.** Markdrop emails you a 6-digit code and a sign-in link. Enter the code, or open the link. The link signs you in on whichever browser opens it, so open it where you want to be signed in.
 
 ![The "Sign in to Markdrop" page with a Continue with Google button, an Email field and an Email me a code button, beside a list of what signing in adds.](/docs-assets/get-started/accounts/sign-in-options.webp)
 

@@ -14,7 +14,11 @@ Check your spam or junk folder, and that you typed the address correctly. Choose
 :::
 
 :::details[Too many tries in a short time]
-You've entered too many wrong codes or asked for too many codes in a row. Wait a minute and try again. Each code allows 5 tries.
+Your network asked for too many codes, or tried too many codes, in a short time. The limit counts everyone on the same network. Wait a minute and try again.
+:::
+
+:::details[That code didn't work]
+The code is wrong, has expired, or has had 5 wrong tries. After 5 wrong tries a code stops working, even the right one. Choose **Resend code** and use the code in the newest email.
 :::
 
 :::details[That sign-in link has expired]
@@ -28,7 +32,7 @@ Verify the address with Google first, or sign in with your email and a code inst
 ## A link won't open
 
 :::details[Nothing at this link]
-The document may have expired or been deleted, or the address has a typo. Ask the person who sent it for a fresh link. If you own it, check its expiry in your dashboard.
+The document may have expired or been deleted, or the address has a typo. Ask the person who sent it for a fresh link. When a document expires, Markdrop deletes it: it's gone from **My files** too, and it can't be recovered. If it was yours, publish it again.
 :::
 
 :::details[This document is private]
@@ -54,11 +58,11 @@ One file can be up to 25 MB, and video and audio up to 2 GB. For bigger things, 
 :::
 
 :::details[Storage quota exceeded]
-Your account holds up to 20 GB, and old versions of files count toward it. Delete files you no longer need, or old versions, then try again. See [Replace a file and versions](/files/replace-and-versions).
+Your account holds up to 20 GB, and old versions of files count toward it. Delete files you no longer need, or old versions from a file's **Settings**, then try again. See [Replace a file and versions](/files/replace-and-versions).
 :::
 
-:::details[My file downloads instead of opening]
-Markdrop shows a fixed list of file types in the page. Anything else is offered as a download. See [Supported file types](/files/supported-types).
+:::details[My file type isn't accepted]
+Markdrop takes a fixed list of file types. Anything else is refused when you upload it, with "Unsupported file type…". See [Supported file types](/files/supported-types) for the list. For a site with several files, zip it and upload it as a [website](/files/websites). For any other kind of file, [send it peer to peer](/share/send-files).
 :::
 
 ## Workspaces and domains
