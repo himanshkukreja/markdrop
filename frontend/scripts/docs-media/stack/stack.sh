@@ -13,6 +13,8 @@
 #   sandbox API       :8180                    :8180 + 10N
 #   artifact Worker   :8787                    :8787 + 10N
 #   next dev          :3400                    :3400 + 10N   (distDir .next-docs-media-N)
+#   Docs Studio sites :3405                    :3405 + 10N   (docs-platform server over .data/docs-store;
+#                                                             builds crawl on :3406 + 10N)
 #   Mongo db          markdrop_docs_demo       markdrop_docs_demo_N   (same mongod, :27019)
 #   data folder       .data/                   .data/N/   (r2, outbox, dns, fixtures.json, logs, pids)
 #
@@ -47,6 +49,7 @@ export PATH="$HOME/.nvm/versions/node/v22.18.0/bin:/opt/homebrew/bin:$PATH"
 API_PORT=$((8180 + 10 * STACK_ID))
 WORKER_PORT=$((8787 + 10 * STACK_ID))
 NEXT_PORT=$((3400 + 10 * STACK_ID))
+SITES_PORT=$((3405 + 10 * STACK_ID))
 MONGO_PORT=27019
 REDIS_PORT=$((6390 + STACK_ID))
 if [ "$STACK_ID" = "0" ]; then NEXT_DIST="${DOCS_MEDIA_NEXT_DIST:-.next-docs-media}"; else NEXT_DIST="${DOCS_MEDIA_NEXT_DIST:-.next-docs-media-$STACK_ID}"; fi
@@ -106,7 +109,7 @@ stop_one() { # name port
     # Anything still listening on our port that we started (a dev server's child process).
     local stray; stray="$(lsof -ti tcp:"$2" -sTCP:LISTEN 2>/dev/null || true)"
     for p in $stray; do
-      if ps -o command= -p "$p" | grep -qE "run_api.py|worker_dev.mjs|next|mongod|redis-server"; then kill -TERM "$p" 2>/dev/null || true; fi
+      if ps -o command= -p "$p" | grep -qE "run_api.py|run_docs_worker.py|server.mjs|worker_dev.mjs|next|mongod|redis-server"; then kill -TERM "$p" 2>/dev/null || true; fi
     done
     wait_free "$2" || true
   fi
@@ -155,6 +158,27 @@ cmd_start() {
     wait_port $WORKER_PORT 20 Worker && echo "  ✓ Worker       http://127.0.0.1:$WORKER_PORT"
   fi
 
+  # Docs Studio: the job worker (builds, imports, restores) and the server for published sites
+  if ours docsworker; then
+    echo "  ✓ Docs Studio worker already running"
+  else
+    start_bg docsworker "$LOGS/docsworker.log" "$PY" "$HERE/run_docs_worker.py"
+    echo "  ✓ Docs Studio worker (log: $LOGS/docsworker.log)"
+  fi
+  if port_up $SITES_PORT; then
+    ours sites || taken sites $SITES_PORT
+    echo "  ✓ Docs Studio sites already on :$SITES_PORT"
+  else
+    PLATFORM="$REPO/docs-platform"
+    if [ ! -e "$PLATFORM/node_modules" ]; then
+      echo "  ✗ $PLATFORM/node_modules is missing: npm ci there (or symlink another checkout's)"; exit 1
+    fi
+    [ -f "$PLATFORM/edge/dist/handler.mjs" ] || (cd "$PLATFORM" && node builder/cli.mjs bundle >"$LOGS/sites-bundle.log" 2>&1)
+    mkdir -p "$DATA/docs-store"
+    start_bg sites "$LOGS/sites.log" node "$PLATFORM/server/server.mjs" serve --store "$DATA/docs-store" --port $SITES_PORT
+    wait_port $SITES_PORT 20 "Docs Studio sites" && echo "  ✓ Docs Studio sites http://<slug>.docs.markdrop.in:$SITES_PORT (capture browser)"
+  fi
+
   # Next
   if port_up $NEXT_PORT; then
     ours next || taken next $NEXT_PORT
@@ -188,6 +212,8 @@ cmd_start() {
 
 cmd_stop() {
   stop_one next $NEXT_PORT
+  stop_one sites $SITES_PORT
+  stop_one docsworker
   stop_one worker $WORKER_PORT
   stop_one api $API_PORT
   stop_one redis $REDIS_PORT
@@ -197,7 +223,7 @@ cmd_stop() {
 
 cmd_status() {
   echo "docs-media stack $STACK_ID (data $DATA)"
-  for pair in "mongod:$MONGO_PORT" "api:$API_PORT" "worker:$WORKER_PORT" "next:$NEXT_PORT"; do
+  for pair in "mongod:$MONGO_PORT" "api:$API_PORT" "worker:$WORKER_PORT" "next:$NEXT_PORT" "sites:$SITES_PORT"; do
     name="${pair%%:*}"; port="${pair##*:}"
     if port_up "$port"; then echo "  ✓ $name :$port"; else echo "  · $name :$port down"; fi
   done

@@ -25,6 +25,12 @@ Sandbox-only routes (loopback only; the server binds 127.0.0.1):
   POST /__sandbox/cleanup  {}                            → delete documents not made by seed.py
   GET  /__sandbox/head/<key>                             → fake-R2 object metadata (Worker harness)
   GET  /__sandbox/health
+  GET  /__docsstore/<key>                                → a Docs Studio site file (editor previews)
+
+Docs Studio: the docs bucket is a folder store (``.data/docs-store``). Uploads land there, builds are
+routed to the local worker (stack/run_docs_worker.py, which stack.sh starts) and publish there too,
+and stack.sh serves the folder by hostname (docs-platform/server/server.mjs), so a site published in
+the studio is really live at ``http://<slug>.docs.markdrop.in:<docs port>`` in the capture browser.
 
 Run: ``backend/.venv/bin/python frontend/scripts/docs-media/stack/run_api.py`` (stack.sh does).
 ``STACK_ID=N`` (default 0) runs instance N: API 8180+10N, Worker 8787+10N, Next 3400+10N, db
@@ -82,6 +88,11 @@ def _load_env() -> None:
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
             value = value[1:-1]
         os.environ[key.strip()] = value
+    # Docs Studio: builds on the local worker, a folder for the docs bucket (see the docstring).
+    os.environ.update({
+        "MARKDROP_DOCS_BUILD_TARGETS": "local",
+        "MARKDROP_DOCS_STORE_DIR": str(DATA / "docs-store"),
+    })
     if os.environ.get("DOCS_MEDIA_REDIS_URL"):  # stack.sh with DOCS_MEDIA_REDIS=1
         os.environ["MARKDROP_REDIS_URL"] = os.environ["DOCS_MEDIA_REDIS_URL"]
     if STACK_ID:  # an extra instance: its own db, ports and origins (environment beats .env)
@@ -308,6 +319,45 @@ def _no_boto():
 r2._client = _no_boto  # anything un-patched fails loudly instead of reaching a bucket
 
 
+# Docs Studio's bucket (services/docs_site_assets.py): the folder store the local worker reads and
+# publishes to, so an image uploaded in the editor is in the next build.
+from app.services import docs_site_assets  # noqa: E402
+
+DOCS_STORE = Path(os.environ["MARKDROP_DOCS_STORE_DIR"]).resolve()
+
+
+def _docs_file(key: str) -> Path:
+    f = (DOCS_STORE / key).resolve()
+    if not str(f).startswith(str(DOCS_STORE) + os.sep):
+        raise ValueError(f"bad key {key}")
+    return f
+
+
+def _docs_put(key, data, content_type, cache_control=None):
+    f = _docs_file(key)
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_bytes(data)
+    return True
+
+
+docs_site_assets.is_configured = lambda: True
+docs_site_assets.put_bytes = _docs_put
+docs_site_assets.presign_get = lambda key, expires_in=3600: f"{API}/__docsstore/{quote(key)}"
+docs_site_assets._client = _no_boto
+
+# Routing an import reads the source's llms.txt over the internet: never here. The demo's imports
+# are played by seed_extra_studio.py --import-run (the worker doesn't take imports, see
+# run_docs_worker.py), so the source is never fetched.
+from app.services import docs_dispatch  # noqa: E402
+
+
+async def _no_probe(url, *, client=None):
+    return 5
+
+
+docs_dispatch.probe_import_pages = _no_probe
+
+
 async def _no_revalidate(payload):
     return 200
 
@@ -515,6 +565,24 @@ async def head_object(request: Request, key: str):
     if meta is None:
         raise HTTPException(status_code=404)
     return meta
+
+
+@app.get("/__docsstore/{key:path}", include_in_schema=False)
+async def docs_store_file(request: Request, key: str):
+    """A file of the Docs Studio folder store (what presign_get points at)."""
+    _guard(request)
+    import mimetypes
+
+    from fastapi.responses import Response
+
+    try:
+        f = _docs_file(unquote(key))
+    except ValueError:
+        raise HTTPException(status_code=404)
+    if not f.is_file():
+        raise HTTPException(status_code=404)
+    ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+    return Response(f.read_bytes(), media_type=ctype, headers={"Cache-Control": "no-store"})
 
 
 app.include_router(sandbox)
