@@ -200,6 +200,7 @@ export default function DocumentView(props: DocumentViewProps) {
           {secretUnlocked ? (
             <EditorScreen
               v={v}
+              slug={slug}
               isPasswordProtected={isPasswordProtected}
               encrypted={encrypted}
               displayTitle={displayTitle}

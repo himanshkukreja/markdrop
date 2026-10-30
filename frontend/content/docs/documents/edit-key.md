@@ -78,7 +78,22 @@ curl -X PUT https://api.markdrop.in/api/v1/documents/q3-plan \
 
 ## If the secret leaks
 
-If you own the document, you can replace its secret. The old one stops working at once, and the new one is returned once:
+If you own the document, you can replace its secret.
+
+::::steps
+### Open Document settings
+Signed in as the owner, open the document and choose **Edit**, then **Settings**.
+
+### Make a new secret
+Under **Edit secret**, choose **New edit secret**, then **Make new secret** to confirm.
+
+### Copy it
+The new secret shows once, with a **Copy secret** button. Keep it somewhere safe.
+::::
+
+The old secret stops working straight away, for anyone who has it. You keep editing with your account.
+
+From a script, the API does the same and returns the new secret once:
 
 ```bash title="Rotate the edit secret"
 curl -X POST https://api.markdrop.in/api/v1/documents/q3-plan/edit-secret/rotate \

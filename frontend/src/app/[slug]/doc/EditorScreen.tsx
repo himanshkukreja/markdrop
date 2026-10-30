@@ -6,12 +6,13 @@ import {
   Input, Kbd, Select, Switch, Tabs,
 } from "@/components/ui";
 import { EditorFrame } from "@/components/kit/EditorFrame";
+import { SecretReveal } from "@/components/kit/SecretReveal";
 import { DateTimePicker } from "@/components/kit/DateTimePicker";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 import { MAX_CHARS } from "@/lib/limits";
-import type { ExpiresIn } from "@/lib/api";
+import { rotateEditSecret, type ExpiresIn } from "@/lib/api";
 import type { useDocumentViewer, ViewMode } from "./useDocumentViewer";
 
 type Viewer = ReturnType<typeof useDocumentViewer>;
@@ -70,8 +71,9 @@ const EXPIRY_OPTIONS: { value: ExpiresIn | ""; label: string }[] = [
  * toolbar and an EditorFrame; a status bar with the characters left and ⌘S. Cancel or Escape
  * while dirty asks "Discard your changes?". Every save/delete path is the hook's, unchanged.
  */
-export function EditorScreen({ v, isPasswordProtected, encrypted, displayTitle, displayContent }: {
+export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayTitle, displayContent }: {
   v: Viewer;
+  slug: string;
   isPasswordProtected: boolean;
   encrypted: boolean;
   displayTitle: string | null;
@@ -80,6 +82,8 @@ export function EditorScreen({ v, isPasswordProtected, encrypted, displayTitle, 
   const phone = useMediaQuery(PHONE_QUERY);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [confirmRotate, setConfirmRotate] = useState(false);
+  const [newSecret, setNewSecret] = useState("");
   const saveRef = useRef(v.handleSave);
   saveRef.current = v.handleSave;
 
@@ -331,6 +335,26 @@ export function EditorScreen({ v, isPasswordProtected, encrypted, displayTitle, 
             </section>
           )}
 
+          {/* Owner (signed in) only: the server's rotate is an owner-session action. Immediate, not
+              part of Save. */}
+          {v.isOwner && (
+            <section className="flex flex-col gap-2">
+              <h3 className="text-eyebrow text-text-muted">Edit secret</h3>
+              {newSecret ? (
+                <SecretReveal value={newSecret} signedIn />
+              ) : (
+                <>
+                  <p className="text-caption text-text-secondary">
+                    If the edit secret leaked, make a new one. The old secret stops working straight away. You keep editing with your account.
+                  </p>
+                  <Button variant="secondary" iconLeft="key" onClick={() => setConfirmRotate(true)} className="self-start">
+                    New edit secret
+                  </Button>
+                </>
+              )}
+            </section>
+          )}
+
           <section className="flex flex-col gap-3 rounded-xl border border-danger p-4">
             <h3 className="text-eyebrow text-danger">Danger zone</h3>
             <p className="text-caption text-text-secondary">
@@ -351,6 +375,25 @@ export function EditorScreen({ v, isPasswordProtected, encrypted, displayTitle, 
         title="Delete this document?"
         body="The link stops working for everyone, immediately. This can't be undone."
         confirmLabel="Delete document"
+      />
+
+      <ConfirmDialog
+        open={confirmRotate}
+        onClose={() => setConfirmRotate(false)}
+        tone="default"
+        title="Make a new edit secret?"
+        body="The old secret stops working straight away, for anyone who has it. You'll see the new one once, here."
+        confirmLabel="Make new secret"
+        onConfirm={async () => {
+          const next = await rotateEditSecret(slug);
+          // A copy of the old secret in this tab would now be refused: swap it for the new one.
+          try {
+            if (sessionStorage.getItem(`secret:${slug}`)) sessionStorage.setItem(`secret:${slug}`, next);
+          } catch { /* storage blocked: nothing kept to replace */ }
+          if (v.secretInput) v.setSecretInput(next);
+          setNewSecret(next);
+          setConfirmRotate(false);
+        }}
       />
 
       <ConfirmDialog

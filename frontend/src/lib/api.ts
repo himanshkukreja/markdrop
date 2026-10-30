@@ -448,6 +448,20 @@ export async function updateDocument(
   return res.json();
 }
 
+/** Owner only (signed in): replace the edit secret. The old one stops working at once; the new
+ *  one comes back this once. */
+export async function rotateEditSecret(slug: string): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/v1/documents/${encodeURIComponent(slug)}/edit-secret/rotate`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    throw await apiError(res, "Couldn't make a new edit secret. Try again.");
+  }
+  const body = (await res.json()) as { edit_secret: string };
+  return body.edit_secret;
+}
+
 export async function deleteDocument(slug: string, editSecret?: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/documents/${slug}`, {
     method: "DELETE",
