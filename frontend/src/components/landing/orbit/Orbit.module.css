@@ -501,7 +501,8 @@
 .fold { position: absolute; right: -1px; top: -1px; width: 18px; height: 18px; background: var(--border-strong); clip-path: polygon(0 0, 100% 100%, 0 100%); }
 
 /* ── Finale: the moons align into the mark around the core ── */
-.dk .fin { position: absolute; left: 0; top: 0; width: 1440px; height: 1000px; z-index: 28; pointer-events: none; }
+/* :not(.moon): a moon in the finale carries .fin too and must keep its orbit centre (it flies by --fx/--fy). */
+.dk .fin:not(.moon) { position: absolute; left: 0; top: 0; width: 1440px; height: 1000px; z-index: 28; pointer-events: none; }
 .fin-frame { position: absolute; left: 0; top: 0; overflow: visible; }
 .fin-frame rect { fill: none; stroke: var(--accent-text); stroke-width: 1.5; stroke-dasharray: 4 6; opacity: .7; }
 .fin-frame.anim { animation: fadein .6s ease 1s both; }
@@ -713,7 +714,7 @@
 .mb .ffly-in { position: absolute; left: -15px; top: -18px; width: 30px; height: 36px; display: grid; place-items: center; border-radius: 5px; background: var(--surface); border: 1px solid var(--edge); border-top: 4px solid var(--tint); box-shadow: var(--shadow-lg); }
 
 /* Finale: the moons frame the mark, a drop lands in its dot, drops burst out */
-.mb .fin { position: absolute; left: 0; top: 0; width: 390px; height: 344px; z-index: 28; pointer-events: none; }
+.mb .fin:not(.moon) { position: absolute; left: 0; top: 0; width: 390px; height: 344px; z-index: 28; pointer-events: none; }
 .mb .fin-mark { position: absolute; left: 125px; top: 29px; width: 140px; height: 140px; border-radius: 35px; box-shadow: var(--shadow-xl), var(--shadow-glow); }
 .mb .fin-drop { position: absolute; left: 105px; top: 68px; width: 13px; height: 17px; opacity: 0; }
 .mb .fin-drop.anim { animation: findrop-m 1s linear 1.8s both; }
