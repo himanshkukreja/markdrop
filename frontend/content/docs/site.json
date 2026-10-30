@@ -39,6 +39,11 @@
       "href": "/ai/overview"
     },
     {
+      "id": "docs-studio",
+      "label": "Docs Studio",
+      "href": "/docs-studio/overview"
+    },
+    {
       "id": "changelog",
       "label": "Changelog",
       "href": "/changelog"
@@ -267,6 +272,73 @@
       "tab": "api",
       "pages": [
         "/api/overview"
+      ]
+    },
+    {
+      "group": "Docs Studio",
+      "icon": "layers",
+      "tab": "docs-studio",
+      "new": true,
+      "pages": [
+        "/docs-studio/overview",
+        "/docs-studio/create-a-site",
+        "/docs-studio/import-from-gitbook",
+        "/docs-studio/github-sync"
+      ]
+    },
+    {
+      "group": "Write",
+      "icon": "edit",
+      "tab": "docs-studio",
+      "pages": [
+        "/docs-studio/editor",
+        "/docs-studio/pages-and-navigation",
+        "/docs-studio/history"
+      ]
+    },
+    {
+      "group": "Design",
+      "icon": "image",
+      "tab": "docs-studio",
+      "pages": [
+        "/docs-studio/themes",
+        "/docs-studio/brand-and-style"
+      ]
+    },
+    {
+      "group": "Publish",
+      "icon": "send",
+      "tab": "docs-studio",
+      "pages": [
+        "/docs-studio/publishing",
+        "/docs-studio/reviews"
+      ]
+    },
+    {
+      "group": "Team and settings",
+      "icon": "users",
+      "tab": "docs-studio",
+      "pages": [
+        "/docs-studio/members-and-roles",
+        "/docs-studio/site-settings",
+        "/docs-studio/ask-ai"
+      ]
+    },
+    {
+      "group": "Readers and hosting",
+      "icon": "globe",
+      "tab": "docs-studio",
+      "pages": [
+        "/docs-studio/what-readers-get",
+        "/docs-studio/self-hosting"
+      ]
+    },
+    {
+      "group": "Help",
+      "icon": "info",
+      "tab": "docs-studio",
+      "pages": [
+        "/docs-studio/faq"
       ]
     }
   ],
