@@ -31,7 +31,29 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import SHOTS from "./shots.mjs";
+import BASE_SHOTS from "./shots.mjs";
+import { readdirSync } from "node:fs";
+
+/** Shots live in shots.mjs plus one file per area in shots/ (each `export default [...]`), so several
+ *  people can author shots at once without editing the same file. Ids must be unique across files. */
+const SHOT_DIR = new URL("./shots/", import.meta.url);
+const EXTRA_SHOTS = [];
+try {
+  for (const f of readdirSync(SHOT_DIR).filter((n) => n.endsWith(".mjs")).sort()) {
+    const mod = await import(new URL(f, SHOT_DIR).href);
+    EXTRA_SHOTS.push(...(mod.default || []));
+  }
+} catch (e) {
+  if (e?.code !== "ENOENT") throw e;
+}
+const SHOTS = [...BASE_SHOTS, ...EXTRA_SHOTS];
+{
+  const seen = new Set();
+  for (const s of SHOTS) {
+    if (seen.has(s.id)) throw new Error(`Duplicate shot id: ${s.id}`);
+    seen.add(s.id);
+  }
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND = path.resolve(HERE, "../..");
