@@ -408,7 +408,7 @@ class ShareDiagnostic(BaseModel):
     protocol: int = Field(1, ge=1, le=99)
 
 
-@router.post("/api/v1/share/diagnostics", status_code=204)
+@router.post("/api/v1/share/diagnostics", status_code=204, include_in_schema=False)
 @limiter.limit("30/minute")
 async def report_diagnostic(request: Request, body: ShareDiagnostic) -> None:
     try:
@@ -439,7 +439,7 @@ class ShareTransfer(BaseModel):
     protocol: int = Field(1, ge=1, le=99)
 
 
-@router.post("/api/v1/share/transfer", status_code=204)
+@router.post("/api/v1/share/transfer", status_code=204, include_in_schema=False)
 @limiter.limit("60/minute")
 async def report_transfer(request: Request, body: ShareTransfer) -> None:
     try:

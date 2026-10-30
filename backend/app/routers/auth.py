@@ -302,7 +302,7 @@ async def _needs_consent(user: User, domain) -> bool:
     )
 
 
-@router.get("/tenant-token/consent")
+@router.get("/tenant-token/consent", include_in_schema=False)
 @limiter.limit("60/minute")
 async def tenant_token_consent(
     request: Request,
@@ -323,7 +323,7 @@ async def tenant_token_consent(
     }
 
 
-@router.post("/tenant-token")
+@router.post("/tenant-token", include_in_schema=False)
 @limiter.limit("30/minute")
 async def mint_tenant_token(
     request: Request,

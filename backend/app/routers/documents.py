@@ -398,7 +398,7 @@ async def _viewer_flags(db: AsyncIOMotorDatabase, raw: dict, user_id: str | None
     return False, False
 
 
-@router.post("/{slug}/events", status_code=202)
+@router.post("/{slug}/events", status_code=202, include_in_schema=False)
 @limiter.limit("120/minute")
 async def record_click(
     request: Request,
@@ -441,7 +441,7 @@ async def record_click(
     return {"status": "ok"}
 
 
-@router.post("/{slug}/read", status_code=204)
+@router.post("/{slug}/read", status_code=204, include_in_schema=False)
 @limiter.limit("60/minute")
 async def record_read(
     slug: str,
@@ -500,7 +500,7 @@ async def _engage_viewer(token: str) -> str | None:
     return await _user_id_from_token(token)
 
 
-@router.post("/{slug}/engage", status_code=204)
+@router.post("/{slug}/engage", status_code=204, include_in_schema=False)
 @limiter.limit("120/minute")
 async def record_engagement(
     slug: str,

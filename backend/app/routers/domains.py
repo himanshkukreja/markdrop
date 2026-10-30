@@ -279,7 +279,7 @@ async def remove_domain(
     await domain_service.remove_domain(db, workspace_id, domain_id)
 
 
-@router.get("/host", response_model=HostResolution | None)
+@router.get("/host", response_model=HostResolution | None, include_in_schema=False)
 @limiter.limit("600/minute")
 async def resolve_host(
     request: Request,

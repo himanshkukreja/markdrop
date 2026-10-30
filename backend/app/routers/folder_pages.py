@@ -115,7 +115,7 @@ def _cache(response: Response, actor: access.Actor) -> None:
         "public, max-age=60" if actor.user is None else "private, no-store")
 
 
-@router.get("/host/folder")
+@router.get("/host/folder", include_in_schema=False)
 @limiter.limit("600/minute")
 async def host_folder(
     request: Request, response: Response,
