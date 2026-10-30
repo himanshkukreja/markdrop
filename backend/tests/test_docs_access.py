@@ -169,41 +169,41 @@ class AccessApiTests(DocsSitesCase):
 
     # ── POST /grant (members-only, via markdrop.in) ──
 
-    async def grant(self, who: str = "viewer", **over):
+    async def member_grant(self, who: str = "viewer", **over):
         body = {"site_id": self.sid, "host": HOST, "next": "/guide/start", "sh": SH, **over}
         return await self.http.post(GRANT_URL, json=body, headers=self.h.get(who, {}))
 
     async def test_members_get_a_grant_by_their_docs_studio_role(self):
         await self.make_live("members")
         for who in ("viewer", "editor", "admin", "owner"):
-            r = await self.grant(who)
+            r = await self.member_grant(who)
             self.assertEqual(r.status_code, 200, (who, r.text))
             g = access.read(access.GRANT_PURPOSE, fragment(r.json()["url"])["g"])
             self.assertEqual((g["s"], g["h"], g["k"], g["v"], g["sh"]), (self.sid, HOST, "members", 1, SH))
             self.assertNotIn("u", g)  # the edge never learns who
-        r = await self.grant("stranger")
+        r = await self.member_grant("stranger")
         self.assertEqual(r.status_code, 403)
         self.assertEqual(r.json()["detail"]["site_name"], "Acme Docs")
         self.assertEqual((await self.http.post(GRANT_URL, json={"site_id": self.sid, "host": HOST, "sh": SH})).status_code, 401)
         # The role comes from the Docs Studio helper, whatever it decides.
         with mock.patch("app.services.docs_site_store.site_role", mock.AsyncMock(return_value=None)):
-            self.assertEqual((await self.grant("owner")).status_code, 403)
+            self.assertEqual((await self.member_grant("owner")).status_code, 403)
 
     async def test_grant_refusals(self):
         await self.make_live("members")
-        self.assertEqual((await self.grant(host="evil.test")).status_code, 400)
-        self.assertEqual((await self.grant(sh="x")).status_code, 400)
-        self.assertEqual((await self.grant(site_id=str(ObjectId()))).status_code, 404)
-        r = await self.grant(next="https://evil.test")
+        self.assertEqual((await self.member_grant(host="evil.test")).status_code, 400)
+        self.assertEqual((await self.member_grant(sh="x")).status_code, 400)
+        self.assertEqual((await self.member_grant(site_id=str(ObjectId()))).status_code, 404)
+        r = await self.member_grant(next="https://evil.test")
         self.assertEqual(fragment(r.json()["url"])["next"], "/")
         with mock.patch.object(settings, "docs_access_secret", ""):
-            self.assertEqual((await self.grant()).status_code, 503)
+            self.assertEqual((await self.member_grant()).status_code, 503)
         await self.call("PATCH", f"/{self.sid}", json={"settings": {"access": {"level": "password", "password": "abcdefg"}}})
-        self.assertEqual((await self.grant()).status_code, 409)
+        self.assertEqual((await self.member_grant()).status_code, 409)
         await self.call("PATCH", f"/{self.sid}", json={"settings": {"access": {"level": "members"}}})
-        self.assertEqual((await self.grant()).json()["url"].count("#g="), 1)
+        self.assertEqual((await self.member_grant()).json()["url"].count("#g="), 1)
         await self.db[SITES].update_one({"_id": ObjectId(self.sid)}, {"$set": {"status": "unpublished"}})
-        self.assertEqual((await self.grant()).status_code, 409)
+        self.assertEqual((await self.member_grant()).status_code, 409)
 
 
 def access_limit(s: str):
