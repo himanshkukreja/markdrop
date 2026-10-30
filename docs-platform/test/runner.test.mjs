@@ -1,0 +1,173 @@
+/**
+ * The job runner's steps without a build: the content folder, which site files a build fetches,
+ * the asset cache, reading an imported folder, uploading its files, the restore pointer, media.json.
+ * npm test
+ */
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import crypto from "node:crypto";
+import { FsStore, pointSite } from "../builder/store.mjs";
+import { mediaManifest } from "../builder/media.mjs";
+import { fetchAssets, readImportFolder, readPageFile, referencedAssets, safeRel, uploadImportAssets, writeContent } from "../runner/lib.mjs";
+
+const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
+// A tiny YAML subset for the tests (the runner uses the engine's `yaml` package).
+const parseYaml = (s) => Object.fromEntries(s.split("\n").filter(Boolean).map((l) => {
+  const i = l.indexOf(":");
+  const v = l.slice(i + 1).trim();
+  return [l.slice(0, i).trim(), v.startsWith("{") || v.startsWith('"') ? JSON.parse(v) : v];
+}));
+
+test("content paths: relative, no traversal, no hidden segments, nothing under public/", () => {
+  assert.equal(safeRel("guide/start.md"), "guide/start.md");
+  for (const bad of ["", "/etc/passwd", "../x.md", "a/../../x", "a//b", ".env", "a/.git/config", "a\\b", "a\0b"]) assert.equal(safeRel(bad), null, bad);
+  const dir = tmp("content-");
+  assert.equal(writeContent({ "site.json": "{}", "guide/start.md": "x" }, dir), 2);
+  assert.equal(fs.readFileSync(path.join(dir, "guide/start.md"), "utf8"), "x");
+  assert.throws(() => writeContent({ "../evil.md": "x" }, dir), /bad content path/);
+  assert.throws(() => writeContent({ "public/docs-assets/x.png": "x" }, dir), /bad content path/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a build fetches the files the content refers to, with dark variants and clip parts", () => {
+  const p = "sites/s1/assets/";
+  const objects = ["a.png", "a.dark.png", "unused.png", "clip.mp4", "clip.webm", "clip.webp", "clip.dark.mp4", "g/b.jpg", "../x.png"].map((k) => ({ key: p + k, size: 1, etag: "e" }));
+  objects.push({ key: "sites/s2/assets/a.png", size: 1, etag: "e" });
+  const text = 'see ![a](/docs-assets/s1/a.png) and ::clip{src="/docs-assets/s1/clip"} and /docs-assets/s1/g/b.jpg';
+  assert.deepEqual(referencedAssets(objects, "s1", text).map((o) => o.key.slice(p.length)).sort(), ["a.dark.png", "a.png", "clip.dark.mp4", "clip.mp4", "clip.webm", "clip.webp", "g/b.jpg"]);
+});
+
+test("fetchAssets: downloads once into the cache, links into the content folder", async () => {
+  const root = tmp("store-");
+  const store = new FsStore(root);
+  await store.put("sites/s1/assets/a.png", "PNG-A");
+  await store.put("sites/s1/assets/sub/b.png", "PNG-B");
+  await store.put("sites/s1/assets/unused.png", "U");
+  const cache = tmp("cache-");
+  const text = "/docs-assets/s1/a.png /docs-assets/s1/sub/b.png";
+  for (const expectFetched of [2, 0]) {
+    const content = tmp("content-");
+    const res = await fetchAssets({ store, siteId: "s1", contentDir: content, text, cacheDir: cache });
+    assert.equal(res.used, 2);
+    assert.equal(res.listed, 3);
+    assert.equal(res.fetched, expectFetched);
+    assert.equal(fs.readFileSync(path.join(content, "public/docs-assets/s1/sub/b.png"), "utf8"), "PNG-B");
+    assert.ok(!fs.existsSync(path.join(content, "public/docs-assets/s1/unused.png")));
+    fs.rmSync(content, { recursive: true, force: true });
+  }
+  // Same key, new bytes (a re-import): a new ETag, so a new download.
+  await store.put("sites/s1/assets/a.png", "PNG-A2");
+  const content = tmp("content-");
+  const res = await fetchAssets({ store, siteId: "s1", contentDir: content, text, cacheDir: cache });
+  assert.equal(res.fetched, 1);
+  assert.equal(fs.readFileSync(path.join(content, "public/docs-assets/s1/a.png"), "utf8"), "PNG-A2");
+  for (const d of [root, cache, content]) fs.rmSync(d, { recursive: true, force: true });
+});
+
+test("listObjects gives size and the MD5 ETag", async () => {
+  const root = tmp("store-");
+  const store = new FsStore(root);
+  await store.put("sites/s/assets/x", "hello");
+  assert.deepEqual(await store.listObjects("sites/s/assets/"), [{ key: "sites/s/assets/x", size: 5, etag: crypto.createHash("md5").update("hello").digest("hex") }]);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("an imported folder reads back as pages, nav, brand, redirects and the report", () => {
+  const dir = tmp("import-");
+  const w = (rel, s) => {
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, rel), s);
+  };
+  w("site.json", JSON.stringify({ name: "S Docs", headline: "Hi", nav: [{ group: "G", icon: "home", pages: ["/g/a"] }], pages: { icons: true }, brand: { name: "S", accent: "#123456" } }));
+  w("index.md", "---\ntitle: S Docs\ndescription: Home\nupdated: 2026-10-31\n---\n\nHome body");
+  w("g/a.md", '---\ntitle: A\ndescription: About A\nupdated: 2026-10-31\nicon: zap\nnav: Short A\nanchors: {"old-id": "new-id"}\n---\n\n## A\n');
+  w("g/hidden.md", "---\ntitle: H\ndescription: d\nupdated: 2026-10-31\n---\n\nx");
+  w("_IMPORT_REPORT.md", "# report");
+  w("public/docs-assets/x/a.md", "not a page");
+  w("redirects.json", JSON.stringify({ "/old": "/g/a" }));
+  w("_import-report.json", JSON.stringify({ counts: { pages: 3 } }));
+  const data = readImportFolder(dir, { parseYaml });
+  assert.deepEqual(data.pages.map((p) => [p.path, p.hidden]), [["/g/a", false], ["/g/hidden", true], ["/", false]]);
+  const a = data.pages[0];
+  assert.deepEqual([a.title, a.description, a.icon, a.updated], ["A", "About A", "zap", "2026-10-31"]);
+  assert.deepEqual(a.frontmatter_extra, { nav: "Short A", anchors: { "old-id": "new-id" } });
+  assert.equal(a.markdown, "## A\n");
+  assert.deepEqual(data.nav, [{ group: "G", icon: "home", pages: ["/g/a"] }]);
+  assert.equal(data.site.headline, "Hi");
+  assert.deepEqual(data.site.brand, { name: "S", accent: "#123456" });
+  assert.deepEqual(data.redirects, { "/old": "/g/a" });
+  assert.deepEqual(data.report, { counts: { pages: 3 } });
+  assert.equal(readPageFile("no frontmatter", parseYaml).markdown, "no frontmatter");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("import upload: only files the bucket doesn't already have with the same bytes", async () => {
+  const dir = tmp("import-");
+  const root = tmp("store-");
+  const store = new FsStore(root);
+  fs.mkdirSync(path.join(dir, "public/docs-assets/s1/g"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "public/docs-assets/s1/g/a.png"), "A");
+  fs.writeFileSync(path.join(dir, "public/docs-assets/s1/b.png"), "B");
+  await store.put("sites/s1/assets/b.png", "B");
+  const res = await uploadImportAssets({ store, siteId: "s1", dir });
+  assert.deepEqual(res, { files: 2, bytes: 2, uploaded: 1, uploaded_bytes: 1 });
+  assert.equal(await store.getText("sites/s1/assets/g/a.png"), "A");
+  assert.equal((await uploadImportAssets({ store, siteId: "s1", dir })).uploaded, 0);
+  for (const d of [dir, root]) fs.rmSync(d, { recursive: true, force: true });
+});
+
+test("point: a restore flips the pointer to a manifest the store has, of the same site", async () => {
+  const root = tmp("store-");
+  const store = new FsStore(root);
+  const h1 = "1".repeat(64);
+  const h2 = "2".repeat(64);
+  await store.put(`manifests/${h1}.json`, JSON.stringify({ site: { id: "s1" }, engine: "e1" }));
+  await store.put(`manifests/${h2}.json`, JSON.stringify({ site: { id: "s1" }, engine: "e2" }));
+  await store.put("sites/s1/current.json", JSON.stringify({ manifest: h2, engine: "e2", previous: h1 }));
+  const res = await pointSite({ store, site: "s1", manifest: h1 });
+  assert.deepEqual([res.unchanged, res.previous, res.engine], [false, h2, "e1"]);
+  const ptr = JSON.parse(await store.getText("sites/s1/current.json"));
+  assert.deepEqual([ptr.manifest, ptr.previous, ptr.engine, ptr.restored], [h1, h2, "e1", true]);
+  assert.equal((await pointSite({ store, site: "s1", manifest: h1 })).unchanged, true);
+  await assert.rejects(pointSite({ store, site: "s2", manifest: h1 }), /belongs to site "s1"/);
+  await assert.rejects(pointSite({ store, site: "s1", manifest: "3".repeat(64) }), /not in the store/);
+  await assert.rejects(pointSite({ store, site: "s1", manifest: "nope" }), /sha256/);
+  await assert.rejects(pointSite({ store, site: "../x", manifest: h1 }), /bad site id/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("media.json: sizes, posters next to clips, nothing for other files", () => {
+  const pub = tmp("public-");
+  const d = path.join(pub, "docs-assets/s1");
+  fs.mkdirSync(d, { recursive: true });
+  // A 1x1 PNG header is enough for the measuring function.
+  const png = Buffer.alloc(32);
+  png.writeUInt32BE(0x89504e47, 0);
+  png.write("IHDR", 12, "ascii");
+  png.writeUInt32BE(640, 16);
+  png.writeUInt32BE(360, 20);
+  fs.writeFileSync(path.join(d, "shot.png"), png);
+  fs.writeFileSync(path.join(d, "clip.mp4"), "mp4");
+  fs.writeFileSync(path.join(d, "clip.webp"), "RIFF");
+  fs.writeFileSync(path.join(d, "notes.pdf"), "%PDF");
+  const imageSize = (buf) => (buf.readUInt32BE(0) === 0x89504e47 ? { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) } : null);
+  const { manifest, problems } = mediaManifest(pub, { imageSize, videoInfo: () => ({ w: 1280, h: 720, duration: 4.2 }) });
+  assert.deepEqual(manifest, {
+    "/docs-assets/s1/clip.mp4": { w: 1280, h: 720, duration: 4.2, bytes: 3, kind: "clip" },
+    "/docs-assets/s1/clip.webp": { bytes: 4, kind: "poster" },
+    "/docs-assets/s1/shot.png": { w: 640, h: 360, bytes: 32, kind: "image" },
+  });
+  assert.deepEqual(problems, ["/docs-assets/s1/clip.webp: couldn't read the image size"]);
+  fs.rmSync(pub, { recursive: true, force: true });
+});
+
+test("a token minted by the runner is the API's format", async () => {
+  const { mintToken } = await import("../runner/run-job.mjs");
+  const tok = mintToken("job1", "s3cret", 60);
+  const [exp, sig] = tok.split(".");
+  assert.ok(Number(exp) > Date.now() / 1000);
+  assert.equal(sig, crypto.createHmac("sha256", "s3cret").update(`docs-job:job1:${exp}`).digest("base64url"));
+});
