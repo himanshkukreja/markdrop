@@ -10,11 +10,12 @@
  * notifications/initialized → 202; ping; tools/list; each tool (search_docs, read_page with and
  * without prerequisites, whats_changed by date and by CLI version, report_problem); unknown tool
  * and unknown method errors; the 2026-07-28 envelope (server/discover, header checks).
- * report_problem really posts to the feedback endpoint unless --no-report is given.
+ * report_problem really posts to the site's feedback endpoint (production for docs.markdrop.in, even from a
+ * local build), so it runs only with --report.
  */
 const args = process.argv.slice(2);
 const URL_ = args.find((a) => /^https?:/.test(a)) || process.env.DOCS_MCP_URL || "http://docs.localhost:3000/mcp";
-const NO_REPORT = args.includes("--no-report");
+const NO_REPORT = !args.includes("--report");
 const H = { "content-type": "application/json", accept: "application/json, text/event-stream" };
 
 let failed = 0;
