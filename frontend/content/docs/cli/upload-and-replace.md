@@ -10,7 +10,7 @@ keywords: [upload, replace, versions, restore, info, video, pdf, resume, sha256,
 
 `markdrop upload` publishes a file from your computer and prints its link. `markdrop replace` puts a new file behind a link you already shared: the link, its access setting, title and view count stay the same, and the previous file is kept as a version you can bring back.
 
-::video{id="cli-upload-replace" title="Publish a video, then replace it on the same link" duration="0:50"}
+::video{id="cli-upload-replace" title="Publish a video, then replace it on the same link" duration="0:46"}
 
 ## Publish a file
 

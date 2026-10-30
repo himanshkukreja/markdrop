@@ -9,7 +9,7 @@ keywords: [conflict, merge, diff, keep my local version, use the web version, me
 
 A conflict happens when a linked file changed in VS Code and on markdrop.in since it last synced: for example, you edited the file locally while a teammate or an AI app edited the document on the web. The extension never overwrites either side on its own. It shows you both and asks.
 
-::video{id="vscode-conflict" title="Resolve a conflict between VS Code and the web" duration="0:35"}
+::video{id="vscode-conflict" title="Resolve a conflict between VS Code and the web" duration="0:27"}
 
 ## How the extension spots a conflict
 
@@ -21,6 +21,8 @@ Every document on Markdrop has a revision number that goes up with each change. 
 Either way, the status bar shows **Markdrop: conflict**, a comparison opens titled "Markdrop (web) ↔ Local" with the web version on the left and your file on the right, and VS Code asks:
 
 > This document changed both on Markdrop and locally.
+
+![An editor comparing "Markdrop (web) ↔ Local", with the web version on the left and the local file on the right, a dialog "This document changed both on Markdrop and locally." offering Keep my local version, Use the web version and Merge manually, and Markdrop: conflict in the status bar.](/docs-assets/vscode/conflicts/vscode-conflict-diff.webp)
 
 ## Choose what to keep
 

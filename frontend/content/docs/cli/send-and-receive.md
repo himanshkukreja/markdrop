@@ -9,7 +9,7 @@ keywords: [send, get, p2p, peer to peer, webrtc, share link, room id, folder, tr
 
 `markdrop send` shares a file or folder directly from your computer. The recipient opens the link in a browser or runs `markdrop get`, and the bytes travel from your machine to theirs over an encrypted WebRTC connection. Markdrop's server only passes the small handshake messages that connect the two of you; it never receives the file.
 
-::video{id="cli-send-receive" title="Send a folder from one terminal to another" duration="0:40"}
+::video{id="cli-send-receive" title="Send a folder from one terminal to another" duration="0:25"}
 
 ## Send a file
 

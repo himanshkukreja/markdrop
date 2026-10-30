@@ -9,7 +9,7 @@ keywords: [vs code, vscode, extension, markdrop sync, publish, push on save, two
 
 The Markdrop Sync extension publishes the file you're editing in VS Code and keeps it in step with its link. Save the file and the link updates; edit it on markdrop.in and the change comes back into your file.
 
-::video{id="vscode-sync" title="Publish from VS Code and watch an edit come back" duration="0:45"}
+::video{id="vscode-sync" title="Publish from VS Code and watch an edit come back" duration="0:40"}
 
 ## Install the extension
 
@@ -29,6 +29,8 @@ Open the Command Palette (:kbd[⌘⇧P] on macOS, :kbd[Ctrl+Shift+P] elsewhere) 
 
 ### Approve in your browser
 Markdrop opens a **Connect VS Code** page that shows the account the extension will publish as. Choose **Authorize VS Code**.
+
+![The Connect VS Code page showing the signed-in account and an Authorize VS Code button.](/docs-assets/vscode/sync/vscode-authorize.webp)
 
 ### Return to VS Code
 Your browser hands you back to VS Code, which shows "Signed in to Markdrop as …".

@@ -38,6 +38,8 @@ Encryption works with or without an account, and alongside a custom link, a pass
 - The key is added to the link as `#k=…`. The part after `#` stays in the browser: it isn't sent when someone opens the link, and browsers leave it out of the `Referer` they send to other sites.
 - When someone opens the full link, their browser fetches the ciphertext and decrypts it, locally.
 
+::clip{src="/docs-assets/sharing/end-to-end-encryption/e2e-key-in-link" alt="Animation: the browser encrypts the title and text with a new key, sends only ciphertext to Markdrop, puts the key after #k= in the link, and a reader's browser fetches the ciphertext and decrypts it locally while the key never reaches the server." theme="light"}
+
 Markdrop can't verify, read, search or recover the text. Signing in doesn't unlock it either, not even for the owner: if signing in could unlock it, the encryption wouldn't mean anything.
 
 ## Keep the link safe

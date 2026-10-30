@@ -59,6 +59,8 @@ Only the owner changes the title, link, password and expiry, or deletes the file
 
 Markdrop keeps the last **5 versions** of each file, the current one included. Each replace adds a version; when there are more than 5, the oldest goes.
 
+::clip{src="/docs-assets/files/replace-and-versions/replace-keeps-link" alt="Animation: the link markdrop.in/q3-deck stays fixed while versions stack under it; restoring version 2 adds a copy as version 4 on top, and when a sixth version arrives the oldest drops off, keeping 5." theme="light"}
+
 Old versions count against the owner's 20 GB of storage. If a replacement wouldn't fit, Markdrop drops that file's oldest versions first. See [File size and storage limits](/files/limits).
 
 Old versions are never public. Only the current file is served at the link.
