@@ -21,13 +21,16 @@ export interface RailData {
 export const wsRootKey = (id: string) => `ws:${id}:root`;
 export const wsFolderKey = (id: string, folderId: string) => `ws:${id}:folder:${folderId}`;
 export const wsSettingsKey = (id: string) => `ws:${id}:settings`;
+export const wsDocsKey = (id: string) => `ws:${id}:docs`;
 
 /**
  * Which rail item the URL points at. Keys: "files" | "shared" | "recent" | "analytics" | "ws:<id>:root" |
- * "ws:<id>:folder:<fid>" | "ws:<id>:settings" | "ws:new" | "int:vscode" | "int:apps" | "settings".
+ * "ws:<id>:folder:<fid>" | "ws:<id>:settings" | "ws:<id>:docs" | "ws:new" | "int:vscode" | "int:apps" | "settings".
  */
 export function railKeyFor(pathname: string, search: string): string | null {
   const q = new URLSearchParams(search);
+  const docs = pathname.match(/^\/w\/([^/]+)\/docs(?:\/|$)/);
+  if (docs) return wsDocsKey(decodeURIComponent(docs[1]!));
   const w = pathname.match(/^\/w\/([^/]+)(?:\/f\/([^/]+))?\/?$/);
   if (w) {
     const id = decodeURIComponent(w[1]!);
@@ -186,8 +189,11 @@ function workspaceNode(
         onFiles: filesTo(f.id, f.name),
       };
     };
-    children = (kids.get(null) ?? []).map(build);
-    if (!children.length) children = undefined;
+    // Docs sites: the workspace's documentation websites, after its folders (Main board, Docs).
+    children = [
+      ...(kids.get(null) ?? []).map(build),
+      { key: wsDocsKey(ws.id), label: "Docs sites", icon: <Icon name="layers" size={16} />, href: `/w/${encodeURIComponent(ws.id)}/docs`, leaf: true },
+    ];
     total = tree.unfiled_count + (kids.get(null) ?? []).reduce((n, f) => n + f.total_count, 0);
   }
   return {
