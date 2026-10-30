@@ -33,6 +33,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.config import get_settings
 from app.models.user import User
+from app.services import docs_site_access
 from app.services import docs_site_redirects as site_redirects
 from app.services import docs_site_settings as site_settings
 from app.services import docs_site_templates as templates
@@ -753,13 +754,19 @@ async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None,
     if not updates:
         return site
     updates["updated_at"] = now()
+    # A new level or password signs every reader out at the edge (services/docs_site_access.py).
+    access_changed = "settings" in updates and docs_site_access.access_changed(
+        (site.get("settings") or {}).get("access"), updates["settings"].get("access"))
+    change = {"$set": updates, **({"$inc": {"access_version": 1}} if access_changed else {})}
     try:
         res = await db[SITES].find_one_and_update(
-            {"_id": site["_id"], "deleted_at": None}, {"$set": updates}, return_document=True)
+            {"_id": site["_id"], "deleted_at": None}, change, return_document=True)
     except DuplicateKeyError:
         raise HTTPException(status_code=409, detail="That address is taken.") from None
     if res is None:
         raise HTTPException(status_code=404, detail="Docs site not found")
+    if access_changed:
+        await docs_site_access.queue_sync(db, res["_id"], "settings")
     return res
 
 

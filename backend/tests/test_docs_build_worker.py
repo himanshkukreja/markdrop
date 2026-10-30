@@ -107,6 +107,10 @@ class SnapshotTests(unittest.TestCase):
         site = _site()
         site["settings"]["ai"] = {"enabled": True, "name": "Ask Acme", "suggestions": ["How do I launch?", " ", "Fuel?"]}
         site["settings"]["theme"]["brand"]["enabled"] = False
+        # A password site is built with Ask AI off (the API doesn't check the edge's session yet).
+        files, _ = docs_snapshot.content_files(site, {"pages": [], "settings": site["settings"]}, url="https://u", ai_api="https://api.x")
+        self.assertEqual(json.loads(files["site.json"])["ai"], {"enabled": False})
+        site["settings"]["access"] = {"level": "public", "password_hash": None}
         files, _ = docs_snapshot.content_files(site, {"pages": [], "settings": site["settings"]}, url="https://u", ai_api="https://api.x")
         sj = json.loads(files["site.json"])
         self.assertEqual(sj["ai"], {"enabled": True, "api": "https://api.x", "site": str(site["_id"]), "assistantName": "Ask Acme"})
@@ -332,7 +336,8 @@ class BuildTests(DbCase):
         build = await docs_build.start_build(self.db, job)
         self.assertEqual(build["status"], "building")
         spec = await docs_build.build_spec(self.db, job, build)
-        self.assertEqual(spec["publish"], {"site": str(s["_id"]), "hosts": ["acme.docs.markdrop.in"]})
+        self.assertEqual(spec["publish"], {"site": str(s["_id"]), "hosts": ["acme.docs.markdrop.in"],
+                                           "access": {"level": "public", "policy_version": 0}})
         self.assertEqual(spec["build"]["number"], 1)
         self.assertEqual(json.loads(spec["bundle"]["files"]["site.json"])["nav"], [{"group": "G", "pages": ["/guide/a"]}])
         self.assertEqual(sorted(spec["bundle"]["files"]), ["guide/a.md", "index.md", "site.json"])
@@ -735,7 +740,7 @@ class WorkerTests(DbCase):
         self.assertIn("build", await worker.kinds_now())
         # Not enough free memory: builds wait (restores, imports and unpublishes still run).
         with mock.patch.object(w, "mem_available_mb", lambda: 600):
-            self.assertEqual(await worker.kinds_now(), ("import", "restore", "unpublish"))
+            self.assertEqual(await worker.kinds_now(), ("import", "restore", "unpublish", "access"))
         # Another local build is running somewhere: one at a time.
         other = await self.make_site("other")
         await self.job("build", other, target="local", status="running", locked_until=utc(minutes=1), claimed_at=utc())

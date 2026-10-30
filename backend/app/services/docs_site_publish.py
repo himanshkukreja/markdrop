@@ -27,6 +27,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.config import get_settings
 from app.models.user import User
+from app.services import docs_site_access as access
 from app.services import docs_site_assets as assets
 from app.services import docs_site_pages as pages
 from app.services import docs_site_store as store
@@ -37,8 +38,9 @@ from app.services.docs_site_store import (ASSETS, BUILDS, JOBS, PAGES, REVIEWS, 
 settings = get_settings()
 
 SNAPSHOT_MAX_BYTES = 15 * 1024 * 1024
-# Settings that change what readers see (review rules don't).
-_COMPARED_SETTINGS = ("theme", "ai", "access", "seo", "nav", "redirects")
+# Settings that change what readers see when published (review rules don't; access applies at
+# once, without a publish: services/docs_site_access.py).
+_COMPARED_SETTINGS = ("theme", "ai", "seo", "nav", "redirects")
 
 
 # ── Changes since the live build ─────────────────────────────────────────────
@@ -190,6 +192,9 @@ async def publish(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, *
         "build_id": str(build["_id"]), "snapshot_id": str(snap["_id"]), "number": number})
     await db[BUILDS].update_one({"_id": build["_id"]}, {"$set": {"job_id": job["_id"]}})
     build["job_id"] = job["_id"]
+    if access.needs_policy(site):
+        # The runner writes the policy before the site goes live; this covers a runner from before it did.
+        await access.queue_sync(db, site["_id"], "publish")
     await store.log_event(db, "docs_published", site, user.id, build_id=str(build["_id"]), number=number,
                           pages=len(snap["pages"]), review_id=str(review_id) if review_id else None)
     names = await store.user_names(db, [user.id])

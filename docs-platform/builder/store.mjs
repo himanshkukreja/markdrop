@@ -7,11 +7,15 @@
  *   manifests/<sha256>.json          immutable build manifests
  *   sites/<site>/current.json        the pointer: {"manifest": "<sha256>", ...}; publishing = rewriting it
  *   hosts/<hostname>.json            {"site": "<site>"}: which site a hostname serves
+ *   sites/<site>/access.json         {"site", "level", "policy_version"}: a password or members-only
+ *                                    site's policy (no object = public; no secrets in it). Never
+ *                                    served: the edge serves only what a manifest lists. Written by
+ *                                    the API's access job and by publish, never to a lower version
  *
  * Publishing uploads only objects the store doesn't have (a HEAD per object not referenced by the
  * site's current manifest), then the manifest, then flips the pointer. Readers see the old build
  * until that last single-object write, then the new one: the switch is atomic and nothing is purged
- * (no key is ever overwritten except the pointer).
+ * (no key is ever overwritten except the pointer and the access policy).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -219,20 +223,54 @@ export function manifestObjects(m) {
   return out;
 }
 
+const ACCESS_LEVELS = new Set(["public", "password", "members"]);
+
+/**
+ * Write a site's access policy, `sites/<site>/access.json` = {site, level, policy_version} (the
+ * edge gates a password or members-only site by it: edge/access.mjs). Never lowers the version
+ * already there, so a newer policy written by the API meanwhile wins. Returns the policy in force.
+ * An unreadable existing policy is overwritten (it would lock the site; the API's version is newer
+ * or equal by construction).
+ */
+export async function writeAccess(store, site, access, { dryRun = false } = {}) {
+  if (!access || !ACCESS_LEVELS.has(access.level) || !Number.isSafeInteger(access.policy_version) || access.policy_version < 0) {
+    throw new Error(`bad access policy ${JSON.stringify(access)}`);
+  }
+  const key = `sites/${site}/access.json`;
+  const raw = await store.getText(key);
+  let cur = null;
+  try {
+    cur = raw ? JSON.parse(raw) : null;
+  } catch {
+    cur = null;
+  }
+  if (cur && Number.isSafeInteger(cur.policy_version) && ACCESS_LEVELS.has(cur.level)) {
+    if (cur.policy_version > access.policy_version) return { level: cur.level, policy_version: cur.policy_version, written: false };
+    if (cur.policy_version === access.policy_version && cur.level === access.level) return { level: cur.level, policy_version: cur.policy_version, written: false };
+  }
+  // A site that was never anything but public needs no object (no object = public).
+  if (!raw && access.level === "public" && access.policy_version === 0) return { level: "public", policy_version: 0, written: false };
+  if (!dryRun) await store.put(key, JSON.stringify({ site, level: access.level, policy_version: access.policy_version, updatedAt: new Date().toISOString() }));
+  return { level: access.level, policy_version: access.policy_version, written: true };
+}
+
 /**
  * Upload dist/ to `store` for `site` and flip the pointer. `hosts` (optional) are pointed at the
- * site. Returns counts for the report.
+ * site. `access` (optional, {level, policy_version}) is written before the pointer flips, so a
+ * password or members-only site is never served without its policy. Returns counts for the report.
  */
-export async function publish({ distDir, store, site, hosts = [], concurrency = 16, dryRun = false }) {
+export async function publish({ distDir, store, site, hosts = [], access = null, concurrency = 16, dryRun = false }) {
   const manifestJson = fs.readFileSync(path.join(distDir, "manifest.json"));
   const manifest = JSON.parse(manifestJson);
   const siteId = site || manifest.site.id;
   const manifestHash = crypto.createHash("sha256").update(manifestJson).digest("hex");
+  // Before anything goes live (an error here stops the publish).
+  const accessRes = access ? await writeAccess(store, siteId, access, { dryRun }) : undefined;
 
   // What the store already has for this site: everything its current manifest references.
   const known = new Set();
   const pointer = await store.getText(`sites/${siteId}/current.json`).then((t) => (t ? JSON.parse(t) : null)).catch(() => null);
-  if (pointer?.manifest === manifestHash) return { site: siteId, manifest: manifestHash, uploaded: 0, uploadedBytes: 0, checked: 0, unchanged: true };
+  if (pointer?.manifest === manifestHash) return { site: siteId, manifest: manifestHash, uploaded: 0, uploadedBytes: 0, checked: 0, unchanged: true, access: accessRes };
   if (pointer?.manifest) {
     const prev = await store.getText(`manifests/${pointer.manifest}.json`);
     if (prev) for (const h of manifestObjects(JSON.parse(prev)).keys()) known.add(h);
@@ -265,7 +303,7 @@ export async function publish({ distDir, store, site, hosts = [], concurrency = 
     await store.put(`sites/${siteId}/current.json`, JSON.stringify({ manifest: manifestHash, engine: manifest.engine, publishedAt: new Date().toISOString(), previous: pointer?.manifest ?? null }));
     for (const h of hosts) await store.put(`hosts/${h.toLowerCase()}.json`, JSON.stringify({ site: siteId }));
   }
-  return { site: siteId, manifest: manifestHash, objects: wanted.length, knownFromPrevious, checked, uploaded, uploadedBytes, uploadedKeys, unchanged: false };
+  return { site: siteId, manifest: manifestHash, objects: wanted.length, knownFromPrevious, checked, uploaded, uploadedBytes, uploadedKeys, unchanged: false, access: accessRes };
 }
 
 /**

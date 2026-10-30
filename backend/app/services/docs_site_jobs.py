@@ -8,6 +8,8 @@ place. Kinds:
 - ``import``    payload ``{source: "gitbook", url}``: import a site's pages into its drafts.
 - ``restore``   payload ``{build_id, number, manifest_hash}``: re-point the site to an earlier build.
 - ``unpublish`` payload ``{reason: "unpublish"|"delete"}``: take the site off its address.
+- ``access``    payload ``{reason}``: write the site's access policy for the edge
+                (services/docs_site_access.py). Idempotent; a waiting one absorbs a new one.
 
 A worker claims a row with ``findOneAndUpdate({status: "queued"} or an expired
 ``locked_until``) → running``; one running build per site at a time.
@@ -33,7 +35,7 @@ from pymongo import ReturnDocument
 
 JOBS = "docs_jobs"
 BUILDS = "docs_builds"
-KINDS = ("build", "import", "restore", "unpublish")
+KINDS = ("build", "import", "restore", "unpublish", "access")
 
 log = logging.getLogger(__name__)
 _KICKS: set[asyncio.Task] = set()
@@ -47,6 +49,11 @@ async def enqueue_job(db: AsyncIOMotorDatabase, kind: str, site_id: str | Object
     sid = ObjectId(site_id) if not isinstance(site_id, ObjectId) else site_id
     if kind == "build":
         waiting = await _coalesce(db, sid, dict(payload or {}), now)
+        if waiting is not None:
+            return waiting
+    if kind == "access":
+        # It writes whatever the policy is when it runs: one waiting job covers any number of changes.
+        waiting = await db[JOBS].find_one({"kind": "access", "site_id": sid, "status": "queued"})
         if waiting is not None:
             return waiting
     row = {

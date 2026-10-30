@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
-import { FsStore, pointSite } from "../builder/store.mjs";
+import { FsStore, pointSite, publish, writeAccess } from "../builder/store.mjs";
 import { mediaManifest } from "../builder/media.mjs";
 import { fetchAssets, readImportFolder, readPageFile, referencedAssets, safeRel, uploadImportAssets, writeContent } from "../runner/lib.mjs";
 
@@ -141,6 +141,41 @@ test("point: a restore flips the pointer to a manifest the store has, of the sam
   await assert.rejects(pointSite({ store, site: "s1", manifest: "nope" }), /sha256/);
   await assert.rejects(pointSite({ store, site: "../x", manifest: h1 }), /bad site id/);
   fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("access policy: written before the pointer flips, never to a lower version, never for a plain public site", async () => {
+  const root = tmp("store-");
+  const store = new FsStore(root);
+  const dist = tmp("dist-");
+  const body = Buffer.from("<html>x</html>");
+  const o = crypto.createHash("sha256").update(body).digest("hex");
+  fs.mkdirSync(path.join(dist, "objects"));
+  fs.writeFileSync(path.join(dist, "objects", o), body);
+  fs.writeFileSync(path.join(dist, "manifest.json"), JSON.stringify({ site: { id: "s1" }, engine: "e", routes: { "/docs-site": { o, s: body.length, t: "text/html" } }, files: {}, redirects: [] }));
+  // A plain public site gets no object (no object = public at the edge).
+  let res = await publish({ distDir: dist, store, site: "s1", access: { level: "public", policy_version: 0 } });
+  assert.equal(await store.getText("sites/s1/access.json"), null);
+  assert.deepEqual([res.access.level, res.access.written], ["public", false]);
+  // A password site: the policy is there by the time the pointer is.
+  const writes = [];
+  const spy = Object.assign(Object.create(Object.getPrototypeOf(store)), store, { put: async (k, b) => (writes.push(k), store.put(k, b)) });
+  res = await publish({ distDir: dist, store: spy, site: "s1", access: { level: "password", policy_version: 2 } });
+  assert.equal(res.unchanged, true); // same manifest: only the policy changed
+  assert.deepEqual(writes, ["sites/s1/access.json"]);
+  const { site, level, policy_version: v, ...rest } = JSON.parse(await store.getText("sites/s1/access.json"));
+  assert.deepEqual([site, level, v, Object.keys(rest)], ["s1", "password", 2, ["updatedAt"]]); // nothing else: no hash, no password
+  // A build that carries an older policy (the API changed it meanwhile) keeps the newer one.
+  assert.deepEqual(await writeAccess(store, "s1", { level: "public", policy_version: 1 }), { level: "password", policy_version: 2, written: false });
+  assert.equal(JSON.parse(await store.getText("sites/s1/access.json")).level, "password");
+  assert.equal((await writeAccess(store, "s1", { level: "members", policy_version: 3 })).written, true);
+  // First publish of a private site: policy first, then the pointer.
+  writes.length = 0;
+  await publish({ distDir: dist, store: spy, site: "s2", access: { level: "members", policy_version: 1 } });
+  assert.ok(writes.indexOf("sites/s2/access.json") < writes.indexOf("sites/s2/current.json"));
+  await assert.rejects(writeAccess(store, "s1", { level: "everyone", policy_version: 1 }), /bad access policy/);
+  await assert.rejects(writeAccess(store, "s1", { level: "password" }), /bad access policy/);
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.rmSync(dist, { recursive: true, force: true });
 });
 
 test("media.json: sizes, posters next to clips, nothing for other files", () => {

@@ -7,6 +7,7 @@
  *                       [--engine-assets <dir> | none]   (shared engine files for the Worker's
  *                                                         static assets; default edge/assets)
  *   markdrop-docs publish <dist> (--store <dir> | --r2 <bucket>) [--site <id>] [--host <hostname>]... [--dry-run]
+ *                       [--access <public|password|members>:<policy_version>]   (the site's access policy)
  *   markdrop-docs assets <dir> (--store <dir> | --r2 <bucket>) [--prune] [--dry-run]
  *                                   (the Worker's static assets folder from every site's live
  *                                    manifests: fetch missing engine files, --prune unused ones)
@@ -94,7 +95,10 @@ async function main() {
   } else if (cmd === "publish") {
     if (!pos[0] || (!opt.store && !opt.r2)) throw new Error("usage: publish <dist> (--store <dir> | --r2 <bucket>)");
     const t = Date.now();
-    const res = await publish({ distDir: pos[0], store: storeOf(opt), site: opt.site, hosts: opt.host, dryRun: !!opt["dry-run"] });
+    // --access <level>:<policy_version> (e.g. password:3): the site's access policy, written before the pointer flips.
+    const [level, ver] = String(opt.access || "").split(":");
+    const access = opt.access ? { level, policy_version: Number(ver || 0) } : null;
+    const res = await publish({ distDir: pos[0], store: storeOf(opt), site: opt.site, hosts: opt.host, access, dryRun: !!opt["dry-run"] });
     const { uploadedKeys, ...summary } = res;
     console.log(JSON.stringify({ ...summary, uploadedBytes: fmtBytes(res.uploadedBytes || 0), ms: Date.now() - t }, null, 2));
   } else if (cmd === "assets") {

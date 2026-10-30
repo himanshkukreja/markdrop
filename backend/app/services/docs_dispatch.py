@@ -12,7 +12,8 @@ Targets (MARKDROP_DOCS_BUILD_TARGETS, default "actions,local"):
   time, a free-memory floor, nice/ionice, a Node heap cap, a hard timeout).
 
 Routing:
-- restore, unpublish → the server: a pointer flip or a few deletes in R2, run
+- restore, unpublish, access → the server: a pointer flip, a few deletes or a
+  small access-policy write in R2, run
   inline by whichever process holds the docs bucket keys (the API, right after
   the job is queued; else the local worker).
 - import → local when the source is small (its llms.txt lists at most
@@ -54,7 +55,7 @@ EST_MINUTES_IN_FLIGHT = 3  # a dispatched run not finished yet counts this much 
 FALLBACK_RECHECK = timedelta(minutes=2)
 DOWN_FOR = timedelta(minutes=5)
 
-SERVER_KINDS = ("restore", "unpublish")
+SERVER_KINDS = ("restore", "unpublish", "access")
 HOLDER = f"api:{socket.gethostname()}:{os.getpid()}"
 
 _state: dict[str, Any] = {"down_until": None, "down_reason": None}

@@ -26,6 +26,23 @@ const PRIVATE = new Set(["ai.json"]);
 
 const sha256 = (buf) => crypto.createHash("sha256").update(buf).digest("hex");
 
+/**
+ * What the edge's sign-in page of a password or members-only site shows (edge/access.mjs): the
+ * logo (light/dark, alt, wordmark), favicon and accent colours from site.json `brand`. The edge
+ * still serves only logo/favicon paths that are the site's own files, and only valid hex colours.
+ */
+function gateBrand(brand) {
+  if (!brand || typeof brand !== "object") return {};
+  const out = {};
+  const str = (v) => (typeof v === "string" && v.length <= 2048 ? v : undefined);
+  const logo = brand.logo && typeof brand.logo === "object" ? brand.logo : null;
+  if (logo && str(logo.light)) out.logo = { light: logo.light, ...(str(logo.dark) ? { dark: logo.dark } : {}), ...(str(logo.alt) ? { alt: logo.alt } : {}), ...(logo.wordmark ? { wordmark: true } : {}) };
+  if (str(brand.favicon)) out.favicon = brand.favicon;
+  if (str(brand.accent)) out.accent = brand.accent;
+  if (str(brand.accentDark)) out.accentDark = brand.accentDark;
+  return Object.keys(out).length ? { brand: out } : {};
+}
+
 function walkFiles(dir, rel = "", out = []) {
   let entries = [];
   try {
@@ -322,7 +339,7 @@ export async function build(opts) {
   }
   const manifest = {
     format: FORMAT,
-    site: { id: site.id || "default", name: site.name || "Docs", url: (site.url || "").replace(/\/+$/, "") },
+    site: { id: site.id || "default", name: site.name || "Docs", url: (site.url || "").replace(/\/+$/, ""), ...gateBrand(site.brand) },
     engine,
     inputs,
     builtAt: new Date().toISOString(),
