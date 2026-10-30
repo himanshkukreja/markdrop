@@ -1,6 +1,6 @@
 /**
  * Block converter tests (synthetic fixtures only; no third-party content).
- *   node --test scripts/docs-import/test/
+ *   npm run docs:test
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
