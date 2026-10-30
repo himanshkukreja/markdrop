@@ -334,7 +334,7 @@ class IndexTests(unittest.TestCase):
                 ix1 = docs_index.get_index()
                 self.assertIs(docs_index.get_index(), ix1)
                 Path(tmp, "account", "new-page.md").write_text("---\ntitle: Brand new\ndescription: x\n---\nHello\n")
-                docs_index._checked = 0.0
+                docs_index.expire()
                 ix2 = docs_index.get_index()
                 self.assertIsNot(ix1, ix2)
                 self.assertIn("/account/new-page", ix2.pages)

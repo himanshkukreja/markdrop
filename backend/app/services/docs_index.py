@@ -1,8 +1,8 @@
 """The docs, loaded for the Ask AI agent: pages, sections, search and the brief.
 
-Reads ``frontend/content/docs/**/*.md`` plus ``site.json``, ``changelog.json``
-and ``videos.json`` (settings.docs_content_dir; blank = the repo's own folder).
-Content is written by people and by other tools while this runs, so nothing
+One index per docs site (services/docs_sites.py): a site's folder holds
+``**/*.md`` plus ``site.json``, ``changelog.json``, ``videos.json`` and an
+optional ``ai.json`` (Markdrop's is frontend/content/docs). Content is written by people and by other tools while this runs, so nothing
 here throws on bad content: a page without frontmatter gets a title from its
 file name, malformed JSON reads as empty, a missing folder is an empty index.
 
@@ -18,8 +18,10 @@ turned into plain Markdown the way ``toPlainMarkdown`` does, so what the model
 reads is what a reader sees, minus the components.
 
 Search is a small pure-Python BM25 over sections with field boosts (page title,
-heading, keywords + description, body). The index rebuilds itself when a file
-under the folder changes (checked at most every few seconds).
+heading, keywords + description, body), with the site's ai.json synonyms added
+to queries. Indexes are built on first use and kept for the most recently used
+sites (settings.docs_sites_cache_size); each rebuilds itself when a file under
+its folder changes (checked at most every few seconds).
 """
 
 from __future__ import annotations
@@ -31,21 +33,22 @@ import re
 import threading
 import time
 import unicodedata
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from app.config import get_settings
+from app.services import docs_sites
+from app.services.docs_sites import DEFAULT_SITE, UnknownSite  # noqa: F401  (re-exported)
 
 SKIP_DIRS = {"video-scenes", "node_modules"}
 RECHECK_S = 5.0
+SITE_FILES = ("site.json", "changelog.json", "videos.json", "ai.json")
 
 
 def content_dir() -> Path:
-    configured = get_settings().docs_content_dir
-    if configured:
-        return Path(configured)
-    # app/services/docs_index.py → repo root is three levels up from app/.
-    return Path(__file__).resolve().parents[3] / "frontend" / "content" / "docs"
+    """Markdrop's own docs folder (see docs_sites.default_content_dir)."""
+    return docs_sites.default_content_dir()
 
 
 # ── Slugs (port of frontend/src/components/reading/slug.ts) ───────────────────
@@ -451,30 +454,15 @@ def tokenize(text: str) -> list[str]:
     return [_stem(t) for t in toks if t not in _STOP and (len(t) > 1 or t.isdigit())]
 
 
-# Words people ask with → the words the docs use. Applied to queries only.
-SYNONYMS = {
-    "big": ["size", "limit"], "large": ["size", "limit"], "bigger": ["size", "limit"],
-    "max": ["limit"], "maximum": ["limit"], "quota": ["limit", "storage"], "biggest": ["size", "limit"],
-    "cost": ["price", "pricing"], "price": ["pricing"], "free": ["pricing", "limit"],
-    "delete": ["remove"], "remove": ["delete"], "erase": ["delete"],
-    "private": ["access", "privacy"], "public": ["access", "link"], "secure": ["privacy", "encryption"],
-    "login": ["sign"], "signin": ["sign"], "logout": ["sign"], "password": ["password", "protect"],
-    "url": ["address", "link"], "slug": ["address", "link"], "rename": ["address"],
-    "doc": ["document"], "docs": ["document"], "file": ["file", "upload"],
-    "team": ["workspace"], "org": ["workspace"], "organization": ["workspace"], "company": ["workspace"],
-    "domain": ["domain", "dns"], "subdomain": ["domain", "dns"],
-    "terminal": ["cli"], "command": ["cli"], "vscode": ["vs", "code"], "editor": ["vs", "code"],
-    "claude": ["mcp", "ai"], "chatgpt": ["mcp", "ai"], "cursor": ["mcp", "ai"], "agent": ["mcp", "ai"],
-    "views": ["analytics"], "stats": ["analytics"], "statistics": ["analytics"], "traffic": ["analytics"],
-    "send": ["share"], "transfer": ["share", "send"], "p2p": ["peer"],
-}
+def expand_query(terms: list[str], synonyms: dict[str, list[str]] | None = None) -> list[tuple[str, float]]:
+    """Query terms with synonyms added at half weight.
 
-
-def expand_query(terms: list[str]) -> list[tuple[str, float]]:
-    """Query terms with synonyms added at half weight."""
+    `synonyms` (words people ask with → the words the docs use) come from the
+    site's ai.json and are looked up by query token.
+    """
     out: dict[str, float] = {t: 1.0 for t in terms}
     for t in terms:
-        for syn in SYNONYMS.get(t, []):
+        for syn in (synonyms or {}).get(t, []):
             for s in tokenize(syn):
                 out.setdefault(s, 0.5)
     return list(out.items())
@@ -492,8 +480,11 @@ class _Doc:
 
 
 class Index:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, site_id: str = DEFAULT_SITE):
         self.root = root
+        self.site_id = site_id
+        self.cfg = docs_sites.SiteConfig(site_id, root, {}, {})
+        self.synonyms: dict[str, list[str]] = {}
         self.site: dict = {}
         self.changelog: dict = {}
         self.videos: dict = {}
@@ -508,8 +499,7 @@ class Index:
 
     @property
     def site_url(self) -> str:
-        url = self.site.get("url") if isinstance(self.site.get("url"), str) else None
-        return (url or get_settings().docs_site_url).rstrip("/")
+        return self.cfg.url
 
     def url_for(self, page: str, anchor: str | None = None) -> str:
         path = "" if page == "/" else page
@@ -526,7 +516,9 @@ class Index:
 
     def load(self) -> "Index":
         self.signature = scan_signature(self.root)
-        self.site = self._json("site.json")
+        self.cfg = docs_sites.SiteConfig.load(self.site_id, self.root)
+        self.site = self.cfg.site
+        self.synonyms = self.cfg.synonyms
         self.changelog = self._json("changelog.json")
         self.videos = self._json("videos.json")
         groups: dict[str, str] = {}
@@ -613,7 +605,7 @@ class Index:
         terms = list(dict.fromkeys(tokenize(query)))
         if not terms or not self._docs:
             return []
-        weighted = expand_query(terms)
+        weighted = expand_query(terms, self.synonyms)
         n = len(self._docs)
         q_norm = " ".join(re.findall(r"[^\W_]+", query.lower()))
         scored: list[tuple[float, _Doc]] = []
@@ -688,12 +680,12 @@ class Index:
     # ── brief ──
 
     def _build_brief(self) -> str:
-        from app.services import platform_facts
-
         site = self.site
         product = site.get("product") if isinstance(site.get("product"), dict) else {}
+        product_url = product.get("url") if isinstance(product.get("url"), str) else ""
+        name = product.get("name") if isinstance(product.get("name"), str) and product.get("name") else self.cfg.name
         lines = [
-            f"Product: {product.get('name') or 'Markdrop'} ({product.get('url') or 'https://markdrop.in'}).",
+            f"Product: {name} ({product_url})." if product_url else f"Product: {name}.",
             f"Docs site: {self.site_url}. {str(site.get('description') or '').strip()}".strip(),
             "",
             "Site map (path: title, what it covers):",
@@ -722,8 +714,11 @@ class Index:
                 lines.append(f"- {p}: {page.title}{desc}")
         if not self.pages:
             lines.append("- (no pages are published yet)")
-        lines += ["", "Key limits (from the running code):"]
-        lines += [f"- {x}" for x in platform_facts.brief_lines()]
+        if self.cfg.product_tools:
+            from app.services import platform_facts
+
+            lines += ["", "Key limits (from the running code):"]
+            lines += [f"- {x}" for x in platform_facts.brief_lines()]
         entries = self.changelog_entries()
         if entries:
             latest = entries[0]
@@ -755,7 +750,7 @@ def scan_signature(root: Path) -> tuple:
             sig.append((rel, st.st_mtime_ns, st.st_size))
         except OSError:
             continue
-    for name in ("site.json", "changelog.json", "videos.json"):
+    for name in SITE_FILES:
         try:
             st = (root / name).stat()
             sig.append((name, st.st_mtime_ns, st.st_size))
@@ -764,30 +759,59 @@ def scan_signature(root: Path) -> tuple:
     return tuple(sig)
 
 
-# ── The shared instance ───────────────────────────────────────────────────────
+# ── The shared instances: one per site, least recently used dropped ──────────
 
 _lock = threading.Lock()
-_index: Index | None = None
-_checked = 0.0
 
 
-def get_index(force: bool = False) -> Index:
-    """The current index, rebuilt when a file changed (checked every few seconds)."""
-    global _index, _checked
-    root = content_dir()
+@dataclass
+class _Entry:
+    index: Index
+    checked: float
+
+
+_entries: "OrderedDict[str, _Entry]" = OrderedDict()
+
+
+def get_index(site: str | None = DEFAULT_SITE, force: bool = False) -> Index:
+    """A site's current index, rebuilt when a file changed (checked every few seconds).
+
+    Raises docs_sites.UnknownSite for a site that isn't registered.
+    """
+    site_id, root = docs_sites.resolve(site)
     now = time.monotonic()
     with _lock:
-        if _index is not None and not force and _index.root == root and now - _checked < RECHECK_S:
-            return _index
-        _checked = now
-        if _index is None or force or _index.root != root or scan_signature(root) != _index.signature:
-            _index = Index(root).load()
-        return _index
+        entry = _entries.get(site_id)
+        if entry is not None and not force and entry.index.root == root and now - entry.checked < RECHECK_S:
+            _entries.move_to_end(site_id)
+            return entry.index
+        if entry is None or force or entry.index.root != root or scan_signature(root) != entry.index.signature:
+            index = Index(root, site_id).load()
+        else:
+            index = entry.index
+        _entries[site_id] = _Entry(index=index, checked=now)
+        _entries.move_to_end(site_id)
+        while len(_entries) > max(1, get_settings().docs_sites_cache_size):
+            _entries.popitem(last=False)
+        return index
+
+
+def cached_sites() -> list[str]:
+    """Site ids with an index in memory, least recently used first."""
+    with _lock:
+        return list(_entries)
+
+
+def expire(site: str | None = None) -> None:
+    """Tests: make the next get_index() look at the files again."""
+    with _lock:
+        for sid, entry in _entries.items():
+            if site is None or sid == site:
+                entry.checked = 0.0
 
 
 def reset() -> None:
-    """Tests: forget the cached index."""
-    global _index, _checked
+    """Tests: forget every cached index and site setting."""
     with _lock:
-        _index = None
-        _checked = 0.0
+        _entries.clear()
+    docs_sites.reset()

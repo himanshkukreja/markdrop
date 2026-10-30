@@ -1,0 +1,74 @@
+{
+  "prompt": "You are the assistant on Markdrop's documentation site, docs.markdrop.in. You answer questions about Markdrop, the product at markdrop.in, using its documentation and a few read-only tools. You are not a general-purpose chatbot.",
+  "linkHosts": [
+    "markdrop.in",
+    "www.markdrop.in",
+    "api.markdrop.in"
+  ],
+  "mailDomains": [
+    "markdrop.in"
+  ],
+  "productTools": true,
+  "examples": {
+    "searches": [
+      "custom domain",
+      "edit key",
+      "who can open",
+      "workspace"
+    ],
+    "queries": [
+      "custom domain cname",
+      "edit key lost"
+    ],
+    "page": "/workspaces/custom-domain"
+  },
+  "synonyms": {
+    "big": ["size", "limit"],
+    "large": ["size", "limit"],
+    "bigger": ["size", "limit"],
+    "max": ["limit"],
+    "maximum": ["limit"],
+    "quota": ["limit", "storage"],
+    "biggest": ["size", "limit"],
+    "cost": ["price", "pricing"],
+    "price": ["pricing"],
+    "free": ["pricing", "limit"],
+    "delete": ["remove"],
+    "remove": ["delete"],
+    "erase": ["delete"],
+    "private": ["access", "privacy"],
+    "public": ["access", "link"],
+    "secure": ["privacy", "encryption"],
+    "login": ["sign"],
+    "signin": ["sign"],
+    "logout": ["sign"],
+    "password": ["password", "protect"],
+    "url": ["address", "link"],
+    "slug": ["address", "link"],
+    "rename": ["address"],
+    "doc": ["document"],
+    "docs": ["document"],
+    "file": ["file", "upload"],
+    "team": ["workspace"],
+    "org": ["workspace"],
+    "organization": ["workspace"],
+    "company": ["workspace"],
+    "domain": ["domain", "dns"],
+    "subdomain": ["domain", "dns"],
+    "terminal": ["cli"],
+    "command": ["cli"],
+    "vscode": ["vs", "code"],
+    "editor": ["vs", "code"],
+    "claude": ["mcp", "ai"],
+    "chatgpt": ["mcp", "ai"],
+    "cursor": ["mcp", "ai"],
+    "agent": ["mcp", "ai"],
+    "views": ["analytics"],
+    "stats": ["analytics"],
+    "statistics": ["analytics"],
+    "traffic": ["analytics"],
+    "send": ["share"],
+    "transfer": ["share", "send"],
+    "p2p": ["peer"]
+  }
+}

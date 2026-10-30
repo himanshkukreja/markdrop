@@ -399,6 +399,16 @@ class Settings(BaseSettings):
     # http://docs.localhost:<any port> is always allowed for local development:
     # that origin can only exist on the reader's own machine.
     docs_cors_origins: list[str] = ["https://docs.markdrop.in"]
+    # The docs sites Ask AI serves (services/docs_sites.py): a JSON object
+    # {"id": "content dir"} or "id=dir,id=dir". Each folder holds the site's
+    # Markdown, site.json and an optional ai.json. "markdrop" is always there
+    # (docs_content_dir, or the repo's frontend/content/docs) unless listed
+    # here with another folder. A request names its site with `site` or the
+    # X-Docs-Site header; none means "markdrop". Each site.json `url` origin is
+    # allowed to call /api/v1/docs/* as well as docs_cors_origins.
+    docs_sites: str = ""
+    # Site indexes kept in memory at once (least recently used goes first).
+    docs_sites_cache_size: int = 8
 
     # Analytics geo-IP (Phase 4) — MaxMind GeoLite2 City DB
     geoip_db_path: str = ""  # e.g. /opt/markdrop/geoip/GeoLite2-City.mmdb
