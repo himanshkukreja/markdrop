@@ -1,0 +1,4 @@
+# Local stack state: fake R2 objects, generated fixture files, logs, pids, seed output.
+.data/
+# The sandbox API's settings (copied from stack/.env.example on first start).
+stack/.env

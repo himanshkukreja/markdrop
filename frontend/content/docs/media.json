@@ -1,1 +1,107 @@
-{}
+{
+  "/docs-assets/analytics/video-and-audio/retention-curve.dark.webp": {
+    "w": 2280,
+    "h": 960,
+    "bytes": 49792,
+    "kind": "image"
+  },
+  "/docs-assets/analytics/video-and-audio/retention-curve.webp": {
+    "w": 2280,
+    "h": 960,
+    "bytes": 55858,
+    "kind": "image"
+  },
+  "/docs-assets/files/supported-types/viewer-pdf.dark.webp": {
+    "w": 2460,
+    "h": 1492,
+    "bytes": 38848,
+    "kind": "image"
+  },
+  "/docs-assets/files/supported-types/viewer-pdf.webp": {
+    "w": 2460,
+    "h": 1492,
+    "bytes": 38558,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/first-document/publish-from-new.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 9.9,
+    "bytes": 153684,
+    "kind": "clip"
+  },
+  "/docs-assets/get-started/first-document/publish-from-new.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 9.9,
+    "bytes": 202849,
+    "kind": "clip"
+  },
+  "/docs-assets/get-started/first-document/publish-from-new.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 37008,
+    "kind": "poster"
+  },
+  "/docs-assets/get-started/first-file/upload-form.dark.webp": {
+    "w": 2560,
+    "h": 2252,
+    "bytes": 145742,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/first-file/upload-form.webp": {
+    "w": 2560,
+    "h": 2252,
+    "bytes": 147010,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/tour/my-files.dark.webp": {
+    "w": 2580,
+    "h": 1400,
+    "bytes": 96234,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/tour/my-files.webp": {
+    "w": 2580,
+    "h": 1400,
+    "bytes": 100376,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/who-can-open/share-dialog-access.dark.webp": {
+    "w": 1136,
+    "h": 638,
+    "bytes": 35064,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/who-can-open/share-dialog-access.webp": {
+    "w": 1136,
+    "h": 638,
+    "bytes": 37396,
+    "kind": "image"
+  },
+  "/docs-assets/videos/custom-domain.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 33.7,
+    "bytes": 1834372,
+    "kind": "video"
+  },
+  "/docs-assets/videos/custom-domain.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 32134,
+    "kind": "poster"
+  },
+  "/docs-assets/workspaces/custom-domain/dns-records.dark.webp": {
+    "w": 1644,
+    "h": 1422,
+    "bytes": 79918,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/custom-domain/dns-records.webp": {
+    "w": 1644,
+    "h": 1422,
+    "bytes": 80222,
+    "kind": "image"
+  }
+}

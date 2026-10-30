@@ -12,7 +12,8 @@
     "docs:check": "node scripts/docs-check.mjs",
     "docs:media-manifest": "node scripts/docs-media-manifest.mjs",
     "docs:openapi": "node scripts/docs-openapi.mjs",
-    "docs:mcp-test": "node scripts/docs-mcp-test.mjs"
+    "docs:mcp-test": "node scripts/docs-mcp-test.mjs",
+    "docs:media": "node scripts/docs-media/capture.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

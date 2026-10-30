@@ -1,1 +1,8 @@
-{}
+{
+  "custom-domain": {
+    "src": "/docs-assets/videos/custom-domain.mp4",
+    "poster": "/docs-assets/videos/custom-domain.webp",
+    "duration": "0:34",
+    "chapters": "/docs-assets/videos/custom-domain.vtt"
+  }
+}
