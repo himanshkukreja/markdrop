@@ -447,6 +447,30 @@ class Settings(BaseSettings):
     geoip_db_path: str = ""  # e.g. /opt/markdrop/geoip/GeoLite2-City.mmdb
     ip_hash_salt: str = "change-this-ip-hash-salt-in-production"
 
+    # Docs Studio job pipeline (services/docs_jobs.DocsJobsSettings reads these). Declared here too
+    # because this model forbids unknown MARKDROP_ keys in .env (tests/test_config_docs_jobs.py
+    # keeps the two lists in step).
+    docs_job_secret: str = ''
+    docs_job_token_ttl_seconds: int = 10800
+    docs_job_api_base: str = ''
+    docs_job_lock_seconds: int = 120
+    docs_job_max_attempts: int = 3
+    docs_job_running_timeout_minutes: int = 25
+    docs_job_queued_timeout_minutes: int = 180
+    docs_site_host_template: str = ''
+    docs_ai_api: str = ''
+    docs_build_targets: str = 'actions,local'
+    docs_builder_repo: str = ''
+    docs_builder_token: str = ''
+    docs_builder_workflow: str = 'docs-job.yml'
+    docs_builder_ref: str = 'main'
+    docs_actions_monthly_minutes: int = 1800
+    docs_dispatch_retry_minutes: int = 10
+    docs_local_import_max_pages: int = 40
+    docs_local_build_max_mb: int = 768
+    docs_local_min_free_mb: int = 1200
+    docs_local_build_timeout_seconds: int = 900
+
     model_config = {"env_file": ".env", "env_prefix": "MARKDROP_"}
 
 
