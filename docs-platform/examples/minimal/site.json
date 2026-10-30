@@ -1,0 +1,17 @@
+{
+  "id": "example",
+  "name": "Example Docs",
+  "description": "A two-page site that shows the shape of a docs content folder.",
+  "url": "http://localhost:8080",
+  "tabs": [],
+  "nav": [
+    {
+      "group": "Guide",
+      "icon": "home",
+      "pages": [
+        "/guide/start",
+        "/guide/publish"
+      ]
+    }
+  ]
+}
