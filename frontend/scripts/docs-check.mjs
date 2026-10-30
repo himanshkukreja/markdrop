@@ -43,7 +43,12 @@ const STRICT = args.includes("--strict");
 const ONLY = args.filter((a) => !a.startsWith("--")).map((a) => a.replace(/^\/+|\/+$/g, ""));
 
 const CONTAINERS = new Set(["note", "tip", "warning", "danger", "steps", "tabs", "tab", "cards", "card", "details"]);
-const LEAVES = new Set(["video", "clip", "embed"]);
+const LEAVES = new Set(["video", "clip", "embed", "api"]);
+const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
+// `{…}` attributes: a quoted value may hold `}` (op="GET /a/{id}"), as in remark-directive.
+const ATTRS = String.raw`(?:\{((?:[^}"']|"[^"]*"|'[^']*')*)\})?`;
+const CONTAINER_RE = new RegExp(String.raw`^\s*(:{3,})([A-Za-z][\w-]*)(?:\[([^\]]*)\])?` + ATTRS + String.raw`\s*$`);
+const LEAF_RE = new RegExp(String.raw`^\s*::([A-Za-z][\w-]*)(?:\[([^\]]*)\])?` + ATTRS + String.raw`\s*$`);
 const TEXTS = new Set(["kbd"]);
 const SYNC = new Set(["os", "lang", "dns"]);
 const KINDS = new Set(["new", "improved", "fixed"]);
@@ -203,6 +208,7 @@ for (const file of files) {
 // Built with the engine's own generator, then checked below exactly like a written page: links
 // (including the overlay's prose and guide links), anchors, directives, headings, frontmatter.
 const apiPaths = new Map(); // path → nav group title
+let apiOpKeys = null; // "GET /a/{id}" of every operation in the reference, when it builds
 if (site.openapi?.spec) {
   const cfg = site.openapi;
   const spec = readJson(cfg.spec, null);
@@ -223,6 +229,7 @@ if (site.openapi?.spec) {
       err(cfg.overlay || cfg.spec, `the API reference doesn't build: ${e.message}`);
     }
     if (ref) {
+      apiOpKeys = new Set(ref.ops.map((op) => op.key));
       if (cfg.tab && !(site.tabs ?? []).some((t) => t.id === cfg.tab)) err("site.json", `openapi.tab "${cfg.tab}" isn't in tabs`);
       for (const msg of ref.problems) (/no title|no group/.test(msg) ? warn : err)(cfg.overlay || cfg.spec, msg);
       const updated = spec.value.info?.[`${extension}-exported`];
@@ -317,7 +324,7 @@ for (const [p, pg] of pages) {
       if (stack.length && stack[stack.length - 1].name === "steps") stack[stack.length - 1].steps++;
     }
     // Container directives
-    const c = /^\s*(:{3,})([A-Za-z][\w-]*)(?:\[([^\]]*)\])?(?:\{([^}]*)\})?\s*$/.exec(raw);
+    const c = CONTAINER_RE.exec(raw);
     if (c) {
       const [, colons, name, label, attrs] = c;
       const a = parseAttrs(attrs);
@@ -351,7 +358,7 @@ for (const [p, pg] of pages) {
       return;
     }
     // Leaf directives
-    const leaf = /^\s*::([A-Za-z][\w-]*)(?:\[([^\]]*)\])?(?:\{([^}]*)\})?\s*$/.exec(raw);
+    const leaf = LEAF_RE.exec(raw);
     if (leaf) {
       const [, name, , attrs] = leaf;
       const a = parseAttrs(attrs);
@@ -365,6 +372,13 @@ for (const [p, pg] of pages) {
         if (!a.title) warn(file, "::video should have a title", ln(i));
       }
       if (name === "embed" && !/^https:\/\//.test(a.src ?? "")) err(file, "::embed needs src=\"https://…\"", ln(i));
+      if (name === "api") {
+        const op = /^([A-Za-z]+)\s+(\/\S*)$/.exec((a.op ?? "").trim());
+        if (!op || !HTTP_METHODS.has(op[1].toUpperCase()))
+          err(file, `::api needs op="METHOD /path" with METHOD one of ${[...HTTP_METHODS].join(", ")} (quote the value), like ::api{op="GET /v1/things/{id}"}; got ${a.op === undefined ? "no op" : `"${a.op}"`}`, ln(i));
+        else if (apiOpKeys && !apiOpKeys.has(`${op[1].toUpperCase()} ${op[2]}`))
+          warn(file, `::api op "${op[1].toUpperCase()} ${op[2]}" isn't an operation in the API reference (site.json openapi); it shows as plain method + path`, ln(i));
+      }
       return;
     }
     if (/^\s*::[A-Za-z]/.test(raw)) err(file, `malformed directive: ${raw.trim()}`, ln(i));

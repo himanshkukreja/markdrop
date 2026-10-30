@@ -19,14 +19,14 @@ import { cx } from "../cx";
 import { CodeBlock } from "@/components/reading/CodeBlock";
 import { DiagramFrame } from "@/components/reading/DiagramFrame";
 import { ScrollBox } from "@/components/reading/ScrollBox";
-import { getMedia, getSite, getVideos } from "../content";
+import { getApiReference, getMedia, getSite, getVideos } from "../content";
 import { videoLink } from "../brand";
 import { assetPath, clipVariants, imageVariants, readVttCues } from "../media";
 import { DocsTabs } from "../client/Tabs";
 import { ClipPlayer, VideoPlayer } from "../client/Media";
 import { HeadingActions } from "../client/PageActions";
 import { rehypeDocs, remarkDocs } from "./plugins";
-import { isAppPath } from "../markdown";
+import { isAppPath, normalizeApiOp } from "../markdown";
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -360,6 +360,48 @@ function Embed({ src, label }: P) {
   );
 }
 
+/**
+ * `::api[label]{op="GET /v1/things/{id}"}`. With the site's OpenAPI reference holding that
+ * operation (method matched in any case, path exactly), a card linking to its generated page:
+ * method badge and title, the path, the summary. Otherwise the method and path, not a link.
+ */
+function ApiOp({ op, label }: P) {
+  const spec = typeof op === "string" ? normalizeApiOp(op) : "";
+  if (!spec) return null;
+  const sp = spec.indexOf(" ");
+  const method = sp > 0 ? spec.slice(0, sp) : "";
+  const apiPath = sp > 0 ? spec.slice(sp + 1) : spec;
+  const name = typeof label === "string" && label ? label : undefined;
+  const ref = method ? getApiReference()?.ops.find((o) => o.key === spec) : undefined;
+  if (ref)
+    return (
+      <Link href={ref.path} className="dx-apiop dx-apiop--link not-prose">
+        <span className="dx-apiop__head">
+          <span className="dx-method" data-method={ref.method}>
+            {ref.method}
+          </span>
+          <span className="dx-apiop__title">{name ?? ref.title}</span>
+          <Icon name="arrowRight" className="dx-apiop__go" />
+        </span>
+        <code className="dx-apiop__path">{ref.apiPath}</code>
+        {ref.summary && <span className="dx-apiop__summary">{ref.summary}</span>}
+      </Link>
+    );
+  return (
+    <div className="dx-apiop not-prose">
+      <span className="dx-apiop__head">
+        {method && (
+          <span className="dx-method" data-method={method}>
+            {method}
+          </span>
+        )}
+        <code className="dx-apiop__path">{apiPath}</code>
+      </span>
+      {name && <span className="dx-apiop__summary">{name}</span>}
+    </div>
+  );
+}
+
 function KbdC({ children }: P) {
   return <Kbd>{children}</Kbd>;
 }
@@ -385,6 +427,7 @@ const COMPONENTS = {
   "docs-figure": Figure,
   "docs-clip": Clip,
   "docs-embed": Embed,
+  "docs-api": ApiOp,
   "docs-kbd": KbdC,
 } as unknown as Components;
 
