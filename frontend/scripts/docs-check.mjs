@@ -11,7 +11,8 @@
  * prerequisites, card hrefs, changelog docs), directive names / attributes / balance, card icons,
  * tabs structure, one video slot per page, headings (no H1, unique ids), changelog.json and
  * videos.json, site.json's settings (id, brand, ai, tryIt, mcp, integrations: types, hex colours,
- * the logo's shape and files; pages: lede and icons; home.start cards), frontmatter icon and anchors
+ * the logo's shape and files; pages: lede and icons; home.start cards; theme: preset, font
+ * allow-list, corners, mode, brand colours, custom CSS through the sanitiser), frontmatter icon and anchors
  * (old ids → headings that exist), redirects.json (shape, targets exist, no page hidden, no chains),
  * and media (see "media" below). Errors exit 1; warnings (pages not written yet,
  * orphans) don't, unless --strict.
@@ -33,6 +34,7 @@ import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { buildApiReference } from "../src/docs/openapi.mjs";
 import { expandRedirects } from "../src/docs/siteFiles.mjs";
+import { validateTheme } from "../src/docs/theme.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONTENT = process.env.DOCS_CONTENT_DIR || path.join(ROOT, "content", "docs");
@@ -545,6 +547,10 @@ const brandAssets = [];
       }
     }
   }
+
+  // theme: preset, fonts (allow-list), corners, mode, brand colours, custom CSS (src/docs/theme.mjs).
+  for (const p of validateTheme(site.theme)) report(p.level, S, p.msg);
+  if (site.theme?.colors !== undefined && b?.accent !== undefined) warn(S, "brand.accent and theme.colors both set: brand.accent is the accent, theme.colors give the ink and tint");
 
   const pg = site.pages;
   if (pg !== undefined) {

@@ -1,6 +1,7 @@
 import type { ApiOperation } from "./openapi.mjs";
+import type { ThemeConfig } from "./theme.mjs";
 
-export type { ApiOperation };
+export type { ApiOperation, ThemeConfig };
 
 /**
  * The docs engine's data model. Everything site-specific lives in the content folder
@@ -155,6 +156,8 @@ export interface SiteConfig {
   pages?: PagesConfig;
   openapi?: OpenApiConfig;
   brand?: BrandConfig;
+  /** Look: preset, fonts, corners, colour mode, brand colours, custom CSS (theme.mjs). Absent: Markdrop's own look. */
+  theme?: ThemeConfig;
   ai?: AiConfig;
   tryIt?: TryItConfig;
   mcp?: McpConfig;
