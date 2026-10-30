@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // PostHog's capture endpoints end in a slash; a redirect would drop the request body.
   skipTrailingSlashRedirect: true,
+  // The docs MCP server (app/docs-site/mcp) reads the docs content at request time; every other
+  // docs route is static, so only this one needs the content folder in its function.
+  outputFileTracingIncludes: { "/docs-site/mcp": ["./content/docs/**/*"] },
   /**
    * First-party path for PostHog (lib/analyticsConfig.ts, POSTHOG_PROXY). Requests to
    * posthog.com are on ad-block lists; the same requests to our own origin are not. The

@@ -9,9 +9,9 @@ keywords: [api, rest, http, curl, authentication, bearer, mdk, edit secret, X-Ed
 
 Everything you can do on markdrop.in goes through a JSON API at `https://api.markdrop.in`. Use it to publish from your own scripts and services. For publishing files from a terminal, the [CLI](/cli/install) is usually simpler; for AI apps, use the [MCP server](/ai/overview).
 
-:::note[Full reference coming]
-This page covers what every request has in common. A generated, endpoint-by-endpoint reference will be added to these docs later. Until then, the machine-readable OpenAPI description is at [`https://api.markdrop.in/openapi.json`](https://api.markdrop.in/openapi.json), with an interactive explorer at [`https://api.markdrop.in/docs`](https://api.markdrop.in/docs).
-:::
+Every endpoint has its own page in this section, grouped in the sidebar: what it does, the token it needs, its rate limit, parameters, request body, responses, and samples in curl, JavaScript and Python. The pages are generated from the API's own description. The machine-readable OpenAPI description is at [`https://api.markdrop.in/openapi.json`](https://api.markdrop.in/openapi.json).
+
+Endpoints that only markdrop.in's own pages use, such as sign-in, Google Docs export and the VS Code extension's sync, are left out.
 
 ## Base URL
 

@@ -11,6 +11,7 @@ import { AskAboutPageButton } from "@/docs/client/ask/entry";
 import { ChangedBadge, DocsToc, OnThisPageBar, type TocEntry } from "@/docs/client/Toc";
 import { Feedback } from "@/docs/client/Feedback";
 import { DocsFooter, DocsHeader, DocsSidebar } from "@/docs/ui/Chrome";
+import { ApiAside, ApiHead, ApiMain } from "@/docs/ui/ApiArticle";
 
 /** Every page is generated at build time; an address with no page is a 404, never a render. */
 export const dynamicParams = false;
@@ -75,6 +76,60 @@ export default async function DocsArticle({ params }: Props) {
     { label: navLabel(page) },
   ];
 
+  const pager = (prev || next) && (
+    <nav aria-label="More pages" className="dx-prevnext">
+      {prev ? (
+        <Link href={prev.path} className="dx-prevnext__link">
+          <span className="dx-prevnext__dir">Previous</span>
+          <strong>{navLabel(prev)}</strong>
+        </Link>
+      ) : (
+        <span />
+      )}
+      {next && (
+        <Link href={next.path} className="dx-prevnext__link dx-prevnext__link--next">
+          <span className="dx-prevnext__dir">Next</span>
+          <strong>{navLabel(next)}</strong>
+        </Link>
+      )}
+    </nav>
+  );
+
+  if (page.api) {
+    const op = page.api;
+    return (
+      <DocPageProvider value={{ ...info, editUrl: undefined }}>
+        <DocsHeader activeTab={tab?.id} current={page.path} />
+        <div className="dx-layout dx-layout--api">
+          <aside className="dx-layout__nav">
+            <DocsSidebar tab={tab?.id} current={page.path} />
+          </aside>
+          <main id="main" className="dx-article dx-api">
+            <Breadcrumb items={crumbs} className="dx-crumbs" />
+            <ApiHead op={op} />
+            <div className="dx-titlerow">
+              <h1 className="dx-title dx-api__title">{page.meta.title}</h1>
+              <span className="dx-only-wide">
+                <CopyPageButton />
+              </span>
+            </div>
+            <ApiMain op={op} />
+          </main>
+          <aside className="dx-layout__api" aria-label="Examples and Try it">
+            <ApiAside op={op} />
+          </aside>
+          {/* After the samples in the DOM, so a phone reads samples and Try it before "Did this help?". */}
+          <div className="dx-api__foot">
+            <Feedback />
+            {pager}
+          </div>
+        </div>
+        <DocsFooter />
+        <MobileBottomBar />
+      </DocPageProvider>
+    );
+  }
+
   return (
     <DocPageProvider value={info}>
       <DocsHeader activeTab={tab?.id} current={page.path} />
@@ -130,24 +185,7 @@ export default async function DocsArticle({ params }: Props) {
 
           <Feedback />
 
-          {(prev || next) && (
-            <nav aria-label="More pages" className="dx-prevnext">
-              {prev ? (
-                <Link href={prev.path} className="dx-prevnext__link">
-                  <span className="dx-prevnext__dir">Previous</span>
-                  <strong>{navLabel(prev)}</strong>
-                </Link>
-              ) : (
-                <span />
-              )}
-              {next && (
-                <Link href={next.path} className="dx-prevnext__link dx-prevnext__link--next">
-                  <span className="dx-prevnext__dir">Next</span>
-                  <strong>{navLabel(next)}</strong>
-                </Link>
-              )}
-            </nav>
-          )}
+          {pager}
         </main>
 
         <aside className="dx-layout__rail" aria-label="On this page">

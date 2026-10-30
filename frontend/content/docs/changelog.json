@@ -21,19 +21,35 @@
       "label": "API"
     }
   ],
-  "next": [
-    {
-      "title": "Ask AI on docs.markdrop.in",
-      "body": "Ask questions in plain words and get answers drawn from these docs.",
-      "area": "Docs"
-    },
-    {
-      "title": "A docs MCP server",
-      "body": "Connect your AI app to `https://docs.markdrop.in/mcp` so it can search and read these docs as tools.",
-      "area": "Docs"
-    }
-  ],
+  "next": [],
   "entries": [
+    {
+      "id": "docs-site",
+      "date": "2026-10-30",
+      "title": "Docs with Ask AI",
+      "kind": "new",
+      "area": "Docs",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "docs.markdrop.in: every guide, an API reference, and an assistant that answers from the docs with links to the exact section.",
+      "body": "Markdrop now has documentation at **docs.markdrop.in**.\n\n- **Ask AI** answers from these docs, cites the exact section for each point, and highlights it when you open the source.\n- **API reference** for every public endpoint, with curl, JavaScript, Python and CLI examples and a Try it form that builds the command for you.\n- **For your AI app:** every page has a Markdown version, the whole site is in `/llms.txt`, and a docs MCP server lets Claude, Cursor or VS Code search the docs as you work.\n- **Copy page** and **Open in Claude or ChatGPT** on every page, and a mark on sections that changed since your last visit.",
+      "highlights": [
+        "Answers link to the exact section",
+        "105 endpoint pages",
+        "Docs MCP server at docs.markdrop.in/mcp"
+      ],
+      "try": {
+        "label": "Ask a question",
+        "href": "https://docs.markdrop.in"
+      },
+      "docs": [
+        "/ai/use-these-docs",
+        "/api/overview"
+      ]
+    },
     {
       "id": "creator-analytics",
       "date": "2026-10-28",

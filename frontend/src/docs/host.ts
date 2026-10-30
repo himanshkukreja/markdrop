@@ -21,10 +21,17 @@ export function docsOrigin(requestHost: string, port: string): string {
   return `https://${DOCS_HOST}`;
 }
 
+/**
+ * The app's own route handlers (src/app/api/*) that a docs page may call (the consent banner asks
+ * /api/geo). Every other /api/… address on the docs host is a docs page: the API reference lives
+ * at /api/<group>/<operation>.
+ */
+const APP_API = ["/api/geo", "/api/revalidate"];
+
 /** Paths answered by their own handlers on every host (public files, framework internals). */
 function passThrough(pathname: string): boolean {
   return (
-    pathname.startsWith("/api/") ||
+    APP_API.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
     pathname.startsWith("/docs-assets/") ||
     pathname.startsWith("/__next") ||
     pathname.startsWith("/_vercel/") ||

@@ -9,7 +9,9 @@
     "lint": "next lint",
     "e2e": "playwright test",
     "ds:check": "node ../design-system/scripts/sync-frontend.mjs --check",
-    "docs:check": "node scripts/docs-check.mjs"
+    "docs:check": "node scripts/docs-check.mjs",
+    "docs:openapi": "node scripts/docs-openapi.mjs",
+    "docs:mcp-test": "node scripts/docs-mcp-test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

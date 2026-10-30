@@ -1,3 +1,7 @@
+import type { ApiOperation } from "./openapi.mjs";
+
+export type { ApiOperation };
+
 /**
  * The docs engine's data model. Everything site-specific lives in the content folder
  * (`site.json`, `changelog.json`, `videos.json`, `*.md`); the engine only knows these shapes, so
@@ -22,6 +26,20 @@ export interface NavGroupConfig {
 export interface LinkConfig {
   label: string;
   href: string;
+}
+
+/** A generated API reference: one page per operation of an OpenAPI description. */
+export interface OpenApiConfig {
+  /** OpenAPI JSON, relative to the content root. */
+  spec: string;
+  /** Titles, prose, groups and hidden operations (see openapi.mjs). */
+  overlay?: string;
+  /** The tab whose sidebar lists the generated groups. */
+  tab?: string;
+  /** Docs path prefix of the pages (default /api). */
+  base?: string;
+  /** The API's origin, for URLs and samples. */
+  server?: string;
 }
 
 export interface SiteConfig {
@@ -51,6 +69,7 @@ export interface SiteConfig {
   changelog?: { title?: string; description?: string };
   footer?: LinkConfig[];
   nav: NavGroupConfig[];
+  openapi?: OpenApiConfig;
 }
 
 export interface Frontmatter {
@@ -97,6 +116,8 @@ export interface DocPage {
   headings: Heading[];
   sections: Section[];
   minutes: number;
+  /** Set on pages generated from the OpenAPI description. */
+  api?: ApiOperation;
 }
 
 export interface NavItem {
@@ -105,6 +126,8 @@ export interface NavItem {
   /** False while the page's file doesn't exist yet (writers still working). */
   available: boolean;
   isNew: boolean;
+  /** HTTP method, for generated API reference pages. */
+  method?: string;
 }
 
 export interface NavGroup {
@@ -112,6 +135,8 @@ export interface NavGroup {
   icon?: string;
   tab: string;
   items: NavItem[];
+  /** Built from the OpenAPI description rather than listed in site.json. */
+  generated?: boolean;
 }
 
 export type ChangeKind = "new" | "improved" | "fixed";

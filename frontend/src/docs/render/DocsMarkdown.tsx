@@ -7,7 +7,7 @@
  * Pipeline: gfm → math → directive → remarkDocs | highlight → rehypeDocs (ids, code lines) → katex.
  */
 import Link from "next/link";
-import Markdown, { type Components } from "react-markdown";
+import Markdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkDirective from "remark-directive";
@@ -296,6 +296,12 @@ const COMPONENTS = {
 
 const KATEX = { errorColor: "var(--danger)" };
 
+/** react-markdown's safe-URL rule, plus the editors' "install this MCP server" links. */
+const APP_LINK = /^(cursor|vscode|vscode-insiders):\/\//i;
+function urlTransform(url: string): string {
+  return APP_LINK.test(url) ? url : defaultUrlTransform(url);
+}
+
 export function DocsMarkdown({ source, className }: { source: string; className?: string }) {
   return (
     <div className={cx("prose md-prose md-prose--reading dx-prose", className)}>
@@ -303,6 +309,7 @@ export function DocsMarkdown({ source, className }: { source: string; className?
         remarkPlugins={[remarkGfm, remarkMath, remarkDirective, remarkDocs]}
         rehypePlugins={[[rehypeHighlight, { detect: false }], rehypeDocs, [rehypeKatex, KATEX]]}
         components={COMPONENTS}
+        urlTransform={urlTransform}
       >
         {source}
       </Markdown>

@@ -16,6 +16,22 @@ export function buildSearchIndex(): SearchDoc[] {
   const nav = getNav();
   const where = (p: string) => nav.find((g) => g.items.some((it) => it.path === p))?.group ?? "";
   for (const page of orderedPages()) {
+    if (page.api) {
+      // One entry per endpoint: its sections ("Request body", "Responses") repeat on every one.
+      const op = page.api;
+      const fields = [...op.params.map((p) => p.display), ...(op.body?.fields.map((f) => f.name) ?? [])].join(" ");
+      docs.push({
+        id: page.path,
+        kind: "page",
+        title: op.title,
+        where: `API · ${op.group.title}`,
+        href: page.path,
+        text: `${op.method} ${op.apiPath} ${plainText(op.description)} ${fields}`.slice(0, MAX_TEXT),
+        keywords: op.keywords.join(" "),
+        snippet: `${op.method} ${op.apiPath} · ${page.meta.description}`,
+      });
+      continue;
+    }
     const intro = plainText(introOf(page.body, page.headings));
     docs.push({
       id: page.path,
@@ -74,7 +90,8 @@ export function llmsTxt(): string {
   for (const g of getNav()) {
     const items = g.items.filter((it) => it.available);
     if (!items.length) continue;
-    out.push(`## ${g.group}`, "");
+    const tabLabel = g.generated ? site.tabs.find((t) => t.id === g.tab)?.label : undefined;
+    out.push(`## ${tabLabel ? `${tabLabel}: ${g.group}` : g.group}`, "");
     for (const it of items) {
       const page = getPage(it.path)!;
       listed.add(page.path);
@@ -104,12 +121,16 @@ export function skillMd(): string {
   const site = getSite();
   const name = site.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const product = site.product?.name ?? site.name;
-  const groups = getNav()
+  const nav = getNav();
+  const groups = nav
+    .filter((g) => !g.generated)
     .map((g) => {
       const items = g.items.filter((it) => it.available);
       return items.length ? `- ${g.group}: ${items.map((it) => `[${it.title}](${mdUrl(it.path)})`).join(", ")}` : "";
     })
     .filter(Boolean);
+  const endpoints = nav.filter((g) => g.generated).reduce((n, g) => n + g.items.length, 0);
+  if (endpoints) groups.push(`- API reference: ${endpoints} endpoints, one page each (method, parameters, body, responses, curl / JavaScript / Python samples), listed in ${site.url}/llms.txt`);
   return `---
 name: ${name}
 description: Answer questions about ${product} from its official documentation at ${site.url}. Use when the user asks how ${product} works, how to do something in it, or what changed.

@@ -1,0 +1,667 @@
+/**
+ * The generated API reference: OpenAPI 3 description + a prose overlay → one page per operation.
+ *
+ * Plain JavaScript with no imports, so the same code runs in the Next.js build (content.ts adds the
+ * pages), in the browser (Try it builds its command with `curlCommand`) and in `docs:check` (which
+ * validates every generated page like a written one). Types: openapi.d.mts.
+ *
+ * Sources, by precedence:
+ *   overlay.operations["METHOD /path"]  title, description, group, CLI / MCP equivalents, examples,
+ *                                       extra responses — written by people, checked by docs:check
+ *   the operation's FastAPI docstring   description, tidied (internal ticket refs dropped)
+ *   the schema                          parameters, body fields, types, limits, enums, defaults
+ *   x-markdrop (backend export)         auth ("token" | "optional" | "none" | "session") and the
+ *                                       route's rate limits as written in the code
+ * Hidden: overlay.hide.tags / hide.operations. An operation no group claims lands in "More", and
+ * docs:check warns until someone places it.
+ */
+
+const METHODS = ["get", "post", "put", "patch", "delete"];
+const NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/* ── small helpers ──────────────────────────────────────────────────────── */
+
+export function slugify(s) {
+  return String(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+const fmtInt = (n) => Number(n).toLocaleString("en-US");
+
+/** `X-Edit-Secret` for `x-edit-secret`. */
+export function headerName(n) {
+  return n
+    .split("-")
+    .map((p) => (p ? p[0].toUpperCase() + p.slice(1) : p))
+    .join("-");
+}
+
+/** A FastAPI docstring made fit for readers: RST double backticks, internal ticket refs and file paths removed. */
+export function tidyDocstring(s) {
+  if (!s) return "";
+  return s
+    .replace(/``([^`]+)``/g, "`$1`")
+    .replace(/^\s*[A-Z]\d{1,2}:\s+/, "")
+    .replace(/\s*\((?:[A-Z]\d{1,2}(?:\/[A-Z]\d{1,2})*|§[\d.]+[^)]*)\)/g, "")
+    .replace(/\s*\(services\/[\w/.]+\)/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/([^\n])\n(?!\n|\s*[-*] )/g, "$1 ")
+    .replace(/ {2,}/g, " ")
+    .trim();
+}
+
+function firstSentence(md, max = 160) {
+  const plain = md
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\*\*([^*]*)\*\*/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+  const m = /^(.+?[.!?])(\s|$)/.exec(plain);
+  let s = (m ? m[1] : plain).trim();
+  if (s.length > max) s = s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+  return s;
+}
+
+/* ── schemas ────────────────────────────────────────────────────────────── */
+
+function makeResolver(spec) {
+  return function resolve(schema, seen = new Set()) {
+    let s = schema || {};
+    let name;
+    let guard = 0;
+    while (s && s.$ref && guard++ < 20) {
+      const ref = s.$ref;
+      if (!ref.startsWith("#/")) break;
+      name = ref.split("/").pop();
+      if (seen.has(ref)) return { schema: {}, name, cyclic: true };
+      seen = new Set(seen).add(ref);
+      s = ref
+        .slice(2)
+        .split("/")
+        .reduce((o, k) => (o ? o[decodeURIComponent(k.replace(/~1/g, "/").replace(/~0/g, "~"))] : undefined), spec);
+      if (!s) throw new Error(`unresolved $ref ${ref}`);
+    }
+    return { schema: s, name, seen };
+  };
+}
+
+/** {nullable, schema} with `anyOf: [X, null]` unwrapped. */
+function unwrapNull(s) {
+  const alts = s.anyOf || s.oneOf;
+  if (Array.isArray(alts)) {
+    const rest = alts.filter((a) => a.type !== "null");
+    if (rest.length < alts.length) {
+      if (rest.length === 1) return { nullable: true, schema: { ...rest[0], ...(s.default !== undefined ? { default: s.default } : {}) } };
+      return { nullable: true, schema: { ...s, anyOf: rest, oneOf: undefined } };
+    }
+  }
+  return { nullable: false, schema: s };
+}
+
+function typeLabel(s, resolve) {
+  const r = resolve(s);
+  const { schema } = unwrapNull(r.schema);
+  if (schema.$ref) return typeLabel(schema, resolve);
+  if (Array.isArray(schema.enum)) return schema.enum.map((v) => JSON.stringify(v)).join(" | ");
+  if (schema.const !== undefined) return JSON.stringify(schema.const);
+  const alts = schema.anyOf || schema.oneOf;
+  if (Array.isArray(alts)) return alts.map((a) => typeLabel(a, resolve)).join(" | ");
+  if (schema.type === "array") return `array of ${typeLabel(schema.items || {}, resolve)}`;
+  if (schema.type === "string" && schema.format === "binary") return "file";
+  if (schema.type === "string" && (schema.format === "date-time" || schema.format === "date")) return `string (${schema.format})`;
+  if (schema.type === "string" && schema.format === "email") return "string (email)";
+  if (schema.type === "object" || schema.properties) return "object";
+  if (Array.isArray(schema.type)) return schema.type.join(" | ");
+  return schema.type || "any";
+}
+
+function constraintText(s) {
+  const out = [];
+  const len = (a, b, unit) => {
+    if (a !== undefined && b !== undefined) out.push(a === b ? `Exactly ${fmtInt(a)} ${unit}.` : `${fmtInt(a)}–${fmtInt(b)} ${unit}.`);
+    else if (b !== undefined) out.push(`Up to ${fmtInt(b)} ${unit}.`);
+    else if (a !== undefined && a > 1) out.push(`At least ${fmtInt(a)} ${unit}.`);
+  };
+  len(s.minLength, s.maxLength, "characters");
+  len(s.minItems, s.maxItems, "items");
+  if (s.minimum !== undefined && s.maximum !== undefined) out.push(`From ${fmtInt(s.minimum)} to ${fmtInt(s.maximum)}.`);
+  else if (s.maximum !== undefined) out.push(`At most ${fmtInt(s.maximum)}.`);
+  else if (s.minimum !== undefined && s.minimum !== 0) out.push(`At least ${fmtInt(s.minimum)}.`);
+  if (s.pattern) {
+    const alt = /^\^\(([\w|-]+)\)\$$/.exec(s.pattern);
+    if (alt) out.push(`One of ${alt[1].split("|").map((x) => `\`${x}\``).join(", ")}.`);
+    else out.push(`Matches \`${s.pattern}\`.`);
+  }
+  if (s.format === "date-time") out.push("ISO 8601, for example `2026-11-30T12:00:00Z`.");
+  return out.join(" ");
+}
+
+/** Pattern `^(a|b|c)$` → enum, so the field list and Try it can offer the choices. */
+function patternEnum(s) {
+  const m = s.pattern && /^\^\(([\w|-]+)\)\$$/.exec(s.pattern);
+  return m ? m[1].split("|") : undefined;
+}
+
+/**
+ * A schema's properties as display fields (nested objects and arrays of objects to `depth`).
+ * `notes` maps "SchemaName.prop" (or "prop" for any schema) to a description.
+ */
+function fieldsOf(schema, ctx, depth = 2, seen = new Set()) {
+  const r = ctx.resolve(schema, seen);
+  let { schema: s } = unwrapNull(r.schema);
+  if (s.$ref) return fieldsOf(s, ctx, depth, r.seen || seen);
+  const owner = r.name;
+  if (!s.properties) return [];
+  const required = new Set(s.required || []);
+  const fields = [];
+  for (const [name, raw] of Object.entries(s.properties)) {
+    const pr = ctx.resolve(raw, r.seen || seen);
+    const { nullable, schema: ps0 } = unwrapNull(pr.schema);
+    const ps = ps0.$ref ? unwrapNull(ctx.resolve(ps0, pr.seen || seen).schema).schema : ps0;
+    const note = (owner && ctx.notes[`${owner}.${name}`]) ?? ctx.notes[name];
+    const desc = note !== undefined ? note : raw.description || ps.description || "";
+    const enumVals = Array.isArray(ps.enum) ? ps.enum : patternEnum(ps);
+    const f = {
+      name,
+      type: typeLabel(raw, ctx.resolve),
+      nullable,
+      required: required.has(name),
+      description: desc,
+      constraints: constraintText(ps),
+    };
+    if (enumVals) f.enum = enumVals;
+    if (raw.default !== undefined || ps.default !== undefined) f.default = raw.default !== undefined ? raw.default : ps.default;
+    if (ps.format === "binary") f.binary = true;
+    if (ps.type === "boolean") f.kind = "boolean";
+    else if (ps.type === "integer" || ps.type === "number") f.kind = "number";
+    else if (ps.type === "array") f.kind = "array";
+    else if (ps.type === "object" || ps.properties || ps0.$ref) f.kind = "object";
+    else f.kind = "string";
+    if (depth > 1) {
+      const target = ps.type === "array" ? ps.items : ps0.$ref ? ps0 : ps.properties ? ps : null;
+      if (target) {
+        const kids = fieldsOf(target, ctx, depth - 1, pr.seen || seen);
+        if (kids.length) f.children = kids;
+      }
+    }
+    fields.push(f);
+  }
+  return fields;
+}
+
+/* ── examples ───────────────────────────────────────────────────────────── */
+
+function exampleFor(name, f, ctx) {
+  if (ctx.examples[name] !== undefined) return ctx.examples[name];
+  if (f.enum?.length) return f.default !== undefined ? f.default : f.enum[0];
+  if (f.default !== undefined && f.default !== null) return f.default;
+  switch (f.kind) {
+    case "boolean":
+      return true;
+    case "number":
+      return 1;
+    case "array":
+      return [];
+    case "object":
+      return {};
+    default:
+      return name.toUpperCase();
+  }
+}
+
+/** The body an example sends: the overlay's, or every required field with a sample value. */
+function exampleBody(op, ctx) {
+  if (op.overlay.example !== undefined) return op.overlay.example;
+  if (!op.body) return undefined;
+  const out = {};
+  for (const f of op.body.fields) if (f.required) out[f.name] = exampleFor(f.name, f, ctx);
+  return out;
+}
+
+/* ── code samples ───────────────────────────────────────────────────────── */
+
+const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+
+function jsonText(v, indent) {
+  const one = JSON.stringify(v);
+  if (one.length <= 72) return one;
+  return JSON.stringify(v, null, 2)
+    .split("\n")
+    .map((l, i) => (i ? indent + l : l))
+    .join("\n");
+}
+
+function pyLiteral(v, indent = "") {
+  if (v === null) return "None";
+  if (v === true) return "True";
+  if (v === false) return "False";
+  if (typeof v === "number") return String(v);
+  if (typeof v === "string") return JSON.stringify(v);
+  if (Array.isArray(v)) {
+    if (!v.length) return "[]";
+    const one = `[${v.map((x) => pyLiteral(x)).join(", ")}]`;
+    if (one.length <= 60) return one;
+    return `[\n${v.map((x) => `${indent}    ${pyLiteral(x, indent + "    ")},`).join("\n")}\n${indent}]`;
+  }
+  const entries = Object.entries(v);
+  if (!entries.length) return "{}";
+  const one = `{${entries.map(([k, x]) => `${JSON.stringify(k)}: ${pyLiteral(x)}`).join(", ")}}`;
+  if (one.length <= 60) return one;
+  return `{\n${entries.map(([k, x]) => `${indent}    ${JSON.stringify(k)}: ${pyLiteral(x, indent + "    ")},`).join("\n")}\n${indent}}`;
+}
+
+/**
+ * The request a sample (or Try it) sends.
+ * @param {object} op       a generated operation
+ * @param {object} values   {path: {}, query: {}, header: {}, body: object|undefined, files: {}}
+ */
+export function requestUrl(op, values) {
+  let p = op.apiPath.replace(/\{([^}]+)\}/g, (m, n) => {
+    const v = values.path?.[n];
+    return v === undefined || v === null || v === "" ? m : encodeURIComponent(String(v));
+  });
+  const q = Object.entries(values.query || {}).filter(([, v]) => v !== undefined && v !== null && v !== "");
+  if (q.length) p += "?" + q.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join("&");
+  return op.server + p;
+}
+
+const TOKEN_ENV = "MARKDROP_TOKEN";
+
+/**
+ * `curl` for one request. `token`: the literal token to put in the command (Try it), else the
+ * command reads $MARKDROP_TOKEN. Headers with an empty value are left out.
+ */
+export function curlCommand(op, values, { token } = {}) {
+  const lines = [];
+  const method = op.method.toUpperCase();
+  const url = requestUrl(op, values);
+  lines.push(`curl ${method === "GET" ? "" : `-X ${method} `}${/^[\w.:/%-]+$/.test(url) ? url : shq(url)}`);
+  if (op.auth === "token" || op.auth === "optional" || token) {
+    if (token !== "") lines.push(`-H ${token ? shq(`Authorization: Bearer ${token}`) : `"Authorization: Bearer $${TOKEN_ENV}"`}`);
+  }
+  for (const [k, v] of Object.entries(values.header || {})) if (v !== undefined && v !== "") lines.push(`-H ${shq(`${headerName(k)}: ${v}`)}`);
+  if (op.body && op.body.contentType === "multipart/form-data") {
+    for (const f of op.body.fields) {
+      const v = values.files?.[f.name] ?? (f.binary ? undefined : values.body?.[f.name]);
+      if (f.binary) lines.push(`-F ${shq(`${f.name}=@${values.files?.[f.name] || "logo.png"}`)}`);
+      else if (v !== undefined) lines.push(`-F ${shq(`${f.name}=${v}`)}`);
+    }
+  } else if (values.body !== undefined && op.body) {
+    lines.push(`-H "Content-Type: application/json"`);
+    lines.push(`-d ${shq(jsonText(values.body, "     "))}`);
+  }
+  return lines.join(" \\\n  ");
+}
+
+function jsSample(op, values) {
+  const url = requestUrl(op, values);
+  const method = op.method.toUpperCase();
+  const headers = [];
+  if (op.auth === "token" || op.auth === "optional") headers.push(`Authorization: \`Bearer \${process.env.${TOKEN_ENV}}\``);
+  for (const [k, v] of Object.entries(values.header || {})) if (v) headers.push(`${JSON.stringify(headerName(k))}: ${JSON.stringify(String(v))}`);
+  const opts = [];
+  if (method !== "GET") opts.push(`method: ${JSON.stringify(method)}`);
+  let pre = "";
+  if (op.body?.contentType === "multipart/form-data") {
+    pre = `const form = new FormData();\n${op.body.fields
+      .filter((f) => f.binary)
+      .map((f) => `form.append(${JSON.stringify(f.name)}, new Blob([await readFile("logo.png")]), "logo.png");`)
+      .join("\n")}\n\n`;
+    pre = `import { readFile } from "node:fs/promises";\n\n` + pre;
+    opts.push("body: form");
+  } else if (values.body !== undefined && op.body) {
+    headers.push(`"Content-Type": "application/json"`);
+    const body = JSON.stringify(values.body, null, 2).split("\n").join("\n  ");
+    opts.push(`body: JSON.stringify(${body})`);
+  }
+  if (headers.length) opts.splice(method !== "GET" ? 1 : 0, 0, `headers: {\n    ${headers.join(",\n    ")},\n  }`);
+  const call = opts.length ? `await fetch(${JSON.stringify(url)}, {\n  ${opts.join(",\n  ")},\n})` : `await fetch(${JSON.stringify(url)})`;
+  const read =
+    op.returns === "none"
+      ? `if (!res.ok) throw new Error(\`\${res.status}\`);`
+      : op.returns && op.returns !== "application/json"
+        ? `const data = await res.${op.returns.startsWith("text/") ? "text" : "blob"}();`
+        : "const data = await res.json();";
+  return `${pre}const res = ${call};\n${read}`;
+}
+
+function pySample(op, values) {
+  const url = requestUrl(op, values);
+  const method = op.method.toLowerCase();
+  const args = [JSON.stringify(url)];
+  const needsOs = op.auth === "token" || op.auth === "optional";
+  const headers = [];
+  if (needsOs) headers.push(`"Authorization": f"Bearer {os.environ['${TOKEN_ENV}']}"`);
+  for (const [k, v] of Object.entries(values.header || {})) if (v) headers.push(`${JSON.stringify(headerName(k))}: ${JSON.stringify(String(v))}`);
+  if (headers.length) args.push(`headers={${headers.join(", ")}}`);
+  if (op.body?.contentType === "multipart/form-data") {
+    const f = op.body.fields.find((x) => x.binary);
+    if (f) args.push(`files={${JSON.stringify(f.name)}: open("logo.png", "rb")}`);
+  } else if (values.body !== undefined && op.body) args.push(`json=${pyLiteral(values.body, "    ")}`);
+  const call = args.length === 1 ? `r = requests.${method}(${args[0]})` : `r = requests.${method}(\n    ${args.join(",\n    ")},\n)`;
+  const read =
+    op.returns === "none"
+      ? ""
+      : op.returns && op.returns !== "application/json"
+        ? op.returns.startsWith("text/")
+          ? "\nprint(r.text)"
+          : `\nopen("out.${op.returns.split("/")[1]}", "wb").write(r.content)`
+        : "\nprint(r.json())";
+  return `${needsOs ? "import os\n\n" : ""}import requests\n\n${call}\nr.raise_for_status()${read}`;
+}
+
+/** Values the static samples use: overlay examples, else name-based placeholders. */
+export function sampleValues(op, ctx) {
+  const v = { path: {}, query: {}, header: {}, body: exampleBody(op, ctx), files: {} };
+  for (const p of op.params) {
+    const ex = op.overlay.params?.[p.name] ?? ctx.examples[p.name];
+    if (p.in === "path") v.path[p.name] = ex ?? p.name.toUpperCase();
+    else if (p.in === "query" && (p.required || op.overlay.params?.[p.name] !== undefined)) v.query[p.name] = ex ?? p.default ?? p.name.toUpperCase();
+    else if (p.in === "header" && (p.required || op.overlay.params?.[p.name] !== undefined)) v.header[p.name] = ex;
+  }
+  return v;
+}
+
+/* ── the reference ──────────────────────────────────────────────────────── */
+
+function rateText(r) {
+  const m = /^(\d+)\/(\d+ )?(second|minute|hour|day)s?$/.exec(r);
+  if (!m) return r;
+  return m[2] ? `${m[1]} per ${m[2].trim()} ${m[3]}s` : `${m[1]} per ${m[3]}`;
+}
+
+const AUTH_TEXT = {
+  token: "API token required",
+  optional: "Token optional",
+  none: "No token needed",
+  session: "Signed-in browser only",
+};
+
+function statusText(code) {
+  return (
+    {
+      200: "OK",
+      201: "Created",
+      202: "Accepted",
+      204: "No content",
+      400: "Bad request",
+      401: "Unauthorized",
+      403: "Forbidden",
+      404: "Not found",
+      409: "Conflict",
+      410: "Gone",
+      413: "Too large",
+      422: "Validation error",
+      429: "Too many requests",
+      501: "Not implemented",
+      507: "Over quota",
+    }[code] || ""
+  );
+}
+
+/**
+ * Build the reference.
+ * @returns {{ groups: Array<{id:string,title:string,description?:string,ops:any[]}>, ops: any[], problems: string[] }}
+ */
+export function buildApiReference(spec, overlay = {}, opts = {}) {
+  const problems = [];
+  const server = (opts.server || spec?.servers?.[0]?.url || "").replace(/\/+$/, "");
+  const base = (opts.base || "/api").replace(/\/+$/, "");
+  const resolve = makeResolver(spec || {});
+  const ctx = {
+    resolve,
+    notes: overlay.fields || {},
+    examples: overlay.examples || {},
+  };
+  const hideTags = new Set(overlay.hide?.tags || []);
+  const hideOps = new Set(overlay.hide?.operations || []);
+  const groupDefs = (overlay.groups || []).map((g) => ({ ...g, tags: g.tags || [] }));
+  const groups = new Map(groupDefs.map((g) => [g.id, { id: g.id, title: g.title, description: g.description, ops: [] }]));
+  const more = { id: "more", title: "More", ops: [] };
+  const seenKeys = new Set();
+  const usedPaths = new Map();
+
+  for (const [apiPath, item] of Object.entries(spec?.paths || {})) {
+    for (const method of METHODS) {
+      const raw = item?.[method];
+      if (!raw) continue;
+      const key = `${method.toUpperCase()} ${apiPath}`;
+      seenKeys.add(key);
+      const tags = raw.tags || [];
+      if (hideOps.has(key) || (tags.length && tags.every((t) => hideTags.has(t))) || (!tags.length && hideTags.has(""))) continue;
+      const ov = overlay.operations?.[key] || {};
+      const groupId = ov.group || groupDefs.find((g) => tags.some((t) => g.tags.includes(t)))?.id;
+      const group = (groupId && groups.get(groupId)) || more;
+      if (groupId && !groups.has(groupId)) problems.push(`${key}: group "${groupId}" isn't in groups`);
+      if (group === more) problems.push(`${key}: no group (tags ${tags.join(", ") || "none"}); add its tag to a group or set "group"`);
+      if (!ov.title) problems.push(`${key}: no title in the overlay (using "${raw.summary}")`);
+
+      const title = ov.title || raw.summary || key;
+      const slug = ov.slug || slugify(title);
+      if (!NAME_RE.test(slug)) problems.push(`${key}: slug "${slug}" must be lowercase-with-dashes`);
+      const path = `${base}/${group.id}/${slug}`;
+      if (usedPaths.has(path)) problems.push(`${key}: page ${path} is also ${usedPaths.get(path)}; set a different "slug"`);
+      usedPaths.set(path, key);
+
+      const x = raw["x-markdrop"] || {};
+      const params = [];
+      const pathItemParams = Array.isArray(item.parameters) ? item.parameters : [];
+      for (const p0 of [...pathItemParams, ...(raw.parameters || [])]) {
+        const p = resolve(p0).schema;
+        const { schema } = unwrapNull(resolve(p.schema || {}).schema);
+        const name = p.name;
+        const note = ov.paramNotes?.[name] ?? overlay.params?.[name];
+        params.push({
+          name,
+          in: p.in,
+          display: p.in === "header" ? headerName(name) : name,
+          required: !!p.required,
+          type: typeLabel(p.schema || {}, resolve),
+          description: note ?? p.description ?? "",
+          constraints: constraintText(schema),
+          ...(Array.isArray(schema.enum) ? { enum: schema.enum } : patternEnum(schema) ? { enum: patternEnum(schema) } : {}),
+          ...(schema.default !== undefined ? { default: schema.default } : {}),
+          kind: schema.type === "integer" || schema.type === "number" ? "number" : schema.type === "boolean" ? "boolean" : "string",
+        });
+      }
+
+      let body = null;
+      const rb = raw.requestBody ? resolve(raw.requestBody).schema : null;
+      if (rb?.content) {
+        const ct = Object.keys(rb.content)[0];
+        const sch = rb.content[ct]?.schema || {};
+        let fields = [];
+        try {
+          fields = fieldsOf(sch, ctx);
+        } catch (e) {
+          problems.push(`${key}: request body: ${e.message}`);
+        }
+        body = { contentType: ct, required: !!rb.required, schema: resolve(sch).name, fields };
+      }
+
+      const responses = [];
+      for (const [code, r0] of Object.entries(raw.responses || {})) {
+        const r = resolve(r0).schema;
+        const ct = r.content ? Object.keys(r.content)[0] : undefined;
+        const sch = ct ? r.content[ct].schema : undefined;
+        let fields = [];
+        if (sch && code.startsWith("2")) {
+          try {
+            fields = fieldsOf(sch, ctx);
+          } catch (e) {
+            problems.push(`${key}: response ${code}: ${e.message}`);
+          }
+        }
+        const generic = !r.description || r.description === "Successful Response" || r.description === "Validation Error";
+        const desc =
+          ov.responses?.[code] ??
+          (code === "422"
+            ? "The request didn't validate. `detail` lists each problem, with where it is (`loc`) and why (`msg`)."
+            : generic
+              ? statusText(code) + "."
+              : r.description);
+        responses.push({ status: code, description: desc, ...(fields.length ? { fields } : {}), ...(sch && resolve(sch).name && code.startsWith("2") ? { schema: resolve(sch).name } : {}) });
+      }
+      // What the code does that the schema doesn't say.
+      const add = (code, text) => {
+        if (!responses.some((r) => r.status === code)) responses.push({ status: code, description: text });
+      };
+      if (x.auth === "token") add("401", "No token, or the token is revoked or mistyped.");
+      if (x.rateLimits?.length) add("429", "Too many requests from your IP address. Wait the seconds in `Retry-After`.");
+      for (const [code, text] of Object.entries(ov.responses || {})) add(code, text);
+      responses.sort((a, b) => a.status.localeCompare(b.status));
+
+      const docstring = tidyDocstring(raw.description || "");
+      const description = ov.description ?? docstring;
+      const summary = ov.summary || (description ? firstSentence(description) : `${method.toUpperCase()} ${apiPath}`);
+      const hasEdit = params.some((p) => p.in === "header" && p.name.toLowerCase() === "x-edit-secret");
+      const hasPassword = params.some((p) => p.in === "header" && p.name.toLowerCase() === "x-read-password");
+      const okResp = responses.find((r) => r.status.startsWith("2"));
+      const returns = ov.returns || (okResp?.status === "204" ? "none" : "application/json");
+
+      const op = {
+        key,
+        operationId: raw.operationId,
+        method: method.toUpperCase(),
+        apiPath,
+        server,
+        url: server + apiPath,
+        title,
+        slug,
+        path,
+        group: { id: group.id, title: group.title },
+        tags,
+        summary: summary.length > 160 ? summary.slice(0, 157).replace(/\s+\S*$/, "") + "…" : summary,
+        description,
+        auth: x.auth || "none",
+        authLabel: AUTH_TEXT[x.auth || "none"],
+        editSecret: hasEdit,
+        readPassword: hasPassword,
+        rateLimits: (x.rateLimits || []).map(rateText),
+        params,
+        body,
+        responses,
+        returns,
+        cli: ov.cli || null,
+        mcp: ov.mcp || null,
+        guide: ov.guide || null,
+        deprecated: !!raw.deprecated,
+        keywords: [method.toUpperCase(), apiPath, ...(ov.keywords || []), ...(ov.mcp ? [ov.mcp] : []), ...tags],
+        overlay: ov,
+      };
+      op.samples = samplesFor(op, ctx);
+      op.markdown = operationMarkdown(op);
+      group.ops.push(op);
+    }
+  }
+
+  for (const k of Object.keys(overlay.operations || {})) if (!seenKeys.has(k)) problems.push(`overlay operation "${k}" isn't in the OpenAPI description`);
+  for (const k of hideOps) if (!seenKeys.has(k)) problems.push(`hide.operations "${k}" isn't in the OpenAPI description`);
+
+  // Within a group: the overlay's order (it lists operations in reading order), then the rest
+  // in the description's order.
+  const order = new Map(Object.keys(overlay.operations || {}).map((k, i) => [k, i]));
+  const rank = (op) => order.get(op.key) ?? Number.MAX_SAFE_INTEGER;
+  for (const g of [...groups.values(), more]) g.ops = g.ops.map((op, i) => ({ op, i })).sort((a, b) => rank(a.op) - rank(b.op) || a.i - b.i).map((x) => x.op);
+  const out = [...groups.values(), more].filter((g) => g.ops.length);
+  // `overlay` and the resolver context stay out of what pages receive.
+  const ops = out.flatMap((g) => g.ops);
+  for (const op of ops) delete op.overlay;
+  return { groups: out, ops, problems };
+}
+
+function samplesFor(op, ctx) {
+  const v = sampleValues(op, ctx);
+  op.example = v;
+  const samples = [
+    { label: "curl", lang: "bash", code: curlCommand(op, v) },
+    { label: "JavaScript", lang: "javascript", code: jsSample(op, v) },
+    { label: "Python", lang: "python", code: pySample(op, v) },
+  ];
+  if (op.cli) samples.push({ label: "CLI", lang: "bash", code: op.cli });
+  return samples;
+}
+
+/* ── Markdown (agents, llms-full.txt, search) ───────────────────────────── */
+
+function fieldLines(fields, indent = "", response = false) {
+  const out = [];
+  for (const f of fields) {
+    const bits = [f.type + (response && f.nullable ? " | null" : ""), f.required && !response ? "required" : ""].filter(Boolean).join(", ");
+    const extra = [
+      f.description,
+      f.constraints,
+      f.enum && !f.type.includes('"') ? `One of ${f.enum.map((e) => `\`${e}\``).join(", ")}.` : "",
+      f.default !== undefined && f.default !== null && !(Array.isArray(f.default) && !f.default.length) ? `Default \`${JSON.stringify(f.default)}\`.` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    out.push(`${indent}- \`${f.name}\` (${bits})${extra ? `: ${extra}` : ""}`);
+    if (f.children) out.push(...fieldLines(f.children, indent + "  ", response));
+  }
+  return out;
+}
+
+const PARAM_SECTIONS = [
+  ["path", "Path parameters"],
+  ["query", "Query parameters"],
+  ["header", "Headers"],
+];
+
+export function authSentence(op) {
+  const extra = [op.editSecret ? "or the document's edit secret in `X-Edit-Secret`" : "", op.readPassword ? "`X-Read-Password` for a password-protected document" : ""].filter(Boolean);
+  switch (op.auth) {
+    case "token":
+      return `API token required: \`Authorization: Bearer mdk_…\`.`;
+    case "optional":
+      return `Token optional: send \`Authorization: Bearer mdk_…\` to act as your account${extra.length ? `, ${extra.join("; ")}` : ""}.`;
+    case "session":
+      return "Only markdrop.in's own sign-in works here, not an API token.";
+    default:
+      return extra.length ? `No token needed. ${extra.map((e) => e[0].toUpperCase() + e.slice(1)).join("; ")}.` : "No token needed.";
+  }
+}
+
+export function operationMarkdown(op) {
+  const L = [];
+  L.push(`\`${op.method} ${op.url}\``, "");
+  if (op.description) L.push(op.description, "");
+  const facts = [`- **Authentication:** ${authSentence(op)}`];
+  if (op.rateLimits.length) facts.push(`- **Rate limit:** ${op.rateLimits.join(", ")} per IP address.`);
+  if (op.cli) facts.push(`- **CLI:** \`${op.cli.split("\n")[0]}\``);
+  if (op.mcp) facts.push(`- **MCP tool:** \`${op.mcp}\` ([tools](/ai/tools))`);
+  if (op.guide) facts.push(`- **Guide:** [${op.guide.label}](${op.guide.href})`);
+  L.push(...facts, "");
+  for (const [where, heading] of PARAM_SECTIONS) {
+    const ps = op.params.filter((p) => p.in === where);
+    if (!ps.length) continue;
+    L.push(`## ${heading}`, "");
+    L.push(...fieldLines(ps.map((p) => ({ ...p, name: p.display }))), "");
+  }
+  if (op.body) {
+    L.push("## Request body", "");
+    L.push(`\`${op.body.contentType}\`${op.body.required ? ", required" : ""}.`, "");
+    if (op.body.fields.length) L.push(...fieldLines(op.body.fields), "");
+  }
+  L.push("## Responses", "");
+  for (const r of op.responses) {
+    L.push(`- \`${r.status}\`: ${r.description}`);
+    if (r.fields?.length) L.push(...fieldLines(r.fields, "  ", true));
+  }
+  L.push("", "## Examples", "", samplesMarkdown(op), "");
+  return L.join("\n");
+}
+
+/** The code samples as one synced tab group (`lang`: curl / JavaScript / Python / CLI). */
+export function samplesMarkdown(op) {
+  const L = ['::::tabs{sync="lang"}'];
+  for (const s of op.samples) {
+    const fence = s.code.includes("```") ? "~~~~" : "```";
+    L.push(`:::tab[${s.label}]`, fence + s.lang, s.code, fence, ":::");
+  }
+  L.push("::::");
+  return L.join("\n");
+}

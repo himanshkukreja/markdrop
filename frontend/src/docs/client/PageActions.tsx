@@ -5,7 +5,7 @@
  * split "Copy page ▾" button, the right rail's action list, and the phone's bottom bar.
  */
 import { Button, Dropdown, Icon, copyText, cx, useToast, type MenuEntry } from "@/components/ui";
-import { OPEN_IN, openInHref, usePageCopy } from "./page";
+import { OPEN_IN, mcpInstallLinks, openInHref, usePageCopy } from "./page";
 import { askAboutPage, askAboutSection, openAsk } from "./ask/store";
 
 export function HeadingActions({ id, label }: { id: string; label: string }) {
@@ -44,6 +44,7 @@ export function CopyPageButton({ compact }: { compact?: boolean }) {
   const { page, copyPage, copyWithPrereqs, copyForAssistant } = usePageCopy();
   if (!page) return null;
   const n = page.prereq?.count ?? 0;
+  const mcp = mcpInstallLinks(page.url);
   const items: MenuEntry[] = [
     { label: "Copy page", description: "As Markdown, ready for any assistant", icon: "copy", onClick: copyPage },
     ...(n
@@ -51,6 +52,15 @@ export function CopyPageButton({ compact }: { compact?: boolean }) {
       : []),
     { label: "View as Markdown", description: "Opens the .md version", icon: "doc", href: page.mdUrl, external: true },
     ...OPEN_IN.map((o, i) => ({ label: o.label, description: o.hint, icon: "external", href: openInHref(o.base, page.mdUrl), external: true, separated: i === 0, onClick: copyForAssistant })),
+    {
+      label: "Add docs to Cursor",
+      description: "Installs the docs MCP server, so Cursor can search these docs",
+      icon: "code",
+      separated: true,
+      // A cursor:// link: assigned rather than routed, so nothing tries to prefetch it.
+      onClick: () => window.location.assign(mcp.cursor),
+    },
+    { label: "Add docs to VS Code", description: "Installs the docs MCP server for Copilot Chat", icon: "code", href: mcp.vscode, external: true },
     { label: "Ask AI about this page", description: "Answers from these docs, with sources", icon: "zap", onClick: askAboutPage, separated: true },
   ];
   return (

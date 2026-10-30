@@ -1,0 +1,685 @@
+{
+  "$comment": "Prose for the generated API reference (src/docs/openapi.mjs). Shapes, types, limits, auth and rate limits come from openapi.json (npm run docs:openapi); this file only titles, explains, groups and hides. Keys are \"METHOD /path\" exactly as in openapi.json. docs:check validates it.",
+  "groups": [
+    { "id": "documents", "title": "Documents", "tags": ["documents", "og-image"] },
+    { "id": "files", "title": "Files", "tags": ["files", "artifacts"] },
+    { "id": "access", "title": "Sharing and access", "tags": ["access"] },
+    { "id": "workspaces", "title": "Workspaces", "tags": ["workspaces", "invitations"] },
+    { "id": "folders", "title": "Folders and filing", "tags": ["folders", "workspace-items", "library", "folder-pages"] },
+    { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
+    { "id": "analytics", "title": "Analytics", "tags": ["creator-analytics"] },
+    { "id": "account", "title": "Account", "tags": ["auth", "me", "personal", "oauth"] }
+  ],
+  "hide": {
+    "$comment": "Endpoints only markdrop.in's own pages, emails or apps call: sign-in redirects, email links, Google Docs export, the VS Code extension's sync protocol, the docs site's own endpoints, the MCP transport (documented under AI and MCP) and the health check.",
+    "tags": ["google-docs", "sync", "feedback", "docs", "mcp", ""],
+    "operations": [
+      "GET /api/v1/artifacts/status",
+      "POST /api/v1/auth/logout",
+      "GET /api/v1/auth/google/login",
+      "GET /api/v1/auth/google/callback",
+      "POST /api/v1/auth/email/request",
+      "POST /api/v1/auth/email/verify",
+      "GET /api/v1/auth/email/verify",
+      "GET /api/v1/auth/unsubscribe",
+      "POST /api/v1/auth/unsubscribe",
+      "GET /api/v1/me/digest/off",
+      "POST /api/v1/me/digest/off",
+      "GET /api/v1/oauth/requests/{request_id}",
+      "POST /api/v1/oauth/requests/{request_id}/decision",
+      "GET /health"
+    ]
+  },
+  "examples": {
+    "slug": "k3x9q2m",
+    "title": "Release notes",
+    "content": "# Release notes\n\nPublished from the API.",
+    "file_name": "deck.pdf",
+    "filename": "deck.pdf",
+    "content_type": "application/pdf",
+    "size_bytes": 1048576,
+    "sha256": "SHA256_OF_THE_FILE",
+    "email": "sam@example.com",
+    "name": "Acme",
+    "host": "docs.acme.com",
+    "new_slug": "release-notes",
+    "slugs": ["k3x9q2m"],
+    "confirm_name": "Acme",
+    "blob_key": "BLOB_KEY",
+    "version": 1,
+    "upload_id": "UPLOAD_ID",
+    "workspace_id": "WORKSPACE_ID",
+    "folder_id": "FOLDER_ID",
+    "domain_id": "DOMAIN_ID",
+    "invite_id": "INVITE_ID",
+    "member_user_id": "USER_ID",
+    "user_id": "USER_ID",
+    "document_id": "DOCUMENT_ID",
+    "request_id": "REQUEST_ID",
+    "share_id": "SHARE_ID",
+    "token_id": "TOKEN_ID",
+    "client_id": "CLIENT_ID",
+    "token": "INVITE_TOKEN"
+  },
+  "params": {
+    "slug": "The document's address: the part after `markdrop.in/`.",
+    "workspace_id": "The workspace's id, from the address of its settings page (`markdrop.in/settings/workspaces/<workspace-id>`) or from [List workspaces](/api/workspaces/list-workspaces).",
+    "folder_id": "The folder's id, from [List folders](/api/folders/list-folders).",
+    "domain_id": "The domain's id, from [List domains](/api/domains/list-domains).",
+    "upload_id": "The `upload_id` that [Start a file upload](/api/files/start-a-file-upload) returned.",
+    "x-edit-secret": "The document's edit secret (`sk_…`), for a document published without an account. See [Edit key](/documents/edit-key).",
+    "x-read-password": "The password of a password-protected document.",
+    "range": "The period to count: `7d`, `30d`, `90d` or `all`.",
+    "page": "Page number, from 1.",
+    "limit": "How many to return."
+  },
+  "fields": {
+    "content": "The document's Markdown.",
+    "title": "Shown on the page and in link previews.",
+    "custom_slug": "Your own address: `markdrop.in/<custom_slug>`. Letters, digits, `-` and `_`. Taken or reserved addresses answer `409`.",
+    "expires_in": "When the document is deleted. `custom` needs `custom_expires_at`.",
+    "custom_expires_at": "The deletion time, when `expires_in` is `custom`. Must be in the future.",
+    "read_password": "Readers must enter this password before they see the content.",
+    "remove_password": "`true` removes the password.",
+    "access_level": "Who can open it: `link` (anyone with the link), `private` (only you and the people you share it with) or `workspace` (members of its workspace).",
+    "workspace": "File it in this workspace: the workspace's id.",
+    "folder": "An existing folder of `workspace`: its id or its path, like `guides/setup`.",
+    "encrypted": "Set by clients that encrypt in the browser: `content` and `title` are already ciphertext. The server never sees the key.",
+    "DocumentResponse.slug": "The address: `markdrop.in/<slug>`.",
+    "DocumentResponse.url": "The link to share.",
+    "DocumentResponse.workspace_url": "The address on its workspace's own domain, when it has a live one.",
+    "DocumentResponse.kind": "`markdown` for a document, `artifact` for a file.",
+    "DocumentResponse.can": "What you may do with it: `edit`, `replace`, `settings`, `access`, `rename`, `delete`, `share`, `move`, `unshare`.",
+    "DocumentCreateResponse.edit_secret": "Returned once. Send it as `X-Edit-Secret` to change or delete a document published without a token.",
+    "UploadCreateRequest.file_name": "The file's name, with its extension.",
+    "UploadCreateRequest.size_bytes": "The file's exact size in bytes.",
+    "UploadCreateRequest.sha256": "The SHA-256 of the whole file, in hex. The server checks it before the file goes live.",
+    "UploadCreateRequest.target_slug": "Replace the file behind this existing address instead of publishing a new one. The link, access and views stay.",
+    "UploadCreateRequest.access": "Who can open it: `link`, `private`, `password` (needs `password`) or `workspace` (needs `workspace`).",
+    "UploadCreateRequest.slug": "Your own address: `markdrop.in/<slug>`.",
+    "UploadCompleteRequest.parts": "Each part's number and the `ETag` storage returned when you uploaded it.",
+    "UploadUrlsRequest.part_numbers": "The parts that need a fresh URL. Leave it out for every part not yet uploaded.",
+    "LevelUpdate.level": "`link` (anyone with the link), `private` (only the people you share it with) or `workspace` (members of its workspace).",
+    "GrantCreate.email": "The person's email address. They don't need an account yet.",
+    "GrantCreate.role": "`viewer` can open it; `editor` can also change it.",
+    "GrantCreate.notify": "Email them a link.",
+    "GrantCreate.message": "A note included in the email.",
+    "AccessRequestDecision.decision": "`view` or `edit` approves with that role; `decline` refuses.",
+    "InviteCreateRequest.role": "`admin`, `member` or `viewer`. See [Members and roles](/workspaces/members-and-roles).",
+    "MemberRoleRequest.role": "`admin`, `member` or `viewer`.",
+    "DomainCreate.host": "The full hostname, like `docs.acme.com`.",
+    "DomainCreate.kind": "`app` serves documents and files; `cdn` serves files only.",
+    "WorkspaceDeleteRequest.confirm_name": "The workspace's name, typed back, to confirm.",
+    "FolderCreate.parent_id": "Create it inside this folder. Leave it out for the top level.",
+    "TokenCreateRequest.name": "A name to recognise it by, like the script or device that uses it.",
+    "ApiTokenCreateResponse.token": "The token. Shown only in this response: store it now.",
+    "PreferencesUpdate.analytics_digest": "`weekly` sends the weekly analytics email; `off` stops it.",
+    "SlugChangeRequest.new_slug": "The new address. The old one keeps working as a redirect for people who can read the document.",
+    "ItemsAdd.slugs": "Addresses of documents you own.",
+    "ItemsAdd.folder_id": "File them in this folder. Leave it out for the top level.",
+    "ItemsAdd.access": "Also change who can open them. Left out, their access doesn't change.",
+    "ItemsMove.folder_id": "The destination folder, or `null` for the top level.",
+    "FolderShare.level": "`link`: anyone with the folder link; `workspace`: members only. Each visitor still sees only the documents they could already open."
+  },
+  "operations": {
+    "POST /api/v1/documents": {
+      "title": "Publish a document",
+      "description": "Creates a Markdown document and returns its link. Works without an account: send a token to own it. Keep the `edit_secret` from a call without a token: it is the only way to change or delete that document later.",
+      "mcp": "publish_document",
+      "example": { "title": "Release notes", "content": "# Release notes\n\nPublished from the API.", "expires_in": "7d" },
+      "responses": { "201": "Created. Returns the document with its `slug`, `url` and `edit_secret`.", "409": "The custom address is taken, or reserved." },
+      "guide": { "label": "Publish your first document", "href": "/get-started/first-document" }
+    },
+    "GET /api/v1/documents/{slug}": {
+      "title": "Read a document",
+      "description": "Returns a document's content and details, if you may read it. For a private or workspace document, send a token; for a password-protected one, send the password in `X-Read-Password`.\n\nA document whose address changed answers at its old address too, but only to someone who can read it: `200` with `\"moved\": true` and the current `slug`.",
+      "mcp": "get_document",
+      "responses": { "401": "It needs a token, or the right password.", "404": "No such document, or you can't open it." }
+    },
+    "PUT /api/v1/documents/{slug}": {
+      "title": "Update a document",
+      "description": "Replaces a document's content, and optionally its title, password and expiry. Send a token as the owner or an editor, or the document's edit secret in `X-Edit-Secret`.",
+      "mcp": "update_document",
+      "example": { "title": "Release notes", "content": "# Release notes\n\nUpdated from the API." },
+      "guide": { "label": "Edit key", "href": "/documents/edit-key" }
+    },
+    "DELETE /api/v1/documents/{slug}": {
+      "title": "Delete a document",
+      "description": "Deletes a document for good. Send a token as the owner, or the document's edit secret in `X-Edit-Secret`.",
+      "mcp": "delete_document"
+    },
+    "POST /api/v1/documents/{slug}/edit-secret/rotate": {
+      "title": "Rotate the edit secret",
+      "description": "Replaces a document's edit secret, for when the old one leaked. The old secret stops working at once; the new one is in the response, once. Owner only.",
+      "guide": { "label": "If the secret leaks", "href": "/documents/edit-key#if-the-secret-leaks" }
+    },
+    "POST /api/v1/documents/{slug}/claim": {
+      "title": "Claim a document",
+      "description": "Adds a document you published without an account to your account. Send its edit secret in `X-Edit-Secret`.",
+      "responses": { "409": "Another account already owns it." },
+      "guide": { "label": "Save it to your account", "href": "/documents/edit-key#save-it-to-your-account" }
+    },
+    "POST /api/v1/documents/{slug}/copy": {
+      "title": "Copy a document",
+      "description": "Makes a copy of a document you can read, owned by you, with a new address, no password and no expiry. The copy is private unless the original is open to anyone with the link."
+    },
+    "PATCH /api/v1/documents/{slug}/slug": {
+      "title": "Change the address",
+      "description": "Gives a document a new address. Its old address keeps working for people who can read it.",
+      "example": { "new_slug": "release-notes" },
+      "responses": { "409": "That address is taken, or reserved." },
+      "guide": { "label": "Addresses", "href": "/documents/addresses" }
+    },
+    "PATCH /api/v1/documents/{slug}/settings": {
+      "title": "Set password and expiry",
+      "description": "Changes a document's password or expiry without sending its content. Every field is optional: leave one out to keep it. `\"read_password\": \"\"` removes the password. Send a token as the owner, or the edit secret.",
+      "example": { "expires_in": "7d" },
+      "guide": { "label": "Passwords and expiry", "href": "/documents/passwords-and-expiry" }
+    },
+    "POST /api/v1/documents/{slug}/report": {
+      "title": "Report a document",
+      "description": "Flags a document for abuse. Always answers `202`, whether or not the address exists.",
+      "example": { "reason": "Phishing page" }
+    },
+    "GET /api/v1/me/documents": {
+      "title": "List your documents",
+      "group": "documents",
+      "description": "The documents and files you own, a page at a time, with counts of each kind.",
+      "mcp": "list_documents",
+      "paramNotes": { "q": "Only titles or addresses containing this text.", "kind": "`document` (or `markdown`) for documents, `artifact` for files.", "per_page": "Same as `limit`, up to 50; wins when both are sent." }
+    },
+    "GET /api/v1/og/{slug}.png": {
+      "title": "Get the preview image",
+      "description": "The 1200×630 image link previews show for a document, as PNG.",
+      "returns": "image/png",
+      "paramNotes": { "host": "Draw the card for this address (a workspace's own domain) instead of markdrop.in." },
+      "guide": { "label": "Link previews", "href": "/documents/link-previews" }
+    },
+
+    "POST /api/v1/files/uploads": {
+      "title": "Start a file upload",
+      "description": "Starts publishing a file of any size: send its name, size and SHA-256, and get back presigned URLs to `PUT` each part to. Then [finish the upload](/api/files/finish-a-file-upload). With `target_slug`, the file replaces the one behind an existing link instead, keeping the link, its access and its views.\n\nThe CLI does all of this, with resume, in one command.",
+      "cli": "markdrop upload deck.pdf --title \"Q3 deck\"",
+      "mcp": "create_upload",
+      "example": { "file_name": "deck.pdf", "size_bytes": 1048576, "sha256": "SHA256_OF_THE_FILE", "title": "Q3 deck" },
+      "responses": { "409": "The address you asked for is taken, or reserved.", "413": "The file is over the size limit for its type.", "507": "Your storage is full." },
+      "guide": { "label": "Large uploads", "href": "/files/large-uploads" }
+    },
+    "POST /api/v1/files/uploads/{upload_id}/urls": {
+      "title": "Get fresh part URLs",
+      "description": "New presigned URLs for parts of an upload in progress, for when the first ones expired before you used them.",
+      "example": { "part_numbers": [1, 2] }
+    },
+    "GET /api/v1/files/uploads/{upload_id}": {
+      "title": "Check an upload",
+      "description": "Where an upload stands: how many parts arrived and, once finished, whether the check passed (`state` is `done`, with `result`) or failed (`failed`, with `error`).",
+      "mcp": "get_upload_status"
+    },
+    "DELETE /api/v1/files/uploads/{upload_id}": {
+      "title": "Cancel an upload",
+      "description": "Stops an upload in progress."
+    },
+    "POST /api/v1/files/uploads/{upload_id}/complete": {
+      "title": "Finish a file upload",
+      "description": "Publishes the file once every part is uploaded. The server checks the SHA-256 first. `200` returns the link. `202` (`{\"state\": \"verifying\"}`) means the check is still running: [check the upload](/api/files/check-an-upload) until `state` is `done`. Calling it again on a finished upload returns the same result.",
+      "cli": "markdrop upload deck.pdf",
+      "mcp": "complete_upload",
+      "example": { "parts": [{ "part_number": 1, "etag": "ETAG_FROM_THE_PUT" }] },
+      "responses": { "200": "Published. Returns the link.", "202": "Still checking the file. Poll the upload's status." }
+    },
+    "GET /api/v1/files/{slug}": {
+      "title": "Get file details",
+      "description": "A published file's size, type, current version, SHA-256 and, for video and audio, its duration and dimensions.",
+      "cli": "markdrop info k3x9q2m",
+      "mcp": "get_file_info"
+    },
+    "GET /api/v1/files/{slug}/versions": {
+      "title": "List file versions",
+      "description": "Every version of a file you own. Replacing a file keeps the previous version.",
+      "cli": "markdrop versions k3x9q2m",
+      "mcp": "list_file_versions",
+      "guide": { "label": "Replace and versions", "href": "/files/replace-and-versions" }
+    },
+    "POST /api/v1/files/{slug}/versions/{version}/restore": {
+      "title": "Restore a file version",
+      "description": "Makes an earlier version current again, at the same link. Versions start at 1.",
+      "cli": "markdrop restore k3x9q2m 1",
+      "mcp": "restore_file_version",
+      "guide": { "label": "Replace and versions", "href": "/files/replace-and-versions" }
+    },
+    "POST /api/v1/artifacts/paste": {
+      "title": "Publish an HTML page",
+      "description": "Publishes HTML you send in the request as a page that renders. Up to 10 MB; anything larger goes through [Start a file upload](/api/files/start-a-file-upload).",
+      "mcp": "publish_page",
+      "example": { "title": "Launch page", "content": "<!doctype html><title>Launch</title><h1>Hello</h1>" },
+      "responses": { "413": "The HTML is over 10 MB.", "507": "Your storage is full." },
+      "guide": { "label": "HTML pages", "href": "/files/html-pages" }
+    },
+    "POST /api/v1/artifacts/upload-url": {
+      "title": "Get a single upload URL",
+      "description": "The one-request upload markdrop.in uses for smaller files: returns a presigned URL to `PUT` the whole file to, then [publish it](/api/files/publish-an-uploaded-file). For anything large, or to resume, use [Start a file upload](/api/files/start-a-file-upload).",
+      "responses": { "413": "The file is over the size limit for its type.", "415": "That file type isn't supported." }
+    },
+    "POST /api/v1/artifacts": {
+      "title": "Publish an uploaded file",
+      "description": "Publishes a file uploaded with [Get a single upload URL](/api/files/get-a-single-upload-url), after checking its real size and type.",
+      "example": { "blob_key": "BLOB_KEY", "title": "Q3 deck" }
+    },
+    "PATCH /api/v1/artifacts/{slug}": {
+      "title": "Update a file's settings",
+      "description": "Changes a file's title, password or expiry. Every field is optional. The owner may change all of them; editors may change the title.",
+      "example": { "title": "Q3 deck (final)" }
+    },
+    "PUT /api/v1/artifacts/{slug}/file": {
+      "title": "Replace a file",
+      "description": "Swaps the file behind a link for one uploaded with [Get a single upload URL](/api/files/get-a-single-upload-url), keeping the link and its settings. The previous file is kept as a version.",
+      "cli": "markdrop replace k3x9q2m deck-v2.pdf",
+      "example": { "blob_key": "BLOB_KEY" },
+      "responses": { "507": "The owner's storage is full." },
+      "guide": { "label": "Replace and versions", "href": "/files/replace-and-versions" }
+    },
+
+    "GET /api/v1/documents/{slug}/access": {
+      "title": "Get sharing settings",
+      "description": "Who can open a document and the people it is shared with. People with a role on the document can call it; the list of people is for the owner and editors.",
+      "guide": { "label": "Who can open a document", "href": "/sharing/who-can-open" }
+    },
+    "PUT /api/v1/documents/{slug}/access/level": {
+      "title": "Set who can open it",
+      "description": "Sets a document's access level. Narrowing it takes effect at once, for every address the document has.",
+      "mcp": "set_access",
+      "example": { "level": "private" },
+      "guide": { "label": "Who can open a document", "href": "/sharing/who-can-open" }
+    },
+    "POST /api/v1/documents/access/level": {
+      "title": "Set access for several documents",
+      "description": "Sets the access level of many documents you own at once. Each one is checked on its own: the response has a result per address.",
+      "example": { "slugs": ["k3x9q2m", "q3-report"], "level": "private" }
+    },
+    "PUT /api/v1/documents/{slug}/access/resharing": {
+      "title": "Let editors share",
+      "description": "Whether editors may share the document with more people.",
+      "example": { "allow": false }
+    },
+    "POST /api/v1/documents/{slug}/access/people": {
+      "title": "Share with a person",
+      "description": "Gives one person access by email, and optionally emails them. If the email fails, the access stays: the response says whether it was sent.",
+      "example": { "email": "sam@example.com", "role": "viewer", "notify": true },
+      "guide": { "label": "Share with people", "href": "/sharing/share-with-people" }
+    },
+    "DELETE /api/v1/documents/{slug}/access/people/{email}": {
+      "title": "Remove a person",
+      "description": "Takes away one person's access.",
+      "params": { "email": "sam@example.com" }
+    },
+    "POST /api/v1/documents/{slug}/access-requests": {
+      "group": "access",
+      "title": "Request access",
+      "description": "Asks the owner of a document you can't open for access. The owner can approve or decline it.",
+      "example": { "message": "Could I see the Q3 numbers?" },
+      "guide": { "label": "Request access", "href": "/sharing/request-access" }
+    },
+    "GET /api/v1/documents/{slug}/access-requests/mine": {
+      "group": "access",
+      "title": "Check your request",
+      "description": "Whether your request for access to a document is pending, approved or declined."
+    },
+    "GET /api/v1/me/access-requests": {
+      "group": "access",
+      "title": "List requests for you",
+      "description": "Requests for access to documents you own."
+    },
+    "GET /api/v1/access-requests/{request_id}": {
+      "group": "access",
+      "title": "Get an access request",
+      "description": "One request for access to a document you own."
+    },
+    "POST /api/v1/access-requests/{request_id}/decision": {
+      "group": "access",
+      "title": "Answer an access request",
+      "description": "Approves a request as a viewer or editor, or declines it.",
+      "example": { "decision": "view" }
+    },
+
+    "GET /api/v1/workspaces": {
+      "title": "List workspaces",
+      "description": "The workspaces you belong to, with your role in each and their live domains.",
+      "cli": "markdrop workspaces",
+      "mcp": "list_workspaces"
+    },
+    "POST /api/v1/workspaces": {
+      "title": "Create a workspace",
+      "description": "Creates a workspace with you as its owner.",
+      "example": { "name": "Acme" },
+      "guide": { "label": "Create a workspace", "href": "/workspaces/create" }
+    },
+    "GET /api/v1/workspaces/{workspace_id}": {
+      "title": "Get a workspace",
+      "description": "A workspace's name, branding, settings and your role in it."
+    },
+    "PUT /api/v1/workspaces/{workspace_id}": {
+      "title": "Update a workspace",
+      "description": "Changes a workspace's name, branding or settings. Every field is optional.",
+      "example": { "name": "Acme Inc." },
+      "guide": { "label": "Branding", "href": "/workspaces/branding" }
+    },
+    "DELETE /api/v1/workspaces/{workspace_id}": {
+      "title": "Delete a workspace",
+      "description": "Deletes a workspace, its folders and its domains. Documents filed in it are not deleted: they go back to their owners. Send the workspace's name to confirm.",
+      "example": { "confirm_name": "Acme" }
+    },
+    "GET /api/v1/workspaces/{workspace_id}/members": {
+      "title": "List members",
+      "description": "Everyone in a workspace, with their roles."
+    },
+    "PUT /api/v1/workspaces/{workspace_id}/members/{member_user_id}": {
+      "title": "Change a member's role",
+      "description": "Makes a member an admin, a member or a viewer.",
+      "example": { "role": "admin" },
+      "guide": { "label": "Members and roles", "href": "/workspaces/members-and-roles" }
+    },
+    "DELETE /api/v1/workspaces/{workspace_id}/members/{member_user_id}": {
+      "title": "Remove a member",
+      "description": "Removes someone from a workspace."
+    },
+    "GET /api/v1/workspaces/{workspace_id}/invitations": {
+      "title": "List invitations",
+      "description": "Invitations that haven't been answered yet."
+    },
+    "POST /api/v1/workspaces/{workspace_id}/invitations": {
+      "title": "Invite someone",
+      "description": "Emails someone an invitation to join the workspace.",
+      "example": { "email": "sam@example.com", "role": "member" },
+      "guide": { "label": "Members and roles", "href": "/workspaces/members-and-roles" }
+    },
+    "DELETE /api/v1/workspaces/{workspace_id}/invitations/{invite_id}": {
+      "title": "Revoke an invitation",
+      "description": "Withdraws an invitation that hasn't been answered yet."
+    },
+    "POST /api/v1/workspaces/{workspace_id}/branding/{kind}": {
+      "title": "Upload a logo or favicon",
+      "description": "Uploads an image and returns its URL. It isn't used until you save that URL in the workspace's branding with [Update a workspace](/api/workspaces/update-a-workspace).",
+      "params": { "kind": "logo" },
+      "paramNotes": { "kind": "`logo` or `favicon`." },
+      "guide": { "label": "Branding", "href": "/workspaces/branding" }
+    },
+    "POST /api/v1/workspaces/{workspace_id}/transfer": {
+      "title": "Transfer ownership",
+      "description": "Makes another member the owner. You become an admin. Documents, sharing and domains don't change. Owner only.",
+      "example": { "user_id": "USER_ID" }
+    },
+    "GET /api/v1/invites/{token}": {
+      "title": "Preview an invitation",
+      "description": "What an invitation link is for: the workspace, the role and whether it is still open. Answers `200` for invitations already accepted or withdrawn too, saying so.",
+      "paramNotes": { "token": "The token from the invitation link." }
+    },
+    "POST /api/v1/invites/{token}/accept": {
+      "title": "Accept an invitation",
+      "description": "Joins the workspace with the role the invitation offers, as the account the token belongs to.",
+      "paramNotes": { "token": "The token from the invitation link." }
+    },
+    "POST /api/v1/invites/{token}/decline": {
+      "title": "Decline an invitation",
+      "description": "Turns an invitation down. No token needed: the invitation link is enough.",
+      "paramNotes": { "token": "The token from the invitation link." }
+    },
+
+    "GET /api/v1/workspaces/{workspace_id}/folders": {
+      "title": "List folders",
+      "description": "Every folder in a workspace.",
+      "mcp": "list_folders"
+    },
+    "POST /api/v1/workspaces/{workspace_id}/folders": {
+      "title": "Create a folder",
+      "description": "Creates a folder at the top level, or inside another folder with `parent_id`.",
+      "example": { "name": "Guides" },
+      "guide": { "label": "Folders", "href": "/workspaces/folders" }
+    },
+    "PUT /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
+      "title": "Update a folder",
+      "description": "Renames a folder, or moves it with `parent_id` and `reparent: true`.",
+      "example": { "name": "Handbook" }
+    },
+    "PATCH /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
+      "title": "Rename or move a folder",
+      "description": "Renames a folder, changes its address, moves it (`parent_id`; `null` is the top level) or sets the access new documents in it start with. Admins and the owner. Every document below it moves to its new address.",
+      "example": { "name": "Handbook" }
+    },
+    "DELETE /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
+      "title": "Delete a folder",
+      "description": "Deletes a folder. The documents in it aren't deleted: `unfiled_documents` says how many are no longer in a folder."
+    },
+    "GET /api/v1/workspaces/{workspace_id}/tree": {
+      "title": "Get the folder tree",
+      "description": "The workspace's folders as a tree, with their paths.",
+      "cli": "markdrop workspaces Acme"
+    },
+    "GET /api/v1/workspaces/{workspace_id}/items": {
+      "title": "List workspace items",
+      "description": "The documents and folders in a workspace that you can see."
+    },
+    "GET /api/v1/workspaces/{workspace_id}/preview": {
+      "title": "Preview as someone else",
+      "description": "What another person would see in a folder, and what is hidden from them and why. Members can preview; previewing a named person (`as` set to an email) is for admins."
+    },
+    "POST /api/v1/workspaces/{workspace_id}/items/add": {
+      "title": "File documents",
+      "description": "Files documents you own into the workspace. Their access stays the same unless you send `access`.",
+      "mcp": "add_to_workspace",
+      "example": { "slugs": ["k3x9q2m"], "folder_id": "FOLDER_ID" }
+    },
+    "POST /api/v1/workspaces/{workspace_id}/items/move": {
+      "title": "Move documents",
+      "description": "Moves documents to another folder. Every document is checked first: if you can't move one, none move.",
+      "example": { "slugs": ["k3x9q2m"], "folder_id": "FOLDER_ID" }
+    },
+    "POST /api/v1/workspaces/{workspace_id}/items/remove": {
+      "title": "Take documents out",
+      "description": "Takes documents out of the workspace. They go back to their owners. A document with `workspace` access becomes `private`.",
+      "example": { "slugs": ["k3x9q2m"] }
+    },
+    "POST /api/v1/workspaces/{workspace_id}/documents/move": {
+      "title": "Move a document",
+      "description": "Moves one document to a folder (`folder_id`), or to the top level (`null`).",
+      "example": { "slug": "k3x9q2m", "folder_id": "FOLDER_ID" }
+    },
+    "PUT /api/v1/workspaces/{workspace_id}/folders/{folder_id}/share": {
+      "title": "Share a folder",
+      "description": "Creates a link to a folder. Each visitor sees only the documents they could already open: sharing a folder never changes any document's access. `hidden` lists what the link's audience can't see.",
+      "example": { "level": "link" },
+      "guide": { "label": "Share a folder", "href": "/workspaces/share-a-folder" }
+    },
+    "GET /api/v1/workspaces/{workspace_id}/folders/{folder_id}/share": {
+      "title": "Get a folder's link",
+      "description": "The folder's share, or `404` when it isn't shared."
+    },
+    "DELETE /api/v1/workspaces/{workspace_id}/folders/{folder_id}/share": {
+      "title": "Stop sharing a folder",
+      "description": "Turns off the folder's link."
+    },
+    "GET /api/v1/folders/shared/{share_id}": {
+      "title": "Open a shared folder",
+      "description": "What a shared folder link shows: the folder, its subfolders and the documents in it that you can open. A folder shared with `workspace` access needs a member's token."
+    },
+    "GET /api/v1/workspaces/{workspace_id}/documents": {
+      "title": "List workspace documents",
+      "description": "The documents filed in a workspace."
+    },
+    "POST /api/v1/workspaces/{workspace_id}/documents": {
+      "title": "Add a document",
+      "description": "Files one of your documents in the workspace, by its id.",
+      "example": { "document_id": "DOCUMENT_ID" }
+    },
+    "GET /api/v1/workspaces/{workspace_id}/documents/counts": {
+      "title": "Count workspace documents",
+      "description": "How many documents a workspace has in each folder."
+    },
+    "DELETE /api/v1/workspaces/{workspace_id}/documents/{document_id}": {
+      "title": "Remove a document",
+      "description": "Takes a document out of the workspace. It isn't deleted: it goes back to its owner unchanged."
+    },
+    "PUT /api/v1/workspaces/{workspace_id}/documents/{document_id}/folder": {
+      "title": "File in a folder",
+      "description": "Puts a workspace document in a folder, or at the top level with `null`.",
+      "example": { "folder_id": "FOLDER_ID" }
+    },
+
+    "GET /api/v1/workspaces/{workspace_id}/domains": {
+      "title": "List domains",
+      "description": "A workspace's custom domains and where each one stands.",
+      "guide": { "label": "Custom domain", "href": "/workspaces/custom-domain" }
+    },
+    "POST /api/v1/workspaces/{workspace_id}/domains": {
+      "title": "Add a domain",
+      "description": "Adds a domain to a workspace and returns the DNS records to create at your DNS provider.",
+      "example": { "host": "docs.acme.com", "kind": "app" },
+      "guide": { "label": "Custom domain", "href": "/workspaces/custom-domain" }
+    },
+    "POST /api/v1/workspaces/{workspace_id}/domains/{domain_id}/verify": {
+      "title": "Verify a domain",
+      "description": "Checks the domain's DNS records now, instead of waiting for the next automatic check."
+    },
+    "POST /api/v1/workspaces/{workspace_id}/domains/{domain_id}/attach": {
+      "title": "Turn on a domain",
+      "description": "Starts serving a verified domain, with HTTPS.",
+      "responses": { "501": "Domains can't be turned on automatically here. Finish the step by hand." }
+    },
+    "POST /api/v1/workspaces/{workspace_id}/domains/{domain_id}/detach": {
+      "title": "Take a domain offline",
+      "description": "Stops serving a domain without losing its verification, so you can turn it back on later."
+    },
+    "GET /api/v1/workspaces/{workspace_id}/domains/{domain_id}/provider": {
+      "title": "Detect the DNS provider",
+      "description": "Which DNS provider the domain uses, so setup instructions can name the right screens. Makes a live DNS lookup."
+    },
+    "PUT /api/v1/workspaces/{workspace_id}/domains/{domain_id}/primary": {
+      "title": "Set the primary domain",
+      "description": "Chooses the domain the workspace's links and previews use. Admins and the owner."
+    },
+    "DELETE /api/v1/workspaces/{workspace_id}/domains/{domain_id}": {
+      "title": "Remove a domain",
+      "description": "Removes a domain from the workspace. Links on it stop working; the documents keep their markdrop.in addresses."
+    },
+
+    "GET /api/v1/me/analytics": {
+      "title": "Analytics for everything",
+      "description": "Totals across every document and file you own.",
+      "guide": { "label": "Analytics", "href": "/analytics/overview" }
+    },
+    "GET /api/v1/me/analytics/live": {
+      "title": "Who is reading now",
+      "description": "People reading or watching your documents right now.",
+      "guide": { "label": "Live now", "href": "/analytics/live" }
+    },
+    "GET /api/v1/me/analytics.csv": {
+      "title": "Export all analytics",
+      "description": "Your analytics across every document, as CSV.",
+      "returns": "text/csv"
+    },
+    "GET /api/v1/me/documents/{slug}/analytics": {
+      "group": "analytics",
+      "title": "Document view totals",
+      "description": "View counts, unique readers, read depth and top referrers for a document. Owner only: anyone else who can read it gets `403`.",
+      "mcp": "get_document_stats"
+    },
+    "GET /api/v1/me/documents/{slug}/analytics/overview": {
+      "title": "Document overview",
+      "description": "The headline numbers for one document or file you own.",
+      "mcp": "get_document_analytics",
+      "guide": { "label": "Analytics", "href": "/analytics/overview" }
+    },
+    "GET /api/v1/me/documents/{slug}/analytics/media": {
+      "title": "Video and audio retention",
+      "description": "How many people are still watching or listening through a video or audio file.",
+      "guide": { "label": "Video and audio", "href": "/analytics/video-and-audio" }
+    },
+    "GET /api/v1/me/documents/{slug}/analytics/frame": {
+      "title": "Video frame",
+      "description": "A frame of your video at `t` seconds, as JPEG. `404` when the file isn't a video.",
+      "returns": "image/jpeg",
+      "params": { "t": 30 }
+    },
+    "GET /api/v1/me/documents/{slug}/analytics/content": {
+      "title": "Reading depth",
+      "description": "How far readers get through a Markdown document, section by section.",
+      "guide": { "label": "Documents and PDFs", "href": "/analytics/documents-and-pdfs" }
+    },
+    "GET /api/v1/me/documents/{slug}/analytics/pages": {
+      "title": "PDF pages reached",
+      "description": "How many readers reach each page of a PDF.",
+      "guide": { "label": "Documents and PDFs", "href": "/analytics/documents-and-pdfs" }
+    },
+    "GET /api/v1/me/documents/{slug}/analytics/audience": {
+      "title": "Audience",
+      "description": "Who a document's readers are: new or returning, their devices and countries."
+    },
+    "GET /api/v1/me/documents/{slug}/analytics/versions": {
+      "title": "Numbers by version",
+      "description": "A file's numbers split by the version people saw."
+    },
+    "GET /api/v1/me/documents/{slug}/analytics.csv": {
+      "title": "Export document analytics",
+      "description": "One document's analytics, as CSV.",
+      "returns": "text/csv"
+    },
+    "PATCH /api/v1/me/preferences": {
+      "title": "Set the weekly email",
+      "group": "analytics",
+      "description": "Turns the weekly analytics email on or off.",
+      "example": { "analytics_digest": "off" },
+      "guide": { "label": "Weekly email", "href": "/analytics/weekly-email" }
+    },
+
+    "GET /api/v1/auth/me": {
+      "title": "Get your account",
+      "description": "The account a token belongs to: id, email, name and sign-in methods. A quick way to check a token works."
+    },
+    "PATCH /api/v1/auth/me": {
+      "title": "Set your name",
+      "example": { "name": "Sam Lee" }
+    },
+    "GET /api/v1/me/tokens": {
+      "title": "List API tokens",
+      "description": "Your API tokens: name, first characters, when each was created and last used. Never the tokens themselves.",
+      "guide": { "label": "API tokens", "href": "/account/api-tokens" }
+    },
+    "POST /api/v1/me/tokens": {
+      "title": "Create an API token",
+      "description": "Creates an API token (`mdk_…`). It is shown only in this response.",
+      "example": { "name": "Build server" },
+      "guide": { "label": "API tokens", "href": "/account/api-tokens" }
+    },
+    "DELETE /api/v1/me/tokens/{token_id}": {
+      "title": "Revoke an API token",
+      "description": "Revokes a token at once. Requests with it get `401` from then on."
+    },
+    "GET /api/v1/me/contacts": {
+      "title": "Suggest people",
+      "description": "Up to 50 people you can share with: people you shared documents with before, and members of your workspaces. Never a search of every account.",
+      "paramNotes": { "q": "Only people whose email or name contains this text." }
+    },
+    "GET /api/v1/me/shared": {
+      "title": "Shared with you",
+      "description": "Documents other people shared with you, a page at a time.",
+      "paramNotes": { "cursor": "The `next_cursor` of the previous page." }
+    },
+    "GET /api/v1/me/recent": {
+      "title": "Recently opened",
+      "description": "Documents you opened recently."
+    },
+    "GET /api/v1/search/quick": {
+      "title": "Quick search",
+      "description": "Finds files, folders and workspaces you can open by title, address or file name. Never searches content.",
+      "params": { "q": "release" }
+    },
+    "GET /api/v1/me/connections": {
+      "title": "List connected apps",
+      "description": "AI apps you connected to Markdrop through its approval screen.",
+      "guide": { "label": "Connected apps", "href": "/account/connected-apps" }
+    },
+    "DELETE /api/v1/me/connections/{client_id}": {
+      "title": "Disconnect an app",
+      "description": "Revokes an AI app's access at once."
+    }
+  }
+}

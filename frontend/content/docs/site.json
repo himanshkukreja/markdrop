@@ -294,5 +294,12 @@
       "label": "Edit these docs on GitHub",
       "href": "https://github.com/himanshkukreja/markdrop/tree/main/frontend/content/docs"
     }
-  ]
+  ],
+  "openapi": {
+    "spec": "openapi.json",
+    "overlay": "api-reference.json",
+    "tab": "api",
+    "base": "/api",
+    "server": "https://api.markdrop.in"
+  }
 }

@@ -6,6 +6,7 @@
  */
 import MiniSearch from "minisearch";
 import type { SearchDoc } from "../types";
+import { apiBoost } from "../searchBoost";
 
 let docsPromise: Promise<SearchDoc[]> | null = null;
 export function loadDocs(): Promise<SearchDoc[]> {
@@ -28,7 +29,7 @@ export function loadIndex(): Promise<MiniSearch<SearchDoc>> {
       const ms = new MiniSearch<SearchDoc>({
         fields: ["title", "keywords", "where", "text"],
         storeFields: ["kind", "title", "where", "href", "snippet"],
-        searchOptions: { boost: { title: 4, keywords: 2, where: 1.2 }, prefix: true, fuzzy: 0.15 },
+        searchOptions: { boost: { title: 4, keywords: 2, where: 1.2 }, prefix: true, fuzzy: 0.15, boostDocument: apiBoost },
       });
       ms.addAll(docs);
       return ms;

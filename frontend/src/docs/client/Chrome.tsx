@@ -19,6 +19,11 @@ export function NavLinks({ groups, current, onPick }: { groups: NavGroup[]; curr
               it.available ? (
                 <li key={it.path}>
                   <Link href={it.path} className="dx-nav__item" aria-current={it.path === current ? "page" : undefined} onClick={onPick}>
+                    {it.method && (
+                      <span className="dx-nav__method dx-method" data-method={it.method}>
+                        {it.method === "DELETE" ? "DEL" : it.method}
+                      </span>
+                    )}
                     <span className="dx-nav__label">{it.title}</span>
                     {it.isNew && (
                       <Badge tone="info" size="sm" upper>

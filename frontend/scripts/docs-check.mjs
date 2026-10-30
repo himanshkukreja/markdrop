@@ -18,6 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
+import { buildApiReference } from "../src/docs/openapi.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONTENT = process.env.DOCS_CONTENT_DIR || path.join(ROOT, "content", "docs");
@@ -175,6 +176,41 @@ for (const file of files) {
   pages.set(toPath(file), { file, fm, body, lines: body.split(/\r?\n/), offset, ids: new Set(), links: [] });
 }
 
+/* ── generated API reference (site.json `openapi`) ───────────────────────── */
+// Built with the engine's own generator, then checked below exactly like a written page: links
+// (including the overlay's prose and guide links), anchors, directives, headings, frontmatter.
+const apiPaths = new Map(); // path → nav group title
+if (site.openapi?.spec) {
+  const cfg = site.openapi;
+  const spec = readJson(cfg.spec, null);
+  const overlay = cfg.overlay ? readJson(cfg.overlay, {}).value : {};
+  if (spec.missing || !spec.value) err("site.json", `openapi.spec ${cfg.spec} is missing: run npm run docs:openapi`);
+  else {
+    let ref = null;
+    try {
+      ref = buildApiReference(spec.value, overlay, { server: cfg.server, base: cfg.base });
+    } catch (e) {
+      err(cfg.overlay || cfg.spec, `the API reference doesn't build: ${e.message}`);
+    }
+    if (ref) {
+      if (cfg.tab && !(site.tabs ?? []).some((t) => t.id === cfg.tab)) err("site.json", `openapi.tab "${cfg.tab}" isn't in tabs`);
+      for (const msg of ref.problems) (/no title|no group/.test(msg) ? warn : err)(cfg.overlay || cfg.spec, msg);
+      const updated = spec.value.info?.["x-markdrop-exported"];
+      if (!updated) err(cfg.spec, "no info.x-markdrop-exported date: refresh it with npm run docs:openapi");
+      for (const op of ref.ops) {
+        if (pages.has(op.path)) {
+          warn(pages.get(op.path).file, `${op.path} is also generated for ${op.key}; the written page wins`);
+          continue;
+        }
+        if (!op.description) warn(cfg.overlay || cfg.spec, `${op.key}: no description (add one to the overlay, or a docstring)`);
+        const fm = { title: op.title, description: op.summary, updated, keywords: op.keywords };
+        pages.set(op.path, { file: `${cfg.spec} → ${op.path}`, fm, body: op.markdown, lines: op.markdown.split(/\r?\n/), offset: 0, ids: new Set(), links: [], generated: true });
+        apiPaths.set(op.path, op.group.title);
+      }
+    }
+  }
+}
+
 /* ── per-page checks ─────────────────────────────────────────────────────── */
 const asDate = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : v == null ? undefined : String(v));
 for (const [p, pg] of pages) {
@@ -325,6 +361,7 @@ for (const g of site.nav ?? []) {
 }
 for (const s of site.home?.start ?? []) if (!listed.has(s.page)) warn("site.json", `home.start page ${s.page} is not in the nav`);
 for (const a of site.home?.areas ?? []) if (!(site.nav ?? []).some((g) => g.group === a)) err("site.json", `home.areas "${a}" is not a nav group`);
+for (const [p, g] of apiPaths) if (!listed.has(p)) listed.set(p, g);
 for (const [p, pg] of pages) if (pg.file !== "index.md" && !listed.has(p)) warn(pg.file, `${p} is not in site.json nav (it builds, but nobody can find it)`);
 
 /* ── links ───────────────────────────────────────────────────────────────── */

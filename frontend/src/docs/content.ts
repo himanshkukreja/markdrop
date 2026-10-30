@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseFrontmatter } from "./frontmatter";
 import { introOf, plainText, readingMinutes, scanHeadings, snippet, splitSections, toPlainMarkdown } from "./markdown";
+import { buildApiReference, type ApiReference } from "./openapi.mjs";
 import type { Changelog, ChangelogEntry, DocPage, NavGroup, SiteConfig, VideoRef } from "./types";
 
 export const CONTENT_DIR = process.env.DOCS_CONTENT_DIR || path.join(process.cwd(), "content", "docs");
@@ -94,6 +95,44 @@ function loadPage(file: string): DocPage {
   };
 }
 
+/**
+ * The API reference generated from site.json `openapi` (openapi.mjs), or null without one. Its
+ * pages join the written ones below; its groups join the nav after the tab's written groups.
+ */
+export const getApiReference = memo((): (ApiReference & { updated: string }) | null => {
+  const cfg = getSite().openapi;
+  if (!cfg?.spec) return null;
+  const spec = readJson<Record<string, unknown> | null>(cfg.spec, null);
+  if (!spec) return null;
+  const overlay = cfg.overlay ? readJson<Record<string, unknown>>(cfg.overlay, {}) : {};
+  try {
+    const ref = buildApiReference(spec, overlay, { server: cfg.server, base: cfg.base });
+    const info = (spec.info ?? {}) as Record<string, unknown>;
+    return { ...ref, updated: typeof info["x-markdrop-exported"] === "string" ? (info["x-markdrop-exported"] as string) : "" };
+  } catch (e) {
+    console.warn(`[docs] API reference skipped: ${(e as Error).message}`);
+    return null;
+  }
+});
+
+function apiPages(): DocPage[] {
+  const ref = getApiReference();
+  if (!ref) return [];
+  return ref.ops.map((op) => {
+    const headings = scanHeadings(op.markdown);
+    return {
+      path: op.path,
+      file: getSite().openapi!.spec,
+      meta: { title: op.title, description: op.summary, updated: ref.updated, keywords: op.keywords },
+      body: op.markdown,
+      headings,
+      sections: splitSections(op.markdown, headings),
+      minutes: readingMinutes(op.markdown),
+      api: op,
+    };
+  });
+}
+
 const pagesByPath = memo((): Map<string, DocPage> => {
   const map = new Map<string, DocPage>();
   for (const file of walk(CONTENT_DIR).sort()) {
@@ -104,6 +143,8 @@ const pagesByPath = memo((): Map<string, DocPage> => {
       console.warn(`[docs] skipped ${file}: ${(e as Error).message}`);
     }
   }
+  // A written page at the same address wins over a generated one.
+  for (const page of apiPages()) if (!map.has(page.path)) map.set(page.path, page);
   return map;
 });
 
@@ -139,7 +180,7 @@ export const getHome = memo((): { meta: DocPage["meta"]; body: string } | null =
 export const getNav = memo((): NavGroup[] => {
   const site = getSite();
   const fallbackTab = site.tabs[0]?.id ?? "guides";
-  return site.nav
+  const written: NavGroup[] = site.nav
     .map((g) => ({
       group: g.group,
       icon: g.icon,
@@ -152,6 +193,26 @@ export const getNav = memo((): NavGroup[] => {
         .filter((it) => it.available || DEV),
     }))
     .filter((g) => g.items.length > 0);
+  const ref = getApiReference();
+  if (!ref) return written;
+  const tab = site.openapi?.tab ?? "api";
+  const listed = new Set(written.flatMap((g) => g.items.map((it) => it.path)));
+  const generated: NavGroup[] = ref.groups
+    .map((g) => ({
+      group: g.title,
+      tab,
+      generated: true,
+      items: g.ops
+        .filter((op) => !listed.has(op.path))
+        .map((op) => ({ path: op.path, title: op.title, available: true, isNew: false, method: op.method })),
+    }))
+    .filter((g) => g.items.length > 0);
+  // After the tab's last written group (its overview), else at the end.
+  let at = -1;
+  written.forEach((g, i) => {
+    if (g.tab === tab) at = i;
+  });
+  return at < 0 ? [...written, ...generated] : [...written.slice(0, at + 1), ...generated, ...written.slice(at + 1)];
 });
 
 export function groupOf(p: string): NavGroup | undefined {
