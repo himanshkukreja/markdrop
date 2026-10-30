@@ -356,34 +356,6 @@ export default [
     crop: "viewport",
   },
   {
-    id: "slash-menu",
-    page: P("editor"),
-    kind: "screenshot",
-    auth: "owner",
-    url: null,
-    keepScroll: true,
-    viewport: { width: 1440, height: 900 },
-    prepare: async (h) => {
-      await h.goto(`${S(h)}?page=${await keepPage(h, "acme", "/guides/build-a-dashboard")}`);
-      await editorReady(h);
-      const [x, y] = await endOfFirstParagraph(h);
-      await h.page.mouse.click(x, y);
-      await h.page.keyboard.press("Enter");
-      await h.page.keyboard.type("/");
-      await h.loc({ role: "listbox", name: "Insert a block" }).waitFor();
-      await h.sleep(500);
-    },
-    crop: async (h) => {
-      const sel = await mark(h, "slash", () => {
-        const menu = document.querySelector(".dxe-slash");
-        return menu;
-      });
-      const box = await h.loc(sel).boundingBox();
-      return { box: { x: box.x - 140, y: box.y - 90, width: box.width + 280, height: Math.min(box.height, 560) + 110 } };
-    },
-    after: async (h) => restorePage(h, "acme", "/guides/build-a-dashboard"),
-  },
-  {
     id: "editor-slash-callout",
     page: P("editor"),
     kind: "clip",
@@ -977,7 +949,15 @@ export default [
       await h.page.locator("#ai").scrollIntoViewIfNeeded();
       await settle(h);
     },
-    crop: { selector: "#ai", pad: 0 },
+    // The name and suggested questions (not the usage meter above them: no plan numbers in the docs).
+    crop: async (h) => {
+      const fields = await mark(h, "ai-fields", () => document.querySelector("#ai div.grid"));
+      const tags = await mark(h, "ai-tags", () => document.querySelector("#ai ul") || document.querySelector("#ai div.grid"));
+      const b = await h.loc(fields).boundingBox();
+      const c = await h.loc(tags).boundingBox();
+      const card = await h.loc("#ai").boundingBox();
+      return { box: { x: card.x, y: b.y - 16, width: card.width, height: c.y + c.height + 20 - (b.y - 16) } };
+    },
   },
   {
     id: "reader-ask-ai",
@@ -1065,13 +1045,13 @@ export default [
     url: null,
     prepare: async (h) => {
       extra("--drop-sites", "Northwind");
-      await h.goto(`/docs-studio?ws=${northwind(h)}`);
-      await h.loc({ role: "heading", name: "Your docs sites" }).waitFor();
+      // Starts on New docs site (the home page's plan box has numbers the docs don't advertise).
+      await h.goto(`/docs-studio/new?ws=${northwind(h)}`);
+      await h.loc({ role: "heading", name: "New docs site" }).waitFor();
       await settle(h);
     },
     steps: async (h) => {
       await h.caption("Docs Studio: documentation sites for your product", 2200);
-      await h.click({ role: "link", name: "New docs site" }, { after: 1200 });
       await h.caption("Start blank, from a template, or import from GitBook", 600);
       await h.click(vis(h, "From a template"), { after: 700 });
       await h.click(vis(h, "Product docs"), { after: 700 });

@@ -37,8 +37,6 @@ Type `/` on a new line, or after a space, to insert a block. Keep typing to filt
 
 ::clip{src="/docs-assets/docs-studio/editor/editor-slash-callout" alt="In the Invite your team page, a new line, typing /tip, choosing Tip callout, and typing a sentence into the new tip."}
 
-![The slash menu open under a new line, listing Text, Heading, Subheading, Callout, Tip callout, Warning callout, Danger callout and Steps.](/docs-assets/docs-studio/editor/slash-menu.webp)
-
 You can also use the **+** beside any block (**Add a block below**), or drag the grip beside it to move it. Click the grip for **Move up**, **Move down**, **Duplicate** and **Delete**. Alt + Shift + ↑ or ↓ moves the block with the keyboard.
 
 Select text for the formatting bar: bold, italic, strikethrough, inline code, keyboard key, link, heading and subheading. A link can be a page of the site (`/guides/alert-rules`), a section (`#install`) or any `https://` address.

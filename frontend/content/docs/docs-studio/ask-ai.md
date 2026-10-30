@@ -24,7 +24,7 @@ Turn the switch **On**.
 Readers get the assistant after the next [publish](/docs-studio/publishing). Turning it off works the same way.
 ::::
 
-![The Ask AI card: switched On, this month's answers, Name readers see "Ask Acme", and three suggested questions.](/docs-assets/docs-studio/ask-ai/settings-ask-ai.webp)
+![Ask AI settings: Name readers see "Ask Acme", and three suggested questions: How do I connect Postgres?, How do alert rules work? and Where do I find my API key?](/docs-assets/docs-studio/ask-ai/settings-ask-ai.webp)
 
 ## Make it yours
 
