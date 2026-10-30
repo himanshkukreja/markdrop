@@ -25,10 +25,19 @@ type LazyContext = { keys(): string[]; (key: string): Promise<Record<string, unk
  * it's there, so the studio works either way: with it, the visual + Markdown editor; without it, a
  * Markdown textarea.
  */
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace NodeJS {
+    interface Require {
+      /** webpack's compile-time context (it must be written literally as `require.context(…)`). */
+      context(dir: string, deep: boolean, re: RegExp, mode: "lazy"): LazyContext;
+    }
+  }
+}
+
 const editorContext: LazyContext | null = (() => {
   try {
-    const req = require as unknown as { context?: (dir: string, deep: boolean, re: RegExp, mode: "lazy") => LazyContext };
-    return req.context ? req.context("../../docs-editor", false, /^\.\/index\.tsx?$/, "lazy") : null;
+    return require.context("../../docs-editor", false, /^\.\/index\.tsx?$/, "lazy");
   } catch {
     return null;
   }
