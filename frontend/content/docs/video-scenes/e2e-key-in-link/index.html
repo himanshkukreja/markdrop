@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>End-to-end encryption: the key stays in the link</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  .panel { position: absolute; width: 470px; height: 420px; top: 196px; }
+  .doc { position: absolute; inset: 0; padding: 26px 30px; }
+  .doc .t { font: 800 32px/1.2 var(--font-sans); letter-spacing: -0.02em; margin-bottom: 16px; white-space: pre; }
+  .doc .l { font: 550 23px/1.65 var(--font-sans); color: var(--text-secondary); white-space: pre; }
+  .doc.cipher .t, .doc.cipher .l { font-family: var(--font-mono); letter-spacing: 0; color: var(--text-muted); }
+  .doc.cipher .t { font-size: 27px; }
+  .doc.cipher .l { font-size: 19px; }
+  .keychip { position: absolute; z-index: 12; display: flex; align-items: center; gap: 10px; padding: 9px 14px 9px 10px;
+    border-radius: 14px; background: var(--warning-soft); border: 1px solid #8C410033; color: var(--warning); font: 750 19px/1 var(--font-sans); white-space: nowrap; background-color: #F3E7DA; }
+  .keychip .ktile { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; background: var(--warning-fill); color: var(--on-warning); font-size: 17px; }
+  .keychip .mono { font: 650 19px/1 var(--font-mono); color: var(--text); }
+  .env { position: absolute; z-index: 11; width: 236px; height: 144px; border-radius: 14px; background: var(--surface-raised);
+    border: 1px solid var(--border-strong); box-shadow: var(--shadow-lg); padding: 14px 16px; }
+  .env .hd { display: flex; align-items: center; gap: 8px; font: 750 17px/1 var(--font-sans); color: var(--text-secondary); }
+  .env .hd .ico { font-size: 19px; color: var(--accent-text); }
+  .env .bits { margin-top: 12px; font: 500 16px/1.5 var(--font-mono); color: var(--text-muted); white-space: pre; overflow: hidden; }
+  .server { position: absolute; left: 650px; top: 250px; width: 300px; height: 346px; padding: 20px; text-align: center; }
+  .server .big { width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 12px; display: grid; place-items: center; background: var(--surface-inverse); color: var(--text-inverse); font-size: 30px; }
+  .server .name { font: 800 28px/1.1 var(--font-sans); }
+  .server .sub { font: 600 18px/1.3 var(--font-sans); color: var(--text-muted); margin-top: 4px; }
+  .slot { position: absolute; left: 30px; right: 30px; bottom: 18px; height: 148px; border-radius: 14px; border: 2px dashed var(--border-strong); }
+  .facts { position: absolute; left: 560px; width: 480px; top: 606px; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+  .linkbar { position: absolute; left: 0; right: 0; top: 716px; display: flex; justify-content: center; }
+  .link { display: flex; align-items: center; height: 70px; padding: 0 26px 0 20px; gap: 12px; border-radius: 18px; background: var(--surface-raised);
+    border: 1px solid var(--border-strong); box-shadow: var(--shadow-md); font: 600 34px/1 var(--font-mono); white-space: pre; }
+  .link .ico { font-size: 24px; color: var(--text-muted); }
+  .link .path { color: var(--text); }
+  .link .frag { color: var(--warning); background: var(--warning-soft); border-radius: 8px; padding: 6px 6px; margin-left: 2px; }
+  .brace { position: absolute; top: 800px; height: 16px; border: 2.5px solid var(--border-strong); border-top: 0; border-radius: 0 0 10px 10px; }
+  .note { position: absolute; top: 828px; display: flex; align-items: center; gap: 8px; font: 750 22px/1.2 var(--font-sans); white-space: nowrap; transform-origin: center top; }
+  .note .ico { font-size: 23px; }
+  .req { position: absolute; z-index: 13; padding: 8px 12px; border-radius: 10px; background: var(--surface-inverse); color: var(--text-inverse); font: 600 19px/1 var(--font-mono); white-space: nowrap; box-shadow: var(--shadow-md); }
+  .req .x { color: #FF9B92; text-decoration: line-through; text-decoration-thickness: 2px; margin-left: 2px; opacity: .9; }
+  .tag { position: absolute; z-index: 14; }
+  .tag.pill, .facts .pill { font-size: 19px; padding: 9px 16px; }
+  .xh .line { font-size: 44px; } .xh .lines { height: 58px; } .xh .eyebrow { font-size: 15px; }
+  .bf-url { font-size: 18px; height: 36px; }
+  .lbl { position: absolute; font: 750 17px/1 var(--font-sans); color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="stage" class="dots">
+  <div id="root" class="layer">
+    <div class="lbl" style="left:72px;top:166px">Your browser</div>
+    <div class="lbl" style="left:1060px;top:166px">Reader's browser</div>
+    <div id="author"></div>
+    <div id="reader"></div>
+    <svg class="wires" id="wires">
+      <path id="w1" class="dash" d="M548 418 L 652 418"/>
+      <path id="w2" class="dash" d="M948 418 L 1052 418"/>
+      <path id="pSend" d="M305 410 C 420 410, 520 430, 800 504" style="stroke:none"/>
+      <path id="pBack" d="M800 504 C 1000 504, 1120 440, 1291 440" style="stroke:none"/>
+      <path id="pReq" d="M1170 330 C 1100 330, 1020 330, 952 330" style="stroke:none"/>
+      <path id="pKey" d="M310 500 C 420 720, 760 780, 1000 752" style="stroke:none"/>
+      <path id="pKey2" d="M1400 220 C 1400 300, 1330 360, 1291 410" style="stroke:none"/>
+    </svg>
+    <div class="card server" id="server">
+      <div class="big"><span class="ico">__SERVER__</span></div>
+      <div class="name">Markdrop</div>
+      <div class="sub">stores what it's sent</div>
+      <div class="slot" id="slot"></div>
+    </div>
+    <div class="facts" id="facts">
+      <span class="pill ok" id="f1">__CHECK__ Stores ciphertext only</span>
+      <span class="pill" id="f2">__LOCK__ Never sees the key or the title</span>
+    </div>
+    <div class="keychip" id="key"><span class="ktile">__KEY__</span><span id="keytext">New 256-bit key</span><span class="mono" id="keyval"></span></div>
+    <div class="env" id="env"><div class="hd">__LOCK__ Sealed envelope</div><div class="bits" id="envbits"></div></div>
+    <div class="env" id="env2"><div class="hd" id="env2hd">__LOCK__ Sealed envelope</div><div class="bits" id="env2bits"></div></div>
+    <div class="req" id="req">GET /q3-plan<span class="x">#k=9fQx2LmA…</span></div>
+    <div class="keychip" id="key2" style="padding:6px"><span class="ktile">__KEY__</span></div>
+    <div class="tag pill accent" id="encd">__LOCK__ Encrypted in this browser</div>
+    <div class="linkbar"><div class="link" id="link"><span class="ico">__LINK__</span><span class="path" id="lpath"></span><span class="frag" id="lfrag">#k=9fQx2LmA…</span></div></div>
+    <div class="brace" id="b1"></div><div class="brace" id="b2"></div>
+    <div class="note" id="n1" style="color:var(--text-secondary)">__ARROW__ Sent when the link opens</div>
+    <div class="note" id="n2" style="color:var(--warning)">__LOCK__ Stays in the browser, never sent</div>
+    <div class="tag pill ok" id="dec">__UNLOCK__ Decrypted in this browser</div>
+  </div>
+</div>
+<script type="module">
+import { scene, header, browserFrame, icon, set, p, E, rise, along, scramble, typing, loopFade, clamp, lerp, $ } from "../_kit/kit.js";
+
+const D = 20;
+const stage = document.getElementById("stage");
+const root = document.getElementById("root");
+root.innerHTML = root.innerHTML
+  .replaceAll("__SERVER__", icon("server"))
+  .replaceAll("__CHECK__", icon("check")).replaceAll("__X__", icon("x")).replaceAll("__KEY__", icon("key"))
+  .replaceAll("__LOCK__", icon("lock")).replaceAll("__UNLOCK__", icon("unlock")).replaceAll("__LINK__", icon("link")).replaceAll("__ARROW__", icon("arrow"));
+
+const A = browserFrame({ x: 70, y: 196, w: 478, h: 420, url: "markdrop.in/new" });
+const R = browserFrame({ x: 1052, y: 196, w: 478, h: 420, url: "" });
+$("#author").replaceWith(A.el);
+$("#reader").replaceWith(R.el);
+
+const DOC = { t: "Q3 plan", l: ["Revenue target: $4.2M", "Hire three engineers", "Launch Workflows beta", "Board review on Nov 14"] };
+const docHTML = (cls = "") => `<div class="doc ${cls}"><div class="t"></div>${DOC.l.map(() => '<div class="l"></div>').join("")}</div>`;
+A.body.innerHTML = docHTML();
+R.body.innerHTML = docHTML();
+const aDoc = A.body.querySelector(".doc"), rDoc = R.body.querySelector(".doc");
+const fill = (doc, k, t, seed) => {
+  const els = [doc.querySelector(".t"), ...doc.querySelectorAll(".l")];
+  [DOC.t, ...DOC.l].forEach((s, i) => { els[i].textContent = k > 0 ? scramble(s, k, t, seed + i) : s; });
+  doc.classList.toggle("cipher", k >= 1);
+};
+
+const hd = header(root, {
+  topic: "End-to-end encryption",
+  end: D,
+  steps: [
+    { t: 0, text: "Your browser makes a <em>new key</em>" },
+    { t: 4, text: "It encrypts the title and text, and sends <em>only ciphertext</em>" },
+    { t: 8.2, text: "The key goes in the link, after <em>#k=</em>" },
+    { t: 12.2, text: "A reader's browser fetches the ciphertext and <em>decrypts it locally</em>" },
+    { t: 17.6, text: "Markdrop never has <em>the key</em>" },
+  ],
+});
+
+const key = $("#key"), keyval = $("#keyval"), keytext = $("#keytext");
+const env = $("#env"), env2 = $("#env2"), envbits = $("#envbits"), env2bits = $("#env2bits");
+const req = $("#req"), link = $("#link"), lpath = $("#lpath"), lfrag = $("#lfrag");
+const pSend = $("#pSend"), pBack = $("#pBack"), pReq = $("#pReq"), pKey = $("#pKey");
+const typedPath = typing("markdrop.in/q3-plan", { start: 8.4, cps: 22, seed: 4 });
+const typedUrl = typing("markdrop.in/q3-plan#k=9fQx2LmA…", { start: 12.4, cps: 40, seed: 9 });
+const BITS = "q8Zr2+fVb0aLmX9c\nT1wPe7Hs/Ky4dNq0\nUuG3jR8oYc5vWb2E";
+const KEY = "9fQx2LmA…";
+
+function render(t) {
+  hd.at(t);
+  loopFade(root, t, D);
+
+  // 1. The author's document, then a key.
+  A.url("markdrop.in/new");
+  rise(A.el, t, 0.1, 0.6, 16);
+  rise($(".lbl"), t, 0.1, 0.6, 8);
+  const kIn = p(t, 1.4, 2.1, E.outBack);
+  const scr = clamp((t - 1.5) / 1.6);
+  keyval.textContent = scr < 1 ? scramble(KEY, 1, t, 3) : KEY;
+  keytext.textContent = "New 256-bit key";
+
+  // 2. Encrypt: text scrambles left to right, folds into an envelope that travels to Markdrop.
+  const enc = p(t, 4.0, 5.4, E.inOut);
+  fill(aDoc, enc, t, 11);
+  const fold = p(t, 5.5, 6.1, E.inOut);
+  set(aDoc, { o: 1 - fold * 0.85, s: 1 - fold * 0.08 });
+  const fly = p(t, 6.0, 7.4, E.inOut);
+  const [ex, ey] = along(pSend, fly);
+  env.style.left = `${ex - 118}px`;
+  env.style.top = `${ey - 72}px`;
+  envbits.textContent = BITS;
+  set(env, { o: p(t, 5.5, 5.9) * (t < 19.6 ? 1 : 1), s: 0.9 + 0.1 * p(t, 5.5, 6.0, E.outBack) });
+  set($("#server"), { o: p(t, 3.6, 4.2), y: (1 - p(t, 3.6, 4.2, E.out)) * 14 });
+  set($("#w1"), { o: p(t, 3.8, 4.4) });
+  set($("#w2"), { o: p(t, 12.0, 12.6) });
+
+  // Key stays put while the envelope travels, then flies into the link.
+  const kfly = p(t, 9.3, 10.6, E.inOut);
+  const [kx, ky] = along(pKey, kfly);
+  key.style.left = `${kx - key.offsetWidth / 2}px`;
+  key.style.top = `${ky - 24}px`;
+  set(key, { o: kIn * (1 - p(t, 10.35, 10.6)), s: 0.7 + 0.3 * kIn - kfly * 0.1 });
+
+  // 3. The link: path types, the key lands as #k=.
+  const lk = p(t, 8.2, 8.7, E.out);
+  set(link, { o: lk, y: (1 - lk) * 16 });
+  lpath.textContent = typedPath.at(t);
+  set(lfrag, { o: p(t, 10.35, 10.7), s: 1 + 0.12 * (1 - p(t, 10.4, 10.9, E.out)) * (t > 10.4 ? 1 : 0) });
+  lfrag.style.display = t < 10.3 ? "none" : "";
+  // Braces under the two parts (measured, so they sit exactly under the text).
+  const lr = link.getBoundingClientRect(), pr = lpath.getBoundingClientRect(), fr = lfrag.getBoundingClientRect();
+  const sc = stage.getBoundingClientRect();
+  const b1 = $("#b1"), b2 = $("#b2"), n1 = $("#n1"), n2 = $("#n2");
+  Object.assign(b1.style, { left: `${pr.left - sc.left}px`, width: `${pr.width}px` });
+  Object.assign(b2.style, { left: `${fr.left - sc.left}px`, width: `${fr.width}px` });
+  const nk1 = p(t, 11.0, 11.5, E.out), nk2 = p(t, 11.3, 11.8, E.out);
+  set(b1, { o: nk1 }); set(b2, { o: nk2 });
+  const gap = (pr.right + fr.left) / 2 - sc.left;
+  n1.style.left = `${gap - 18 - n1.offsetWidth}px`;
+  n2.style.left = `${gap + 18}px`;
+  set(n1, { o: nk1, y: (1 - nk1) * 8 });
+  set(n2, { o: nk2, y: (1 - nk2) * 8 });
+
+  // 4. The reader: the full link in the address bar, a request without #k, ciphertext back.
+  rise(R.el, t, 12.0, 0.6, 16);
+  set($$lbl[1], { o: p(t, 12.0, 12.6) });
+  R.url(typedUrl.at(t));
+  const rq = p(t, 13.3, 14.4, E.inOut);
+  const [qx, qy] = along(pReq, rq);
+  req.style.left = `${qx - 8}px`;
+  req.style.top = `${qy - 18}px`;
+  set(req, { o: Math.min(p(t, 13.2, 13.5), 1 - p(t, 14.6, 14.9)) });
+  const back = p(t, 14.7, 15.9, E.inOut);
+  const [bx, by] = along(pBack, back);
+  env2.style.left = `${bx - 118}px`;
+  env2.style.top = `${by - 72}px`;
+  env2bits.textContent = BITS;
+  set(env2, { o: Math.min(p(t, 14.6, 14.9), 1 - p(t, 16.5, 16.9)), s: 1 - 0.08 * p(t, 16.3, 16.8) });
+  // The key from the address bar unlocks it.
+  $("#env2hd").innerHTML = t < 16.25 ? `${icon("lock")} Sealed envelope` : `${icon("unlock")} Opened with the key`;
+  const dec = 1 - p(t, 16.5, 17.6, E.inOut);
+  fill(rDoc, t < 16.5 ? 1 : dec, t, 31);
+  set(rDoc, { o: p(t, 16.4, 16.8) });
+  const dk = p(t, 17.0, 17.5, E.outBack);
+  const dt = $("#dec");
+  dt.style.left = `${1052 + 478 / 2 - dt.offsetWidth / 2}px`;
+  dt.style.top = "556px";
+  set(dt, { o: Math.min(1, dk), s: 0.85 + 0.15 * dk });
+
+  // "Encrypted in this browser" under the author's text; the reader's key unlocks the envelope.
+  const ed = $("#encd");
+  ed.style.left = `${70 + 478 / 2 - ed.offsetWidth / 2}px`;
+  ed.style.top = "556px";
+  const ek = p(t, 5.3, 5.8, E.outBack);
+  set(ed, { o: Math.min(ek, 1 - p(t, 8.8, 9.2)), s: 0.85 + 0.15 * ek });
+  const k2 = $("#key2");
+  const kk = p(t, 15.6, 16.3, E.inOut);
+  const [k2x, k2y] = along($("#pKey2"), kk);
+  k2.style.left = `${k2x - 22}px`;
+  k2.style.top = `${k2y - 22}px`;
+  set(k2, { o: Math.min(p(t, 15.5, 15.7), 1 - p(t, 16.3, 16.5)), s: 1 - 0.2 * kk });
+
+  // Server: the envelope docks in the slot; at the end, what it holds.
+  const docked = t >= 7.4;
+  set($("#slot"), { o: docked ? 0 : p(t, 3.8, 4.3) });
+  const f1 = p(t, 17.8, 18.3, E.outBack), f2 = p(t, 18.1, 18.6, E.outBack);
+  set($("#f1"), { o: f1, s: 0.8 + 0.2 * f1 });
+  set($("#f2"), { o: f2, s: 0.8 + 0.2 * f2 });
+}
+const $$lbl = document.querySelectorAll(".lbl");
+
+scene({
+  duration: D, width: 1600, height: 900, poster: 18.9,
+  out: { kind: "clip", page: "/sharing/end-to-end-encryption", name: "e2e-key-in-link" },
+}, render);
+</script>
+</body>
+</html>

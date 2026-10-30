@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Resolve a sync conflict</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  #cap { bottom: 30px; font-size: 21px; }
+  .shot { position: absolute; left: 0; top: 0; }
+  .crop { position: absolute; overflow: hidden; }
+  .crop img { position: absolute; }
+  .ef-code { font-size: 15px; line-height: 25px; }
+  .ef-line { height: 25px; }
+  .still #stage::before { display: none; }
+</style>
+</head>
+<body>
+<div id="stage" class="dots"><div id="root" class="layer"></div></div>
+<script type="module">
+import { scene, editorFrame, browserFrame, makeCursor, captions, set, p, E, lerp, win, h, icon, $, typing } from "../_kit/kit.js";
+import { renderCode, statusBar, toast, modal, diffView } from "../_kit/editor.js";
+
+const STILL = new URLSearchParams(location.search).has("still");
+if (STILL) document.documentElement.classList.add("still");
+const facts = await (await fetch("../_shots/facts.json")).json();
+const R = facts.release;
+const D = 27;
+const root = document.getElementById("root");
+
+const BASE = R.markdown.replace(/\n$/, "").split("\n");
+const WEB = BASE.map((l) => (l === R.oldLine ? R.newLine : l));
+const ADD = "- PDF exports keep their page breaks.";
+const CH = BASE.indexOf(R.oldLine);
+
+// Editor window (full frame for the still).
+const EW = STILL ? 1400 : 1480, EH = STILL ? 860 : 718;
+const ED = editorFrame({ x: 0, y: 0, w: EW, h: EH, title: "release-notes.md — acme-docs", side: 220,
+  files: [{ name: "acme-docs", dir: true }, { name: "docs", dir: true, depth: 1 }, { name: ".markdrop.json", depth: 1 }, { name: "README.md", depth: 1 }, { name: "release-notes.md", depth: 1, on: true }] });
+root.append(ED.el);
+const dv = diffView(ED.main, { leftTitle: "Markdrop (web) · rev 2", rightTitle: "Local · release-notes.md" });
+const ts = toast(ED.el, { x: EW - 500 - 18, y: EH - 34 - 18 - 112, w: 500 });
+const md = modal(ED.el, {
+  title: "This document changed both on Markdrop and locally.",
+  detail: "The diff shows web (left) vs local (right).",
+  buttons: ["Keep my local version", "Use the web version", "Merge manually", "Cancel"],
+  bottom: STILL ? 64 : 56,
+});
+
+// Browser: the web edit (real pages from scenes/stills.mjs).
+const BW = 860, K = BW / 1280, BH = 46 + Math.round(800 * K);
+const B = browserFrame({ x: 0, y: 0, w: BW, h: BH, url: `markdrop.in/${R.slug}` });
+if (!STILL) root.append(B.el);
+const img = (n) => `../_shots/release-${n}.webp`;
+const shots = {};
+for (const n of ["edit", "saved"]) { shots[n] = h(`<img class="shot" src="${img(n)}" style="width:${BW}px">`); B.body.append(shots[n]); }
+const crop = (n, r) => { const c = h(`<div class="crop" style="left:${r.x * K}px;top:${r.y * K}px;width:${r.w * K}px;height:${r.h * K}px"><img src="${img(n)}" style="width:${BW}px;left:${-r.x * K}px;top:${-r.y * K}px"></div>`); B.body.append(c); return c; };
+const L = R.line;
+const startCol = R.oldLine.length - 1;
+const added = R.newLine.length - R.oldLine.length;
+const lineCrop = crop("edited", { x: L.x + startCol * L.charW, y: L.y - 2, w: (added + 1) * L.charW + 2, h: L.h + 4 });
+const barCrop = crop("edited", { x: 0, y: R.save.y - 26, w: 1280, h: 52 });
+
+// Timeline.
+const T_LOCAL = 1.4, WEB_IN = 5.0, WEB_TYPE = 6.2;
+const tLocal = typing(ADD, { start: T_LOCAL + 0.6, cps: 16, seed: 41 });
+const tWeb = typing(R.newLine.slice(startCol, startCol + added), { start: WEB_TYPE, cps: 15, seed: 42 });
+const WEB_SAVE = tWeb.end + 0.7, BACK = WEB_SAVE + 1.6, SAVE1 = BACK + 0.9, CONFLICT = SAVE1 + 0.6, MODAL = CONFLICT + 0.35;
+const CHOOSE = MODAL + 3.6, TOAST = CHOOSE + 0.4, MERGE = TOAST + 1.6;
+const tMerge = typing(R.newLine.slice(startCol, startCol + added), { start: MERGE + 0.4, cps: 15, seed: 43 });
+const SAVE2 = tMerge.end + 0.9, SYNCED = SAVE2 + 0.7;
+
+const cap = captions(root, [
+  { t0: 0.4, t1: T_LOCAL + 0.3, text: "A linked file, in sync with its link" },
+  { t0: T_LOCAL + 0.3, t1: WEB_IN, text: "You add a line in the editor…" },
+  { t0: WEB_IN, t1: BACK, text: "…while someone edits the same document on markdrop.in" },
+  { t0: BACK, t1: MODAL + 0.6, text: "You save: both sides changed, so nothing is overwritten" },
+  { t0: MODAL + 0.6, t1: CHOOSE + 0.2, text: "Compare web (left) with your file (right), then choose" },
+  { t0: CHOOSE + 0.2, t1: SAVE2, text: "Merge manually: bring in the web change, then save" },
+  { t0: SAVE2, t1: D - 0.4, text: "Your merged file is now the web version: Markdrop: synced" },
+]);
+
+let cur = null;
+function render(t) {
+  if (STILL) t = Math.max(t, MODAL + 1);
+  root.style.opacity = STILL ? "1" : String(Math.min(p(t, 0, 0.4), 1 - p(t, D - 0.5, D)));
+  // Layout.
+  if (STILL) set(ED.el, { x: 20, y: 20 });
+  else {
+    const side = Math.min(p(t, WEB_IN, WEB_IN + 0.8, E.inOut), 1 - p(t, BACK, BACK + 0.8, E.inOut));
+    set(ED.el, { x: 28, y: 56 });
+    set(B.el, { x: lerp(1536, 640, side), y: 104, o: side > 0.001 ? 1 : 0 });
+    ED.el.style.filter = side > 0.5 ? "brightness(.97)" : "";
+    const edFront = t < WEB_IN + 0.3 || t >= BACK;
+    ED.el.style.zIndex = edFront ? "3" : "2";
+    B.el.style.zIndex = edFront ? "2" : "3";
+  }
+
+  // Before the conflict: one editor with the local edit being typed.
+  const inDiff = t >= CONFLICT;
+  dv.el.style.display = inDiff ? "grid" : "none";
+  const typedLocal = tLocal.at(t);
+  const local = typedLocal ? [...BASE, typedLocal] : BASE;
+  const caretLocal = !inDiff && t >= T_LOCAL + 0.3 ? [local.length - 1, typedLocal.length] : null;
+  renderCode(ED.code, local, { caret: caretLocal });
+  const dirty = typedLocal.length > 0;
+  ED.tabs.innerHTML !== undefined && renderTabs(inDiff, dirty && t < SAVE1);
+
+  // The comparison: web on the left, local on the right.
+  if (inDiff) {
+    const merged = tMerge.at(t);
+    const right7 = merged ? R.oldLine.slice(0, startCol) + merged + "." : R.oldLine;
+    const same7 = right7 === R.newLine;
+    const left = [...WEB, null];
+    const right = [...BASE.map((l, i) => (i === CH ? right7 : l)), ADD];
+    renderCode(dv.left, left, { cls: { ...(same7 ? {} : { [CH]: "del" }), [left.length - 1]: "" } });
+    const caretR = t >= MERGE + 0.2 && t < SAVE2 ? [CH, startCol + merged.length] : null;
+    renderCode(dv.right, right, { cls: { ...(same7 ? {} : { [CH]: "add" }), [right.length - 1]: "add" }, caret: caretR });
+  }
+
+  // Status bar: the extension's texts.
+  let item;
+  if (t < T_LOCAL + 0.7) item = { icon: "check", text: "Markdrop: synced" };
+  else if (t < SAVE1) item = { icon: "sync", text: "Markdrop: unsynced" };
+  else if (t < CONFLICT) item = { spin: true, text: "Markdrop: syncing…", cls: "hl" };
+  else if (t < SAVE2) item = { icon: "warn", text: "Markdrop: conflict", cls: "warn" };
+  else if (t < SYNCED) item = { spin: true, text: "Markdrop: syncing…", cls: "hl" };
+  else item = { icon: "check", text: "Markdrop: synced", cls: "hl" };
+  statusBar(ED.status, { left: [{ text: inDiff ? `Ln ${CH + 1}, Col ${startCol + 1}` : `Ln ${local.length}, Col ${typedLocal.length + 1}` }], md: item });
+  ED.status.querySelector(".kit-spin")?.style.setProperty("transform", `rotate(${(t * 400) % 360}deg)`);
+
+  // The question, then the hint.
+  const mk = STILL ? 1 : Math.min(p(t, MODAL, MODAL + 0.25), 1 - p(t, CHOOSE, CHOOSE + 0.2));
+  const hot = !STILL && t >= CHOOSE - 1.2 && t < CHOOSE + 0.2 ? 2 : -1;
+  md.at(mk, hot, hot === 2 ? Math.max(0, 1 - Math.abs(t - CHOOSE) / 0.12) : 0);
+  const tOn = !STILL && t >= TOAST && t < SAVE2 + 0.3;
+  ts.show("info", "Edit to merge using the diff, then save to push your merged version.");
+  set(ts.el, { o: tOn ? p(t, TOAST, TOAST + 0.25) : 0, y: tOn ? (1 - p(t, TOAST, TOAST + 0.3, E.out)) * 12 : 0 });
+
+  // The web edit.
+  const page = t < WEB_SAVE + 0.35 ? "edit" : "saved";
+  for (const [n, el] of Object.entries(shots)) el.style.display = n === page ? "" : "none";
+  const n = tWeb.at(t).length;
+  lineCrop.style.display = page === "edit" && n > 0 ? "" : "none";
+  lineCrop.style.width = `${Math.max(0, n * L.charW * K + 1)}px`;
+  barCrop.style.display = page === "edit" && n > 0 ? "" : "none";
+
+  if (STILL) { cap.at(-1); return; }
+  if (!cur) {
+    const ex = 28, ey = 56;
+    const btn = () => { md.at(1); const b = md.buttons[2].getBoundingClientRect(), s = root.getBoundingClientRect(); md.at(0); return [b.left - s.left + b.width / 2, b.top - s.top + b.height / 2]; };
+    const [mx, my] = btn();
+    const codeX = ex + 220 + 58 + 16, line = (i) => ey + 46 + 42 + 12 + 25 * i + 12;
+    const rightX = ex + 220 + (EW - 220) / 2 + 58 + 16 + startCol * 9;
+    const save = [640 + R.save.x * K, 104 + 46 + R.save.y * K];
+    const lineAt = [640 + (L.x + startCol * L.charW) * K, 104 + 46 + (L.y + L.h / 2) * K];
+    cur = makeCursor(root, [
+      { t: T_LOCAL + 0.2, x: codeX + 300, y: line(11), dur: 0.8 },
+      { t: T_LOCAL + 0.3, x: codeX + 300, y: line(11), click: true },
+      { t: WEB_TYPE - 0.3, x: lineAt[0], y: lineAt[1], dur: 1.0 },
+      { t: WEB_TYPE - 0.2, x: lineAt[0], y: lineAt[1], click: true },
+      { t: WEB_SAVE - 0.05, x: save[0], y: save[1], dur: 0.8 },
+      { t: WEB_SAVE, x: save[0], y: save[1], click: true },
+      { t: BACK + 0.4, x: ex + 600, y: ey + 420, dur: 0.9 },
+      { t: CHOOSE - 1.1, x: mx, y: my, dur: 1.0 },
+      { t: CHOOSE, x: mx, y: my, click: true },
+      { t: MERGE + 0.1, x: rightX, y: ey + 46 + 42 + 34 + 12 + 25 * CH + 12, dur: 0.9 },
+      { t: MERGE + 0.2, x: rightX, y: ey + 46 + 42 + 34 + 12 + 25 * CH + 12, click: true },
+    ], { start: [1150, 700], visible: (tt) => win(tt, 0.8, D - 0.8, 0.3, 0.4) });
+  }
+  cur.at(t);
+  cap.at(t);
+}
+
+function renderTabs(inDiff, dirty) {
+  const key = `${inDiff}|${dirty}`;
+  if (ED.tabs._k === key) return;
+  ED.tabs._k = key;
+  ED.tabs.innerHTML = inDiff
+    ? `<div class="ef-tab">${icon("md", { size: 16 })} release-notes.md</div><div class="ef-tab on">${icon("copy", { size: 15 })} Markdrop (web) ↔ Local</div><div class="spacer"></div>`
+    : `<div class="ef-tab on">${icon("md", { size: 16 })} release-notes.md${dirty ? ' <span style="width:8px;height:8px;border-radius:50%;background:var(--text-secondary);display:inline-block;margin-left:4px"></span>' : ""}</div><div class="spacer"></div><div class="tool">${icon("upload")}</div>`;
+}
+
+scene({
+  duration: D, width: STILL ? 1440 : 1536, height: STILL ? 900 : 864, scale: STILL ? 2 : 1.25, poster: MODAL + 1.4,
+  chapters: [
+    { t: 0, title: "Edited in two places" },
+    { t: BACK, title: "Saving finds a conflict" },
+    { t: CHOOSE, title: "Merge manually" },
+    { t: SAVE2, title: "Save and sync" },
+  ],
+  stills: [{ t: MODAL + 1.4, page: "/vscode/conflicts", name: "vscode-conflict-diff", themes: ["light", "dark"], width: 1440, height: 900, scale: 2, query: { still: "1" } }],
+  out: { kind: "video", id: "vscode-conflict", title: "Resolve a conflict between VS Code and the web" },
+}, render);
+</script>
+</body>
+</html>

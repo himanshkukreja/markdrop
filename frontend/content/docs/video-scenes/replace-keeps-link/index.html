@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Replace a file, keep the link</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  .xh { left: 56px; right: 56px; top: 40px; }
+  .xh .line { font-size: 34px; } .xh .lines { height: 46px; }
+  #lnk { position: absolute; left: 60px; top: 150px; width: 580px; height: 66px; display: flex; align-items: center; gap: 12px; padding: 0 20px; border-radius: 18px;
+    background: var(--surface-raised); border: 1px solid var(--border-strong); box-shadow: var(--shadow-md); font: 650 25px/1 var(--font-mono); }
+  #lnk .ico { font-size: 22px; color: var(--accent-text); }
+  #lnk .h { color: var(--text); } #lnk .pth { color: var(--text-muted); }
+  #lnk .fx { margin-left: auto; font: 700 14px/1 var(--font-sans); color: var(--text-muted); display: flex; gap: 6px; align-items: center; }
+  #serve { position: absolute; left: 110px; top: 216px; width: 3px; height: 40px; background: var(--accent); transform-origin: top; }
+  .ver { position: absolute; left: 60px; width: 580px; height: 58px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 14px; padding: 0 16px; }
+  .ver .v { font: 750 18px/1 var(--font-mono); width: 40px; color: var(--text-secondary); }
+  .ver .tile { width: 38px; height: 38px; border-radius: 10px; font-size: 20px; background: var(--danger-soft); color: var(--cat-pdf); }
+  .ver .fn { font: 700 17px/1.2 var(--font-sans); }
+  .ver .meta { font: 600 13.5px/1.2 var(--font-sans); color: var(--text-muted); margin-top: 3px; }
+  .ver .sp { flex: 1; }
+  .ver .live { position: absolute; right: 14px; top: 14px; }
+  .ver .live .pill { height: 32px; font-size: 14.5px; padding: 0 12px; }
+  .ver.cur { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent), var(--shadow-md); }
+  .ver .copy { font: 700 13px/1 var(--font-sans); color: var(--accent-text); background: var(--accent-soft); border-radius: 999px; padding: 5px 9px; margin-left: 6px; }
+  .note { position: absolute; left: 60px; top: 650px; font: 700 17px/1.3 var(--font-sans); color: var(--text-secondary); display: flex; gap: 8px; align-items: center; }
+  .note .ico { color: var(--success); font-size: 19px; }
+  .cnt { position: absolute; left: 660px; display: flex; gap: 8px; align-items: center; font: 750 15px/1 var(--font-sans); color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div id="stage" class="dots"><div id="root" class="layer"></div></div>
+<script type="module">
+import { scene, header, icon, set, p, E, rise, h, $, $$, loopFade, terminalFrame, win, clamp, lerp } from "../_kit/kit.js";
+import { Stream, renderTerm } from "../_kit/term.js";
+
+const D = 14;
+const root = document.getElementById("root");
+root.append(h(`<div id="lnk">${icon("link")}<span><span class="h">markdrop.in</span><span class="pth">/q3-deck</span></span><span class="fx">${icon("lock", { size: 14 })} Same link</span></div>`));
+root.append(h(`<div id="serve"></div>`));
+
+// Versions: [n, file, size, date, created at (s), copyOf]
+const VERS = [
+  [1, "q3-deck.pdf", "1.9 MB", "Oct 27", 0.5],
+  [2, "q3-deck-v2.pdf", "2.0 MB", "Oct 28", 2.2],
+  [3, "q3-deck-v3.pdf", "2.1 MB", "Oct 29", 3.8],
+  [4, "q3-deck-v2.pdf", "2.0 MB", "Oct 29", 6.9, 2],
+  [5, "q3-deck-v4.pdf", "2.2 MB", "Oct 30", 9.0],
+  [6, "q3-deck-v5.pdf", "2.2 MB", "Oct 31", 10.7],
+];
+const cards = VERS.map(([n, fn, sz, d, , copy]) => {
+  const c = h(`<div class="ver"><span class="v">v${n}</span><span class="tile">${icon("doc")}</span>
+    <div><div class="fn">${fn}${copy ? `<span class="copy">copy of v${copy}</span>` : ""}</div><div class="meta">${sz} · ${d}</div></div><span class="sp"></span>
+    <span class="live"><span class="pill ok"><span class="dot"></span>Live at the link</span></span></div>`);
+  root.append(c);
+  return c;
+});
+root.append(h(`<div class="cnt" id="cnt"></div>`));
+root.append(h(`<div class="note" id="note">${icon("check")} Old versions are never public: the link serves only the current one.</div>`));
+
+const T = terminalFrame({ x: 690, y: 150, w: 540, h: 330, title: "Terminal", size: 15.5, lh: 1.45 });
+root.append(T.el);
+const S = new Stream();
+const COLS = 56, ROWS = 11;
+let tt = 0.2;
+S.prompt(tt, "~/Decks");
+const cmd = (t0, c, out, seed) => {
+  const e = S.type(t0, c, { cps: 30, seed, enterDelay: 0.2 });
+  if (out) S.write(e + 0.35, out);
+  S.prompt(e + (out ? 0.5 : 0.4), "~/Decks");
+  return e;
+};
+const eRep2 = cmd(0.9, "markdrop replace q3-deck q3-deck-v2.pdf", "", 1);
+const eRep3 = cmd(2.6, "markdrop replace q3-deck q3-deck-v3.pdf", "", 2);
+const eRes = cmd(5.0, "markdrop restore q3-deck 2", "\x1b[32;1m  ✓ Restored version 2 of q3-deck as version 4.\x1b[0m\r\nhttps://markdrop.in/q3-deck\r\nversion 4\r\n", 3);
+const eRep5 = cmd(7.9, "markdrop replace q3-deck q3-deck-v4.pdf", "", 4);
+const eRep6 = cmd(9.6, "markdrop replace q3-deck q3-deck-v5.pdf", "", 5);
+
+const hd = header(root, {
+  topic: "Replace and versions",
+  end: D,
+  steps: [
+    { t: 0, text: "Replace the file: <em>same link</em>, a new version" },
+    { t: 4.8, text: "Restore adds a <em>copy</em> on top, deleting nothing" },
+    { t: 8.3, text: "Markdrop keeps the last <em>5 versions</em>" },
+  ],
+});
+
+const TOP = 258, STEP = 66;
+function render(t) {
+  loopFade(root, t, D);
+  hd.at(t);
+  rise($("#lnk"), t, 0.15, 0.5, 12);
+  rise(T.el, t, 0.3, 0.6, 16);
+  renderTerm(T.screen, S, t, COLS, ROWS);
+  // Which versions exist at t (newest first), with the oldest dropping past 5.
+  const born = VERS.map((v) => v[4]);
+  const live = VERS.filter((v) => t >= v[4]);
+  const n = live.length;
+  cards.forEach((c, i) => {
+    const b = born[i];
+    if (t < b) { set(c, { o: 0 }); return; }
+    // Each newer version pushes this one down one slot, smoothly.
+    let slot = 0;
+    born.forEach((x, j) => { if (j > i) slot += p(t, x, x + 0.55, E.out); });
+    const idx = born.filter((x, j) => j > i && t >= x).length;
+    const lastBorn = Math.max(...born.filter((x) => t >= x));
+    let y = TOP + slot * STEP;
+    const kin = p(t, b, b + 0.55, E.out);
+    // A new version slides down from the link; the restored copy rises from v2's slot.
+    if (i === 3) { const from = TOP + STEP; const own = born.reduce((a, x, j) => a + (j > i ? p(t, x, x + 0.55, E.out) : 0), 0); y = lerp(from, TOP, p(t, b, b + 0.7, E.inOut)) + own * STEP; c.style.zIndex = "5"; }
+    else if (slot === 0) y = TOP - (1 - kin) * 40;
+    const enter = p(t, b, b + 0.5, E.out);
+    let o = enter;
+    // Past 5: the oldest falls away.
+    if (i === 0 && t >= born[5]) { const f = p(t, born[5] + 0.3, born[5] + 1.0, E.in); o *= 1 - f; c.style.top = `${y + f * 40}px`; }
+    else c.style.top = `${y}px`;
+    const isCur = idx === 0;
+    c.classList.toggle("cur", isCur);
+    set(c.querySelector(".live"), { o: isCur ? p(t, lastBorn + 0.2, lastBorn + 0.5) : 0 });
+    // Restoring v2: the source glows while its copy lands on top.
+    const glow = i === 1 ? win(t, 6.2, 7.6, 0.25, 0.4) : 0;
+    c.style.boxShadow = glow ? `0 0 0 ${3 * glow}px var(--accent-ring), var(--shadow-sm)` : "";
+    set(c, { o, x: 0 });
+  });
+  const kept = Math.min(5, n);
+  const cnt = $("#cnt");
+  cnt.innerHTML = `${icon("history")} ${kept} of 5 kept`;
+  cnt.style.top = `${TOP + 5 * STEP + 4}px`;
+  set(cnt, { o: p(t, 11.8, 12.2) });
+  cnt.style.left = "60px";
+  set($("#serve"), { o: p(t, 0.6, 0.9) });
+  set($("#note"), { o: p(t, 11.6, 12.1), y: (1 - p(t, 11.6, 12.1, E.out)) * 8 });
+}
+
+scene({
+  duration: D, width: 1280, height: 720, scale: 1.25, poster: 12.9,
+  out: { kind: "clip", page: "/files/replace-and-versions", name: "replace-keeps-link" },
+}, render);
+</script>
+</body>
+</html>

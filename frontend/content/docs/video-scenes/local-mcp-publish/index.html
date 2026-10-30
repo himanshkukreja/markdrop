@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Publish and replace a video from an AI app with the local MCP server</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  #cap { bottom: 26px; font-size: 21px; }
+  .cf-msg a { color: var(--accent-text); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+</style>
+</head>
+<body>
+<div id="stage" class="dots"><div id="root" class="layer"></div></div>
+<script type="module">
+import { scene, chatFrame, browserFrame, terminalFrame, makeCursor, captions, set, p, E, lerp, win, h, $, typing, esc } from "../_kit/kit.js";
+import { conversation } from "../_kit/chat.js";
+import { Stream, renderTerm } from "../_kit/term.js";
+import { demoPlayer } from "../_kit/player.js";
+
+const session = await (await fetch("./session.json")).json();
+const facts = await (await fetch("../_shots/facts.json")).json();
+const D = 44;
+const root = document.getElementById("root");
+
+// 1. Register the server (the docs' Claude Code command; the token is masked).
+const T = terminalFrame({ x: 0, y: 0, w: 1000, h: 230, title: "~ — zsh", size: 17, lh: 1.4 });
+root.append(T.el);
+const ST = new Stream();
+ST.prompt(0.5, "~");
+const REG = "claude mcp add markdrop-p2p -e MARKDROP_TOKEN=mdk_•••• -- markdrop mcp";
+const eReg = ST.type(0.9, REG, { cps: 24, seed: 61 });
+ST.prompt(eReg + 0.5, "~");
+
+// 2. The AI app with the local server connected, and a browser.
+const C = chatFrame({ x: 28, y: 52, w: 780, h: 758, name: "AI app", chip: "markdrop-p2p" });
+root.append(C.el);
+const conv = conversation(C);
+const BW = 900, BH = 46 + Math.round(760 * (BW / 1280));
+const B = browserFrame({ x: 0, y: 0, w: BW, h: BH, url: "markdrop.in/demo" });
+root.append(B.el);
+const player = demoPlayer(B.body, { facts, width: BW });
+const blank = h(`<div style="position:absolute;inset:0;background:var(--surface-raised)"></div>`);
+B.body.append(blank);
+
+const [UP, REP] = session.calls;
+const CHAT = eReg + 1.3;
+const P1 = "Publish ~/Movies/demo.mp4 to Markdrop";
+const t1 = typing(P1, { start: CHAT + 0.9, cps: 20, seed: 62 });
+const SEND1 = t1.end + 0.7, A1 = SEND1 + 0.6, TOOL1 = A1 + 0.6;
+const prog = (call, t0, k) => { const base = call.progress[0][0]; return call.progress.map(([tt, q]) => ({ t: t0 + (tt - base) * k, ...q })); };
+const pr1 = prog(UP, TOOL1 + 0.4, 0.62);
+const RAN1 = pr1[pr1.length - 1].t + 0.5, R1 = RAN1 + 0.6, OPEN = R1 + 1.7, V1 = OPEN + 1.1;
+const P2 = "Replace it with demo-v2.mp4";
+const t2 = typing(P2, { start: V1 + 4.6, cps: 18, seed: 63 });
+const SEND2 = t2.end + 0.7, A2 = SEND2 + 0.6, TOOL2 = A2 + 0.5;
+const pr2 = prog(REP, TOOL2 + 0.4, 0.62);
+const RAN2 = pr2[pr2.length - 1].t + 0.5, R2 = RAN2 + 0.6, RELOAD = R2 + 1.4, V2 = RELOAD + 0.9;
+
+const url1 = UP.structured.url;
+conv.user(SEND1, P1);
+conv.ai(A1, "I'll publish it with the local Markdrop server.");
+conv.tool(TOOL1, { server: "markdrop-p2p", name: "upload_file", args: JSON.stringify(UP.arguments, null, 2), result: UP.text, progress: pr1, ran: RAN1 });
+const reply1 = conv.ai(R1, `It's live at <a>${esc(url1.replace("https://", ""))}</a> (108.0 MB). Anyone with the link can watch it.`);
+conv.user(SEND2, P2);
+conv.ai(A2, "Replacing the file behind the same link.");
+conv.tool(TOOL2, { server: "markdrop-p2p", name: "replace_file", args: JSON.stringify(REP.arguments, null, 2), result: REP.text, progress: pr2, ran: RAN2 });
+conv.ai(R2, `Done: <a>${esc(url1.replace("https://", ""))}</a> now plays version 2. Version 1 is kept, and I can restore it with restore_file_version.`);
+
+const cap = captions(root, [
+  { t0: 0.4, t1: CHAT, text: "Register the local server once: markdrop mcp" },
+  { t0: CHAT, t1: R1, text: "Ask for a file on your disk: upload_file sends it, with progress" },
+  { t0: R1, t1: SEND2 - 0.2, text: "The link plays the video in any browser" },
+  { t0: SEND2 - 0.2, t1: RELOAD, text: "replace_file swaps the video behind the same link" },
+  { t0: RELOAD, t1: D - 0.4, text: "Same link, version 2" },
+]);
+
+let cur = null;
+function render(t) {
+  root.style.opacity = String(Math.min(p(t, 0, 0.4), 1 - p(t, D - 0.5, D)));
+  const tk = 1 - p(t, CHAT - 0.2, CHAT + 0.3);
+  set(T.el, { x: 268, y: 300, o: tk, s: 1 - 0.03 * (1 - tk) });
+  renderTerm(T.screen, ST, t, 92, 6);
+  set(C.el, { o: p(t, CHAT, CHAT + 0.4), y: (1 - p(t, CHAT, CHAT + 0.5, E.out)) * 14 });
+
+  // The browser: from the link on, in front; behind the chat while typing the second ask.
+  const bin = p(t, OPEN, OPEN + 0.7, E.inOut);
+  set(B.el, { x: lerp(1560, 604, bin), y: 92, o: bin > 0.001 ? 1 : 0 });
+  const chatFront = t >= V1 + 4.2 && t < RELOAD - 0.2;
+  B.el.style.zIndex = chatFront ? "2" : "3";
+  C.el.style.zIndex = chatFront ? "3" : "2";
+  set(blank, { o: (t >= OPEN && t < V1) || (t >= RELOAD && t < V2) ? 1 : 0 });
+
+  C.setCompose(t < SEND1 ? t1.at(t) : t < SEND2 ? t2.at(t) : "", (t >= CHAT + 0.7 && t < SEND1) || (t >= V1 + 4.4 && t < SEND2));
+  conv.at(t);
+
+  if (!cur) {
+    const rr = (el) => { const b = el.getBoundingClientRect(), s = root.getBoundingClientRect(); return [b.left - s.left + Math.min(b.width / 2, 60), b.top - s.top + b.height / 2]; };
+    set(C.el, { o: 1, y: 0 });
+    conv.at(R1 + 1);
+    const lk = rr(reply1.el.querySelector("a"));
+    conv.at(t);
+    cur = makeCursor(root, [
+      { t: OPEN - 0.1, x: lk[0], y: lk[1], dur: 1.0 },
+      { t: OPEN, x: lk[0], y: lk[1], click: true },
+      { t: OPEN + 1.3, x: 1400, y: 780, dur: 0.9 },
+      { t: V1 + 4.2, x: 400, y: 776, dur: 0.9 },
+      { t: V1 + 4.3, x: 400, y: 776, click: true },
+      { t: RELOAD - 0.1, x: 604 + 98, y: 92 + 23, dur: 1.0 },
+      { t: RELOAD, x: 604 + 98, y: 92 + 23, click: true },
+      { t: RELOAD + 1.2, x: 1400, y: 780, dur: 0.8 },
+    ], { start: [700, 700], visible: (tt) => win(tt, OPEN - 1.3, D - 0.8, 0.3, 0.4) });
+  }
+  cur.at(t);
+  cap.at(t);
+
+  const S0 = 34.2;
+  let v = "v1", vt = S0;
+  if (t >= V2) { v = "v2"; vt = S0 + Math.min(5.7, t - V2); }
+  else if (t >= RELOAD) { v = "v2"; vt = S0; }
+  else if (t >= V1) vt = S0 + Math.min(5.7, t - V1);
+  return player.at(v, vt);
+}
+
+scene({
+  duration: D, width: 1536, height: 864, scale: 1.25, poster: V2 + 4.6,
+  chapters: [
+    { t: 0, title: "Add markdrop mcp" },
+    { t: CHAT, title: "Publish a video with upload_file" },
+    { t: OPEN, title: "Open the link" },
+    { t: SEND2, title: "Replace it with replace_file" },
+    { t: RELOAD, title: "Same link, version 2" },
+  ],
+  out: { kind: "video", id: "local-mcp-publish", title: "Ask an AI app to publish and replace a video" },
+}, render);
+</script>
+</body>
+</html>

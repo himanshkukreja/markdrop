@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Connect an AI app to Markdrop, then publish a doc</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  #cap { bottom: 26px; font-size: 21px; }
+  .shot { position: absolute; left: 0; top: 0; }
+  .dlg { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; }
+  .dlg .scrim { position: absolute; inset: 0; background: var(--overlay); }
+  .dlg .box { position: relative; width: 520px; background: var(--surface-raised); border: 1px solid var(--border-strong); border-radius: 16px; box-shadow: var(--shadow-xl); padding: 24px; }
+  .dlg .ttl { font: 800 21px/1.2 var(--font-sans); letter-spacing: -0.015em; }
+  .dlg .sub { font: 520 15px/1.45 var(--font-sans); color: var(--text-secondary); margin-top: 6px; }
+  .dlg label { display: block; font: 700 14px/1 var(--font-sans); margin: 18px 0 8px; color: var(--text-secondary); }
+  .dlg .in { height: 44px; border-radius: 10px; border: 1.5px solid var(--border-strong); background: var(--surface); display: flex; align-items: center; padding: 0 14px; font: 550 16px/1 var(--font-sans); }
+  .dlg .in.mono { font: 550 15.5px/1 var(--font-mono); }
+  .dlg .in.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+  .dlg .acts { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+  .cf-msg a { color: var(--accent-text); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+</style>
+</head>
+<body>
+<div id="stage" class="dots"><div id="root" class="layer"></div></div>
+<script type="module">
+import { scene, chatFrame, browserFrame, makeCursor, captions, set, p, E, lerp, win, h, icon, $, typing, esc } from "../_kit/kit.js";
+import { conversation } from "../_kit/chat.js";
+
+const facts = await (await fetch("../_shots/facts.json")).json();
+const M = facts.meeting;
+const D = 27;
+const root = document.getElementById("root");
+
+const C = chatFrame({ x: 28, y: 52, w: 780, h: 758, name: "AI app" });
+root.append(C.el);
+const chip = h(`<span class="pill ok" style="height:30px;font-size:14px"><span class="dot"></span>Markdrop</span>`);
+C.el.querySelector(".cf-head").append(chip);
+const conv = conversation(C);
+
+const BW = 900, K = BW / 1280, BH = 46 + Math.round(900 * K);
+const B = browserFrame({ x: 0, y: 0, w: BW, h: BH, url: "" });
+root.append(B.el);
+const shot = (n, hh = 900) => { const e = h(`<img class="shot" src="../_shots/${n}.webp" style="width:${BW}px">`); B.body.append(e); return e; };
+const S = { consent: shot("consent"), approved: shot("consent-approved"), doc: shot("meeting-doc") };
+const blank = h(`<div style="position:absolute;inset:0;background:var(--surface-raised)"></div>`);
+B.body.append(blank);
+
+// The add-connector dialog (generic: a name and the server URL).
+const dlg = h(`<div class="dlg"><div class="scrim"></div><div class="box">
+  <div class="ttl">Add custom connector</div><div class="sub">Connect a remote MCP server. You'll sign in to it next.</div>
+  <label>Name</label><div class="in" id="fName"></div>
+  <label>Remote MCP server URL</label><div class="in mono" id="fUrl"></div>
+  <div class="acts"><span class="btn">Cancel</span><span class="btn primary" id="connect">Connect</span></div></div></div>`);
+C.el.querySelector(".win-body").append(dlg);
+
+// Timeline.
+const DLG = 0.9;
+const tName = typing("Markdrop", { start: DLG + 0.6, cps: 12, seed: 51 });
+const URLT = "https://api.markdrop.in/mcp";
+const PASTE = tName.end + 0.9;
+const CONNECT = PASTE + 1.3, CONSENT = CONNECT + 0.9, APPROVE = CONSENT + 3.4, APPROVED = APPROVE + 0.35, BACK = APPROVED + 1.6;
+const PROMPT = "Turn these meeting notes into a Markdrop doc and give me the link.";
+const tPrompt = typing(PROMPT, { start: BACK + 0.6, cps: 26, seed: 52 });
+const SEND = tPrompt.end + 0.8;
+const NOTES = `Pasted text · ${M.title} · ${M.markdown.trim().split("\n").length} lines`;
+const A1 = SEND + 0.7, TOOL = A1 + 0.7, RAN = TOOL + 1.4, REPLY = RAN + 0.6, OPEN = REPLY + 1.6, DOC = OPEN + 0.8;
+const result = `Published: ${M.url} (visible to anyone with the link).`; // backend/app/mcp/tools.py publish_document
+const args = JSON.stringify({ title: M.title, markdown: M.markdown.split("\n").slice(0, 4).join("\n") + "\n…" }, null, 2);
+
+conv.userPaste(SEND, PROMPT, NOTES);
+conv.ai(A1, "I'll publish these notes as a Markdrop document.");
+const tool = conv.tool(TOOL, { server: "Markdrop", name: "publish_document", args, result, ran: RAN });
+const reply = conv.ai(REPLY, `Done. Here's the link: <a>${esc(M.url.replace("https://", ""))}</a><br>Anyone with the link can open it, rendered with the table of action items.`);
+
+const cap = captions(root, [
+  { t0: 0.4, t1: CONNECT + 0.2, text: "Add Markdrop's server URL to your AI app" },
+  { t0: CONNECT + 0.2, t1: APPROVE + 0.2, text: "Sign in to Markdrop and approve: which app, which account, what it can do" },
+  { t0: APPROVE + 0.2, t1: BACK + 0.4, text: "Approved: the app is connected" },
+  { t0: BACK + 0.4, t1: OPEN - 0.2, text: "Ask in plain words: the app calls publish_document" },
+  { t0: OPEN - 0.2, t1: D - 0.4, text: "The link opens the rendered document" },
+]);
+
+let cur = null;
+function render(t) {
+  root.style.opacity = String(Math.min(p(t, 0, 0.4), 1 - p(t, D - 0.5, D)));
+  // The browser joins on the right while signing in, then again for the document.
+  const bin = Math.min(p(t, CONNECT + 0.1, CONNECT + 0.8, E.inOut), 1 - p(t, BACK, BACK + 0.7, E.inOut)) + p(t, OPEN, OPEN + 0.7, E.inOut);
+  set(B.el, { x: lerp(1560, 604, Math.min(1, bin)), y: 92, o: bin > 0.001 ? 1 : 0 });
+  B.el.style.zIndex = "3";
+  // Pages.
+  const page = t < APPROVED ? "consent" : t < OPEN ? "approved" : "doc";
+  for (const [n, el] of Object.entries(S)) el.style.display = n === page ? "" : "none";
+  set(blank, { o: (t >= CONNECT && t < CONSENT) || (t >= OPEN && t < DOC) ? 1 : 0 });
+  B.url(t < CONNECT ? "" : page === "doc" ? M.url.replace("https://", "") : "markdrop.in/oauth/consent?request=…");
+
+  // Dialog.
+  const dk = Math.min(p(t, DLG, DLG + 0.3), 1 - p(t, CONNECT, CONNECT + 0.25));
+  dlg.style.display = dk > 0.001 ? "grid" : "none";
+  set(dlg.querySelector(".scrim"), { o: dk * 0.6 });
+  set(dlg.querySelector(".box"), { o: dk, s: 0.96 + 0.04 * dk });
+  $("#fName").innerHTML = `${esc(tName.at(t))}${t < PASTE && t > DLG + 0.4 ? '<span class="caret"></span>' : ""}`;
+  $("#fUrl").innerHTML = t >= PASTE ? `${esc(URLT)}<span class="caret"></span>` : "";
+  $("#fName").classList.toggle("on", t < PASTE);
+  $("#fUrl").classList.toggle("on", t >= PASTE);
+  set(chip, { o: p(t, BACK - 0.6, BACK - 0.2), s: 0.85 + 0.15 * p(t, BACK - 0.6, BACK - 0.1, E.outBack) });
+
+  // The prompt in the composer, then the conversation.
+  const typed = t < SEND ? tPrompt.at(t) : "";
+  C.setCompose(typed, t >= BACK + 0.4 && t < SEND, "Ask anything");
+  conv.at(t);
+
+  if (!cur) {
+    const rr = (el) => { const b = el.getBoundingClientRect(), s = root.getBoundingClientRect(); return [b.left - s.left + b.width / 2, b.top - s.top + b.height / 2]; };
+    dlg.style.display = "grid"; set(dlg.querySelector(".box"), { o: 1, s: 1 });
+    const cb = rr($("#connect"));
+    const ap = [604 + facts.consent.approve.x * K, 92 + 46 + facts.consent.approve.y * K];
+    render.lnk = () => { const a = reply.el.querySelector("a"); return a ? rr(a) : [400, 500]; };
+    // Lay the conversation out as it is when the reply is in, to find the link.
+    conv.at(REPLY + 1);
+    const lk = render.lnk();
+    conv.at(t);
+    cur = makeCursor(root, [
+      { t: PASTE - 0.3, x: 400, y: 480, dur: 0.8 },
+      { t: PASTE - 0.2, x: 400, y: 480, click: true },
+      { t: CONNECT - 0.1, x: cb[0], y: cb[1], dur: 0.8 },
+      { t: CONNECT, x: cb[0], y: cb[1], click: true },
+      { t: APPROVE - 0.1, x: ap[0], y: ap[1], dur: 1.2 },
+      { t: APPROVE, x: ap[0], y: ap[1], click: true },
+      { t: BACK + 0.2, x: 420, y: 730, dur: 0.9 },
+      { t: OPEN - 0.1, x: lk[0], y: lk[1], dur: 0.9 },
+      { t: OPEN, x: lk[0], y: lk[1], click: true },
+      { t: OPEN + 1.4, x: 1380, y: 800, dur: 0.8 },
+    ], { start: [600, 640], visible: (tt) => win(tt, PASTE - 1.2, D - 0.8, 0.3, 0.4) });
+    render(t);
+    return;
+  }
+  cur.at(t);
+  cap.at(t);
+}
+
+scene({
+  duration: D, width: 1536, height: 864, scale: 1.25, poster: DOC + 1.0,
+  chapters: [
+    { t: 0, title: "Add the server URL" },
+    { t: CONNECT, title: "Approve on Markdrop" },
+    { t: BACK, title: "Ask for a document" },
+    { t: OPEN, title: "Open the link" },
+  ],
+  out: { kind: "video", id: "connect-claude", title: "Connect an AI app to Markdrop and publish a doc" },
+}, render);
+</script>
+</body>
+</html>

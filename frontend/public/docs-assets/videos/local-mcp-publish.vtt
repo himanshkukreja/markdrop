@@ -1,0 +1,21 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:05.732
+Add markdrop mcp
+
+2
+00:00:05.732 --> 00:00:18.340
+Publish a video with upload_file
+
+3
+00:00:18.340 --> 00:00:26.176
+Open the link
+
+4
+00:00:26.176 --> 00:00:34.873
+Replace it with replace_file
+
+5
+00:00:34.873 --> 00:00:44.000
+Same link, version 2

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How watching is counted</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  .xh { left: 56px; right: 56px; top: 36px; }
+  .xh .line { font-size: 33px; } .xh .lines { height: 46px; }
+  .row { position: absolute; left: 56px; width: 1168px; height: 50px; }
+  .row .who { position: absolute; left: 0; top: 7px; display: flex; gap: 10px; align-items: center; font: 750 17px/1 var(--font-sans); }
+  .row .who .av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff; font: 800 14px/1 var(--font-sans); }
+  .track { position: absolute; left: 150px; width: 880px; top: 14px; height: 22px; border-radius: 6px; background: var(--surface-inset); }
+  .seg { position: absolute; top: 0; height: 100%; border-radius: 6px; background: var(--chart-1); }
+  .seg.re { background: var(--chart-seq-4); top: -9px; height: 9px; border-radius: 4px 4px 0 0; }
+  .gap { position: absolute; top: -2px; height: 26px; border: 2px dashed var(--border-strong); border-radius: 7px; }
+  .head { position: absolute; top: -6px; width: 4px; height: 34px; margin-left: -2px; border-radius: 2px; background: var(--text); }
+  .tag { position: absolute; top: -34px; white-space: nowrap; font: 700 14px/1 var(--font-sans); display: flex; gap: 6px; align-items: center; padding: 6px 10px; border-radius: 999px; }
+  .tag.a { background: var(--accent-soft); color: var(--accent-text); }
+  .tag.m { background: var(--surface-active); color: var(--text-secondary); }
+  .tag.ok { background: var(--success-soft); color: var(--success); }
+  .row .pct { position: absolute; left: 1050px; top: 16px; font: 750 16px/1 var(--font-mono); color: var(--text-secondary); white-space: nowrap; }
+  #chart { position: absolute; left: 56px; top: 372px; width: 1168px; height: 300px; }
+  #chart .ttl { position: absolute; left: 0; top: 0; font: 800 19px/1 var(--font-sans); }
+  #chart .sub { position: absolute; left: 0; top: 26px; font: 600 14.5px/1 var(--font-sans); color: var(--text-muted); }
+  #plot { position: absolute; left: 150px; top: 56px; width: 880px; height: 200px; overflow: visible; }
+  #plot .grid line { stroke: var(--chart-grid); stroke-width: 1; }
+  #plot .ylab { font: 600 13px var(--font-sans); fill: var(--text-muted); }
+  #plot .xlab { font: 600 13px var(--font-mono); fill: var(--text-muted); }
+  #curve { fill: none; stroke: var(--chart-1); stroke-width: 3.5; stroke-linejoin: round; stroke-linecap: round; }
+  #area { fill: url(#g); }
+  #steps { fill: var(--chart-seq-1); opacity: .28; }
+  .mk { position: absolute; display: flex; flex-direction: column; align-items: center; }
+  .mk .ln { width: 2px; background: var(--danger); }
+  .mk .pill { font-size: 15px; height: 36px; padding: 0 13px; }
+  .fin { position: absolute; top: 120px; height: 236px; width: 0; border-left: 2px dashed var(--success); }
+  .fin .pill { position: absolute; left: -2px; top: -36px; transform: translateX(-50%); font-size: 14px; height: 32px; padding: 0 12px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="stage" class="dots"><div id="root" class="layer"></div></div>
+<script type="module">
+import { scene, header, icon, set, p, E, rise, h, $, $$, loopFade, win, clamp, lerp, fmt } from "../_kit/kit.js";
+
+const D = 18;
+const root = document.getElementById("root");
+const X0 = 150, W = 880, LEN = 60; // the video is 1:00 long
+const px = (s) => (s / LEN) * W;
+
+const ROWS = [
+  { n: "Viewer A", av: "A", c: "#1C46C0", y: 158 },
+  { n: "Viewer B", av: "B", c: "#00786f", y: 226 },
+  { n: "Viewer C", av: "C", c: "#a14d00", y: 294 },
+];
+ROWS.forEach((r, i) => root.append(h(`<div class="row" id="row${i}" style="top:${r.y}px"><div class="who"><span class="av" style="background:${r.c}">${r.av}</span>${r.n}</div>
+  <div class="track"></div><span class="pct"></span></div>`)));
+const tr = $$(".track");
+const seg = (i, cls = "") => { const e = h(`<div class="seg ${cls}"></div>`); tr[i].append(e); return e; };
+const A1 = seg(0), Are = seg(0, "re"), B1 = seg(1), B2 = seg(1), C1 = seg(2);
+const Bgap = h(`<div class="gap"></div>`); tr[1].append(Bgap);
+const heads = [0, 1, 2].map((i) => { const e = h(`<div class="head"></div>`); tr[i].append(e); return e; });
+const tags = {
+  re: h(`<div class="tag a">${icon("refresh")} Watched twice, counted once</div>`),
+  skip: h(`<div class="tag m">${icon("fwd")} Skipped: not counted</div>`),
+  fin: h(`<div class="tag ok">${icon("check")} Finished</div>`),
+};
+tr[0].append(tags.re); tr[1].append(tags.skip); tr[2].append(tags.fin);
+const finLine = h(`<div class="fin"><span class="pill ok">90% watched counts as finished</span></div>`);
+root.append(finLine);
+
+// The audience curve: share of viewers still watching at each second (0–60).
+const curve = (s) => {
+  let v = 100 - s * 0.62;                       // a gentle slide
+  v -= 34 / (1 + Math.exp(-(s - 42) * 1.35));    // most people leave around 0:42
+  if (s > 50) v -= (s - 50) * 0.35;
+  return Math.max(0, v);
+};
+const H = 200;
+const yv = (v) => H - (v / 100) * H;
+let dCurve = "", dArea = "";
+for (let s = 0; s <= LEN; s += 0.5) { dCurve += `${s ? "L" : "M"}${px(s).toFixed(1)} ${yv(curve(s)).toFixed(1)} `; }
+dArea = `${dCurve} L ${W} ${H} L 0 ${H} Z`;
+// The three viewers alone, as a step chart (out of 3).
+const cov = (s) => (s < 40 ? 1 : 0) + (s < 15 || s >= 50 ? 1 : 0) + 1;
+let dSteps = `M0 ${H}`;
+for (let s = 0; s < LEN; s += 1) dSteps += ` L${px(s)} ${yv((cov(s) / 3) * 100)} L${px(s + 1)} ${yv((cov(s) / 3) * 100)}`;
+dSteps += ` L${W} ${H} Z`;
+
+root.append(h(`<div id="chart"><div class="ttl">Who's still watching, second by second</div><div class="sub" id="sub"></div>
+  <svg id="plot" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#155dfc" stop-opacity=".22"/><stop offset="1" stop-color="#155dfc" stop-opacity="0"/></linearGradient>
+    <clipPath id="cl"><rect id="clr" x="0" y="-20" width="0" height="${H + 40}"/></clipPath></defs>
+    <g class="grid">${[0, 50, 100].map((v) => `<line x1="0" x2="${W}" y1="${yv(v)}" y2="${yv(v)}"/>`).join("")}</g>
+    ${[0, 50, 100].map((v) => `<text class="ylab" x="-14" y="${yv(v) + 4}" text-anchor="end">${v}%</text>`).join("")}
+    ${[0, 15, 30, 45, 60].map((s) => `<text class="xlab" x="${px(s)}" y="${H + 24}" text-anchor="middle">${fmt.mmss(s)}</text>`).join("")}
+    <path id="steps" d="${dSteps}"/>
+    <g clip-path="url(#cl)"><path id="area" d="${dArea}"/><path id="curve" d="${dCurve}"/></g>
+  </svg></div>`));
+const mk30 = h(`<div class="mk" id="mk30"><span class="pill accent">${Math.round(curve(30))}% still watching at 0:30</span></div>`);
+const mk42 = h(`<div class="mk" id="mk42"><span class="pill bad">${icon("arrow")} Most viewers leave at 0:42</span><div class="ln"></div></div>`);
+root.append(mk30, mk42);
+
+const hd = header(root, {
+  topic: "Video analytics",
+  end: D,
+  steps: [
+    { t: 0, text: "Markdrop counts the parts <em>someone actually played</em>" },
+    { t: 5.2, text: "Every viewer's seconds add up to <em>one curve</em>" },
+    { t: 11, text: "It marks <em>where most viewers leave</em>" },
+    { t: 14.6, text: "<em>90% watched</em> counts as finished" },
+  ],
+});
+
+function bar(el, from, to) { el.style.left = `${px(from)}px`; el.style.width = `${Math.max(0, px(to - from))}px`; }
+
+function render(t) {
+  loopFade(root, t, D);
+  hd.at(t);
+  ROWS.forEach((r, i) => rise($(`#row${i}`), t, 0.2 + i * 0.15, 0.5, 10));
+  // A: 0:00 → 0:40, then back to 0:20 → 0:30.
+  const a1 = lerp(0, 40, p(t, 0.7, 3.0, E.linear));
+  const are = t < 3.2 ? 0 : lerp(20, 30, p(t, 3.2, 3.9, E.linear));
+  bar(A1, 0, a1); bar(Are, 20, Math.max(20, are));
+  set(Are, { o: t >= 3.2 ? 1 : 0 });
+  // B: 0:00 → 0:15, skip to 0:50 → 1:00.
+  const b1 = lerp(0, 15, p(t, 0.9, 1.8, E.linear));
+  const b2 = t < 2.2 ? 50 : lerp(50, 60, p(t, 2.2, 2.85, E.linear));
+  bar(B1, 0, b1); bar(B2, 50, b2);
+  bar(Bgap, 15, 50); set(Bgap, { o: p(t, 1.9, 2.2) });
+  // C: the whole thing.
+  const c1 = lerp(0, 60, p(t, 1.1, 4.3, E.linear));
+  bar(C1, 0, c1);
+  const hp = [t < 3.0 ? a1 : t < 3.2 ? 40 : are, t < 1.85 ? b1 : t < 2.2 ? 15 + (35 * p(t, 1.85, 2.2, E.inOut)) : b2, c1];
+  heads.forEach((e, i) => { e.style.left = `${px(hp[i])}px`; set(e, { o: win(t, 0.6 + i * 0.2, [4.1, 3.0, 4.5][i], 0.2, 0.3) }); });
+  // Tags.
+  const tg = (el, at, s) => { el.style.left = `${px(s)}px`; const k = p(t, at, at + 0.4, E.outBack); set(el, { o: p(t, at, at + 0.25), s: 0.85 + 0.15 * k, origin: "left bottom" }); };
+  tg(tags.re, 3.9, 19); tg(tags.skip, 2.6, 22); tg(tags.fin, 15.2, 41);
+  const pcts = ["40 s of 60", "25 s of 60", "60 s of 60"];
+  $$(".row .pct").forEach((e, i) => { e.textContent = pcts[i]; set(e, { o: p(t, 4.4 + i * 0.12, 4.8 + i * 0.12) }); });
+
+  // The curve: these three as steps, then everyone as one line.
+  rise($("#chart"), t, 5.0, 0.6, 14);
+  const sub = $("#sub");
+  sub.textContent = t < 7.6 ? "These 3 viewers" : "All 214 viewers who pressed play";
+  set($("#steps"), { o: win(t, 5.6, 10.4, 0.6, 0.8) * 1 });
+  $("#steps").style.clipPath = `inset(0 ${(100 - 100 * p(t, 5.6, 7.2, E.inOut)).toFixed(2)}% 0 0)`;
+  $("#clr").setAttribute("width", String(W * p(t, 7.6, 10.6, E.inOut)));
+  // Markers.
+  const plot = $("#plot").getBoundingClientRect(), st = document.getElementById("stage").getBoundingClientRect();
+  const sx = (s) => (plot.left - st.left) / 1.25 * 0 + 56 + X0 + px(s); // stage-logical x
+  const sy = (v) => 372 + 56 + yv(v);
+  const k30 = p(t, 10.0, 10.4, E.outBack);
+  mk30.style.left = `${sx(30) - mk30.offsetWidth / 2}px`; mk30.style.top = `${sy(curve(30)) - 58}px`;
+  set(mk30, { o: Math.min(p(t, 10.0, 10.25), 1 - p(t, 14.4, 14.8)), s: 0.85 + 0.15 * k30 });
+  const k42 = p(t, 11.3, 11.8, E.outBack);
+  const ln = mk42.querySelector(".ln");
+  ln.style.height = `${(H - yv(curve(42)) + 20) * p(t, 11.6, 12.3, E.out)}px`;
+  mk42.style.left = `${sx(42) - mk42.offsetWidth / 2}px`;
+  mk42.style.top = `${sy(curve(42)) - 58}px`;
+  set(mk42, { o: p(t, 11.3, 11.55), s: 0.85 + 0.15 * k42 });
+  // 90% = finished.
+  finLine.style.left = `${56 + X0 + px(54)}px`;
+  set(finLine, { o: p(t, 14.8, 15.2) });
+  finLine.style.height = `${236 * p(t, 14.8, 15.5, E.out)}px`;
+}
+
+scene({
+  duration: D, width: 1280, height: 720, scale: 1.25, poster: 16.4,
+  out: { kind: "clip", page: "/analytics/video-and-audio", name: "analytics-retention" },
+}, render);
+</script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Publish a video from the terminal, then replace it</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  #stage { background: radial-gradient(1200px 700px at 50% -10%, rgb(255 255 255 / .55), transparent 70%), var(--bg); }
+  #cap { bottom: 34px; font-size: 22px; }
+</style>
+</head>
+<body>
+<div id="stage" class="dots"><div id="root" class="layer"></div></div>
+<script type="module">
+import { scene, terminalFrame, browserFrame, makeCursor, captions, set, p, E, lerp, win, $, clamp } from "../_kit/kit.js";
+import { Stream, renderTerm } from "../_kit/term.js";
+import { demoPlayer } from "../_kit/player.js";
+
+const session = await (await fetch("./session.json")).json();
+const facts = await (await fetch("../_shots/facts.json")).json();
+const D = 46;
+const root = document.getElementById("root");
+
+// Windows.
+const COLS = 98, ROWS = 24;
+const T = terminalFrame({ x: 0, y: 0, w: 990, h: 600, title: "~/Movies — zsh", size: 16, lh: 1.42 });
+const BW = 896, BH = 46 + Math.round(760 * (BW / 1280));
+const B = browserFrame({ x: 0, y: 0, w: BW, h: BH, url: "markdrop.in/demo" });
+root.append(B.el, T.el);
+const player = demoPlayer(B.body, { facts, width: BW });
+const blank = document.createElement("div");
+Object.assign(blank.style, { position: "absolute", inset: "0", background: "var(--surface-raised)" });
+B.body.append(blank);
+
+// The terminal timeline: real output from `record_cli.py upload-replace`, typed at human pace.
+const S = new Stream();
+const [up, rep, ver] = session.steps;
+const quick = (d) => (d < 0.2 ? d * 5 : 1.0 + (d - 0.2) * 0.72); // show the hashing line, trim the upload a little
+S.prompt(0.5, session.cwd);
+const e1 = S.type(1.0, up.cmd, { cps: 15, seed: 11 });
+const o1 = S.play(e1 + 0.12, up.out, { map: quick });
+S.prompt(o1 + 0.15, session.cwd);
+const e2 = S.type(19.6, rep.cmd, { cps: 16, seed: 12 });
+const o2 = S.play(e2 + 0.12, rep.out, { map: quick });
+S.prompt(o2 + 0.15, session.cwd);
+const e3 = S.type(37.0, ver.cmd, { cps: 15, seed: 13 });
+const o3 = S.play(e3 + 0.25, ver.out);
+S.prompt(o3 + 0.2, session.cwd);
+
+// Moments.
+const OPEN = o1 + 1.6;          // click the link in the terminal
+const V1 = OPEN + 1.2;          // the page has loaded and plays
+const TERM2 = 19.0;             // back to the terminal
+const RELOAD = o2 + 1.2;        // reload the page
+const V2 = RELOAD + 0.9;
+const TERM3 = 36.4;
+
+const cap = captions(root, [
+  { t0: 0.6, t1: o1 + 0.9, text: "markdrop upload: hashed, sent in parts, verified" },
+  { t0: o1 + 0.9, t1: TERM2 - 0.1, text: "The link it prints opens the video in any browser" },
+  { t0: TERM2 + 0.2, t1: o2 + 0.6, text: "markdrop replace: a new file behind the same link" },
+  { t0: o2 + 0.6, t1: TERM3 - 0.1, text: "Same link, now playing version 2" },
+  { t0: TERM3 + 0.2, t1: D - 0.6, text: "markdrop versions: the previous file is kept" },
+]);
+
+// Cursor: click the printed link, later the reload button.
+const linkPos = () => {
+  for (const ln of T.screen.querySelectorAll(".ln")) {
+    if (ln.textContent.startsWith("https://markdrop.in/demo")) {
+      const r = ln.getBoundingClientRect(), s = root.getBoundingClientRect();
+      const k = s.width / 1536;
+      return [(r.left - s.left) / k + 120, (r.top - s.top) / k + 11];
+    }
+  }
+  return [700, 400];
+};
+let cur = null;
+
+function layout(t) {
+  // Terminal centred, then left with the browser on the right. The focused window is in front.
+  const side = p(t, OPEN + 0.1, OPEN + 0.9, E.inOut);
+  const tx = lerp(273, 36, side), ty = lerp(108, 74, side);
+  const bx = lerp(1536, 604, side), by = 132;
+  set(T.el, { x: tx, y: ty });
+  set(B.el, { x: bx, y: by, o: side > 0 ? 1 : 0 });
+  const termFront = t < OPEN + 0.3 || (t >= TERM2 && t < o2 + 0.8) || t >= TERM3;
+  T.el.style.zIndex = termFront ? "3" : "2";
+  B.el.style.zIndex = termFront ? "2" : "3";
+  T.el.style.filter = termFront ? "" : "saturate(.9) brightness(.97)";
+}
+
+function render(t) {
+  const fade = Math.min(p(t, 0, 0.4), 1 - p(t, D - 0.5, D));
+  root.style.opacity = String(fade);
+  layout(t);
+  renderTerm(T.screen, S, t, COLS, ROWS);
+  if (!cur) {
+    // Measured once the link line exists (after the upload).
+    renderTerm(T.screen, S, o1 + 0.5, COLS, ROWS);
+    set(T.el, { x: 273, y: 108 });
+    const [lx, ly] = linkPos();
+    renderTerm(T.screen, S, t, COLS, ROWS);
+    layout(t);
+    cur = makeCursor(root, [
+      { t: OPEN - 0.05, x: lx, y: ly, dur: 0.9 },
+      { t: OPEN, x: lx, y: ly, click: true },
+      { t: OPEN + 1.2, x: 1330, y: 760, dur: 0.9 },
+      { t: TERM2 - 0.4, x: 560, y: 560, dur: 0.8 },
+      { t: TERM2, x: 560, y: 560, click: true },
+      { t: RELOAD - 0.1, x: 604 + 98, y: 132 + 23, dur: 0.9 },
+      { t: RELOAD, x: 604 + 98, y: 132 + 23, click: true },
+      { t: RELOAD + 1.0, x: 1330, y: 760, dur: 0.8 },
+      { t: TERM3 - 0.4, x: 520, y: 600, dur: 0.8 },
+      { t: TERM3, x: 520, y: 600, click: true },
+    ], { start: [1180, 760], visible: (tt) => win(tt, OPEN - 1.4, D - 1.2, 0.3, 0.4) });
+  }
+  cur.at(t);
+  cap.at(t);
+
+  // The page: loading flash, then v1 playing; after the reload, v2 playing.
+  const loading = (t >= OPEN + 0.5 && t < V1) || (t >= RELOAD && t < V2);
+  set(blank, { o: loading ? 1 : 0 });
+  const S0 = 34.2; // the end card, where v1 and v2 differ, comes in at ~0:36.6
+  let v = "v1", vt = S0;
+  if (t >= V2) { v = "v2"; vt = S0 + Math.min(5.7, t - V2); }
+  else if (t >= RELOAD) { v = "v2"; vt = S0; }
+  else if (t >= V1) { vt = S0 + Math.min(5.7, t - V1); }
+  return player.at(v, vt);
+}
+
+scene({
+  duration: D, width: 1536, height: 864, scale: 1.25, poster: V2 + 6.2,
+  chapters: [
+    { t: 0, title: "Publish a video with markdrop upload" },
+    { t: OPEN, title: "Open the link" },
+    { t: TERM2, title: "Replace it with markdrop replace" },
+    { t: RELOAD, title: "The same link plays version 2" },
+    { t: TERM3, title: "See the versions" },
+  ],
+  out: { kind: "video", id: "cli-upload-replace", title: "Publish a video, then replace it on the same link" },
+}, render);
+</script>
+</body>
+</html>

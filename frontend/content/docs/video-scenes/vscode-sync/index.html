@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Publish from a code editor, and watch a web edit come back</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  #cap { bottom: 30px; font-size: 21px; }
+  .shot { position: absolute; left: 0; top: 0; }
+  .crop { position: absolute; overflow: hidden; }
+  .crop img { position: absolute; }
+  .tip { position: absolute; z-index: 40; padding: 8px 12px; border-radius: 8px; background: var(--surface-inverse); color: var(--text-inverse); font: 600 13.5px/1 var(--font-mono); white-space: nowrap; box-shadow: var(--shadow-md); }
+</style>
+</head>
+<body>
+<div id="stage" class="dots"><div id="root" class="layer"></div></div>
+<script type="module">
+import { scene, editorFrame, browserFrame, makeCursor, captions, set, p, E, lerp, win, h, icon, $, typing, clamp } from "../_kit/kit.js";
+import { renderCode, statusBar, palette, toast } from "../_kit/editor.js";
+
+const facts = await (await fetch("../_shots/facts.json")).json();
+const R = facts.release;
+const D = 40;
+const root = document.getElementById("root");
+
+// The editor.
+const FILES = [
+  { name: "acme-docs", dir: true },
+  { name: "docs", dir: true, depth: 1 },
+  { name: "README.md", depth: 1 },
+  { name: "release-notes.md", depth: 1, on: true },
+];
+const ED = editorFrame({ x: 0, y: 0, w: 1040, h: 720, title: "release-notes.md — acme-docs", files: FILES, side: 230 });
+root.append(ED.el);
+ED.tabs.innerHTML = `<div class="ef-tab on">${icon("md", { size: 16 })} release-notes.md</div><div class="spacer"></div><div class="tool" title="Publish">${icon("upload")}</div>`;
+const files = ED.el.querySelector(".ef-files");
+const mdj = h(`<div class="ef-file" style="padding-left:28px">${icon("doc")}<span>.markdrop.json</span></div>`);
+files.append(mdj);
+const LINES = R.markdown.replace(/\n$/, "").split("\n");
+const LINES2 = LINES.map((l) => (l === R.oldLine ? R.newLine : l));
+const CHANGED = LINES.indexOf(R.oldLine);
+const pal = palette(ED.main);
+const ts = toast(ED.el, { x: 1040 - 470 - 18, y: 720 - 34 - 18 - 150, w: 470 });
+
+// The browser with the real pages (scenes/stills.mjs).
+const BW = 860, K = BW / 1280, BH = 46 + Math.round(800 * K);
+const B = browserFrame({ x: 0, y: 0, w: BW, h: BH, url: `markdrop.in/${R.slug}` });
+root.append(B.el);
+const img = (n) => `../_shots/release-${n}.webp`;
+const shots = {};
+for (const n of ["doc", "edit", "edited", "saved"]) { shots[n] = h(`<img class="shot" src="${img(n)}" style="width:${BW}px">`); B.body.append(shots[n]); }
+const crop = (n, r) => { const c = h(`<div class="crop" style="left:${r.x * K}px;top:${r.y * K}px;width:${r.w * K}px;height:${r.h * K}px"><img src="${img(n)}" style="width:${BW}px;left:${-r.x * K}px;top:${-r.y * K}px"></div>`); B.body.append(c); return c; };
+const L = R.line;
+const startCol = R.oldLine.length - 1; // the typing goes in before the final "."
+const added = R.newLine.length - R.oldLine.length;
+const lineCrop = crop("edited", { x: L.x + startCol * L.charW, y: L.y - 2, w: (added + 1) * L.charW + 2, h: L.h + 4 });
+const barCrop = crop("edited", { x: 0, y: R.save.y - 26, w: 1280, h: 52 });
+const tip = h(`<div class="tip"></div>`);
+root.append(tip);
+
+// Timeline.
+const PAL = 3.0, PICK = 5.4, PUB = 5.9, DONE = 7.6, OPEN = 10.2, ESC = 13.4, TYPE = 15.2;
+const typed = typing(R.newLine.slice(startCol, startCol + added), { start: TYPE, cps: 14, seed: 31 });
+const SAVE = typed.end + 0.9, SAVED = SAVE + 1.0, BACK = SAVED + 2.0, PULL = BACK + 0.5, HOVER = PULL + 2.4;
+const palText = typing("Markdrop: pub", { start: PAL + 0.4, cps: 13, seed: 32 });
+const ROWS = ["Markdrop: Publish / link current file", "Markdrop: Sign in", "Markdrop: Sync now (push)", "Markdrop: Open current document in browser", "Markdrop: Unlink current file"];
+
+const cap = captions(root, [
+  { t0: 0.5, t1: PAL, text: "Open the Markdown file you want to publish" },
+  { t0: PAL, t1: DONE, text: "Command Palette › Markdrop: Publish / link current file" },
+  { t0: DONE, t1: OPEN, text: "Published: the link is ready, and the file is linked" },
+  { t0: OPEN, t1: ESC, text: "The link opens the rendered document on markdrop.in" },
+  { t0: ESC, t1: SAVED + 0.6, text: "Someone edits it on markdrop.in and saves" },
+  { t0: BACK, t1: D - 0.5, text: "Back in the editor, the change arrives in the file: Markdrop: synced" },
+]);
+
+const sbLeft = [{ text: "Ln 7, Col 40" }];
+let cur = null;
+function render(t) {
+  root.style.opacity = String(Math.min(p(t, 0, 0.4), 1 - p(t, D - 0.5, D)));
+  // Layout: the editor centred, then left with the browser on the right; focus decides the order.
+  const side = p(t, OPEN + 0.1, OPEN + 0.9, E.inOut);
+  set(ED.el, { x: lerp(248, 28, side), y: lerp(64, 60, side) });
+  set(B.el, { x: lerp(1536, 650, side), y: 112, o: side > 0 ? 1 : 0 });
+  const edFront = t < OPEN + 0.3 || t >= BACK;
+  ED.el.style.zIndex = edFront ? "3" : "2";
+  B.el.style.zIndex = edFront ? "2" : "3";
+
+  // Code: the web edit lands at PULL.
+  const pulled = t >= PULL;
+  const flash = win(t, PULL, PULL + 2.2, 0.15, 0.8);
+  renderCode(ED.code, pulled ? LINES2 : LINES, { cls: flash > 0.02 ? { [CHANGED]: "add" } : {} });
+  const lnEl = ED.code.children[CHANGED];
+  if (lnEl) lnEl.style.opacity = "1";
+
+  // Status bar (the extension's own texts).
+  let item;
+  if (t < PUB) item = { icon: "upload", text: "Publish to Markdrop" };
+  else if (t < DONE) item = { spin: true, text: "Markdrop: publishing…", cls: "hl" };
+  else item = { icon: "check", text: "Markdrop: synced", cls: t >= PULL && t < PULL + 2.5 ? "hl" : "" };
+  statusBar(ED.status, { left: sbLeft, md: item });
+  ED.status.querySelector(".kit-spin")?.style.setProperty("transform", `rotate(${(t * 400) % 360}deg)`);
+  set(mdj, { o: p(t, DONE, DONE + 0.4) });
+
+  // Command palette.
+  const palOn = t >= PAL && t < PUB;
+  set(pal.el, { o: palOn ? p(t, PAL, PAL + 0.15) : 0, y: palOn ? 0 : -6 });
+  const q = palText.at(t);
+  const rows = q ? ROWS.filter((r) => r.toLowerCase().includes(q.toLowerCase())) : ROWS;
+  pal.show(q, rows.slice(0, 5), 0);
+
+  // Toast: Published to …, with Open in browser / Copy link.
+  const tOn = t >= DONE && t < OPEN + 0.4;
+  ts.show("info", `Published to ${R.url}`, ["Open in browser", "Copy link"], t >= OPEN - 0.5 ? 0 : -1);
+  set(ts.el, { o: tOn ? p(t, DONE, DONE + 0.25) : 0, y: tOn ? (1 - p(t, DONE, DONE + 0.3, E.out)) * 12 : 0 });
+
+  // Browser pages: reading view → editor → typing → saved.
+  const page = t < ESC ? "doc" : t < SAVE + 0.35 ? "edit" : "saved";
+  for (const [n, el] of Object.entries(shots)) el.style.display = n === page ? "" : "none";
+  B.url(page === "edit" ? `markdrop.in/${R.slug}` : `markdrop.in/${R.slug}`);
+  const nTyped = typed.at(t).length;
+  lineCrop.style.display = page === "edit" && nTyped > 0 ? "" : "none";
+  lineCrop.style.width = `${Math.max(0, nTyped * L.charW * K + 1)}px`;
+  barCrop.style.display = page === "edit" && nTyped > 0 ? "" : "none";
+
+  // Cursor.
+  if (!cur) {
+    const toastBtn = () => { const b = ts.el.querySelector(".btn.primary").getBoundingClientRect(), s = root.getBoundingClientRect(); return [b.left - s.left + b.width / 2, b.top - s.top + b.height / 2]; };
+    set(ED.el, { x: 248, y: 64 }); set(ts.el, { o: 1, y: 0 });
+    const [bx, by] = toastBtn();
+    const bxp = 650, byp = 112 + 46;
+    const save = [bxp + R.save.x * K, byp + R.save.y * K];
+    const lineAt = [bxp + (L.x + startCol * L.charW) * K, byp + (L.y + L.h / 2) * K];
+    const sbItem = [28 + 1040 - 100, 60 + 720 - 17];
+    cur = makeCursor(root, [
+      { t: OPEN - 0.25, x: bx, y: by, dur: 1.1 },
+      { t: OPEN, x: bx, y: by, click: true },
+      { t: TYPE - 0.4, x: lineAt[0], y: lineAt[1], dur: 1.0 },
+      { t: TYPE - 0.2, x: lineAt[0], y: lineAt[1], click: true },
+      { t: SAVE - 0.05, x: save[0], y: save[1], dur: 0.8 },
+      { t: SAVE, x: save[0], y: save[1], click: true },
+      { t: BACK - 0.1, x: 600, y: 520, dur: 0.8 },
+      { t: BACK, x: 600, y: 520, click: true },
+      { t: HOVER, x: sbItem[0], y: sbItem[1], dur: 0.9 },
+    ], { start: [1100, 640], visible: (tt) => win(tt, OPEN - 1.6, D - 0.8, 0.3, 0.4) });
+  }
+  cur.at(t);
+
+  // Hover on the status bar item: its tooltip is the link and revision.
+  const th = p(t, HOVER + 0.5, HOVER + 0.7);
+  tip.textContent = `${R.url} (rev ${R.after?.rev ?? 2})`;
+  tip.style.left = `${28 + 1040 - 100 - tip.offsetWidth + 40}px`;
+  tip.style.top = `${60 + 720 - 34 - 44}px`;
+  set(tip, { o: th });
+  cap.at(t);
+}
+
+scene({
+  duration: D, width: 1536, height: 864, scale: 1.25, poster: PULL + 1.2,
+  chapters: [
+    { t: 0, title: "Publish from the editor" },
+    { t: OPEN, title: "Open the link" },
+    { t: ESC, title: "Edit on markdrop.in" },
+    { t: BACK, title: "The change comes back" },
+  ],
+  out: { kind: "video", id: "vscode-sync", title: "Publish from VS Code and watch an edit come back" },
+}, render);
+</script>
+</body>
+</html>

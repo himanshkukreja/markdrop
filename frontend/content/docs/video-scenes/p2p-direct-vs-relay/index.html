@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Peer to peer: Direct or Relayed</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  .xh { left: 56px; right: 56px; top: 40px; }
+  .xh .line { font-size: 34px; } .xh .lines { height: 46px; }
+  .dev { position: absolute; top: 262px; width: 252px; height: 218px; padding: 20px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .dev .big { font-size: 64px; color: var(--text); line-height: 1; margin-top: 4px; }
+  .dev .n { font: 800 21px/1.1 var(--font-sans); margin-top: 10px; }
+  .dev .f { margin-top: 12px; display: flex; gap: 8px; align-items: center; font: 650 15px/1 var(--font-sans); color: var(--text-secondary); background: var(--surface-inset); border-radius: 10px; padding: 8px 12px; }
+  .dev .f .ico { color: var(--cat-pdf); font-size: 17px; }
+  .bar { width: 180px; height: 8px; border-radius: 4px; background: var(--surface-inset); margin-top: 12px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); transform-origin: left; }
+  #srv { position: absolute; left: 470px; top: 126px; width: 340px; padding: 16px 18px; }
+  .srow { display: flex; gap: 14px; align-items: center; }
+  .srow .tile { width: 46px; height: 46px; border-radius: 12px; background: var(--surface-inverse); color: var(--text-inverse); font-size: 24px; }
+  .srow .a { font: 800 19px/1.1 var(--font-sans); }
+  .srow .b { font: 600 14px/1.3 var(--font-sans); color: var(--text-muted); margin-top: 3px; }
+  .keeps { overflow: hidden; }
+  .keeps .k { display: flex; gap: 10px; align-items: center; font: 650 16px/1.2 var(--font-sans); padding-top: 9px; }
+  .keeps .k .ico { font-size: 17px; }
+  #relay { position: absolute; left: 520px; top: 530px; width: 240px; padding: 14px 16px; }
+  #relay .tile { background: var(--warning-soft); color: var(--warning); }
+  .msg { position: absolute; z-index: 5; padding: 6px 10px; border-radius: 9px; background: var(--surface-inverse); color: var(--text-inverse); font: 600 13px/1 var(--font-mono); white-space: nowrap; }
+  .chunk { position: absolute; z-index: 6; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 8px; background: var(--accent); color: var(--on-accent);
+    display: grid; place-items: center; font-size: 15px; box-shadow: 0 4px 10px -4px rgb(33 80 216 / 0.6); }
+  #wall { position: absolute; left: 596px; top: 290px; width: 88px; height: 178px; border-radius: 6px; background: #A99582; overflow: hidden; box-shadow: var(--shadow-md); }
+  #wallLbl { position: absolute; left: 520px; top: 476px; width: 240px; text-align: center; font: 700 14px/1.2 var(--font-sans); color: var(--text-muted); }
+  .badge { position: absolute; left: 0; right: 0; top: 214px; display: flex; justify-content: center; }
+  .badge .pill { font-size: 17px; height: 38px; padding: 0 16px; position: absolute; }
+  .badge .pill .ico { font-size: 18px; }
+  .note { position: absolute; left: 0; right: 0; top: 628px; text-align: center; font: 700 18px/1.3 var(--font-sans); color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<div id="stage" class="dots"><div id="root" class="layer"></div></div>
+<script type="module">
+import { scene, header, icon, set, p, E, rise, h, $, $$, loopFade, along, win, clamp } from "../_kit/kit.js";
+
+const D = 18;
+const root = document.getElementById("root");
+root.append(h(`<div id="grp" style="position:absolute;left:0;right:0;top:34px;bottom:-34px">
+  <svg class="wires">
+    <path id="hs1" class="dash" d="M206 262 C 206 190, 360 168, 470 168"/>
+    <path id="hs2" class="dash" d="M1074 262 C 1074 190, 920 168, 810 168"/>
+    <path id="dir" class="dash" d="M332 372 L 948 372"/>
+    <path id="rl1" class="dash" d="M332 430 C 420 430, 440 568, 520 568"/>
+    <path id="rl2" class="dash" d="M760 568 C 840 568, 860 430, 948 430"/>
+  </svg>
+  <div class="card dev" id="lap" style="left:80px"><div class="big">${icon("laptop", { sw: 1.6 })}</div><div class="n">Your laptop</div><div class="f">${icon("doc")} report.pdf · 24 MB</div></div>
+  <div class="card dev" id="ph" style="left:948px"><div class="big">${icon("phone", { sw: 1.6 })}</div><div class="n">Their phone</div><div class="bar"><i id="prog"></i></div><div class="small" id="pct" style="margin-top:8px;font-size:15px"></div></div>
+  <div class="card" id="srv"><div class="srow"><div class="tile">${icon("server")}</div><div><div class="a">Markdrop's server</div><div class="b">Introduces the two devices</div></div></div>
+    <div class="keeps" id="keeps">
+      <div class="k ok">${icon("check")}<span style="color:var(--text)">File names, types and sizes</span></div>
+      <div class="k ok">${icon("check")}<span style="color:var(--text)">How many files</span></div>
+      <div class="k ok">${icon("check")}<span style="color:var(--text)">A hashed IP address</span></div>
+      <div class="k ok">${icon("check")}<span style="color:var(--text)">Route and timing</span></div>
+      <div class="k bad">${icon("x")}<span style="color:var(--text)">The files themselves</span></div>
+    </div></div>
+  <div class="card" id="relay"><div class="srow"><div class="tile">${icon("refresh")}</div><div><div class="a">Relay</div><div class="b">Forwards encrypted bytes</div></div></div></div>
+  <div id="wall"></div><div id="wallLbl">A firewall blocks the direct route</div>
+  <div class="msg" id="m1">offer</div><div class="msg" id="m2">answer</div>
+  <div class="badge"><span class="pill accent" id="bD">${icon("arrow")} Direct</span><span class="pill warn" id="bR">${icon("refresh")} Relayed</span></div>
+  <div class="note" id="note1">Encrypted in transit (DTLS). Nothing is stored on Markdrop's servers.</div>
+  <div class="note" id="note2">The relay can't read the bytes: they stay encrypted end to end.</div>
+</div>`));
+const chunks = Array.from({ length: 14 }, () => { const c = h(`<div class="chunk">${icon("lock")}</div>`); $("#grp").append(c); return c; });
+const wall = $("#wall"); for (let r = 0; r < 8; r++) for (let b = 0; b < 3; b++) wall.append(h(`<i style="position:absolute;top:${r * 22 + 2}px;left:${(r % 2 ? -22 : 0) + b * 44 + 2}px;width:40px;height:18px;border-radius:3px;background:#C9B8A6"></i>`));
+
+const hd = header(root, {
+  topic: "Send files peer to peer",
+  end: D,
+  steps: [
+    { t: 0, text: "Markdrop's server <em>introduces</em> the two devices" },
+    { t: 4, text: "Files go <em>directly</em> from one device to the other" },
+    { t: 9, text: "Blocked network? An <em>encrypted relay</em> forwards them" },
+    { t: 14.6, text: "The server keeps <em>details</em>, never the files" },
+  ],
+});
+
+const dir = $("#dir"), rl1 = $("#rl1"), rl2 = $("#rl2"), hs1 = $("#hs1"), hs2 = $("#hs2");
+function relayPoint(k) {
+  // laptop → relay (enter) → relay (exit) → phone
+  if (k < 0.45) return along(rl1, k / 0.45);
+  if (k < 0.55) { const a = along(rl1, 1), b = along(rl2, 0); const q = (k - 0.45) / 0.1; return [a[0] + (b[0] - a[0]) * q, a[1]]; }
+  return along(rl2, (k - 0.55) / 0.45);
+}
+
+function render(t) {
+  loopFade(root, t, D);
+  hd.at(t);
+  rise($("#lap"), t, 0.2, 0.6, 16);
+  rise($("#ph"), t, 0.4, 0.6, 16);
+  rise($("#srv"), t, 0.7, 0.6, 16);
+  for (const [el, a] of [[hs1, 0.9], [hs2, 1.1]]) set(el, { o: p(t, a, a + 0.4) * (1 - p(t, 4.0, 4.6) * 0.7) });
+  // Handshake messages: offer laptop → server → phone, answer back.
+  const mm = (el, path, a, rev) => {
+    const k = p(t, a, a + 0.9, E.inOut);
+    const [x, y] = along(path, rev ? 1 - k : k);
+    el.style.left = `${x - el.offsetWidth / 2}px`; el.style.top = `${y - 14}px`;
+    set(el, { o: t > a && t < a + 1.0 ? win(t, a, a + 1.0, 0.15, 0.15) : 0 });
+  };
+  const m1 = $("#m1"), m2 = $("#m2");
+  if (t < 2.4) mm(m1, hs1, 1.3, false); else mm(m1, hs2, 2.3, true);
+  if (t < 3.3) mm(m2, hs2, 2.95, false); else mm(m2, hs1, 3.3, true);
+
+  // Direct (4–9), then relayed (9.8–14.4).
+  const direct = t < 9.2;
+  set(dir, { o: p(t, 3.9, 4.3) * (1 - p(t, 8.8, 9.3)) });
+  set(rl1, { o: p(t, 9.5, 9.9) }); set(rl2, { o: p(t, 9.5, 9.9) });
+  set($("#relay"), { o: p(t, 9.4, 9.9, E.out), y: (1 - p(t, 9.4, 9.9, E.out)) * 16 });
+  const wk = p(t, 8.7, 9.25, E.outBack);
+  set($("#wall"), { o: p(t, 8.7, 8.9) * (1 - p(t, 14.4, 14.8)), y: (1 - wk) * -120 });
+  set($("#wallLbl"), { o: win(t, 9.1, 14.7, 0.4, 0.3) });
+  chunks.forEach((c, i) => {
+    let x = -50, y = 0, o = 0;
+    const d0 = 4.4 + i * 0.32;           // direct chunks
+    const r0 = 10.1 + (i - 0) * 0.28;    // relayed chunks
+    if (t >= d0 && t < d0 + 1.0 && d0 + 1.0 < 9.0) {
+      const k = E.inOut((t - d0) / 1.0); [x, y] = along(dir, k); o = 1;
+    } else if (t >= r0 && t < r0 + 1.7 && i < 14) {
+      const k = (t - r0) / 1.7; [x, y] = relayPoint(E.inOut(k)); o = 1;
+    }
+    c.style.left = `${x}px`; c.style.top = `${y}px`;
+    set(c, { o: o * win(t, Math.min(d0, r0) - 0.01, 99, 0.12, 0.1) });
+    c.style.background = t >= 9.5 ? "var(--warning-fill)" : "var(--accent)";
+    c.style.color = t >= 9.5 ? "var(--on-warning)" : "var(--on-accent)";
+  });
+  // Progress on the phone: two transfers (direct, then a second file relayed).
+  const prog = t < 9.2 ? clamp((t - 5.4) / 3.2) : clamp((t - 11.6) / 2.6);
+  $("#prog").style.transform = `scaleX(${prog.toFixed(3)})`;
+  $("#prog").style.background = t >= 9.2 ? "var(--warning-fill)" : "var(--accent)";
+  $("#pct").textContent = t < 4.5 ? "Waiting…" : `${Math.round(prog * 100)}% · ${t < 9.2 ? "report.pdf" : "report.pdf"}`;
+  const bk = p(t, 4.2, 4.6, E.outBack), rk = p(t, 9.9, 10.3, E.outBack);
+  set($("#bD"), { o: Math.min(p(t, 4.2, 4.4), 1 - p(t, 9.1, 9.3)), s: 0.85 + 0.15 * bk });
+  set($("#bR"), { o: Math.min(p(t, 9.9, 10.1), 1 - p(t, 14.4, 14.7)), s: 0.85 + 0.15 * rk });
+  set($("#note1"), { o: win(t, 5.2, 9.0, 0.4, 0.3) });
+  set($("#note2"), { o: win(t, 11.2, 14.6, 0.4, 0.3) });
+
+  // What the server keeps.
+  const kk = p(t, 14.7, 15.4, E.inOut);
+  $("#keeps").style.height = `${(kk * 5 * 28.5 + kk * 8).toFixed(1)}px`;
+  $$(".keeps .k").forEach((k, i) => set(k, { o: p(t, 15.0 + i * 0.25, 15.4 + i * 0.25), x: (1 - p(t, 15.0 + i * 0.25, 15.4 + i * 0.25, E.out)) * -10 }));
+  set($("#srv"), { o: p(t, 0.7, 1.3, E.out), y: (1 - p(t, 0.7, 1.3, E.out)) * 16 });
+  $("#srv").style.boxShadow = t > 14.7 ? `0 0 0 ${2 * kk}px var(--accent), var(--shadow-md)` : "";
+  set($("#relay"), { o: p(t, 9.4, 9.9, E.out) * (1 - kk * 0.5), y: (1 - p(t, 9.4, 9.9, E.out)) * 16 });
+}
+
+scene({
+  duration: D, width: 1280, height: 720, scale: 1.25, poster: 13.3,
+  out: { kind: "clip", page: "/share/send-files", name: "p2p-direct-vs-relay" },
+}, render);
+</script>
+</body>
+</html>

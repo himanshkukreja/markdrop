@@ -5,6 +5,27 @@
     "duration": "0:56",
     "chapters": "/docs-assets/videos/app-tour.vtt"
   },
+  "cli-send-receive": {
+    "src": "/docs-assets/videos/cli-send-receive.mp4",
+    "poster": "/docs-assets/videos/cli-send-receive.webp",
+    "duration": "0:25",
+    "title": "Send a folder from one terminal to another",
+    "chapters": "/docs-assets/videos/cli-send-receive.vtt"
+  },
+  "cli-upload-replace": {
+    "src": "/docs-assets/videos/cli-upload-replace.mp4",
+    "poster": "/docs-assets/videos/cli-upload-replace.webp",
+    "duration": "0:46",
+    "title": "Publish a video, then replace it on the same link",
+    "chapters": "/docs-assets/videos/cli-upload-replace.vtt"
+  },
+  "connect-claude": {
+    "src": "/docs-assets/videos/connect-claude.mp4",
+    "poster": "/docs-assets/videos/connect-claude.webp",
+    "duration": "0:27",
+    "title": "Connect an AI app to Markdrop and publish a doc",
+    "chapters": "/docs-assets/videos/connect-claude.vtt"
+  },
   "custom-domain": {
     "src": "/docs-assets/videos/custom-domain.mp4",
     "poster": "/docs-assets/videos/custom-domain.webp",
@@ -16,6 +37,13 @@
     "poster": "/docs-assets/videos/encrypt-a-document.webp",
     "duration": "0:42",
     "chapters": "/docs-assets/videos/encrypt-a-document.vtt"
+  },
+  "local-mcp-publish": {
+    "src": "/docs-assets/videos/local-mcp-publish.mp4",
+    "poster": "/docs-assets/videos/local-mcp-publish.webp",
+    "duration": "0:44",
+    "title": "Ask an AI app to publish and replace a video",
+    "chapters": "/docs-assets/videos/local-mcp-publish.vtt"
   },
   "password-and-expiry": {
     "src": "/docs-assets/videos/password-and-expiry.mp4",
@@ -70,5 +98,26 @@
     "poster": "/docs-assets/videos/video-player.webp",
     "duration": "0:43",
     "chapters": "/docs-assets/videos/video-player.vtt"
+  },
+  "vscode-conflict": {
+    "src": "/docs-assets/videos/vscode-conflict.mp4",
+    "poster": "/docs-assets/videos/vscode-conflict.webp",
+    "duration": "0:27",
+    "title": "Resolve a conflict between VS Code and the web",
+    "chapters": "/docs-assets/videos/vscode-conflict.vtt"
+  },
+  "vscode-sync": {
+    "src": "/docs-assets/videos/vscode-sync.mp4",
+    "poster": "/docs-assets/videos/vscode-sync.webp",
+    "duration": "0:40",
+    "title": "Publish from VS Code and watch an edit come back",
+    "chapters": "/docs-assets/videos/vscode-sync.vtt"
+  },
+  "who-can-open": {
+    "src": "/docs-assets/videos/who-can-open.mp4",
+    "poster": "/docs-assets/videos/who-can-open.webp",
+    "duration": "0:50",
+    "title": "Who can open what",
+    "chapters": "/docs-assets/videos/who-can-open.vtt"
   }
 }

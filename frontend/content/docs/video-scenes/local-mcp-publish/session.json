@@ -1,0 +1,286 @@
+{
+ "calls": [
+  {
+   "tool": "upload_file",
+   "arguments": {
+    "path": "~/Movies/demo.mp4"
+   },
+   "seconds": 8.286,
+   "progress": [
+    [
+     0.017,
+     {
+      "progress": 0,
+      "total": 113234456,
+      "message": "Checking demo.mp4 (108.0 MB)…"
+     }
+    ],
+    [
+     0.708,
+     {
+      "progress": 14614528,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 13.9 MB of 108.0 MB"
+     }
+    ],
+    [
+     1.306,
+     {
+      "progress": 28246016,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 26.9 MB of 108.0 MB"
+     }
+    ],
+    [
+     1.908,
+     {
+      "progress": 39845888,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 38.0 MB of 108.0 MB"
+     }
+    ],
+    [
+     2.507,
+     {
+      "progress": 50942488,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 48.6 MB of 108.0 MB"
+     }
+    ],
+    [
+     3.11,
+     {
+      "progress": 59593240,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 56.8 MB of 108.0 MB"
+     }
+    ],
+    [
+     3.71,
+     {
+      "progress": 68178456,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 65.0 MB of 108.0 MB"
+     }
+    ],
+    [
+     4.309,
+     {
+      "progress": 76173848,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 72.6 MB of 108.0 MB"
+     }
+    ],
+    [
+     4.907,
+     {
+      "progress": 85021208,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 81.1 MB of 108.0 MB"
+     }
+    ],
+    [
+     5.508,
+     {
+      "progress": 93213208,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 88.9 MB of 108.0 MB"
+     }
+    ],
+    [
+     6.108,
+     {
+      "progress": 101995032,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 97.3 MB of 108.0 MB"
+     }
+    ],
+    [
+     6.706,
+     {
+      "progress": 110187032,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 105.1 MB of 108.0 MB"
+     }
+    ],
+    [
+     7.109,
+     {
+      "progress": 113234455,
+      "total": 113234456,
+      "message": "Uploading demo.mp4: 108.0 MB of 108.0 MB"
+     }
+    ],
+    [
+     7.448,
+     {
+      "progress": 113234456,
+      "total": 113234456,
+      "message": "Verifying demo.mp4 on the server…"
+     }
+    ]
+   ],
+   "text": "Published demo (108.0 MB): https://markdrop.in/demo\nSlug demo, version 1. To swap the file behind this same link later, use replace_file.",
+   "isError": false,
+   "structured": {
+    "markdrop_url": "https://markdrop.in/demo",
+    "sha256": "53584cddc5ec792b5f7f70b14e991b6472a64321745bb5499d131fe3278a8203",
+    "size_bytes": 113234456,
+    "slug": "demo",
+    "url": "https://markdrop.in/demo",
+    "version": 1
+   }
+  },
+  {
+   "tool": "replace_file",
+   "arguments": {
+    "document": "demo",
+    "path": "~/Movies/demo-v2.mp4"
+   },
+   "seconds": 8.051,
+   "progress": [
+    [
+     8.304,
+     {
+      "progress": 0,
+      "total": 113483731,
+      "message": "Checking demo-v2.mp4 (108.2 MB)…"
+     }
+    ],
+    [
+     8.807,
+     {
+      "progress": 23560192,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 22.5 MB of 108.2 MB"
+     }
+    ],
+    [
+     9.408,
+     {
+      "progress": 33587200,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 32.0 MB of 108.2 MB"
+     }
+    ],
+    [
+     10.017,
+     {
+      "progress": 45391827,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 43.3 MB of 108.2 MB"
+     }
+    ],
+    [
+     10.61,
+     {
+      "progress": 53190611,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 50.7 MB of 108.2 MB"
+     }
+    ],
+    [
+     11.209,
+     {
+      "progress": 62431187,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 59.5 MB of 108.2 MB"
+     }
+    ],
+    [
+     11.809,
+     {
+      "progress": 70229971,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 67.0 MB of 108.2 MB"
+     }
+    ],
+    [
+     12.415,
+     {
+      "progress": 78880723,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 75.2 MB of 108.2 MB"
+     }
+    ],
+    [
+     13.009,
+     {
+      "progress": 88121299,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 84.0 MB of 108.2 MB"
+     }
+    ],
+    [
+     13.609,
+     {
+      "progress": 95920083,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 91.5 MB of 108.2 MB"
+     }
+    ],
+    [
+     14.211,
+     {
+      "progress": 104996819,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 100.1 MB of 108.2 MB"
+     }
+    ],
+    [
+     14.814,
+     {
+      "progress": 110632915,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 105.5 MB of 108.2 MB"
+     }
+    ],
+    [
+     15.409,
+     {
+      "progress": 113483730,
+      "total": 113483731,
+      "message": "Uploading demo-v2.mp4: 108.2 MB of 108.2 MB"
+     }
+    ],
+    [
+     15.881,
+     {
+      "progress": 113483731,
+      "total": 113483731,
+      "message": "Verifying demo-v2.mp4 on the server…"
+     }
+    ]
+   ],
+   "text": "Replaced the file behind https://markdrop.in/demo: now version 2 (108.2 MB). The link, access, title and views are unchanged; the previous version is kept (list_file_versions, restore_file_version).",
+   "isError": false,
+   "structured": {
+    "markdrop_url": "https://markdrop.in/demo",
+    "sha256": "79f911f7be2b73663e9bb23fca5cda168b7b4e764c3782b1cd000c0e9ae4b083",
+    "size_bytes": 113483731,
+    "slug": "demo",
+    "url": "https://markdrop.in/demo",
+    "version": 2
+   }
+  }
+ ],
+ "server": {
+  "name": "markdrop-p2p",
+  "title": "Markdrop: P2P sharing and file publishing",
+  "version": "0.5.0",
+  "websiteUrl": "https://markdrop.in/mcp"
+ },
+ "tools": [
+  "get_file_info",
+  "list_file_versions",
+  "list_folders",
+  "list_workspaces",
+  "receive_share",
+  "replace_file",
+  "restore_file_version",
+  "share_files",
+  "share_status",
+  "stop_share",
+  "upload_file"
+ ]
+}

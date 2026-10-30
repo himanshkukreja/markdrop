@@ -1,0 +1,52 @@
+{
+ "consent": {
+  "approve": {
+   "x": 781,
+   "y": 778
+  },
+  "url": "markdrop.in/oauth/consent?request=…"
+ },
+ "meeting": {
+  "slug": "YRfyprj",
+  "url": "https://markdrop.in/YRfyprj",
+  "title": "Launch sync — Oct 30",
+  "markdown": "# Launch sync — Oct 30\n\n**Attendees:** Riya, Alex, Sam, Maya\n\n## Decisions\n- Workflows beta ships **Nov 12** to the 40 waitlist teams.\n- Pricing page goes live with the beta; the FAQ moves to the docs.\n- Support rota covers launch week (Sam leads, Alex backs up).\n\n## Action items\n| Owner | Task | Due |\n| --- | --- | --- |\n| Alex | Finish onboarding emails | Nov 4 |\n| Sam | Record the 60-second demo | Nov 6 |\n| Maya | Final pricing review with finance | Nov 7 |\n| Riya | Send the beta invite list | Nov 10 |\n\n## Risks\n- SSO setup for two enterprise pilots could slip past Nov 12.\n- The import tool still times out on files over 50 MB.\n"
+ },
+ "demo": {
+  "url": "https://markdrop.in/demo",
+  "rect": {
+   "x": 0,
+   "y": 20,
+   "w": 1280,
+   "h": 720
+  },
+  "viewport": {
+   "w": 1280,
+   "h": 760
+  }
+ },
+ "release": {
+  "id": "6ae4884934a3a3e0cff9defa",
+  "slug": "release-notes",
+  "rev": 1,
+  "url": "https://markdrop.in/release-notes",
+  "markdown": "# Release notes — v2.5\n\nShipped on November 3.\n\n## New\n- Workflows: chain steps and run them on a schedule.\n- Faster search across every workspace.\n- Dark mode for embedded dashboards.\n\n## Fixed\n- Exports keep their column order.\n- Invites no longer expire after 24 hours.\n",
+  "save": {
+   "x": 1196.6875,
+   "y": 90
+  },
+  "line": {
+   "x": 41,
+   "y": 339,
+   "h": 20,
+   "w": 1198,
+   "charW": 7.79998779296875
+  },
+  "newLine": "- Faster search across every workspace, now with filters.",
+  "oldLine": "- Faster search across every workspace.",
+  "after": {
+   "rev": 2,
+   "status": 200
+  }
+ }
+}

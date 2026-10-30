@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Send a folder from one terminal to another</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  #cap { bottom: 30px; font-size: 21px; }
+  .who { position: absolute; top: 34px; display: flex; gap: 10px; align-items: center; font: 750 17px/1 var(--font-sans); color: var(--text-secondary); }
+  .who .ico { font-size: 20px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div id="stage" class="dots"><div id="root" class="layer"></div></div>
+<script type="module">
+import { scene, terminalFrame, captions, set, p, E, h, icon, $ } from "../_kit/kit.js";
+import { Stream, renderTerm } from "../_kit/term.js";
+
+const session = await (await fetch("./session.json")).json();
+const D = 25;
+const root = document.getElementById("root");
+const COLS = session.cols, ROWS = 31;
+const L = terminalFrame({ x: 28, y: 70, w: 732, h: 680, title: "Riya's laptop — zsh", size: 14.5, lh: 1.32 });
+const R = terminalFrame({ x: 776, y: 70, w: 732, h: 680, title: "Sam's desktop — zsh", size: 14.5, lh: 1.32 });
+root.append(L.el, R.el);
+root.append(h(`<div class="who" style="left:32px">${icon("laptop")} Sender</div>`), h(`<div class="who" style="left:780px">${icon("laptop")} Recipient</div>`));
+
+const send = session.left.steps[0];
+const [get, ls] = session.right.steps;
+const tGet = session.right.start; // the receiver started this long after the sender (recorded)
+const joinIdx = send.out.findIndex(([, c]) => typeof c === "string" && c.includes("Recipient connected"));
+const waitClear = send.out.findIndex(([, c], i) => i < joinIdx && typeof c === "string" && /^\r {40,}\r$/.test(c) && c.length > 45);
+
+// Left: markdrop send.
+const SL = new Stream();
+SL.prompt(0.4, session.left.cwd);
+const eSend = SL.type(0.9, send.cmd, { cps: 15, seed: 21 });
+const A = send.out.filter((_, i) => i < joinIdx && i !== waitClear);
+const aEnd = SL.play(eSend + 0.05, A, { map: (d) => d * 3 });
+
+// Right: markdrop get <room>, a few seconds later.
+const SR = new Stream();
+SR.prompt(0.6, session.right.cwd);
+const rEnter = SR.type(6.4, get.cmd, { cps: 14, seed: 22 });
+const rEnd = SR.play(rEnter, get.out);
+SR.prompt(rEnd + 0.2, session.right.cwd);
+const lsEnter = SR.type(rEnd + 1.1, ls.cmd, { cps: 13, seed: 23 });
+const lsEnd = SR.play(lsEnter + 0.05, ls.out);
+SR.prompt(lsEnd + 0.1, session.right.cwd);
+
+// While nobody has joined, the sender's spinner turns (the CLI's own frames, every 80 ms).
+const JOIN = rEnter + (send.out[joinIdx][0] - tGet);
+const FR = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const MSG = "Waiting for recipient to open the link…";
+let k = 0;
+for (let t = aEnd + 0.15; t < JOIN - 0.02; t += 0.08) SL.write(t, `\x1b[2m\r  ${FR[k++ % FR.length]} ${MSG}\x1b[0m`);
+SL.write(JOIN - 0.01, `\r${" ".repeat(MSG.length + 5)}\r`);
+const B = send.out.slice(joinIdx);
+const sEnd = SL.play(rEnter - tGet, B);
+SL.prompt(sEnd + 0.25, session.left.cwd);
+
+const acceptAt = rEnter + get.out.find(([, c]) => typeof c === "string" && c.includes("[Y/n]"))[0];
+const savedAt = rEnter + get.out.find(([, c]) => typeof c === "string" && c.includes("Saved to"))[0];
+const cap = captions(root, [
+  { t0: 0.5, t1: 6.2, text: "markdrop send prints a link, a room id and a QR code" },
+  { t0: 6.2, t1: acceptAt - 0.1, text: "On the other computer: markdrop get with the room id" },
+  { t0: acceptAt - 0.1, t1: savedAt - 0.1, text: "It asks first, then the files stream straight across, encrypted" },
+  { t0: savedAt - 0.1, t1: D - 0.5, text: "The folder arrives as a folder; nothing was stored on a server" },
+]);
+
+function render(t) {
+  root.style.opacity = String(Math.min(p(t, 0, 0.4), 1 - p(t, D - 0.5, D)));
+  renderTerm(L.screen, SL, t, COLS, ROWS);
+  renderTerm(R.screen, SR, t, COLS, ROWS, { cursor: t > 5.6 });
+  // The window being typed in is in focus.
+  const right = t >= 5.9;
+  L.el.style.filter = right ? "brightness(.94)" : "";
+  R.el.style.filter = right ? "" : "brightness(.94)";
+  cap.at(t);
+}
+
+scene({
+  duration: D, width: 1536, height: 864, scale: 1.25, poster: savedAt + 0.8,
+  chapters: [
+    { t: 0, title: "markdrop send" },
+    { t: 6.2, title: "markdrop get" },
+    { t: acceptAt, title: "Accept and transfer" },
+    { t: savedAt, title: "The folder arrives" },
+  ],
+  out: { kind: "video", id: "cli-send-receive", title: "Send a folder from one terminal to another" },
+}, render);
+</script>
+</body>
+</html>

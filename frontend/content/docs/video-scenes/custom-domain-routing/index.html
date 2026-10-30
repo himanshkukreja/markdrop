@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Custom domain: two records, then Live</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  .xh .line { font-size: 46px; } .xh .lines { height: 60px; } .xh .eyebrow { font-size: 15px; }
+  #dom { position: absolute; left: 60px; top: 200px; width: 800px; padding: 24px 26px; }
+  .dh { display: flex; align-items: center; gap: 14px; }
+  .dh .host { font: 650 30px/1 var(--font-mono); }
+  .dh .sp { flex: 1; }
+  .dh .ico.g { font-size: 30px; color: var(--text-secondary); }
+  .badge { position: relative; height: 42px; }
+  .badge .pill { position: absolute; right: 0; top: 0; height: 42px; font-size: 19px; padding: 0 16px; }
+  #check { height: 46px; font-size: 19px; padding: 0 18px; border-radius: 12px; }
+  .rec { margin-top: 18px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface-raised); overflow: hidden; position: relative; }
+  .rec .top { display: flex; align-items: center; gap: 12px; padding: 14px 18px; }
+  .rec .top .eyebrow { color: var(--text-secondary); font-size: 15px; }
+  .rec .top .what { font: 550 17px/1.2 var(--font-sans); color: var(--text-muted); white-space: nowrap; }
+  .typ { border: 2px solid var(--border-strong); border-radius: 999px; padding: 5px 10px; font: 650 16px/1 var(--font-mono); color: var(--text-secondary); }
+  .rec .top .st { margin-left: auto; position: relative; width: 190px; height: 36px; }
+  .rec .top .st .pill { position: absolute; right: 0; top: 0; height: 36px; font-size: 17px; padding: 0 13px; }
+  .rec .kv { display: grid; grid-template-columns: 96px 1fr; border-top: 1px solid var(--border); background: var(--surface-inset); }
+  .rec .kv div { padding: 14px 18px; font: 500 22px/1.2 var(--font-mono); white-space: nowrap; overflow: hidden; }
+  .rec .kv div:nth-child(odd) { font: 750 15px/1.75 var(--font-sans); letter-spacing: 0.06em; color: var(--text-muted); }
+  .rec .kv div + div + div, .rec .kv div + div + div + div { border-top: 1px solid var(--border); }
+  .scan { position: absolute; top: 0; bottom: 0; width: 140px; background: linear-gradient(90deg, transparent, rgb(33 80 216 / 0.18), transparent); }
+  #dns { position: absolute; left: 900px; top: 200px; width: 640px; padding: 24px 24px; }
+  #dns .dh .host { font: 800 26px/1 var(--font-sans); }
+  .zt { margin-top: 18px; border-radius: 14px; border: 1px solid var(--border); overflow: hidden; }
+  .zr { display: grid; grid-template-columns: 92px 252px 1fr; align-items: center; height: 60px; padding: 0 16px; border-top: 1px solid var(--border); font: 500 19px/1 var(--font-mono); background: var(--surface-raised); white-space: nowrap; overflow: hidden; }
+  .zr.hd { border-top: 0; height: 44px; background: var(--surface-inset); font: 750 14px/1 var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+  .zr.old { color: var(--text-muted); }
+  .zr .ty { font-weight: 700; }
+  .ann { position: absolute; display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+  .ann .pill { font-size: 21px; height: 46px; padding: 0 18px; }
+  .ann .pill .ico { font-size: 22px; }
+  #flow { position: absolute; inset: 0; }
+  #chain { position: absolute; left: 0; right: 0; top: 400px; display: flex; justify-content: center; align-items: center; gap: 44px; }
+  .node { position: relative; display: flex; align-items: center; gap: 14px; padding: 18px 20px; }
+  .node .tile { width: 58px; height: 58px; font-size: 28px; border-radius: 15px; }
+  .node .a { font: 800 26px/1.15 var(--font-sans); letter-spacing: -0.015em; white-space: nowrap; }
+  .node .b { font: 600 18px/1.3 var(--font-sans); color: var(--text-muted); margin-top: 5px; white-space: nowrap; }
+  .url { position: relative; display: flex; align-items: center; gap: 12px; height: 70px; padding: 0 22px; border-radius: 18px; background: var(--surface-raised);
+    border: 1px solid var(--border-strong); box-shadow: var(--shadow-md); font: 600 24px/1 var(--font-mono); white-space: nowrap; }
+  .url .ico { font-size: 22px; color: var(--text-muted); }
+  .url .h { color: var(--text); } .url .pth { color: var(--text-muted); }
+  #chain > * + *::before { content: ""; position: absolute; left: -44px; width: 44px; top: 50%; height: 3px; margin-top: -1.5px; background: var(--accent); transform-origin: left; transform: scaleX(var(--k, 0)); }
+  .dotp { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 6px var(--accent-soft); }
+</style>
+</head>
+<body>
+<div id="stage" class="dots"><div id="root" class="layer"></div></div>
+<script type="module">
+import { scene, header, icon, set, p, E, rise, h, $, $$, loopFade, typing, along, win, makeCursor } from "../_kit/kit.js";
+
+const D = 20;
+const stage = document.getElementById("stage");
+const root = document.getElementById("root");
+const TXT_VAL = "markdrop-verify=p9oQHcLSantEyt…";
+
+root.append(h(`<div class="card" id="dom">
+  <div class="dh">${icon("globe", { cls: "g" })}<span class="host">docs.acme.com</span><span class="sp"></span>
+    <span class="badge" style="width:170px"><span class="pill warn" id="bAw">${icon("history")} Awaiting DNS</span><span class="pill ok" id="bLive"><span class="dot"></span>Live</span></span>
+    <span class="btn primary" id="check">${icon("search")} Check DNS</span></div>
+  <div class="rec" id="r1"><div class="scan"></div><div class="top"><span class="eyebrow">Ownership record</span><span class="typ">TXT</span><span class="what">Proves docs.acme.com is yours</span>
+      <span class="st"><span class="pill" id="s1a">Not found yet</span><span class="pill ok" id="s1b">${icon("check")} Found</span></span></div>
+    <div class="kv"><div>NAME</div><div>_markdrop-verify.docs</div><div>VALUE</div><div>${TXT_VAL}</div></div></div>
+  <div class="rec" id="r2"><div class="scan"></div><div class="top"><span class="eyebrow">Routing record</span><span class="typ">CNAME</span><span class="what">Sends readers to Markdrop</span>
+      <span class="st"><span class="pill" id="s2a">Not found yet</span><span class="pill ok" id="s2b">${icon("check")} Found</span></span></div>
+    <div class="kv"><div>NAME</div><div>docs</div><div>VALUE</div><div>edge.markdrop.in</div></div></div>
+</div>`));
+
+root.append(h(`<div class="card" id="dns">
+  <div class="dh">${icon("dns", { cls: "g" })}<span class="host">acme.com</span><span class="small" style="margin-left:6px;font-size:17px">where acme.com's DNS is managed</span></div>
+  <div class="zt">
+    <div class="zr hd"><span>Type</span><span>Name</span><span>Value</span></div>
+    <div class="zr old"><span class="ty">A</span><span>@</span><span>203.0.113.10</span></div>
+    <div class="zr old"><span class="ty">MX</span><span>@</span><span>mail.acme.com</span></div>
+    <div class="zr" id="z1"><span class="ty">TXT</span><span class="n"></span><span class="v"></span></div>
+    <div class="zr" id="z2"><span class="ty">CNAME</span><span class="n"></span><span class="v"></span></div>
+  </div></div>`));
+root.append(h(`<div class="ann" id="an1" style="left:900px;top:640px"><span class="pill accent">${icon("shield")} TXT proves it's yours</span></div>`));
+root.append(h(`<div class="ann" id="an2" style="left:900px;top:704px"><span class="pill accent">${icon("arrow")} CNAME routes readers</span></div>`));
+
+root.append(h(`<div id="flow">
+  <svg class="wires"><path id="f4" d="M0 0"/></svg>
+  <div id="chain">
+    <div class="url" id="u1">${icon("lock")}<span><span class="h">docs.acme.com</span><span class="pth">/guides/setup</span></span></div>
+    <div class="card node" id="n1"><div class="tile" style="background:var(--surface-inverse);color:var(--text-inverse)">${icon("server")}</div><div><div class="a">edge.markdrop.in</div><div class="b">Routes by hostname</div></div></div>
+    <div class="card node" id="n2"><div class="tile" style="background:var(--success-soft);color:var(--success)">${icon("building")}</div><div><div class="a">Acme</div><div class="b">Guides › Setup</div></div></div>
+    <div class="card node" id="n3"><div class="tile">${icon("doc")}</div><div><div class="a">Setup guide</div><div class="b">The document</div></div></div>
+  </div>
+  <div class="url" id="u2" style="position:absolute;left:60px;top:640px">${icon("lock")}<span><span class="h">markdrop.in</span><span class="pth">/setup</span></span></div>
+  <div class="ann" id="an3" style="left:430px;top:700px"><span class="pill ok">${icon("check")} markdrop.in links keep working</span></div>
+  <div class="dotp" id="pk1"></div><div class="dotp" id="pk2"></div>
+</div>`));
+
+const hd = header(root, {
+  topic: "Custom domain",
+  end: D,
+  steps: [
+    { t: 0, text: "Add <em>docs.acme.com</em> to the workspace" },
+    { t: 4, text: "An <em>ownership record</em> proves it's yours" },
+    { t: 8, text: "A <em>routing record</em> sends readers to Markdrop" },
+    { t: 12, text: "<em>Check DNS</em>: both found, and it goes Live" },
+    { t: 15, text: "Readers open <em>docs.acme.com</em>; markdrop.in still works" },
+  ],
+});
+const cur = makeCursor(root, [
+  { t: 11.6, x: 790, y: 232, dur: 1.0 },
+  { t: 12.3, x: 790, y: 232, click: true },
+], { start: [1250, 860] });
+
+const tn1 = typing("_markdrop-verify.docs", { start: 4.9, cps: 26, seed: 2 });
+const tv1 = typing("markdrop-verify=p9…", { start: 5.9, cps: 30, seed: 5 });
+const tn2 = typing("docs", { start: 8.9, cps: 14, seed: 8 });
+const tv2 = typing("edge.markdrop.in", { start: 9.3, cps: 22, seed: 6 });
+
+function render(t) {
+  loopFade(root, t, D);
+  hd.at(t);
+  const out = p(t, 15.0, 15.5, E.inOut);
+  rise($("#dom"), t, 0.2, 0.6, 18);
+  set($("#dom"), { o: p(t, 0.2, 0.8, E.out) * (1 - out), y: (1 - p(t, 0.2, 0.8, E.out)) * 18 - out * 30, s: 1 - out * 0.04 });
+  rise($("#dns"), t, 3.6, 0.6, 18);
+  set($("#dns"), { o: p(t, 3.6, 4.2, E.out) * (1 - out), y: (1 - p(t, 3.6, 4.2, E.out)) * 18 - out * 30, s: 1 - out * 0.04 });
+
+  // Records: revealed in the domain card, then typed into the DNS panel.
+  rise($("#r1"), t, 1.0, 0.5, 10);
+  rise($("#r2"), t, 1.4, 0.5, 10);
+  set($("#r1"), { o: Math.max(t < 4 ? p(t, 1.0, 1.5) : 1, 0) * (t >= 4 && t < 8 ? 1 : t >= 8 && t < 12 ? 0.55 : 1) });
+  set($("#r2"), { o: p(t, 1.4, 1.9) * (t >= 4 && t < 8 ? 0.55 : 1) });
+  $("#r1").style.boxShadow = t >= 4 && t < 8 ? "0 0 0 2px var(--accent)" : "";
+  $("#r2").style.boxShadow = t >= 8 && t < 12 ? "0 0 0 2px var(--accent)" : "";
+  const z1 = $("#z1"), z2 = $("#z2");
+  set(z1, { o: p(t, 4.5, 4.9) });
+  set(z2, { o: p(t, 8.5, 8.9) });
+  z1.querySelector(".n").textContent = tn1.at(t);
+  z1.querySelector(".v").textContent = tv1.at(t);
+  z2.querySelector(".n").textContent = tn2.at(t);
+  z2.querySelector(".v").textContent = tv2.at(t);
+  z1.style.background = t >= 4.5 && t < 8 ? "var(--accent-soft)" : "";
+  z2.style.background = t >= 8.5 && t < 12 ? "var(--accent-soft)" : "";
+  const a1 = p(t, 7.0, 7.5, E.outBack), a2 = p(t, 10.8, 11.3, E.outBack);
+  set($("#an1"), { o: Math.min(p(t, 7.0, 7.3), 1 - out), s: 0.85 + 0.15 * a1 });
+  set($("#an2"), { o: Math.min(p(t, 10.8, 11.1), 1 - out), s: 0.85 + 0.15 * a2 });
+
+  // Check DNS: a scan over each record, both found, Awaiting DNS → Live.
+  const ck = 12.4;
+  for (const [i, s] of [[0, ck + 0.1], [1, ck + 0.7]]) {
+    const scan = $$(".scan")[i];
+    const k = p(t, s, s + 0.7, E.inOut);
+    scan.style.left = `${-140 + k * 900}px`;
+    set(scan, { o: t > s && t < s + 0.7 ? 1 : 0 });
+    const found = p(t, s + 0.65, s + 0.95, E.outBack);
+    set($(`#s${i + 1}a`), { o: 1 - p(t, s + 0.55, s + 0.75) });
+    set($(`#s${i + 1}b`), { o: p(t, s + 0.6, s + 0.8), s: 0.8 + 0.2 * found });
+  }
+  const live = p(t, ck + 1.8, ck + 2.2, E.outBack);
+  set($("#bAw"), { o: 1 - p(t, ck + 1.7, ck + 1.9) });
+  set($("#bLive"), { o: p(t, ck + 1.8, ck + 2.0), s: 0.7 + 0.3 * live });
+  cur.at(t);
+  cur.el.style.opacity = String(win(t, 10.4, 14.0, 0.3, 0.4));
+
+  // A reader's request: docs.acme.com → edge → Acme → the document; markdrop.in/setup too.
+  const fk = (a, d = 0.5) => p(t, a, a + d, E.out);
+  set($("#flow"), { o: p(t, 15.3, 15.6) });
+  set($("#u1"), { o: fk(15.4), x: (1 - fk(15.4)) * -24 });
+  const chain = [$("#n1"), $("#n2"), $("#n3")];
+  const starts = [15.9, 16.6, 17.3];
+  chain.forEach((n, i) => {
+    set(n, { o: fk(starts[i]), y: (1 - fk(starts[i])) * 14 });
+    n.style.setProperty("--k", String(p(t, starts[i] - 0.3, starts[i] + 0.1)));
+  });
+  // A request packet hops along the chain.
+  const sr = stage.getBoundingClientRect();
+  const r = (el) => { const b = el.getBoundingClientRect(); return { l: b.left - sr.left, r: b.right - sr.left, y: b.top - sr.top + b.height / 2 }; };
+  const nodes = [$("#u1"), ...chain].map(r);
+  const pk = $("#pk1");
+  let px = -100, py = 0, po = 0;
+  for (let i = 0; i < 3; i++) {
+    const a = starts[i] - 0.35;
+    if (t >= a && t < a + 0.5) { const k = E.inOut((t - a) / 0.5); px = nodes[i].r + (nodes[i + 1].l - nodes[i].r) * k; py = nodes[i].y; po = 1; }
+  }
+  pk.style.left = `${px}px`; pk.style.top = `${py}px`; set(pk, { o: po });
+  set($("#u2"), { o: fk(17.9), x: (1 - fk(17.9)) * -24 });
+  const u2 = r($("#u2")), d3 = $("#n3").getBoundingClientRect();
+  const tx = d3.left - sr.left + d3.width / 2, ty = d3.bottom - sr.top;
+  const f4 = $("#f4");
+  f4.setAttribute("d", `M${u2.r} ${u2.y} C ${u2.r + 500} ${u2.y}, ${tx} ${u2.y}, ${tx} ${ty + 6}`);
+  f4.style.strokeDasharray = "1400"; f4.style.strokeDashoffset = String(1400 * (1 - p(t, 18.2, 18.9)));
+  const pk2 = $("#pk2"); const [qx, qy] = along(f4, p(t, 18.2, 18.9, E.inOut)); pk2.style.left = `${qx}px`; pk2.style.top = `${qy}px`;
+  set(pk2, { o: t > 18.2 && t < 19.0 ? 1 : 0 });
+  set($("#an3"), { o: fk(18.7), y: (1 - fk(18.7)) * 8 });
+}
+
+scene({
+  duration: D, width: 1600, height: 900, poster: 14.8,
+  out: { kind: "clip", page: "/workspaces/custom-domain", name: "custom-domain-routing" },
+}, render);
+</script>
+</body>
+</html>

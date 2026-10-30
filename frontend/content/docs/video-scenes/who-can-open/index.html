@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Who can open what</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<style>
+  .xh { left: 64px; right: 64px; top: 42px; }
+  .xh .line { font-size: 40px; }
+  .xh .lines { height: 58px; }
+  /* The document and its setting */
+  #docc { position: absolute; left: 64px; top: 164px; width: 452px; height: 652px; padding: 22px; }
+  .drow { display: flex; gap: 16px; align-items: center; }
+  .drow .tile { width: 54px; height: 54px; font-size: 26px; border-radius: 14px; }
+  .drow .t { font: 800 24px/1.15 var(--font-sans); letter-spacing: -0.02em; }
+  .drow .s { font: 600 15px/1.3 var(--font-sans); color: var(--text-muted); margin-top: 5px; }
+  .sect { font: 750 17px/1 var(--font-sans); margin: 22px 0 10px; color: var(--text); }
+  .opt { position: relative; display: grid; grid-template-columns: 24px 28px 1fr; gap: 0 12px; align-items: center; padding: 13px 16px; margin-bottom: 10px;
+    border-radius: 14px; border: 1.5px solid var(--border-strong); background: var(--surface-raised); }
+  .opt .rad { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border-strong); background: var(--surface); position: relative; }
+  .opt .rad i { position: absolute; inset: 4px; border-radius: 50%; background: var(--accent); opacity: 0; }
+  .opt .ic { font-size: 26px; color: var(--text-secondary); }
+  .opt .tt { font: 750 18px/1.2 var(--font-sans); }
+  .opt .dd { grid-column: 3; font: 520 15px/1.35 var(--font-sans); color: var(--text-muted); margin-top: 3px; }
+  .opt .sel { position: absolute; inset: -1.5px; border-radius: 14px; border: 2px solid var(--accent); background: var(--accent-soft); opacity: 0; pointer-events: none; }
+  .extra { position: absolute; left: 22px; right: 22px; bottom: 22px; height: 168px; }
+  .extra > div { position: absolute; inset: 0; padding: 18px 20px; border-radius: 14px; background: var(--surface-inset); }
+  .extra .lab { font: 750 15px/1 var(--font-sans); color: var(--text-secondary); margin-bottom: 14px; display: flex; gap: 8px; align-items: center; }
+  .person { display: flex; gap: 12px; align-items: center; font: 650 16px/1.2 var(--font-sans); margin-bottom: 10px; }
+  .person .r { margin-left: auto; font: 600 14px/1 var(--font-sans); color: var(--text-muted); }
+  .av { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center; font: 800 13px/1 var(--font-sans); color: #fff; }
+  .field { height: 46px; border-radius: 10px; border: 1.5px solid var(--border-strong); background: var(--surface-raised); display: flex; align-items: center; padding: 0 14px; gap: 10px; font: 600 17px/1 var(--font-mono); color: var(--text); }
+  .toggle { width: 46px; height: 26px; border-radius: 13px; background: var(--accent); position: relative; flex: none; }
+  .toggle i { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; }
+  .row2 { display: flex; gap: 14px; align-items: center; font: 650 16px/1.35 var(--font-sans); }
+  /* The matrix */
+  #mx { position: absolute; left: 544px; top: 164px; width: 928px; }
+  .mh { display: grid; grid-template-columns: 196px repeat(3, 1fr); gap: 10px; }
+  .mh .ch { height: 68px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+    display: flex; flex-direction: column; justify-content: center; padding: 0 16px; }
+  .mh .ch .a { display: flex; gap: 8px; align-items: center; font: 750 16px/1.1 var(--font-sans); white-space: nowrap; }
+  .mh .ch .a .ico { font-size: 19px; color: var(--text-secondary); }
+  .mh .ch .b { font: 600 13.5px/1 var(--font-sans); color: var(--text-muted); margin-top: 7px; }
+  .mh .ch.on { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent), var(--shadow-sm); }
+  .mr { display: grid; grid-template-columns: 196px repeat(3, 1fr); gap: 10px; margin-top: 10px; position: relative; }
+  .mr .hl { position: absolute; inset: -6px -8px; border-radius: 16px; background: var(--accent-soft); opacity: 0; }
+  .who { height: 100px; display: flex; align-items: center; gap: 14px; padding: 0 6px; position: relative; }
+  .who .av { width: 42px; height: 42px; font-size: 15px; }
+  .who .n { font: 750 17px/1.2 var(--font-sans); }
+  .who .d { font: 600 14px/1.3 var(--font-sans); color: var(--text-muted); margin-top: 3px; }
+  .cell { height: 100px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); position: relative; display: grid; place-items: center; padding: 0 12px; }
+  .chip { display: flex; align-items: center; gap: 9px; font: 700 15px/1.25 var(--font-sans); text-align: left; max-width: 100%; }
+  .chip .m { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; font-size: 17px; }
+  .chip.ok { color: var(--success); } .chip.ok .m { background: var(--success-soft); }
+  .chip.no { color: var(--danger); } .chip.no .m { background: var(--danger-soft); }
+  .chip.pw { color: var(--warning); } .chip.pw .m { background: var(--warning-soft); }
+  .chip small { display: block; font: 600 12.5px/1.25 var(--font-sans); color: var(--text-muted); margin-top: 2px; }
+  .lens { position: absolute; left: 544px; top: 704px; width: 928px; height: 112px; padding: 18px 22px; display: flex; gap: 20px; align-items: center; }
+  .lens .tile { width: 52px; height: 52px; font-size: 26px; border-radius: 14px; }
+  .lens .a { font: 800 21px/1.2 var(--font-sans); letter-spacing: -0.015em; }
+  .lens .b { font: 520 16px/1.4 var(--font-sans); color: var(--text-secondary); margin-top: 6px; }
+  /* Recap */
+  #recap { position: absolute; inset: 0; }
+  .addr { position: absolute; left: 56px; width: 560px; height: 64px; border-radius: 16px; background: var(--surface-raised); border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-md); display: flex; align-items: center; gap: 10px; padding: 0 16px; font: 600 19px/1 var(--font-mono); white-space: nowrap; }
+  .addr .ico { font-size: 20px; color: var(--text-muted); }
+  .addr .h { color: var(--text); } .addr .pth { color: var(--text-muted); }
+  .addr .st { margin-left: auto; font-family: var(--font-sans); font-size: 14px; }
+  #setting { position: absolute; left: 690px; top: 280px; width: 400px; padding: 20px; }
+  #setting .opt { padding: 13px 16px; margin-bottom: 10px; }
+  #rdoc { position: absolute; left: 1170px; top: 320px; width: 310px; height: 260px; padding: 22px; }
+  #rdoc .ln { height: 12px; border-radius: 6px; background: var(--surface-inset); margin-top: 16px; }
+  .rnote { position: absolute; left: 0; right: 0; top: 680px; text-align: center; font: 750 26px/1.3 var(--font-sans); letter-spacing: -0.015em; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<div id="stage" class="dots">
+  <div id="root" class="layer"></div>
+</div>
+<script type="module">
+import { scene, header, icon, set, p, E, rise, h, $, $$, loopFade, clamp, lerp, win } from "../_kit/kit.js";
+
+const D = 50;
+const stage = document.getElementById("stage");
+const root = document.getElementById("root");
+
+const OPTS = [
+  { k: "people", icon: "lock", t: "Only people added", d: "You and the people below.", signin: "Sign-in needed" },
+  { k: "team", icon: "user", t: "Acme team", d: "Anyone in Acme, after signing in.", signin: "Sign-in needed" },
+  { k: "link", icon: "globe", t: "Anyone with the link", d: "No sign-in needed.", signin: "No sign-in needed" },
+];
+const PEOPLE = [
+  { n: "You", d: "The owner", av: "RS", c: "#1C46C0" },
+  { n: "Alex", d: "Added by email", av: "AC", c: "#00786f" },
+  { n: "Maya", d: "In Acme, not added", av: "MP", c: "#a14d00" },
+  { n: "Someone else", d: "Has the link", av: "?", c: "#7D8899" },
+];
+const optHTML = (o) => `<div class="opt" data-k="${o.k}"><div class="sel"></div><div class="rad"><i></i></div><div class="ic">${icon(o.icon)}</div><div class="tt">${o.t}</div><div class="dd">${o.d}</div></div>`;
+
+root.append(h(`<div class="card" id="docc">
+  <div class="drow"><div class="tile">${icon("doc")}</div><div><div class="t">Setup guide</div><div class="s">In Acme › Guides</div></div></div>
+  <div class="sect">Who can open it</div>
+  ${OPTS.map(optHTML).join("")}
+  <div class="extra">
+    <div id="ex1"><div class="lab">${icon("users")} People with access</div>
+      <div class="person"><span class="av" style="background:#1C46C0">RS</span>Riya Sharma<span class="r">Owner</span></div>
+      <div class="person"><span class="av" style="background:#00786f">AC</span>Alex Chen<span class="r">Can view</span></div></div>
+    <div id="ex2"><div class="lab">${icon("key")} Password</div><div class="field">••••••••••</div>
+      <div class="small" style="margin-top:12px">Asked only when it's open to anyone with the link</div></div>
+    <div id="ex3"><div class="lab">${icon("building")} Acme workspace settings</div>
+      <div class="row2"><span class="toggle"><i></i></span>Visitors must sign in to open anything</div>
+      <div class="small" style="margin-top:14px">Only members and people added by email get in</div></div>
+    <div id="ex4"><div class="lab">${icon("lock")} End-to-end encrypted</div><div class="field" style="font-size:16px">markdrop.in/setup<span style="color:var(--warning)">#k=9fQx2LmA…</span></div>
+      <div class="small" style="margin-top:12px">Adding someone by email doesn't give them the key</div></div>
+  </div></div>`));
+
+const mx = h(`<div id="mx"><div class="mh"><div></div>${OPTS.map((o) => `<div class="ch"><div class="a">${icon(o.icon)}${o.t}</div><div class="b">${o.signin}</div></div>`).join("")}</div>
+  ${PEOPLE.map((q) => `<div class="mr"><div class="hl"></div><div class="who"><span class="av" style="background:${q.c}">${q.av}</span><div><div class="n">${q.n}</div><div class="d">${q.d}</div></div></div>
+    ${OPTS.map(() => '<div class="cell"><div class="chip"></div></div>').join("")}</div>`).join("")}</div>`);
+root.append(mx);
+const lens = h(`<div class="card lens"><div class="tile"></div><div><div class="a"></div><div class="b"></div></div></div>`);
+root.append(lens);
+
+const recap = h(`<div id="recap">
+  <svg class="wires"><path id="rw1" d="M616 382 C 660 382, 650 440, 690 440"/><path id="rw2" d="M616 522 C 660 522, 650 460, 690 460"/><path id="rw3" class="accent" d="M1090 450 L 1170 450"/></svg>
+  <div class="addr" id="a1" style="top:352px">${icon("lock")}<span><span class="h">markdrop.in</span><span class="pth">/setup</span></span><span class="st"></span></div>
+  <div class="addr" id="a2" style="top:492px">${icon("lock")}<span><span class="h">docs.acme.com</span><span class="pth">/guides/setup</span></span><span class="st"></span></div>
+  <div class="card" id="setting"><div class="sect" style="margin-top:0">Who can open it</div>${OPTS.map(optHTML).join("")}</div>
+  <div class="card" id="rdoc"><div class="drow"><div class="tile">${icon("doc")}</div><div><div class="t">Setup guide</div><div class="s">One document</div></div></div>
+    <div class="ln" style="width:92%"></div><div class="ln" style="width:80%"></div><div class="ln" style="width:86%"></div><div class="ln" style="width:56%"></div></div>
+  <div class="rnote" id="rnote">Change it once in <b style="color:var(--text)">Share</b>. Every address follows, at once.</div>
+</div>`);
+root.append(recap);
+
+const STEPS = [
+  { t: 0, text: "Every document has one setting: <em>Who can open it</em>" },
+  { t: 6, text: "<em>Only people added</em>: you and the people you add" },
+  { t: 10, text: "<em>Acme team</em>: everyone in the workspace, signed in" },
+  { t: 14, text: "<em>Anyone with the link</em>: no sign-in needed" },
+  { t: 18, text: "People added by email <em>always get in</em>" },
+  { t: 23, text: "A password is only for <em>Anyone with the link</em>, and strangers" },
+  { t: 28, text: "A workspace can require sign-in for <em>everything</em>" },
+  { t: 33, text: "Encrypted documents also need the <em>#k=</em> key" },
+  { t: 38, text: "<em>One setting</em> covers every address" },
+];
+const hd = header(root, { topic: "Who can open it", steps: STEPS, end: D });
+
+// Cell states.
+const S = {
+  ok: ["ok", "check", "Opens"],
+  noacc: ["no", "x", "“You don't have access yet”", "Can ask with Request access"],
+  priv: ["no", "x", "“This document is private”", "Asked to sign in"],
+  pw: ["pw", "key", "Asks for the password", "“This document is password protected”"],
+  nopw: ["ok", "check", "Opens", "No password asked"],
+  signin: ["no", "x", "Has to sign in", "Members and people added only"],
+  key: ["ok", "check", "Opens", "Needs the full link with #k="],
+};
+const BASE = [["ok", "ok", "ok"], ["ok", "ok", "ok"], ["noacc", "ok", "ok"], ["priv", "priv", "ok"]];
+const L1 = 18, L2 = 23, L3 = 28, L4 = 33, REC = 38;
+function cellState(r, c, t) {
+  // [state, since]
+  if (t >= L4 && t < REC) { const b = BASE[r][c]; return [b === "ok" ? "key" : b, L4]; }
+  if (t >= L3 && t < L4) { if (c === 2 && r === 3) return ["signin", L3]; return [BASE[r][c], L3]; }
+  if (t >= L2 && t < L3) { if (c === 2) return [r === 3 ? "pw" : "nopw", L2]; return [BASE[r][c], L2]; }
+  return [BASE[r][c], 6 + 4 * c + 1.0 + r * 0.42];
+}
+const chipHTML = (s) => { const [cls, ic, a, b] = S[s]; return `<span class="m">${icon(ic)}</span><span>${a}${b ? `<small>${b}</small>` : ""}</span>`; };
+
+const cells = $$(".cell", mx).map((el, i) => ({ el, chip: el.querySelector(".chip"), r: Math.floor(i / 3), c: i % 3 }));
+const rows = $$(".mr", mx), heads = $$(".mh .ch", mx), opts = $$("#docc .opt"), sopts = $$("#setting .opt");
+const exs = [$("#ex1"), $("#ex2"), $("#ex3"), $("#ex4")];
+const LENS = [
+  { t: L1, icon: "users", a: "People added by email always get in", b: "Whatever the choice, as long as they sign in with that address." },
+  { t: L2, icon: "key", a: "Password: Anyone with the link only, strangers only", b: "You, people added, your workspace team and edit-secret holders skip it." },
+  { t: L3, icon: "building", a: "Visitors must sign in to open anything", b: "A workspace admin's switch: then nothing in it is open to strangers, even links." },
+  { t: L4, icon: "lock", a: "End-to-end encrypted: the #k= key, on top of everything", b: "The full link opens it; access alone fetches ciphertext it can't read." },
+];
+
+function selectOpt(list, idx, k) {
+  list.forEach((o, i) => {
+    const on = i === idx ? k : 0;
+    set(o.querySelector(".sel"), { o: on });
+    set(o.querySelector(".rad i"), { o: on, s: 0.4 + 0.6 * on });
+  });
+}
+
+function render(t) {
+  loopFade(root, t, D, { fin: 0.4, fout: 0.6 });
+  hd.at(t);
+  const out = p(t, REC - 0.2, REC + 0.5, E.inOut);
+
+  // Document card and its three choices.
+  rise($("#docc"), t, 0.3, 0.7, 20);
+  set($("#docc"), { o: p(t, 0.3, 1.0, E.out) * (1 - out), y: (1 - p(t, 0.3, 1.0, E.out)) * 20 });
+  opts.forEach((o, i) => rise(o, t, 1.4 + i * 0.5, 0.5, 12));
+  // Selected choice: during the walkthrough, the column being shown; in the lenses, the relevant one.
+  let sel = -1, sk = 0;
+  if (t >= 6 && t < L1) { sel = Math.min(2, Math.floor((t - 6) / 4)); sk = p(t, 6 + sel * 4, 6 + sel * 4 + 0.35); }
+  else if (t >= L2 && t < L4) { sel = 2; sk = p(t, L2, L2 + 0.35); }
+  else if (t >= L1 && t < L2) { sel = 1; sk = p(t, L1, L1 + 0.35); }
+  else if (t >= L4) { sel = 0; sk = p(t, L4, L4 + 0.35); }
+  selectOpt(opts, sel, sk);
+  exs.forEach((ex, i) => {
+    const a = LENS[i].t, b = (LENS[i + 1]?.t ?? REC);
+    set(ex, { o: win(t, a + 0.2, b, 0.45, 0.3), y: (1 - p(t, a + 0.2, a + 0.65, E.out)) * 10 });
+  });
+
+  // Matrix: headers and people first, then a column per choice.
+  set(mx, { o: 1 - out });
+  heads.forEach((hh, i) => {
+    rise(hh, t, 3.2 + i * 0.25, 0.5, 12);
+    const on = t >= 6 + i * 4 && t < 6 + (i + 1) * 4 ? 1 : 0;
+    hh.classList.toggle("on", !!on || (t >= L2 && t < L4 && i === 2));
+  });
+  rows.forEach((r, i) => {
+    rise(r.querySelector(".who"), t, 3.9 + i * 0.25, 0.5, 12);
+    set(r.querySelector(".hl"), { o: i === 1 ? win(t, L1 + 0.3, L2, 0.4, 0.4) : 0 });
+  });
+  for (const c of cells) {
+    rise(c.el, t, 4.4 + c.r * 0.12 + c.c * 0.08, 0.45, 8);
+    const [st, since] = cellState(c.r, c.c, t);
+    const shown = t >= since;
+    const key = shown ? st : "";
+    if (c.chip.dataset.s !== key) {
+      c.chip.dataset.s = key;
+      c.chip.className = `chip ${key ? S[key][0] : ""}`;
+      c.chip.innerHTML = key ? chipHTML(key) : "";
+    }
+    const k = p(t, since, since + 0.4, E.outBack);
+    set(c.chip, { o: shown ? p(t, since, since + 0.25) : 0, s: 0.82 + 0.18 * k });
+    // Lenses that only concern one column dim the others.
+    const dim = ((t >= L2 && t < L4) && c.c !== 2) ? win(t, L2 + 0.1, L4, 0.4, 0.4) * 0.6 : 0;
+    c.el.style.opacity = String((1 - dim) * Number(c.el.style.opacity || 1));
+  }
+
+  // Lens card.
+  const li = LENS.findIndex((l, i) => t >= l.t && t < (LENS[i + 1]?.t ?? REC));
+  if (li >= 0) {
+    const l = LENS[li];
+    if (lens.dataset.i !== String(li)) {
+      lens.dataset.i = String(li);
+      lens.querySelector(".tile").innerHTML = icon(l.icon);
+      lens.querySelector(".a").textContent = l.a;
+      lens.querySelector(".b").textContent = l.b;
+    }
+    const kin = p(t, l.t + 0.1, l.t + 0.6, E.out);
+    set(lens, { o: Math.min(kin, 1 - p(t, (LENS[li + 1]?.t ?? REC) - 0.25, (LENS[li + 1]?.t ?? REC))), y: (1 - kin) * 14 });
+  } else set(lens, { o: 0 });
+
+  // Recap: two addresses, one setting, one document.
+  const rk = (a, d = 0.6) => p(t, a, a + d, E.out);
+  set(recap, { o: p(t, REC + 0.3, REC + 0.8) });
+  set($("#a1"), { o: rk(REC + 0.6), x: (1 - rk(REC + 0.6)) * -30 });
+  set($("#a2"), { o: rk(REC + 1.0), x: (1 - rk(REC + 1.0)) * -30 });
+  set($("#setting"), { o: rk(REC + 1.6), y: (1 - rk(REC + 1.6)) * 20 });
+  set($("#rdoc"), { o: rk(REC + 2.4), x: (1 - rk(REC + 2.4)) * 30 });
+  ["#rw1", "#rw2"].forEach((s, i) => { const el = $(s); el.style.strokeDasharray = "200"; el.style.strokeDashoffset = String(200 * (1 - p(t, REC + 1.9 + i * 0.2, REC + 2.6 + i * 0.2))); });
+  const w3 = $("#rw3"); w3.style.strokeDasharray = "140"; w3.style.strokeDashoffset = String(140 * (1 - p(t, REC + 2.6, REC + 3.1)));
+  // The choice changes once; both addresses follow.
+  const change = REC + 5.5;
+  const before = t < change;
+  selectOpt(sopts, before ? 1 : 0, before ? 1 : p(t, change, change + 0.35));
+  const label = before ? `${icon("user")} Acme team` : `${icon("lock")} Only people added`;
+  for (const id of ["#a1", "#a2"]) {
+    const st = $(`${id} .st`);
+    if (st.dataset.l !== label) { st.dataset.l = label; st.innerHTML = `<span class="pill ${before ? "accent" : "ink"}">${label}</span>`; }
+    const pop = before ? p(t, REC + 3.2, REC + 3.6, E.outBack) : p(t, change + 0.25, change + 0.65, E.outBack);
+    set(st, { o: before ? p(t, REC + 3.2, REC + 3.5) : 1, s: 0.8 + 0.2 * pop });
+  }
+  set($("#rnote"), { o: rk(change + 0.9), y: (1 - rk(change + 0.9)) * 12 });
+}
+
+scene({
+  duration: D, width: 1536, height: 864, scale: 1.25, poster: 16.6,
+  chapters: [
+    { t: 0, title: "One setting, three choices" },
+    { t: 6, title: "Who gets in with each choice" },
+    { t: 18, title: "People added and passwords" },
+    { t: 28, title: "Workspace sign-in and encryption" },
+    { t: 38, title: "One setting, every address" },
+  ],
+  out: { kind: "video", id: "who-can-open", title: "Who can open what" },
+}, render);
+</script>
+</body>
+</html>
