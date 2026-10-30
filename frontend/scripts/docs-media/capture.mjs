@@ -36,7 +36,12 @@ import SHOTS from "./shots.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND = path.resolve(HERE, "../..");
 const REPO = path.resolve(FRONTEND, "..");
-const DATA = process.env.DOCS_MEDIA_DATA || path.join(HERE, ".data");
+// Several stacks can run side by side: STACK_ID=N (default 0) targets instance N
+// (API 8180+10N, Worker 8787+10N, Next 3400+10N, data .data/N/). See stack/stack.sh.
+const STACK_ID = Number(process.env.STACK_ID || 0);
+const PORTS = { app: 3400 + 10 * STACK_ID, api: 8180 + 10 * STACK_ID, worker: 8787 + 10 * STACK_ID };
+const BASE_DATA = process.env.DOCS_MEDIA_DATA || path.join(HERE, ".data");
+const DATA = STACK_ID ? path.join(BASE_DATA, String(STACK_ID)) : BASE_DATA;
 const PUBLIC = path.join(FRONTEND, "public");
 const ASSETS = path.join(PUBLIC, "docs-assets");
 const MANIFEST = path.join(FRONTEND, "content/docs/media.json");
@@ -45,9 +50,9 @@ const FFMPEG = process.env.FFMPEG || (existsSync("/opt/homebrew/bin/ffmpeg") ? "
 const FFPROBE = process.env.FFPROBE || (existsSync("/opt/homebrew/bin/ffprobe") ? "/opt/homebrew/bin/ffprobe" : "ffprobe");
 const PY = process.env.DOCS_MEDIA_PYTHON || path.join(REPO, "backend/.venv/bin/python");
 
-export const APP = process.env.DOCS_MEDIA_APP || "http://localhost:3400";
-export const API = process.env.DOCS_MEDIA_API || "http://127.0.0.1:8180";
-export const DOCS = process.env.DOCS_MEDIA_DOCS || "http://docs.localhost:3400";
+export const APP = process.env.DOCS_MEDIA_APP || `http://localhost:${PORTS.app}`;
+export const API = process.env.DOCS_MEDIA_API || `http://127.0.0.1:${PORTS.api}`;
+export const DOCS = process.env.DOCS_MEDIA_DOCS || `http://docs.localhost:${PORTS.app}`;
 /** Workspace domains of the demo world; the capture browser resolves them to 127.0.0.1. */
 export const TENANT_HOSTS = ["docs.acme.com", "help.acme.com", "docs.acme.test", "help.acme.test"];
 export const tenant = (host, p = "/") => `http://${host}:${new URL(APP).port}${p}`;
@@ -120,10 +125,10 @@ async function tokenFor(who, fx) {
  *  - the session token and theme in localStorage (before the app's own scripts read them);
  *  - CSS that hides dev-only chrome (Next's dev indicator) and the text caret;
  *  - URL scrubbing: the sandbox's local addresses read as the production ones in text, so a
- *    screenshot says markdrop.in/… and docs.acme.com/…, never localhost:3400;
+ *    screenshot says markdrop.in/… and docs.acme.com/…, never localhost:<port>;
  *  - a fake cursor + click ripple + caption layer for clips and videos (driven by the runner).
  */
-function initScript({ token, theme, cursor, scrub }) {
+function initScript({ token, theme, cursor, scrub, ports }) {
   try {
     if (token) localStorage.setItem("markdrop_token", token);
     else localStorage.removeItem("markdrop_token");
@@ -189,18 +194,20 @@ function initScript({ token, theme, cursor, scrub }) {
     },
   };
   if (scrub) {
-    const port = location.port ? `:${location.port}` : "";
+    // Ports of this stack instance (STACK_ID): app, API, Worker.
+    const [P, A, W] = [ports.app, ports.api, ports.worker];
     const rules = [
-      [/https?:\/\/localhost:3400/g, "https://markdrop.in"],
-      [/https?:\/\/127\.0\.0\.1:3400/g, "https://markdrop.in"],
-      [/localhost:3400/g, "markdrop.in"],
-      [/https?:\/\/docs\.localhost:3400/g, "https://docs.markdrop.in"],
-      [/http:\/\/((?:docs|help)\.acme\.(?:com|test)):3400/g, "https://$1"],
-      [/((?:docs|help)\.acme\.(?:com|test)):3400/g, "$1"],
-      [/https?:\/\/127\.0\.0\.1:8180/g, "https://api.markdrop.in"],
-      [/https?:\/\/127\.0\.0\.1:8787/g, "https://markdrop-artifacts.markdrop-in.workers.dev"],
+      [new RegExp(`https?://localhost:${P}`, "g"), "https://markdrop.in"],
+      [new RegExp(`https?://127\\.0\\.0\\.1:${P}`, "g"), "https://markdrop.in"],
+      [new RegExp(`localhost:${P}`, "g"), "markdrop.in"],
+      [new RegExp(`https?://docs\\.localhost:${P}`, "g"), "https://docs.markdrop.in"],
+      [new RegExp(`http://((?:docs|help)\\.acme\\.(?:com|test)):${P}`, "g"), "https://$1"],
+      [new RegExp(`((?:docs|help)\\.acme\\.(?:com|test)):${P}`, "g"), "$1"],
+      [new RegExp(`https?://127\\.0\\.0\\.1:${A}`, "g"), "https://api.markdrop.in"],
+      [new RegExp(`https?://127\\.0\\.0\\.1:${W}`, "g"), "https://markdrop-artifacts.markdrop-in.workers.dev"],
     ];
-    void port;
+    const LOCAL = new RegExp(`localhost:${P}|127\\.0\\.0\\.1:(${P}|${A}|${W})|acme\\.(com|test):${P}`);
+    const LOCAL_INPUT = new RegExp(`localhost:${P}|acme\\.(com|test):${P}`);
     const fix = (s) => {
       let out = s;
       for (const [re, to] of rules) out = out.replace(re, to);
@@ -210,22 +217,22 @@ function initScript({ token, theme, cursor, scrub }) {
       const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       let n;
       while ((n = tw.nextNode())) {
-        if (n.nodeValue && /localhost:3400|127\.0\.0\.1:(3400|8180|8787)|acme\.(com|test):3400/.test(n.nodeValue)) n.nodeValue = fix(n.nodeValue);
+        if (n.nodeValue && LOCAL.test(n.nodeValue)) n.nodeValue = fix(n.nodeValue);
       }
       for (const el of root.querySelectorAll ? root.querySelectorAll("input[readonly], textarea[readonly]") : []) {
-        if (/localhost:3400|acme\.(com|test):3400/.test(el.value)) el.value = fix(el.value);
+        if (LOCAL_INPUT.test(el.value)) el.value = fix(el.value);
       }
     };
     const start = () => {
       walk(document.body || document.documentElement);
       new MutationObserver((muts) => {
         for (const m of muts) {
-          if (m.type === "characterData" && m.target.nodeValue && /localhost:3400|127\.0\.0\.1:(3400|8180|8787)|acme\.(com|test):3400/.test(m.target.nodeValue)) {
+          if (m.type === "characterData" && m.target.nodeValue && LOCAL.test(m.target.nodeValue)) {
             m.target.nodeValue = fix(m.target.nodeValue);
           }
           for (const node of m.addedNodes || []) {
             if (node.nodeType === 3) {
-              if (/localhost:3400|127\.0\.0\.1:(3400|8180|8787)|acme\.(com|test):3400/.test(node.nodeValue)) node.nodeValue = fix(node.nodeValue);
+              if (LOCAL.test(node.nodeValue)) node.nodeValue = fix(node.nodeValue);
             } else if (node.nodeType === 1) walk(node);
           }
         }
@@ -570,7 +577,7 @@ async function runShot(browser, shot, theme, fx, manifest, videosJson) {
     return route.abort("blockedbyclient");
   });
   await context.clock.install({ time: new Date(fx.demo_now) });
-  await context.addInitScript(initScript, { token, theme, cursor: recording, scrub: shot.scrub !== false });
+  await context.addInitScript(initScript, { token, theme, cursor: recording, scrub: shot.scrub !== false, ports: PORTS });
   const page = await context.newPage();
   page.on("pageerror", (e) => console.log(`  · page error: ${String(e.message).slice(0, 160)}`));
   const shotDir = path.join(DATA, "raw", `${shot.id}-${theme}`);
@@ -668,7 +675,7 @@ async function main() {
     return headedBrowser;
   };
   const manifest = {}; // this run's outputs, for the log (media.json itself is the engine's)
-  const videosJson = readJson(VIDEOS_JSON);
+  const videosJson = {}; // this run's ::video entries, merged into videos.json at the end
   const failures = [];
   try {
     for (const shot of chosen) {
@@ -693,7 +700,10 @@ async function main() {
   }
   if (!flag("--no-manifest")) {
     if (Object.keys(videosJson).length) {
-      const sorted = Object.fromEntries(Object.entries(videosJson).sort(([a], [b]) => a.localeCompare(b)));
+      // Re-read just before writing and merge only this run's entries: parallel runs (STACK_ID)
+      // may have written theirs since this one started.
+      const merged = { ...readJson(VIDEOS_JSON), ...videosJson };
+      const sorted = Object.fromEntries(Object.entries(merged).sort(([a], [b]) => a.localeCompare(b)));
       writeFileSync(VIDEOS_JSON, `${JSON.stringify(sorted, null, 2)}\n`);
     }
     // media.json belongs to the docs engine: regenerate it with the engine's own script.

@@ -4,6 +4,7 @@
     backend/.venv/bin/python frontend/scripts/docs-media/seed.py            # reset + seed
     backend/.venv/bin/python frontend/scripts/docs-media/seed.py --rebase   # shift every timestamp so
                                                                              # "now" in the data = now
+    STACK_ID=2 backend/.venv/bin/python frontend/scripts/docs-media/seed.py # instance 2 (see stack.sh)
 
 Idempotent: every run empties the demo database (markdrop_docs_demo only — refused otherwise),
 the fake R2 and the fake DNS, then rebuilds the same world. Writes .data/fixtures.json, which the
@@ -60,9 +61,13 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import demo_content as C  # noqa: E402
 
-DATA = Path(os.environ.get("DOCS_MEDIA_DATA") or (HERE / ".data")).resolve()
-FIX = DATA / "fixtures"
-API = os.environ.get("DOCS_MEDIA_API", "http://127.0.0.1:8180")
+# STACK_ID=N (default 0) seeds instance N: API 8180+10N, db markdrop_docs_demo_N, data .data/N/.
+# The rendered demo files (.data/fixtures/) are shared by every instance.
+STACK_ID = int(os.environ.get("STACK_ID") or 0)
+BASE_DATA = Path(os.environ.get("DOCS_MEDIA_DATA") or (HERE / ".data")).resolve()
+DATA = BASE_DATA if STACK_ID == 0 else BASE_DATA / str(STACK_ID)
+FIX = BASE_DATA / "fixtures"
+API = os.environ.get("DOCS_MEDIA_API", f"http://127.0.0.1:{8180 + 10 * STACK_ID}")
 ENV_FILE = HERE / "stack" / ".env"
 if not ENV_FILE.exists():
     ENV_FILE = HERE / "stack" / ".env.example"
@@ -77,6 +82,8 @@ def env_value(key: str, default: str = "") -> str:
 
 MONGO_URI = env_value("MARKDROP_MONGODB_URI", "mongodb://127.0.0.1:27019")
 DB_NAME = env_value("MARKDROP_MONGODB_DB", "markdrop_docs_demo")
+if STACK_ID:
+    DB_NAME = f"markdrop_docs_demo_{STACK_ID}"
 if not DB_NAME.startswith("markdrop_docs_demo") or (urlsplit(MONGO_URI).hostname or "") not in ("127.0.0.1", "localhost"):
     sys.exit(f"seed.py: refusing to touch {MONGO_URI}/{DB_NAME} (local markdrop_docs_demo only)")
 if (urlsplit(API).hostname or "") not in ("127.0.0.1", "localhost"):

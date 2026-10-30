@@ -11,7 +11,7 @@
  * harness adds the local app origins on top — nothing else about a response is changed.
  *
  * Env: DOCS_MEDIA_API (default http://127.0.0.1:8180), DOCS_MEDIA_WORKER_PORT (default 8787),
- *      ARTIFACT_SIGNING_KEY.
+ *      DOCS_MEDIA_NEXT_PORT (default 3400; the app origins allowed CORS), ARTIFACT_SIGNING_KEY.
  */
 import http from "node:http";
 import { Readable } from "node:stream";
@@ -29,13 +29,10 @@ if (!KEY) {
   console.error("worker_dev: ARTIFACT_SIGNING_KEY is required (the API's MARKDROP_ARTIFACT_SIGNING_KEY)");
   process.exit(1);
 }
-const LOCAL_ORIGINS = new Set([
-  "http://localhost:3400",
-  "http://127.0.0.1:3400",
-  "http://docs.localhost:3400",
-  "http://docs.acme.test:3400",
-  "http://docs.acme.com:3400",
-]);
+const NEXT_PORT = Number(process.env.DOCS_MEDIA_NEXT_PORT || 3400);
+const LOCAL_ORIGINS = new Set(
+  ["localhost", "127.0.0.1", "docs.localhost", "docs.acme.test", "docs.acme.com"].map((h) => `http://${h}:${NEXT_PORT}`),
+);
 
 const enc = (key) => key.split("/").map(encodeURIComponent).join("/");
 

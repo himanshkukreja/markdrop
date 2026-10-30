@@ -27,6 +27,8 @@ Sandbox-only routes (loopback only; the server binds 127.0.0.1):
   GET  /__sandbox/health
 
 Run: ``backend/.venv/bin/python frontend/scripts/docs-media/stack/run_api.py`` (stack.sh does).
+``STACK_ID=N`` (default 0) runs instance N: API 8180+10N, Worker 8787+10N, Next 3400+10N, db
+``markdrop_docs_demo_N`` (0: ``markdrop_docs_demo``), data folder ``.data/N/`` (0: ``.data/``).
 """
 
 from __future__ import annotations
@@ -47,10 +49,16 @@ HERE = Path(__file__).resolve().parent
 MEDIA_ROOT = HERE.parent
 REPO = MEDIA_ROOT.parents[2]
 BACKEND = REPO / "backend"
-DATA = Path(os.environ.get("DOCS_MEDIA_DATA") or (MEDIA_ROOT / ".data")).resolve()
+# Several stacks can run side by side (STACK_ID=N, default 0): N moves every port by 10·N and
+# gives the instance its own Mongo db (markdrop_docs_demo_N) and data folder (.data/N/).
+STACK_ID = int(os.environ.get("STACK_ID") or 0)
+_BASE = Path(os.environ.get("DOCS_MEDIA_DATA") or (MEDIA_ROOT / ".data")).resolve()
+DATA = _BASE if STACK_ID == 0 else _BASE / str(STACK_ID)
 R2_DIR = DATA / "r2"
 DNS_FILE = DATA / "dns.json"
-PORT = int(os.environ.get("DOCS_MEDIA_API_PORT", "8180"))
+PORT = int(os.environ.get("DOCS_MEDIA_API_PORT") or 8180 + 10 * STACK_ID)
+WORKER_PORT = 8787 + 10 * STACK_ID
+NEXT_PORT = 3400 + 10 * STACK_ID
 API = f"http://127.0.0.1:{PORT}"
 
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
@@ -76,6 +84,17 @@ def _load_env() -> None:
         os.environ[key.strip()] = value
     if os.environ.get("DOCS_MEDIA_REDIS_URL"):  # stack.sh with DOCS_MEDIA_REDIS=1
         os.environ["MARKDROP_REDIS_URL"] = os.environ["DOCS_MEDIA_REDIS_URL"]
+    if STACK_ID:  # an extra instance: its own db, ports and origins (environment beats .env)
+        app_origins = [f"http://{h}:{NEXT_PORT}" for h in
+                       ("localhost", "127.0.0.1", "docs.localhost", "docs.acme.test", "docs.acme.com")]
+        os.environ.update({
+            "MARKDROP_MONGODB_DB": f"markdrop_docs_demo_{STACK_ID}",
+            "MARKDROP_FRONTEND_URL": f"http://localhost:{NEXT_PORT}",
+            "MARKDROP_API_BASE_URL": API,
+            "MARKDROP_ARTIFACT_ORIGIN": f"http://127.0.0.1:{WORKER_PORT}",
+            "MARKDROP_CORS_ORIGINS": json.dumps(app_origins),
+            "MARKDROP_DOCS_CORS_ORIGINS": json.dumps([f"http://docs.localhost:{NEXT_PORT}"]),
+        })
 
 
 os.chdir(HERE)  # pydantic-settings reads ./.env — this folder's, never backend/.env
@@ -589,6 +608,6 @@ asgi = FakeS3(app)
 if __name__ == "__main__":
     import uvicorn
 
-    print(f"[docs-media] sandbox API on {API} — db {settings.mongodb_db} @ {settings.mongodb_uri}; "
+    print(f"[docs-media] stack {STACK_ID}: sandbox API on {API} — db {settings.mongodb_db} @ {settings.mongodb_uri}; "
           f"fake R2 {R2_DIR}")
     uvicorn.run(asgi, host="127.0.0.1", port=PORT, log_level=os.environ.get("DOCS_MEDIA_LOG", "warning"))
