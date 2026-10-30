@@ -7,6 +7,8 @@ import { isAppPath } from "@/docs/markdown";
 import { heroLede, startCardText } from "@/docs/present.mjs";
 import { HomeAsk, InstallBox } from "@/docs/client/Chrome";
 import { DocsFooter, DocsHeader, InlineCode } from "@/docs/ui/Chrome";
+import { HelpCenterHome } from "@/docs/ui/HelpCenter";
+import { themeLayout } from "@/docs/themeSite";
 
 export const dynamic = "force-static";
 
@@ -22,6 +24,7 @@ export function generateMetadata(): Metadata {
 
 export default function DocsHome() {
   const site = getSite();
+  if (themeLayout(site) === "helpcenter") return <HelpCenterHome />;
   const home = site.home ?? {};
   const nav = getNav();
   const start = (home.start ?? []).map((s) => ({ ...s, page: getPage(s.page) })).filter((s) => s.page);

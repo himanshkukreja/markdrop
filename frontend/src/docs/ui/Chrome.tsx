@@ -12,6 +12,8 @@ import { MobileMenu, NavLinks } from "../client/Chrome";
 import { AskButton } from "../client/ask/entry";
 import { SearchTrigger } from "../client/Search";
 import { isAppPath } from "../markdown";
+import { forcedMode } from "../themeSite";
+import type { NavGroup } from "../types";
 
 /** The header's logo: the Markdrop mark and wordmark, the site's images, or its name as text. */
 function BrandMark({ brand }: { brand: HeaderBrand }) {
@@ -80,7 +82,7 @@ export function DocsHeader({ activeTab, current }: { activeTab?: string; current
               </span>
             </>
           )}
-          <ThemeToggle />
+          {!forcedMode(site) && <ThemeToggle />}
           {site.product && (
             <span className="dx-only-xwide">
               <Button href={site.product.url} variant="primary" size="sm" iconRight="external" target="_blank">
@@ -99,6 +101,52 @@ export function DocsSidebar({ tab, current }: { tab?: string; current?: string }
   return (
     <nav aria-label="Pages" className="dx-nav dx-sidenav">
       <NavLinks groups={groups} current={current} />
+    </nav>
+  );
+}
+
+/**
+ * Themes without a sidebar ("top" layout): the tab's groups as one row under the header, each
+ * opening its first page. The whole page tree stays one click away in the menu sheet.
+ */
+export function DocsTopNav({ tab, current }: { tab?: string; current?: string }) {
+  const groups = getNav().filter((g) => !tab || g.tab === tab);
+  const here = groups.find((g) => g.items.some((it) => it.path === current));
+  return (
+    <nav aria-label="Sections" className="dx-topnav">
+      <ul className="dx-topnav__in">
+        {groups.map((g) => {
+          const first = g.items.find((it) => it.available);
+          if (!first) return null;
+          return (
+            <li key={g.group}>
+              <Link href={first.path} className="dx-topnav__item" aria-current={g === here ? "true" : undefined}>
+                {g.group}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+/** The pages of a group as a plain list ("In this section", "In this category"), the current one marked. */
+export function SectionPages({ group, current, title }: { group: NavGroup; current?: string; title: string }) {
+  const items = group.items.filter((it) => it.available);
+  if (items.length < 2) return null;
+  return (
+    <nav aria-label={title} className="dx-section">
+      <p className="dx-eyebrow dx-section__title">{title}</p>
+      <ul className="dx-section__list">
+        {items.map((it) => (
+          <li key={it.path}>
+            <Link href={it.path} className="dx-section__item" aria-current={it.path === current ? "page" : undefined}>
+              {it.title}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </nav>
   );
 }
