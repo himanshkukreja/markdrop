@@ -58,10 +58,12 @@ function ChecksTab({ checks, onShow, onFix, readOnly, outline, active, onOutline
               <span className="text-[13px] font-semibold text-text">{c.title}</span>
               {/* Link text and titles are the customer's words. */}
               <span className="ph-no-capture text-[12px] leading-4 text-text-muted">{c.note}</span>
-            </span>
-            <span className="flex shrink-0 items-center gap-1">
-              {c.target && <RowAction onClick={() => onShow(c)}>Show</RowAction>}
-              {c.fix && !readOnly && <RowAction onClick={() => onFix(c)}>Fix</RowAction>}
+              {(c.target || (c.fix && !readOnly)) && (
+                <span className="-ml-1 flex items-center gap-2 pt-1">
+                  {c.target && <RowAction onClick={() => onShow(c)}>Show</RowAction>}
+                  {c.fix && !readOnly && <RowAction onClick={() => onFix(c)}>{c.fix.kind === "create_page" ? "Create the page" : c.fix.kind === "image_alt" ? "Add a description" : "Remove them"}</RowAction>}
+                </span>
+              )}
             </span>
           </li>
         ))}
@@ -282,7 +284,7 @@ export function EditorPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div role="tablist" aria-label="Page panel" className="flex shrink-0 gap-0 border-b border-border px-3">
+      <div role="tablist" aria-label="Page panel" className="flex shrink-0 gap-0 border-b border-border px-2">
         {tabs.map((t, i) => {
           const on = t.id === current;
           return (
@@ -304,7 +306,7 @@ export function EditorPanel({
                 tabRefs.current[next.id]?.focus();
               }}
               className={cx(
-                "md-focus -mb-px inline-flex h-[42px] items-center gap-1.5 border-b-2 px-2.5 text-[13px] font-semibold transition-colors",
+                "md-focus -mb-px inline-flex h-[42px] items-center gap-1.5 border-b-2 px-2 text-[13px] font-semibold transition-colors",
                 on ? "border-text text-text" : "border-transparent text-text-muted hover:text-text",
               )}
             >
