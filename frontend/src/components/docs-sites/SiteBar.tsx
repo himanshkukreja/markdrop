@@ -63,7 +63,7 @@ export function SiteBar({ section, crumb, status, actions, className }: {
   const { base, role } = useSite();
   return (
     <div className={cx("sticky top-14 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface px-3 py-2 sm:px-5 lg:h-[52px] lg:flex-nowrap lg:py-0", className)}>
-      <nav aria-label="Site" className="order-last -mx-1 flex w-full gap-1 overflow-x-auto px-1 md:order-none md:w-auto">
+      <nav aria-label="Site" className="order-last -mx-1 flex w-full gap-1 overflow-x-auto px-1 md:order-none md:w-auto md:shrink-0">
         {TABS.map((t) => {
           const on = t.id === section;
           return (
@@ -81,7 +81,7 @@ export function SiteBar({ section, crumb, status, actions, className }: {
           );
         })}
       </nav>
-      {crumb && <span className="hidden min-w-0 truncate text-body text-text-muted lg:inline" dir="auto">{crumb}</span>}
+      {crumb && <span className="hidden min-w-0 truncate text-body text-text-muted lg:inline" dir="auto" title={typeof crumb === "string" ? crumb : undefined}>{crumb}</span>}
       {status}
       {role === "viewer" && <Badge size="sm" icon="eye">View only</Badge>}
       {actions && <div className="ml-auto flex flex-wrap items-center gap-2 lg:flex-nowrap">{actions}</div>}
