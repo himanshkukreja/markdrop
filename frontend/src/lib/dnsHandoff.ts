@@ -74,5 +74,10 @@ export function dnsEmail(domains: Domain[], siteName = "Markdrop"): {
  *  button rather than instead of one — copy always works. */
 export function dnsMailto(domains: Domain[], siteName = "Markdrop"): string {
   const { subject, body } = dnsEmail(domains, siteName);
+  return mailtoLink(subject, body);
+}
+
+/** A `mailto:` with a subject and body, no recipient (they pick one in their mail client). */
+export function mailtoLink(subject: string, body: string): string {
   return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }

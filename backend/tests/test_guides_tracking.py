@@ -38,6 +38,11 @@ class GuidesShapes(unittest.TestCase):
             for s in ("design", "publish", "settings", "import", "insights"):
                 self.assertEqual(traffic.clean_path(f"/{root}/{SITE}/{s}", host), f"/{root}/[site]/{s}")
             self.assertEqual(traffic.clean_path(f"/{root}/{SITE}/x/y", host), f"/{root}/[site]/[other]")
+            self.assertEqual(traffic.clean_path(f"/{root}/{SITE}/settings/domains", host), f"/{root}/[site]/settings/domains")
+            self.assertEqual(traffic.clean_path(f"/{root}/{SITE}/settings/domains/help.acme.com", host),
+                             f"/{root}/[site]/[other]")
+        # The public domain check page never names the domain.
+        self.assertEqual(traffic.clean_path("/d/check/help.acme.com", host), "/d/check/[host]")
         # Still a document.
         self.assertEqual(traffic.clean_path("/guidesXy", host), "/[slug]")
 

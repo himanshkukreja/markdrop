@@ -133,6 +133,15 @@ class ParseTests(unittest.TestCase):
                        "HEAD, OPTIONS or TRACE", "$ref to another file", "references to other files",
                        "points at nothing", "goes in a cookie", "digest"):
             self.assertIn(needle, warnings)
+        # The same, as a title and a fix each, for the settings screen; and the sign-in types.
+        out = api_spec.analyze(d)
+        self.assertEqual(len(out["notes"]), len(out["warnings"]))
+        self.assertTrue(all(n["title"] and n["fix"] for n in out["notes"]))
+        self.assertIn("1 endpoint has no summary", [n["title"] for n in out["notes"]])
+        self.assertEqual(out["auth"], ["API key", "Digest"])
+        bearer = spec(components={"securitySchemes": {"t": {"type": "http", "scheme": "bearer"},
+                                                      "o": {"type": "oauth2", "flows": {}}}})
+        self.assertEqual(api_spec.analyze(bearer)["auth"], ["Bearer", "OAuth 2.0"])
         # A relative server is made absolute against the URL the file came from.
         s, summary, _ = api_spec.prepare(raw({**spec(), "servers": [{"url": "/v1"}]}), "https://example.com/docs/openapi.json")
         self.assertEqual(s["servers"][0]["url"], "https://example.com/v1")
@@ -447,3 +456,11 @@ class ApiReferenceTests(DocsSitesCase):
         r = await self.http.post(f"{BASE}/{site['id']}/pages", headers=self.h["owner"],
                                  json={"path": "/api-reference/mine", "title": "Mine"})
         self.assertEqual(r.status_code, 422, r.text)
+
+    async def test_start_from_the_sample(self):
+        await self.call("POST", f"/{self.sid}/api-reference/sample", "viewer", 403)
+        st = await self.call("POST", f"/{self.sid}/api-reference/sample", "editor", 201)
+        cur = st["current"]
+        self.assertEqual((cur["title"], cur["source"]["kind"]), ("Northwind API", "sample"))
+        self.assertIsInstance(cur["notes"], list)
+        self.assertIsInstance(cur["auth"], list)

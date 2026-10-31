@@ -8,7 +8,7 @@ import { Badge, CopyButton } from "@/components/ui";
  * a 40-character TXT value never pushes the page sideways on a phone.
  */
 export function RecordBlock({
-  label, purpose, type, name, value, nameLabel = "Name", found,
+  label, purpose, type, name, value, nameLabel = "Name", valueLabel = "Value", extra, found, className,
 }: {
   label: string;
   /** e.g. "Proves docs.acme.com is yours". */
@@ -20,10 +20,15 @@ export function RecordBlock({
   found?: boolean | null;
   /** What this provider calls the name field ("Host", "Name"…). */
   nameLabel?: string;
+  /** …and the value field ("Target", "Points to"…). */
+  valueLabel?: string;
+  /** Other fields the provider's form asks for, with what to choose (no copy button): [["Proxy status", "DNS only"]]. */
+  extra?: Array<[string, string]>;
+  className?: string;
 }) {
-  const rows: Array<[string, string]> = [[nameLabel, name], ["Value", value]];
+  const rows: Array<[string, string]> = [[nameLabel, name], [valueLabel, value]];
   return (
-    <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface">
+    <div className={`min-w-0 overflow-hidden rounded-lg border border-border bg-surface ${className ?? ""}`}>
       <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2">
         <span className="text-eyebrow uppercase text-text-secondary">{label}</span>
         <Badge size="sm" variant="outline" className="font-mono">{type}</Badge>
@@ -34,7 +39,7 @@ export function RecordBlock({
       <dl className="m-0 flex min-w-0 flex-col divide-y divide-border bg-surface-inset">
         {rows.map(([k, v]) => (
           <div key={k} className="flex min-w-0 items-center gap-3 px-3 py-1.5">
-            <dt className="w-14 shrink-0 text-micro font-semibold uppercase tracking-wide text-text-secondary">{k}</dt>
+            <dt className="w-[5.5rem] shrink-0 text-micro font-semibold uppercase tracking-wide text-text-secondary">{k}</dt>
             {/* The copy button lives inside the dd: a dl's groups may hold only dt and dd. */}
             <dd className="m-0 flex min-w-0 flex-1 items-center gap-3">
               <span className="min-w-0 flex-1 font-mono text-code text-text [overflow-wrap:anywhere]">{v}</span>
@@ -47,6 +52,12 @@ export function RecordBlock({
                 className="shrink-0"
               />
             </dd>
+          </div>
+        ))}
+        {extra?.map(([k, v]) => (
+          <div key={k} className="flex min-w-0 items-center gap-3 px-3 py-2">
+            <dt className="w-[5.5rem] shrink-0 text-micro font-semibold uppercase tracking-wide text-text-secondary">{k}</dt>
+            <dd className="m-0 min-w-0 flex-1 text-body-strong text-text">{v}</dd>
           </div>
         ))}
       </dl>

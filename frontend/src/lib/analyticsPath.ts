@@ -19,6 +19,7 @@ const APP_ROUTES = new Set([
   "admin",
   "auth",
   "builder",
+  "d",
   "dashboard",
   "docs-studio",
   "enterprise",
@@ -49,6 +50,8 @@ const GUIDES_ROOTS = new Set(["guides", "docs-studio"]);
 const GUIDES_SCREENS = new Set(["new", "members"]);
 /** A site's screens below /guides/<site> (the [siteId] route's children). */
 const GUIDES_SITE_SCREENS = new Set(["design", "import", "insights", "publish", "settings"]);
+/** The sections of a site's Settings (/guides/<site>/settings/<section>). */
+const GUIDES_SETTINGS = new Set(["general", "domains", "access", "ask-ai", "api-reference", "redirects", "people", "danger"]);
 
 /**
  * /guides/<site>[/<screen>] → /guides/[site][/<screen>]. Site ids aren't secrets (one opens
@@ -61,6 +64,8 @@ function guidesShape(segments: string[]): string {
   if (segments.length === 2 && GUIDES_SCREENS.has(segments[1]!)) return `${root}/${segments[1]}`;
   if (segments.length === 2) return `${root}/[site]`;
   if (segments.length === 3 && GUIDES_SITE_SCREENS.has(segments[2]!)) return `${root}/[site]/${segments[2]}`;
+  // Settings › <section>. A domain's own setup page (…/settings/domains/<host>) names a customer's domain: [other].
+  if (segments.length === 4 && segments[2] === "settings" && GUIDES_SETTINGS.has(segments[3]!)) return `${root}/[site]/settings/${segments[3]}`;
   return `${root}/[site]/[other]`;
 }
 
@@ -98,6 +103,8 @@ export function redactPath(pathname: string): string {
   // /h/<host>/<path> — the internal route a workspace domain is served from;
   // the path below the host is a document.
   if (segments[0] === "h") return "/h/[workspace-doc]";
+  // /d/check/<host> — a guide's domain check page; the host is a customer's domain.
+  if (segments[0] === "d" && segments.length > 1) return "/d/check/[host]";
   // /f/<share_id>[/…] — a shared folder link is a capability, like a document slug.
   if (segments[0] === "f" && segments.length > 1) return "/f/[share]";
   // /w/<workspace>[/f/<folder>] — ids, not secrets, but not worth a row per workspace either.

@@ -323,6 +323,10 @@ export interface DnsProviderHint {
   provider_name: string | null;
   panel_url: string | null;
   host_field: string | null;
+  /** What the panel calls the value field ("Target" at Cloudflare); absent from an older API. */
+  value_field?: string | null;
+  /** Other fields its form asks for, with what to choose ("Proxy status": "DNS only (grey cloud)"). */
+  extras?: Array<{ label: string; value: string }>;
   record_host: string | null;
   target_host: string | null;
   note: string | null;

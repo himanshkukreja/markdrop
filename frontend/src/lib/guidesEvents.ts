@@ -34,6 +34,9 @@
  *   guide_address_copied          own (an own domain, else the free address)
  *   guide_share_copied
  *   guide_setup_step_opened       step: pages|look|publish|domain|team|insights
+ *   guide_domain_one_click        (the provider's Domain Connect page opened)
+ *   guide_domain_handoff          how: copy|email|link|csv (the DNS steps sent on to someone)
+ *   guide_api_sample_used         (an API reference started from the sample file)
  *
  * What finishes on the server (a build going live or failing, an import finishing or failing) is
  * recorded there, in docs_events, and shown in the admin's Product health tab.
@@ -82,6 +85,9 @@ export const guideEvents = {
   addressCopied: (own: boolean) => emit("guide_address_copied", { own }),
   shareCopied: () => emit("guide_share_copied"),
   setupStep: (step: "pages" | "look" | "publish" | "domain" | "team" | "insights") => emit("guide_setup_step_opened", { step }),
+  domainOneClick: () => emit("guide_domain_one_click"),
+  domainHandoff: (how: "copy" | "email" | "link" | "csv") => emit("guide_domain_handoff", { how }),
+  apiSampleUsed: () => emit("guide_api_sample_used"),
   memberRole: (scope: "workspace" | "site", role: string | null) =>
     emit("guide_member_role_changed", { scope, role: role === null ? "inherit" : pick(role, ROLES) ?? "other" }),
 };

@@ -45,6 +45,9 @@ export default function DnsInstructions({
   }, [workspaceId, domain.id]);
 
   const hostLabel = hint?.detected ? hint.host_field || "Name" : "Name";
+  const valueLabel = hint?.detected ? hint.value_field || "Value" : "Value";
+  // The provider's other fields for the routing record (Cloudflare: Proxy status, DNS only).
+  const extra = hint?.detected ? (hint.extras ?? []).map((x): [string, string] => [x.label, x.value]) : undefined;
   const recordHost = hint?.detected && hint.record_host ? hint.record_host : domain.dns_record_name ?? "";
   const targetHost = hint?.detected && hint.target_host ? hint.target_host : domain.dns_target_name ?? "";
 
@@ -94,6 +97,8 @@ export default function DnsInstructions({
               name={hint?.detected && hint.target_host && o.name === domain.dns_target_name ? hint.target_host : o.name}
               value={o.value}
               nameLabel={hostLabel}
+              valueLabel={valueLabel}
+              extra={extra}
               found={domain.routing_ok}
             />
           ))
@@ -105,6 +110,8 @@ export default function DnsInstructions({
             name={targetHost}
             value={domain.dns_target_value ?? ""}
             nameLabel={hostLabel}
+            valueLabel={valueLabel}
+            extra={extra}
             found={domain.routing_ok}
           />
         )}

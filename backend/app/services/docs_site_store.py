@@ -905,6 +905,9 @@ async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None,
         # nav is managed by PUT /nav; keep exactly what is stored.
         validated["nav"] = (site.get("settings") or {}).get("nav") or []
         if "redirects" in patch and validated.get("redirects"):
+            # Each row keeps why it's there (a page move added it), else it was added here.
+            validated["redirects"] = site_redirects.with_why(
+                validated["redirects"], (site.get("settings") or {}).get("redirects"))
             paths = {r["path"] for r in await db[PAGES].find(
                 {"site_id": site["_id"], "deleted_at": None}, {"path": 1}).to_list(length=settings.docs_pages_per_site + 50)}
             problems = site_redirects.problems_against(validated["redirects"], paths)

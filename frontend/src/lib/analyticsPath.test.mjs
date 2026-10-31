@@ -24,7 +24,16 @@ test("Guides screens are app routes, not documents", () => {
     for (const s of ["design", "publish", "settings", "import"]) assert.equal(redactPath(`/${root}/${SITE}/${s}`), `/${root}/[site]/${s}`);
     assert.equal(redactPath(`/${root}/${SITE}/whatever`), `/${root}/[site]/[other]`);
     assert.equal(redactPath(`/${root}/${SITE}/pages/p1/x`), `/${root}/[site]/[other]`);
+    for (const s of ["general", "domains", "redirects"]) assert.equal(redactPath(`/${root}/${SITE}/settings/${s}`), `/${root}/[site]/settings/${s}`);
+    // A domain's setup page names a customer's domain.
+    assert.equal(redactPath(`/${root}/${SITE}/settings/domains/help.acme.com`), `/${root}/[site]/[other]`);
+    assert.equal(redactPath(`/${root}/${SITE}/settings/nope`), `/${root}/[site]/[other]`);
   }
+});
+
+test("a domain check page never names the domain", () => {
+  assert.equal(redactPath("/d/check/help.acme.com"), "/d/check/[host]");
+  assert.ok(!isRecordable("/d/check/help.acme.com"));
 });
 
 test("site ids never reach a report", () => {

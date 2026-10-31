@@ -221,54 +221,102 @@ def analyze(spec: dict) -> dict:
                         f"{MAX_OPERATIONS:,}. Split it, or leave internal endpoints out.")
 
     warnings: list[str] = []
+    # The same, as a title and what to do about it, for the settings screen.
+    notes: list[dict] = []
+
+    def warn(text: str, title: str, fix: str) -> None:
+        warnings.append(text)
+        notes.append({"title": title, "fix": fix})
+
+    def one(n: int) -> bool:
+        return n == 1
+
     no_id = [f"{m.upper()} {p}" for p, m, op, _ in ops if not op.get("operationId")]
     ids = [op.get("operationId") for _, _, op, _ in ops if op.get("operationId")]
     dupes = sorted({i for i in ids if ids.count(i) > 1}) if len(ids) != len(set(ids)) else []
     no_summary = [f"{m.upper()} {p}" for p, m, op, _ in ops if not (isinstance(op.get("summary"), str) and op["summary"].strip())]
     servers, bad_servers = _server_urls(spec.get("servers"))
     if no_id:
-        warnings.append(f"{_n(len(no_id), 'operation')} {'has' if len(no_id) == 1 else 'have'} no operationId "
-                        f"(for example {no_id[0]}). Pages still work; an id keeps an operation's address "
-                        "stable when its summary changes.")
+        warn(f"{_n(len(no_id), 'operation')} {'has' if len(no_id) == 1 else 'have'} no operationId "
+             f"(for example {no_id[0]}). Pages still work; an id keeps an operation's address "
+             "stable when its summary changes.",
+             f"{_n(len(no_id), 'endpoint')} {'has' if one(len(no_id)) else 'have'} no operationId",
+             f"Pages still work (for example {no_id[0]}). Add an operationId to each, so an endpoint's address "
+             "stays the same when you change its summary.")
     if dupes:
-        warnings.append(f"These operationIds are used more than once: {', '.join(map(str, dupes[:5]))}.")
+        warn(f"These operationIds are used more than once: {', '.join(map(str, dupes[:5]))}.",
+             "Some operationIds are used more than once",
+             f"{', '.join(map(str, dupes[:5]))}: give each endpoint its own operationId, so each gets its own "
+             "page address.")
     if no_summary:
-        warnings.append(f"{_n(len(no_summary), 'operation')} {'has' if len(no_summary) == 1 else 'have'} no summary, "
-                        f"so {'its' if len(no_summary) == 1 else 'their'} title comes from the operationId or the path "
-                        f"(for example {no_summary[0]}).")
+        warn(f"{_n(len(no_summary), 'operation')} {'has' if len(no_summary) == 1 else 'have'} no summary, "
+             f"so {'its' if len(no_summary) == 1 else 'their'} title comes from the operationId or the path "
+             f"(for example {no_summary[0]}).",
+             f"{_n(len(no_summary), 'endpoint')} {'has' if one(len(no_summary)) else 'have'} no summary",
+             f"{'Its page is' if one(len(no_summary)) else 'Their pages are'} titled by the operationId or by "
+             f"method and path, like \"{no_summary[0]}\". Add a summary in the file for clearer titles.")
     if not servers:
-        warnings.append("The description lists no absolute server URL (servers), so the samples have no address "
-                        "and Try it can't send requests. Add one, like https://api.example.com/v1.")
+        warn("The description lists no absolute server URL (servers), so the samples have no address "
+             "and Try it can't send requests. Add one, like https://api.example.com/v1.",
+             "No server address",
+             "Code samples have no address and Try it can't send requests. Add one under servers, like "
+             "https://api.example.com/v1.")
     elif bad_servers:
-        warnings.append(f"{_n(bad_servers, 'server')} {'isn' if bad_servers == 1 else 'aren'}'t an absolute https:// "
-                        "address and won't be offered in Try it.")
+        warn(f"{_n(bad_servers, 'server')} {'isn' if bad_servers == 1 else 'aren'}'t an absolute https:// "
+             "address and won't be offered in Try it.",
+             f"{_n(bad_servers, 'server')} {'isn' if one(bad_servers) else 'aren'}'t a full https:// address",
+             "Try it doesn't offer it. Write the full address, like https://api.example.com/v1, so Try it can "
+             "reach it.")
     other = sum(1 for item in (spec.get("paths") or {}).values() if isinstance(item, dict)
                 for m in OTHER_METHODS if isinstance(item.get(m), dict))
     if other:
-        warnings.append(f"{_n(other, 'HEAD, OPTIONS or TRACE operation')} {'isn' if other == 1 else 'aren'}'t shown.")
+        warn(f"{_n(other, 'HEAD, OPTIONS or TRACE operation')} {'isn' if other == 1 else 'aren'}'t shown.",
+             f"{_n(other, 'HEAD, OPTIONS or TRACE endpoint')} {'isn' if one(other) else 'aren'}'t shown",
+             "Only GET, POST, PUT, PATCH and DELETE get pages. Nothing to fix unless readers need these.")
     path_refs = [p for p, item in (spec.get("paths") or {}).items() if isinstance(item, dict) and "$ref" in item]
     if path_refs:
-        warnings.append(f"{_n(len(path_refs), 'path')} {'is a $ref' if len(path_refs) == 1 else 'are $refs'} "
-                        f"to another file and {'isn' if len(path_refs) == 1 else 'aren'}'t shown ({path_refs[0]}). "
-                        "Bundle the description into one file first.")
+        warn(f"{_n(len(path_refs), 'path')} {'is a $ref' if len(path_refs) == 1 else 'are $refs'} "
+             f"to another file and {'isn' if len(path_refs) == 1 else 'aren'}'t shown ({path_refs[0]}). "
+             "Bundle the description into one file first.",
+             f"{_n(len(path_refs), 'path')} {'points' if one(len(path_refs)) else 'point'} to another file",
+             f"{'It isn' if one(len(path_refs)) else 'They aren'}'t shown ({path_refs[0]}). Bundle the "
+             "description into one file (for example with redocly bundle) and upload that.")
     external, broken = _refs(spec)
     if external:
-        warnings.append(f"{_n(len(external), 'reference')} to other files {'isn' if len(external) == 1 else 'aren'}'t "
-                        f"followed (for example {external[0][:80]}). Bundle the description into one file first.")
+        warn(f"{_n(len(external), 'reference')} to other files {'isn' if len(external) == 1 else 'aren'}'t "
+             f"followed (for example {external[0][:80]}). Bundle the description into one file first.",
+             f"{_n(len(external), 'reference')} to other files",
+             f"{'It isn' if one(len(external)) else 'They aren'}'t followed (for example {external[0][:80]}). "
+             "Bundle the description into one file first.")
     if broken:
-        warnings.append(f"{_n(len(broken), 'reference')} point{'s' if len(broken) == 1 else ''} at nothing in the file "
-                        f"(for example {broken[0][:80]}); the operations that use "
-                        f"{'it' if len(broken) == 1 else 'them'} may be left out.")
+        warn(f"{_n(len(broken), 'reference')} point{'s' if len(broken) == 1 else ''} at nothing in the file "
+             f"(for example {broken[0][:80]}); the operations that use "
+             f"{'it' if len(broken) == 1 else 'them'} may be left out.",
+             f"{_n(len(broken), 'reference')} point{'s' if one(len(broken)) else ''} at nothing",
+             f"The endpoints that use {'it' if one(len(broken)) else 'them'} may be left out (for example "
+             f"{broken[0][:80]}). Fix the $ref, or add what it names under components.")
     schemes = ((spec.get("components") or {}).get("securitySchemes") or {}) if isinstance(spec.get("components"), dict) else {}
+    auth: list[str] = []
     for sid, sch in schemes.items() if isinstance(schemes, dict) else []:
         if not isinstance(sch, dict):
             continue
         t = str(sch.get("type") or "").lower()
+        scheme = str(sch.get("scheme") or "").lower()
+        label = ({"apikey": "API key", "oauth2": "OAuth 2.0", "openidconnect": "OpenID Connect",
+                  "mutualtls": "Mutual TLS"}.get(t)
+                 or ({"bearer": "Bearer", "basic": "Basic"}.get(scheme) if t == "http" else None)
+                 or (scheme.title() if scheme else t))
+        if label and label[:40] not in auth:
+            auth.append(label[:40])
         if t == "apikey" and sch.get("in") == "cookie":
-            warnings.append(f"The {sid} API key goes in a cookie, which a browser can't set: Try it leaves it out "
-                            "(the code samples include it).")
-        elif t == "mutualtls" or (t == "http" and str(sch.get("scheme") or "").lower() not in ("bearer", "basic")):
-            warnings.append(f"The {sid} security scheme ({t}) isn't one Try it can send; readers use the samples.")
+            warn(f"The {sid} API key goes in a cookie, which a browser can't set: Try it leaves it out "
+                 "(the code samples include it).",
+                 f"The {sid} API key goes in a cookie",
+                 "A browser can't set it, so Try it leaves it out. The code samples include it; nothing to fix.")
+        elif t == "mutualtls" or (t == "http" and scheme not in ("bearer", "basic")):
+            warn(f"The {sid} security scheme ({t}) isn't one Try it can send; readers use the samples.",
+                 f"Try it can't send the {sid} sign-in ({t})",
+                 "Readers use the code samples for the endpoints that need it. Nothing to fix.")
     tags = []
     for t in spec.get("tags") or []:
         if isinstance(t, dict) and isinstance(t.get("name"), str) and t["name"] not in tags:
@@ -286,6 +334,8 @@ def analyze(spec: dict) -> dict:
         "servers": servers[:10],
         "missing_operation_ids": len(no_id),
         "warnings": warnings,
+        "notes": notes,
+        "auth": auth[:8],
     }
 
 
@@ -430,9 +480,10 @@ async def _store(db: AsyncIOMotorDatabase, site: dict, user_id: str | None, spec
         res = await db[SPECS].insert_one(row)
         row["_id"] = res.inserted_id
     else:
-        # The same description again: that version becomes current (with where it came from now).
-        await db[SPECS].update_one({"_id": row["_id"]}, {"$set": {"source": source}})
-        row["source"] = source
+        # The same description again: that version becomes current (with where it came from now, and
+        # what the checks say today).
+        await db[SPECS].update_one({"_id": row["_id"]}, {"$set": {"source": source, **summary}})
+        row.update(source=source, **summary)
     await _set_current(db, site, str(row["_id"]))
     return row
 
@@ -552,6 +603,15 @@ async def seed_sample(db: AsyncIOMotorDatabase, site: dict, user_id: str) -> Non
         log.warning("couldn't add the sample API description to site %s", site.get("_id"), exc_info=True)
 
 
+async def use_sample(db: AsyncIOMotorDatabase, site: dict, user: User) -> dict:
+    """The sample description (Northwind) as the current version: "start from the sample" on an
+    empty API reference, to see what readers get before bringing your own."""
+    spec, summary, out = await run_in_threadpool(prepare, SAMPLE.read_bytes())
+    row = await _store(db, site, user.id, spec, summary, out, {"kind": "sample", "filename": "northwind-openapi.json"})
+    await _log(db, site, user.id, "sample", row)
+    return row
+
+
 async def _log(db: AsyncIOMotorDatabase, site: dict, user_id: str | None, how: str, row: dict) -> None:
     from app.services.docs_site_store import log_event
 
@@ -583,6 +643,9 @@ def version_view(row: dict, names: dict[str, str], current_id: str | None) -> di
         "tags": row.get("tags"),
         "servers": row.get("servers") or [],
         "warnings": row.get("warnings") or [],
+        # The same as a title and a fix each, and the sign-in types (absent on older versions).
+        "notes": row.get("notes"),
+        "auth": row.get("auth"),
         "size": row.get("size"),
         "sha256": row.get("sha256"),
         "created_by": row.get("created_by"),

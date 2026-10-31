@@ -160,6 +160,8 @@ export interface NavGroup {
 export interface Redirect {
   from: string;
   to: string;
+  /** Why it's there: a page moved (added for you) or someone added it in Settings. Kept by the API on save. */
+  why?: "moved" | "added";
 }
 
 export interface SiteSettings {

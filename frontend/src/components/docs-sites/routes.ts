@@ -9,7 +9,9 @@
  *   /guides/<site>/design      themes, brand, fonts, custom CSS
  *   /guides/<site>/publish     changes, publish, reviews, history
  *   /guides/<site>/insights    readers: views, searches, Ask AI questions, feedback (?range=7d|30d|90d)
- *   /guides/<site>/settings    address, Ask AI, access, redirects, people, delete
+ *   /guides/<site>/settings    → /settings/general (an old #anchor → its section, settings/sections.ts)
+ *   /guides/<site>/settings/<section>  general, domains (…/new, …/<host>), access, ask-ai, api-reference,
+ *                              redirects, people, danger
  *   /guides/members            Guides roles in a workspace (?ws=<id>; studio admins)
  *
  * The old /w/<ws>/docs… addresses redirect here (next.config.ts).

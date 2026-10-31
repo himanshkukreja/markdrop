@@ -1,16 +1,20 @@
 ---
 title: Guide settings
 description: A guide's settings. Its address, Ask AI, who can read it, search indexing, reviews, people, redirects, and unpublishing or deleting it.
-updated: 2026-10-31
+updated: 2026-11-01
 prerequisites: [/guides/create-a-site]
 keywords: [settings, address, slug, custom domain, own domain, cname, dns, ssl certificate, ask ai, password, members only, search engines, noindex, unpublish, delete guide, delete site]
 ---
 
-Open a guide and choose **Settings**. Only Guides admins can change them; everyone else sees how the guide is set up. Each setting saves as soon as you change it, and reaches readers at the next [publish](/guides/publishing).
+Open a guide and choose **Settings**. The sections are listed on the left (a menu at the top on a phone): **General**, **Domains**, **Readers and access**, **Ask AI**, **API reference**, **Redirects**, **People and reviews** and **Take it down**. Only Guides admins can change them; everyone else sees how the guide is set up. Each setting saves as soon as you change it, says so, and reaches readers at the next [publish](/guides/publishing).
 
-## Address
+## General
 
-The guide's free address, `<address>.guides.markdrop.in`, with **Copy link**. It always works, even after you add your own domain.
+The guide's **name**, its **free address**, its **logo and favicon** (set under [Design](/guides/brand-and-style)), where it started, and GitHub sync.
+
+### Address
+
+The guide's free address, `<address>.guides.markdrop.in`, with **Copy** and **Open**. It always works, even after you add your own domain.
 
 To change it, choose **Change**, type the new address and choose **Save address**. The same [rules](/guides/create-a-site#the-address) apply as when you created the guide. The new address goes live at the next publish, and the **old one stops working**, so change it before you share the link.
 
@@ -20,6 +24,8 @@ To change it, choose **Change**, type the new address and choose **Save address*
 
 Serve the guide from a subdomain your company owns, like `help.acme.com` or `docs.acme.com`. You add one DNS record; the HTTPS certificate is issued and renewed for you. The free address keeps working beside it. Only Guides admins add and remove domains, and a guide can have two.
 
+**Domains** lists every address the guide answers at, each with its status, **Copy**, **Open** (in a new tab) and a menu with its setup steps, **Check now** and **Remove domain**.
+
 This is separate from a Markdrop workspace's [own domain](/workspaces/custom-domain), which serves the workspace's documents and files, not its guides.
 
 :::note
@@ -28,16 +34,23 @@ If the card says **Not available yet**, own domains aren't switched on for your 
 
 ### Use your own domain
 
-1. In the guide's **Settings**, under **Your own domain**, choose **Add a domain**, type the subdomain (for example `help.acme.com`) and choose **Add domain**.
-2. The card shows the record to add, with copy buttons:
+Setup takes three steps: **Your domain**, **Connect DNS**, **Live with HTTPS**.
+
+1. In the guide's **Settings › Domains**, choose **Add a domain**, type the subdomain (for example `help.acme.com`) and choose **Continue**.
+2. Markdrop looks up who runs the domain's DNS from its nameservers and says so, like "acme.com's DNS is at Cloudflare", with **Open Cloudflare DNS**. The record is written the way that provider's form asks for it, with copy buttons:
 
    | Type | Name | Value |
    |---|---|---|
-   | `CNAME` | `help.acme.com` | `cname.guides.markdrop.in` |
+   | `CNAME` | `help` | `cname.guides.markdrop.in` |
 
-3. Sign in where your domain's DNS is managed (often where you bought it) and add that `CNAME` record. Many providers add your domain to the name for you: there, type just `help`.
-4. Wait. Markdrop checks on its own and the status moves from **Checking DNS** to **Issuing certificate** to **Live**, usually a few minutes after your DNS change is visible. Choose **Re-check** to check right away.
+   Where the provider supports it, **Connect with <provider>** adds the record in one click: sign in there and approve it. Markdrop asks for that one record and nothing else.
+3. Sign in where your domain's DNS is managed (often where you bought it) and add that `CNAME` record. **Download as CSV** gives you the record as a file.
+4. Wait. **Status** shows **Record found**, **HTTPS certificate issued** and **Live**, and checks again every minute while the page is open, usually a few minutes after your DNS change is visible. Choose **Check now** to check right away. You can leave the page: Markdrop keeps checking, and emails you when the domain is live (or if it gives up).
 5. Once it's **Live**, readers get the guide at `https://help.acme.com`. Markdrop publishes the live version again, so links, the sitemap, `llms.txt` and preview cards use your domain from then on. Keep the record in place.
+
+### Someone else runs your DNS
+
+Under **Someone else runs your DNS?**, send the person who does a message with the record, where to add it, and a link to check it worked: **Copy message**, **Send by email** (opens your mail app), or **Copy a link to these steps**. The link opens a public page, `markdrop.in/d/check/help.acme.com`, that shows the record to add and how far along the domain is, and checks again on its own. It says nothing about your guide.
 
 ### Where to add the record
 
@@ -64,15 +77,15 @@ A root domain like `acme.com` can't be added yet: DNS doesn't allow a `CNAME` re
 
 ### Remove a domain
 
-Choose **Remove** next to it and confirm. The guide stops answering there right away; links, the sitemap and search results go back to the free address after the publish Markdrop starts for you. You can then delete the `CNAME` record.
+In its menu, choose **Remove domain** and confirm. The guide stops answering there right away; links, the sitemap and search results go back to the free address after the publish Markdrop starts for you. You can then delete the `CNAME` record.
 
 ### When a domain doesn't go live
 
-- **It stays on Checking DNS.** The `CNAME` record isn't visible yet. Check its name and value for typos, and that the name doesn't end up doubled (`help.acme.com.acme.com`) because your provider added the domain for you. DNS changes can take up to an hour, sometimes longer. Then choose **Re-check**.
+- **It stays on Record found: waiting.** The `CNAME` record isn't visible yet. If the status says the name points somewhere else, an old record is still in place. Check its name and value for typos, and that the name doesn't end up doubled (`help.acme.com.acme.com`) because your provider added the domain for you. DNS changes can take up to an hour, sometimes longer. Then choose **Check now**.
 - **There's already a record for that name.** A subdomain can have only one `CNAME`, and no `CNAME` beside other records of the same name. Delete the old record first.
 - **It's on Cloudflare with the orange cloud.** Set the record to **DNS only**, or add the **Ownership record** and **Certificate record** too.
-- **It stays on Issuing certificate.** A `CAA` record on your domain may allow only other certificate authorities. Remove it, or add one that allows `letsencrypt.org` and `pki.goog`.
-- **It says Problem.** Markdrop checks for 3 days, then stops and shows what was in the way. Fix the record, then choose **Re-check** to start again.
+- **It stays on HTTPS certificate.** A `CAA` record on your domain may allow only other certificate authorities. Remove it, or add one that allows `letsencrypt.org` and `pki.goog`.
+- **It says Problem.** Markdrop checks for 3 days, then stops, shows what was in the way and emails whoever added the domain. Fix the record, then choose **Check now** to start again.
 - **"Another guide already uses that domain."** A domain can serve one guide. Remove it from the other guide first.
 
 ## Ask AI
@@ -81,23 +94,23 @@ Turn the assistant on or off, name it, and suggest questions. See [Ask AI on you
 
 ## API reference
 
-The OpenAPI file your guide's API reference is generated from: upload it or fetch it from a URL, see what it found, preview the sidebar it makes, and choose where it appears and whether readers get Try it. See [API reference from an OpenAPI file](/guides/api-reference).
+The OpenAPI file your guide's API reference is generated from: drop it in or fetch it from a URL, see what the checks found, see the endpoint pages readers will get, choose where it appears and whether readers get Try it, and publish it. See [API reference from an OpenAPI file](/guides/api-reference).
 
 ## Who can read it
+
+Under **Readers and access**, three choices: **Anyone**, **Anyone with the password** and **Workspace members**.
 
 :::note[Coming soon]
 For now every published guide is public: **Anyone** can read it. **Anyone with the password** (for a beta or a partner preview) and **Workspace members only** (readers sign in with Markdrop) are listed but aren't available yet; choosing one says so and keeps the guide public.
 :::
 
-**Let search engines index the guide** is on by default. Turn it off to keep the guide out of search results, for example while it's a work in progress: after the next publish, every page asks search engines not to index it (a `noindex` tag and header), `robots.txt` disallows crawling, and the sitemap is empty. Readers with the link can still open the site.
+**Show in search engines** is on by default. Turn it off to keep the guide out of search results, for example while it's a work in progress: after the next publish, every page asks search engines not to index it (a `noindex` tag and header), `robots.txt` disallows crawling, and the sitemap is empty. Readers with the link can still open the site.
 
-## Reviews
+## People and reviews
 
-Require changes to be approved before they're published. See [Reviews](/guides/reviews).
+**Require a review before publishing** makes editors' changes wait for an approval. See [Reviews](/guides/reviews).
 
-## People
-
-Give someone a different role on this guide. See [Members and roles](/guides/members-and-roles#a-different-role-on-one-guide). If you aren't an admin, this card shows **Your role**.
+Under **People**, give someone a different role on this guide. See [Members and roles](/guides/members-and-roles#a-different-role-on-one-guide). If you aren't an admin, this card shows **Your role**.
 
 ## GitHub sync
 
@@ -109,11 +122,11 @@ For an imported guide: where it came from, and **Open the import report**. See [
 
 ## Redirects
 
-Send old addresses to their new pages. See [Redirects](/guides/pages-and-navigation#redirects).
+Send old addresses to their new pages. Each row says why it's there: **Page moved** (Markdrop added it when you moved a published page) or **Added in Settings**. An imported guide also lists the old GitBook addresses the import found, under **From the GitBook import**. See [Redirects](/guides/pages-and-navigation#redirects).
 
 ## Unpublish or delete
 
-**Take the guide down** has two buttons:
+**Take it down** has two buttons:
 
 - **Unpublish** takes the guide offline: its address stops showing it. Your pages, drafts and publish history stay, and publishing again puts it back.
 - **Delete guide** removes every page, version and publish, and the address stops working. To confirm, you type the guide's name. This can't be undone, and its address is free for someone else to use.

@@ -21,6 +21,9 @@ from __future__ import annotations
 import re
 
 MAX_REDIRECTS = 1000
+# Why a redirect is there (an optional ``why`` on each row, for Settings): a page moved (added for
+# you), or someone added it in Settings. An import's own redirects stay in ``engine_extra``.
+WHY = frozenset({"moved", "added"})
 _WS = re.compile(r"\s")
 # Addresses the engine answers on every docs site (docs-check FIXED_ROUTES).
 FIXED_ROUTES = frozenset({
@@ -56,7 +59,7 @@ def clean(raw) -> list[dict]:
     out: list[dict] = []
     seen: set[str] = set()
     for r in raw:
-        if not isinstance(r, dict) or set(r) - {"from", "to"}:
+        if not isinstance(r, dict) or set(r) - {"from", "to", "why"}:
             raise ValueError("Each redirect is {from, to}.")
         src, dst = r.get("from"), r.get("to")
         if not isinstance(src, str) or not isinstance(dst, str):
@@ -79,7 +82,21 @@ def clean(raw) -> list[dict]:
         if frm in seen:
             raise ValueError(f"{frm} is redirected twice. Keep one.")
         seen.add(frm)
-        out.append({"from": frm, "to": dst})
+        row = {"from": frm, "to": dst}
+        if r.get("why") in WHY:
+            row["why"] = r["why"]
+        out.append(row)
+    return out
+
+
+def with_why(new: list[dict], old: list[dict] | None) -> list[dict]:
+    """``new`` (a saved list) with each row's ``why``: kept from the stored row with the same from
+    and to, else "added" (someone typed it in Settings)."""
+    before = {(r.get("from"), r.get("to")): r.get("why") for r in old or [] if isinstance(r, dict)}
+    out = []
+    for r in new:
+        why = r.get("why") if r.get("why") in WHY else before.get((r["from"], r["to"]))
+        out.append({**r, "why": why if why in WHY else "added"})
     return out
 
 
@@ -139,9 +156,9 @@ def after_move(redirects: list[dict], old: str, new: str, *, add: bool) -> list[
         to = _retarget(to, old, new)
         if not to.lower().startswith("https://") and _page_of(to) == _page_of(frm):
             continue
-        out.append({"from": frm, "to": to})
+        out.append({"from": frm, "to": to, **({"why": r["why"]} if r.get("why") in WHY else {})})
     if add and old != new and len(out) < MAX_REDIRECTS:
-        out.append({"from": old, "to": new})
+        out.append({"from": old, "to": new, "why": "moved"})
     return out
 
 

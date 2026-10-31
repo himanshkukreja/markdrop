@@ -45,6 +45,8 @@ RESERVED_SLUGS = frozenset(
         # Markdrop Guides (/guides, the guide builder) and its old address
         # (/docs-studio, a permanent redirect to /guides in next.config.ts).
         "guides", "docs-studio",
+        # A guide's public domain check page (/d/check/<host>).
+        "d",
     }
 )
 

@@ -291,7 +291,7 @@ which site a host serves; the custom domain only gets the request to the Worker.
 
 A guide can also be served at a customer's own subdomain, like `help.acme.com`
 (backend/app/services/docs_custom_domains.py, the Settings card in
-frontend/src/components/docs-sites/SiteDomains.tsx, reader docs in
+frontend/src/components/docs-sites/settings/DomainsSection.tsx and DomainSetup.tsx, reader docs in
 frontend/content/docs/guides/site-settings.md "Your own domain"). The customer adds **one** record:
 
     help.acme.com  CNAME  cname.guides.markdrop.in
@@ -384,6 +384,38 @@ markdrop.in still answers.
   gives a valid certificate and the guide; `hosts/help.example.org.json` is in the docs bucket.
 - The site's `docs_sites.domains` entry (`status`, `stage`, `message`, `checks`, `next_check_at`) and its
   `docs_jobs` rows of kind `domain` (`error` carries what Cloudflare said).
+
+### One-click DNS (Domain Connect)
+
+The setup screen offers **Connect with <provider>** where the customer's DNS provider supports Domain
+Connect *and* has onboarded our template (`backend/app/services/domain_connect.py`; discovery by the
+zone's `_domainconnect` TXT record). Off until steps 1–3 are done; the manual steps always work.
+
+Our template is `domain-connect/markdrop.in.guides.json`: one CNAME at the host the customer
+chose (`hostRequired`, `host: "@"`) → `cname.guides.markdrop.in`, no variables. It is signed
+(`syncPubKeyDomain: markdrop.in`) because the Templates repo asks every template to be, and
+Cloudflare only takes signed calls.
+
+1. **Key.** `cd backend && .venv/bin/python -m app.services.domain_connect newkey` prints an RSA
+   private key. Put it in the API's env as `MARKDROP_DOCS_DOMAIN_CONNECT_KEY` (PEM; `\n` escapes are
+   fine on one line). Then `… -m app.services.domain_connect pubkey` prints the TXT record(s) to add
+   to the markdrop.in zone at `_dcpubkeyv1.markdrop.in` (`p=1,a=RS256,d=…`; several when it's long).
+   A new key later: publish it under another name (`_dcpubkeyv2`) and set
+   `MARKDROP_DOCS_DOMAIN_CONNECT_KEY_HOST`, then retire the old record.
+2. **Submit the template.** Fork github.com/Domain-Connect/Templates, add
+   `markdrop.in.guides.json` (file names are lower case, `providerId.serviceId.json`), check it in the
+   Online Editor (domainconnect.paulonet.eu, "Copy Markdown" for the PR) and with
+   `dc-template-linter -merge-or-fail` (Go 1.22+), and open the PR with the repo's PR template. Make
+   sure `logoUrl` answers.
+3. **Onboard providers.** A merged template is used by a provider only once they onboard it.
+   Cloudflare: email domain-connect@cloudflare.com with the template's GitHub link, the TXT name
+   `_dcpubkeyv1.markdrop.in`, the logo, and the proxy status for the CNAME: **DNS only** (proxied
+   breaks our certificate). Others (GoDaddy, IONOS, …) have their own onboarding, some through a paid
+   intermediary.
+4. **Verify.** On a zone at an onboarded provider, the setup screen shows the button; it opens
+   `<urlSyncUX>/v2/domainTemplates/providers/markdrop.in/services/guides/apply?domain=…&host=…&redirect_uri=…&key=_dcpubkeyv1&sig=…`
+   (sig last). After approving, the provider sends the customer back to the setup screen, which
+   re-checks.
 
 ## Commands
 

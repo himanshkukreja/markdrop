@@ -6,6 +6,7 @@
  * admins with updateSite({settings: {api: …}}). Changes reach readers at the next publish.
  */
 import { DocsApiError, docsRequest, type ApiReferenceSettings } from "@/lib/docsSites";
+import { after, guideEvents } from "@/lib/guidesEvents";
 
 export const API_SPEC_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -20,6 +21,10 @@ export interface ApiSpecVersion {
   tags: number;
   servers: string[];
   warnings: string[];
+  /** The same warnings as a title and what to do about it (absent on versions saved before it existed). */
+  notes?: Array<{ title: string; fix: string }> | null;
+  /** The sign-in types its securitySchemes describe ("Bearer", "API key"…); absent on older versions. */
+  auth?: string[] | null;
   size: number;
   sha256: string;
   created_by?: string | null;
@@ -69,4 +74,9 @@ export function restoreApiSpec(siteId: string, versionId: string): Promise<ApiRe
 
 export function removeApiSpec(siteId: string): Promise<ApiReferenceStatus> {
   return docsRequest(`/${enc(siteId)}/api-reference`, { method: "DELETE" });
+}
+
+/** Start from the sample description (a fictional Northwind API), to see what readers get. */
+export function startFromSample(siteId: string): Promise<ApiReferenceStatus> {
+  return docsRequest<ApiReferenceStatus>(`/${enc(siteId)}/api-reference/sample`, { method: "POST" }).then(after(guideEvents.apiSampleUsed));
 }
