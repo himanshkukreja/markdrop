@@ -108,11 +108,20 @@ function assetsKey(assets) {
   return h.digest("hex");
 }
 
-function run(cmd, args, { cwd, env, log }) {
+function run(cmd, args, { cwd, env, log, onOutput }) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
-    child.stdout.on("data", (d) => (out += d));
+    child.stdout.on("data", (d) => {
+      out += d;
+      if (onOutput) {
+        try {
+          onOutput(String(d));
+        } catch {
+          /* progress must never fail a build */
+        }
+      }
+    });
     child.stderr.on("data", (d) => (out += d));
     child.on("exit", (code) => {
       if (log) fs.writeFileSync(log, out);
@@ -310,7 +319,23 @@ export async function build(opts) {
   // 2. next build.
   t = Date.now();
   const env = { DOCS_CONTENT_DIR: contentDir, MARKDROP_DOCS_BUILD_ID: engine, NEXT_TELEMETRY_DISABLED: "1", NODE_ENV: "production" };
-  await run(path.join(stageDir, "node_modules", ".bin", "next"), ["build"], { cwd: stageDir, env, log: path.join(workDir, "next-build.log") });
+  // Progress: Next prints "Generating static pages (x/y)" as it renders them.
+  const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : null;
+  const report = (phase, done, total) => {
+    try {
+      onProgress?.(phase, done, total);
+    } catch {
+      /* progress must never fail a build */
+    }
+  };
+  await run(path.join(stageDir, "node_modules", ".bin", "next"), ["build"], {
+    cwd: stageDir,
+    env,
+    log: path.join(workDir, "next-build.log"),
+    onOutput: onProgress ? (text) => {
+      for (const m of text.matchAll(/Generating static pages[^(\n]*\((\d+)\/(\d+)\)/g)) report("pages", Number(m[1]), Number(m[2]));
+    } : undefined,
+  });
   mark("nextBuild", t);
   log(`next build: ${timings.nextBuild} ms`);
 
@@ -342,6 +367,7 @@ export async function build(opts) {
     stats = await crawl({
       stageDir,
       port,
+      onProgress: onProgress ? (done, total) => report("index", done, total) : undefined,
       haveFile: (p) => !!files[p],
       onRoute: (r) => {
         const type = r.headers["content-type"] || "application/octet-stream";
