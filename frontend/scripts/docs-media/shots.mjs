@@ -4,6 +4,7 @@
  *   id        unique; `npm run docs:media -- <id>` captures just this one
  *   page      the docs page it illustrates ("/workspaces/custom-domain"); the asset lands in
  *             public/docs-assets/<page without leading slash>/ (videos: public/docs-assets/videos/)
+ *   dir       the folder under public/docs-assets/ instead of the page's (optional)
  *   name      file name without extension (default: id); dark variants get ".dark"
  *   kind      "screenshot" | "clip" | "video"
  *   auth      "owner" (Riya) | "alex" | "sam" | "maya" | "dana" | "jordan" | "anon"

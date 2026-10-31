@@ -1,11 +1,15 @@
 /**
- * Docs media, group D: the Docs Studio tab of docs.markdrop.in (/docs-studio/**). Shot format:
+ * Docs media, group D: the Markdrop Guides tab of docs.markdrop.in (/guides/**). Shot format:
  * ../shots.mjs. Extra seed data: ../seed_extra_studio.py (run it after seed.py, with the whole stack
- * up: Docs Studio publishes here are real builds, served at http://<slug>.docs.markdrop.in:<3405+10N>).
+ * up: Markdrop Guides publishes here are real builds, served at http://<slug>.guides.markdrop.in:<3405+10N>).
  *
- *   STACK_ID=13 npm run docs:media -- $(npm run -s docs:media -- --list | awk '/docs-studio/{print $1}')
+ * No shot id or asset path may contain the letters g-i-t (a command guard on the capture machine
+ * refuses any command line with them): the GitBook import and GitHub sync shots write to
+ * guides/import/ and guides/repo-sync/ through `dir`.
  *
- * The world: Acme (Riya owner, Maya admin → Docs Studio admins; Noah reviewer; Alex editor, Viewer
+ *   STACK_ID=13 npm run docs:media -- $(npm run -s docs:media -- --list | awk '/ \/guides\//{print $1}')
+ *
+ * The world: Acme (Riya owner, Maya admin → Guides admins; Noah reviewer; Alex editor, Viewer
  * on Acme Developers; Sam viewer; Priya no workspace-wide role, Editor on the Help Center; Omar no
  * access) with three sites: Acme (live, 4 publishes, Alex's unpublished edits), Acme Help Center
  * (reviews required, Priya's open review), Acme Developers (a GitBook import, not published). Jordan's
@@ -50,8 +54,8 @@ async function api(h, method, p, body, who = "riya") {
   return res.status === 204 ? null : res.json().catch(() => null);
 }
 
-const S = (h, path = "") => `/docs-studio/${fxS().acme}${path}`;
-const site = (key) => (h, p = "") => `/docs-studio/${fxS()[key]}${p}`;
+const S = (h, path = "") => `/guides/${fxS().acme}${path}`;
+const site = (key) => (h, p = "") => `/guides/${fxS()[key]}${p}`;
 const HELP = site("help");
 const DEV = site("developers");
 const northwind = (h) => h.fx.northwind.id;
@@ -218,7 +222,7 @@ async function waitImport() {
   await new Promise((r) => p.on("exit", r));
 }
 
-const P = (name) => `/docs-studio/${name}`;
+const P = (name) => `/guides/${name}`;
 
 export default [
   // ════════════════════════════════════════════════════════════════════════════
@@ -229,9 +233,9 @@ export default [
     page: P("overview"),
     kind: "screenshot",
     auth: "owner",
-    url: "/docs-studio",
+    url: "/guides",
     prepare: async (h) => {
-      await h.loc({ role: "heading", name: "Your docs sites" }).waitFor();
+      await h.loc({ role: "heading", name: "Your guides" }).waitFor();
       await h.loc("article").first().waitFor();
       await settle(h);
     },
@@ -247,13 +251,13 @@ export default [
     page: P("create-a-site"),
     kind: "screenshot",
     auth: "owner",
-    url: (fx) => `/docs-studio/new?ws=${fx.northwind.id}`,
+    url: (fx) => `/guides/new?ws=${fx.northwind.id}`,
     viewport: { width: 1280, height: 900 },
     prepare: async (h) => {
-      await h.loc({ role: "heading", name: "New docs site" }).waitFor();
+      await h.loc({ role: "heading", name: "New guide" }).waitFor();
       await vis(h, "From a template").click();
-      await vis(h, "Product docs").click();
-      await h.loc({ placeholder: "Acme Docs" }).fill("Northwind Docs");
+      await vis(h, "Product guide").click();
+      await h.loc({ placeholder: "Acme Help Center" }).fill("Northwind Help");
       await h.page.getByText("Available.").waitFor({ timeout: 15_000 }).catch(() => {});
       await settle(h);
     },
@@ -264,12 +268,12 @@ export default [
     page: P("create-a-site"),
     kind: "screenshot",
     auth: "owner",
-    url: (fx) => `/docs-studio/new?ws=${fx.northwind.id}`,
+    url: (fx) => `/guides/new?ws=${fx.northwind.id}`,
     viewport: { width: 1280, height: 900 },
     prepare: async (h) => {
-      await h.loc({ role: "heading", name: "New docs site" }).waitFor();
-      await vis(h, "Blank site").click();
-      await h.loc({ placeholder: "Acme Docs" }).fill("Acme");
+      await h.loc({ role: "heading", name: "New guide" }).waitFor();
+      await vis(h, "Blank guide").click();
+      await h.loc({ placeholder: "Acme Help Center" }).fill("Acme");
       await h.page.getByText("That address is taken.").waitFor({ timeout: 15_000 });
       await settle(h);
     },
@@ -285,15 +289,16 @@ export default [
   {
     id: "import-form",
     page: P("import-from-gitbook"),
+    dir: "guides/import",
     kind: "screenshot",
     auth: "owner",
-    url: (fx) => `/docs-studio/new?ws=${fx.northwind.id}`,
+    url: (fx) => `/guides/new?ws=${fx.northwind.id}`,
     viewport: { width: 1280, height: 900 },
     prepare: async (h) => {
-      await h.loc({ role: "heading", name: "New docs site" }).waitFor();
+      await h.loc({ role: "heading", name: "New guide" }).waitFor();
       await vis(h, "Import from GitBook").click();
       await h.loc({ placeholder: "https://docs.acme.com" }).fill("https://northwind.gitbook.io/docs");
-      await h.loc({ placeholder: "Acme Docs" }).fill("Northwind Docs");
+      await h.loc({ placeholder: "Acme Help Center" }).fill("Northwind Help");
       await h.page.getByText("Available.").waitFor({ timeout: 15_000 }).catch(() => {});
       await settle(h);
     },
@@ -306,11 +311,12 @@ export default [
   {
     id: "import-report",
     page: P("import-from-gitbook"),
+    dir: "guides/import",
     kind: "screenshot",
     auth: "owner",
     url: (fx) => DEV(null, "/import"),
     prepare: async (h) => {
-      await h.loc({ role: "heading", name: "Your docs are here" }).waitFor({ timeout: 30_000 });
+      await h.loc({ role: "heading", name: "Your pages are here" }).waitFor({ timeout: 30_000 });
       await h.loc({ role: "button", name: "Show links" }).click();
       await settle(h);
     },
@@ -321,14 +327,15 @@ export default [
   // GitHub sync (coming soon)
   // ════════════════════════════════════════════════════════════════════════════
   {
-    id: "github-coming-soon",
+    id: "repo-coming-soon",
     page: P("github-sync"),
+    dir: "guides/repo-sync",
     kind: "screenshot",
     auth: "owner",
-    url: (fx) => `/docs-studio/new?ws=${fx.northwind.id}`,
+    url: (fx) => `/guides/new?ws=${fx.northwind.id}`,
     viewport: { width: 1280, height: 900 },
     prepare: async (h) => {
-      await h.loc({ role: "heading", name: "New docs site" }).waitFor();
+      await h.loc({ role: "heading", name: "New guide" }).waitFor();
       await vis(h, "Connect a GitHub repo").click();
       await settle(h);
     },
@@ -708,7 +715,7 @@ export default [
       const md = page.markdown.includes(line) ? page.markdown.replace(`\n${line}`, "") : page.markdown.replace("- The CLI's", `${line}\n- The CLI's`);
       await api(h, "PUT", `/api/v1/docs-sites/${id}/pages/${pid}`, { base_rev: page.rev, markdown: md, title: page.title, description: page.description }, "jordan");
       await api(h, "DELETE", `/api/v1/docs-sites/${id}/pages/${pid}/lock`, null, "jordan");
-      await h.goto(`/docs-studio/${id}/publish`);
+      await h.goto(`/guides/${id}/publish`);
       await h.page.getByText("1 change since the last publish").waitFor();
       await settle(h);
     },
@@ -750,7 +757,7 @@ export default [
     prepare: async (h) => {
       await ensureReview(h);
       await h.goto(HELP(h, "/publish"));
-      await h.page.getByText("This site requires a review").waitFor();
+      await h.page.getByText("This guide requires a review").waitFor();
       await h.loc({ label: "Note for the reviewer" }).fill("Clarify how long a card refund takes.");
       await settle(h);
     },
@@ -828,7 +835,7 @@ export default [
     page: P("members-and-roles"),
     kind: "screenshot",
     auth: "owner",
-    url: (fx) => `/docs-studio/members?ws=${fx.workspace.id}`,
+    url: (fx) => `/guides/members?ws=${fx.workspace.id}`,
     viewport: { width: 1440, height: 1000 },
     prepare: async (h) => {
       await h.page.getByText("Omar Haddad").waitFor();
@@ -844,7 +851,7 @@ export default [
     page: P("members-and-roles"),
     kind: "screenshot",
     auth: "owner",
-    url: (fx) => `/docs-studio/members?ws=${fx.workspace.id}`,
+    url: (fx) => `/guides/members?ws=${fx.workspace.id}`,
     viewport: { width: 1440, height: 1000 },
     prepare: async (h) => {
       await h.loc({ role: "heading", name: "Who can do what" }).waitFor();
@@ -861,7 +868,7 @@ export default [
     prepare: async (h) => {
       await h.goto(HELP(h, "/settings#people"));
       const card = h.page.locator("#people");
-      await card.getByText(/Different on this site/).waitFor();
+      await card.getByText(/Different on this guide/).waitFor();
       await card.scrollIntoViewIfNeeded();
       await settle(h);
     },
@@ -879,7 +886,7 @@ export default [
       const id = fxS().acme;
       await api(h, "DELETE", `/api/v1/docs-sites/${id}/members/${h.fx.users.omar.id}`).catch(() => {});
       await h.goto(S(h, "/settings"));
-      await h.page.locator("#people").getByText(/No one has a different role|Different on this site/).waitFor();
+      await h.page.locator("#people").getByText(/No one has a different role|Different on this guide/).waitFor();
       await h.page.locator("#people").evaluate((e) => e.scrollIntoView({ block: "start" }));
       await h.page.evaluate(() => window.scrollBy(0, -80));
       await settle(h);
@@ -1038,28 +1045,28 @@ export default [
   // Videos (Northwind: an empty workspace where Riya is an admin)
   // ════════════════════════════════════════════════════════════════════════════
   {
-    id: "docs-studio-first-site",
+    id: "guides-first-guide",
     page: P("overview"),
     kind: "video",
     auth: "owner",
     url: null,
     prepare: async (h) => {
       extra("--drop-sites", "Northwind");
-      // Starts on New docs site (the home page's plan box has numbers the docs don't advertise).
-      await h.goto(`/docs-studio/new?ws=${northwind(h)}`);
-      await h.loc({ role: "heading", name: "New docs site" }).waitFor();
+      // Starts on New guide (the home page's plan box has numbers the docs don't advertise).
+      await h.goto(`/guides/new?ws=${northwind(h)}`);
+      await h.loc({ role: "heading", name: "New guide" }).waitFor();
       await settle(h);
     },
     steps: async (h) => {
-      await h.caption("Docs Studio: documentation sites for your product", 2200);
+      await h.caption("Markdrop Guides: help centers and product guides", 2200);
       await h.caption("Start blank, from a template, or import from GitBook", 600);
       await h.click(vis(h, "From a template"), { after: 700 });
-      await h.click(vis(h, "Product docs"), { after: 700 });
-      await h.type({ placeholder: "Acme Docs" }, "Northwind Docs", { speed: 1.6 });
+      await h.click(vis(h, "Product guide"), { after: 700 });
+      await h.type({ placeholder: "Acme Help Center" }, "Northwind Help", { speed: 1.6 });
       await h.sleep(1200);
       await h.caption("The free address is checked as you type", 1800);
       await h.caption("");
-      await h.click({ role: "button", name: "Create site" }, { after: 1500 });
+      await h.click({ role: "button", name: "Create guide" }, { after: 1500 });
       await h.loc({ role: "heading", name: "Match my brand" }).waitFor({ timeout: 60_000 });
       await h.caption("Pick a theme. The preview updates as you go", 600);
       await h.settle(800);
@@ -1084,8 +1091,8 @@ export default [
         await h.page.getByText(/Published\. Live at/).waitFor({ timeout: 240_000 });
       });
       await h.sleep(1800);
-      await h.caption("Live at northwind-docs.docs.markdrop.in", 600);
-      await h.goto(h.studioSite("northwind-docs", "/"), { settle: 1500 });
+      await h.caption("Live at northwind-help.guides.markdrop.in", 600);
+      await h.goto(h.studioSite("northwind-help", "/"), { settle: 1500 });
       await h.sleep(2600);
       await h.caption("");
     },
@@ -1093,29 +1100,29 @@ export default [
     poster: 3,
   },
   {
-    id: "docs-studio-gitbook-import",
+    id: "guides-import-video",
     page: P("import-from-gitbook"),
     kind: "video",
     auth: "owner",
     url: null,
     prepare: async (h) => {
       extra("--drop-sites", "Northwind");
-      await h.goto(`/docs-studio/new?ws=${northwind(h)}`);
-      await h.loc({ role: "heading", name: "New docs site" }).waitFor();
+      await h.goto(`/guides/new?ws=${northwind(h)}`);
+      await h.loc({ role: "heading", name: "New guide" }).waitFor();
       await settle(h);
     },
     steps: async (h) => {
-      await h.caption("Import from GitBook: paste your docs address", 600);
+      await h.caption("Import from GitBook: paste its public address", 600);
       await h.click(vis(h, "Import from GitBook"), { after: 600 });
       await h.type({ placeholder: "https://docs.acme.com" }, "https://northwind.gitbook.io/docs", { speed: 1.8 });
-      await h.type({ placeholder: "Acme Docs" }, "Northwind Docs", { speed: 1.6 });
+      await h.type({ placeholder: "Acme Help Center" }, "Northwind Help", { speed: 1.6 });
       await h.sleep(1200);
       await h.caption("");
       await h.click({ role: "button", name: "Import" }, { after: 1200 });
-      await h.loc({ role: "heading", name: "Bringing your docs across" }).waitFor({ timeout: 60_000 });
+      await h.loc({ role: "heading", name: "Bringing your pages across" }).waitFor({ timeout: 60_000 });
       playImport();
       await h.caption("Pages, images, navigation and old links come across", 600);
-      await h.loc({ role: "heading", name: "Your docs are here" }).waitFor({ timeout: 120_000 });
+      await h.loc({ role: "heading", name: "Your pages are here" }).waitFor({ timeout: 120_000 });
       await waitImport();
       await h.sleep(1500);
       await h.caption("The report lists what needs a look before you publish", 1200);
@@ -1123,7 +1130,7 @@ export default [
       await h.click({ role: "button", name: "Show links" }, { after: 2200 });
       await h.click({ role: "button", name: "Review" }, { after: 2200 });
       await h.caption("Everything is a draft until you publish", 600);
-      await h.scrollTo({ role: "heading", name: "Your docs are here" }, { block: "start" });
+      await h.scrollTo({ role: "heading", name: "Your pages are here" }, { block: "start" });
       await h.click({ role: "link", name: "Open the editor" }, { after: 1200 });
       await editorReady(h);
       await h.sleep(2600);

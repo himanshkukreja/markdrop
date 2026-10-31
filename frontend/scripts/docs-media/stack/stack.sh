@@ -13,7 +13,7 @@
 #   sandbox API       :8180                    :8180 + 10N
 #   artifact Worker   :8787                    :8787 + 10N
 #   next dev          :3400                    :3400 + 10N   (distDir .next-docs-media-N)
-#   Docs Studio sites :3405                    :3405 + 10N   (docs-platform server over .data/docs-store;
+#   Markdrop Guides sites :3405                    :3405 + 10N   (docs-platform server over .data/docs-store;
 #                                                             builds crawl on :3406 + 10N)
 #   Mongo db          markdrop_docs_demo       markdrop_docs_demo_N   (same mongod, :27019)
 #   data folder       .data/                   .data/N/   (r2, outbox, dns, fixtures.json, logs, pids)
@@ -158,16 +158,16 @@ cmd_start() {
     wait_port $WORKER_PORT 20 Worker && echo "  ✓ Worker       http://127.0.0.1:$WORKER_PORT"
   fi
 
-  # Docs Studio: the job worker (builds, imports, restores) and the server for published sites
+  # Markdrop Guides: the job worker (builds, imports, restores) and the server for published sites
   if ours docsworker; then
-    echo "  ✓ Docs Studio worker already running"
+    echo "  ✓ Markdrop Guides worker already running"
   else
     start_bg docsworker "$LOGS/docsworker.log" "$PY" "$HERE/run_docs_worker.py"
-    echo "  ✓ Docs Studio worker (log: $LOGS/docsworker.log)"
+    echo "  ✓ Markdrop Guides worker (log: $LOGS/docsworker.log)"
   fi
   if port_up $SITES_PORT; then
     ours sites || taken sites $SITES_PORT
-    echo "  ✓ Docs Studio sites already on :$SITES_PORT"
+    echo "  ✓ Markdrop Guides sites already on :$SITES_PORT"
   else
     PLATFORM="$REPO/docs-platform"
     if [ ! -e "$PLATFORM/node_modules" ]; then
@@ -176,7 +176,7 @@ cmd_start() {
     [ -f "$PLATFORM/edge/dist/handler.mjs" ] || (cd "$PLATFORM" && node builder/cli.mjs bundle >"$LOGS/sites-bundle.log" 2>&1)
     mkdir -p "$DATA/docs-store"
     start_bg sites "$LOGS/sites.log" node "$PLATFORM/server/server.mjs" serve --store "$DATA/docs-store" --port $SITES_PORT
-    wait_port $SITES_PORT 20 "Docs Studio sites" && echo "  ✓ Docs Studio sites http://<slug>.docs.markdrop.in:$SITES_PORT (capture browser)"
+    wait_port $SITES_PORT 20 "Markdrop Guides sites" && echo "  ✓ Markdrop Guides sites http://<slug>.guides.markdrop.in:$SITES_PORT (capture browser)"
   fi
 
   # Next
