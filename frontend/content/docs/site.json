@@ -19,8 +19,8 @@
   "headline": "Drop it. It renders. Here’s everything it can do.",
   "tabs": [
     {
-      "id": "guides",
-      "label": "Guides",
+      "id": "platform",
+      "label": "Using Markdrop",
       "href": "/"
     },
     {
@@ -39,9 +39,9 @@
       "href": "/ai/overview"
     },
     {
-      "id": "docs-studio",
-      "label": "Docs Studio",
-      "href": "/docs-studio/overview"
+      "id": "guides",
+      "label": "Markdrop Guides",
+      "href": "/guides/overview"
     },
     {
       "id": "changelog",
@@ -118,7 +118,7 @@
     {
       "group": "Get started",
       "icon": "home",
-      "tab": "guides",
+      "tab": "platform",
       "pages": [
         "/get-started/what-is-markdrop",
         "/get-started/first-document",
@@ -130,7 +130,7 @@
     {
       "group": "Documents",
       "icon": "doc",
-      "tab": "guides",
+      "tab": "platform",
       "pages": [
         "/documents/writing",
         "/documents/addresses",
@@ -143,7 +143,7 @@
     {
       "group": "Files",
       "icon": "film",
-      "tab": "guides",
+      "tab": "platform",
       "pages": [
         "/files/supported-types",
         "/files/limits",
@@ -157,7 +157,7 @@
     {
       "group": "Sharing and access",
       "icon": "lock",
-      "tab": "guides",
+      "tab": "platform",
       "pages": [
         "/sharing/who-can-open",
         "/sharing/share-with-people",
@@ -168,7 +168,7 @@
     {
       "group": "Workspaces and domains",
       "icon": "globe",
-      "tab": "guides",
+      "tab": "platform",
       "pages": [
         "/workspaces/create",
         "/workspaces/members-and-roles",
@@ -183,7 +183,7 @@
     {
       "group": "Analytics",
       "icon": "table",
-      "tab": "guides",
+      "tab": "platform",
       "new": true,
       "pages": [
         "/analytics/overview",
@@ -197,7 +197,7 @@
     {
       "group": "Send files peer to peer",
       "icon": "wave",
-      "tab": "guides",
+      "tab": "platform",
       "pages": [
         "/share/send-files",
         "/share/troubleshooting"
@@ -206,7 +206,7 @@
     {
       "group": "VS Code",
       "icon": "edit",
-      "tab": "guides",
+      "tab": "platform",
       "pages": [
         "/vscode/sync",
         "/vscode/conflicts",
@@ -216,7 +216,7 @@
     {
       "group": "Account",
       "icon": "user",
-      "tab": "guides",
+      "tab": "platform",
       "pages": [
         "/account/limits",
         "/account/api-tokens",
@@ -226,7 +226,7 @@
     {
       "group": "Security and privacy",
       "icon": "eye",
-      "tab": "guides",
+      "tab": "platform",
       "pages": [
         "/security/how-files-are-served",
         "/security/privacy"
@@ -235,7 +235,7 @@
     {
       "group": "Help",
       "icon": "info",
-      "tab": "guides",
+      "tab": "platform",
       "pages": [
         "/help/troubleshooting",
         "/help/faq"
@@ -277,68 +277,68 @@
     {
       "group": "Start here",
       "icon": "layers",
-      "tab": "docs-studio",
+      "tab": "guides",
       "new": true,
       "pages": [
-        "/docs-studio/overview",
-        "/docs-studio/create-a-site",
-        "/docs-studio/import-from-gitbook",
-        "/docs-studio/github-sync"
+        "/guides/overview",
+        "/guides/create-a-site",
+        "/guides/import-from-gitbook",
+        "/guides/github-sync"
       ]
     },
     {
       "group": "Write",
       "icon": "edit",
-      "tab": "docs-studio",
+      "tab": "guides",
       "pages": [
-        "/docs-studio/editor",
-        "/docs-studio/pages-and-navigation",
-        "/docs-studio/history"
+        "/guides/editor",
+        "/guides/pages-and-navigation",
+        "/guides/history"
       ]
     },
     {
       "group": "Design",
       "icon": "image",
-      "tab": "docs-studio",
+      "tab": "guides",
       "pages": [
-        "/docs-studio/themes",
-        "/docs-studio/brand-and-style"
+        "/guides/themes",
+        "/guides/brand-and-style"
       ]
     },
     {
       "group": "Publish",
       "icon": "send",
-      "tab": "docs-studio",
+      "tab": "guides",
       "pages": [
-        "/docs-studio/publishing",
-        "/docs-studio/reviews"
+        "/guides/publishing",
+        "/guides/reviews"
       ]
     },
     {
       "group": "Team and settings",
       "icon": "users",
-      "tab": "docs-studio",
+      "tab": "guides",
       "pages": [
-        "/docs-studio/members-and-roles",
-        "/docs-studio/site-settings",
-        "/docs-studio/ask-ai"
+        "/guides/members-and-roles",
+        "/guides/site-settings",
+        "/guides/ask-ai"
       ]
     },
     {
       "group": "Readers and hosting",
       "icon": "globe",
-      "tab": "docs-studio",
+      "tab": "guides",
       "pages": [
-        "/docs-studio/what-readers-get",
-        "/docs-studio/self-hosting"
+        "/guides/what-readers-get",
+        "/guides/self-hosting"
       ]
     },
     {
       "group": "Help",
       "icon": "info",
-      "tab": "docs-studio",
+      "tab": "guides",
       "pages": [
-        "/docs-studio/faq"
+        "/guides/faq"
       ]
     }
   ],

@@ -1,0 +1,22 @@
+{
+  "/guides": "/guides/overview",
+  "/docs-studio": "/guides/overview",
+  "/docs-studio/ask-ai": "/guides/ask-ai",
+  "/docs-studio/brand-and-style": "/guides/brand-and-style",
+  "/docs-studio/create-a-site": "/guides/create-a-site",
+  "/docs-studio/editor": "/guides/editor",
+  "/docs-studio/faq": "/guides/faq",
+  "/docs-studio/github-sync": "/guides/github-sync",
+  "/docs-studio/history": "/guides/history",
+  "/docs-studio/import-from-gitbook": "/guides/import-from-gitbook",
+  "/docs-studio/members-and-roles": "/guides/members-and-roles",
+  "/docs-studio/overview": "/guides/overview",
+  "/docs-studio/pages-and-navigation": "/guides/pages-and-navigation",
+  "/docs-studio/publishing": "/guides/publishing",
+  "/docs-studio/reviews": "/guides/reviews",
+  "/docs-studio/self-hosting": "/guides/self-hosting",
+  "/docs-studio/site-settings": "/guides/site-settings",
+  "/docs-studio/themes": "/guides/themes",
+  "/docs-studio/what-readers-get": "/guides/what-readers-get",
+  "/changelog/docs-studio-beta": "/changelog/guides-beta"
+}
