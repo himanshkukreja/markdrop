@@ -29,7 +29,7 @@ const viewsOf = (ins: CardInsights) => (ins.state === "ok" && ins.data?.enabled 
 function OpenButton({ site, className, block }: { site: SiteSummary; className?: string; block?: boolean }) {
   return (
     <span onPointerEnter={preloadDocsEditor} onFocus={preloadDocsEditor} className={className}>
-      <Button variant="secondary" size="sm" iconLeft="edit" href={siteBase(site.id)} block={block}>
+      <Button variant="secondary" size="sm" iconLeft="edit" href={siteBase(site.id)} block={block} aria-label={`${canEditRole(site.your_role) ? "Open editor for" : "Open"} ${site.name}`}>
         {canEditRole(site.your_role) ? "Open editor" : "Open"}
       </Button>
     </span>
@@ -108,13 +108,13 @@ function Meta({ site, where, extra, className }: { site: SiteSummary; where: str
   const change = lastChange(site);
   return (
     <div className={cx("flex min-w-0 items-center gap-2 text-[12px] leading-4 text-text-muted", className)}>
-      <span className="inline-flex min-w-0 items-center gap-1" title={site.workspace_id ? `In the ${where} workspace` : "Your personal guide"}>
+      <span className="inline-flex min-w-[3rem] shrink-[3] items-center gap-1" title={site.workspace_id ? `In the ${where} workspace` : "Your personal guide"}>
         <Icon name={site.workspace_id ? "folder" : "user"} size={12} className="shrink-0" />
         <span className="ph-sensitive ph-mask truncate" dir="auto">{where}</span>
       </span>
       <span aria-hidden>·</span>
       <span className="shrink-0">{plural(site.page_count, "page")}</span>
-      {extra ? <><span aria-hidden>·</span><span className="min-w-0 truncate" title={extra}>{extra}</span></> : <><span aria-hidden className="max-sm:hidden">·</span><span className="shrink-0 whitespace-nowrap max-sm:hidden" title={change}>{change}</span></>}
+      {extra ? <><span aria-hidden>·</span><span className={extra.length < 18 ? "shrink-0 whitespace-nowrap" : "min-w-0 truncate"} title={extra}>{extra}</span></> : <><span aria-hidden className="max-sm:hidden">·</span><span className="shrink-0 whitespace-nowrap max-sm:hidden" title={change}>{change}</span></>}
     </div>
   );
 }
@@ -133,7 +133,7 @@ function Numbers({ ins, compact }: { ins: CardInsights; compact?: boolean }) {
     <div className="flex min-w-0 items-center gap-3">
       {v && !compact && <Sparkline values={v.views} days={days} />}
       <span className="shrink-0 text-[12px] text-text-secondary"><strong className="font-semibold text-text">{v ? num(v.views_total) : "—"}</strong> views</span>
-      <span className="min-w-0 truncate text-[12px] text-text-secondary">
+      <span className="min-w-0 truncate text-[12px] text-text-secondary" title={v && v.helpful_pct !== null ? `${v.helpful_pct}% of readers who voted found it helpful` : undefined}>
         {v && v.helpful_pct === null
           ? "No feedback yet"
           : <><strong className="font-semibold text-text">{v ? `${v.helpful_pct}%` : "—"}</strong> found it helpful</>}
@@ -211,8 +211,8 @@ export function GuideRow({ site, where, insights, canManagePeople, onDelete }: G
         </div>
         <Address site={site} />
       </div>
-      <Meta site={site} where={where} className="w-[300px] shrink-0 max-xl:hidden" />
-      <div className="flex w-[300px] min-w-0 shrink-0 items-center max-lg:hidden">
+      <Meta site={site} where={where} className="w-[250px] shrink-0 max-xl:hidden" />
+      <div className="flex w-[290px] min-w-0 shrink-0 items-center max-lg:hidden">
         {showNumbers ? <Numbers ins={insights} /> : <Note text={note ?? "Live"} />}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1.5">

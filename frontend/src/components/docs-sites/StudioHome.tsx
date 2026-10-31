@@ -124,7 +124,7 @@ function StartTile({ scope, bar }: { scope: StudioScope | null; bar?: boolean })
     );
   }
   return (
-    <div className="flex min-h-[360px] flex-col justify-center gap-3.5 rounded-xl border-[1.5px] border-dashed border-border-strong p-6">
+    <div className="flex h-full min-h-[240px] flex-col justify-center gap-3.5 rounded-xl border-[1.5px] border-dashed border-border-strong p-6">
       <span className="grid size-10 place-items-center rounded-lg bg-accent-soft text-accent-text" aria-hidden><Icon name="plus" size={20} /></span>
       <span className="flex flex-col gap-1">
         <Anchor href={studioNew(scope)} className="md-focus self-start rounded text-[16px] font-semibold leading-6 text-text no-underline hover:underline">Start a new guide</Anchor>
@@ -394,7 +394,7 @@ export default function StudioHome() {
                   ) : null}
                   <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 max-sm:gap-3 ${layout === "list" ? "sm:hidden" : ""}`}>
                     {shown.map((s) => <GuideCard key={s.id} site={s} where={where(s)} insights={cardIns(s)} canManagePeople={managesPeople(s)} {...item} />)}
-                    {showStart && layout === "cards" && <div className="max-sm:hidden"><StartTile scope={newScope} /></div>}
+                    {showStart && layout === "cards" && <div className="h-full max-sm:hidden"><StartTile scope={newScope} /></div>}
                   </div>
                   {showStart && <div className={layout === "cards" ? "sm:hidden" : ""}><StartTile scope={newScope} bar /></div>}
                 </>

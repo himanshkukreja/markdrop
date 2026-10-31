@@ -10,7 +10,7 @@ export const STARTS: Array<{ start: NewGuideStart; icon: string; title: string; 
   { start: "blank", icon: "doc", title: "Blank guide", short: "Blank", note: "A home page and the editor. Add pages as you go." },
   { start: "template", icon: "builder", title: "From a template", short: "Template", note: "Help center, product guide or API reference, ready to fill in." },
   { start: "gitbook", icon: "download", title: "Import from GitBook", short: "GitBook", note: "Paste your docs address. Pages, images and old links come across." },
-  { start: "openapi", icon: "code", title: "API reference", short: "OpenAPI", note: "Start from the API reference template, then add your OpenAPI file. Readers get every endpoint and Try it." },
+  { start: "openapi", icon: "code", title: "API reference", short: "OpenAPI", note: "The API reference template: add your OpenAPI file, and readers get every endpoint and Try it." },
 ];
 
 const GETS: Array<{ icon: string; title: string; note: string }> = [

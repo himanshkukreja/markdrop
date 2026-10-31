@@ -181,7 +181,7 @@ export function GuideSearch({ compact }: { compact?: boolean }) {
         )}
       </div>
       <IconButton icon="search" label="Search guides" className="md:hidden" aria-haspopup="dialog" onClick={() => setDialog(true)} />
-      <Dialog open={dialog} onClose={() => { setDialog(false); setQuery(""); }} title="Search guides" initialFocus={dialogInput} size="md">
+      <Dialog open={dialog} onClose={() => { setDialog(false); setQuery(""); }} title="Search guides" initialFocus={dialogInput} size="md" className="min-w-0">
         <div className="flex flex-col gap-3">
           <label className="flex h-11 items-center gap-2 rounded-lg border border-border-strong bg-surface-inset px-3 text-text-muted focus-within:border-border-focus">
             <Icon name="search" size={16} className="shrink-0" />
