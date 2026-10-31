@@ -221,7 +221,7 @@ export default function VisualEditor(props: VisualEditorProps) {
             <FormatToolbar editor={editor} />
             <BlockHandle editor={editor} container={wrap} />
             <TableBar editor={editor} container={wrap} />
-            <SlashMenu store={slash} listboxId={listboxId} />
+            <SlashMenu store={slash} listboxId={listboxId} stickyTop={stickyTop} />
           </>
         )}
         <datalist id="dxe-code-langs">

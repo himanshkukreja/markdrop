@@ -125,21 +125,31 @@ export function openSlashAt(editor: Editor, pos: number) {
   editor.chain().focus().insertContentAt(pos, { type: "paragraph" }).setTextSelection(pos + 1).insertContent("/").run();
 }
 
-export function SlashMenu({ store, listboxId }: { store: SlashStore; listboxId: string }) {
+export function SlashMenu({ store, listboxId, stickyTop }: { store: SlashStore; listboxId: string; stickyTop?: () => number }) {
   const s = useSyncExternalStore(store.subscribe, store.get, store.get);
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number } | null>(null);
   const [tick, setTick] = useState(0);
 
-  // Below the "/" (above it when there's no room), following it when the page scrolls.
+  // Below the "/" (above it when there's more room there), following it when the page scrolls. Never
+  // over the host's sticky bars (stickyTop): a taller list than the room scrolls inside.
   useLayoutEffect(() => {
     const rect = s.open ? s.getRect?.() : null;
-    if (!rect || !ref.current) return;
-    const h = ref.current.offsetHeight, w = ref.current.offsetWidth;
-    const below = rect.bottom + 6;
-    const top = below + h > window.innerHeight - 8 && rect.top - h - 6 > 8 ? rect.top - h - 6 : below;
-    setPos({ left: Math.max(8, Math.min(rect.left, window.innerWidth - w - 8)), top });
-  }, [s, tick]);
+    const el = ref.current;
+    if (!rect || !el) return;
+    const cap = Math.min(380, window.innerHeight * 0.6); // .dxe-slash max-height
+    const h = Math.min(el.scrollHeight, cap), w = el.offsetWidth;
+    const below = window.innerHeight - 8 - (rect.bottom + 6);
+    const above = rect.top - 6 - ((stickyTop?.() ?? 0) + 8);
+    const down = below >= h || below >= above;
+    const room = Math.max(120, down ? below : above);
+    const height = Math.min(h, room);
+    setPos({
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - w - 8)),
+      top: down ? rect.bottom + 6 : rect.top - 6 - height,
+      maxHeight: height < h ? height : undefined,
+    });
+  }, [s, tick, stickyTop]);
 
   useEffect(() => {
     if (!s.open) return;
@@ -161,7 +171,7 @@ export function SlashMenu({ store, listboxId }: { store: SlashStore; listboxId: 
     <div
       ref={ref}
       className="dxe-slash"
-      style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999 }}
+      style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, maxHeight: pos?.maxHeight }}
       onMouseDown={(e) => e.preventDefault()} // keep focus (and the selection) in the editor
     >
       {s.items.length ? (
