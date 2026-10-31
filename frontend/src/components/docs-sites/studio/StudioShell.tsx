@@ -40,7 +40,7 @@ function SiteSwitcher() {
       items.push({ header: <span className="text-caption font-semibold uppercase tracking-wide text-text-muted">{g.name}</span>, separated: items.length > 0 });
       for (const s of g.sites) {
         items.push({
-          label: <span className="truncate" dir="auto">{s.name}</span>,
+          label: <span className="truncate" dir="auto" title={s.name}>{s.name}</span>,
           href: siteBase(s.id),
           tile: <SiteTile site={s} size={20} />,
           description: roleLabel(s.your_role),
@@ -65,7 +65,7 @@ function SiteSwitcher() {
           aria-label={`${current.name}: switch docs site`}
         >
           <SiteTile site={current} size={22} />
-          <span className="min-w-0 max-w-[38vw] truncate text-body-strong sm:max-w-[260px]" dir="auto">{current.name}</span>
+          <span className="min-w-0 max-w-[38vw] truncate text-body-strong sm:max-w-[260px]" dir="auto" title={current.name}>{current.name}</span>
           <Icon name="chevronDown" size={14} className="shrink-0 text-text-muted" />
         </button>
       }

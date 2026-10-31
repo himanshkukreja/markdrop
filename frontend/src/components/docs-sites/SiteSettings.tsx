@@ -199,7 +199,7 @@ export default function SiteSettings() {
           {(site.domains ?? []).map((d) => (
             <div key={d.host} className="flex items-center gap-2.5 rounded-lg border border-border px-3.5 py-3">
               <Icon name="globe" size={16} />
-              <code className="min-w-0 flex-1 truncate font-mono text-text">{d.host}</code>
+              <code className="min-w-0 flex-1 truncate font-mono text-text" title={d.host}>{d.host}</code>
               <Badge tone={d.status === "live" || d.status === "verified" ? "success" : d.status === "failed" ? "danger" : "warning"} size="sm" dot>
                 {d.status === "live" || d.status === "verified" ? "Live" : d.status === "failed" ? "Failed" : "Pending"}
               </Badge>

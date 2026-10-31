@@ -108,7 +108,7 @@ export function PageTree({
                   )}
                 >
                   <span className="inline-flex shrink-0 text-text-muted"><Icon name={iconName(p.icon)} size={14} /></span>
-                  <span className="min-w-0 flex-1 truncate" dir="auto">{p.title || "Untitled"}</span>
+                  <span className="min-w-0 flex-1 truncate" dir="auto" title={p.title || undefined}>{p.title || "Untitled"}</span>
                   {lockedByOther && (
                     <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-warning" title={`${p.lock!.name} is editing`}>
                       <Icon name="lock" size={12} />

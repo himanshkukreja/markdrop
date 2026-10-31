@@ -29,11 +29,11 @@ function MemberRow({ m, you, busy, onChange }: { m: StudioMember; you: boolean; 
     <li className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-t border-border px-4 py-3 first:border-t-0 sm:px-5">
       <Avatar name={m.name || m.email || "?"} src={m.picture || undefined} size="md" />
       <div className="min-w-0 flex-[1_1_200px]">
-        <div className="truncate text-body-strong text-text" dir="auto">
+        <div className="truncate text-body-strong text-text" dir="auto" title={m.name || undefined}>
           {m.name}
           {you && <span className="font-normal text-text-muted"> (you)</span>}
         </div>
-        <div className="truncate text-[12.5px] text-text-muted">
+        <div className="truncate text-[12.5px] text-text-muted" title={m.email || undefined}>
           {m.email}{m.email ? " · " : ""}{WS_ROLE[m.workspace_role ?? ""] ?? "Workspace member"}
         </div>
         {(granted || m.site_overrides.length > 0) && (

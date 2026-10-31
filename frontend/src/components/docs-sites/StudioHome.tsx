@@ -44,7 +44,7 @@ export function SiteCard({ site }: { site: SiteSummary }) {
       <SiteThumb preset={site.preset} />
       <div className="flex min-w-0 flex-1 flex-col gap-2.5 px-[18px] pb-[18px] pt-4">
         <div className="flex min-w-0 items-center gap-2">
-          <h3 className="min-w-0 flex-1 truncate text-[16px] font-semibold leading-6 text-text" dir="auto">{site.name}</h3>
+          <h3 className="min-w-0 flex-1 truncate text-[16px] font-semibold leading-6 text-text" dir="auto" title={site.name}>{site.name}</h3>
           <Badge tone={st.tone} size="sm" dot>{st.label}</Badge>
         </div>
         {site.workspace_id && site.your_role_source === "site" && (
@@ -167,7 +167,7 @@ export default function StudioHome() {
         return (
           <section key={g.scope} aria-labelledby={`grp-${g.scope}`} className="flex flex-col gap-3.5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border pb-2.5">
-              <h2 id={`grp-${g.scope}`} className="min-w-0 truncate text-[17px] font-semibold text-text" dir="auto">{g.name}</h2>
+              <h2 id={`grp-${g.scope}`} className="min-w-0 truncate text-[17px] font-semibold text-text" dir="auto" title={g.name}>{g.name}</h2>
               {ws && <RoleBadge role={ws.your_role} title="Your Docs Studio role in this workspace" />}
               {usage && (
                 <Meter

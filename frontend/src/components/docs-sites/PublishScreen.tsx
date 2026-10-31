@@ -278,7 +278,7 @@ export default function PublishScreen() {
                 <li key={c.id} className={`flex items-center gap-3 px-4 py-3 ${i ? "border-t border-border" : ""}`}>
                   <Badge tone={KIND[c.change]?.tone ?? "neutral"} size="sm">{KIND[c.change]?.label ?? "Changed"}</Badge>
                   <span className="min-w-0 flex-1">
-                    <strong className="block truncate font-semibold text-text" dir="auto">{c.title}</strong>
+                    <strong className="block truncate font-semibold text-text" dir="auto" title={c.title}>{c.title}</strong>
                     <span className="block text-[12px] text-text-muted">{changeMeta(c)}</span>
                   </span>
                   {c.change !== "deleted" && (
@@ -399,7 +399,7 @@ export default function PublishScreen() {
                   <li key={b.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${i ? "border-t border-border" : ""}`}>
                     <Avatar name={b.requested_by_name || "Someone"} size="sm" />
                     <span className="min-w-0 flex-[1_1_220px]">
-                      <strong className="block truncate font-semibold text-text" dir="auto">{buildTitle(b)}</strong>
+                      <strong className="block truncate font-semibold text-text" dir="auto" title={buildTitle(b)}>{buildTitle(b)}</strong>
                       <span className="block text-[12px] text-text-muted">
                         {isRunning ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} /> {stage[b.id] || `${STAGE[b.status]}…`}</span> : buildMeta(b, b.id === oldest)}
                       </span>

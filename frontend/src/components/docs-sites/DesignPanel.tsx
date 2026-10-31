@@ -199,7 +199,7 @@ export default function DesignPanel() {
                 </span>
               )}
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <strong className="truncate font-semibold text-text">{logoName ?? "No logo yet"}</strong>
+                <strong className="truncate font-semibold text-text" title={logoName ?? undefined}>{logoName ?? "No logo yet"}</strong>
                 <span className="text-[12px] text-text-muted">
                   {!theme.brand.colors.length ? "Upload your logo and we'll pick up its colours" : theme.brand.logo_url ? "Colours found in your logo" : "Your brand colours"}
                 </span>

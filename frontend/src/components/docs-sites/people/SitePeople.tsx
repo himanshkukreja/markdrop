@@ -19,7 +19,7 @@ function Person({ p, you, children, meta }: { p: SitePerson; you: boolean; child
     <li className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-t border-border py-2.5 first:border-t-0">
       <Avatar name={p.name || p.email || "?"} src={p.picture || undefined} size="sm" />
       <div className="min-w-0 flex-[1_1_180px]">
-        <div className="truncate text-body-strong text-text" dir="auto">
+        <div className="truncate text-body-strong text-text" dir="auto" title={p.name || undefined}>
           {p.name}{you && <span className="font-normal text-text-muted"> (you)</span>}
         </div>
         <div className="text-[12.5px] text-text-muted [overflow-wrap:anywhere]">{meta ?? p.email}</div>
