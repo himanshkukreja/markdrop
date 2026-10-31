@@ -7,7 +7,7 @@
  */
 import "./docs-editor.css";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { SegmentedControl, Skeleton } from "@/components/ui";
 import { splitFrontmatter } from "./core/frontmatter.mjs";
 import { PageHeader } from "./PageHeader";
@@ -33,11 +33,18 @@ export function preloadDocsEditor() {
 
 function MarkdownSource({ value, onChange, readOnly, placeholder, label }: { value: string; onChange: (v: string) => void; readOnly?: boolean; placeholder?: string; label: string }) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
+  // Grow with the text. Measuring needs the box at "auto" for a moment; hold the wrapper at its
+  // current height meanwhile, or the page gets shorter, the browser clamps the scroll position and
+  // typing far down a long page jumps it up.
+  useLayoutEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    const wrap = el?.parentElement;
+    if (!el || !wrap) return;
+    wrap.style.minHeight = `${wrap.offsetHeight}px`;
     el.style.height = "auto";
-    el.style.height = `${Math.max(el.scrollHeight, 320)}px`;
+    const border = el.offsetHeight - el.clientHeight;
+    el.style.height = `${Math.max(el.scrollHeight + border, 320)}px`;
+    wrap.style.minHeight = "";
   }, [value]);
   return (
     <div className="dxe-source">
