@@ -21,8 +21,8 @@ const SOURCES: Array<{ id: SourceKind; icon: string; title: string; body: string
 ];
 
 const TEMPLATES: Array<{ id: TemplateId; title: string; body: string }> = [
-  { id: "product", title: "Product docs", body: "Get started, guides, FAQ and a changelog." },
-  { id: "api", title: "API reference", body: "From your OpenAPI file, with Try it." },
+  { id: "product", title: "Product docs", body: "Get started, guides, FAQ and release notes." },
+  { id: "api", title: "API reference", body: "Endpoint pages you write in Markdown, with code samples. OpenAPI import is coming soon." },
   { id: "helpcenter", title: "Help center", body: "Search first, categories and articles." },
 ];
 

@@ -166,7 +166,7 @@ export default function PublishScreen() {
     const r = await createReview(site.id, note.trim());
     setReviews((list) => [r, ...(list ?? [])]);
     setNote("");
-    toast.success("Sent for review. We'll let you know when it's approved.");
+    toast.success("Sent for review. Admins and reviewers see it on the Publishes tab; there are no email notifications yet.");
   });
 
   const approve = (r: Review) => run(`approve:${r.id}`, async () => {

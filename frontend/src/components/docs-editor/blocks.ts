@@ -85,7 +85,7 @@ export const BLOCK_ITEMS: BlockItem[] = [
     keywords: "table grid rows columns",
     run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
   },
-  { id: "api", label: "API endpoint", hint: "From your OpenAPI file", icon: "server", keywords: "api endpoint openapi operation rest", run: insert({ type: "directiveLeaf", attrs: { name: "api", attributes: {} } }) },
+  { id: "api", label: "API endpoint", hint: "Method and path card", icon: "server", keywords: "api endpoint openapi operation rest", run: insert({ type: "directiveLeaf", attrs: { name: "api", attributes: {} } }) },
   { id: "bullets", label: "Bulleted list", hint: "Simple list", icon: "list", keywords: "ul bullet list unordered", run: (e, r) => e.chain().focus().deleteRange(r).toggleBulletList().run() },
   { id: "numbers", label: "Numbered list", hint: "Ordered list", icon: "list", keywords: "ol numbered ordered list", run: (e, r) => e.chain().focus().deleteRange(r).toggleOrderedList().run() },
   {

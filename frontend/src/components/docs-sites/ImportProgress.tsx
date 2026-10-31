@@ -241,7 +241,7 @@ export default function ImportProgress() {
                 ? "Everything is in the editor as a draft. Nothing is public until you publish."
                 : failed
                   ? "Nothing was published, and your GitBook site wasn't changed."
-                  : "This takes a few minutes for a large site. You can close this page; we'll email you when it's ready."}
+                  : "This takes a few minutes for a large site. You can close this page: the import keeps running. Come back to Docs sites to see it."}
             </p>
           </div>
 

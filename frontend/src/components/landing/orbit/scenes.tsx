@@ -479,7 +479,7 @@ function DocsEditor({ a, mobile }: DioProps & { mobile?: boolean }) {
         <span className={an(a, "ty", "m10")} style={v({ "--d": mobile ? ".5s" : "1.65s", color: "var(--text)" })}>/api<span className={k("ds-caret")} /></span>
         <span className={an(a, "rv", "ds-menu")} style={v({ "--d": mobile ? ".65s" : "1.8s" })}>
           <span className={k("on")}><Icon name="code" size={11} />API endpoint</span>
-          {!mobile && <span><Icon name="history" size={11} />Changelog entry</span>}
+          {!mobile && <span><Icon name="layers" size={11} />Cards</span>}
         </span>
       </div>
     </>
@@ -496,7 +496,7 @@ function DocsSite({ a, mobile }: DioProps & { mobile?: boolean }) {
           <span className={k("on")}>Quickstart</span>
           <span>Guides</span>
           <span>API</span>
-          {!mobile && <span>Changelog</span>}
+          {!mobile && <span>Help</span>}
         </div>
         <div style={{ flex: 1, minWidth: 0, position: "relative", padding: mobile ? "8px 8px" : "9px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
           <span style={{ position: "absolute", left: 0, right: 0, top: 0, height: 3, background: "var(--studio-fill)" }} />

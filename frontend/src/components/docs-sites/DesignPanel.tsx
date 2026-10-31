@@ -289,7 +289,7 @@ export default function DesignPanel() {
                 aria-describedby={`${uid}-css-hint`}
                 invalid={!!cssProblem}
                 disabled={locked}
-                placeholder={".docs-callout { border-radius: 0; }\n.docs-header { backdrop-filter: blur(8px); }"}
+                placeholder={".dx-callout { border-radius: 0; }\n.dx-header { backdrop-filter: blur(8px); }"}
                 value={theme.custom_css ?? ""}
                 onChange={(e) => set({ custom_css: e.target.value })}
                 className="text-[12.5px]"
