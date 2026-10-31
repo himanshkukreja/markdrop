@@ -2,23 +2,23 @@
 title: Publish your guide
 nav: Publishing
 description: See what changed, publish a guide, follow the build until it's live, and put an earlier publish back.
-updated: 2026-10-31
+updated: 2026-11-01
 prerequisites: [/guides/editor]
-keywords: [publish, go live, build, changes, release, restore, rollback, unpublish, publish history, building]
+keywords: [publish, go live, build, changes, release, restore, rollback, unpublish, publish history, building, compare, diff, what changed]
 ---
 
 Drafts are private. Publishing takes every page's current draft and the guide's settings, builds the guide, and puts it live at its address. Readers keep seeing the previous version until the new one is ready, a few seconds later.
 
-Open the guide's **Publishes** tab, or choose **Publish…** in the editor.
+Every screen of a guide has the same bar under the header: the **Publish** tab shows how many changes are waiting, **Live ·** and the guide's address opens the live guide in a new tab, and **Publish N changes** publishes from wherever you are. When there's nothing to publish it says **Up to date**.
 
 ## See what changed
 
-The left side lists the changes since the last publish:
+The **Publish** tab says **N changes ready to publish**, with what kind (new, edited and removed pages, a new design, redirects, the API reference) and the list:
 
-- pages that are **New**, **Edited** (with how many lines changed and who changed them) or **Deleted**, each with **View changes** to open the page
-- guide settings that changed, like **Theme and brand**, **Sidebar order**, **Ask AI** or **Redirects**, each with **Open**
+- pages that are **New**, **Edited** (who changed them and when) or **Removed**, each with **Compare** to see the change line by line
+- guide settings that changed, like **Design**, **Sidebar order**, **Ask AI** or **Redirects**, each with **Open**
 
-Before the first publish, every page shows as new. When nothing has changed, it says **Everything is published**.
+On the right, **Readers see now** shows the address readers use (open it in a new tab, or copy it) and which publish they see. Before the first publish, every page shows as new.
 
 ![Acme's Publishes tab: 4 changes since the last publish (Quickstart and Alert rules edited by Alex, a new Workflows page, and Sidebar order), the Publish 4 changes form, and on the right the list of publishes with the live one first.](/docs-assets/guides/publishing/publish-screen.webp)
 
@@ -29,20 +29,28 @@ Before the first publish, every page shows as new. When nothing has changed, it 
 Under **Publish**, add a note in **What changed (optional)**, like "Rewrote Quickstart for the new onboarding". It's shown in the publish history.
 
 ### Publish
-Choose **Publish**. The new publish appears at the top of **Publishes** with its progress: **Waiting to build**, then **Building the guide** with each step.
+Choose **Publish N changes** (or **Preview first** to look at it before). The tab shows the publish's progress: the snapshot of your pages, building the pages, search, Ask AI and link previews, then going live at the guide's address, with about how long is left. You can keep editing or close the page meanwhile.
 
 ### It's live
-When it's done, the publish is marked **Live** and a message says where. Readers see the new version within a few seconds.
+When it's done, a message says **Publish #N is live**, with **Open**. The **Publish** tab shows **Your guide is live** with every address it answers at, each with **Copy** and **Open**.
 ::::
 
 ::clip{src="/docs-assets/guides/publishing/publish-to-live" alt="Typing the note 'Release notes: webhook headers', choosing Publish, the new publish showing Waiting to build in the list, then the message Published. Live at acme-themes.guides.markdrop.in and the publish marked Live."}
 
-If the guide [requires a review](/guides/reviews), editors and reviewers see **Submit for review** instead of **Publish**. Admins can always publish.
+If the guide [requires a review](/guides/reviews), editors and reviewers see **Send for review** instead of **Publish**. Admins can always publish.
+
+## Compare versions
+
+**Compare** on a change, **What changed** on a publish in the history, or **Compare two publishes** opens **What changed**: pick any two publishes, or a publish and **Unpublished changes (drafts)**. It lists the pages added, edited and removed (with lines added and removed), says whether the design and redirects changed, and shows the selected page's Markdown line by line, as **Text** or **Side by side**. **Open live page** opens that page on the live guide.
+
+## Finish setting up
+
+Once the guide is live, the **Publish** tab lists what's left to set up: pages, a look, publishing, your own domain, your team and Insights. Each step that isn't done has a button that takes you there.
 
 Publishing while a build is running is fine: changes that come in meanwhile go into the next publish, and a publish that hasn't started yet is replaced by the newer one (it's listed as replaced, not built).
 
 :::note[If a publish fails]
-It's marked **Failed** with the reason, and nothing changed for readers: they keep the last live version. Fix what it says and publish again. See [Troubleshooting](/guides/faq#a-publish-failed).
+It's marked **Failed** in the publish history with the reason, and nothing changed for readers: they keep the last live version. Fix what it says and publish again. See [Troubleshooting](/guides/faq#a-publish-failed).
 :::
 
 There's a daily number of publishes per guide while Markdrop Guides is in beta. If you reach it, the message says so; restoring an earlier publish doesn't count.
@@ -57,9 +65,9 @@ Deleted pages disappear from the guide. A publish takes each page's draft as las
 
 ## Restore an earlier publish
 
-Every publish is kept. A Guides admin can put an earlier one live again:
+Every publish is kept. The **Publish history** shows each one with what it changed (pages added, edited and removed, the design). A Guides admin can put an earlier one live again:
 
-1. In **Publishes**, choose **Restore** on the publish you want.
+1. In **Publish history**, choose **Restore** on the publish you want.
 2. Confirm with **Restore**.
 
 ![The dialog "Put publish #2 live?": Readers see "Postgres guide and alert rules" in a few seconds. Your drafts don't change, and you can switch back any time.](/docs-assets/guides/publishing/restore-dialog.webp)

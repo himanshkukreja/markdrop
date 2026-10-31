@@ -48,8 +48,8 @@ Every published page is available as Markdown at its address plus `.md`, and the
 
 ### My guide isn't public yet
 
-- **It hasn't been published.** New guides are drafts: the home page card says **Draft** and the Publishes tab says **Nothing is public until the first publish**. [Publish](/guides/publishing) it.
-- **The publish is still running or failed.** Check its row on the **Publishes** tab.
+- **It hasn't been published.** New guides are drafts: the home page card says **Draft** and the Publish tab says **Nothing is public until the first publish**. [Publish](/guides/publishing) it.
+- **The publish is still running or failed.** Check its row in **Publish history** on the **Publish** tab.
 - **It's waiting for a review.** The card says **In review**. A reviewer or admin has to [approve it](/guides/reviews#approve-or-request-changes).
 - **It was unpublished.** The card says **Unpublished**. Publish again to put it back.
 - **You changed the address.** The new address goes live with the next publish, and the old one stops working.
@@ -60,7 +60,7 @@ See [When a domain doesn't go live](/guides/site-settings#when-a-domain-doesnt-g
 
 ### My changes aren't on the guide
 
-Saved drafts aren't public until you publish. The page tree marks pages with unpublished changes with a dot, and the Publishes tab lists every change since the last publish. Theme, Ask AI, redirect and sidebar changes also need a publish.
+Saved drafts aren't public until you publish. The page tree marks pages with unpublished changes with a dot, the **Publish** tab shows how many changes are waiting, and the tab lists every change since the last publish. Theme, Ask AI, redirect and sidebar changes also need a publish.
 
 ### A publish failed
 
