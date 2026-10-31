@@ -2,7 +2,7 @@
 title: Match your brand
 nav: Brand and style
 description: Add your logo and colours to a guide, choose fonts, colour mode and corners, and what custom CSS can and can't do.
-updated: 2026-10-31
+updated: 2026-11-01
 prerequisites: [/guides/themes]
 keywords: [brand, logo, colours, colors, accent, fonts, dark mode, light mode, corners, custom css, contrast, favicon]
 ---
@@ -17,7 +17,7 @@ Turn on **Match my brand**, then **Upload logo** (SVG, PNG, JPEG or WebP). Markd
 
 From these colours Markdrop Guides builds a light and a dark palette. The accent colours links, buttons and callouts; a very dark colour becomes the text colour, and a very light one tints backgrounds. Text, links and buttons are adjusted so they keep readable contrast in both themes. The badges under the colours show the contrast for text, links and dark-theme links: a check means it's readable, a warning sign means it's close.
 
-The logo also becomes the guide's favicon. With **Match my brand** off, the guide uses the theme's own colours.
+It works with all fourteen [themes](/guides/themes): your accent replaces the theme's own, in its light and its dark palette. The logo also becomes the guide's favicon. With **Match my brand** off, the guide uses the theme's own colours.
 
 ## Fonts, colour mode and corners
 

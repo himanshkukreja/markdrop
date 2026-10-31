@@ -1,10 +1,10 @@
 ---
 title: Pick a theme
 nav: Themes
-description: The six Markdrop Guides themes, Clean, Editorial, Technical, Minimal, Playful and Help center, what each looks like, and how to switch.
-updated: 2026-10-31
+description: The fourteen Markdrop Guides themes, from Clean and Help center to Midnight, Paper and Atlas, what each looks like, and how to switch.
+updated: 2026-11-01
 prerequisites: [/guides/create-a-site]
-keywords: [theme, design, preset, layout, clean, editorial, technical, minimal, playful, help center, look and feel]
+keywords: [theme, design, preset, layout, clean, editorial, technical, minimal, playful, help center, midnight, paper, terminal, corporate, studio, academic, atlas, pastel, dark theme, look and feel]
 ---
 
 A theme sets the whole guide's layout, fonts, colours and corners. Pick one in the guide's **Design** tab; you can switch any time, and nothing about your pages changes.
@@ -18,7 +18,7 @@ A theme sets the whole guide's layout, fonts, colours and corners. Pick one in t
 Open the guide and choose **Design**. Only Guides admins can change it; everyone else can look around.
 
 ### Try the themes
-Choose a theme under **Theme**. The **Preview** updates at once. Use **Light** and **Dark** above the preview to see both.
+Choose a theme under **Theme**. The **Preview** updates at once. Use **Light** and **Dark** above the preview to see both. To narrow the list, choose **Product docs**, **Help center**, **Developer** or **New** above the themes.
 
 ### Save it
 Choose **Save design**, or **Reset** to go back to what's saved. Readers see the new design after the next [publish](/guides/publishing).
@@ -26,9 +26,9 @@ Choose **Save design**, or **Reset** to go back to what's saved. Readers see the
 
 ::clip{src="/docs-assets/guides/themes/design-switch-themes" alt="In Design, choosing Editorial, Technical, Playful and Help center in turn while the preview changes layout, then the Dark preview, then Reset."}
 
-## The six themes
+## The fourteen themes
 
-These are the same Acme pages, published in each theme with no brand colours.
+Every theme has a light and a dark palette, and text, links and buttons stay readable in both. Any of them can take your brand colour and logo. The pictures show the same Acme pages, published in each theme with no brand colours.
 
 ### Clean
 
@@ -65,6 +65,38 @@ Round and bold: rounded buttons and search box, heavier navigation, cards that l
 Search first, then categories: the home page is a search box over cards for each group, and articles show the other articles in their category.
 
 ![The home page in the Help center theme: a search hero with suggested questions, and Browse by category cards for Getting started, Guides, Reference and Help.](/docs-assets/guides/themes/theme-helpcenter.webp)
+
+### Midnight
+
+For developer tools: deep navy grounds, a violet accent and a crisp sans-serif. The current page is marked with a line instead of a highlight. Its dark palette is the one it's designed around; pick **Dark only** under [Colour mode](/guides/brand-and-style#fonts-colour-mode-and-corners) to keep it there.
+
+### Paper
+
+For handbooks: warm off-white paper, serif text at a book's size, and a quieter sidebar without icons or highlights.
+
+### Terminal
+
+For command-line tools: monospaced headings, navigation and labels, a green accent, square corners and a `$` prompt before each page title. It reads best in dark.
+
+### Corporate
+
+For enterprise products: strict and compact, with smaller type, tighter spacing, a blue-grey palette and nearly square corners.
+
+### Studio
+
+For product launches: big, bold display headings, large rounded cards with a lift, a rose accent and round buttons.
+
+### Academic
+
+For knowledge bases: serif text, numbered sections (1., 1.1) and smaller, footnote-style notes, metadata and callouts, with a green accent.
+
+### Atlas
+
+For big help centers: the home page is a search box over a grid of category cards, the sections in the header are tabs, and articles keep the sidebar so readers can move around a large guide.
+
+### Pastel
+
+For education and communities: soft pink-tinted grounds and cards, rounded buttons, search and navigation, and friendly headings.
 
 ## Make it yours
 
