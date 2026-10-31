@@ -163,14 +163,17 @@ function Hero({ id, badge, title, children, aside }: {
   );
 }
 
-function PrivacyLine({ isAdmin }: { isAdmin: boolean }) {
+/** `off`: Insights is already off, so there's no "Turn it off" link. */
+function PrivacyLine({ isAdmin, off }: { isAdmin: boolean; off?: boolean }) {
   return (
     <p className="m-0 text-[13px] leading-5 text-text-muted">
       Private by design: no cookies, no personal data, visitors counted anonymously per day. Raw events are kept 90 days.{" "}
       <ReadMore topic="studioInsights">How Insights works</ReadMore>
-      {" · "}
-      {isAdmin ? <a href="#ins-collection" className="text-accent-text hover:text-accent-text-hover">Turn it off</a>
-        : <ReadMore topic="studioInsightsOff">Turning it off</ReadMore>}
+      {!off && <>
+        {" · "}
+        {isAdmin ? <a href="#ins-collection" className="text-accent-text hover:text-accent-text-hover">Turn it off</a>
+          : <ReadMore topic="studioInsightsOff">Turning it off</ReadMore>}
+      </>}
     </p>
   );
 }
@@ -310,7 +313,7 @@ export default function InsightsScreen() {
             : <p className="m-0 text-[13px] text-text-muted">An admin of this guide can turn it on.</p>}
         </Hero>
         <WhatYoullSee id={`${uid}-what`} />
-        <PrivacyLine isAdmin={false} />
+        <PrivacyLine isAdmin={isAdmin} off />
       </>
     );
   } else if (!data.live && !data.since) {
