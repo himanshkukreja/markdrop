@@ -816,8 +816,9 @@ export default [
       await h.page.waitForFunction(() => {
         const p = document.querySelector("main [role=progressbar]");
         const n = Number(p?.getAttribute("aria-valuenow"));
-        return n >= 35 && n <= 90;
+        return n >= 15 && n <= 90;
       }, null, { timeout: 120_000, polling: 100 });
+      await h.sleep(1500);
       await h.page.mouse.move(5, 5);
     },
     settle: 0,
@@ -1268,7 +1269,7 @@ export default [
     prepare: async (h) => {
       await h.goto(S(h, "/insights?range=7d"));
       await h.loc("section[aria-label=Summary]").waitFor();
-      await h.page.getByText("Readers per day").waitFor();
+      await h.loc({ role: "heading", name: "Readers per day" }).waitFor();
       await settle(h, 900);
     },
     crop: async (h) => {
@@ -1340,7 +1341,7 @@ export default [
       await h.loc("main h1").first().waitFor();
       await settle(h, 900);
     },
-    crop: { box: { x: 0, y: 56, width: 1440, height: 640 } },
+    crop: { selector: "main", pad: 0 },
   },
 
   // ════════════════════════════════════════════════════════════════════════════
