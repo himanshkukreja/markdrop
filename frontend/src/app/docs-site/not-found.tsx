@@ -1,6 +1,6 @@
 import Link from "@/docs/client/Link";
 import { Button } from "@/components/ui";
-import { getSite } from "@/docs/content";
+import { getSite, hasChangelog } from "@/docs/content";
 import { DocsFooter, DocsHeader } from "@/docs/ui/Chrome";
 
 export default function DocsNotFound() {
@@ -16,9 +16,11 @@ export default function DocsNotFound() {
           <Button href="/" iconLeft="home">
             Go to {site.name}
           </Button>
-          <Link href="/changelog" className="md-btn md-btn--secondary md-btn--md">
-            See what changed
-          </Link>
+          {hasChangelog() && (
+            <Link href="/changelog" className="md-btn md-btn--secondary md-btn--md">
+              See what changed
+            </Link>
+          )}
         </div>
       </main>
       <DocsFooter />

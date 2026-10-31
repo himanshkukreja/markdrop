@@ -126,6 +126,9 @@ export async function crawl({ stageDir, port, concurrency = 12, haveFile = () =>
       if (!internal) return;
       const pub = publicPath(internal);
       const res = await get(port, pub);
+      // A route the engine has no content for answers 404 (e.g. /changelog and its feeds on a site
+      // with no changelog entries): left out, so the edge gives the 404 page (or a redirect) there.
+      if (res.status === 404) continue;
       if (res.status !== 200) throw new Error(`${pub} (${internal}) answered ${res.status}`);
       const type = String(res.headers["content-type"] || "");
       const entry = { internal, public: pub, status: 200, headers: keep(res.headers), body: res.body };

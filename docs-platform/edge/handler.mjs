@@ -79,6 +79,13 @@ function privateResponse(res) {
   return out;
 }
 
+/** Every response of a public site with search indexing off (manifest site.noindex): readable, not indexed. */
+function noindexResponse(res) {
+  const out = new Response(res.body, res);
+  out.headers.set("x-robots-tag", "noindex");
+  return out;
+}
+
 /** `bytes=a-b` → {offset, length} within size, or null (whole body), or false (unsatisfiable). */
 function parseRange(header, size) {
   const m = /^bytes=(\d*)-(\d*)$/.exec(header || "");
@@ -356,7 +363,10 @@ export function createHandler(store, options = {}) {
       if (!site) return text("No docs site at this address.\n", 404);
       const [m, policy] = await Promise.all([manifestFor(site), policyFor(site)]);
       if (!m) return text("This site has not been published yet.\n", 404);
-      if (policy.level === "public") return route(req, url, site, m, ctx);
+      if (policy.level === "public") {
+        const res = await route(req, url, site, m, ctx);
+        return m.site?.noindex ? noindexResponse(res) : res;
+      }
       return privateResponse(await gated(req, url, site, m, policy, ctx));
     },
   };

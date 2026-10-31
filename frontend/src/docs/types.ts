@@ -168,6 +168,8 @@ export interface SiteConfig {
   tryIt?: TryItConfig;
   mcp?: McpConfig;
   integrations?: IntegrationsConfig;
+  /** `index: false`: keep the site out of search engines (noindex meta + header, robots.txt Disallow, empty sitemap). */
+  seo?: { index?: boolean };
 }
 
 export interface Frontmatter {

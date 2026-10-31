@@ -46,9 +46,19 @@ export function headerBrand(site: SiteConfig): HeaderBrand {
   if (logo && "builtin" in logo && logo.builtin === "markdrop") return { kind: "markdrop", label };
   if (logo && "light" in logo && typeof logo.light === "string" && logo.light) {
     const dark = logo.dark || undefined;
-    return { kind: "image", light: logo.light, dark, alt: logo.alt || name || site.name, text: logo.wordmark ? undefined : name, label, ...(logo.tile === true && !dark ? { tile: true } : {}) };
+    const text = logo.wordmark ? undefined : name;
+    return { kind: "image", light: logo.light, dark, alt: logo.alt || name || site.name, text, label: labelAfter(text, label), ...(logo.tile === true && !dark ? { tile: true } : {}) };
   }
-  return { kind: "text", text: name || site.name, label };
+  const text = name || site.name;
+  return { kind: "text", text, label: labelAfter(text, label) };
+}
+
+/** The label, unless the name already ends with it ("Acme Docs" + "Docs" shows "Acme Docs", not "Acme Docs | Docs"). */
+export function labelAfter(text: string | undefined, label: string): string {
+  const l = label.trim().toLowerCase();
+  if (!text || !l) return label;
+  const t = text.trim().toLowerCase();
+  return t === l || t.endsWith(` ${l}`) ? "" : label;
 }
 
 /** The app's own icon (app/icon.svg): left to the root layout's file-based icon links as they are. */

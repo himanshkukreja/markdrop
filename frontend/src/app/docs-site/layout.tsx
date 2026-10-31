@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "katex/dist/katex.min.css";
 import "@/docs/docs.css";
 import "@/docs/themes.css";
-import { getSite } from "@/docs/content";
+import { getSite, hasChangelog, indexable } from "@/docs/content";
 import { accentCss, clientSite, faviconMetadata, markdropApp } from "@/docs/brand";
 import { SearchPalette } from "@/docs/client/Search";
 import { AskRoot } from "@/docs/client/ask/AskRoot";
@@ -30,10 +30,12 @@ export function generateMetadata(): Metadata {
     description: site.description,
     applicationName: site.name,
     manifest: null,
-    alternates: { types: { "text/plain": `${site.url}/llms.txt`, "application/rss+xml": `${site.url}/changelog.rss` } },
+    alternates: { types: { "text/plain": `${site.url}/llms.txt`, ...(hasChangelog() ? { "application/rss+xml": `${site.url}/changelog.rss` } : {}) } },
     openGraph: { siteName: site.name, type: "website" },
     twitter: { card: "summary_large_image" },
     ...(icons !== undefined ? { icons } : {}),
+    // Search indexing off (site.json seo.index false): every page says noindex.
+    ...(indexable(site) ? {} : { robots: { index: false, follow: true } }),
   };
 }
 

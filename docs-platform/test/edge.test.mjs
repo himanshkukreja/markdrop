@@ -100,3 +100,21 @@ test("redirects, 404s, unknown hosts", async () => {
   assert.equal(other.status, 404);
   assert.equal((await go("/guide/start", {}, "POST")).status, 405);
 });
+
+test("search indexing off (manifest site.noindex): every response carries X-Robots-Tag noindex", async () => {
+  const hidden = { ...manifest, site: { ...manifest.site, id: "quiet", noindex: true } };
+  const qhash = "q".repeat(64);
+  texts.set("hosts/quiet.acme.test.json", JSON.stringify({ site: "quiet" }));
+  texts.set("sites/quiet/current.json", JSON.stringify({ manifest: qhash }));
+  texts.set(`manifests/${qhash}.json`, JSON.stringify(hidden));
+  const q = (path) => edge.fetch(new Request(`https://quiet.acme.test${path}`), { waitUntil() {} });
+  for (const p of ["/guide/start", "/", "/llms.txt", "/docs-assets/a.bin", "/nope", "/old-start"]) {
+    assert.equal((await q(p)).headers.get("x-robots-tag"), "noindex", p);
+  }
+  const page = await q("/guide/start");
+  assert.equal(await page.text(), "<html>start</html>");
+  assert.equal(page.headers.get("cache-control"), "public, max-age=0, must-revalidate");
+  assert.equal((await q("/old-start")).status, 301);
+  // Indexing on (the default): no header.
+  assert.equal((await go("/guide/start")).headers.get("x-robots-tag"), null);
+});

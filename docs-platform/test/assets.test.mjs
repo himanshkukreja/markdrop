@@ -6,8 +6,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { exportEngineAssets, isSharedEngineFile } from "../builder/build.mjs";
+import { exportEngineAssets, isSharedEngineFile, manifestSite } from "../builder/build.mjs";
 import { FsStore, syncEngineAssets } from "../builder/store.mjs";
+
+test("manifest site: noindex only when site.json turns search indexing off", () => {
+  assert.equal(manifestSite({ id: "a", name: "A", url: "https://a.test/", seo: { index: false } }).noindex, true);
+  assert.deepEqual(manifestSite({ id: "a", name: "A", url: "https://a.test/" }), { id: "a", name: "A", url: "https://a.test" });
+  assert.equal(manifestSite({ seo: { index: true } }).noindex, undefined);
+  assert.equal(manifestSite({ seo: "no" }).noindex, undefined);
+});
 
 test("only content-hashed engine output is shared", () => {
   assert.ok(isSharedEngineFile("chunks/1166-5cc8e3c183eeb59f.js"));
