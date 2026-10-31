@@ -9,7 +9,7 @@ import {
 } from "@/lib/docsSites";
 import { num, plural } from "./format";
 import { previewTokens } from "./presets";
-import SiteBar from "./SiteBar";
+import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useSite } from "./SiteContext";
 import { studioNew, scopeOf } from "./routes";
 import { useJob } from "./useJob";
@@ -308,7 +308,8 @@ export default function ImportProgress() {
           )}
         </div>
 
-        <aside aria-label="Preview" className="flex min-w-0 flex-[1_1_320px] flex-col gap-3">
+        {/* Beside the steps, the preview and "Open the editor" stay in view while a long report scrolls. */}
+        <aside aria-label="Preview" className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 lg:sticky lg:self-start" style={{ top: STUDIO_CHROME_H + 24 }}>
           <MiniSite name={report?.brand?.name || site.name} />
           <p className="text-[13px] text-text-muted">
             {site.settings.theme.brand.enabled
