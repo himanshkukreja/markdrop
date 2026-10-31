@@ -178,7 +178,8 @@ export default function StudioMembers() {
 
       {wsId && !error && (
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-          <section aria-labelledby="members-h" className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface">
+          {/* No overflow clip: the locked Admin badges' tooltips must be able to leave the card. */}
+          <section aria-labelledby="members-h" className="flex min-w-0 flex-1 flex-col rounded-xl border border-border bg-surface">
             <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3 sm:px-5">
               <h2 id="members-h" className="text-[16px] font-semibold text-text">
                 {data ? plural(data.members.length, "person", "people") : "People"}
