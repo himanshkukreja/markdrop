@@ -31,6 +31,7 @@ from app.services import docs_api_spec as api_spec
 from app.services import docs_cf_hosts as cf_hosts
 from app.services import docs_site_access as access
 from app.services import docs_site_assets as assets
+from app.services import docs_site_compare as compare
 from app.services import docs_site_pages as pages
 from app.services import docs_site_store as store
 from app.services.docs_site_jobs import enqueue_job
@@ -57,8 +58,9 @@ def _lines_changed(old: str, new: str) -> int:
     return n
 
 
-async def changes(db: AsyncIOMotorDatabase, site: dict) -> dict:
-    snap = await pages.live_snapshot(db, site, markdown=True)
+async def changes(db: AsyncIOMotorDatabase, site: dict, *, lines: bool = True) -> dict:
+    """``lines``: count each edited page's changed lines (reads the live Markdown)."""
+    snap = await pages.live_snapshot(db, site, markdown=lines)
     live = {p.get("page_id"): p for p in (snap or {}).get("pages") or []}
     rows = await db[PAGES].find({"site_id": site["_id"], "deleted_at": None}).to_list(
         length=settings.docs_pages_per_site + 50)
@@ -79,7 +81,7 @@ async def changes(db: AsyncIOMotorDatabase, site: dict) -> dict:
             "updated_by": draft.get("updated_by"), "updated_by_name": names.get(draft.get("updated_by") or ""),
             "updated_at": aware(draft.get("updated_at")),
         }
-        if old is not None:
+        if old is not None and lines:
             item["lines_changed"] = _lines_changed(old.get("markdown") or "", draft.get("markdown") or "")
             if old.get("path") != r.get("path"):
                 item["moved_from"] = old.get("path")
@@ -341,11 +343,15 @@ async def list_builds(db: AsyncIOMotorDatabase, site: dict, limit: int = 50, *, 
     """``details``: the caller is a studio admin (the raw error of a failed build)."""
     rows = await db[BUILDS].find({"site_id": site["_id"]}).sort("number", -1).to_list(length=max(1, min(limit, 100)))
     names = await store.user_names(db, [r.get("requested_by") for r in rows])
+    summaries = await compare.history_summaries(db, site, rows)
     out = []
     for r in rows:
         v = store.build_view(r, names, details=details)
         v["live"] = site.get("live_build_id") == r["_id"]
+        # What it changed against the publish before it (+N pages, N edited, N removed, design…).
+        v["changes"] = summaries.get(r["_id"])
         out.append(v)
+    await compare.attach_progress(db, site, out, rows)
     return out
 
 
