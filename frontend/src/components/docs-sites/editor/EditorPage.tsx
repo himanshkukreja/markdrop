@@ -306,9 +306,10 @@ export default function EditorPage() {
 
             {fields && page && (
               <>
-                <div className="flex items-center justify-between gap-2 lg:hidden">
-                  <span className="text-[13px] text-text-muted">{page.path}</span>
-                  <Button variant="ghost" size="sm" iconLeft="settings" onClick={() => setPanelOpen(true)}>Page settings</Button>
+                {/* In line with the page text (the visual editor keeps a 56 px gutter for block handles from sm up). */}
+                <div className={`flex items-center justify-between gap-2 lg:hidden ${mode === "visual" ? "sm:pl-14" : ""}`}>
+                  <span className="min-w-0 truncate text-[13px] text-text-muted" title={page.path}>{page.path}</span>
+                  <Button variant="ghost" size="sm" iconLeft="settings" className="shrink-0" onClick={() => setPanelOpen(true)}>Page settings</Button>
                 </div>
                 <DocsEditor
                   key={page.id}
