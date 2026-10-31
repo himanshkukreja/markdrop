@@ -803,28 +803,112 @@
     "bytes": 96956,
     "kind": "image"
   },
+  "/docs-assets/guides/editor/editor-ai-menu.dark.webp": {
+    "w": 1774,
+    "h": 432,
+    "bytes": 25850,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-ai-menu.webp": {
+    "w": 1774,
+    "h": 432,
+    "bytes": 24510,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-ai-suggestion.dark.webp": {
+    "w": 1512,
+    "h": 618,
+    "bytes": 32328,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-ai-suggestion.webp": {
+    "w": 1512,
+    "h": 618,
+    "bytes": 30140,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-checks.dark.webp": {
+    "w": 2204,
+    "h": 1280,
+    "bytes": 90672,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-checks.webp": {
+    "w": 2204,
+    "h": 1280,
+    "bytes": 91528,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-comments.dark.webp": {
+    "w": 2204,
+    "h": 1116,
+    "bytes": 81578,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-comments.webp": {
+    "w": 2204,
+    "h": 1116,
+    "bytes": 83588,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-find-replace.dark.webp": {
+    "w": 1608,
+    "h": 960,
+    "bytes": 53824,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-find-replace.webp": {
+    "w": 1608,
+    "h": 960,
+    "bytes": 54728,
+    "kind": "image"
+  },
   "/docs-assets/guides/editor/editor-markdown.dark.webp": {
-    "w": 1780,
-    "h": 1440,
-    "bytes": 63448,
+    "w": 2880,
+    "h": 1400,
+    "bytes": 110484,
     "kind": "image"
   },
   "/docs-assets/guides/editor/editor-markdown.webp": {
-    "w": 1780,
-    "h": 1440,
-    "bytes": 60718,
+    "w": 2880,
+    "h": 1400,
+    "bytes": 111354,
     "kind": "image"
   },
   "/docs-assets/guides/editor/editor-overview.dark.webp": {
     "w": 2880,
     "h": 1800,
-    "bytes": 121496,
+    "bytes": 129844,
     "kind": "image"
   },
   "/docs-assets/guides/editor/editor-overview.webp": {
     "w": 2880,
     "h": 1800,
-    "bytes": 123748,
+    "bytes": 133902,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-presence.dark.webp": {
+    "w": 1108,
+    "h": 112,
+    "bytes": 6586,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-presence.webp": {
+    "w": 1108,
+    "h": 112,
+    "bytes": 6840,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-shortcuts.dark.webp": {
+    "w": 1680,
+    "h": 1120,
+    "bytes": 44812,
+    "kind": "image"
+  },
+  "/docs-assets/guides/editor/editor-shortcuts.webp": {
+    "w": 1680,
+    "h": 1120,
+    "bytes": 47444,
     "kind": "image"
   },
   "/docs-assets/guides/editor/editor-slash-callout.mp4": {
@@ -848,27 +932,27 @@
     "kind": "poster"
   },
   "/docs-assets/guides/editor/image-block.dark.webp": {
-    "w": 1392,
-    "h": 1016,
-    "bytes": 30270,
+    "w": 1464,
+    "h": 1062,
+    "bytes": 32748,
     "kind": "image"
   },
   "/docs-assets/guides/editor/image-block.webp": {
-    "w": 1392,
-    "h": 1016,
-    "bytes": 29934,
+    "w": 1464,
+    "h": 1062,
+    "bytes": 32554,
     "kind": "image"
   },
   "/docs-assets/guides/editor/page-locked.dark.webp": {
-    "w": 2280,
+    "w": 2880,
     "h": 940,
-    "bytes": 60952,
+    "bytes": 85496,
     "kind": "image"
   },
   "/docs-assets/guides/editor/page-locked.webp": {
-    "w": 2280,
+    "w": 2880,
     "h": 940,
-    "bytes": 60936,
+    "bytes": 88044,
     "kind": "image"
   },
   "/docs-assets/guides/history/publishes-list.dark.webp": {
@@ -884,15 +968,15 @@
     "kind": "image"
   },
   "/docs-assets/guides/history/versions-drawer.dark.webp": {
-    "w": 960,
-    "h": 860,
-    "bytes": 22850,
+    "w": 576,
+    "h": 710,
+    "bytes": 20828,
     "kind": "image"
   },
   "/docs-assets/guides/history/versions-drawer.webp": {
-    "w": 960,
-    "h": 860,
-    "bytes": 24562,
+    "w": 576,
+    "h": 710,
+    "bytes": 22494,
     "kind": "image"
   },
   "/docs-assets/guides/import/import-form.dark.webp": {
@@ -1062,37 +1146,37 @@
   "/docs-assets/guides/pages-and-navigation/new-page-dialog.dark.webp": {
     "w": 896,
     "h": 858,
-    "bytes": 23704,
+    "bytes": 24288,
     "kind": "image"
   },
   "/docs-assets/guides/pages-and-navigation/new-page-dialog.webp": {
     "w": 896,
     "h": 858,
-    "bytes": 25384,
+    "bytes": 25898,
     "kind": "image"
   },
   "/docs-assets/guides/pages-and-navigation/page-settings.dark.webp": {
-    "w": 600,
-    "h": 1040,
-    "bytes": 21570,
+    "w": 576,
+    "h": 904,
+    "bytes": 30184,
     "kind": "image"
   },
   "/docs-assets/guides/pages-and-navigation/page-settings.webp": {
-    "w": 600,
-    "h": 1040,
-    "bytes": 23012,
+    "w": 576,
+    "h": 904,
+    "bytes": 31746,
     "kind": "image"
   },
   "/docs-assets/guides/pages-and-navigation/page-tree.dark.webp": {
-    "w": 720,
+    "w": 496,
     "h": 1400,
-    "bytes": 29594,
+    "bytes": 28032,
     "kind": "image"
   },
   "/docs-assets/guides/pages-and-navigation/page-tree.webp": {
-    "w": 720,
+    "w": 496,
     "h": 1400,
-    "bytes": 31346,
+    "bytes": 29660,
     "kind": "image"
   },
   "/docs-assets/guides/pages-and-navigation/redirects.dark.webp": {

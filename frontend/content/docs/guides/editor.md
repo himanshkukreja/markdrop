@@ -9,7 +9,7 @@ keywords: [editor, visual editor, markdown, slash menu, blocks, callout, steps, 
 
 Open a guide and its **Pages** tab is the editor: the page tree on the left, the page in the middle, and the page panel on the right (**Checks**, **Page**, **Comments** and **History**). On a phone, **Pages** and **Page** in the bar open the tree and the panel.
 
-![The Markdrop Guides editor on Acme's Quickstart page: the page tree with groups Getting started, Guides, Reference and Help, the page with its title, description, a note callout and tabs, and on the right the page's Address, Show in the sidebar, Icon and History.](/docs-assets/guides/editor/editor-overview.webp)
+![The Markdrop Guides editor on Acme's Quickstart page: the page tree with groups Getting started, Guides, Reference and Help, the page with its place in the guide, title, description, a note callout and tabs, and on the right the page panel on Checks (Headings and links look good, then On this page). Under the page, the word count, Find and replace and Shortcuts.](/docs-assets/guides/editor/editor-overview.webp)
 
 Only people with the Editor, Reviewer or Admin role can edit. Viewers see the same screen with **View only** in the bar. See [Members and roles](/guides/members-and-roles).
 
@@ -27,7 +27,7 @@ Above the text, every page has its place in the guide (group › page, then its 
 
 The **Visual** / **Markdown** switch in the bar changes how you edit, not what's saved. **Markdown** shows the page as the file it is: a front matter block with `title`, `description` and `icon`, then the body. Markdrop Guides remembers your choice in this browser.
 
-![The Quickstart page in Markdown mode: front matter with title, description and icon, then headings, a :::note callout and a ::::tabs block as plain text.](/docs-assets/guides/editor/editor-markdown.webp)
+![The Quickstart page in Markdown mode, with Markdown selected in the bar: front matter with title, description and icon, then headings, a :::note callout and a ::::tabs block as plain text.](/docs-assets/guides/editor/editor-markdown.webp)
 
 The Markdown is the same format docs.markdrop.in is written in: callouts are `:::note`, steps are `::::steps`, tabs are `::::tabs` and so on. Anything the visual editor can't show as a block, it keeps exactly as written and labels "Edit it in Markdown mode". Switching back and forth changes nothing.
 
@@ -51,12 +51,16 @@ A link can be a page of the guide (`/guides/alert-rules`), a section (`#install`
 
 Select a sentence or a few paragraphs, choose **Ask AI**, then:
 
+![A paragraph of Quickstart selected, with the formatting bar above it and the Ask AI menu open: Improve the writing, Make it shorter, Fix spelling and grammar, and Translate….](/docs-assets/guides/editor/editor-ai-menu.webp)
+
 - **Improve the writing**: clearer and more direct, about the same length
 - **Make it shorter**: about half, keeping the facts, steps and warnings
 - **Fix spelling and grammar**: nothing else changes
 - **Translate…**: pick a language (31 of them; type to filter)
 
 The answer appears under the text as a suggestion, and the passage it would replace stays highlighted. Nothing changes until you choose **Accept**. **Try again** asks for another version, and **Discard** (or Esc) drops it. An accepted suggestion is one step in the undo history, so ⌘ Z (Ctrl Z) brings your words back.
+
+![Make it shorter on the Before you start paragraph: the paragraph stays highlighted, and under it the suggestion "You need an Acme account and the address of a database Acme can reach." with Accept, Try again and Discard, and "Check it before you accept. AI can make mistakes."](/docs-assets/guides/editor/editor-ai-suggestion.webp)
 
 AI help keeps links, code, Markdown and blocks like callouts as they are, and it never follows instructions written in your text. Still, read a suggestion before you accept it.
 
@@ -71,6 +75,8 @@ Only the selection and the action are sent to the model, and nothing of either i
 ## Find and replace
 
 ⌘ F (Ctrl F on Windows and Linux) opens **Find and replace** on the page, in Visual and Markdown mode, with the selected text as the search. **Aa** matches case, **ab** matches whole words only. Enter goes to the next match and Shift + Enter to the previous one. The arrow beside the search shows **Replace with**: **Replace** changes the current match, **Replace all** every match (⌘ Enter in that box). Esc closes it. The status bar under the page has the same button, beside the word count and reading time.
+
+![Find and replace over Quickstart: "workspace" in Find with 1 of 2, Aa and ab, the arrows and close; Replace with "team", Replace and Replace all; the first match marked in the note callout.](/docs-assets/guides/editor/editor-find-replace.webp)
 
 In Visual mode, find looks at the text you see; the Markdown behind it (link addresses, a callout's title) is in Markdown mode.
 
@@ -89,6 +95,8 @@ The **Checks** tab looks over the page as you write, and its count is the number
 
 **Show** scrolls to the problem and selects it. In the page itself, a problem link has a wavy underline (point at it to see why) and an image without a description has a dashed outline. When headings and links are fine, the tab says **Headings and links look good**.
 
+![Checks 2 on Acme Developers' Authentication page: Link to a page that doesn't exist ("rotate it" goes to /guides/key-rotation) with Show and Create the page, and Image without a description with Show and Add a description. In the page, "rotate it" has a wavy underline and the architecture diagram a dashed outline.](/docs-assets/guides/editor/editor-checks.webp)
+
 Under the checks, **On this page** lists the page's headings and subheadings, as readers see them. The section you're reading is marked; choose one to jump to it.
 
 ## Comments
@@ -97,9 +105,13 @@ Select text and choose **Comment** to ask a question or suggest a change about i
 
 Commented text is highlighted in the page; choose it to open its thread. In a thread you can **Reply**, **Resolve** (it moves to **Resolved**, where **Reopen** brings it back) and, for your own comments (or as an Admin), **Delete**. The tab's count is the open comments, and the tree shows each page's. There are no notifications: open comments show as counts.
 
+![The Comments tab on Quickstart with one open thread on "A read-only user is enough.", highlighted in the page: Noah Kim asks "Can we say which permissions? Support gets this question every week." and Alex Chen replies, with Reply and Resolve.](/docs-assets/guides/editor/editor-comments.webp)
+
 ## Who else is here
 
 When other people have the guide's editor open, their pictures are in the header with "Asha is here". Point at one to see which page they're on and whether they're editing it; choose it to open that page. The panel's footer says who last edited this page and who is editing which page right now, with **Version history**.
+
+![The studio header with Maya's and Alex's pictures and "Maya and Alex are here", Alex's marked as editing.](/docs-assets/guides/editor/editor-presence.webp)
 
 ## Images
 
@@ -134,6 +146,8 @@ The menu also lists **Video**, **Clip**, **Embed** and **API endpoint**. They co
 ## Keyboard shortcuts
 
 Press `?` (when you're not typing) or **Shortcuts** in the status bar for the list. On Windows and Linux, use Ctrl for ⌘ and Alt for ⌥.
+
+![The Keyboard shortcuts sheet: Text (bold, italic, strikethrough, inline code, link, keyboard key), Page (find and replace, next and previous match, undo, redo, send a comment, this sheet) and Blocks (block menu, headings, lists, quote, code block, move a block, line break).](/docs-assets/guides/editor/editor-shortcuts.webp)
 
 | Shortcut | Does |
 | --- | --- |
