@@ -5,11 +5,12 @@ name = "markdrop-docs-edge"
 main = "dist/worker.mjs"
 compatibility_date = "2026-01-01"
 
-# Every docs hostname routes here: <site>.guides.markdrop.in (wildcard route on the zone) and
-# customer domains through Cloudflare for SaaS (custom hostnames → this Worker as the fallback origin).
-# routes = [
-#   { pattern = "*.guides.markdrop.in/*", zone_name = "markdrop.in" },
-# ]
+# Every docs hostname routes here: <site>.guides.markdrop.in as Workers Custom Domains (attached by the
+# API, backend/app/services/docs_cf_hosts.py), and customers' own domains (Cloudflare for SaaS custom
+# hostnames) through a `*/*` route on the markdrop.in zone, with a Worker-less `*markdrop.in/*` route
+# keeping Markdrop's own names out of it. Both routes are made once in the dashboard, in that order
+# (README "Own domains (Cloudflare for SaaS)"); they are deliberately not declared here, so a deploy
+# can never create the catch-all before its exclusion exists.
 
 # The engine's shared files (/_next/static/{chunks,css,media}: content-hashed, identical for every
 # site an engine version builds) as Workers Static Assets: served at the edge without invoking the
