@@ -30,7 +30,7 @@ export default function PeopleSection() {
         <SettingsCard
           id="people"
           title="People"
-          description="Roles come from the workspace unless you change them here."
+          description={site.workspace_id ? "Roles come from the workspace unless you change them here." : undefined}
           aside={<RoleBadge role={role} title={`Your role: ${roleSourceLabel(site.your_role_source) || roleLabel(role)}`} />}
         >
           <SitePeople />

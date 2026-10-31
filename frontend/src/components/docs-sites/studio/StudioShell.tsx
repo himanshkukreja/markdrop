@@ -37,15 +37,17 @@ export function groupSites(sites: SiteSummary[], workspaces: Array<{ id: string;
 }
 
 /** A guide in the switcher: its logo (Match my brand), else its initial on its accent, as on the home's cards. */
-function SwitcherMark({ site }: { site: SiteSummary }) {
+function SwitcherMark({ site, size = 24 }: { site: SiteSummary; size?: number }) {
   const dark = usePreviewDark(site.theme);
-  return <GuideMark site={site} size={24} dark={dark} />;
+  return <GuideMark site={site} size={size} dark={dark} />;
 }
 
 /** The open site's name with a menu of every other site you can open, grouped by workspace. */
 function SiteSwitcher() {
   const { all, current } = useStudio();
   if (!current) return null;
+  // The open guide as the listing has it, so its mark matches the menu's (and the home's cards).
+  const listed = all?.sites.find((s) => s.id === current.id) ?? null;
   const items: MenuEntry[] = [];
   if (all) {
     for (const g of groupSites(all.sites, all.workspaces)) {
@@ -77,7 +79,7 @@ function SiteSwitcher() {
           className="ph-no-capture md-focus flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-text hover:bg-surface-hover"
           aria-label={`${current.name}: switch guide`}
         >
-          <SiteTile site={current} size={22} />
+          {listed ? <SwitcherMark site={listed} size={22} /> : <SiteTile site={current} size={22} />}
           <span className="min-w-0 max-w-[38vw] truncate text-body-strong sm:max-w-[260px]" dir="auto" title={current.name}>{current.name}</span>
           <Icon name="chevronDown" size={14} className="shrink-0 text-text-muted" />
         </button>

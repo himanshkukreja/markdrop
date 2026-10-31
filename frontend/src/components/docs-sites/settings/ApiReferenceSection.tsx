@@ -39,7 +39,7 @@ const METHOD_TONE: Record<string, "success" | "info" | "warning" | "danger" | "n
 };
 
 function sourceText(v: ApiSpecVersion) {
-  if (v.source.kind === "sample") return <>The sample file (a fictional Northwind API). Replace it with yours.</>;
+  if (v.source.kind === "sample") return <>The sample file (a fictional Northwind API), added</>;
   if (v.source.kind === "url") return <>Fetched from <code className="ph-sensitive ph-mask font-mono [overflow-wrap:anywhere]">{v.source.url}</code></>;
   return <>Uploaded{v.source.filename ? <> as <span className="ph-sensitive ph-mask font-mono">{v.source.filename}</span></> : null}</>;
 }

@@ -11,7 +11,7 @@ import { LockedNote, SectionHeader, SettingsCard } from "./SettingsShell";
 import { SECTIONS } from "./sections";
 import usePatch from "./usePatch";
 
-const SHOWN = 20;
+const SHOWN = 10;
 
 /**
  * Settings › Redirects: the guide's own (edited as rows, each with why it's there: a page moved, or

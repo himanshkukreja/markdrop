@@ -70,7 +70,7 @@ function StatusList({ rows }: { rows: Array<{ label: React.ReactNode; note: Reac
             {r.state === "done" ? <Icon name="check" size={13} /> : r.state === "running" ? <Spinner size={13} /> : r.state === "failed" ? <Icon name="alertCircle" size={14} /> : null}
           </span>
           <span className={cx("min-w-0 flex-1", r.state === "waiting" ? "text-text-muted" : "text-text")}>{r.label}</span>
-          <span className="text-caption text-text-muted">{r.note}</span>
+          <span className="basis-full pl-[34px] text-caption text-text-muted sm:basis-auto sm:pl-0">{r.note}</span>
         </li>
       ))}
     </ol>
@@ -268,10 +268,11 @@ function DomainSteps({ d }: { d: SiteDomain }) {
       {d.status === "removing" && <Alert tone="info">This domain is being removed.</Alert>}
       {failed && (
         <Alert tone="danger" title="Not live yet">
-          {d.message ? <span className="ph-sensitive ph-mask">{d.message}</span> : "Markdrop stopped checking."} Fix the record below, then choose Check now to start again.
+          {d.message ? <span className="ph-sensitive ph-mask">{d.message.replace("choose Re-check", "choose Check now")}</span> : "Markdrop stopped checking. Fix the record below, then choose Check now to start again."}
         </Alert>
       )}
-      {!failed && d.message && <Alert tone="warning"><span className="ph-sensitive ph-mask">{d.message}</span></Alert>}
+      {/* While DNS is pending, Cloudflare's words only say the CNAME isn't there yet: Status says that. */}
+      {!failed && d.message && (live || d.stage !== "dns") && <Alert tone="warning"><span className="ph-sensitive ph-mask">{d.message}</span></Alert>}
 
       {!isAdmin && !live && <Alert tone="neutral">A Guides admin finishes setting up this domain.</Alert>}
 
@@ -366,7 +367,7 @@ function DomainSteps({ d }: { d: SiteDomain }) {
           title="Status"
           aside={
             <>
-              {!live && <span className="text-caption text-text-muted">{isAdmin ? "Checking every minute" : "Markdrop keeps checking"}{checkedAgo ? ` · last check ${checkedAgo}` : ""}</span>}
+              {!live && <span className="text-caption text-text-muted">{failed ? "Markdrop stopped checking" : isAdmin ? "Checking every minute" : "Markdrop keeps checking"}{checkedAgo ? ` · last check ${checkedAgo}` : ""}</span>}
               {isAdmin && site.own_domains?.available && <Button variant="ghost" size="sm" iconLeft="refresh" loading={checking} onClick={() => void checkNow()}>Check now</Button>}
             </>
           }

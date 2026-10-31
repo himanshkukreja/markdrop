@@ -100,7 +100,7 @@ export default function DomainCheck({ host }: { host: string }) {
                     {r.state === "done" ? <Icon name="check" size={13} /> : r.state === "running" ? <Spinner size={13} /> : r.state === "failed" ? <Icon name="alertCircle" size={14} /> : null}
                   </span>
                   <span className={cx("min-w-0 flex-1 [overflow-wrap:anywhere]", r.state === "waiting" ? "text-text-muted" : "text-text")}>{r.label}</span>
-                  {r.note && <span className="text-caption text-text-muted [overflow-wrap:anywhere]">{r.note}</span>}
+                  {r.note && <span className="basis-full pl-[34px] text-caption text-text-muted [overflow-wrap:anywhere] sm:basis-auto sm:pl-0">{r.note}</span>}
                 </li>
               ))}
             </ol>

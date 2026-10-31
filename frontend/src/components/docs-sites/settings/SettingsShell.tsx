@@ -78,7 +78,7 @@ export function SettingsCard({ id, title, description, aside, children, tone, cl
             {title && <h2 id={hid} className="text-[16px] font-semibold leading-6 text-text">{title}</h2>}
             {description && <p className="mt-0.5 text-body text-text-secondary">{description}</p>}
           </div>
-          {aside && <div className="flex shrink-0 flex-wrap items-center gap-2">{aside}</div>}
+          {aside && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{aside}</div>}
         </div>
       )}
       {children}
