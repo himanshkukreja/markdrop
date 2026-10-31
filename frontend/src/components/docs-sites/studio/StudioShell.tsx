@@ -136,6 +136,9 @@ function AppNav({ className }: { className?: string }) {
  * Guides; then the guide search (⌘K), the theme switch and the account menu. Phones: the mark with
  * "Guides" (the mark alone with a guide open), the search button and the account menu.
  */
+/** Where a screen portals its own bit of the studio header (see StudioHeader). */
+export const HEADER_SLOT_ID = "guides-header-slot";
+
 export function StudioHeader() {
   const { current } = useStudio();
   return (
@@ -153,6 +156,8 @@ export function StudioHeader() {
       )}
       <AppNav className={cx("ml-2 hidden", current ? "2xl:flex" : "lg:flex")} />
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        {/* A screen's own header content (the editor's "who else is here"), portalled in. */}
+        <div id={HEADER_SLOT_ID} className="flex items-center empty:hidden" />
         <GuideSearch compact={!!current} />
         <ThemeToggle className="max-md:hidden" />
         <HeaderAuthSlot />

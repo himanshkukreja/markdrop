@@ -2,12 +2,15 @@
 
 import { ReadMore } from "@/components/ReadMore";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import {
-  Alert, Badge, Button, ConfirmDialog, Dialog, Drawer, EmptyState, Field, IconButton, Input, SegmentedControl, Select, Spinner,
-  copyText, useToast,
+  Alert, Avatar, Button, ConfirmDialog, Dialog, Drawer, EmptyState, Field, Icon, IconButton, Input, Kbd, SegmentedControl, Select, Spinner,
+  copyText, cx, useToast,
 } from "@/components/ui";
-import { DocsEditor, preloadDocsEditor, type ApiOperationOption, type EditorMode, type UploadImage } from "@/components/docs-editor";
+import {
+  DocsEditor, preloadDocsEditor, type ApiOperationOption, type AssistFn, type DocsEditorApi, type EditorMode, type TextAnchor, type UploadImage,
+} from "@/components/docs-editor";
 import { getApiReference } from "@/lib/docsApiReference";
 import { useLocationSearch } from "@/components/shell/useLocation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,22 +18,29 @@ import {
   assetPreviewUrl, createPage, deletePage, docsErrorMessage, listPages, saveNav, slugFrom, uploadAsset,
   type NavGroup, type Page, type PageSummary, type PagesResponse, type SaveConflict,
 } from "@/lib/docsSites";
+import { commentsSummary, editorAiEdit, editorAiStatus, type EditorAiStatus, type PresencePerson } from "@/lib/guideEditor";
+import { guideEvents } from "@/lib/guidesEvents";
 import { firstName, timeAgo } from "../format";
 import { usePublishState } from "../PublishState";
 import SiteBar, { STUDIO_CHROME_H } from "../SiteBar";
 import { useSite } from "../SiteContext";
-import PageSidePanel from "./PageSidePanel";
+import { HEADER_SLOT_ID } from "../studio/StudioShell";
+import { CommentsTab, usePageComments } from "./CommentsTab";
+import { EditorPanel, type PanelTab } from "./EditorPanel";
 import { PageTree, groupsOf } from "./PageTree";
+import { linkProblem, outlineOf, pageChecks, readMinutes, scanPage, type Check, type CheckContext } from "./pageChecks";
 import { composeDoc, parseDoc, setDocKeys } from "./pageDoc";
-import { pathProblem, suggestedPath } from "./pagePath";
+import { RESERVED_FIRST, pathProblem, suggestedPath } from "./pagePath";
 import { usePageSession, type LockState, type PageFields, type SaveState } from "./usePageSession";
+import { usePresence } from "./usePresence";
 
 const MarkdownPreview = dynamic(() => import("@/components/MarkdownPreview"), { ssr: false });
 
 const MODE_KEY = "md_docs_editor_mode";
+const isMac = () => typeof navigator !== "undefined" && /Mac|iP(hone|ad)/.test(navigator.platform);
 
-/** "Draft · saved just now", re-rendered every 30 s so the time stays honest. */
-function SaveBadge({ save, lock, onRetry }: { save: SaveState; lock: LockState; onRetry: () => void }) {
+/** "Saved", "Saving…", "Unsaved changes", "Not saved · Retry": quiet, beside the mode switch. */
+function SaveStatus({ save, lock, onRetry }: { save: SaveState; lock: LockState; onRetry: () => void }) {
   const [, tick] = useState(0);
   useEffect(() => {
     const id = window.setInterval(() => tick((n) => n + 1), 30_000);
@@ -38,22 +48,27 @@ function SaveBadge({ save, lock, onRetry }: { save: SaveState; lock: LockState; 
   }, []);
   // Viewers: the site bar already says "View only".
   if (lock.kind === "readonly") return null;
-  if (lock.kind === "theirs") return <Badge size="sm" icon="lock">Read only</Badge>;
-  if (save.state === "saving") return <Badge size="sm" aria-live="polite"><Spinner size={11} /> Saving…</Badge>;
-  if (save.state === "dirty") return <Badge size="sm" icon="edit">Draft · editing</Badge>;
+  const base = "inline-flex shrink-0 items-center gap-1.5 text-[12px] text-text-muted";
+  if (lock.kind === "theirs") return <span className={base}><Icon name="lock" size={13} /> Read only</span>;
+  if (save.state === "saving") return <span className={base} aria-live="polite"><Spinner size={11} /> Saving…</span>;
+  if (save.state === "dirty") return <span className={base}><Icon name="edit" size={13} /> Unsaved changes</span>;
   if (save.state === "error") {
     return (
-      <button type="button" onClick={onRetry} className="md-focus rounded-full" title="Try saving again">
-        <Badge size="sm" tone="danger" icon="alertCircle">Not saved · retry</Badge>
+      <button type="button" onClick={onRetry} className={cx(base, "md-focus rounded font-semibold text-danger")} title={save.message}>
+        <Icon name="alertCircle" size={13} /> Not saved · Retry
       </button>
     );
   }
-  return <Badge size="sm" icon="clock">Draft · saved {save.at ? timeAgo(save.at) : "just now"}</Badge>;
+  return (
+    <span className={base} title={`Draft saved${save.at ? ` ${timeAgo(save.at)}` : ""}. Readers see it after you publish.`}>
+      <Icon name="checkCircle" size={13} /> Saved
+    </span>
+  );
 }
 
 /** Where the sticky studio header and site bar end (the site bar wraps to two or three rows below lg). */
 function chromeBottom(): number {
-  const bar = document.querySelector<HTMLElement>('nav[aria-label="Site"]')?.parentElement;
+  const bar = document.querySelector<HTMLElement>('nav[aria-label="Guide"]')?.parentElement;
   return bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : STUDIO_CHROME_H;
 }
 
@@ -72,12 +87,6 @@ function moveTo(nav: NavGroup[], id: string, group: string): NavGroup[] {
   return nav.map((g) => (g.group === group ? { ...g, pages: [...g.pages.filter((x) => x !== id), id] } : { ...g, pages: g.pages.filter((x) => x !== id) }));
 }
 
-/**
- * /guides/<site>?page=<id> (Editor board): the page tree (locks, unpublished dots, new page,
- * move, delete), the page itself (title, description, then the docs editor in Visual or Markdown
- * mode), and the page panel (address, sidebar, icon, history). Drafts autosave; the top bar says
- * where the draft stands, and Publish… goes to the Publish screen.
- */
 /** The guide's API reference operations, offered by the editor's API endpoint block (none without one). */
 function useApiOperations(siteId: string, specId: string | null): ApiOperationOption[] {
   const [ops, setOps] = useState<ApiOperationOption[]>([]);
@@ -97,6 +106,170 @@ function useApiOperations(siteId: string, specId: string | null): ApiOperationOp
   return ops;
 }
 
+/** Is the window at least `px` wide (the side panels' breakpoints)? */
+function useWide(px: number): boolean {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${px}px)`);
+    const on = () => setWide(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [px]);
+  return wide;
+}
+
+/** "Asha is here" with their avatars, in the studio header (each opens the page they're on). */
+function PresenceBar({ people, onOpen }: { people: PresencePerson[]; onOpen: (pageId: string) => void }) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => setSlot(document.getElementById(HEADER_SLOT_ID)), []);
+  if (!slot || !people.length) return null;
+  const names = people.map((p) => firstName(p.name));
+  const text = names.length === 1 ? `${names[0]} is here` : names.length === 2 ? `${names[0]} and ${names[1]} are here` : `${names[0]} and ${names.length - 1} others are here`;
+  return createPortal(
+    <div className="mr-1 flex items-center gap-2" aria-label="Also on this guide">
+      <span className="flex -space-x-1.5">
+        {people.slice(0, 3).map((p) => {
+          const where = p.page_title ? `${p.editing ? "editing" : "on"} “${p.page_title}”` : "on this guide";
+          return (
+            <button
+              key={p.user_id}
+              type="button"
+              disabled={!p.page_id}
+              onClick={() => p.page_id && onOpen(p.page_id)}
+              title={`${p.name} · ${where}`}
+              className="md-focus rounded-full ring-2 ring-surface disabled:cursor-default"
+            >
+              <Avatar name={p.name} size="sm" status={p.editing ? "online" : "away"} />
+              <span className="md-visually-hidden">{p.name}, {where}</span>
+            </button>
+          );
+        })}
+      </span>
+      <span className="ph-sensitive ph-mask hidden text-[12px] text-text-muted xl:inline">{text}</span>
+    </div>,
+    slot,
+  );
+}
+
+const SHORTCUTS: Array<{ group: string; rows: Array<[string, string[]]> }> = [
+  {
+    group: "Text",
+    rows: [
+      ["Bold", ["mod", "B"]],
+      ["Italic", ["mod", "I"]],
+      ["Strikethrough", ["mod", "⇧", "S"]],
+      ["Inline code", ["mod", "E"]],
+      ["Link (with text selected)", ["mod", "K"]],
+      ["Keyboard key", ["mod", "⇧", "K"]],
+    ],
+  },
+  {
+    group: "Blocks",
+    rows: [
+      ["Block menu", ["/"]],
+      ["Heading, subheading", ["mod", "alt", "2 / 3"]],
+      ["Bulleted list", ["mod", "⇧", "8"]],
+      ["Numbered list", ["mod", "⇧", "7"]],
+      ["Quote", ["mod", "⇧", "B"]],
+      ["Code block", ["mod", "alt", "C"]],
+      ["Move the block up or down", ["alt", "⇧", "↑ / ↓"]],
+      ["Line break (and next row in a table)", ["⇧", "Enter"]],
+    ],
+  },
+  {
+    group: "Page",
+    rows: [
+      ["Find and replace", ["mod", "F"]],
+      ["Next / previous match", ["Enter", "⇧ Enter"]],
+      ["Undo", ["mod", "Z"]],
+      ["Redo", ["mod", "⇧", "Z"]],
+      ["Send a comment or reply", ["mod", "Enter"]],
+      ["Keyboard shortcuts", ["?"]],
+    ],
+  },
+];
+
+function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const mac = isMac();
+  const key = (k: string) => (k === "mod" ? (mac ? "⌘" : "Ctrl") : k === "alt" ? (mac ? "⌥" : "Alt") : k);
+  return (
+    <Dialog open={open} onClose={onClose} title="Keyboard shortcuts" description="In the page editor. Markdown shortcuts work too: ## for a heading, - for a list, > for a quote, ``` for code.">
+      <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+        {SHORTCUTS.map((g) => (
+          <section key={g.group} className={cx("flex flex-col gap-1", g.group === "Blocks" && "sm:row-span-2")}>
+            <h3 className="pb-1 text-[12px] font-semibold text-text-muted">{g.group}</h3>
+            {g.rows.map(([label, keys]) => (
+              <div key={label} className="flex items-center justify-between gap-3 py-1 text-[13px] text-text">
+                <span>{label}</span>
+                <span className="flex shrink-0 gap-1">{keys.map((k) => <Kbd key={k}>{key(k)}</Kbd>)}</span>
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
+    </Dialog>
+  );
+}
+
+/** A check's Fix for an image without a description. */
+function AltTextDialog({ src, onClose, onSave }: { src: string | null; onClose: () => void; onSave: (alt: string) => void }) {
+  const [alt, setAlt] = useState("");
+  const uid = useId();
+  useEffect(() => {
+    if (!src) return;
+    const name = src.split(/[/?#]/).filter(Boolean).pop() ?? "";
+    setAlt(name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ").replace(/\b\w/, (c) => c.toUpperCase()));
+  }, [src]);
+  return (
+    <Dialog
+      open={!!src}
+      onClose={onClose}
+      title="Describe the image"
+      description="A short sentence about what it shows. Screen readers read it out, and search engines use it."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" disabled={!alt.trim()} onClick={() => onSave(alt.trim())}>Save description</Button>
+        </>
+      }
+    >
+      <Field label="Description" htmlFor={`${uid}-alt`}>
+        <Input id={`${uid}-alt`} className="ph-no-capture" value={alt} maxLength={250} autoFocus onChange={(e) => setAlt(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && alt.trim()) onSave(alt.trim()); }} />
+      </Field>
+    </Dialog>
+  );
+}
+
+/** The bar under the page: words and reading time, Find and replace, Shortcuts. */
+function StatusBar({ words, onFind, onShortcuts }: { words: number; onFind: () => void; onShortcuts: () => void }) {
+  const mins = readMinutes(words);
+  return (
+    <div className="sticky bottom-0 z-10 mt-auto flex h-[34px] shrink-0 items-center gap-4 border-t border-border bg-surface px-4 text-[12px] text-text-muted sm:px-5">
+      <span aria-live="off">{words.toLocaleString("en")} {words === 1 ? "word" : "words"}{mins ? ` · ${mins} min read` : ""}</span>
+      <span className="flex-1" />
+      <button type="button" onClick={onFind} className="md-focus inline-flex items-center gap-1.5 rounded hover:text-text">
+        <Kbd>{isMac() ? "⌘F" : "Ctrl F"}</Kbd><span className="max-sm:hidden">Find and replace</span><span className="sm:hidden">Find</span>
+      </button>
+      <button type="button" onClick={onShortcuts} className="md-focus inline-flex items-center gap-1.5 rounded hover:text-text max-sm:hidden">
+        <Kbd>?</Kbd>Shortcuts
+      </button>
+    </div>
+  );
+}
+
+const typing = (t: EventTarget | null) => {
+  const el = t as HTMLElement | null;
+  return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+};
+
+/**
+ * /guides/<site>?page=<id> (Editor board): the page tree (search, groups, icons, a dot on what
+ * changed since the last publish, locks), the page (breadcrumb, title, description, then the docs
+ * editor in Visual or Markdown mode, with Find and replace, Ask AI, comments and inline problems;
+ * a status bar under it), and the page panel (Checks with "On this page", Page settings, Comments,
+ * History; who else is editing what). Drafts autosave; Publish is in the site bar.
+ */
 export default function EditorPage() {
   const { site, base, canEdit, isAdmin } = useSite();
   const apiOps = useApiOperations(site.id, site.settings.api?.spec_id ?? null);
@@ -109,9 +282,15 @@ export default function EditorPage() {
   const [mode, setModeState] = useState<EditorMode>("visual");
   const [treeOpen, setTreeOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [tab, setTab] = useState<PanelTab>("checks");
   const [preview, setPreview] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+  const [newInit, setNewInit] = useState<{ title: string; path?: string; stay?: boolean }>({ title: "" });
   const [deleting, setDeleting] = useState<PageSummary | null>(null);
+  const [shortcuts, setShortcuts] = useState(false);
+  const [altFor, setAltFor] = useState<string | null>(null);
+  const editorApi = useRef<DocsEditorApi | null>(null);
+  const panelWide = useWide(1280);
 
   // The editor's chunk: start loading it now, while the page tree and the page load.
   useEffect(() => { preloadDocsEditor(); }, []);
@@ -136,11 +315,24 @@ export default function EditorPage() {
     }
   }, [site.id]);
   useEffect(() => { void loadTree(); }, [loadTree]);
+
+  // Open comments per page (the tree's count), for the roles that see comments.
+  const [talk, setTalk] = useState<Record<string, number>>({});
+  const loadTalk = useCallback(() => {
+    if (!canEdit) return;
+    commentsSummary(site.id).then((r) => setTalk(r.pages)).catch(() => {});
+  }, [site.id, canEdit]);
+  useEffect(() => { loadTalk(); }, [loadTalk]);
+
   // Locks and dots move as other people work: refresh the tree every 30 s.
   useEffect(() => {
-    const id = window.setInterval(() => { if (document.visibilityState === "visible") void loadTree(); }, 30_000);
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void loadTree();
+      loadTalk();
+    }, 30_000);
     return () => window.clearInterval(id);
-  }, [loadTree]);
+  }, [loadTree, loadTalk]);
 
   const groups = useMemo(() => (tree ? groupsOf(tree.nav, tree.pages) : null), [tree]);
   const firstPage = groups?.find((g) => !g.hidden)?.pages[0]?.id ?? groups?.[0]?.pages[0]?.id ?? null;
@@ -163,13 +355,15 @@ export default function EditorPage() {
     refreshSoon();
     setTree((t) => t && {
       ...t,
-      pages: t.pages.map((x) => (x.id === p.id ? { ...x, title: p.title, path: p.path, icon: p.icon ?? null, hidden: p.hidden, has_changes: true } : x)),
+      pages: t.pages.map((x) => (x.id === p.id ? { ...x, title: p.title, path: p.path, icon: p.icon ?? null, hidden: p.hidden, has_changes: true, published: p.published ?? x.published } : x)),
     });
   }, [refreshSoon]);
 
   const session = usePageSession({ siteId: site.id, pageId, canEdit, onSaved });
   const { page, fields, lock, save } = session;
   const editable = lock.kind === "mine";
+  const people = usePresence(site.id, pageId);
+
   // ?preview=1 (the Guides home's Preview on a guide that isn't live): open the page's preview once.
   const previewAsked = useRef(false);
   const wantsPreview = new URLSearchParams(search).get("preview") === "1";
@@ -180,12 +374,11 @@ export default function EditorPage() {
   }, [wantsPreview, fields]);
   // ?new=<title> (Insights › "Write a page"): open New page with the title filled in, once the
   // page tree is here (for its groups), then take it out of the address.
-  const [newTitle, setNewTitle] = useState("");
   const askedNew = new URLSearchParams(search).get("new");
   useEffect(() => {
     if (askedNew == null || !tree) return;
     if (canEdit) {
-      setNewTitle(askedNew.slice(0, 120));
+      setNewInit({ title: askedNew.slice(0, 120) });
       setNewOpen(true);
     }
     const p = new URLSearchParams(window.location.search);
@@ -225,12 +418,13 @@ export default function EditorPage() {
     session.update(parseDoc(md, extraRef.current));
   }, [session.update]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The page panel edits fields; the ones the document carries (icon; hidden only when someone
-  // typed it into the frontmatter) are written back into it, the editor's way.
+  // The page panel edits fields; the ones the document carries (icon, description; hidden only when
+  // someone typed it into the frontmatter) are written back into it, the editor's way.
   const onPanelChange = useCallback((patch: Partial<PageFields>) => {
     session.update(patch);
     const keys: Record<string, string | null> = {};
     if ("icon" in patch) keys.icon = patch.icon ?? null;
+    if ("description" in patch) keys.description = patch.description ?? "";
     if ("hidden" in patch) keys.hidden = null;
     if (Object.keys(keys).length) setEdited({ seq: seqRef.current, doc: setDocKeys(docRef.current, keys) });
   }, [session.update]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -241,6 +435,168 @@ export default function EditorPage() {
     await uploadAsset(site.id, file, info.variant === "dark" ? { variant: "dark", for: info.for } : undefined)
   ).url, [site.id]);
   const resolveAssetUrl = useCallback((src: string) => assetPreviewUrl(site.id, src) ?? src, [site.id]);
+
+  // ── Ask AI ──
+  const [ai, setAi] = useState<EditorAiStatus | null>(null);
+  useEffect(() => {
+    if (!canEdit) return;
+    editorAiStatus(site.id).then(setAi).catch(() => setAi(null));
+  }, [site.id, canEdit]);
+  const aiOn = !!ai && ai.reason !== "disabled" && ai.reason !== "not_configured";
+  const assist = useMemo<AssistFn | undefined>(() => (aiOn ? async (req) => {
+    const r = await editorAiEdit(site.id, { ...req, page_id: pageId ?? undefined });
+    setAi((a) => a && { ...a, used_today: r.used_today, limit_today: r.limit_today });
+    return r.markdown;
+  } : undefined), [aiOn, site.id, pageId]);
+
+  // ── Checks, outline, words ──
+  const scan = useMemo(() => (fields ? scanPage(fields.markdown) : null), [fields?.markdown]); // eslint-disable-line react-hooks/exhaustive-deps
+  const checkCtx = useMemo<CheckContext>(() => ({
+    path: fields?.path ?? summary?.path ?? "/",
+    pages: (tree?.pages ?? []).map((p) => ({ id: p.id, path: p.id === pageId && fields ? fields.path : p.path, title: p.title, published: p.published ?? true })),
+    redirects: (site.settings.redirects ?? []).map((r) => r.from),
+    reserved: (s) => RESERVED_FIRST.has(s),
+  }), [fields?.path, summary?.path, tree, pageId, site.settings.redirects]); // eslint-disable-line react-hooks/exhaustive-deps
+  const checks = useMemo(() => (scan ? pageChecks(scan, checkCtx) : []), [scan, checkCtx]);
+  const checkLink = useCallback((href: string) => {
+    const p = linkProblem(href, checkCtx);
+    return p ? { message: p.message } : null;
+  }, [checkCtx]);
+  const outline = useMemo(() => (scan ? outlineOf(scan) : []), [scan]);
+
+  // The section you're reading (visual mode): the last outline heading above the fold.
+  const [activeHeading, setActiveHeading] = useState(0);
+  const headingEls = () => Array.from(document.querySelectorAll<HTMLElement>(".dxe-content > h2, .dxe-content > h3")).filter((h) => h.textContent?.trim());
+  useEffect(() => {
+    if (mode !== "visual") return;
+    let raf = 0;
+    const on = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const line = chromeBottom() + 96;
+        let i = 0;
+        headingEls().forEach((h, k) => { if (h.getBoundingClientRect().top <= line) i = k; });
+        setActiveHeading(i);
+      });
+    };
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", on);
+    };
+  }, [mode, outline.length, page?.id]);
+  const onOutline = (i: number) => {
+    const o = outline[i];
+    if (!o) return;
+    if (!panelWide) setPanelOpen(false);
+    const el = mode === "visual" ? headingEls()[i] : null;
+    if (el) {
+      window.scrollTo({ top: window.scrollY + el.getBoundingClientRect().top - chromeBottom() - 24, behavior: "smooth" });
+      setActiveHeading(i);
+    } else {
+      editorApi.current?.reveal({ kind: "heading", text: o.text, level: o.level, nth: o.nth });
+    }
+  };
+
+  const onShow = (c: Check) => {
+    if (!c.target) return;
+    if (!panelWide) setPanelOpen(false);
+    // After the drawer has gone (its focus return would take the selection away).
+    window.setTimeout(() => {
+      if (!editorApi.current?.reveal(c.target!)) toast.info("That isn't on the page any more.");
+    }, panelWide ? 0 : 220);
+  };
+  const onFix = (c: Check) => {
+    if (!c.fix || !editable) return;
+    if (c.fix.kind === "create_page") {
+      setNewInit({ title: c.fix.title, path: c.fix.path, stay: true });
+      setNewOpen(true);
+    } else if (c.fix.kind === "image_alt") {
+      setAltFor(c.fix.src);
+    } else if (editorApi.current?.removeEmptyHeadings()) {
+      guideEvents.checkFixed("heading_empty");
+      toast.success("Empty headings removed.");
+    }
+  };
+
+  // ── Comments ──
+  const comments = usePageComments(site.id, pageId, canEdit);
+  const [draft, setDraft] = useState<TextAnchor | null>(null);
+  const [activeComment, setActiveComment] = useState<string | null>(null);
+  useEffect(() => {
+    setDraft(null);
+    setActiveComment(null);
+  }, [pageId]);
+  const showPanel = useCallback((t: PanelTab) => {
+    setTab(t);
+    if (!window.matchMedia("(min-width: 1280px)").matches) setPanelOpen(true);
+  }, []);
+  const onComment = useCallback((a: TextAnchor) => {
+    setDraft(a);
+    showPanel("comments");
+  }, [showPanel]);
+  const onCommentClick = useCallback((id: string) => {
+    setActiveComment(id);
+    showPanel("comments");
+  }, [showPanel]);
+  const highlights = useMemo(
+    () => (comments.comments ?? []).filter((c) => !c.resolved).map((c) => ({ id: c.id, quote: c.quote, prefix: c.prefix ?? undefined, active: c.id === activeComment })),
+    [comments.comments, activeComment],
+  );
+  // The last text selected in the page (any mode, read only too): "Comment on selection" uses it.
+  const lastSelection = useRef<TextAnchor | null>(null);
+  useEffect(() => {
+    const on = () => {
+      const ta = document.activeElement as HTMLTextAreaElement | null;
+      if (ta?.classList?.contains("dxe-source__text")) {
+        const q = ta.value.slice(ta.selectionStart, ta.selectionEnd).trim();
+        if (q) lastSelection.current = { quote: q.slice(0, 500), prefix: ta.value.slice(Math.max(0, ta.selectionStart - 40), ta.selectionStart), suffix: ta.value.slice(ta.selectionEnd, ta.selectionEnd + 40) };
+        return;
+      }
+      const sel = window.getSelection();
+      const root = document.querySelector(".dxe-content");
+      if (!sel || sel.isCollapsed || !root || !sel.anchorNode || !root.contains(sel.anchorNode)) return;
+      const quote = sel.toString().trim();
+      if (!quote) return;
+      const range = sel.getRangeAt(0);
+      const block = (range.startContainer.nodeType === 1 ? range.startContainer as Element : range.startContainer.parentElement)?.closest("p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote");
+      let prefix = "";
+      if (block) {
+        const r = document.createRange();
+        r.setStart(block, 0);
+        r.setEnd(range.startContainer, range.startOffset);
+        prefix = r.toString().slice(-40);
+      }
+      lastSelection.current = { quote: quote.slice(0, 500), prefix, suffix: "" };
+    };
+    document.addEventListener("selectionchange", on);
+    return () => document.removeEventListener("selectionchange", on);
+  }, []);
+  const commentOnSelection = () => {
+    const s = lastSelection.current;
+    if (!s) return toast.info("Select some text in the page first, then press Comment.");
+    setDraft(s);
+    lastSelection.current = null;
+  };
+
+  // ── Keys: ⌘F anywhere on the editor screen, ? for the shortcuts ──
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const mod = isMac() ? e.metaKey : e.ctrlKey;
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f" && editorApi.current) {
+        e.preventDefault();
+        editorApi.current.openFind();
+      } else if ((e.key === "?" && !mod && !typing(e.target)) || (mod && e.key === "/")) {
+        e.preventDefault();
+        setShortcuts(true);
+      }
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
 
   const lockBanner = (() => {
     if (lock.kind !== "theirs") return null;
@@ -269,23 +625,69 @@ export default function EditorPage() {
         title={`${who} is editing this page`}
         actions={isAdmin ? <Button size="sm" variant="secondary" onClick={() => void session.takeOver().catch((e) => toast.error(docsErrorMessage(e)))}>Take over</Button> : undefined}
       >
-        You can read it. It opens for editing when {firstName(who)} is done{isAdmin ? ", or take over now (their unsaved typing is lost)" : ""}.{" "}
+        You can read it{canEdit ? " and comment on it" : ""}. It opens for editing when {firstName(who)} is done{isAdmin ? ", or take over now (their unsaved typing is lost)" : ""}.{" "}
         <ReadMore topic="studioLocks" />
       </Alert>
     );
   })();
 
-  const crumb = [group && !group.hidden ? group.group : null, fields?.title || summary?.title].filter(Boolean).join(" / ");
   const isHome = page?.path === "/";
+  const groupName = group && !group.hidden ? group.group : null;
+  const title = fields?.title || summary?.title || "";
+  const crumb = (
+    <nav aria-label="Breadcrumb" className="ph-no-capture flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 pb-1 text-[12px] text-text-muted">
+      {groupName && <><span className="truncate">{groupName}</span><Icon name="chevronRight" size={11} /></>}
+      <span className="truncate">{title || "Untitled"}</span>
+      {fields && <span className="ml-1.5 truncate font-mono" title={fields.path}>{fields.path}</span>}
+    </nav>
+  );
+
+  // Other people editing pages of this guide right now (the page locks), for the panel's footer.
+  const editingNow = useMemo(() => (tree?.pages ?? [])
+    .filter((p) => p.lock && p.lock.user_id !== user?.id)
+    .map((p) => ({ name: p.lock!.name, title: p.title || p.path, here: people.some((x) => x.user_id === p.lock!.user_id) })), [tree, user?.id, people]);
 
   const panel = page && fields ? (
-    <PageSidePanel page={page} fields={fields} readOnly={!editable} isHome={isHome} onChange={onPanelChange} onRestore={session.restore} />
+    <EditorPanel
+      tab={tab}
+      onTab={setTab}
+      page={page}
+      fields={fields}
+      readOnly={!editable}
+      isHome={isHome}
+      onChange={onPanelChange}
+      onRestore={session.restore}
+      checks={checks}
+      onShow={onShow}
+      onFix={onFix}
+      outline={outline}
+      activeHeading={activeHeading}
+      onOutline={onOutline}
+      mode={mode}
+      commentCount={comments.open}
+      comments={canEdit ? (
+        <CommentsTab
+          api={comments}
+          draft={draft}
+          onDraftDone={() => { setDraft(null); loadTalk(); }}
+          active={activeComment}
+          onActive={setActiveComment}
+          onShow={(c) => {
+            if (!panelWide) setPanelOpen(false);
+            window.setTimeout(() => editorApi.current?.reveal({ kind: "quote", quote: c.quote, prefix: c.prefix ?? undefined }), panelWide ? 0 : 220);
+          }}
+          onCommentSelection={commentOnSelection}
+        />
+      ) : null}
+      footer={{ editedBy: page.updated_by_name ?? null, editedAt: page.updated_at ?? null, editing: editingNow }}
+    />
   ) : null;
 
   const treeEl = (
     <>
       {treeError && <Alert tone="danger" className="mb-2">{treeError}</Alert>}
       <PageTree
+        siteId={site.id}
         groups={groups}
         currentId={pageId}
         myId={user?.id ?? null}
@@ -293,7 +695,8 @@ export default function EditorPage() {
         onOpen={open}
         canEdit={canEdit}
         loading={!tree}
-        onNewPage={() => setNewOpen(true)}
+        comments={talk}
+        onNewPage={() => { setNewInit({ title: "" }); setNewOpen(true); }}
         onMove={(id, dir) => tree && void updateNav(moveIn(tree.nav, id, dir))}
         onMoveToGroup={(id, g) => tree && void updateNav(moveTo(tree.nav, id, g))}
         onDelete={setDeleting}
@@ -301,13 +704,15 @@ export default function EditorPage() {
     </>
   );
 
+  const problems = checks.filter((c) => c.kind !== "ok").length;
+  const sideH = { top: STUDIO_CHROME_H, height: `calc(100dvh - ${STUDIO_CHROME_H}px)` };
+
   return (
     <>
       <SiteBar
         section="pages"
         preview={false}
-        crumb={crumb ? `/ ${crumb}` : undefined}
-        status={pageId && fields ? <SaveBadge save={save} lock={lock} onRetry={session.retry} /> : null}
+        status={pageId && fields ? <SaveStatus save={save} lock={lock} onRetry={session.retry} /> : null}
         actions={
           <>
             <Button variant="ghost" size="sm" iconLeft="listTree" className="lg:hidden" onClick={() => setTreeOpen(true)}>Pages</Button>
@@ -323,80 +728,88 @@ export default function EditorPage() {
             />
             <Button variant="ghost" size="sm" iconLeft="eye" className="max-sm:hidden" disabled={!fields} onClick={() => setPreview(true)}>Preview</Button>
             <IconButton icon="eye" label="Preview" size="sm" className="sm:hidden" disabled={!fields} onClick={() => setPreview(true)} />
+            {fields && (
+              <Button variant="ghost" size="sm" iconLeft="columns" className="xl:hidden" onClick={() => setPanelOpen(true)}>
+                Page{problems ? <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-warning-soft px-1 text-[10px] font-bold text-warning">{problems}</span> : null}
+              </Button>
+            )}
           </>
         }
       />
+      <PresenceBar people={people} onOpen={open} />
 
-      <div className="flex min-h-0 min-w-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 bg-surface">
         <aside
-          className="sticky hidden w-[250px] shrink-0 overflow-y-auto border-r border-border bg-surface px-2.5 py-4 lg:block"
-          style={{ top: STUDIO_CHROME_H, height: `calc(100dvh - ${STUDIO_CHROME_H}px)` }}
+          aria-label="Pages"
+          className="sticky hidden w-[248px] shrink-0 overflow-y-auto border-r border-border bg-surface px-2.5 pt-3 lg:block"
+          style={sideH}
           onPointerEnter={preloadDocsEditor}
         >
           {treeEl}
         </aside>
 
-        <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 justify-center px-4 pb-16 pt-6 outline-none sm:px-8 sm:pt-10 xl:px-12">
-          <div className="flex w-full min-w-0 max-w-[720px] flex-col gap-4">
-            {session.loadError && (
-              <EmptyState icon="alertCircle" title={session.loadError.status === 404 ? "This page doesn't exist any more" : "We couldn't open this page"} description={session.loadError.message}
-                actions={firstPage ? <Button variant="secondary" onClick={() => open(firstPage)}>Open the first page</Button> : undefined} />
-            )}
-            {tree && tree.pages.length === 0 && (
-              <EmptyState icon="doc" title="No pages yet" description="Add the first page of your guide." actions={canEdit ? <Button variant="primary" iconLeft="plus" onClick={() => setNewOpen(true)}>New page</Button> : undefined} />
-            )}
-            {pageId && !fields && !session.loadError && (
-              <div className="flex min-h-[40vh] items-center justify-center" aria-busy="true"><Spinner size={20} label="Loading the page" /></div>
-            )}
-            {lockBanner}
-            {lock.kind === "acquiring" && <p className="flex items-center gap-2 text-[13px] text-text-muted"><Spinner size={12} /> Opening for editing…</p>}
+        <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none" style={{ minHeight: `calc(100dvh - ${STUDIO_CHROME_H}px)` }}>
+          <div className="flex flex-1 justify-center px-4 pb-20 pt-6 sm:px-8 sm:pt-11 xl:px-10">
+            <div className="flex w-full min-w-0 max-w-[756px] flex-col gap-4">
+              {session.loadError && (
+                <EmptyState icon="alertCircle" title={session.loadError.status === 404 ? "This page doesn't exist any more" : "We couldn't open this page"} description={session.loadError.message}
+                  actions={firstPage ? <Button variant="secondary" onClick={() => open(firstPage)}>Open the first page</Button> : undefined} />
+              )}
+              {tree && tree.pages.length === 0 && (
+                <EmptyState icon="doc" title="No pages yet" description="Add the first page of your guide." actions={canEdit ? <Button variant="primary" iconLeft="plus" onClick={() => { setNewInit({ title: "" }); setNewOpen(true); }}>New page</Button> : undefined} />
+              )}
+              {pageId && !fields && !session.loadError && (
+                <div className="flex min-h-[40vh] items-center justify-center" aria-busy="true"><Spinner size={20} label="Loading the page" /></div>
+              )}
+              <div className={cx(mode === "visual" && "sm:pl-14")}>{lockBanner}</div>
+              {lock.kind === "acquiring" && <p className={cx("flex items-center gap-2 text-[13px] text-text-muted", mode === "visual" && "sm:pl-14")}><Spinner size={12} /> Opening for editing…</p>}
 
-            {fields && page && (
-              <>
-                {/* In line with the page text (the visual editor keeps a 56 px gutter for block handles from sm up). */}
-                <div className={`flex items-center justify-between gap-2 lg:hidden ${mode === "visual" ? "sm:pl-14" : ""}`}>
-                  <span className="ph-sensitive ph-mask min-w-0 truncate text-[13px] text-text-muted" title={page.path}>{page.path}</span>
-                  <Button variant="ghost" size="sm" iconLeft="settings" className="shrink-0" onClick={() => setPanelOpen(true)}>Page settings</Button>
-                </div>
+              {fields && page && (
                 <DocsEditor
                   key={page.id}
                   // Not recorded, clicks not autocaptured: both modes hold the customer's own words.
-                  className="ph-no-capture"
+                  className="ph-no-capture dxe-root--guides"
                   aria-label={`Content of ${fields.title || "this page"}`}
                   value={doc}
                   onChange={onDocChange}
                   mode={mode}
                   onModeChange={setMode}
                   showModeSwitch={false}
+                  headerIcon={false}
+                  headerTop={crumb}
                   onUploadImage={onUploadImage}
                   resolveAssetUrl={resolveAssetUrl}
                   readOnly={!editable}
                   placeholder="Type / for blocks: callouts, steps, tabs, code, images…"
                   operations={apiOps}
                   stickyTop={chromeBottom}
+                  apiRef={editorApi}
+                  assist={editable ? assist : undefined}
+                  assistLanguages={ai?.languages}
+                  onComment={canEdit ? onComment : undefined}
+                  comments={canEdit ? highlights : undefined}
+                  onCommentClick={onCommentClick}
+                  checkLink={checkLink}
+                  flagImages
+                  onFindOpen={guideEvents.findReplace}
                 />
-              </>
-            )}
+              )}
+            </div>
           </div>
+          {fields && <StatusBar words={scan?.words ?? 0} onFind={() => editorApi.current?.openFind()} onShortcuts={() => setShortcuts(true)} />}
         </main>
 
-        <aside aria-label="Page settings" className="sticky hidden w-[300px] shrink-0 overflow-y-auto border-l border-border bg-surface p-5 xl:block" style={{ top: STUDIO_CHROME_H, height: `calc(100dvh - ${STUDIO_CHROME_H}px)` }}>
-          {panel}
+        <aside aria-label="Page panel" className="sticky hidden w-[288px] shrink-0 border-l border-border bg-surface xl:block" style={sideH}>
+          {panelWide && panel}
         </aside>
       </div>
 
       <Drawer open={treeOpen} onClose={() => setTreeOpen(false)} side="left" width={300} title={<span className="ph-sensitive ph-mask">{site.name}</span>}>
         {treeEl}
       </Drawer>
-      <Drawer open={panelOpen} onClose={() => setPanelOpen(false)} title="Page settings" width={340}>
-        {panel}
+      <Drawer open={panelOpen && !panelWide} onClose={() => setPanelOpen(false)} title={<span className="ph-sensitive ph-mask">{title || "Page"}</span>} width={360}>
+        <div className="-mx-5 -my-4 flex min-h-full flex-col">{!panelWide && panel}</div>
       </Drawer>
-      {/* Between lg and xl the panel isn't on screen: the same button opens it. */}
-      {fields && (
-        <div className="fixed bottom-4 right-4 z-20 hidden lg:block xl:hidden">
-          <Button variant="secondary" size="sm" iconLeft="settings" onClick={() => setPanelOpen(true)}>Page settings</Button>
-        </div>
-      )}
 
       <Drawer open={preview} onClose={() => setPreview(false)} title={fields?.title ? <span className="ph-sensitive ph-mask">{fields.title}</span> : "Preview"} description="A quick look at the draft. Callouts, steps and tabs render fully on the published guide." width={760}>
         {fields && (
@@ -407,6 +820,20 @@ export default function EditorPage() {
         )}
       </Drawer>
 
+      <ShortcutsDialog open={shortcuts} onClose={() => setShortcuts(false)} />
+      <AltTextDialog
+        src={altFor}
+        onClose={() => setAltFor(null)}
+        onSave={(alt) => {
+          const n = altFor ? editorApi.current?.setImageAlt(altFor, alt) ?? 0 : 0;
+          setAltFor(null);
+          if (n) {
+            guideEvents.checkFixed("image_alt");
+            toast.success(n === 1 ? "Description added." : `Description added to ${n} images.`);
+          }
+        }}
+      />
+
       <ConflictDialog
         conflict={session.conflict}
         mine={doc}
@@ -415,18 +842,25 @@ export default function EditorPage() {
 
       <NewPageDialog
         open={newOpen}
-        onClose={() => { setNewOpen(false); setNewTitle(""); }}
-        initialTitle={newTitle}
+        onClose={() => { setNewOpen(false); setNewInit({ title: "" }); }}
+        initialTitle={newInit.title}
+        initialPath={newInit.path}
         groups={tree?.nav.map((g) => g.group) ?? []}
         currentGroup={group && !group.hidden ? group.group : undefined}
         afterId={group && !group.hidden ? pageId : null}
         onCreate={async (input) => {
           const p = await createPage(site.id, input);
           await loadTree();
-          open(p.id);
+          const stay = newInit.stay;
           setNewOpen(false);
-          setNewTitle("");
-          toast.success(<><span className="ph-sensitive ph-mask">{p.title}</span> added as a draft.</>);
+          setNewInit({ title: "" });
+          if (stay) {
+            guideEvents.checkFixed("link_missing");
+            toast.success(<><span className="ph-sensitive ph-mask">{p.title}</span> added as a draft. The link works once it's published.</>, { action: { label: "Open it", onClick: () => open(p.id) } });
+          } else {
+            open(p.id);
+            toast.success(<><span className="ph-sensitive ph-mask">{p.title}</span> added as a draft.</>);
+          }
         }}
       />
 
@@ -478,11 +912,13 @@ function ConflictDialog({ conflict, mine, onResolve }: { conflict: SaveConflict 
   );
 }
 
-function NewPageDialog({ open, onClose, initialTitle = "", groups, currentGroup, afterId, onCreate }: {
+function NewPageDialog({ open, onClose, initialTitle = "", initialPath, groups, currentGroup, afterId, onCreate }: {
   open: boolean;
   onClose: () => void;
-  /** A title to start from (Insights › "Write a page"). */
+  /** A title to start from (Insights › "Write a page", a check's "create it"). */
   initialTitle?: string;
+  /** An address to start from (a check: the address a link points at). */
+  initialPath?: string;
   groups: string[];
   currentGroup?: string;
   afterId: string | null;
@@ -501,8 +937,9 @@ function NewPageDialog({ open, onClose, initialTitle = "", groups, currentGroup,
   useEffect(() => {
     if (!open) return;
     const g = currentGroup ?? groups[0] ?? "__new";
-    setTitle(initialTitle); setPath(initialTitle ? autoPath(initialTitle, g === "__new" ? "" : g) : "");
-    pathEdited.current = false; setNewGroup(""); setError(""); setBusy(false);
+    setTitle(initialTitle);
+    setPath(initialPath ?? (initialTitle ? autoPath(initialTitle, g === "__new" ? "" : g) : ""));
+    pathEdited.current = !!initialPath; setNewGroup(""); setError(""); setBusy(false);
     setGroup(g);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -562,3 +999,4 @@ function NewPageDialog({ open, onClose, initialTitle = "", groups, currentGroup,
     </Dialog>
   );
 }
+

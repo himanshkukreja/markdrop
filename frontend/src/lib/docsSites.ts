@@ -530,6 +530,8 @@ export interface PageSummary {
   hidden: boolean;
   /** Differs from what's live (or was never published). */
   has_changes: boolean;
+  /** In the live guide (false: new, never published). Older APIs leave it out. */
+  published?: boolean;
   lock: PageLock | null;
   rev: number;
   updated_at: string;
