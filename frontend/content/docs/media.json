@@ -301,14 +301,14 @@
   },
   "/docs-assets/docs-studio/create-a-site/new-site-template.dark.webp": {
     "w": 1728,
-    "h": 1670,
-    "bytes": 88700,
+    "h": 1708,
+    "bytes": 94552,
     "kind": "image"
   },
   "/docs-assets/docs-studio/create-a-site/new-site-template.webp": {
     "w": 1728,
-    "h": 1670,
-    "bytes": 87604,
+    "h": 1708,
+    "bytes": 93662,
     "kind": "image"
   },
   "/docs-assets/docs-studio/editor/editor-markdown.dark.webp": {
@@ -326,33 +326,33 @@
   "/docs-assets/docs-studio/editor/editor-overview.dark.webp": {
     "w": 2880,
     "h": 1800,
-    "bytes": 116846,
+    "bytes": 122116,
     "kind": "image"
   },
   "/docs-assets/docs-studio/editor/editor-overview.webp": {
     "w": 2880,
     "h": 1800,
-    "bytes": 118930,
+    "bytes": 124380,
     "kind": "image"
   },
   "/docs-assets/docs-studio/editor/editor-slash-callout.mp4": {
     "w": 1440,
     "h": 856,
-    "duration": 9.07,
-    "bytes": 207134,
+    "duration": 9.03,
+    "bytes": 205255,
     "kind": "clip"
   },
   "/docs-assets/docs-studio/editor/editor-slash-callout.webm": {
     "w": 1440,
     "h": 856,
-    "duration": 9.07,
-    "bytes": 231531,
+    "duration": 9.03,
+    "bytes": 244920,
     "kind": "clip"
   },
   "/docs-assets/docs-studio/editor/editor-slash-callout.webp": {
     "w": 1440,
     "h": 856,
-    "bytes": 53146,
+    "bytes": 56096,
     "kind": "poster"
   },
   "/docs-assets/docs-studio/editor/image-block.dark.webp": {
@@ -522,13 +522,13 @@
   "/docs-assets/docs-studio/pages-and-navigation/page-settings.dark.webp": {
     "w": 600,
     "h": 1040,
-    "bytes": 16372,
+    "bytes": 21570,
     "kind": "image"
   },
   "/docs-assets/docs-studio/pages-and-navigation/page-settings.webp": {
     "w": 600,
     "h": 1040,
-    "bytes": 17392,
+    "bytes": 23014,
     "kind": "image"
   },
   "/docs-assets/docs-studio/pages-and-navigation/page-tree.dark.webp": {
@@ -1516,14 +1516,14 @@
   "/docs-assets/videos/docs-studio-first-site.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 48.27,
-    "bytes": 1371864,
+    "duration": 48.23,
+    "bytes": 1367734,
     "kind": "video"
   },
   "/docs-assets/videos/docs-studio-first-site.webp": {
     "w": 1920,
     "h": 1080,
-    "bytes": 48156,
+    "bytes": 48322,
     "kind": "poster"
   },
   "/docs-assets/videos/docs-studio-gitbook-import.mp4": {
