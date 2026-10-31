@@ -22,7 +22,7 @@ export function aRole(r: DocsRole | StudioRole | null | undefined): string {
   return /^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`;
 }
 
-/** A Guides role as a badge: Admin (violet), Reviewer, Editor, Viewer, No access. */
+/** A Guides role as a badge: Admin (accent), Reviewer, Editor, Viewer, No access. */
 export function RoleBadge({ role, size = "sm", className, title }: {
   role: DocsRole | StudioRole | "none" | null | undefined;
   size?: "sm" | "md";

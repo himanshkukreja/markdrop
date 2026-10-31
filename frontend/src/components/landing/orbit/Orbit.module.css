@@ -105,12 +105,12 @@
   }
 }
 
-/* Markdrop Guides' own accent (a violet, distinct from Markdrop blue): its moon, pip, stamp and scene.
+/* Markdrop Guides' accent (Markdrop's own blue, from the design tokens): its moon, pip, stamp and scene.
    --studio is the text/icon ink, --studio-fill a fill that carries white text, --studio-soft a tint. */
-.hero { --studio: #a99bff; --studio-fill: #7357f5; --studio-soft: color-mix(in srgb, #7357f5 24%, transparent); }
-:global([data-theme="light"]) .hero { --studio: #5b3fd0; --studio-fill: #6a4cf0; --studio-soft: color-mix(in srgb, #6a4cf0 12%, transparent); }
+.hero { --studio: var(--accent-text); --studio-fill: var(--accent); --studio-soft: var(--accent-soft); }
+:global([data-theme="light"]) .hero { --studio: var(--accent-text); --studio-fill: var(--accent); --studio-soft: var(--accent-soft); }
 @media (prefers-color-scheme: light) {
-  :global(:root:not([data-theme])) .hero { --studio: #5b3fd0; --studio-fill: #6a4cf0; --studio-soft: color-mix(in srgb, #6a4cf0 12%, transparent); }
+  :global(:root:not([data-theme])) .hero { --studio: var(--accent-text); --studio-fill: var(--accent); --studio-soft: var(--accent-soft); }
 }
 
 /* The hero glow bleeds up behind the transparent header. */

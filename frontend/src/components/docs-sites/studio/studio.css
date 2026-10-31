@@ -1,44 +1,20 @@
 /*
- * Markdrop Guides' accent: the same design system, fonts and spacing as Markdrop, re-tinted violet so
- * the studio reads as its own product. Only the accent tokens move, and only here: on the studio's
- * root element, and on <html data-studio> while a studio screen is mounted (dialogs, drawers and
- * menus portal to <body>, outside the root). The rest of the app never sees these values.
- *
- * Contrast (WCAG 2.x, measured on every surface token of the theme):
- *   light  accent #6D3FE0 under white text 6.11:1 (hover #5B2FC9 7.79:1); accent-text #5A2DC4 is
- *          5.73:1 on the darkest surface (--surface-active) and 8.05:1 on white; 5.50:1 on the soft wash.
- *   dark   accent #7047EB under white text 5.54:1 (hover #6338DE 6.66:1); accent-text #B4A2FB is
- *          4.66:1 on the lightest surface (--surface-active) and 9.11:1 on --bg; 7.01:1 on the soft wash.
+ * Markdrop Guides uses Markdrop's own accent (the logo's blue, from the design tokens), so it reads as
+ * part of Markdrop. Only the faint wash some screens put behind a highlight is defined here: on the
+ * studio's root element, and on <html data-studio> while a studio screen is mounted (dialogs, drawers
+ * and menus portal to <body>, outside the root).
  */
 .docs-studio,
 html[data-studio] {
-  --accent: #7047eb;
-  --accent-hover: #6338de;
-  --accent-text: #b4a2fb;
-  --accent-text-hover: #cbbffd;
-  --accent-soft: #7047eb29;
-  --accent-ring: #7047eb59;
-  --on-accent: #ffffff;
-  --border-focus: #b4a2fb;
-  --shadow-glow: 0 3px 16px rgb(112 71 235 / 0.3);
-  --studio-wash: #7047eb14;
+  --studio-wash: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 [data-theme="light"] .docs-studio,
 html[data-theme="light"][data-studio] {
-  --accent: #6d3fe0;
-  --accent-hover: #5b2fc9;
-  --accent-text: #5a2dc4;
-  --accent-text-hover: #4a23a8;
-  --accent-soft: #6d3fe01f;
-  --accent-ring: #6d3fe040;
-  --on-accent: #ffffff;
-  --border-focus: #6d3fe0;
-  --shadow-glow: 0 3px 16px rgb(109 63 224 / 0.24);
-  --studio-wash: #6d3fe00f;
+  --studio-wash: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
-/* The wordmark: "Guides" in the studio's accent. */
+/* The wordmark: "Guides" in the accent, like "drop" in the Markdrop wordmark. */
 .docs-studio__word {
   font-weight: 800;
   letter-spacing: -0.03em;

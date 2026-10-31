@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 /**
  * Markdrop Guides (/guides/**): its own area of the app, not a workspace page. Full-window screens
  * under the studio's header (the Markdrop mark + "Guides", the guide switcher, the account
- * menu) and its violet accent (studio.css). Each screen renders <main id="main">.
+ * menu) and its styles (studio.css). Each screen renders <main id="main">.
  */
 export default function DocsStudioLayout({ children }: { children: React.ReactNode }) {
   return <StudioShell>{children}</StudioShell>;
