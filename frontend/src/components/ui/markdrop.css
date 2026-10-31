@@ -249,6 +249,8 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-dialog--closing { animation: md-exit var(--duration-exit) var(--ease-out) forwards; }
 .md-dialog--sm { max-width: 360px; } .md-dialog--lg { max-width: 640px; } .md-dialog--xl { max-width: 840px; }
 .md-dialog__head { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-5) var(--space-5) 0; }
+/* No body (a question with just buttons): the heading keeps its own bottom padding above the footer. */
+.md-dialog__head:has(+ .md-dialog__foot), .md-dialog__head:last-child { padding-bottom: var(--space-5); }
 .md-dialog__heading { flex: 1; min-width: 0; }
 .md-dialog__glyph { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: var(--radius-lg); background: var(--danger-soft); color: var(--danger); font-size: 18px; }
 .md-dialog__glyph--plain { width: 36px; height: 36px; background: var(--accent-soft); color: var(--accent-text); }
