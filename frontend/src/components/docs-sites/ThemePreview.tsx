@@ -28,7 +28,11 @@ export function ThemePreview({ theme, dark, name, logo }: { theme: ThemeInput; d
         )}
         <strong className="text-[16px]" style={{ fontFamily: p.head }}>{short}</strong>
         <span style={{ color: p.muted }}>Docs</span>
-        {!p.sidebar && !p.hero && (
+        {p.tabs ? (
+          <span className="ml-3 hidden gap-4 text-[13px] sm:flex" style={{ color: p.muted }}>
+            <span style={{ color: p.accentText, fontWeight: 600, boxShadow: `inset 0 -2px 0 ${p.accentText}` }}>Getting started</span><span>Guides</span><span>Reference</span>
+          </span>
+        ) : !p.sidebar && !p.hero && (
           <span className="ml-3 hidden gap-4 text-[13px] sm:flex" style={{ color: p.muted }}>
             <span style={{ color: p.accentText, fontWeight: 600 }}>Guides</span><span>Reference</span><span>Changelog</span>
           </span>

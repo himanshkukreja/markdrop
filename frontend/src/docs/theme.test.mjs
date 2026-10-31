@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import {
   PRESETS,
   FONTS,
+  headerTabs,
   CORNERS,
   accentFor,
   brandRoles,
@@ -319,4 +320,26 @@ test("stylesheet: fonts, corners, palette per mode, custom CSS last", () => {
   const t = resolveTheme({ preset: "minimal", customCss: "</style>" });
   assert.equal(t.customCss, "");
   assert.ok(t.customCssErrors.length > 0);
+});
+
+test("Atlas: the header shows the nav groups as tabs when the site has no tabs of its own", () => {
+  assert.equal(resolveTheme({ preset: "atlas" }).sectionTabs, true);
+  assert.equal(resolveTheme({ preset: "helpcenter" }).sectionTabs, false);
+  const groups = [
+    { group: "Getting started", tab: "docs", items: [{ path: "/intro", available: true }, { path: "/quickstart", available: true }] },
+    { group: "Guides", tab: "docs", items: [{ path: "/soon", available: false }, { path: "/connect", available: true }] },
+    { group: "Drafts", tab: "docs", items: [{ path: "/draft", available: false }] },
+    { group: "Endpoints", tab: "api", items: [{ path: "/api/list", available: true }] },
+  ];
+  const one = [{ id: "docs", label: "Docs", href: "/" }];
+  assert.deepEqual(headerTabs(one, groups, { sections: true, current: "/connect" }), [
+    { key: "g-Getting started", label: "Getting started", href: "/intro", current: false },
+    { key: "g-Guides", label: "Guides", href: "/connect", current: true },
+  ]);
+  // Another theme, or a site with tabs of its own: its tabs as they are.
+  assert.deepEqual(headerTabs(one, groups, { sections: false, activeTab: "docs" }), [{ key: "docs", label: "Docs", href: "/", current: true }]);
+  const two = [...one, { id: "api", label: "API", href: "/api" }];
+  assert.deepEqual(headerTabs(two, groups, { sections: true, activeTab: "api" }).map((t) => [t.label, t.current]), [["Docs", false], ["API", true]]);
+  // Fewer than two sections: no point in tabs.
+  assert.deepEqual(headerTabs([], groups.slice(0, 1), { sections: true }), []);
 });

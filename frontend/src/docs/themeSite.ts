@@ -31,6 +31,11 @@ export function themeHome(site: SiteConfig): ThemeHome {
   return siteTheme(site)?.home ?? "hero";
 }
 
+/** Whether the header shows the nav groups as tabs (Atlas) when the site has no tabs of its own. */
+export function themeSectionTabs(site: SiteConfig): boolean {
+  return !!siteTheme(site)?.sectionTabs;
+}
+
 /** "light" or "dark" when the theme forces one (no theme switch then), else null. */
 export function forcedMode(site: SiteConfig): "light" | "dark" | null {
   const m = siteTheme(site)?.mode;
