@@ -35,13 +35,13 @@ Choose **Create guide**. Markdrop Guides opens **Design** so you can [pick a the
 | Template | What you get |
 | --- | --- |
 | **Product guide** | A home page, Getting started (Introduction, Quickstart), Guides (The basics) and Help (FAQ, Release notes), in the Clean theme. |
-| **API reference** | A home page, Overview (Authentication, Errors) and Endpoints (List items), in the Technical theme. |
+| **API reference** | A home page, Overview (Authentication, Errors) and an [API reference](/guides/api-reference) generated from a sample OpenAPI file for a made-up Northwind API, in the Technical theme. |
 | **Help center** | A home page and articles grouped into Account and billing and Troubleshooting, in the Help center theme. |
 
 The pages are examples to replace. Edit, rename or delete any of them.
 
 :::note[API reference pages]
-The API reference template gives you hand-written pages to fill in. Markdrop Guides can't generate reference pages from an OpenAPI file yet.
+The template's endpoint pages come from its sample OpenAPI file. Replace it with your own in **Settings › API reference**: see [API reference from an OpenAPI file](/guides/api-reference).
 :::
 
 A **Blank guide** has one page, the home page, in a group called Getting started.

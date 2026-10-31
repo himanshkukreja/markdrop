@@ -404,6 +404,7 @@ export default function PublishScreen() {
                         {isRunning ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} /> {stage[b.id] || `${STAGE[b.status]}…`}</span> : buildMeta(b, b.id === oldest)}
                       </span>
                       {b.status === "failed" && b.error && <span className="block text-[12px] text-danger">{b.error}</span>}
+                      {b.warnings?.map((w) => <span key={w} className="ph-no-capture block text-[12px] text-warning">{w}</span>)}
                     </span>
                     {isLive && <Badge tone="success" size="sm" dot>Live</Badge>}
                     {b.status === "failed" && <Badge tone="danger" size="sm">Failed</Badge>}

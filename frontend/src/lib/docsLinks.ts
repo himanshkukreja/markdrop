@@ -83,6 +83,8 @@ export const DOCS_PAGES = {
   studioAskAi: "/guides/ask-ai",
   studioInsights: "/guides/insights",
   studioInsightsOff: "/guides/insights#turn-it-off",
+  studioApiReference: "/guides/api-reference",
+  studioApiCors: "/guides/api-reference#try-it-and-cors",
   studioReaders: "/guides/what-readers-get",
   studioSelfHost: "/guides/self-hosting",
   studioFaq: "/guides/faq",

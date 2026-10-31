@@ -27,6 +27,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.config import get_settings
 from app.models.user import User
+from app.services import docs_api_spec as api_spec
 from app.services import docs_cf_hosts as cf_hosts
 from app.services import docs_site_access as access
 from app.services import docs_site_assets as assets
@@ -89,6 +90,9 @@ async def changes(db: AsyncIOMotorDatabase, site: dict) -> dict:
     current = site.get("settings") or {}
     before = (snap or {}).get("settings") or {}
     settings_changed = [k for k in _COMPARED_SETTINGS if snap is not None and current.get(k) != before.get(k)]
+    # The API reference (a site from before it has none stored: the defaults).
+    if snap is not None and api_spec.api_settings({"settings": current}) != api_spec.api_settings({"settings": before}):
+        settings_changed.append("api")
     site_meta = (snap or {}).get("site") or {}
     if snap is not None and site_meta.get("name") != site.get("name"):
         settings_changed.append("name")
@@ -159,6 +163,9 @@ async def publish(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, *
                             detail=f"The free plan has {settings.docs_builds_per_day} publishes per guide per day. "
                                    "Try again tomorrow (UTC).")
     await store.check_build_quota(db, site, user.id)
+    # An API reference fetched from a URL with "re-fetch on publish": the latest description, or
+    # (when that fails) the last good one and a warning on the build.
+    api_warning = await api_spec.refetch_for_publish(db, site, user.id)
     snap = await _snapshot(db, site, user)
     seq = await db[SITES].find_one_and_update({"_id": site["_id"]}, {"$inc": {"build_seq": 1}},
                                               {"build_seq": 1}, return_document=ReturnDocument.AFTER)
@@ -180,6 +187,7 @@ async def publish(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, *
         "manifest_hash": None,
         "stats": None,
         "error": None,
+        **({"warnings": [api_warning]} if api_warning else {}),
         "created_at": at,
         "started_at": None,
         "finished_at": None,

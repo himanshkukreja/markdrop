@@ -17,3 +17,4 @@ anthropic==2.3.0
 matplotlib==3.11.0
 boto3==1.43.83
 python-multipart==0.0.20
+PyYAML==6.0.3

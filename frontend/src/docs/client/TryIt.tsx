@@ -10,10 +10,17 @@
  * tab, is masked on screen and never logged. Nothing is sent until the reader asks: the Send
  * button or ⌘/Ctrl+Enter. A request that changes something (anything but GET) needs a one-time
  * "Changes are real" confirmation per page.
+ *
+ * An operation from someone else's description (a guide's API reference: `security`, `servers`)
+ * asks for what its security schemes take (a bearer token, an API key in a header or the query, a
+ * username and password), offers each of its servers, and keeps what the reader types in memory
+ * only: never in storage, never sent anywhere but the API itself. Nothing goes through Markdrop, so
+ * the API has to allow this page's origin (CORS); when the browser blocks the call, the panel says
+ * so and offers the command instead.
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Badge, Button, Checkbox, Icon, Input, Kbd, Select, Switch, Textarea, copyText, useToast } from "@/components/ui";
-import { curlCommand, headerName, requestUrl, type ApiAuth, type ApiRequestValues } from "../openapi.mjs";
+import { curlCommand, headerName, requestUrl, type ApiAuth, type ApiRequestValues, type ApiSecurityScheme, type ApiServer } from "../openapi.mjs";
 import { useDocsSite } from "./site";
 
 export interface TryItOperation {
@@ -28,6 +35,9 @@ export interface TryItOperation {
     fields: Array<{ name: string; required: boolean; kind: string; enum?: string[]; default?: unknown; binary?: boolean }>;
   } | null;
   example: ApiRequestValues;
+  /** Someone else's description: its security schemes and servers. */
+  security?: ApiSecurityScheme[];
+  servers?: ApiServer[];
 }
 
 const TOKEN_KEY = "docs_api_token";
@@ -51,6 +61,19 @@ function saveToken(v: string) {
   } catch {
     /* private mode: kept in memory only */
   }
+}
+
+/**
+ * What a reader typed for a guide's API (credentials by scheme, the server they picked), kept in
+ * this tab's memory so it follows them from page to page, and gone on reload. Never stored.
+ */
+const memory = new Map<string, string>();
+
+/** base64 of UTF-8 (btoa alone throws on anything outside Latin-1). */
+function b64(s: string): string {
+  let bin = "";
+  for (const b of new TextEncoder().encode(s)) bin += String.fromCharCode(b);
+  return btoa(bin);
 }
 
 export function mask(token: string, prefix = ""): string {
@@ -261,8 +284,13 @@ export function TryIt({ op }: { op: TryItOperation }) {
   const [values, setValues] = useState(() => initial(op));
   const [token, setToken] = useState("");
   const { tryIt } = useDocsSite();
-  // Markdrop's own docs send to NEXT_PUBLIC_API_URL when set (local and preview backends); others to the operation's server.
-  const sendTo = tryIt.sendTo || op.server;
+  const auto = !!op.security;
+  const schemes = useMemo(() => (op.security ?? []).filter((s) => s.kind !== "other"), [op.security]);
+  const servers = useMemo(() => op.servers ?? [], [op.servers]);
+  const [server, setServer] = useState(op.server);
+  const [creds, setCreds] = useState<Record<string, string>>({});
+  // Markdrop's own docs send to NEXT_PUBLIC_API_URL when set (local and preview backends); others to the operation's (or the picked) server.
+  const sendTo = tryIt.sendTo || server;
   const [showToken, setShowToken] = useState(false);
   const [all, setAll] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -279,7 +307,12 @@ export function TryIt({ op }: { op: TryItOperation }) {
     if (result) respRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [result]);
   useEffect(() => {
-    setToken(readToken());
+    if (auto) {
+      // What the reader typed on another page of this reference, from memory (never storage).
+      const picked = memory.get("server");
+      if (picked && servers.some((s) => s.url === picked)) setServer(picked);
+      setCreds(Object.fromEntries(schemes.flatMap((s) => (s.kind === "basic" ? [`${s.id}:user`, `${s.id}:pass`] : [s.id])).map((k) => [k, memory.get(`cred:${k}`) ?? ""])));
+    } else setToken(readToken());
     setMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
     return () => {
       abort.current?.abort();
@@ -292,13 +325,43 @@ export function TryIt({ op }: { op: TryItOperation }) {
   const wantsToken = op.auth === "token" || op.auth === "optional";
   const multipart = op.body?.contentType === "multipart/form-data";
   const { values: req, error } = useMemo(() => toRequest(op, values, fileNames), [op, values, fileNames]);
-  const command = useMemo(() => curlCommand(op, req, { token: token || (op.auth === "optional" ? "" : undefined), tokenEnv: tryIt.tokenEnv }), [op, req, token, tryIt.tokenEnv]);
-  const shown = useMemo(() => (token ? command.split(token).join(mask(token, tryIt.tokenPrefix)) : command), [command, token, tryIt.tokenPrefix]);
+  /** {scheme id: value} of what's filled in (basic: "user:password"). */
+  const credMap = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const s of schemes) {
+      const v = s.kind === "basic" ? (creds[`${s.id}:user`] || creds[`${s.id}:pass`] ? `${creds[`${s.id}:user`] ?? ""}:${creds[`${s.id}:pass`] ?? ""}` : "") : creds[s.id];
+      if (v) out[s.id] = v;
+    }
+    return out;
+  }, [schemes, creds]);
+  const command = useMemo(
+    () =>
+      auto
+        ? curlCommand({ ...op, server }, req, { credentials: credMap })
+        : curlCommand(op, req, { token: token || (op.auth === "optional" ? "" : undefined), tokenEnv: tryIt.tokenEnv }),
+    [auto, op, server, req, credMap, token, tryIt.tokenEnv],
+  );
+  const shown = useMemo(() => {
+    if (!auto) return token ? command.split(token).join(mask(token, tryIt.tokenPrefix)) : command;
+    // Every value the reader typed, longest first (a password inside "user:password" can't unmask it).
+    const secrets = [...new Set([...Object.values(credMap), ...Object.values(creds)])].filter((v) => v && v.length > 1).sort((a, b) => b.length - a.length);
+    return secrets.reduce((c, v) => c.split(v).join(mask(v)).split(encodeURIComponent(v)).join(mask(v)), command);
+  }, [auto, command, credMap, creds, token, tryIt.tokenPrefix]);
   const missing = op.params.filter((p) => p.in === "path" && p.required && !values.path[p.name]).map((p) => p.name);
-  const blocked = missing.length ? `Fill in ${missing.join(", ")} first.` : error;
+  const noServer = auto && !sendTo;
+  const blocked = noServer
+    ? "The API description lists no server address, so there's nowhere to send this. Copy the command and add the address."
+    : missing.length
+      ? `Fill in ${missing.join(", ")} first.`
+      : error;
   const canSend = !sending && !blocked && (!writes || confirmed);
 
   const set = (where: keyof FormValues, name: string, v: string) => setValues((s) => ({ ...s, [where]: { ...s[where], [name]: v } }));
+  const setCred = (key: string, v: string) => {
+    if (v) memory.set(`cred:${key}`, v);
+    else memory.delete(`cred:${key}`);
+    setCreds((c) => ({ ...c, [key]: v }));
+  };
 
   const params = op.params.filter((p) => p.in !== "cookie");
   const bodyFields = op.body?.fields ?? [];
@@ -307,9 +370,19 @@ export function TryIt({ op }: { op: TryItOperation }) {
 
   const send = useCallback(async () => {
     if (!canSend) return;
-    const url = requestUrl({ apiPath: op.apiPath, server: sendTo }, req);
+    let url = requestUrl({ apiPath: op.apiPath, server: sendTo }, req);
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (token && (wantsToken || op.auth === "session")) headers.Authorization = `Bearer ${token}`;
+    if (auto) {
+      // Only to the API: as the scheme says, in a header or the query. A browser can't set a cookie.
+      for (const s of schemes) {
+        const v = credMap[s.id];
+        if (!v) continue;
+        if (s.kind === "bearer") headers.Authorization = `Bearer ${v}`;
+        else if (s.kind === "basic") headers.Authorization = `Basic ${b64(v)}`;
+        else if (s.in === "header") headers[s.name] = v;
+        else if (s.in === "query") url += `${url.includes("?") ? "&" : "?"}${encodeURIComponent(s.name)}=${encodeURIComponent(v)}`;
+      }
+    } else if (token && (wantsToken || op.auth === "session")) headers.Authorization = `Bearer ${token}`;
     for (const [k, v] of Object.entries(req.header)) if (v !== undefined && v !== "") headers[headerName(k)] = String(v);
     let body: BodyInit | undefined;
     if (op.body && multipart) {
@@ -381,7 +454,15 @@ export function TryIt({ op }: { op: TryItOperation }) {
       setResult(
         timedOut
           ? { kind: "error", ms, url, title: "No answer after 30 seconds", message: "The API didn't answer in time. Try again, or run the command in a terminal." }
-          : {
+          : auto
+            ? {
+                kind: "error",
+                ms,
+                url: url.split("?")[0],
+                title: "The browser blocked the request, or couldn't reach the API",
+                message: `${navigator.onLine === false ? "You look offline. " : ""}No answer came back from ${new URL(url).host}. Most often the API doesn't allow calls from this page (CORS): its owner has to allow ${window.location.origin} in Access-Control-Allow-Origin${schemes.length ? ", and the headers this request sends" : ""}. It may also be down or unreachable, or an extension blocked it. The command below sends the same request from a terminal, where CORS doesn't apply.`,
+              }
+            : {
               kind: "error",
               ms,
               url,
@@ -394,7 +475,7 @@ export function TryIt({ op }: { op: TryItOperation }) {
       if (abort.current === ctrl) abort.current = null;
       setSending(false);
     }
-  }, [canSend, op, req, token, wantsToken, method, multipart, sendTo]);
+  }, [canSend, op, req, token, wantsToken, method, multipart, sendTo, auto, schemes, credMap]);
 
   return (
     <form
@@ -455,6 +536,68 @@ export function TryIt({ op }: { op: TryItOperation }) {
             )}
           </span>
         </div>
+      )}
+
+      {auto && servers.length > 1 && (
+        <div className="dx-tryit__field">
+          <label htmlFor={`${uid}-server`} className="dx-tryit__label">
+            Server
+          </label>
+          <Select
+            id={`${uid}-server`}
+            value={server}
+            onChange={(e) => {
+              setServer(e.target.value);
+              memory.set("server", e.target.value);
+            }}
+          >
+            {servers.map((s) => (
+              <option key={s.url} value={s.url}>
+                {s.description ? `${s.description}: ${s.url}` : s.url}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+
+      {auto &&
+        schemes.map((s) => {
+          const optional = op.auth === "optional" || schemes.length > 1;
+          const field = (key: string, label: string, placeholder: string, secret: boolean) => (
+            <div key={key} className="dx-tryit__field">
+              <label htmlFor={`${uid}-cred-${key}`} className="dx-tryit__label">
+                {label}
+                {optional ? " (optional)" : ""}
+              </label>
+              <Input
+                id={`${uid}-cred-${key}`}
+                size="sm"
+                mono
+                type={secret && !showToken ? "password" : "text"}
+                value={creds[key] ?? ""}
+                placeholder={placeholder}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => setCred(key, e.target.value.trim())}
+                suffix={
+                  secret ? (
+                    <button type="button" className="dx-tryit__eye" aria-label={showToken ? "Hide what you typed" : "Show what you typed"} onClick={() => setShowToken((x) => !x)}>
+                      <Icon name={showToken ? "eyeOff" : "eye"} />
+                    </button>
+                  ) : undefined
+                }
+              />
+              {s.in === "cookie" && <span className="dx-tryit__hint">A browser can&apos;t set this cookie. Copy the command to send it.</span>}
+            </div>
+          );
+          if (s.kind === "basic") return [field(`${s.id}:user`, "Username", "", false), field(`${s.id}:pass`, "Password", "", true)];
+          const label = s.kind === "bearer" ? s.label : `API key (${s.in === "query" ? `?${s.name}=` : s.name})`;
+          return field(s.id, label, s.kind === "bearer" ? (s.format ? `Your ${s.format} token` : "Your token") : "Your API key", true);
+        })}
+      {auto && schemes.length > 0 && (
+        <span className="dx-tryit__hint">
+          {schemes.length > 1 ? "Fill in the one you use. " : op.auth === "optional" ? "Leave it empty to send the request without it. " : ""}Kept in memory on this page only, and sent only to the API.
+        </span>
       )}
 
       {params.map((p) => {
@@ -554,7 +697,7 @@ export function TryIt({ op }: { op: TryItOperation }) {
           <>
             <Icon name="info" />
             <span>
-              Sends to <code className="dx-icode">{sendTo.replace(/^https?:\/\//, "")}</code> from your browser. <Kbd>{mac ? "⌘" : "Ctrl"}</Kbd> <Kbd>↵</Kbd> sends too.
+              Sends to <code className="dx-icode">{sendTo.replace(/^https?:\/\//, "")}</code> from your browser{auto ? ", not through this site" : ""}. <Kbd>{mac ? "⌘" : "Ctrl"}</Kbd> <Kbd>↵</Kbd> sends too.
             </span>
           </>
         )}

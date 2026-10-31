@@ -212,6 +212,42 @@ def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[di
     return out
 
 
+API_SPEC_FILE = "openapi.json"
+API_BASE = "/api-reference"
+
+
+def add_api_reference(out: dict, settings: dict, spec_row: dict, updated: str) -> None:
+    """site.json for a guide with an API reference: the engine generates it from ``openapi.json``
+    (frontend/src/docs/openapi.mjs, auto mode) under /api-reference, the prefix no page may use
+    (RESERVED_FIRST). ``placement`` "tab": a header tab (the written pages get a "Docs" tab first
+    when the site has none); "sidebar": groups after the written ones, in the same tab. Try it
+    follows the owner's switch."""
+    api = (settings or {}).get("api") or {}
+    label = str(api.get("label") or "API reference")[:40]
+    tabs = list(out.get("tabs") or [])
+    if api.get("placement", "tab") == "tab":
+        if not tabs:
+            tabs = [{"id": "docs", "label": "Docs", "href": "/"}]
+        ids = {t.get("id") for t in tabs}
+        tab = "api" if "api" not in ids else "api-reference"
+        tabs.append({"id": tab, "label": label, "href": API_BASE})
+        out["tabs"] = tabs
+    else:
+        # The engine files untabbed groups under the first tab, or "guides" when there are none.
+        tab = (tabs[0].get("id") if tabs else None) or "guides"
+    out["openapi"] = {
+        "spec": API_SPEC_FILE,
+        "base": API_BASE,
+        "tab": tab,
+        "auto": True,
+        "label": label,
+        # Not a vendor extension anyone's description uses: auth and servers come from the description.
+        "extension": "x-markdrop-guides",
+        **({"updated": updated} if updated else {}),
+    }
+    out["tryIt"] = {"enabled": bool(api.get("try_it", True))}
+
+
 def _pid(p: dict) -> str | None:
     v = p.get("page_id") or p.get("id")
     return str(v) if v else None
@@ -258,8 +294,12 @@ def _date(v: Any) -> str | None:
     return None
 
 
-def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str) -> tuple[dict[str, str], list[str]]:
-    """The content folder for ``snapshot`` as {relative path: text}, plus warnings (pages skipped)."""
+def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str,
+                  api_spec: dict | None = None) -> tuple[dict[str, str], list[str]]:
+    """The content folder for ``snapshot`` as {relative path: text}, plus warnings (pages skipped).
+    ``api_spec``: the snapshot's OpenAPI description row (services/docs_api_spec.py), if any; its
+    JSON isn't in the folder (the runner fetches it, see :func:`bundle`), only the site.json that
+    points at it."""
     settings = snapshot.get("settings") or site.get("settings") or {}
     extra = site.get("engine_extra") or {}
     name = (snapshot.get("site") or {}).get("name") or site.get("name") or "Docs"
@@ -286,9 +326,12 @@ def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str) -> tuple
 
     from app.services.guide_insights import enabled as insights_enabled
 
-    files["site.json"] = json.dumps(site_json(str(site["_id"]), name, settings, extra, nav, url=url, ai_api=ai_api,
-                                              public=is_public(site), insights=insights_enabled(site)),
-                                    indent=2, ensure_ascii=False) + "\n"
+    sj = site_json(str(site["_id"]), name, settings, extra, nav, url=url, ai_api=ai_api, public=is_public(site),
+                   insights=insights_enabled(site))
+    if api_spec:
+        add_api_reference(sj, settings, api_spec, _date(api_spec.get("created_at")) or default_updated)
+    files["site.json"] = json.dumps(sj, indent=2, ensure_ascii=False) + "
+"
     # The site's own redirects (Settings, and the ones a page move adds) over an import's: both
     # reach readers, Settings wins on the same address, chains end in one hop.
     from app.services.docs_site_redirects import merged
@@ -331,9 +374,18 @@ async def bundle(db: AsyncIOMotorDatabase, build: dict) -> dict:
     slug = site.get("slug") or (snapshot.get("site") or {}).get("slug")
     hosts = site_hosts(site) if site.get("slug") and not site.get("deleted_at") else []
     ai_api = get_jobs_settings().docs_ai_api or get_settings().api_base_url
-    files, warnings = content_files(site, snapshot, url=site_url(site, slug), ai_api=ai_api)
+    from app.services import docs_api_spec
+
+    spec_row = await docs_api_spec.build_ref(db, site, snapshot.get("settings") or {})
+    files, warnings = content_files(site, snapshot, url=site_url(site, slug), ai_api=ai_api, api_spec=spec_row)
+    out_bundle: dict = {"site_id": str(site["_id"]), "files": files, "warnings": warnings}
+    if spec_row:
+        # The description itself stays in the docs bucket: the runner fetches it by key, checks its
+        # hash and writes it to <content>/openapi.json (docs-platform/runner/lib.mjs fetchApiSpec).
+        out_bundle["openapi"] = {"key": spec_row["key"], "sha256": spec_row["sha256"], "size": spec_row.get("size"),
+                                 "file": API_SPEC_FILE}
     return {
-        "bundle": {"site_id": str(site["_id"]), "files": files, "warnings": warnings},
+        "bundle": out_bundle,
         # access: the policy the runner writes (sites/<id>/access.json) before it flips the pointer,
         # so a password or members-only site is never live without it (services/docs_site_access.py).
         "publish": {"site": str(site["_id"]), "hosts": hosts, "access": policy(site)},

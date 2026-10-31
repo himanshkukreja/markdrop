@@ -199,10 +199,35 @@ export async function fetchAssets({ store, siteId, contentDir, text, cacheDir, p
   return { listed: all.length, used: wanted.length, fetched, bytes, ms: Date.now() - t };
 }
 
+/**
+ * A guide's API reference: the OpenAPI description the backend stored (services/docs_api_spec.py,
+ * normalised JSON under sites/<site>/api/<sha256>.json), fetched by the key the spec carries
+ * (`bundle.openapi`: {key, sha256, size, file}), checked against its hash, and written to
+ * <content>/<file> (openapi.json), where site.json `openapi.spec` points. The engine generates the
+ * pages from it. Returns its size, or 0 without one.
+ */
+export async function fetchApiSpec({ store, siteId, ref, contentDir }) {
+  if (!ref) return 0;
+  const key = String(ref.key || "");
+  if (!key.startsWith(`sites/${siteId}/api/`) || !/^[0-9a-f]{64}$/.test(String(ref.sha256 || ""))) throw new Error("spec.bundle.openapi is invalid");
+  const file = safeRel(String(ref.file || "openapi.json"));
+  if (!file || file.includes("/") || !file.endsWith(".json")) throw new Error("spec.bundle.openapi.file is invalid");
+  const body = await store.getBytes(key);
+  if (!body) throw new Error("the API reference's OpenAPI file is missing from the store");
+  if (crypto.createHash("sha256").update(body).digest("hex") !== ref.sha256) throw new Error("the API reference's OpenAPI file doesn't match its hash");
+  try {
+    JSON.parse(body.toString("utf8"));
+  } catch {
+    throw new Error("the API reference's OpenAPI file isn't JSON");
+  }
+  fs.writeFileSync(path.join(contentDir, file), body);
+  return body.length;
+}
+
 /* ── build ─────────────────────────────────────────────────────────────── */
 
 /**
- * spec: { job, build, bundle: { site_id, files }, publish: { site, hosts, access? } } (access: the
+ * spec: { job, build, bundle: { site_id, files, openapi? }, publish: { site, hosts, access? } } (access: the
  * site's {level, policy_version}, written before the pointer flips; reported back as `access`).
  * Writes the content folder, fetches the site's files, writes media.json, builds, publishes, and
  * returns { manifest_hash, unchanged, stats, timings }. One build at a time per work folder.
@@ -218,6 +243,8 @@ export async function runBuild(spec, { store, cfg, progress = () => {}, log = ()
   try {
     progress({ step: "prepare", done: 0, total: 4, message: "Writing pages" });
     const files = writeContent(spec.bundle.files, contentDir);
+    const apiBytes = await fetchApiSpec({ store, siteId, ref: spec.bundle.openapi, contentDir });
+    if (apiBytes) log(`api reference: OpenAPI ${(apiBytes / 1e3).toFixed(1)} KB`);
     const text = Object.values(spec.bundle.files).join("\n");
     progress({ step: "assets", done: 0, total: 0, message: "Fetching images and files" });
     const assets = await fetchAssets({ store, siteId, contentDir, text, cacheDir: cfg.assetCache, progress });

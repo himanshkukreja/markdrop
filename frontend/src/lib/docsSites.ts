@@ -87,6 +87,9 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown },
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
+/** The same request, for a feature's own module (lib/docsApiReference.ts). */
+export const docsRequest = request;
+
 const q = (params: Record<string, string | number | boolean | null | undefined>): string => {
   const s = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== "") s.set(k, String(v));
@@ -167,9 +170,20 @@ export interface SiteSettings {
   /** Reader insights (page views, searches, feedback): on unless an admin turned them off. */
   insights?: { enabled: boolean };
   nav: NavGroup[];
+  /** The API reference's options (lib/docsApiReference.ts). Absent on an older API. */
+  api?: ApiReferenceSettings;
   /** Old addresses → their new pages (the build writes redirects.json). Checked on save: targets
    * exist, no page is hidden by one, no chains. A GitBook import's own redirects stay in the build. */
   redirects?: Redirect[];
+}
+
+export interface ApiReferenceSettings {
+  /** The description version a publish builds (set by upload / fetch / restore, never PATCH). */
+  spec_id: string | null;
+  label: string;
+  placement: "tab" | "sidebar";
+  try_it: boolean;
+  refetch: boolean;
 }
 
 /** A DNS record the customer adds for their own domain (CNAME: always; TXT: Cloudflare's alternatives). */
@@ -224,6 +238,8 @@ export interface Build {
   manifest_hash?: string | null;
   stats?: { pages: number; objects: number; uploaded: number; bytes: number; ms: number } | null;
   error?: string | null;
+  /** What went ahead differently than asked (an API reference that couldn't be re-fetched). */
+  warnings?: string[];
   /** On GET /builds: this is the build readers see now. */
   live?: boolean;
   created_at: string;
@@ -534,6 +550,8 @@ export interface SettingsPatch {
   seo?: Partial<SiteSettings["seo"]>;
   review?: Partial<SiteSettings["review"]>;
   insights?: { enabled?: boolean };
+  /** The options only: the description itself changes through lib/docsApiReference.ts. */
+  api?: Partial<Omit<ApiReferenceSettings, "spec_id">>;
   /** Replaces the whole list. */
   redirects?: Redirect[];
 }

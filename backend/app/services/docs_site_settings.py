@@ -414,6 +414,23 @@ class NavGroup(_Strict):
     pages: list[str] = Field(default_factory=list, max_length=1000)
 
 
+class ApiReference(_Strict):
+    """The API reference generated from an OpenAPI description (services/docs_api_spec.py).
+    ``spec_id`` is the version a publish builds; only the API reference endpoints set it."""
+    spec_id: str | None = None
+    # The nav group (sidebar) or header tab (tab) name.
+    label: str = Field("API reference", min_length=1, max_length=40)
+    placement: Literal["tab", "sidebar"] = "tab"
+    try_it: bool = True
+    # A URL source is fetched again at every publish.
+    refetch: bool = False
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def _label(cls, v):
+        return v.strip() if isinstance(v, str) and v.strip() else "API reference"
+
+
 class SiteSettings(_Strict):
     theme: Theme = Field(default_factory=Theme)
     ai: AI = Field(default_factory=AI)
@@ -422,6 +439,7 @@ class SiteSettings(_Strict):
     review: Review = Field(default_factory=Review)
     insights: Insights = Field(default_factory=Insights)
     nav: list[NavGroup] = Field(default_factory=list, max_length=100)
+    api: ApiReference = Field(default_factory=ApiReference)
     # [{from, to}] → the build's redirects.json. Shape checked here; against the site's pages
     # (targets exist, no page hidden, no chains) on save (docs_site_redirects.problems_against).
     redirects: list[dict] = Field(default_factory=list)
@@ -478,5 +496,7 @@ def public_view(settings: dict) -> dict:
     access = out.get("access") or {}
     access["has_password"] = bool(access.pop("password_hash", None))
     out["access"] = access
+    # A site from before the API reference: its defaults.
+    out["api"] = {**ApiReference().model_dump(), **(out.get("api") or {})}
     return out
 

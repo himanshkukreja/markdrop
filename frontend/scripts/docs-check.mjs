@@ -224,7 +224,7 @@ if (site.openapi?.spec) {
       sessionHost = undefined;
     }
     try {
-      ref = buildApiReference(spec.value, overlay, { server: cfg.server, base: cfg.base, extension, tokenEnv: site.tryIt?.tokenEnv, tokenPrefix: site.tryIt?.tokenPrefix, sessionHost });
+      ref = buildApiReference(spec.value, overlay, { server: cfg.server, base: cfg.base, extension, tokenEnv: site.tryIt?.tokenEnv, tokenPrefix: site.tryIt?.tokenPrefix, sessionHost, ...(cfg.auto ? { auto: true, title: cfg.label } : {}) });
     } catch (e) {
       err(cfg.overlay || cfg.spec, `the API reference doesn't build: ${e.message}`);
     }
@@ -232,14 +232,22 @@ if (site.openapi?.spec) {
       apiOpKeys = new Set(ref.ops.map((op) => op.key));
       if (cfg.tab && !(site.tabs ?? []).some((t) => t.id === cfg.tab)) err("site.json", `openapi.tab "${cfg.tab}" isn't in tabs`);
       for (const msg of ref.problems) (/no title|no group/.test(msg) ? warn : err)(cfg.overlay || cfg.spec, msg);
-      const updated = spec.value.info?.[`${extension}-exported`];
-      if (!updated) err(cfg.spec, `no info.${extension}-exported date: refresh it with npm run docs:openapi`);
+      const updated = spec.value.info?.[`${extension}-exported`] || (cfg.auto ? cfg.updated || "" : undefined);
+      if (!updated && !cfg.auto) err(cfg.spec, `no info.${extension}-exported date: refresh it with npm run docs:openapi`);
+      if (ref.overview) {
+        const at = (cfg.base || "/api").replace(/\/+$/, "");
+        const md = ref.overview.markdown;
+        if (!pages.has(at)) {
+          pages.set(at, { file: `${cfg.spec} → ${at}`, fm: { title: ref.overview.title, description: ref.overview.description, updated }, body: md, lines: md.split(/\r?\n/), offset: 0, ids: new Set(), links: [], generated: true });
+          apiPaths.set(at, cfg.label || "API reference");
+        }
+      }
       for (const op of ref.ops) {
         if (pages.has(op.path)) {
           warn(pages.get(op.path).file, `${op.path} is also generated for ${op.key}; the written page wins`);
           continue;
         }
-        if (!op.description) warn(cfg.overlay || cfg.spec, `${op.key}: no description (add one to the overlay, or a docstring)`);
+        if (!op.description && !cfg.auto) warn(cfg.overlay || cfg.spec, `${op.key}: no description (add one to the overlay, or a docstring)`);
         const fm = { title: op.title, description: op.summary, updated, keywords: op.keywords };
         pages.set(op.path, { file: `${cfg.spec} → ${op.path}`, fm, body: op.markdown, lines: op.markdown.split(/\r?\n/), offset: 0, ids: new Set(), links: [], generated: true });
         apiPaths.set(op.path, op.group.title);
@@ -534,7 +542,8 @@ const brandAssets = [];
   if (t !== undefined) {
     if (!isObj(t)) err(S, "tryIt must be an object");
     else {
-      unknown("tryIt", t, ["tokenHelpUrl", "tokenEnv", "tokenPrefix"]);
+      unknown("tryIt", t, ["tokenHelpUrl", "tokenEnv", "tokenPrefix", "enabled"]);
+      if (t.enabled !== undefined && typeof t.enabled !== "boolean") err(S, "tryIt.enabled must be true or false");
       if (t.tokenHelpUrl !== undefined && !(typeof t.tokenHelpUrl === "string" && httpsUrl(t.tokenHelpUrl))) err(S, `tryIt.tokenHelpUrl "${t.tokenHelpUrl}" must be an https URL`);
       if (t.tokenEnv !== undefined && !(typeof t.tokenEnv === "string" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(t.tokenEnv))) err(S, `tryIt.tokenEnv "${t.tokenEnv}" must be an environment variable name like API_TOKEN`);
       if (t.tokenPrefix !== undefined && !(typeof t.tokenPrefix === "string" && /^[A-Za-z0-9_-]{1,16}$/.test(t.tokenPrefix))) err(S, `tryIt.tokenPrefix "${t.tokenPrefix}" must be up to 16 letters, digits, - or _`);

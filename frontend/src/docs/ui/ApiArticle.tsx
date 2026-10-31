@@ -15,6 +15,10 @@ import { DocsMarkdown } from "../render/DocsMarkdown";
 import { isAppPath } from "../markdown";
 import { samplesMarkdown, type ApiField, type ApiOperation, type ApiParam } from "../openapi.mjs";
 import { cx } from "../cx";
+import { getSite } from "../content";
+
+/** Try it, unless the site turned it off (site.json `tryIt.enabled: false`): the samples stay. */
+const tryItOn = () => getSite().tryIt?.enabled !== false;
 
 /** `code`, [links](/a/b) and **bold** in one line of reference prose. */
 export function InlineMd({ text }: { text: string }) {
@@ -28,6 +32,12 @@ export function InlineMd({ text }: { text: string }) {
     if (m[1] !== undefined) out.push(<code key={k++} className="dx-icode">{m[1]}</code>);
     else if (m[2] !== undefined) {
       const href = m[3];
+      // A guide's reference prose is its owner's OpenAPI file: only web, mail and in-site links are links.
+      if (!/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href)) {
+        out.push(m[2]);
+        last = m.index + m[0].length;
+        continue;
+      }
       out.push(
         isAppPath(href) ? (
           <Link key={k++} href={href}>
@@ -138,6 +148,8 @@ function tryItProps(op: ApiOperation): TryItOperation {
         }
       : null,
     example: op.example,
+    ...(op.security ? { security: op.security } : {}),
+    ...(op.servers ? { servers: op.servers } : {}),
   };
 }
 
@@ -184,7 +196,7 @@ export function ApiMain({ op }: { op: ApiOperation }) {
         )}
         <a href="#examples" className="dx-api__jump">
           <Icon name="code" />
-          Code samples and Try it
+          {tryItOn() ? "Code samples and Try it" : "Code samples"}
           <Icon name="arrowRight" />
         </a>
       </div>
@@ -249,7 +261,7 @@ export function ApiAside({ op }: { op: ApiOperation }) {
       <section aria-label="Examples" className="dx-api__samples">
         <DocsMarkdown source={samplesMarkdown(op)} className="dx-api__samplesmd" />
       </section>
-      <TryIt op={tryItProps(op)} />
+      {tryItOn() && <TryIt op={tryItProps(op)} />}
     </div>
   );
 }

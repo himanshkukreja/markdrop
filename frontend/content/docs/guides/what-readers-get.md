@@ -19,6 +19,7 @@ A published guide is a fast, static website at its address, built by the same en
 - **Contents and links to sections.** Every heading has a link readers can copy, and long pages have **On this page**.
 - **Link previews.** Every page has its own preview card in your brand's colours for Slack, LinkedIn and the like.
 - **Phones.** The layout works on small screens, with the sidebar in a menu.
+- **An API reference**, when you add an OpenAPI file: a page for every endpoint with code samples, and **Try it** to send real requests from the page. See [API reference from an OpenAPI file](/guides/api-reference).
 
 ![Acme's guide with search open: typing "postgres" lists Connect Postgres and the sections that mention it.](/docs-assets/guides/what-readers-get/reader-search.webp)
 
@@ -44,5 +45,4 @@ A published guide sets no cookies and stores nothing in readers' browsers, and M
 
 ## Not yet
 
-- **An API reference generated from an OpenAPI file**, with Try it, is coming soon. Until then, write API pages in Markdown: the [API reference template](/guides/create-a-site) starts you off.
 - **Password-protected and members-only guides** are [coming soon](/guides/site-settings#who-can-read-it). Today every published guide is public.

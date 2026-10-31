@@ -20,7 +20,7 @@ Markdrop Guides is in beta, and free while it is.
 
 ::::cards
 :::card[Create a guide]{href="/guides/create-a-site" icon="plus"}
-Start blank or from a template: a product guide, an API reference or a help center.
+Start blank or from a template: a product guide, a help center, or an API reference generated from your OpenAPI file.
 :::
 :::card[Import from GitBook]{href="/guides/import-from-gitbook" icon="download"}
 Bring pages, images, navigation and old links across from a public GitBook site.
@@ -47,7 +47,7 @@ Views, searches with no results, Ask AI questions and page feedback. No cookies.
 1. **A guide lives in a workspace**, or is personal to you. Workspace guides are shared with the people who have a Guides role there. Workspaces themselves are Markdrop's: see [Create a workspace](/workspaces/create).
 2. **Every page is a draft** until you publish. Drafts save as you type, and every save is a version you can go back to.
 3. **Publishing builds the guide.** Readers keep seeing the last published version until the new one is live, a few seconds later. Every publish is numbered, and an admin can put an earlier one back.
-4. **Readers get a fast static site** with search, an AI assistant that answers from your pages, a Markdown copy of every page and `llms.txt`. See [What readers get](/guides/what-readers-get).
+4. **Readers get a fast static site** with search, an AI assistant that answers from your pages, a Markdown copy of every page and `llms.txt`. Add an OpenAPI file and they get an [API reference](/guides/api-reference) with Try it too. See [What readers get](/guides/what-readers-get).
 5. **Insights shows how it's read**: page views, top pages, searches that found nothing, Ask AI questions and page feedback, without cookies or personal data. See [Insights for your guide](/guides/insights).
 
 ## Watch it once

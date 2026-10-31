@@ -7,7 +7,8 @@ import {
   Alert, Badge, Button, ConfirmDialog, Dialog, Drawer, EmptyState, Field, IconButton, Input, SegmentedControl, Select, Spinner,
   copyText, useToast,
 } from "@/components/ui";
-import { DocsEditor, preloadDocsEditor, type EditorMode, type UploadImage } from "@/components/docs-editor";
+import { DocsEditor, preloadDocsEditor, type ApiOperationOption, type EditorMode, type UploadImage } from "@/components/docs-editor";
+import { getApiReference } from "@/lib/docsApiReference";
 import { useLocationSearch } from "@/components/shell/useLocation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -76,8 +77,28 @@ function moveTo(nav: NavGroup[], id: string, group: string): NavGroup[] {
  * mode), and the page panel (address, sidebar, icon, history). Drafts autosave; the top bar says
  * where the draft stands, and Publish… goes to the Publish screen.
  */
+/** The guide's API reference operations, offered by the editor's API endpoint block (none without one). */
+function useApiOperations(siteId: string, specId: string | null): ApiOperationOption[] {
+  const [ops, setOps] = useState<ApiOperationOption[]>([]);
+  useEffect(() => {
+    if (!specId) {
+      setOps([]);
+      return;
+    }
+    let on = true;
+    getApiReference(siteId)
+      .then((s) => on && setOps(s.nav.flatMap((g) => g.items.filter((i) => i.method && i.path).map((i) => ({ op: `${i.method} ${i.path}`, summary: i.title })))))
+      .catch(() => {});
+    return () => {
+      on = false;
+    };
+  }, [siteId, specId]);
+  return ops;
+}
+
 export default function EditorPage() {
   const { site, base, canEdit, isAdmin } = useSite();
+  const apiOps = useApiOperations(site.id, site.settings.api?.spec_id ?? null);
   const { user } = useAuth();
   const toast = useToast();
   const search = useLocationSearch();
@@ -325,6 +346,7 @@ export default function EditorPage() {
                   resolveAssetUrl={resolveAssetUrl}
                   readOnly={!editable}
                   placeholder="Type / for blocks: callouts, steps, tabs, code, images…"
+                  operations={apiOps}
                   stickyTop={chromeBottom}
                 />
               </>

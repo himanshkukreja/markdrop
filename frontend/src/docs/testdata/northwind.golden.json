@@ -1,0 +1,93 @@
+{
+  "problems": [],
+  "groups": [
+    {
+      "id": "products",
+      "title": "Products",
+      "ops": [
+        {
+          "key": "GET /products",
+          "title": "List products",
+          "path": "/api-reference/products/list-products",
+          "auth": "none",
+          "authLabel": "No auth",
+          "server": "https://api.northwind.example/v1"
+        },
+        {
+          "key": "GET /products/{productId}",
+          "title": "Get a product",
+          "path": "/api-reference/products/get-a-product",
+          "auth": "none",
+          "authLabel": "No auth",
+          "server": "https://api.northwind.example/v1"
+        }
+      ]
+    },
+    {
+      "id": "orders",
+      "title": "Orders",
+      "ops": [
+        {
+          "key": "GET /orders",
+          "title": "List orders",
+          "path": "/api-reference/orders/list-orders",
+          "auth": "token",
+          "authLabel": "Bearer token",
+          "server": "https://api.northwind.example/v1"
+        },
+        {
+          "key": "POST /orders",
+          "title": "Create an order",
+          "path": "/api-reference/orders/create-an-order",
+          "auth": "token",
+          "authLabel": "Bearer token",
+          "server": "https://api.northwind.example/v1"
+        },
+        {
+          "key": "GET /orders/{orderId}",
+          "title": "Get an order",
+          "path": "/api-reference/orders/get-an-order",
+          "auth": "token",
+          "authLabel": "Bearer token",
+          "server": "https://api.northwind.example/v1"
+        },
+        {
+          "key": "DELETE /orders/{orderId}",
+          "title": "Cancel an order",
+          "path": "/api-reference/orders/cancel-an-order",
+          "auth": "token",
+          "authLabel": "Bearer token",
+          "server": "https://api.northwind.example/v1"
+        }
+      ]
+    },
+    {
+      "id": "customers",
+      "title": "Customers",
+      "ops": [
+        {
+          "key": "GET /customers/{customerId}",
+          "title": "Get a customer",
+          "path": "/api-reference/customers/get-a-customer",
+          "auth": "token",
+          "authLabel": "Bearer token",
+          "server": "https://api.northwind.example/v1"
+        }
+      ]
+    }
+  ],
+  "overview": {
+    "title": "Northwind API",
+    "description": "A sample API for a fictional wholesale company.",
+    "markdown": "A sample API for a fictional wholesale company. It's here so you can see how a guide shows an API reference: replace it with your own OpenAPI file in Settings › API reference.\n\n- **Version:** `1.0.0`\n- **OpenAPI:** 3.1.0\n\n## Base URL\n\n- `https://api.northwind.example/v1`: Production\n- `https://sandbox.northwind.example/v1`: Sandbox\n\n## Authentication\n\nEndpoints take one of these, unless a page says otherwise:\n\n- **bearerAuth:** Bearer token in `Authorization: Bearer <token>`. A token from your Northwind dashboard.\n- **apiKey:** An API key in the `X-API-Key` header. For server-to-server calls.\n\n## Endpoints\n\n### Products\n\nWhat Northwind sells.\n\n- [List products](/api-reference/products/list-products): `GET /products`\n- [Get a product](/api-reference/products/get-a-product): `GET /products/{productId}`\n\n### Orders\n\nOrders customers place.\n\n- [List orders](/api-reference/orders/list-orders): `GET /orders`\n- [Create an order](/api-reference/orders/create-an-order): `POST /orders`\n- [Get an order](/api-reference/orders/get-an-order): `GET /orders/{orderId}`\n- [Cancel an order](/api-reference/orders/cancel-an-order): `DELETE /orders/{orderId}`\n\n### Customers\n\nThe companies that buy from Northwind.\n\n- [Get a customer](/api-reference/customers/get-a-customer): `GET /customers/{customerId}`\n"
+  },
+  "pages": {
+    "/api-reference/products/list-products": "`GET https://api.northwind.example/v1/products`\n\nReturns products, sorted by name. Anyone can list products: no credentials needed.\n\n- **Authentication:** None.\n\n## Query parameters\n\n- `category` (\"beverages\" | \"condiments\" | \"produce\" | \"seafood\"): Only products in this category.\n- `limit` (integer): How many to return. From 1 to 100. Default `20`.\n\n## Responses\n\n- `200`: A page of products.\n  - `data` (array of object)\n    - `id` (string)\n    - `name` (string)\n    - `category` (string)\n    - `unit_price` (number): In US dollars.\n    - `in_stock` (integer)\n  - `has_more` (boolean)\n\n## Examples\n\n::::tabs{sync=\"lang\"}\n:::tab[curl]\n```bash\ncurl https://api.northwind.example/v1/products\n```\n:::\n:::tab[JavaScript]\n```javascript\nconst res = await fetch(\"https://api.northwind.example/v1/products\");\nconst data = await res.json();\n```\n:::\n:::tab[Python]\n```python\nimport requests\n\nr = requests.get(\"https://api.northwind.example/v1/products\")\nr.raise_for_status()\nprint(r.json())\n```\n:::\n::::\n",
+    "/api-reference/products/get-a-product": "`GET https://api.northwind.example/v1/products/{productId}`\n\nReturns one product.\n\n- **Authentication:** None.\n\n## Path parameters\n\n- `productId` (string, required): The product's ID.\n\n## Responses\n\n- `200`: The product.\n  - `id` (string)\n  - `name` (string)\n  - `category` (string)\n  - `unit_price` (number): In US dollars.\n  - `in_stock` (integer)\n- `404`: Nothing has that ID.\n\n## Examples\n\n::::tabs{sync=\"lang\"}\n:::tab[curl]\n```bash\ncurl https://api.northwind.example/v1/products/prd_chai\n```\n:::\n:::tab[JavaScript]\n```javascript\nconst res = await fetch(\"https://api.northwind.example/v1/products/prd_chai\");\nconst data = await res.json();\n```\n:::\n:::tab[Python]\n```python\nimport requests\n\nr = requests.get(\"https://api.northwind.example/v1/products/prd_chai\")\nr.raise_for_status()\nprint(r.json())\n```\n:::\n::::\n",
+    "/api-reference/orders/list-orders": "`GET https://api.northwind.example/v1/orders`\n\nReturns your orders, newest first.\n\n- **Authentication:** Bearer token in `Authorization: Bearer <token>`. Or: An API key in the `X-API-Key` header.\n\n## Query parameters\n\n- `status` (\"pending\" | \"shipped\" | \"cancelled\"): Only orders with this status.\n\n## Responses\n\n- `200`: Your orders.\n  - `data` (array of object)\n    - `id` (string)\n    - `customer_id` (string)\n    - `status` (\"pending\" | \"shipped\" | \"cancelled\")\n    - `lines` (array of object)\n    - `total` (number): In US dollars.\n    - `created_at` (string (date-time)): ISO 8601, for example `2026-11-30T12:00:00Z`.\n- `401`: The token or API key is missing or wrong.\n\n## Examples\n\n::::tabs{sync=\"lang\"}\n:::tab[curl]\n```bash\ncurl https://api.northwind.example/v1/orders \\\n  -H \"Authorization: Bearer $API_TOKEN\"\n```\n:::\n:::tab[JavaScript]\n```javascript\nconst res = await fetch(\"https://api.northwind.example/v1/orders\", {\n  headers: {\n    Authorization: `Bearer ${process.env.API_TOKEN}`,\n  },\n});\nconst data = await res.json();\n```\n:::\n:::tab[Python]\n```python\nimport os\n\nimport requests\n\nr = requests.get(\n    \"https://api.northwind.example/v1/orders\",\n    headers={\"Authorization\": f\"Bearer {os.environ['API_TOKEN']}\"},\n)\nr.raise_for_status()\nprint(r.json())\n```\n:::\n::::\n",
+    "/api-reference/orders/create-an-order": "`POST https://api.northwind.example/v1/orders`\n\nPlaces an order for one customer. Stock is reserved until the order ships or is cancelled.\n\n- **Authentication:** Bearer token in `Authorization: Bearer <token>`. Or: An API key in the `X-API-Key` header.\n\n## Request body\n\n`application/json`, required.\n\n- `customer_id` (string, required): Who the order is for.\n- `lines` (array of object, required)\n  - `product_id` (string, required)\n  - `quantity` (integer, required): At least 1.\n- `ship_by` (string (date)): The latest shipping date the customer accepts.\n\n## Responses\n\n- `201`: The order was placed.\n  - `id` (string)\n  - `customer_id` (string)\n  - `status` (\"pending\" | \"shipped\" | \"cancelled\")\n  - `lines` (array of object)\n    - `product_id` (string)\n    - `quantity` (integer): At least 1.\n  - `total` (number): In US dollars.\n  - `created_at` (string (date-time)): ISO 8601, for example `2026-11-30T12:00:00Z`.\n- `401`: The token or API key is missing or wrong.\n- `422`: A product is out of stock, or the customer doesn't exist.\n\n## Examples\n\n::::tabs{sync=\"lang\"}\n:::tab[curl]\n```bash\ncurl -X POST https://api.northwind.example/v1/orders \\\n  -H \"Authorization: Bearer $API_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n       \"customer_id\": \"cus_ALFKI\",\n       \"lines\": [\n         {\n           \"product_id\": \"prd_chai\",\n           \"quantity\": 12\n         }\n       ]\n     }'\n```\n:::\n:::tab[JavaScript]\n```javascript\nconst res = await fetch(\"https://api.northwind.example/v1/orders\", {\n  method: \"POST\",\n  headers: {\n    Authorization: `Bearer ${process.env.API_TOKEN}`,\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    \"customer_id\": \"cus_ALFKI\",\n    \"lines\": [\n      {\n        \"product_id\": \"prd_chai\",\n        \"quantity\": 12\n      }\n    ]\n  }),\n});\nconst data = await res.json();\n```\n:::\n:::tab[Python]\n```python\nimport os\n\nimport requests\n\nr = requests.post(\n    \"https://api.northwind.example/v1/orders\",\n    headers={\"Authorization\": f\"Bearer {os.environ['API_TOKEN']}\"},\n    json={\n        \"customer_id\": \"cus_ALFKI\",\n        \"lines\": [{\"product_id\": \"prd_chai\", \"quantity\": 12}],\n    },\n)\nr.raise_for_status()\nprint(r.json())\n```\n:::\n::::\n",
+    "/api-reference/orders/get-an-order": "`GET https://api.northwind.example/v1/orders/{orderId}`\n\n- **Authentication:** Bearer token in `Authorization: Bearer <token>`. Or: An API key in the `X-API-Key` header.\n\n## Path parameters\n\n- `orderId` (string, required): The order's ID.\n\n## Responses\n\n- `200`: The order.\n  - `id` (string)\n  - `customer_id` (string)\n  - `status` (\"pending\" | \"shipped\" | \"cancelled\")\n  - `lines` (array of object)\n    - `product_id` (string)\n    - `quantity` (integer): At least 1.\n  - `total` (number): In US dollars.\n  - `created_at` (string (date-time)): ISO 8601, for example `2026-11-30T12:00:00Z`.\n- `404`: Nothing has that ID.\n\n## Examples\n\n::::tabs{sync=\"lang\"}\n:::tab[curl]\n```bash\ncurl https://api.northwind.example/v1/orders/ord_10248 \\\n  -H \"Authorization: Bearer $API_TOKEN\"\n```\n:::\n:::tab[JavaScript]\n```javascript\nconst res = await fetch(\"https://api.northwind.example/v1/orders/ord_10248\", {\n  headers: {\n    Authorization: `Bearer ${process.env.API_TOKEN}`,\n  },\n});\nconst data = await res.json();\n```\n:::\n:::tab[Python]\n```python\nimport os\n\nimport requests\n\nr = requests.get(\n    \"https://api.northwind.example/v1/orders/ord_10248\",\n    headers={\"Authorization\": f\"Bearer {os.environ['API_TOKEN']}\"},\n)\nr.raise_for_status()\nprint(r.json())\n```\n:::\n::::\n",
+    "/api-reference/orders/cancel-an-order": "`DELETE https://api.northwind.example/v1/orders/{orderId}`\n\nCancels an order that hasn't shipped. Its stock goes back on sale.\n\n- **Authentication:** Bearer token in `Authorization: Bearer <token>`. Or: An API key in the `X-API-Key` header.\n\n## Path parameters\n\n- `orderId` (string, required): The order's ID.\n\n## Responses\n\n- `204`: The order was cancelled.\n- `409`: The order has already shipped.\n\n## Examples\n\n::::tabs{sync=\"lang\"}\n:::tab[curl]\n```bash\ncurl -X DELETE https://api.northwind.example/v1/orders/ord_10248 \\\n  -H \"Authorization: Bearer $API_TOKEN\"\n```\n:::\n:::tab[JavaScript]\n```javascript\nconst res = await fetch(\"https://api.northwind.example/v1/orders/ord_10248\", {\n  method: \"DELETE\",\n  headers: {\n    Authorization: `Bearer ${process.env.API_TOKEN}`,\n  },\n});\nif (!res.ok) throw new Error(`${res.status}`);\n```\n:::\n:::tab[Python]\n```python\nimport os\n\nimport requests\n\nr = requests.delete(\n    \"https://api.northwind.example/v1/orders/ord_10248\",\n    headers={\"Authorization\": f\"Bearer {os.environ['API_TOKEN']}\"},\n)\nr.raise_for_status()\n```\n:::\n::::\n",
+    "/api-reference/customers/get-a-customer": "`GET https://api.northwind.example/v1/customers/{customerId}`\n\n- **Authentication:** Bearer token in `Authorization: Bearer <token>`. Or: An API key in the `X-API-Key` header.\n\n## Path parameters\n\n- `customerId` (string, required)\n\n## Responses\n\n- `200`: The customer.\n  - `id` (string)\n  - `company_name` (string)\n  - `country` (string)\n- `404`: Nothing has that ID.\n\n## Examples\n\n::::tabs{sync=\"lang\"}\n:::tab[curl]\n```bash\ncurl https://api.northwind.example/v1/customers/cus_ALFKI \\\n  -H \"Authorization: Bearer $API_TOKEN\"\n```\n:::\n:::tab[JavaScript]\n```javascript\nconst res = await fetch(\"https://api.northwind.example/v1/customers/cus_ALFKI\", {\n  headers: {\n    Authorization: `Bearer ${process.env.API_TOKEN}`,\n  },\n});\nconst data = await res.json();\n```\n:::\n:::tab[Python]\n```python\nimport os\n\nimport requests\n\nr = requests.get(\n    \"https://api.northwind.example/v1/customers/cus_ALFKI\",\n    headers={\"Authorization\": f\"Bearer {os.environ['API_TOKEN']}\"},\n)\nr.raise_for_status()\nprint(r.json())\n```\n:::\n::::\n"
+  }
+}
