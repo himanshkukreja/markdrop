@@ -19,6 +19,9 @@
  *   /api/geo                             the consent banner's country check (the app's route)
  *   no match                             redirects.json, else the engine's 404 page
  *
+ * A Markdrop Guides site with Insights on (manifest site.insights) also has each page view counted:
+ * one POST to the API after the response is sent (insights.mjs). Nothing runs in the browser for it.
+ *
  * A password or members-only site (sites/<site>/access.json, see access.mjs) answers every one of
  * those only to a browser with its session cookie: anything else gets the branded sign-in page
  * (a navigation) or a bare 401, and /_access/* runs the sign-in. Its responses are
@@ -32,6 +35,7 @@ import {
   SECRET_MIN, SESSION_COOKIE, SESSION_TTL, STATE_COOKIE, STATE_TTL, brandFiles, b64url, callbackPage, cookie, gatePage,
   grantProblem, mintSession, newState, parseCookies, parsePolicy, privatePage, safeNext, sessionValid, stateHash, validState,
 } from "./access.mjs";
+import { isPageView, sendView } from "./insights.mjs";
 
 const RSC_VARY = "RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch, Accept";
 const MCP_ROUTE = `${DOCS_INTERNAL}/mcp`;
@@ -133,6 +137,8 @@ function parseRange(header, size) {
  * options.access: { secret, apiOrigin, appOrigin } for password and members-only sites (the Worker's
  *   DOCS_ACCESS_SECRET, MARKDROP_API_ORIGIN, MARKDROP_APP_ORIGIN). Without a secret such a site
  *   answers only "private" (it is never served open).
+ * options.insights: false turns page-view counting off (the Worker's INSIGHTS = "off"); it also
+ *   needs access.secret (the edge key is derived from it). options.fetch: the fetch it sends with.
  */
 export function createHandler(store, options = {}) {
   const pointerTtl = options.pointerTtlMs ?? 5000;
@@ -150,6 +156,15 @@ export function createHandler(store, options = {}) {
   const engines = new Lru(8);
   /* The Worker ctx of each request, for the store's waitUntil (cache writes). */
   const ctxOf = new WeakMap();
+  const insightsOn = options.insights !== false && !!secret;
+  const fetchFn = options.fetch || ((...a) => fetch(...a));
+
+  /** A Markdrop Guides site's page view, counted after the response (insights.mjs). */
+  function countView(req, url, site, m) {
+    if (!insightsOn || !m.site?.insights || !isPageView(req)) return;
+    options.onServe?.({ kind: "view", status: 0, size: 0 });
+    sendView({ req, url, site, apiOrigin, secret, ctx: ctxOf.get(req), fetchFn });
+  }
 
   async function siteFor(host) {
     if (options.fixedSite) return options.fixedSite;
@@ -359,7 +374,9 @@ export function createHandler(store, options = {}) {
         }
         // Text outputs keep the cache policy the engine gave them; pages revalidate by ETag.
         const cache = r.h?.["cache-control"] || CACHE.page;
-        return serve(req, r, { type: r.t, cache, headers: { vary: isPage ? RSC_VARY : "Accept" }, kind: isPage ? "page" : r.t.startsWith("image/") ? "og" : "text" });
+        const res = await serve(req, r, { type: r.t, cache, headers: { vary: isPage ? RSC_VARY : "Accept" }, kind: isPage ? "page" : r.t.startsWith("image/") ? "og" : "text" });
+        if (isPage && (res.status === 200 || res.status === 304)) countView(req, url, site, m);
+        return res;
       }
     }
 

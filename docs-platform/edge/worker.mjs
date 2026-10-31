@@ -6,7 +6,9 @@
  *
  * DOCS_ACCESS_SECRET (a Worker secret: `wrangler secret put DOCS_ACCESS_SECRET`; the same value as
  * the API's MARKDROP_DOCS_ACCESS_SECRET) checks the sign-in grants and signs the session cookies of
- * non-public sites (edge/access.mjs). Without it such a site answers only "private".
+ * non-public sites (edge/access.mjs). Without it such a site answers only "private". It also keys
+ * the page views the edge reports for a Markdrop Guides site with Insights on (edge/insights.mjs);
+ * INSIGHTS = "off" stops those.
  */
 import { createHandler } from "./handler.mjs";
 
@@ -45,6 +47,7 @@ export default {
     handler ??= createHandler(r2Store(env.DOCS), {
       pointerTtlMs: Number(env.POINTER_TTL_MS || 5000),
       access: { secret: env.DOCS_ACCESS_SECRET, apiOrigin: env.MARKDROP_API_ORIGIN, appOrigin: env.MARKDROP_APP_ORIGIN },
+      insights: env.INSIGHTS !== "off",
     });
     const res = await handler.fetch(request, ctx);
     // Preview addresses (*.workers.dev) copy a real docs site: keep them out of search results.

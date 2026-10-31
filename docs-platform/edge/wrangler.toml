@@ -44,3 +44,6 @@ POINTER_TTL_MS = "5000"
 #   npx wrangler secret put DOCS_ACCESS_SECRET     (the API's MARKDROP_DOCS_ACCESS_SECRET)
 MARKDROP_API_ORIGIN = "https://api.markdrop.in"
 MARKDROP_APP_ORIGIN = "https://markdrop.in"
+# Insights (edge/insights.mjs): a Markdrop Guides site with Insights on has each page view reported to
+# MARKDROP_API_ORIGIN, keyed with DOCS_ACCESS_SECRET (no secret: none are sent). "off" stops them.
+# INSIGHTS = "off"
