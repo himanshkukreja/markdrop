@@ -1,18 +1,18 @@
 /**
- * Docs Studio's addresses. The studio is its own area of the app, not a workspace page:
+ * Markdrop Guides' addresses. The studio is its own area of the app, not a workspace page:
  *
- *   /docs-studio                    every site you can open, grouped by workspace (?ws=<id>|personal filters)
- *   /docs-studio/new                a new site (?ws=<id>|personal preselects where it lives)
- *   /docs-studio/<site>             the editor (?page=<id>)
- *   /docs-studio/<site>/import      the GitBook import (?job=<id>, else the site's last import)
- *   /docs-studio/<site>/design      themes, brand, fonts, custom CSS
- *   /docs-studio/<site>/publish     changes, publish, reviews, history
- *   /docs-studio/<site>/settings    address, Ask AI, access, redirects, people, delete
- *   /docs-studio/members            Docs Studio roles in a workspace (?ws=<id>; studio admins)
+ *   /guides                    every site you can open, grouped by workspace (?ws=<id>|personal filters)
+ *   /guides/new                a new site (?ws=<id>|personal preselects where it lives)
+ *   /guides/<site>             the editor (?page=<id>)
+ *   /guides/<site>/import      the GitBook import (?job=<id>, else the site's last import)
+ *   /guides/<site>/design      themes, brand, fonts, custom CSS
+ *   /guides/<site>/publish     changes, publish, reviews, history
+ *   /guides/<site>/settings    address, Ask AI, access, redirects, people, delete
+ *   /guides/members            Guides roles in a workspace (?ws=<id>; studio admins)
  *
  * The old /w/<ws>/docs… addresses redirect here (next.config.ts).
  */
-export const STUDIO = "/docs-studio";
+export const STUDIO = "/guides";
 
 /** "personal" or a workspace id: the scope a site lives in. */
 export type StudioScope = string;
@@ -28,5 +28,5 @@ export const studioHome = (scope?: StudioScope | null) => withScope(STUDIO, scop
 export const studioNew = (scope?: StudioScope | null) => withScope(`${STUDIO}/new`, scope);
 /** A site's screens hang off this (the editor itself is the bare address). */
 export const siteBase = (siteId: string) => `${STUDIO}/${encodeURIComponent(siteId)}`;
-/** Docs Studio › Members: a workspace's people and their Docs Studio roles (studio admins). */
+/** Guides › Members: a workspace's people and their Guides roles (studio admins). */
 export const studioMembers = (workspaceId?: string | null) => withScope(`${STUDIO}/members`, workspaceId);

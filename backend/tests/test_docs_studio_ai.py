@@ -1,4 +1,4 @@
-"""Ask AI on Docs Studio sites (services/docs_sites.py studio_site, docs_index.aget_index).
+"""Ask AI on Markdrop Guides sites (services/docs_sites.py studio_site, docs_index.aget_index).
 
 A studio site is a ``docs_sites`` row; its docs are the live build's snapshot
 (``docs_builds.snapshot_id`` → ``docs_snapshots``). The rows are written here in
@@ -29,7 +29,7 @@ from app.services import ai_usage, docs_agent, docs_index, docs_sites
 from tests.test_docs_ai import API, DOCS, DocsAIBase, FakeClient, Turn, collect, parse_sse, settings, text_of
 from tests.test_docs_sites import legacy_system, write_site
 
-HOST = "acme.docs.markdrop.in"
+HOST = "acme.guides.markdrop.in"
 URL = f"https://{HOST}"
 
 PAGES = [
@@ -104,7 +104,7 @@ class StudioBase(DocsAIBase):
         site = await self.db["docs_sites"].find_one({"_id": sid})
         snap = {
             "site_id": sid,
-            "site": {"name": site["name"], "slug": site["slug"], "url": f"https://{site['slug']}.docs.markdrop.in"},
+            "site": {"name": site["name"], "slug": site["slug"], "url": f"https://{site['slug']}.guides.markdrop.in"},
             "pages": [{
                 "page_id": self.page_ids.get(p["path"], str(ObjectId())), "path": p["path"], "title": p["title"],
                 "description": p.get("description", ""), "icon": None, "hidden": bool(p.get("hidden")),
@@ -285,7 +285,7 @@ class AgentTests(StudioBase):
         r1 = Turn(tools=[("search_docs", {"query": "sand"})])
         r2 = Turn(tools=[("read_page", {"path": "/start/install"})])
         r3 = Turn(text=("You need a flat field [S1]. See [Launch](/start/launch), [fuel](/start/install#fuel--oxidiser), "
-                        "[nope](/start/nowhere), [app](https://markdrop.in/new) or [abs](https://acme.docs.markdrop.in/start/launch)."))
+                        "[nope](/start/nowhere), [app](https://markdrop.in/new) or [abs](https://acme.guides.markdrop.in/start/launch)."))
         events, fake = await self.ask(sid, [r1, r2, r3], page_path="/start/install")
         call = fake.messages.calls[0]
         system = call["system"][0]["text"]
@@ -464,10 +464,10 @@ class CORSTests(StudioBase):
         await self.make_site(slug="drafty", live=False)
         await self.make_site(slug="quiet", ai={"enabled": False})  # feedback and status still work there
         async with self.http() as c:
-            for origin, ok in ((URL, True), ("https://docs.acme.test", True), ("https://quiet.docs.markdrop.in", True),
+            for origin, ok in ((URL, True), ("https://docs.acme.test", True), ("https://quiet.guides.markdrop.in", True),
                                (DOCS, True), ("https://pending.acme.test", False),
-                               ("https://drafty.docs.markdrop.in", False), (f"http://{HOST}", False),
-                               ("https://acme.docs.markdrop.in.evil.example", False), ("https://evil.example", False)):
+                               ("https://drafty.guides.markdrop.in", False), (f"http://{HOST}", False),
+                               ("https://acme.guides.markdrop.in.evil.example", False), ("https://evil.example", False)):
                 r = await self.preflight(c, origin)
                 self.assertEqual(r.headers.get("access-control-allow-origin") == origin, ok, origin)
                 if ok:
@@ -490,11 +490,11 @@ class CORSTests(StudioBase):
         await self.make_site(slug="later")
         # A miss within the window doesn't re-read; after it, it does.
         with mock.patch.object(docs_sites, "_load_studio_origins", wraps=docs_sites._load_studio_origins) as load:
-            self.assertFalse(await docs_sites.studio_origin_allowed("https://later.docs.markdrop.in"))
+            self.assertFalse(await docs_sites.studio_origin_allowed("https://later.guides.markdrop.in"))
             self.assertTrue(await docs_sites.studio_origin_allowed(URL + "/"))
             self.assertEqual(load.call_count, 0)
             docs_sites.ORIGINS_MISS_S = 0.0
-            self.assertTrue(await docs_sites.studio_origin_allowed("https://later.docs.markdrop.in"))
+            self.assertTrue(await docs_sites.studio_origin_allowed("https://later.guides.markdrop.in"))
             self.assertEqual(load.call_count, 1)
 
     async def test_no_database_means_no(self):

@@ -46,7 +46,7 @@ async def list_sites(request: Request, workspace_id: str | None = Query(None),
                      scope: str | None = Query(None, pattern="^all$"),
                      db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
     """A workspace's sites (any member), or with no workspace_id your personal ones. With
-    ``scope=all`` (Docs Studio's home): every site across your workspaces and your personal ones,
+    ``scope=all`` (Markdrop Guides' home): every site across your workspaces and your personal ones,
     each with its ``workspace``, plus ``workspaces`` and ``personal`` (usage, may you create there)."""
     if scope == "all":
         return await store.list_all_sites(db, user)
@@ -236,5 +236,5 @@ async def asset_preview(request: Request, site_id: str, name: str, db: AsyncIOMo
 # Pages, locks, versions and nav (routers/docs_site_pages.py).
 router.include_router(pages_router)
 
-# Per-site Docs Studio role overrides (routers/docs_site_people.py).
+# Per-site Guides role overrides (routers/docs_site_people.py).
 router.include_router(people_router)

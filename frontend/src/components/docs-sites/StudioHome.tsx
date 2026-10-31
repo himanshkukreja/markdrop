@@ -48,7 +48,7 @@ export function SiteCard({ site }: { site: SiteSummary }) {
           <Badge tone={st.tone} size="sm" dot>{st.label}</Badge>
         </div>
         {site.workspace_id && site.your_role_source === "site" && (
-          <div className="-mt-1"><RoleBadge role={site.your_role} title="Your role on this site (different from your workspace role)" /> <span className="text-[12px] text-text-muted">on this site</span></div>
+          <div className="-mt-1"><RoleBadge role={site.your_role} title="Your role on this guide (different from your workspace role)" /> <span className="text-[12px] text-text-muted">on this guide</span></div>
         )}
         <code className="font-mono text-[12.5px] text-text-secondary [overflow-wrap:anywhere]">{address}</code>
         <p className="text-[13px] leading-5 text-text-muted">{metaOf(site)}</p>
@@ -59,7 +59,7 @@ export function SiteCard({ site }: { site: SiteSummary }) {
             </Button>
           </span>
           {site.status === "live" && (
-            <Button variant="ghost" size="sm" iconRight="external" href={`https://${address}`} target="_blank">View site</Button>
+            <Button variant="ghost" size="sm" iconRight="external" href={`https://${address}`} target="_blank">View guide</Button>
           )}
         </div>
       </div>
@@ -69,7 +69,7 @@ export function SiteCard({ site }: { site: SiteSummary }) {
 
 function CardSkeletons() {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label="Loading docs sites">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label="Loading guides">
       {[0, 1, 2].map((i) => (
         <div key={i} className="flex flex-col gap-3 overflow-hidden rounded-xl border border-border bg-surface pb-4">
           <Skeleton variant="rect" height={132} />
@@ -81,9 +81,9 @@ function CardSkeletons() {
 }
 
 /**
- * /docs-studio (Docs Studio's home): every docs site you can open, grouped by where it lives (each
- * workspace you belong to, then your personal sites), with a workspace filter (?ws=<id>|personal),
- * "New docs site", and each scope's use of the free plan.
+ * /guides (Markdrop Guides' home): every guide you can open, grouped by where it lives (each
+ * workspace you belong to, then your personal guides), with a workspace filter (?ws=<id>|personal),
+ * "New guide", and each scope's use of the free plan.
  */
 export default function StudioHome() {
   const { ready } = useStudioSession(STUDIO);
@@ -96,8 +96,8 @@ export default function StudioHome() {
 
   const groups = all ? groupSites(all.sites, all.workspaces) : [];
   const known = !filter || filter === PERSONAL || !!all?.workspaces.some((w) => w.id === filter);
-  // Filtered: that scope alone. Otherwise every workspace (an empty one still offers "New site here"
-  // to its admins), and personal sites when there are some.
+  // Filtered: that scope alone. Otherwise every workspace (an empty one still offers "New guide here"
+  // to its admins), and personal guides when there are some.
   const shown = filter ? groups.filter((g) => g.scope === filter) : groups.filter((g) => g.scope !== PERSONAL || g.sites.length > 0);
   const canCreateSomewhere = !all || all.workspaces.some((w) => w.can_create) || all.personal.can_create;
   const usageOf = (scope: string) => (scope === PERSONAL ? all?.personal.usage : all?.workspaces.find((w) => w.id === scope)?.usage);
@@ -110,16 +110,16 @@ export default function StudioHome() {
     <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1180px] flex-col gap-6 px-4 pb-16 pt-8 outline-none sm:px-6 sm:pt-10">
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-1.5">
-          <h1 className="text-[28px] font-extrabold leading-9 tracking-[-0.02em] text-text">Your docs sites</h1>
+          <h1 className="text-[28px] font-extrabold leading-9 tracking-[-0.02em] text-text">Your guides</h1>
           <p className="max-w-[640px] text-[15px] leading-6 text-text-secondary">
-            Documentation websites your team writes here and publishes to their own address, with search and Ask AI built in.{" "}
-            <ReadMore topic="docsStudio" />
+            Help centers, product guides and handbooks your team writes here and publishes to their own address, with search and Ask AI built in.{" "}
+            <ReadMore topic="guidesOverview" />
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {all && (all.workspaces.length > 0) && (
             <Select
-              aria-label="Show sites from"
+              aria-label="Show guides from"
               className="w-[220px] max-w-full"
               value={known ? filter : ""}
               onChange={(e) => router.replace(studioHome(e.target.value || null))}
@@ -131,13 +131,13 @@ export default function StudioHome() {
             />
           )}
           {canCreateSomewhere && (
-            <Button variant="primary" iconLeft="plus" href={studioNew(filter && known ? filter : null)}>New docs site</Button>
+            <Button variant="primary" iconLeft="plus" href={studioNew(filter && known ? filter : null)}>New guide</Button>
           )}
         </div>
       </div>
 
       {allError && (
-        <Alert tone="danger" title="We couldn't load your docs sites" actions={<Button size="sm" variant="secondary" onClick={() => void reloadAll()}>Try again</Button>}>
+        <Alert tone="danger" title="We couldn't load your guides" actions={<Button size="sm" variant="secondary" onClick={() => void reloadAll()}>Try again</Button>}>
           {allError}
         </Alert>
       )}
@@ -147,16 +147,16 @@ export default function StudioHome() {
       {all && total === 0 && !filter && (
         <EmptyState
           icon="layers"
-          title="No docs sites yet"
+          title="No guides yet"
           description={noRole.length > 0
-            ? `You don't have a Docs Studio role in ${noRole.map((w) => w.name).join(", ")} yet. A Docs Studio admin there can give you one; until then its docs sites don't show here. You can still start a personal site.`
+            ? `You don't have a Guides role in ${noRole.map((w) => w.name).join(", ")} yet. A Guides admin there can give you one; until then its guides don't show here. You can still start a personal guide.`
             : "Start blank, from a template, or bring your GitBook docs across. Nothing is public until you publish."}
-          actions={<Button variant="primary" iconLeft="plus" href={studioNew()}>New docs site</Button>}
+          actions={<Button variant="primary" iconLeft="plus" href={studioNew()}>New guide</Button>}
         />
       )}
 
       {all && !known && (
-        <EmptyState icon="users" title="That workspace isn't one of yours" description="You may have left it, or it was deleted." actions={<Button variant="secondary" href={studioHome()}>Show all docs sites</Button>} />
+        <EmptyState icon="users" title="That workspace isn't one of yours" description="You may have left it, or it was deleted." actions={<Button variant="secondary" href={studioHome()}>Show all guides</Button>} />
       )}
 
       {all && (total > 0 || filter) && shown.map((g) => {
@@ -168,16 +168,16 @@ export default function StudioHome() {
           <section key={g.scope} aria-labelledby={`grp-${g.scope}`} className="flex flex-col gap-3.5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border pb-2.5">
               <h2 id={`grp-${g.scope}`} className="min-w-0 truncate text-[17px] font-semibold text-text" dir="auto">{g.name}</h2>
-              {ws && <RoleBadge role={ws.your_role} title="Your Docs Studio role in this workspace" />}
+              {ws && <RoleBadge role={ws.your_role} title="Your Guides role in this workspace" />}
               {usage && (
                 <Meter
                   className="w-[150px]"
                   size="sm"
-                  label={<span className="text-caption text-text-muted">{num(usage.sites)} of {num(usage.limit)} sites</span>}
+                  label={<span className="text-caption text-text-muted">{num(usage.sites)} of {num(usage.limit)} guides</span>}
                   value={usage.sites}
                   max={usage.limit}
                   threshold={1}
-                  valueText={`${usage.sites} of ${usage.limit} sites`}
+                  valueText={`${usage.sites} of ${usage.limit} guides`}
                 />
               )}
               {ws?.can_manage_people && (
@@ -185,8 +185,8 @@ export default function StudioHome() {
               )}
               {canCreate && (
                 <Button className={ws?.can_manage_people ? undefined : "ml-auto"} variant="ghost" size="sm" iconLeft="plus" href={full ? undefined : studioNew(g.scope)} disabled={full}
-                  title={full ? `The free plan has ${usage?.limit} docs sites per workspace.` : undefined}>
-                  New site here
+                  title={full ? `The free plan has ${usage?.limit} guides per workspace.` : undefined}>
+                  New guide here
                 </Button>
               )}
             </div>
@@ -197,10 +197,10 @@ export default function StudioHome() {
             ) : (
               <p className="text-body text-text-muted">
                 {g.scope === PERSONAL
-                  ? "Sites only you can edit. Create one to try things out."
-                  : canCreate ? "No docs sites in this workspace yet."
-                  : ws?.your_role === "none" ? "You don't have a Docs Studio role here yet. A Docs Studio admin of this workspace can give you one."
-                  : "No docs sites yet. A Docs Studio admin can create one."}
+                  ? "Guides only you can edit. Create one to try things out."
+                  : canCreate ? "No guides in this workspace yet."
+                  : ws?.your_role === "none" ? "You don't have a Guides role here yet. A Guides admin of this workspace can give you one."
+                  : "No guides yet. A Guides admin can create one."}
               </p>
             )}
           </section>
@@ -212,7 +212,7 @@ export default function StudioHome() {
           <div className="flex min-w-0 flex-[1_1_280px] flex-col gap-1">
             <h2 id="docs-usage-h" className="text-body-strong text-text">Free plan</h2>
             <p className="text-body text-text-secondary">
-              {num(all.usage.limit)} sites per workspace, 1,000 pages per site, {num(all.usage.ai_limit ?? FREE_AI)} Ask AI answers a month per site, unlimited editors.{" "}
+              {num(all.usage.limit)} guides per workspace, 1,000 pages per guide, {num(all.usage.ai_limit ?? FREE_AI)} Ask AI answers a month per guide, unlimited editors.{" "}
               <ReadMore topic="studioFaq" />
             </p>
           </div>

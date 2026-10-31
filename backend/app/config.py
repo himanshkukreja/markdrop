@@ -413,7 +413,7 @@ class Settings(BaseSettings):
 
     # ── Docs sites (routers/docs_sites.py, services/docs_site_*.py) ──────────
     # Hosted docs sites live at <slug>.<docs_sites_domain>.
-    docs_sites_domain: str = "docs.markdrop.in"
+    docs_sites_domain: str = "guides.markdrop.in"
     # The docs hosting Cloudflare account is separate from the artifacts one,
     # so its R2 credentials are too. Each also reads the plain names the build
     # worker and docs-platform/.env use (CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, …).

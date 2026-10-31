@@ -27,7 +27,7 @@ export const TICK = 100;
 export interface Geo {
   CX: number; CY: number; RX: number; RY: number;
   SEATS: number[];
-  /** Seat count, and the one seat left empty (-1: none; every seat holds a moon since Docs Studio joined). */
+  /** Seat count, and the one seat left empty (-1: none; every seat holds a moon since Markdrop Guides joined). */
   NS: number; GAP: number;
   FRONT: [number, number];
   STATION: [number, number];
@@ -85,7 +85,7 @@ export interface Pill { host: string; path: string; frag?: string; badge: string
 export interface Moon { id: MoonId; label: string; icon: string; cat: string; pill: Pill }
 
 /**
- * Seven moons in orbit order. Render any file is not a moon: it is the planet itself. Docs Studio sits
+ * Seven moons in orbit order. Render any file is not a moon: it is the planet itself. Markdrop Guides sits
  * last, on the seat that used to stay empty (front left of Publish), so it is in view from the first
  * frame and the second attract beat swings it to the front in one step.
  */
@@ -96,7 +96,7 @@ export const MOONS: Moon[] = [
   { id: "send", label: "Send a file", icon: "send", cat: "var(--cat-share)", pill: { host: "markdrop.in/", path: "share/7fK2q", badge: "Direct", icon: "arrowRight", tone: "neutral" } },
   { id: "domain", label: "Your domain", icon: "globe", cat: "var(--text-secondary)", pill: { host: "docs.example.com/", path: "guides/onboarding", badge: "", icon: "globe", tone: "neutral" } },
   { id: "builder", label: "README builder", icon: "builder", cat: "var(--cat-builder)", pill: { host: "markdrop.in/", path: "my-project", badge: "README", icon: "builder", tone: "neutral" } },
-  { id: "docs", label: "Docs Studio", icon: "studio", cat: "var(--studio)", pill: { host: "docs.example.com/", path: "quickstart", badge: "Docs site", icon: "listTree", tone: "neutral" } },
+  { id: "docs", label: "Guides", icon: "studio", cat: "var(--studio)", pill: { host: "help.example.com/", path: "quickstart", badge: "Guide", icon: "listTree", tone: "neutral" } },
 ];
 
 export interface FileDef { id: FileId; ext: string; name: string; mime: string; slug: string; badge: string; bicon: string; tint: string }
@@ -111,13 +111,13 @@ export const SCREENS: ScreenId[] = ["html", "pdf", "xlsx", "mp4", "zip", "publis
 
 export interface Feat { id: FeatId; label: string; cat: string; quest: string; icon: string; req?: string }
 /**
- * The eight features, each with the job it does for you. Only the mobile set carries `req`. Docs Studio
- * comes third: documents, files and docs sites are the three things Markdrop publishes.
+ * The eight features, each with the job it does for you. Only the mobile set carries `req`. Markdrop Guides
+ * comes third: documents, files and guides are the three things Markdrop publishes.
  */
 const FEATS_DESKTOP: Feat[] = [
   { id: "publish", label: "Publish", cat: "var(--cat-document)", quest: "Turn notes into a page", icon: "lines" },
   { id: "render", label: "Render any file", cat: "var(--cat-artifact)", quest: "Open a PDF without downloading it", icon: "archive" },
-  { id: "docs", label: "Docs Studio", cat: "var(--studio)", quest: "Build and host a docs site", icon: "studio" },
+  { id: "docs", label: "Guides", cat: "var(--studio)", quest: "Build and host a help center", icon: "studio" },
   { id: "encrypt", label: "Encrypt", cat: "var(--accent-text)", quest: "Lock a document with a key in its link", icon: "lock" },
   { id: "sync", label: "VS Code sync", cat: "var(--cat-sync)", quest: "Publish straight from VS Code", icon: "code" },
   { id: "send", label: "Send a file", cat: "var(--cat-share)", quest: "Send photos to your phone", icon: "arrowRight" },
@@ -127,7 +127,7 @@ const FEATS_DESKTOP: Feat[] = [
 const FEATS_MOBILE: Feat[] = [
   { id: "publish", label: "Publish", cat: "var(--cat-document)", quest: "Turn notes into a page", icon: "lines", req: "No account" },
   { id: "render", label: "Render any file", cat: "var(--cat-artifact)", quest: "Open a PDF without downloading it", icon: "archive", req: "Free account" },
-  { id: "docs", label: "Docs Studio", cat: "var(--studio)", quest: "Build and host a docs site", icon: "studio", req: "Free account" },
+  { id: "docs", label: "Guides", cat: "var(--studio)", quest: "Build and host a help center", icon: "studio", req: "Free account" },
   { id: "encrypt", label: "Encrypt", cat: "var(--accent-text)", quest: "Lock a document with a key in its link", icon: "lock", req: "No account" },
   { id: "sync", label: "VS Code sync", cat: "var(--cat-sync)", quest: "Publish straight from VS Code", icon: "code", req: "Free account" },
   { id: "send", label: "Send a file", cat: "var(--cat-share)", quest: "Send photos to your phone", icon: "send", req: "No account" },
@@ -138,7 +138,7 @@ const FEATS_MOBILE: Feat[] = [
 export const TOTAL = FEATS_DESKTOP.length;
 
 /**
- * Attract mode: both halves of the promise in the first beat, Docs Studio in the second, then files
+ * Attract mode: both halves of the promise in the first beat, Markdrop Guides in the second, then files
  * every other beat.
  */
 export interface Beat { moon?: MoonId; file?: FileId; intro?: boolean }
@@ -185,7 +185,7 @@ const INFO_DESKTOP: Record<InfoId, Info> = {
   send: { eyebrow: "Device to device", title: "Send files straight to a device", line: "Share one link or QR code with up to 10 people. From a terminal: markdrop send and markdrop get.", req: "No account", tone: "success", host: "markdrop.in/", path: "share/7fK2q", note: SEND_NOTE, noteLink: SEND_NOTE_LINK, icon: "send", cat: "var(--cat-share)", href: "/share", cta: "Send a file" },
   domain: { eyebrow: "Workspaces", title: "Publish under your own domain", line: "Run a workspace on docs.example.com with your logo, accent and name. Folders become URL paths.", req: "Workspaces", tone: "neutral", host: "docs.example.com/", path: "guides/onboarding", note: "Each page can be private, workspace only, shared with named people or open to anyone with the link.", icon: "globe", cat: "var(--text-secondary)", href: "/enterprise" },
   builder: { eyebrow: "README builder", title: "Build a README from blocks", line: "Drag in ready-made sections, diagrams and math included, then publish it as a page or export it to PDF.", req: "No account", tone: "success", host: "markdrop.in/", path: "my-project", note: "", icon: "builder", cat: "var(--cat-builder)", href: "/builder" },
-  docs: { eyebrow: "Docs Studio", title: "Write docs. Publish a docs site.", line: "Edit pages visually or in Markdown, pick a theme or match your brand, and publish on your own domain. Readers ask questions and get answers that cite your pages.", req: "Free account", tone: "info", host: "docs.example.com/", path: "quickstart", note: "Free while in beta. Open source, so you can host it yourself.", icon: "studio", cat: "var(--studio)", href: "/docs-studio", cta: "Start a docs site" },
+  docs: { eyebrow: "Markdrop Guides", title: "Write guides. Publish a help center.", line: "Help centers, product guides and API references: edit visually or in Markdown, pick a theme or match your brand, and publish on your own domain. Readers ask questions and get answers that cite your pages.", req: "Free account", tone: "info", host: "help.example.com/", path: "quickstart", note: "Free while in beta. Open source, so you can host it yourself.", icon: "studio", cat: "var(--studio)", href: "/guides", cta: "Start a guide" },
   finale: { eyebrow: "8 of 8 discovered", title: "You found all eight", line: "Documents you write and files you upload end the same way: one link that opens in any browser. Start with a document; it needs no account.", host: "markdrop.in/", path: "new", icon: "checkCircle", cat: "var(--success)", href: "/new" },
 };
 

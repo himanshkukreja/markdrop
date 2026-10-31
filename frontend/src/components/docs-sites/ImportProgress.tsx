@@ -179,7 +179,7 @@ function MiniSite({ name }: { name: string }) {
 }
 
 /**
- * /docs-studio/<site>/import?job=<id> (Import board): the import's steps with live progress (the
+ * /guides/<site>/import?job=<id> (Import board): the import's steps with live progress (the
  * job is polled every 2 s), then "Needs a look before you publish" from the importer's report, and
  * a preview of the site in its matched theme. Safe to leave: the job runs on the server, and the
  * screen reopens from the site's last import (Settings › Imported from GitBook).
@@ -234,19 +234,19 @@ export default function ImportProgress() {
         <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-6">
           <div className="flex flex-col gap-1.5">
             <h1 className="text-[24px] font-bold leading-8 text-text">
-              {done ? "Your docs are here" : failed ? "The import stopped" : "Bringing your docs across"}
+              {done ? "Your pages are here" : failed ? "The import stopped" : "Bringing your pages across"}
             </h1>
             <p className="text-[15px] leading-6 text-text-secondary">
               {done
                 ? "Everything is in the editor as a draft. Nothing is public until you publish."
                 : failed
                   ? "Nothing was published, and your GitBook site wasn't changed."
-                  : "This takes a few minutes for a large site. You can close this page: the import keeps running. Come back to Docs sites to see it."}
+                  : "This takes a few minutes for a large site. You can close this page: the import keeps running. Come back to Guides to see it."}
             </p>
           </div>
 
           {!jobId && (
-            <Alert tone="info" title="No import is running for this site">
+            <Alert tone="info" title="No import is running for this guide">
               <Anchor href={base} className="font-semibold text-accent-text underline">Open the editor</Anchor>
             </Alert>
           )}
@@ -310,7 +310,7 @@ export default function ImportProgress() {
           <p className="text-[13px] text-text-muted">
             {site.settings.theme.brand.enabled
               ? <>We picked up {report?.brand?.name || site.name.replace(/\s+docs$/i, "")}&apos;s logo, colour and favicon and matched them with the {presetName(site.settings.theme.preset)} theme. Change it in <Anchor href={`${base}/design`} className="text-accent-text underline">Design</Anchor>.</>
-              : <>Your site uses the {presetName(site.settings.theme.preset)} theme. Change it in <Anchor href={`${base}/design`} className="text-accent-text underline">Design</Anchor>.</>}
+              : <>Your guide uses the {presetName(site.settings.theme.preset)} theme. Change it in <Anchor href={`${base}/design`} className="text-accent-text underline">Design</Anchor>.</>}
           </p>
           {done ? (
             <Button variant="primary" block iconLeft="edit" href={base}>Open the editor</Button>

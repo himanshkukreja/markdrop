@@ -133,7 +133,7 @@ async def _snapshot(db: AsyncIOMotorDatabase, site: dict, user: User) -> dict:
         "created_at": now(),
     }
     if len(bson.encode(snap)) > SNAPSHOT_MAX_BYTES:
-        raise HTTPException(status_code=413, detail="This site is too large to publish in one snapshot.")
+        raise HTTPException(status_code=413, detail="This guide is too large to publish in one snapshot.")
     res = await db[SNAPSHOTS].insert_one(snap)
     snap["_id"] = res.inserted_id
     return snap
@@ -143,8 +143,8 @@ def _public_only(site: dict) -> None:
     """Non-public sites aren't enforced at the edge yet: never put one live (see config)."""
     level = (((site.get("settings") or {}).get("access") or {}).get("level")) or "public"
     if level != "public" and not settings.docs_private_sites_enabled:
-        raise HTTPException(status_code=409, detail="Password and members-only sites are coming soon. "
-                                                    "Make the site public to publish it.")
+        raise HTTPException(status_code=409, detail="Password and members-only guides are coming soon. "
+                                                    "Make the guide public to publish it.")
 
 
 async def publish(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, *, note: str | None,
@@ -155,7 +155,7 @@ async def publish(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, *
         raise DocsError(409, {"detail": "review required"})
     if await store.builds_today(db, site["_id"]) >= settings.docs_builds_per_day:
         raise HTTPException(status_code=429,
-                            detail=f"The free plan has {settings.docs_builds_per_day} publishes per site per day. "
+                            detail=f"The free plan has {settings.docs_builds_per_day} publishes per guide per day. "
                                    "Try again tomorrow (UTC).")
     await store.check_build_quota(db, site, user.id)
     snap = await _snapshot(db, site, user)
@@ -246,7 +246,7 @@ async def submit_review(db: AsyncIOMotorDatabase, site: dict, user: User, note: 
         res = await db[REVIEWS].insert_one(row)
     except DuplicateKeyError:
         existing = await db[REVIEWS].find_one({"site_id": site["_id"], "status": "open"})
-        raise DocsError(409, {"detail": "A review is already open for this site.",
+        raise DocsError(409, {"detail": "A review is already open for this guide.",
                               "review": await _review_out(db, existing) if existing else None}) from None
     row["_id"] = res.inserted_id
     await store.log_event(db, "docs_review_submitted", site, user.id, review_id=str(row["_id"]),
@@ -387,7 +387,7 @@ async def upload_asset(db: AsyncIOMotorDatabase, site: dict, user: User, data: b
     if existing is None:
         used = await store.storage_bytes(db, site["_id"])
         if used + len(data) > settings.docs_site_storage_bytes:
-            raise HTTPException(status_code=413, detail="This site has used its 2 GB of storage.")
+            raise HTTPException(status_code=413, detail="This guide has used its 2 GB of storage.")
         if not assets.is_configured():
             raise HTTPException(status_code=503, detail="File uploads aren't available right now.")
         ok = await run_in_threadpool(assets.put_bytes, assets.key_for(sid, name), data, assets.TYPES[ext])
@@ -416,10 +416,10 @@ async def upload_dark_asset(db: AsyncIOMotorDatabase, site: dict, user: User, da
     rel = assets.rel_of(for_url)
     dark_rel = assets.dark_name(rel) if rel else None
     if not rel or not dark_rel:
-        raise HTTPException(status_code=422, detail="Add a dark version to an image uploaded to this site.")
+        raise HTTPException(status_code=422, detail="Add a dark version to an image uploaded to this guide.")
     light = await db[ASSETS].find_one({"site_id": site["_id"], "name": rel})
     if light is None or not str(light.get("content_type") or "").startswith("image/"):
-        raise HTTPException(status_code=422, detail="Add a dark version to an image uploaded to this site.")
+        raise HTTPException(status_code=422, detail="Add a dark version to an image uploaded to this guide.")
     if len(data) > settings.docs_asset_max_bytes:
         raise HTTPException(status_code=413,
                             detail=f"Files can be at most {settings.docs_asset_max_bytes // (1024 * 1024)} MB.")
@@ -441,7 +441,7 @@ async def upload_dark_asset(db: AsyncIOMotorDatabase, site: dict, user: User, da
     old = await db[ASSETS].find_one({"site_id": site["_id"], "sha256": marker}, {"size": 1})
     used = await store.storage_bytes(db, site["_id"]) - int((old or {}).get("size") or 0)
     if used + len(data) > settings.docs_site_storage_bytes:
-        raise HTTPException(status_code=413, detail="This site has used its 2 GB of storage.")
+        raise HTTPException(status_code=413, detail="This guide has used its 2 GB of storage.")
     if not assets.is_configured():
         raise HTTPException(status_code=503, detail="File uploads aren't available right now.")
     ok = await run_in_threadpool(assets.put_bytes, key, data, assets.TYPES[ext], assets.SHORT)

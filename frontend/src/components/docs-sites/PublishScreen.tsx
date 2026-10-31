@@ -27,7 +27,7 @@ const SETTING: Record<string, { label: string; badge: string; href: string }> = 
   ai: { label: "Ask AI", badge: "Settings", href: "/settings#ai" },
   access: { label: "Who can read it", badge: "Settings", href: "/settings#access" },
   seo: { label: "Search indexing", badge: "Settings", href: "/settings#access" },
-  name: { label: "Site name", badge: "Settings", href: "/settings" },
+  name: { label: "Guide name", badge: "Settings", href: "/settings" },
   address: { label: "Address", badge: "Settings", href: "/settings#address" },
   redirects: { label: "Redirects", badge: "Settings", href: "/settings#redirects" },
 };
@@ -56,18 +56,18 @@ function buildMeta(b: Build, first: boolean): string {
   return parts.join(" · ");
 }
 
-const STAGE: Record<string, string> = { queued: "Waiting to build", building: "Building the site", publishing: "Putting it live" };
+const STAGE: Record<string, string> = { queued: "Waiting to build", building: "Building the guide", publishing: "Putting it live" };
 /** The build job's steps (docs-platform/runner: prepare → assets → build → publish → done). */
 const STEP: Record<string, string> = {
   prepare: "Writing the pages",
   assets: "Fetching images and files",
-  build: "Rendering the site",
+  build: "Rendering the guide",
   publish: "Uploading",
   done: "Going live",
 };
 
 /**
- * /docs-studio/<site>/publish (Publish board): what changed since the last publish, then Publish —
+ * /guides/<site>/publish (Publish board): what changed since the last publish, then Publish —
  * or "Submit for review" when the site requires one and you aren't an admin. Reviewers and admins
  * see other people's open reviews (Approve and publish · Request changes). Every publish is numbered; an admin can put an
  * earlier one live again (Restore) without a rebuild.
@@ -147,7 +147,7 @@ export default function PublishScreen() {
       await fn();
     } catch (e) {
       if (key === "publish" && docsErrorStatus(e) === 409) {
-        setActionError("This site needs a review before it's published. Submit it for review instead.");
+        setActionError("This guide needs a review before it's published. Submit it for review instead.");
         void reloadSite();
       } else setActionError(docsErrorMessage(e));
     } finally {
@@ -250,7 +250,7 @@ export default function PublishScreen() {
             </h1>
             <p className="text-body text-text-secondary">
               {site.status === "live"
-                ? count === 0 ? "Readers see exactly what's in the editor." : mustReview ? "Readers keep seeing the live site until this is approved and published." : "Readers keep seeing the live site until you publish."
+                ? count === 0 ? "Readers see exactly what's in the editor." : mustReview ? "Readers keep seeing the live guide until this is approved and published." : "Readers keep seeing the live guide until you publish."
                 : "Nothing is public until the first publish."}{" "}
               <ReadMore topic="studioPublish" />
             </p>
@@ -283,7 +283,7 @@ export default function PublishScreen() {
                     <Badge size="sm">{s.badge}</Badge>
                     <span className="min-w-0 flex-1">
                       <strong className="block truncate font-semibold text-text">{s.label}</strong>
-                      <span className="block text-[12px] text-text-muted">site settings</span>
+                      <span className="block text-[12px] text-text-muted">guide settings</span>
                     </span>
                     <Anchor href={`${base}${s.href}`} className="shrink-0 text-[13px] text-accent-text underline-offset-2 hover:underline">Open</Anchor>
                   </li>
@@ -299,7 +299,7 @@ export default function PublishScreen() {
               {mustReview ? (
                 <div className="flex items-center gap-2">
                   <Icon name="shield" size={18} />
-                  <strong className="flex-1 text-text">This site requires a review</strong>
+                  <strong className="flex-1 text-text">This guide requires a review</strong>
                   <ReadMore topic="studioReviews" className="text-[13px]" />
                 </div>
               ) : (
@@ -309,7 +309,7 @@ export default function PublishScreen() {
                     <strong className="flex-1 text-text">Publish {plural(count, "change")}</strong>
                     {isAdmin && <Anchor href={`${base}/settings#review`} className="text-[13px] text-accent-text underline-offset-2 hover:underline">{reviewRequired ? "Change in settings" : "Require reviews"}</Anchor>}
                   </div>
-                  {reviewRequired && isAdmin && <p className="text-[13px] text-text-muted">This site requires a review. You&apos;re an admin, so your publish goes straight out.</p>}
+                  {reviewRequired && isAdmin && <p className="text-[13px] text-text-muted">This guide requires a review. You&apos;re an admin, so your publish goes straight out.</p>}
                 </div>
               )}
               <Field label={mustReview ? "Note for the reviewer" : "What changed (optional)"} htmlFor={`${uid}-note`} hint={mustReview ? undefined : "Shown in the publish history."}>
@@ -321,7 +321,7 @@ export default function PublishScreen() {
                     {reviewers?.length ? <Avatar name={reviewers[0]!.name} size="sm" /> : <Icon name="users" size={16} />}
                     {reviewers?.length
                       ? `${reviewers[0]!.name}${reviewers.length > 1 ? ` and ${plural(reviewers.length - 1, "other admin")}` : ""} will be asked`
-                      : "The site's reviewers and admins will be asked"}
+                      : "The guide's reviewers and admins will be asked"}
                   </span>
                 ) : <span className="flex-1" />}
                 {mustReview ? (
@@ -347,7 +347,7 @@ export default function PublishScreen() {
           ))}
 
           {changes && count > 0 && !canEdit && (
-            <p className="text-[13px] text-text-muted">You can view this site. Editors and admins publish it.</p>
+            <p className="text-[13px] text-text-muted">You can view this guide. Editors and admins publish it.</p>
           )}
         </section>
 

@@ -1,5 +1,5 @@
 /*
- * Docs Studio's accent: the same design system, fonts and spacing as Markdrop, re-tinted violet so
+ * Markdrop Guides' accent: the same design system, fonts and spacing as Markdrop, re-tinted violet so
  * the studio reads as its own product. Only the accent tokens move, and only here: on the studio's
  * root element, and on <html data-studio> while a studio screen is mounted (dialogs, drawers and
  * menus portal to <body>, outside the root). The rest of the app never sees these values.
@@ -38,7 +38,7 @@ html[data-theme="light"][data-studio] {
   --studio-wash: #6d3fe00f;
 }
 
-/* The wordmark: "Docs" in text colour, "Studio" in the studio's accent. */
+/* The wordmark: "Guides" in the studio's accent. */
 .docs-studio__word {
   font-weight: 800;
   letter-spacing: -0.03em;

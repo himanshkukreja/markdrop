@@ -1,4 +1,4 @@
-"""Docs Studio's own roles (services/docs_studio_roles.py): admin / reviewer / editor / viewer /
+"""Markdrop Guides' own roles (services/docs_studio_roles.py): admin / reviewer / editor / viewer /
 none, per workspace with per-site overrides, and what each may do on every docs-sites endpoint.
 
 People in the workspace "Acme" (tests/_docs_sites_env.py plus the ones added here):
@@ -93,7 +93,7 @@ class Resolution(StudioRolesCase):
         for who, role in ON_A.items():
             r = await self.http.get(f"{BASE}/{self.a['id']}", headers=self.h[who])
             if role is None:
-                self.assertEqual((who, r.status_code, r.json()["detail"]), (who, 404, "Docs site not found"))
+                self.assertEqual((who, r.status_code, r.json()["detail"]), (who, 404, "Guide not found"))
             else:
                 self.assertEqual((who, r.status_code, r.json()["your_role"]), (who, 200, role))
         b = {who: (await self.http.get(f"{BASE}/{self.b['id']}", headers=self.h[who])) for who in ON_A}
@@ -179,7 +179,7 @@ class Matrix(StudioRolesCase):
         self.nav = listing["nav"]
 
     def verdict(self, r) -> str:
-        if r.status_code == 404 and r.json().get("detail") == "Docs site not found":
+        if r.status_code == 404 and r.json().get("detail") == "Guide not found":
             return "hidden"
         if r.status_code == 403:
             return "refused"

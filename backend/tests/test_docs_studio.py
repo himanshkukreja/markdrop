@@ -1,4 +1,4 @@
-"""Docs Studio additions to the docs-sites API: the all-scopes listing (the studio's home),
+"""Markdrop Guides additions to the docs-sites API: the all-scopes listing (the studio's home),
 the import job reference on a site, dark-theme image versions, and redirects in settings.
 
 The docs R2 bucket is in memory (tests/_docs_sites_env.py); nothing here reaches a network.
@@ -38,7 +38,7 @@ class AllScopes(DocsSitesCase):
         for who, role in (("stranger", "owner"), ("owner", "viewer")):
             await self.db["memberships"].insert_one({"workspace_id": other, "user_id": self.uid[who], "role": role,
                                                      "created_at": now()})
-        await self.grant("owner", "viewer", other)  # a viewer in Docs Studio there
+        await self.grant("owner", "viewer", other)  # a viewer in Markdrop Guides there
         beta =await self.call("POST", "", "stranger", 201, json={
             "workspace_id": other, "name": "Beta Docs", "slug": "beta", "source": {"kind": "blank"}})
 
@@ -223,7 +223,7 @@ class Redirects(DocsSitesCase):
         from app.services import docs_snapshot
 
         site = await self.db["docs_sites"].find_one({"_id": ObjectId(self.sid)})
-        files, _warnings = docs_snapshot.content_files(site, snap, url="https://acme.docs.markdrop.in",
+        files, _warnings = docs_snapshot.content_files(site, snap, url="https://acme.guides.markdrop.in",
                                                        ai_api="https://api.markdrop.in")
         import json
 

@@ -1,6 +1,6 @@
-"""Docs Studio people: /api/v1/docs-studio/workspaces/{workspace_id}/members…
+"""Markdrop Guides people: /api/v1/docs-studio/workspaces/{workspace_id}/members…
 
-Each workspace member's Docs Studio role (admin / reviewer / editor / viewer /
+Each workspace member's Guides role (admin / reviewer / editor / viewer /
 none), set by the workspace's studio admins; the workspace owner and admins are
 always admins and can't be changed here. Per-site overrides are under
 /api/v1/docs-sites/{site_id}/members (routers/docs_site_people.py). Every
@@ -34,7 +34,7 @@ async def _require_studio_admin(db: AsyncIOMotorDatabase, workspace_id: str, use
         raise HTTPException(status_code=404, detail="Workspace not found")
     access = await roles.workspace_role(db, workspace_id, user.id, ws_role)
     if not roles.role_at_least(access.role, "admin"):
-        raise HTTPException(status_code=403, detail="Only Docs Studio admins can manage its members.")
+        raise HTTPException(status_code=403, detail="Only Guides admins can manage its members.")
     return workspace, access
 
 

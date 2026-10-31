@@ -63,7 +63,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 # Every real top-level route. Anything else with a single segment is a
 # document slug. Mirror of frontend/src/lib/analyticsPath.ts — keep in step.
 APP_ROUTES = {
-    "", "admin", "auth", "builder", "dashboard", "enterprise", "extension", "f", "h",
+    "", "admin", "auth", "builder", "dashboard", "enterprise", "extension", "f", "guides", "h",
     "invite", "login", "mcp", "new", "oauth", "privacy", "recent", "requests", "settings",
     "share", "shared", "upload", "w",
 }

@@ -40,8 +40,8 @@ function MemberRow({ m, you, busy, onChange }: { m: StudioMember; you: boolean; 
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-text-muted">
             {granted && <span>{granted}</span>}
             {m.site_overrides.map((o) => (
-              <a key={o.site_id} href={`${siteBase(o.site_id)}/settings#people`} className="md-focus rounded-full no-underline" title={`Their role on ${o.site_name ?? "this site"} only`}>
-                <Badge size="sm" variant="outline" icon="layers">{roleLabel(o.role)} on {o.site_name ?? "a site"}</Badge>
+              <a key={o.site_id} href={`${siteBase(o.site_id)}/settings#people`} className="md-focus rounded-full no-underline" title={`Their role on ${o.site_name ?? "this guide"} only`}>
+                <Badge size="sm" variant="outline" icon="layers">{roleLabel(o.role)} on {o.site_name ?? "a guide"}</Badge>
               </a>
             ))}
           </div>
@@ -53,7 +53,7 @@ function MemberRow({ m, you, busy, onChange }: { m: StudioMember; you: boolean; 
         ) : you ? (
           <span title="You can't change your own role. Ask another admin."><RoleBadge role={m.role} size="md" /></span>
         ) : (
-          <RoleSelect value={m.role} onChange={onChange} disabled={busy} label={`Docs Studio role for ${m.name}`} />
+          <RoleSelect value={m.role} onChange={onChange} disabled={busy} label={`Guides role for ${m.name}`} />
         )}
       </div>
     </li>
@@ -61,13 +61,13 @@ function MemberRow({ m, you, busy, onChange }: { m: StudioMember; you: boolean; 
 }
 
 /**
- * /docs-studio/members?ws=<id> (Docs Studio › Members): everyone in a workspace with their Docs
+ * /guides/members?ws=<id> (Guides › Members): everyone in a workspace with their Docs
  * Studio role, a role select for each (the owner and admins are locked to admin), the per-site
  * overrides, search and a filter, "who can do what", and the history of changes. Studio admins
  * only; anyone else is told who to ask.
  */
 export default function StudioMembers() {
-  const { ready, user } = useStudioSession("/docs-studio/members");
+  const { ready, user } = useStudioSession("/guides/members");
   const { all } = useStudio();
   const router = useRouter();
   const toast = useToast();
@@ -106,7 +106,7 @@ export default function StudioMembers() {
     try {
       const row = await setStudioMember(wsId, m.user_id, role);
       setData((d) => d && { ...d, members: d.members.map((x) => (x.user_id === m.user_id ? row : x)) });
-      toast.success(role === "none" ? `${firstName(m.name)} no longer has access to Docs Studio here.` : `${firstName(m.name)} is now ${aRole(role)}.`);
+      toast.success(role === "none" ? `${firstName(m.name)} no longer has access to Guides here.` : `${firstName(m.name)} is now ${aRole(role)}.`);
       void getStudioHistory(wsId, 30).then((h) => setHistory(h.events)).catch(() => {});
     } catch (e) {
       toast.error(docsErrorMessage(e, "Couldn't change the role. Try again."));
@@ -129,11 +129,11 @@ export default function StudioMembers() {
     <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-4 pb-16 pt-8 outline-none sm:px-6 sm:pt-10">
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-1.5">
-          <a href={studioHome(wsId || null)} className="md-focus self-start rounded text-[13px] text-text-muted no-underline hover:text-text">← Docs sites</a>
+          <a href={studioHome(wsId || null)} className="md-focus self-start rounded text-[13px] text-text-muted no-underline hover:text-text">← Guides</a>
           <h1 className="text-[28px] font-extrabold leading-9 tracking-[-0.02em] text-text">Members</h1>
           <p className="max-w-[680px] text-[15px] leading-6 text-text-secondary">
-            Who can do what in {wsName ? <strong className="font-semibold text-text" dir="auto">{wsName}</strong> : "this workspace"}&apos;s docs sites.
-            Docs Studio has its own roles: people in the workspace see nothing here until you give them one.{" "}
+            Who can do what in {wsName ? <strong className="font-semibold text-text" dir="auto">{wsName}</strong> : "this workspace"}&apos;s guides.
+            Markdrop Guides has its own roles: people in the workspace see nothing here until you give them one.{" "}
             <ReadMore topic="studioRoles" />
           </p>
         </div>
@@ -159,17 +159,17 @@ export default function StudioMembers() {
         <EmptyState
           icon="users"
           title="No workspace to manage"
-          description="Docs Studio admins of a workspace give its members their roles here. You aren't one in any workspace yet."
-          actions={<Button variant="secondary" href={studioHome()}>All docs sites</Button>}
+          description="Guides admins of a workspace give its members their roles here. You aren't one in any workspace yet."
+          actions={<Button variant="secondary" href={studioHome()}>All guides</Button>}
         />
       )}
 
       {error && (error.status === 403 || error.status === 404) && (
         <EmptyState
           icon="lock"
-          title={error.status === 403 ? "Only Docs Studio admins manage members" : "That workspace isn't one of yours"}
+          title={error.status === 403 ? "Only Guides admins manage members" : "That workspace isn't one of yours"}
           description={error.status === 403 ? "Ask an admin of the workspace to change who can do what." : "You may have left it, or it was deleted."}
-          actions={<Button variant="secondary" href={studioHome()}>All docs sites</Button>}
+          actions={<Button variant="secondary" href={studioHome()}>All guides</Button>}
         />
       )}
       {error && error.status !== 403 && error.status !== 404 && (
@@ -211,7 +211,7 @@ export default function StudioMembers() {
                 {[0, 1, 2, 3].map((i) => <Skeleton key={i} variant="rect" height={52} />)}
               </div>
             ) : rows.length === 0 ? (
-              <p className="px-5 py-8 text-center text-body text-text-muted">{q ? `No one matches “${query.trim()}”.` : filter === "none" ? "Everyone here has a Docs Studio role." : "No one yet."}</p>
+              <p className="px-5 py-8 text-center text-body text-text-muted">{q ? `No one matches “${query.trim()}”.` : filter === "none" ? "Everyone here has a Guides role." : "No one yet."}</p>
             ) : (
               <ul className="m-0 flex list-none flex-col p-0" aria-label="Members">
                 {rows.map((m) => (

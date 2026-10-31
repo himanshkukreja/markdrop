@@ -49,14 +49,18 @@ const nextConfig: NextConfig = {
    * before the middleware and any page. None for a site without one (Markdrop's has none).
    */
   async redirects() {
-    // Docs sites moved out of the workspace (/w/<ws>/docs…) into Docs Studio (/docs-studio…). The
-    // query string carries over (?page=, ?job=, ?new=). Never on a docs host: a page there may
-    // legitimately live at /w/….
-    const app = { missing: [{ type: "host" as const, value: hostPattern(DOCS_HOSTS) }], permanent: false };
+    // Guides moved out of the workspace (/w/<ws>/docs…) into Markdrop Guides (/guides…), which was
+    // called Docs Studio (/docs-studio…) before. The query string carries over (?ws=, ?page=, ?job=,
+    // ?new=). Never on a docs host: a page there may legitimately live at /w/… or /docs-studio/…
+    // (docs.markdrop.in's own /docs-studio/* pages redirect through its redirects.json instead).
+    const notDocs = [{ type: "host" as const, value: hostPattern(DOCS_HOSTS) }];
+    const app = { missing: notDocs, permanent: false };
     return [
-      { source: "/w/:wsId/docs", destination: "/docs-studio?ws=:wsId", ...app },
-      { source: "/w/:wsId/docs/new", destination: "/docs-studio/new?ws=:wsId", ...app },
-      { source: "/w/:wsId/docs/:siteId/:rest*", destination: "/docs-studio/:siteId/:rest*", ...app },
+      { source: "/docs-studio", destination: "/guides", missing: notDocs, permanent: true },
+      { source: "/docs-studio/:path*", destination: "/guides/:path*", missing: notDocs, permanent: true },
+      { source: "/w/:wsId/docs", destination: "/guides?ws=:wsId", ...app },
+      { source: "/w/:wsId/docs/new", destination: "/guides/new?ws=:wsId", ...app },
+      { source: "/w/:wsId/docs/:siteId/:rest*", destination: "/guides/:siteId/:rest*", ...app },
       ...nextRedirects(DOCS_CONTENT, DOCS_HOSTS),
     ];
   },

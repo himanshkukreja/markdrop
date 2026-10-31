@@ -24,7 +24,7 @@ export function pathProblem(path: string): string {
   if (parts.some((p) => !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(p))) return "Use lowercase letters, numbers and hyphens between the slashes.";
   if (parts.length > 6) return "Use at most 6 levels.";
   if (path.length > 200) return "That address is too long.";
-  if (RESERVED_FIRST.has(parts[0]!)) return `/${parts[0]} is used by the docs site itself. Start the address with another word.`;
+  if (RESERVED_FIRST.has(parts[0]!)) return `/${parts[0]} is used by the guide itself. Start the address with another word.`;
   const skipped = parts.find((p) => RESERVED_ANYWHERE.has(p));
   if (skipped) return `${skipped} can't be part of a page's address.`;
   return "";

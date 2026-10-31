@@ -14,23 +14,23 @@ import { PERSONAL, siteBase, studioHome, studioNew } from "./routes";
 import { useStudio } from "./studio/StudioContext";
 
 const SOURCES: Array<{ id: SourceKind; icon: string; title: string; body: string }> = [
-  { id: "blank", icon: "doc", title: "Blank site", body: "Start with a home page and write in the editor." },
-  { id: "template", icon: "layers", title: "From a template", body: "Product docs, API reference or a help center, ready to fill in." },
-  { id: "gitbook", icon: "download", title: "Import from GitBook", body: "Paste your docs address. Pages, images, navigation and old links come across." },
+  { id: "blank", icon: "doc", title: "Blank guide", body: "Start with a home page and write in the editor." },
+  { id: "template", icon: "layers", title: "From a template", body: "A product guide, API reference or help center, ready to fill in." },
+  { id: "gitbook", icon: "download", title: "Import from GitBook", body: "Paste your GitBook address. Pages, images, navigation and old links come across." },
   { id: "github", icon: "github", title: "Connect a GitHub repo", body: "Your Markdown stays in Git. Push to publish; edit in the browser too." },
 ];
 
 const TEMPLATES: Array<{ id: TemplateId; title: string; body: string }> = [
-  { id: "product", title: "Product docs", body: "Get started, guides, FAQ and release notes." },
+  { id: "product", title: "Product guide", body: "Get started, how-tos, FAQ and release notes." },
   { id: "api", title: "API reference", body: "Endpoint pages you write in Markdown, with code samples. OpenAPI import is coming soon." },
   { id: "helpcenter", title: "Help center", body: "Search first, categories and articles." },
 ];
 
 type SlugState = { state: "idle" | "checking" | "ok" | "taken" | "invalid"; message?: string; suggestion?: string | null };
 
-/** Another address to offer when one is taken or reserved ("acme" → "acme-docs", "acme-docs" → "acme-docs-2"). */
+/** Another address to offer when one is taken or reserved ("acme" → "acme-help", "acme-help" → "acme-help-2"). */
 function altSlug(slug: string): string {
-  const base = slug.endsWith("-docs") ? `${slug}-2` : `${slug}-docs`;
+  const base = slug.endsWith("-help") ? `${slug}-2` : `${slug}-help`;
   return base.slice(0, 40).replace(/-+$/, "");
 }
 
@@ -70,10 +70,10 @@ function ChoiceCard({ checked, onSelect, icon, title, body, name, value }: {
 }
 
 /**
- * /docs-studio/new (New site board): where the site lives (a workspace you're a Docs Studio admin of, or
+ * /guides/new (New site board): where the site lives (a workspace you're a Guides admin of, or
  * personal; ?ws= preselects), how to start (blank, template, GitBook import, GitHub repo), then the
- * name and the free address `<slug>.docs.markdrop.in` (checked as you type). Imports start a job
- * and land on the import screen; blank and template sites open Design ("You'll pick a theme next").
+ * name and the free address `<slug>.guides.markdrop.in` (checked as you type). Imports start a job
+ * and land on the import screen; blank and template guides open Design ("You'll pick a theme next").
  */
 export default function NewSite() {
   const search = useLocationSearch();
@@ -97,7 +97,7 @@ export default function NewSite() {
   // Where it can live: workspaces you're an admin of (with room on the free plan), or personal.
   const options = all
     ? [
-        ...all.workspaces.map((w) => ({ id: w.id, name: w.name, ok: w.can_create, usage: w.usage, why: w.can_create ? "" : "Docs Studio admins only" })),
+        ...all.workspaces.map((w) => ({ id: w.id, name: w.name, ok: w.can_create, usage: w.usage, why: w.can_create ? "" : "Guides admins only" })),
         { id: PERSONAL, name: "Personal (only you)", ok: all.personal.can_create, usage: all.personal.usage, why: "" },
       ]
     : [];
@@ -106,7 +106,7 @@ export default function NewSite() {
   const scope = scopeChoice ?? fallback;
   const chosen = options.find((o) => o.id === scope) ?? null;
 
-  // Suggest a name and address from the GitBook address (docs.acme.com → "Acme Docs", "acme").
+  // Suggest a name and address from the GitBook address (docs.acme.com → "acme").
   useEffect(() => {
     if (source !== "gitbook" || !validUrl(url) || name) return;
     try {
@@ -160,7 +160,7 @@ export default function NewSite() {
       void reloadAll();
       router.push(job ? `${base}/import?job=${encodeURIComponent(job)}` : `${base}/design?new=1`);
     } catch (err) {
-      setError(docsErrorMessage(err, "We couldn't create the site. Try again."));
+      setError(docsErrorMessage(err, "We couldn't create the guide. Try again."));
       setBusy(false);
     }
   }
@@ -182,9 +182,9 @@ export default function NewSite() {
     <>
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[880px] px-4 pb-16 pt-6 outline-none sm:px-6 sm:pt-8">
         <Anchor href={listHref} className="md-focus mb-3 inline-flex items-center gap-1.5 rounded text-[13px] text-text-secondary no-underline hover:text-text">
-          <Icon name="arrowLeft" size={14} /> All docs sites
+          <Icon name="arrowLeft" size={14} /> All guides
         </Anchor>
-        <h1 className="mb-6 text-[28px] font-extrabold leading-9 tracking-[-0.02em] text-text">New docs site</h1>
+        <h1 className="mb-6 text-[28px] font-extrabold leading-9 tracking-[-0.02em] text-text">New guide</h1>
         <form onSubmit={submit} className="flex flex-col gap-8" noValidate>
           <section aria-labelledby={`${uid}-where`} className="flex flex-col gap-2">
             <h2 id={`${uid}-where`} className="text-[16px] font-semibold text-text">Where it lives</h2>
@@ -193,8 +193,8 @@ export default function NewSite() {
                 label="Workspace"
                 htmlFor={`${uid}-ws`}
                 hint={scope === PERSONAL
-                  ? "A personal site: only you can open and edit it."
-                  : "Who can open it follows Docs Studio roles: admins of the workspace, and the people they give a role in Members."}
+                  ? "A personal guide: only you can open and edit it."
+                  : "Who can open it follows Guides roles: admins of the workspace, and the people they give a role in Members."}
               >
                 <Select
                   id={`${uid}-ws`}
@@ -202,7 +202,7 @@ export default function NewSite() {
                   onChange={(e) => setScopeChoice(e.target.value)}
                   options={options.map((o) => ({
                     value: o.id,
-                    label: `${o.name}${o.why ? ` (${o.why})` : o.usage.sites >= o.usage.limit ? ` (${o.usage.sites} of ${o.usage.limit} sites used)` : ""}`,
+                    label: `${o.name}${o.why ? ` (${o.why})` : o.usage.sites >= o.usage.limit ? ` (${o.usage.sites} of ${o.usage.limit} guides used)` : ""}`,
                     disabled: !o.ok,
                   }))}
                 />
@@ -272,19 +272,19 @@ export default function NewSite() {
                   Pick a repo and folder. Every push to the main branch publishes; pull requests get a preview link. Edits in the browser come back as commits.
                 </span>
               </div>
-              <p className="text-[13px] text-text-muted">Until then, start blank or import from GitBook; you can connect the repo to this site later in Settings. <ReadMore topic="studioGithub" /></p>
+              <p className="text-[13px] text-text-muted">Until then, start blank or import from GitBook; you can connect the repo to this guide later in Settings. <ReadMore topic="studioGithub" /></p>
             </section>
           )}
 
           <section aria-labelledby={`${uid}-name`} className="flex flex-col gap-3.5">
             <h2 id={`${uid}-name`} className="text-[16px] font-semibold text-text">Name and address</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Site name" htmlFor={`${uid}-n`} hint="Shown in the header and in link previews.">
+              <Field label="Guide name" htmlFor={`${uid}-n`} hint="Shown in the header and in link previews.">
                 <Input
                   id={`${uid}-n`}
                   value={name}
                   maxLength={80}
-                  placeholder="Acme Docs"
+                  placeholder="Acme Help Center"
                   onChange={(e) => {
                     setName(e.target.value);
                     if (!slugEdited.current) setSlug(slugFrom(e.target.value));
@@ -309,19 +309,19 @@ export default function NewSite() {
             </div>
           </section>
 
-          {notAdmin && <Alert tone="warning" title="Only Docs Studio admins create docs sites">Ask a Docs Studio admin of {chosen?.name ?? "this workspace"} to create it, and to give you a role on it.</Alert>}
+          {notAdmin && <Alert tone="warning" title="Only Guides admins create guides">Ask a Guides admin of {chosen?.name ?? "this workspace"} to create it, and to give you a role on it.</Alert>}
           {!notAdmin && full && chosen && (
-            <Alert tone="warning" title={`${chosen.id === PERSONAL ? "You have" : `${chosen.name} has`} ${chosen.usage.sites} of ${chosen.usage.limit} docs sites`}>
+            <Alert tone="warning" title={`${chosen.id === PERSONAL ? "You have" : `${chosen.name} has`} ${chosen.usage.sites} of ${chosen.usage.limit} guides`}>
               That&apos;s the most on the free plan. Delete one in its Settings to make room, or choose another workspace.
             </Alert>
           )}
-          {error && <Alert tone="danger" title="We couldn't create the site">{error}</Alert>}
+          {error && <Alert tone="danger" title="We couldn't create the guide">{error}</Alert>}
 
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
             <p className="min-w-0 flex-[1_1_300px] text-[13px] text-text-muted">Nothing is public until you publish. You&apos;ll pick a theme next. <ReadMore topic="studioCreate" /></p>
             <Button variant="ghost" href={listHref}>Cancel</Button>
             <Button variant="primary" type="submit" iconRight="arrowRight" loading={busy} disabled={!canSubmit && !busy}>
-              {source === "gitbook" ? "Import" : "Create site"}
+              {source === "gitbook" ? "Import" : "Create guide"}
             </Button>
           </div>
         </form>

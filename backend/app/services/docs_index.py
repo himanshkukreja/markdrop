@@ -21,7 +21,7 @@ Search is a small pure-Python BM25 over sections with field boosts (page title,
 heading, keywords + description, body), with the site's ai.json synonyms added
 to queries. Indexes are built on first use and kept for the most recently used
 sites (settings.docs_sites_cache_size); each rebuilds itself when a file under
-its folder changes (checked at most every few seconds). A Docs Studio site has
+its folder changes (checked at most every few seconds). A Markdrop Guides site has
 no folder: its index is built from its live build's snapshot (aget_index) and
 rebuilt when the live build changes.
 """
@@ -843,7 +843,7 @@ _studio_loads: dict[tuple, asyncio.Future] = {}
 
 
 async def aget_index(db, site: str | None = DEFAULT_SITE) -> Index:
-    """get_index() that also serves live Docs Studio sites (services/docs_sites.py).
+    """get_index() that also serves live Markdrop Guides sites (services/docs_sites.py).
 
     A studio site's index is its live build's snapshot, turned into the content
     folder the engine builds from (docs_snapshot.content_files) and indexed

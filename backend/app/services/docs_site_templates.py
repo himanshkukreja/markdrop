@@ -14,7 +14,7 @@ HOME_BLANK = {
     "title": "Welcome",
     "description": "Start here.",
     "markdown": (
-        "This is the home page of your new docs site. Edit it, add pages in the sidebar, and choose\n"
+        "This is the home page of your new guide. Edit it, add pages in the sidebar, and choose\n"
         "**Publish** when you're ready. Nothing is public until you publish.\n"
     ),
 }
@@ -22,10 +22,10 @@ HOME_BLANK = {
 _PRODUCT = {
     "home": {
         "path": "/",
-        "title": "Product documentation",
+        "title": "Product guide",
         "description": "Everything you need to get started and get the most out of the product.",
         "markdown": (
-            "Welcome. These docs explain how to set the product up, use it every day, and fix things\n"
+            "Welcome. This guide explains how to set the product up, use it every day, and fix things\n"
             "when they go wrong.\n\n"
             "::::cards\n"
             ":::card[Quickstart]{href=\"/getting-started/quickstart\" icon=\"zap\"}\n"

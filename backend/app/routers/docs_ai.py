@@ -4,11 +4,11 @@
     POST /api/v1/docs/ask/feedback    {request_id, helpful, comment?}
     POST /api/v1/docs/feedback        {path, helpful, comment?}   ("Did this page help?")
     GET  /api/v1/docs/ai/status       {available, reason?}        (show Ask AI or Open-in links)
-                                      (+ {name, suggestions} for a Docs Studio site)
+                                      (+ {name, suggestions} for a Markdrop Guides site)
 
 Every endpoint serves one docs site (services/docs_sites.py), named by a `site`
 field in the body (a `site` query parameter on the status endpoint) or the
-X-Docs-Site header; neither means "markdrop". A Docs Studio site is named by
+X-Docs-Site header; neither means "markdrop". A Markdrop Guides site is named by
 its id and is known while it is live. Any other site is a 404.
 
 CORS for the docs origins is middleware/docs_cors.py. Sign-in is optional: a

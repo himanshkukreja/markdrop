@@ -20,7 +20,7 @@ here. Without a cookie the request is exactly what curl could send.
 
 Every registered docs site (services/docs_sites.py) gets the same treatment
 for its own endpoints: its site.json `url` origin may call /api/v1/docs/*. So
-does every live Docs Studio site's address (its free address and its own
+does every live Markdrop Guides site's address (its free address and its own
 domains; a set read from MongoDB and cached, see
 docs_sites.studio_origin_allowed). Try it stays with docs_cors_origins (the
 public API documented there is Markdrop's).
@@ -101,7 +101,7 @@ def docs_origin_allowed(origin: str | None) -> bool:
 
 
 async def docs_origin_allowed_async(origin: str | None) -> bool:
-    """docs_origin_allowed, or a live Docs Studio site's address."""
+    """docs_origin_allowed, or a live Markdrop Guides site's address."""
     if docs_origin_allowed(origin):
         return True
     if not origin:

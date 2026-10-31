@@ -14,7 +14,7 @@ import CtaTracker from "@/components/landing/CtaTracker";
 
 /**
  * The landing page (REVAMP_BUILD §5.6.1): the Orbit Playground hero, eight playable sections (artifacts
- * first, then Docs Studio, a static section with no script), then the closing CTA. A server component that reads no cookies, headers or searchParams, so
+ * first, then Markdrop Guides, a static section with no script), then the closing CTA. A server component that reads no cookies, headers or searchParams, so
  * `/` stays static: every section's copy and static first frame is server HTML, and each interactive
  * half loads on demand (components/landing/LazyIsland). At most one attract/demo loop runs at a time
  * (components/landing/PlayCoordinator). Nothing from the markdown pipeline (react-markdown, rehype,

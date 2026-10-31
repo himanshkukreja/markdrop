@@ -10,13 +10,13 @@ import { SiteTile } from "../SiteBar";
 import { PERSONAL, scopeOf, siteBase, studioHome, studioMembers, studioNew } from "../routes";
 import { StudioProvider, useStudio, useWorkspaceName } from "./StudioContext";
 
-/** "Docs Studio" beside the Markdrop mark: the studio's own name, same family as the app's logo. */
+/** "Guides" beside the Markdrop mark (Markdrop Guides): the product's own name, same family as the app's logo. */
 export function StudioWordmark({ size = 26, compact, className }: { size?: number; compact?: boolean; className?: string }) {
   return (
-    <Anchor href={studioHome()} className={cx("md-focus flex shrink-0 items-center gap-2 rounded-md text-text no-underline", className)} aria-label="Docs Studio home">
+    <Anchor href={studioHome()} className={cx("md-focus flex shrink-0 items-center gap-2 rounded-md text-text no-underline", className)} aria-label="Markdrop Guides home">
       <MarkdropMark size={size} />
       <span className={cx("docs-studio__word text-[17px] leading-none", compact && "max-sm:hidden")} aria-hidden>
-        Docs <em>Studio</em>
+        <em>Guides</em>
       </span>
     </Anchor>
   );
@@ -49,20 +49,20 @@ function SiteSwitcher() {
       }
     }
   }
-  items.push({ label: "All docs sites", href: studioHome(), icon: "layers", separated: items.length > 0 });
-  items.push({ label: "New docs site", href: studioNew(scopeOf(current)), icon: "plus" });
+  items.push({ label: "All guides", href: studioHome(), icon: "layers", separated: items.length > 0 });
+  items.push({ label: "New guide", href: studioNew(scopeOf(current)), icon: "plus" });
   const ws = current.workspace_id ? all?.workspaces.find((w) => w.id === current.workspace_id) : null;
   if (ws?.can_manage_people) items.push({ label: `Members of ${ws.name}`, href: studioMembers(ws.id), icon: "users" });
   return (
     <Dropdown
       align="left"
       minWidth={260}
-      aria-label="Switch docs site"
+      aria-label="Switch guide"
       trigger={
         <button
           type="button"
           className="md-focus flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-text hover:bg-surface-hover"
-          aria-label={`${current.name}: switch docs site`}
+          aria-label={`${current.name}: switch guide`}
         >
           <SiteTile site={current} size={22} />
           <span className="min-w-0 max-w-[38vw] truncate text-body-strong sm:max-w-[260px]" dir="auto">{current.name}</span>
@@ -82,13 +82,13 @@ function WorkspaceBadge() {
   const label = current.workspace_id ? name : "Personal";
   if (!label) return null;
   return (
-    <Anchor href={studioHome(scopeOf(current))} className="md-focus hidden shrink-0 rounded-full no-underline sm:inline-flex" title={current.workspace_id ? `In the ${label} workspace` : "Your personal site"}>
+    <Anchor href={studioHome(scopeOf(current))} className="md-focus hidden shrink-0 rounded-full no-underline sm:inline-flex" title={current.workspace_id ? `In the ${label} workspace` : "Your personal guide"}>
       <Badge size="sm" icon={current.workspace_id ? "users" : "user"}>{label}</Badge>
     </Anchor>
   );
 }
 
-/** Between Markdrop and Docs Studio: the same account, two products. */
+/** Between Markdrop and Markdrop Guides: the same account, two products. */
 function AppSwitcher() {
   const tile = (bg: string, icon: React.ReactNode) => (
     <span className="grid size-8 place-items-center rounded-lg" style={{ background: bg }} aria-hidden>{icon}</span>
@@ -102,14 +102,14 @@ function AppSwitcher() {
       items={[
         { header: <span className="text-caption font-semibold uppercase tracking-wide text-text-muted">Markdrop apps</span> },
         { label: "Markdrop", description: "Documents, artifacts and file sharing", href: "/dashboard", tile: tile("transparent", <MarkdropMark size={28} />) },
-        { label: "Docs Studio", description: "Documentation websites for your team", href: studioHome(), tile: tile("var(--accent-soft)", <Icon name="layers" className="text-accent-text" />), icon: "check" },
+        { label: "Markdrop Guides", description: "Help centers and product guides for your team", href: studioHome(), tile: tile("var(--accent-soft)", <Icon name="layers" className="text-accent-text" />), icon: "check" },
       ]}
     />
   );
 }
 
 /**
- * Docs Studio's header: the Markdrop mark with "Docs Studio", then (on a site's screens) the site
+ * Markdrop Guides' header: the Markdrop mark with "Guides", then (on a guide's screens) the guide
  * switcher and its workspace; on the right the app switcher and the account menu.
  */
 export function StudioHeader() {
@@ -123,7 +123,7 @@ export function StudioHeader() {
           <span aria-hidden className="text-[18px] font-light text-text-subtle">/</span>
           <SiteSwitcher />
           <WorkspaceBadge />
-          <RoleBadge role={current.your_role} className="max-sm:hidden" title="Your Docs Studio role on this site" />
+          <RoleBadge role={current.your_role} className="max-sm:hidden" title="Your Guides role on this guide" />
         </>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">

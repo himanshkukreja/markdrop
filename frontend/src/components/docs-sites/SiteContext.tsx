@@ -28,8 +28,8 @@ export function StudioLoader({ label = "Loading" }: { label?: string }) {
 }
 
 /**
- * What a role may do in Docs Studio. The one place the UI decides it: from `your_role`, the
- * caller's effective Docs Studio role on the site, which only the API decides (workspace owner and
+ * What a role may do in Markdrop Guides. The one place the UI decides it: from `your_role`, the
+ * caller's effective Guides role on the site, which only the API decides (workspace owner and
  * admins → admin; otherwise the role a studio admin gave, per workspace or per site).
  *
  *   admin     settings, design, people, approve, publish, restore, delete, take over a page
@@ -53,9 +53,9 @@ export interface SiteCtx {
   reload: () => Promise<void>;
   /** The site's workspace, or null for a personal site. */
   wsId: string | null;
-  /** `/docs-studio/<site>`: the site's screens hang off this. */
+  /** `/guides/<site>`: the site's screens hang off this. */
   base: string;
-  /** Docs Studio's home filtered to the site's workspace (or personal sites). */
+  /** Markdrop Guides' home filtered to the site's workspace (or personal sites). */
   listHref: string;
   role: DocsRole;
   isAdmin: boolean;
@@ -75,7 +75,7 @@ export function useSite(): SiteCtx {
 }
 
 /**
- * Loads one docs site for every screen under /docs-studio/<site> (editor, design, publish,
+ * Loads one docs site for every screen under /guides/<site> (editor, design, publish,
  * settings, import) and keeps it while you move between them (it lives in the segment's layout).
  * The studio header shows it (site switcher, workspace badge) while it's open.
  */
@@ -102,7 +102,7 @@ export function SiteProvider({ siteId, children }: { siteId: string; children: R
       setSiteState(s);
       setError(null);
     } catch (e) {
-      setError({ status: docsErrorStatus(e), message: docsErrorMessage(e, "Couldn't load this docs site.") });
+      setError({ status: docsErrorStatus(e), message: docsErrorMessage(e, "Couldn't load this guide.") });
     }
   }, [siteId]);
 
@@ -118,22 +118,22 @@ export function SiteProvider({ siteId, children }: { siteId: string; children: R
   if (!site && error) {
     return (
       <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-app flex-1 flex-col px-4 py-16 outline-none">
-        <h1 className="md-visually-hidden">Docs site</h1>
+        <h1 className="md-visually-hidden">Guide</h1>
         <EmptyState
           icon="alertCircle"
-          title={error.status === 404 ? "This docs site doesn't exist" : error.status === 403 ? "You don't have access to this docs site" : "We couldn't open this docs site"}
-          description={error.status === 404 || error.status === 403 ? "It may have been deleted, or you don't have a Docs Studio role on it. A Docs Studio admin of its workspace can give you one." : error.message}
+          title={error.status === 404 ? "This guide doesn't exist" : error.status === 403 ? "You don't have access to this guide" : "We couldn't open this guide"}
+          description={error.status === 404 || error.status === 403 ? "It may have been deleted, or you don't have a Guides role on it. A Guides admin of its workspace can give you one." : error.message}
           actions={
             <>
               {error.status !== 404 && error.status !== 403 && <Button variant="primary" onClick={() => void reload()}>Try again</Button>}
-              <Button variant="secondary" href={studioHome()} iconLeft="arrowLeft">All docs sites</Button>
+              <Button variant="secondary" href={studioHome()} iconLeft="arrowLeft">All guides</Button>
             </>
           }
         />
       </main>
     );
   }
-  if (!site) return <StudioLoader label="Loading docs site" />;
+  if (!site) return <StudioLoader label="Loading guide" />;
 
   const perms = studioPermissions(site.your_role ?? "viewer");
   return (

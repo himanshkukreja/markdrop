@@ -274,7 +274,7 @@ async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
     res = await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id})
     if res.deleted_count:
         await lifecycle.member_left(db, workspace_id, user_id)
-        # Their Docs Studio roles there go too (read time already ignores them).
+        # Their Guides roles there go too (read time already ignores them).
         await docs_studio_roles.member_left(db, workspace_id, user_id, actor_id=actor_id, could_read=could_read)
 
 

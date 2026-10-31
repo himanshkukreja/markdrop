@@ -108,7 +108,7 @@ class DocsSitesCase(unittest.IsolatedAsyncioTestCase):
                 await self.db["memberships"].insert_one({
                     "workspace_id": self.ws, "user_id": self.uid[who], "role": role, "created_at": now(),
                     "email": f"{who}@example.com", "name": who.capitalize()})
-        # Docs Studio roles are their own (services/docs_studio_roles.py): the owner and admin are
+        # Guides roles are their own (services/docs_studio_roles.py): the owner and admin are
         # studio admins by their workspace role; the member and the viewer are given theirs.
         for who in STUDIO_GRANTS:
             await self.grant(who, STUDIO_GRANTS[who])
@@ -126,7 +126,7 @@ class DocsSitesCase(unittest.IsolatedAsyncioTestCase):
     # ── helpers ──
 
     async def grant(self, who: str, role: str, workspace_id: str | None = None) -> None:
-        """A Docs Studio role in the workspace, written directly (the API is tested elsewhere)."""
+        """A Guides role in the workspace, written directly (the API is tested elsewhere)."""
         await self.db["docs_studio_members"].update_one(
             {"workspace_id": workspace_id or self.ws, "user_id": self.uid[who]},
             {"$set": {"role": role, "granted_by": self.uid["owner"], "granted_at": now()}}, upsert=True)

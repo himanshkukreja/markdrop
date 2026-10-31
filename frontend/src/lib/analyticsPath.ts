@@ -23,6 +23,7 @@ const APP_ROUTES = new Set([
   "enterprise",
   "extension",
   "f",
+  "guides",
   "h",
   "invite",
   "login",

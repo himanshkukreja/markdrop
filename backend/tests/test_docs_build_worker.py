@@ -76,12 +76,12 @@ class SnapshotTests(unittest.TestCase):
         site["settings"]["nav"] = [{"group": "Guide", "pages": ["a" * 24, "b" * 24, "c" * 24, "zz"]}]
         snap = {"site": {"name": "Acme Rockets", "slug": "acme"}, "pages": _pages(), "settings": site["settings"],
                 "created_at": datetime(2026, 10, 31, tzinfo=timezone.utc)}
-        files, warnings = docs_snapshot.content_files(site, snap, url="https://acme.docs.markdrop.in", ai_api="https://api.markdrop.in")
+        files, warnings = docs_snapshot.content_files(site, snap, url="https://acme.guides.markdrop.in", ai_api="https://api.markdrop.in")
         self.assertEqual(sorted(files), ["guide/secret.md", "guide/start.md", "index.md", "loose.md", "redirects.json", "site.json"])
         self.assertEqual(len(warnings), 2)  # the ../ path and the reserved /public
         sj = json.loads(files["site.json"])
         self.assertEqual((sj["id"], sj["name"], sj["url"], sj["description"], sj["headline"]),
-                         (str(site["_id"]), "Acme Rockets", "https://acme.docs.markdrop.in", "Rocket docs", "Hi"))
+                         (str(site["_id"]), "Acme Rockets", "https://acme.guides.markdrop.in", "Rocket docs", "Hi"))
         # The home leads the editor's first group but is the engine's front page, not a nav entry;
         # hidden pages are built but not listed; pages no group lists land in "More".
         self.assertEqual(sj["nav"], [{"group": "Guide", "icon": "home", "pages": ["/guide/start"]},
@@ -127,8 +127,8 @@ class SnapshotTests(unittest.TestCase):
     def test_hosts(self):
         site = _site()
         site["domains"] = [{"host": "Docs.Acme.com", "status": "active"}, {"host": "pending.acme.com", "status": "pending"}]
-        self.assertEqual(docs_snapshot.site_hosts(site), ["acme.docs.markdrop.in", "docs.acme.com"])
-        self.assertEqual(docs_snapshot.site_hosts(site, "newslug")[0], "newslug.docs.markdrop.in")
+        self.assertEqual(docs_snapshot.site_hosts(site), ["acme.guides.markdrop.in", "docs.acme.com"])
+        self.assertEqual(docs_snapshot.site_hosts(site, "newslug")[0], "newslug.guides.markdrop.in")
         self.assertEqual(docs_snapshot.site_url(site), "https://docs.acme.com")
         with mock.patch.object(JS, "docs_site_host_template", "preview.example.workers.dev"):
             self.assertEqual(docs_snapshot.site_hosts(site)[0], "preview.example.workers.dev")
@@ -424,7 +424,7 @@ class BuildTests(DbCase):
         build = await docs_build.start_build(self.db, job)
         self.assertEqual(build["status"], "building")
         spec = await docs_build.build_spec(self.db, job, build)
-        self.assertEqual(spec["publish"], {"site": str(s["_id"]), "hosts": ["acme.docs.markdrop.in"],
+        self.assertEqual(spec["publish"], {"site": str(s["_id"]), "hosts": ["acme.guides.markdrop.in"],
                                            "access": {"level": "public", "policy_version": 0}})
         self.assertEqual(spec["build"]["number"], 1)
         self.assertEqual(json.loads(spec["bundle"]["files"]["site.json"])["nav"], [{"group": "G", "pages": ["/guide/a"]}])
@@ -477,14 +477,14 @@ class BuildTests(DbCase):
         _, j1 = await self.publish(s)
         await self.run_build(j1, {"ok": True, "manifest_hash": "1" * 64})
         store = docs_build.FsPointerStore(self.store)
-        store.put_text("hosts/old-name.docs.markdrop.in.json", json.dumps({"site": str(s["_id"])}))
+        store.put_text("hosts/old-name.guides.markdrop.in.json", json.dumps({"site": str(s["_id"])}))
         await self.db[SITES].update_one({"_id": s["_id"]}, {"$set": {"slug": "new-name"}})
         b2, j2 = await self.publish(s)
         spec_hosts = (await docs_snapshot.bundle(self.db, b2))["publish"]["hosts"]
-        self.assertEqual(spec_hosts, ["new-name.docs.markdrop.in"])
+        self.assertEqual(spec_hosts, ["new-name.guides.markdrop.in"])
         out = await self.run_build(j2, {"ok": True, "manifest_hash": "2" * 64})
-        self.assertEqual(out["old_hosts_removed"], ["old-name.docs.markdrop.in"])
-        self.assertIsNone(store.get_text("hosts/old-name.docs.markdrop.in.json"))
+        self.assertEqual(out["old_hosts_removed"], ["old-name.guides.markdrop.in"])
+        self.assertIsNone(store.get_text("hosts/old-name.guides.markdrop.in.json"))
         # Unpublished while a build ran: it finishes without going live.
         b3, j3 = await self.publish(s)
         claimed = await docs_jobs.claim_next(self.db, "w1", target=None)
@@ -515,7 +515,7 @@ class BuildTests(DbCase):
         ptr = json.loads(store.get_text(f"sites/{sid}/current.json"))
         self.assertEqual((ptr["manifest"], ptr["previous"], ptr["engine"], ptr["restored"]), (h1, h2, "e123", True))
         self.assertEqual(set(ptr), {"manifest", "engine", "publishedAt", "previous", "restored"})
-        self.assertEqual(json.loads(store.get_text("hosts/acme.docs.markdrop.in.json")), {"site": sid})
+        self.assertEqual(json.loads(store.get_text("hosts/acme.guides.markdrop.in.json")), {"site": sid})
         self.assertEqual((await self.db[BUILDS].find_one({"_id": b1}))["status"], "live")
         self.assertEqual((await self.db[BUILDS].find_one({"_id": b2}))["status"], "superseded")
         self.assertEqual((await self.db[SITES].find_one({"_id": s["_id"]}))["live_build_id"], b1)
@@ -539,8 +539,8 @@ class BuildTests(DbCase):
         job = await docs_site_store.unpublish_site(self.db, await self.db[SITES].find_one({"_id": s["_id"]}))
         await docs_dispatch.run_once(self.db)
         row = await self.db[JOBS].find_one({"_id": job["_id"]})
-        self.assertEqual((row["status"], row["result"]["hosts_removed"]), ("done", ["acme.docs.markdrop.in"]))
-        self.assertIsNone(store.get_text("hosts/acme.docs.markdrop.in.json"))
+        self.assertEqual((row["status"], row["result"]["hosts_removed"]), ("done", ["acme.guides.markdrop.in"]))
+        self.assertIsNone(store.get_text("hosts/acme.guides.markdrop.in.json"))
         self.assertIsNone(store.get_text(f"sites/{sid}/current.json"))
         self.assertIsNotNone(store.get_text("hosts/shared.example.json"))
 

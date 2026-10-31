@@ -392,7 +392,7 @@ class Access(_Strict):
     def _private_needs_edge(cls, v: str) -> str:
         from app.config import get_settings
         if v != "public" and not get_settings().docs_private_sites_enabled:
-            raise ValueError("Password and members-only sites are coming soon. For now a docs site is public.")
+            raise ValueError("Password and members-only guides are coming soon. For now a guide is public.")
         return v
 
 

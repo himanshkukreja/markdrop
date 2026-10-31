@@ -10,7 +10,7 @@ has the whole flow and the token format).
   back to the sign-in page with a reason. Rate limited per IP and site, per IP,
   and by wrong passwords per site from every IP together.
 - ``POST /grant`` (signed in): markdrop.in's /auth/docs-access page asks for a
-  members-only site; the reader's Docs Studio role on the site must be viewer or
+  members-only site; the reader's Guides role on the site must be viewer or
   more.
 - ``POST /{site_id}/sign-out-everyone`` (site admin): every reader's edge session
   ends (the policy version moves on), e.g. after someone left the team.
@@ -104,9 +104,9 @@ async def password(request: Request, site: str = Query(..., max_length=64), host
     row = await _site(db, site)
     h = access.clean_host(host)
     if row is None or h is None:
-        return _page(404, "Site not found", "This sign-in form doesn't lead to a docs site. Open the site again.")
+        return _page(404, "Guide not found", "This sign-in form doesn't lead to a guide. Open the guide again.")
     if h not in access.site_hosts(row):
-        return _page(400, "Wrong address", "This sign-in form doesn't belong to that site. Open the site again.")
+        return _page(400, "Wrong address", "This sign-in form doesn't belong to that guide. Open the guide again.")
     nxt = access.safe_next(next)
     ip = get_client_ip(request)
     sid = str(row["_id"])
@@ -148,16 +148,16 @@ async def grant(request: Request, body: GrantRequest, db: AsyncIOMotorDatabase =
     row = await _site(db, body.site_id)
     h = access.clean_host(body.host)
     if row is None or h is None:
-        raise HTTPException(status_code=404, detail="Docs site not found")
+        raise HTTPException(status_code=404, detail="Guide not found")
     if h not in access.site_hosts(row):
-        raise HTTPException(status_code=400, detail="That address isn't this site's.")
+        raise HTTPException(status_code=400, detail="That address isn't this guide's.")
     name = row.get("name") or "this site"
     if row.get("status") != "live" or access.level_of(row) != "members":
-        raise HTTPException(status_code=409, detail="This site doesn't use Markdrop sign-in any more. Open it again.")
+        raise HTTPException(status_code=409, detail="This guide doesn't use Markdrop sign-in any more. Open it again.")
     if not access.valid_state_hash(body.sh):
-        raise HTTPException(status_code=400, detail="Open the site again and choose Sign in.")
+        raise HTTPException(status_code=400, detail="Open the guide again and choose Sign in.")
     if not access.secret():
-        raise HTTPException(status_code=503, detail="Signing in to docs sites isn't available right now.")
+        raise HTTPException(status_code=503, detail="Signing in to guides isn't available right now.")
     role = await store.site_role(db, row, user.id)
     if not store.role_at_least(role, "viewer"):
         raise HTTPException(status_code=403, detail={"message": f"You don't have access to {name}.", "site_name": name})
@@ -173,7 +173,7 @@ async def sign_out_everyone(request: Request, site_id: str, db: AsyncIOMotorData
     policy version moves on, so every edge cookie signed for the old one stops working."""
     site, _role = await store.load_site(db, site_id, user, need="admin")
     if access.is_public(site):
-        raise HTTPException(status_code=409, detail="This site is public: nobody signs in to read it.")
+        raise HTTPException(status_code=409, detail="This guide is public: nobody signs in to read it.")
     row = await db[SITES].find_one_and_update({"_id": site["_id"]}, {"$inc": {"access_version": 1}},
                                               {"access_version": 1}, return_document=True)
     await access.queue_sync(db, site["_id"], "sign-out-everyone")

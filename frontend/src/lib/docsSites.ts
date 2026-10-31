@@ -94,13 +94,13 @@ const enc = encodeURIComponent;
 // ── Types ────────────────────────────────────────────────────────────────────
 
 /**
- * Your Docs Studio role on a site (the API's `your_role`): its own roles, not the workspace's. The
+ * Your Guides role on a site (the API's `your_role`): its own roles, not the workspace's. The
  * workspace owner and admins are always "admin"; everyone else has what a studio admin gave them,
  * per workspace or per site. A personal site's owner is "admin". ("owner" is the old name, kept
  * so an older API's answer still reads as admin.)
  */
 export type DocsRole = "owner" | "admin" | "reviewer" | "editor" | "viewer";
-/** A role you can give in Docs Studio; "none" = no access (the sites are invisible). */
+/** A role you can give in Markdrop Guides; "none" = no access (the sites are invisible). */
 export type StudioRole = "admin" | "reviewer" | "editor" | "viewer" | "none";
 /**
  * Where a role comes from: workspace_owner / workspace_admin (always admin, can't be changed),
@@ -216,7 +216,7 @@ export interface SiteSummary {
   workspace_id: string | null;
   name: string;
   slug: string;
-  /** `https://<slug>.docs.markdrop.in` */
+  /** `https://<slug>.guides.markdrop.in` */
   url: string | null;
   status: SiteStatus;
   /** An open review is waiting. */
@@ -241,7 +241,7 @@ export interface SiteSummary {
   workspace?: StudioWorkspaceRef | null;
 }
 
-/** A workspace as Docs Studio shows it beside its sites. */
+/** A workspace as Markdrop Guides shows it beside its sites. */
 export interface StudioWorkspaceRef {
   id: string;
   name: string;
@@ -250,19 +250,19 @@ export interface StudioWorkspaceRef {
 }
 
 export interface StudioWorkspace extends StudioWorkspaceRef {
-  /** The workspace role (owner/admin/member/viewer); Docs Studio's own role is `your_role`. */
+  /** The workspace role (owner/admin/member/viewer); Markdrop Guides' own role is `your_role`. */
   workspace_role: string;
-  /** Your Docs Studio role across the workspace; "none" until a studio admin gives you one. */
+  /** Your Guides role across the workspace; "none" until a studio admin gives you one. */
   your_role: DocsRole | "none";
   your_role_source?: RoleSource | null;
   /** Studio admins, while the workspace isn't being deleted. */
   can_create: boolean;
-  /** Studio admins: Docs Studio › Members for this workspace. */
+  /** Studio admins: Guides › Members for this workspace. */
   can_manage_people?: boolean;
   usage: { sites: number; limit: number };
 }
 
-/** GET /docs-sites?scope=all (Docs Studio's home and site switcher). */
+/** GET /docs-sites?scope=all (Markdrop Guides' home and site switcher). */
 export interface AllSitesResponse {
   sites: SiteSummary[];
   workspaces: StudioWorkspace[];
@@ -460,7 +460,7 @@ export interface UploadedAsset {
 
 // ── Sites ────────────────────────────────────────────────────────────────────
 
-/** Every site you can open, across your workspaces and your personal ones (Docs Studio). */
+/** Every site you can open, across your workspaces and your personal ones (Markdrop Guides). */
 export function listAllSites(): Promise<AllSitesResponse> {
   return request(q({ scope: "all" }));
 }
@@ -664,7 +664,7 @@ export function assetPreviewUrl(siteId: string, url: string | null | undefined):
 
 // ── Helpers shared by the screens ────────────────────────────────────────────
 
-export const DOCS_HOST_SUFFIX = ".docs.markdrop.in";
+export const DOCS_HOST_SUFFIX = ".guides.markdrop.in";
 
 /** "Acme Docs!" → "acme-docs" (3–40 chars of [a-z0-9-], no leading/trailing dash). */
 export function slugFrom(name: string): string {
@@ -688,7 +688,7 @@ export function slugProblem(slug: string): string {
   return "";
 }
 
-/** The free address's host: from `url` when the API gave one, else `<slug>.docs.markdrop.in`. */
+/** The free address's host: from `url` when the API gave one, else `<slug>.guides.markdrop.in`. */
 export function siteHost(s: Pick<SiteSummary, "slug" | "url">): string {
   if (s.url) {
     try { return new URL(s.url).host; } catch { /* fall through */ }
@@ -708,11 +708,11 @@ export const canEditRole = (r: DocsRole | StudioRole | undefined | null): boolea
 
 /** The roles you can give, highest first, with what each may do (the Members screen's explainer). */
 export const STUDIO_ROLES: Array<{ id: StudioRole; label: string; short: string; can: string[] }> = [
-  { id: "admin", label: "Admin", short: "Everything, including settings and people", can: ["Change site settings, design and domains", "Give people roles", "Approve reviews, publish, restore, delete"] },
+  { id: "admin", label: "Admin", short: "Everything, including settings and people", can: ["Change guide settings, design and domains", "Give people roles", "Approve reviews, publish, restore, delete"] },
   { id: "reviewer", label: "Reviewer", short: "Edit, publish and approve reviews", can: ["Everything an editor can", "Approve or send back other people's changes", "No settings"] },
   { id: "editor", label: "Editor", short: "Edit pages and publish", can: ["Create, edit and delete pages", "Upload images and files", "Publish, or submit for review when it's required"] },
   { id: "viewer", label: "Viewer", short: "Read drafts and history", can: ["Read drafts and preview", "See publish history", "No edits"] },
-  { id: "none", label: "No access", short: "Can't see the sites", can: ["The workspace's docs sites are invisible to them"] },
+  { id: "none", label: "No access", short: "Can't see the guides", can: ["The workspace's guides are invisible to them"] },
 ];
 
 export function roleLabel(r: DocsRole | StudioRole | "none" | null | undefined): string {
@@ -720,19 +720,19 @@ export function roleLabel(r: DocsRole | StudioRole | "none" | null | undefined):
   return STUDIO_ROLES.find((x) => x.id === r)?.label ?? "No access";
 }
 
-/** "Workspace owner", "Workspace admin", "This site only"… for a role's source. */
+/** "Workspace owner", "Workspace admin", "This guide only"… for a role's source. */
 export function roleSourceLabel(s: RoleSource | null | undefined): string {
   switch (s) {
     case "workspace_owner": return "Workspace owner";
     case "workspace_admin": return "Workspace admin";
-    case "site": return "This site only";
-    case "personal": return "Your personal site";
-    case "workspace": return "Docs Studio role";
+    case "site": return "This guide only";
+    case "personal": return "Your personal guide";
+    case "workspace": return "Guides role";
     default: return "";
   }
 }
 
-// ── People (Docs Studio roles) ──────────────────────────────────────────────
+// ── People (Guides roles) ──────────────────────────────────────────────
 
 const STUDIO_BASE = "/api/v1/docs-studio";
 
@@ -806,7 +806,7 @@ export interface RoleEvent {
   reason?: string | null;
 }
 
-/** Docs Studio › Members (studio admins only; 403 otherwise). */
+/** Guides › Members (studio admins only; 403 otherwise). */
 export function getStudioMembers(workspaceId: string): Promise<StudioMembersResponse> {
   return request(`/workspaces/${enc(workspaceId)}/members`, undefined, STUDIO_BASE);
 }

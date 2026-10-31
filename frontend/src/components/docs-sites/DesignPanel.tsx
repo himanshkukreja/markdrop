@@ -58,7 +58,7 @@ function PresetCard({ id, name, blurb, checked, onSelect, accent, disabled, grou
 }
 
 /**
- * /docs-studio/<site>/design (Themes board): six presets with a live preview, "Match my brand"
+ * /guides/<site>/design (Themes board): six presets with a live preview, "Match my brand"
  * (logo → colours → a contrast-checked light and dark palette), fonts, colour mode, corners and
  * custom CSS. Nothing applies until "Save design"; the published site changes at the next publish.
  */
@@ -297,7 +297,7 @@ export default function DesignPanel() {
               {cssProblem ? (
                 <p className="flex items-center gap-1.5 text-[12px] text-danger" role="alert"><Icon name="alertCircle" size={13} /> {cssProblem}</p>
               ) : (
-                <p id={`${uid}-css-hint`} className="text-[12px] text-text-muted">Applied after the theme, on the published site. Scripts aren&apos;t allowed. <ReadMore topic="studioCustomCss">What&apos;s allowed</ReadMore></p>
+                <p id={`${uid}-css-hint`} className="text-[12px] text-text-muted">Applied after the theme, on the published guide. Scripts aren&apos;t allowed. <ReadMore topic="studioCustomCss">What&apos;s allowed</ReadMore></p>
               )}
             </div>
           </details>

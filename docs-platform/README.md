@@ -215,7 +215,7 @@ with its collision guard, and the `assets` rebuild/prune.
 
 ## Password and members-only sites
 
-A Docs Studio site can be public, password protected or members-only (`settings.access.level`).
+A Markdrop Guides site can be public, password protected or members-only (`settings.access.level`).
 The edge enforces it; the API holds the password and decides who may read.
 
 - **Policy.** `sites/<site>/access.json` = `{site, level, policy_version}`, written by the API's
@@ -232,7 +232,7 @@ The edge enforces it; the API holds the password and decides who may read.
   the Worker; they hold engine code only, never site content.
 - **Sign-in.** The password form posts straight to the API (`/api/v1/docs-access/password`, rate
   limited per IP and site): the edge never sees a password. Members-only links to markdrop.in's
-  `/auth/docs-access`, which asks the API with the reader's session (Docs Studio role viewer or
+  `/auth/docs-access`, which asks the API with the reader's session (Guides role viewer or
   more). Either way the API answers with a two-minute grant (HMAC with the secret it shares with the
   Worker, `DOCS_ACCESS_SECRET`) for this site, host, policy version and browser (the hash of a
   random state in an HttpOnly cookie), in the URL fragment of `/_access/callback`. That page posts

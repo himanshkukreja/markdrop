@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** Signs a reader in to a members-only Docs Studio site (see DocsAccessClient). */
+/** Signs a reader in to a members-only guide (Markdrop Guides) (see DocsAccessClient). */
 export default function DocsAccessPage() {
   // The client reads its parameters with useSearchParams, so it sits in Suspense (the route prerenders).
   return (

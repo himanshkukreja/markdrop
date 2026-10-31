@@ -45,7 +45,7 @@ function gateBrand(brand) {
 
 /**
  * The manifest's `site` (site.json → what the edge needs). `noindex`: site.json `seo.index: false`
- * (a Docs Studio site with search engines turned off): the edge sends `X-Robots-Tag: noindex` with
+ * (a Markdrop Guides site with search engines turned off): the edge sends `X-Robots-Tag: noindex` with
  * every response, beside the engine's own robots meta tag and robots.txt.
  */
 export function manifestSite(site) {
