@@ -25,7 +25,7 @@ Under **How do you want to start?**, pick **Blank guide** or **From a template**
 Type the **Guide name**. It's shown in the guide's header and in link previews. The **Address** fills in from the name and is checked as you type.
 
 ### Create it
-Choose **Create guide**. Markdrop Guides opens **Design** so you can [pick a theme](/guides/themes). Choose **Skip to the editor** to do that later.
+Choose **Create guide**. Your new guide opens in [the editor](/guides/editor), ready for its first page. [Pick a theme](/guides/themes) in **Design** whenever you like.
 ::::
 
 ![The New guide form: Where it lives set to the Northwind workspace, From a template and Product guide selected, Guide name "Northwind Help" and the address northwind-help.guides.markdrop.in marked Available.](/docs-assets/guides/create-a-site/new-site-template.webp)

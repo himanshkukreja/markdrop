@@ -73,7 +73,7 @@ function ChoiceCard({ checked, onSelect, icon, title, body, name, value }: {
  * /guides/new (New site board): where the site lives (a workspace you're a Guides admin of, or
  * personal; ?ws= preselects), how to start (blank, template, GitBook import, GitHub repo), then the
  * name and the free address `<slug>.guides.markdrop.in` (checked as you type). Imports start a job
- * and land on the import screen; blank and template guides open Design ("You'll pick a theme next").
+ * and land on the import screen; blank and template guides open the editor (the theme is picked later, in Design).
  */
 export default function NewSite() {
   const search = useLocationSearch();
@@ -330,7 +330,7 @@ export default function NewSite() {
           {error && <Alert tone="danger" title="We couldn't create the guide">{error}</Alert>}
 
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-            <p className="min-w-0 flex-[1_1_300px] text-[13px] text-text-muted">Nothing is public until you publish. You&apos;ll pick a theme next. <ReadMore topic="studioCreate" /></p>
+            <p className="min-w-0 flex-[1_1_300px] text-[13px] text-text-muted">Nothing is public until you publish. Your guide opens in the editor next. <ReadMore topic="studioCreate" /></p>
             <Button variant="ghost" href={listHref}>Cancel</Button>
             <Button variant="primary" type="submit" iconRight="arrowRight" loading={busy} disabled={!canSubmit && !busy}>
               {source === "gitbook" ? "Import" : "Create guide"}
