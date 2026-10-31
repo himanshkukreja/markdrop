@@ -312,13 +312,13 @@ frontend/content/docs/guides/site-settings.md "Your own domain"). The customer a
   [pre-validation](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/domain-support/hostname-validation/pre-validation/))
   are shown as optional, for a domain behind another proxy. A hostname serves once `status` and
   `ssl.status` are both `active`.
-- **Routing to this Worker.** A Worker route `*/*` on the zone matches every request entering it,
-  custom hostnames included
-  ([Workers as your fallback origin](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/start/advanced-settings/worker-as-origin/)),
-  and a route **without a Worker**, `*markdrop.in/*`, takes Markdrop's own names back out of it (the
-  most specific pattern wins, and a Worker-less route negates less specific ones:
-  [routes](https://developers.cloudflare.com/workers/configuration/routing/routes/),
-  [hostname routing](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/hostname-routing/)).
+- **Routing to this Worker.** When a domain goes live the API adds a Worker route for that host alone,
+  `help.acme.com/*` → `markdrop-docs-edge`, and removes it with the domain
+  ([per-hostname routes](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/start/advanced-settings/worker-as-origin/)).
+  The documented alternative, one `*/*` route, is refused on this zone ("You cannot use a wildcard host
+  without Cloudflare for SaaS", error 100327, even with Custom Hostnames enabled), and a route per host
+  can never catch Markdrop's own names anyway. A route for the host that names another Worker is left
+  alone.
   The fallback origin is an originless record, so nothing but the Worker ever answers. The free
   `<slug>.guides.markdrop.in` addresses are unaffected: they stay Workers Custom Domains (above), which
   run after routes. Requests then go through the same `hosts/<host>.json` lookup as every address
@@ -334,8 +334,7 @@ frontend/content/docs/guides/site-settings.md "Your own domain"). The customer a
   the 100), with what was in the way; "Re-check" starts over. Remove (or deleting the guide): the
   hostname and the mapping go, the entry is dropped, and the live version is published again at the
   free address. One guide per domain (the `domain_host_unique` index), two per guide.
-- **Safety.** Before any call, `host_problem` refuses anything ending in `markdrop.in` (which also
-  keeps every name the exclusion route covers out), the zone, the docs domain, the CNAME target, the
+- **Safety.** Before any call, `host_problem` refuses anything ending in `markdrop.in` , the zone, the docs domain, the CNAME target, the
   app's own hosts, IP addresses, single labels, root domains, special-use and platform suffixes
   (`workers.dev`, `vercel.app`, `github.io`…) and a host a Markdrop workspace uses. Every Cloudflare
   record is checked to be the host asked about before it is changed or deleted. The token is never
@@ -349,8 +348,8 @@ frontend/content/docs/guides/site-settings.md "Your own domain"). The customer a
 
 ### One-time owner setup (Cloudflare dashboard, markdrop.in zone)
 
-Do these in this order: the exclusion route must exist **before** the `*/*` route, or the `*/*`
-route would send markdrop.in itself to the docs Worker.
+`docs-platform/setup-custom-domains.sh` does steps 2–4 over the API (with the token below) and checks
+markdrop.in still answers.
 
 1. **Enable Cloudflare for SaaS:** SSL/TLS › Custom Hostnames › Enable. (It may ask for a payment
    method; the first 100 hostnames are free.)
@@ -359,18 +358,14 @@ route would send markdrop.in itself to the docs Worker.
 3. **Make it the fallback origin:** SSL/TLS › Custom Hostnames › Fallback Origin:
    `cname.guides.markdrop.in` › Add Fallback Origin. Wait for **Active**.
    (API: `PUT /zones/$ZONE/custom_hostnames/fallback_origin {"origin":"cname.guides.markdrop.in"}`.)
-4. **The exclusion route:** Workers Routes › Add route: `*markdrop.in/*`, Worker **None**.
-   (API: `POST /zones/$ZONE/workers/routes {"pattern":"*markdrop.in/*"}`.)
-5. **The catch-all route:** Workers Routes › Add route: `*/*`, Worker `markdrop-docs-edge`.
-   (API: `POST /zones/$ZONE/workers/routes {"pattern":"*/*","script":"markdrop-docs-edge"}`.) Then
-   check markdrop.in, api.markdrop.in and a guide's free address still answer as before.
+4. **No catch-all routes.** Each customer domain gets its own route from the API when it goes live.
+   (An earlier version of this setup added `*markdrop.in/*` and tried `*/*`; the script removes both.)
 6. **Env** (API `.env`; the local worker reads the same):
    - `MARKDROP_DOCS_CF_ZONE_ID`: the markdrop.in zone id (Overview › API › Zone ID). The custom
      hostnames API is per zone.
    - `MARKDROP_DOCS_CF_API_TOKEN`: the token above already works if it has **Zone › SSL and
-     Certificates › Edit** on markdrop.in (custom hostnames need exactly that; the routes and DNS
-     records above are made once by hand, but a token that also has Zone › Workers Routes › Edit and
-     Zone › DNS › Edit lets you do steps 2–5 over the API).
+     Certificates › Edit** and **Zone › Workers Routes › Edit** on markdrop.in (the custom hostnames,
+     and each domain's route); Zone › DNS › Edit lets the setup script do steps 2–3 too.
    - `MARKDROP_DOCS_CUSTOM_DOMAIN_TARGET`: default `cname.guides.markdrop.in` (what customers point at;
      change it only together with step 2–3).
    - `MARKDROP_DOCS_CF_ZONE_NAME` (default `markdrop.in`) is shared with the free addresses.

@@ -5,9 +5,11 @@ The customer adds one record, ``help.acme.com CNAME <docs_custom_domain_target>`
 registers ``help.acme.com`` as a **custom hostname** on the markdrop.in zone (Cloudflare for SaaS,
 free for the first 100). Once the CNAME is in place Cloudflare validates the hostname by it (real-time
 validation) and issues a certificate by HTTP DCV, which it answers itself at the edge, so the
-customer adds nothing else. Requests then reach the docs edge Worker through its ``*/*`` route on the
-zone (Markdrop's own names are excluded by a Worker-less ``*markdrop.in/*`` route), and the Worker
-maps the host to the site through R2 (``hosts/<host>.json``) like every other address. Owner setup and
+customer adds nothing else. Requests then reach the docs edge Worker through a Worker route made for
+that host alone (``help.acme.com/*`` → the docs Worker, added when the domain goes live and removed
+with it: the zone can't take a wildcard ``*/*`` route without a SaaS add-on, and a route per host never
+catches anything else), and the Worker maps the host to the site through R2 (``hosts/<host>.json``)
+like every other address. Owner setup and
 the docs links: docs-platform/README.md, "Own domains (Cloudflare for SaaS)".
 
 Cloudflare API (developers.cloudflare.com/api/resources/custom_hostnames/):
@@ -17,6 +19,8 @@ Cloudflare API (developers.cloudflare.com/api/resources/custom_hostnames/):
   nudge   PATCH  /zones/{zone}/custom_hostnames/{id} {ssl: …}  (the same settings: resets Cloudflare's
           validation backoff, what "Re-check" does)
   delete  DELETE /zones/{zone}/custom_hostnames/{id}
+  route   GET/POST /zones/{zone}/workers/routes, DELETE /zones/{zone}/workers/routes/{id}
+          (pattern ``<host>/*``, script = the docs Worker)
 A hostname serves once ``status`` and ``ssl.status`` are both ``active``.
 
 The site row keeps ``domains``: at most MAX_PER_SITE entries, a host unique across every guide (the
@@ -295,6 +299,39 @@ async def cf_delete(c: httpx.AsyncClient, host: str, cf_id: Any = None) -> bool:
     return True
 
 
+def _route_pattern(host: str) -> str:
+    return f"{checked(host)}/*"
+
+
+async def cf_route_ensure(c: httpx.AsyncClient, host: str) -> bool:
+    """A Worker route for exactly ``host`` → the docs Worker (idempotent). True when it was created.
+    A route for the host that names another Worker is left alone (DomainRefused)."""
+    pattern, worker = _route_pattern(host), get_jobs_settings().docs_cf_worker
+    res = await _call(c, "GET", f"/zones/{_zone()}/workers/routes")
+    for r in res if isinstance(res, list) else []:
+        if isinstance(r, dict) and r.get("pattern") == pattern:
+            if r.get("script") == worker:
+                return False
+            raise DomainRefused(f"{pattern} is routed to another Worker ({r.get('script') or 'none'})")
+    await _call(c, "POST", f"/zones/{_zone()}/workers/routes", json={"pattern": pattern, "script": worker})
+    log.info("docs custom domains: routed %s", host)
+    return True
+
+
+async def cf_route_delete(c: httpx.AsyncClient, host: str) -> bool:
+    """Delete the route for exactly ``host`` when it is the docs Worker's (never another's). Idempotent."""
+    pattern, worker = _route_pattern(host), get_jobs_settings().docs_cf_worker
+    res = await _call(c, "GET", f"/zones/{_zone()}/workers/routes")
+    gone = False
+    for r in res if isinstance(res, list) else []:
+        if isinstance(r, dict) and r.get("pattern") == pattern and r.get("script") == worker and _ID.fullmatch(str(r.get("id") or "")):
+            await _call(c, "DELETE", f"/zones/{_zone()}/workers/routes/{r['id']}", ok_404=True)
+            gone = True
+    if gone:
+        log.info("docs custom domains: unrouted %s", host)
+    return gone
+
+
 # ── Cloudflare's state → ours ──────────────────────────────────────────────
 
 
@@ -516,6 +553,9 @@ async def _check(db: AsyncIOMotorDatabase, site: dict, d: dict, *, force: bool) 
         return FAILED
     info = interpret(host, r)
     base = {"cf_id": r["id"], "records": records(host, r), "checked_at": t}
+    if info["live"]:
+        async with _client() as c:
+            await cf_route_ensure(c, host)
     if info["live"] and d.get("status") == LIVE:
         # Re-checked while live and still fine: make sure the guide answers on it.
         await _set(db, site["_id"], host, {**base, "message": await _map(db, site["_id"], host)})
@@ -602,6 +642,7 @@ async def _remove(db: AsyncIOMotorDatabase, site_id: Any, host: str, *, cloudfla
         return
     if cloudflare and host_problem(host) is None:
         async with _client() as c:
+            await cf_route_delete(c, host)
             await cf_delete(c, host, entry.get("cf_id"))
     if docs_build.store_available():
         sid = str(oid(site_id))

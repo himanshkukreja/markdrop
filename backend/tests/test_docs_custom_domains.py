@@ -8,6 +8,7 @@ from tests import _email_env as env  # noqa: F401  (pins settings first)
 
 import json
 import os
+import unittest
 import uuid
 from unittest import mock
 
@@ -36,6 +37,7 @@ class FakeSaaS:
 
     def __init__(self):
         self.rows: dict[str, dict] = {}
+        self.routes: dict[str, dict] = {}
         self.calls: list[tuple[str, str]] = []
         self.fail = 0  # this many next calls answer 500
         self.nudges = 0
@@ -65,6 +67,19 @@ class FakeSaaS:
                  "verification_errors": ["custom hostname does not CNAME to this zone."]}
             self.rows[rid] = r
             return ok(r)
+        routes = f"/client/v4/zones/{ZONE}/workers/routes"
+        if req.method == "GET" and req.url.path == routes:
+            return ok(list(self.routes.values()))
+        if req.method == "POST" and req.url.path == routes:
+            body = json.loads(req.content)
+            assert set(body) == {"pattern", "script"}, body
+            assert body["pattern"].endswith("/*") and "*" not in body["pattern"][:-2], body
+            rid = uuid.uuid4().hex
+            self.routes[rid] = {"id": rid, **body}
+            return ok(self.routes[rid])
+        if req.method == "DELETE" and req.url.path.startswith(routes + "/"):
+            rid = req.url.path.rsplit("/", 1)[1]
+            return ok({"id": rid}) if self.routes.pop(rid, None) else httpx.Response(404, json={"success": False, "errors": [{"code": 1, "message": "nf"}]})
         if req.url.path.startswith(base + "/"):
             rid = req.url.path.rsplit("/", 1)[1]
             r = self.rows.get(rid)
@@ -80,6 +95,9 @@ class FakeSaaS:
                 del self.rows[rid]
                 return ok({"id": rid})
         return httpx.Response(400, json={"success": False, "errors": [{"code": 1, "message": "bad"}]})
+
+    def route_patterns(self) -> list[str]:
+        return sorted(r["pattern"] for r in self.routes.values())
 
     def by_host(self, host: str) -> dict | None:
         return next((r for r in self.rows.values() if r["hostname"] == host), None)
@@ -212,6 +230,7 @@ class LifecycleTests(DomainCase):
         self.assertEqual(e["checks"], 2)
         self.assertGreater(docs_jobs.aware(e["next_check_at"]), utc(minutes=4))
         self.assertEqual(len([c for c in self.cf.writes() if c[0] == "POST"]), 1)  # read, not created again
+        self.assertEqual(self.cf.route_patterns(), [])  # no route until it is live
 
         # Cloudflare issues the certificate: live, mapped, and the live version published again.
         self.cf.activate(HOST)
@@ -222,6 +241,9 @@ class LifecycleTests(DomainCase):
         self.assertEqual((e["status"], e["stage"], e["message"]), ("live", None, None))
         self.assertIsNone(e["next_check_at"])
         self.assertEqual(self.mapping(), str(s["_id"]))
+        # A Worker route for this host alone sends its readers to the docs Worker.
+        self.assertEqual(self.cf.route_patterns(), [f"{HOST}/*"])
+        self.assertEqual({r["script"] for r in self.cf.routes.values()}, {"markdrop-docs-edge"})
         site = await self.site(s)
         self.assertEqual(docs_snapshot.site_hosts(site), ["acme.guides.markdrop.in", HOST])
         self.assertEqual(docs_snapshot.site_url(site), f"https://{HOST}")
@@ -241,6 +263,7 @@ class LifecycleTests(DomainCase):
         await self.db[JOBS].update_one({"_id": job["_id"]}, {"$set": {"status": "done"}})
         self.assertTrue(await cd.check_now(self.db, site, HOST))
         self.assertEqual(await self.db[BUILDS].count_documents({"site_id": s["_id"], "republish": "domain_live"}), 1)
+        self.assertEqual(self.cf.route_patterns(), [f"{HOST}/*"])  # idempotent: still one route
 
         # Remove: Cloudflare hostname and mapping gone, entry dropped, published again at the free address.
         self.assertTrue(await cd.remove(self.db, site, HOST, "u1"))
@@ -248,6 +271,7 @@ class LifecycleTests(DomainCase):
         await self.run_domain_jobs()
         self.assertIsNone(await self.entry(s))
         self.assertIsNone(self.cf.by_host(HOST))
+        self.assertEqual(self.cf.route_patterns(), [])  # its route is gone too
         self.assertIsNone(self.mapping())
         site = await self.site(s)
         self.assertEqual(docs_snapshot.site_url(site), "https://acme.guides.markdrop.in")
@@ -282,7 +306,8 @@ class LifecycleTests(DomainCase):
         self.cf.rows["x"] = {"id": "x", "hostname": HOST, "status": "active", "ssl": {"status": "active"}}
         await self.run_domain_jobs()
         self.assertEqual(self.mapping(), str(s["_id"]))
-        self.assertEqual(self.cf.writes(), [])  # the existing hostname was adopted, not created again
+        # The existing hostname was adopted, not created again; only its route was added.
+        self.assertEqual(self.cf.writes(), [("POST", f"/client/v4/zones/{ZONE}/workers/routes")])
         # The edge mapping helper never overwrites another site's mapping.
         store = docs_build.default_store()
         self.assertEqual(docs_build.ensure_hosts(store, "someone-else", [HOST]), [])
@@ -480,4 +505,30 @@ class DomainsApiTests(DocsSitesCase):
             got = await self.get(f"/{site['id']}")
             self.assertFalse(got["own_domains"]["available"])
             await self.call("POST", f"/{site['id']}/domains", "owner", expect=503, json={"host": HOST})
+
+
+class RouteSafetyTest(unittest.IsolatedAsyncioTestCase):
+    """The route helpers never touch another Worker's route, and only ever name one host."""
+
+    async def asyncSetUp(self):
+        self.cf = FakeSaaS()
+        _configure(self, self.cf)
+        p = mock.patch.object(JS, "docs_cf_worker", "markdrop-docs-edge")
+        p.start()
+        self.addCleanup(p.stop)
+
+    async def test_another_workers_route_is_left_alone(self):
+        self.cf.routes["x1"] = {"id": "x1", "pattern": f"{HOST}/*", "script": "someone-else"}
+        async with cd._client() as c:
+            with self.assertRaises(cd.DomainRefused):
+                await cd.cf_route_ensure(c, HOST)
+            self.assertFalse(await cd.cf_route_delete(c, HOST))
+        self.assertEqual(self.cf.routes["x1"]["script"], "someone-else")
+
+    async def test_refused_names_never_get_a_route(self):
+        async with cd._client() as c:
+            for bad in ("www.markdrop.in", "markdrop.in", "x.guides.markdrop.in", "*.acme.com"):
+                with self.assertRaises(Exception):
+                    await cd.cf_route_ensure(c, bad)
+        self.assertEqual(self.cf.routes, {})
 
