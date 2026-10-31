@@ -426,6 +426,10 @@ GUIDE_EVENTS = {
     "guide_domain_added": ("connect", "Guides: added their own domain"),
     "guide_domain_removed": ("form", "Guides: removed their own domain"),
     "guide_domain_live": ("connect", "Guides: their own domain went live"),
+    "guide_insights_write_page": ("form", "Guides: started a page readers couldn't find"),
+    "guide_feedback_resolved": ("form", "Guides: resolved reader feedback"),
+    "guide_feedback_reopened": ("form", "Guides: reopened reader feedback"),
+    "guide_insights_cleared": ("form", "Guides: deleted Insights data"),
 }
 _GUIDE_SOURCE = {"blank": "blank", "template": "from a template", "import": "imported from GitBook", "github": "from GitHub"}
 
@@ -453,6 +457,9 @@ def describe_guide(event: str, p: dict, where: Any) -> dict:
         bits = [f"{int(n)} in all" if n is not None else None]
     elif event == "guide_publish_requested":
         bits = ["with a note" if truthy(p.get("note")) else None]
+    elif event == "guide_insights_write_page":
+        bits = [{"search": "a search with no results", "ask": "an unanswered Ask AI question",
+                 "both": "searched and asked"}.get(str(p.get("source") or ""))]
     detail = " · ".join(str(b) for b in bits if b) or (str(where) if where else None)
     return {"kind": kind, "label": label, "detail": detail}
 

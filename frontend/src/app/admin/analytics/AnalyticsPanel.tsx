@@ -95,6 +95,10 @@ const EVENT_LABELS: Record<string, string> = {
   guide_domain_added: "Guides · own domain added",
   guide_domain_removed: "Guides · own domain removed",
   guide_domain_live: "Guides · own domain went live",
+  guide_insights_write_page: "Guides · page started from Insights",
+  guide_feedback_resolved: "Guides · feedback resolved",
+  guide_feedback_reopened: "Guides · feedback reopened",
+  guide_insights_cleared: "Guides · Insights data deleted",
 };
 
 const METRIC_LABEL = { visitors: "Visitors", pageviews: "Page views", sessions: "Sessions" } as const;
