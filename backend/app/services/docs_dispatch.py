@@ -18,7 +18,8 @@ Routing:
   the job is queued; else the local worker). cf_host (a site's free address
   attached to / detached from the edge Worker on Cloudflare,
   services/docs_cf_hosts.py) the same way, by a process with the Cloudflare
-  token.
+  token, and domain (a site's own domains on Cloudflare for SaaS,
+  services/docs_custom_domains.py) by one with the token and the bucket keys.
 - import → Actions, always (GIF → clip conversion included). An import fetches
   whatever the given site and its llms.txt point at, so it never runs on the
   API box, and the API never fetches the source itself. With Actions
@@ -61,7 +62,7 @@ EST_MINUTES_IN_FLIGHT = 3  # a dispatched run not finished yet counts this much 
 FALLBACK_RECHECK = timedelta(minutes=2)
 DOWN_FOR = timedelta(minutes=5)
 
-SERVER_KINDS = ("restore", "unpublish", "access", "cf_host")
+SERVER_KINDS = ("restore", "unpublish", "access", "cf_host", "domain")
 HOLDER = f"api:{socket.gethostname()}:{os.getpid()}"
 
 _state: dict[str, Any] = {"down_until": None, "down_reason": None}
@@ -146,9 +147,15 @@ async def route(db: AsyncIOMotorDatabase, job: dict) -> str | None:
 async def run_server_job_here(db: AsyncIOMotorDatabase, job: dict, holder: str = HOLDER) -> bool:
     """Run a restore / unpublish / access job in this process when it holds the docs bucket keys
     (a cf_host job: the Cloudflare token)."""
-    from app.services import docs_build, docs_cf_hosts
+    from app.services import docs_build, docs_cf_hosts, docs_custom_domains
 
-    if not (docs_cf_hosts.configured() if job["kind"] == "cf_host" else docs_build.store_available()):
+    if job["kind"] == "cf_host":
+        ready = docs_cf_hosts.configured()
+    elif job["kind"] == "domain":
+        ready = docs_custom_domains.configured() and docs_build.store_available()
+    else:
+        ready = docs_build.store_available()
+    if not ready:
         return False
     claimed, _why = await docs_jobs.claim_job(db, job["_id"], holder)
     if claimed is None:
@@ -307,6 +314,10 @@ async def run_once(db: AsyncIOMotorDatabase, *, client: httpx.AsyncClient | None
     from app.services import docs_cf_hosts
 
     stats["cf_hosts_retried"] = await docs_cf_hosts.requeue_pending(db)
+    # A site's own domain due for a check (pending on Cloudflare), or one still being removed.
+    from app.services import docs_custom_domains
+
+    stats["domains_checked"] = await docs_custom_domains.requeue_due(db)
     busy = await docs_jobs.busy_sites(db)
     async for job in db[JOBS].find({"status": "queued"}).sort("created_at", 1).limit(100):
         await _advance(db, job, busy, client=client)

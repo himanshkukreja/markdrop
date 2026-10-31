@@ -286,6 +286,109 @@ which site a host serves; the custom domain only gets the request to the Worker.
   An exact DNS record that already exists for that host makes the attach fail (wildcard records
   don't). Delete the record, and the sweeper's next try attaches the address.
 
+## Own domains (Cloudflare for SaaS)
+
+A guide can also be served at a customer's own subdomain, like `help.acme.com`
+(backend/app/services/docs_custom_domains.py, the Settings card in
+frontend/src/components/docs-sites/SiteDomains.tsx, reader docs in
+frontend/content/docs/guides/site-settings.md "Your own domain"). The customer adds **one** record:
+
+    help.acme.com  CNAME  cname.guides.markdrop.in
+
+### How it works
+
+- **Custom hostnames.** The API registers the customer's name as a
+  [Cloudflare for SaaS custom hostname](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/start/getting-started/)
+  on the markdrop.in zone (`POST /zones/{zone}/custom_hostnames`, `ssl: {method: "http", type: "dv"}`;
+  [API](https://developers.cloudflare.com/api/resources/custom_hostnames/methods/create/)). Free for the
+  first 100 hostnames on any plan, then $0.10 each
+  ([plans](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/plans/)).
+- **Validation, with nothing but the CNAME.** Once the CNAME is in place, Cloudflare validates the
+  hostname by it ([real-time validation](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/domain-support/hostname-validation/realtime-validation/))
+  and completes the certificate's HTTP DCV itself at the edge
+  ([HTTP DCV](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/validate-certificates/http/)).
+  The TXT records Cloudflare also returns (`ownership_verification`,
+  [pre-validation](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/domain-support/hostname-validation/pre-validation/))
+  are shown as optional, for a domain behind another proxy. A hostname serves once `status` and
+  `ssl.status` are both `active`.
+- **Routing to this Worker.** A Worker route `*/*` on the zone matches every request entering it,
+  custom hostnames included
+  ([Workers as your fallback origin](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/start/advanced-settings/worker-as-origin/)),
+  and a route **without a Worker**, `*markdrop.in/*`, takes Markdrop's own names back out of it (the
+  most specific pattern wins, and a Worker-less route negates less specific ones:
+  [routes](https://developers.cloudflare.com/workers/configuration/routing/routes/),
+  [hostname routing](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/hostname-routing/)).
+  The fallback origin is an originless record, so nothing but the Worker ever answers. The free
+  `<slug>.guides.markdrop.in` addresses are unaffected: they stay Workers Custom Domains (above), which
+  run after routes. Requests then go through the same `hosts/<host>.json` lookup as every address
+  (`normalizeHost`: lowercase, no port, no trailing dot), and a password guide's sign-in is per host
+  (host-only `__Host-` cookies, grants bound to the host): test/domains.test.mjs.
+- **Lifecycle** (a `domain` server job, run inline by the API like `cf_host`): add → the job creates
+  the hostname (an existing one for the name is adopted) → the sweeper checks it again on a backoff
+  (1, 2, 5, 10, 15, 30 min, then hourly) → **live**: `hosts/<host>.json` is written (never over another
+  site's mapping; a stale one of a site that no longer holds the host goes first), the domain joins
+  the site's hosts (`docs_snapshot.site_hosts`: build spec hosts, canonical URL, sitemap, llms.txt, OG,
+  sign-in grants, CORS) and the live version is published again (same snapshot) so its links switch
+  now. Not live after **72 hours**: failed, its hostname deleted on Cloudflare (it would count against
+  the 100), with what was in the way; "Re-check" starts over. Remove (or deleting the guide): the
+  hostname and the mapping go, the entry is dropped, and the live version is published again at the
+  free address. One guide per domain (the `domain_host_unique` index), two per guide.
+- **Safety.** Before any call, `host_problem` refuses anything ending in `markdrop.in` (which also
+  keeps every name the exclusion route covers out), the zone, the docs domain, the CNAME target, the
+  app's own hosts, IP addresses, single labels, root domains, special-use and platform suffixes
+  (`workers.dev`, `vercel.app`, `github.io`…) and a host a Markdrop workspace uses. Every Cloudflare
+  record is checked to be the host asked about before it is changed or deleted. The token is never
+  logged. `cname`, `origin` and `fallback` are reserved slugs, so no guide can take the target's name.
+- **Root domains** (`acme.com`) are refused for now: DNS allows no CNAME at a zone apex, and the static
+  IPs an `A` record would need ([apex proxying](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/start/advanced-settings/apex-proxying/))
+  aren't available on our plan. A customer whose DNS flattens CNAMEs (Cloudflare, ALIAS/ANAME records)
+  could work with the TXT records; that's a later step. Customers redirect the root to the subdomain
+  at their DNS provider.
+- **www ↔ root redirects** aren't done: only subdomains are accepted, so there is no pair to redirect.
+
+### One-time owner setup (Cloudflare dashboard, markdrop.in zone)
+
+Do these in this order: the exclusion route must exist **before** the `*/*` route, or the `*/*`
+route would send markdrop.in itself to the docs Worker.
+
+1. **Enable Cloudflare for SaaS:** SSL/TLS › Custom Hostnames › Enable. (It may ask for a payment
+   method; the first 100 hostnames are free.)
+2. **The fallback origin record:** DNS › Records › Add: type `AAAA`, name `cname.guides`, IPv6
+   `100::`, **Proxied** (an originless record; the Worker answers).
+3. **Make it the fallback origin:** SSL/TLS › Custom Hostnames › Fallback Origin:
+   `cname.guides.markdrop.in` › Add Fallback Origin. Wait for **Active**.
+   (API: `PUT /zones/$ZONE/custom_hostnames/fallback_origin {"origin":"cname.guides.markdrop.in"}`.)
+4. **The exclusion route:** Workers Routes › Add route: `*markdrop.in/*`, Worker **None**.
+   (API: `POST /zones/$ZONE/workers/routes {"pattern":"*markdrop.in/*"}`.)
+5. **The catch-all route:** Workers Routes › Add route: `*/*`, Worker `markdrop-docs-edge`.
+   (API: `POST /zones/$ZONE/workers/routes {"pattern":"*/*","script":"markdrop-docs-edge"}`.) Then
+   check markdrop.in, api.markdrop.in and a guide's free address still answer as before.
+6. **Env** (API `.env`; the local worker reads the same):
+   - `MARKDROP_DOCS_CF_ZONE_ID`: the markdrop.in zone id (Overview › API › Zone ID). The custom
+     hostnames API is per zone.
+   - `MARKDROP_DOCS_CF_API_TOKEN`: the token above already works if it has **Zone › SSL and
+     Certificates › Edit** on markdrop.in (custom hostnames need exactly that; the routes and DNS
+     records above are made once by hand, but a token that also has Zone › Workers Routes › Edit and
+     Zone › DNS › Edit lets you do steps 2–5 over the API).
+   - `MARKDROP_DOCS_CUSTOM_DOMAIN_TARGET`: default `cname.guides.markdrop.in` (what customers point at;
+     change it only together with step 2–3).
+   - `MARKDROP_DOCS_CF_ZONE_NAME` (default `markdrop.in`) is shared with the free addresses.
+   While the token or zone id is blank, the Settings card says "Not available yet", the API answers
+   503 to an add, and nothing is queued or called.
+7. Restart the API.
+
+### Verify
+
+- Add `help.<a domain you control>` to a test guide, add the CNAME, and watch the card go Checking
+  DNS → Issuing certificate → Live (or choose Re-check).
+- `curl -s -H "Authorization: Bearer $TOKEN" "https://api.cloudflare.com/client/v4/zones/$ZONE/custom_hostnames?hostname=help.example.org"`
+  shows `"status": "active"` and `"ssl": {"status": "active"}` once live (SSL/TLS › Custom Hostnames
+  in the dashboard lists the same).
+- `dig +short CNAME help.example.org` gives `cname.guides.markdrop.in.`; `curl -sI https://help.example.org/`
+  gives a valid certificate and the guide; `hosts/help.example.org.json` is in the docs bucket.
+- The site's `docs_sites.domains` entry (`status`, `stage`, `message`, `checks`, `next_check_at`) and its
+  `docs_jobs` rows of kind `domain` (`error` carries what Cloudflare said).
+
 ## Commands
 
 ```bash
@@ -368,8 +471,9 @@ test/     edge.test.mjs · access.test.mjs · assets.test.mjs · runner.test.mjs
    URLs from our API (Fern's model) or a per-site upload token.
 4. **Publish → live delay.** The pointer is trusted in each isolate for 5 s (`POINTER_TTL_MS`).
    Lower costs an R2 read per request. Higher means slower publishes.
-5. **Hostname map.** Today it's R2 objects (`hosts/<host>.json`, cached 60 s per isolate). KV or
-   D1 would be the production choice with Cloudflare for SaaS custom hostnames.
+5. **Hostname map.** Today it's R2 objects (`hosts/<host>.json`, cached 60 s per isolate), for free
+   addresses and own domains alike ("Own domains"). KV or D1 would be the next step if the number of
+   hosts or lookups grows.
 6. **Self-host scope.** Ask AI needs the backend (BYO key or off). Also undecided: whether the
    self-host image should also accept prebuilt dists (`serve --store`) so it can run without the
    engine's `node_modules` (an image of about 1 GB vs about 100 MB).

@@ -64,6 +64,8 @@ RESERVED_SLUGS = frozenset({
     "account", "accounts", "billing", "settings", "sites", "site", "edge", "preview", "previews",
     "smtp", "imap", "pop", "ftp", "ns1", "ns2", "mx", "email", "webmail", "dev", "staging", "test",
     "internal", "security", "abuse", "postmaster", "hostmaster", "root", "official", "new",
+    # cname.guides.markdrop.in: the record customers' own domains point at (docs_custom_domains).
+    "cname", "origin", "fallback",
 })
 
 
@@ -119,6 +121,11 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
         "slug", unique=True, name="slug_unique", partialFilterExpression={"slug": {"$type": "string"}})
     await db[SITES].create_index([("workspace_id", 1), ("deleted_at", 1)])
     await db[SITES].create_index([("owner_id", 1), ("workspace_id", 1)])
+    # A guide's own domain belongs to one guide (services/docs_custom_domains.py). Partial: sites
+    # without domains aren't in the index.
+    await db[SITES].create_index(
+        "domains.host", unique=True, name="domain_host_unique",
+        partialFilterExpression={"domains.host": {"$type": "string"}})
 
     await db[PAGES].create_index(
         [("site_id", 1), ("path", 1)], unique=True, name="site_path_unique",
@@ -462,7 +469,7 @@ async def site_summary(db: AsyncIOMotorDatabase, site: dict, role: str | studio_
 
 async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_roles.Resolved, *,
                     job: dict | None = None) -> dict:
-    from app.services import docs_cf_hosts
+    from app.services import docs_cf_hosts, docs_custom_domains
 
     sid = site["_id"]
     live = await db[BUILDS].find_one({"_id": site["live_build_id"]}) if site.get("live_build_id") else None
@@ -479,7 +486,10 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_rol
         "owner_id": site.get("owner_id"),
         "source": site.get("source"),
         "settings": site_settings.public_view(site.get("settings") or {}),
-        "domains": site.get("domains") or [],
+        # Its own domains (services/docs_custom_domains.py; the DNS records for admins only) and
+        # whether this server offers them.
+        "domains": docs_custom_domains.view(site, details=details),
+        "own_domains": docs_custom_domains.available(),
         "live_build_id": str(site["live_build_id"]) if site.get("live_build_id") else None,
         "last_import_job_id": str(site["last_import_job_id"]) if site.get("last_import_job_id") else None,
         "live_build": build_view(live, names, details=details),
@@ -873,6 +883,11 @@ async def _take_down(db: AsyncIOMotorDatabase, site: dict, reason: str, extra: d
 
         await docs_cf_hosts.queue(db, site["_id"], reason,
                                   [docs_cf_hosts.free_host(site["slug"])] if site.get("slug") else [])
+    if "deleted_at" in extra and site.get("domains"):
+        # A deleted guide's own domains come off Cloudflare, and their names are free again.
+        from app.services import docs_custom_domains
+
+        await docs_custom_domains.take_down(db, site)
     if not was_live and building is None:
         return None
     return await enqueue_job(db, "unpublish", site["_id"], {"reason": reason, "slug": site.get("slug")})

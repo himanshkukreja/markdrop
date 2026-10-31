@@ -16,6 +16,7 @@ import { aRole, RoleBadge } from "./people/roles";
 import SitePeople from "./people/SitePeople";
 import RedirectsEditor from "./RedirectsEditor";
 import SiteBar from "./SiteBar";
+import SiteDomains from "./SiteDomains";
 import { useStudio } from "./studio/StudioContext";
 import { useSite } from "./SiteContext";
 
@@ -40,7 +41,7 @@ function Card({ id, title, aside, children, tone }: { id: string; title: React.R
 
 /**
  * /guides/<site>/settings (Settings board): the free address (and changing it), your own
- * domain (coming soon), Ask AI (on/off, usage, name, suggested questions), who can read it,
+ * domain (SiteDomains), Ask AI (on/off, usage, name, suggested questions), who can read it,
  * search indexing, reviews, GitHub sync status, redirects, and unpublish/delete. Admin-only to
  * change; everyone else sees the values.
  */
@@ -193,22 +194,7 @@ export default function SiteSettings() {
           )}
         </Card>
 
-        <Card id="domain" title="Your own domain" aside={<><Badge tone="info" size="sm">Coming soon</Badge><Button variant="secondary" size="sm" iconLeft="plus" disabled>Add a domain</Button></>}>
-          {(site.domains ?? []).map((d) => (
-            <div key={d.host} className="flex items-center gap-2.5 rounded-lg border border-border px-3.5 py-3">
-              <Icon name="globe" size={16} />
-              <code className="ph-sensitive ph-mask min-w-0 flex-1 truncate font-mono text-text" title={d.host}>{d.host}</code>
-              <Badge tone={d.status === "live" || d.status === "verified" ? "success" : d.status === "failed" ? "danger" : "warning"} size="sm" dot>
-                {d.status === "live" || d.status === "verified" ? "Live" : d.status === "failed" ? "Failed" : "Pending"}
-              </Badge>
-              {(d.status === "live" || d.status === "verified") && <Badge tone="info" size="sm" icon="lock">HTTPS</Badge>}
-            </div>
-          ))}
-          <p className="text-[13px] text-text-muted">
-            Soon: one CNAME record pointing to <code className="font-mono">sites.markdrop.in</code>, with the certificate handled for you. Want it at a path like <code className="font-mono">acme.com/help</code>? We&apos;ll show you the one rewrite rule to add.{" "}
-            <ReadMore topic="studioDomain" />
-          </p>
-        </Card>
+        <SiteDomains />
 
         <Card id="ai" title="Ask AI" aside={<Switch label={s.ai.enabled ? "On" : "Off"} checked={s.ai.enabled} disabled={locked || saving === "ai"} onChange={(e) => void patch("ai", { settings: { ai: { enabled: e.target.checked } } }, e.target.checked ? "Ask AI is on." : "Ask AI is off.")} />}>
           <p className="text-body text-text-secondary">Readers ask questions and get answers from your pages, with a link to the exact section each part came from. <ReadMore topic="studioAskAi" /></p>

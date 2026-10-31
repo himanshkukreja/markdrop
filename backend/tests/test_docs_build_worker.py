@@ -914,7 +914,7 @@ class WorkerTests(DbCase):
         self.assertIn("build", await worker.kinds_now())
         # Not enough free memory: builds wait (restores, imports and unpublishes still run).
         with mock.patch.object(w, "mem_available_mb", lambda: 600):
-            self.assertEqual(await worker.kinds_now(), ("import", "restore", "unpublish", "access", "cf_host"))
+            self.assertEqual(await worker.kinds_now(), ("import", "restore", "unpublish", "access", "cf_host", "domain"))
         # Another local build is running somewhere: one at a time.
         other = await self.make_site("other")
         await self.job("build", other, target="local", status="running", locked_until=utc(minutes=1), claimed_at=utc())
