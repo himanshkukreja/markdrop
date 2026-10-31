@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StatTile } from "@/components/kit/StatTile";
 import { Alert, Button, FileIcon, Pagination, Progress, Switch, Table, type Column } from "@/components/ui";
-import { adminFeatureUsage, adminListShareEvents, type AdminShareEventItem, type FeatureUsage } from "@/lib/api";
+import { adminFeatureUsage, adminListShareEvents, type AdminShareEventItem, type FeatureUsage, type GuidesUsage } from "@/lib/api";
 import { RangePicker, rangeParams, useAdminFetch, type RangeValue } from "./analytics/controls";
 import { BarList, ShareHealthCard, type Shares } from "./analytics/sections";
 import { Card, CardError, CardSkeleton, CardTitle } from "./analytics/ui";
@@ -71,6 +71,8 @@ export function ProductHealthPanel({ token, range, onRange }: { token: string; r
         )}
       </section>
 
+      {!usage.error && <GuidesAdoption g={u ? u.guides ?? {} : null} />}
+
       {u && (
         <Card aria-labelledby="types-h">
           <CardTitle id="types-h" title="Artifacts by type" sub="Count and storage for every artifact published" />
@@ -90,6 +92,29 @@ export function ProductHealthPanel({ token, range, onRange }: { token: string; r
 
       <ShareLog token={token} />
     </div>
+  );
+}
+
+const SOURCE_LABEL: Record<string, string> = { blank: "blank", template: "template", gitbook: "GitBook", github: "GitHub" };
+
+/** Markdrop Guides, all time: who makes sites, who publishes, imports and Ask AI (docs_events). */
+function GuidesAdoption({ g }: { g: Partial<GuidesUsage> | null }) {
+  const n = (v: number | undefined) => (v ?? 0).toLocaleString("en");
+  const sources = g ? Object.entries(g.by_source ?? {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${SOURCE_LABEL[k] ?? k}`).join(", ") : "";
+  return (
+    <section aria-labelledby="guides-h" className="flex flex-col gap-3">
+      <h2 id="guides-h" className="text-h4 text-text">Guides <span className="text-caption font-normal text-text-secondary">· all time</span></h2>
+      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4">
+        <StatTile size="md" icon="layers" loading={!g} label="Guide sites" value={g ? n(g.sites) : ""}
+          caption={g ? `${n(g.sites_live)} live · ${plural(g.creators ?? 0, "creator")}${sources ? ` · ${sources}` : ""}${g.sites_deleted ? ` · ${n(g.sites_deleted)} deleted` : ""}` : undefined} />
+        <StatTile size="md" icon="send" loading={!g} label="Guide publishes" value={g ? n(g.publishes) : ""}
+          caption={g ? `${plural(g.publishers ?? 0, "publisher")} · ${n(g.builds_live)} went live · ${n(g.builds_failed)} failed${g.reviews_submitted ? ` · ${plural(g.reviews_submitted, "review")}` : ""}` : undefined} />
+        <StatTile size="md" icon="download" loading={!g} label="GitBook imports" value={g ? n(g.imports) : ""}
+          caption={g ? `${n(g.imports_finished)} finished · ${n(g.imports_failed)} failed` : undefined} />
+        <StatTile size="md" icon="sparkle" loading={!g} label="Ask AI answers on guides" value={g ? n(g.ai_answers) : ""}
+          caption={g ? `On ${plural(g.ai_sites ?? 0, "site")}` : undefined} />
+      </div>
+    </section>
   );
 }
 

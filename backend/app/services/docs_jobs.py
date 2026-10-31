@@ -360,7 +360,33 @@ async def fail(db: AsyncIOMotorDatabase, job_id: Any, worker: str | None, error:
     if result is not None:
         upd["result"] = result
     res = await db[JOBS].update_one(q, {"$set": upd})
-    return res.matched_count == 1
+    if res.matched_count != 1:
+        return False
+    # Usage: a failed import is counted (admin Product health); builds log their own outcome.
+    try:
+        job = await db[JOBS].find_one({"_id": oid(job_id)}, {"kind": 1, "site_id": 1, "payload": 1, "created_at": 1})
+        if job and job.get("kind") == "import":
+            payload = job.get("payload") or {}
+            src = payload.get("source")
+            kind = (src.get("kind") if isinstance(src, dict) else src) or "gitbook"
+            await log_event(db, "docs_import_failed", job["site_id"], payload.get("requested_by"),
+                            source=str(kind)[:20], took=duration_bucket(job.get("created_at"), t))
+    except Exception:  # pragma: no cover - tracking must never fail the job's bookkeeping
+        pass
+    return True
+
+
+def duration_bucket(start: datetime | None, end: datetime | None = None) -> str | None:
+    """How long something took, coarsely ("<1m", "1-5m", "5-15m", "15-60m", ">1h"): enough to see
+    slow imports in the admin, never a timestamp."""
+    start = aware(start)
+    if start is None:
+        return None
+    secs = ((aware(end) or now()) - start).total_seconds()
+    for limit, label in ((60, "<1m"), (300, "1-5m"), (900, "5-15m"), (3600, "15-60m")):
+        if secs < limit:
+            return label
+    return ">1h"
 
 
 async def exhausted_jobs(db: AsyncIOMotorDatabase) -> list[dict]:

@@ -951,6 +951,30 @@ export interface AdminUserListItem {
   share_count: number;
   artifact_count: number;
   artifact_bytes: number;
+  /** Markdrop Guides: sites they own, and publishes they started. Absent on an older backend. */
+  guides_site_count?: number;
+  guides_publish_count?: number;
+}
+
+/** Markdrop Guides adoption, all time (admin feature usage). */
+export interface GuidesUsage {
+  sites: number;
+  sites_live: number;
+  sites_deleted: number;
+  /** Live (not deleted) sites by how they started: blank, template, gitbook, github. */
+  by_source: Record<string, number>;
+  creators: number;
+  publishers: number;
+  publishes: number;
+  builds_live: number;
+  builds_failed: number;
+  reviews_submitted: number;
+  restores: number;
+  imports: number;
+  imports_finished: number;
+  imports_failed: number;
+  ai_answers: number;
+  ai_sites: number;
 }
 
 export interface FeatureUsage {
@@ -978,6 +1002,8 @@ export interface FeatureUsage {
   artifact_bytes: number;
   artifact_protected: number;
   artifact_by_type: { renderer: ArtifactRenderer; label: string; count: number; bytes: number }[];
+  /** Absent (or empty) on an older backend. */
+  guides?: Partial<GuidesUsage>;
 }
 
 export interface AdminShareEventItem {

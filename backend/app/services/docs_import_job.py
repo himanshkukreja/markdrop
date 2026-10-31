@@ -442,6 +442,8 @@ async def apply_import(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
         "skipped": skipped[:100],
     }
     await docs_jobs.complete(db, job["_id"], worker, result)
-    await docs_jobs.log_event(db, "docs_import_finished", site_id, by, source=source_of(job).get("url"),
-                              pages=len(ids_by_path), assets=assets.get("files"))
+    # Usage counts only: the kind of source, never its address (the site row keeps that).
+    await docs_jobs.log_event(db, "docs_import_finished", site_id, by, source=source_of(job).get("kind"),
+                              pages=len(ids_by_path), assets=assets.get("files"),
+                              took=docs_jobs.duration_bucket(job.get("created_at"), t))
     return result

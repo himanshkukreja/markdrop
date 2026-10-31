@@ -51,6 +51,7 @@ const FUNNEL_PRESETS: { label: string; steps: Step[] }[] = [
   { label: "Visit → sign in", steps: [{ t: "visit" }, { t: "page", v: "/login" }, { t: "event", v: "logged_in" }] },
   { label: "Visit → send files", steps: [{ t: "visit" }, { t: "page", v: "/share" }, { t: "event", v: "share_started" }] },
   { label: "Open share link → download", steps: [{ t: "page", v: "/share/[id]" }, { t: "event", v: "share_download" }] },
+  { label: "Guides: new site → publish", steps: [{ t: "page", v: "/guides/new" }, { t: "event", v: "guide_created" }, { t: "event", v: "guide_publish_requested" }] },
 ];
 
 const EVENT_LABELS: Record<string, string> = {
@@ -66,6 +67,31 @@ const EVENT_LABELS: Record<string, string> = {
   landing_cta: "Landing call to action clicked",
   toy_play: "Played a landing toy",
   toy_done: "Finished a landing toy",
+  // Markdrop Guides (lib/guidesEvents)
+  guide_created: "Guides · site created",
+  guide_import_started: "Guides · import started",
+  guide_page_created: "Guides · page created",
+  guide_page_deleted: "Guides · page deleted",
+  guide_page_restored: "Guides · page version restored",
+  guide_publish_requested: "Guides · publish requested",
+  guide_review_submitted: "Guides · review submitted",
+  guide_review_approved: "Guides · review approved",
+  guide_review_changes_requested: "Guides · changes requested",
+  guide_review_withdrawn: "Guides · review withdrawn",
+  guide_restored: "Guides · earlier publish restored",
+  guide_design_saved: "Guides · design saved",
+  guide_renamed: "Guides · site renamed",
+  guide_address_changed: "Guides · address changed",
+  guide_ask_ai_toggled: "Guides · Ask AI turned on/off",
+  guide_ask_ai_renamed: "Guides · Ask AI renamed",
+  guide_ask_ai_questions: "Guides · suggested questions changed",
+  guide_access_changed: "Guides · access changed",
+  guide_indexing_changed: "Guides · search indexing changed",
+  guide_reviews_required: "Guides · review rule changed",
+  guide_redirects_saved: "Guides · redirects saved",
+  guide_member_role_changed: "Guides · member role changed",
+  guide_unpublished: "Guides · site unpublished",
+  guide_deleted: "Guides · site deleted",
 };
 
 const METRIC_LABEL = { visitors: "Visitors", pageviews: "Page views", sessions: "Sessions" } as const;
