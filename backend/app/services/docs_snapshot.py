@@ -330,8 +330,7 @@ def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str,
                    insights=insights_enabled(site))
     if api_spec:
         add_api_reference(sj, settings, api_spec, _date(api_spec.get("created_at")) or default_updated)
-    files["site.json"] = json.dumps(sj, indent=2, ensure_ascii=False) + "
-"
+    files["site.json"] = json.dumps(sj, indent=2, ensure_ascii=False) + "\n"
     # The site's own redirects (Settings, and the ones a page move adds) over an import's: both
     # reach readers, Settings wins on the same address, chains end in one hop.
     from app.services.docs_site_redirects import merged
