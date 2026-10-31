@@ -65,6 +65,16 @@ async def from_url(request: Request, site_id: str, body: FromUrl, db: AsyncIOMot
     return await api_spec.status(db, site)
 
 
+@router.post("/{site_id}/api-reference/sample", status_code=201)
+@limiter.limit("10/minute")
+async def use_sample(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                     user: User = Depends(require_user)):
+    """The sample description (a fictional Northwind API) as the current version."""
+    site, _role = await store.load_site(db, site_id, user, "editor")
+    await api_spec.use_sample(db, site, user)
+    return await api_spec.status(db, site)
+
+
 @router.post("/{site_id}/api-reference/versions/{version_id}/restore")
 @limiter.limit("30/minute")
 async def restore(request: Request, site_id: str, version_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
