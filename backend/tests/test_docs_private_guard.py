@@ -14,6 +14,10 @@ class PrivateSitesGuardTests(DocsSitesCase):
             await self.call("PATCH", f"/{self.sid}", json={"settings": {"access": {"level": level}}}, expect=422)
         site = await self.get(f"/{self.sid}")
         self.assertEqual(site["settings"]["access"]["level"], "public")
+        # The site view says so: Settings › Readers and access marks them "Coming soon".
+        self.assertIs(site["private_access"], False)
+        settings.docs_private_sites_enabled = True
+        self.assertIs((await self.get(f"/{self.sid}"))["private_access"], True)
 
     async def test_publish_and_restore_refuse_a_non_public_site(self):
         b = await self.call("POST", f"/{self.sid}/publish", json={}, expect=202)

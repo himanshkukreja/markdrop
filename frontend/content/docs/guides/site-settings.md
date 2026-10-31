@@ -110,10 +110,10 @@ The OpenAPI file your guide's API reference is generated from: drop it in or fet
 
 Under **Readers and access**, three choices: **Anyone**, **Anyone with the password** and **Workspace members**.
 
-![Readers and access: Who can read it with Anyone (selected), Anyone with the password and Acme members, and Show in search engines turned on.](/docs-assets/guides/site-settings/settings-access.webp)
+![Readers and access: Who can read it with Anyone (selected), and Anyone with the password and Acme members each marked Coming soon; Show in search engines turned on.](/docs-assets/guides/site-settings/settings-access.webp)
 
 :::note[Coming soon]
-For now every published guide is public: **Anyone** can read it. **Anyone with the password** (for a beta or a partner preview) and **Workspace members only** (readers sign in with Markdrop) are listed but aren't available yet; choosing one says so and keeps the guide public.
+For now every published guide is public: **Anyone** can read it. **Anyone with the password** (for a beta or a partner preview) and **Workspace members only** (readers sign in with Markdrop) are listed, marked **Coming soon**, and can't be chosen yet.
 :::
 
 **Show in search engines** is on by default. Turn it off to keep the guide out of search results, for example while it's a work in progress: after the next publish, every page asks search engines not to index it (a `noindex` tag and header), `robots.txt` disallows crawling, and the sitemap is empty. Readers with the link can still open the site.
