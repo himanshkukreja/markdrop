@@ -101,7 +101,7 @@ export function LiveView({ live, builds, setup, restoring, onRestore }: {
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
         <Checklist setup={setup} />
         <History builds={builds} restoring={restoring} onRestore={onRestore} />
       </div>

@@ -217,7 +217,7 @@ export default function CompareScreen() {
       )}
 
       {data && data.pages.length > 0 && (
-        <div className={cx("grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]", loading && "opacity-70")} aria-busy={loading || undefined}>
+        <div className={cx("grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]", loading && "opacity-70")} aria-busy={loading || undefined}>
           <nav aria-label="Changed pages" className="ph-no-capture flex max-h-[70dvh] flex-col overflow-y-auto rounded-xl border border-border bg-surface lg:sticky lg:top-[80px]">
             {data.pages.map((p) => {
               const on = sel?.id === p.id;
@@ -273,6 +273,9 @@ export default function CompareScreen() {
               {sel.moved_from && <p className="border-b border-border px-4 py-2 text-[12px] text-text-muted">Moved from <span className="ph-sensitive ph-mask font-mono">{sel.moved_from}</span> to <span className="ph-sensitive ph-mask font-mono">{sel.path}</span></p>}
               {sel.change === "edited" && !sel.added_lines && !sel.removed_lines && (
                 <p className="px-4 py-3 text-[13px] text-text-muted">The text is the same; {sel.fields?.length ? `the page's ${sel.fields.map((f) => (f === "path" ? "address" : f)).join(", ")} changed` : "only page details changed"}.</p>
+              )}
+              {sel.rows.length === 0 && (sel.change !== "edited" || sel.added_lines || sel.removed_lines) && (
+                <p className="px-4 py-3 text-[13px] text-text-muted">{sel.change === "removed" ? "The page was empty." : "The page is empty so far."}</p>
               )}
               <div className="ph-sensitive ph-mask">
                 {view === "split" ? <SplitDiff rows={sel.rows} /> : <TextDiff rows={sel.rows} />}

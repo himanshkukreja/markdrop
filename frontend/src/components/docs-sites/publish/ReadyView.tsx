@@ -104,7 +104,7 @@ export function ReadyView(props: {
       {props.loadError && (
         <Alert tone="danger" title="We couldn't load this" actions={<Button size="sm" variant="secondary" onClick={props.onRetry}>Try again</Button>}>{props.loadError}</Alert>
       )}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <section aria-labelledby={`${uid}-ch`} className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-col gap-1">
             <h1 id={`${uid}-ch`} className="text-[26px] font-bold leading-8 tracking-[-0.02em] text-text">

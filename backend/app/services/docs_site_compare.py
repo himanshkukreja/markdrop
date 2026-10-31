@@ -241,7 +241,9 @@ async def compare_versions(db: AsyncIOMotorDatabase, site: dict, ref_from: str, 
     meta_to, new = await _version(db, site, ref_to)
     res = compare(old, new)
     chosen = next((p for p in res["pages"] if p["id"] == page_id), None) if page_id else None
-    chosen = chosen or (res["pages"][0] if res["pages"] else None)
+    # By default the first edited page (the diff says most there), else the first change.
+    chosen = chosen or next((p for p in res["pages"] if p["change"] == "edited"), None) \
+        or (res["pages"][0] if res["pages"] else None)
     page = None
     if chosen is not None:
         o = next((p for p in (old or {}).get("pages") or [] if p.get("page_id") == chosen["id"]), None)

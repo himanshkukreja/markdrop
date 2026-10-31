@@ -88,7 +88,7 @@ function PublishControls({ preview }: { preview: boolean }) {
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => guideEvents.liveOpened("site_bar")}
-          className="md-focus inline-flex h-[30px] min-w-0 max-w-[260px] shrink items-center gap-1.5 rounded-full bg-success-soft px-2.5 text-[12px] font-semibold text-success no-underline hover:underline"
+          className="md-focus inline-flex h-[30px] min-w-0 max-w-[340px] shrink items-center gap-1.5 rounded-full bg-success-soft px-2.5 text-[12px] font-semibold text-success no-underline hover:underline"
           title={`Open ${host} in a new tab`}
         >
           <span className="size-[7px] shrink-0 rounded-full bg-success" aria-hidden />
