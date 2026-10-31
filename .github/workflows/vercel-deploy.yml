@@ -1,0 +1,70 @@
+name: Deploy frontend to Vercel (prebuilt)
+
+# Builds the frontend here (free for a public repo) and uploads the result with
+# `vercel deploy --prebuilt`, so Vercel serves traffic but never builds: no build minutes.
+#
+# Off until the repository variable VERCEL_PREBUILT is "on". One-time setup (repo Settings ›
+# Secrets and variables › Actions):
+#   secret   VERCEL_TOKEN       a Vercel token scoped to the team, with an expiry
+#   variable VERCEL_ORG_ID      the team id
+#   variable VERCEL_PROJECT_ID  the markdrop project id
+#   variable VERCEL_PREBUILT    on
+# Then run this workflow once by hand, check the deployment, and only after that turn off
+# Vercel's own Git builds (frontend/vercel.json "git": {"deploymentEnabled": false}).
+# Rollback: set VERCEL_PREBUILT to off and remove that vercel.json line.
+#
+# Runtime secrets (MARKDROP_INTERNAL_SECRET) stay in the Vercel project's settings: the build
+# doesn't read them, and deployed functions get them from there.
+
+on:
+  push:
+    branches: [main]
+    paths: ["frontend/**", ".github/workflows/vercel-deploy.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: vars.VERCEL_PREBUILT == 'on'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: frontend/.next/cache
+          key: next-${{ hashFiles('frontend/package-lock.json') }}-${{ github.sha }}
+          restore-keys: next-${{ hashFiles('frontend/package-lock.json') }}-
+
+      - name: Pull the project settings and production env
+        run: npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build
+        run: npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy the build to production
+        run: npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
