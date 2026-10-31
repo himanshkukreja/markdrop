@@ -244,9 +244,103 @@ export interface Build {
   warnings?: string[];
   /** On GET /builds: this is the build readers see now. */
   live?: boolean;
+  /** On GET /builds: what it changed against the publish before it that went live. */
+  changes?: ChangeSummary | null;
+  /** On GET /builds and /publish-status, while it runs. */
+  progress?: PublishProgress | null;
   created_at: string;
   started_at?: string | null;
   finished_at?: string | null;
+}
+
+/** Pages added / edited / removed and the published settings that changed ("theme" is the design). */
+export interface ChangeSummary {
+  added: number;
+  edited: number;
+  removed: number;
+  design: boolean;
+  redirects: boolean;
+  /** The API reference. */
+  api: boolean;
+  /** "theme" | "nav" | "redirects" | "ai" | "seo" | "api" | "name" | "address" */
+  settings: string[];
+}
+
+/** A running publish (backend docs_site_compare.progress_view). */
+export interface PublishProgress {
+  stage: "waiting" | "pages" | "extras" | "live";
+  percent: number;
+  step?: string | null;
+  pages_done: number;
+  pages_total: number;
+  eta_seconds: number;
+  elapsed_seconds: number;
+}
+
+/** GET /docs-sites/<site>/publish-status: the site bar's state on every studio screen. */
+export interface PublishStatus {
+  count: number;
+  ever_published: boolean;
+  summary: ChangeSummary;
+  status: SiteStatus;
+  running: Build | null;
+  running_count: number;
+  live: Build | null;
+  latest: Build | null;
+}
+
+/** One side of a comparison: a publish, the drafts, or nothing (no publish is live). */
+export interface CompareSide {
+  ref: string;
+  kind: "publish" | "drafts" | "none";
+  number?: number;
+  status?: BuildStatus;
+  live?: boolean;
+  note?: string | null;
+  requested_by_name?: string | null;
+  at?: string | null;
+}
+
+export interface ComparePage {
+  id: string;
+  path: string;
+  title: string;
+  change: "added" | "edited" | "removed";
+  added_lines: number;
+  removed_lines: number;
+  moved_from?: string | null;
+  /** Edited: the page fields that changed besides its Markdown. */
+  fields?: string[];
+}
+
+export interface DiffRow {
+  op: "same" | "add" | "del" | "gap";
+  /** A gap's text: how many unchanged lines it skips. */
+  text: string;
+  a: number | null;
+  b: number | null;
+}
+
+/** GET /docs-sites/<site>/compare */
+export interface CompareResponse {
+  from: CompareSide;
+  to: CompareSide;
+  pages: ComparePage[];
+  summary: ChangeSummary;
+  page: (ComparePage & { rows: DiffRow[]; truncated: boolean }) | null;
+}
+
+/** GET /docs-sites/<site>/setup: the "Finish setting up" checklist's facts. */
+export interface SetupStatus {
+  pages: number;
+  look_chosen: boolean;
+  published: boolean;
+  live_since: string | null;
+  own_domain: boolean;
+  own_domain_live: boolean;
+  /** People with a Guides role on it; null for a personal guide. */
+  team: number | null;
+  insights_data: boolean;
 }
 
 export interface Usage {
@@ -728,6 +822,26 @@ export function saveNav(siteId: string, nav: NavGroup[]): Promise<{ nav: NavGrou
 
 export function getChanges(siteId: string): Promise<ChangesResponse> {
   return request(`/${enc(siteId)}/changes`);
+}
+
+/** Changes waiting, the running publish (with progress) and the live one: the site bar polls it. */
+export function getPublishStatus(siteId: string): Promise<PublishStatus> {
+  return request(`/${enc(siteId)}/publish-status`);
+}
+
+/** `from`: a publish id or "live"; `to`: a publish id, "live" or "drafts". `page`: whose line diff. */
+export function comparePublishes(siteId: string, from: string, to: string, page?: string | null): Promise<CompareResponse> {
+  return request(`/${enc(siteId)}/compare${q({ from, to, page })}`);
+}
+
+export function getSetup(siteId: string): Promise<SetupStatus> {
+  return request(`/${enc(siteId)}/setup`);
+}
+
+/** Every address readers can use: live own domains first, then the free one. */
+export function liveAddresses(s: Pick<SiteSummary, "slug" | "url" | "domains">): Array<{ host: string; own: boolean }> {
+  const own = (s.domains ?? []).filter((d) => d.status === "live" || d.status === "verified").map((d) => ({ host: d.host, own: true }));
+  return [...own, { host: siteHost(s), own: false }];
 }
 
 /** 202: the queued build and its job. 409 "review required" for editors when the site needs a review; 429 at the daily cap. */

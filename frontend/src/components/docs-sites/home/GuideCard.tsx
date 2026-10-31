@@ -52,14 +52,14 @@ function ViewButton({ site, className }: { site: SiteSummary; className?: string
   );
 }
 
-/** The guide's other screens and actions: Design, Publishes, Insights, Settings, copy its address, Members, Delete. */
+/** The guide's other screens and actions: Design, Publish, Insights, Settings, copy its address, Members, Delete. */
 function MoreMenu({ site, canManagePeople, onDelete }: Pick<GuideItemProps, "site" | "canManagePeople" | "onDelete">) {
   const toast = useToast();
   const base = siteBase(site.id);
   const admin = isAdminRole(site.your_role);
   const items: MenuEntry[] = [
     { label: "Design", href: `${base}/design`, icon: "image" },
-    { label: "Publishes", description: "Publish, reviews and history", href: `${base}/publish`, icon: "history" },
+    { label: "Publish", description: "Changes, reviews and history", href: `${base}/publish`, icon: "history" },
     { label: "Insights", href: `${base}/insights`, icon: "chart" },
     { label: "Settings", href: `${base}/settings`, icon: "settings" },
   ];

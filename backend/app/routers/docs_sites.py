@@ -26,6 +26,7 @@ from app.routers.docs_site_pages import router as pages_router
 from app.routers.docs_site_people import router as people_router
 from app.schemas.docs_site import PublishRequest, ReviewCreate, ReviewDecision, SiteCreate, SiteUpdate
 from app.services import docs_site_assets as assets
+from app.services import docs_site_compare as compare
 from app.services import docs_site_publish as publishing
 from app.services import docs_site_store as store
 
@@ -133,6 +134,39 @@ async def changes(request: Request, site_id: str, db: AsyncIOMotorDatabase = Dep
                   user: User = Depends(require_user)):
     site, _role = await store.load_site(db, site_id, user)
     return await publishing.changes(db, site)
+
+
+@router.get("/{site_id}/publish-status")
+@limiter.limit("240/minute")
+async def publish_status(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                         user: User = Depends(require_user)):
+    """The site bar's state on every studio screen: changes waiting, the running publish (with
+    its progress) and the live one. Viewers and up."""
+    site, role = await store.load_site(db, site_id, user)
+    return await compare.publish_status(db, site, details=store.sees_details(role))
+
+
+@router.get("/{site_id}/compare")
+@limiter.limit("120/minute")
+async def compare_versions(request: Request, site_id: str,
+                           ref_from: str = Query("live", alias="from", max_length=40),
+                           ref_to: str = Query("drafts", alias="to", max_length=40),
+                           page: str | None = Query(None, max_length=40),
+                           db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """What changed between two publishes, or the live publish and the drafts (``to=drafts``):
+    pages added / edited / removed with line counts, settings that changed, and one page's line
+    diff (``page``, else the first changed page). Viewers and up."""
+    site, _role = await store.load_site(db, site_id, user)
+    return await compare.compare_versions(db, site, ref_from, ref_to, page)
+
+
+@router.get("/{site_id}/setup")
+@limiter.limit("120/minute")
+async def setup_status(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                       user: User = Depends(require_user)):
+    """The Publish screen's "Finish setting up" checklist, from the guide's real state."""
+    site, _role = await store.load_site(db, site_id, user)
+    return await compare.setup_status(db, site)
 
 
 @router.post("/{site_id}/publish", status_code=202)

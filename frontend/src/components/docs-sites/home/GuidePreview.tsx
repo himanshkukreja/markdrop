@@ -49,12 +49,12 @@ export function GuideMark({ site, size, dark }: { site: SiteSummary; size: numbe
  * brand accent and logo when "Match my brand" is on): header with its name and search, a sidebar
  * when the theme has one, a page title, lines and a callout. Decorative (aria-hidden).
  */
-export function GuidePreview({ site, className }: { site: SiteSummary; className?: string }) {
+export function GuidePreview({ site, className, height }: { site: SiteSummary; className?: string; height?: number }) {
   const dark = usePreviewDark(site.theme);
   const t = tokensFor(site, dark);
   const bar = (w: number | string, h: number, bg: string, r = 3) => <span className="block shrink-0" style={{ width: w, height: h, borderRadius: r, background: bg }} />;
   return (
-    <div aria-hidden className={cx("ph-no-capture flex h-[132px] flex-col overflow-hidden rounded-t-[10px] border border-b-0", className)} style={{ background: t.bg, borderColor: t.line }}>
+    <div aria-hidden className={cx("ph-no-capture flex h-[132px] flex-col overflow-hidden rounded-t-[10px] border border-b-0", className)} style={{ background: t.bg, borderColor: t.line, ...(height ? { height } : null) }}>
       <div className="flex h-[26px] shrink-0 items-center gap-1.5 border-b px-2.5" style={{ background: t.header, borderColor: t.line }}>
         <GuideMark site={site} size={14} dark={dark} />
         <span className="ph-sensitive ph-mask min-w-0 truncate text-[10px] font-bold leading-none" style={{ color: t.text, fontFamily: t.head }} dir="auto">{site.name}</span>

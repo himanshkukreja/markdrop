@@ -546,12 +546,12 @@ export default [
     url: null,
     prepare: async (h) => {
       await h.goto(S(h, "/publish"));
-      await h.loc({ role: "heading", name: "Publishes" }).waitFor();
+      await h.loc({ role: "heading", name: "Publish history" }).waitFor();
       await h.page.getByText("First version").waitFor();
       await settle(h);
     },
     crop: async (h) => {
-      const sel = await mark(h, "hist", () => document.querySelector("main section:last-of-type"));
+      const sel = await mark(h, "hist", () => document.querySelector("#history"));
       return { selector: sel, pad: 12 };
     },
   },
@@ -719,14 +719,14 @@ export default [
       await api(h, "PUT", `/api/v1/docs-sites/${id}/pages/${pid}`, { base_rev: page.rev, markdown: md, title: page.title, description: page.description }, "jordan");
       await api(h, "DELETE", `/api/v1/docs-sites/${id}/pages/${pid}/lock`, null, "jordan");
       await h.goto(`/guides/${id}/publish`);
-      await h.page.getByText("1 change since the last publish").waitFor();
+      await h.page.getByText("1 change ready to publish").waitFor();
       await settle(h);
     },
     steps: async (h) => {
       await h.type(h.loc({ label: "What changed (optional)" }), "Release notes: webhook headers", { speed: 2 });
-      await h.click({ role: "button", name: "Publish", exact: true }, { after: 2600 });
+      await h.click({ role: "button", name: "Publish 1 change", exact: true, nth: 1 }, { after: 2600 });
       await h.cut(async () => {
-        await h.page.getByText(/Published\. Live at/).waitFor({ timeout: 240_000 });
+        await h.page.getByText(/Publish #\d+ is live/).waitFor({ timeout: 240_000 });
       });
       await h.sleep(2200);
     },
@@ -765,7 +765,7 @@ export default [
       await settle(h);
     },
     crop: async (h) => {
-      const sel = await mark(h, "left", () => document.querySelector("main section"));
+      const sel = await mark(h, "left", () => document.querySelector("main aside"));
       return { selector: sel, pad: 12 };
     },
   },
@@ -820,7 +820,7 @@ export default [
       await h.hover(h.page.getByText(/“Annual plans/), 900);
       await h.click({ role: "button", name: "Approve and publish" }, { after: 2600 });
       await h.cut(async () => {
-        await h.page.getByText(/Published\. Live at/).waitFor({ timeout: 240_000 });
+        await h.page.getByText(/Publish #\d+ is live/).waitFor({ timeout: 240_000 });
       });
       await h.sleep(2200);
     },
@@ -1086,12 +1086,12 @@ export default [
       await h.page.getByText(/Draft · saved/).waitFor({ timeout: 20_000 });
       await h.sleep(1200);
       await h.caption("");
-      await h.click({ role: "link", name: "Publish…" }, { after: 1200 });
+      await h.click({ role: "link", name: /^Publish/ }, { after: 1200 });
       await h.caption("Publish: every publish is numbered, and you can go back", 600);
       await h.type(h.loc({ label: "What changed (optional)" }), "First version", { speed: 2 });
-      await h.click({ role: "button", name: "Publish", exact: true }, { after: 2400 });
+      await h.click({ role: "button", name: /^Publish \d+ change/, nth: 1 }, { after: 2400 });
       await h.cut(async () => {
-        await h.page.getByText(/Published\. Live at/).waitFor({ timeout: 240_000 });
+        await h.page.getByText(/Publish #\d+ is live/).waitFor({ timeout: 240_000 });
       });
       await h.sleep(1800);
       await h.caption("Live at northwind-help.guides.markdrop.in", 600);

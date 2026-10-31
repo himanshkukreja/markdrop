@@ -27,6 +27,13 @@
  *   guide_insights_write_page     source: search|ask|both (Insights › "Write a page" for something readers couldn't find)
  *   guide_feedback_resolved / guide_feedback_reopened
  *   guide_insights_cleared        (an admin deleted the collected data)
+ *   guide_publish_started         from: site_bar|publish_screen|design_banner (where Publish was pressed)
+ *   guide_compare_viewed          from: publish|none, to: publish|drafts
+ *   guide_compare_view_changed    view: text|split
+ *   guide_live_opened             from: site_bar|publish|toast|compare|banner (the live guide in a new tab)
+ *   guide_address_copied          own (an own domain, else the free address)
+ *   guide_share_copied
+ *   guide_setup_step_opened       step: pages|look|publish|domain|team|insights
  *
  * What finishes on the server (a build going live or failing, an import finishing or failing) is
  * recorded there, in docs_events, and shown in the admin's Product health tab.
@@ -68,6 +75,13 @@ export const guideEvents = {
   insightsWritePage: (source: "search" | "ask" | "both") => emit("guide_insights_write_page", { source }),
   feedbackResolved: (resolved: boolean) => emit(resolved ? "guide_feedback_resolved" : "guide_feedback_reopened"),
   insightsCleared: () => emit("guide_insights_cleared"),
+  publishStarted: (from: "site_bar" | "publish_screen" | "design_banner") => emit("guide_publish_started", { from }),
+  compareViewed: (from: "publish" | "none", to: "publish" | "drafts") => emit("guide_compare_viewed", { from, to }),
+  compareView: (view: "text" | "split") => emit("guide_compare_view_changed", { view }),
+  liveOpened: (from: "site_bar" | "publish" | "toast" | "compare" | "banner") => emit("guide_live_opened", { from }),
+  addressCopied: (own: boolean) => emit("guide_address_copied", { own }),
+  shareCopied: () => emit("guide_share_copied"),
+  setupStep: (step: "pages" | "look" | "publish" | "domain" | "team" | "insights") => emit("guide_setup_step_opened", { step }),
   memberRole: (scope: "workspace" | "site", role: string | null) =>
     emit("guide_member_role_changed", { scope, role: role === null ? "inherit" : pick(role, ROLES) ?? "other" }),
 };

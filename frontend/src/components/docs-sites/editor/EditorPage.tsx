@@ -16,6 +16,7 @@ import {
   type NavGroup, type Page, type PageSummary, type PagesResponse, type SaveConflict,
 } from "@/lib/docsSites";
 import { firstName, timeAgo } from "../format";
+import { usePublishState } from "../PublishState";
 import SiteBar, { STUDIO_CHROME_H } from "../SiteBar";
 import { useSite } from "../SiteContext";
 import PageSidePanel from "./PageSidePanel";
@@ -156,12 +157,15 @@ export default function EditorPage() {
     if (!wanted && firstPage) window.history.replaceState(window.history.state, "", hrefFor(firstPage));
   }, [wanted, firstPage, hrefFor]);
 
+  const { refreshSoon } = usePublishState();
   const onSaved = useCallback((p: Page) => {
+    // The site bar's "Publish N changes" counts this one too.
+    refreshSoon();
     setTree((t) => t && {
       ...t,
       pages: t.pages.map((x) => (x.id === p.id ? { ...x, title: p.title, path: p.path, icon: p.icon ?? null, hidden: p.hidden, has_changes: true } : x)),
     });
-  }, []);
+  }, [refreshSoon]);
 
   const session = usePageSession({ siteId: site.id, pageId, canEdit, onSaved });
   const { page, fields, lock, save } = session;
@@ -301,6 +305,7 @@ export default function EditorPage() {
     <>
       <SiteBar
         section="pages"
+        preview={false}
         crumb={crumb ? `/ ${crumb}` : undefined}
         status={pageId && fields ? <SaveBadge save={save} lock={lock} onRetry={session.retry} /> : null}
         actions={
@@ -318,7 +323,6 @@ export default function EditorPage() {
             />
             <Button variant="ghost" size="sm" iconLeft="eye" className="max-sm:hidden" disabled={!fields} onClick={() => setPreview(true)}>Preview</Button>
             <IconButton icon="eye" label="Preview" size="sm" className="sm:hidden" disabled={!fields} onClick={() => setPreview(true)} />
-            {canEdit && <Button variant="primary" size="sm" iconLeft="send" href={`${base}/publish`}>Publish…</Button>}
           </>
         }
       />

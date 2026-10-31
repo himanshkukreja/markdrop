@@ -112,7 +112,7 @@ function referencedFiles(html) {
  * Crawl a running server. `onObject(kind, key, variant, res)` receives every response worth
  * keeping. Returns stats.
  */
-export async function crawl({ stageDir, port, concurrency = 12, haveFile = () => false, onRoute, onFile }) {
+export async function crawl({ stageDir, port, concurrency = 12, haveFile = () => false, onRoute, onFile, onProgress }) {
   const pm = JSON.parse(fs.readFileSync(path.join(stageDir, ".next", "prerender-manifest.json"), "utf8"));
   const routes = Object.keys(pm.routes).filter((r) => r === INTERNAL || r.startsWith(`${INTERNAL}/`));
   const routePaths = new Set(routes.map(publicPath));
@@ -120,6 +120,12 @@ export async function crawl({ stageDir, port, concurrency = 12, haveFile = () =>
   let rscSameAsPrefetch = 0;
   let htmlRoutes = 0;
   const queue = [...routes];
+  let crawled = 0;
+  const tick = () => {
+    crawled++;
+    // Every 10 routes and the last one (the runner throttles what it sends on).
+    if (onProgress && (crawled % 10 === 0 || crawled === routes.length)) onProgress(crawled, routes.length);
+  };
   const work = async () => {
     for (;;) {
       const internal = queue.shift();
@@ -128,7 +134,10 @@ export async function crawl({ stageDir, port, concurrency = 12, haveFile = () =>
       const res = await get(port, pub);
       // A route the engine has no content for answers 404 (e.g. /changelog and its feeds on a site
       // with no changelog entries): left out, so the edge gives the 404 page (or a redirect) there.
-      if (res.status === 404) continue;
+      if (res.status === 404) {
+        tick();
+        continue;
+      }
       if (res.status !== 200) throw new Error(`${pub} (${internal}) answered ${res.status}`);
       const type = String(res.headers["content-type"] || "");
       const entry = { internal, public: pub, status: 200, headers: keep(res.headers), body: res.body };
@@ -143,6 +152,7 @@ export async function crawl({ stageDir, port, concurrency = 12, haveFile = () =>
         if (!pre.body.equals(rsc.body)) entry.prefetch = { headers: keep(pre.headers), body: pre.body };
       }
       onRoute(entry);
+      tick();
     }
   };
   await Promise.all(Array.from({ length: concurrency }, work));

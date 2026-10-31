@@ -2,7 +2,7 @@
 
 import { ReadMore } from "@/components/ReadMore";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Alert, Anchor, Badge, Button, Field, Icon, SegmentedControl, Select, Spinner, Switch, Tabs, Textarea, cx, useToast } from "@/components/ui";
+import { Alert, Anchor, Badge, Button, Field, Icon, IconButton, SegmentedControl, Select, Spinner, Switch, Tabs, Textarea, cx, useToast } from "@/components/ui";
 import { useLocationSearch } from "@/components/shell/useLocation";
 import { parseHex } from "@/components/tenant/branding";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/lib/docsSites";
 import { ratio } from "./format";
 import { LOOKS, PREVIEW_FONTS_HREF, coloursFromImage, contrastChecks, miniLook } from "./presets";
+import { usePublishState } from "./PublishState";
 import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useSite } from "./SiteContext";
 import ThemePreview from "./ThemePreview";
@@ -89,8 +90,10 @@ function PresetCard({ id, name, blurb, isNew, checked, onSelect, brand, disabled
  * custom CSS. Nothing applies until "Save design"; the published site changes at the next publish.
  */
 export default function DesignPanel() {
-  const { site, setSite, base, isAdmin } = useSite();
-  const toast = useToast();
+  const { site, setSite, base, isAdmin, canEdit } = useSite();
+  const { publish, starting, mustReview, running } = usePublishState();
+  /** "Design saved — readers see the new look after you publish" (DesignSaved board), until dismissed. */
+  const [savedBanner, setSavedBanner] = useState(false);
   const uid = useId();
   const search = useLocationSearch();
   const isNew = new URLSearchParams(search).get("new") === "1";
@@ -163,7 +166,7 @@ export default function DesignPanel() {
     try {
       const next = await updateSite(site.id, { settings: { theme: { ...theme, custom_css: theme.custom_css || null } } });
       setSite(next);
-      toast.success("Design saved. It goes live with the next publish.");
+      setSavedBanner(true);
     } catch (e) {
       setError(docsErrorMessage(e, "The design didn't save. Try again."));
     } finally {
@@ -182,11 +185,28 @@ export default function DesignPanel() {
         status={dirty ? <Badge size="sm" tone="warning" dot>Unsaved</Badge> : null}
         actions={isAdmin ? (
           <>
-            <Button variant="ghost" size="sm" disabled={!dirty || saving} onClick={() => setTheme(saved)}>Reset</Button>
-            <Button variant="primary" size="sm" loading={saving} disabled={!dirty || !!cssProblem} onClick={() => void save()}>Save design</Button>
+            {dirty && <Button variant="ghost" size="sm" disabled={saving} onClick={() => setTheme(saved)}>Reset</Button>}
+            {dirty || saving
+              ? <Button variant="primary" size="sm" loading={saving} disabled={!!cssProblem} onClick={() => void save()}>Save design</Button>
+              : <Button variant="secondary" size="sm" iconLeft="check" disabled>Saved</Button>}
           </>
         ) : null}
       />
+
+      {savedBanner && !dirty && (
+        <div role="status" className="mx-4 mt-4 flex flex-wrap items-center gap-3.5 rounded-xl border border-border bg-surface px-[18px] py-3.5 shadow-sm sm:mx-6 sm:mt-5">
+          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-success-soft text-success" aria-hidden><Icon name="checkCircle" size={18} /></span>
+          <span className="flex min-w-0 flex-[1_1_260px] flex-col">
+            <strong className="text-text">Design saved</strong>
+            <span className="text-text-secondary">Readers see the new look after you publish. It takes about a minute.</span>
+          </span>
+          <Button variant="ghost" size="sm" iconLeft="eye" href={`${base}?preview=1`}>Preview the guide</Button>
+          {canEdit && !running && (mustReview
+            ? <Button variant="primary" size="sm" iconLeft="send" href={`${base}/publish`}>Send for review</Button>
+            : <Button variant="primary" size="sm" iconLeft="upload" loading={starting} onClick={() => void publish({ from: "design_banner" })}>Publish now</Button>)}
+          <IconButton icon="x" label="Dismiss" size="sm" onClick={() => setSavedBanner(false)} />
+        </div>
+      )}
 
       <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-wrap outline-none">
         <section aria-label="Design settings" className="flex w-full min-w-0 flex-col gap-6 border-border bg-surface p-4 sm:p-6 lg:max-w-[460px] lg:flex-[1_1_400px] lg:border-r">

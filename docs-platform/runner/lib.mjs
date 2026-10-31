@@ -252,8 +252,15 @@ export async function runBuild(spec, { store, cfg, progress = () => {}, log = ()
     const media = await writeMediaManifest(contentDir, { engineDir: cfg.engineDir });
     log(`content: ${files} files, ${assets.used} of ${assets.listed} site files (${assets.fetched} downloaded, ${(assets.bytes / 1e6).toFixed(1)} MB)`);
 
-    progress({ step: "build", done: 1, total: 4, message: "Rendering pages" });
+    // "build": the static pages as Next renders them (done of total); "index": the crawl that
+    // collects every route, search, Ask AI and link previews included (the studio's progress card:
+    // backend/app/services/docs_site_compare.py progress_view).
+    progress({ step: "build", done: 0, total: 0, message: "Rendering pages" });
     const res = await build({
+      onProgress: (phase, done, total) =>
+        progress(phase === "pages"
+          ? { step: "build", done, total, message: `Rendering pages (${done} of ${total})` }
+          : { step: "index", done, total, message: "Search, Ask AI and link previews" }),
       contentDir,
       outDir,
       engineDir: cfg.engineDir,

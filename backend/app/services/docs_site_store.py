@@ -912,6 +912,9 @@ async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None,
                 raise HTTPException(status_code=422, detail=[
                     {"loc": ["settings", "redirects"], "msg": m, "type": "value_error"} for m in problems])
         updates["settings"] = validated
+        if "theme" in patch:
+            # The Publish screen's "Choose a look" (services/docs_site_compare.setup_status).
+            updates["design_saved_at"] = now()
     if not updates:
         return site
     updates["updated_at"] = now()

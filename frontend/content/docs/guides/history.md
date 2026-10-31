@@ -33,7 +33,7 @@ To restore, you need to be able to edit the page: an Editor, Reviewer or Admin, 
 
 ## Publishes
 
-The **Publishes** tab lists every publish, newest first: its note (or **Publish #** and its number), who published it, when, and how long it took. The one readers see now is marked **Live**.
+**Publish history** on the guide's **Publish** tab lists every publish, newest first: its number and note, when, who published it, how long it took, and what it changed (**+N pages**, **N edited**, **N removed**, **Design**). The one readers see now is marked **Live**. **What changed** compares a publish with the one before it, and **Compare two publishes** compares any two (see [Compare versions](/guides/publishing#compare-versions)).
 
 ![Acme's Publishes: Release notes for 2.4 (Live), Quickstart for the new onboarding, Postgres guide and alert rules, and First version, each with Restore.](/docs-assets/guides/history/publishes-list.webp)
 
