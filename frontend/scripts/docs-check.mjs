@@ -237,14 +237,17 @@ if (site.openapi?.spec) {
       if (ref.overview) {
         const at = (cfg.base || "/api").replace(/\/+$/, "");
         const md = ref.overview.markdown;
-        if (!pages.has(at)) pages.set(at, { file: `${cfg.spec} → ${at}`, fm: { title: ref.overview.title, description: ref.overview.description, updated }, body: md, lines: md.split(/\r?\n/), offset: 0, ids: new Set(), links: [], generated: true });
+        if (!pages.has(at)) {
+          pages.set(at, { file: `${cfg.spec} → ${at}`, fm: { title: ref.overview.title, description: ref.overview.description, updated }, body: md, lines: md.split(/\r?\n/), offset: 0, ids: new Set(), links: [], generated: true });
+          apiPaths.set(at, cfg.label || "API reference");
+        }
       }
       for (const op of ref.ops) {
         if (pages.has(op.path)) {
           warn(pages.get(op.path).file, `${op.path} is also generated for ${op.key}; the written page wins`);
           continue;
         }
-        if (!op.description) warn(cfg.overlay || cfg.spec, `${op.key}: no description (add one to the overlay, or a docstring)`);
+        if (!op.description && !cfg.auto) warn(cfg.overlay || cfg.spec, `${op.key}: no description (add one to the overlay, or a docstring)`);
         const fm = { title: op.title, description: op.summary, updated, keywords: op.keywords };
         pages.set(op.path, { file: `${cfg.spec} → ${op.path}`, fm, body: op.markdown, lines: op.markdown.split(/\r?\n/), offset: 0, ids: new Set(), links: [], generated: true });
         apiPaths.set(op.path, op.group.title);

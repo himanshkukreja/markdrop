@@ -32,6 +32,12 @@ export function InlineMd({ text }: { text: string }) {
     if (m[1] !== undefined) out.push(<code key={k++} className="dx-icode">{m[1]}</code>);
     else if (m[2] !== undefined) {
       const href = m[3];
+      // A guide's reference prose is its owner's OpenAPI file: only web, mail and in-site links are links.
+      if (!/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href)) {
+        out.push(m[2]);
+        last = m.index + m[0].length;
+        continue;
+      }
       out.push(
         isAppPath(href) ? (
           <Link key={k++} href={href}>
