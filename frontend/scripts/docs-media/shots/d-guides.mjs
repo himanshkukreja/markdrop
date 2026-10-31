@@ -1439,7 +1439,10 @@ export default [
     },
     crop: async (h) => {
       const menu = await h.loc("[role=menu]").first().boundingBox();
-      return { box: { x: Math.max(0, menu.x - 520), y: 60, width: Math.min(1440 - Math.max(0, menu.x - 520), menu.width + 560), height: menu.y + menu.height + 24 - 60 } };
+      // From the article's own column (the breadcrumb), so no edge of the sidebar's current page shows.
+      const crumbs = await h.loc(".dx-crumbs").first().boundingBox();
+      const x = Math.max(0, Math.round(crumbs.x - 40), menu.x - 560);
+      return { box: { x, y: 60, width: Math.min(1440 - x, Math.ceil(menu.x + menu.width + 24 - x)), height: menu.y + menu.height + 24 - 60 } };
     },
   },
 
