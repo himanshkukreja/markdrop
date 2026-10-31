@@ -199,7 +199,7 @@ export function pageChecks(scan: Scan, ctx: CheckContext): Check[] {
         title: "Link to a page that doesn't exist",
         note: `"${l.text || l.href}" goes to ${p.path}, which isn't a page in this guide.`,
         target: { kind: "link", href: l.href },
-        fix: { kind: "create_page", path: p.path, title: l.text || titleFromPath(p.path) },
+        fix: { kind: "create_page", path: p.path, title: l.text ? l.text.charAt(0).toUpperCase() + l.text.slice(1) : titleFromPath(p.path) },
       });
     } else {
       out.push({

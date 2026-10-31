@@ -68,7 +68,7 @@ test("the checks and the looks-good row", { skip }, () => {
   const kinds = checks.map((c) => c.kind).sort();
   assert.deepEqual(kinds, ["heading_duplicate", "heading_empty", "image_alt", "link_missing", "link_unpublished"]);
   const missing = checks.find((c) => c.kind === "link_missing");
-  assert.deepEqual(missing.fix, { kind: "create_page", path: "/nope", title: "nowhere" });
+  assert.deepEqual(missing.fix, { kind: "create_page", path: "/nope", title: "Nowhere" });
   assert.deepEqual(checks.find((c) => c.kind === "image_alt").fix, { kind: "image_alt", src: "/docs-assets/a.png" });
   const dup = checks.find((c) => c.kind === "heading_duplicate");
   assert.deepEqual(dup.target, { kind: "heading", text: "Pay", nth: 1 });

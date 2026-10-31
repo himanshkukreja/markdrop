@@ -136,7 +136,8 @@ test("moving blocks between containers, and deleting blocks", () => {
     const { state, doc } = load(src);
     for (let round = 0; round < 6; round++) {
       const d = clone(doc);
-      const all = blocks(d).filter((b) => b.node.type !== "tab" && b.node.type !== "card" && b.node.type !== "tableRow");
+      // Not a list item's first block: the schema keeps its paragraph there, so the editor can't move it out.
+      const all = blocks(d).filter((b) => b.node.type !== "tab" && b.node.type !== "card" && b.node.type !== "tableRow" && !(b.parent.type === "listItem" && b.i === 0));
       if (!all.length) continue;
       const from = all[Math.floor(rand() * all.length)];
       const [moved] = from.arr.splice(from.i, 1);
