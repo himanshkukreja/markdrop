@@ -98,15 +98,22 @@ _PRODUCT = {
     ],
 }
 
+# The API reference template: written pages for the parts an OpenAPI file doesn't say (getting a
+# key, errors), and the endpoint pages generated from a sample description (Northwind,
+# app/assets/northwind-openapi.json, stored when the guide is created: services/docs_api_spec.py
+# seed_sample) under /api-reference. Replace it in Settings › API reference.
 _API = {
     "home": {
         "path": "/",
         "title": "API reference",
-        "description": "Build on the API: authentication, requests, errors and every endpoint.",
+        "description": "Build on the API: authentication, errors and every endpoint.",
         "markdown": (
             "The API is organised around REST. It accepts JSON request bodies, returns JSON, and uses\n"
             "standard HTTP status codes.\n\n"
             "::::cards\n"
+            ":::card[Endpoints]{href=\"/api-reference\" icon=\"code\"}\n"
+            "Every endpoint, with parameters, responses, code samples and Try it.\n"
+            ":::\n"
             ":::card[Authentication]{href=\"/api/authentication\" icon=\"lock\"}\n"
             "Create a key and send it with every request.\n"
             ":::\n"
@@ -121,25 +128,26 @@ _API = {
             {"path": "/api/authentication", "title": "Authentication",
              "description": "Create an API key and send it as a Bearer token.",
              "markdown": (
-                 "Send your key in the `Authorization` header of every request.\n\n"
+                 "Send your token in the `Authorization` header of every request.\n\n"
                  "::::tabs{sync=\"lang\"}\n"
                  ":::tab[curl]\n"
                  "```bash\n"
-                 "curl https://api.example.com/v1/items \\\n"
-                 "  -H \"Authorization: Bearer $API_KEY\"\n"
+                 "curl https://api.northwind.example/v1/orders \\\n"
+                 "  -H \"Authorization: Bearer $API_TOKEN\"\n"
                  "```\n"
                  ":::\n"
                  ":::tab[JavaScript]\n"
                  "```js\n"
-                 "const res = await fetch(\"https://api.example.com/v1/items\", {\n"
-                 "  headers: { Authorization: `Bearer ${process.env.API_KEY}` },\n"
+                 "const res = await fetch(\"https://api.northwind.example/v1/orders\", {\n"
+                 "  headers: { Authorization: `Bearer ${process.env.API_TOKEN}` },\n"
                  "});\n"
                  "```\n"
                  ":::\n"
                  "::::\n\n"
                  ":::warning\n"
-                 "Keep keys secret. Never put them in code that runs in a browser.\n"
-                 ":::\n"
+                 "Keep tokens secret. Never put them in code that runs in a browser.\n"
+                 ":::\n\n"
+                 "Every endpoint is in the [API reference](/api-reference).\n"
              )},
             {"path": "/api/errors", "title": "Errors",
              "description": "Status codes and the error body.",
@@ -147,22 +155,9 @@ _API = {
                  "| Status | Meaning |\n"
                  "| --- | --- |\n"
                  "| 400 | The request is malformed. |\n"
-                 "| 401 | The API key is missing or wrong. |\n"
+                 "| 401 | The token is missing or wrong. |\n"
                  "| 404 | The resource doesn't exist. |\n"
                  "| 429 | Too many requests. Wait and retry. |\n"
-             )},
-        ]),
-        ("Endpoints", [
-            {"path": "/api/items/list", "title": "List items",
-             "description": "GET /v1/items returns your items, newest first.",
-             "markdown": (
-                 "```http\n"
-                 "GET /v1/items\n"
-                 "```\n\n"
-                 "## Response\n\n"
-                 "```json\n"
-                 "{ \"items\": [{ \"id\": \"itm_123\", \"name\": \"First item\" }] }\n"
-                 "```\n"
              )},
         ]),
     ],

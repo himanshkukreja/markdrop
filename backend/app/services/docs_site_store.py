@@ -148,6 +148,10 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 
     await db[ASSETS].create_index([("site_id", 1), ("sha256", 1)], unique=True)
 
+    from app.services import docs_api_spec
+
+    await docs_api_spec.ensure_indexes(db)
+
     await db[EVENTS].create_index([("kind", 1), ("ts", -1)])
     await db[EVENTS].create_index([("site_id", 1), ("ts", -1)])
     await db[EVENTS].create_index([("user_id", 1), ("ts", -1)])
@@ -389,6 +393,8 @@ def build_view(b: dict | None, names: dict[str, str] | None = None, *, details: 
         "manifest_hash": b.get("manifest_hash"),
         "stats": b.get("stats"),
         "error": _error_for(b.get("error"), details),
+        # Things that went ahead differently than asked (an API reference that couldn't be re-fetched).
+        "warnings": b.get("warnings") or [],
         "created_at": aware(b.get("created_at")),
         "started_at": aware(b.get("started_at")),
         "finished_at": aware(b.get("finished_at")),
@@ -756,6 +762,11 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
         nav = await seed_pages(db, row["_id"], user, source.get("template") if kind == "template" else None)
         await db[SITES].update_one({"_id": row["_id"]}, {"$set": {"settings.nav": nav}})
         row["settings"]["nav"] = nav
+        if kind == "template" and source.get("template") == "api":
+            # The template's reference starts from a sample description (Northwind) to replace.
+            from app.services import docs_api_spec
+
+            await docs_api_spec.seed_sample(db, row, user.id)
     elif kind == "gitbook":
         job = await enqueue_job(db, "import", row["_id"], {"source": "gitbook", "url": source["url"]})
         # The import screen can be reopened from the site (Settings, the editor) after it's closed.
@@ -788,6 +799,8 @@ async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None,
         patch = dict(settings_patch)
         if "nav" in patch:
             raise HTTPException(status_code=422, detail="Change the page order with PUT /nav.")
+        if isinstance(patch.get("api"), dict) and "spec_id" in patch["api"]:
+            raise HTTPException(status_code=422, detail="Upload, fetch or restore an OpenAPI file with the API reference endpoints.")
         access = patch.get("access")
         if isinstance(access, dict):
             access = dict(access)
