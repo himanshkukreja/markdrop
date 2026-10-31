@@ -65,7 +65,7 @@ Views, searches with no results, Ask AI questions and page feedback. No cookies.
 
 ## Watch it once
 
-::video{id="guides-first-guide" title="Create and publish your first guide" duration="0:56"}
+::video{id="guides-first-guide" title="Create and publish your first guide" duration="0:49"}
 
 ## Before you start
 

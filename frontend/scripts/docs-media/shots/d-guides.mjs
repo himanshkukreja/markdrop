@@ -1688,21 +1688,26 @@ export default [
       await h.caption("The free address is checked as you type", 1800);
       await h.caption("");
       await h.click({ role: "button", name: "Create guide" }, { after: 1500 });
-      await h.loc({ role: "heading", name: "Match my brand" }).waitFor({ timeout: 60_000 });
-      await h.caption("Pick a theme. The preview updates as you go", 600);
-      await h.settle(800);
-      await h.click(vis(h, "Editorial"), { after: 1300 });
-      await h.click(vis(h, "Clean"), { after: 1100 });
-      await h.click({ role: "button", name: "Save design" }, { after: 1300 });
-      await h.caption("");
-      await h.click({ role: "link", name: "Pages", exact: true }, { after: 600 });
+      // A new guide opens in the editor.
       await editorReady(h);
-      await h.caption("Write in the visual editor. Drafts save themselves", 600);
+      await h.caption("It opens in the editor. Drafts save themselves", 600);
       await h.click(await endOfFirstParagraph(h), { after: 300 });
       await h.press("Enter", 200);
       await h.type(null, "Northwind keeps your team's runbooks in one place.", { speed: 2 });
-      await h.page.getByText(/Draft · saved/).waitFor({ timeout: 20_000 });
+      // The bar goes Unsaved changes, Saving…, then Saved.
+      await h.page.getByText("Unsaved changes").waitFor({ state: "detached", timeout: 20_000 }).catch(() => {});
+      await h.page.getByText("Saved", { exact: true }).first().waitFor({ timeout: 20_000 });
       await h.sleep(1200);
+      await h.caption("");
+      await h.click({ role: "link", name: "Design", exact: true }, { after: 600 });
+      await h.loc({ role: "heading", name: "Match my brand" }).waitFor({ timeout: 60_000 });
+      // The window keeps the editor's scroll across the tab change: start Design at its top (Theme, the filter).
+      await h.page.evaluate(() => window.scrollTo(0, 0));
+      await h.caption("Pick a theme. The preview updates as you go", 600);
+      await h.settle(800);
+      await h.click(themeCard(h, "Help center"), { after: 1300 });
+      await h.click(themeCard(h, "Editorial"), { after: 1100 });
+      await h.click({ role: "button", name: "Save design" }, { after: 1300 });
       await h.caption("");
       await h.click({ role: "link", name: /^Publish/ }, { after: 1200 });
       await h.caption("Publish: every publish is numbered, and you can go back", 600);
@@ -1718,7 +1723,7 @@ export default [
       await h.caption("");
     },
     after: async () => extra("--drop-sites", "Northwind"),
-    poster: 3,
+    poster: 41, // Your guide is live
   },
   {
     id: "guides-import-video",

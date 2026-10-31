@@ -1949,14 +1949,14 @@
   "/docs-assets/videos/guides-first-guide.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 56.1,
-    "bytes": 1456112,
+    "duration": 48.67,
+    "bytes": 1411079,
     "kind": "video"
   },
   "/docs-assets/videos/guides-first-guide.webp": {
     "w": 1920,
     "h": 1080,
-    "bytes": 47434,
+    "bytes": 21740,
     "kind": "poster"
   },
   "/docs-assets/videos/guides-import-video.mp4": {
