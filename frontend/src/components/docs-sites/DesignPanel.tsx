@@ -225,7 +225,7 @@ export default function DesignPanel() {
                   );
                 })}
                 <label className="flex flex-col items-center gap-1 text-[11px] text-text-muted">
-                  <span className="relative grid size-9 cursor-pointer place-items-center rounded-lg border border-dashed border-border-strong text-text-secondary">
+                  <span className="relative grid size-9 cursor-pointer place-items-center rounded-lg border border-dashed border-border-strong text-text-secondary has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-border-focus">
                     <Icon name="plus" size={16} />
                     <input
                       type="color"
