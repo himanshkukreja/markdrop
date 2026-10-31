@@ -128,7 +128,7 @@ function ReportRow({ item, editorHref }: { item: ReportItem; editorHref: (pageId
         )}
       </div>
       {open && item.items && (
-        <ul id={listId} className="flex flex-col gap-1.5 border-t border-border pt-3 text-[13px]">
+        <ul id={listId} className="ph-no-capture flex flex-col gap-1.5 border-t border-border pt-3 text-[13px]">
           {item.items.map((x, i) => (
             <li key={i} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
               {x.page_id ? (
@@ -153,7 +153,7 @@ function MiniSite({ name }: { name: string }) {
   const logo = site.settings.theme.brand.enabled ? assetPreviewUrl(site.id, site.settings.theme.brand.logo_url) : null;
   const bar = (w: string | number, h: number, bg: string, extra?: React.CSSProperties) => <span className="block" style={{ width: w, height: h, borderRadius: 3, background: bg, ...extra }} />;
   return (
-    <div aria-hidden className="overflow-hidden rounded-xl border border-border shadow-md" style={{ background: t.bg }}>
+    <div aria-hidden className="ph-no-capture overflow-hidden rounded-xl border border-border shadow-md" style={{ background: t.bg }}>
       <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: `1px solid ${t.line}`, background: t.header }}>
         {logo ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -253,7 +253,7 @@ export default function ImportProgress() {
           {error && !job && <Alert tone="danger" title="We couldn't check the import">{error}</Alert>}
           {failed && (
             <Alert tone="danger" title="Import failed" actions={<Button size="sm" variant="secondary" href={studioNew(scopeOf(site))}>Start again</Button>}>
-              {job?.error || "Something went wrong on our side."}
+              <span className="ph-sensitive ph-mask">{job?.error || "Something went wrong on our side."}</span>
             </Alert>
           )}
 
@@ -273,7 +273,7 @@ export default function ImportProgress() {
                   <li key={r.id} className={`flex items-center gap-3 px-[18px] py-3.5 ${i ? "border-t border-border" : ""}`} aria-current={r.status === "running" ? "step" : undefined}>
                     <StepDot status={r.status} />
                     <span className={`min-w-0 flex-1 text-text ${r.status === "running" ? "font-semibold" : r.status === "done" ? "font-medium" : "text-text-secondary"}`}>{r.label}</span>
-                    {r.detail && <span className="shrink-0 text-right text-[13px] tabular-nums text-text-muted">{r.detail}</span>}
+                    {r.detail && <span className="ph-sensitive ph-mask shrink-0 text-right text-[13px] tabular-nums text-text-muted">{r.detail}</span>}
                   </li>
                 ))}
               </ol>
@@ -292,11 +292,11 @@ export default function ImportProgress() {
               )}
               {skipped.length > 0 && (
                 <Alert tone="warning" title={`${plural(skipped.length, "thing")} we left out`}>
-                  <ul className="flex list-disc flex-col gap-1 pl-4 text-[13px]">{skipped.slice(0, 20).map((x) => <li key={x} className="[overflow-wrap:anywhere]">{x}</li>)}</ul>
+                  <ul className="ph-no-capture flex list-disc flex-col gap-1 pl-4 text-[13px]">{skipped.slice(0, 20).map((x) => <li key={x} className="[overflow-wrap:anywhere]">{x}</li>)}</ul>
                 </Alert>
               )}
               {report?.markdown && (
-                <details className="rounded-lg border border-border bg-surface px-4 py-3 text-[13px]">
+                <details className="ph-no-capture rounded-lg border border-border bg-surface px-4 py-3 text-[13px]">
                   <summary className="cursor-pointer font-semibold text-text">The full import report</summary>
                   <pre className="mt-3 max-h-[420px] overflow-auto whitespace-pre-wrap font-mono text-[12.5px] leading-5 text-text-secondary">{report.markdown}</pre>
                 </details>
@@ -309,7 +309,7 @@ export default function ImportProgress() {
           <MiniSite name={report?.brand?.name || site.name} />
           <p className="text-[13px] text-text-muted">
             {site.settings.theme.brand.enabled
-              ? <>We picked up {report?.brand?.name || site.name.replace(/\s+docs$/i, "")}&apos;s logo, colour and favicon and matched them with the {presetName(site.settings.theme.preset)} theme. Change it in <Anchor href={`${base}/design`} className="text-accent-text underline">Design</Anchor>.</>
+              ? <>We picked up <span className="ph-sensitive ph-mask">{report?.brand?.name || site.name.replace(/\s+docs$/i, "")}</span>&apos;s logo, colour and favicon and matched them with the {presetName(site.settings.theme.preset)} theme. Change it in <Anchor href={`${base}/design`} className="text-accent-text underline">Design</Anchor>.</>
               : <>Your site uses the {presetName(site.settings.theme.preset)} theme. Change it in <Anchor href={`${base}/design`} className="text-accent-text underline">Design</Anchor>.</>}
           </p>
           {done ? (

@@ -232,6 +232,7 @@ export default function NewSite() {
               >
                 <Input
                   id={`${uid}-url`}
+                  className="ph-no-capture"
                   mono
                   type="url"
                   inputMode="url"

@@ -168,7 +168,7 @@ export default function DesignPanel() {
       <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-wrap outline-none">
         <section aria-label="Design settings" className="flex w-full min-w-0 flex-col gap-6 border-border bg-surface p-4 sm:p-6 lg:max-w-[460px] lg:flex-[1_1_400px] lg:border-r">
           {isNew && (
-            <Alert tone="info" title={`Pick a look for ${site.name}`}>
+            <Alert tone="info" title={<>Pick a look for <span className="ph-sensitive ph-mask">{site.name}</span></>}>
               You can change it any time. <ReadMore topic="studioThemes">About the themes</ReadMore> · <Anchor href={base} className="font-semibold text-accent-text underline">Skip to the editor</Anchor>
             </Alert>
           )}
@@ -192,14 +192,14 @@ export default function DesignPanel() {
             <div className="flex items-center gap-3">
               {theme.brand.logo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={assetPreviewUrl(site.id, theme.brand.logo_url) ?? undefined} alt="" className="size-11 shrink-0 rounded-[10px] bg-logo-well-light object-contain p-1" />
+                <img src={assetPreviewUrl(site.id, theme.brand.logo_url) ?? undefined} alt="" className="ph-no-capture size-11 shrink-0 rounded-[10px] bg-logo-well-light object-contain p-1" />
               ) : (
                 <span className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[20px] font-extrabold text-white" style={{ background: brandAccent && parseHex(brandAccent) ? brandAccent : LOOKS[theme.preset].accent }} aria-hidden>
                   {site.name.charAt(0).toUpperCase()}
                 </span>
               )}
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <strong className="truncate font-semibold text-text">{logoName ?? "No logo yet"}</strong>
+                <strong className="ph-sensitive ph-mask truncate font-semibold text-text">{logoName ?? "No logo yet"}</strong>
                 <span className="text-[12px] text-text-muted">
                   {!theme.brand.colors.length ? "Upload your logo and we'll pick up its colours" : theme.brand.logo_url ? "Colours found in your logo" : "Your brand colours"}
                 </span>
@@ -292,7 +292,7 @@ export default function DesignPanel() {
                 placeholder={".dx-callout { border-radius: 0; }\n.dx-header { backdrop-filter: blur(8px); }"}
                 value={theme.custom_css ?? ""}
                 onChange={(e) => set({ custom_css: e.target.value })}
-                className="text-[12.5px]"
+                className="ph-no-capture text-[12.5px]"
               />
               {cssProblem ? (
                 <p className="flex items-center gap-1.5 text-[12px] text-danger" role="alert"><Icon name="alertCircle" size={13} /> {cssProblem}</p>

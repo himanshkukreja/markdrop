@@ -22,7 +22,7 @@ export function SiteTile({ site, size = 22 }: {
   const box = { width: size, height: size, borderRadius: Math.max(4, Math.round(size * 0.27)) };
   if (logo) {
     return (
-      <span className="grid shrink-0 place-items-center overflow-hidden bg-logo-well-light" style={box} aria-hidden>
+      <span className="ph-no-capture grid shrink-0 place-items-center overflow-hidden bg-logo-well-light" style={box} aria-hidden>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={logo} alt="" className="size-full object-contain" />
       </span>
@@ -81,7 +81,7 @@ export function SiteBar({ section, crumb, status, actions, className }: {
           );
         })}
       </nav>
-      {crumb && <span className="hidden min-w-0 truncate text-body text-text-muted lg:inline" dir="auto">{crumb}</span>}
+      {crumb && <span className="ph-sensitive ph-mask hidden min-w-0 truncate text-body text-text-muted lg:inline" dir="auto">{crumb}</span>}
       {status}
       {role === "viewer" && <Badge size="sm" icon="eye">View only</Badge>}
       {actions && <div className="ml-auto flex flex-wrap items-center gap-2 lg:flex-nowrap">{actions}</div>}

@@ -301,11 +301,13 @@ export default function EditorPage() {
             {fields && page && (
               <>
                 <div className="flex items-center justify-between gap-2 lg:hidden">
-                  <span className="text-[13px] text-text-muted">{page.path}</span>
+                  <span className="ph-sensitive ph-mask text-[13px] text-text-muted">{page.path}</span>
                   <Button variant="ghost" size="sm" iconLeft="settings" onClick={() => setPanelOpen(true)}>Page settings</Button>
                 </div>
                 <DocsEditor
                   key={page.id}
+                  // Not recorded, clicks not autocaptured: both modes hold the customer's own words.
+                  className="ph-no-capture"
                   aria-label={`Content of ${fields.title || "this page"}`}
                   value={doc}
                   onChange={onDocChange}
@@ -327,7 +329,7 @@ export default function EditorPage() {
         </aside>
       </div>
 
-      <Drawer open={treeOpen} onClose={() => setTreeOpen(false)} side="left" width={300} title={site.name}>
+      <Drawer open={treeOpen} onClose={() => setTreeOpen(false)} side="left" width={300} title={<span className="ph-sensitive ph-mask">{site.name}</span>}>
         {treeEl}
       </Drawer>
       <Drawer open={panelOpen} onClose={() => setPanelOpen(false)} title="Page settings" width={340}>
@@ -340,9 +342,9 @@ export default function EditorPage() {
         </div>
       )}
 
-      <Drawer open={preview} onClose={() => setPreview(false)} title={fields?.title || "Preview"} description="A quick look at the draft. Callouts, steps and tabs render fully on the published site." width={760}>
+      <Drawer open={preview} onClose={() => setPreview(false)} title={fields?.title ? <span className="ph-sensitive ph-mask">{fields.title}</span> : "Preview"} description="A quick look at the draft. Callouts, steps and tabs render fully on the published site." width={760}>
         {fields && (
-          <div className="flex flex-col gap-3">
+          <div className="ph-no-capture flex flex-col gap-3">
             {fields.description && <p className="text-[16px] text-text-secondary">{fields.description}</p>}
             <MarkdownPreview content={fields.markdown} size="reading" />
           </div>
@@ -366,14 +368,14 @@ export default function EditorPage() {
           await loadTree();
           open(p.id);
           setNewOpen(false);
-          toast.success(`${p.title} added as a draft.`);
+          toast.success(<><span className="ph-sensitive ph-mask">{p.title}</span> added as a draft.</>);
         }}
       />
 
       <ConfirmDialog
         open={!!deleting}
         onClose={() => setDeleting(null)}
-        title={`Delete “${deleting?.title ?? ""}”?`}
+        title={<>Delete “<span className="ph-sensitive ph-mask">{deleting?.title ?? ""}</span>”?</>}
         body="If it's on the published site, it disappears at the next publish. Old links to it stop working."
         confirmLabel="Delete page"
         onConfirm={async () => {

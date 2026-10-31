@@ -40,7 +40,7 @@ function MemberRow({ m, you, busy, onChange }: { m: StudioMember; you: boolean; 
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-text-muted">
             {granted && <span>{granted}</span>}
             {m.site_overrides.map((o) => (
-              <a key={o.site_id} href={`${siteBase(o.site_id)}/settings#people`} className="md-focus rounded-full no-underline" title={`Their role on ${o.site_name ?? "this site"} only`}>
+              <a key={o.site_id} href={`${siteBase(o.site_id)}/settings#people`} className="ph-no-capture md-focus rounded-full no-underline" title={`Their role on ${o.site_name ?? "this site"} only`}>
                 <Badge size="sm" variant="outline" icon="layers">{roleLabel(o.role)} on {o.site_name ?? "a site"}</Badge>
               </a>
             ))}

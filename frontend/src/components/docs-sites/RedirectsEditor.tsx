@@ -73,7 +73,7 @@ export function RedirectsEditor({ siteId, value, locked, saving, onSave }: {
   return (
     <div className="flex flex-col gap-3">
       {rows.length > 0 && (
-        <div className="flex flex-col gap-2" role="list" aria-label="Redirects">
+        <div className="ph-no-capture flex flex-col gap-2" role="list" aria-label="Redirects">
           <div className="hidden grid-cols-[1fr_auto_1fr_auto] gap-2 text-caption text-text-muted sm:grid" aria-hidden>
             <span>Old address</span><span className="w-4" /><span>Goes to</span><span className="w-8" />
           </div>
