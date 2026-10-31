@@ -1,6 +1,6 @@
-"""Docs Studio roles: who may do what on a workspace's docs sites.
+"""Guides roles: who may do what on a workspace's docs sites.
 
-Docs Studio has its own roles, separate from the workspace's:
+Markdrop Guides has its own roles, separate from the workspace's:
 
     admin     site settings, design, domains, people and their studio roles,
               approve reviews, publish, restore, delete
@@ -366,10 +366,10 @@ async def check_target(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str
     ws_role = await _ws_role(db, workspace_id, user_id)
     if ws_role is None:
         raise HTTPException(status_code=404, detail="That person isn't in this workspace. Invite them to the "
-                                                    "workspace first, then give them a Docs Studio role.")
+                                                    "workspace first, then give them a Guides role.")
     if locked_source(ws_role):
         who = "The workspace owner is" if ws_role == "owner" else "Workspace admins are"
-        raise HTTPException(status_code=422, detail=f"{who} always a Docs Studio admin.")
+        raise HTTPException(status_code=422, detail=f"{who} always a Guides admin.")
     if user_id == actor_id:
         raise HTTPException(status_code=422, detail="You can't change your own role. Ask another admin.")
     return ws_role
@@ -448,7 +448,7 @@ async def set_site_override(db: AsyncIOMotorDatabase, site: dict, user_id: str, 
     _check_role(role)
     wid = site.get("workspace_id")
     if not wid:
-        raise HTTPException(status_code=422, detail="A personal site has only its owner.")
+        raise HTTPException(status_code=422, detail="A personal guide has only its owner.")
     await check_target(db, wid, user_id, actor_id)
     could_read = await readable(db, [site], user_id)
     before = await db[SITE_MEMBERS].find_one({"site_id": site["_id"], "user_id": user_id})
@@ -484,7 +484,7 @@ async def remove_site_override(db: AsyncIOMotorDatabase, site: dict, user_id: st
     """Back to their workspace-wide studio role on this site."""
     wid = site.get("workspace_id")
     if not wid:
-        raise HTTPException(status_code=422, detail="A personal site has only its owner.")
+        raise HTTPException(status_code=422, detail="A personal guide has only its owner.")
     await check_target(db, wid, user_id, actor_id)
     could_read = await readable(db, [site], user_id)
     before = await db[SITE_MEMBERS].find_one_and_delete({"site_id": site["_id"], "user_id": user_id})

@@ -1,4 +1,4 @@
-"""Docs Studio security review fixes (October 2026):
+"""Markdrop Guides security review fixes (October 2026):
 
 - SVG uploads are rewritten through an XML allowlist (services/docs_svg.py), not a byte blocklist.
 - A site taken down while a build runs never goes (or stays) live: the runner asks the API before
@@ -150,7 +150,7 @@ class TakeDownRaces(DbCase):
         sid = str(site["_id"])
         self.put_manifest(sid, manifest)
         self.fs().put_text(f"sites/{sid}/current.json", json.dumps({"manifest": manifest}))
-        self.fs().put_text(f"hosts/{site['slug']}.docs.markdrop.in.json", json.dumps({"site": sid}))
+        self.fs().put_text(f"hosts/{site['slug']}.guides.markdrop.in.json", json.dumps({"site": sid}))
 
     async def test_never_live_site_deleted_while_its_first_build_runs(self):
         s = await self.make_site("fresh")
@@ -169,10 +169,10 @@ class TakeDownRaces(DbCase):
         # One take-down job (the second coalesced into the waiting one, with the build's hosts).
         rows = await self.db[JOBS].find({"site_id": s["_id"], "kind": "unpublish"}).to_list(length=None)
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["payload"]["hosts"], ["fresh.docs.markdrop.in"])
+        self.assertEqual(rows[0]["payload"]["hosts"], ["fresh.guides.markdrop.in"])
         await docs_dispatch.run_once(self.db)
         self.assertEqual((await self.db[JOBS].find_one({"_id": rows[0]["_id"]}))["status"], "done")
-        self.assertIsNone(self.fs().get_text("hosts/fresh.docs.markdrop.in.json"))
+        self.assertIsNone(self.fs().get_text("hosts/fresh.guides.markdrop.in.json"))
         self.assertIsNone(self.fs().get_text(f"sites/{s['_id']}/current.json"))
         # Idempotent: again is fine.
         self.assertEqual((await docs_build.unpublish(self.db, s["_id"], "fresh", store=self.fs()))["hosts_removed"], [])
@@ -282,27 +282,27 @@ class Hosts(DbCase):
         ba, ja = await self.publish(a)  # its snapshot carries "old-a"
         # A moves to a new address before the build runs; B takes A's old one.
         await self.db[SITES].update_one({"_id": a["_id"]}, {"$set": {"slug": "new-a"}})
-        store.put_text("hosts/old-a.docs.markdrop.in.json", json.dumps({"site": str(a["_id"])}))
+        store.put_text("hosts/old-a.guides.markdrop.in.json", json.dumps({"site": str(a["_id"])}))
         spec = await docs_build.build_spec(self.db, ja, ba)
-        self.assertEqual(spec["publish"]["hosts"], ["new-a.docs.markdrop.in"])
-        self.assertEqual((await self.db[BUILDS].find_one({"_id": ba["_id"]}))["publish_hosts"], ["new-a.docs.markdrop.in"])
+        self.assertEqual(spec["publish"]["hosts"], ["new-a.guides.markdrop.in"])
+        self.assertEqual((await self.db[BUILDS].find_one({"_id": ba["_id"]}))["publish_hosts"], ["new-a.guides.markdrop.in"])
         b = await self.make_site("old-a")
         await self.make_page(b, "/a")
         bb, jb = await self.publish(b)
         spec = await docs_build.build_spec(self.db, jb, bb)
-        self.assertEqual(spec["publish"]["hosts"], ["old-a.docs.markdrop.in"])
+        self.assertEqual(spec["publish"]["hosts"], ["old-a.guides.markdrop.in"])
         # A's stale mapping of that address is gone, so B's runner can claim it.
-        self.assertIsNone(store.get_text("hosts/old-a.docs.markdrop.in.json"))
+        self.assertIsNone(store.get_text("hosts/old-a.guides.markdrop.in.json"))
         # A mapping of a site that still holds the address is never touched.
         c = await self.make_site("held")
-        store.put_text("hosts/held.docs.markdrop.in.json", json.dumps({"site": str(c["_id"])}))
-        self.assertEqual(await docs_build.free_stale_hosts(self.db, ObjectId(), ["held.docs.markdrop.in"]), [])
-        self.assertEqual(json.loads(store.get_text("hosts/held.docs.markdrop.in.json")), {"site": str(c["_id"])})
+        store.put_text("hosts/held.guides.markdrop.in.json", json.dumps({"site": str(c["_id"])}))
+        self.assertEqual(await docs_build.free_stale_hosts(self.db, ObjectId(), ["held.guides.markdrop.in"]), [])
+        self.assertEqual(json.loads(store.get_text("hosts/held.guides.markdrop.in.json")), {"site": str(c["_id"])})
         # A deleted site holds nothing.
         await self.db[SITES].update_one({"_id": c["_id"]}, {"$set": {"deleted_at": utc()}})
-        self.assertEqual(await docs_build.free_stale_hosts(self.db, ObjectId(), ["held.docs.markdrop.in"]),
-                         ["held.docs.markdrop.in"])
-        self.assertEqual(docs_snapshot.site_hosts({"_id": "x", "slug": "q", "domains": []}), ["q.docs.markdrop.in"])
+        self.assertEqual(await docs_build.free_stale_hosts(self.db, ObjectId(), ["held.guides.markdrop.in"]),
+                         ["held.guides.markdrop.in"])
+        self.assertEqual(docs_snapshot.site_hosts({"_id": "x", "slug": "q", "domains": []}), ["q.guides.markdrop.in"])
 
 
 FAKE_RUNNER = '''

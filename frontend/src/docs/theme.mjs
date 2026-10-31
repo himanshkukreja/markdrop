@@ -50,7 +50,7 @@ const P = (bg, header, card, text, muted, line, code, codeText) => ({ bg, header
 export const PRESETS = {
   clean: {
     label: "Clean",
-    blurb: "Sidebar docs. Calm and familiar.",
+    blurb: "Sidebar layout. Calm and familiar.",
     layout: "sidebar",
     fonts: { heading: "manrope", body: "manrope", mono: "jetbrains-mono" },
     corners: "soft",

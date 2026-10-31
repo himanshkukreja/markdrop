@@ -25,7 +25,7 @@ class Create(DocsSitesCase):
         site = await self.create("acme")
         self.assertEqual((site["name"], site["slug"], site["status"], site["your_role"]),
                          ("Acme Docs", "acme", "draft", "admin"))
-        self.assertEqual(site["url"], "https://acme.docs.markdrop.in")
+        self.assertEqual(site["url"], "https://acme.guides.markdrop.in")
         self.assertEqual(site["workspace_id"], self.ws)
         self.assertEqual(site["source"], {"kind": "blank"})
         self.assertEqual(site["counts"]["pages"], 1)
@@ -74,7 +74,7 @@ class Create(DocsSitesCase):
         r = await self.get("/slug-available", params={"slug": "x"})
         self.assertEqual((r["available"], r["reason"]), (False, "invalid"))
         r = await self.get("/slug-available", params={"slug": "fresh-one"})
-        self.assertEqual((r["available"], r["url"]), (True, "https://fresh-one.docs.markdrop.in"))
+        self.assertEqual((r["available"], r["url"]), (True, "https://fresh-one.guides.markdrop.in"))
         # Your own site's slug is available to itself.
         r = await self.get("/slug-available", params={"slug": "acme-docs", "site_id": site["id"]})
         self.assertTrue(r["available"])
@@ -86,7 +86,7 @@ class Create(DocsSitesCase):
         r = await self.http.post(BASE, json={"workspace_id": self.ws, "name": "4", "slug": "four"},
                                  headers=self.h["owner"])
         self.assertEqual(r.status_code, 429)
-        self.assertIn("3 docs sites", r.json()["detail"])
+        self.assertIn("3 guides", r.json()["detail"])
         # Personal sites have their own allowance.
         await self.create("mine", workspace=False)
         # Deleting one frees a slot, and its address.
@@ -107,13 +107,13 @@ class Create(DocsSitesCase):
             # Three made today (two deleted): the fourth waits for tomorrow, in any workspace or none.
             await self.create("three", workspace=False)
             r = await self.create("four", workspace=False, expect=429)
-            self.assertIn("3 new docs sites per person per day", r["detail"])
+            self.assertIn("3 new guides per person per day", r["detail"])
             # Someone else in the workspace isn't affected by the owner's count…
             await self.create("five", "admin")
             # …until the workspace's own cap.
             with mock.patch.object(settings, "docs_site_creations_per_workspace_per_day", 3):
                 r = await self.create("six", "admin", expect=429)
-                self.assertIn("3 new docs sites per workspace per day", r["detail"])
+                self.assertIn("3 new guides per workspace per day", r["detail"])
             with mock.patch.object(settings, "docs_imports_per_workspace_per_day", 1):
                 r = await self.create("seven", "admin", source=gb, expect=429)
                 self.assertIn("1 GitBook imports per workspace per day", r["detail"])
@@ -311,7 +311,7 @@ class Settings(DocsSitesCase):
         await self.patch({"slug": "other"}, expect=409)
         await self.patch({"slug": "www"}, expect=422)
         got = await self.patch({"slug": "acme-2"})
-        self.assertEqual((got["slug"], got["url"]), ("acme-2", "https://acme-2.docs.markdrop.in"))
+        self.assertEqual((got["slug"], got["url"]), ("acme-2", "https://acme-2.guides.markdrop.in"))
         self.assertTrue(other["id"])
 
 

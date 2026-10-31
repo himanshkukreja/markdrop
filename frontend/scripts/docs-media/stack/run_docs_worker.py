@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""The Docs Studio job worker for the docs media stack (stack.sh starts it after the API).
+"""The Markdrop Guides job worker for the docs media stack (stack.sh starts it after the API).
 
 Runs the REAL local worker (backend/scripts/docs_build_worker.py: builds, imports, restores,
 unpublishes) with the sandbox's settings: stack/.env (never backend/.env: cwd is this folder and
 every inherited MARKDROP_* variable is dropped), this instance's Mongo db, and the folder store
 ``.data/docs-store`` instead of the docs R2 bucket. A publish in the studio is built by the real
 engine (docs-platform/runner → builder) and published into that folder, which stack.sh serves by
-hostname, so ``http://<slug>.docs.markdrop.in:<docs port>`` shows the real site.
+hostname, so ``http://<slug>.guides.markdrop.in:<docs port>`` shows the real site.
 
     STACK_ID=N backend/.venv/bin/python frontend/scripts/docs-media/stack/run_docs_worker.py [--once]
 
@@ -93,6 +93,6 @@ docs_dispatch.probe_import_pages = _no_probe
 from scripts.docs_build_worker import main  # noqa: E402
 
 if __name__ == "__main__":
-    print(f"[docs-media] stack {STACK_ID}: Docs Studio worker on db {settings.mongodb_db}, "
+    print(f"[docs-media] stack {STACK_ID}: Markdrop Guides worker on db {settings.mongodb_db}, "
           f"store {os.environ['MARKDROP_DOCS_STORE_DIR']}", flush=True)
     sys.exit(main())

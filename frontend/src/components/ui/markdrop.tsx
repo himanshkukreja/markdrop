@@ -96,7 +96,7 @@ const CREATE: Array<{ key: CreateKey; href: string; label: React.ReactNode; desc
   { key: "artifact", href: "/upload", label: <>Artifact <Badge tone="warning" size="sm" upper>New</Badge></>, description: "HTML page, PDF, spreadsheet, Word doc or video", icon: "doc", tint: "cat-artifact" },
   { key: "builder", href: "/builder", label: "README builder", description: "Assemble a README from ready-made blocks", icon: "builder", tint: "cat-builder" },
   { key: "share", href: "/share", label: "Send a file", description: "Peer-to-peer. Files are never stored on our servers.", icon: "send", tint: "cat-share" },
-  { key: "docs", href: "/docs-studio/new", label: "Docs site", description: "A documentation website, in Docs Studio", icon: "layers", tint: "cat-docs" },
+  { key: "docs", href: "/guides/new", label: "Guide", description: "A help center or product guide, in Markdrop Guides", icon: "layers", tint: "cat-docs" },
 ];
 export interface CreateMenuProps {
   defaultOpen?: boolean;

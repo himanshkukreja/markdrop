@@ -313,7 +313,7 @@ async def _by_site(db, feature: str, rows: list[dict]) -> list[dict]:
 
 
 async def _studio_sites(db, ids: list[str]) -> dict[str, dict]:
-    """Docs Studio sites among the ledger's site ids (deleted ones too): {id: {name, url}}."""
+    """Markdrop Guides sites among the ledger's site ids (deleted ones too): {id: {name, url}}."""
     if not ids:
         return {}
     from app.services import docs_snapshot

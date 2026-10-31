@@ -166,7 +166,7 @@ StudioRole = Literal["admin", "reviewer", "editor", "viewer", "none"]
 
 
 class StudioRoleUpdate(_Body):
-    """A Docs Studio role: for a workspace member ("none" removes it), or a site override
+    """A Guides role: for a workspace member ("none" removes it), or a site override
     ("none" hides the site from them)."""
     role: StudioRole
 

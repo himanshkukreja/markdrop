@@ -42,14 +42,17 @@ RESERVED_SLUGS = frozenset(
         # Simpler workspaces UI: Shared with me, Recent, and the owner's
         # access-request page (/requests/<id>). Same lists as above.
         "shared", "recent", "requests",
+        # Markdrop Guides (/guides, the guide builder) and its old address
+        # (/docs-studio, a permanent redirect to /guides in next.config.ts).
+        "guides", "docs-studio",
     }
 )
 
 # Reserved for documents (markdrop.in/<slug>) only. A workspace's own domain
 # rewrites every path to its documents and folders and serves none of these app
-# pages, so a top-level *folder* called "Shared" or "Recent" (common names)
-# shadows nothing and stays allowed.
-APP_ONLY_SLUGS = frozenset({"shared", "recent", "requests"})
+# pages, so a top-level *folder* called "Shared", "Recent" or "Guides" (common
+# names) shadows nothing and stays allowed.
+APP_ONLY_SLUGS = frozenset({"shared", "recent", "requests", "guides"})
 
 _SLUG_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 

@@ -1,7 +1,7 @@
 """Hosted docs sites: the collections, roles, limits, sites and events.
 
 A docs site lives in a workspace (or, personal, belongs to one person). Who may
-do what is the caller's Docs Studio role on the site (services/docs_studio_roles.py:
+do what is the caller's Guides role on the site (services/docs_studio_roles.py:
 admin, reviewer, editor, viewer, or none), resolved in one place, :func:`site_role`:
 the workspace owner and admins are always admins; everyone else has the role a
 studio admin gave them in the workspace, or a per-site override; a personal site
@@ -87,7 +87,7 @@ def aware(dt: datetime | None) -> datetime | None:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def oid(value: Any, what: str = "Docs site") -> ObjectId:
+def oid(value: Any, what: str = "Guide") -> ObjectId:
     try:
         return ObjectId(str(value))
     except Exception:
@@ -195,14 +195,14 @@ def can_review(role: str | None) -> bool:
 
 
 async def site_role(db: AsyncIOMotorDatabase, site: dict, user_id: str | None) -> str | None:
-    """The caller's effective Docs Studio role on the site (None: no access)."""
+    """The caller's effective Guides role on the site (None: no access)."""
     return (await studio_roles.resolve(db, site, user_id)).role
 
 
 _NEED_MESSAGE = {
-    "editor": "You need edit access to this docs site to do that.",
-    "reviewer": "Only this site's reviewers and admins can do that.",
-    "admin": "Only Docs Studio admins can do that.",
+    "editor": "You need edit access to this guide to do that.",
+    "reviewer": "Only this guide's reviewers and admins can do that.",
+    "admin": "Only Guides admins can do that.",
     "owner": "Only the owner can do that.",
 }
 
@@ -212,10 +212,10 @@ async def site_access(db: AsyncIOMotorDatabase, site_id: str, user: User,
     """(site row, caller's role and where it comes from), or 404 for no access / 403 for too little."""
     site = await db[SITES].find_one({"_id": oid(site_id), "deleted_at": None})
     if site is None:
-        raise HTTPException(status_code=404, detail="Docs site not found")
+        raise HTTPException(status_code=404, detail="Guide not found")
     access = await studio_roles.resolve(db, site, user.id)
     if access.role is None:
-        raise HTTPException(status_code=404, detail="Docs site not found")
+        raise HTTPException(status_code=404, detail="Guide not found")
     if not role_at_least(access.role, need):
         raise HTTPException(status_code=403, detail=_NEED_MESSAGE.get(need, "Not allowed."))
     return site, access
@@ -317,10 +317,10 @@ async def check_new_site_quota(db: AsyncIOMotorDatabase, user_id: str, workspace
     """Today's site creations (and imports, for a GitBook site), per person and per workspace.
     Counted from the site rows, deleted ones included: a site is never removed, only marked."""
     since = {"$gte": utc_midnight()}
-    checks = [({"owner_id": user_id}, settings.docs_site_creations_per_user_per_day, "new docs sites", "person")]
+    checks = [({"owner_id": user_id}, settings.docs_site_creations_per_user_per_day, "new guides", "person")]
     if workspace_id:
         checks.append(({"workspace_id": workspace_id}, settings.docs_site_creations_per_workspace_per_day,
-                       "new docs sites", "workspace"))
+                       "new guides", "workspace"))
     if kind == "gitbook":
         checks.append(({"owner_id": user_id, "source.kind": "gitbook"}, settings.docs_imports_per_user_per_day,
                        "GitBook imports", "person"))
@@ -361,7 +361,7 @@ def limits() -> dict:
 
 # What a build or job failure says to anyone but a studio admin: the runner's own error text
 # (an R2 or Next message, a path) is for the people who can act on it.
-GENERIC_ERROR = "Something went wrong on our side. A site admin can see the details."
+GENERIC_ERROR = "Something went wrong on our side. A guide admin can see the details."
 
 
 def _error_for(err: Any, details: bool) -> str | None:
@@ -559,13 +559,13 @@ async def list_sites(db: AsyncIOMotorDatabase, user: User, workspace_id: str | N
 
 
 def _workspace_brand(ws) -> dict:
-    """What Docs Studio shows of a workspace beside its sites: its accent and logo, if set."""
+    """What Markdrop Guides shows of a workspace beside its sites: its accent and logo, if set."""
     b = ws.branding
     return {"accent": b.accent_color or None, "logo_url": b.logo_url or None}
 
 
 async def list_all_sites(db: AsyncIOMotorDatabase, user: User) -> dict:
-    """Docs Studio's home (``GET /docs-sites?scope=all``): every site the caller can open, across
+    """Markdrop Guides' home (``GET /docs-sites?scope=all``): every site the caller can open, across
     all their workspaces plus their personal ones, each carrying its workspace (for grouping);
     every workspace with the caller's studio role there ("none" until an admin gives one), its
     usage and whether they may create a site (studio admin, and not being deleted) or manage its
@@ -690,7 +690,7 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
     """(site, caller's role, job or None)."""
     name = (name or "").strip()
     if not name:
-        raise HTTPException(status_code=422, detail="Give the site a name.")
+        raise HTTPException(status_code=422, detail="Give the guide a name.")
     slug = (slug or "").strip().lower()
     _slug_or_raise(slug_problem(slug))
 
@@ -701,7 +701,7 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
             raise HTTPException(status_code=404, detail="Workspace not found")
         role = await studio_roles.workspace_role(db, workspace_id, user.id, ws_role)
         if not is_admin(role.role):
-            raise HTTPException(status_code=403, detail="Only Docs Studio admins of this workspace can create docs sites.")
+            raise HTTPException(status_code=403, detail="Only Guides admins of this workspace can create guides.")
     else:
         role = studio_roles.Resolved("admin", studio_roles.SRC_PERSONAL)
 
@@ -710,7 +710,7 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
         where = "this workspace" if workspace_id else "your account"
         raise HTTPException(
             status_code=429,
-            detail=f"The free plan has {settings.docs_sites_per_workspace} docs sites per workspace, "
+            detail=f"The free plan has {settings.docs_sites_per_workspace} guides per workspace, "
                    f"and {where} has them all. Delete one to make another.")
     await check_new_site_quota(db, user.id, workspace_id, source.get("kind"))
 
@@ -777,7 +777,7 @@ async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None,
     if name is not None:
         n = name.strip()
         if not n:
-            raise HTTPException(status_code=422, detail="Give the site a name.")
+            raise HTTPException(status_code=422, detail="Give the guide a name.")
         updates["name"] = n[:80]
     if slug is not None:
         s = slug.strip().lower()
@@ -834,7 +834,7 @@ async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None,
     except DuplicateKeyError:
         raise HTTPException(status_code=409, detail="That address is taken.") from None
     if res is None:
-        raise HTTPException(status_code=404, detail="Docs site not found")
+        raise HTTPException(status_code=404, detail="Guide not found")
     if access_changed:
         await docs_site_access.queue_sync(db, res["_id"], "settings")
     if "slug" in updates:
@@ -880,7 +880,7 @@ async def _take_down(db: AsyncIOMotorDatabase, site: dict, reason: str, extra: d
 
 async def unpublish_site(db: AsyncIOMotorDatabase, site: dict) -> dict:
     if site.get("status") != "live" and not site.get("live_build_id"):
-        raise HTTPException(status_code=409, detail="This site isn't published.")
+        raise HTTPException(status_code=409, detail="This guide isn't published.")
     return await _take_down(db, site, "unpublish", {})
 
 

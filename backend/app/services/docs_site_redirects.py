@@ -52,7 +52,7 @@ def clean(raw) -> list[dict]:
     if not isinstance(raw, list):
         raise ValueError("Redirects are a list of {from, to}.")
     if len(raw) > MAX_REDIRECTS:
-        raise ValueError(f"A site can have at most {MAX_REDIRECTS:,} redirects.")
+        raise ValueError(f"A guide can have at most {MAX_REDIRECTS:,} redirects.")
     out: list[dict] = []
     seen: set[str] = set()
     for r in raw:
@@ -70,7 +70,7 @@ def clean(raw) -> list[dict]:
             raise ValueError(f"{src}: the old address is a plain path (no ?, # or spaces).")
         if not ((dst.startswith("/") and not dst.startswith("//")) or dst.lower().startswith("https://")) \
                 or _WS.search(dst):
-            raise ValueError(f"{src}: send it to a page of this site (/new/page) or an https:// address.")
+            raise ValueError(f"{src}: send it to a page of this guide (/new/page) or an https:// address.")
         frm = _trim(src)
         if frm == "/":
             raise ValueError("The home page can't be redirected.")
@@ -94,7 +94,7 @@ def problems_against(redirects: list[dict], page_paths: set[str]) -> list[str]:
             out.append(f"{frm} is a page of this site; the redirect would hide it. Move or delete the page first.")
             continue
         if frm in FIXED_ROUTES or frm.split("/")[1] in OWN_SEGMENTS:
-            out.append(f"{frm} is one of the docs site's own addresses.")
+            out.append(f"{frm} is one of the guide's own addresses.")
             continue
         if to.lower().startswith("https://"):
             continue

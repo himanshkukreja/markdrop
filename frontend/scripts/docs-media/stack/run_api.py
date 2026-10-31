@@ -25,12 +25,12 @@ Sandbox-only routes (loopback only; the server binds 127.0.0.1):
   POST /__sandbox/cleanup  {}                            → delete documents not made by seed.py
   GET  /__sandbox/head/<key>                             → fake-R2 object metadata (Worker harness)
   GET  /__sandbox/health
-  GET  /__docsstore/<key>                                → a Docs Studio site file (editor previews)
+  GET  /__docsstore/<key>                                → a Markdrop Guides site file (editor previews)
 
-Docs Studio: the docs bucket is a folder store (``.data/docs-store``). Uploads land there, builds are
+Markdrop Guides: the docs bucket is a folder store (``.data/docs-store``). Uploads land there, builds are
 routed to the local worker (stack/run_docs_worker.py, which stack.sh starts) and publish there too,
 and stack.sh serves the folder by hostname (docs-platform/server/server.mjs), so a site published in
-the studio is really live at ``http://<slug>.docs.markdrop.in:<docs port>`` in the capture browser.
+the studio is really live at ``http://<slug>.guides.markdrop.in:<docs port>`` in the capture browser.
 
 Run: ``backend/.venv/bin/python frontend/scripts/docs-media/stack/run_api.py`` (stack.sh does).
 ``STACK_ID=N`` (default 0) runs instance N: API 8180+10N, Worker 8787+10N, Next 3400+10N, db
@@ -88,7 +88,7 @@ def _load_env() -> None:
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
             value = value[1:-1]
         os.environ[key.strip()] = value
-    # Docs Studio: builds on the local worker, a folder for the docs bucket (see the docstring).
+    # Markdrop Guides: builds on the local worker, a folder for the docs bucket (see the docstring).
     os.environ.update({
         "MARKDROP_DOCS_BUILD_TARGETS": "local",
         "MARKDROP_DOCS_STORE_DIR": str(DATA / "docs-store"),
@@ -319,7 +319,7 @@ def _no_boto():
 r2._client = _no_boto  # anything un-patched fails loudly instead of reaching a bucket
 
 
-# Docs Studio's bucket (services/docs_site_assets.py): the folder store the local worker reads and
+# Markdrop Guides' bucket (services/docs_site_assets.py): the folder store the local worker reads and
 # publishes to, so an image uploaded in the editor is in the next build.
 from app.services import docs_site_assets  # noqa: E402
 
@@ -569,7 +569,7 @@ async def head_object(request: Request, key: str):
 
 @app.get("/__docsstore/{key:path}", include_in_schema=False)
 async def docs_store_file(request: Request, key: str):
-    """A file of the Docs Studio folder store (what presign_get points at)."""
+    """A file of the Markdrop Guides folder store (what presign_get points at)."""
     _guard(request)
     import mimetypes
 

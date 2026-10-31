@@ -14,8 +14,8 @@ export interface NavLink { label: string; href: string; external?: boolean }
 
 /** Marketing header nav (D37) and the mobile menu. */
 export const NAV_LINKS: NavLink[] = [
-  // Docs Studio (the docs-site builder, /docs-studio) is a product; "Docs" is Markdrop's own documentation.
-  { label: "Docs Studio", href: "/docs-studio" },
+  // Markdrop Guides (the guide builder, /guides) is a product; "Docs" is Markdrop's own documentation.
+  { label: "Guides", href: "/guides" },
   { label: "Docs", href: DOCS_URL },
   { label: "MCP", href: "/mcp" },
   { label: "Enterprise", href: "/enterprise" },
@@ -31,7 +31,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: NavLink[] }> = [
       { label: "Publish a document", href: "/new" },
       { label: "Send a file", href: "/share" },
       { label: "Upload a file", href: "/upload" },
-      { label: "Docs Studio", href: "/docs-studio" },
+      { label: "Markdrop Guides", href: "/guides" },
       { label: "README builder", href: "/builder" },
       { label: "Dashboard", href: "/dashboard" },
     ],

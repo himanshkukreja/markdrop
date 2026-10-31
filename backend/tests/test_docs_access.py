@@ -21,7 +21,7 @@ from app.services.docs_jobs import JOBS, SITES
 
 SECRET = "api-test-secret-0123456789abcdef-0123456789"
 SH = "S" * 43
-HOST = "acme.docs.markdrop.in"
+HOST = "acme.guides.markdrop.in"
 PW_URL = "/api/v1/docs-access/password"
 GRANT_URL = "/api/v1/docs-access/grant"
 
@@ -173,7 +173,7 @@ class AccessApiTests(DocsSitesCase):
             await self.call("PATCH", f"/{other['id']}", json={"settings": {"access": {"level": "password", "password": "open-sesame"}}})
             b = await self.call("POST", f"/{other['id']}/publish", json={}, expect=202)
             await self.mark_live(b["id"])
-            self.assertIn("#g=", (await self.pw(site=other["id"], host="other.docs.markdrop.in", ip="203.0.113.52")).headers["location"])
+            self.assertIn("#g=", (await self.pw(site=other["id"], host="other.guides.markdrop.in", ip="203.0.113.52")).headers["location"])
         # The window passes: open again.
         limiter.reset()
         self.assertIn("#g=", (await self.pw(ip="203.0.113.53")).headers["location"])
@@ -209,7 +209,7 @@ class AccessApiTests(DocsSitesCase):
         self.assertEqual(r.status_code, 403)
         self.assertEqual(r.json()["detail"]["site_name"], "Acme Docs")
         self.assertEqual((await self.http.post(GRANT_URL, json={"site_id": self.sid, "host": HOST, "sh": SH})).status_code, 401)
-        # The role comes from the Docs Studio helper, whatever it decides.
+        # The role comes from the Markdrop Guides helper, whatever it decides.
         with mock.patch("app.services.docs_site_store.site_role", mock.AsyncMock(return_value=None)):
             self.assertEqual((await self.member_grant("owner")).status_code, 403)
 
@@ -251,7 +251,7 @@ class AccessTokenTests(unittest.TestCase):
         for bad in ("//evil", "/\\evil", "https://evil", "evil", "/a\nb", "/" + "a" * 2001):
             self.assertEqual(access.safe_next(bad), "/", bad)
         self.assertEqual(access.safe_next("/a/b?c=1"), "/a/b?c=1")
-        self.assertEqual(access.clean_host("ACME.docs.markdrop.in."), "acme.docs.markdrop.in")
+        self.assertEqual(access.clean_host("ACME.guides.markdrop.in."), "acme.guides.markdrop.in")
         self.assertIsNone(access.clean_host("evil.test/x"))
         self.assertIsNone(access.clean_host("a..b"))
         self.assertEqual(access.origin_of("acme.docs.localhost:3563"), "http://acme.docs.localhost:3563")

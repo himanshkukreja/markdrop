@@ -103,7 +103,7 @@ class Pages(DocsSitesCase):
             self.assertEqual(r.status_code, 422, bad)
         r = await self.http.post(f"{BASE}/{self.sid}/pages", json={"path": "/api-reference/x", "title": "x"},
                                  headers=self.h["editor"])
-        self.assertEqual(r.json()["detail"], "/api-reference is used by the docs site itself. Start the address with another word.")
+        self.assertEqual(r.json()["detail"], "/api-reference is used by the guide itself. Start the address with another word.")
         a = await self.new_page("/guides/a")
         await self.save(a, path="/public/a", expect=422)
         await self.new_page("/api/payments")  # close, but fine

@@ -59,7 +59,7 @@ def normalize_path(path: str) -> str:
             detail="Use an address like /getting-started/quickstart: lowercase letters, numbers and hyphens, "
                    "at most 6 levels.")
     if p.split("/")[1] in RESERVED_SEGMENTS:
-        raise HTTPException(status_code=422, detail=f"/{p.split('/')[1]} is used by the docs site itself. "
+        raise HTTPException(status_code=422, detail=f"/{p.split('/')[1]} is used by the guide itself. "
                                                     "Start the address with another word.")
     skipped = RESERVED_ANYWHERE.intersection(p.split("/")[1:])
     if skipped:
@@ -186,7 +186,7 @@ async def _edit_nav(db: AsyncIOMotorDatabase, site_id: ObjectId, change) -> list
     for _ in range(8):
         site = await db[SITES].find_one({"_id": site_id}, {"settings.nav": 1})
         if site is None:
-            raise HTTPException(status_code=404, detail="Docs site not found")
+            raise HTTPException(status_code=404, detail="Guide not found")
         old = (site.get("settings") or {}).get("nav") or []
         new = change([{"group": g["group"], "pages": list(g.get("pages") or [])} for g in old])
         if new == old:
@@ -240,7 +240,7 @@ async def put_nav(db: AsyncIOMotorDatabase, site: dict, nav: list[dict]) -> list
             if pid in hidden:
                 raise HTTPException(status_code=422, detail="Hidden pages aren't listed in the sidebar.")
             if pid not in visible:
-                raise HTTPException(status_code=422, detail=f"No page {pid} in this site.")
+                raise HTTPException(status_code=422, detail=f"No page {pid} in this guide.")
             if pid in seen:
                 raise HTTPException(status_code=422, detail="A page can be listed only once.")
             seen.add(pid)
@@ -315,7 +315,7 @@ async def create_page(db: AsyncIOMotorDatabase, site: dict, user: User, *, path:
     check_markdown(markdown)
     if await store.page_count(db, site["_id"]) >= settings.docs_pages_per_site:
         raise HTTPException(status_code=429,
-                            detail=f"The free plan has {settings.docs_pages_per_site:,} pages per site.")
+                            detail=f"The free plan has {settings.docs_pages_per_site:,} pages per guide.")
     at = now()
     row = store._new_page_row(site["_id"], {"path": path, "title": title.strip() or "Untitled",
                                             "description": description, "icon": icon, "markdown": markdown},
@@ -424,7 +424,7 @@ async def lock(db: AsyncIOMotorDatabase, site: dict, page: dict, user: User, rol
         {"$set": {"lock": _lock_for(user)}}, return_document=ReturnDocument.AFTER)
     if held is None and takeover:
         if not store.is_admin(role):
-            raise HTTPException(status_code=403, detail="Only Docs Studio admins can take over a page.")
+            raise HTTPException(status_code=403, detail="Only Guides admins can take over a page.")
         held = await db[PAGES].find_one_and_update(
             {"_id": page["_id"], "deleted_at": None}, {"$set": {"lock": _lock_for(user)}},
             return_document=ReturnDocument.AFTER)

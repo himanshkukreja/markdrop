@@ -31,7 +31,7 @@ function Person({ p, you, children, meta }: { p: SitePerson; you: boolean; child
 
 /**
  * Site › Settings › People (admins of the site): this site's role overrides. Everyone in the
- * workspace has their Docs Studio role from Members; here an admin gives someone a different role
+ * workspace has their Guides role from Members; here an admin gives someone a different role
  * on this site only, higher or lower ("No access" hides the site from them), changes or removes
  * it, and sees everyone's resulting role and the history of changes. The workspace owner and
  * admins are always admins. A personal site is its owner's alone.
@@ -124,8 +124,8 @@ export function SitePeople() {
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <p className="text-body text-text-secondary">
-        Everyone in the workspace has their Docs Studio role from <a className="text-accent-text underline-offset-2 hover:underline" href={studioMembers(wsId)}>Members</a>.
-        Give someone a different role on this site only, higher or lower. No access hides the site from them.{" "}
+        Everyone in the workspace has their Guides role from <a className="text-accent-text underline-offset-2 hover:underline" href={studioMembers(wsId)}>Members</a>.
+        Give someone a different role on this guide only, higher or lower. No access hides the guide from them.{" "}
         <ReadMore topic="studioSiteRoles" />
       </p>
       {error && <Alert tone="danger" actions={<Button size="sm" variant="secondary" onClick={() => void load()}>Try again</Button>}>{error}</Alert>}
@@ -135,7 +135,7 @@ export function SitePeople() {
         <>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="min-w-0 flex-1 text-body-strong text-text">
-              {overrides.length ? `Different on this site · ${overrides.length}` : "No one has a different role on this site"}
+              {overrides.length ? `Different on this guide · ${overrides.length}` : "No one has a different role on this guide"}
             </h3>
             <Button variant="secondary" size="sm" iconLeft="userPlus" disabled={!candidates.length}
               title={!candidates.length ? "Everyone who can have one already does." : undefined}
@@ -144,30 +144,30 @@ export function SitePeople() {
             </Button>
           </div>
           {overrides.length > 0 && (
-            <ul className="m-0 flex list-none flex-col rounded-lg border border-border px-3" aria-label="Roles on this site">
+            <ul className="m-0 flex list-none flex-col rounded-lg border border-border px-3" aria-label="Roles on this guide">
               {overrides.map((p) => (
                 <Person key={p.user_id} p={p} you={p.user_id === data.you}
                   meta={<>Workspace-wide: {roleLabel(p.studio_role)}{p.override_by_name ? ` · set by ${firstName(p.override_by_name)} ${timeAgo(p.override_at)}` : ""}</>}>
                   <RoleSelect value={p.override ?? "none"} onChange={(r) => void setRole(p, r)} disabled={busy === p.user_id || p.user_id === data.you}
-                    label={`Role on this site for ${p.name}`} />
-                  <IconButton icon="x" size="sm" label={`Remove ${p.name}'s role on this site`} disabled={busy === p.user_id || p.user_id === data.you} onClick={() => void clear(p)} />
+                    label={`Role on this guide for ${p.name}`} />
+                  <IconButton icon="x" size="sm" label={`Remove ${p.name}'s role on this guide`} disabled={busy === p.user_id || p.user_id === data.you} onClick={() => void clear(p)} />
                 </Person>
               ))}
             </ul>
           )}
 
-          <Disclosure summary={<span className="text-body-strong text-text">Everyone&apos;s role on this site · {plural(everyone.length, "person", "people")}</span>}>
-            <ul className="m-0 flex list-none flex-col p-0 pt-1" aria-label="Everyone's role on this site">
+          <Disclosure summary={<span className="text-body-strong text-text">Everyone&apos;s role on this guide · {plural(everyone.length, "person", "people")}</span>}>
+            <ul className="m-0 flex list-none flex-col p-0 pt-1" aria-label="Everyone's role on this guide">
               {everyone.map((p) => (
-                <Person key={p.user_id} p={p} you={p.user_id === data.you} meta={roleSourceLabel(p.source) || "No Docs Studio role"}>
+                <Person key={p.user_id} p={p} you={p.user_id === data.you} meta={roleSourceLabel(p.source) || "No Guides role"}>
                   {p.locked ? <LockedAdmin workspaceRole={p.workspace_role} /> : <RoleBadge role={p.effective_role} size="md" />}
-                  {p.override !== null && <Badge size="sm" variant="outline">This site</Badge>}
+                  {p.override !== null && <Badge size="sm" variant="outline">This guide</Badge>}
                 </Person>
               ))}
             </ul>
           </Disclosure>
           <Disclosure summary={<span className="text-body-strong text-text">History</span>}>
-            <div className="flex flex-col gap-1 pt-1"><RoleHistory events={history} empty="No one's role on this site has changed yet." /></div>
+            <div className="flex flex-col gap-1 pt-1"><RoleHistory events={history} empty="No one's role on this guide has changed yet." /></div>
           </Disclosure>
         </>
       )}
@@ -176,7 +176,7 @@ export function SitePeople() {
         open={adding}
         onClose={() => setAdding(false)}
         title={<>Give someone a role on <span className="ph-sensitive ph-mask">{site.name}</span></>}
-        description="For this site only. Their role on the workspace's other sites stays as it is."
+        description="For this guide only. Their role on the workspace's other guides stays as it is."
         footer={
           <>
             <Button variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>
@@ -193,7 +193,7 @@ export function SitePeople() {
               options={candidates.map((c) => ({ value: c.user_id, label: `${c.name}${c.email && c.email !== c.name ? ` (${c.email})` : ""} · now ${roleLabel(c.effective_role)}` }))}
             />
           </Field>
-          <Field label="Role on this site" htmlFor={`${uid}-role`}>
+          <Field label="Role on this guide" htmlFor={`${uid}-role`}>
             <RoleSelect value={pickRole} onChange={setPickRole} />
           </Field>
         </div>

@@ -65,7 +65,7 @@ function moveTo(nav: NavGroup[], id: string, group: string): NavGroup[] {
 }
 
 /**
- * /docs-studio/<site>?page=<id> (Editor board): the page tree (locks, unpublished dots, new page,
+ * /guides/<site>?page=<id> (Editor board): the page tree (locks, unpublished dots, new page,
  * move, delete), the page itself (title, description, then the docs editor in Visual or Markdown
  * mode), and the page panel (address, sidebar, icon, history). Drafts autosave; the top bar says
  * where the draft stands, and Publish… goes to the Publish screen.
@@ -290,7 +290,7 @@ export default function EditorPage() {
                 actions={firstPage ? <Button variant="secondary" onClick={() => open(firstPage)}>Open the first page</Button> : undefined} />
             )}
             {tree && tree.pages.length === 0 && (
-              <EmptyState icon="doc" title="No pages yet" description="Add the first page of your docs." actions={canEdit ? <Button variant="primary" iconLeft="plus" onClick={() => setNewOpen(true)}>New page</Button> : undefined} />
+              <EmptyState icon="doc" title="No pages yet" description="Add the first page of your guide." actions={canEdit ? <Button variant="primary" iconLeft="plus" onClick={() => setNewOpen(true)}>New page</Button> : undefined} />
             )}
             {pageId && !fields && !session.loadError && (
               <div className="flex min-h-[40vh] items-center justify-center" aria-busy="true"><Spinner size={20} label="Loading the page" /></div>
@@ -342,7 +342,7 @@ export default function EditorPage() {
         </div>
       )}
 
-      <Drawer open={preview} onClose={() => setPreview(false)} title={fields?.title ? <span className="ph-sensitive ph-mask">{fields.title}</span> : "Preview"} description="A quick look at the draft. Callouts, steps and tabs render fully on the published site." width={760}>
+      <Drawer open={preview} onClose={() => setPreview(false)} title={fields?.title ? <span className="ph-sensitive ph-mask">{fields.title}</span> : "Preview"} description="A quick look at the draft. Callouts, steps and tabs render fully on the published guide." width={760}>
         {fields && (
           <div className="ph-no-capture flex flex-col gap-3">
             {fields.description && <p className="text-[16px] text-text-secondary">{fields.description}</p>}
@@ -376,7 +376,7 @@ export default function EditorPage() {
         open={!!deleting}
         onClose={() => setDeleting(null)}
         title={<>Delete “<span className="ph-sensitive ph-mask">{deleting?.title ?? ""}</span>”?</>}
-        body="If it's on the published site, it disappears at the next publish. Old links to it stop working."
+        body="If it's on the published guide, it disappears at the next publish. Old links to it stop working."
         confirmLabel="Delete page"
         onConfirm={async () => {
           if (!deleting) return;
@@ -492,7 +492,7 @@ function NewPageDialog({ open, onClose, groups, currentGroup, afterId, onCreate 
             <Input value={newGroup} maxLength={60} placeholder="Guides" onChange={(e) => { setNewGroup(e.target.value); if (!pathEdited.current) setPath(autoPath(title, e.target.value)); }} />
           </Field>
         )}
-        <Field label="Address" htmlFor={`${uid}-p`} hint="Where the page lives on the site." error={bad || undefined}>
+        <Field label="Address" htmlFor={`${uid}-p`} hint="Where the page lives in the guide." error={bad || undefined}>
           <Input mono value={path} spellCheck={false} autoCapitalize="none" onChange={(e) => { pathEdited.current = true; setPath(e.target.value.toLowerCase()); }} />
         </Field>
         {error && <Alert tone="danger">{error}</Alert>}

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Docs Studio demo world for the docs media (docs.markdrop.in › Docs Studio pages).
+"""Markdrop Guides demo world for the docs media (docs.markdrop.in › Markdrop Guides pages).
 
 Run after seed.py, against the same instance (STACK_ID), with the whole stack up (stack.sh starts
-the Docs Studio worker and the site server too: publishes here are REAL builds by the docs engine,
-published into the stack's folder store and served at http://<slug>.docs.markdrop.in:<3405+10N>).
+the Markdrop Guides worker and the site server too: publishes here are REAL builds by the docs engine,
+published into the stack's folder store and served at http://<slug>.guides.markdrop.in:<3405+10N>).
 
     STACK_ID=13 backend/.venv/bin/python frontend/scripts/docs-media/seed_extra_studio.py
-        Resets every Docs Studio row, then builds (writes .data/<N>/fixtures_studio.json):
+        Resets every Markdrop Guides row, then builds (writes .data/<N>/fixtures_studio.json):
         people    Acme gains Noah Kim (reviewer), Priya Nair (no workspace-wide role; Editor on the
                   Help Center only) and Omar Haddad (no access); Alex Chen is an Editor (Viewer on
                   the Developer Docs), Sam Lee a Viewer; Riya (owner) and Maya (admin) are admins
@@ -178,7 +178,7 @@ def wait_build(token: str, sid: str, bid: str, timeout: float = 600) -> dict:
                 print(f"    · publish #{b['number']} live in {b['stats']['ms'] / 1000:.0f}s ({b['note']})", flush=True)
                 return b
         time.sleep(2)
-    sys.exit(f"build {bid} did not finish in {timeout}s (is the Docs Studio worker running? stack.sh logs docsworker)")
+    sys.exit(f"build {bid} did not finish in {timeout}s (is the Markdrop Guides worker running? stack.sh logs docsworker)")
 
 
 def upload(token: str, sid: str, file: Path, name: str, mime: str) -> str:
@@ -208,7 +208,7 @@ def seed() -> dict:
     reset()
     clock = Clock()
 
-    # People: three more Acme members (workspace "member" role); the Docs Studio roles come next.
+    # People: three more Acme members (workspace "member" role); the Markdrop Guides roles come next.
     for key, email, name in (("noah", "noah@acme.com", "Noah Kim"), ("priya", "priya@acme.com", "Priya Nair"),
                              ("omar", "omar@acme.com", "Omar Haddad")):
         u = call("POST", "/__sandbox/user", json={"email": email, "name": name})
@@ -316,7 +316,7 @@ def seed() -> dict:
 
     # ── Theme previews: a personal copy of Acme's docs (Jordan's, so it isn't on Riya's home),
     #    without the brand, so each preset shows as it comes. The Themes shots switch its preset
-    #    and publish it (shots/d-docs-studio.mjs).
+    #    and publish it (shots/d-guides.mjs).
     print("· acme-themes (theme previews)", flush=True)
     clock.phase(timedelta(days=1))
     th = call("POST", "/api/v1/docs-sites", T["jordan"], json={
@@ -336,7 +336,7 @@ def seed() -> dict:
     out = {"acme": sid, "help": hid, "developers": did, "themes": tid, "review": review["id"], "workspace": ws,
            "slugs": {"acme": "acme", "help": "acme-help", "developers": "acme-developers", "themes": "acme-themes"}}
     (DATA / "fixtures_studio.json").write_text(json.dumps(out, indent=2))
-    print(f"seeded Docs Studio: 3 sites, {moved} rows backdated → {DATA / 'fixtures_studio.json'}")
+    print(f"seeded Markdrop Guides: 3 sites, {moved} rows backdated → {DATA / 'fixtures_studio.json'}")
     return out
 
 

@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
  *       and asks for sign-in before publishing)
  *   README builder / "Assemble a README from ready-made blocks"               → /builder
  *   Send a file / "Peer-to-peer. Files are never stored on our servers."      → /share
- *   Docs site / "A documentation website, in Docs Studio"                     → /docs-studio/new
+ *   Guide / "A help center or product guide, in Markdrop Guides"              → /guides/new
  *       (signed out: "Needs an account"; the studio asks for sign-in first)
  * Keyboard: Enter/Space/ArrowDown open and focus the first row, arrows move, Escape closes and
  * returns focus to the trigger. Below 360px the trigger is the plus alone (label kept for AT).

@@ -51,7 +51,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         setAll(await listAllSites());
         setAllError("");
       } catch (e) {
-        setAllError(docsErrorMessage(e, "Couldn't load your docs sites."));
+        setAllError(docsErrorMessage(e, "Couldn't load your guides."));
       } finally {
         inflight.current = null;
       }

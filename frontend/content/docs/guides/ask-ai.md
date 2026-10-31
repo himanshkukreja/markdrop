@@ -1,0 +1,48 @@
+---
+title: Ask AI on your guide
+nav: Ask AI
+description: Give your readers an assistant that answers from your published pages, with links to the sections it used. Turn it on, name it and suggest questions.
+updated: 2026-10-31
+prerequisites: [/guides/publishing]
+keywords: [ask ai, ai assistant, chatbot, answers, citations, suggested questions, docs search, ai search]
+---
+
+Ask AI lets readers ask a question in their own words and get an answer written from your pages, with a link to the exact section each part came from. It only uses your **published** pages: drafts never reach it.
+
+::clip{src="/docs-assets/guides/ask-ai/reader-ask-ai" alt="On Acme's published Connect Postgres page, opening Ask Acme, asking how to connect a Postgres database, the answer streaming in with numbered sources, and choosing source 1 to jump to the Create a read-only user section."}
+
+## Turn it on
+
+::::steps
+### Open the setting
+Open the guide's **Settings** and find **Ask AI**. Only Guides admins can change it.
+
+### Switch it on
+Turn the switch **On**.
+
+### Publish
+Readers get the assistant after the next [publish](/guides/publishing). Turning it off works the same way.
+::::
+
+![Ask AI settings: Name readers see "Ask Acme", and three suggested questions: How do I connect Postgres?, How do alert rules work? and Where do I find my API key?](/docs-assets/guides/ask-ai/settings-ask-ai.webp)
+
+## Make it yours
+
+- **Name readers see**: what the button and panel are called, like "Ask Acme". Empty means **Ask AI**.
+- **Suggested questions**: up to 5, shown before someone types and on the guide's home page. Type one and press Enter; choose **×** on a question to remove it.
+
+## What readers get
+
+- **Ask** from the header button, the search box, or the home page.
+- Answers come only from your published pages. Each claim has a numbered source that opens the section it came from.
+- On a page, they can ask about that page or one section of it.
+
+## Answers each month
+
+Each guide has a monthly number of Ask AI answers while Markdrop Guides is in beta. The **Ask AI** card shows how many have been used this month. At the limit, readers get links to ask Claude or ChatGPT with the page attached instead.
+
+Better pages make better answers: clear headings, one topic per section, and the words your readers use. See [Write in the editor](/guides/editor).
+
+## Guides that aren't public
+
+Ask AI is for public guides. On a password-protected or members-only guide it stays off, whatever the switch says. Those guides are [coming soon](/guides/site-settings#who-can-read-it), so today every published guide can have it.

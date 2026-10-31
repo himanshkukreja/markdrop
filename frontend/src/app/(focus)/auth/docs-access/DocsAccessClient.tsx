@@ -8,12 +8,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE, getToken } from "@/lib/api";
 
 /**
- * Sign a reader in to a members-only Docs Studio site.
+ * Sign a reader in to a members-only guide (Markdrop Guides).
  *
  * The site's sign-in page (served by the docs edge on the site's own address) links here with the
  * site, its address, the page to land on and the hash of a random state the edge keeps in a cookie.
  * This page runs on markdrop.in, where the reader's session lives: it asks the API for a grant
- * (POST /api/v1/docs-access/grant), which the API gives only when the reader's Docs Studio role on
+ * (POST /api/v1/docs-access/grant), which the API gives only when the reader's Guides role on
  * the site is viewer or more. The grant comes back as the address to go to: the site's
  * /_access/callback with the grant in the URL fragment (never sent to a server, never logged),
  * where the edge checks it — that site, that address, that browser, two minutes — and sets its own
@@ -117,7 +117,7 @@ export default function DocsAccessClient() {
             description={
               <>
                 {user?.email ? <>You&apos;re signed in as <span className="break-words">{user.email}</span>. </> : null}
-                These docs are for the team that publishes them. Ask one of its Docs Studio admins to give you access,
+                This guide is for the team that publishes it. Ask one of its admins to give you access,
                 or sign in with the account they invited.
               </>
             }
@@ -138,8 +138,8 @@ export default function DocsAccessClient() {
           title={failure.kind === "error" ? "Couldn't sign you in" : "That link isn't valid"}
           description={
             failure.kind === "error"
-              ? "Something went wrong on our side. Go back to the docs site and choose Sign in again."
-              : "The site may have changed who can read it, or the link is incomplete. Go back to the docs site and choose Sign in again."
+              ? "Something went wrong on our side. Go back to the guide and choose Sign in again."
+              : "The guide may have changed who can read it, or the link is incomplete. Go back to the guide and choose Sign in again."
           }
           actions={home}
         />

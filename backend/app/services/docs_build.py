@@ -304,7 +304,7 @@ async def _snapshot_slug(db: AsyncIOMotorDatabase, build: dict | None) -> str | 
 
 
 CANCELLED = ("failed", "superseded")
-TAKEN_DOWN = "Not published: the site was taken down while this version was building."
+TAKEN_DOWN = "Not published: the guide was taken down while this version was building."
 
 
 def _taken_down_since(site: dict, build: dict) -> bool:

@@ -461,7 +461,7 @@ function DioBuilder({ a }: DioProps) {
   );
 }
 
-/* Docs Studio: the editor on the left (visual mode, a slash menu open), the published docs site on the
+/* Markdrop Guides: the editor on the left (visual mode, a slash menu open), the published guide on the
    right (its theme in the studio violet, Ask AI answering with a citation). Shared by both layouts. */
 
 function DocsEditor({ a, mobile }: DioProps & { mobile?: boolean }) {
@@ -489,7 +489,7 @@ function DocsEditor({ a, mobile }: DioProps & { mobile?: boolean }) {
 function DocsSite({ a, mobile }: DioProps & { mobile?: boolean }) {
   return (
     <>
-      <div className={k("t-chrome")}><span className={k("dots")}><i /><i /><i /></span><span className={k("t-addr")}><span className={k("mu")}>docs.example.com/</span>quickstart</span></div>
+      <div className={k("t-chrome")}><span className={k("dots")}><i /><i /><i /></span><span className={k("t-addr")}><span className={k("mu")}>help.example.com/</span>quickstart</span></div>
       <div style={{ display: "flex", height: "100%" }}>
         <div className={k("ds-side")}>
           <span className={k("ds-brand")}><span className={k("brand-tile")} style={{ background: "var(--studio-fill)" }}>E</span>{!mobile && "Example"}</span>

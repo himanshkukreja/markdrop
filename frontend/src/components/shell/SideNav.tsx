@@ -21,7 +21,7 @@ export interface RailData {
 export const wsRootKey = (id: string) => `ws:${id}:root`;
 export const wsFolderKey = (id: string, folderId: string) => `ws:${id}:folder:${folderId}`;
 export const wsSettingsKey = (id: string) => `ws:${id}:settings`;
-/** The workspace's "Docs sites" link: it opens Docs Studio filtered to the workspace (never active here). */
+/** The workspace's "Guides" link: it opens Markdrop Guides filtered to the workspace (never active here). */
 export const wsDocsKey = (id: string) => `ws:${id}:docs`;
 
 /**
@@ -188,11 +188,11 @@ function workspaceNode(
         onFiles: filesTo(f.id, f.name),
       };
     };
-    // Docs sites: the workspace's documentation websites live in Docs Studio (its own area, with
-    // its own header); this link opens the studio filtered to the workspace.
+    // Guides: the workspace's guides live in Markdrop Guides (its own area, with its own
+    // header); this link opens it filtered to the workspace.
     children = [
       ...(kids.get(null) ?? []).map(build),
-      { key: wsDocsKey(ws.id), label: "Docs sites", icon: <Icon name="layers" size={16} />, href: `/docs-studio?ws=${encodeURIComponent(ws.id)}`, leaf: true },
+      { key: wsDocsKey(ws.id), label: "Guides", icon: <Icon name="layers" size={16} />, href: `/guides?ws=${encodeURIComponent(ws.id)}`, leaf: true },
     ];
     total = tree.unfiled_count + (kids.get(null) ?? []).reduce((n, f) => n + f.total_count, 0);
   }

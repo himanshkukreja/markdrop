@@ -16,7 +16,7 @@ How it works
   site (default "markdrop"); the site's folder supplies the docs, its prompt
   section, the hosts answers may link to, search synonyms, spend caps and
   whether Markdrop's own account tools apply. Nothing about a site is in code.
-  A Docs Studio site (named by its id) supplies the same from its row and its
+  A Markdrop Guides site (named by its id) supplies the same from its row and its
   live build's snapshot: the neutral prompt, its own address(es) only, no
   account tools.
 * The model drives: it decides which read-only tools to call (search the docs
@@ -37,7 +37,7 @@ How it works
   shape (only user/assistant text from the client, re-validated, citation
   markers stripped), per-visitor hourly limit, a concurrency cap, daily and
   monthly spend caps from real usage (services/ai_usage.py), global and per
-  site, a Docs Studio site's monthly answer cap, the kill switch (global, and
+  site, a Markdrop Guides site's monthly answer cap, the kill switch (global, and
   per site in site.json or the studio site's settings),
   refusal handling, the output link allow-list, personal tools scoped to the
   signed-in caller (tenant tokens count as signed out), and no secrets in any
@@ -558,7 +558,7 @@ class AnswerFilter:
 def make_link_check(index) -> Callable[[str], str | None]:
     """The site's own pages (that exist), its ai.json linkHosts, mailto: its mailDomains.
 
-    A link to one of the site's alias hosts (a Docs Studio site's free address
+    A link to one of the site's alias hosts (a Markdrop Guides site's free address
     besides its own domain) is checked like a docs link and rewritten to the
     docs host."""
     cfg = index.cfg
@@ -1131,7 +1131,7 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
     try:
         index = await docs_index_mod.aget_index(db, req.site)
     except UnknownSite:
-        yield "error", {"message": "Ask AI isn't set up for this docs site.", "code": "unknown_site"}
+        yield "error", {"message": "Ask AI isn't set up for this guide.", "code": "unknown_site"}
         return
     cfg = index.cfg
     site_id = index.site_id
@@ -1191,7 +1191,7 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
         await record_limit(f"budget_{state.reason}")
         yield limit_event("budget")
         return
-    # A Docs Studio site's monthly answers (the count its dashboard shows).
+    # A Markdrop Guides site's monthly answers (the count its dashboard shows).
     if cfg.monthly_answers is not None:
         from app.services import docs_site_store
 

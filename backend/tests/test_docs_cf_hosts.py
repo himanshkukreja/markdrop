@@ -1,4 +1,4 @@
-"""Free docs addresses on Cloudflare (services/docs_cf_hosts.py): each site's <slug>.docs.markdrop.in
+"""Free docs addresses on Cloudflare (services/docs_cf_hosts.py): each site's <slug>.guides.markdrop.in
 attached to the edge Worker as a Workers Custom Domain. Cloudflare is an httpx.MockTransport here;
 nothing reaches the network."""
 
@@ -19,9 +19,9 @@ from tests.test_docs_build_worker import JS, DbCase
 TOKEN = "cf-test-token-never-logged"
 ACCOUNT = "0123456789abcdef0123456789abcdef"
 WORKER = "markdrop-docs-edge"
-FOREIGN = ["www.markdrop.in", "markdrop.in", "a.b.docs.markdrop.in", "evil.com", "x.docs.markdrop.in.evil.com",
-           "docs.markdrop.in", "api.markdrop.in", "edge.docs.markdrop.in", "www.docs.markdrop.in",
-           "acme.docs.markdrop.in\n", "-acme.docs.markdrop.in", "ACME.docs.markdrop.in.", "", None, 42]
+FOREIGN = ["www.markdrop.in", "markdrop.in", "a.b.guides.markdrop.in", "evil.com", "x.guides.markdrop.in.evil.com",
+           "guides.markdrop.in", "api.markdrop.in", "edge.guides.markdrop.in", "www.guides.markdrop.in",
+           "acme.guides.markdrop.in\n", "-acme.guides.markdrop.in", "ACME.guides.markdrop.in.", "", None, 42]
 
 
 class FakeCloudflare:
@@ -115,8 +115,8 @@ class HostnameSafetyTests(CfCase):
             with self.assertRaises(docs_cf_hosts.CfHostRefused, msg=repr(h)):
                 await docs_cf_hosts.drop_host(h)
         self.assertEqual(self.cf.calls, [])
-        self.assertIsNone(docs_cf_hosts.host_problem("acme.docs.markdrop.in"))
-        self.assertIsNone(docs_cf_hosts.host_problem("a1-b2.docs.markdrop.in"))
+        self.assertIsNone(docs_cf_hosts.host_problem("acme.guides.markdrop.in"))
+        self.assertIsNone(docs_cf_hosts.host_problem("a1-b2.guides.markdrop.in"))
 
     async def test_a_docs_domain_outside_the_zone_or_the_zone_itself_refuses_everything(self):
         from app.config import get_settings
@@ -125,21 +125,21 @@ class HostnameSafetyTests(CfCase):
             self.assertIsNotNone(docs_cf_hosts.host_problem("www.markdrop.in"))
             self.assertIsNotNone(docs_cf_hosts.host_problem("acme.markdrop.in"))
         with mock.patch.object(JS, "docs_cf_zone_name", "example.com"):
-            self.assertIsNotNone(docs_cf_hosts.host_problem("acme.docs.markdrop.in"))
+            self.assertIsNotNone(docs_cf_hosts.host_problem("acme.guides.markdrop.in"))
 
     async def test_refused_hosts_in_a_job_are_never_sent(self):
         s = await self.make_site("acme")
-        await docs_cf_hosts.queue(self.db, s["_id"], "test", ["www.markdrop.in", "markdrop.in", "a.b.docs.markdrop.in"])
+        await docs_cf_hosts.queue(self.db, s["_id"], "test", ["www.markdrop.in", "markdrop.in", "a.b.guides.markdrop.in"])
         [job] = await self.run_cf()
         self.assertEqual(job["status"], "done")
-        self.assertEqual(sorted(job["result"]["refused"]), ["a.b.docs.markdrop.in", "markdrop.in", "www.markdrop.in"])
+        self.assertEqual(sorted(job["result"]["refused"]), ["a.b.guides.markdrop.in", "markdrop.in", "www.markdrop.in"])
         self.assertEqual(self.cf.writes(), [])
 
     async def test_another_workers_domain_is_left_alone(self):
-        self.cf.domains["x"] = {"id": "x", "hostname": "acme.docs.markdrop.in", "service": "someone-else"}
+        self.cf.domains["x"] = {"id": "x", "hostname": "acme.guides.markdrop.in", "service": "someone-else"}
         with self.assertRaises(docs_cf_hosts.CfHostRefused):
-            await docs_cf_hosts.ensure_host("acme.docs.markdrop.in")
-        self.assertEqual((await docs_cf_hosts.drop_host("acme.docs.markdrop.in"))["detached"], 0)
+            await docs_cf_hosts.ensure_host("acme.guides.markdrop.in")
+        self.assertEqual((await docs_cf_hosts.drop_host("acme.guides.markdrop.in"))["detached"], 0)
         self.assertIn("x", self.cf.domains)
         self.assertEqual(self.cf.writes(), [])
 
@@ -147,8 +147,8 @@ class HostnameSafetyTests(CfCase):
         self.cf.fail = 1
         with self.assertLogs("app.services", level="DEBUG") as logs:
             with self.assertRaises(docs_cf_hosts.CfHostError) as e:
-                await docs_cf_hosts.ensure_host("acme.docs.markdrop.in")
-            docs_cf_hosts.checked("acme.docs.markdrop.in")
+                await docs_cf_hosts.ensure_host("acme.guides.markdrop.in")
+            docs_cf_hosts.checked("acme.guides.markdrop.in")
             try:
                 docs_cf_hosts.checked("www.markdrop.in")
             except docs_cf_hosts.CfHostRefused:
@@ -158,7 +158,7 @@ class HostnameSafetyTests(CfCase):
 
 class ApiTests(CfCase):
     async def test_ensure_is_idempotent_and_drop_removes(self):
-        h = "acme.docs.markdrop.in"
+        h = "acme.guides.markdrop.in"
         first = await docs_cf_hosts.ensure_host(h)
         self.assertTrue(first["attached"])
         again = await docs_cf_hosts.ensure_host(h)
@@ -173,8 +173,8 @@ class ApiTests(CfCase):
         for i, k in enumerate(("docs_cf_api_token", "docs_cf_account_id")):
             with mock.patch.object(JS, k, ""):
                 self.assertFalse(docs_cf_hosts.enabled())
-                self.assertEqual((await docs_cf_hosts.ensure_host("acme.docs.markdrop.in"))["skipped"], "not configured")
-                self.assertEqual((await docs_cf_hosts.drop_host("acme.docs.markdrop.in"))["skipped"], "not configured")
+                self.assertEqual((await docs_cf_hosts.ensure_host("acme.guides.markdrop.in"))["skipped"], "not configured")
+                self.assertEqual((await docs_cf_hosts.drop_host("acme.guides.markdrop.in"))["skipped"], "not configured")
                 s = await self.make_site(f"nokey{i}")
                 await self.make_page(s, "/a")
                 await self.publish(s)
@@ -201,11 +201,11 @@ class LifecycleTests(CfCase):
         self.assertFalse(docs_cf_hosts.address_ready(await self.site(s)))
         [job] = await self.run_cf()
         self.assertEqual(job["status"], "done", job.get("error"))
-        self.assertEqual(job["result"]["attached"], ["acme.docs.markdrop.in"])
-        self.assertEqual(self.cf.hosts(), {"acme.docs.markdrop.in"})
+        self.assertEqual(job["result"]["attached"], ["acme.guides.markdrop.in"])
+        self.assertEqual(self.cf.hosts(), {"acme.guides.markdrop.in"})
         site = await self.site(s)
-        self.assertEqual(site["cf_host_attached"], "acme.docs.markdrop.in")
-        self.assertEqual(site["cf_hosts"], ["acme.docs.markdrop.in"])
+        self.assertEqual(site["cf_host_attached"], "acme.guides.markdrop.in")
+        self.assertEqual(site["cf_hosts"], ["acme.guides.markdrop.in"])
         self.assertTrue(docs_cf_hosts.address_ready(site))
         # The next publish doesn't call Cloudflare again.
         await self.publish(s)
@@ -216,7 +216,7 @@ class LifecycleTests(CfCase):
         s = await self.make_site("acme")
         view = await docs_site_store.site_view(self.db, await self.site(s), "admin")
         self.assertFalse(view["address_ready"])
-        await self.db[SITES].update_one({"_id": s["_id"]}, {"$set": {"cf_host_attached": "acme.docs.markdrop.in"}})
+        await self.db[SITES].update_one({"_id": s["_id"]}, {"$set": {"cf_host_attached": "acme.guides.markdrop.in"}})
         view = await docs_site_store.site_view(self.db, await self.site(s), "admin")
         self.assertTrue(view["address_ready"])
 
@@ -229,28 +229,28 @@ class LifecycleTests(CfCase):
         await self.make_page(b, "/a")
         await self.go_live(b)
         await self.run_cf()
-        self.assertEqual(self.cf.hosts(), {"acme.docs.markdrop.in", "bolt.docs.markdrop.in"})
+        self.assertEqual(self.cf.hosts(), {"acme.guides.markdrop.in", "bolt.guides.markdrop.in"})
 
         await docs_site_store.unpublish_site(self.db, await self.site(a))
         [job] = await self.run_cf()
-        self.assertEqual(job["result"]["detached"], ["acme.docs.markdrop.in"])
+        self.assertEqual(job["result"]["detached"], ["acme.guides.markdrop.in"])
         site = await self.site(a)
         self.assertEqual(site.get("cf_hosts"), [])
         self.assertNotIn("cf_host_attached", site)
 
         await docs_site_store.delete_site(self.db, await self.site(b), "u1")
         [job] = await self.run_cf()
-        self.assertEqual(job["result"]["detached"], ["bolt.docs.markdrop.in"])
+        self.assertEqual(job["result"]["detached"], ["bolt.guides.markdrop.in"])
         self.assertEqual(self.cf.hosts(), set())
 
         # Published again after the take-down: attached again.
         await self.publish(a)
         await self.run_cf()
-        self.assertEqual(self.cf.hosts(), {"acme.docs.markdrop.in"})
+        self.assertEqual(self.cf.hosts(), {"acme.guides.markdrop.in"})
 
     async def test_deleting_a_never_published_site_detaches_a_stray_domain(self):
         s = await self.make_site("acme")
-        self.cf.domains["old"] = {"id": "old", "hostname": "acme.docs.markdrop.in", "service": WORKER}
+        self.cf.domains["old"] = {"id": "old", "hostname": "acme.guides.markdrop.in", "service": WORKER}
         await docs_site_store.delete_site(self.db, await self.site(s), "u1")
         await self.run_cf()
         self.assertEqual(self.cf.hosts(), set())
@@ -258,7 +258,7 @@ class LifecycleTests(CfCase):
     async def test_slug_rename(self):
         # Never published: the old address goes at once.
         d = await self.make_site("draft-one")
-        await docs_cf_hosts.ensure_host("draft-one.docs.markdrop.in")
+        await docs_cf_hosts.ensure_host("draft-one.guides.markdrop.in")
         await docs_site_store.update_site(self.db, await self.site(d), name=None, slug="draft-two", settings_patch=None)
         await self.run_cf()
         self.assertEqual(self.cf.hosts(), set())
@@ -271,13 +271,13 @@ class LifecycleTests(CfCase):
         await self.run_cf()
         await docs_site_store.update_site(self.db, await self.site(s), name=None, slug="new-name", settings_patch=None)
         await self.run_cf()
-        self.assertEqual(self.cf.hosts(), {"old-name.docs.markdrop.in", "new-name.docs.markdrop.in"})
-        self.assertEqual((await self.site(s))["cf_host_attached"], "new-name.docs.markdrop.in")
+        self.assertEqual(self.cf.hosts(), {"old-name.guides.markdrop.in", "new-name.guides.markdrop.in"})
+        self.assertEqual((await self.site(s))["cf_host_attached"], "new-name.guides.markdrop.in")
         await self.go_live(s)
         [job] = await self.run_cf()
-        self.assertEqual(job["payload"]["hosts"], ["old-name.docs.markdrop.in"])
-        self.assertEqual(self.cf.hosts(), {"new-name.docs.markdrop.in"})
-        self.assertEqual((await self.site(s))["cf_hosts"], ["new-name.docs.markdrop.in"])
+        self.assertEqual(job["payload"]["hosts"], ["old-name.guides.markdrop.in"])
+        self.assertEqual(self.cf.hosts(), {"new-name.guides.markdrop.in"})
+        self.assertEqual((await self.site(s))["cf_hosts"], ["new-name.guides.markdrop.in"])
 
     async def test_failures_are_retried_by_the_sweeper(self):
         s = await self.make_site("acme")
@@ -293,7 +293,7 @@ class LifecycleTests(CfCase):
         await docs_dispatch.run_once(self.db)
         job = await self.db[JOBS].find_one({"_id": job["_id"]})
         self.assertEqual(job["status"], "done", job.get("error"))
-        self.assertEqual(self.cf.hosts(), {"acme.docs.markdrop.in"})
+        self.assertEqual(self.cf.hosts(), {"acme.guides.markdrop.in"})
 
         # Out of attempts (Cloudflare down for a while): failed; once it is back the sweeper queues
         # the site again (after a pause), and the take-down goes through.
@@ -303,7 +303,7 @@ class LifecycleTests(CfCase):
             await docs_dispatch.run_once(self.db)
         [failed] = await self.cf_jobs("failed")
         self.assertIn("500", failed["error"])
-        self.assertEqual(self.cf.hosts(), {"acme.docs.markdrop.in"})
+        self.assertEqual(self.cf.hosts(), {"acme.guides.markdrop.in"})
         self.cf.fail = 0
         self.assertEqual(await docs_cf_hosts.requeue_pending(self.db), 0)  # too soon after the failure
         await self.db[JOBS].update_many({"kind": "cf_host"}, {"$set": {"updated_at": failed["updated_at"]
@@ -320,7 +320,7 @@ class LifecycleTests(CfCase):
             await self.go_live(s)
         self.assertEqual(await self.cf_jobs(), [])
         await docs_dispatch.run_once(self.db)  # requeues and runs it inline
-        self.assertEqual(self.cf.hosts(), {"acme.docs.markdrop.in"})
+        self.assertEqual(self.cf.hosts(), {"acme.guides.markdrop.in"})
         self.assertEqual((await self.db[BUILDS].find_one({"site_id": s["_id"]}))["status"], "live")
 
 

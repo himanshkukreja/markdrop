@@ -78,9 +78,9 @@ export const DOCS = process.env.DOCS_MEDIA_DOCS || `http://docs.localhost:${PORT
 /** Workspace domains of the demo world; the capture browser resolves them to 127.0.0.1. */
 export const TENANT_HOSTS = ["docs.acme.com", "help.acme.com", "docs.acme.test", "help.acme.test"];
 export const tenant = (host, p = "/") => `http://${host}:${new URL(APP).port}${p}`;
-/** Docs Studio sites published in the stack (stack.sh serves .data/docs-store by hostname): the
- *  capture browser resolves <slug>.docs.markdrop.in to 127.0.0.1, so production is never reached. */
-const SITES_SUFFIX = ".docs.markdrop.in";
+/** Markdrop Guides sites published in the stack (stack.sh serves .data/docs-store by hostname): the
+ *  capture browser resolves <slug>.guides.markdrop.in to 127.0.0.1, so production is never reached. */
+const SITES_SUFFIX = ".guides.markdrop.in";
 export const studioSite = (slug, p = "/") => `http://${slug}${SITES_SUFFIX}:${PORTS.sites}${p}`;
 
 const BUDGET = { screenshot: 180 * 1024, clip: 1.5 * 1024 * 1024, video: 12 * 1024 * 1024 };
@@ -159,7 +159,7 @@ function initScript({ token, theme, cursor, scrub, ports }) {
     if (token) localStorage.setItem("markdrop_token", token);
     else localStorage.removeItem("markdrop_token");
     localStorage.setItem("md_theme", theme);
-    // Docs Studio sites are built by the engine without NEXT_PUBLIC_LIGHT_THEME: the beta flag lets
+    // Markdrop Guides sites are built by the engine without NEXT_PUBLIC_LIGHT_THEME: the beta flag lets
     // them honour md_theme too (the app itself is built with light on).
     localStorage.setItem("md_theme_beta", "1");
     localStorage.setItem("md_consent", "denied"); // no consent banner in shots (and no third-party analytics)
@@ -676,7 +676,7 @@ async function runShot(browser, shot, theme, fx, manifest, videosJson) {
       const clip = await cropBox(page, typeof shot.crop === "function" ? await shot.crop(pre) : shot.crop, viewport);
       const png = path.join(shotDir, "shot.png");
       await page.screenshot({ path: png, clip, fullPage: true, animations: "disabled", caret: "hide", scale: "device" });
-      const dir = path.join(ASSETS, pageId(shot.page));
+      const dir = path.join(ASSETS, shot.dir || pageId(shot.page));
       mkdirSync(dir, { recursive: true });
       const file = path.join(dir, `${shot.name || shot.id}${theme === "dark" ? ".dark" : ""}.webp`);
       toWebp(png, file, { maxBytes: BUDGET.screenshot, quality: shot.quality || 82 });
@@ -697,7 +697,7 @@ async function runShot(browser, shot, theme, fx, manifest, videosJson) {
       const total = probe(master).duration;
       if (kind === "clip") {
         if (total > 12.5) console.warn(`  ! clip is ${total.toFixed(1)} s (clips should be 3–12 s)`);
-        const dir = path.join(ASSETS, pageId(shot.page));
+        const dir = path.join(ASSETS, shot.dir || pageId(shot.page));
         mkdirSync(dir, { recursive: true });
         const base = path.join(dir, `${shot.name || shot.id}${theme === "dark" ? ".dark" : ""}`);
         encodeMp4(master, `${base}.mp4`, { crf: 26, maxBytes: BUDGET.clip });

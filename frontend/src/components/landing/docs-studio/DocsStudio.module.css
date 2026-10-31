@@ -1,7 +1,7 @@
-/* Docs Studio (landing section). A code-drawn picture of the studio editor and the docs site it
+/* Markdrop Guides (landing section). A code-drawn picture of the studio editor and the guide it
    publishes, in the hero's toy language (raised cards on a soft ground, mono address bars).
    Tokens only, except two families of literals that are the subject of the picture:
-   - --studio*: Docs Studio's own violet accent (the studio app's accent, not Markdrop blue);
+   - --studio*: Markdrop Guides' own violet accent (the studio app's accent, not Markdrop blue);
    - the six theme palettes, copied from src/docs/theme.mjs PRESETS so the drawn site looks like the
      real presets. Nothing animates, so reduced motion needs no special case. */
 
@@ -91,7 +91,7 @@
 .pic { position: relative; display: flex; flex-direction: column; gap: 16px; }
 .picCap { margin: 14px 0 0; font: 400 12px/1.4 var(--font-sans); color: var(--text-muted); }
 
-/* The editor: Docs Studio's own chrome, in the studio violet */
+/* The editor: Markdrop Guides' own chrome, in the studio violet */
 .editor { display: flex; flex-direction: column; min-width: 0; border-radius: var(--radius-2xl); background: var(--surface); border: 1px solid var(--border-strong); box-shadow: var(--ds-sh); overflow: hidden; }
 .edBar { flex: none; display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 12px; border-bottom: 1px solid var(--border); background: var(--surface-inset); font-size: 13px; white-space: nowrap; overflow: hidden; }
 .edApp { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--text); }

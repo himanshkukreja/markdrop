@@ -34,7 +34,7 @@ apply, search synonyms and spend caps from ``ai.json``::
 Every key is optional. Malformed files read as empty; nothing here throws on
 content.
 
-Docs Studio sites (the dashboard's sites, ``docs_sites`` in MongoDB) are served
+Markdrop Guides sites (the dashboard's sites, ``docs_sites`` in MongoDB) are served
 too, under their 24-hex site id (their built site.json sets ``ai.site`` to it).
 A file-based site of the same id wins. A studio site is known while it is live
 and not deleted; its settings come from the row (``settings.ai``: on/off,
@@ -296,7 +296,7 @@ class SiteConfig:
     def monthly_cap(self) -> float | None:
         return _usd(_dict(self.ai.get("budget")).get("monthlyUsd"))
 
-    # ── what Docs Studio sites set differently ──
+    # ── what Markdrop Guides sites set differently ──
     studio = False
 
     @property
@@ -364,7 +364,7 @@ def origins() -> set[str]:
     return out
 
 
-# ── Docs Studio sites ─────────────────────────────────────────────────────────
+# ── Markdrop Guides sites ─────────────────────────────────────────────────────────
 
 STUDIO_ID = re.compile(r"^[0-9a-f]{24}$")
 # A studio site's row is re-read at most this often (publish, unpublish, the AI
@@ -384,7 +384,7 @@ def is_studio_id(value: Any) -> bool:
 
 @dataclass(frozen=True)
 class StudioSite:
-    """What Ask AI needs to know about a live Docs Studio site, from its row and live build."""
+    """What Ask AI needs to know about a live Markdrop Guides site, from its row and live build."""
 
     id: str
     name: str
@@ -419,7 +419,7 @@ _studio_cache: dict[tuple[str, str], tuple[float, StudioSite | None]] = {}
 
 
 async def studio_site(db, site_id: Any) -> StudioSite | None:
-    """A live, undeleted Docs Studio site with a live build, or None. Cached a few seconds."""
+    """A live, undeleted Markdrop Guides site with a live build, or None. Cached a few seconds."""
     if not is_studio_id(site_id):
         return None
     from bson import ObjectId
@@ -447,7 +447,7 @@ async def studio_site(db, site_id: Any) -> StudioSite | None:
 
 
 class StudioSiteConfig(SiteConfig):
-    """A Docs Studio site's settings: ``site`` is its built site.json (or the row's
+    """A Markdrop Guides site's settings: ``site`` is its built site.json (or the row's
     name and address before the index is loaded); the AI settings are the row's,
     read live (``state``)."""
 
@@ -479,7 +479,7 @@ class StudioSiteConfig(SiteConfig):
 
 
 async def aresolve(db, site: Any = None) -> str:
-    """resolve() that also knows live Docs Studio sites: the site id, or UnknownSite."""
+    """resolve() that also knows live Markdrop Guides sites: the site id, or UnknownSite."""
     try:
         return resolve(site)[0]
     except UnknownSite:
@@ -490,7 +490,7 @@ async def aresolve(db, site: Any = None) -> str:
 
 
 async def aconfig(db, site: Any = None) -> SiteConfig:
-    """config() that also knows live Docs Studio sites (from the row; no snapshot is read)."""
+    """config() that also knows live Markdrop Guides sites (from the row; no snapshot is read)."""
     try:
         return config(site)
     except UnknownSite:
@@ -529,7 +529,7 @@ async def _load_studio_origins(db) -> frozenset[str]:
 
 
 async def studio_origin_allowed(origin: str | None) -> bool:
-    """Is ``origin`` a live Docs Studio site's address? (CORS for /api/v1/docs/*.)
+    """Is ``origin`` a live Markdrop Guides site's address? (CORS for /api/v1/docs/*.)
 
     Cheap: a set lookup. The set is re-read every minute, or when an unknown
     origin asks and it is a few seconds old. Never raises (no database: no).
@@ -568,7 +568,7 @@ async def studio_origin_allowed(origin: str | None) -> bool:
         try:
             found = await _load_studio_origins(db)
         except Exception:
-            log.warning("docs studio origins: reading the live sites failed", exc_info=True)
+            log.warning("guides origins: reading the live sites failed", exc_info=True)
             found = _origins["set"] if _origins["db"] == db.name else frozenset()
         _origins.update(db=db.name, at=time.monotonic(), set=found)
     return o in found

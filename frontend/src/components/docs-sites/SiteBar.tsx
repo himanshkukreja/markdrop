@@ -63,7 +63,7 @@ export function SiteBar({ section, crumb, status, actions, className }: {
   const { base, role } = useSite();
   return (
     <div className={cx("sticky top-14 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface px-3 py-2 sm:px-5 lg:h-[52px] lg:flex-nowrap lg:py-0", className)}>
-      <nav aria-label="Site" className="order-last -mx-1 flex w-full gap-1 overflow-x-auto px-1 md:order-none md:w-auto">
+      <nav aria-label="Guide" className="order-last -mx-1 flex w-full gap-1 overflow-x-auto px-1 md:order-none md:w-auto">
         {TABS.map((t) => {
           const on = t.id === section;
           return (

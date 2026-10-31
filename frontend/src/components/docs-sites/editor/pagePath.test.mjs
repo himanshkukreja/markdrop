@@ -19,11 +19,11 @@ t("ordinary addresses pass", () => {
   for (const p of ["/", "/quickstart", "/getting-started/quickstart", "/api/items/list", "/publications", "/guides/api-reference-tips"]) assert.equal(pathProblem(p), "", p);
 });
 
-t("first segments the docs site or the build uses are refused with the reason", () => {
+t("first segments the guide or the build uses are refused with the reason", () => {
   const { pathProblem } = mod;
   for (const seg of ["public", "api-reference", "video-scenes", "docs-assets", "changelog", "mcp", "md", "og"]) {
-    assert.match(pathProblem(`/${seg}/x`), new RegExp(`^/${seg} is used by the docs site itself`), seg);
-    assert.match(pathProblem(`/${seg}`), /used by the docs site itself/, seg);
+    assert.match(pathProblem(`/${seg}/x`), new RegExp(`^/${seg} is used by the guide itself`), seg);
+    assert.match(pathProblem(`/${seg}`), /used by the guide itself/, seg);
   }
   assert.match(pathProblem("/guides/video-scenes/x"), /video-scenes can't be part/);
   // node_modules and _next already fail the shape rule (no underscores).

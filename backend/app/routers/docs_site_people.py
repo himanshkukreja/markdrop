@@ -1,6 +1,6 @@
 """A docs site's people: /api/v1/docs-sites/{site_id}/members…
 
-Per-site overrides of Docs Studio roles (services/docs_studio_roles.py): for this
+Per-site overrides of Guides roles (services/docs_studio_roles.py): for this
 site only, a workspace member can have a different role than their workspace-wide
 one, higher or lower ("none" hides the site from them). The workspace owner and
 admins are always admins. Admins of the site only; included by

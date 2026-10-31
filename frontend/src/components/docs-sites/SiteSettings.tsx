@@ -38,7 +38,7 @@ function Card({ id, title, aside, children, tone }: { id: string; title: React.R
 }
 
 /**
- * /docs-studio/<site>/settings (Settings board): the free address (and changing it), your own
+ * /guides/<site>/settings (Settings board): the free address (and changing it), your own
  * domain (coming soon), Ask AI (on/off, usage, name, suggested questions), who can read it,
  * search indexing, reviews, GitHub sync status, redirects, and unpublish/delete. Admin-only to
  * change; everyone else sees the values.
@@ -114,7 +114,7 @@ export default function SiteSettings() {
   const repo = site.source.kind === "github" ? site.source.repo : null;
 
   const accessOptions = [
-    { value: "public", label: "Anyone", description: "A public docs site." },
+    { value: "public", label: "Anyone", description: "A public guide." },
     { value: "password", label: "Anyone with the password", description: "For a beta or a partner preview." },
     { value: "members", label: `${wsName ?? "Workspace"} members only`, description: "Readers sign in with Markdrop. Good for internal handbooks." },
   ].map((o) => ({ ...o, disabled: locked }));
@@ -123,7 +123,7 @@ export default function SiteSettings() {
     const level = v as AccessLevel;
     if (level === "password" && !s.access.has_password) { setPendingLevel("password"); return; }
     setPendingLevel(null);
-    void patch("access", { settings: { access: { level } } }, level === "public" ? "Anyone can read the site now." : level === "members" ? "Only members can read the site now." : "Readers need the password now.");
+    void patch("access", { settings: { access: { level } } }, level === "public" ? "Anyone can read the guide now." : level === "members" ? "Only members can read the guide now." : "Readers need the password now.");
   }
 
   async function savePassword() {
@@ -141,7 +141,7 @@ export default function SiteSettings() {
       <SiteBar section="settings" />
       <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[880px] flex-col gap-5 px-4 pb-16 pt-6 outline-none sm:px-6 sm:pt-8">
         <h1 className="text-[24px] font-bold leading-8 text-text">Settings</h1>
-        {locked && <Alert tone="neutral" title="Only Docs Studio admins change these settings">You can see how this site is set up. Ask a Docs Studio admin of {wsName ?? "this workspace"} to change it.</Alert>}
+        {locked && <Alert tone="neutral" title="Only Guides admins change these settings">You can see how this guide is set up. Ask a Guides admin of {wsName ?? "this workspace"} to change it.</Alert>}
         {error && <Alert tone="danger" onDismiss={() => setError("")}>{error}</Alert>}
 
         <Card id="address" title="Address" aside={isAdmin && !editSlug ? <Button variant="ghost" size="sm" onClick={() => { setSlug(site.slug); setSlugMsg(""); setEditSlug(true); }}>Change</Button> : null}>
@@ -178,13 +178,13 @@ export default function SiteSettings() {
             </div>
           ))}
           <p className="text-[13px] text-text-muted">
-            Soon: one CNAME record pointing to <code className="font-mono">sites.markdrop.in</code>, with the certificate handled for you. Want it at a path like <code className="font-mono">acme.com/docs</code>? We&apos;ll show you the one rewrite rule to add.{" "}
+            Soon: one CNAME record pointing to <code className="font-mono">sites.markdrop.in</code>, with the certificate handled for you. Want it at a path like <code className="font-mono">acme.com/help</code>? We&apos;ll show you the one rewrite rule to add.{" "}
             <ReadMore topic="studioDomain" />
           </p>
         </Card>
 
         <Card id="ai" title="Ask AI" aside={<Switch label={s.ai.enabled ? "On" : "Off"} checked={s.ai.enabled} disabled={locked || saving === "ai"} onChange={(e) => void patch("ai", { settings: { ai: { enabled: e.target.checked } } }, e.target.checked ? "Ask AI is on." : "Ask AI is off.")} />}>
-          <p className="text-body text-text-secondary">Readers ask questions and get answers from these docs, with a link to the exact section each part came from. <ReadMore topic="studioAskAi" /></p>
+          <p className="text-body text-text-secondary">Readers ask questions and get answers from your pages, with a link to the exact section each part came from. <ReadMore topic="studioAskAi" /></p>
           <Meter size="sm" value={aiUsed} max={aiLimit} threshold={0.9} label={`This month: ${num(aiUsed)} of ${num(aiLimit)} answers`} valueText={`${aiUsed} of ${aiLimit} answers`} />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Name readers see" htmlFor={`${uid}-ainame`}>
@@ -228,7 +228,7 @@ export default function SiteSettings() {
           )}
           {level === "password" && isAdmin && (
             <div className="flex flex-wrap items-end gap-2 pl-7">
-              <Field label={s.access.has_password ? "Change the password" : "Password"} htmlFor={`${uid}-pw`} className="min-w-0 flex-[1_1_240px]" hint={s.access.has_password ? "Readers who already opened the site stay signed in." : "Share it with the people who should read the site."}>
+              <Field label={s.access.has_password ? "Change the password" : "Password"} htmlFor={`${uid}-pw`} className="min-w-0 flex-[1_1_240px]" hint={s.access.has_password ? "Readers who already opened the guide stay signed in." : "Share it with the people who should read the guide."}>
                 <Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
               </Field>
               <Button variant={s.access.has_password ? "secondary" : "primary"} size="md" loading={saving === "access"} disabled={!password} onClick={() => void savePassword()}>
@@ -239,12 +239,12 @@ export default function SiteSettings() {
           )}
           {level === "members" && <p className="pl-7 text-[13px] text-text-muted">Who&apos;s a member is managed in the workspace. <ReadMore topic="members" /></p>}
           <Switch
-            label="Let search engines index the site"
+            label="Let search engines index the guide"
             checked={s.seo.index && s.access.level === "public"}
             disabled={locked || s.access.level !== "public" || saving === "seo"}
-            onChange={(e) => void patch("seo", { settings: { seo: { index: e.target.checked } } }, e.target.checked ? "Search engines can index the site." : "Search engines are asked not to index the site.")}
+            onChange={(e) => void patch("seo", { settings: { seo: { index: e.target.checked } } }, e.target.checked ? "Search engines can index the guide." : "Search engines are asked not to index the guide.")}
           />
-          {s.access.level !== "public" && <p className="text-[13px] text-text-muted">Private sites are never indexed.</p>}
+          {s.access.level !== "public" && <p className="text-[13px] text-text-muted">Private guides are never indexed.</p>}
         </Card>
 
         <Card id="review" title="Reviews">
@@ -265,9 +265,9 @@ export default function SiteSettings() {
           <Card id="people" title="Your role" aside={<RoleBadge role={role} size="md" />}>
             <p className="text-body text-text-secondary">
               {site.your_role_source === "site"
-                ? `You're ${aRole(role)} on this site only.`
-                : `You're ${aRole(role)} in ${wsName ?? "this workspace"}'s Docs Studio.`}{" "}
-              A Docs Studio admin gives people their roles.
+                ? `You're ${aRole(role)} on this guide only.`
+                : `You're ${aRole(role)} on ${wsName ?? "this workspace"}'s guides.`}{" "}
+              A Guides admin gives people their roles.
             </p>
           </Card>
         )}
@@ -297,7 +297,7 @@ export default function SiteSettings() {
             </Card>
           ) : (
             <Card id="source" title="Started from" aside={<Badge size="sm">{site.source.kind === "template" ? "Template" : "Blank"}</Badge>}>
-              <p className="text-body text-text-secondary">{site.source.kind === "template" ? "A template's pages, now yours to edit." : "A blank site."} Every page&apos;s history is in the editor.</p>
+              <p className="text-body text-text-secondary">{site.source.kind === "template" ? "A template's pages, now yours to edit." : "A blank guide."} Every page&apos;s history is in the editor.</p>
             </Card>
           )}
         </div>
@@ -318,10 +318,10 @@ export default function SiteSettings() {
         </Card>
 
         {isAdmin && (
-          <Card id="danger" title="Take the site down" tone="danger" aside={
+          <Card id="danger" title="Take the guide down" tone="danger" aside={
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" disabled={site.status !== "live"} onClick={() => setConfirm("unpublish")}>Unpublish</Button>
-              <Button variant="danger" size="sm" onClick={() => setConfirm("delete")}>Delete site</Button>
+              <Button variant="danger" size="sm" onClick={() => setConfirm("delete")}>Delete guide</Button>
             </div>
           }>
             <p className="text-body text-text-secondary">Unpublish keeps your pages and history; delete removes everything.</p>
@@ -333,12 +333,12 @@ export default function SiteSettings() {
         open={confirm === "unpublish"}
         onClose={() => setConfirm(null)}
         title={<>Unpublish <span className="ph-sensitive ph-mask">{site.name}</span>?</>}
-        body={<><span className="ph-sensitive ph-mask">{host}</span> stops showing the docs. Your pages, drafts and publish history stay, and publishing again puts it back.</>}
+        body={<><span className="ph-sensitive ph-mask">{host}</span> stops showing the guide. Your pages, drafts and publish history stay, and publishing again puts it back.</>}
         confirmLabel="Unpublish"
         onConfirm={async () => {
           setSite(await unpublishSite(site.id));
           setConfirm(null);
-          toast.success("The site is unpublished.");
+          toast.success("The guide is unpublished.");
         }}
       />
       <ConfirmDialog
@@ -347,7 +347,7 @@ export default function SiteSettings() {
         title={<>Delete <span className="ph-sensitive ph-mask">{site.name}</span>?</>}
         body={<>Every page, version and publish goes, and <span className="ph-sensitive ph-mask">{host}</span> stops working. This can&apos;t be undone.</>}
         typeToConfirm={site.name}
-        confirmLabel="Delete site"
+        confirmLabel="Delete guide"
         onConfirm={async () => {
           await deleteSite(site.id);
           toast.success(<><span className="ph-sensitive ph-mask">{site.name}</span> was deleted.</>);

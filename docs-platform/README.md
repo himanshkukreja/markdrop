@@ -215,7 +215,7 @@ with its collision guard, and the `assets` rebuild/prune.
 
 ## Password and members-only sites
 
-A Docs Studio site can be public, password protected or members-only (`settings.access.level`).
+A Markdrop Guides site can be public, password protected or members-only (`settings.access.level`).
 The edge enforces it; the API holds the password and decides who may read.
 
 - **Policy.** `sites/<site>/access.json` = `{site, level, policy_version}`, written by the API's
@@ -232,7 +232,7 @@ The edge enforces it; the API holds the password and decides who may read.
   the Worker; they hold engine code only, never site content.
 - **Sign-in.** The password form posts straight to the API (`/api/v1/docs-access/password`, rate
   limited per IP and site): the edge never sees a password. Members-only links to markdrop.in's
-  `/auth/docs-access`, which asks the API with the reader's session (Docs Studio role viewer or
+  `/auth/docs-access`, which asks the API with the reader's session (Guides role viewer or
   more). Either way the API answers with a two-minute grant (HMAC with the secret it shares with the
   Worker, `DOCS_ACCESS_SECRET`) for this site, host, policy version and browser (the hash of a
   random state in an HttpOnly cookie), in the URL fragment of `/_access/callback`. That page posts
@@ -246,7 +246,7 @@ The edge enforces it; the API holds the password and decides who may read.
 ## Free addresses on Cloudflare
 
 Cloudflare's free Universal SSL covers `markdrop.in` and `*.markdrop.in`, not two-level names such
-as `acme.docs.markdrop.in`. So the API attaches each site's free address to this Worker as a
+as `acme.guides.markdrop.in`. So the API attaches each site's free address to this Worker as a
 **Workers Custom Domain**, which creates the DNS record and a free certificate for that one host
 (backend/app/services/docs_cf_hosts.py). The R2 host mapping (`hosts/<host>.json`) still decides
 which site a host serves; the custom domain only gets the request to the Worker.
@@ -259,7 +259,7 @@ which site a host serves; the custom domain only gets the request to the Worker.
   call is retried by the job sweeper, and the sweeper queues the job again for any site whose
   attached addresses don't match what it should have. The site view's `address_ready` is false
   until the current address is attached.
-- **Safety.** Only a single label directly under `docs_sites_domain` (`<label>.docs.markdrop.in`),
+- **Safety.** Only a single label directly under `docs_sites_domain` (`<label>.guides.markdrop.in`),
   and never a reserved slug, is ever attached or detached. `markdrop.in`, `www`, `api`, `docs`,
   `edge` and anything deeper or foreign are refused before any call. A domain that is attached to
   another Worker is left alone, and the token is never logged.
@@ -276,10 +276,10 @@ which site a host serves; the custom domain only gets the request to the Worker.
   `MARKDROP_DOCS_SITE_HOST_TEMPLATE` set (a preview host), nothing is attached either.
 - **Verify.** Publish a site, then:
   - the token: `curl -s -H "Authorization: Bearer $TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify`
-  - the domain: `curl -s -H "Authorization: Bearer $TOKEN" "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/domains?hostname=<slug>.docs.markdrop.in"`
+  - the domain: `curl -s -H "Authorization: Bearer $TOKEN" "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/domains?hostname=<slug>.guides.markdrop.in"`
     should list it with `"service": "markdrop-docs-edge"`. The dashboard shows it under
     Workers & Pages › markdrop-docs-edge › Settings › Domains & Routes.
-  - the site: `curl -sI https://<slug>.docs.markdrop.in/` gives a valid certificate and the site.
+  - the site: `curl -sI https://<slug>.guides.markdrop.in/` gives a valid certificate and the site.
     Issuing the certificate can take a minute or two.
   - the job: the site's `docs_jobs` rows of kind `cf_host` (`error` carries what Cloudflare said),
     and `cf_host_attached` / `cf_hosts` on the `docs_sites` row.

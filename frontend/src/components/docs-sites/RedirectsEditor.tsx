@@ -27,11 +27,11 @@ export function redirectProblem(r: Redirect, all: Redirect[], pages: Set<string>
   if (trim(from) === "/") return "The home page can't be redirected.";
   if (!to) return "Where should it go?";
   const external = /^https:\/\//i.test(to);
-  if (!external && (!to.startsWith("/") || to.startsWith("//") || /\s/.test(to))) return "Send it to a page of this site (/new/page) or an https:// address.";
+  if (!external && (!to.startsWith("/") || to.startsWith("//") || /\s/.test(to))) return "Send it to a page of this guide (/new/page) or an https:// address.";
   if (!external && trim(to.split("#")[0]!) === trim(from)) return "It redirects to itself.";
   if (all.filter((x) => trim(x.from.trim()) === trim(from)).length > 1) return "This old address is listed twice.";
-  if (pages?.has(pageOf(from))) return "That's a page of this site; the redirect would hide it.";
-  if (OWN.has(trim(from)) || ["docs-assets", "mcp", "md", "og", "_next"].includes(trim(from).split("/")[1] ?? "")) return "That's one of the docs site's own addresses.";
+  if (pages?.has(pageOf(from))) return "That's a page of this guide; the redirect would hide it.";
+  if (OWN.has(trim(from)) || ["docs-assets", "mcp", "md", "og", "_next"].includes(trim(from).split("/")[1] ?? "")) return "That's one of the guide's own addresses.";
   if (!external) {
     const sources = new Set(all.map((x) => trim(x.from.trim())));
     if (sources.has(pageOf(to)) || sources.has(trim(to.split("#")[0]!))) return "That address redirects again. Point it at the final page.";

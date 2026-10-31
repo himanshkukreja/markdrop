@@ -1,4 +1,4 @@
-"""Docs Studio demo content (seed_extra_studio.py): the pages of Acme's three docs sites and of the
+"""Markdrop Guides demo content (seed_extra_studio.py): the pages of Acme's three guides and of the
 synthetic GitBook import. All of it is invented for the demo world ("Acme", a dashboards product):
 what a docs screenshot shows should read like a real team's docs, not lorem ipsum."""
 

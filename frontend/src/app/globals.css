@@ -18,7 +18,7 @@
 :root {
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
-  /* Docs Studio's category tint (the Create menu's "Docs site" row): the studio's accent text
+  /* Markdrop Guides' category tint (the Create menu's "Guide" row): the studio's accent text
      colour (components/docs-sites/studio/studio.css), AA on every surface in both themes. */
   --cat-docs: #b4a2fb;
 }

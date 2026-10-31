@@ -22,7 +22,7 @@ export function aRole(r: DocsRole | StudioRole | null | undefined): string {
   return /^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`;
 }
 
-/** A Docs Studio role as a badge: Admin (violet), Reviewer, Editor, Viewer, No access. */
+/** A Guides role as a badge: Admin (violet), Reviewer, Editor, Viewer, No access. */
 export function RoleBadge({ role, size = "sm", className, title }: {
   role: DocsRole | StudioRole | "none" | null | undefined;
   size?: "sm" | "md";
@@ -65,11 +65,11 @@ export function RoleSelect({ value, onChange, disabled, label, className, withNo
   );
 }
 
-/** The workspace owner and admins: always Docs Studio admins. A badge with the reason on hover/focus. */
+/** The workspace owner and admins: always Guides admins. A badge with the reason on hover/focus. */
 export function LockedAdmin({ workspaceRole }: { workspaceRole: string | null }) {
   const why = workspaceRole === "owner"
-    ? "The workspace owner is always a Docs Studio admin."
-    : "Workspace admins are always Docs Studio admins. Change their workspace role to change this.";
+    ? "The workspace owner is always a Guides admin."
+    : "Workspace admins are always Guides admins. Change their workspace role to change this.";
   return (
     <Tooltip content={why} focusable>
       <span className="inline-flex items-center gap-1.5">
@@ -97,7 +97,7 @@ export function RolesExplainer({ className }: { className?: string }) {
     <section aria-labelledby="roles-explainer-h" className={cx("flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-surface p-4 sm:p-5", className)}>
       <h2 id="roles-explainer-h" className="text-[15px] font-semibold text-text">Who can do what</h2>
       <table className="w-full border-collapse text-[12.5px] leading-[18px]">
-        <caption className="md-visually-hidden">What each Docs Studio role can do</caption>
+        <caption className="md-visually-hidden">What each Guides role can do</caption>
         <thead>
           <tr>
             <th scope="col" className="pb-2 text-left font-normal text-text-muted"><span className="md-visually-hidden">Can</span></th>
@@ -122,8 +122,8 @@ export function RolesExplainer({ className }: { className?: string }) {
         </tbody>
       </table>
       <p className="text-[12.5px] leading-[18px] text-text-muted">
-        <strong className="font-semibold text-text-secondary">No access</strong>: the workspace&apos;s docs sites don&apos;t show up for them at all.
-        Workspace owners and admins are always admins. A site can give someone a different role, higher or lower, in its Settings › People.
+        <strong className="font-semibold text-text-secondary">No access</strong>: the workspace&apos;s guides don&apos;t show up for them at all.
+        Workspace owners and admins are always admins. A guide can give someone a different role, higher or lower, in its Settings › People.
       </p>
     </section>
   );
@@ -131,12 +131,12 @@ export function RolesExplainer({ className }: { className?: string }) {
 
 function eventText(e: RoleEvent): React.ReactNode {
   const who = <strong className="font-semibold text-text">{e.target_name ?? "Someone"}</strong>;
-  const where = e.scope === "site" ? <> on <span className="ph-sensitive ph-mask text-text">{e.site_name ?? "a deleted site"}</span></> : null;
+  const where = e.scope === "site" ? <> on <span className="ph-sensitive ph-mask text-text">{e.site_name ?? "a deleted guide"}</span></> : null;
   if (e.kind === "docs_role_removed") {
     if (e.reason === "left_workspace") return <>{who} left the workspace; their {roleLabel(e.previous)} role{where} went with it</>;
     return e.scope === "site"
       ? <>{who} is back to their workspace role{where} (was {roleLabel(e.previous)})</>
-      : <>{who} no longer has a Docs Studio role (was {roleLabel(e.previous)})</>;
+      : <>{who} no longer has a Guides role (was {roleLabel(e.previous)})</>;
   }
   if (e.kind === "docs_role_changed") return <>{who}: {roleLabel(e.previous)} → {roleLabel(e.role)}{where}</>;
   return <>{who} is now {roleLabel(e.role)}{where}</>;

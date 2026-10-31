@@ -21,7 +21,7 @@ Sign-in. The password never reaches the edge. The sign-in page posts it straight
 here (``POST /api/v1/docs-access/password``, rate limited per IP and site); a
 members-only site sends the reader to markdrop.in, which asks here
 (``POST /api/v1/docs-access/grant``) with the reader's session whether their
-Docs Studio role on the site is at least viewer. Either way the answer is a
+Guides role on the site is at least viewer. Either way the answer is a
 *grant*: a token signed with the secret the API shares with the edge
 (``docs_access_secret`` = the Worker's ``DOCS_ACCESS_SECRET``), valid for two
 minutes, for one site, one host, one policy version and one browser (the hash of
