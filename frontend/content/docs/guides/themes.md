@@ -112,7 +112,7 @@ For knowledge bases: serif text, numbered sections (1., 1.1) and smaller, footno
 
 For big help centers: the home page is a search box over a grid of category cards, the sections in the header are tabs, and articles keep the sidebar so readers can move around a large guide.
 
-![The home page in the Atlas theme: a search box with suggested questions in a blue-tinted hero, and Browse by category cards for Getting started, Guides, Reference and Help with their articles.](/docs-assets/guides/themes/theme-atlas.webp)
+![The home page in the Atlas theme: the sections Getting started, Guides, Reference and Help as tabs in the header, a search box with suggested questions under it in a blue-tinted hero, and Browse by category cards for Getting started, Guides, Reference and Help with their articles.](/docs-assets/guides/themes/theme-atlas.webp)
 
 ### Pastel
 
