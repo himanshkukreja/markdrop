@@ -178,7 +178,7 @@ def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[di
     out: dict = {
         "id": site_id,
         "name": name or "Docs",
-        "description": extra.get("description") or f"Documentation for {name or 'this product'}.",
+        "description": extra.get("description") or f"Help and guides for {name or 'this product'}.",
         "url": url,
     }
     for k in ("eyebrow", "headline"):

@@ -220,7 +220,7 @@ class IndexTests(StudioBase):
         self.assertIn("**Warning: Stand back**", index.plain(index.pages["/start/launch"].body))
         # The brief: name, address, description, nav by path, hidden pages under "Other pages".
         self.assertIn("Product: Acme Docs.", index.brief)
-        self.assertIn(f"Docs site: {URL}. Documentation for Acme Docs.", index.brief)
+        self.assertIn(f"Docs site: {URL}. Help and guides for Acme Docs.", index.brief)
         self.assertIn("Start\n- /start/install: Install the launcher: Set up the Acme launcher.\n"
                       "- /start/launch: Launch: Count down and go.", index.brief)
         self.assertIn("Other pages\n- /internal/secret-plans: Hidden page", index.brief)

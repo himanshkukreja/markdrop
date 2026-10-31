@@ -840,7 +840,7 @@ export function getSitePeopleHistory(siteId: string, limit = 50): Promise<{ even
 }
 
 export const PRESETS: Array<{ id: ThemePreset; name: string; blurb: string }> = [
-  { id: "clean", name: "Clean", blurb: "Sidebar docs. Calm and familiar." },
+  { id: "clean", name: "Clean", blurb: "Sidebar layout. Calm and familiar." },
   { id: "editorial", name: "Editorial", blurb: "Serif headings, centred reading." },
   { id: "technical", name: "Technical", blurb: "Dense, mono accents, API-first." },
   { id: "minimal", name: "Minimal", blurb: "No sidebar chrome, lots of air." },
