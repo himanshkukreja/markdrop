@@ -1962,14 +1962,14 @@
   "/docs-assets/videos/guides-import-video.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 45.33,
-    "bytes": 1300838,
+    "duration": 45.87,
+    "bytes": 1378256,
     "kind": "video"
   },
   "/docs-assets/videos/guides-import-video.webp": {
     "w": 1920,
     "h": 1080,
-    "bytes": 47972,
+    "bytes": 49036,
     "kind": "poster"
   },
   "/docs-assets/videos/local-mcp-publish.mp4": {

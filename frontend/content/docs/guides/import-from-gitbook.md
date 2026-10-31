@@ -33,7 +33,7 @@ Markdrop Guides can only read a site anyone can open. A private GitBook space ca
 
 ## Watch it once
 
-::video{id="guides-import-video" title="Import a GitBook site into Markdrop Guides" duration="0:45"}
+::video{id="guides-import-video" title="Import a GitBook site into Markdrop Guides" duration="0:46"}
 
 ## Check the report
 

@@ -54,7 +54,7 @@
   "guides-import-video": {
     "src": "/docs-assets/videos/guides-import-video.mp4",
     "poster": "/docs-assets/videos/guides-import-video.webp",
-    "duration": "0:45",
+    "duration": "0:46",
     "title": "Import a GitBook site into Markdrop Guides",
     "chapters": "/docs-assets/videos/guides-import-video.vtt"
   },
