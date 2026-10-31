@@ -25,6 +25,8 @@ Markdrop checks the file before anything changes on your guide. The result shows
 Choose **Publish the reference**. It publishes the whole guide, with any other changes waiting, like the [Publish](/guides/publishing) screen does. When your guide requires reviews, editors choose **Send for review** instead.
 ::::
 
+![The checked file on Acme Developers: "acme-openapi.yaml works, with 1 thing to look at": Acme API 2.4.0, OpenAPI 3.1.0, 13 endpoints in 4 groups, 2 servers, sign-in Bearer, with Replace and Versions, and 1 thing to fix (optional): 1 endpoint has no summary, with what to do about it.](/docs-assets/guides/api-reference/api-reference-checked.webp)
+
 No file yet? Choose **Northwind sample** under the box to start from a small sample file for a made-up API, and see the result before you add yours. The **API reference** template starts with it too. Replace it with your own file the same way.
 
 Once the guide is published, **Preview the reference** opens `/api-reference` on your guide in a new tab.
@@ -66,6 +68,8 @@ Guides admins choose under **How it appears**:
 | **Tab name** or **Sidebar group name** | What the tab or the group is called. Default **API reference**. |
 
 The `/api-reference` part of the address is fixed, so no page you write can use it.
+
+![What readers will get: 13 endpoint pages under API reference, grouped Projects, Sources, Dashboards and Alerts with their methods and paths, and Preview the reference (off until the guide is published). Beside it, How it appears: Tab name API reference, Its own tab selected, Try it on, Fetch again on every publish off, and Publish the reference.](/docs-assets/guides/api-reference/api-reference-endpoints.webp)
 
 ## Try it and CORS
 

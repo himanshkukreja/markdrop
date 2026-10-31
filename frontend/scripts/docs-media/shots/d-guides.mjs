@@ -230,6 +230,7 @@ async function toggleReleaseNote(h) {
   const md = page.markdown.includes(line) ? page.markdown.replace(`\n${line}`, "") : page.markdown.replace("- The CLI's", `${line}\n- The CLI's`);
   await api(h, "PUT", `/api/v1/docs-sites/${id}/pages/${pid}`, { base_rev: page.rev, markdown: md, title: page.title, description: page.description }, "jordan");
   await api(h, "DELETE", `/api/v1/docs-sites/${id}/pages/${pid}/lock`, null, "jordan");
+  return md.includes(line) ? "Release notes: webhook headers" : "Release notes: a line moved to 2.5";
 }
 
 let importProc = null;
@@ -781,7 +782,7 @@ export default [
       await h.page.getByText("First version").waitFor();
       await settle(h);
     },
-    crop: { box: { x: 0, y: 56, width: 1440, height: 610 } },
+    crop: { box: { x: 0, y: 56, width: 1440, height: 598 } },
   },
   {
     // The bar under the header on every screen of a guide (here on Insights).
@@ -807,10 +808,10 @@ export default [
     viewport: { width: 1440, height: 1000 },
     prepare: async (h) => {
       await themeSite(h, "clean");
-      await toggleReleaseNote(h);
+      const note = await toggleReleaseNote(h);
       await h.goto(`/guides/${fxS().themes}/publish`);
       await h.page.getByText("1 change ready to publish").waitFor();
-      await h.loc({ label: "What changed (optional)" }).fill("Release notes: webhook headers");
+      await h.loc({ label: "What changed (optional)" }).fill(note);
       await h.loc({ role: "button", name: "Publish 1 change", exact: true, nth: 1 }).click();
       await h.loc({ role: "heading", name: "Publishing your guide" }).waitFor({ timeout: 60_000 });
       await h.page.waitForFunction(() => {

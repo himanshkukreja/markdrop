@@ -17,8 +17,14 @@ published into the stack's folder store and served at http://<slug>.guides.markd
                   import (https://acme.gitbook.io/developers) with its "needs a look" report, not
                   published yet
         times     every row is backdated so the history reads naturally ("published 5 h ago")
-        insights  two weeks of daily readers, page feedback and Ask AI questions for each live
-                  Acme guide (the Guides home's 7-day numbers and its cards' sparklines)
+                  Acme's publishes #2 to #4 each change pages (the publish history and What changed
+                  have something to show); Acme Developers has the Acme API's OpenAPI file
+                  (acme-openapi.yaml, Settings › API reference)
+        insights  two weeks of daily readers (pages, sites, countries, devices, searches), page
+                  feedback with comments, and Ask AI questions for each live Acme guide (INSIGHTS_WORLD)
+
+    seed_extra_studio.py --guide-domain SITE HOST live|pending|remove
+        A guide's own domain in that state, written directly (the stack never runs the domain job).
 
     seed_extra_studio.py --import-run [--slow]
         Plays the import worker for the newest queued GitBook import (the stack's worker never

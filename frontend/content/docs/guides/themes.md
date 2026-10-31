@@ -9,7 +9,7 @@ keywords: [theme, design, preset, layout, clean, editorial, technical, minimal, 
 
 A theme sets the whole guide's layout, fonts, colours and corners. Pick one in the guide's **Design** tab; you can switch any time, and nothing about your pages changes.
 
-![The Design tab: the six theme cards on the left with Clean selected, Match my brand turned on with Acme's logo and colours, and on the right a live preview of a Quickstart page in the Clean theme.](/docs-assets/guides/themes/design-panel.webp)
+![The Design tab: under Theme, the filter (All 14, Product docs, Help center, Developer, New) and the theme cards, each with a small drawing of it, with Clean selected; on the right a live preview of Acme's Quickstart page in the Clean theme with Acme's logo and teal colour.](/docs-assets/guides/themes/design-panel.webp)
 
 ## Switch themes
 
@@ -24,7 +24,13 @@ Choose a theme under **Theme**. The **Preview** updates at once. Use **Light** a
 Choose **Save design**, or **Reset** to go back to what's saved. Readers see the new design after the next [publish](/guides/publishing).
 ::::
 
-::clip{src="/docs-assets/guides/themes/design-switch-themes" alt="In Design, choosing Editorial, Technical, Playful and Help center in turn while the preview changes layout, then the Dark preview, then Reset."}
+![Theme filtered to New: the eight newer themes as cards, Midnight, Paper, Terminal, Corporate, Studio, Academic, Atlas and Pastel, each marked New with a line about what it's for.](/docs-assets/guides/themes/design-theme-filter.webp)
+
+Once it's saved, a banner says **Design saved**, with **Preview the guide** and **Publish now**, so you can put the new look live straight away.
+
+![The Design saved banner under the guide's bar: "Readers see the new look after you publish. It takes about a minute.", with Preview the guide and Publish now.](/docs-assets/guides/themes/design-saved.webp)
+
+::clip{src="/docs-assets/guides/themes/design-switch-themes" alt="In Design, choosing Editorial, Technical and Help center in turn while the preview changes layout, then New in the filter and Midnight, Paper and Atlas, then the Dark preview, then Reset."}
 
 ## The fourteen themes
 

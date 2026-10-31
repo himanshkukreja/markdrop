@@ -8,6 +8,8 @@ keywords: [settings, address, slug, custom domain, own domain, cname, dns, ssl c
 
 Open a guide and choose **Settings**. The sections are listed on the left (a menu at the top on a phone): **General**, **Domains**, **Readers and access**, **Ask AI**, **API reference**, **Redirects**, **People and reviews** and **Take it down**. Only Guides admins can change them; everyone else sees how the guide is set up. Each setting saves as soon as you change it, says so, and reaches readers at the next [publish](/guides/publishing).
 
+![Acme's Settings › General: the sections on the left (General, Domains, Readers and access, Ask AI, API reference, Redirects, People and reviews, Take it down), and the Name, Free address, Logo and favicon, GitHub sync (Coming soon) and Started from cards.](/docs-assets/guides/site-settings/settings-general.webp)
+
 ## General
 
 The guide's **name**, its **free address**, its **logo and favicon** (set under [Design](/guides/brand-and-style)), where it started, and GitHub sync.
@@ -18,13 +20,15 @@ The guide's free address, `<address>.guides.markdrop.in`, with **Copy** and **Op
 
 To change it, choose **Change**, type the new address and choose **Save address**. The same [rules](/guides/create-a-site#the-address) apply as when you created the guide. The new address goes live at the next publish, and the **old one stops working**, so change it before you share the link.
 
-![The Address card with acme.guides.markdrop.in and Copy link.](/docs-assets/guides/site-settings/settings-address.webp)
+![The Free address card: acme.guides.markdrop.in with Copy and Open, Change at the top, and a link to add your own domain.](/docs-assets/guides/site-settings/settings-address.webp)
 
 ## Your own domain
 
 Serve the guide from a subdomain your company owns, like `help.acme.com` or `docs.acme.com`. You add one DNS record; the HTTPS certificate is issued and renewed for you. The free address keeps working beside it. Only Guides admins add and remove domains, and a guide can have two.
 
 **Domains** lists every address the guide answers at, each with its status, **Copy**, **Open** (in a new tab) and a menu with its setup steps, **Check now** and **Remove domain**.
+
+![Settings › Domains, Address and domains: learn.acme.com (Your domain, the main address for links and search) and acme.guides.markdrop.in (Free address, always works), both Live with Copy and Open, and Add another.](/docs-assets/guides/site-settings/settings-domains.webp)
 
 This is separate from a Markdrop workspace's [own domain](/workspaces/custom-domain), which serves the workspace's documents and files, not its guides.
 
@@ -37,6 +41,8 @@ If the card says **Not available yet**, own domains aren't switched on for your 
 Setup takes three steps: **Your domain**, **Connect DNS**, **Live with HTTPS**.
 
 1. In the guide's **Settings › Domains**, choose **Add a domain**, type the subdomain (for example `help.acme.com`) and choose **Continue**.
+
+   ![The three steps Your domain, Connect DNS and Live with HTTPS, and the Your domain card with learn.acme.com typed in Domain and Continue.](/docs-assets/guides/site-settings/domain-add.webp)
 2. Markdrop looks up who runs the domain's DNS from its nameservers and says so, like "acme.com's DNS is at Cloudflare", with **Open Cloudflare DNS**. The record is written the way that provider's form asks for it, with copy buttons:
 
    | Type | Name | Value |
@@ -44,6 +50,8 @@ Setup takes three steps: **Your domain**, **Connect DNS**, **Live with HTTPS**.
    | `CNAME` | `help` | `cname.guides.markdrop.in` |
 
    Where the provider supports it, **Connect with <provider>** adds the record in one click: sign in there and approve it. Markdrop asks for that one record and nothing else.
+
+   ![Connect DNS for learn.acme.com, Waiting for DNS: "acme.com's DNS is at Cloudflare" with Open Cloudflare DNS, then Add this DNS record, written the way Cloudflare's form asks for it: Name learn, Target cname.guides.markdrop.in, Proxy status DNS only (grey cloud), Not found yet, and Download as CSV.](/docs-assets/guides/site-settings/domain-setup.webp)
 3. Sign in where your domain's DNS is managed (often where you bought it) and add that `CNAME` record. **Download as CSV** gives you the record as a file.
 4. Wait. **Status** shows **Record found**, **HTTPS certificate issued** and **Live**, and checks again every minute while the page is open, usually a few minutes after your DNS change is visible. Choose **Check now** to check right away. You can leave the page: Markdrop keeps checking, and emails you when the domain is live (or if it gives up).
 5. Once it's **Live**, readers get the guide at `https://help.acme.com`. Markdrop publishes the live version again, so links, the sitemap, `llms.txt` and preview cards use your domain from then on. Keep the record in place.
@@ -51,6 +59,8 @@ Setup takes three steps: **Your domain**, **Connect DNS**, **Live with HTTPS**.
 ### Someone else runs your DNS
 
 Under **Someone else runs your DNS?**, send the person who does a message with the record, where to add it, and a link to check it worked: **Copy message**, **Send by email** (opens your mail app), or **Copy a link to these steps**. The link opens a public page, `markdrop.in/d/check/help.acme.com`, that shows the record to add and how far along the domain is, and checks again on its own. It says nothing about your guide.
+
+![Someone else runs your DNS?: a message asking to add the CNAME for learn.acme.com at Cloudflare, with a link to check it worked, and Copy message, Send by email and Copy a link to these steps; below, Status: Record found (waiting for it to appear), HTTPS certificate issued and Live at learn.acme.com, checking every minute, with Check now.](/docs-assets/guides/site-settings/domain-handoff.webp)
 
 ### Where to add the record
 
@@ -99,6 +109,8 @@ The OpenAPI file your guide's API reference is generated from: drop it in or fet
 ## Who can read it
 
 Under **Readers and access**, three choices: **Anyone**, **Anyone with the password** and **Workspace members**.
+
+![Readers and access: Who can read it with Anyone (selected), Anyone with the password and Acme members, and Show in search engines turned on.](/docs-assets/guides/site-settings/settings-access.webp)
 
 :::note[Coming soon]
 For now every published guide is public: **Anyone** can read it. **Anyone with the password** (for a beta or a partner preview) and **Workspace members only** (readers sign in with Markdrop) are listed but aren't available yet; choosing one says so and keeps the guide public.

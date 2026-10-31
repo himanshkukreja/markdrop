@@ -83,7 +83,7 @@ Type the **Old address**, like `/guides/postgres`, and where it **Goes to**: a p
 Choose **Save** (it says how many). Redirects go live at the next publish.
 ::::
 
-![The Redirects card with two rows: /guides/postgres to /guides/connect-postgres, and /setup to /getting-started/install marked in red with "There's no page /getting-started/install." and the note "Fix the rows marked in red to save."](/docs-assets/guides/pages-and-navigation/redirects.webp)
+![Settings › Redirects, Your redirects: /guides/postgres to /guides/connect-postgres (Page moved), /docs/alerts to /guides/alert-rules (Added in Settings), and a new row /setup to /getting-started/install marked in red with "There's no page /getting-started/install." and the note "Fix the rows marked in red to save."](/docs-assets/guides/pages-and-navigation/redirects.webp)
 
 A row is refused when it would break something: an old address that's still a page of the guide, the home page, one of the guide's own addresses like `/llms.txt`, a page that doesn't exist, a redirect to itself, the same old address twice, or a chain (an address that redirects again). Readers get a permanent redirect, and only when no page or file of the site is at that address.
 
