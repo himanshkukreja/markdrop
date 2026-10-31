@@ -19,6 +19,16 @@
  * Token wording comes from opts: `tokenEnv` (the variable samples read, default API_TOKEN),
  * `tokenPrefix` (placeholders like `mdk_…`) and `sessionHost` (whose sign-in a session-only route
  * takes).
+ *
+ * `opts.auto` (a guide's API reference: a description someone else wrote, no overlay): groups come
+ * from the description's tags (in `tags` order, then as first used; untagged operations go under
+ * "Endpoints"), titles from `summary`, else `operationId`, else METHOD /path (slugs made unique),
+ * descriptions as written, examples from the description's `example`/`examples`, servers from
+ * `servers` (variables at their defaults; every absolute one is offered to Try it) and auth from
+ * `security` + `components.securitySchemes` (bearer, basic, API key in a header, query or cookie;
+ * OAuth 2.0 and OpenID Connect send a bearer access token). An operation that doesn't build is left
+ * out with a problem instead of failing the whole reference. The reference also gets an overview
+ * page (`overview`): base URLs, authentication and every endpoint by group.
  */
 
 const METHODS = ["get", "post", "put", "patch", "delete"];
@@ -68,6 +78,86 @@ function firstSentence(md, max = 160) {
   let s = (m ? m[1] : plain).trim();
   if (s.length > max) s = s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
   return s;
+}
+
+/** "listOrders", "list_orders" → "List orders". */
+export function humanize(id) {
+  const words = String(id ?? "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_\-.\s]+/g, " ")
+    .trim()
+    .toLowerCase();
+  return words ? words[0].toUpperCase() + words.slice(1) : "";
+}
+
+/** A `servers` entry's URL with its variables at their defaults, no trailing slash. */
+function serverUrl(s) {
+  let url = String(s?.url ?? "");
+  for (const [k, v] of Object.entries(s?.variables || {})) url = url.split(`{${k}}`).join(String(v?.default ?? ""));
+  return url.replace(/\/+$/, "");
+}
+
+/** The absolute http(s) servers of a `servers` list: [{url, description}], each URL once. */
+export function serversOf(list) {
+  const out = [];
+  for (const s of Array.isArray(list) ? list : []) {
+    const url = serverUrl(s);
+    if (!/^https?:\/\/[^/\s]+/i.test(url) || /[{}\s]/.test(url) || out.some((x) => x.url === url)) continue;
+    out.push({ url, ...(typeof s.description === "string" && s.description.trim() ? { description: s.description.trim().slice(0, 120) } : {}) });
+  }
+  return out;
+}
+
+/** `X-API-Key` → `X_API_KEY`: the environment variable a sample reads a credential from. */
+function credentialEnv(name, fallback) {
+  const v = String(name ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return v && /^[A-Z_]/.test(v) ? v : fallback;
+}
+
+/**
+ * The security schemes an operation takes (auto mode): every scheme any of its requirements names,
+ * each once, `primary` on the ones of its first requirement (what the samples send). Kinds:
+ * "bearer" (HTTP bearer, OAuth 2.0, OpenID Connect), "basic", "apiKey" (in a header, the query or a
+ * cookie); anything else is "other" (shown, not sent).
+ */
+function securityOf(reqs, schemes, ctx) {
+  const out = [];
+  reqs.forEach((req, i) => {
+    for (const id of Object.keys(req || {})) {
+      if (out.some((s) => s.id === id)) {
+        if (i === 0) out.find((s) => s.id === id).primary = true;
+        continue;
+      }
+      let raw;
+      try {
+        raw = ctx.resolve(schemes[id] || {}).schema;
+      } catch {
+        raw = {};
+      }
+      const description = typeof raw.description === "string" ? raw.description.trim() : "";
+      const type = String(raw.type || "").toLowerCase();
+      const httpScheme = String(raw.scheme || "").toLowerCase();
+      let s;
+      if ((type === "http" && httpScheme === "bearer") || type === "oauth2" || type === "openidconnect")
+        s = {
+          kind: "bearer",
+          in: "header",
+          name: "Authorization",
+          label: type === "oauth2" ? "OAuth 2.0 access token" : type === "openidconnect" ? "OpenID Connect token" : "Bearer token",
+          env: ctx.auth.tokenEnv,
+          ...(raw.bearerFormat ? { format: String(raw.bearerFormat).slice(0, 40) } : {}),
+        };
+      else if (type === "http" && httpScheme === "basic") s = { kind: "basic", in: "header", name: "Authorization", label: "Username and password", env: "API_USER" };
+      else if (type === "apikey" && ["header", "query", "cookie"].includes(raw.in) && typeof raw.name === "string" && raw.name)
+        s = { kind: "apiKey", in: raw.in, name: raw.name, label: "API key", env: credentialEnv(raw.name, "API_KEY") };
+      else s = { kind: "other", in: "header", name: "", label: type ? `${type}${httpScheme ? ` (${httpScheme})` : ""}` : id, env: "" };
+      out.push({ id, ...s, description, primary: i === 0 });
+    }
+  });
+  return out;
 }
 
 /* ── schemas ────────────────────────────────────────────────────────────── */
@@ -179,6 +269,10 @@ function fieldsOf(schema, ctx, depth = 2, seen = new Set()) {
     };
     if (enumVals) f.enum = enumVals;
     if (raw.default !== undefined || ps.default !== undefined) f.default = raw.default !== undefined ? raw.default : ps.default;
+    if (ctx.auto) {
+      const ex = raw.example !== undefined ? raw.example : ps.example !== undefined ? ps.example : Array.isArray(ps.examples) ? ps.examples[0] : undefined;
+      if (ex !== undefined) f.example = ex;
+    }
     if (ps.format === "binary") f.binary = true;
     if (ps.type === "boolean") f.kind = "boolean";
     else if (ps.type === "integer" || ps.type === "number") f.kind = "number";
@@ -201,6 +295,7 @@ function fieldsOf(schema, ctx, depth = 2, seen = new Set()) {
 
 function exampleFor(name, f, ctx) {
   if (ctx.examples[name] !== undefined) return ctx.examples[name];
+  if (f.example !== undefined) return f.example;
   if (f.enum?.length) return f.default !== undefined ? f.default : f.enum[0];
   if (f.default !== undefined && f.default !== null) return f.default;
   switch (f.kind) {
@@ -221,6 +316,7 @@ function exampleFor(name, f, ctx) {
 function exampleBody(op, ctx) {
   if (op.overlay.example !== undefined) return op.overlay.example;
   if (!op.body) return undefined;
+  if (op.bodyExample !== undefined) return op.bodyExample;
   const out = {};
   for (const f of op.body.fields) if (f.required) out[f.name] = exampleFor(f.name, f, ctx);
   return out;
@@ -281,16 +377,52 @@ function envName(v) {
 }
 
 /**
- * `curl` for one request. `token`: the literal token to put in the command (Try it), else the
- * command reads $<tokenEnv> (default $API_TOKEN). Headers with an empty value are left out.
+ * The credentials a request carries, for an operation with `security` (auto mode). With
+ * `credentials` ({scheme id: value}; basic: "user:password"), the ones filled in, as literals (Try
+ * it); without, the operation's primary schemes, read from environment variables (samples).
+ * → [{scheme, literal?: string}]
  */
-export function curlCommand(op, values, { token, tokenEnv } = {}) {
+function credentialsFor(op, credentials) {
+  const usable = (op.security || []).filter((s) => s.kind !== "other");
+  if (credentials) return usable.filter((s) => credentials[s.id]).map((s) => ({ scheme: s, literal: String(credentials[s.id]) }));
+  return usable.filter((s) => s.primary).map((s) => ({ scheme: s }));
+}
+
+/** `name=value` appended to a URL's query. */
+const withQuery = (url, pair) => url + (url.includes("?") ? "&" : "?") + pair;
+
+/**
+ * `curl` for one request. `token`: the literal token to put in the command (Try it), else the
+ * command reads $<tokenEnv> (default $API_TOKEN). Headers with an empty value are left out. An
+ * operation with `security` (auto mode) takes `credentials` instead of `token`.
+ */
+export function curlCommand(op, values, { token, tokenEnv, credentials } = {}) {
   const lines = [];
   const method = op.method.toUpperCase();
-  const url = requestUrl(op, values);
-  lines.push(`curl ${method === "GET" ? "" : `-X ${method} `}${/^[\w.:/%-]+$/.test(url) ? url : shq(url)}`);
-  if (op.auth === "token" || op.auth === "optional" || token) {
-    if (token !== "") lines.push(`-H ${token ? shq(`Authorization: Bearer ${token}`) : `"Authorization: Bearer $${envName(tokenEnv)}"`}`);
+  let url = requestUrl(op, values);
+  if (op.security) {
+    // A credential read from the environment needs double quotes for $VAR to expand.
+    const env = (s) => `$${s.kind === "basic" ? "API_USER:$API_PASSWORD" : s.env}`;
+    const auth = [];
+    let expands = false;
+    for (const { scheme: s, literal } of credentialsFor(op, credentials)) {
+      const lit = literal !== undefined;
+      if (s.kind === "bearer") auth.push(`-H ${lit ? shq(`Authorization: Bearer ${literal}`) : `"Authorization: Bearer ${env(s)}"`}`);
+      else if (s.kind === "basic") auth.push(`-u ${lit ? shq(literal) : `"${env(s)}"`}`);
+      else if (s.in === "header") auth.push(`-H ${lit ? shq(`${s.name}: ${literal}`) : `"${s.name}: ${env(s)}"`}`);
+      else if (s.in === "cookie") auth.push(`-b ${lit ? shq(`${s.name}=${literal}`) : `"${s.name}=${env(s)}"`}`);
+      else {
+        url = withQuery(url, `${encodeURIComponent(s.name)}=${lit ? encodeURIComponent(literal) : env(s)}`);
+        if (!lit) expands = true;
+      }
+    }
+    const shown = expands ? `"${url.replace(/["\\`]/g, "\\$&")}"` : /^[\w.:/%-]+$/.test(url) ? url : shq(url);
+    lines.push(`curl ${method === "GET" ? "" : `-X ${method} `}${shown}`, ...auth);
+  } else {
+    lines.push(`curl ${method === "GET" ? "" : `-X ${method} `}${/^[\w.:/%-]+$/.test(url) ? url : shq(url)}`);
+    if (op.auth === "token" || op.auth === "optional" || token) {
+      if (token !== "") lines.push(`-H ${token ? shq(`Authorization: Bearer ${token}`) : `"Authorization: Bearer $${envName(tokenEnv)}"`}`);
+    }
   }
   for (const [k, v] of Object.entries(values.header || {})) if (v !== undefined && v !== "") lines.push(`-H ${shq(`${headerName(k)}: ${v}`)}`);
   if (op.body && op.body.contentType === "multipart/form-data") {
@@ -307,10 +439,22 @@ export function curlCommand(op, values, { token, tokenEnv } = {}) {
 }
 
 function jsSample(op, values, tokenEnv) {
-  const url = requestUrl(op, values);
+  let url = requestUrl(op, values);
+  let target = null;
   const method = op.method.toUpperCase();
   const headers = [];
-  if (op.auth === "token" || op.auth === "optional") headers.push(`Authorization: \`Bearer \${process.env.${envName(tokenEnv)}}\``);
+  if (op.security) {
+    const query = [];
+    for (const { scheme: s } of credentialsFor(op)) {
+      if (s.kind === "bearer") headers.push(`Authorization: \`Bearer \${process.env.${s.env}}\``);
+      else if (s.kind === "basic") headers.push("Authorization: `Basic ${btoa(`${process.env.API_USER}:${process.env.API_PASSWORD}`)}`");
+      else if (s.in === "header") headers.push(`${JSON.stringify(s.name)}: process.env.${s.env}`);
+      else if (s.in === "cookie") headers.push(`Cookie: \`${s.name}=\${process.env.${s.env}}\``);
+      else query.push(`${encodeURIComponent(s.name)}=\${process.env.${s.env}}`);
+    }
+    // A key in the query: a template literal reads it from the environment.
+    if (query.length) target = "`" + query.reduce((u, q) => withQuery(u, q), url.replace(/[`\\$]/g, "\\$&")) + "`";
+  } else if (op.auth === "token" || op.auth === "optional") headers.push(`Authorization: \`Bearer \${process.env.${envName(tokenEnv)}}\``);
   for (const [k, v] of Object.entries(values.header || {})) if (v) headers.push(`${JSON.stringify(headerName(k))}: ${JSON.stringify(String(v))}`);
   const opts = [];
   if (method !== "GET") opts.push(`method: ${JSON.stringify(method)}`);
@@ -328,7 +472,8 @@ function jsSample(op, values, tokenEnv) {
     opts.push(`body: JSON.stringify(${body})`);
   }
   if (headers.length) opts.splice(method !== "GET" ? 1 : 0, 0, `headers: {\n    ${headers.join(",\n    ")},\n  }`);
-  const call = opts.length ? `await fetch(${JSON.stringify(url)}, {\n  ${opts.join(",\n  ")},\n})` : `await fetch(${JSON.stringify(url)})`;
+  const to = target ?? JSON.stringify(url);
+  const call = opts.length ? `await fetch(${to}, {\n  ${opts.join(",\n  ")},\n})` : `await fetch(${to})`;
   const read =
     op.returns === "none"
       ? `if (!res.ok) throw new Error(\`\${res.status}\`);`
@@ -342,11 +487,26 @@ function pySample(op, values, tokenEnv) {
   const url = requestUrl(op, values);
   const method = op.method.toLowerCase();
   const args = [JSON.stringify(url)];
-  const needsOs = op.auth === "token" || op.auth === "optional";
+  const creds = op.security ? credentialsFor(op) : null;
+  const needsOs = creds ? creds.length > 0 : op.auth === "token" || op.auth === "optional";
   const headers = [];
-  if (needsOs) headers.push(`"Authorization": f"Bearer {os.environ['${envName(tokenEnv)}']}"`);
+  const extra = [];
+  if (creds) {
+    const params = [];
+    const cookies = [];
+    for (const { scheme: s } of creds) {
+      if (s.kind === "bearer") headers.push(`"Authorization": f"Bearer {os.environ['${s.env}']}"`);
+      else if (s.kind === "basic") extra.push(`auth=(os.environ["API_USER"], os.environ["API_PASSWORD"])`);
+      else if (s.in === "header") headers.push(`${JSON.stringify(s.name)}: os.environ["${s.env}"]`);
+      else if (s.in === "cookie") cookies.push(`${JSON.stringify(s.name)}: os.environ["${s.env}"]`);
+      else params.push(`${JSON.stringify(s.name)}: os.environ["${s.env}"]`);
+    }
+    if (params.length) extra.push(`params={${params.join(", ")}}`);
+    if (cookies.length) extra.push(`cookies={${cookies.join(", ")}}`);
+  } else if (needsOs) headers.push(`"Authorization": f"Bearer {os.environ['${envName(tokenEnv)}']}"`);
   for (const [k, v] of Object.entries(values.header || {})) if (v) headers.push(`${JSON.stringify(headerName(k))}: ${JSON.stringify(String(v))}`);
   if (headers.length) args.push(`headers={${headers.join(", ")}}`);
+  args.push(...extra);
   if (op.body?.contentType === "multipart/form-data") {
     const f = op.body.fields.find((x) => x.binary);
     if (f) args.push(`files={${JSON.stringify(f.name)}: open("logo.png", "rb")}`);
@@ -367,7 +527,7 @@ function pySample(op, values, tokenEnv) {
 export function sampleValues(op, ctx) {
   const v = { path: {}, query: {}, header: {}, body: exampleBody(op, ctx), files: {} };
   for (const p of op.params) {
-    const ex = op.overlay.params?.[p.name] ?? ctx.examples[p.name];
+    const ex = op.overlay.params?.[p.name] ?? ctx.examples[p.name] ?? p.example;
     if (p.in === "path") v.path[p.name] = ex ?? p.name.toUpperCase();
     else if (p.in === "query" && (p.required || op.overlay.params?.[p.name] !== undefined)) v.query[p.name] = ex ?? p.default ?? p.name.toUpperCase();
     else if (p.in === "header" && (p.required || op.overlay.params?.[p.name] !== undefined)) v.header[p.name] = ex;
@@ -413,28 +573,83 @@ function statusText(code) {
 }
 
 /**
+ * Groups for a description with no overlay (auto mode): one per tag, in the description's `tags`
+ * order and then as operations first use them (`x-displayName` titles a tag), plus "Endpoints" for
+ * untagged operations. Ids are the tags slugified, made unique.
+ */
+function tagGroups(spec) {
+  const defs = [];
+  const ids = new Set();
+  const add = (name, meta = {}) => {
+    if (typeof name !== "string" || !name.trim() || defs.some((d) => d.tags[0] === name)) return;
+    let id = slugify(name).slice(0, 60).replace(/-+$/, "") || "group";
+    for (let n = 2; ids.has(id) || id === "endpoints"; n++) id = `${slugify(name).slice(0, 56) || "group"}-${n}`;
+    ids.add(id);
+    const title = typeof meta["x-displayName"] === "string" && meta["x-displayName"].trim() ? meta["x-displayName"].trim() : name.trim();
+    defs.push({ id, title: title.slice(0, 80), ...(typeof meta.description === "string" && meta.description.trim() ? { description: meta.description.trim() } : {}), tags: [name] });
+  };
+  for (const t of Array.isArray(spec?.tags) ? spec.tags : []) add(t?.name, t || {});
+  for (const item of Object.values(spec?.paths || {})) for (const m of METHODS) for (const t of item?.[m]?.tags || []) add(t);
+  return defs;
+}
+
+/** Media type `example` / first `examples` value (auto mode). */
+function mediaExample(media, resolve) {
+  if (!media) return undefined;
+  if (media.example !== undefined) return media.example;
+  const first = media.examples && typeof media.examples === "object" ? Object.values(media.examples)[0] : undefined;
+  if (first) {
+    try {
+      const ex = resolve(first).schema;
+      if (ex?.value !== undefined) return ex.value;
+    } catch {
+      /* an example that doesn't resolve: none */
+    }
+  }
+  try {
+    const s = unwrapNull(resolve(media.schema || {}).schema).schema;
+    if (s.example !== undefined && s.example !== null && typeof s.example === "object") return s.example;
+  } catch {
+    /* none */
+  }
+  return undefined;
+}
+
+/** The request body's media type (auto mode prefers JSON, then form data, then the first). */
+function bodyType(content, auto) {
+  const keys = Object.keys(content);
+  if (!auto) return keys[0];
+  return keys.find((k) => /^application\/(?:[\w.+-]+\+)?json\b/i.test(k)) || keys.find((k) => k === "multipart/form-data") || keys[0];
+}
+
+/**
  * Build the reference.
- * @returns {{ groups: Array<{id:string,title:string,description?:string,ops:any[]}>, ops: any[], problems: string[] }}
+ * @returns {{ groups: Array<{id:string,title:string,description?:string,ops:any[]}>, ops: any[], problems: string[], overview?: {title:string,description:string,markdown:string} }}
  */
 export function buildApiReference(spec, overlay = {}, opts = {}) {
   const problems = [];
-  const server = (opts.server || spec?.servers?.[0]?.url || "").replace(/\/+$/, "");
+  const auto = !!opts.auto;
+  const specServers = auto ? serversOf(spec?.servers) : [];
+  const server = (opts.server || (auto ? specServers[0]?.url : spec?.servers?.[0]?.url) || "").replace(/\/+$/, "");
   const base = (opts.base || "/api").replace(/\/+$/, "");
   const resolve = makeResolver(spec || {});
   const extension = opts.extension || "x-docs";
   const ctx = {
     resolve,
+    auto,
     notes: overlay.fields || {},
     examples: overlay.examples || {},
     auth: { tokenEnv: envName(opts.tokenEnv), tokenPrefix: opts.tokenPrefix || "", sessionHost: opts.sessionHost || "" },
   };
   const hideTags = new Set(overlay.hide?.tags || []);
   const hideOps = new Set(overlay.hide?.operations || []);
-  const groupDefs = (overlay.groups || []).map((g) => ({ ...g, tags: g.tags || [] }));
+  const groupDefs = (overlay.groups?.length || !auto ? overlay.groups || [] : tagGroups(spec)).map((g) => ({ ...g, tags: g.tags || [] }));
   const groups = new Map(groupDefs.map((g) => [g.id, { id: g.id, title: g.title, description: g.description, ops: [] }]));
-  const more = { id: "more", title: "More", ops: [] };
+  const more = auto ? { id: "endpoints", title: "Endpoints", ops: [] } : { id: "more", title: "More", ops: [] };
   const seenKeys = new Set();
   const usedPaths = new Map();
+  const schemes = spec?.components?.securitySchemes || {};
+  const topSecurity = Array.isArray(spec?.security) ? spec.security : [];
 
   for (const [apiPath, item] of Object.entries(spec?.paths || {})) {
     for (const method of METHODS) {
@@ -442,132 +657,178 @@ export function buildApiReference(spec, overlay = {}, opts = {}) {
       if (!raw) continue;
       const key = `${method.toUpperCase()} ${apiPath}`;
       seenKeys.add(key);
-      const tags = raw.tags || [];
+      const tags = Array.isArray(raw.tags) ? raw.tags : [];
       if (hideOps.has(key) || (tags.length && tags.every((t) => hideTags.has(t))) || (!tags.length && hideTags.has(""))) continue;
-      const ov = overlay.operations?.[key] || {};
-      const groupId = ov.group || groupDefs.find((g) => tags.some((t) => g.tags.includes(t)))?.id;
-      const group = (groupId && groups.get(groupId)) || more;
-      if (groupId && !groups.has(groupId)) problems.push(`${key}: group "${groupId}" isn't in groups`);
-      if (group === more) problems.push(`${key}: no group (tags ${tags.join(", ") || "none"}); add its tag to a group or set "group"`);
-      if (!ov.title) problems.push(`${key}: no title in the overlay (using "${raw.summary}")`);
-
-      const title = ov.title || raw.summary || key;
-      const slug = ov.slug || slugify(title);
-      if (!NAME_RE.test(slug)) problems.push(`${key}: slug "${slug}" must be lowercase-with-dashes`);
-      const path = `${base}/${group.id}/${slug}`;
-      if (usedPaths.has(path)) problems.push(`${key}: page ${path} is also ${usedPaths.get(path)}; set a different "slug"`);
-      usedPaths.set(path, key);
-
-      const x = raw[extension] || {};
-      const params = [];
-      const pathItemParams = Array.isArray(item.parameters) ? item.parameters : [];
-      for (const p0 of [...pathItemParams, ...(raw.parameters || [])]) {
-        const p = resolve(p0).schema;
-        const { schema } = unwrapNull(resolve(p.schema || {}).schema);
-        const name = p.name;
-        const note = ov.paramNotes?.[name] ?? overlay.params?.[name];
-        params.push({
-          name,
-          in: p.in,
-          display: p.in === "header" ? headerName(name) : name,
-          required: !!p.required,
-          type: typeLabel(p.schema || {}, resolve),
-          description: note ?? p.description ?? "",
-          constraints: constraintText(schema),
-          ...(Array.isArray(schema.enum) ? { enum: schema.enum } : patternEnum(schema) ? { enum: patternEnum(schema) } : {}),
-          ...(schema.default !== undefined ? { default: schema.default } : {}),
-          kind: schema.type === "integer" || schema.type === "number" ? "number" : schema.type === "boolean" ? "boolean" : "string",
-        });
+      try {
+        const { op, group } = buildOperation({ apiPath, item, method, raw, key, tags });
+        op.samples = samplesFor(op, ctx);
+        op.markdown = operationMarkdown(op, ctx.auth);
+        delete op.bodyExample;
+        group.ops.push(op);
+      } catch (e) {
+        if (!auto) throw e;
+        problems.push(`${key}: left out (${e.message})`);
       }
+    }
+  }
 
-      let body = null;
-      const rb = raw.requestBody ? resolve(raw.requestBody).schema : null;
-      if (rb?.content) {
-        const ct = Object.keys(rb.content)[0];
-        const sch = rb.content[ct]?.schema || {};
-        let fields = [];
+  function buildOperation({ apiPath, item, method, raw, key, tags }) {
+    const ov = overlay.operations?.[key] || {};
+    const groupId = ov.group || groupDefs.find((g) => tags.some((t) => g.tags.includes(t)))?.id;
+    const group = (groupId && groups.get(groupId)) || more;
+    if (groupId && !groups.has(groupId)) problems.push(`${key}: group "${groupId}" isn't in groups`);
+    if (group === more && !auto) problems.push(`${key}: no group (tags ${tags.join(", ") || "none"}); add its tag to a group or set "group"`);
+    if (!ov.title && !auto) problems.push(`${key}: no title in the overlay (using "${raw.summary}")`);
+
+    const autoTitle = typeof raw.summary === "string" && raw.summary.trim() ? raw.summary.trim() : humanize(raw.operationId) || key;
+    const title = ov.title || (auto ? autoTitle.slice(0, 120) : raw.summary || key);
+    let slug = ov.slug || slugify(title);
+    let path = `${base}/${group.id}/${slug}`;
+    if (auto) {
+      // Someone else's description: make the address fit and unique rather than complain.
+      const stem = (slug || slugify(key) || "operation").slice(0, 72).replace(/-+$/, "");
+      slug = stem;
+      for (let n = 2; usedPaths.has(`${base}/${group.id}/${slug}`); n++) slug = `${stem}-${n}`;
+      path = `${base}/${group.id}/${slug}`;
+    }
+    if (!NAME_RE.test(slug)) problems.push(`${key}: slug "${slug}" must be lowercase-with-dashes`);
+    if (usedPaths.has(path)) problems.push(`${key}: page ${path} is also ${usedPaths.get(path)}; set a different "slug"`);
+    usedPaths.set(path, key);
+
+    const x = raw[extension] || {};
+    const params = [];
+    const pathItemParams = Array.isArray(item.parameters) ? item.parameters : [];
+    const own = Array.isArray(raw.parameters) ? raw.parameters : [];
+    for (const p0 of [...pathItemParams, ...own]) {
+      const p = resolve(p0).schema;
+      // An operation's own parameter replaces the path item's of the same name and place.
+      if (auto && pathItemParams.includes(p0) && own.some((o) => { const r = resolve(o).schema; return r.name === p.name && r.in === p.in; })) continue;
+      const { schema } = unwrapNull(resolve(p.schema || {}).schema);
+      const name = p.name;
+      const note = ov.paramNotes?.[name] ?? overlay.params?.[name];
+      const ex = auto ? (p.example !== undefined ? p.example : schema.example !== undefined ? schema.example : undefined) : undefined;
+      params.push({
+        name,
+        in: p.in,
+        display: p.in === "header" ? headerName(name) : name,
+        required: !!p.required,
+        type: typeLabel(p.schema || {}, resolve),
+        description: note ?? p.description ?? "",
+        constraints: constraintText(schema),
+        ...(Array.isArray(schema.enum) ? { enum: schema.enum } : patternEnum(schema) ? { enum: patternEnum(schema) } : {}),
+        ...(schema.default !== undefined ? { default: schema.default } : {}),
+        kind: schema.type === "integer" || schema.type === "number" ? "number" : schema.type === "boolean" ? "boolean" : "string",
+        ...(ex !== undefined && (typeof ex !== "object" || ex === null) ? { example: ex } : {}),
+      });
+    }
+
+    let body = null;
+    let bodyExample;
+    const rb = raw.requestBody ? resolve(raw.requestBody).schema : null;
+    if (rb?.content && Object.keys(rb.content).length) {
+      const ct = bodyType(rb.content, auto);
+      const sch = rb.content[ct]?.schema || {};
+      let fields = [];
+      try {
+        fields = fieldsOf(sch, ctx);
+      } catch (e) {
+        problems.push(`${key}: request body: ${e.message}`);
+      }
+      body = { contentType: ct, required: !!rb.required, schema: resolve(sch).name, fields };
+      if (auto) bodyExample = mediaExample(rb.content[ct], resolve);
+    }
+
+    const responses = [];
+    let okType;
+    for (const [code, r0] of Object.entries(raw.responses || {})) {
+      const r = resolve(r0).schema;
+      const ct = r.content ? Object.keys(r.content)[0] : undefined;
+      const sch = ct ? r.content[ct].schema : undefined;
+      if (ct && code.startsWith("2") && okType === undefined) okType = ct;
+      let fields = [];
+      if (sch && code.startsWith("2")) {
         try {
           fields = fieldsOf(sch, ctx);
         } catch (e) {
-          problems.push(`${key}: request body: ${e.message}`);
+          problems.push(`${key}: response ${code}: ${e.message}`);
         }
-        body = { contentType: ct, required: !!rb.required, schema: resolve(sch).name, fields };
       }
-
-      const responses = [];
-      for (const [code, r0] of Object.entries(raw.responses || {})) {
-        const r = resolve(r0).schema;
-        const ct = r.content ? Object.keys(r.content)[0] : undefined;
-        const sch = ct ? r.content[ct].schema : undefined;
-        let fields = [];
-        if (sch && code.startsWith("2")) {
-          try {
-            fields = fieldsOf(sch, ctx);
-          } catch (e) {
-            problems.push(`${key}: response ${code}: ${e.message}`);
-          }
-        }
-        const generic = !r.description || r.description === "Successful Response" || r.description === "Validation Error";
-        const desc =
-          ov.responses?.[code] ??
-          (code === "422"
-            ? "The request didn't validate. `detail` lists each problem, with where it is (`loc`) and why (`msg`)."
-            : generic
-              ? statusText(code) + "."
-              : r.description);
-        responses.push({ status: code, description: desc, ...(fields.length ? { fields } : {}), ...(sch && resolve(sch).name && code.startsWith("2") ? { schema: resolve(sch).name } : {}) });
-      }
-      // What the code does that the schema doesn't say.
-      const add = (code, text) => {
-        if (!responses.some((r) => r.status === code)) responses.push({ status: code, description: text });
-      };
-      if (x.auth === "token") add("401", "No token, or the token is revoked or mistyped.");
-      if (x.rateLimits?.length) add("429", "Too many requests from your IP address. Wait the seconds in `Retry-After`.");
-      for (const [code, text] of Object.entries(ov.responses || {})) add(code, text);
-      responses.sort((a, b) => a.status.localeCompare(b.status));
-
-      const docstring = tidyDocstring(raw.description || "");
-      const description = ov.description ?? docstring;
-      const summary = ov.summary || (description ? firstSentence(description) : `${method.toUpperCase()} ${apiPath}`);
-      const hasEdit = params.some((p) => p.in === "header" && p.name.toLowerCase() === "x-edit-secret");
-      const hasPassword = params.some((p) => p.in === "header" && p.name.toLowerCase() === "x-read-password");
-      const okResp = responses.find((r) => r.status.startsWith("2"));
-      const returns = ov.returns || (okResp?.status === "204" ? "none" : "application/json");
-
-      const op = {
-        key,
-        operationId: raw.operationId,
-        method: method.toUpperCase(),
-        apiPath,
-        server,
-        url: server + apiPath,
-        title,
-        slug,
-        path,
-        group: { id: group.id, title: group.title },
-        tags,
-        summary: summary.length > 160 ? summary.slice(0, 157).replace(/\s+\S*$/, "") + "…" : summary,
-        description,
-        auth: x.auth || "none",
-        authLabel: AUTH_TEXT[x.auth || "none"],
-        editSecret: hasEdit,
-        readPassword: hasPassword,
-        rateLimits: (x.rateLimits || []).map(rateText),
-        params,
-        body,
-        responses,
-        returns,
-        cli: ov.cli || null,
-        mcp: ov.mcp || null,
-        guide: ov.guide || null,
-        deprecated: !!raw.deprecated,
-        keywords: [method.toUpperCase(), apiPath, ...(ov.keywords || []), ...(ov.mcp ? [ov.mcp] : []), ...tags],
-        overlay: ov,
-      };
-      op.samples = samplesFor(op, ctx);
-      op.markdown = operationMarkdown(op, ctx.auth);
-      group.ops.push(op);
+      const generic = !r.description || r.description === "Successful Response" || r.description === "Validation Error";
+      const desc =
+        ov.responses?.[code] ??
+        (code === "422" && (!auto || r.description === "Validation Error")
+          ? "The request didn't validate. `detail` lists each problem, with where it is (`loc`) and why (`msg`)."
+          : generic
+            ? (statusText(code) || (code === "default" ? "Any other status" : `Status ${code}`)) + "."
+            : r.description);
+      responses.push({ status: code, description: desc, ...(fields.length ? { fields } : {}), ...(sch && resolve(sch).name && code.startsWith("2") ? { schema: resolve(sch).name } : {}) });
     }
+    // What the code does that the schema doesn't say.
+    const add = (code, text) => {
+      if (!responses.some((r) => r.status === code)) responses.push({ status: code, description: text });
+    };
+    if (x.auth === "token") add("401", "No token, or the token is revoked or mistyped.");
+    if (x.rateLimits?.length) add("429", "Too many requests from your IP address. Wait the seconds in `Retry-After`.");
+    for (const [code, text] of Object.entries(ov.responses || {})) add(code, text);
+    responses.sort((a, b) => a.status.localeCompare(b.status));
+
+    const docstring = auto ? String(raw.description || "").trim() : tidyDocstring(raw.description || "");
+    const description = ov.description ?? docstring;
+    const autoSummary = auto && raw.summary && description ? firstSentence(description) : "";
+    const summary = ov.summary || autoSummary || (description ? firstSentence(description) : `${method.toUpperCase()} ${apiPath}`);
+    const hasEdit = !auto && params.some((p) => p.in === "header" && p.name.toLowerCase() === "x-edit-secret");
+    const hasPassword = !auto && params.some((p) => p.in === "header" && p.name.toLowerCase() === "x-read-password");
+    const okResp = responses.find((r) => r.status.startsWith("2"));
+    const returns =
+      ov.returns ||
+      (okResp?.status === "204" ? "none" : auto && okType && !/json/i.test(okType) ? okType : "application/json");
+
+    // Auth: the vendor extension's word, else (auto) the description's security requirements.
+    let auth = x.auth || "none";
+    let security;
+    if (auto && !x.auth) {
+      const reqs = (Array.isArray(raw.security) ? raw.security : topSecurity).filter((r) => r && typeof r === "object");
+      const named = reqs.filter((r) => Object.keys(r).length);
+      security = securityOf(named, schemes, ctx);
+      auth = !named.length ? "none" : named.length < reqs.length ? "optional" : "token";
+    }
+    const opServers = auto ? serversOf(raw.servers?.length ? raw.servers : item.servers?.length ? item.servers : spec?.servers) : [];
+    const opServer = auto && !opts.server ? (opServers[0]?.url ?? "") : server;
+
+    const op = {
+      key,
+      operationId: raw.operationId,
+      method: method.toUpperCase(),
+      apiPath,
+      server: opServer,
+      url: opServer + apiPath,
+      title,
+      slug,
+      path,
+      group: { id: group.id, title: group.title },
+      tags,
+      summary: summary.length > 160 ? summary.slice(0, 157).replace(/\s+\S*$/, "") + "…" : summary,
+      description,
+      auth,
+      authLabel: security ? authLabelOf(auth, security) : AUTH_TEXT[auth],
+      editSecret: hasEdit,
+      readPassword: hasPassword,
+      rateLimits: (x.rateLimits || []).map(rateText),
+      params,
+      body,
+      responses,
+      returns,
+      cli: ov.cli || null,
+      mcp: ov.mcp || null,
+      guide: ov.guide || null,
+      deprecated: !!raw.deprecated,
+      keywords: [method.toUpperCase(), apiPath, ...(ov.keywords || []), ...(ov.mcp ? [ov.mcp] : []), ...(auto && raw.operationId ? [String(raw.operationId)] : []), ...tags],
+      overlay: ov,
+    };
+    if (security) op.security = security;
+    if (auto) op.servers = opServers;
+    if (bodyExample !== undefined) op.bodyExample = bodyExample;
+    return { op, group };
   }
 
   for (const k of Object.keys(overlay.operations || {})) if (!seenKeys.has(k)) problems.push(`overlay operation "${k}" isn't in the OpenAPI description`);
@@ -582,7 +843,68 @@ export function buildApiReference(spec, overlay = {}, opts = {}) {
   // `overlay` and the resolver context stay out of what pages receive.
   const ops = out.flatMap((g) => g.ops);
   for (const op of ops) delete op.overlay;
-  return { groups: out, ops, problems };
+  const ref = { groups: out, ops, problems };
+  if (auto) ref.overview = overviewOf(spec, out, { servers: specServers, schemes, topSecurity, ctx, title: opts.title, server });
+  return ref;
+}
+
+/** "Bearer token", "API key or Bearer token", "Auth optional", "No auth" (auto mode's badge). */
+function authLabelOf(auth, security) {
+  if (auth === "none") return "No auth";
+  if (auth === "optional") return "Auth optional";
+  const labels = [...new Set(security.filter((s) => s.primary).map((s) => s.label))];
+  return labels.length ? labels.join(" + ") : "Auth required";
+}
+
+/** One sentence per scheme, for the overview and the operation's Authentication line. */
+function schemeSentence(s) {
+  const fmt = s.format ? ` (${s.format})` : "";
+  switch (s.kind) {
+    case "bearer":
+      return `${s.label}${fmt} in \`Authorization: Bearer <token>\``;
+    case "basic":
+      return "HTTP basic auth: a username and password in `Authorization: Basic …`";
+    case "apiKey":
+      return s.in === "header" ? `An API key in the \`${s.name}\` header` : s.in === "query" ? `An API key in the \`${s.name}\` query parameter` : `An API key in the \`${s.name}\` cookie`;
+    default:
+      return `${s.label} (not covered by this reference's samples)`;
+  }
+}
+
+/** The reference's front page (auto mode): what the API is, where it lives, how to authenticate, every endpoint. */
+function overviewOf(spec, groups, { servers, schemes, topSecurity, ctx, title, server }) {
+  const info = spec?.info || {};
+  const name = (typeof info.title === "string" && info.title.trim()) || title || "API reference";
+  const intro = typeof info.description === "string" ? info.description.trim() : "";
+  const L = [];
+  if (intro) L.push(intro, "");
+  const facts = [];
+  if (typeof info.version === "string" || typeof info.version === "number") facts.push(`- **Version:** \`${info.version}\``);
+  if (spec?.openapi) facts.push(`- **OpenAPI:** ${spec.openapi}`);
+  if (facts.length) L.push(...facts, "");
+  L.push("## Base URL", "");
+  const list = servers.length ? servers : server ? [{ url: server }] : [];
+  if (list.length) for (const s of list) L.push(`- \`${s.url}\`${s.description ? `: ${s.description}` : ""}`);
+  else L.push("The description lists no server. Paths below are relative to the API's own address.");
+  L.push("");
+  const all = securityOf(Object.keys(schemes).map((id) => ({ [id]: [] })), schemes, ctx);
+  if (all.length) {
+    L.push("## Authentication", "");
+    const required = topSecurity.filter((r) => r && Object.keys(r).length);
+    L.push(required.length ? (required.length < topSecurity.length ? "Most endpoints work without credentials, and take these when sent:" : "Endpoints take one of these, unless a page says otherwise:") : "Some endpoints take one of these; each page says which:", "");
+    for (const s of all) L.push(`- **${s.id}:** ${schemeSentence(s)}.${s.description ? ` ${s.description.replace(/\s+/g, " ")}` : ""}`);
+    L.push("");
+  }
+  L.push("## Endpoints", "");
+  for (const g of groups) {
+    L.push(`### ${g.title}`, "");
+    if (g.description) L.push(g.description, "");
+    for (const op of g.ops) L.push(`- [${op.title.replace(/[[\]]/g, "")}](${op.path}): \`${op.method} ${op.apiPath}\``);
+    L.push("");
+  }
+  const count = groups.reduce((n, g) => n + g.ops.length, 0);
+  const description = intro ? firstSentence(intro) : `Every endpoint of ${name}: ${count} ${count === 1 ? "operation" : "operations"}, with parameters, responses and code samples.`;
+  return { title: name.slice(0, 120), description, markdown: L.join("\n") };
 }
 
 function samplesFor(op, ctx) {
@@ -624,6 +946,15 @@ const PARAM_SECTIONS = [
 ];
 
 export function authSentence(op, { tokenPrefix = "", sessionHost = "" } = {}) {
+  if (op.security) {
+    const schemes = op.security;
+    if (op.auth === "none" || !schemes.length) return "None.";
+    const primary = schemes.filter((s) => s.primary);
+    const others = schemes.filter((s) => !s.primary);
+    const all = primary.map(schemeSentence).join(", and ");
+    const alt = others.length ? ` Or: ${others.map(schemeSentence).join("; ")}.` : "";
+    return op.auth === "optional" ? `Optional. ${all}.${alt}` : `${all}.${alt}`;
+  }
   const extra = [op.editSecret ? "or the document's edit secret in `X-Edit-Secret`" : "", op.readPassword ? "`X-Read-Password` for a password-protected document" : ""].filter(Boolean);
   const bearer = `\`Authorization: Bearer ${tokenPrefix ? `${tokenPrefix}…` : "<token>"}\``;
   switch (op.auth) {

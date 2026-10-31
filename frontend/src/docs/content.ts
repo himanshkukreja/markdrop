@@ -156,10 +156,11 @@ export class SiteBundle {
         tokenEnv: site.tryIt?.tokenEnv,
         tokenPrefix: site.tryIt?.tokenPrefix,
         sessionHost: hostOf(site.product?.url),
+        ...(cfg.auto ? { auto: true, title: cfg.label } : {}),
       });
       const info = (spec.info ?? {}) as Record<string, unknown>;
       const exported = info[`${extension}-exported`];
-      return { ...ref, updated: typeof exported === "string" ? exported : "" };
+      return { ...ref, updated: typeof exported === "string" ? exported : cfg.updated || "" };
     } catch (e) {
       console.warn(`[docs] API reference skipped: ${(e as Error).message}`);
       return null;
@@ -169,10 +170,31 @@ export class SiteBundle {
     return this.apiMemo();
   }
 
+  /** Where the generated overview page lives (auto mode: the reference's base path), if anywhere. */
+  private get apiOverviewPath(): string | null {
+    const ref = this.apiReference;
+    return ref?.overview ? (this.site.openapi?.base || "/api").replace(/\/+$/, "") || null : null;
+  }
+
   private apiPages(): DocPage[] {
     const ref = this.apiReference;
     if (!ref) return [];
-    return ref.ops.map((op) => {
+    const overview: DocPage[] = [];
+    const at = this.apiOverviewPath;
+    if (ref.overview && at) {
+      const md = ref.overview.markdown;
+      const headings = scanHeadings(md);
+      overview.push({
+        path: at,
+        file: this.site.openapi!.spec,
+        meta: { title: ref.overview.title, nav: "Overview", description: ref.overview.description, updated: ref.updated },
+        body: md,
+        headings,
+        sections: splitSections(md, headings),
+        minutes: readingMinutes(md),
+      });
+    }
+    return overview.concat(ref.ops.map((op) => {
       const headings = scanHeadings(op.markdown);
       return {
         path: op.path,
@@ -184,7 +206,7 @@ export class SiteBundle {
         minutes: readingMinutes(op.markdown),
         api: op,
       };
-    });
+    }));
   }
 
   private readonly pagesMemo = memo((): Map<string, DocPage> => {
@@ -255,7 +277,13 @@ export class SiteBundle {
     if (!ref) return written;
     const tab = site.openapi?.tab ?? "api";
     const listed = new Set(written.flatMap((g) => g.items.map((it) => it.path)));
-    const generated: NavGroup[] = ref.groups
+    // Auto mode: the overview leads, in a group named after the reference ("API reference").
+    const overviewAt = this.apiOverviewPath;
+    const lead: NavGroup[] =
+      ref.overview && overviewAt && !listed.has(overviewAt) && this.page(overviewAt) && !this.page(overviewAt)!.file.endsWith(".md")
+        ? [{ group: site.openapi?.label || "API reference", tab, generated: true, items: [{ path: overviewAt, title: "Overview", available: true, isNew: false }] }]
+        : [];
+    const generated: NavGroup[] = lead.concat(ref.groups
       .map((g) => ({
         group: g.title,
         tab,
@@ -264,7 +292,7 @@ export class SiteBundle {
           .filter((op) => !listed.has(op.path))
           .map((op) => ({ path: op.path, title: op.title, available: true, isNew: false, method: op.method })),
       }))
-      .filter((g) => g.items.length > 0);
+      .filter((g) => g.items.length > 0));
     // After the tab's last written group (its overview), else at the end.
     let at = -1;
     written.forEach((g, i) => {

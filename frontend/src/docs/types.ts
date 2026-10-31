@@ -46,6 +46,16 @@ export interface OpenApiConfig {
    * `info` (`<extension>-exported`, the export date). Default "x-docs".
    */
   extension?: string;
+  /**
+   * A description someone else wrote, with no overlay (a guide's API reference): groups from its
+   * tags, auth from its security schemes, servers from `servers`, plus an overview page at `base`
+   * (openapi.mjs `auto`).
+   */
+  auto?: boolean;
+  /** The overview's nav group name (auto mode; default "API reference"). */
+  label?: string;
+  /** The pages' "updated" date (YYYY-MM-DD) when the description has no export date. */
+  updated?: string;
 }
 
 /**
@@ -98,6 +108,8 @@ export interface TryItConfig {
   tokenEnv?: string;
   /** The token's fixed prefix, for placeholders and masking (like "mdk_"). */
   tokenPrefix?: string;
+  /** `false`: no Try it panel on API pages (the code samples stay). Default on. */
+  enabled?: boolean;
 }
 
 /** The docs MCP server (/mcp). */

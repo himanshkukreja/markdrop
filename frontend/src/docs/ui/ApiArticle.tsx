@@ -15,6 +15,10 @@ import { DocsMarkdown } from "../render/DocsMarkdown";
 import { isAppPath } from "../markdown";
 import { samplesMarkdown, type ApiField, type ApiOperation, type ApiParam } from "../openapi.mjs";
 import { cx } from "../cx";
+import { getSite } from "../content";
+
+/** Try it, unless the site turned it off (site.json `tryIt.enabled: false`): the samples stay. */
+const tryItOn = () => getSite().tryIt?.enabled !== false;
 
 /** `code`, [links](/a/b) and **bold** in one line of reference prose. */
 export function InlineMd({ text }: { text: string }) {
@@ -138,6 +142,8 @@ function tryItProps(op: ApiOperation): TryItOperation {
         }
       : null,
     example: op.example,
+    ...(op.security ? { security: op.security } : {}),
+    ...(op.servers ? { servers: op.servers } : {}),
   };
 }
 
@@ -184,7 +190,7 @@ export function ApiMain({ op }: { op: ApiOperation }) {
         )}
         <a href="#examples" className="dx-api__jump">
           <Icon name="code" />
-          Code samples and Try it
+          {tryItOn() ? "Code samples and Try it" : "Code samples"}
           <Icon name="arrowRight" />
         </a>
       </div>
@@ -249,7 +255,7 @@ export function ApiAside({ op }: { op: ApiOperation }) {
       <section aria-label="Examples" className="dx-api__samples">
         <DocsMarkdown source={samplesMarkdown(op)} className="dx-api__samplesmd" />
       </section>
-      <TryIt op={tryItProps(op)} />
+      {tryItOn() && <TryIt op={tryItProps(op)} />}
     </div>
   );
 }

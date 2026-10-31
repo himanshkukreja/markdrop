@@ -1,0 +1,194 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Northwind API",
+    "version": "1.0.0",
+    "description": "A sample API for a fictional wholesale company. It's here so you can see how a guide shows an API reference: replace it with your own OpenAPI file in Settings › API reference."
+  },
+  "servers": [
+    { "url": "https://api.northwind.example/v1", "description": "Production" },
+    { "url": "https://sandbox.northwind.example/v1", "description": "Sandbox" }
+  ],
+  "security": [{ "bearerAuth": [] }, { "apiKey": [] }],
+  "tags": [
+    { "name": "Products", "description": "What Northwind sells." },
+    { "name": "Orders", "description": "Orders customers place." },
+    { "name": "Customers", "description": "The companies that buy from Northwind." }
+  ],
+  "paths": {
+    "/products": {
+      "get": {
+        "operationId": "listProducts",
+        "summary": "List products",
+        "description": "Returns products, sorted by name. Anyone can list products: no credentials needed.",
+        "tags": ["Products"],
+        "security": [],
+        "parameters": [
+          { "name": "category", "in": "query", "description": "Only products in this category.", "schema": { "type": "string", "enum": ["beverages", "condiments", "produce", "seafood"] } },
+          { "name": "limit", "in": "query", "description": "How many to return.", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of products.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProductList" } } }
+          }
+        }
+      }
+    },
+    "/products/{productId}": {
+      "parameters": [{ "$ref": "#/components/parameters/ProductId" }],
+      "get": {
+        "operationId": "getProduct",
+        "summary": "Get a product",
+        "description": "Returns one product.",
+        "tags": ["Products"],
+        "security": [],
+        "responses": {
+          "200": { "description": "The product.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Product" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/orders": {
+      "get": {
+        "operationId": "listOrders",
+        "summary": "List orders",
+        "description": "Returns your orders, newest first.",
+        "tags": ["Orders"],
+        "parameters": [
+          { "name": "status", "in": "query", "description": "Only orders with this status.", "schema": { "$ref": "#/components/schemas/OrderStatus" } }
+        ],
+        "responses": {
+          "200": { "description": "Your orders.", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/Order" } } } } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "operationId": "createOrder",
+        "summary": "Create an order",
+        "description": "Places an order for one customer. Stock is reserved until the order ships or is cancelled.",
+        "tags": ["Orders"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NewOrder" },
+              "example": { "customer_id": "cus_ALFKI", "lines": [{ "product_id": "prd_chai", "quantity": 12 }] }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "The order was placed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "description": "A product is out of stock, or the customer doesn't exist." }
+        }
+      }
+    },
+    "/orders/{orderId}": {
+      "parameters": [{ "name": "orderId", "in": "path", "required": true, "description": "The order's ID.", "schema": { "type": "string", "example": "ord_10248" } }],
+      "get": {
+        "operationId": "getOrder",
+        "summary": "Get an order",
+        "tags": ["Orders"],
+        "responses": {
+          "200": { "description": "The order.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "operationId": "cancelOrder",
+        "summary": "Cancel an order",
+        "description": "Cancels an order that hasn't shipped. Its stock goes back on sale.",
+        "tags": ["Orders"],
+        "responses": {
+          "204": { "description": "The order was cancelled." },
+          "409": { "description": "The order has already shipped." }
+        }
+      }
+    },
+    "/customers/{customerId}": {
+      "get": {
+        "operationId": "getCustomer",
+        "summary": "Get a customer",
+        "tags": ["Customers"],
+        "parameters": [{ "name": "customerId", "in": "path", "required": true, "schema": { "type": "string", "example": "cus_ALFKI" } }],
+        "responses": {
+          "200": { "description": "The customer.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Customer" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "description": "A token from your Northwind dashboard." },
+      "apiKey": { "type": "apiKey", "in": "header", "name": "X-API-Key", "description": "For server-to-server calls." }
+    },
+    "parameters": {
+      "ProductId": { "name": "productId", "in": "path", "required": true, "description": "The product's ID.", "schema": { "type": "string", "example": "prd_chai" } }
+    },
+    "responses": {
+      "NotFound": { "description": "Nothing has that ID." },
+      "Unauthorized": { "description": "The token or API key is missing or wrong." }
+    },
+    "schemas": {
+      "OrderStatus": { "type": "string", "enum": ["pending", "shipped", "cancelled"] },
+      "Product": {
+        "type": "object",
+        "required": ["id", "name", "unit_price"],
+        "properties": {
+          "id": { "type": "string", "example": "prd_chai" },
+          "name": { "type": "string", "example": "Chai" },
+          "category": { "type": "string", "example": "beverages" },
+          "unit_price": { "type": "number", "description": "In US dollars.", "example": 18 },
+          "in_stock": { "type": "integer", "minimum": 0, "example": 39 }
+        }
+      },
+      "ProductList": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Product" } },
+          "has_more": { "type": "boolean" }
+        }
+      },
+      "OrderLine": {
+        "type": "object",
+        "required": ["product_id", "quantity"],
+        "properties": {
+          "product_id": { "type": "string", "example": "prd_chai" },
+          "quantity": { "type": "integer", "minimum": 1, "example": 12 }
+        }
+      },
+      "NewOrder": {
+        "type": "object",
+        "required": ["customer_id", "lines"],
+        "properties": {
+          "customer_id": { "type": "string", "description": "Who the order is for." },
+          "lines": { "type": "array", "minItems": 1, "items": { "$ref": "#/components/schemas/OrderLine" } },
+          "ship_by": { "type": "string", "format": "date", "description": "The latest shipping date the customer accepts." }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "required": ["id", "customer_id", "status", "lines"],
+        "properties": {
+          "id": { "type": "string", "example": "ord_10248" },
+          "customer_id": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/OrderStatus" },
+          "lines": { "type": "array", "items": { "$ref": "#/components/schemas/OrderLine" } },
+          "total": { "type": "number", "description": "In US dollars." },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Customer": {
+        "type": "object",
+        "required": ["id", "company_name"],
+        "properties": {
+          "id": { "type": "string", "example": "cus_ALFKI" },
+          "company_name": { "type": "string", "example": "Alfreds Futterkiste" },
+          "country": { "type": "string", "example": "Germany" }
+        }
+      }
+    }
+  }
+}
