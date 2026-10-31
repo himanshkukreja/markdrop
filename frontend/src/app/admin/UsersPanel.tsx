@@ -43,6 +43,19 @@ function Drive({ u }: { u: AdminUserListItem }) {
 
 const dash = (n: number, s = String(n)) => (n ? s : <span className="text-text-muted">—</span>);
 
+/** Markdrop Guides: sites they own, and publishes they started. */
+function Guides({ u }: { u: AdminUserListItem }) {
+  const sites = u.guides_site_count ?? 0;
+  const pubs = u.guides_publish_count ?? 0;
+  if (!sites && !pubs) return <span className="text-text-muted">—</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap" title={`${plural(sites, "guide site")} owned · ${plural(pubs, "publish", "publishes")} started`}>
+      {plural(sites, "site")}
+      {pubs > 0 && <Badge size="sm" tone="success" icon="send">{plural(pubs, "publish", "publishes")}</Badge>}
+    </span>
+  );
+}
+
 /** Their PostHog journey (Journeys resolves the account id, their distinct id, to the person). */
 function JourneyLink({ u }: { u: AdminUserListItem }) {
   const href = `/admin?tab=journeys&person=${encodeURIComponent(u.id)}`;
@@ -108,6 +121,7 @@ export function UsersPanel({ token }: { token: string }) {
     { key: "drive", header: "Drive", render: (u) => <Drive u={u} /> },
     { key: "shares", header: "Shares", align: "right", render: (u) => dash(u.share_count) },
     { key: "artifacts", header: "Artifacts", align: "right", render: (u) => dash(u.artifact_count, `${u.artifact_count} · ${bytes(u.artifact_bytes)}`) },
+    { key: "guides", header: "Guides", render: (u) => <Guides u={u} /> },
     { key: "last", header: "Last sign-in", render: (u) => <span className="whitespace-nowrap">{fmtDate(u.last_login_at)}</span> },
     { key: "journey", header: <span className="md-visually-hidden">Journey</span>, render: (u) => <JourneyLink u={u} /> },
   ];
@@ -147,6 +161,7 @@ export function UsersPanel({ token }: { token: string }) {
                   <div className="min-w-0"><dt className="text-text-muted">Drive</dt><dd className="mt-0.5"><Drive u={u} /></dd></div>
                   <div className="min-w-0"><dt className="text-text-muted">Shares</dt><dd className="mt-0.5 tabular-nums text-text">{dash(u.share_count)}</dd></div>
                   <div className="min-w-0"><dt className="text-text-muted">Artifacts</dt><dd className="mt-0.5 tabular-nums text-text">{dash(u.artifact_count, `${u.artifact_count} · ${bytes(u.artifact_bytes)}`)}</dd></div>
+                  <div className="col-span-2 min-w-0"><dt className="text-text-muted">Guides</dt><dd className="mt-0.5"><Guides u={u} /></dd></div>
                   <div className="col-span-2 min-w-0"><dt className="text-text-muted">Last sign-in</dt><dd className="mt-0.5 text-text">{fmtDate(u.last_login_at)}</dd></div>
                 </dl>
               </li>

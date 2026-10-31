@@ -40,7 +40,7 @@ export function SiteCard({ site }: { site: SiteSummary }) {
   const base = siteBase(site.id);
   const address = primaryAddress(site);
   return (
-    <article className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
+    <article className="ph-no-capture flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
       <SiteThumb preset={site.preset} />
       <div className="flex min-w-0 flex-1 flex-col gap-2.5 px-[18px] pb-[18px] pt-4">
         <div className="flex min-w-0 items-center gap-2">
@@ -222,7 +222,7 @@ export default function StudioHome() {
             label={
               <span className="text-caption text-text-muted">
                 Ask AI this month · {num(busiest?.ai_used ?? 0)} of {num(all.usage.ai_limit ?? FREE_AI)}
-                {busiest && busiest.ai_used > 0 && total > 1 ? ` (${busiest.name})` : ""}
+                {busiest && busiest.ai_used > 0 && total > 1 ? <> (<span className="ph-sensitive ph-mask">{busiest.name}</span>)</> : ""}
               </span>
             }
             value={busiest?.ai_used ?? 0}

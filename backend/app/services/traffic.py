@@ -63,10 +63,27 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 # Every real top-level route. Anything else with a single segment is a
 # document slug. Mirror of frontend/src/lib/analyticsPath.ts — keep in step.
 APP_ROUTES = {
-    "", "admin", "auth", "builder", "dashboard", "enterprise", "extension", "f", "h",
-    "invite", "login", "mcp", "new", "oauth", "privacy", "recent", "requests", "settings",
-    "share", "shared", "upload", "w",
+    "", "admin", "auth", "builder", "dashboard", "docs-studio", "enterprise", "extension", "f",
+    "guides", "h", "invite", "login", "mcp", "new", "oauth", "privacy", "recent", "requests",
+    "settings", "share", "shared", "upload", "w",
 }
+
+# Markdrop Guides (/guides, and its old address /docs-studio): literal screens, then a site id and
+# the site's screens. Site ids aren't secrets, but each would be a row of its own.
+_GUIDES_ROOTS = {"guides", "docs-studio"}
+_GUIDES_SCREENS = {"new", "members"}
+_GUIDES_SITE_SCREENS = {"design", "import", "publish", "settings"}
+
+
+def _guides_shape(segments: list[str]) -> str:
+    root = "/" + segments[0]
+    if len(segments) == 1:
+        return root
+    if len(segments) == 2:
+        return f"{root}/{segments[1]}" if segments[1] in _GUIDES_SCREENS else f"{root}/[site]"
+    if len(segments) == 3 and segments[2] in _GUIDES_SITE_SCREENS:
+        return f"{root}/[site]/{segments[2]}"
+    return f"{root}/[site]/[other]"
 
 _ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 _EVENT = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
@@ -183,6 +200,8 @@ def clean_path(path: str, host: str) -> str | None:
         return "/w/[workspace]/f/[folder]" if len(segments) > 2 else "/w/[workspace]"
     if segments[0] == "h":
         return "/h/[workspace-doc]"
+    if segments[0] in _GUIDES_ROOTS:
+        return _guides_shape(segments)
     if len(segments) == 1 and segments[0] not in APP_ROUTES:
         return "/[slug]"
     return _PATH_SAFE.sub("", "/" + "/".join(segments))[:120] or "/"

@@ -56,6 +56,15 @@ export function trackingDisabled(): boolean {
   return store("local")?.getItem(OPT_OUT) === "1";
 }
 
+/**
+ * A customer's published docs site (a Markdrop Guide) marks its root `data-docs-trackers="off"`:
+ * its readers are never counted here, whatever calls in (docs/client/AppTrackers, which also
+ * unmounts the page-view trackers there).
+ */
+function customerSite(): boolean {
+  return typeof document !== "undefined" && !!document.querySelector('[data-docs-trackers="off"]');
+}
+
 /** Admin toggle: stop counting this browser (the owner's own visits skew everything). */
 export function setTrackingDisabled(off: boolean) {
   const ls = store("local");
@@ -171,7 +180,7 @@ function closePage(final: boolean) {
 
 /** Call on every route change (SiteTracker does). */
 export function trackPageview(pathname: string) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || customerSite()) return;
   if (pathname.startsWith("/admin")) {
     closePage(false);
     currentPath = null;
@@ -202,7 +211,7 @@ export function trackPageview(pathname: string) {
  * title, filename or email in props: these are aggregated, not inspected.
  */
 export function track(name: string, props?: Record<string, string | number | boolean>) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || customerSite()) return;
   if (!started) trackPageview(location.pathname);
   enqueue({ k: "ev", n: name, p: currentPath ?? shape(location.pathname), props });
   if (!trackingDisabled()) captureThirdParty(name, props);

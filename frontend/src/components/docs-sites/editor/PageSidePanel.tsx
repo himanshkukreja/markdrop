@@ -68,7 +68,7 @@ export function PageSidePanel({ page, fields, readOnly, onChange, onRestore, isH
     <div className="flex flex-col gap-4">
       <h2 className="text-[14px] font-semibold text-text">Page</h2>
       <Field label="Address" htmlFor={`${uid}-path`} error={bad || undefined} hint={isHome ? "The home page is always /." : "Change it and the published address redirects to the new one (Settings › Redirects)."}>
-        <Input mono size="sm" value={fields.path} readOnly={readOnly || isHome} spellCheck={false} autoCapitalize="none" onChange={(e) => onChange({ path: e.target.value.toLowerCase() })} />
+        <Input className="ph-no-capture" mono size="sm" value={fields.path} readOnly={readOnly || isHome} spellCheck={false} autoCapitalize="none" onChange={(e) => onChange({ path: e.target.value.toLowerCase() })} />
       </Field>
       <Switch label="Show in the sidebar" checked={!fields.hidden} disabled={readOnly || isHome} onChange={(e) => onChange({ hidden: !e.target.checked })} />
       <Field label="Icon" htmlFor={`${uid}-icon`}>
@@ -99,9 +99,9 @@ export function PageSidePanel({ page, fields, readOnly, onChange, onRestore, isH
         )}
       </div>
 
-      <Drawer open={all} onClose={() => { setAll(false); setViewing(null); }} title={viewing ? `Version ${viewing.rev}` : "All versions"} description={viewing ? `${versionLabel(viewing)} by ${viewing.by_name || "someone"}, ${whenShort(viewing.at)}` : `The last ${versions?.length ?? 0} saves of “${fields.title}”. Restoring makes a new draft; nothing is lost.`} width={480}>
+      <Drawer open={all} onClose={() => { setAll(false); setViewing(null); }} title={viewing ? `Version ${viewing.rev}` : "All versions"} description={viewing ? `${versionLabel(viewing)} by ${viewing.by_name || "someone"}, ${whenShort(viewing.at)}` : <>The last {versions?.length ?? 0} saves of “<span className="ph-sensitive ph-mask">{fields.title}</span>”. Restoring makes a new draft; nothing is lost.</>} width={480}>
         {viewing ? (
-          <div className="flex flex-col gap-3">
+          <div className="ph-no-capture flex flex-col gap-3">
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" size="sm" iconLeft="arrowLeft" onClick={() => setViewing(null)}>All versions</Button>
               {!readOnly && viewing.rev !== page.rev && <Button variant="primary" size="sm" iconLeft="rotate" onClick={() => setConfirm(viewing)}>Restore this version</Button>}
@@ -137,7 +137,7 @@ export function PageSidePanel({ page, fields, readOnly, onChange, onRestore, isH
         onClose={() => setConfirm(null)}
         tone="default"
         title="Restore this version?"
-        body={`It becomes the newest draft of “${fields.title}”. The current draft stays in the history, and readers see nothing until you publish.`}
+        body={<>It becomes the newest draft of “<span className="ph-sensitive ph-mask">{fields.title}</span>”. The current draft stays in the history, and readers see nothing until you publish.</>}
         confirmLabel="Restore"
         onConfirm={async () => {
           if (!confirm) return;

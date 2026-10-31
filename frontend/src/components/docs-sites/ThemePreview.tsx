@@ -11,7 +11,8 @@ export function ThemePreview({ theme, dark, name, logo }: { theme: ThemeInput; d
   const short = name.replace(/\s+docs$/i, "") || name;
   return (
     <div
-      className="overflow-hidden rounded-xl border border-border shadow-md"
+      // ph-no-capture: the customer's site name and logo, like any preview, stay out of replays.
+      className="ph-no-capture overflow-hidden rounded-xl border border-border shadow-md"
       style={{ background: p.bg, color: p.text, fontFamily: p.body }}
       role="img"
       aria-label={`Preview of ${name} in this theme, ${dark ? "dark" : "light"} mode`}

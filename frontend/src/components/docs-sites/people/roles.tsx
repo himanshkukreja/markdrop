@@ -131,7 +131,7 @@ export function RolesExplainer({ className }: { className?: string }) {
 
 function eventText(e: RoleEvent): React.ReactNode {
   const who = <strong className="font-semibold text-text">{e.target_name ?? "Someone"}</strong>;
-  const where = e.scope === "site" ? <> on <span className="text-text">{e.site_name ?? "a deleted site"}</span></> : null;
+  const where = e.scope === "site" ? <> on <span className="ph-sensitive ph-mask text-text">{e.site_name ?? "a deleted site"}</span></> : null;
   if (e.kind === "docs_role_removed") {
     if (e.reason === "left_workspace") return <>{who} left the workspace; their {roleLabel(e.previous)} role{where} went with it</>;
     return e.scope === "site"

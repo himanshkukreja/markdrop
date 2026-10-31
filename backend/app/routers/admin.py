@@ -113,6 +113,11 @@ class AdminUserListItem(BaseModel):
     google_connected: bool = False
     google_export_count: int = 0
     share_count: int = 0
+    artifact_count: int = 0
+    artifact_bytes: int = 0
+    # Markdrop Guides: sites they own (not deleted) and publishes they started
+    guides_site_count: int = 0
+    guides_publish_count: int = 0
 
 
 class AdminUserListResponse(BaseModel):
@@ -144,6 +149,8 @@ class FeatureUsageResponse(BaseModel):
     artifact_bytes: int = 0
     artifact_protected: int = 0
     artifact_by_type: list[dict] = []
+    # Markdrop Guides (docs_sites + docs_events + the Ask AI ledger)
+    guides: dict = {}
 
 
 class AdminShareEventItem(BaseModel):
@@ -428,6 +435,8 @@ async def list_all_users(
     share_counts: dict[str, int] = {}
     artifact_counts: dict[str, int] = {}
     artifact_bytes: dict[str, int] = {}
+    guides_sites: dict[str, int] = {}
+    guides_publishes: dict[str, int] = {}
     if ids:
         # Document counts (all + Google-exported) in a single pass
         async for row in db["documents"].aggregate(
@@ -485,6 +494,22 @@ async def list_all_users(
         ):
             share_counts[row["_id"]] = row["n"]
 
+        # Markdrop Guides: sites they own, and publishes they started (directly or approved)
+        async for row in db["docs_sites"].aggregate(
+            [
+                {"$match": {"owner_id": {"$in": ids}, "deleted_at": None}},
+                {"$group": {"_id": "$owner_id", "n": {"$sum": 1}}},
+            ]
+        ):
+            guides_sites[row["_id"]] = row["n"]
+        async for row in db["docs_events"].aggregate(
+            [
+                {"$match": {"user_id": {"$in": ids}, "kind": {"$in": list(GUIDES_PUBLISH_KINDS)}}},
+                {"$group": {"_id": "$user_id", "n": {"$sum": 1}}},
+            ]
+        ):
+            guides_publishes[row["_id"]] = row["n"]
+
     items = []
     for u in users:
         uid = str(u["_id"])
@@ -506,6 +531,8 @@ async def list_all_users(
                 share_count=share_counts.get(uid, 0),
                 artifact_count=artifact_counts.get(uid, 0),
                 artifact_bytes=artifact_bytes.get(uid, 0),
+                guides_site_count=guides_sites.get(uid, 0),
+                guides_publish_count=guides_publishes.get(uid, 0),
             )
         )
     return AdminUserListResponse(
@@ -513,12 +540,58 @@ async def list_all_users(
     )
 
 
+# A publish someone started: directly (docs_published) or by approving a review, which publishes.
+GUIDES_PUBLISH_KINDS = ("docs_published", "docs_review_approved")
+# A Guides site's Ask AI rows carry the site's id (an ObjectId's hex); file-based docs sites
+# (docs.markdrop.in is "markdrop") don't.
+_GUIDES_AI_SITE = {"$regex": "^[0-9a-f]{24}$"}
+
+
+async def guides_usage(db: AsyncIOMotorDatabase) -> dict:
+    """Markdrop Guides adoption, all time: sites, who creates and publishes them, builds, imports
+    and Ask AI answers. From docs_sites, docs_events (services/docs_site_store.log_event) and the
+    Ask AI ledger (services/ai_usage)."""
+    ev = db["docs_events"]
+    kinds: dict[str, int] = {}
+    async for row in ev.aggregate([{"$group": {"_id": "$kind", "n": {"$sum": 1}}}]):
+        kinds[str(row["_id"])] = row["n"]
+    creators = await ev.distinct("user_id", {"kind": "docs_site_created", "user_id": {"$ne": None}})
+    publishers = await ev.distinct("user_id", {"kind": {"$in": list(GUIDES_PUBLISH_KINDS)}, "user_id": {"$ne": None}})
+    sites = db["docs_sites"]
+    by_source: dict[str, int] = {}
+    async for row in sites.aggregate([
+        {"$match": {"deleted_at": None}},
+        {"$group": {"_id": "$source.kind", "n": {"$sum": 1}}},
+    ]):
+        by_source[str(row["_id"] or "blank")] = row["n"]
+    return {
+        "sites": await sites.count_documents({"deleted_at": None}),
+        "sites_live": await sites.count_documents({"deleted_at": None, "status": "live"}),
+        "sites_deleted": await sites.count_documents({"deleted_at": {"$ne": None}}),
+        "by_source": by_source,
+        "creators": len(creators),
+        "publishers": len(publishers),
+        "publishes": sum(kinds.get(k, 0) for k in GUIDES_PUBLISH_KINDS),
+        "builds_live": kinds.get("docs_build_live", 0),
+        "builds_failed": kinds.get("docs_build_failed", 0),
+        "reviews_submitted": kinds.get("docs_review_submitted", 0),
+        "restores": kinds.get("docs_restored", 0),
+        "imports": kinds.get("docs_imported", 0),
+        "imports_finished": kinds.get("docs_import_finished", 0),
+        "imports_failed": kinds.get("docs_import_failed", 0),
+        "ai_answers": await db["ai_requests"].count_documents(
+            {"feature": "docs_ask", "outcome": "answered", "site": _GUIDES_AI_SITE}),
+        "ai_sites": len(await db["ai_requests"].distinct(
+            "site", {"feature": "docs_ask", "outcome": "answered", "site": _GUIDES_AI_SITE})),
+    }
+
+
 @router.get("/feature-usage", response_model=FeatureUsageResponse)
 async def feature_usage(
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
-    """Adoption totals for VS Code sync, Google Drive, and P2P file sharing."""
+    """Adoption totals for VS Code sync, Google Drive, P2P file sharing, artifacts and Guides."""
     total_users = await db["users"].count_documents({})
 
     # VS Code sync — distinct users with a token, and of those, who has synced
@@ -626,6 +699,7 @@ async def feature_usage(
         share_users_identified=len(share_users),
         share_events_anonymous=shares_anon,
         share_connections=share_connections,
+        guides=await guides_usage(db),
     )
 
 

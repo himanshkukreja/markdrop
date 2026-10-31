@@ -125,7 +125,7 @@ export default function PublishScreen() {
           if (!watching.current.has(b.id) || RUNNING.has(b.status)) continue;
           watching.current.delete(b.id);
           if (b.status === "live") {
-            toast.success(`Published. Live at ${primaryAddress(site)}.`);
+            toast.success(<>Published. Live at <span className="ph-sensitive ph-mask">{primaryAddress(site)}</span>.</>);
             void reloadSite();
             void getChanges(site.id).then(setChanges).catch(() => {});
           } else if (b.status === "failed") toast.error(b.error || "The publish failed. Nothing changed for readers.");
@@ -231,7 +231,7 @@ export default function PublishScreen() {
   const oldest = builds && builds.length ? builds[builds.length - 1]!.id : null;
 
   const statusBadge =
-    site.status === "live" ? <Badge tone="success" size="sm" dot className="max-sm:hidden">Live at {address}</Badge>
+    site.status === "live" ? <Badge tone="success" size="sm" dot className="max-sm:hidden">Live at <span className="ph-sensitive ph-mask">{address}</span></Badge>
       : site.status === "unpublished" ? <Badge size="sm" className="max-sm:hidden">Unpublished</Badge>
         : <Badge size="sm" className="max-sm:hidden">Not published yet</Badge>;
 
@@ -263,7 +263,7 @@ export default function PublishScreen() {
           )}
 
           {count > 0 && (
-            <ul className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
+            <ul className="ph-no-capture flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
               {pageChanges.map((c, i) => (
                 <li key={c.id} className={`flex items-center gap-3 px-4 py-3 ${i ? "border-t border-border" : ""}`}>
                   <Badge tone={KIND[c.change]?.tone ?? "neutral"} size="sm">{KIND[c.change]?.label ?? "Changed"}</Badge>
@@ -341,7 +341,7 @@ export default function PublishScreen() {
                 <Badge tone="warning" size="sm" dot>Waiting for review</Badge>
                 <span className="text-[12px] text-text-muted">sent {timeAgo(r.created_at)}</span>
               </div>
-              {r.note && <p className="text-body text-text-secondary">&ldquo;{r.note}&rdquo;</p>}
+              {r.note && <p className="ph-sensitive ph-mask text-body text-text-secondary">&ldquo;{r.note}&rdquo;</p>}
               <div><Button variant="secondary" size="sm" loading={busy === `withdraw:${r.id}`} onClick={() => void withdraw(r)}>Withdraw</Button></div>
             </div>
           ))}
@@ -359,7 +359,7 @@ export default function PublishScreen() {
                 <strong className="min-w-0 flex-1 text-text">{firstName(r.requested_by_name)} wants to publish {plural(r.page_ids.length, "change")}</strong>
                 <span className="text-[12px] text-text-secondary">{timeAgo(r.created_at)}</span>
               </div>
-              {r.note && <p className="text-body text-text-secondary">&ldquo;{r.note}&rdquo;</p>}
+              {r.note && <p className="ph-sensitive ph-mask text-body text-text-secondary">&ldquo;{r.note}&rdquo;</p>}
               {canReview ? (
                 <div className="flex flex-wrap gap-2">
                   <Button variant="primary" size="sm" iconLeft="check" loading={busy === `approve:${r.id}`} disabled={running.length > 0} onClick={() => void approve(r)}>Approve and publish</Button>
@@ -379,7 +379,7 @@ export default function PublishScreen() {
             <EmptyState icon="send" title="Not published yet" description="Your first publish shows up here. Every publish is kept, so you can go back to it." />
           )}
           {builds && builds.length > 0 && (
-            <ol className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
+            <ol className="ph-no-capture flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
               {builds.map((b, i) => {
                 const isRunning = RUNNING.has(b.status);
                 const isLive = b.live ?? b.status === "live";
@@ -436,7 +436,7 @@ export default function PublishScreen() {
         onConfirm={restore}
         tone="default"
         title={`Put publish #${restoreFor?.number ?? ""} live?`}
-        body={<>Readers see &ldquo;{restoreFor ? buildTitle(restoreFor) : ""}&rdquo; in a few seconds. Your drafts don&apos;t change, and you can switch back any time.</>}
+        body={<>Readers see &ldquo;<span className="ph-sensitive ph-mask">{restoreFor ? buildTitle(restoreFor) : ""}</span>&rdquo; in a few seconds. Your drafts don&apos;t change, and you can switch back any time.</>}
         confirmLabel="Restore"
       />
     </>

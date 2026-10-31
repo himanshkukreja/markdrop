@@ -73,7 +73,7 @@ export default function SiteSettings() {
   }, [site.workspace_id]);
   useEffect(() => { setAiName(s.ai.name ?? ""); }, [s.ai.name]);
 
-  async function patch(key: string, body: { slug?: string; settings?: SettingsPatch }, done: string) {
+  async function patch(key: string, body: { slug?: string; settings?: SettingsPatch }, done: React.ReactNode) {
     if (locked) return false;
     setSaving(key);
     setError("");
@@ -97,7 +97,7 @@ export default function SiteSettings() {
       const r = await slugAvailable(slug, site.id);
       if (!r.available) { setSlugMsg(r.message || "That address is taken."); return; }
     } catch { /* the PATCH checks too */ }
-    if (await patch("slug", { slug }, `The address is now ${slug}${DOCS_HOST_SUFFIX}. The old one stops working.`)) setEditSlug(false);
+    if (await patch("slug", { slug }, <>The address is now <span className="ph-sensitive ph-mask">{slug}{DOCS_HOST_SUFFIX}</span>. The old one stops working.</>)) setEditSlug(false);
   }
 
   const suggestions = s.ai.suggestions ?? [];
@@ -158,7 +158,7 @@ export default function SiteSettings() {
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2.5">
-                <code className="min-w-0 flex-[1_1_260px] rounded-lg bg-surface-inset px-3 py-2 font-mono text-[14px] text-text [overflow-wrap:anywhere]">{host}</code>
+                <code className="ph-sensitive ph-mask min-w-0 flex-[1_1_260px] rounded-lg bg-surface-inset px-3 py-2 font-mono text-[14px] text-text [overflow-wrap:anywhere]">{host}</code>
                 <CopyButton text={`https://${host}`} label="Copy link" size="sm" />
               </div>
               <p className="text-[13px] text-text-muted">Always works, even after you add your own domain.</p>
@@ -170,7 +170,7 @@ export default function SiteSettings() {
           {(site.domains ?? []).map((d) => (
             <div key={d.host} className="flex items-center gap-2.5 rounded-lg border border-border px-3.5 py-3">
               <Icon name="globe" size={16} />
-              <code className="min-w-0 flex-1 truncate font-mono text-text">{d.host}</code>
+              <code className="ph-sensitive ph-mask min-w-0 flex-1 truncate font-mono text-text">{d.host}</code>
               <Badge tone={d.status === "live" || d.status === "verified" ? "success" : d.status === "failed" ? "danger" : "warning"} size="sm" dot>
                 {d.status === "live" || d.status === "verified" ? "Live" : d.status === "failed" ? "Failed" : "Pending"}
               </Badge>
@@ -210,7 +210,7 @@ export default function SiteSettings() {
             </Field>
           </div>
           {suggestions.length > 0 && (
-            <ul className="flex flex-wrap gap-2" aria-label="Suggested questions">
+            <ul className="ph-no-capture flex flex-wrap gap-2" aria-label="Suggested questions">
               {suggestions.map((q) => (
                 <li key={q}>
                   <Tag removeLabel={`Remove "${q}"`} onRemove={locked ? undefined : () => void patch("ai", { settings: { ai: { suggestions: suggestions.filter((x) => x !== q) } } }, "Suggested question removed.")}>{q}</Tag>
@@ -276,7 +276,7 @@ export default function SiteSettings() {
           <Card id="github" title="GitHub sync" aside={repo ? <Badge tone="success" size="sm" dot>Connected</Badge> : <Badge tone="info" size="sm">Coming soon</Badge>}>
             {repo ? (
               <>
-                <div className="flex items-center gap-2"><Icon name="github" size={16} /><code className="font-mono text-text">{repo.owner}/{repo.name} · {repo.branch} · {repo.path || "/"}</code></div>
+                <div className="flex items-center gap-2"><Icon name="github" size={16} /><code className="ph-sensitive ph-mask font-mono text-text">{repo.owner}/{repo.name} · {repo.branch} · {repo.path || "/"}</code></div>
                 <p className="text-[13px] text-text-muted">Pushes publish automatically. Browser edits are committed as you.{site.last_published_at ? ` Last sync ${timeAgo(site.last_published_at)}.` : ""}</p>
               </>
             ) : (
@@ -290,7 +290,7 @@ export default function SiteSettings() {
           {site.source.kind === "gitbook" ? (
             <Card id="import" title="Imported from GitBook" aside={site.last_import_job_id ? <Badge size="sm" icon="download">Import</Badge> : null}>
               <p className="text-body text-text-secondary">
-                {site.source.url ? <>From <code className="font-mono [overflow-wrap:anywhere]">{site.source.url}</code>. </> : null}
+                {site.source.url ? <>From <code className="ph-sensitive ph-mask font-mono [overflow-wrap:anywhere]">{site.source.url}</code>. </> : null}
                 The import&apos;s report lists what needs a look: image descriptions, broken links, hidden pages.
               </p>
               {site.last_import_job_id && <Button variant="secondary" size="sm" iconLeft="listTree" href={`${base}/import`} className="self-start">Open the import report</Button>}
@@ -332,8 +332,8 @@ export default function SiteSettings() {
       <ConfirmDialog
         open={confirm === "unpublish"}
         onClose={() => setConfirm(null)}
-        title={`Unpublish ${site.name}?`}
-        body={<>{host} stops showing the docs. Your pages, drafts and publish history stay, and publishing again puts it back.</>}
+        title={<>Unpublish <span className="ph-sensitive ph-mask">{site.name}</span>?</>}
+        body={<><span className="ph-sensitive ph-mask">{host}</span> stops showing the docs. Your pages, drafts and publish history stay, and publishing again puts it back.</>}
         confirmLabel="Unpublish"
         onConfirm={async () => {
           setSite(await unpublishSite(site.id));
@@ -344,13 +344,13 @@ export default function SiteSettings() {
       <ConfirmDialog
         open={confirm === "delete"}
         onClose={() => setConfirm(null)}
-        title={`Delete ${site.name}?`}
-        body={<>Every page, version and publish goes, and {host} stops working. This can&apos;t be undone.</>}
+        title={<>Delete <span className="ph-sensitive ph-mask">{site.name}</span>?</>}
+        body={<>Every page, version and publish goes, and <span className="ph-sensitive ph-mask">{host}</span> stops working. This can&apos;t be undone.</>}
         typeToConfirm={site.name}
         confirmLabel="Delete site"
         onConfirm={async () => {
           await deleteSite(site.id);
-          toast.success(`${site.name} was deleted.`);
+          toast.success(<><span className="ph-sensitive ph-mask">{site.name}</span> was deleted.</>);
           void reloadAll();
           router.replace(listHref);
         }}

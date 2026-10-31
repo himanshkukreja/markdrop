@@ -74,7 +74,8 @@ export function SitePeople() {
     setBusy(p.user_id);
     try {
       replace(await setSitePerson(site.id, p.user_id, role));
-      toast.success(role === "none" ? `${firstName(p.name)} can't see ${site.name} now.` : `${firstName(p.name)} is ${aRole(role)} on ${site.name}.`);
+      const name = <span className="ph-sensitive ph-mask">{site.name}</span>;
+      toast.success(role === "none" ? <>{firstName(p.name)} can&apos;t see {name} now.</> : <>{firstName(p.name)} is {aRole(role)} on {name}.</>);
     } catch (e) {
       toast.error(docsErrorMessage(e, "Couldn't change the role. Try again."));
     } finally {
@@ -104,7 +105,7 @@ export function SitePeople() {
       replace(await setSitePerson(site.id, p.user_id, pickRole));
       setAdding(false);
       setPick("");
-      toast.success(`${firstName(p.name)} is ${aRole(pickRole)} on ${site.name}.`);
+      toast.success(<>{firstName(p.name)} is {aRole(pickRole)} on <span className="ph-sensitive ph-mask">{site.name}</span>.</>);
     } catch (e) {
       setAddError(docsErrorMessage(e, "Couldn't add them. Try again."));
     } finally {
@@ -174,7 +175,7 @@ export function SitePeople() {
       <Dialog
         open={adding}
         onClose={() => setAdding(false)}
-        title={`Give someone a role on ${site.name}`}
+        title={<>Give someone a role on <span className="ph-sensitive ph-mask">{site.name}</span></>}
         description="For this site only. Their role on the workspace's other sites stays as it is."
         footer={
           <>

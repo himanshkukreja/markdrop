@@ -620,7 +620,7 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, body, descripti
       <div className="md-confirm">
         {body && <div className="md-confirm__body">{body}</div>}
         {typeToConfirm && (
-          <Field label={<>Type <strong className="md-confirm__phrase">{typeToConfirm}</strong> to confirm</>}>
+          <Field label={<>Type <strong className="ph-sensitive ph-mask md-confirm__phrase">{typeToConfirm}</strong> to confirm</>}>
             <Input ref={inputRef} value={typed} onChange={e => setTyped(e.target.value)} autoComplete="off" autoCapitalize="off" spellCheck={false} mono
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void confirm(); } }} />
           </Field>

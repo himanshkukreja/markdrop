@@ -8,8 +8,12 @@
  * Errors keep their HTTP status and the parsed body, because the editor acts on three of them:
  * 409 on a page save (`base_rev` is stale: the body says the current `rev` and who saved it), 423
  * (someone else holds the page lock: the body carries `lock`) and 409 "review required" on publish.
+ *
+ * A change the API accepts reports its product event here (lib/guidesEvents: enums and counts,
+ * never content), so every screen that makes it is counted the same way.
  */
 import { API_BASE } from "@/lib/api";
+import { after, guideEvents } from "@/lib/guidesEvents";
 import { sanitizeCss } from "@/docs/theme.mjs";
 
 const TOKEN_KEY = "markdrop_token";
@@ -481,7 +485,7 @@ export interface CreateSiteInput {
 
 /** Workspace admins and owners only (editors get 403). GitBook/template sources start a job (`site.job`). */
 export function createSite(input: CreateSiteInput): Promise<Site> {
-  return request("", { method: "POST", json: input });
+  return request<Site>("", { method: "POST", json: input }).then(after(() => guideEvents.created(input)));
 }
 
 export function getSite(id: string): Promise<Site> {
@@ -500,16 +504,16 @@ export interface SettingsPatch {
 }
 
 export function updateSite(id: string, patch: { name?: string; slug?: string; settings?: SettingsPatch }): Promise<Site> {
-  return request(`/${enc(id)}`, { method: "PATCH", json: patch });
+  return request<Site>(`/${enc(id)}`, { method: "PATCH", json: patch }).then(after(() => guideEvents.siteUpdated(patch)));
 }
 
 /** Admins: soft delete (a job takes the published files down). */
 export function deleteSite(id: string): Promise<{ deleted: true; job: Job | null }> {
-  return request(`/${enc(id)}`, { method: "DELETE" });
+  return request<{ deleted: true; job: Job | null }>(`/${enc(id)}`, { method: "DELETE" }).then(after(guideEvents.deleted));
 }
 
 export function unpublishSite(id: string): Promise<Site> {
-  return request(`/${enc(id)}/unpublish`, { method: "POST" });
+  return request<Site>(`/${enc(id)}/unpublish`, { method: "POST" }).then(after(guideEvents.unpublished));
 }
 
 export interface SlugStatus {
@@ -532,7 +536,7 @@ export function listPages(siteId: string): Promise<PagesResponse> {
 }
 
 export function createPage(siteId: string, input: { path: string; title: string; group?: string; after_page_id?: string; markdown?: string; description?: string; icon?: string | null }): Promise<Page> {
-  return request(`/${enc(siteId)}/pages`, { method: "POST", json: input });
+  return request<Page>(`/${enc(siteId)}/pages`, { method: "POST", json: input }).then(after(guideEvents.pageCreated));
 }
 
 export function getPage(siteId: string, pageId: string): Promise<Page> {
@@ -557,7 +561,7 @@ export function savePage(siteId: string, pageId: string, input: SavePageInput): 
 
 /** "/" (the home page) can't be deleted. */
 export function deletePage(siteId: string, pageId: string): Promise<{ deleted: true }> {
-  return request(`/${enc(siteId)}/pages/${enc(pageId)}`, { method: "DELETE" });
+  return request<{ deleted: true }>(`/${enc(siteId)}/pages/${enc(pageId)}`, { method: "DELETE" }).then(after(guideEvents.pageDeleted));
 }
 
 /** Acquire or renew (heartbeat every 30 s; a lock lapses 2 min after the last). 423 when someone else holds it; admins may `takeover`. */
@@ -580,7 +584,7 @@ export function getVersion(siteId: string, pageId: string, rev: number): Promise
 
 /** The version becomes the newest draft (a new rev). */
 export function restoreVersion(siteId: string, pageId: string, rev: number): Promise<Page> {
-  return request(`/${enc(siteId)}/pages/${enc(pageId)}/versions/${rev}/restore`, { method: "POST" });
+  return request<Page>(`/${enc(siteId)}/pages/${enc(pageId)}/versions/${rev}/restore`, { method: "POST" }).then(after(guideEvents.pageRestored));
 }
 
 export function saveNav(siteId: string, nav: NavGroup[]): Promise<{ nav: NavGroup[] }> {
@@ -595,11 +599,12 @@ export function getChanges(siteId: string): Promise<ChangesResponse> {
 
 /** 202: the queued build and its job. 409 "review required" for editors when the site needs a review; 429 at the daily cap. */
 export function publishSite(siteId: string, note?: string): Promise<Build & { job: Job | null }> {
-  return request(`/${enc(siteId)}/publish`, { method: "POST", json: { note: note || undefined } });
+  return request<Build & { job: Job | null }>(`/${enc(siteId)}/publish`, { method: "POST", json: { note: note || undefined } })
+    .then(after(() => guideEvents.publishRequested(!!note)));
 }
 
 export function createReview(siteId: string, note: string): Promise<Review> {
-  return request(`/${enc(siteId)}/reviews`, { method: "POST", json: { note: note || undefined } });
+  return request<Review>(`/${enc(siteId)}/reviews`, { method: "POST", json: { note: note || undefined } }).then(after(guideEvents.reviewSubmitted));
 }
 
 export function listReviews(siteId: string, status?: ReviewStatus): Promise<Review[]> {
@@ -608,15 +613,16 @@ export function listReviews(siteId: string, status?: ReviewStatus): Promise<Revi
 
 /** Admins: approve publishes (202 with the review and the build it queued). */
 export function approveReview(siteId: string, reviewId: string, comment?: string): Promise<{ review: Review; build: Build & { job?: Job | null } }> {
-  return request(`/${enc(siteId)}/reviews/${enc(reviewId)}/approve`, { method: "POST", json: { comment: comment || undefined } });
+  return request<{ review: Review; build: Build & { job?: Job | null } }>(`/${enc(siteId)}/reviews/${enc(reviewId)}/approve`, { method: "POST", json: { comment: comment || undefined } })
+    .then(after(guideEvents.reviewApproved));
 }
 
 export function requestChanges(siteId: string, reviewId: string, comment: string): Promise<Review> {
-  return request(`/${enc(siteId)}/reviews/${enc(reviewId)}/request-changes`, { method: "POST", json: { comment } });
+  return request<Review>(`/${enc(siteId)}/reviews/${enc(reviewId)}/request-changes`, { method: "POST", json: { comment } }).then(after(guideEvents.changesRequested));
 }
 
 export function withdrawReview(siteId: string, reviewId: string): Promise<Review> {
-  return request(`/${enc(siteId)}/reviews/${enc(reviewId)}/withdraw`, { method: "POST" });
+  return request<Review>(`/${enc(siteId)}/reviews/${enc(reviewId)}/withdraw`, { method: "POST" }).then(after(guideEvents.reviewWithdrawn));
 }
 
 /** Newest first; `live` marks the one readers see. */
@@ -626,7 +632,7 @@ export function listBuilds(siteId: string, limit?: number): Promise<Build[]> {
 
 /** Admins: put an earlier build live again (no rebuild; a job re-points the site). */
 export function restoreBuild(siteId: string, buildId: string): Promise<{ build: Build; job: Job | null }> {
-  return request(`/${enc(siteId)}/builds/${enc(buildId)}/restore`, { method: "POST" });
+  return request<{ build: Build; job: Job | null }>(`/${enc(siteId)}/builds/${enc(buildId)}/restore`, { method: "POST" }).then(after(guideEvents.restored));
 }
 
 export function getJob(siteId: string, jobId: string): Promise<Job> {
@@ -815,7 +821,8 @@ export function getStudioMembers(workspaceId: string): Promise<StudioMembersResp
 
 /** One member's studio role ("none" takes it away). */
 export function setStudioMember(workspaceId: string, userId: string, role: StudioRole): Promise<StudioMember> {
-  return request(`/workspaces/${enc(workspaceId)}/members/${enc(userId)}`, { method: "PUT", json: { role } }, STUDIO_BASE);
+  return request<StudioMember>(`/workspaces/${enc(workspaceId)}/members/${enc(userId)}`, { method: "PUT", json: { role } }, STUDIO_BASE)
+    .then(after(() => guideEvents.memberRole("workspace", role)));
 }
 
 export function getStudioHistory(workspaceId: string, limit = 50): Promise<{ events: RoleEvent[] }> {
@@ -829,12 +836,12 @@ export function getSitePeople(siteId: string): Promise<SitePeopleResponse> {
 
 /** This site's role for a workspace member, whatever their workspace-wide one ("none" hides it). */
 export function setSitePerson(siteId: string, userId: string, role: StudioRole): Promise<SitePerson> {
-  return request(`/${enc(siteId)}/members/${enc(userId)}`, { method: "PUT", json: { role } });
+  return request<SitePerson>(`/${enc(siteId)}/members/${enc(userId)}`, { method: "PUT", json: { role } }).then(after(() => guideEvents.memberRole("site", role)));
 }
 
 /** Back to their workspace-wide role on this site. */
 export function removeSitePerson(siteId: string, userId: string): Promise<SitePerson> {
-  return request(`/${enc(siteId)}/members/${enc(userId)}`, { method: "DELETE" });
+  return request<SitePerson>(`/${enc(siteId)}/members/${enc(userId)}`, { method: "DELETE" }).then(after(() => guideEvents.memberRole("site", null)));
 }
 
 export function getSitePeopleHistory(siteId: string, limit = 50): Promise<{ events: RoleEvent[] }> {

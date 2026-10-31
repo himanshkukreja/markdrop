@@ -162,7 +162,10 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 async def log_event(db: AsyncIOMotorDatabase, kind: str, site: dict | None, user_id: str | None,
                     **meta: Any) -> None:
     """One row per docs_site_created / docs_published / docs_review_submitted /
-    docs_review_approved / docs_imported. Never fails the request."""
+    docs_review_approved / docs_imported (and, from the job runner, docs_build_live /
+    docs_build_failed / docs_import_finished / docs_import_failed / docs_restored /
+    docs_unpublished). The admin's Guides usage (routers/admin.py feature-usage) reads them.
+    Meta is ids, counts and enums: never page text, a source URL or CSS. Never fails the request."""
     try:
         await db[EVENTS].insert_one({
             "kind": kind,
@@ -758,8 +761,8 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
         # The import screen can be reopened from the site (Settings, the editor) after it's closed.
         await db[SITES].update_one({"_id": row["_id"]}, {"$set": {"last_import_job_id": job["_id"]}})
         row["last_import_job_id"] = job["_id"]
-        await log_event(db, "docs_imported", row, user.id, source="gitbook", url=source["url"],
-                        job_id=str(job["_id"]))
+        # Usage counts only: the source's address stays on the site row, not in the event log.
+        await log_event(db, "docs_imported", row, user.id, source="gitbook", job_id=str(job["_id"]))
     await log_event(db, "docs_site_created", row, user.id, source=kind,
                     **({"template": source["template"]} if kind == "template" else {}))
     return row, role, job

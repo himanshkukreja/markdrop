@@ -61,7 +61,8 @@ export function PageTree({
         </div>
       )}
       {groups?.map((g) => (
-        <div key={g.group} role="group" aria-label={g.group} className="flex flex-col gap-0.5">
+        // ph-no-capture: group names and page titles (in text, labels and menus) are the customer's words.
+        <div key={g.group} role="group" aria-label={g.group} className="ph-no-capture flex flex-col gap-0.5">
           <p className={cx("mx-2 mb-1 mt-3 text-[11px] font-bold uppercase tracking-[.08em]", g.hidden ? "text-text-subtle" : "text-text-muted")}>{g.group}</p>
           {g.pages.map((p, i) => {
             const on = p.id === currentId;

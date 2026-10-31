@@ -93,6 +93,21 @@ APP_TITLES = {
     "/h/[workspace-doc]": "A workspace document",
 }
 
+# Markdrop Guides: /guides/… and its old address /docs-studio/… (frontend lib/analyticsPath).
+GUIDES_TITLES = {
+    "": "Guides · all sites",
+    "/new": "Guides · new site",
+    "/members": "Guides · members",
+    "/[site]": "Guides · editor",
+    "/[site]/design": "Guides · design",
+    "/[site]/publish": "Guides · publish",
+    "/[site]/settings": "Guides · settings",
+    "/[site]/import": "Guides · import",
+    "/[site]/[other]": "Guides",
+}
+for _root in ("/guides", "/docs-studio"):
+    APP_TITLES.update({_root + k: v for k, v in GUIDES_TITLES.items()})
+
 # Pages where people start making something: the funnel's second step.
 CREATOR_PATHS = ("/new", "/upload", "/builder")
 
@@ -178,6 +193,7 @@ EVENT_PROPS = (
     "pct", "engaged_sec", "est_minutes", "depth", "seconds",
     "access", "encrypted", "expires", "password", "workspace", "source", "sections", "from", "files", "of",
     "toy", "id", "n", "how", "section",
+    "template", "preset", "mode", "brand", "css", "enabled", "role", "scope", "note",
     "$exception_message", "$exception_type", "$geoip_country_code", "$geoip_city_name", "$device_type", "$browser",
 )
 
@@ -371,10 +387,69 @@ def describe(event: str, p: dict, chain: str | None, page: dict | None) -> dict:
     if event in ("toy_play", "toy_done"):
         toy = TOYS.get(str(p.get("toy") or ""), str(p.get("toy") or "a")).strip()
         return {"kind": "play", "label": f"{'Played' if event == 'toy_play' else 'Finished'} the {toy} demo", "detail": where}
+    if event.startswith("guide_"):
+        return describe_guide(event, p, where)
     if event == "$exception":
         msg = p.get("$exception_message") or p.get("$exception_type")
         return {"kind": "error", "label": "Hit a JS error", "detail": clip(msg, 90) if msg else where}
     return {"kind": "event", "label": _humanize(event), "detail": where}
+
+
+# Markdrop Guides' events (frontend lib/guidesEvents): (kind, label). Props are enums and counts.
+GUIDE_EVENTS = {
+    "guide_created": ("connect", "Guides: created a site"),
+    "guide_import_started": ("connect", "Guides: started an import"),
+    "guide_page_created": ("form", "Guides: added a page"),
+    "guide_page_deleted": ("form", "Guides: deleted a page"),
+    "guide_page_restored": ("form", "Guides: restored a page version"),
+    "guide_publish_requested": ("publish", "Guides: published a site"),
+    "guide_review_submitted": ("publish", "Guides: sent changes for review"),
+    "guide_review_approved": ("publish", "Guides: approved a review"),
+    "guide_review_changes_requested": ("form", "Guides: asked for changes"),
+    "guide_review_withdrawn": ("form", "Guides: withdrew a review"),
+    "guide_restored": ("publish", "Guides: put an earlier publish live"),
+    "guide_design_saved": ("form", "Guides: saved the design"),
+    "guide_renamed": ("form", "Guides: renamed a site"),
+    "guide_address_changed": ("form", "Guides: changed a site's address"),
+    "guide_ask_ai_toggled": ("form", "Guides: turned Ask AI {enabled}"),
+    "guide_ask_ai_renamed": ("form", "Guides: renamed Ask AI"),
+    "guide_ask_ai_questions": ("form", "Guides: changed Ask AI's suggested questions"),
+    "guide_access_changed": ("form", "Guides: changed who can read a site"),
+    "guide_indexing_changed": ("form", "Guides: turned search indexing {enabled}"),
+    "guide_reviews_required": ("form", "Guides: turned required reviews {enabled}"),
+    "guide_redirects_saved": ("form", "Guides: saved redirects"),
+    "guide_member_role_changed": ("connect", "Guides: changed someone's role"),
+    "guide_unpublished": ("form", "Guides: unpublished a site"),
+    "guide_deleted": ("form", "Guides: deleted a site"),
+}
+_GUIDE_SOURCE = {"blank": "blank", "template": "from a template", "import": "imported from GitBook", "github": "from GitHub"}
+
+
+def describe_guide(event: str, p: dict, where: Any) -> dict:
+    """A Guides event as the timeline reads it ("Guides: …", details from its enum props)."""
+    kind, label = GUIDE_EVENTS.get(event, ("event", "Guides: " + _humanize(event.removeprefix("guide_"))))
+    if "{enabled}" in label:
+        label = label.replace("{enabled}", "on" if truthy(p.get("enabled")) else "off")
+    bits: list[Any] = []
+    if event == "guide_created":
+        bits = [_GUIDE_SOURCE.get(str(p.get("source") or ""), p.get("source")), p.get("template"),
+                "in a workspace" if truthy(p.get("workspace")) else "personal"]
+    elif event == "guide_design_saved":
+        bits = [p.get("preset"), f"{p['mode']} mode" if p.get("mode") else None,
+                "brand on" if truthy(p.get("brand")) else None, "custom CSS" if truthy(p.get("css")) else None]
+    elif event == "guide_access_changed":
+        bits = [p.get("access")]
+    elif event == "guide_member_role_changed":
+        role = p.get("role")
+        bits = [f"to {role}" if role and role != "inherit" else "back to their workspace role" if role else None,
+                "workspace-wide" if p.get("scope") == "workspace" else "on one site" if p.get("scope") == "site" else None]
+    elif event in ("guide_redirects_saved", "guide_ask_ai_questions"):
+        n = _num(p.get("n"))
+        bits = [f"{int(n)} in all" if n is not None else None]
+    elif event == "guide_publish_requested":
+        bits = ["with a note" if truthy(p.get("note")) else None]
+    detail = " · ".join(str(b) for b in bits if b) or (str(where) if where else None)
+    return {"kind": kind, "label": label, "detail": detail}
 
 
 def event_page_key(event: str, p: dict) -> str | None:
