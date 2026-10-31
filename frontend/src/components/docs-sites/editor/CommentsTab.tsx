@@ -181,9 +181,9 @@ export function CommentsTab({ api, draft, onDraftDone, active, onActive, onShow,
           />
         </div>
       ) : (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-start gap-1.5">
           <Button size="sm" variant="secondary" iconLeft="message" onClick={onCommentSelection}>Comment on selection</Button>
-          <span className="text-[12px] text-text-muted">or select text and press Comment.</span>
+          <span className="text-[12px] text-text-muted">Select text in the page first, or use Comment in its formatting bar.</span>
         </div>
       )}
 

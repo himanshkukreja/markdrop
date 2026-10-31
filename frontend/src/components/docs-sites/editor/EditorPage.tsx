@@ -160,7 +160,7 @@ const SHORTCUTS: Array<{ group: string; rows: Array<[string, string[]]> }> = [
       ["Italic", ["mod", "I"]],
       ["Strikethrough", ["mod", "⇧", "S"]],
       ["Inline code", ["mod", "E"]],
-      ["Link (with text selected)", ["mod", "K"]],
+      ["Link", ["mod", "K"]],
       ["Keyboard key", ["mod", "⇧", "K"]],
     ],
   },
@@ -173,8 +173,8 @@ const SHORTCUTS: Array<{ group: string; rows: Array<[string, string[]]> }> = [
       ["Numbered list", ["mod", "⇧", "7"]],
       ["Quote", ["mod", "⇧", "B"]],
       ["Code block", ["mod", "alt", "C"]],
-      ["Move the block up or down", ["alt", "⇧", "↑ / ↓"]],
-      ["Line break (and next row in a table)", ["⇧", "Enter"]],
+      ["Move a block", ["alt", "⇧", "↑ / ↓"]],
+      ["Line break", ["⇧", "Enter"]],
     ],
   },
   {
@@ -194,7 +194,7 @@ function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () => void
   const mac = isMac();
   const key = (k: string) => (k === "mod" ? (mac ? "⌘" : "Ctrl") : k === "alt" ? (mac ? "⌥" : "Alt") : k);
   return (
-    <Dialog open={open} onClose={onClose} title="Keyboard shortcuts" description="In the page editor. Markdown shortcuts work too: ## for a heading, - for a list, > for a quote, ``` for code.">
+    <Dialog open={open} onClose={onClose} size="xl" title="Keyboard shortcuts" description="In the page editor. Markdown shortcuts work too: ## for a heading, - for a list, > for a quote, ``` for code.">
       <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
         {SHORTCUTS.map((g) => (
           <section key={g.group} className={cx("flex flex-col gap-1", g.group === "Blocks" && "sm:row-span-2")}>
@@ -726,10 +726,10 @@ export default function EditorPage() {
                 { value: "markdown", label: "Markdown" },
               ]}
             />
-            <Button variant="ghost" size="sm" iconLeft="eye" className="max-sm:hidden" disabled={!fields} onClick={() => setPreview(true)}>Preview</Button>
-            <IconButton icon="eye" label="Preview" size="sm" className="sm:hidden" disabled={!fields} onClick={() => setPreview(true)} />
+            <Button variant="ghost" size="sm" iconLeft="eye" className="max-xl:hidden" disabled={!fields} onClick={() => setPreview(true)}>Preview</Button>
+            <IconButton icon="eye" label="Preview" size="sm" className="xl:hidden" disabled={!fields} onClick={() => setPreview(true)} />
             {fields && (
-              <Button variant="ghost" size="sm" iconLeft="columns" className="xl:hidden" onClick={() => setPanelOpen(true)}>
+              <Button variant="ghost" size="sm" iconLeft="columns" className="xl:hidden" title="Checks, page settings, comments and history" onClick={() => setPanelOpen(true)}>
                 Page{problems ? <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-warning-soft px-1 text-[10px] font-bold text-warning">{problems}</span> : null}
               </Button>
             )}

@@ -194,6 +194,8 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
     const prefix = $from.parent.isTextblock ? doc.textBetween($from.start(), from, "\n", " ").slice(-40) : "";
     const suffix = $to.parent.isTextblock ? doc.textBetween(to, $to.end(), "\n", " ").slice(0, 40) : "";
     host.onComment({ quote: quote.slice(0, 500), prefix, suffix });
+    // The toolbar goes; the comment's highlight shows what it's about.
+    editor.commands.setTextSelection(to);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
