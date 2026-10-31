@@ -69,7 +69,7 @@ function MarkdownSource({ value, onChange, readOnly, placeholder, label, taRef, 
     let at = 0;
     marks.matches.forEach((m, i) => {
       parts.push(<Fragment key={`t${i}`}>{value.slice(at, m.from)}</Fragment>);
-      parts.push(<mark key={`m${i}`} className={i === marks.current ? "dxe-find dxe-find--on" : "dxe-find"}>{value.slice(m.from, m.to)}</mark>);
+      parts.push(<mark key={`m${i}`} className={i === marks.current ? "dxe-hit dxe-hit--on" : "dxe-hit"}>{value.slice(m.from, m.to)}</mark>);
       at = m.to;
     });
     parts.push(<Fragment key="end">{value.slice(at)}{"\n"}</Fragment>);

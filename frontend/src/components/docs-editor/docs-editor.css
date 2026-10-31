@@ -330,9 +330,9 @@ input.dxe-tabbar__tab { cursor: text; min-width: 3ch; }
 .dxe-content .dxe-problem-node.ProseMirror-selectednode { outline-style: solid; }
 .dxe-content .dxe-comment { background: color-mix(in srgb, var(--warning) 14%, transparent); border-bottom: 2px solid color-mix(in srgb, var(--warning) 55%, transparent); cursor: pointer; }
 .dxe-content .dxe-comment--on { background: color-mix(in srgb, var(--warning) 28%, transparent); }
-.dxe-content .dxe-find, .dxe-source__marks .dxe-find { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; border-radius: 2px; }
-.dxe-content .dxe-find--on, .dxe-source__marks .dxe-find--on { background: color-mix(in srgb, var(--accent) 48%, transparent); box-shadow: 0 0 0 1px var(--accent); }
-.dxe-source__marks .dxe-find { color: transparent; }
+.dxe-content .dxe-hit, .dxe-source__marks .dxe-hit { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; border-radius: 2px; }
+.dxe-content .dxe-hit--on, .dxe-source__marks .dxe-hit--on { background: color-mix(in srgb, var(--accent) 48%, transparent); box-shadow: 0 0 0 1px var(--accent); }
+.dxe-source__marks .dxe-hit { color: transparent; }
 
 .dxe-find { position: sticky; z-index: 25; height: 0; display: flex; justify-content: flex-end; pointer-events: none; }
 .dxe-find__panel { pointer-events: auto; display: flex; flex-direction: column; gap: 6px; width: min(460px, 100%); height: max-content; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface-raised); box-shadow: var(--shadow-lg); font-family: var(--font-sans); }

@@ -114,7 +114,7 @@ function build(doc: PMNode, src: AnnotationSource, pending: PluginStateShape["pe
   let matches: Match[] = [];
   if (src.find?.query) {
     matches = docMatches(doc, src.find.query, src.find.opts);
-    matches.forEach((m, i) => decos.push(Decoration.inline(m.from, m.to, { class: i === src.find!.current ? "dxe-find dxe-find--on" : "dxe-find" })));
+    matches.forEach((m, i) => decos.push(Decoration.inline(m.from, m.to, { class: i === src.find!.current ? "dxe-hit dxe-hit--on" : "dxe-hit" })));
   }
   if (pending && pending.to > pending.from) decos.push(Decoration.inline(pending.from, pending.to, { class: "dxe-pending" }));
   return { decos: DecorationSet.create(doc, decos), matches, anchors };
