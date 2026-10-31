@@ -16,6 +16,15 @@ test("manifest site: noindex only when site.json turns search indexing off", () 
   assert.equal(manifestSite({ seo: "no" }).noindex, undefined);
 });
 
+test("manifest site: insights only when site.json has the endpoint, and never its address", () => {
+  const on = manifestSite({ id: "a", insights: "https://evil.test/api/v1/docs/insights/a" });
+  assert.equal(on.insights, true);
+  assert.ok(!JSON.stringify(on).includes("evil.test"));
+  assert.equal(manifestSite({ id: "a" }).insights, undefined);
+  assert.equal(manifestSite({ id: "a", insights: "" }).insights, undefined);
+  assert.equal(manifestSite({ id: "a", insights: true }).insights, undefined);
+});
+
 test("only content-hashed engine output is shared", () => {
   assert.ok(isSharedEngineFile("chunks/1166-5cc8e3c183eeb59f.js"));
   assert.ok(isSharedEngineFile("chunks/app/docs-site/page-e37087faa3315f38.js"));

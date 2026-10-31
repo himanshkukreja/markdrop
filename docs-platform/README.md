@@ -46,6 +46,7 @@ favicon, apple-icon) are fetched as well.
 | `/api/geo` (consent banner) | Edge: the app's own route, given `cf.country` | Only the Markdrop site uses it |
 | Ask AI | Backend (`ai.api`, api.markdrop.in) | Already cross-origin. For self-host: bring your own backend, or turn it off (open) |
 | Feedback / `report_problem` | `site.feedback` URL | External |
+| Page views (Markdrop Guides Insights) | Edge (`edge/insights.mjs`), after the response | Only a site whose manifest has `site.insights`: one POST per HTML page load to the API, keyed with a key derived from `DOCS_ACCESS_SECRET`. Client-side navigations and searches are the engine's own beacons |
 
 ## Output and store format
 

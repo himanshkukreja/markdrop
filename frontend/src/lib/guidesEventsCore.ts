@@ -32,6 +32,7 @@ export interface SitePatchLike {
     access?: { level?: unknown } | null;
     seo?: { index?: unknown } | null;
     review?: { required?: unknown } | null;
+    insights?: { enabled?: unknown } | null;
     redirects?: unknown;
   } | null;
 }
@@ -59,6 +60,7 @@ export function sitePatchEvents(patch: SitePatchLike): [string, Props][] {
   if (s.access && pick(s.access.level, ACCESS)) out.push(["guide_access_changed", { access: s.access.level as string }]);
   if (s.seo && typeof s.seo.index === "boolean") out.push(["guide_indexing_changed", { enabled: s.seo.index }]);
   if (s.review && typeof s.review.required === "boolean") out.push(["guide_reviews_required", { enabled: s.review.required }]);
+  if (s.insights && typeof s.insights.enabled === "boolean") out.push(["guide_insights_toggled", { enabled: s.insights.enabled }]);
   if (Array.isArray(s.redirects)) out.push(["guide_redirects_saved", { n: s.redirects.length }]);
   return out;
 }

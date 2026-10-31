@@ -72,7 +72,7 @@ APP_ROUTES = {
 # the site's screens. Site ids aren't secrets, but each would be a row of its own.
 _GUIDES_ROOTS = {"guides", "docs-studio"}
 _GUIDES_SCREENS = {"new", "members"}
-_GUIDES_SITE_SCREENS = {"design", "import", "publish", "settings"}
+_GUIDES_SITE_SCREENS = {"design", "import", "insights", "publish", "settings"}
 
 
 def _guides_shape(segments: list[str]) -> str:

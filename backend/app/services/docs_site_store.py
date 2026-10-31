@@ -914,6 +914,13 @@ async def delete_site(db: AsyncIOMotorDatabase, site: dict, user: User | str | N
     # Queued builds and restores were failed by _take_down; a queued import would fill a deleted site.
     await db[JOBS].update_many({"site_id": site["_id"], "kind": "import", "status": "queued"},
                                {"$set": {"status": "failed", "error": "Site deleted.", "updated_at": at}})
+    # Its readers' insights go with it (services/guide_insights.py).
+    from app.services import guide_insights
+
+    try:
+        await guide_insights.clear(db, str(site["_id"]))
+    except Exception:
+        log.warning("deleting insights of guide %s failed", site["_id"], exc_info=True)
     return job
 
 

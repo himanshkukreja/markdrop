@@ -252,6 +252,14 @@ async def connect() -> None:
         await _docs_site_store.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] docs site indexes skipped: {exc}")
+    # Insights for Markdrop Guides (services/guide_insights.py): raw events 90 days, rollups and
+    # feedback 13 months, the daily visitor salts two days.
+    try:
+        from app.services import guide_insights as _guide_insights
+
+        await _guide_insights.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] guide insights indexes skipped: {exc}")
     # Guides roles (services/docs_studio_roles.py): once, members of workspaces that already
     # had docs sites keep the access the old workspace-role mapping gave them. Idempotent (a marker
     # row; insert-only grants), so it runs on every start. Never fatal.

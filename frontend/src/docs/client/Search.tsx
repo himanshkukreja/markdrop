@@ -3,7 +3,9 @@
 /**
  * The ⌘K palette (board "Search"). The index is a static JSON file built from the content
  * (`/search-index.json`, sections + pages + changelog), fetched once when the page is idle and
- * searched in the browser with MiniSearch: nothing typed in Search mode is ever sent anywhere.
+ * searched in the browser with MiniSearch: nothing typed in Search mode is sent anywhere, except on a
+ * Markdrop Guides site with Insights on, where a settled query (3+ characters) and its result count
+ * go to the guide's own Insights (./Insights.tsx), so its team can see what readers look for.
  * Ask AI mode (Tab switches) sends the question to Ask AI on Enter and streams a short answer
  * with its sources; "Continue in panel" moves it into the Ask AI panel's conversation.
  */
@@ -18,6 +20,7 @@ import type { SearchDoc } from "../types";
 import { loadIndex } from "./searchIndex";
 import { askInPalette, clearPalette, ensureStatus } from "./ask/store";
 import { aboutText, useDocsSite } from "./site";
+import { useSearchInsight } from "./Insights";
 
 const PaletteAsk = dynamic(() => import("./ask/PaletteAsk"), { ssr: false, loading: () => <div className="dx-palette__status"><Spinner /> Loading…</div> });
 
@@ -118,6 +121,7 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
 
   const q = query.trim();
   const hits = useMemo(() => (ms && q ? search(ms, q) : []), [ms, q]);
+  useSearchInsight(q, ms ? hits.length : null, open && mode === "search");
   const groups = useMemo(
     () => GROUPS.map((g) => ({ ...g, items: hits.filter((h) => h.kind === g.kind).slice(0, g.max) })).filter((g) => g.items.length),
     [hits],

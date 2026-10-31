@@ -46,7 +46,9 @@ function gateBrand(brand) {
 /**
  * The manifest's `site` (site.json → what the edge needs). `noindex`: site.json `seo.index: false`
  * (a Markdrop Guides site with search engines turned off): the edge sends `X-Robots-Tag: noindex` with
- * every response, beside the engine's own robots meta tag and robots.txt.
+ * every response, beside the engine's own robots meta tag and robots.txt. `insights`: site.json has
+ * an `insights` endpoint (a Markdrop Guides site with Insights on): the edge counts its page views
+ * server side, to the API it already knows (never to an address the content names).
  */
 export function manifestSite(site) {
   return {
@@ -55,6 +57,7 @@ export function manifestSite(site) {
     url: (site.url || "").replace(/\/+$/, ""),
     ...gateBrand(site.brand),
     ...(site.seo && typeof site.seo === "object" && site.seo.index === false ? { noindex: true } : {}),
+    ...(typeof site.insights === "string" && site.insights ? { insights: true } : {}),
   };
 }
 

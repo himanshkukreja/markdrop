@@ -404,6 +404,11 @@ class Review(_Strict):
     required: bool = False
 
 
+class Insights(_Strict):
+    """Reader insights (services/guide_insights.py): page views, searches, feedback. On by default."""
+    enabled: bool = True
+
+
 class NavGroup(_Strict):
     group: str = Field(..., min_length=1, max_length=80)
     pages: list[str] = Field(default_factory=list, max_length=1000)
@@ -415,6 +420,7 @@ class SiteSettings(_Strict):
     access: Access = Field(default_factory=Access)
     seo: SEO = Field(default_factory=SEO)
     review: Review = Field(default_factory=Review)
+    insights: Insights = Field(default_factory=Insights)
     nav: list[NavGroup] = Field(default_factory=list, max_length=100)
     # [{from, to}] → the build's redirects.json. Shape checked here; against the site's pages
     # (targets exist, no page hidden, no chains) on save (docs_site_redirects.problems_against).

@@ -190,8 +190,12 @@ export interface DocsClientSite {
   ai: AiSettings | null;
   mcpName: string;
   tryIt: TryItSettings;
+  /** A Markdrop Guides site's Insights endpoint (site.json `insights`); absent everywhere else. */
+  insights?: string;
 }
 
 export function clientSite(site: SiteConfig): DocsClientSite {
-  return { url: site.url, name: brandName(site), ai: aiSettings(site), mcpName: mcpName(site), tryIt: tryItSettings(site) };
+  const out: DocsClientSite = { url: site.url, name: brandName(site), ai: aiSettings(site), mcpName: mcpName(site), tryIt: tryItSettings(site) };
+  if (typeof site.insights === "string" && /^https?:\/\//.test(site.insights)) out.insights = site.insights.replace(/\/+$/, "");
+  return out;
 }

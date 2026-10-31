@@ -7,6 +7,7 @@
  *   /guides/<site>/import      the GitBook import (?job=<id>, else the site's last import)
  *   /guides/<site>/design      themes, brand, fonts, custom CSS
  *   /guides/<site>/publish     changes, publish, reviews, history
+ *   /guides/<site>/insights    readers: views, searches, Ask AI questions, feedback (?range=7d|30d|90d)
  *   /guides/<site>/settings    address, Ask AI, access, redirects, people, delete
  *   /guides/members            Guides roles in a workspace (?ws=<id>; studio admins)
  *
