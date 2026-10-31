@@ -38,10 +38,16 @@
     "duration": "0:34",
     "chapters": "/docs-assets/videos/custom-domain.vtt"
   },
+  "encrypt-a-document": {
+    "src": "/docs-assets/videos/encrypt-a-document.mp4",
+    "poster": "/docs-assets/videos/encrypt-a-document.webp",
+    "duration": "0:42",
+    "chapters": "/docs-assets/videos/encrypt-a-document.vtt"
+  },
   "guides-first-guide": {
     "src": "/docs-assets/videos/guides-first-guide.mp4",
     "poster": "/docs-assets/videos/guides-first-guide.webp",
-    "duration": "0:48",
+    "duration": "0:56",
     "title": "Create and publish your first guide",
     "chapters": "/docs-assets/videos/guides-first-guide.vtt"
   },
@@ -51,12 +57,6 @@
     "duration": "0:45",
     "title": "Import a GitBook site into Markdrop Guides",
     "chapters": "/docs-assets/videos/guides-import-video.vtt"
-  },
-  "encrypt-a-document": {
-    "src": "/docs-assets/videos/encrypt-a-document.mp4",
-    "poster": "/docs-assets/videos/encrypt-a-document.webp",
-    "duration": "0:42",
-    "chapters": "/docs-assets/videos/encrypt-a-document.vtt"
   },
   "local-mcp-publish": {
     "src": "/docs-assets/videos/local-mcp-publish.mp4",

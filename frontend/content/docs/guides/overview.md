@@ -48,7 +48,7 @@ Admin, Reviewer, Editor or Viewer, for the whole workspace or one guide.
 
 ## Watch it once
 
-::video{id="guides-first-guide" title="Create and publish your first guide" duration="0:50"}
+::video{id="guides-first-guide" title="Create and publish your first guide" duration="0:56"}
 
 ## Before you start
 
