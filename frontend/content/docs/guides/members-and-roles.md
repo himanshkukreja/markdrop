@@ -37,7 +37,7 @@ You can only give roles to people in the workspace. To add someone new, [invite 
 
 ## Give someone a role
 
-Guides admins manage roles on the **Members** page: choose **Members** next to the workspace's name on the Markdrop Guides home, or **Members of** the workspace in the guide menu.
+Guides admins manage roles on the **Members** page: on the Markdrop Guides home, pick the workspace under **Workspace** and choose **Members**. A guide's **More** menu and the guide menu in the header (**Members of** the workspace) open it too.
 
 ::::steps
 ### Find the person

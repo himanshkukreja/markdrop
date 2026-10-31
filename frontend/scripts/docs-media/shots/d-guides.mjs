@@ -234,13 +234,16 @@ export default [
     kind: "screenshot",
     auth: "owner",
     url: "/guides",
+    viewport: { width: 1440, height: 1200 },
     prepare: async (h) => {
       await h.loc({ role: "heading", name: "Your guides" }).waitFor();
       await h.loc("article").first().waitFor();
+      // The 7-day numbers load after the cards.
+      await h.page.waitForFunction(() => !document.querySelector('[aria-label="Loading numbers"]'), null, { timeout: 15_000 });
       await settle(h);
     },
-    // Acme's three site cards (not the plan meters).
-    crop: async (h) => ({ selector: `section[aria-labelledby="grp-${h.fx.workspace.id}"] > div.grid`, pad: 20 }),
+    // The 7-day tiles, the filters and the guides (not the header, title or plan card).
+    crop: () => ({ union: [{ css: 'section[aria-label="Across your guides, last 7 days"]' }, { css: 'section[aria-labelledby="list-h"]' }], pad: 20 }),
   },
 
   // ════════════════════════════════════════════════════════════════════════════

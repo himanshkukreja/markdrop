@@ -14,7 +14,16 @@ The site you're reading, docs.markdrop.in, is the Markdrop docs: Markdrop's own 
 
 Markdrop Guides is in beta, and free while it is.
 
-![The Markdrop Guides home page with the Acme workspace's three guides: Acme (Live, Clean theme, 14 pages, published 5 hours ago by Riya), Acme Help Center (In review, Priya's changes waiting for review) and Acme Developers (Draft, not published yet).](/docs-assets/guides/overview/studio-home.webp "The Markdrop Guides home lists every guide you can open, grouped by workspace.")
+![The Markdrop Guides home: Your guides, the last 7 days across them (live guides, readers, Ask AI answers, page feedback), the All, Live, In review and Drafts filters, and the Acme workspace's guides as cards: Acme (Live, with its views and how many found it helpful), Acme Help Center (In review, pages waiting for a reviewer) and Acme Developers (Draft, not published yet).](/docs-assets/guides/overview/studio-home.webp "The Markdrop Guides home: every guide you can open, each drawn in its own theme.")
+
+## Your guides
+
+The Markdrop Guides home lists every guide you can open, in your workspaces and your personal ones.
+
+- **The last 7 days** across your guides: how many are live, readers (and the change from the week before), Ask AI answers (and how many it couldn't answer), and the share of page feedback that said a page helped. The numbers come from each guide's [Insights](/guides/insights). A guide with Insights off adds nothing, and a number that can't be counted yet shows as **—**.
+- **Filters**: **All**, **Live**, **In review** (changes are waiting for a reviewer) and **Drafts** (never published), and **Workspace** to show one workspace or your personal guides. Switch between cards and a list with the buttons beside it; Markdrop remembers your choice in this browser.
+- **Each guide** shows a small drawing of it in its own theme and colours, its state (**Live**, **In review**, **Draft**, **Building** while a publish runs, **Failed** when the last publish didn't go through), its address, its workspace, pages and last change. A live guide shows its views over the last 7 days and how many readers found it helpful. **Open editor** opens it, **View** opens the live guide, and **Preview** shows a draft's home page. **More** has the guide's Design, Publishes, Insights and Settings, and **Delete guide** for admins.
+- **Search guides** in the header (**⌘K**, or **Ctrl K** on Windows) finds a guide by its name or address.
 
 ## What you can do
 
@@ -69,4 +78,4 @@ These are planned and marked **Coming soon** in the app:
 
 ## Open Markdrop Guides
 
-Go to [markdrop.in/guides](https://markdrop.in/guides). From inside Markdrop you can also get there from your account menu (**Guides**), from a workspace's **Guides** link in the sidebar, or with **Guide** in the create menu. Inside Markdrop Guides, the **Switch app** button in the header goes back to Markdrop.
+Go to [markdrop.in/guides](https://markdrop.in/guides). From inside Markdrop you can also get there from your account menu (**Guides**), from a workspace's **Guides** link in the sidebar, or with **Guide** in the create menu. Inside Markdrop Guides, **Documents** and **Files** in the header (or **Dashboard** in your account menu) go back to the rest of Markdrop.

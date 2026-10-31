@@ -13,7 +13,7 @@ A new guide starts as drafts that only you and your team can see. Nothing is pub
 
 ::::steps
 ### Open New guide
-In [Markdrop Guides](https://markdrop.in/guides), choose **New guide**. Under a workspace's name, **New guide here** starts one in that workspace.
+In [Markdrop Guides](https://markdrop.in/guides), choose **New guide**. With a workspace picked under **Workspace**, the new guide starts in that workspace. **Start a new guide**, at the end of your guides, also opens the form with **Blank**, **Template**, **GitBook** or **OpenAPI** (the API reference template) already chosen.
 
 ### Choose where it lives
 Under **Where it lives**, pick a **Workspace**, or **Personal (only you)**. Workspaces you aren't a Guides admin of are listed with "(Guides admins only)" and can't be picked.
