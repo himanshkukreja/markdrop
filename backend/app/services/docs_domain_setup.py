@@ -22,7 +22,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
-from app.services import dns_provider, domain_connect
+from app.services import dns_provider, domain_connect, mailer
 from app.services import docs_custom_domains as domains
 from app.services.docs_jobs import SITES, aware
 
@@ -86,7 +86,7 @@ def _entry(site: dict, host: str) -> dict | None:
     return next((d for d in site.get("domains") or [] if isinstance(d, dict) and d.get("host") == host), None)
 
 
-async def setup_view(site: dict, raw_host: Any, *, fresh: bool = False) -> dict | None:
+async def setup_view(site: dict, raw_host: Any, *, fresh: bool = False, user_id: str | None = None) -> dict | None:
     """What the setup screen shows for one of the site's domains (admins). None: no such domain."""
     host = domains.clean(raw_host)
     entry = _entry(site, host)
@@ -110,6 +110,8 @@ async def setup_view(site: dict, raw_host: Any, *, fresh: bool = False) -> dict 
         **_seen(entry, info["cname"]),
         "one_click": one_click,
         "check_url": check_url(host),
+        # The email when it goes live goes to whoever added it (services/docs_custom_domains.notify).
+        "emails_you": mailer.is_configured() and bool(user_id) and entry.get("added_by") == user_id,
     }
 
 

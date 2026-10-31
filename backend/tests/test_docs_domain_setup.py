@@ -243,6 +243,7 @@ class SetupApiTests(DocsSitesCase):
         self.assertEqual(v["provider"]["provider_name"], "Cloudflare")
         self.assertEqual((v["record_seen"], v["record_points_to"]), (False, None))
         self.assertIsNone(v["one_click"])  # no signing key here
+        self.assertFalse(v["emails_you"])  # no email in tests
         self.assertEqual(v["check_url"], f"https://markdrop.in/d/check/{HOST}")
         # The record appears; "fresh" reads DNS again rather than the minute's cache.
         with mock.patch.object(dns_provider, "cname_of", lambda host: "cname.guides.markdrop.in"):

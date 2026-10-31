@@ -90,7 +90,7 @@ async def domain_setup(request: Request, site_id: str, host: str, fresh: bool = 
     one, and the public check page's address. Costs DNS lookups (cached a minute; ``fresh`` reads
     again), so it's asked for only while the screen is open."""
     site, _role = await store.site_access(db, site_id, user, "admin")
-    view = await setup.setup_view(site, host, fresh=fresh)
+    view = await setup.setup_view(site, host, fresh=fresh, user_id=user.id)
     if view is None:
         raise HTTPException(status_code=404, detail="That domain isn't on this guide.")
     return view
