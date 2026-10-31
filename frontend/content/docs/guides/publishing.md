@@ -39,7 +39,7 @@ When it's done, a message says **Publish #N is live**, with **Open**. The **Publ
 
 ![Publishing your guide: the progress bar, Saved a snapshot of your pages (1 change) done, Building the pages under way, then Search, Ask AI and link previews, and Going live at acme-themes.guides.markdrop.in, about how long is left, with Back to the editor; below, In this publish: 1 edited page and its note.](/docs-assets/guides/publishing/publish-progress.webp)
 
-::clip{src="/docs-assets/guides/publishing/publish-to-live" alt="Typing the note 'Release notes: webhook headers', choosing Publish, the new publish showing Waiting to build in the list, then the message Published. Live at acme-themes.guides.markdrop.in and the publish marked Live."}
+::clip{src="/docs-assets/guides/publishing/publish-to-live" alt="Typing the note 'Release notes: webhook headers' and choosing Publish 1 change; the Publish tab shows the publish's progress (the snapshot saved, building the pages), then Your guide is live with the message Publish #N is live and the publish at the top of the history, marked Live."}
 
 If the guide [requires a review](/guides/reviews), editors and reviewers see **Send for review** instead of **Publish**. Admins can always publish.
 

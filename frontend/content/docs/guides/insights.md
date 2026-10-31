@@ -43,7 +43,7 @@ Every page of a guide ends with **Did this page help?** Readers answer **Yes** o
 
 Comments and "not helpful" votes appear under **Reader feedback** as **Open**, with the page they're about and when they came in. **Open page** opens that page in the editor. When you've dealt with one, choose **Resolve**; it moves to **Resolved**, and **Reopen** puts it back.
 
-![Reader feedback, 79% found pages helpful, Open 7 and Resolved 2: comments on Quickstart, Connect Postgres and API keys, one via an AI app (MCP) on the CLI reference, a helpful comment on Alert rules and a "not helpful" vote without a comment, each with Open page and Resolve, and Show 1 more.](/docs-assets/guides/insights/insights-feedback.webp)
+![Reader feedback, 79% found pages helpful, Open 6 and Resolved 2: comments on Quickstart, Connect Postgres and API keys, one via an AI app (MCP) on the CLI reference, a helpful comment on Alert rules and a "not helpful" vote without a comment, each with Open page and Resolve.](/docs-assets/guides/insights/insights-feedback.webp)
 
 ## Who can see it
 

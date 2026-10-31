@@ -29,7 +29,7 @@ It works with all fourteen [themes](/guides/themes): your accent replaces the th
 
 Fonts are served with the guide, so readers' browsers don't fetch them from anyone else. With **Light only** or **Dark only**, readers don't get a theme switch.
 
-![Headings font set to Lora, Body font Inter, Colour mode Light and dark, Corners Round, next to the preview of the Quickstart page with serif headings and rounder corners.](/docs-assets/guides/brand-and-style/fonts-mode-corners.webp)
+![Headings font set to Lora, Body font Inter, Colour mode Light and dark and Corners Round. The preview at the top of Design shows them at once.](/docs-assets/guides/brand-and-style/fonts-mode-corners.webp)
 
 ## Custom CSS
 
