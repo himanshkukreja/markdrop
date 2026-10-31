@@ -142,6 +142,12 @@ export interface SiteConfig {
   edit?: string;
   /** POST endpoint for "Did this page help?" ({path, helpful, comment?}). */
   feedback?: string;
+  /**
+   * A Markdrop Guides site's Insights endpoint (set by the API when the owner has Insights on):
+   * the engine posts client-side navigations and settled searches to `${insights}/event`
+   * (client/Insights.tsx), and the docs edge counts page loads. Absent: nothing is sent.
+   */
+  insights?: string;
   /** Hosts whose links `::embed` may frame. Anything else renders as a link card. */
   embedHosts?: string[];
   eyebrow?: string;

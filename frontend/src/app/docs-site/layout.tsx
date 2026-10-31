@@ -8,6 +8,7 @@ import { SearchPalette } from "@/docs/client/Search";
 import { AskRoot } from "@/docs/client/ask/AskRoot";
 import { MediaLightbox } from "@/docs/client/Media";
 import { DocsSiteProvider } from "@/docs/client/site";
+import { InsightsBeacon } from "@/docs/client/Insights";
 import { forcedModeScript, siteTheme } from "@/docs/themeSite";
 import { themeStylesheet } from "@/docs/themeFonts";
 
@@ -19,7 +20,8 @@ import { themeStylesheet } from "@/docs/themeFonts";
  * accent, Ask AI) come from site.json; `data-docs-trackers="off"` tells the root layout's
  * Markdrop trackers to stay out of a site that isn't Markdrop's. A site with a `theme` (theme.mjs)
  * also gets `data-preset` and `data-layout` on the root, the theme's stylesheet and, when it forces
- * a colour mode, the script that pins it; a site without one gets none of these.
+ * a colour mode, the script that pins it; a site without one gets none of these. A Markdrop Guides
+ * site with Insights on (site.json `insights`) also gets the navigation beacon (client/Insights.tsx).
  */
 export function generateMetadata(): Metadata {
   const site = getSite();
@@ -63,6 +65,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         <SearchPalette suggestions={site.home?.chips} />
         {client.ai && <AskRoot siteUrl={site.url} suggestions={site.home?.chips} />}
         <MediaLightbox />
+        {client.insights && <InsightsBeacon base={client.insights} />}
       </DocsSiteProvider>
     </div>
   );

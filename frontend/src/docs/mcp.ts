@@ -10,7 +10,8 @@
  * Tools answer from the content built into the deployment (content.ts / outputs.ts): no network,
  * except report_problem, which forwards to the docs feedback endpoint after the response is sent.
  * whats_changed is only offered when the site has changelog entries, report_problem only when it
- * has a feedback endpoint (Markdrop Guides sites usually have neither).
+ * has a feedback endpoint (a Markdrop Guides site has one while its owner keeps Insights on: reports
+ * land in its Insights tab).
  */
 import MiniSearch from "minisearch";
 import { absoluteUrl, agentMarkdown, defaultSite, getChangelog, getPage, getSite, orderedPages, withPrerequisites, type SiteBundle } from "./content";
