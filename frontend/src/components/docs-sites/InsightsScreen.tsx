@@ -461,7 +461,8 @@ function Dashboard({
 
       <Card id={`${uid}-trend`} title="Readers per day" aside={<span className="text-caption text-text-muted max-sm:hidden">Hover a day for views and readers</span>}>
         {data.daily.some((d) => d.views > 0)
-          ? <ReadersLineChart daily={data.daily.map((d) => ({ date: d.date, readers: d.visitors, views: d.views }))} />
+          // The days are UTC (services/guide_insights.py): the last one is today, still counting.
+          ? <ReadersLineChart daily={data.daily.map((d) => ({ date: d.date, readers: d.visitors, views: d.views }))} today={new Date().toISOString().slice(0, 10)} />
           : <Quiet>No readers in the last {rangeWords}.</Quiet>}
       </Card>
 
