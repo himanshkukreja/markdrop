@@ -13,6 +13,9 @@ place. Kinds:
                 (services/docs_site_access.py). Idempotent; a waiting one absorbs a new one.
 - ``cf_host``   payload ``{reason, hosts}``: attach / detach the site's free address on Cloudflare
                 (services/docs_cf_hosts.py). Idempotent; a waiting one absorbs a new one.
+- ``domain``    payload ``{reason, hosts}``: create / check / remove the site's own domains on
+                Cloudflare for SaaS (services/docs_custom_domains.py; ``hosts``: check these now).
+                Idempotent; a waiting one absorbs a new one.
 
 A worker claims a row with ``findOneAndUpdate({status: "queued"} or an expired
 ``locked_until``) → running``; one running build per site at a time.
@@ -38,7 +41,7 @@ from pymongo import ReturnDocument
 
 JOBS = "docs_jobs"
 BUILDS = "docs_builds"
-KINDS = ("build", "import", "restore", "unpublish", "access", "cf_host")
+KINDS = ("build", "import", "restore", "unpublish", "access", "cf_host", "domain")
 
 log = logging.getLogger(__name__)
 _KICKS: set[asyncio.Task] = set()
@@ -59,7 +62,7 @@ async def enqueue_job(db: AsyncIOMotorDatabase, kind: str, site_id: str | Object
         waiting = await db[JOBS].find_one({"kind": "access", "site_id": sid, "status": "queued"})
         if waiting is not None:
             return waiting
-    if kind in ("unpublish", "cf_host"):
+    if kind in ("unpublish", "cf_host", "domain"):
         # Idempotent: one waiting job covers another (with the extra hosts it names).
         extra = [h for h in (payload or {}).get("hosts") or [] if isinstance(h, str)]
         waiting = await db[JOBS].find_one_and_update(

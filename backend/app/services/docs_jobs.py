@@ -37,7 +37,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.services.docs_site_jobs import KINDS  # noqa: E402  (build, import, restore, unpublish, access, cf_host)
+from app.services.docs_site_jobs import KINDS  # noqa: E402  (build, import, restore, unpublish, access, cf_host, domain)
 from app.services.docs_site_store import ASSETS, BUILDS, JOBS, PAGES, SITES, SNAPSHOTS, VERSIONS  # noqa: E402,F401
 
 
@@ -88,6 +88,12 @@ class DocsJobsSettings(BaseSettings):
     docs_cf_account_id: str = ""
     docs_cf_zone_name: str = "markdrop.in"
     docs_cf_worker: str = "markdrop-docs-edge"
+    # Guides on a customer's own domain (services/docs_custom_domains.py): Cloudflare for SaaS custom
+    # hostnames on the zone above (its id: the custom hostnames API is per zone), served by the edge
+    # Worker through a */* route. Customers point a CNAME at the target, the fallback origin record
+    # the owner creates once (docs-platform/README.md "Own domains"). Blank token or zone id: off.
+    docs_cf_zone_id: str = ""
+    docs_custom_domain_target: str = "cname.guides.markdrop.in"
     # The docs bucket's keys are the app's (config.py docs_r2_*: MARKDROP_DOCS_R2_* or CF_ACCOUNT_ID /
     # R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY + MARKDROP_DOCS_R2_BUCKET).
 

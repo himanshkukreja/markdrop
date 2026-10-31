@@ -493,6 +493,8 @@ class Settings(BaseSettings):
     docs_cf_account_id: str = ''
     docs_cf_zone_name: str = 'markdrop.in'
     docs_cf_worker: str = 'markdrop-docs-edge'
+    docs_cf_zone_id: str = ''
+    docs_custom_domain_target: str = 'cname.guides.markdrop.in'
 
     model_config = {"env_file": ".env", "env_prefix": "MARKDROP_"}
 

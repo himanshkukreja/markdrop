@@ -572,7 +572,8 @@ async def unpublish(db: AsyncIOMotorDatabase, site_id: Any, slug: str | None, *,
 
 
 async def run_server_job(db: AsyncIOMotorDatabase, job: dict, worker: str) -> dict:
-    """A claimed restore, unpublish or access job, start to finish (the API inline, or the local worker)."""
+    """A claimed restore, unpublish, access, cf_host or domain job, start to finish (the API inline, or
+    the local worker)."""
     p = job.get("payload") or {}
     try:
         if job["kind"] == "restore":
@@ -588,6 +589,10 @@ async def run_server_job(db: AsyncIOMotorDatabase, job: dict, worker: str) -> di
             from app.services import docs_cf_hosts
 
             res = await docs_cf_hosts.reconcile(db, job["site_id"], p.get("hosts") or [])
+        elif job["kind"] == "domain":
+            from app.services import docs_custom_domains
+
+            res = await docs_custom_domains.reconcile(db, job["site_id"], p.get("hosts") or [])
         else:
             raise RestoreError(f"{job['kind']} jobs don't run on the server")
         if job["kind"] == "restore":
@@ -599,9 +604,9 @@ async def run_server_job(db: AsyncIOMotorDatabase, job: dict, worker: str) -> di
         return {"ok": False, "error": str(e)}
     except Exception as e:  # the bucket (or Cloudflare) hiccuped: try again (until out of attempts)
         log.warning("docs %s job %s failed: %s", job["kind"], job["_id"], type(e).__name__,
-                    exc_info=job["kind"] != "cf_host")
-        if job["kind"] == "cf_host":
-            err = str(e)[:1500] or type(e).__name__  # CfHostError: what Cloudflare said (never the token)
+                    exc_info=job["kind"] not in ("cf_host", "domain"))
+        if job["kind"] in ("cf_host", "domain"):
+            err = str(e)[:1500] or type(e).__name__  # what Cloudflare said (never the token)
         else:
             err = f"{type(e).__name__} while writing to the docs bucket"
         await docs_jobs.retry_later(db, job, worker, err)
