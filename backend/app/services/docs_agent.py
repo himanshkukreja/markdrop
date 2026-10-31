@@ -1195,7 +1195,8 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
         await record_limit(f"budget_{state.reason}")
         yield limit_event("budget")
         return
-    # A Markdrop Guides site's monthly answers (the count its dashboard shows).
+    # A Markdrop Guides site's monthly AI allowance (the count its dashboard shows): its readers'
+    # answers and its editors' AI help (services/docs_editor_ai.py) share it.
     if cfg.monthly_answers is not None:
         from app.services import docs_site_store
 

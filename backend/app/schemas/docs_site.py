@@ -178,3 +178,36 @@ class StudioMemberRole(_Body):
 
 class StudioMembersUpdate(_Body):
     members: list[StudioMemberRole] = Field(..., min_length=1, max_length=200)
+
+
+# ── Editor: AI help, review comments, presence (routers/docs_site_editor.py) ──
+
+
+class EditorAIRequest(_Body):
+    """The action and the length/language rules are checked by services/docs_editor_ai.py, so a bad
+    one is a 400 with a ``code`` the editor can show, not a validation list. The caps here only
+    keep an absurd body out."""
+    action: str = Field(..., max_length=100)
+    text: str = Field(..., max_length=100_000)
+    language: str | None = Field(None, max_length=100)
+    page_id: str | None = Field(None, max_length=64)
+
+
+class CommentCreate(_Body):
+    quote: str = Field(..., min_length=1, max_length=500)
+    prefix: str | None = Field(None, max_length=120)
+    suffix: str | None = Field(None, max_length=120)
+    body: str = Field(..., min_length=1, max_length=4000)
+
+
+class CommentReply(_Body):
+    body: str = Field(..., min_length=1, max_length=4000)
+
+
+class CommentResolve(_Body):
+    resolved: bool
+
+
+class PresenceBeat(_Body):
+    session: str = Field(..., pattern=r"^[A-Za-z0-9_-]{8,40}$")
+    page_id: str | None = Field(None, max_length=64)

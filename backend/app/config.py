@@ -452,8 +452,25 @@ class Settings(BaseSettings):
     docs_site_storage_bytes: int = 2 * 1024 * 1024 * 1024
     # Ask AI answers per site per UTC month: shown on the dashboard and enforced by Ask AI
     # (services/docs_agent.py; a reader past it gets the `limit` answer with Open-in links).
-    # Inside the global docs_ai_daily_usd / docs_ai_monthly_usd spend caps.
+    # Inside the global docs_ai_daily_usd / docs_ai_monthly_usd spend caps. The editor's AI help
+    # (below) counts against it too: one guide, one monthly AI allowance.
     docs_ai_answers_per_month: int = 1000
+    # AI help in the Guides page editor (services/docs_editor_ai.py): rewrite a selected passage
+    # (improve, shorten, fix, translate). Editors and up. Uses Ask AI's key and model, and is off
+    # whenever Ask AI is (docs_ai_enabled, no key) or this switch is.
+    docs_editor_ai_enabled: bool = True
+    # Characters per selection.
+    docs_editor_ai_max_chars: int = 6000
+    # Per model call (thinking counts towards it). A cut-off answer is refused, not half-applied.
+    docs_editor_ai_max_tokens: int = 4000
+    # Requests per person (across guides) and per guide, per UTC day. Refused ones don't count.
+    docs_editor_ai_per_user_day: int = 60
+    docs_editor_ai_per_site_day: int = 300
+    # The feature's own spend caps in USD (separate from Ask AI's), UTC day and month.
+    docs_editor_ai_daily_usd: float = 2.0
+    docs_editor_ai_monthly_usd: float = 20.0
+    # Rewrites running at once in this API process.
+    docs_editor_ai_max_concurrent: int = 6
     # One page's Markdown. A publish snapshot is one MongoDB document (16 MB).
     docs_page_max_chars: int = 300_000
 
