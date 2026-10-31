@@ -490,6 +490,15 @@ class DashboardTests(InsightsCase):
         ov = await self.get(f"/{self.sid}/insights?range=7d")
         self.assertEqual(ov["previous"], {"views": 2, "visitors": 2, "searches": 0, "ask_answered": 2,
                                           "ask_unanswered": 1, "votes": 1, "helpful_pct": 100})
+        # A rollup older than every raw event (raw events expire first) still counts as collecting.
+        await self.db[gi.RAW].delete_many({"site": self.sid, "day": {"$lt": gi.day_key(before + timedelta(days=1))}})
+        old = gi.day_key(before)
+        await self.db[gi.DAILY].replace_one({"_id": f"{self.sid}:{old}"}, {
+            "_id": f"{self.sid}:{old}", "site": self.sid, "day": old, "views": 5, "visitors": 3, "searches": 0,
+            "empty_searches": 0, "pages": [], "refs": [], "countries": [], "devices": [], "queries": []}, upsert=True)
+        ov = await self.get(f"/{self.sid}/insights?range=7d")
+        self.assertEqual(ov["since"][:10], old)
+        self.assertEqual((ov["previous"]["views"], ov["previous"]["visitors"]), (5, 3))
         # The current week isn't counted twice.
         self.assertEqual((ov["totals"]["views"], ov["ask"]["answered"], ov["feedback"]["yes"]), (4, 2, 1))
 

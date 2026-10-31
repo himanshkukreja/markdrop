@@ -655,12 +655,17 @@ async def draft_pages(db: AsyncIOMotorDatabase, site_row: dict) -> dict[str, tup
 
 
 async def first_seen(db: AsyncIOMotorDatabase, site: str) -> datetime | None:
+    """The first thing kept: the older of the first raw event and the first daily rollup (raw events
+    expire after 90 days, rollups after 13 months)."""
+    seen: list[datetime] = []
     r = await db[RAW].find_one({"site": site}, {"ts": 1}, sort=[("ts", 1)])
     if r:
         ts = r["ts"]
-        return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+        seen.append(ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc))
     d = await db[DAILY].find_one({"site": site}, {"day": 1}, sort=[("day", 1)])
-    return _day_start(d["day"]) if d else None
+    if d:
+        seen.append(_day_start(d["day"]))
+    return min(seen) if seen else None
 
 
 async def clear(db: AsyncIOMotorDatabase, site: str) -> dict:
