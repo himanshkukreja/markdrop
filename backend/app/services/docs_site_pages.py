@@ -125,6 +125,9 @@ def lock_view(lock: dict | None) -> dict | None:
 
 
 def page_summary(page: dict, live: dict[str, str]) -> dict:
+    """``published``: the page is on the live site at all; ``has_changes``: its draft differs
+    from what's live. The editor tells "new, never published" (False, True) from "changed since
+    publish" (True, True)."""
     pid = str(page["_id"])
     return {
         "id": pid,
@@ -133,6 +136,7 @@ def page_summary(page: dict, live: dict[str, str]) -> dict:
         "icon": page.get("icon"),
         "hidden": bool(page.get("hidden")),
         "has_changes": live.get(pid) != content_hash(page),
+        "published": pid in live,
         "lock": lock_view(page.get("lock")),
         "rev": (page.get("draft") or {}).get("rev"),
         "updated_at": aware((page.get("draft") or {}).get("updated_at")),
