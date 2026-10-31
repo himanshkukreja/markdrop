@@ -41,7 +41,7 @@ def get_db() -> AsyncIOMotorDatabase:
 @limiter.limit("120/minute")
 async def editor_ai_status(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
                            user: User = Depends(require_user)):
-    """{available, reason, message, used_today, limit_today, site_used_today, site_limit_today,
+    """{available, reason, message, used_today, limit_today, guide_used_month, guide_limit_month,
     max_chars, actions, languages}."""
     site, _role = await store.load_site(db, site_id, user, "editor")
     return await editor_ai.status(db, site, user)

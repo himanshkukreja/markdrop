@@ -18,12 +18,14 @@ Guardrails, all in code:
   the editor, so the two never drift).
 * The kill switch ``docs_editor_ai_enabled`` and Ask AI's own
   (``docs_ai_enabled``, the API key).
-* Per person and per guide per UTC day (ledger rows since midnight, plus the
-  requests running in this process).
-* Spend caps for the feature (daily and monthly USD, a reservation held while a
-  request runs), and the guide's monthly AI allowance: editor uses count
-  against ``docs_ai_answers_per_month`` together with its readers' Ask AI
-  answers (docs_site_store.ai_answers).
+* The guide's AI budget, shared with its readers' Ask AI: every use counts
+  against the same monthly allowance (``docs_ai_answers_per_month``, counted
+  from the same ledger by docs_site_store.ai_answers, editor rows marked
+  ``kind: "editor"``). When it is used up, the writer is told so in those words.
+* Per person per UTC day (``docs_editor_ai_per_user_day``; ledger rows since
+  midnight, plus the requests running in this process).
+* A server-wide safety net under all of that: daily and monthly USD spend caps
+  for the feature (a reservation held while a request runs).
 * A small concurrency cap per API process.
 
 Privacy: the ledger row holds metadata only (action, sizes, language, outcome,
@@ -178,15 +180,16 @@ async def _used_today(db: AsyncIOMotorDatabase, **match) -> int:
 class Usage:
     used_today: int
     limit_today: int
-    site_used_today: int
-    site_limit_today: int
+    #: The guide's AI uses this UTC month (Ask AI answers and AI help together), and its allowance.
+    guide_used_month: int
+    guide_limit_month: int
 
 
 async def usage(db: AsyncIOMotorDatabase, site_id: str, user: User) -> Usage:
     s = get_settings()
     mine = await _used_today(db, visitor=_visitor(user)) + _inflight_by_user.get(user.id, 0)
-    site = await _used_today(db, site=site_id) + _inflight_by_site.get(site_id, 0)
-    return Usage(mine, max(0, s.docs_editor_ai_per_user_day), site, max(0, s.docs_editor_ai_per_site_day))
+    guide = (await store.ai_answers(db, [site_id])).get(site_id, 0) + _inflight_by_site.get(site_id, 0)
+    return Usage(mine, max(0, s.docs_editor_ai_per_user_day), guide, max(0, s.docs_ai_answers_per_month))
 
 
 def _limit_message(reason: str, n: int = 0) -> str:
@@ -194,10 +197,9 @@ def _limit_message(reason: str, n: int = 0) -> str:
         "disabled": "AI help is turned off right now.",
         "not_configured": "AI help isn't set up on this server.",
         "user_daily": f"You've used AI help {n:,} times today. It resets at midnight UTC.",
-        "site_daily": f"This guide has used AI help {n:,} times today. It resets at midnight UTC.",
         "budget": "AI help has reached its spending limit for now. Try again later.",
-        "site_answers_monthly": (f"This guide has used its {n:,} AI uses for this month (AI help and Ask AI "
-                                 "together). They reset on the 1st (UTC)."),
+        "guide_budget": (f"This guide's AI budget for the month is used up ({n:,} uses, shared by AI help and "
+                         "Ask AI). It resets on the 1st (UTC)."),
         "busy": "AI help is busy right now. Try again in a moment.",
     }[reason]
 
@@ -213,26 +215,21 @@ def _switched_off() -> str | None:
 async def _blocker(db: AsyncIOMotorDatabase, site_id: str, use: Usage) -> tuple[str, int] | None:
     """(limit reason, the number its message names) when one more request isn't allowed."""
     s = get_settings()
+    if use.guide_used_month >= use.guide_limit_month:
+        return "guide_budget", use.guide_limit_month
     if use.used_today >= use.limit_today:
         return "user_daily", use.limit_today
-    if use.site_used_today >= use.site_limit_today:
-        return "site_daily", use.site_limit_today
     state = await ai_usage.budget(db, FEATURE, daily_cap=s.docs_editor_ai_daily_usd,
                                   monthly_cap=s.docs_editor_ai_monthly_usd, reserve=RESERVE_USD)
     if not state.ok:
         return f"budget_{state.reason}", 0
-    allowance = max(0, s.docs_ai_answers_per_month)
-    used = (await store.ai_answers(db, [site_id])).get(site_id, 0) + _inflight_by_site.get(site_id, 0)
-    if used >= allowance:
-        return "site_answers_monthly", allowance
     if _inflight >= max(1, s.docs_editor_ai_max_concurrent):
         return "busy", 0
     return None
 
 
-_LIMIT_STATUS = {"user_daily": (429, "user_daily"), "site_daily": (429, "site_daily"),
-                 "budget_daily": (503, "budget"), "budget_monthly": (503, "budget"),
-                 "site_answers_monthly": (503, "budget"), "busy": (503, "busy")}
+_LIMIT_STATUS = {"user_daily": (429, "user_daily"), "guide_budget": (429, "guide_budget"),
+                 "budget_daily": (503, "budget"), "budget_monthly": (503, "budget"), "busy": (503, "busy")}
 
 
 def _message_for(reason: str, n: int) -> str:
@@ -261,8 +258,8 @@ async def status(db: AsyncIOMotorDatabase, site: dict, user: User) -> dict:
         "message": _message_for(reason, n) if reason else None,
         "used_today": use.used_today,
         "limit_today": use.limit_today,
-        "site_used_today": use.site_used_today,
-        "site_limit_today": use.site_limit_today,
+        "guide_used_month": use.guide_used_month,
+        "guide_limit_month": use.guide_limit_month,
         "max_chars": get_settings().docs_editor_ai_max_chars,
         "actions": list(ACTIONS),
         "languages": list(LANGUAGES),

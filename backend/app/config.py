@@ -463,9 +463,9 @@ class Settings(BaseSettings):
     docs_editor_ai_max_chars: int = 6000
     # Per model call (thinking counts towards it). A cut-off answer is refused, not half-applied.
     docs_editor_ai_max_tokens: int = 4000
-    # Requests per person (across guides) and per guide, per UTC day. Refused ones don't count.
-    docs_editor_ai_per_user_day: int = 60
-    docs_editor_ai_per_site_day: int = 300
+    # Requests per person (across guides) per UTC day. Refused ones don't count. A guide's own limit
+    # is its AI budget, shared with its readers' Ask AI: docs_ai_answers_per_month.
+    docs_editor_ai_per_user_day: int = 50
     # The feature's own spend caps in USD (separate from Ask AI's), UTC day and month.
     docs_editor_ai_daily_usd: float = 2.0
     docs_editor_ai_monthly_usd: float = 20.0

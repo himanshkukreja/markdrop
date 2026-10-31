@@ -22,7 +22,7 @@ from app.services import ai_usage, docs_agent, docs_editor_ai
 
 SECRET = "Our launcher ships with a teh green canister and a secret-phrase-7731."
 _SAVED = ("anthropic_api_key", "docs_ai_enabled", "docs_ai_model", "docs_editor_ai_enabled",
-          "docs_editor_ai_per_user_day", "docs_editor_ai_per_site_day", "docs_editor_ai_daily_usd",
+          "docs_editor_ai_per_user_day", "docs_editor_ai_daily_usd",
           "docs_editor_ai_monthly_usd", "docs_editor_ai_max_concurrent", "docs_editor_ai_max_chars",
           "docs_ai_answers_per_month", "docs_editor_ai_max_tokens")
 
@@ -64,7 +64,7 @@ class EditorAI(DocsSitesCase):
         settings.docs_ai_model = "claude-haiku-5-5"
         settings.docs_editor_ai_enabled = True
         settings.docs_editor_ai_per_user_day = 60
-        settings.docs_editor_ai_per_site_day = 300
+        settings.docs_ai_answers_per_month = 1000
         settings.docs_editor_ai_daily_usd = 2.0
         settings.docs_editor_ai_monthly_usd = 20.0
         settings.docs_editor_ai_max_concurrent = 6
@@ -212,14 +212,12 @@ class EditorAI(DocsSitesCase):
         st = await self.get(f"/{self.sid}/ai/edit/status", "editor")
         self.assertEqual((st["available"], st["reason"], st["used_today"]), (False, "user_daily", 60))
 
-    async def test_site_daily_limit(self):
-        settings.docs_editor_ai_per_site_day = 3
-        await self.seed(3, visitor="u:someone", user_id="someone")
+    async def test_no_separate_per_guide_daily_limit(self):
+        # A guide's only limit is its monthly AI budget (shared with Ask AI): a busy day is fine.
+        await self.seed(40, visitor="u:someone", user_id="someone")
         await self.seed(4, site=str(ObjectId()))  # another guide
-        r = await self.edit(expect=429)
-        self.assertEqual(r["code"], "site_daily")
-        self.assertIn("This guide has used AI help 3 times today", r["detail"])
-        self.assertEqual(self.fake.calls, [])
+        await self.edit()
+        self.assertEqual(len(self.fake.calls), 1)
 
     async def test_budget(self):
         await ai_usage._bump(self.db, "docs_editor", now(), 2.0)
@@ -245,12 +243,17 @@ class EditorAI(DocsSitesCase):
         from app.services import docs_site_store
 
         self.assertEqual((await docs_site_store.ai_answers(self.db, [self.sid]))[self.sid], 5)
-        r = await self.edit(expect=503)
-        self.assertEqual(r["code"], "budget")
-        self.assertIn("5 AI uses for this month", r["detail"])
+        r = await self.edit(expect=429)
+        self.assertEqual(r["code"], "guide_budget")
+        self.assertTrue(r["detail"].startswith("This guide's AI budget for the month is used up"), r["detail"])
         # Errors and limits don't use it up.
         rows = await self.db[ai_usage.REQUESTS].find({"feature": "docs_editor", "outcome": "limit"}).to_list(10)
-        self.assertEqual(rows[0]["limit_reason"], "site_answers_monthly")
+        self.assertEqual(rows[0]["limit_reason"], "guide_budget")
+        st = await self.get(f"/{self.sid}/ai/edit/status")
+        self.assertEqual((st["available"], st["reason"], st["guide_used_month"], st["guide_limit_month"]),
+                         (False, "guide_budget", 5, 5))
+        # The guide's readers' Ask AI sees the same budget used up.
+        self.assertGreaterEqual((await docs_site_store.ai_answers(self.db, [self.sid]))[self.sid], 5)
 
     async def test_busy(self):
         settings.docs_editor_ai_max_concurrent = 1
@@ -326,10 +329,10 @@ class EditorAI(DocsSitesCase):
         await self.seed(2)
         await self.seed(3, visitor="u:other", user_id="other")
         st = await self.get(f"/{self.sid}/ai/edit/status", "editor")
-        self.assertEqual({k: st[k] for k in ("available", "reason", "used_today", "limit_today", "site_used_today",
-                                              "site_limit_today", "max_chars")},
+        self.assertEqual({k: st[k] for k in ("available", "reason", "used_today", "limit_today", "guide_used_month",
+                                              "guide_limit_month", "max_chars")},
                          {"available": True, "reason": None, "used_today": 2, "limit_today": 60,
-                          "site_used_today": 5, "site_limit_today": 300, "max_chars": 6000})
+                          "guide_used_month": 5, "guide_limit_month": 1000, "max_chars": 6000})
         self.assertEqual(st["actions"], ["improve", "shorten", "fix", "translate"])
         self.assertIn("Chinese (Simplified)", st["languages"])
         self.assertEqual(len(st["languages"]), 31)

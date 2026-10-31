@@ -17,14 +17,16 @@ export type EditorAiAction = "improve" | "shorten" | "fix" | "translate";
 
 export interface EditorAiStatus {
   available: boolean;
-  /** Why it isn't: disabled | not_configured | budget | user_daily | site_daily… */
+  /** Why it isn't: disabled | not_configured | guide_budget (the guide's monthly AI budget, shared
+   * with Ask AI) | user_daily | budget (the server's spend cap) | busy. */
   reason?: string | null;
   /** A sentence saying why, when it isn't available. */
   message?: string | null;
   used_today: number;
   limit_today: number;
-  site_used_today: number;
-  site_limit_today: number;
+  /** The guide's AI uses this month (Ask AI answers and AI help together) and its budget. */
+  guide_used_month: number;
+  guide_limit_month: number;
   max_chars: number;
   languages: string[];
 }
