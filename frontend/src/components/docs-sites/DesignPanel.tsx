@@ -33,8 +33,8 @@ function normalise(t: SiteTheme): SiteTheme {
 /** The theme filter (Themes board, "Choose a look"). */
 const PRESET_FILTERS: Array<{ value: "all" | PresetKind | "new"; label: string }> = [
   { value: "all", label: "All" },
-  { value: "docs", label: "Product docs" },
-  { value: "help", label: "Help center" },
+  { value: "docs", label: "Docs" },
+  { value: "help", label: "Help" },
   { value: "dev", label: "Developer" },
   { value: "new", label: "New" },
 ];

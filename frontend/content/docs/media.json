@@ -1378,13 +1378,13 @@
   "/docs-assets/guides/themes/design-panel.dark.webp": {
     "w": 2880,
     "h": 1600,
-    "bytes": 113328,
+    "bytes": 112460,
     "kind": "image"
   },
   "/docs-assets/guides/themes/design-panel.webp": {
     "w": 2880,
     "h": 1600,
-    "bytes": 113716,
+    "bytes": 113116,
     "kind": "image"
   },
   "/docs-assets/guides/themes/design-saved.dark.webp": {
@@ -1402,33 +1402,33 @@
   "/docs-assets/guides/themes/design-switch-themes.mp4": {
     "w": 1440,
     "h": 820,
-    "duration": 13.47,
-    "bytes": 373155,
+    "duration": 13.33,
+    "bytes": 365231,
     "kind": "clip"
   },
   "/docs-assets/guides/themes/design-switch-themes.webm": {
     "w": 1440,
     "h": 820,
-    "duration": 13.47,
-    "bytes": 444461,
+    "duration": 13.33,
+    "bytes": 439455,
     "kind": "clip"
   },
   "/docs-assets/guides/themes/design-switch-themes.webp": {
     "w": 1440,
     "h": 820,
-    "bytes": 50694,
+    "bytes": 50230,
     "kind": "poster"
   },
   "/docs-assets/guides/themes/design-theme-filter.dark.webp": {
     "w": 768,
     "h": 1586,
-    "bytes": 56404,
+    "bytes": 55622,
     "kind": "image"
   },
   "/docs-assets/guides/themes/design-theme-filter.webp": {
     "w": 768,
     "h": 1586,
-    "bytes": 57912,
+    "bytes": 57124,
     "kind": "image"
   },
   "/docs-assets/guides/themes/theme-academic.dark.webp": {

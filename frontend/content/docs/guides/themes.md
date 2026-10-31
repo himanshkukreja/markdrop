@@ -9,7 +9,7 @@ keywords: [theme, design, preset, layout, clean, editorial, technical, minimal, 
 
 A theme sets the whole guide's layout, fonts, colours and corners. Pick one in the guide's **Design** tab; you can switch any time, and nothing about your pages changes.
 
-![The Design tab: under Theme, the filter (All 14, Product docs, Help center, Developer, New) and the theme cards, each with a small drawing of it, with Clean selected; on the right a live preview of Acme's Quickstart page in the Clean theme with Acme's logo and teal colour.](/docs-assets/guides/themes/design-panel.webp)
+![The Design tab: under Theme, the filter (All 14, Docs, Help, Developer, New 8) and the theme cards, each with a small drawing of it, with Clean selected; on the right a live preview of Acme's Quickstart page in the Clean theme with Acme's logo and teal colour.](/docs-assets/guides/themes/design-panel.webp)
 
 ## Switch themes
 
@@ -18,7 +18,7 @@ A theme sets the whole guide's layout, fonts, colours and corners. Pick one in t
 Open the guide and choose **Design**. Only Guides admins can change it; everyone else can look around.
 
 ### Try the themes
-Choose a theme under **Theme**. The **Preview** updates at once. Use **Light** and **Dark** above the preview to see both. To narrow the list, choose **Product docs**, **Help center**, **Developer** or **New** above the themes.
+Choose a theme under **Theme**. The **Preview** updates at once. Use **Light** and **Dark** above the preview to see both. To narrow the list, choose **Docs** (product docs), **Help** (help centers), **Developer** or **New** above the themes.
 
 ### Save it
 Choose **Save design**, or **Reset** to go back to what's saved. Readers see the new design after the next [publish](/guides/publishing).
