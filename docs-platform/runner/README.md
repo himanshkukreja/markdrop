@@ -44,7 +44,10 @@ Exit 3 = not this runner's job (taken, finished, or the site's other build is ru
 A build: write the content folder from the spec (`site.json`, pages with frontmatter,
 `redirects.json`) → fetch the site's files the pages refer to from `sites/<site>/assets/` (cached
 by ETag) → `media.json` → `builder/build.mjs` → `publish` (uploads only objects R2 doesn't have,
-then flips `sites/<site>/current.json` and maps the hostnames). An import: the GitBook importer into
+asks the API whether the build is still wanted (`GET …/wanted`; the Python worker answers a
+`@@wanted?` line on stdin with `--wanted stdin`), then flips `sites/<site>/current.json` and maps
+the hostnames that have no mapping yet: a host of another site is never taken). A site taken down
+while it built never goes live: the run reports `{ok: false, aborted: true}`. An import: the GitBook importer into
 a temp folder → upload `public/docs-assets/**` to `sites/<site>/assets/**` → the folder as data
 (pages, nav, brand, redirects, `_import-report.json`) to the API, which writes the drafts.
 
@@ -87,8 +90,21 @@ Moving the builder to an organisation or another repo later is only these env va
 
 The workflow caches `node_modules` themselves (frontend + docs-platform, keyed by both lockfiles;
 a hit skips `npm ci`) and the builder's work folder (the staged engine + Next's `.next/cache`,
-keyed by engine commit + site, falling back to the same engine, then any). Imports skip the build
-cache and install ffmpeg only for themselves.
+keyed by site + engine commit, falling back to the same site on an older engine, never to another
+site's folder: it holds that site's content). Imports skip the build cache and install ffmpeg only
+for themselves. A site's first build on a runner is therefore cold (~35 s render instead of ~20 s).
+
+### Hardening, next
+
+The run-job step today holds everything at once: the job token (or the shared
+`DOCS_JOB_SECRET`), the R2 keys, and a `next build` of user content. Planned:
+
+- Run the import and the `next build` in a step of their own **without** `DOCS_JOB_SECRET` or the
+  R2 keys in its environment (it gets only the spec, fetched beforehand, and writes `dist/`).
+- Publish (upload, pointer flip after the API's "still wanted?" check) in a separate step that
+  has the R2 keys and runs no user content.
+- Prefer the per-job token the API dispatches over the shared `DOCS_JOB_SECRET` (a token opens one
+  job for a few hours; the secret mints a token for any job), then drop the secret from the repo.
 
 Estimate on a GitHub-hosted runner (not yet measured there; the builder repo doesn't exist yet):
 checkout (sparse: `frontend`, `docs-platform`) ~5 s, node_modules cache ~15–25 s (≈900 MB

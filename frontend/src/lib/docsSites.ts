@@ -298,6 +298,8 @@ export interface Site extends SiteSummary {
   open_review_id: string | null;
   counts: { pages: number; hidden_pages: number; open_reviews: number; builds_today: number; storage_bytes: number; ai_answers_this_month: number };
   limits: Limits;
+  /** False while the docs edge doesn't hold the site's current access setting yet (the server keeps retrying). */
+  access_enforced?: boolean;
   /** POST /docs-sites (GitBook import, template seed) and POST …/unpublish: the job it started. */
   job?: Job | null;
 }

@@ -34,7 +34,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.services import docs_jobs
-from app.services.docs_jobs import BUILDS, PAGES, SITES, SNAPSHOTS, now, oid
+from app.services.docs_jobs import BUILDS, JOBS, PAGES, SITES, SNAPSHOTS, now, oid
 
 log = logging.getLogger(__name__)
 
@@ -136,7 +136,8 @@ def point_site(store: Any, site: str, manifest: str, *, force: bool = False) -> 
     if raw is None:
         raise RestoreError(f"manifest {manifest[:12]} is not in the store")
     m = json.loads(raw)
-    if not force and (m.get("site") or {}).get("id") not in (None, site):
+    # A manifest that names no site is refused too: it can't be shown to be this one's.
+    if not force and (m.get("site") or {}).get("id") != site:
         raise RestoreError(f"manifest {manifest[:12]} belongs to another site")
     cur_raw = store.get_text(f"sites/{site}/current.json")
     cur = json.loads(cur_raw) if cur_raw else None
@@ -178,6 +179,62 @@ def ensure_hosts(store: Any, site: str, hosts: list[str]) -> list[str]:
     return added
 
 
+def host_owner(store: Any, host: str) -> str | None:
+    raw = store.get_text(f"hosts/{host.lower()}.json")
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw).get("site")
+    except (ValueError, AttributeError):
+        return None
+
+
+def manifest_site(store: Any, manifest: str) -> str | None:
+    """The site id a manifest in the store names (None: missing, unreadable or nameless)."""
+    raw = store.get_text(f"manifests/{manifest}.json")
+    if raw is None:
+        return None
+    try:
+        return (json.loads(raw).get("site") or {}).get("id")
+    except (ValueError, AttributeError):
+        return None
+
+
+def owned_hosts(site: dict | None) -> list[str]:
+    """The addresses a site holds right now in the database: its free address (current slug) and
+    its verified domains. Nothing for a deleted site or one without a slug."""
+    from app.services import docs_snapshot
+
+    if not site or site.get("deleted_at") or not site.get("slug"):
+        return []
+    return [h.lower() for h in docs_snapshot.site_hosts(site)]
+
+
+async def free_stale_hosts(db: AsyncIOMotorDatabase, site_id: Any, hosts: list[str]) -> list[str]:
+    """Host mappings of ``hosts`` that still point at another site which no longer holds that
+    address in the database (it moved to a new slug, or was deleted, before its old address was
+    taken down): removed, so this site's publish can claim them. A mapping of a site that still
+    holds the address is never touched. Best effort."""
+    if not hosts or not store_available():
+        return []
+    sid = str(site_id)
+    try:
+        store = default_store()
+        owners = await asyncio.to_thread(lambda: {h: host_owner(store, h) for h in hosts})
+        freed = []
+        for h, owner in owners.items():
+            if not owner or owner == sid:
+                continue
+            other = await db[SITES].find_one({"_id": oid(owner)}, {"slug": 1, "domains": 1, "deleted_at": 1})
+            if h.lower() in owned_hosts(other):
+                continue
+            freed += await asyncio.to_thread(drop_hosts, store, owner, [h])
+        return freed
+    except Exception:
+        log.warning("docs site %s: couldn't check its addresses for stale mappings", sid, exc_info=True)
+        return []
+
+
 # ── builds ──────────────────────────────────────────────────────────────────
 
 
@@ -210,6 +267,11 @@ async def build_spec(db: AsyncIOMotorDatabase, job: dict, build: dict | None = N
     if build is None:
         raise LookupError("the job's build is missing")
     b = await docs_snapshot.bundle(db, build)
+    hosts = b["publish"]["hosts"]
+    # The runner writes a mapping only where none is: a stale one (another site's old address)
+    # goes first. The hosts are kept on the build, so a take-down drops exactly what it wrote.
+    await free_stale_hosts(db, build["site_id"], hosts)
+    await db[BUILDS].update_one({"_id": build["_id"]}, {"$set": {"publish_hosts": hosts}})
     return {
         "job": {"id": str(job["_id"]), "kind": "build", "site_id": str(job["site_id"]), "attempt": int(job.get("attempts") or 1)},
         "build": {"id": str(build["_id"]), "number": build.get("number")},
@@ -241,6 +303,76 @@ async def _snapshot_slug(db: AsyncIOMotorDatabase, build: dict | None) -> str | 
     return ((snap or {}).get("site") or {}).get("slug")
 
 
+CANCELLED = ("failed", "superseded")
+TAKEN_DOWN = "Not published: the site was taken down while this version was building."
+
+
+def _taken_down_since(site: dict, build: dict) -> bool:
+    """The site was unpublished after this build was requested (a publish made after an
+    unpublish is wanted: it puts the site back)."""
+    if site.get("status") != "unpublished":
+        return False
+    at, asked = docs_jobs.aware(site.get("taken_down_at")), docs_jobs.aware(build.get("created_at"))
+    return at is None or asked is None or asked <= at
+
+
+async def wanted(db: AsyncIOMotorDatabase, build: dict | None) -> tuple[bool, str]:
+    """Whether this build may still go live: (yes/no, why). No when the site was deleted or taken
+    down after it was requested, or the build was cancelled (failed or superseded meanwhile)."""
+    if build is None:
+        return False, "the build is missing"
+    if build.get("status") in CANCELLED:
+        return False, "the build was cancelled"
+    site = await db[SITES].find_one({"_id": build["site_id"]}, {"status": 1, "deleted_at": 1, "taken_down_at": 1})
+    if site is None or site.get("deleted_at"):
+        return False, "the site was deleted"
+    if _taken_down_since(site, build):
+        return False, "the site was unpublished"
+    return True, "ok"
+
+
+async def still_wanted(db: AsyncIOMotorDatabase, job: dict, worker: str | None) -> tuple[bool, str]:
+    """The runner's question right before it flips the pointer (GET /internal/docs-jobs/{id}/wanted,
+    or the local worker's "@@wanted?"): the job must still be this runner's and its build wanted."""
+    cur = await db[JOBS].find_one({"_id": job["_id"]}, {"status": 1, "locked_by": 1})
+    if cur is None or cur.get("status") != "running" or (worker is not None and cur.get("locked_by") != worker):
+        return False, "the job isn't this runner's any more"
+    return await wanted(db, await job_build(db, job))
+
+
+async def _undo_flip(db: AsyncIOMotorDatabase, build: dict, reason: str) -> dict | None:
+    """The runner flipped the pointer (and wrote host mappings) for a build that must not be live:
+    put back the site's live build if it has one, else take its addresses down. Queued as a server
+    job, so it runs where the bucket keys are; both jobs are idempotent."""
+    from app.services.docs_site_jobs import enqueue_job
+
+    site = await db[SITES].find_one({"_id": build["site_id"]}) or {}
+    live_id = site.get("live_build_id")
+    live = await db[BUILDS].find_one({"_id": live_id}) if live_id and live_id != build["_id"] else None
+    if live is not None and live.get("manifest_hash") and not site.get("deleted_at") \
+            and site.get("status") != "unpublished":
+        return await enqueue_job(db, "restore", build["site_id"], {
+            "build_id": str(live["_id"]), "number": live.get("number"), "manifest_hash": live["manifest_hash"],
+            "reason": reason})
+    return await enqueue_job(db, "unpublish", build["site_id"], {
+        "reason": reason, "slug": site.get("slug") or site.get("deleted_slug"),
+        "hosts": list(build.get("publish_hosts") or [])})
+
+
+async def _manifest_problem(manifest: str, site_id: Any) -> str | None:
+    """The manifest the runner reported must be in the store and name the job's site."""
+    if not store_available():
+        return None  # nowhere to look (an API without the bucket keys): the runner is trusted
+    try:
+        named = await asyncio.to_thread(manifest_site, default_store(), manifest)
+    except Exception:
+        log.warning("docs build: couldn't read manifest %s", manifest[:12], exc_info=True)
+        return None
+    if named != str(site_id):
+        return "the runner reported a manifest of another site" if named else "the runner reported a manifest the store doesn't have"
+    return None
+
+
 async def finish_build(db: AsyncIOMotorDatabase, job: dict, worker: str | None, result: dict) -> dict:
     """The runner's result → the build (live or failed), the site's live fields, the pages'
     published copies, the job. Returns the job's stored result."""
@@ -249,6 +381,12 @@ async def finish_build(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
     if build is None:
         await docs_jobs.fail(db, job["_id"], worker, "the job's build is missing")
         return {"ok": False}
+    if not result.get("ok") and result.get("aborted"):
+        # The runner asked before flipping the pointer and was told no: nothing went live.
+        await db[BUILDS].update_one({"_id": build["_id"], "status": {"$nin": ["live"]}},
+                                    {"$set": {"status": "superseded", "error": TAKEN_DOWN, "finished_at": t}})
+        await docs_jobs.complete(db, job["_id"], worker, {"ok": True, "build_id": str(build["_id"]), "taken_down": True})
+        return {"ok": True, "taken_down": True}
     if not result.get("ok"):
         err = str(result.get("error") or "the build failed")[:2000]
         await db[BUILDS].update_one({"_id": build["_id"]}, {"$set": {"status": "failed", "error": err, "finished_at": t}})
@@ -257,16 +395,28 @@ async def finish_build(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
                                   build_id=str(build["_id"]), number=build.get("number"))
         return {"ok": False, "error": err}
     manifest = str(result.get("manifest_hash") or "")
-    if len(manifest) != 64:
+    if len(manifest) != 64 or any(c not in "0123456789abcdef" for c in manifest):
         return await finish_build(db, job, worker, {"ok": False, "error": "the runner reported no manifest"})
+    problem = await _manifest_problem(manifest, build["site_id"])
+    if problem:
+        log.warning("docs build %s: %s (%s)", build["_id"], problem, manifest[:12])
+        await _undo_flip(db, build, "bad_manifest")
+        return await finish_build(db, job, worker, {"ok": False, "error": problem})
     stats = _clean_stats(result.get("stats")) or {}
-    site = await db[SITES].find_one({"_id": build["site_id"]}, {"live_build_id": 1, "status": 1, "deleted_at": 1, "domains": 1})
-    if site is None or site.get("deleted_at") or site.get("status") == "unpublished":
-        # Taken down while it built: don't put it back live (the unpublish job clears the address).
-        await db[BUILDS].update_one({"_id": build["_id"]}, {"$set": {"status": "superseded", "manifest_hash": manifest,
-                                                                       "stats": stats, "finished_at": t}})
-        await docs_jobs.complete(db, job["_id"], worker, {"ok": True, "build_id": str(build["_id"]), "taken_down": True})
+    ok, why = await wanted(db, build)
+    if not ok:
+        # Taken down (or cancelled) while it built, after the runner's last check: it flipped the
+        # pointer and wrote the host mappings already. Don't record it live, and undo that.
+        sets: dict = {"manifest_hash": manifest, "stats": stats, "finished_at": t}
+        if build.get("status") not in CANCELLED:  # a cancelled build keeps its status and reason
+            sets.update(status="superseded", error=TAKEN_DOWN)
+        await db[BUILDS].update_one({"_id": build["_id"]}, {"$set": sets})
+        undo = await _undo_flip(db, build, "build_after_take_down")
+        await docs_jobs.complete(db, job["_id"], worker, {"ok": True, "build_id": str(build["_id"]), "taken_down": True,
+                                                          "reason": why, "undo_job_id": str(undo["_id"]) if undo else None})
         return {"ok": True, "taken_down": True}
+    site = await db[SITES].find_one({"_id": build["site_id"]}, {"live_build_id": 1, "status": 1, "deleted_at": 1,
+                                                                 "domains": 1, "slug": 1})
     prev_id = site.get("live_build_id")
     prev = await db[BUILDS].find_one({"_id": prev_id}) if prev_id else None
     await db[BUILDS].update_one({"_id": build["_id"]}, {"$set": {
@@ -305,15 +455,17 @@ async def _reconcile_access(db: AsyncIOMotorDatabase, site_id: Any, written: Any
     want = docs_site_access.policy(site)
     if isinstance(written, dict) and written.get("level") == want["level"] \
             and written.get("policy_version") == want["policy_version"]:
+        await docs_site_access.mark_synced(db, site_id, want["policy_version"])
         return
     await docs_site_access.queue_sync(db, site_id, "build")
 
 
 async def _drop_old_address(db: AsyncIOMotorDatabase, site: dict, build: dict, prev: dict | None) -> list[str]:
-    """The publish moved the site to a new slug: the old free address stops serving it."""
+    """The site's free address moved (a new slug): the address the last live build was published
+    at stops serving it. The new one is the site's slug now (what build_spec published to)."""
     from app.services import docs_snapshot
 
-    old, new = await _snapshot_slug(db, prev), await _snapshot_slug(db, build)
+    old, new = await _snapshot_slug(db, prev), site.get("slug") or await _snapshot_slug(db, build)
     if not old or not new or old == new or not store_available():
         return []
     try:
@@ -383,14 +535,25 @@ async def restore_build(db: AsyncIOMotorDatabase, site_id: Any, build_id: Any, b
     return {"build_id": str(build["_id"]), "number": build.get("number"), "manifest_hash": build["manifest_hash"], "unchanged": res["unchanged"]}
 
 
-async def unpublish(db: AsyncIOMotorDatabase, site_id: Any, slug: str | None, *, store: Any = None) -> dict:
-    """Take the site off its addresses: remove its host mappings (the free address for ``slug``
-    and its own domains) and its pointer. The API already marked it unpublished."""
+async def unpublish(db: AsyncIOMotorDatabase, site_id: Any, slug: str | None, *, store: Any = None,
+                    extra_hosts: list[str] | None = None) -> dict:
+    """Take the site off its addresses: remove its host mappings (the free address for ``slug``,
+    its slug now, its own domains, and ``extra_hosts``: what a build published to) and its pointer.
+    The API already marked it unpublished. Idempotent: a mapping already gone (or another site's)
+    and a missing pointer are fine, so it can run again, or after a build that went live late."""
     from app.services import docs_snapshot
 
     site = await db[SITES].find_one({"_id": oid(site_id)})
     sid = str(oid(site_id))
-    hosts = docs_snapshot.site_hosts(site or {"_id": sid, "domains": []}, slug or (site or {}).get("deleted_slug"))
+    if site is not None and site.get("status") == "live" and not site.get("deleted_at"):
+        # Published (or restored) again since this was queued: nothing to take down.
+        return {"hosts_removed": [], "skipped": "the site is live again"}
+    base = site or {"_id": sid, "domains": []}
+    hosts = docs_snapshot.site_hosts(base, slug or (site or {}).get("deleted_slug"))
+    if (site or {}).get("slug"):
+        hosts += docs_snapshot.site_hosts(base)
+    hosts += [h for h in (extra_hosts or []) if isinstance(h, str) and h]
+    hosts = list(dict.fromkeys(h.lower() for h in hosts))
     store = store or default_store()
 
     def work():
@@ -409,7 +572,7 @@ async def run_server_job(db: AsyncIOMotorDatabase, job: dict, worker: str) -> di
         if job["kind"] == "restore":
             res = await restore_build(db, job["site_id"], p.get("build_id"), p.get("requested_by") or p.get("by"))
         elif job["kind"] == "unpublish":
-            res = await unpublish(db, job["site_id"], p.get("slug"))
+            res = await unpublish(db, job["site_id"], p.get("slug"), extra_hosts=p.get("hosts"))
             await docs_jobs.log_event(db, "docs_unpublished", job["site_id"], None, reason=p.get("reason"), **res)
         elif job["kind"] == "access":
             from app.services import docs_site_access
@@ -420,5 +583,10 @@ async def run_server_job(db: AsyncIOMotorDatabase, job: dict, worker: str) -> di
     except RestoreError as e:
         await docs_jobs.fail(db, job["_id"], worker, str(e))
         return {"ok": False, "error": str(e)}
+    except Exception as e:  # the bucket hiccuped: try again (until the job is out of attempts)
+        log.warning("docs %s job %s failed", job["kind"], job["_id"], exc_info=True)
+        err = f"{type(e).__name__} while writing to the docs bucket"
+        await docs_jobs.retry_later(db, job, worker, err)
+        return {"ok": False, "error": err}
     await docs_jobs.complete(db, job["_id"], worker, {"ok": True, **res})
     return {"ok": True, **res}

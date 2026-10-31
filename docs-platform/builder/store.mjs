@@ -6,7 +6,9 @@
  *   objects/<sha256>                 immutable bodies (pages, payloads, assets, chunks, MCP input)
  *   manifests/<sha256>.json          immutable build manifests
  *   sites/<site>/current.json        the pointer: {"manifest": "<sha256>", ...}; publishing = rewriting it
- *   hosts/<hostname>.json            {"site": "<site>"}: which site a hostname serves
+ *   hosts/<hostname>.json            {"site": "<site>"}: which site a hostname serves (a publish
+ *                                    writes one only where none is, or where it is already its
+ *                                    site's: a host is never taken from another site)
  *   sites/<site>/access.json         {"site", "level", "policy_version"}: a password or members-only
  *                                    site's policy (no object = public; no secrets in it). Never
  *                                    served: the edge serves only what a manifest lists. Written by
@@ -254,9 +256,59 @@ export async function writeAccess(store, site, access, { dryRun = false } = {}) 
   return { level: access.level, policy_version: access.policy_version, written: true };
 }
 
+/** Thrown by a store from withPointerGuard when the site is no longer wanted live. */
+export class NotWanted extends Error {
+  constructor(message = "the site was taken down while this version was building") {
+    super(message);
+    this.notWanted = true;
+  }
+}
+
+/**
+ * `store` with one check in front of the publish's last step: before `sites/<site>/current.json`
+ * is written, `stillWanted()` (the API: is this build still to go live?) must answer true, else
+ * the write is refused with NotWanted and nothing goes live. Every other call passes through.
+ */
+export function withPointerGuard(store, site, stillWanted) {
+  const guarded = Object.create(store);
+  guarded.put = async (key, body) => {
+    if (key === `sites/${site}/current.json` && !(await stillWanted())) throw new NotWanted();
+    return store.put(key, body);
+  };
+  return guarded;
+}
+
+/**
+ * Point `hosts` at `site`: a mapping is written only when the host has none (one that already
+ * serves this site is left as it is). A host that serves another site is never taken: the API
+ * moves a host between sites, a build doesn't. Returns { written, kept: [hosts of another site] }.
+ */
+export async function claimHosts(store, site, hosts, { dryRun = false } = {}) {
+  const written = [];
+  const kept = [];
+  for (const raw of hosts) {
+    const h = String(raw).toLowerCase();
+    const key = `hosts/${h}.json`;
+    const cur = await store.getText(key);
+    if (cur !== null) {
+      let owner = null;
+      try {
+        owner = JSON.parse(cur)?.site ?? null;
+      } catch {
+        owner = null;
+      }
+      if (owner !== site) kept.push(h);
+      continue;
+    }
+    if (!dryRun) await store.put(key, JSON.stringify({ site }));
+    written.push(h);
+  }
+  return { written, kept };
+}
+
 /**
  * Upload dist/ to `store` for `site` and flip the pointer. `hosts` (optional) are pointed at the
- * site. `access` (optional, {level, policy_version}) is written before the pointer flips, so a
+ * site where free (claimHosts). `access` (optional, {level, policy_version}) is written before the pointer flips, so a
  * password or members-only site is never served without its policy. Returns counts for the report.
  */
 export async function publish({ distDir, store, site, hosts = [], access = null, concurrency = 16, dryRun = false }) {
@@ -301,17 +353,17 @@ export async function publish({ distDir, store, site, hosts = [], access = null,
   if (!dryRun) {
     await store.put(`manifests/${manifestHash}.json`, manifestJson);
     await store.put(`sites/${siteId}/current.json`, JSON.stringify({ manifest: manifestHash, engine: manifest.engine, publishedAt: new Date().toISOString(), previous: pointer?.manifest ?? null }));
-    for (const h of hosts) await store.put(`hosts/${h.toLowerCase()}.json`, JSON.stringify({ site: siteId }));
   }
-  return { site: siteId, manifest: manifestHash, objects: wanted.length, knownFromPrevious, checked, uploaded, uploadedBytes, uploadedKeys, unchanged: false, access: accessRes };
+  const hostsRes = await claimHosts(store, siteId, hosts, { dryRun });
+  return { site: siteId, manifest: manifestHash, objects: wanted.length, knownFromPrevious, checked, uploaded, uploadedBytes, uploadedKeys, unchanged: false, access: accessRes, hosts: hostsRes };
 }
 
 /**
  * Point a site at a manifest the store already has: the restore (an earlier build goes live again
  * with no rebuild and no upload; manifests and objects are never deleted). The pointer is the one
  * object a publish rewrites, so this is the same atomic switch, and `previous` keeps the build it
- * replaced (the assets sync keeps that one's engine files too). Refuses a manifest of another site
- * unless `force`.
+ * replaced (the assets sync keeps that one's engine files too). Refuses a manifest that isn't this
+ * site's (another site's, or one that names no site) unless `force`.
  */
 export async function pointSite({ store, site, manifest, force = false, dryRun = false }) {
   if (!site || !/^[A-Za-z0-9_-]{1,64}$/.test(site)) throw new Error(`bad site id ${site}`);
@@ -319,7 +371,7 @@ export async function pointSite({ store, site, manifest, force = false, dryRun =
   const raw = await store.getText(`manifests/${manifest}.json`);
   if (!raw) throw new Error(`manifest ${manifest} is not in the store`);
   const m = JSON.parse(raw);
-  if (!force && m.site?.id && m.site.id !== site) throw new Error(`manifest ${manifest.slice(0, 12)} belongs to site "${m.site.id}", not "${site}"`);
+  if (!force && m.site?.id !== site) throw new Error(`manifest ${manifest.slice(0, 12)} belongs to site "${m.site?.id ?? "(none)"}", not "${site}"`);
   const pointer = await store.getText(`sites/${site}/current.json`).then((t) => (t ? JSON.parse(t) : null)).catch(() => null);
   if (pointer?.manifest === manifest) return { site, manifest, engine: m.engine, previous: pointer.previous ?? null, unchanged: true };
   const next = { manifest, engine: m.engine, publishedAt: new Date().toISOString(), previous: pointer?.manifest ?? null, restored: true };

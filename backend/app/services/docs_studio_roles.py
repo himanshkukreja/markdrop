@@ -375,11 +375,51 @@ async def check_target(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str
     return ws_role
 
 
+# ── Members-only sites: a reader who loses access is signed out ───────────────
+#
+# A members-only site's reader holds a 12-hour edge session, minted when their role was checked.
+# When someone's effective role on such a site drops to none (they left the workspace, their studio
+# role went, a site override hides it, a workspace admin was demoted), the site's policy version is
+# bumped (docs_site_access.revoke_sessions): every session of the old version stops working and the
+# others sign in again, while this person no longer can.
+
+
+async def members_sites(db: AsyncIOMotorDatabase, workspace_id: str) -> list[dict]:
+    """The workspace's members-only docs sites (the only level whose readers are workspace members)."""
+    return await db["docs_sites"].find(
+        {"workspace_id": workspace_id, "deleted_at": None, "settings.access.level": "members"},
+        {"workspace_id": 1, "owner_id": 1}).to_list(length=None)
+
+
+async def readable(db: AsyncIOMotorDatabase, sites: list[dict], user_id: str) -> set:
+    """Ids of the ``sites`` this person may read now (any studio role)."""
+    return {s["_id"] for s in sites if (await resolve(db, s, user_id)).role is not None}
+
+
+async def revoke_lost(db: AsyncIOMotorDatabase, sites: list[dict], before: set, user_id: str, reason: str) -> list:
+    """Sign readers out of every site in ``before`` this person can't read any more."""
+    from app.services import docs_site_access
+
+    after = await readable(db, sites, user_id)
+    lost = [s["_id"] for s in sites if s["_id"] in before and s["_id"] not in after]
+    for sid in lost:
+        await docs_site_access.revoke_sessions(db, sid, reason)
+    return lost
+
+
 async def set_workspace_role(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str, role: str,
                              actor_id: str) -> None:
     """Give a workspace member a studio role ("none" removes it). Audited when it changes."""
     _check_role(role)
     await check_target(db, workspace_id, user_id, actor_id)
+    sites = await members_sites(db, workspace_id)
+    before = await readable(db, sites, user_id)
+    await _set_workspace_role(db, workspace_id, user_id, role, actor_id)
+    await revoke_lost(db, sites, before, user_id, "role_changed")
+
+
+async def _set_workspace_role(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str, role: str,
+                              actor_id: str) -> None:
     before = await db[STUDIO_MEMBERS].find_one({"workspace_id": workspace_id, "user_id": user_id})
     previous = (before or {}).get("role")
     if role == "none":
@@ -410,10 +450,24 @@ async def set_site_override(db: AsyncIOMotorDatabase, site: dict, user_id: str, 
     if not wid:
         raise HTTPException(status_code=422, detail="A personal site has only its owner.")
     await check_target(db, wid, user_id, actor_id)
+    could_read = await readable(db, [site], user_id)
     before = await db[SITE_MEMBERS].find_one({"site_id": site["_id"], "user_id": user_id})
     previous = (before or {}).get("role")
     if before is not None and previous == role:
         return
+    await _set_site_override(db, site, wid, user_id, role, actor_id, before, previous)
+    await revoke_lost(db, await _members_only(db, site), could_read, user_id, "role_changed")
+
+
+async def _members_only(db: AsyncIOMotorDatabase, site: dict) -> list[dict]:
+    """[site] when it is a members-only site (read fresh), else []."""
+    row = await db["docs_sites"].find_one({"_id": site["_id"], "deleted_at": None, "settings.access.level": "members"},
+                                          {"workspace_id": 1, "owner_id": 1})
+    return [row] if row else []
+
+
+async def _set_site_override(db: AsyncIOMotorDatabase, site: dict, wid: str, user_id: str, role: str, actor_id: str,
+                             before: dict | None, previous: str | None) -> None:
     try:
         await db[SITE_MEMBERS].update_one(
             {"site_id": site["_id"], "user_id": user_id},
@@ -432,10 +486,12 @@ async def remove_site_override(db: AsyncIOMotorDatabase, site: dict, user_id: st
     if not wid:
         raise HTTPException(status_code=422, detail="A personal site has only its owner.")
     await check_target(db, wid, user_id, actor_id)
+    could_read = await readable(db, [site], user_id)
     before = await db[SITE_MEMBERS].find_one_and_delete({"site_id": site["_id"], "user_id": user_id})
     if before is not None:
         await _event(db, EV_REMOVED, actor_id=actor_id, workspace_id=wid, site_id=site["_id"],
                      target_user_id=user_id, role=None, previous=before.get("role"), scope="site")
+        await revoke_lost(db, await _members_only(db, site), could_read, user_id, "role_changed")
 
 
 # ── History ───────────────────────────────────────────────────────────────────
@@ -478,9 +534,19 @@ async def history(db: AsyncIOMotorDatabase, *, workspace_id: str | None = None, 
 
 
 async def member_left(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str,
-                      actor_id: str | None = None) -> int:
+                      actor_id: str | None = None, *, could_read: set | None = None) -> int:
     """Someone left (or was removed from) the workspace: all their studio access there goes.
-    (Read time already ignores their rows; this deletes them, audited.)"""
+    (Read time already ignores their rows; this deletes them, audited.) Every members-only site
+    they could read signs its readers out (``could_read``: those site ids, taken before the
+    membership went; None: every members-only site of the workspace)."""
+    sites = await members_sites(db, workspace_id)
+    before = could_read if could_read is not None else {s["_id"] for s in sites}
+    removed = await _drop_member_rows(db, workspace_id, user_id, actor_id)
+    await revoke_lost(db, sites, before, user_id, "member_left")
+    return removed
+
+
+async def _drop_member_rows(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str, actor_id: str | None) -> int:
     removed = 0
     grant = await db[STUDIO_MEMBERS].find_one_and_delete({"workspace_id": workspace_id, "user_id": user_id})
     if grant is not None:

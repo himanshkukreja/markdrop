@@ -235,12 +235,19 @@ async def set_member_role(
         raise HTTPException(status_code=404, detail="That person isn't in this workspace.")
     if actor_id is not None and actor_id != workspace.owner_id and (role == "admin" or current == "admin"):
         raise HTTPException(status_code=403, detail="Only the workspace owner can change an admin's role.")
+    from app.services import docs_studio_roles
+
+    # A demoted workspace admin is no longer a studio admin everywhere: members-only docs sites
+    # they can't read any more sign their readers out.
+    docs_sites = await docs_studio_roles.members_sites(db, workspace_id)
+    could_read = await docs_studio_roles.readable(db, docs_sites, user_id)
     result = await db["memberships"].update_one(
         {"workspace_id": workspace_id, "user_id": user_id, "role": current}, {"$set": {"role": role}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="That person isn't in this workspace.")
     await lifecycle.member_demoted(db, workspace_id, user_id, role)
+    await docs_studio_roles.revoke_lost(db, docs_sites, could_read, user_id, "role_changed")
 
 
 async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str,
@@ -260,13 +267,15 @@ async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
     if actor_id is not None and actor_id != user_id and actor_id != workspace.owner_id:
         if await role_for(db, workspace_id, user_id) == "admin":
             raise HTTPException(status_code=403, detail="Only the workspace owner can remove an admin.")
+    from app.services import docs_studio_roles
+
+    # The members-only docs sites they can read, while they still can (their sessions there end).
+    could_read = await docs_studio_roles.readable(db, await docs_studio_roles.members_sites(db, workspace_id), user_id)
     res = await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id})
     if res.deleted_count:
         await lifecycle.member_left(db, workspace_id, user_id)
         # Their Docs Studio roles there go too (read time already ignores them).
-        from app.services import docs_studio_roles
-
-        await docs_studio_roles.member_left(db, workspace_id, user_id, actor_id=actor_id)
+        await docs_studio_roles.member_left(db, workspace_id, user_id, actor_id=actor_id, could_read=could_read)
 
 
 async def transfer_ownership(db: AsyncIOMotorDatabase, workspace_id: str, actor_id: str,
@@ -389,9 +398,12 @@ async def delete_workspace(
     await revalidate.flush(db, [*keys, *doc_keys])
     await db["folders"].delete_many({"workspace_id": workspace_id})
     await db["invitations"].delete_many({"workspace_id": workspace_id})
-    members = await db["memberships"].delete_many({"workspace_id": workspace_id})
-    from app.services import docs_studio_roles
+    # Its docs sites go with it: soft-deleted and taken off their addresses (the same as deleting
+    # each one), so nothing it published stays live with nobody able to manage it.
+    from app.services import docs_site_store, docs_studio_roles
 
+    docs_sites = await docs_site_store.delete_workspace_sites(db, workspace_id, user_id)
+    members = await db["memberships"].delete_many({"workspace_id": workspace_id})
     await docs_studio_roles.workspace_deleted(db, workspace_id)
     await db["workspaces"].delete_one({"_id": ObjectId(workspace_id)})
     # C-N6: a filing that passed its checks before ``deleting`` was set can
@@ -408,6 +420,7 @@ async def delete_workspace(
         "documents_released": released,
         "domains_removed": len(domains),
         "members_removed": members.deleted_count,
+        "docs_sites_deleted": docs_sites,
     }
 
 

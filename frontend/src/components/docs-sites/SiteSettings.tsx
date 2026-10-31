@@ -223,6 +223,9 @@ export default function SiteSettings() {
 
         <Card id="access" title="Who can read it">
           <RadioGroup name={`${uid}-access`} value={level} onChange={chooseAccess} options={accessOptions} aria-label="Who can read it" />
+          {site.access_enforced === false && s.access.level !== "public" && (
+            <p className="pl-7 text-[13px] text-text-muted" role="status">Not enforced yet — retrying. Readers may still see the previous setting for a few minutes.</p>
+          )}
           {level === "password" && isAdmin && (
             <div className="flex flex-wrap items-end gap-2 pl-7">
               <Field label={s.access.has_password ? "Change the password" : "Password"} htmlFor={`${uid}-pw`} className="min-w-0 flex-[1_1_240px]" hint={s.access.has_password ? "Readers who already opened the site stay signed in." : "Share it with the people who should read the site."}>

@@ -307,7 +307,9 @@ async def _page_ids(db: AsyncIOMotorDatabase, snapshot: dict) -> None:
 
 async def bundle(db: AsyncIOMotorDatabase, build: dict) -> dict:
     """The runner's view of a build: {bundle: {site_id, files, warnings}, publish: {site, hosts, access}}.
-    The address is the snapshot's (a slug change goes live with the publish that carries it)."""
+    The hosts are what the site holds in the database *now* (its slug's free address and its
+    verified domains), never the snapshot's: a snapshot's slug may since have gone to another site.
+    The runner maps a host only where none is (docs-platform/builder/store.mjs claimHosts)."""
     snapshot = await db[SNAPSHOTS].find_one({"_id": oid(build["snapshot_id"])})
     if snapshot is None:
         raise LookupError(f"snapshot {build.get('snapshot_id')} not found")
@@ -317,12 +319,13 @@ async def bundle(db: AsyncIOMotorDatabase, build: dict) -> dict:
     from app.services.docs_site_access import policy
 
     await _page_ids(db, snapshot)
-    slug = (snapshot.get("site") or {}).get("slug") or site.get("slug")
+    slug = site.get("slug") or (snapshot.get("site") or {}).get("slug")
+    hosts = site_hosts(site) if site.get("slug") and not site.get("deleted_at") else []
     ai_api = get_jobs_settings().docs_ai_api or get_settings().api_base_url
     files, warnings = content_files(site, snapshot, url=site_url(site, slug), ai_api=ai_api)
     return {
         "bundle": {"site_id": str(site["_id"]), "files": files, "warnings": warnings},
         # access: the policy the runner writes (sites/<id>/access.json) before it flips the pointer,
         # so a password or members-only site is never live without it (services/docs_site_access.py).
-        "publish": {"site": str(site["_id"]), "hosts": site_hosts(site, slug), "access": policy(site)},
+        "publish": {"site": str(site["_id"]), "hosts": hosts, "access": policy(site)},
     }

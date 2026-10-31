@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
-import { FsStore, pointSite, publish, writeAccess } from "../builder/store.mjs";
+import { FsStore, NotWanted, claimHosts, pointSite, publish, withPointerGuard, writeAccess } from "../builder/store.mjs";
 import { mediaManifest } from "../builder/media.mjs";
 import { fetchAssets, readImportFolder, readPageFile, referencedAssets, safeRel, uploadImportAssets, writeContent } from "../runner/lib.mjs";
 
@@ -137,6 +137,10 @@ test("point: a restore flips the pointer to a manifest the store has, of the sam
   assert.deepEqual([ptr.manifest, ptr.previous, ptr.engine, ptr.restored], [h1, h2, "e1", true]);
   assert.equal((await pointSite({ store, site: "s1", manifest: h1 })).unchanged, true);
   await assert.rejects(pointSite({ store, site: "s2", manifest: h1 }), /belongs to site "s1"/);
+  // A manifest that names no site can't be shown to be this one's.
+  const h0 = "0".repeat(64);
+  await store.put(`manifests/${h0}.json`, JSON.stringify({ engine: "e0" }));
+  await assert.rejects(pointSite({ store, site: "s1", manifest: h0 }), /belongs to site "\(none\)"/);
   await assert.rejects(pointSite({ store, site: "s1", manifest: "3".repeat(64) }), /not in the store/);
   await assert.rejects(pointSite({ store, site: "s1", manifest: "nope" }), /sha256/);
   await assert.rejects(pointSite({ store, site: "../x", manifest: h1 }), /bad site id/);
@@ -176,6 +180,56 @@ test("access policy: written before the pointer flips, never to a lower version,
   await assert.rejects(writeAccess(store, "s1", { level: "password" }), /bad access policy/);
   fs.rmSync(root, { recursive: true, force: true });
   fs.rmSync(dist, { recursive: true, force: true });
+});
+
+/** A one-page dist/ folder for site `site`. */
+function tinyDist(site, text = "<html>x</html>") {
+  const dist = tmp("dist-");
+  const body = Buffer.from(text);
+  const o = crypto.createHash("sha256").update(body).digest("hex");
+  fs.mkdirSync(path.join(dist, "objects"));
+  fs.writeFileSync(path.join(dist, "objects", o), body);
+  fs.writeFileSync(path.join(dist, "manifest.json"), JSON.stringify({ site: { id: site }, engine: "e", routes: { "/docs-site": { o, s: body.length, t: "text/html" } }, files: {}, redirects: [] }));
+  return dist;
+}
+
+test("hosts: a publish maps only free hosts, never another site's", async () => {
+  const root = tmp("store-");
+  const store = new FsStore(root);
+  await store.put("hosts/taken.docs.test.json", JSON.stringify({ site: "victim" }));
+  await store.put("hosts/mine.docs.test.json", JSON.stringify({ site: "s1" }));
+  const dist = tinyDist("s1");
+  const res = await publish({ distDir: dist, store, site: "s1", hosts: ["Taken.docs.test", "mine.docs.test", "new.docs.test"] });
+  assert.deepEqual(res.hosts, { written: ["new.docs.test"], kept: ["taken.docs.test"] });
+  assert.equal(JSON.parse(await store.getText("hosts/taken.docs.test.json")).site, "victim");
+  assert.equal(JSON.parse(await store.getText("hosts/new.docs.test.json")).site, "s1");
+  assert.deepEqual(await claimHosts(store, "s2", ["new.docs.test", "free.docs.test"], { dryRun: true }), { written: ["free.docs.test"], kept: ["new.docs.test"] });
+  assert.equal(await store.getText("hosts/free.docs.test.json"), null);
+  for (const d of [dist, root]) fs.rmSync(d, { recursive: true, force: true });
+});
+
+test("the pointer guard: a build the API no longer wants never goes live", async () => {
+  const root = tmp("store-");
+  const store = new FsStore(root);
+  const dist = tinyDist("s1");
+  const asked = [];
+  let answer = false;
+  const guarded = withPointerGuard(store, "s1", async () => (asked.push(1), answer));
+  await assert.rejects(publish({ distDir: dist, store: guarded, site: "s1", hosts: ["s1.docs.test"] }), (e) => e instanceof NotWanted && e.notWanted === true);
+  assert.equal(asked.length, 1);
+  assert.equal(await store.getText("sites/s1/current.json"), null); // not flipped
+  assert.equal(await store.getText("hosts/s1.docs.test.json"), null); // not mapped
+  // Everything else passed through (the objects and manifest are harmless without a pointer).
+  assert.equal((await store.list("manifests/")).length, 1);
+  answer = true;
+  const res = await publish({ distDir: dist, store: guarded, site: "s1", hosts: ["s1.docs.test"] });
+  assert.equal(res.unchanged, false);
+  assert.ok(await store.getText("sites/s1/current.json"));
+  assert.equal(asked.length, 2);
+  // Another site's pointer is not this guard's business.
+  await guarded.put("sites/s2/current.json", "{}");
+  assert.equal(asked.length, 2);
+  for (const d of [dist, root]) fs.rmSync(d, { recursive: true, force: true });
 });
 
 test("media.json: sizes, posters next to clips, nothing for other files", () => {

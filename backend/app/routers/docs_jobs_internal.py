@@ -1,6 +1,8 @@
 """The API a docs job runner outside the server calls (GitHub Actions: docs-platform/runner/run-job.mjs).
 
     GET  /api/v1/internal/docs-jobs/{id}?runner=<id>   claim the job → its spec (content bundle or import source)
+    GET  /api/v1/internal/docs-jobs/{id}/wanted?runner=<id>  a build, right before its pointer flip:
+                                                        {wanted, reason} (no: the site was taken down)
     POST /api/v1/internal/docs-jobs/{id}/progress       {runner, step, done, total, message} (also renews the lock)
     POST /api/v1/internal/docs-jobs/{id}/result         {runner, ok, manifest_hash?, stats?, timings?, error?, runner_ms?}
     POST /api/v1/internal/docs-jobs/{id}/import-result  {runner, ok: true, import: {...}, runner_ms?}
@@ -106,6 +108,24 @@ async def get_job(request: Request, job_id: str, runner: str = ""):
         return JSONResponse({"detail": str(e)}, status_code=410)
     log.info("docs job %s (%s) claimed by %s", job_id, job["kind"], runner)
     return spec
+
+
+@router.get("/{job_id}/wanted")
+@limiter.limit("60/minute")
+async def get_wanted(request: Request, job_id: str, runner: str = ""):
+    """Asked by a build right before it flips the site's pointer: may it still go live? No when the
+    site was deleted or unpublished after the build was asked for, or the build was cancelled.
+    The runner treats anything but ``{"wanted": true}`` as no."""
+    _auth(request, job_id)
+    runner = _runner(runner)
+    db = get_database()
+    job = await _held(db, job_id, runner)
+    if job["kind"] != "build":
+        raise HTTPException(409, "not a build job")
+    wanted, why = await docs_build.still_wanted(db, job, runner)
+    if not wanted:
+        log.info("docs job %s: not wanted any more (%s)", job_id, why)
+    return {"wanted": wanted, "reason": why}
 
 
 @router.post("/{job_id}/progress")

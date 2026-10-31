@@ -294,8 +294,10 @@ class DbCase(unittest.IsolatedAsyncioTestCase):
         row["_id"] = (await self.db[JOBS].insert_one(row)).inserted_id
         return row
 
-    def put_manifest(self, site_id: str) -> str:
-        h = secrets.token_hex(32)
+    def put_manifest(self, site_id: str, h: str | None = None) -> str:
+        """A manifest of ``site_id`` in the folder store (finish_build checks the runner's hash
+        names the job's site)."""
+        h = h or secrets.token_hex(32)
         os.makedirs(os.path.join(self.store, "manifests"), exist_ok=True)
         with open(os.path.join(self.store, "manifests", f"{h}.json"), "w") as f:
             json.dump({"site": {"id": site_id}, "engine": "e123"}, f)
@@ -305,6 +307,8 @@ class DbCase(unittest.IsolatedAsyncioTestCase):
         claimed = await docs_jobs.claim_next(self.db, "w1", target=None)
         self.assertEqual(claimed["_id"], job["_id"])
         await docs_build.start_build(self.db, claimed)
+        if result.get("ok") and result.get("manifest_hash"):
+            self.put_manifest(str(job["site_id"]), result["manifest_hash"])
         return await docs_build.finish_build(self.db, claimed, "w1", result)
 
 
@@ -409,7 +413,7 @@ class BuildTests(DbCase):
         self.assertEqual(spec["build"]["number"], 1)
         self.assertEqual(json.loads(spec["bundle"]["files"]["site.json"])["nav"], [{"group": "G", "pages": ["/guide/a"]}])
         self.assertEqual(sorted(spec["bundle"]["files"]), ["guide/a.md", "index.md", "site.json"])
-        h1 = "1" * 64
+        h1 = self.put_manifest(str(s["_id"]), "1" * 64)
         out = await docs_build.finish_build(self.db, job, "w1", {"ok": True, "manifest_hash": h1, "engine": "e1",
                                                                    "stats": {"pages": 2, "objects": 9, "uploaded": 9, "bytes": 100, "ms": 5, "x": "no"},
                                                                    "timings": {"nextBuild": 1, "bad": "x"}})
@@ -470,6 +474,7 @@ class BuildTests(DbCase):
         claimed = await docs_jobs.claim_next(self.db, "w1", target=None)
         await docs_build.start_build(self.db, claimed)
         await docs_site_store.unpublish_site(self.db, await self.db[SITES].find_one({"_id": s["_id"]}))
+        self.put_manifest(str(s["_id"]), "3" * 64)
         out = await docs_build.finish_build(self.db, claimed, "w1", {"ok": True, "manifest_hash": "3" * 64})
         self.assertTrue(out["taken_down"])
         self.assertEqual((await self.db[BUILDS].find_one({"_id": b3["_id"]}))["status"], "superseded")
@@ -753,6 +758,7 @@ class InternalApiTests(DbCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual((await self.db[JOBS].find_one({"_id": j["_id"]}))["progress"]["step"], "build")
         await self.db[JOBS].update_one({"_id": j["_id"]}, {"$set": {"target": "actions"}})
+        self.put_manifest(str(s["_id"]), "a" * 64)
         r = await self.http.post(url + "/result", headers=self.auth(j["_id"]),
                                  json={"runner": "gha-1", "ok": True, "manifest_hash": "a" * 64, "stats": {"pages": 1}, "runner_ms": 61_000})
         self.assertEqual(r.status_code, 200, r.text)
