@@ -41,6 +41,8 @@ type FbTab = "open" | "resolved";
 const DEVICE_WORD: Record<string, string> = { desktop: "Computer", mobile: "Phone", tablet: "Tablet" };
 const INK: Record<Tone, string> = { success: "text-success", danger: "text-danger", warning: "text-warning", muted: "text-text-muted" };
 const DASH = "—";
+/** Feedback rows shown before "Show N more". */
+const FEEDBACK_SHOWN = 6;
 
 /* ── Pieces ───────────────────────────────────────────────────────────── */
 
@@ -428,7 +430,10 @@ function Dashboard({
   }, 0);
   const openCount = Math.max(0, data.feedback.open - moved);
   const resolvedCount = Math.max(0, data.feedback.resolved + moved);
-  const items = data.feedback.items.map((i) => patched[i.id] ?? i).filter((i) => i.resolved === (fbTab === "resolved"));
+  // Comments first (they say what to fix), then bare "not helpful" votes; newest first in each.
+  const items = data.feedback.items.map((i) => patched[i.id] ?? i).filter((i) => i.resolved === (fbTab === "resolved"))
+    .sort((a, b) => Number(!!b.comment) - Number(!!a.comment));
+  const [shown, setShown] = useState(FEEDBACK_SHOWN);
 
   const pages = data.pages.slice(0, 8);
   const topViews = pages[0]?.views ?? 0;
@@ -469,7 +474,7 @@ function Dashboard({
                 const href = pageHref(p.page_id);
                 const label = p.title || p.path;
                 return (
-                  <li key={p.path} className="relative flex items-center gap-2.5 overflow-hidden rounded-md px-2.5 py-2">
+                  <li key={p.path} className="relative flex items-center gap-2.5 overflow-hidden rounded-md px-2.5 py-2 text-body">
                     <span aria-hidden className="absolute inset-y-0 left-0 bg-accent-soft" style={{ width: barWidth(p.views, topViews) }} />
                     {href ? (
                       <Link href={href} title={p.path} className="md-focus relative min-w-0 flex-1 truncate text-text no-underline hover:underline">{label}</Link>
@@ -523,13 +528,21 @@ function Dashboard({
         <div role="tabpanel" id={`${uid}-fbt-panel-${fbTab}`} aria-labelledby={`${uid}-fbt-tab-${fbTab}`}>
           {items.length ? (
             <ul className="ph-no-capture m-0 flex list-none flex-col p-0">
-              {items.map((i) => (
+              {items.slice(0, shown).map((i) => (
                 <FeedbackRow key={i.id} item={i} canResolve={data.can_resolve} busy={busyId === i.id}
                   openHref={pageHref(i.page_id) ?? (liveUrl ? `${liveUrl}${i.path === "/" ? "" : i.path}` : null)}
                   external={!i.page_id} onResolve={(r) => onResolve(i, r)} />
               ))}
             </ul>
-          ) : (
+          ) : null}
+          {items.length > shown && (
+            <div className="border-t border-border pt-3">
+              <Button size="sm" variant="ghost" iconLeft="chevronDown" onClick={() => setShown(items.length)}>
+                Show {num(items.length - shown)} more
+              </Button>
+            </div>
+          )}
+          {!items.length && (
             <Quiet>
               {fbTab === "resolved" ? `Nothing resolved in the last ${rangeWords}.` :
                 votes ? "No open comments. Comments and “not helpful” votes land here to work through." :
@@ -581,7 +594,7 @@ function MissingRow({ m, base, canEdit }: { m: MissingItem; base: string; canEdi
     <li className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded-md bg-surface-inset px-2.5 py-2">
       <Icon name={isSearch ? "search" : "sparkle"} size={14} className="shrink-0 text-text-secondary" />
       <span className="flex min-w-0 flex-[1_1_180px] flex-col">
-        <span className="break-words text-text" dir="auto">{isSearch ? `“${m.q}”` : m.q}</span>
+        <span className="break-words text-body text-text" dir="auto">{isSearch ? `“${m.q}”` : m.q}</span>
         <span className="text-caption text-text-muted">{missingNote(m)}</span>
       </span>
       {canEdit && (
