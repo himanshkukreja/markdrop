@@ -14,6 +14,7 @@ import { LOOKS, PREVIEW_FONTS_HREF, coloursFromImage, contrastChecks } from "./p
 import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useSite } from "./SiteContext";
 import ThemePreview from "./ThemePreview";
+import useLeaveGuard from "./useLeaveGuard";
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -93,13 +94,8 @@ export default function DesignPanel() {
     document.head.appendChild(l);
   }, []);
 
-  // Unsaved design: ask before leaving the page.
-  useEffect(() => {
-    if (!dirty) return;
-    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); };
-    window.addEventListener("beforeunload", h);
-    return () => window.removeEventListener("beforeunload", h);
-  }, [dirty]);
+  // Unsaved design: ask before leaving the page (the tab, and the studio's own links).
+  const leaveGuard = useLeaveGuard(dirty && !locked, "the design");
 
   // Forced colour mode decides which preview makes sense.
   useEffect(() => {
@@ -199,7 +195,7 @@ export default function DesignPanel() {
                 </span>
               )}
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <strong className="ph-sensitive ph-mask truncate font-semibold text-text">{logoName ?? "No logo yet"}</strong>
+                <strong className="ph-sensitive ph-mask truncate font-semibold text-text" title={logoName ?? undefined}>{logoName ?? "No logo yet"}</strong>
                 <span className="text-[12px] text-text-muted">
                   {!theme.brand.colors.length ? "Upload your logo and we'll pick up its colours" : theme.brand.logo_url ? "Colours found in your logo" : "Your brand colours"}
                 </span>
@@ -229,7 +225,7 @@ export default function DesignPanel() {
                   );
                 })}
                 <label className="flex flex-col items-center gap-1 text-[11px] text-text-muted">
-                  <span className="relative grid size-9 cursor-pointer place-items-center rounded-lg border border-dashed border-border-strong text-text-secondary">
+                  <span className="relative grid size-9 cursor-pointer place-items-center rounded-lg border border-dashed border-border-strong text-text-secondary has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-border-focus">
                     <Icon name="plus" size={16} />
                     <input
                       type="color"
@@ -326,6 +322,7 @@ export default function DesignPanel() {
           {dirty && isAdmin && <p className="text-[13px] text-text-muted">Not saved yet. Readers see the new design after you save it and publish.</p>}
         </section>
       </main>
+      {leaveGuard}
     </>
   );
 }

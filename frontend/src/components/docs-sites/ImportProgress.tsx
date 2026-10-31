@@ -9,7 +9,7 @@ import {
 } from "@/lib/docsSites";
 import { num, plural } from "./format";
 import { previewTokens } from "./presets";
-import SiteBar from "./SiteBar";
+import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useSite } from "./SiteContext";
 import { studioNew, scopeOf } from "./routes";
 import { useJob } from "./useJob";
@@ -272,8 +272,11 @@ export default function ImportProgress() {
                 {rows.map((r, i) => (
                   <li key={r.id} className={`flex items-center gap-3 px-[18px] py-3.5 ${i ? "border-t border-border" : ""}`} aria-current={r.status === "running" ? "step" : undefined}>
                     <StepDot status={r.status} />
-                    <span className={`min-w-0 flex-1 text-text ${r.status === "running" ? "font-semibold" : r.status === "done" ? "font-medium" : "text-text-secondary"}`}>{r.label}</span>
-                    {r.detail && <span className="ph-sensitive ph-mask shrink-0 text-right text-[13px] tabular-nums text-text-muted">{r.detail}</span>}
+                    {/* Phones: the detail goes under the label, so neither is squeezed to a word per line. */}
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-3">
+                      <span className={`min-w-0 text-text sm:flex-1 ${r.status === "running" ? "font-semibold" : r.status === "done" ? "font-medium" : "text-text-secondary"}`}>{r.label}</span>
+                      {r.detail && <span className="ph-sensitive ph-mask text-[13px] tabular-nums text-text-muted [overflow-wrap:anywhere] sm:max-w-[45%] sm:text-right">{r.detail}</span>}
+                    </span>
                   </li>
                 ))}
               </ol>
@@ -305,7 +308,8 @@ export default function ImportProgress() {
           )}
         </div>
 
-        <aside aria-label="Preview" className="flex min-w-0 flex-[1_1_320px] flex-col gap-3">
+        {/* Beside the steps, the preview and "Open the editor" stay in view while a long report scrolls. */}
+        <aside aria-label="Preview" className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 lg:sticky lg:self-start" style={{ top: STUDIO_CHROME_H + 24 }}>
           <MiniSite name={report?.brand?.name || site.name} />
           <p className="text-[13px] text-text-muted">
             {site.settings.theme.brand.enabled

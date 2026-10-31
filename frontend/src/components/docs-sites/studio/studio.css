@@ -49,3 +49,24 @@ html[data-theme="light"][data-studio] {
   font-style: normal;
   color: var(--accent-text);
 }
+
+/*
+ * Whatever the browser scrolls into view inside a screen's <main> (focus moving with Tab /
+ * Shift+Tab, #anchors) stops below the sticky studio header and site bar (56 + 52 px from lg; the
+ * bar wraps to two or three rows below that), not underneath them. A margin on the targets rather
+ * than scroll-padding on the page: the bars themselves and the overlays (fixed, outside <main>)
+ * must not make the page scroll when they take focus. Replaces the app-wide 72 px on [id], which
+ * also hit the header's own controls (a menu trigger has an id): focusing one scrolled the page up.
+ */
+html[data-studio] :target,
+html[data-studio] [id] {
+  scroll-margin-top: 0;
+}
+html[data-studio] #main * {
+  scroll-margin-top: 124px;
+}
+@media (max-width: 1023px) {
+  html[data-studio] #main * {
+    scroll-margin-top: 176px;
+  }
+}

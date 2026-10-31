@@ -21,6 +21,7 @@ import { useSite } from "./SiteContext";
 
 const MAX_SUGGESTIONS = 5;
 
+/** Cards are anchors (/settings#people); studio.css's scroll-padding lands them below the sticky bars. */
 function Card({ id, title, aside, children, tone }: { id: string; title: React.ReactNode; aside?: React.ReactNode; children: React.ReactNode; tone?: "danger" }) {
   return (
     <section
@@ -73,6 +74,31 @@ export default function SiteSettings() {
   }, [site.workspace_id]);
   useEffect(() => { setAiName(s.ai.name ?? ""); }, [s.ai.name]);
 
+  // Arriving at /settings#<card> (from Publishes, Members, a shared link): the cards render after the
+  // site loads, so the browser's own jump to the anchor found nothing. Go there once they're here, and
+  // stay with the card while People (above Redirects) fills in, until you scroll yourself.
+  useEffect(() => {
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    const main = document.getElementById("main");
+    if (!id || !main) return;
+    let on = true;
+    const go = () => { if (on) document.getElementById(id)?.scrollIntoView({ block: "start" }); };
+    const stop = () => { on = false; };
+    const first = window.setTimeout(go, 60);
+    const ro = new ResizeObserver(go);
+    ro.observe(main);
+    const end = window.setTimeout(stop, 2000);
+    const events = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
+    for (const ev of events) window.addEventListener(ev, stop, { passive: true });
+    return () => {
+      stop();
+      ro.disconnect();
+      window.clearTimeout(first);
+      window.clearTimeout(end);
+      for (const ev of events) window.removeEventListener(ev, stop);
+    };
+  }, []);
+
   async function patch(key: string, body: { slug?: string; settings?: SettingsPatch }, done: React.ReactNode) {
     if (locked) return false;
     setSaving(key);
@@ -103,7 +129,8 @@ export default function SiteSettings() {
   const suggestions = s.ai.suggestions ?? [];
   const addSuggestion = () => {
     const q = suggestion.trim();
-    if (!q || suggestions.length >= MAX_SUGGESTIONS || suggestions.includes(q)) return;
+    // One change at a time: each sends the whole list, so a second one built on the same list would undo the first.
+    if (!q || saving === "ai" || suggestions.length >= MAX_SUGGESTIONS || suggestions.includes(q)) return;
     void patch("ai", { settings: { ai: { suggestions: [...suggestions, q] } } }, "Suggested question added.").then((ok) => ok && setSuggestion(""));
   };
 
@@ -170,7 +197,7 @@ export default function SiteSettings() {
           {(site.domains ?? []).map((d) => (
             <div key={d.host} className="flex items-center gap-2.5 rounded-lg border border-border px-3.5 py-3">
               <Icon name="globe" size={16} />
-              <code className="ph-sensitive ph-mask min-w-0 flex-1 truncate font-mono text-text">{d.host}</code>
+              <code className="ph-sensitive ph-mask min-w-0 flex-1 truncate font-mono text-text" title={d.host}>{d.host}</code>
               <Badge tone={d.status === "live" || d.status === "verified" ? "success" : d.status === "failed" ? "danger" : "warning"} size="sm" dot>
                 {d.status === "live" || d.status === "verified" ? "Live" : d.status === "failed" ? "Failed" : "Pending"}
               </Badge>
@@ -213,7 +240,7 @@ export default function SiteSettings() {
             <ul className="ph-no-capture flex flex-wrap gap-2" aria-label="Suggested questions">
               {suggestions.map((q) => (
                 <li key={q}>
-                  <Tag removeLabel={`Remove "${q}"`} onRemove={locked ? undefined : () => void patch("ai", { settings: { ai: { suggestions: suggestions.filter((x) => x !== q) } } }, "Suggested question removed.")}>{q}</Tag>
+                  <Tag removeLabel={`Remove "${q}"`} onRemove={locked ? undefined : () => saving !== "ai" && void patch("ai", { settings: { ai: { suggestions: suggestions.filter((x) => x !== q) } } }, "Suggested question removed.")}>{q}</Tag>
                 </li>
               ))}
             </ul>

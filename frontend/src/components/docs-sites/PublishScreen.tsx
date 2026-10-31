@@ -86,6 +86,8 @@ export default function PublishScreen() {
   const [actionError, setActionError] = useState("");
   const [rejectFor, setRejectFor] = useState<Review | null>(null);
   const [comment, setComment] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
   const [restoreFor, setRestoreFor] = useState<Build | null>(null);
   /** The running builds' job progress: build id → "Fetching images and files · 12 of 40 files". */
   const [stage, setStage] = useState<Record<string, string>>({});
@@ -178,13 +180,21 @@ export default function PublishScreen() {
   });
 
   const sendBack = async () => {
-    if (!rejectFor) return;
+    if (!rejectFor || sending) return;
     const r = rejectFor;
-    await requestChanges(site.id, r.id, comment.trim());
-    setReviews((list) => (list ?? []).filter((x) => x.id !== r.id));
-    setRejectFor(null);
-    setComment("");
-    toast.success(`Sent back to ${firstName(r.requested_by_name)} with your note.`);
+    setSending(true);
+    setSendError("");
+    try {
+      await requestChanges(site.id, r.id, comment.trim());
+      setReviews((list) => (list ?? []).filter((x) => x.id !== r.id));
+      setRejectFor(null);
+      setComment("");
+      toast.success(`Sent back to ${firstName(r.requested_by_name)} with your note.`);
+    } catch (e) {
+      setSendError(docsErrorMessage(e));
+    } finally {
+      setSending(false);
+    }
   };
 
   const withdraw = (r: Review) => run(`withdraw:${r.id}`, async () => {
@@ -268,7 +278,7 @@ export default function PublishScreen() {
                 <li key={c.id} className={`flex items-center gap-3 px-4 py-3 ${i ? "border-t border-border" : ""}`}>
                   <Badge tone={KIND[c.change]?.tone ?? "neutral"} size="sm">{KIND[c.change]?.label ?? "Changed"}</Badge>
                   <span className="min-w-0 flex-1">
-                    <strong className="block truncate font-semibold text-text" dir="auto">{c.title}</strong>
+                    <strong className="block truncate font-semibold text-text" dir="auto" title={c.title}>{c.title}</strong>
                     <span className="block text-[12px] text-text-muted">{changeMeta(c)}</span>
                   </span>
                   {c.change !== "deleted" && (
@@ -363,7 +373,7 @@ export default function PublishScreen() {
               {canReview ? (
                 <div className="flex flex-wrap gap-2">
                   <Button variant="primary" size="sm" iconLeft="check" loading={busy === `approve:${r.id}`} disabled={running.length > 0} onClick={() => void approve(r)}>Approve and publish</Button>
-                  <Button variant="secondary" size="sm" onClick={() => { setRejectFor(r); setComment(""); }}>Request changes</Button>
+                  <Button variant="secondary" size="sm" onClick={() => { setRejectFor(r); setComment(""); setSendError(""); }}>Request changes</Button>
                 </div>
               ) : (
                 <p className="text-[13px] text-text-muted">Waiting for a reviewer or an admin.</p>
@@ -389,7 +399,7 @@ export default function PublishScreen() {
                   <li key={b.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${i ? "border-t border-border" : ""}`}>
                     <Avatar name={b.requested_by_name || "Someone"} size="sm" />
                     <span className="min-w-0 flex-[1_1_220px]">
-                      <strong className="block truncate font-semibold text-text" dir="auto">{buildTitle(b)}</strong>
+                      <strong className="block truncate font-semibold text-text" dir="auto" title={buildTitle(b)}>{buildTitle(b)}</strong>
                       <span className="block text-[12px] text-text-muted">
                         {isRunning ? <span className="inline-flex items-center gap-1.5"><Spinner size={12} /> {stage[b.id] || `${STAGE[b.status]}…`}</span> : buildMeta(b, b.id === oldest)}
                       </span>
@@ -416,18 +426,22 @@ export default function PublishScreen() {
       <Dialog
         open={!!rejectFor}
         onClose={() => setRejectFor(null)}
+        dismissible={!sending}
         title={`Send back to ${firstName(rejectFor?.requested_by_name)}`}
         description="Their drafts stay as they are. Say what to change; they'll see your note."
         footer={
           <>
-            <Button variant="secondary" onClick={() => setRejectFor(null)}>Cancel</Button>
-            <Button variant="primary" disabled={!comment.trim()} onClick={() => void sendBack().catch((e) => setActionError(docsErrorMessage(e)))}>Request changes</Button>
+            <Button variant="secondary" disabled={sending} onClick={() => setRejectFor(null)}>Cancel</Button>
+            <Button variant="primary" loading={sending} disabled={!comment.trim()} onClick={() => void sendBack()}>Request changes</Button>
           </>
         }
       >
-        <Field label="What should change" htmlFor={`${uid}-comment`}>
-          <Textarea rows={4} value={comment} maxLength={1000} onChange={(e) => setComment(e.target.value)} />
-        </Field>
+        <div className="flex flex-col gap-3">
+          <Field label="What should change" htmlFor={`${uid}-comment`}>
+            <Textarea rows={4} value={comment} maxLength={1000} onChange={(e) => setComment(e.target.value)} />
+          </Field>
+          {sendError && <Alert tone="danger">{sendError}</Alert>}
+        </div>
       </Dialog>
 
       <ConfirmDialog

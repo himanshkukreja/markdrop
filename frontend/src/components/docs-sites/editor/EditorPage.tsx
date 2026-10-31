@@ -49,6 +49,12 @@ function SaveBadge({ save, lock, onRetry }: { save: SaveState; lock: LockState; 
   return <Badge size="sm" icon="clock">Draft · saved {save.at ? timeAgo(save.at) : "just now"}</Badge>;
 }
 
+/** Where the sticky studio header and site bar end (the site bar wraps to two or three rows below lg). */
+function chromeBottom(): number {
+  const bar = document.querySelector<HTMLElement>('nav[aria-label="Site"]')?.parentElement;
+  return bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : STUDIO_CHROME_H;
+}
+
 function moveIn(nav: NavGroup[], id: string, dir: -1 | 1): NavGroup[] {
   return nav.map((g) => {
     const i = g.pages.indexOf(id);
@@ -300,9 +306,10 @@ export default function EditorPage() {
 
             {fields && page && (
               <>
-                <div className="flex items-center justify-between gap-2 lg:hidden">
-                  <span className="ph-sensitive ph-mask text-[13px] text-text-muted">{page.path}</span>
-                  <Button variant="ghost" size="sm" iconLeft="settings" onClick={() => setPanelOpen(true)}>Page settings</Button>
+                {/* In line with the page text (the visual editor keeps a 56 px gutter for block handles from sm up). */}
+                <div className={`flex items-center justify-between gap-2 lg:hidden ${mode === "visual" ? "sm:pl-14" : ""}`}>
+                  <span className="ph-sensitive ph-mask min-w-0 truncate text-[13px] text-text-muted" title={page.path}>{page.path}</span>
+                  <Button variant="ghost" size="sm" iconLeft="settings" className="shrink-0" onClick={() => setPanelOpen(true)}>Page settings</Button>
                 </div>
                 <DocsEditor
                   key={page.id}
@@ -318,6 +325,7 @@ export default function EditorPage() {
                   resolveAssetUrl={resolveAssetUrl}
                   readOnly={!editable}
                   placeholder="Type / for blocks: callouts, steps, tabs, code, images…"
+                  stickyTop={chromeBottom}
                 />
               </>
             )}

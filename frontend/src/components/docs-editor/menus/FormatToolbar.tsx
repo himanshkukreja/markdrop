@@ -33,7 +33,7 @@ function Btn({ label, active, onClick, children, keys }: { label: string; active
 
 const mod = typeof navigator !== "undefined" && /Mac|iP(hone|ad)/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
-export function FormatToolbar({ editor }: { editor: Editor }) {
+export function FormatToolbar({ editor, stickyTop }: { editor: Editor; stickyTop?: () => number }) {
   const [linking, setLinking] = useState(false);
   const [href, setHref] = useState("");
   const bar = useRef<HTMLDivElement>(null);
@@ -95,7 +95,8 @@ export function FormatToolbar({ editor }: { editor: Editor }) {
   return (
     <BubbleMenu
       editor={editor}
-      options={{ placement: "top", offset: 8, flip: true }}
+      // Above the selection, or below it when the host's sticky bars (stickyTop) would cover it.
+      options={{ placement: "top", offset: 8, flip: () => ({ padding: { top: (stickyTop?.() ?? 0) + 8 } }) }}
       shouldShow={({ editor: e, state, from, to }) => {
         if (!e.isEditable || from === to) return false;
         if (state.selection instanceof NodeSelection) return false;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Alert, Avatar, Button, ConfirmDialog, Drawer, Field, ICONS, Input, Select, Skeleton, Switch } from "@/components/ui";
 import { docsErrorMessage, getVersion, listVersions, type Page, type PageVersion } from "@/lib/docsSites";
 import { timeAgo, whenShort } from "../format";
@@ -37,6 +37,18 @@ export function PageSidePanel({ page, fields, readOnly, onChange, onRestore, isH
   const [all, setAll] = useState(false);
   const [viewing, setViewing] = useState<PageVersion | null>(null);
   const [confirm, setConfirm] = useState<PageVersion | null>(null);
+  // View swaps the list for the version (and back): the button you pressed is gone, so focus would
+  // drop to the page behind the drawer. Move it to the way back, then to the version you looked at.
+  const backRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLOListElement>(null);
+  const lastViewed = useRef<number | null>(null);
+  const viewingRev = viewing?.rev ?? null;
+  useEffect(() => {
+    if (viewingRev !== null) { lastViewed.current = viewingRev; backRef.current?.focus(); return; }
+    const rev = lastViewed.current;
+    lastViewed.current = null;
+    if (rev !== null) listRef.current?.querySelector<HTMLElement>(`[data-rev="${rev}"]`)?.focus();
+  }, [viewingRev]);
 
   const load = useCallback(async () => {
     try {
@@ -103,7 +115,7 @@ export function PageSidePanel({ page, fields, readOnly, onChange, onRestore, isH
         {viewing ? (
           <div className="ph-no-capture flex flex-col gap-3">
             <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" size="sm" iconLeft="arrowLeft" onClick={() => setViewing(null)}>All versions</Button>
+              <Button ref={backRef} variant="secondary" size="sm" iconLeft="arrowLeft" onClick={() => setViewing(null)}>All versions</Button>
               {!readOnly && viewing.rev !== page.rev && <Button variant="primary" size="sm" iconLeft="rotate" onClick={() => setConfirm(viewing)}>Restore this version</Button>}
             </div>
             <p className="text-body-strong text-text">{viewing.title}</p>
@@ -115,7 +127,7 @@ export function PageSidePanel({ page, fields, readOnly, onChange, onRestore, isH
             )}
           </div>
         ) : (
-          <ol className="flex flex-col">
+          <ol ref={listRef} className="flex flex-col">
             {versions?.map((v, i) => (
               <li key={v.rev} className={`flex items-center gap-3 py-2.5 ${i ? "border-t border-border" : ""}`}>
                 <Avatar name={v.by_name || "Someone"} size="sm" />
@@ -123,7 +135,7 @@ export function PageSidePanel({ page, fields, readOnly, onChange, onRestore, isH
                   <span className="block truncate text-body text-text">{versionLabel(v)}{v.rev === page.rev ? " · current" : ""}</span>
                   <span className="block text-[12px] text-text-muted">{v.by_name || "Someone"} · {whenShort(v.at)}</span>
                 </span>
-                <Button variant="ghost" size="sm" onClick={() => void view(v)}>View</Button>
+                <Button variant="ghost" size="sm" data-rev={v.rev} onClick={() => void view(v)}>View</Button>
                 {!readOnly && v.rev !== page.rev && <Button variant="ghost" size="sm" iconLeft="rotate" onClick={() => setConfirm(v)}>Restore</Button>}
               </li>
             ))}

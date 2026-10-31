@@ -46,6 +46,11 @@ export interface DocsEditorProps {
   resolveAssetUrl?: (src: string) => string;
   autoFocus?: boolean;
   className?: string;
+  /**
+   * How much of the window's top the host's sticky bars cover, in px, read when the caret is
+   * scrolled into view: the caret is kept below them. Default: nothing covers the top.
+   */
+  stickyTop?: () => number;
   /** Accessible name of the editing area (default "Page content"). */
   "aria-label"?: string;
 }
