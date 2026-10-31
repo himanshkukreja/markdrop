@@ -6,7 +6,7 @@ import { assetPreviewUrl, type Site, type SiteSummary } from "@/lib/docsSites";
 import { thumbColours } from "./presets";
 import { useSite } from "./SiteContext";
 
-export type SiteSection = "pages" | "design" | "publish" | "settings";
+export type SiteSection = "pages" | "design" | "publish" | "insights" | "settings";
 
 /** The site's letter tile on its accent (the brand's when "Match my brand" is on). */
 export function SiteTile({ site, size = 22 }: {
@@ -39,6 +39,7 @@ const TABS: Array<{ id: SiteSection; label: string; path: string }> = [
   { id: "pages", label: "Pages", path: "" },
   { id: "design", label: "Design", path: "/design" },
   { id: "publish", label: "Publishes", path: "/publish" },
+  { id: "insights", label: "Insights", path: "/insights" },
   { id: "settings", label: "Settings", path: "/settings" },
 ];
 

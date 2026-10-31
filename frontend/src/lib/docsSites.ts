@@ -164,6 +164,8 @@ export interface SiteSettings {
   access: { level: AccessLevel; has_password?: boolean };
   seo: { index: boolean };
   review: { required: boolean };
+  /** Reader insights (page views, searches, feedback): on unless an admin turned them off. */
+  insights?: { enabled: boolean };
   nav: NavGroup[];
   /** Old addresses → their new pages (the build writes redirects.json). Checked on save: targets
    * exist, no page is hidden by one, no chains. A GitBook import's own redirects stay in the build. */
@@ -499,6 +501,7 @@ export interface SettingsPatch {
   access?: { level?: AccessLevel; password?: string };
   seo?: Partial<SiteSettings["seo"]>;
   review?: Partial<SiteSettings["review"]>;
+  insights?: { enabled?: boolean };
   /** Replaces the whole list. */
   redirects?: Redirect[];
 }

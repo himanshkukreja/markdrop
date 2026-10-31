@@ -48,7 +48,7 @@ const APP_ROUTES = new Set([
 const GUIDES_ROOTS = new Set(["guides", "docs-studio"]);
 const GUIDES_SCREENS = new Set(["new", "members"]);
 /** A site's screens below /guides/<site> (the [siteId] route's children). */
-const GUIDES_SITE_SCREENS = new Set(["design", "import", "publish", "settings"]);
+const GUIDES_SITE_SCREENS = new Set(["design", "import", "insights", "publish", "settings"]);
 
 /**
  * /guides/<site>[/<screen>] → /guides/[site][/<screen>]. Site ids aren't secrets (one opens
@@ -65,13 +65,13 @@ function guidesShape(segments: string[]): string {
 }
 
 /** Query keys a Guides screen carries: ids and flags, never capabilities. */
-const GUIDES_QUERY = new Set(["page", "job", "ws", "new"]);
+const GUIDES_QUERY = new Set(["page", "job", "ws", "new", "range"]);
 
 /**
  * Whether session replay may record this page: nothing in its path needed redacting, or the only
  * thing redacted was a Guides site id (a product's dashboard, not a document). `queryKeys` are the
  * URL's query parameter names: UTM tags are always fine, and on a Guides screen so are its own
- * (?page=, ?job=, ?ws=, ?new=). Documents, share rooms, invites, folder links and workspace pages
+ * (?page=, ?job=, ?ws=, ?new=, ?range=). Documents, share rooms, invites, folder links and workspace pages
  * never qualify. Reports still carry only the route shape, without the query.
  */
 export function isRecordable(pathname: string, queryKeys: Iterable<string> = []): boolean {
