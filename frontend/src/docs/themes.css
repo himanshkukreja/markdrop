@@ -152,6 +152,98 @@
 .dx-root[data-preset="helpcenter"] .dx-title { font-size: 34px; line-height: 42px; letter-spacing: -0.015em; }
 .dx-root[data-preset="helpcenter"] .dx-hero__title { font-size: 44px; line-height: 52px; }
 
+/* Midnight: crisp and quiet on deep navy; the accent marks, it doesn't glow. */
+.dx-root[data-preset="midnight"] .dx-title { font-size: 34px; line-height: 42px; letter-spacing: -0.025em; }
+.dx-root[data-preset="midnight"] .dx-hero__title { letter-spacing: -0.035em; }
+.dx-root[data-preset="midnight"] .dx-prose :is(h2, h3) { letter-spacing: -0.015em; }
+.dx-root[data-preset="midnight"] :is(.dx-startcard, .dx-card, .dx-ask__box, .md-codeblock, .dx-area, .dx-panel, .dx-prevnext__link) { box-shadow: none; }
+.dx-root[data-preset="midnight"] .dx-nav__item[aria-current="page"] { background: none; box-shadow: inset 2px 0 0 var(--accent); border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+
+/* Paper: a handbook. Serif text at a book's size, a lighter sidebar, no chrome lines. */
+.dx-root[data-preset="paper"] .dx-header { border-bottom-color: transparent; }
+.dx-root[data-preset="paper"] .dx-prose.md-prose--reading { font-size: 18px; line-height: 31px; }
+.dx-root[data-preset="paper"] .dx-title { font-size: 40px; line-height: 48px; letter-spacing: -0.01em; }
+.dx-root[data-preset="paper"] .dx-lede { font-size: 20px; line-height: 31px; font-style: italic; }
+.dx-root[data-preset="paper"] .dx-prose :is(h2, h3) { font-weight: 600; letter-spacing: -0.005em; }
+.dx-root[data-preset="paper"] .dx-nav__item { padding: 4px 10px; font-weight: 400; }
+.dx-root[data-preset="paper"] .dx-nav__item[aria-current="page"] { background: none; font-weight: 600; }
+.dx-root[data-preset="paper"] .dx-nav__icon { display: none; }
+.dx-root[data-preset="paper"] :is(.dx-startcard, .dx-card, .dx-ask__box, .md-codeblock, .dx-area, .dx-panel, .dx-prevnext__link) { box-shadow: none; }
+
+/* Terminal: monospaced headings and labels, a prompt before the title, square corners. */
+.dx-root[data-preset="terminal"] .dx-title { font-size: 32px; line-height: 40px; letter-spacing: -0.02em; }
+.dx-root[data-preset="terminal"] .dx-hero__title { font-size: 42px; line-height: 50px; letter-spacing: -0.03em; }
+.dx-root[data-preset="terminal"] .dx-title::before { content: "$ "; content: "$ " / ""; color: var(--accent-text); }
+.dx-root[data-preset="terminal"] .dx-prose :is(h2, h3) { letter-spacing: -0.01em; }
+.dx-root[data-preset="terminal"] :is(.dx-nav, .dx-eyebrow, .dx-meta, .dx-crumbs, .dx-tabsnav, .dx-startcard__time, .dx-news__date) { font-family: var(--font-mono); }
+.dx-root[data-preset="terminal"] .dx-nav { font-size: 12.5px; }
+.dx-root[data-preset="terminal"] .dx-eyebrow { text-transform: none; letter-spacing: 0.02em; }
+.dx-root[data-preset="terminal"] .dx-nav__item[aria-current="page"] { background: none; box-shadow: inset 2px 0 0 var(--accent); border-radius: 0; }
+.dx-root[data-preset="terminal"] :is(.dx-startcard, .dx-card, .dx-ask__box, .md-codeblock, .dx-area, .dx-panel, .dx-prevnext__link) { box-shadow: none; }
+
+/* Corporate: strict and compact; small type, tight spacing, square chrome. */
+.dx-root[data-preset="corporate"] { --dx-header-h: 53px; }
+@media (min-width: 900px) {
+  .dx-root[data-preset="corporate"] .dx-header__in { padding: 8px 24px; }
+}
+.dx-root[data-preset="corporate"] .dx-header { border-bottom-color: var(--border-strong); }
+.dx-root[data-preset="corporate"] .dx-article { padding-top: 22px; }
+.dx-root[data-preset="corporate"] .dx-prose.md-prose--reading { font-size: 15.5px; line-height: 25px; }
+.dx-root[data-preset="corporate"] .dx-title { font-size: 30px; line-height: 38px; letter-spacing: -0.01em; }
+.dx-root[data-preset="corporate"] .dx-hero__title { font-size: 40px; line-height: 48px; letter-spacing: -0.02em; }
+.dx-root[data-preset="corporate"] .dx-nav { gap: 14px; }
+.dx-root[data-preset="corporate"] .dx-nav__item { padding: 4px 10px; }
+.dx-root[data-preset="corporate"] :is(.dx-startcard, .dx-card, .dx-ask__box, .md-codeblock, .dx-area, .dx-panel, .dx-prevnext__link) { box-shadow: none; }
+
+/* Studio: display headings, big rounded cards with a lift. */
+.dx-root[data-preset="studio"] .dx-title { font-size: 44px; line-height: 50px; letter-spacing: -0.035em; }
+.dx-root[data-preset="studio"] .dx-hero__title { font-size: 60px; line-height: 64px; letter-spacing: -0.045em; }
+.dx-root[data-preset="studio"] .dx-prose h2 { font-size: 28px; line-height: 36px; letter-spacing: -0.025em; }
+.dx-root[data-preset="studio"] .dx-prose :is(h2, h3) { font-weight: 800; }
+.dx-root[data-preset="studio"] :is(.dx-startcard, .dx-area, .dx-card) { padding: 24px; border-radius: var(--radius-2xl); box-shadow: var(--shadow-md); }
+.dx-root[data-preset="studio"] .md-btn { border-radius: var(--radius-full); }
+
+/* Academic: serif, numbered sections (2., 2.1), footnote-sized notes. */
+.dx-root[data-preset="academic"] .dx-prose { counter-reset: dx-h2 dx-h3; }
+/* Only the page's own sections (not a heading inside steps, tabs or a callout). */
+.dx-root[data-preset="academic"] .dx-prose > h2,
+.dx-root[data-preset="academic"] .dx-prose > .dx-h > h2 { counter-increment: dx-h2; counter-set: dx-h3 0; }
+.dx-root[data-preset="academic"] .dx-prose > h3,
+.dx-root[data-preset="academic"] .dx-prose > .dx-h > h3 { counter-increment: dx-h3; }
+.dx-root[data-preset="academic"] .dx-prose > h2::before,
+.dx-root[data-preset="academic"] .dx-prose > .dx-h > h2::before { content: counter(dx-h2) ". "; color: var(--text-muted); font-weight: 400; }
+.dx-root[data-preset="academic"] .dx-prose > h3::before,
+.dx-root[data-preset="academic"] .dx-prose > .dx-h > h3::before { content: counter(dx-h2) "." counter(dx-h3) " "; color: var(--text-muted); font-weight: 400; }
+.dx-root[data-preset="academic"] .dx-prose.md-prose--reading { font-size: 17px; line-height: 29px; }
+.dx-root[data-preset="academic"] .dx-title { font-size: 38px; line-height: 46px; letter-spacing: -0.01em; }
+.dx-root[data-preset="academic"] :is(.dx-meta, .dx-prereq, .dx-callout .md-alert__body, .dx-prose figcaption, .dx-prose small) { font-size: 13.5px; line-height: 21px; }
+.dx-root[data-preset="academic"] .dx-prose :where(section[data-footnotes], .footnotes) { font-size: 13.5px; line-height: 21px; }
+.dx-root[data-preset="academic"] :is(.dx-startcard, .dx-card, .dx-ask__box, .md-codeblock, .dx-area, .dx-panel, .dx-prevnext__link) { box-shadow: none; }
+
+/* Atlas: header tabs as tabs, a card-grid home (the help center's), the sidebar on articles. */
+@media (min-width: 900px) {
+  /* The header keeps its 61px (--dx-header-h): the tabs fill its height, underlined when current. */
+  .dx-root[data-preset="atlas"] .dx-header__in { padding-top: 0; padding-bottom: 0; min-height: 60px; }
+  .dx-root[data-preset="atlas"] .dx-tabsnav { align-self: stretch; }
+  .dx-root[data-preset="atlas"] .dx-tabsnav__item { display: flex; align-items: center; padding: 2px 12px 0; border-radius: 0; border-bottom: 2px solid transparent; }
+  .dx-root[data-preset="atlas"] .dx-tabsnav__item:hover { background: none; }
+  .dx-root[data-preset="atlas"] .dx-tabsnav__item[aria-current="page"] { background: none; border-bottom-color: var(--accent); }
+}
+.dx-root[data-preset="atlas"] .dx-hc__hero { align-items: flex-start; text-align: left; padding: 40px 40px 36px; }
+.dx-root[data-preset="atlas"] .dx-hc__hero .dx-ask { margin-left: 0; }
+.dx-root[data-preset="atlas"] .dx-hero__title { font-size: 40px; line-height: 48px; letter-spacing: -0.025em; }
+.dx-root[data-preset="atlas"] .dx-hc .dx-grid--3 { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.dx-root[data-preset="atlas"] .dx-hc-cat { box-shadow: var(--shadow-sm); }
+.dx-root[data-preset="atlas"] .dx-title { font-size: 34px; line-height: 42px; letter-spacing: -0.02em; }
+
+/* Pastel: soft tinted grounds, rounded pills, friendly weight. */
+.dx-root[data-preset="pastel"] .dx-prose.md-prose--reading { font-size: 16.5px; line-height: 28px; }
+.dx-root[data-preset="pastel"] .dx-title { font-size: 36px; line-height: 44px; letter-spacing: -0.01em; }
+.dx-root[data-preset="pastel"] .dx-prose :is(h2, h3) { font-weight: 800; }
+.dx-root[data-preset="pastel"] :is(.md-btn, .dx-searchbox, .dx-nav__item) { border-radius: var(--radius-full); }
+.dx-root[data-preset="pastel"] :is(.dx-startcard, .dx-area, .dx-hc-cat) { border-color: transparent; background: color-mix(in oklab, var(--accent) 8%, var(--surface)); box-shadow: none; }
+.dx-root[data-preset="pastel"] :is(.dx-card, .dx-ask__box, .md-codeblock, .dx-prevnext__link) { box-shadow: none; }
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 1199px) {
   .dx-root[data-layout] .dx-layout--top { grid-template-columns: minmax(0, 1fr) minmax(0, var(--dx-measure)) minmax(0, 1fr); gap: 32px; }
@@ -171,6 +263,9 @@
   .dx-root[data-preset] .dx-hero__title { font-size: 34px; line-height: 40px; }
   .dx-root[data-preset="editorial"] .dx-prose.md-prose--reading { font-size: 17px; line-height: 28px; }
   .dx-hc__hero { padding: 36px 16px 32px; }
+  .dx-root[data-preset="atlas"] .dx-hc__hero { padding: 28px 18px 24px; }
+  .dx-root[data-preset="paper"] .dx-prose.md-prose--reading { font-size: 17px; line-height: 29px; }
+  .dx-root[data-preset="studio"] .dx-prose h2 { font-size: 24px; line-height: 32px; }
 }
 @media print {
   .dx-topnav, .dx-section { display: none !important; }

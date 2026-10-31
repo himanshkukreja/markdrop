@@ -1,7 +1,11 @@
 /** Types for theme.mjs (site.json `theme`: presets, fonts, corners, mode, brand palettes, custom CSS). */
 
-export type PresetId = "clean" | "editorial" | "technical" | "minimal" | "playful" | "helpcenter";
+export type PresetId =
+  | "clean" | "editorial" | "technical" | "minimal" | "playful" | "helpcenter"
+  | "midnight" | "paper" | "terminal" | "corporate" | "studio" | "academic" | "atlas" | "pastel";
 export type ThemeLayout = "sidebar" | "top" | "helpcenter";
+/** The home page: the hero home, or the help center's (search, category cards). */
+export type ThemeHome = "hero" | "categories";
 export type FontKind = "sans" | "serif" | "mono";
 export type CornersId = "sharp" | "soft" | "round";
 export type ThemeMode = "both" | "light" | "dark";
@@ -30,10 +34,12 @@ export interface Preset {
   label: string;
   blurb: string;
   layout: ThemeLayout;
+  /** Overrides the layout's own home ("categories" for helpcenter, else "hero"). */
+  home?: ThemeHome;
   fonts: { heading: string; body: string; mono: string };
   corners: CornersId | RadiusScale;
   headingWeight: number;
-  palette: { accent: string; light: BasePalette; dark: BasePalette } | null;
+  palette: { accent: string; accentDark?: string; light: BasePalette; dark: BasePalette } | null;
 }
 
 export declare const CORNERS: Record<CornersId, RadiusScale>;
@@ -75,6 +81,7 @@ export interface ThemeConfig {
 export interface ResolvedTheme {
   preset: PresetId;
   layout: ThemeLayout;
+  home: ThemeHome;
   fonts: { heading: string; body: string; mono: string };
   headingWeight: number;
   radius: RadiusScale;

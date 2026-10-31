@@ -1,10 +1,11 @@
 /**
- * Docs themes (site.json `theme`): the six presets, the font allow-list, corners, colour mode,
+ * Docs themes (site.json `theme`): the fourteen presets, the font allow-list, corners, colour mode,
  * palettes built from brand colours, and custom CSS. Plain ESM with no imports, shared by the
  * engine (src/docs/themeSite.ts), docs:check and the tests.
  *
  *   "theme": {
- *     "preset": "clean" | "editorial" | "technical" | "minimal" | "playful" | "helpcenter",
+ *     "preset": "clean" | "editorial" | "technical" | "minimal" | "playful" | "helpcenter" | "midnight"
+ *               | "paper" | "terminal" | "corporate" | "studio" | "academic" | "atlas" | "pastel",
  *     "fonts": { "heading": "newsreader", "body": "source-sans-3", "mono": "plex-mono" },
  *     "corners": "sharp" | "soft" | "round",          // overrides the preset's radius scale
  *     "mode": "both" | "light" | "dark",               // light-only / dark-only hide the switch
@@ -46,6 +47,8 @@ const P = (bg, header, card, text, muted, line, code, codeText) => ({ bg, header
  * layout: "sidebar" (left page tree, contents rail), "top" (no sidebar: section links under the
  * header, a centred column, contents in the page), "helpcenter" (search hero and category cards on
  * the home, articles with "In this category" beside them).
+ * home (optional): "categories" puts the help center's home (search, category cards) in front of
+ * another layout's articles; by default it follows the layout ("categories" for helpcenter only).
  */
 export const PRESETS = {
   clean: {
@@ -121,6 +124,123 @@ export const PRESETS = {
       accent: "#c2410c",
       light: P("#ffffff", "#ffffff", "#ffffff", "#1c1917", "#6b625c", "#ebe5df", "#f6f2ee", "#1c1917"),
       dark: P("#121010", "#121010", "#1a1716", "#f5f0eb", "#ada39b", "#2e2826", "#0c0a0a", "#f5f0eb"),
+    },
+  },
+  // The eight below (Themes board, "Choose a look") carry their own dark accent too: the light
+  // one, lightened by the maths, would look washed out on their dark grounds. Brand colours replace
+  // both (buildPalette). Every text colour here already passes on its grounds, before any clamping
+  // (theme.test.mjs checks that the maths leaves them as designed).
+  midnight: {
+    label: "Midnight",
+    blurb: "Deep navy, violet accent. Developer tools.",
+    layout: "sidebar",
+    fonts: { heading: "geist", body: "geist", mono: "geist-mono" },
+    corners: { sm: 4, md: 6, lg: 8, xl: 10, "2xl": 14, "3xl": 20 },
+    headingWeight: 700,
+    palette: {
+      accent: "#6d28d9",
+      accentDark: "#a78bfa",
+      light: P("#f7f8fc", "#ffffff", "#ffffff", "#0f1226", "#545a78", "#e2e4f0", "#f0f1f8", "#0f1226"),
+      dark: P("#0b0e1c", "#0f1326", "#12162b", "#e7e9ff", "#a3a8cc", "#252a4a", "#070914", "#e7e9ff"),
+    },
+  },
+  paper: {
+    label: "Paper",
+    blurb: "Warm paper, serif text, a quiet sidebar. Handbooks.",
+    layout: "sidebar",
+    fonts: { heading: "lora", body: "lora", mono: "jetbrains-mono" },
+    corners: { sm: 3, md: 4, lg: 6, xl: 8, "2xl": 10, "3xl": 14 },
+    headingWeight: 600,
+    palette: {
+      accent: "#9a3412",
+      accentDark: "#fdba74",
+      light: P("#fbf7ee", "#fbf7ee", "#fffdf8", "#2a2419", "#6b604c", "#e9dfcb", "#f4ecdc", "#2a2419"),
+      dark: P("#1b1813", "#1b1813", "#221e17", "#f5eddf", "#b0a48c", "#3a3326", "#13110d", "#f5eddf"),
+    },
+  },
+  terminal: {
+    label: "Terminal",
+    blurb: "Monospace headings, green on black. CLI tools.",
+    layout: "sidebar",
+    fonts: { heading: "jetbrains-mono", body: "plex", mono: "jetbrains-mono" },
+    corners: "sharp",
+    headingWeight: 700,
+    palette: {
+      accent: "#15803d",
+      accentDark: "#4ade80",
+      light: P("#fbfdfb", "#ffffff", "#f5f9f6", "#0c1a10", "#4a5e50", "#dce6de", "#eef4ef", "#0c1a10"),
+      dark: P("#0a0f0b", "#0d140f", "#0f1711", "#d7f5df", "#8fb39a", "#1f3024", "#050805", "#c8f7d4"),
+    },
+  },
+  corporate: {
+    label: "Corporate",
+    blurb: "Strict and compact, blue-grey. Enterprise.",
+    layout: "sidebar",
+    fonts: { heading: "source-sans-3", body: "source-sans-3", mono: "plex-mono" },
+    corners: { sm: 2, md: 2, lg: 2, xl: 3, "2xl": 4, "3xl": 4 },
+    headingWeight: 700,
+    palette: {
+      accent: "#1e40af",
+      accentDark: "#93c5fd",
+      light: P("#f4f6f9", "#ffffff", "#ffffff", "#111827", "#4b5563", "#d9dee6", "#eef1f5", "#111827"),
+      dark: P("#0f141b", "#141b24", "#161e28", "#e5e9f0", "#9aa5b5", "#273241", "#0b0f15", "#e5e9f0"),
+    },
+  },
+  studio: {
+    label: "Studio",
+    blurb: "Bold display type, big rounded cards. Launches.",
+    layout: "sidebar",
+    fonts: { heading: "dmsans", body: "inter", mono: "jetbrains-mono" },
+    corners: { sm: 6, md: 8, lg: 12, xl: 12, "2xl": 16, "3xl": 24 },
+    headingWeight: 800,
+    palette: {
+      accent: "#e11d48",
+      accentDark: "#fb7185",
+      light: P("#fffafb", "#ffffff", "#ffffff", "#1a0b10", "#6b5459", "#f3e1e4", "#fdf2f4", "#1a0b10"),
+      dark: P("#140b0e", "#1a0f13", "#1f1217", "#fbeef1", "#c2a5ad", "#3a2129", "#0d0709", "#fbeef1"),
+    },
+  },
+  academic: {
+    label: "Academic",
+    blurb: "Serif, numbered sections, footnote style. Knowledge bases.",
+    layout: "sidebar",
+    fonts: { heading: "source-serif-4", body: "source-serif-4", mono: "plex-mono" },
+    corners: { sm: 2, md: 2, lg: 3, xl: 4, "2xl": 6, "3xl": 8 },
+    headingWeight: 600,
+    palette: {
+      accent: "#047857",
+      accentDark: "#34d399",
+      light: P("#fdfdfb", "#fdfdfb", "#ffffff", "#161a18", "#535c57", "#e1e5e1", "#f3f5f2", "#161a18"),
+      dark: P("#111513", "#111513", "#161b18", "#e9eee9", "#a0aca5", "#29312c", "#0b0e0c", "#e9eee9"),
+    },
+  },
+  atlas: {
+    label: "Atlas",
+    blurb: "Top tabs and a card-grid home. Big help centers.",
+    layout: "sidebar",
+    home: "categories",
+    fonts: { heading: "inter", body: "inter", mono: "jetbrains-mono" },
+    corners: { sm: 4, md: 6, lg: 8, xl: 10, "2xl": 14, "3xl": 20 },
+    headingWeight: 700,
+    palette: {
+      accent: "#0369a1",
+      accentDark: "#38bdf8",
+      light: P("#f6fafd", "#ffffff", "#ffffff", "#0c1a26", "#4a5d6e", "#dbe7f0", "#eef4f9", "#0c1a26"),
+      dark: P("#08131c", "#0c1924", "#0f1e2b", "#e3f0fa", "#93aabd", "#1d3242", "#050d13", "#e3f0fa"),
+    },
+  },
+  pastel: {
+    label: "Pastel",
+    blurb: "Soft colours, friendly shapes. Education and community.",
+    layout: "sidebar",
+    fonts: { heading: "nunito", body: "dmsans", mono: "jetbrains-mono" },
+    corners: { sm: 6, md: 8, lg: 10, xl: 10, "2xl": 14, "3xl": 20 },
+    headingWeight: 800,
+    palette: {
+      accent: "#be185d",
+      accentDark: "#f472b6",
+      light: P("#fdf6fa", "#fffafd", "#ffffff", "#2a1424", "#6e5566", "#f3d9e8", "#fbeef5", "#2a1424"),
+      dark: P("#1a1018", "#20141d", "#251722", "#fbeaf4", "#c9a9bd", "#40273a", "#120b11", "#fbeaf4"),
     },
   },
 };
@@ -293,9 +413,11 @@ export function buildPalette(presetId, { colors, accent, accentDark } = {}) {
     light.muted = toHex(mix(ink, parseHex(light.bg), 0.42));
     for (const k of ["bg", "header", "card", "line", "code"]) dark[k] = toHex(mix(parseHex(dark[k]), ink, k === "line" ? 0.3 : 0.22));
   }
+  // A brand accent replaces the preset's in both themes (its dark one too, unless brand.accentDark).
+  const brandAccent = parseHex(accent) ? accent : roles?.accent;
   return {
-    accent: parseHex(accent) ? accent : roles?.accent ?? base.accent,
-    accentDark: parseHex(accentDark) ? accentDark : undefined,
+    accent: brandAccent ?? base.accent,
+    accentDark: parseHex(accentDark) ? accentDark : brandAccent ? undefined : base.accentDark,
     tint: roles?.tint,
     light,
     dark,
@@ -621,6 +743,7 @@ export function resolveTheme(theme, brand) {
   return {
     preset: presetId,
     layout: preset.layout,
+    home: preset.home ?? (preset.layout === "helpcenter" ? "categories" : "hero"),
     fonts: { heading: font("heading", ["sans", "serif"]), body: font("body", ["sans", "serif"]), mono: font("mono", ["mono"]) },
     headingWeight: preset.headingWeight,
     radius: corners,

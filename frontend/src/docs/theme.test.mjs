@@ -45,7 +45,19 @@ test("defaults: an empty theme is the clean preset, both modes, Markdrop's token
 
 test("presets: layouts, fonts and corners as designed", () => {
   const layout = Object.fromEntries(Object.keys(PRESETS).map((p) => [p, resolveTheme({ preset: p }).layout]));
-  assert.deepEqual(layout, { clean: "sidebar", editorial: "top", technical: "sidebar", minimal: "top", playful: "sidebar", helpcenter: "helpcenter" });
+  assert.deepEqual(layout, {
+    clean: "sidebar", editorial: "top", technical: "sidebar", minimal: "top", playful: "sidebar", helpcenter: "helpcenter",
+    midnight: "sidebar", paper: "sidebar", terminal: "sidebar", corporate: "sidebar", studio: "sidebar", academic: "sidebar", atlas: "sidebar", pastel: "sidebar",
+  });
+  // The help center's home: its own layout, and Atlas's card-grid home in front of sidebar articles.
+  const homes = Object.keys(PRESETS).filter((p) => resolveTheme({ preset: p }).home === "categories");
+  assert.deepEqual(homes, ["helpcenter", "atlas"]);
+  assert.equal(resolveTheme({ preset: "clean" }).home, "hero");
+  assert.equal(resolveTheme({ preset: "terminal" }).fonts.heading, "jetbrains-mono");
+  assert.equal(resolveTheme({ preset: "corporate" }).radius.md, 2);
+  assert.equal(resolveTheme({ preset: "studio" }).radius.lg, 12);
+  assert.equal(resolveTheme({ preset: "pastel" }).radius.lg, 10);
+  for (const p of ["paper", "academic"]) assert.equal(FONTS[resolveTheme({ preset: p }).fonts.body].kind, "serif", p);
   assert.equal(resolveTheme({ preset: "editorial" }).fonts.heading, "newsreader");
   assert.equal(resolveTheme({ preset: "technical" }).fonts.mono, "plex-mono");
   assert.equal(resolveTheme({ preset: "technical" }).radius.lg, 3);
@@ -86,6 +98,57 @@ test("contrast: every preset palette meets text 12:1, muted / links / buttons 4.
     const pal = buildPalette(id, {});
     if (pal) assertReport(paletteReport(pal), id);
   }
+});
+
+/**
+ * The eight presets of the Themes board's "Choose a look" (Midnight … Pastel): what readers get,
+ * per theme, as paletteReport gives it (the minimum over the page, cards, raised and inset grounds).
+ * A change to one of these palettes should be a decision, so the numbers are pinned here.
+ */
+const NEW_PRESETS = {
+  midnight: { light: { text: 16.1, muted: 5.9, links: 6.2, button: 7.1 }, dark: { text: 13.2, muted: 6.8, links: 6.1, button: 7.4 } },
+  paper: { light: { text: 13.4, muted: 5.4, links: 6.4, button: 7.3 }, dark: { text: 12.6, muted: 5.9, links: 8.7, button: 11.9 } },
+  terminal: { light: { text: 16.2, muted: 6.3, links: 5.2, button: 5 }, dark: { text: 14, muted: 7.1, links: 9.4, button: 11.6 } },
+  corporate: { light: { text: 15.1, muted: 6.4, links: 7.4, button: 8.7 }, dark: { text: 12.2, muted: 6, links: 8.3, button: 11.2 } },
+  studio: { light: { text: 17, muted: 6.1, links: 5.3, button: 4.7 }, dark: { text: 14.3, muted: 7.2, links: 6.1, button: 7.5 } },
+  academic: { light: { text: 16, muted: 6.3, links: 5.3, button: 5.5 }, dark: { text: 13.1, muted: 6.5, links: 8, button: 10.5 } },
+  atlas: { light: { text: 15.5, muted: 6, links: 5.2, button: 5.9 }, dark: { text: 12.8, muted: 6.2, links: 6.9, button: 9.4 } },
+  pastel: { light: { text: 14.9, muted: 5.8, links: 5.4, button: 6 }, dark: { text: 13.1, muted: 7.1, links: 6.1, button: 7.6 } },
+};
+
+test("contrast: the eight new presets, as designed (WCAG AA in both themes, nothing rescued by clamping)", () => {
+  assert.deepEqual(Object.keys(PRESETS).slice(6), Object.keys(NEW_PRESETS));
+  for (const [id, want] of Object.entries(NEW_PRESETS)) {
+    const pal = buildPalette(id, {});
+    assert.deepEqual(paletteReport(pal), want, id);
+    for (const theme of ["light", "dark"]) {
+      const p = PRESETS[id].palette[theme];
+      const t = paletteTokens(pal, theme);
+      // The palette's own text colours already pass: the maths keeps them as written.
+      assert.equal(t["--text"], p.text, `${id} ${theme} text kept`);
+      assert.equal(t["--text-muted"], p.muted, `${id} ${theme} muted kept`);
+      const on = (fg, keys) => Math.min(...keys.map((k) => contrast(parseHex(fg), parseHex(p[k]))));
+      assert.ok(on(p.text, ["bg", "card", "header"]) >= 12, `${id} ${theme} text`);
+      assert.ok(on(p.muted, ["bg", "card", "header"]) >= 4.5, `${id} ${theme} muted`);
+      assert.ok(contrast(parseHex(p.codeText), parseHex(p.code)) >= 7, `${id} ${theme} code`);
+      // Secondary text (lists, ledes) is body text too.
+      assert.ok(contrast(parseHex(t["--text-secondary"]), parseHex(t["--bg"])) >= 4.5, `${id} ${theme} secondary`);
+      // The accent fill is a visible UI shape on the page (3:1) in the dark theme.
+      if (theme === "dark") assert.ok(contrast(parseHex(t["--accent"]), parseHex(t["--bg"])) >= 3, `${id} dark fill`);
+    }
+  }
+});
+
+test("a preset's own dark accent: used without brand colours, replaced by a brand accent", () => {
+  assert.equal(buildPalette("midnight", {}).accentDark, "#a78bfa");
+  assert.equal(paletteTokens(buildPalette("midnight", {}), "dark")["--accent"], "#a78bfa");
+  // Match my brand replaces both accents (the dark one is derived from the brand's)...
+  assert.equal(buildPalette("midnight", { colors: ["#0f766e"] }).accentDark, undefined);
+  assert.equal(buildPalette("midnight", { accent: "#0f766e" }).accentDark, undefined);
+  // ...unless the brand names its own dark accent.
+  assert.equal(buildPalette("midnight", { colors: ["#0f766e"], accentDark: "#5eead4" }).accentDark, "#5eead4");
+  // The six first presets have none: their output is what it was.
+  for (const id of ["editorial", "technical", "minimal", "playful", "helpcenter"]) assert.equal(buildPalette(id, {}).accentDark, undefined, id);
 });
 
 test("contrast: any brand colour on any preset still meets it (Match my brand)", () => {
