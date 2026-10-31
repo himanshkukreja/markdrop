@@ -178,7 +178,7 @@ class Redirects(DocsSitesCase):
               {"from": "/blog", "to": "https://acme.example/blog"},
               {"from": "/news", "to": "/changelog"}]
         site = await self.patch(ok)
-        self.assertEqual(site["settings"]["redirects"][0], {"from": "/old/start", "to": "/getting-started/quickstart#install"})
+        self.assertEqual(site["settings"]["redirects"][0], {"from": "/old/start", "to": "/getting-started/quickstart#install", "why": "added"})
         self.assertEqual(len(site["settings"]["redirects"]), 4)
         # It counts as a change to publish.
         changes = await self.get(f"/{self.sid}/changes")
@@ -218,7 +218,7 @@ class Redirects(DocsSitesCase):
         await self.patch([{"from": "/old", "to": "/help/faq"}])
         build = await self.call("POST", f"/{self.sid}/publish", expect=202, json={})
         snap = await self.db["docs_snapshots"].find_one({"_id": ObjectId(build["snapshot_id"])})
-        self.assertEqual(snap["settings"]["redirects"], [{"from": "/old", "to": "/help/faq"}])
+        self.assertEqual(snap["settings"]["redirects"], [{"from": "/old", "to": "/help/faq", "why": "added"}])
         # …which the build writes as the engine's redirects.json.
         from app.services import docs_snapshot
 

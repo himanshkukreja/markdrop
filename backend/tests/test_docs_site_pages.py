@@ -108,8 +108,9 @@ class Pages(DocsSitesCase):
         await self.save(a, path="/public/a", expect=422)
         await self.new_page("/api/payments")  # close, but fine
 
-    async def redirects(self) -> list[dict]:
-        return (await self.get(f"/{self.sid}"))["settings"]["redirects"]
+    async def redirects(self, why: bool = False) -> list[dict]:
+        rows = (await self.get(f"/{self.sid}"))["settings"]["redirects"]
+        return rows if why else [{k: v for k, v in r.items() if k != "why"} for r in rows]
 
     async def test_moving_a_page_redirects_its_published_address(self):
         a = await self.new_page("/guides/a")
@@ -118,7 +119,8 @@ class Pages(DocsSitesCase):
         b = await self.call("POST", f"/{self.sid}/publish", expect=202, json={})
         await self.mark_live(b["id"])
         a = await self.save(a, path="/guides/a3")
-        self.assertEqual(await self.redirects(), [{"from": "/guides/a2", "to": "/guides/a3"}])
+        # Settings says why it's there: the page moved.
+        self.assertEqual(await self.redirects(why=True), [{"from": "/guides/a2", "to": "/guides/a3", "why": "moved"}])
         # Another move (autosave while typing): the redirect is re-pointed, no chain, no stale entry.
         a = await self.save(a, path="/guides/a4")
         self.assertEqual(await self.redirects(), [{"from": "/guides/a2", "to": "/guides/a4"}])

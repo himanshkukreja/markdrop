@@ -202,7 +202,7 @@ class RedirectRulesTests(unittest.TestCase):
               {"from": "/ext", "to": "https://e.com/old"}]
         self.assertEqual(after_move(rs, "/old", "/new", add=True), [
             {"from": "/x", "to": "/new#sec"}, {"from": "/y", "to": "/other"}, {"from": "/ext", "to": "https://e.com/old"},
-            {"from": "/old", "to": "/new"}])
+            {"from": "/old", "to": "/new", "why": "moved"}])
         self.assertEqual(after_move(rs, "/old", "/new", add=False)[-1], {"from": "/ext", "to": "https://e.com/old"})
         # Moving back where a redirect pointed: the self-redirect goes.
         self.assertEqual(after_move([{"from": "/a", "to": "/b"}], "/b", "/a", add=False), [])

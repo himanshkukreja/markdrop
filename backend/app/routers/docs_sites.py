@@ -24,6 +24,7 @@ from app.routers.docs_site_api import router as api_router
 from app.routers.docs_site_pages import DocsRoute
 from app.routers.docs_site_pages import router as pages_router
 from app.routers.docs_site_people import router as people_router
+from app.routers.docs_site_redirects import router as redirects_router
 from app.schemas.docs_site import PublishRequest, ReviewCreate, ReviewDecision, SiteCreate, SiteUpdate
 from app.services import docs_site_assets as assets
 from app.services import docs_site_publish as publishing
@@ -259,3 +260,5 @@ router.include_router(people_router)
 router.include_router(domains_router)
 # The API reference's OpenAPI description (routers/docs_site_api.py).
 router.include_router(api_router)
+# An import's redirects, for Settings (routers/docs_site_redirects.py).
+router.include_router(redirects_router)
