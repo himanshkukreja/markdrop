@@ -78,6 +78,7 @@ function ChoiceCard({ checked, onSelect, icon, title, body, name, value }: {
 export default function NewSite() {
   const search = useLocationSearch();
   const wanted = new URLSearchParams(search).get("ws");
+  const start = new URLSearchParams(search).get("start");
   const { ready } = useStudioSession(studioNew(wanted));
   const { all, reloadAll } = useStudio();
   const router = useRouter();
@@ -105,6 +106,15 @@ export default function NewSite() {
   const fallback = options.find((o) => o.id === wanted && o.ok)?.id ?? options.find(roomy)?.id ?? options.find((o) => o.ok)?.id ?? null;
   const scope = scopeChoice ?? fallback;
   const chosen = options.find((o) => o.id === scope) ?? null;
+
+  // ?start= (the Guides home's ways to start): preselect it once.
+  const startApplied = useRef(false);
+  useEffect(() => {
+    if (startApplied.current || !start) return;
+    startApplied.current = true;
+    if (start === "blank" || start === "template" || start === "gitbook") setSource(start);
+    else if (start === "openapi") { setSource("template"); setTemplate("api"); }
+  }, [start]);
 
   // Suggest a name and address from the GitBook address (docs.acme.com → "acme").
   useEffect(() => {

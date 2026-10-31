@@ -2,19 +2,25 @@
 
 import "./studio.css";
 import { useEffect } from "react";
-import { Anchor, Badge, Dropdown, Icon, IconButton, MarkdropMark, cx, type MenuEntry } from "@/components/ui";
+import { Anchor, Badge, Dropdown, Icon, MarkdropLogo, MarkdropMark, cx, type MenuEntry } from "@/components/ui";
 import { HeaderAuthSlot } from "@/components/shell/AccountMenu";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { roleLabel, type SiteSummary } from "@/lib/docsSites";
 import { RoleBadge } from "../people/roles";
 import { SiteTile } from "../SiteBar";
 import { PERSONAL, scopeOf, siteBase, studioHome, studioMembers, studioNew } from "../routes";
+import { GuideSearch } from "./GuideSearch";
 import { StudioProvider, useStudio, useWorkspaceName } from "./StudioContext";
 
-/** "Guides" beside the Markdrop mark (Markdrop Guides): the product's own name, same family as the app's logo. */
+/**
+ * "Guides" in the accent (Markdrop Guides' name), linking to its home. Phones put the Markdrop
+ * mark before it (the full logo and a divider sit before it from sm up, in the header); with a
+ * guide open (`compact`) phones keep the mark alone, to leave room for the guide's name.
+ */
 export function StudioWordmark({ size = 26, compact, className }: { size?: number; compact?: boolean; className?: string }) {
   return (
     <Anchor href={studioHome()} className={cx("md-focus flex shrink-0 items-center gap-2 rounded-md text-text no-underline", className)} aria-label="Markdrop Guides home">
-      <MarkdropMark size={size} />
+      <MarkdropMark size={size} className="sm:hidden" />
       <span className={cx("docs-studio__word text-[17px] leading-none", compact && "max-sm:hidden")} aria-hidden>
         <em>Guides</em>
       </span>
@@ -88,35 +94,45 @@ function WorkspaceBadge() {
   );
 }
 
-/** Between Markdrop and Markdrop Guides: the same account, two products. */
-function AppSwitcher() {
-  const tile = (bg: string, icon: React.ReactNode) => (
-    <span className="grid size-8 place-items-center rounded-lg" style={{ background: bg }} aria-hidden>{icon}</span>
-  );
+/** Markdrop's own areas beside Guides (wide screens; the account menu has them everywhere). */
+const APP_NAV = [
+  { label: "Documents", href: "/dashboard?kind=document" },
+  { label: "Files", href: "/dashboard?kind=artifact" },
+  { label: "Guides", href: studioHome(), current: true },
+];
+
+function AppNav({ className }: { className?: string }) {
   return (
-    <Dropdown
-      align="right"
-      minWidth={280}
-      aria-label="Switch app"
-      trigger={<IconButton icon="columns" label="Switch app" />}
-      items={[
-        { header: <span className="text-caption font-semibold uppercase tracking-wide text-text-muted">Markdrop apps</span> },
-        { label: "Markdrop", description: "Documents, artifacts and file sharing", href: "/dashboard", tile: tile("transparent", <MarkdropMark size={28} />) },
-        { label: "Markdrop Guides", description: "Help centers and product guides for your team", href: studioHome(), tile: tile("var(--accent-soft)", <Icon name="layers" className="text-accent-text" />), icon: "check" },
-      ]}
-    />
+    <nav aria-label="Markdrop" className={cx("items-center gap-0.5", className)}>
+      {APP_NAV.map((l) => (
+        <Anchor
+          key={l.label}
+          href={l.href}
+          aria-current={l.current ? "page" : undefined}
+          className={cx(
+            "md-focus rounded-md px-2.5 py-1.5 text-body no-underline transition-colors",
+            l.current ? "bg-surface-active font-semibold text-text" : "text-text-secondary hover:bg-surface-hover hover:text-text",
+          )}
+        >
+          {l.label}
+        </Anchor>
+      ))}
+    </nav>
   );
 }
 
 /**
- * Markdrop Guides' header: the Markdrop mark with "Guides", then (on a guide's screens) the guide
- * switcher and its workspace; on the right the app switcher and the account menu.
+ * Markdrop Guides' header, on every Guides screen: the Markdrop logo, a divider and "Guides"; on
+ * a guide's screens its switcher, workspace and your role there; Markdrop's Documents / Files /
+ * Guides; then the guide search (⌘K), the theme switch and the account menu. Phones: the mark with
+ * "Guides" (the mark alone with a guide open), the search button and the account menu.
  */
 export function StudioHeader() {
   const { current } = useStudio();
   return (
     <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-surface px-3 sm:gap-3 sm:px-5">
-      {/* With a site open, phones keep the room for its name: the mark alone. */}
+      <MarkdropLogo size={26} wordmark={!current} href="/" className="md-focus shrink-0 max-sm:hidden" />
+      <span aria-hidden className="h-[22px] w-px shrink-0 bg-border-strong max-sm:hidden" />
       <StudioWordmark compact={!!current} />
       {current && (
         <>
@@ -126,8 +142,10 @@ export function StudioHeader() {
           <RoleBadge role={current.your_role} className="max-sm:hidden" title="Your Guides role on this guide" />
         </>
       )}
+      <AppNav className={cx("ml-2 hidden", current ? "2xl:flex" : "lg:flex")} />
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
-        <AppSwitcher />
+        <GuideSearch compact={!!current} />
+        <ThemeToggle className="max-md:hidden" />
         <HeaderAuthSlot />
       </div>
     </header>

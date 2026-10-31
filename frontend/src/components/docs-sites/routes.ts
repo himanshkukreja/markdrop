@@ -2,7 +2,8 @@
  * Markdrop Guides' addresses. The studio is its own area of the app, not a workspace page:
  *
  *   /guides                    every site you can open, grouped by workspace (?ws=<id>|personal filters)
- *   /guides/new                a new site (?ws=<id>|personal preselects where it lives)
+ *   /guides/new                a new site (?ws=<id>|personal preselects where it lives,
+ *                              ?start=blank|template|gitbook|openapi how it starts)
  *   /guides/<site>             the editor (?page=<id>)
  *   /guides/<site>/import      the GitBook import (?job=<id>, else the site's last import)
  *   /guides/<site>/design      themes, brand, fonts, custom CSS
@@ -25,8 +26,14 @@ const withScope = (path: string, scope?: StudioScope | null) => (scope ? `${path
 
 /** The studio's home, optionally filtered to one workspace (or "personal"). */
 export const studioHome = (scope?: StudioScope | null) => withScope(STUDIO, scope);
-/** New site, optionally preselecting where it lives. */
-export const studioNew = (scope?: StudioScope | null) => withScope(`${STUDIO}/new`, scope);
+/** How a new guide starts (?start= on /guides/new preselects it): openapi = the API reference template. */
+export type NewGuideStart = "blank" | "template" | "gitbook" | "openapi";
+export const NEW_GUIDE_STARTS: readonly NewGuideStart[] = ["blank", "template", "gitbook", "openapi"];
+/** New site, optionally preselecting where it lives and how it starts. */
+export const studioNew = (scope?: StudioScope | null, start?: NewGuideStart | null) => {
+  const path = withScope(`${STUDIO}/new`, scope);
+  return start ? `${path}${path.includes("?") ? "&" : "?"}start=${start}` : path;
+};
 /** A site's screens hang off this (the editor itself is the bare address). */
 export const siteBase = (siteId: string) => `${STUDIO}/${encodeURIComponent(siteId)}`;
 /** Guides › Members: a workspace's people and their Guides roles (studio admins). */

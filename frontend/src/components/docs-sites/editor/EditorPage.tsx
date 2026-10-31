@@ -166,6 +166,14 @@ export default function EditorPage() {
   const session = usePageSession({ siteId: site.id, pageId, canEdit, onSaved });
   const { page, fields, lock, save } = session;
   const editable = lock.kind === "mine";
+  // ?preview=1 (the Guides home's Preview on a guide that isn't live): open the page's preview once.
+  const previewAsked = useRef(false);
+  const wantsPreview = new URLSearchParams(search).get("preview") === "1";
+  useEffect(() => {
+    if (!wantsPreview || !fields || previewAsked.current) return;
+    previewAsked.current = true;
+    setPreview(true);
+  }, [wantsPreview, fields]);
   const summary = tree?.pages.find((p) => p.id === pageId) ?? null;
   const group = groups?.find((g) => g.pages.some((p) => p.id === pageId));
 
