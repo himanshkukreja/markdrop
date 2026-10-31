@@ -459,6 +459,8 @@ async def site_summary(db: AsyncIOMotorDatabase, site: dict, role: str | studio_
 
 async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_roles.Resolved, *,
                     job: dict | None = None) -> dict:
+    from app.services import docs_cf_hosts
+
     sid = site["_id"]
     live = await db[BUILDS].find_one({"_id": site["live_build_id"]}) if site.get("live_build_id") else None
     latest = await db[BUILDS].find_one({"site_id": sid}, sort=[("number", -1)])
@@ -492,6 +494,9 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_rol
         # False while the edge doesn't hold the site's access policy yet (the access job is
         # retried until it does): the dashboard says "Not enforced yet".
         "access_enforced": docs_site_access.enforced(site),
+        # False while the free address isn't attached on Cloudflare yet (services/docs_cf_hosts.py:
+        # its certificate is on its way); always True where addresses aren't managed there.
+        "address_ready": docs_cf_hosts.address_ready(site),
     })
     if job is not None:
         out["job"] = job_view(job, details=details)
@@ -829,6 +834,10 @@ async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None,
         raise HTTPException(status_code=404, detail="Docs site not found")
     if access_changed:
         await docs_site_access.queue_sync(db, res["_id"], "settings")
+    if "slug" in updates:
+        from app.services import docs_cf_hosts
+
+        await docs_cf_hosts.queue_for_slug(db, res["_id"], site.get("slug"))
     return res
 
 
@@ -855,6 +864,12 @@ async def _take_down(db: AsyncIOMotorDatabase, site: dict, reason: str, extra: d
                                {"$set": {"status": "failed", "error": why, "updated_at": t}})
     await db[BUILDS].update_many({"site_id": site["_id"], "status": "queued"},
                                  {"$set": {"status": "failed", "error": why, "finished_at": t}})
+    # Its free address on Cloudflare comes off too (whenever one may have been attached).
+    if site.get("slug") or site.get("cf_hosts"):
+        from app.services import docs_cf_hosts
+
+        await docs_cf_hosts.queue(db, site["_id"], reason,
+                                  [docs_cf_hosts.free_host(site["slug"])] if site.get("slug") else [])
     if not was_live and building is None:
         return None
     return await enqueue_job(db, "unpublish", site["_id"], {"reason": reason, "slug": site.get("slug")})

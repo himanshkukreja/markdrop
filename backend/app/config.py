@@ -489,6 +489,10 @@ class Settings(BaseSettings):
     docs_local_build_max_mb: int = 768
     docs_local_min_free_mb: int = 1200
     docs_local_build_timeout_seconds: int = 900
+    docs_cf_api_token: str = ''
+    docs_cf_account_id: str = ''
+    docs_cf_zone_name: str = 'markdrop.in'
+    docs_cf_worker: str = 'markdrop-docs-edge'
 
     model_config = {"env_file": ".env", "env_prefix": "MARKDROP_"}
 

@@ -243,6 +243,49 @@ The edge enforces it; the API holds the password and decides who may read.
   `MARKDROP_DOCS_ACCESS_SECRET`); vars `MARKDROP_API_ORIGIN`, `MARKDROP_APP_ORIGIN` (wrangler.toml).
   Without the secret a non-public site answers only "private". Self-host: the same three as env.
 
+## Free addresses on Cloudflare
+
+Cloudflare's free Universal SSL covers `markdrop.in` and `*.markdrop.in`, not two-level names such
+as `acme.docs.markdrop.in`. So the API attaches each site's free address to this Worker as a
+**Workers Custom Domain**, which creates the DNS record and a free certificate for that one host
+(backend/app/services/docs_cf_hosts.py). The R2 host mapping (`hosts/<host>.json`) still decides
+which site a host serves; the custom domain only gets the request to the Worker.
+
+- **When.** A publish of a site whose address isn't attached yet queues a `cf_host` server job,
+  which runs right away in the API, so the certificate is usually ready by the time the build
+  (about a minute) goes live. Unpublish, delete and take-down detach the address. After a slug
+  change, the new address is attached and the old one is detached once nothing serves it any more:
+  at once for a site that isn't live, and otherwise when a build at the new slug goes live. A failed
+  call is retried by the job sweeper, and the sweeper queues the job again for any site whose
+  attached addresses don't match what it should have. The site view's `address_ready` is false
+  until the current address is attached.
+- **Safety.** Only a single label directly under `docs_sites_domain` (`<label>.docs.markdrop.in`),
+  and never a reserved slug, is ever attached or detached. `markdrop.in`, `www`, `api`, `docs`,
+  `edge` and anything deeper or foreign are refused before any call. A domain that is attached to
+  another Worker is left alone, and the token is never logged.
+- **Token.** Create an API token (My Profile › API Tokens › Create custom token) with these
+  permissions:
+  - Account › Workers Scripts › Edit
+  - Zone (markdrop.in) › DNS › Edit
+  - Zone (markdrop.in) › SSL and Certificates › Edit
+  - Zone (markdrop.in) › Workers Routes › Edit
+- **Env** (API `.env`; the local worker reads the same ones):
+  `MARKDROP_DOCS_CF_API_TOKEN` (secret), `MARKDROP_DOCS_CF_ACCOUNT_ID`,
+  `MARKDROP_DOCS_CF_ZONE_NAME` (default `markdrop.in`), `MARKDROP_DOCS_CF_WORKER` (default
+  `markdrop-docs-edge`). When the token or account is blank, nothing is attached. With
+  `MARKDROP_DOCS_SITE_HOST_TEMPLATE` set (a preview host), nothing is attached either.
+- **Verify.** Publish a site, then:
+  - the token: `curl -s -H "Authorization: Bearer $TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify`
+  - the domain: `curl -s -H "Authorization: Bearer $TOKEN" "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/domains?hostname=<slug>.docs.markdrop.in"`
+    should list it with `"service": "markdrop-docs-edge"`. The dashboard shows it under
+    Workers & Pages › markdrop-docs-edge › Settings › Domains & Routes.
+  - the site: `curl -sI https://<slug>.docs.markdrop.in/` gives a valid certificate and the site.
+    Issuing the certificate can take a minute or two.
+  - the job: the site's `docs_jobs` rows of kind `cf_host` (`error` carries what Cloudflare said),
+    and `cf_host_attached` / `cf_hosts` on the `docs_sites` row.
+  An exact DNS record that already exists for that host makes the attach fail (wildcard records
+  don't). Delete the record, and the sweeper's next try attaches the address.
+
 ## Commands
 
 ```bash
