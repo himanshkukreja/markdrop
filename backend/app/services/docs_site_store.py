@@ -305,6 +305,43 @@ async def builds_today(db: AsyncIOMotorDatabase, site_id: ObjectId) -> int:
     return await db[BUILDS].count_documents({"site_id": site_id, "created_at": {"$gte": utc_midnight()}})
 
 
+def _over_today(what: str, limit: int, whose: str) -> HTTPException:
+    return HTTPException(status_code=429, detail=f"The free plan has {limit} {what} per {whose} per day. "
+                                                 "Try again tomorrow (UTC).")
+
+
+async def check_new_site_quota(db: AsyncIOMotorDatabase, user_id: str, workspace_id: str | None, kind: str) -> None:
+    """Today's site creations (and imports, for a GitBook site), per person and per workspace.
+    Counted from the site rows, deleted ones included: a site is never removed, only marked."""
+    since = {"$gte": utc_midnight()}
+    checks = [({"owner_id": user_id}, settings.docs_site_creations_per_user_per_day, "new docs sites", "person")]
+    if workspace_id:
+        checks.append(({"workspace_id": workspace_id}, settings.docs_site_creations_per_workspace_per_day,
+                       "new docs sites", "workspace"))
+    if kind == "gitbook":
+        checks.append(({"owner_id": user_id, "source.kind": "gitbook"}, settings.docs_imports_per_user_per_day,
+                       "GitBook imports", "person"))
+        if workspace_id:
+            checks.append(({"workspace_id": workspace_id, "source.kind": "gitbook"},
+                           settings.docs_imports_per_workspace_per_day, "GitBook imports", "workspace"))
+    for q, limit, what, whose in checks:
+        if await db[SITES].count_documents({**q, "created_at": since}) >= limit:
+            raise _over_today(what, limit, whose)
+
+
+async def check_build_quota(db: AsyncIOMotorDatabase, site: dict, user_id: str) -> None:
+    """Today's publishes across every site: by this person, and in the site's workspace."""
+    since = {"$gte": utc_midnight()}
+    limit = settings.docs_builds_per_user_per_day
+    if await db[BUILDS].count_documents({"requested_by": user_id, "created_at": since}) >= limit:
+        raise _over_today("publishes", limit, "person")
+    if site.get("workspace_id"):
+        ids = await db[SITES].distinct("_id", {"workspace_id": site["workspace_id"]})
+        limit = settings.docs_builds_per_workspace_per_day
+        if await db[BUILDS].count_documents({"site_id": {"$in": ids}, "created_at": since}) >= limit:
+            raise _over_today("publishes", limit, "workspace")
+
+
 def limits() -> dict:
     return {
         "sites": settings.docs_sites_per_workspace,
@@ -643,6 +680,7 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
             status_code=429,
             detail=f"The free plan has {settings.docs_sites_per_workspace} docs sites per workspace, "
                    f"and {where} has them all. Delete one to make another.")
+    await check_new_site_quota(db, user.id, workspace_id, source.get("kind"))
 
     kind = source.get("kind")
     stored_source: dict = {"kind": kind}
@@ -728,8 +766,8 @@ async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None,
                 pw = access.pop("password")
                 if pw is None or pw == "":
                     access["password_hash"] = None
-                elif not isinstance(pw, str) or not (6 <= len(pw) <= 200):
-                    raise HTTPException(status_code=422, detail="Use a password of 6 to 200 characters.")
+                elif not isinstance(pw, str) or not (8 <= len(pw) <= 200):
+                    raise HTTPException(status_code=422, detail="Use a password of 8 to 200 characters.")
                 else:
                     import bcrypt
 

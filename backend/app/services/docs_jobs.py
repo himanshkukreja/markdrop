@@ -72,7 +72,7 @@ class DocsJobsSettings(BaseSettings):
     docs_builder_ref: str = "main"
     docs_actions_monthly_minutes: int = 1800
     docs_dispatch_retry_minutes: int = 10
-    docs_local_import_max_pages: int = 40
+    docs_local_import_max_pages: int = 40  # no longer read: imports run on Actions only (docs_dispatch)
     # The local (API box) build guards: Node heap cap per process, the free
     # memory a build needs before it starts, a hard timeout, one at a time.
     # Measured (docs-platform/runner/README.md): with 1 render worker a build
@@ -284,14 +284,22 @@ async def renew(db: AsyncIOMotorDatabase, job_id: Any, worker: str) -> bool:
     return res.matched_count == 1
 
 
+def _count(v: Any) -> int:
+    """A progress count from a runner's JSON: a whole number in 0…10⁹; anything else (a string, a
+    list, NaN, infinity, a bool) is 0."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or v in (float("inf"), float("-inf")):
+        return 0
+    return max(0, min(int(v), 10**9))
+
+
 async def set_progress(db: AsyncIOMotorDatabase, job_id: Any, worker: str, progress: dict) -> bool:
     """Record progress (and renew the lock). False when the job isn't this worker's any more."""
     s = get_jobs_settings()
     t = now()
     p = {
         "step": str(progress.get("step") or "")[:40],
-        "done": int(progress.get("done") or 0),
-        "total": int(progress.get("total") or 0),
+        "done": _count(progress.get("done")),
+        "total": _count(progress.get("total")),
         "message": str(progress.get("message") or "")[:200],
     }
     res = await db[JOBS].update_one(

@@ -16,6 +16,39 @@ from app.services.docs_site_templates import TEMPLATES
 
 _GH_NAME = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,99})$")
 _GH_BRANCH = re.compile(r"^[A-Za-z0-9._/-]{1,200}$")
+_HOST_LABEL = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
+# A last label like these makes a browser (and Node's URL) read the whole host as an IPv4
+# address: "127.1", "0x7f.0.0.1", "2130706433", "0177.0.0.1".
+_NUMERIC_LABEL = re.compile(r"^(?:0x[0-9a-f]*|[0-9]+)$")
+_PRIVATE_SUFFIXES = (".localhost", ".local", ".internal", ".intranet", ".lan", ".home.arpa", ".corp", ".arpa")
+
+
+def public_https_url(url: str) -> bool:
+    """A plain public https:// address: no IP address in any spelling, no credentials, the
+    default port, a dotted DNS name that isn't a local one. Syntax only: where the name points
+    is checked by the importer when it connects (frontend/scripts/docs-import/lib/guard.mjs)."""
+    from urllib.parse import urlsplit
+
+    if not isinstance(url, str) or any(c in url for c in "\\\x00\t\r\n "):
+        return False
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        return False
+    if parts.scheme != "https" or "@" in parts.netloc or port not in (None, 443):
+        return False
+    host = (parts.hostname or "").rstrip(".")
+    if not host or "[" in parts.netloc or ":" in host:
+        return False
+    try:
+        host = host.encode("idna").decode("ascii").lower()
+    except UnicodeError:
+        return False
+    labels = host.split(".")
+    if len(labels) < 2 or not all(_HOST_LABEL.match(x) for x in labels) or _NUMERIC_LABEL.match(labels[-1]):
+        return False
+    return host != "localhost" and not host.endswith(_PRIVATE_SUFFIXES)
 
 
 class _Body(BaseModel):
@@ -62,15 +95,8 @@ class Source(_Body):
         if self.kind == "template" and not self.template:
             raise ValueError(f"Choose a template: {', '.join(TEMPLATES)}.")
         if self.kind == "gitbook":
-            from urllib.parse import urlsplit
-
             url = (self.url or "").strip()
-            parts = urlsplit(url)
-            if parts.scheme != "https" or not parts.hostname or "." not in parts.hostname:
-                raise ValueError("Give the public https:// address of your GitBook site.")
-            host = parts.hostname.lower()
-            if host in ("localhost",) or host.endswith((".local", ".internal")) \
-                    or re.match(r"^[0-9.]+$", host) or ":" in host:
+            if not public_https_url(url):
                 raise ValueError("Give the public https:// address of your GitBook site.")
             self.url = url
         if self.kind == "github" and self.repo is None:

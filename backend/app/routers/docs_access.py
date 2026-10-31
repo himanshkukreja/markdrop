@@ -7,7 +7,8 @@ has the whole flow and the token format).
 - ``POST /password?site=<id>``: the edge's sign-in page posts the password here
   (an HTML form, so the password never passes through the edge). Answers with a
   303: to ``https://<host>/_access/callback#g=<grant>…`` when it is right, else
-  back to the sign-in page with a reason. Rate limited per IP and site, and per IP.
+  back to the sign-in page with a reason. Rate limited per IP and site, per IP,
+  and by wrong passwords per site from every IP together.
 - ``POST /grant`` (signed in): markdrop.in's /auth/docs-access page asks for a
   members-only site; the reader's Docs Studio role on the site must be viewer or
   more.
@@ -46,6 +47,11 @@ router = APIRouter(prefix="/api/v1/docs-access", tags=["docs-access"])
 # Password attempts: per reader and site, and per reader across sites (bcrypt costs CPU too).
 PER_SITE = parse("10/15 minutes")
 PER_IP = parse("50/hour")
+# Wrong passwords for one site from every address together (a guesser spread over many
+# addresses): past this the site takes no password until the oldest failure is an hour old
+# (a moving window, so a guesser who keeps trying stays shut out). Readers already signed in
+# keep reading; the sign-in page says to wait.
+SITE_FAILURES = parse("100/hour")
 _fallback = MovingWindowRateLimiter(MemoryStorage())
 _NO_STORE = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
 
@@ -61,6 +67,14 @@ def _hit(item, *keys: str) -> bool:
         return limiter.limiter.hit(item, "docs-access", *keys)
     except Exception:
         return _fallback.hit(item, "docs-access", *keys)
+
+
+def _room(item, *keys: str) -> bool:
+    """Whether ``item`` has room for one more (without counting one)."""
+    try:
+        return limiter.limiter.test(item, "docs-access", *keys)
+    except Exception:
+        return _fallback.test(item, "docs-access", *keys)
 
 
 def _page(status: int, title: str, text: str) -> HTMLResponse:
@@ -95,7 +109,10 @@ async def password(request: Request, site: str = Query(..., max_length=64), host
         return _page(400, "Wrong address", "This sign-in form doesn't belong to that site. Open the site again.")
     nxt = access.safe_next(next)
     ip = get_client_ip(request)
-    if not _hit(PER_SITE, ip, str(row["_id"])) or not _hit(PER_IP, ip):
+    sid = str(row["_id"])
+    if not _room(SITE_FAILURES, "failures", sid):
+        return _redirect(access.gate_url(h, "rate", nxt))
+    if not _hit(PER_SITE, ip, sid) or not _hit(PER_IP, ip):
         return _redirect(access.gate_url(h, "rate", nxt))
     if not access.secret():
         return _redirect(access.gate_url(h, "unavailable", nxt))
@@ -111,6 +128,7 @@ async def password(request: Request, site: str = Query(..., max_length=64), host
         except ValueError:
             ok = False
     if not ok:
+        _hit(SITE_FAILURES, "failures", sid)
         return _redirect(access.gate_url(h, "wrong", nxt))
     await store.log_event(db, "docs_access_granted", row, None, via="password")
     return _redirect(access.callback_url(h, access.mint_grant(row, h, sh), nxt))

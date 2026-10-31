@@ -8,6 +8,7 @@ in memory (tests/_docs_sites_env.py); nothing here reaches a network.
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timezone
 from unittest import mock
 
 from bson import ObjectId
@@ -92,6 +93,34 @@ class Create(DocsSitesCase):
         await self.call("DELETE", f"/{a['id']}")
         await self.create("one")
 
+    async def test_daily_caps_on_new_sites_and_imports_count_deleted_sites(self):
+        gb = {"kind": "gitbook", "url": "https://docs.acme.test/"}
+        with mock.patch.object(settings, "docs_site_creations_per_user_per_day", 3), \
+                mock.patch.object(settings, "docs_imports_per_user_per_day", 1):
+            a = await self.create("one", source=gb)
+            # A second import the same day, even after deleting the first site: refused.
+            await self.call("DELETE", f"/{a['id']}")
+            r = await self.create("two", source=gb, expect=429)
+            self.assertEqual(r["detail"], "The free plan has 1 GitBook imports per person per day. Try again tomorrow (UTC).")
+            b = await self.create("two")
+            await self.call("DELETE", f"/{b['id']}")
+            # Three made today (two deleted): the fourth waits for tomorrow, in any workspace or none.
+            await self.create("three", workspace=False)
+            r = await self.create("four", workspace=False, expect=429)
+            self.assertIn("3 new docs sites per person per day", r["detail"])
+            # Someone else in the workspace isn't affected by the owner's count…
+            await self.create("five", "admin")
+            # …until the workspace's own cap.
+            with mock.patch.object(settings, "docs_site_creations_per_workspace_per_day", 3):
+                r = await self.create("six", "admin", expect=429)
+                self.assertIn("3 new docs sites per workspace per day", r["detail"])
+            with mock.patch.object(settings, "docs_imports_per_workspace_per_day", 1):
+                r = await self.create("seven", "admin", source=gb, expect=429)
+                self.assertIn("1 GitBook imports per workspace per day", r["detail"])
+            # Yesterday's don't count.
+            await self.db["docs_sites"].update_many({}, {"$set": {"created_at": datetime(2020, 1, 1, tzinfo=timezone.utc)}})
+            await self.create("eight", workspace=False, source=gb)
+
     async def test_templates(self):
         expected = {"product": ("clean", "/getting-started/quickstart"), "api": ("technical", "/api/authentication"),
                     "helpcenter": ("helpcenter", "/troubleshooting/cant-sign-in")}
@@ -124,6 +153,25 @@ class Create(DocsSitesCase):
         self.assertEqual(got["id"], job["id"])
         for bad in ("http://docs.acme.test", "https://localhost/x", "https://10.0.0.1/", "ftp://x.y", "notaurl"):
             await self.create("imported-2", source={"kind": "gitbook", "url": bad}, expect=422)
+
+    def test_gitbook_address_is_a_public_https_name(self):
+        from app.schemas.docs_site import public_https_url
+
+        for good in ("https://docs.acme.test/", "https://acme.gitbook.io/docs", "https://DOCS.Acme.com:443/x?y=1",
+                     "https://bücher.example/"):
+            self.assertTrue(public_https_url(good), good)
+        # IP addresses in every spelling a URL parser accepts, local names, other schemes and ports,
+        # credentials (a host hidden behind them), and names that aren't DNS names.
+        for bad in ("http://docs.acme.test", "https://127.0.0.1/", "https://0x7f.0.0.1/", "https://0x7f000001/",
+                    "https://127.1/", "https://2130706433/", "https://0177.0.0.1/", "https://017700000001/",
+                    "https://[::1]/", "https://[::ffff:127.0.0.1]/", "https://[fd00:ec2::254]/", "https://169.254.169.254/",
+                    "https://localhost/", "https://a.localhost/", "https://printer.local/", "https://db.internal/",
+                    "https://router.home.arpa/", "https://1.0.0.127.in-addr.arpa/", "https://intranet/",
+                    "https://user:pw@docs.acme.test/", "https://docs.acme.test@127.0.0.1/", "https://docs.acme.test:8443/",
+                    "https://docs.acme.test:0/", "https://docs_acme.test/", "https://-docs.acme.test/",
+                    "https://docs.acme.test\\@evil.test/", "https://%31%32%37.0.0.1/", "https://docs.acme.test /",
+                    "ftp://docs.acme.test/", "javascript:alert(1)", "", "notaurl"):
+            self.assertFalse(public_https_url(bad), bad)
 
     async def test_github_source_is_pending(self):
         site = await self.create("from-gh", source={"kind": "github", "repo": {
@@ -247,6 +295,8 @@ class Settings(DocsSitesCase):
     async def test_access_password_is_write_only(self):
         await self.patch({"settings": {"access": {"level": "password"}}}, expect=422)
         await self.patch({"settings": {"access": {"level": "password", "password": "short"}}}, expect=422)
+        r = await self.patch({"settings": {"access": {"level": "password", "password": "7-chars"}}}, expect=422)
+        self.assertEqual(r["detail"], "Use a password of 8 to 200 characters.")
         await self.patch({"settings": {"access": {"password_hash": "x"}}}, expect=422)
         got = await self.patch({"settings": {"access": {"level": "password", "password": "s3cret-pass"}}})
         self.assertEqual(got["settings"]["access"], {"level": "password", "has_password": True})
@@ -309,6 +359,22 @@ class Publish(DocsSitesCase):
             await self.call("POST", f"/{self.sid}/publish", expect=202)
             r = await self.http.post(f"{BASE}/{self.sid}/publish", headers=self.h["owner"])
             self.assertEqual(r.status_code, 429)
+
+    async def test_daily_build_caps_per_person_and_workspace_across_sites(self):
+        other = await self.create("other")
+        with mock.patch.object(settings, "docs_builds_per_user_per_day", 2):
+            await self.call("POST", f"/{self.sid}/publish", expect=202)
+            await self.call("POST", f"/{other['id']}/publish", expect=202)
+            # Deleting a site doesn't give its publishes back.
+            await self.call("DELETE", f"/{other['id']}")
+            r = await self.call("POST", f"/{self.sid}/publish", expect=429)
+            self.assertEqual(r["detail"], "The free plan has 2 publishes per person per day. Try again tomorrow (UTC).")
+            # Another admin can still publish…
+            await self.call("POST", f"/{self.sid}/publish", "admin", 202)
+        # …until the workspace's cap, which counts every site's publishes, the deleted one's too.
+        with mock.patch.object(settings, "docs_builds_per_workspace_per_day", 3):
+            r = await self.call("POST", f"/{self.sid}/publish", "admin", 429)
+            self.assertIn("3 publishes per workspace per day", r["detail"])
 
     async def test_changes_since_publish(self):
         ch = await self.get(f"/{self.sid}/changes")

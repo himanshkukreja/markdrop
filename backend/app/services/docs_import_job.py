@@ -19,8 +19,9 @@ Nothing is published: the owner reviews, then publishes.
 
 from __future__ import annotations
 
-import mimetypes
+import re
 from typing import Any
+from urllib.parse import urlsplit
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo.errors import DuplicateKeyError
@@ -28,9 +29,48 @@ from pymongo.errors import DuplicateKeyError
 from app.config import get_settings
 from app.services import docs_jobs
 from app.services.docs_jobs import ASSETS, PAGES, SITES, VERSIONS, now
+from app.services.docs_site_assets import rel_of
 from app.services.docs_snapshot import valid_page_path
 
 REPORT_ITEMS = 200  # per list, on the job (the full lists can be long)
+
+# What an import may leave in the site's /docs-assets/: images, PDFs and video, by extension (the
+# docs host serves a file with its extension's type). Never a type a browser renders as a page or
+# runs (HTML, XHTML, XML, SVG, JavaScript): the docs host is the site's own origin. SVG is left
+# out because an import's files never pass the upload path's SVG check (docs_site_assets.sniff).
+# The runner applies the same list before uploading (docs-platform/runner/lib.mjs), and the
+# importer before downloading (frontend/scripts/docs-import/lib/guard.mjs).
+IMPORT_ASSET_TYPES = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+    "avif": "image/avif",
+    "ico": "image/x-icon",
+    "pdf": "application/pdf",
+    "mp4": "video/mp4",
+    "webm": "video/webm",
+}
+IMPORT_ASSET_DIR = "import"  # the runner's IMPORT_ASSET_ID: every imported file is under /docs-assets/import/
+MAX_ASSET_BYTES = 2 * 1024 ** 3
+
+# Hosts an imported ::embed may frame (site.json embedHosts; any other embed shows as a link card).
+EMBED_HOSTS = frozenset({
+    "www.youtube.com", "youtube.com", "www.youtube-nocookie.com", "player.vimeo.com", "www.loom.com", "loom.com",
+    "www.figma.com", "figma.com", "embed.figma.com", "codepen.io", "codesandbox.io", "stackblitz.com",
+    "app.arcade.software", "demo.arcade.software", "docs.google.com", "miro.com", "fast.wistia.net",
+    "share.descript.com", "www.tella.tv", "app.supademo.com", "capture.navattic.com", "jsfiddle.net",
+})
+
+
+def import_asset_type(rel: Any) -> str | None:
+    """The content type an imported file at ``/docs-assets/<rel>`` is served with, or None when an
+    import may not leave it there (not under import/, an unsafe path, or a type off the list)."""
+    if not isinstance(rel, str) or rel_of("/docs-assets/" + rel) != rel or not rel.startswith(IMPORT_ASSET_DIR + "/"):
+        return None
+    ext = rel.rsplit(".", 1)[-1].lower() if "." in rel.rsplit("/", 1)[-1] else ""
+    return IMPORT_ASSET_TYPES.get(ext)
 
 
 def source_of(job: dict) -> dict:
@@ -76,11 +116,163 @@ def _brand(brand: dict | None) -> tuple[dict | None, dict]:
         x["logo_wordmark"] = True
     if logo.get("tile"):
         x["logo_tile"] = True
-    if brand.get("favicon"):
+    if _asset_or_https(brand.get("favicon")):
         x["favicon_url"] = brand["favicon"]
-    if isinstance(brand.get("og"), dict):
-        x["og"] = brand["og"]
+    og = _og(brand.get("og"))
+    if og:
+        x["og"] = og
     return b, x
+
+
+# ── What an import puts in engine_extra (the importer's site.json, read from a third-party site) ──
+# Every value is checked against the shape the engine reads (frontend/src/docs/types.ts) and
+# bounded; anything else is dropped.
+
+_CTRL = re.compile(r"[\x00-\x1f\x7f]")
+_HEX = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+_ICON = re.compile(r"^[a-z0-9][a-z0-9-]{0,59}$")
+_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$")
+
+
+def _text(v: Any, n: int) -> str | None:
+    """A one-line string of at most ``n`` characters (no control characters), else None."""
+    return v.strip() if isinstance(v, str) and v.strip() and len(v) <= n and not _CTRL.search(v) else None
+
+
+def site_path(v: Any, n: int = 500) -> bool:
+    """A path on the docs site: "/x", never "//host", a backslash, whitespace or a control character."""
+    return isinstance(v, str) and 0 < len(v) <= n and v.startswith("/") and not v.startswith("//") \
+        and "\\" not in v and not re.search(r"[\s\x00-\x1f\x7f]", v)
+
+
+def https_url(v: Any, n: int = 2048) -> bool:
+    """An https:// address with a host (no credentials, backslash, whitespace or control characters)."""
+    if not isinstance(v, str) or len(v) > n or not v.lower().startswith("https://") \
+            or "\\" in v or re.search(r"[\s\x00-\x1f\x7f]", v):
+        return False
+    try:
+        parts = urlsplit(v)
+        parts.port  # noqa: B018 (raises on a bad port)
+    except ValueError:
+        return False
+    return bool(parts.hostname) and "@" not in parts.netloc
+
+
+def _link(v: Any) -> bool:
+    return site_path(v) or https_url(v)
+
+
+def _asset_or_https(v: Any) -> bool:
+    """An imported file (/docs-assets/<safe rel>) or an https:// address."""
+    return (isinstance(v, str) and rel_of(v) is not None) or https_url(v)
+
+
+def _og(v: Any) -> dict:
+    if not isinstance(v, dict):
+        return {}
+    out: dict = {k: v[k] for k in ("background", "accent") if isinstance(v.get(k), str) and _HEX.match(v[k])}
+    if v.get("mark") in ("markdrop", "none"):
+        out["mark"] = v["mark"]
+    return out
+
+
+def _links(v: Any, n: int) -> list[dict]:
+    out = []
+    for it in (v if isinstance(v, list) else [])[:n]:
+        if isinstance(it, dict) and _text(it.get("label"), 80) and _link(it.get("href")):
+            out.append({"label": _text(it["label"], 80), "href": it["href"]})
+    return out
+
+
+def _tabs(v: Any) -> list[dict]:
+    out = []
+    for it in (v if isinstance(v, list) else [])[:20]:
+        if isinstance(it, dict) and isinstance(it.get("id"), str) and _ICON.match(it["id"]) \
+                and _text(it.get("label"), 80) and _link(it.get("href")):
+            out.append({"id": it["id"], "label": _text(it["label"], 80), "href": it["href"]})
+    return out
+
+
+def _home(v: Any) -> dict:
+    if not isinstance(v, dict):
+        return {}
+    out: dict = {}
+    start = []
+    for it in (v.get("start") if isinstance(v.get("start"), list) else [])[:24]:
+        if not isinstance(it, dict) or not site_path(it.get("page"), 300):
+            continue
+        card: dict = {"page": it["page"]}
+        if isinstance(it.get("icon"), str) and _ICON.match(it["icon"]):
+            card["icon"] = it["icon"]
+        for k, n in (("title", 200), ("description", 500), ("time", 20)):
+            if _text(it.get(k), n):
+                card[k] = _text(it[k], n)
+        start.append(card)
+    if start:
+        out["start"] = start
+    if _text(v.get("askPlaceholder"), 200):
+        out["askPlaceholder"] = _text(v["askPlaceholder"], 200)
+    for k, n, size in (("chips", 5, 200), ("areas", 12, 80)):
+        items = [_text(s, size) for s in (v.get(k) if isinstance(v.get(k), list) else [])[:n]]
+        if any(items):
+            out[k] = [s for s in items if s]
+    return out
+
+
+def _pages_options(v: Any) -> dict:
+    if not isinstance(v, dict):
+        return {}
+    return {k: v[k] for k in ("showDescription", "icons") if isinstance(v.get(k), bool)}
+
+
+def _embed_hosts(v: Any) -> list[str]:
+    hosts = [h.lower() for h in (v if isinstance(v, list) else [])[:200] if isinstance(h, str)]
+    return sorted({h for h in hosts if h in EMBED_HOSTS})
+
+
+def _videos(v: Any) -> dict:
+    out: dict = {}
+    for key, ref in (list(v.items()) if isinstance(v, dict) else [])[:500]:
+        if not isinstance(key, str) or not _KEY.match(key) or not isinstance(ref, dict):
+            continue
+        r: dict = {}
+        for k in ("url", "markdrop"):
+            if https_url(ref.get(k)):
+                r[k] = ref[k]
+        for k in ("src", "poster", "chapters", "captions"):
+            if isinstance(ref.get(k), str) and rel_of(ref[k]) is not None:
+                r[k] = ref[k]
+        for k, n in (("title", 200), ("duration", 20)):
+            if _text(ref.get(k), n):
+                r[k] = _text(ref[k], n)
+        if r.get("url") or r.get("markdrop") or r.get("src"):
+            out[key] = r
+    return out
+
+
+def _redirects(v: Any) -> dict:
+    """{from: to}: ``from`` a plain site path; ``to`` a site path (an optional #anchor) or an https URL."""
+    out: dict = {}
+    for frm, to in (list(v.items()) if isinstance(v, dict) else [])[:2000]:
+        if site_path(frm, 300) and not re.search(r"[?#]", frm) and (site_path(to) or https_url(to, 500)):
+            out[frm] = to
+    return out
+
+
+def engine_extra_from(imported: dict, data: dict) -> dict:
+    """The parts of an import's site.json (and redirects.json, videos.json) the engine reads,
+    each checked and bounded (above). ``brand`` and ``nav`` are added by the caller."""
+    extra: dict = {"source": "gitbook"}
+    for key in ("description", "eyebrow", "headline"):
+        if imported.get(key):
+            extra[key] = _s(imported[key], 500)
+    for key, value in (("home", _home(imported.get("home"))), ("pages", _pages_options(imported.get("pages"))),
+                       ("footer", _links(imported.get("footer"), 20)), ("tabs", _tabs(imported.get("tabs"))),
+                       ("embed_hosts", _embed_hosts(imported.get("embed_hosts"))),
+                       ("redirects", _redirects(data.get("redirects"))), ("videos", _videos(data.get("videos")))):
+        if value:
+            extra[key] = value
+    return extra
 
 
 def summarize_report(report: dict | None) -> dict:
@@ -98,19 +290,29 @@ def summarize_report(report: dict | None) -> dict:
     }
 
 
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
 async def _asset_rows(db: AsyncIOMotorDatabase, site_id: Any, by: str | None, assets: dict) -> int:
     """A docs_assets row per uploaded file (the quota counts them). Identical bytes at two paths
-    are one row (the index is unique on site + sha256)."""
+    are one row (the index is unique on site + sha256). A row only for a file an import may leave
+    (:func:`import_asset_type`), with its size; the content type is the extension's, never the
+    runner's word for it."""
     n = 0
-    for it in (assets.get("items") or [])[:20000]:
+    items = assets.get("items") if isinstance(assets.get("items"), list) else []
+    for it in items[:20000]:
+        if not isinstance(it, dict):
+            continue
         rel, sha, size = it.get("rel"), it.get("sha256"), it.get("size")
-        if not isinstance(rel, str) or not isinstance(sha, str) or len(sha) != 64 or not isinstance(size, int):
+        ctype = import_asset_type(rel)
+        if ctype is None or not isinstance(sha, str) or not _SHA256.match(sha) \
+                or not isinstance(size, int) or isinstance(size, bool) or not 0 <= size <= MAX_ASSET_BYTES:
             continue
         try:
             await db[ASSETS].insert_one({
-                "site_id": site_id, "sha256": sha, "ext": rel.rsplit(".", 1)[-1].lower() if "." in rel else "",
+                "site_id": site_id, "sha256": sha, "ext": rel.rsplit(".", 1)[-1].lower(),
                 "name": rel, "key": f"sites/{site_id}/assets/{rel}", "url": f"/docs-assets/{rel}", "size": size,
-                "content_type": it.get("content_type") or mimetypes.guess_type(rel)[0] or "application/octet-stream",
+                "content_type": ctype,
                 "original_name": None, "by": by, "source": "import", "created_at": now(),
             })
             n += 1
@@ -187,8 +389,10 @@ async def apply_import(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
     # The nav (page ids). The home leads the first group, as the editor's page tree shows it.
     nav: list[dict] = []
     nav_meta: dict = {}
-    for g in data.get("nav") or []:
-        ids = [str(ids_by_path[p]) for p in (g.get("pages") or []) if p in ids_by_path][:1000]
+    for g in data.get("nav") if isinstance(data.get("nav"), list) else []:
+        if not isinstance(g, dict) or not isinstance(g.get("pages"), list):
+            continue
+        ids = [str(ids_by_path[p]) for p in g["pages"] if isinstance(p, str) and p in ids_by_path][:1000]
         if not ids or len(nav) >= 100:
             continue
         name = _s(g.get("group"), 80) or "Pages"
@@ -202,7 +406,7 @@ async def apply_import(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
         else:
             nav = [{"group": "Getting started", "pages": [str(ids_by_path["/"])]}]
 
-    imported = data.get("site") or {}
+    imported = data.get("site") if isinstance(data.get("site"), dict) else {}
     brand, brand_extra = _brand(imported.get("brand"))
     settings = dict(site.get("settings") or site_settings.default_settings())
     settings["nav"] = nav
@@ -218,21 +422,11 @@ async def apply_import(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
         settings = site_settings.validate(settings)
         brand_extra = {}
         skipped.append("the imported brand (logo or colour) couldn't be used")
-    extra: dict = {"source": "gitbook"}
-    for key in ("description", "eyebrow", "headline"):
-        if imported.get(key):
-            extra[key] = _s(imported[key], 500)
-    for key in ("home", "pages", "footer", "tabs", "embed_hosts"):
-        if imported.get(key):
-            extra[key] = imported[key]
+    extra = engine_extra_from(imported, data)
     if brand_extra:
         extra["brand"] = brand_extra
     if nav_meta:
         extra["nav"] = nav_meta
-    if isinstance(data.get("redirects"), dict) and data["redirects"]:
-        extra["redirects"] = {str(k)[:300]: str(v)[:500] for k, v in list(data["redirects"].items())[:2000]}
-    if isinstance(data.get("videos"), dict) and data["videos"]:
-        extra["videos"] = data["videos"]
     await db[SITES].update_one({"_id": site_id}, {"$set": {"settings": settings, "engine_extra": extra, "updated_at": t}})
 
     assets = data.get("assets") if isinstance(data.get("assets"), dict) else {}
@@ -241,9 +435,9 @@ async def apply_import(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
     result = {
         "ok": True,
         "pages": {"created": created, "updated": updated, "total": len(ids_by_path),
-                  "hidden": sum(1 for p in pages_in if p.get("hidden") and p.get("path") in ids_by_path)},
+                  "hidden": sum(1 for p in pages_in if p.get("hidden") and isinstance(p.get("path"), str) and p["path"] in ids_by_path)},
         "nav_groups": len(nav),
-        "assets": {**{k: int(v) for k, v in assets.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}, "rows": asset_rows},
+        "assets": {**{k: v for k, v in assets.items() if isinstance(k, str) and isinstance(v, int) and not isinstance(v, bool)}, "rows": asset_rows},
         "report": report,
         "skipped": skipped[:100],
     }
