@@ -17,6 +17,8 @@ published into the stack's folder store and served at http://<slug>.guides.markd
                   import (https://acme.gitbook.io/developers) with its "needs a look" report, not
                   published yet
         times     every row is backdated so the history reads naturally ("published 5 h ago")
+        insights  two weeks of daily readers, page feedback and Ask AI questions for each live
+                  Acme guide (the Guides home's 7-day numbers and its cards' sparklines)
 
     seed_extra_studio.py --import-run [--slow]
         Plays the import worker for the newest queued GitBook import (the stack's worker never
@@ -186,9 +188,13 @@ def upload(token: str, sid: str, file: Path, name: str, mime: str) -> str:
                 files={"file": (name, file.read_bytes(), mime)})["url"]
 
 
+INSIGHTS = ("guide_events", "guide_daily", "guide_feedback")
+
+
 def reset() -> None:
-    for name in DOCS:
+    for name in DOCS + INSIGHTS:
         db[name].delete_many({})
+    db["ai_requests"].delete_many({"feature": "docs_ask", "request_id": {"$regex": "^demo-insights-"}})
     for sub in ("sites", "hosts"):
         shutil.rmtree(STORE / sub, ignore_errors=True)
 
@@ -196,6 +202,36 @@ def reset() -> None:
 def add_member(ws_id: str, user: dict, role: str, age: timedelta, now: datetime) -> None:
     db["memberships"].update_one({"workspace_id": ws_id, "user_id": user["id"]}, {"$set": {
         "role": role, "created_at": now - age, "email": user["email"], "name": user["name"]}}, upsert=True)
+
+
+def seed_insights(site: str, scale: float = 1.0) -> None:
+    """Two weeks of a live guide's readers (stored daily rollups up to yesterday, today's raw page
+    views), page feedback and Ask AI questions asked while Insights was on: deterministic, dated
+    from the API's own clock (the Guides home reads the last 7 UTC days)."""
+    real = datetime.now(timezone.utc)
+    today = real.strftime("%Y-%m-%d")
+    week = [118, 131, 126, 142, 151, 139, 164]   # oldest → today
+    before = [96, 104, 99, 111, 108, 102, 117]
+    for i, views in enumerate(before + week[:-1]):
+        day = (real - timedelta(days=13 - i)).strftime("%Y-%m-%d")
+        v = round(views * scale)
+        db["guide_daily"].replace_one({"_id": f"{site}:{day}"}, {
+            "_id": f"{site}:{day}", "site": site, "day": day, "views": v, "visitors": round(v * 0.62),
+            "searches": round(v * 0.2), "empty_searches": round(v * 0.03), "pages": [], "refs": [], "countries": [],
+            "devices": [], "queries": [], "rolled_at": real, "expires_at": real + timedelta(days=400)}, upsert=True)
+    n = round(week[-1] * scale)
+    db["guide_events"].insert_many([{"site": site, "k": "view", "ts": real - timedelta(minutes=3 * j), "day": today,
+                                     "p": "/", "ref": None, "dev": "desktop", "cc": None, "v": f"demo{j % 100}"}
+                                    for j in range(n)])
+    yes, no = round(46 * scale), round(6 * scale)
+    db["guide_feedback"].insert_many([{"site": site, "ts": real - timedelta(hours=3 * j + 1), "day": today, "path": "/",
+                                       "helpful": j < yes, "comment": None, "source": "page", "resolved": False}
+                                      for j in range(yes + no)])
+    ok, miss = round(38 * scale), round(4 * scale)
+    db["ai_requests"].insert_many([{"feature": "docs_ask", "request_id": f"demo-insights-{site}-{j}", "site": site,
+                                    "ts": real - timedelta(hours=3 * j + 2), "insights": True,
+                                    "outcome": "answered" if j < ok else "no_answer", "question": "How do I get started?"}
+                                   for j in range(ok + miss)])
 
 
 # ── The world ───────────────────────────────────────────────────────────────────
@@ -333,6 +369,8 @@ def seed() -> dict:
     publish(T["jordan"], tid, "Theme preview")
 
     moved = clock.apply(now)
+    for i, live in enumerate(r for r in db["docs_sites"].find({"workspace_id": ws, "status": "live"}).sort("created_at", 1)):
+        seed_insights(str(live["_id"]), scale=1.0 if i == 0 else 0.35)
     out = {"acme": sid, "help": hid, "developers": did, "themes": tid, "review": review["id"], "workspace": ws,
            "slugs": {"acme": "acme", "help": "acme-help", "developers": "acme-developers", "themes": "acme-themes"}}
     (DATA / "fixtures_studio.json").write_text(json.dumps(out, indent=2))

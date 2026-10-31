@@ -25,6 +25,8 @@ Choose **7 days**, **30 days** or **90 days** at the top right. Everything on th
 
 New page views usually show within a minute.
 
+The [Markdrop Guides home](/guides/overview#your-guides) adds up the last 7 days across all your guides, and each live guide's card shows its views and how many readers found it helpful. A guide with Insights off shows no numbers there and isn't counted.
+
 ## Page feedback
 
 Every page of a guide ends with **Did this page help?** Readers answer **Yes** or **Not quite**, and can add a comment of up to 1,000 characters. AI apps that read your guide through its [MCP server](/guides/what-readers-get#for-ai-tools) can report a problem with a page too; those show as **From an AI app**.

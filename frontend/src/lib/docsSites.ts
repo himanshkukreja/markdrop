@@ -288,11 +288,69 @@ export interface SiteSummary {
   your_role: DocsRole;
   /** Where `your_role` comes from (absent from an older API). */
   your_role_source?: RoleSource | null;
-  /** Only on the full Site today; the list falls back to the free address. */
+  /** The full Site: every own domain. A listing: the live ones (host and status). */
   domains?: SiteDomain[];
   /** GET /docs-sites?scope=all: the site's workspace (null: a personal site). */
   workspace?: StudioWorkspaceRef | null;
+  /** What the home's card draws its preview with (absent from an older API). */
+  theme?: SummaryTheme;
+  /** The newest build's status: building / failed show on the card (null: never published). */
+  build_status?: BuildStatus | null;
+  /** Pages in the open review. */
+  review_pages?: number;
+  /** The newest page save. */
+  last_edited_at?: string | null;
+  /** settings.insights.enabled */
+  insights_enabled?: boolean;
 }
+
+/** A listing's theme: enough to draw the guide's card in its own look. */
+export interface SummaryTheme {
+  preset: ThemePreset;
+  mode: ThemeMode;
+  corners?: Corners | null;
+  brand: Pick<SiteBrand, "enabled" | "accent" | "accent_dark" | "colors" | "logo_url" | "logo_dark_url">;
+}
+
+/** GET /docs-sites/insights-summary: the Guides home's last 7 days. Totals are null when nothing
+ * could be counted (no published guide has Insights on): show "—", never 0. */
+export interface HomeInsights {
+  range: "7d";
+  /** The 7 UTC days, oldest first. */
+  days: string[];
+  guides: number;
+  live: number;
+  /** Published guides with Insights on (what the totals add up). */
+  counted: number;
+  insights_off: number;
+  totals: {
+    readers: number | null;
+    readers_previous: number | null;
+    /** % against the 7 days before; null when that week had no readers. */
+    readers_change: number | null;
+    views: number | null;
+    ask_answered: number | null;
+    ask_unanswered: number | null;
+    helpful_pct: number | null;
+    votes: number | null;
+  };
+  /** By site id. `enabled: false`: Insights is off for it, no numbers. */
+  sites: Record<string, HomeSiteInsights>;
+}
+
+export type HomeSiteInsights =
+  | { enabled: false }
+  | {
+      enabled: true;
+      views: number[];
+      views_total: number;
+      readers: number;
+      readers_previous: number;
+      helpful_pct: number | null;
+      votes: number;
+      ask_answered: number;
+      ask_unanswered: number;
+    };
 
 /** A workspace as Markdrop Guides shows it beside its sites. */
 export interface StudioWorkspaceRef {
@@ -519,6 +577,11 @@ export interface UploadedAsset {
 /** Every site you can open, across your workspaces and your personal ones (Markdrop Guides). */
 export function listAllSites(): Promise<AllSitesResponse> {
   return request(q({ scope: "all" }));
+}
+
+/** The home's numbers: the last 7 days across every guide you can open, and per guide. */
+export function getHomeInsights(): Promise<HomeInsights> {
+  return request("/insights-summary");
 }
 
 /** A workspace's sites, or with `null` your personal ones. */

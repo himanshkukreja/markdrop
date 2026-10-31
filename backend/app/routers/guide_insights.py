@@ -21,6 +21,10 @@ The tab, under /api/v1/docs-sites/{site_id} (signed in; a Guides role on the sit
     PATCH  …/insights/feedback/{id}  {resolved}                       editors and up
     DELETE …/insights                                                 admins: clear the data
 
+The Guides home's 7-day numbers across every guide the caller can open are
+GET /docs-sites/insights-summary, in routers/docs_sites.py (it must be declared before
+/docs-sites/{site_id}).
+
 Turning collection off is a settings change (PATCH /docs-sites/{id} settings.insights.enabled),
 which only admins may make.
 """

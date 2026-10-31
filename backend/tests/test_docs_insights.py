@@ -434,6 +434,118 @@ class DashboardTests(InsightsCase):
         self.assertEqual(ov["feedback"]["helpful_pct"], None)
 
 
+class HomeSummaryTests(DashboardTests):
+    """GET /docs-sites/insights-summary: the Guides home's 7 days across every guide you can open."""
+
+    URL = "/insights-summary"
+
+    async def test_totals_and_per_guide(self):
+        yday = await self.seed()
+        await gi.rollup_due(self.db)
+        await self.db[gi.RAW].delete_many({"day": gi.day_key(yday)})  # yesterday now comes from its rollup
+        got = await self.get(self.URL, "viewer")
+        self.assertEqual((got["range"], len(got["days"]), got["guides"], got["live"], got["counted"]),
+                         ("7d", 7, 1, 1, 1))
+        t = got["totals"]
+        # Readers: each day's unique visitors added up (2 yesterday + 1 today), as on the Insights tab.
+        self.assertEqual((t["readers"], t["views"], t["readers_previous"], t["readers_change"]), (3, 4, 0, None))
+        # Ask AI: questions asked while Insights was on; the limit row and the "off" one don't count.
+        self.assertEqual((t["ask_answered"], t["ask_unanswered"]), (2, 1))
+        self.assertEqual((t["helpful_pct"], t["votes"]), (50, 2))
+        s = got["sites"][self.sid]
+        self.assertTrue(s["enabled"])
+        self.assertEqual(s["views"][-2:], [3, 1])
+        self.assertEqual(sum(s["views"][:-2]), 0)
+        self.assertEqual((s["views_total"], s["readers"], s["helpful_pct"], s["votes"]), (4, 3, 50, 2))
+        self.assertEqual((s["ask_answered"], s["ask_unanswered"]), (2, 1))
+        self.assertNotIn("secret question", json.dumps(got))
+
+    async def test_change_against_the_week_before(self):
+        await self.seed()
+        week_ago = gi.day_key(datetime.now(timezone.utc) - timedelta(days=9))
+        await self.db[gi.DAILY].insert_one({"_id": f"{self.sid}:{week_ago}", "site": self.sid, "day": week_ago,
+                                            "views": 5, "visitors": 2})
+        t = (await self.get(self.URL))["totals"]
+        self.assertEqual((t["readers"], t["readers_previous"], t["readers_change"]), (3, 2, 50))
+        # Older than the two weeks: not read.
+        old = gi.day_key(datetime.now(timezone.utc) - timedelta(days=20))
+        await self.db[gi.DAILY].insert_one({"_id": f"{self.sid}:{old}", "site": self.sid, "day": old,
+                                            "views": 50, "visitors": 40})
+        self.assertEqual((await self.get(self.URL))["totals"]["readers_previous"], 2)
+
+    async def test_insights_off_shows_no_numbers(self):
+        await self.seed()
+        other = await self.create("other", name="Other")
+        await self.go_live(other["id"])
+        await self.call("PATCH", f"/{self.sid}", "admin", json={"settings": {"insights": {"enabled": False}}})
+        got = await self.get(self.URL)
+        self.assertEqual(got["sites"][self.sid], {"enabled": False})
+        self.assertEqual(got["insights_off"], 1)
+        # Its numbers are in none of the totals; the other (live, no readers yet) counts as 0.
+        t = got["totals"]
+        self.assertEqual((t["readers"], t["views"], t["ask_answered"], t["helpful_pct"]), (0, 0, 0, None))
+        self.assertEqual(got["sites"][other["id"]]["views"], [0] * 7)
+        # Every guide off: nothing to count, so no totals at all (the home shows "—").
+        await self.call("PATCH", f"/{other['id']}", "admin", json={"settings": {"insights": {"enabled": False}}})
+        t = (await self.get(self.URL))["totals"]
+        self.assertTrue(all(v is None for v in t.values()), t)
+
+    async def test_drafts_are_not_counted(self):
+        draft = await self.create("draft", name="Draft")
+        got = await self.get(self.URL)
+        self.assertEqual((got["guides"], got["live"], got["counted"]), (2, 1, 1))
+        self.assertTrue(got["sites"][draft["id"]]["enabled"])
+        await self.call("DELETE", f"/{self.sid}", expect=200)
+        got = await self.get(self.URL)
+        self.assertEqual((got["guides"], got["live"], got["counted"]), (1, 0, 0))
+        self.assertIsNone(got["totals"]["readers"])  # only a draft: "—", not 0
+
+    async def test_only_guides_you_can_open(self):
+        await self.seed()
+        mine = await self.create("mine", workspace=False, name="Mine")
+        await self.go_live(mine["id"])
+        owner = await self.get(self.URL)
+        self.assertEqual(set(owner["sites"]), {self.sid, mine["id"]})
+        editor = await self.get(self.URL, "editor")
+        self.assertEqual(set(editor["sites"]), {self.sid})  # the owner's personal guide isn't theirs
+        stranger = await self.get(self.URL, "stranger")
+        self.assertEqual((stranger["guides"], stranger["sites"], stranger["totals"]["readers"]), (0, {}, None))
+        # A per-guide "no access" hides that guide's numbers too.
+        self.assertEqual(set((await self.get(self.URL, "viewer"))["sites"]), {self.sid})
+        await self.db["docs_site_members"].insert_one(
+            {"site_id": ObjectId(self.sid), "user_id": self.uid["viewer"], "role": "none",
+             "granted_by": self.uid["owner"], "granted_at": datetime.now(timezone.utc)})
+        viewer = await self.get(self.URL, "viewer")
+        self.assertEqual((viewer["sites"], viewer["guides"], viewer["totals"]["readers"]), ({}, 0, None))
+        # Signed out: no.
+        r = await self.http.get(BASE + self.URL)
+        self.assertEqual(r.status_code, 401)
+
+    async def test_listing_carries_what_the_cards_draw(self):
+        await self.call("PATCH", f"/{self.sid}", "admin", json={"settings": {"theme": {
+            "preset": "editorial", "mode": "dark", "brand": {"enabled": True, "accent": "#c2410c", "colors": ["#c2410c", "#111111"]}}}})
+        draft = await self.create("draft", name="Draft")
+        listing = await self.get("?scope=all")
+        by = {s["id"]: s for s in listing["sites"]}
+        live = by[self.sid]
+        self.assertEqual(live["theme"]["preset"], "editorial")
+        self.assertEqual(live["theme"]["mode"], "dark")
+        self.assertEqual((live["theme"]["brand"]["enabled"], live["theme"]["brand"]["accent"]), (True, "#c2410c"))
+        self.assertEqual(live["theme"]["brand"]["colors"], ["#c2410c"])
+        self.assertNotIn("custom_css", live["theme"])
+        self.assertEqual((live["build_status"], live["domains"], live["review_pages"], live["insights_enabled"]),
+                         ("live", [], 0, True))
+        self.assertIsNotNone(live["last_edited_at"])
+        d = by[draft["id"]]
+        self.assertEqual((d["build_status"], d["theme"]["brand"]["accent"]), (None, None))
+        # A live own domain is listed (host and status only); one still waiting for DNS isn't.
+        await self.db["docs_sites"].update_one({"_id": ObjectId(self.sid)}, {"$set": {"domains": [
+            {"host": "help.acme.com", "status": "live", "records": [{"type": "TXT", "value": "secret"}]},
+            {"host": "docs.acme.com", "status": "pending"}]}})
+        live = {s["id"]: s for s in (await self.get("?scope=all"))["sites"]}[self.sid]
+        self.assertEqual(live["domains"], [{"host": "help.acme.com", "status": "live"}])
+
+
 from tests.test_docs_studio_ai import StudioBase, Turn  # noqa: E402
 
 

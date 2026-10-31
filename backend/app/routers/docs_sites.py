@@ -55,6 +55,20 @@ async def list_sites(request: Request, workspace_id: str | None = Query(None),
     return await store.list_sites(db, user, workspace_id or None)
 
 
+@router.get("/insights-summary")
+@limiter.limit("60/minute")
+async def insights_summary(request: Request, db: AsyncIOMotorDatabase = Depends(get_db),
+                           user: User = Depends(require_user)):
+    """Markdrop Guides' home: the last 7 days across every guide the caller can open (readers and
+    the change against the week before, Ask AI answered / unanswered, page feedback), and per
+    guide its daily views, readers and % helpful. A guide with Insights off shows no numbers and
+    counts in no total (services/guide_insights.py ``home_summary``). Declared before
+    ``/{site_id}`` so the path isn't read as a site id."""
+    from app.services import guide_insights
+
+    return await guide_insights.home_summary(db, await store.visible_site_rows(db, user))
+
+
 @router.get("/slug-available")
 @limiter.limit("120/minute")
 async def slug_available(request: Request, slug: str = Query(..., max_length=100),
