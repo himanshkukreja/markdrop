@@ -272,8 +272,11 @@ export default function ImportProgress() {
                 {rows.map((r, i) => (
                   <li key={r.id} className={`flex items-center gap-3 px-[18px] py-3.5 ${i ? "border-t border-border" : ""}`} aria-current={r.status === "running" ? "step" : undefined}>
                     <StepDot status={r.status} />
-                    <span className={`min-w-0 flex-1 text-text ${r.status === "running" ? "font-semibold" : r.status === "done" ? "font-medium" : "text-text-secondary"}`}>{r.label}</span>
-                    {r.detail && <span className="shrink-0 text-right text-[13px] tabular-nums text-text-muted">{r.detail}</span>}
+                    {/* Phones: the detail goes under the label, so neither is squeezed to a word per line. */}
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-3">
+                      <span className={`min-w-0 text-text sm:flex-1 ${r.status === "running" ? "font-semibold" : r.status === "done" ? "font-medium" : "text-text-secondary"}`}>{r.label}</span>
+                      {r.detail && <span className="text-[13px] tabular-nums text-text-muted [overflow-wrap:anywhere] sm:max-w-[45%] sm:text-right">{r.detail}</span>}
+                    </span>
                   </li>
                 ))}
               </ol>
