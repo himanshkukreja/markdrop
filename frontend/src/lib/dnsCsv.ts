@@ -29,10 +29,28 @@ export function dnsRows(domains: Domain[]): string[][] {
   ]);
 }
 
-export function dnsCsv(domains: Domain[]): string {
-  const rows = [HEADERS as readonly string[], ...dnsRows(domains)];
+/** One record for any custom-domain screen (a workspace's, a guide's). */
+export interface CsvRecord {
+  host: string;
+  type: string;
+  name: string;
+  value: string;
+  purpose: string;
+  ttl?: string;
+}
+
+function csvOf(rows: string[][]): string {
   // CRLF, which is what RFC 4180 specifies and what Excel is happiest with.
-  return rows.map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n";
+  return [HEADERS as readonly string[], ...rows].map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n";
+}
+
+export function dnsCsv(domains: Domain[]): string {
+  return csvOf(dnsRows(domains));
+}
+
+/** The same CSV for any list of records. */
+export function recordsCsv(records: CsvRecord[]): string {
+  return csvOf(records.map((r) => [r.host, r.type, r.name, r.value, r.ttl ?? "3600", r.purpose]));
 }
 
 /** Trigger a download of the CSV. Built in the browser — these values are
@@ -43,9 +61,18 @@ export function downloadDnsCsv(domains: Domain[], filename?: string): void {
     (domains.length === 1
       ? `${domains[0].host}-dns.csv`
       : `markdrop-dns-records.csv`);
+  downloadCsv(dnsCsv(domains), name);
+}
+
+/** Download any records as the same CSV. */
+export function downloadRecordsCsv(records: CsvRecord[], filename = "markdrop-dns-records.csv"): void {
+  downloadCsv(recordsCsv(records), filename);
+}
+
+function downloadCsv(text: string, name: string): void {
   // The BOM makes Excel read it as UTF-8 instead of the local codepage, which
   // otherwise mangles any non-ASCII hostname.
-  const blob = new Blob(["﻿" + dnsCsv(domains)], {
+  const blob = new Blob(["﻿" + text], {
     type: "text/csv;charset=utf-8",
   });
   const url = URL.createObjectURL(blob);
