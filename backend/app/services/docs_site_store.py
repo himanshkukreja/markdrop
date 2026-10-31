@@ -444,9 +444,41 @@ def sees_details(role: str | studio_roles.Resolved | None) -> bool:
     return is_admin(_role_fields(role)[0] if role is not None else None)
 
 
+def summary_theme(site: dict) -> dict:
+    """What the home's card draws the guide's little preview with: the preset, light / dark, the
+    corners and, when "Match my brand" is on, the brand's accent and logo (never the custom CSS)."""
+    theme = (site.get("settings") or {}).get("theme") or {}
+    brand = theme.get("brand") or {}
+    on = bool(brand.get("enabled"))
+    return {
+        "preset": theme.get("preset", "clean"),
+        "mode": theme.get("mode") or "both",
+        "corners": theme.get("corners"),
+        "brand": {
+            "enabled": on,
+            "accent": brand.get("accent") if on else None,
+            "accent_dark": brand.get("accent_dark") if on else None,
+            "colors": list(brand.get("colors") or [])[:1] if on else [],
+            "logo_url": brand.get("logo_url") if on else None,
+            "logo_dark_url": brand.get("logo_dark_url") if on else None,
+        },
+    }
+
+
+def live_domains(site: dict) -> list[dict]:
+    """The guide's own domains readers reach it on (host and status only, never the DNS records)."""
+    return [{"host": d["host"], "status": d.get("status")} for d in site.get("domains") or []
+            if isinstance(d, dict) and d.get("host") and d.get("status") in ("live", "verified")]
+
+
 async def site_summary(db: AsyncIOMotorDatabase, site: dict, role: str | studio_roles.Resolved, *, pages: int,
-                       ai_used: int, open_review: dict | None, names: dict[str, str]) -> dict:
-    """``role``: the caller's effective role (with its source when it's a Resolved)."""
+                       ai_used: int, open_review: dict | None, names: dict[str, str],
+                       latest_build: dict | None = None, last_edited_at: datetime | None = None) -> dict:
+    """``role``: the caller's effective role (with its source when it's a Resolved).
+    ``latest_build``: the site's newest build (Building / Failed on the home's card);
+    ``last_edited_at``: the newest page save."""
+    from app.services import guide_insights
+
     your_role, source = _role_fields(role)
     return {
         "id": str(site["_id"]),
@@ -470,6 +502,14 @@ async def site_summary(db: AsyncIOMotorDatabase, site: dict, role: str | studio_
         # Where the role comes from: workspace_owner / workspace_admin (always admin), workspace
         # (their studio role there), site (this site's override), personal (a personal site's owner).
         "your_role_source": source,
+        # For the home's cards: the theme to draw the preview in, the live own domains, the newest
+        # build's status, how many pages the open review holds, the newest page save, Insights on.
+        "theme": summary_theme(site),
+        "domains": live_domains(site),
+        "build_status": (latest_build or {}).get("status"),
+        "review_pages": len((open_review or {}).get("page_ids") or []),
+        "last_edited_at": aware(last_edited_at),
+        "insights_enabled": guide_insights.enabled(site),
     }
 
 
@@ -486,8 +526,11 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_rol
     details = sees_details(role)
     pages = await page_count(db, sid)
     ai = await ai_answers(db, [str(sid)])
+    edited = await db[PAGES].find_one({"site_id": sid, "deleted_at": None}, {"draft.updated_at": 1},
+                                      sort=[("draft.updated_at", -1)])
     out = await site_summary(db, site, role, pages=pages, ai_used=ai.get(str(sid), 0),
-                             open_review=open_review, names=names)
+                             open_review=open_review, names=names, latest_build=latest,
+                             last_edited_at=((edited or {}).get("draft") or {}).get("updated_at"))
     out.update({
         "owner_id": site.get("owner_id"),
         "source": site.get("source"),
@@ -529,18 +572,29 @@ async def _summaries(db: AsyncIOMotorDatabase, rows: list[dict], role_of) -> tup
     """SiteSummary for each row (``role_of(row)`` → the caller's role), plus Ask AI use per site id."""
     ids = [r["_id"] for r in rows]
     counts: dict = {}
+    edited: dict = {}
     async for c in db[PAGES].aggregate([
         {"$match": {"site_id": {"$in": ids}, "deleted_at": None}},
-        {"$group": {"_id": "$site_id", "n": {"$sum": 1}}},
+        {"$group": {"_id": "$site_id", "n": {"$sum": 1}, "edited": {"$max": "$draft.updated_at"}}},
     ]):
         counts[c["_id"]] = c["n"]
+        edited[c["_id"]] = c.get("edited")
+    latest: dict = {}
+    if ids:
+        async for b in db[BUILDS].aggregate([
+            {"$match": {"site_id": {"$in": ids}}},
+            {"$sort": {"site_id": 1, "number": -1}},
+            {"$group": {"_id": "$site_id", "status": {"$first": "$status"}}},
+        ]):
+            latest[b["_id"]] = b
     reviews = {r["site_id"]: r for r in await db[REVIEWS].find(
         {"site_id": {"$in": ids}, "status": "open"}).to_list(length=len(ids) or 1)}
     ai = await ai_answers(db, [str(i) for i in ids])
     names = await user_names(db, [r.get("last_published_by") for r in rows]
                              + [r.get("requested_by") for r in reviews.values()])
     sites = [await site_summary(db, r, role_of(r), pages=counts.get(r["_id"], 0), ai_used=ai.get(str(r["_id"]), 0),
-                                open_review=reviews.get(r["_id"]), names=names) for r in rows]
+                                open_review=reviews.get(r["_id"]), names=names, latest_build=latest.get(r["_id"]),
+                                last_edited_at=edited.get(r["_id"])) for r in rows]
     return sites, ai
 
 
@@ -580,20 +634,34 @@ def _workspace_brand(ws) -> dict:
     return {"accent": b.accent_color or None, "logo_url": b.logo_url or None}
 
 
+async def _all_rows(db: AsyncIOMotorDatabase, user: User) -> tuple[list, list[dict], dict]:
+    """(memberships, every site row in the caller's workspaces plus their personal ones, the
+    caller's resolved access per row id). A row whose access has no role is invisible to them."""
+    memberships = await ws_service.list_for_user(db, user.id)
+    roles = {ws.id: ws_role for ws, ws_role in memberships}
+    rows = await db[SITES].find({
+        "deleted_at": None,
+        "$or": [{"workspace_id": {"$in": list(roles)}}, {"workspace_id": None, "owner_id": user.id}],
+    }).sort("created_at", 1).to_list(length=500)
+    access = await studio_roles.resolve_many(db, user.id, rows, roles)
+    return memberships, rows, access
+
+
+async def visible_site_rows(db: AsyncIOMotorDatabase, user: User) -> list[dict]:
+    """The site rows the caller can open (any Guides role), the same set the home lists."""
+    _memberships, rows, access = await _all_rows(db, user)
+    return [r for r in rows if access[r["_id"]].role]
+
+
 async def list_all_sites(db: AsyncIOMotorDatabase, user: User) -> dict:
     """Markdrop Guides' home (``GET /docs-sites?scope=all``): every site the caller can open, across
     all their workspaces plus their personal ones, each carrying its workspace (for grouping);
     every workspace with the caller's studio role there ("none" until an admin gives one), its
     usage and whether they may create a site (studio admin, and not being deleted) or manage its
     people; and the personal scope's usage. Sites they have no role on are left out."""
-    memberships = await ws_service.list_for_user(db, user.id)
+    memberships, rows, access = await _all_rows(db, user)
     roles = {ws.id: ws_role for ws, ws_role in memberships}
     by_id = {ws.id: ws for ws, _ in memberships}
-    rows = await db[SITES].find({
-        "deleted_at": None,
-        "$or": [{"workspace_id": {"$in": list(roles)}}, {"workspace_id": None, "owner_id": user.id}],
-    }).sort("created_at", 1).to_list(length=500)
-    access = await studio_roles.resolve_many(db, user.id, rows, roles)
     visible = [r for r in rows if access[r["_id"]].role]
     ws_access = await studio_roles.workspace_roles_for(db, user.id, roles)
 

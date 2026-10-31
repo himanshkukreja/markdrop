@@ -622,6 +622,143 @@ async def overview(db: AsyncIOMotorDatabase, site_row: dict, range_key: str, *, 
     }
 
 
+# ── The Guides home ───────────────────────────────────────────────────────────
+
+HOME_DAYS = 7
+
+
+async def _views_by_day(db: AsyncIOMotorDatabase, sites: list[str], days: list[str]) -> dict[str, dict[str, tuple[int, int]]]:
+    """site → day → (views, visitors) over ``days``, for many guides at once: their stored daily
+    rows where they exist, the raw events for the rest (today, a day the job hasn't rolled up)."""
+    out: dict[str, dict[str, tuple[int, int]]] = {s: {} for s in sites}
+    if not sites or not days:
+        return out
+    today = day_key(now())
+    async for r in db[DAILY].find({"site": {"$in": sites}, "day": {"$in": [d for d in days if d < today]}},
+                                  {"site": 1, "day": 1, "views": 1, "visitors": 1}):
+        out.setdefault(r["site"], {})[r["day"]] = (int(r.get("views") or 0), int(r.get("visitors") or 0))
+    missing = [d for d in days if any(d not in out[s] for s in sites)]
+    if missing:
+        async for r in db[RAW].aggregate([
+            {"$match": {"site": {"$in": sites}, "day": {"$in": missing}, "k": "view"}},
+            {"$group": {"_id": {"s": "$site", "d": "$day", "v": "$v"}, "n": {"$sum": 1}}},
+            {"$group": {"_id": {"s": "$_id.s", "d": "$_id.d"}, "views": {"$sum": "$n"},
+                        "visitors": {"$sum": {"$cond": [{"$eq": ["$_id.v", None]}, 0, 1]}}}},
+        ]):
+            s, d = r["_id"]["s"], r["_id"]["d"]
+            if d not in out.setdefault(s, {}):
+                out[s][d] = (int(r["views"]), int(r["visitors"]))
+    return out
+
+
+async def _feedback_by_site(db: AsyncIOMotorDatabase, sites: list[str], since: datetime) -> dict[str, tuple[int, int]]:
+    out: dict[str, tuple[int, int]] = {}
+    if not sites:
+        return out
+    async for r in db[FEEDBACK].aggregate([
+        {"$match": {"site": {"$in": sites}, "ts": {"$gte": since}}},
+        {"$group": {"_id": "$site", "yes": {"$sum": {"$cond": ["$helpful", 1, 0]}},
+                    "no": {"$sum": {"$cond": ["$helpful", 0, 1]}}}},
+    ]):
+        out[r["_id"]] = (int(r["yes"]), int(r["no"]))
+    return out
+
+
+async def _ask_by_site(db: AsyncIOMotorDatabase, sites: list[str], since: datetime) -> dict[str, tuple[int, int]]:
+    """site → (answered, unanswered) Ask AI questions since ``since``, asked while Insights was on."""
+    from app.services import ai_usage, docs_agent
+
+    out: dict[str, tuple[int, int]] = {}
+    if not sites:
+        return out
+    async for r in db[ai_usage.REQUESTS].aggregate([
+        {"$match": {"feature": docs_agent.FEATURE, "site": {"$in": sites}, "ts": {"$gte": since}, "insights": True,
+                    "outcome": {"$in": ["answered", "no_answer"]}}},
+        {"$group": {"_id": "$site", "ok": {"$sum": {"$cond": [{"$eq": ["$outcome", "answered"]}, 1, 0]}},
+                    "miss": {"$sum": {"$cond": [{"$eq": ["$outcome", "no_answer"]}, 1, 0]}}}},
+    ]):
+        out[r["_id"]] = (int(r["ok"]), int(r["miss"]))
+    return out
+
+
+def _pct(yes: int, no: int) -> int | None:
+    return round(100 * yes / (yes + no)) if yes + no else None
+
+
+async def home_summary(db: AsyncIOMotorDatabase, rows: list[dict], today: datetime | None = None) -> dict:
+    """GET /docs-sites/insights-summary (the Guides home): the last 7 days across ``rows`` (the
+    guides the caller can open) and per guide, in a few queries for all of them.
+
+    A guide with Insights turned off gets ``{"enabled": false}`` and nothing else, and counts in
+    none of the totals. A total is null when no guide that has ever been published has Insights
+    on (there is nothing it could count), never a made-up 0. Readers are the days' unique visitors
+    added up (as on a guide's Insights tab); ``readers_change`` is the % change against the 7 days
+    before, null when that week had none."""
+    t = (today or now()).astimezone(timezone.utc)
+    days = [day_key(t - timedelta(days=i)) for i in range(HOME_DAYS - 1, -1, -1)]
+    since = _day_start(days[0])
+    prev_days = [day_key(since - timedelta(days=i)) for i in range(HOME_DAYS, 0, -1)]
+    on = [r for r in rows if enabled(r)]
+    ids = [str(r["_id"]) for r in on]
+    by_day = await _views_by_day(db, ids, prev_days + days)
+    fb = await _feedback_by_site(db, ids, since)
+    ask = await _ask_by_site(db, ids, since)
+
+    sites: dict[str, dict] = {}
+    for r in rows:
+        sid = str(r["_id"])
+        if not enabled(r):
+            sites[sid] = {"enabled": False}
+            continue
+        d = by_day.get(sid, {})
+        series = [d.get(day, (0, 0)) for day in days]
+        yes, no = fb.get(sid, (0, 0))
+        ok, miss = ask.get(sid, (0, 0))
+        sites[sid] = {
+            "enabled": True,
+            "views": [v for v, _ in series],
+            "views_total": sum(v for v, _ in series),
+            "readers": sum(u for _, u in series),
+            "readers_previous": sum(d.get(day, (0, 0))[1] for day in prev_days),
+            "helpful_pct": _pct(yes, no),
+            "votes": yes + no,
+            "ask_answered": ok,
+            "ask_unanswered": miss,
+        }
+
+    # Only guides that have been live can have readers: a draft's zero isn't a measurement.
+    counted = [str(r["_id"]) for r in on if r.get("live_build_id") or r.get("last_published_at")]
+    if counted:
+        c = [sites[s] for s in counted]
+        readers = sum(x["readers"] for x in c)
+        prev = sum(x["readers_previous"] for x in c)
+        yes = sum(fb.get(s, (0, 0))[0] for s in counted)
+        no = sum(fb.get(s, (0, 0))[1] for s in counted)
+        totals = {
+            "readers": readers,
+            "readers_previous": prev,
+            "readers_change": round(100 * (readers - prev) / prev) if prev else None,
+            "views": sum(x["views_total"] for x in c),
+            "ask_answered": sum(x["ask_answered"] for x in c),
+            "ask_unanswered": sum(x["ask_unanswered"] for x in c),
+            "helpful_pct": _pct(yes, no),
+            "votes": yes + no,
+        }
+    else:
+        totals = {k: None for k in ("readers", "readers_previous", "readers_change", "views", "ask_answered",
+                                    "ask_unanswered", "helpful_pct", "votes")}
+    return {
+        "range": f"{HOME_DAYS}d",
+        "days": days,
+        "guides": len(rows),
+        "live": sum(1 for r in rows if r.get("status") == "live" and r.get("live_build_id")),
+        "counted": len(counted),
+        "insights_off": len(rows) - len(on),
+        "totals": totals,
+        "sites": sites,
+    }
+
+
 # ── Origins ───────────────────────────────────────────────────────────────────
 
 
