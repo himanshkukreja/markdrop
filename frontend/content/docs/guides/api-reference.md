@@ -2,7 +2,7 @@
 title: API reference from an OpenAPI file
 nav: API reference
 description: Generate a page for every endpoint of your API from an OpenAPI 3.0 or 3.1 file, with code samples and Try it. Upload it or fetch it from a URL.
-updated: 2026-10-31
+updated: 2026-11-01
 prerequisites: [/guides/publishing]
 keywords: [api reference, openapi, swagger, openapi 3.1, yaml, json, try it, api playground, cors, endpoints, code samples, curl, rest api docs]
 ---
@@ -13,19 +13,33 @@ Give your guide an OpenAPI file and every publish turns it into an API reference
 
 ::::steps
 ### Open the setting
-Open the guide's **Settings** and find **API reference**. Editors and admins can add or replace the file.
+Open the guide's **Settings** and choose **API reference**. Editors and admins can add or replace the file.
 
 ### Upload it or give its address
-Choose **Upload a file** and pick your OpenAPI file, or **From a URL** and paste the address of the raw JSON or YAML, then choose **Fetch**.
+On **Upload a file**, drop your `openapi.yaml` or `openapi.json` on the box, or click it to choose the file. Or choose **From a URL**, paste the address of the raw JSON or YAML and choose **Fetch and check**.
 
 ### Check what it found
-The card shows the API's name and version, how many endpoints and servers it has, and anything worth a look, like endpoints without an `operationId` or a file with no server address. **Preview the sidebar** shows the pages a publish makes.
+Markdrop checks the file before anything changes on your guide. The result shows the API's name and version, the OpenAPI version, how many endpoints, groups and servers it has, and the sign-in types its `securitySchemes` describe. Anything worth fixing is listed with what to do about it, like endpoints without a summary or a file with no server address. **What readers will get** lists the endpoint pages a publish makes, by group, with their methods.
 
 ### Publish
-The reference reaches readers at the next [publish](/guides/publishing), like any other change.
+Choose **Publish the reference**. It publishes the whole guide, with any other changes waiting, like the [Publish](/guides/publishing) screen does. When your guide requires reviews, editors choose **Send for review** instead.
 ::::
 
-The **API reference** template starts with a small sample file for a made-up Northwind API, so you can see the result before you add yours. Replace it with your own file the same way.
+No file yet? Choose **Northwind sample** under the box to start from a small sample file for a made-up API, and see the result before you add yours. The **API reference** template starts with it too. Replace it with your own file the same way.
+
+Once the guide is published, **Preview the reference** opens `/api-reference` on your guide in a new tab.
+
+## Export an OpenAPI file
+
+Most API frameworks write the file for you:
+
+- **FastAPI**: it's served at `/openapi.json` on your API (for example `https://api.example.com/openapi.json`). Give Markdrop that address, or save it and upload it.
+- **Express or NestJS**: with `swagger-jsdoc` or `@nestjs/swagger`, write the generated document to a file (`JSON.stringify(spec)`), or serve it and use the address.
+- **Spring Boot**: with springdoc-openapi it's at `/v3/api-docs` (JSON) or `/v3/api-docs.yaml`.
+- **Postman**: convert a collection with `postman-to-openapi` or an online converter, then upload the result.
+- **Swagger 2.0**: convert it to OpenAPI 3 first, for example in editor.swagger.io (**Edit › Convert to OpenAPI 3**).
+
+If the file is split across several files (`$ref: ./paths/orders.yaml`), bundle it into one first, for example with `npx @redocly/cli bundle openapi.yaml -o bundled.yaml`.
 
 ## What a reference page shows
 
@@ -43,12 +57,12 @@ To link an endpoint from a page you write, use the editor's **API endpoint** blo
 
 ## Where it appears
 
-Guides admins choose in the same card:
+Guides admins choose under **How it appears**:
 
 | Option | What it does |
 | --- | --- |
-| **Its own tab in the header** | The reference gets a tab. Your own pages go under a **Docs** tab. |
-| **In the sidebar, after your pages** | One sidebar for everything, with the reference's groups at the end. |
+| **Its own tab** | The reference gets a tab in the header. Your own pages go under a **Docs** tab. |
+| **In the sidebar** | One sidebar for everything, with the reference's groups after your pages. |
 | **Tab name** or **Sidebar group name** | What the tab or the group is called. Default **API reference**. |
 
 The `/api-reference` part of the address is fixed, so no page you write can use it.
@@ -63,21 +77,21 @@ What readers type is kept in memory on the page only: it isn't saved anywhere, a
 Browsers only let a page call another site's API when that API allows it (CORS). For Try it to work, your API has to answer your guide's address, like `https://acme.guides.markdrop.in`, with `Access-Control-Allow-Origin`, and allow the headers the request sends, such as `Authorization`. When it doesn't, Try it says the browser blocked the request and offers the same request as a `curl` command to run in a terminal, where CORS doesn't apply.
 :::
 
-To turn Try it off, switch off **Try it on endpoint pages** and publish. The code samples stay.
+To turn Try it off, switch off **Try it** under **How it appears** and publish. The code samples stay.
 
 ## Files from a URL
 
-Markdrop fetches the address from its own servers, once, when you choose **Fetch**:
+Markdrop fetches the address from its own servers, once, when you choose **Fetch and check**:
 
 - It must be a public `https://` address on the standard port. Addresses on private networks, `localhost` and IP addresses are refused, and so is a redirect to one of them.
 - The file has to arrive within 15 seconds.
 - A relative server address in the file, like `/v1`, is read relative to the file's address.
 
-Admins can switch on **Fetch it again at every publish**, so the reference follows your API without uploading anything. If the fetch fails at a publish, the guide publishes with the last version that worked, and the publish says so.
+Admins can switch on **Fetch again on every publish**, so the reference follows your API without uploading anything. If the fetch fails at a publish, the guide publishes with the last version that worked, and the publish says so.
 
 ## Versions
 
-Every file you upload or fetch is kept. **Earlier versions** in the card lists them, and **Use this version** brings one back. **Remove** takes the reference off the guide at the next publish; the file stays in Earlier versions.
+Every file you upload or fetch is kept. **Versions** lists them, and **Restore** makes one current again; it goes live at the next publish. **Remove the API reference**, at the bottom of Versions, takes it off the guide at the next publish; the file stays in Versions.
 
 ## Limits
 

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import SiteSettings from "@/components/docs-sites/SiteSettings";
+import SettingsIndex from "@/components/docs-sites/settings/SettingsIndex";
 
 export const metadata: Metadata = { title: "Settings" };
 
-/** Address, own domain, Ask AI, access, search indexing, reviews, redirects, unpublish and delete. */
+/** /settings: on to a section (General, or the one an old #anchor names, like #people). */
 export default function Page() {
-  return <SiteSettings />;
+  return <SettingsIndex />;
 }

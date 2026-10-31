@@ -85,6 +85,7 @@ export const DOCS_PAGES = {
   studioInsightsOff: "/guides/insights#turn-it-off",
   studioApiReference: "/guides/api-reference",
   studioApiCors: "/guides/api-reference#try-it-and-cors",
+  studioApiExport: "/guides/api-reference#export-an-openapi-file",
   studioReaders: "/guides/what-readers-get",
   studioSelfHost: "/guides/self-hosting",
   studioFaq: "/guides/faq",

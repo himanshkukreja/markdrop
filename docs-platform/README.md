@@ -291,7 +291,7 @@ which site a host serves; the custom domain only gets the request to the Worker.
 
 A guide can also be served at a customer's own subdomain, like `help.acme.com`
 (backend/app/services/docs_custom_domains.py, the Settings card in
-frontend/src/components/docs-sites/SiteDomains.tsx, reader docs in
+frontend/src/components/docs-sites/settings/DomainsSection.tsx and DomainSetup.tsx, reader docs in
 frontend/content/docs/guides/site-settings.md "Your own domain"). The customer adds **one** record:
 
     help.acme.com  CNAME  cname.guides.markdrop.in

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
-import { Alert, Button, IconButton, Input } from "@/components/ui";
+import { Alert, Button, Icon, IconButton, Input } from "@/components/ui";
 import { listPages, type Redirect } from "@/lib/docsSites";
 import { plural } from "./format";
 import useLeaveGuard from "./useLeaveGuard";
@@ -41,9 +41,17 @@ export function redirectProblem(r: Redirect, all: Redirect[], pages: Set<string>
   return "";
 }
 
+/** Why a row is there, as the API recorded it (unchanged rows only: an edited one is new until saved). */
+function whyLabel(r: Redirect, saved: Redirect[]): string {
+  const was = saved.find((x) => x.from === r.from.trim() && x.to === r.to.trim());
+  if (!was) return r.from || r.to ? "Not saved yet" : "";
+  return was.why === "moved" ? "Page moved" : was.why === "added" ? "Added in Settings" : "";
+}
+
 /**
  * Settings › Redirects: old addresses → their new pages, edited as rows and saved together (the
- * build writes them to redirects.json; readers get a permanent redirect). Admins only.
+ * build writes them to redirects.json; readers get a permanent redirect), each with why it's there
+ * (a page moved, or added here; the API keeps it). Admins only.
  */
 export function RedirectsEditor({ siteId, value, locked, saving, onSave }: {
   siteId: string;
@@ -76,12 +84,12 @@ export function RedirectsEditor({ siteId, value, locked, saving, onSave }: {
     <div className="flex flex-col gap-3">
       {rows.length > 0 && (
         <div className="ph-no-capture flex flex-col gap-2" role="list" aria-label="Redirects">
-          <div className="hidden grid-cols-[1fr_auto_1fr_auto] gap-2 text-caption text-text-muted sm:grid" aria-hidden>
-            <span>Old address</span><span className="w-4" /><span>Goes to</span><span className="w-8" />
+          <div className="hidden grid-cols-[1fr_auto_1fr_6.5rem_auto] gap-2 px-2.5 text-caption text-text-muted sm:grid" aria-hidden>
+            <span>Old address</span><span className="w-4" /><span>Goes to</span><span>Why</span><span className="w-8" />
           </div>
           {rows.map((r, i) => (
-            <div key={r.key} role="listitem" className="flex flex-col gap-1">
-              <div className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto]">
+            <div key={r.key} role="listitem" className="flex flex-col gap-1 rounded-lg border border-border p-1.5 sm:px-2.5">
+              <div className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_auto_1fr_6.5rem_auto]">
                 <Input
                   mono
                   size="sm"
@@ -95,7 +103,7 @@ export function RedirectsEditor({ siteId, value, locked, saving, onSave }: {
                   onChange={(e) => set(r.key, { from: e.target.value })}
                   className="max-sm:col-span-2"
                 />
-                <span className="hidden text-text-muted sm:inline" aria-hidden>→</span>
+                <Icon name="arrowRight" size={14} className="hidden text-text-muted sm:block" aria-hidden />
                 <Input
                   mono
                   size="sm"
@@ -109,6 +117,7 @@ export function RedirectsEditor({ siteId, value, locked, saving, onSave }: {
                   autoCapitalize="none"
                   onChange={(e) => set(r.key, { to: e.target.value })}
                 />
+                <span className="hidden truncate text-caption text-text-muted sm:block">{whyLabel(r, value)}</span>
                 {!locked && <IconButton icon="trash" label={`Remove redirect ${i + 1}`} size="sm" onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} />}
               </div>
               {problems[i] && <p className="text-[12.5px] text-danger" role="status">{problems[i]}</p>}
