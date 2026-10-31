@@ -9,7 +9,7 @@ import { AskRoot } from "@/docs/client/ask/AskRoot";
 import { MediaLightbox } from "@/docs/client/Media";
 import { DocsSiteProvider } from "@/docs/client/site";
 import { InsightsBeacon } from "@/docs/client/Insights";
-import { forcedModeScript, siteTheme } from "@/docs/themeSite";
+import { defaultModeScript, forcedModeScript, siteTheme } from "@/docs/themeSite";
 import { themeStylesheet } from "@/docs/themeFonts";
 
 /**
@@ -49,7 +49,8 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
   // inside it), then the theme's. Kept in the one child slot the accent stylesheet always had, so
   // a site without a theme renders the very same tree and payload.
   const css = [theme?.palette ? null : accentCss(site), themeStylesheet(site)].filter(Boolean).join("\n") || null;
-  const forced = forcedModeScript(site);
+  // A forced mode (light-only / dark-only), else a dark-first preset's starting mode.
+  const forced = forcedModeScript(site) ?? defaultModeScript(site);
   return (
     <div className="dx-root" data-docs-trackers={markdropApp(site) ? undefined : "off"} {...(theme ? { "data-preset": theme.preset, "data-layout": theme.layout } : {})}>
       {forced ? (

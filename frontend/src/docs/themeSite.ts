@@ -85,3 +85,20 @@ export function forcedModeScript(site: SiteConfig): string | null {
   const color = bg && /^#[0-9a-f]{6}$/i.test(bg) ? bg : mode === "light" ? "#E3E7ED" : "#030712";
   return `(function(){var d=document.documentElement;d.setAttribute('data-theme','${mode}');d.classList.toggle('dark',${mode === "dark"});var m=document.querySelector('meta[name=theme-color]');if(m)m.content='${color}';})();`;
 }
+
+/** Presets designed around dark: a reader who never picked light or dark starts in dark. */
+const DARK_FIRST = new Set(["midnight", "terminal"]);
+
+/**
+ * For a dark-first preset whose readers may switch (mode "both"): start in dark unless this reader
+ * chose a theme before (md_theme, the switch's own key). Runs where forcedModeScript does, before
+ * the page paints. Null for every other theme, so their pages are unchanged.
+ */
+export function defaultModeScript(site: SiteConfig): string | null {
+  const t = siteTheme(site);
+  if (!t || forcedMode(site) || !DARK_FIRST.has(t.preset)) return null;
+  const bg = t.palette?.dark.bg;
+  const color = bg && /^#[0-9a-f]{6}$/i.test(bg) ? bg : "#030712";
+  return `(function(){try{var s=localStorage.getItem('md_theme');if(s==='light'||s==='dark'||s==='system')return;}catch(e){}var d=document.documentElement;d.setAttribute('data-theme','dark');d.classList.add('dark');var m=document.querySelector('meta[name=theme-color]');if(m)m.content='${color}';})();`;
+}
+
