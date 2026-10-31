@@ -15,7 +15,7 @@ Insights is privacy-first: no cookies, nothing stored in readers' browsers, no p
 
 Choose **7 days**, **30 days** or **90 days** at the top right. Everything on the tab covers that period.
 
-![Acme's Insights for 7 days: 602 readers and 971 page views (both up 32% on the previous 7 days), 17 Ask AI answers with 4 unanswered, 79% found it helpful from 33 votes, and the Readers per day line from Oct 25 to Oct 31.](/docs-assets/guides/insights/insights-overview.webp)
+![Acme's Insights for 7 days: 602 readers and 971 page views (both up 32% on the previous 7 days), 18 Ask AI answers with 4 unanswered, 79% found it helpful from 33 votes, and the Readers per day line from Oct 25 to Oct 31, its last day (today) dashed.](/docs-assets/guides/insights/insights-overview.webp)
 
 - **Four numbers at the top**: readers, page views, Ask AI answers (and how many it couldn't answer), and the share of votes that said a page helped. Each shows its change from the period before, once Insights was collecting then. A number that can't be counted yet shows as **—**.
 - **Readers per day**. Hover a day, or use the arrow keys, to see its readers and page views. A reader is counted once per day: someone who reads on Monday and Tuesday counts as two. Today is still counting, so its part of the line is dashed and marked **today so far**.
