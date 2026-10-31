@@ -69,7 +69,7 @@ Guides admins choose under **How it appears**:
 
 The `/api-reference` part of the address is fixed, so no page you write can use it.
 
-![What readers will get: 13 endpoint pages under API reference, grouped Projects, Sources, Dashboards and Alerts with their methods and paths, and Preview the reference (off until the guide is published). Beside it, How it appears: Tab name API reference, Its own tab selected, Try it on, Fetch again on every publish off, and Publish the reference.](/docs-assets/guides/api-reference/api-reference-endpoints.webp)
+![What readers will get: 13 endpoint pages under API reference, grouped Projects, Sources, Dashboards and Alerts with their methods, paths and summaries, and Preview the reference (off until the guide is published). Below it, How it appears: Tab name API reference, Its own tab selected, Try it on, Fetch again on every publish off, and Publish the reference.](/docs-assets/guides/api-reference/api-reference-endpoints.webp)
 
 ## Try it and CORS
 

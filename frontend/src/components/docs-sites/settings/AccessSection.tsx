@@ -12,7 +12,7 @@ import usePatch from "./usePatch";
 /** A choice drawn as a card (Settings.dc.html's access options): a native radio, so arrows and forms work. */
 export function OptionCard({ name, value, checked, disabled, icon, label, note, badge, onChange }: {
   name: string; value: string; checked: boolean; disabled?: boolean; icon?: string; label: React.ReactNode; note?: React.ReactNode;
-  /** A mark after the label ("Coming soon"). */
+  /** A mark under the label ("Coming soon"). */
   badge?: React.ReactNode;
   onChange: (v: string) => void;
 }) {
@@ -26,8 +26,8 @@ export function OptionCard({ name, value, checked, disabled, icon, label, note, 
         <input type="radio" name={name} value={value} checked={checked} disabled={disabled} onChange={() => onChange(value)} className="m-0 accent-[var(--accent)]" />
         {icon && <Icon name={icon} size={15} className="shrink-0 text-text-secondary" />}
         <strong className="min-w-0 text-body-strong text-text">{label}</strong>
-        {badge}
       </span>
+      {badge && <span className="flex">{badge}</span>}
       {note && <span className="text-caption text-text-muted">{note}</span>}
     </label>
   );
@@ -90,7 +90,7 @@ export default function AccessSection() {
                 icon={o.icon}
                 label={o.label}
                 note={o.note}
-                badge={soon ? <Badge tone="info" size="sm" className="ml-auto shrink-0">Coming soon</Badge> : undefined}
+                badge={soon ? <Badge tone="info" size="sm">Coming soon</Badge> : undefined}
                 onChange={choose}
               />
             );
