@@ -11,8 +11,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { FsStore, NotWanted, claimHosts, pointSite, publish, withPointerGuard, writeAccess } from "../builder/store.mjs";
 import { mediaManifest } from "../builder/media.mjs";
-import { fetchAssets, importFileAllowed, readImportFolder, readPageFile, referencedAssets, safeRel, uploadImportAssets, writeContent } from "../runner/lib.mjs";
-import { httpsUrl, readRedirects, sitePath } from "../builder/build.mjs";
+import { fetchApiSpec, fetchAssets, importFileAllowed, readImportFolder, readPageFile, referencedAssets, safeRel, uploadImportAssets, writeContent } from "../runner/lib.mjs";
+import { contentSnapshot, httpsUrl, readRedirects, sitePath } from "../builder/build.mjs";
 
 const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const PNG = "\x89PNG\r\n\x1a\n\0\0\0\rIHDR"; // a PNG's first bytes (latin1)
@@ -316,4 +316,38 @@ test("a token minted by the runner is the API's format", async () => {
   const [exp, sig] = tok.split(".");
   assert.ok(Number(exp) > Date.now() / 1000);
   assert.equal(sig, crypto.createHmac("sha256", "s3cret").update(`docs-job:job1:${exp}`).digest("base64url"));
+});
+
+test("API reference: the stored OpenAPI file lands in the content folder, and the engine generates the golden reference", async () => {
+  const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+  const sample = fs.readFileSync(path.join(REPO, "backend/app/assets/northwind-openapi.json"));
+  // What the backend stores: the description as compact JSON, named by its hash (services/docs_api_spec.py).
+  const body = Buffer.from(JSON.stringify(JSON.parse(sample.toString("utf8"))));
+  const sha = crypto.createHash("sha256").update(body).digest("hex");
+  const root = tmp("store-");
+  const store = new FsStore(root);
+  await store.put(`sites/s1/api/${sha}.json`, body);
+  const content = tmp("content-");
+  const ref = { key: `sites/s1/api/${sha}.json`, sha256: sha, size: body.length, file: "openapi.json" };
+  assert.equal(await fetchApiSpec({ store, siteId: "s1", ref, contentDir: content }), body.length);
+  assert.equal(await fetchApiSpec({ store, siteId: "s1", ref: undefined, contentDir: content }), 0);
+  // Another site's key, a wrong hash, a missing object, a path for a file name: refused.
+  await assert.rejects(fetchApiSpec({ store, siteId: "s2", ref, contentDir: content }), /invalid/);
+  await assert.rejects(fetchApiSpec({ store, siteId: "s1", ref: { ...ref, sha256: "0".repeat(64) }, contentDir: content }), /doesn't match its hash/);
+  await assert.rejects(fetchApiSpec({ store, siteId: "s1", ref: { ...ref, key: `sites/s1/api/${"1".repeat(64)}.json` }, contentDir: content }), /missing/);
+  await assert.rejects(fetchApiSpec({ store, siteId: "s1", ref: { ...ref, file: "../x.json" }, contentDir: content }), /file is invalid/);
+
+  // site.json as the backend writes it (services/docs_snapshot.py add_api_reference).
+  const site = { name: "Northwind", tabs: [{ id: "docs", label: "Docs", href: "/" }, { id: "api", label: "API reference", href: "/api-reference" }], nav: [], openapi: { spec: "openapi.json", base: "/api-reference", tab: "api", auto: true, label: "API reference", extension: "x-markdrop-guides" }, tryIt: { enabled: true } };
+  fs.writeFileSync(path.join(content, "site.json"), JSON.stringify(site));
+  // The MCP server's content snapshot carries the description, so read_page answers API pages too.
+  const snap = contentSnapshot(content, []);
+  assert.ok(snap["/site/openapi.json"]);
+  const { buildApiReference } = await import(path.join(REPO, "frontend/src/docs/openapi.mjs"));
+  const cfg = JSON.parse(snap["/site/site.json"]).openapi;
+  const built = buildApiReference(JSON.parse(snap["/site/openapi.json"]), {}, { auto: cfg.auto, base: cfg.base, extension: cfg.extension, title: cfg.label });
+  const golden = JSON.parse(fs.readFileSync(path.join(REPO, "frontend/src/docs/testdata/northwind.golden.json"), "utf8"));
+  assert.deepEqual(Object.fromEntries(built.ops.map((o) => [o.path, o.markdown])), golden.pages);
+  assert.deepEqual(built.overview, golden.overview);
+  for (const d of [root, content]) fs.rmSync(d, { recursive: true, force: true });
 });
