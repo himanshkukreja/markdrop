@@ -294,6 +294,11 @@ async def run_once(db: AsyncIOMotorDatabase, *, client: httpx.AsyncClient | None
         {"$set": {"status": "queued", "locked_by": None, "locked_until": None, "dispatched_at": None, "updated_at": t}},
     )
     stats["requeued"] = res.modified_count
+    # A site whose access policy the edge doesn't hold yet: its access job again (a private site
+    # must never stay public because one write failed).
+    from app.services import docs_site_access
+
+    stats["access_retried"] = await docs_site_access.requeue_unsynced(db)
     busy = await docs_jobs.busy_sites(db)
     async for job in db[JOBS].find({"status": "queued"}).sort("created_at", 1).limit(100):
         await _advance(db, job, busy, client=client)

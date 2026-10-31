@@ -326,12 +326,13 @@ async def list_reviews(db: AsyncIOMotorDatabase, site: dict, status: str | None)
 # ── Builds, restore, jobs ─────────────────────────────────────────────────────
 
 
-async def list_builds(db: AsyncIOMotorDatabase, site: dict, limit: int = 50) -> list[dict]:
+async def list_builds(db: AsyncIOMotorDatabase, site: dict, limit: int = 50, *, details: bool = False) -> list[dict]:
+    """``details``: the caller is a studio admin (the raw error of a failed build)."""
     rows = await db[BUILDS].find({"site_id": site["_id"]}).sort("number", -1).to_list(length=max(1, min(limit, 100)))
     names = await store.user_names(db, [r.get("requested_by") for r in rows])
     out = []
     for r in rows:
-        v = store.build_view(r, names)
+        v = store.build_view(r, names, details=details)
         v["live"] = site.get("live_build_id") == r["_id"]
         out.append(v)
     return out
@@ -354,14 +355,15 @@ async def restore_build(db: AsyncIOMotorDatabase, site: dict, user: User, build_
         "build_id": str(build["_id"]), "number": build.get("number"), "manifest_hash": build["manifest_hash"],
         "requested_by": user.id})
     names = await store.user_names(db, [build.get("requested_by")])
-    return {"build": store.build_view(build, names), "job": store.job_view(job)}
+    # Admin only (the router): the details are theirs.
+    return {"build": store.build_view(build, names, details=True), "job": store.job_view(job, details=True)}
 
 
-async def get_job(db: AsyncIOMotorDatabase, site: dict, job_id: str) -> dict:
+async def get_job(db: AsyncIOMotorDatabase, site: dict, job_id: str, *, details: bool = False) -> dict:
     job = await db[JOBS].find_one({"_id": store.oid(job_id, "Job"), "site_id": site["_id"]})
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    return store.job_view(job)
+    return store.job_view(job, details=details)
 
 
 # ── Assets ────────────────────────────────────────────────────────────────────
@@ -375,7 +377,7 @@ async def upload_asset(db: AsyncIOMotorDatabase, site: dict, user: User, data: b
     if not data:
         raise HTTPException(status_code=422, detail="That file is empty.")
     try:
-        ext = assets.sniff(data, filename)
+        ext, data = assets.prepare(data, filename)
     except assets.AssetRejected as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from None
     digest = assets.sha256(data)
@@ -424,7 +426,7 @@ async def upload_dark_asset(db: AsyncIOMotorDatabase, site: dict, user: User, da
     if not data:
         raise HTTPException(status_code=422, detail="That file is empty.")
     try:
-        ext = assets.sniff(data, filename)
+        ext, data = assets.prepare(data, filename)
     except assets.AssetRejected as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from None
     want = dark_rel.rsplit(".", 1)[-1]

@@ -198,14 +198,15 @@ class Worker:
         tmp = Path(tempfile.mkdtemp(prefix="docs-job-"))
         spec_f, result_f = tmp / "spec.json", tmp / "result.json"
         spec_f.write_text(json.dumps(spec))
-        cmd = [self.cfg.node, str(self.cfg.platform / "runner" / "run-job.mjs"), "--spec", str(spec_f), "--result", str(result_f)]
+        cmd = [self.cfg.node, str(self.cfg.platform / "runner" / "run-job.mjs"), "--spec", str(spec_f), "--result", str(result_f),
+               "--wanted", "stdin"]
         if heavy and self.cfg.nice and shutil.which("nice"):
             cmd = (["ionice", "-c3"] if shutil.which("ionice") else []) + ["nice", "-n", "15"] + cmd
         t0 = time.monotonic()
         tail: list[str] = []
         try:
             run.proc = proc = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                *cmd, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
                 env=self.runner_env(run.slot, heavy), cwd=str(self.cfg.platform), start_new_session=True,
             )
             last = {"at": 0.0, "step": None}
@@ -213,6 +214,17 @@ class Worker:
             async def read_out():
                 async for raw in proc.stdout:
                     line = raw.decode(errors="replace").rstrip()
+                    if line == "@@wanted?":
+                        # Right before the pointer flips: is this build still to go live?
+                        wanted, why = await docs_build.still_wanted(self.db, job, self.id)
+                        if not wanted:
+                            log("build_not_wanted", job=job["_id"], reason=why)
+                        try:
+                            proc.stdin.write(b"yes\n" if wanted else b"no\n")
+                            await proc.stdin.drain()
+                        except (BrokenPipeError, ConnectionResetError):
+                            pass
+                        continue
                     if line.startswith("@@progress "):
                         try:
                             p = json.loads(line[11:])

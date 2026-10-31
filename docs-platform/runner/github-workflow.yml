@@ -100,19 +100,21 @@ jobs:
           npm ci --prefix engine/frontend --no-audit --no-fund --loglevel=error
           npm ci --prefix engine/docs-platform --no-audit --no-fund --loglevel=error
 
-      # The builder's work folder: the staged engine and Next's .next/cache (webpack). Keyed by
-      # engine commit and site, falling back to the same engine (any site), then any engine: a warm
-      # cache turns a ~35 s cold render into ~20 s and keeps unchanged pages byte-identical.
+      # The builder's work folder: the staged engine and Next's .next/cache (webpack). Both hold the
+      # site's own content (its pages, its files, rendered output), so the cache is one site's only:
+      # keyed by site and engine commit, falling back to the same site on an older engine, never to
+      # another site's folder (that would hand one site's content, or a poisoned stage, to the
+      # next). What is shared across sites is node_modules, cached above by lockfile. A warm cache
+      # turns a ~35 s cold render into ~20 s and keeps unchanged pages byte-identical.
       - name: Restore the build cache
         if: inputs.kind == 'build'
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/.docs-work/engine
-          key: docs-work-${{ runner.os }}-${{ steps.engine.outputs.sha }}-${{ inputs.site_id }}-${{ github.run_id }}
+          key: docs-work-${{ runner.os }}-${{ inputs.site_id }}-${{ steps.engine.outputs.sha }}-${{ github.run_id }}
           restore-keys: |
-            docs-work-${{ runner.os }}-${{ steps.engine.outputs.sha }}-${{ inputs.site_id }}-
-            docs-work-${{ runner.os }}-${{ steps.engine.outputs.sha }}-
-            docs-work-${{ runner.os }}-
+            docs-work-${{ runner.os }}-${{ inputs.site_id }}-${{ steps.engine.outputs.sha }}-
+            docs-work-${{ runner.os }}-${{ inputs.site_id }}-
 
       # GitBook imports turn animated GIFs into MP4 clips with ffmpeg (most runner images lack it).
       - name: ffmpeg

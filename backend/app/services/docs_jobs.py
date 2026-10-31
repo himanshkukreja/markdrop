@@ -319,6 +319,20 @@ async def release(db: AsyncIOMotorDatabase, job_id: Any, worker: str) -> bool:
     return res.matched_count == 1
 
 
+async def retry_later(db: AsyncIOMotorDatabase, job: dict, worker: str | None, error: str) -> bool:
+    """A claimed job hit a passing error: queued again with the attempt counted (the next sweep
+    runs it), or failed once it is out of attempts."""
+    if int(job.get("attempts") or 0) >= get_jobs_settings().docs_job_max_attempts:
+        return await fail(db, job["_id"], worker, error)
+    t = now()
+    q: dict = {"_id": oid(job["_id"]), "status": "running"}
+    if worker is not None:
+        q["locked_by"] = worker
+    res = await db[JOBS].update_one(q, {"$set": {"status": "queued", "locked_by": None, "locked_until": None,
+                                                 "error": str(error)[:2000], "updated_at": t}})
+    return res.matched_count == 1
+
+
 async def complete(db: AsyncIOMotorDatabase, job_id: Any, worker: str | None, result: dict | None) -> bool:
     t = now()
     q: dict = {"_id": oid(job_id), "status": "running"}

@@ -95,7 +95,7 @@ async def delete_site(request: Request, site_id: str, db: AsyncIOMotorDatabase =
                       user: User = Depends(require_user)):
     site, _role = await store.load_site(db, site_id, user, "admin")
     job = await store.delete_site(db, site, user)
-    return {"deleted": True, "job": store.job_view(job)}
+    return {"deleted": True, "job": store.job_view(job, details=True)}
 
 
 @router.post("/{site_id}/unpublish")
@@ -173,8 +173,8 @@ async def withdraw_review(request: Request, site_id: str, review_id: str,
 @limiter.limit("120/minute")
 async def list_builds(request: Request, site_id: str, limit: int = Query(50, ge=1, le=100),
                       db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
-    site, _role = await store.load_site(db, site_id, user)
-    return await publishing.list_builds(db, site, limit)
+    site, role = await store.load_site(db, site_id, user)
+    return await publishing.list_builds(db, site, limit, details=store.sees_details(role))
 
 
 @router.post("/{site_id}/builds/{build_id}/restore", status_code=202)
@@ -189,8 +189,8 @@ async def restore_build(request: Request, site_id: str, build_id: str, db: Async
 @limiter.limit("240/minute")
 async def get_job(request: Request, site_id: str, job_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
                   user: User = Depends(require_user)):
-    site, _role = await store.load_site(db, site_id, user)
-    return await publishing.get_job(db, site, job_id)
+    site, role = await store.load_site(db, site_id, user)
+    return await publishing.get_job(db, site, job_id, details=store.sees_details(role))
 
 
 # ── Assets ────────────────────────────────────────────────────────────────────

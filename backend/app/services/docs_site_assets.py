@@ -6,9 +6,10 @@ assets into the content folder's ``public/docs-assets``, so the edge serves
 them from the site's own address.
 
 The type is decided from the bytes, never from what the client claims, and
-only types a docs page can show are taken. SVG is accepted only without
-script, event handlers or embedded documents: it is served from the site's own
-origin, where script would run.
+only types a docs page can show are taken. An SVG is parsed and rewritten
+through an allowlist (services/docs_svg.py): it is served from the site's own
+origin, where script in it would run if a reader opened it directly (the edge
+also serves site files with a sandboxing CSP, docs-platform/edge/handler.mjs).
 
 This is a separate Cloudflare account from the artifacts one (services/r2.py),
 with its own credentials (settings.docs_r2_*). boto3 is synchronous: callers
@@ -22,6 +23,7 @@ import re
 from functools import lru_cache
 
 from app.config import get_settings
+from app.services import docs_svg
 
 settings = get_settings()
 
@@ -44,19 +46,31 @@ TYPES = {
     "md": "text/markdown; charset=utf-8",
 }
 _TEXT_EXTS = ("txt", "csv", "json", "md")
-_SVG_BAD = re.compile(
-    rb"<\s*script|<\s*foreignobject|<\s*iframe|<\s*embed|<\s*object|\son[a-z]+\s*=|javascript:|data:text/html"
-    rb"|<!entity",
-    re.I,
-)
 
 
 class AssetRejected(ValueError):
     pass
 
 
+def prepare(data: bytes, filename: str | None) -> tuple[str, bytes]:
+    """The extension for these bytes and the bytes to store (an SVG rewritten through the
+    allowlist; anything else as it came), or :class:`AssetRejected`."""
+    ext = _sniff(data, filename)
+    if ext == "svg":
+        try:
+            return ext, docs_svg.sanitize(data)
+        except docs_svg.SvgRejected as exc:
+            raise AssetRejected(str(exc)) from None
+    return ext, data
+
+
 def sniff(data: bytes, filename: str | None) -> str:
-    """The extension for these bytes, or :class:`AssetRejected`."""
+    """The extension for these bytes, or :class:`AssetRejected` (an SVG is checked as :func:`prepare`
+    does)."""
+    return prepare(data, filename)[0]
+
+
+def _sniff(data: bytes, filename: str | None) -> str:
     head = data[:64]
     if head.startswith(b"\x89PNG\r\n\x1a\n"):
         return "png"
@@ -81,11 +95,9 @@ def sniff(data: bytes, filename: str | None) -> str:
         return "zip"
     ext = (filename or "").rsplit(".", 1)[-1].lower() if "." in (filename or "") else ""
     stripped = data.lstrip(b"\xef\xbb\xbf \t\r\n")
-    if ext == "svg" or stripped[:5].lower() in (b"<svg ", b"<svg>") or stripped[:5] == b"<?xml":
+    if ext == "svg" or stripped[:4].lower() == b"<svg" or stripped[:5] == b"<?xml":
         if b"<svg" not in data[:4096].lower():
             raise AssetRejected("That file type isn't supported.")
-        if _SVG_BAD.search(data):
-            raise AssetRejected("SVG files can't contain scripts, event handlers or embedded pages.")
         return "svg"
     if ext in _TEXT_EXTS:
         try:

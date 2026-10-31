@@ -356,7 +356,19 @@ def limits() -> dict:
 # ── Views ─────────────────────────────────────────────────────────────────────
 
 
-def build_view(b: dict | None, names: dict[str, str] | None = None) -> dict | None:
+# What a build or job failure says to anyone but a studio admin: the runner's own error text
+# (an R2 or Next message, a path) is for the people who can act on it.
+GENERIC_ERROR = "Something went wrong on our side. A site admin can see the details."
+
+
+def _error_for(err: Any, details: bool) -> str | None:
+    if not err:
+        return None
+    return str(err) if details else GENERIC_ERROR
+
+
+def build_view(b: dict | None, names: dict[str, str] | None = None, *, details: bool = False) -> dict | None:
+    """``details``: the caller is a studio admin (the raw error text); anyone else gets a generic one."""
     if b is None:
         return None
     names = names or {}
@@ -373,16 +385,19 @@ def build_view(b: dict | None, names: dict[str, str] | None = None) -> dict | No
         "job_id": str(b["job_id"]) if b.get("job_id") else None,
         "manifest_hash": b.get("manifest_hash"),
         "stats": b.get("stats"),
-        "error": b.get("error"),
+        "error": _error_for(b.get("error"), details),
         "created_at": aware(b.get("created_at")),
         "started_at": aware(b.get("started_at")),
         "finished_at": aware(b.get("finished_at")),
     }
 
 
-def job_view(j: dict | None) -> dict | None:
+def job_view(j: dict | None, *, details: bool = False) -> dict | None:
     if j is None:
         return None
+    result = j.get("result")
+    if isinstance(result, dict) and result.get("error") and not details:
+        result = {**result, "error": GENERIC_ERROR}
     return {
         "id": str(j["_id"]),
         "kind": j.get("kind"),
@@ -391,8 +406,8 @@ def job_view(j: dict | None) -> dict | None:
         "attempts": j.get("attempts", 0),
         "payload": {k: v for k, v in (j.get("payload") or {}).items() if "token" not in k},
         "progress": j.get("progress"),
-        "result": j.get("result"),
-        "error": j.get("error"),
+        "result": result,
+        "error": _error_for(j.get("error"), details),
         "created_at": aware(j.get("created_at")),
         "updated_at": aware(j.get("updated_at")),
     }
@@ -406,6 +421,11 @@ def _role_fields(role: str | studio_roles.Resolved) -> tuple[str | None, str | N
     if isinstance(role, studio_roles.Resolved):
         return role.role, role.source
     return role, None
+
+
+def sees_details(role: str | studio_roles.Resolved | None) -> bool:
+    """Studio admins see the raw error text of builds and jobs."""
+    return is_admin(_role_fields(role)[0] if role is not None else None)
 
 
 async def site_summary(db: AsyncIOMotorDatabase, site: dict, role: str | studio_roles.Resolved, *, pages: int,
@@ -445,6 +465,7 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_rol
     open_review = await db[REVIEWS].find_one({"site_id": sid, "status": "open"})
     names = await user_names(db, [site.get("last_published_by"), (live or {}).get("requested_by"),
                                   (latest or {}).get("requested_by"), (open_review or {}).get("requested_by")])
+    details = sees_details(role)
     pages = await page_count(db, sid)
     ai = await ai_answers(db, [str(sid)])
     out = await site_summary(db, site, role, pages=pages, ai_used=ai.get(str(sid), 0),
@@ -456,8 +477,8 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_rol
         "domains": site.get("domains") or [],
         "live_build_id": str(site["live_build_id"]) if site.get("live_build_id") else None,
         "last_import_job_id": str(site["last_import_job_id"]) if site.get("last_import_job_id") else None,
-        "live_build": build_view(live, names),
-        "latest_build": build_view(latest, names),
+        "live_build": build_view(live, names, details=details),
+        "latest_build": build_view(latest, names, details=details),
         "open_review_id": str(open_review["_id"]) if open_review else None,
         "counts": {
             "pages": pages,
@@ -468,9 +489,12 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_rol
             "ai_answers_this_month": ai.get(str(sid), 0),
         },
         "limits": limits(),
+        # False while the edge doesn't hold the site's access policy yet (the access job is
+        # retried until it does): the dashboard says "Not enforced yet".
+        "access_enforced": docs_site_access.enforced(site),
     })
     if job is not None:
-        out["job"] = job_view(job)
+        out["job"] = job_view(job, details=details)
     return out
 
 
@@ -809,16 +833,29 @@ async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None,
 
 
 async def _take_down(db: AsyncIOMotorDatabase, site: dict, reason: str, extra: dict) -> dict | None:
-    """Mark the site unpublished (live build superseded) and queue taking it off
-    its address. Returns the job, or None when nothing was ever live."""
-    was_live = bool(site.get("live_build_id")) or site.get("status") == "live"
-    sets = {"status": "unpublished", "live_build_id": None, "updated_at": now(), **extra}
+    """Mark the site unpublished (live build superseded) and queue taking it off its address.
+
+    The unpublish job is queued whenever anything could be at the address: the site was ever live,
+    or a build of it is queued or running (a runner may already be uploading it; it asks the API
+    before it flips the pointer, and a build that still lands is taken down by finish_build). The
+    job is idempotent. Returns the job, or None when nothing was ever live or on its way."""
+    t = now()
+    was_live = bool(site.get("live_build_id")) or site.get("status") == "live" or bool(site.get("last_published_at"))
+    sets = {"status": "unpublished", "live_build_id": None, "updated_at": t, "taken_down_at": t, **extra}
     await db[SITES].update_one({"_id": site["_id"]}, {"$set": sets, **({"$unset": {"slug": ""}}
                                                                       if "deleted_slug" in extra else {})})
     if site.get("live_build_id"):
         await db[BUILDS].update_one({"_id": site["live_build_id"], "status": "live"},
                                     {"$set": {"status": "superseded"}})
-    if not was_live:
+    building = await db[JOBS].find_one({"site_id": site["_id"], "kind": "build", "status": {"$in": ["queued", "running"]}},
+                                       {"_id": 1})
+    # What was waiting to put it (back) live never runs: those builds were asked for before this.
+    why = "Site deleted." if reason == "delete" else "Site unpublished."
+    await db[JOBS].update_many({"site_id": site["_id"], "kind": {"$in": ["build", "restore"]}, "status": "queued"},
+                               {"$set": {"status": "failed", "error": why, "updated_at": t}})
+    await db[BUILDS].update_many({"site_id": site["_id"], "status": "queued"},
+                                 {"$set": {"status": "failed", "error": why, "finished_at": t}})
+    if not was_live and building is None:
         return None
     return await enqueue_job(db, "unpublish", site["_id"], {"reason": reason, "slug": site.get("slug")})
 
@@ -829,18 +866,29 @@ async def unpublish_site(db: AsyncIOMotorDatabase, site: dict) -> dict:
     return await _take_down(db, site, "unpublish", {})
 
 
-async def delete_site(db: AsyncIOMotorDatabase, site: dict, user: User) -> dict | None:
+async def delete_site(db: AsyncIOMotorDatabase, site: dict, user: User | str | None,
+                      reason: str = "delete") -> dict | None:
+    """Soft-delete the site and take it off its addresses. ``user``: who did it (a User, a user id,
+    or None for the system, e.g. its workspace being deleted)."""
     at = now()
-    job = await _take_down(db, site, "delete", {"deleted_at": at, "deleted_by": user.id,
-                                                "deleted_slug": site.get("slug")})
+    by = user.id if isinstance(user, User) else user
+    job = await _take_down(db, site, reason, {"deleted_at": at, "deleted_by": by,
+                                              "deleted_slug": site.get("slug")})
     await db[REVIEWS].update_many({"site_id": site["_id"], "status": "open"},
-                                  {"$set": {"status": "withdrawn", "decided_by": user.id, "decided_at": at,
+                                  {"$set": {"status": "withdrawn", "decided_by": by, "decided_at": at,
                                             "comment": "Site deleted."}})
     await db[PAGES].update_many({"site_id": site["_id"]}, {"$set": {"lock": None}})
-    # Queued builds would publish a deleted site.
-    await db[JOBS].update_many({"site_id": site["_id"], "kind": {"$in": ["build", "import", "restore"]},
-                                "status": "queued"},
+    # Queued builds and restores were failed by _take_down; a queued import would fill a deleted site.
+    await db[JOBS].update_many({"site_id": site["_id"], "kind": "import", "status": "queued"},
                                {"$set": {"status": "failed", "error": "Site deleted.", "updated_at": at}})
-    await db[BUILDS].update_many({"site_id": site["_id"], "status": "queued"},
-                                 {"$set": {"status": "failed", "error": "Site deleted.", "finished_at": at}})
     return job
+
+
+async def delete_workspace_sites(db: AsyncIOMotorDatabase, workspace_id: str, actor_id: str | None) -> int:
+    """A workspace is being deleted: every docs site in it is deleted the same way (soft-deleted,
+    its builds stopped, its addresses taken down by the unpublish job). Returns how many."""
+    n = 0
+    async for site in db[SITES].find({"workspace_id": workspace_id, "deleted_at": None}):
+        await delete_site(db, site, actor_id, reason="workspace_deleted")
+        n += 1
+    return n

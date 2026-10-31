@@ -39,7 +39,7 @@ favicon, apple-icon) are fetched as well.
 | `/og/**` | Static PNG | Rendered by `next/og` at build time |
 | `/_next/static/{chunks,css,media}/**` | **Workers Static Assets** (no Worker invocation), immutable | Content-hashed engine output, shared by every site an engine builds (175 of 190 between Markdrop and the pilot site; the rest differ only by inlined `NEXT_PUBLIC_*` values, so they have other names). Also in R2: the Worker serves one from there when the deployed assets lack it. See "Engine files as static assets" |
 | `/_next/static/<build id>/*` | Static, from R2 through the Worker | `_buildManifest.js` carries the site's rewrites (its docs hosts), so it differs per site under one name. The app router never requests it |
-| `/docs-assets/**` (site files) | Static, `Range` supported (video) | Copied from `<content>/public` |
+| `/docs-assets/**` (site files) | Static, `Range` supported (video), `nosniff` + a sandboxing CSP; HTML and XML files download (`Content-Disposition: attachment`), SVG stays an image | Copied from `<content>/public`. Uploaded content on the site's own origin must never run there (`edge/handler.mjs` fileHeaders) |
 | 404 | The engine's 404 page (status 404) | The Next server renders the 404 per request: same page, but the requested path appears in its payload |
 | `redirects.json` | Edge | Applied only when no page or file matches |
 | `/mcp` | **Edge code**: the frontend's own route (`src/app/docs-site/mcp/route.ts` → `src/docs/mcp.ts`), bundled with fs/path shims and run on a content snapshot stored with the build | One engine instance per site per build in each isolate. Answers are byte-identical to the Next server's (`search_docs`, `read_page` checked) |
@@ -68,7 +68,7 @@ Publishing (`builder/store.mjs`) uses the same keys in R2, in a local folder, or
 objects/<sha256>              immutable (cached forever; never purged)
 manifests/<sha256>.json       immutable
 sites/<site>/current.json     the pointer {manifest, engine, publishedAt, previous}
-hosts/<hostname>.json         {site}
+hosts/<hostname>.json         {site}: a publish maps a host only where none is (never another site's)
 sites/<site>/access.json      {site, level, policy_version}: password / members-only (no object = public)
 ```
 
@@ -257,7 +257,7 @@ node builder/cli.mjs build <content-dir> --out <dist> [--work <dir>] \
 node builder/cli.mjs build ../frontend/content/docs --out /tmp/md-dist \
      --assets ../frontend/public/docs-assets=/docs-assets
 
-# Publish to a store (a folder, or R2 over its S3 API), flip the pointer, map hostnames
+# Publish to a store (a folder, or R2 over its S3 API), flip the pointer, map hostnames that have no mapping yet
 node builder/cli.mjs publish <dist> --store <dir> [--site <id>] [--host <hostname>]... [--dry-run]
 node builder/cli.mjs publish <dist> --r2 <bucket> ...    # CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
 node builder/cli.mjs diff <old manifest.json> <new manifest.json>    # what a publish would upload

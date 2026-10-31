@@ -7,7 +7,8 @@ place. Kinds:
 - ``build``     payload ``{build_id, snapshot_id, number}``: build a snapshot, publish it, mark it live.
 - ``import``    payload ``{source: "gitbook", url}``: import a site's pages into its drafts.
 - ``restore``   payload ``{build_id, number, manifest_hash}``: re-point the site to an earlier build.
-- ``unpublish`` payload ``{reason: "unpublish"|"delete"}``: take the site off its address.
+- ``unpublish`` payload ``{reason, slug, hosts?}``: take the site off its addresses (and the
+                ``hosts`` a build published to). Idempotent; a waiting one absorbs a new one.
 - ``access``    payload ``{reason}``: write the site's access policy for the edge
                 (services/docs_site_access.py). Idempotent; a waiting one absorbs a new one.
 
@@ -54,6 +55,15 @@ async def enqueue_job(db: AsyncIOMotorDatabase, kind: str, site_id: str | Object
     if kind == "access":
         # It writes whatever the policy is when it runs: one waiting job covers any number of changes.
         waiting = await db[JOBS].find_one({"kind": "access", "site_id": sid, "status": "queued"})
+        if waiting is not None:
+            return waiting
+    if kind == "unpublish":
+        # Idempotent: one waiting take-down covers another (with the extra hosts it names).
+        extra = [h for h in (payload or {}).get("hosts") or [] if isinstance(h, str)]
+        waiting = await db[JOBS].find_one_and_update(
+            {"kind": "unpublish", "site_id": sid, "status": "queued"},
+            {"$addToSet": {"payload.hosts": {"$each": extra}}, "$set": {"updated_at": now}},
+            return_document=ReturnDocument.AFTER)
         if waiting is not None:
             return waiting
     row = {

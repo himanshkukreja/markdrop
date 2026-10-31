@@ -230,12 +230,64 @@ async def sync_policy(db: AsyncIOMotorDatabase, site_id: Any, *, store: Any = No
     if site is None:
         raise docs_build.RestoreError("site not found")
     store = store or docs_build.default_store()
-    return await asyncio.to_thread(write_policy, store, site)
+    res = await asyncio.to_thread(write_policy, store, site)
+    # The edge now holds this version (or a newer one): enforced.
+    await mark_synced(db, site["_id"], version_of(site))
+    return res
+
+
+async def mark_synced(db: AsyncIOMotorDatabase, site_id: Any, version: int) -> None:
+    """The edge holds the site's policy at ``version`` (``access_synced_version`` never goes down)."""
+    from app.services.docs_jobs import SITES, oid
+
+    await db[SITES].update_one({"_id": oid(site_id)}, {"$max": {"access_synced_version": int(version)}})
+
+
+def enforced(site: dict) -> bool:
+    """Whether the edge enforces the site's current policy (False while a change is still on its way:
+    the access job writes it, and the sweeper retries until it does)."""
+    if not needs_policy(site):
+        return True
+    try:
+        synced = int(site.get("access_synced_version"))
+    except (TypeError, ValueError):
+        return False
+    return synced >= version_of(site)
+
+
+RETRY_AFTER_SECONDS = 60
+
+
+async def requeue_unsynced(db: AsyncIOMotorDatabase) -> int:
+    """The sweeper's pass (services/docs_dispatch.run_once): every site whose policy the edge doesn't
+    hold yet (``access_version`` > ``access_synced_version``) gets its access job again, unless one is
+    waiting or running, or one failed less than a minute ago. A private site never stays public for
+    want of a retry."""
+    from datetime import timedelta
+
+    from app.services.docs_jobs import JOBS, SITES, now
+
+    t = now()
+    queued = 0
+    rows = db[SITES].find({"deleted_at": None, "$or": [{"access_version": {"$gt": 0}},
+                                                      {"settings.access.level": {"$nin": ["public", None]}}]},
+                          {"settings.access.level": 1, "access_version": 1, "access_synced_version": 1})
+    async for site in rows:
+        if enforced(site):
+            continue
+        busy = await db[JOBS].find_one({"kind": "access", "site_id": site["_id"], "$or": [
+            {"status": {"$in": ["queued", "running"]}},
+            {"status": "failed", "updated_at": {"$gt": t - timedelta(seconds=RETRY_AFTER_SECONDS)}},
+        ]}, {"_id": 1})
+        if busy is None and await queue_sync(db, site["_id"], "retry") is not None:
+            queued += 1
+    return queued
 
 
 async def queue_sync(db: AsyncIOMotorDatabase, site_id: Any, reason: str) -> dict | None:
     """Queue the ``access`` job (it runs inline in the API when this process holds the bucket keys,
-    else on the local worker). Never fails the caller: the runner writes the policy too."""
+    else on the local worker). Never fails the caller: the runner writes the policy too, and the
+    sweeper (requeue_unsynced) queues it again until the edge holds the policy."""
     from app.services.docs_site_jobs import enqueue_job
 
     try:
@@ -243,3 +295,18 @@ async def queue_sync(db: AsyncIOMotorDatabase, site_id: Any, reason: str) -> dic
     except Exception:  # pragma: no cover - a queue hiccup must not fail a settings save
         log.warning("docs site %s: couldn't queue the access sync", site_id, exc_info=True)
         return None
+
+
+async def revoke_sessions(db: AsyncIOMotorDatabase, site_id: Any, reason: str) -> dict | None:
+    """Sign every reader of a members-only site out at the edge: a new policy version (sessions are
+    bound to it, docs-platform/edge/access.mjs sessionValid), written by the access job. For a
+    member who lost access: their 12-hour session must not outlive it (the others sign in again,
+    one click). None when the site isn't members-only (nothing to revoke)."""
+    from app.services.docs_jobs import SITES, oid
+
+    res = await db[SITES].update_one(
+        {"_id": oid(site_id), "deleted_at": None, "settings.access.level": "members"},
+        {"$inc": {"access_version": 1}, "$set": {"updated_at": datetime.now(timezone.utc)}})
+    if res.modified_count != 1:
+        return None
+    return await queue_sync(db, site_id, reason)

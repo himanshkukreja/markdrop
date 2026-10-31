@@ -6,8 +6,13 @@
  *     node runner/run-job.mjs --job <id> --api <https://api.markdrop.in> --token <job token> [--runner <id>]
  *
  *   From a file (the Python worker, backend/scripts/docs_build_worker.py):
- *     node runner/run-job.mjs --spec <spec.json> --result <result.json>
- *     (progress: one "@@progress {json}" line per step on stdout)
+ *     node runner/run-job.mjs --spec <spec.json> --result <result.json> [--wanted stdin]
+ *     (progress: one "@@progress {json}" line per step on stdout; with --wanted stdin, a
+ *     "@@wanted?" line before the pointer flips, answered "yes" or "no" on stdin)
+ *
+ * A build asks whether it is still wanted right before it flips the site's pointer (GET
+ * .../wanted, or the "@@wanted?" line): a site taken down (unpublished, deleted) while it built
+ * never goes live. A "no" is reported as {ok: false, aborted: true}.
  *
  * Env: MARKDROP_DOCS_R2_BUCKET + CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY (or
  * MARKDROP_DOCS_STORE_DIR for a folder store); optional MARKDROP_DOCS_ENGINE_DIR (default
@@ -25,6 +30,7 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { configFromEnv, runBuild, runImport, storeFromEnv } from "./lib.mjs";
+import { withPointerGuard } from "../builder/store.mjs";
 
 function parse(argv) {
   const opt = {};
@@ -91,6 +97,22 @@ function apiTransport({ api, job, token, runner }) {
       if (!r.ok) throw new Error(`GET job: HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
       return { spec: await r.json() };
     },
+    /** Is the build still to go live? Anything but a clear yes is a no. */
+    async stillWanted() {
+      try {
+        const r = await call("GET", `${base}/wanted?runner=${encodeURIComponent(runner)}`);
+        if (!r.ok) {
+          log(`wanted check refused (${r.status}): not going live`);
+          return false;
+        }
+        const body = await r.json();
+        if (body.wanted !== true) log(`not wanted any more: ${String(body.reason || "").slice(0, 120)}`);
+        return body.wanted === true;
+      } catch (e) {
+        log(`wanted check failed (${e.message}): not going live`);
+        return false;
+      }
+    },
     progress(p) {
       lastProgress = p;
       // At most one progress call every 2 s (the last one wins); steps that change always go out.
@@ -107,11 +129,45 @@ function apiTransport({ api, job, token, runner }) {
   };
 }
 
+/** One line from stdin (the worker's answer), or null at the end of input or after `ms`. */
+function stdinLine(ms = 60_000) {
+  return new Promise((resolve) => {
+    let buf = "";
+    const done = (v) => {
+      clearTimeout(timer);
+      process.stdin.off("data", onData);
+      process.stdin.off("end", onEnd);
+      process.stdin.pause();
+      process.stdin.unref?.(); // never keeps the run alive once answered
+      resolve(v);
+    };
+    const onData = (chunk) => {
+      buf += chunk;
+      const i = buf.indexOf("\n");
+      if (i >= 0) done(buf.slice(0, i).trim());
+    };
+    const onEnd = () => done(null);
+    const timer = setTimeout(() => done(null), ms);
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", onData);
+    process.stdin.on("end", onEnd);
+    process.stdin.resume();
+  });
+}
+
 /** The file transport (the Python worker): spec from a file, progress on stdout, result to a file. */
-function fileTransport({ spec, result }) {
+function fileTransport({ spec, result, wanted }) {
   return {
     async spec() {
       return { spec: JSON.parse(fs.readFileSync(spec, "utf8")) };
+    },
+    // Without --wanted stdin (a run by hand) there is nobody to ask: the spec is the decision.
+    async stillWanted() {
+      if (wanted !== "stdin") return true;
+      process.stdout.write("@@wanted?\n");
+      const answer = await stdinLine();
+      if (answer !== "yes") log(`not wanted any more (${answer ?? "no answer"}): not going live`);
+      return answer === "yes";
     },
     progress(p) {
       process.stdout.write(`@@progress ${JSON.stringify(p)}\n`);
@@ -156,7 +212,9 @@ async function main() {
   let body;
   try {
     if (kind === "build") {
-      const res = await runBuild(spec, { store, cfg, progress: (p) => transport.progress(p), log });
+      const site = spec.publish?.site || spec.bundle?.site_id;
+      const guarded = withPointerGuard(store, site, () => transport.stillWanted());
+      const res = await runBuild(spec, { store: guarded, cfg, progress: (p) => transport.progress(p), log });
       log(`built and published: ${res.stats.pages} pages, ${res.stats.uploaded} of ${res.stats.objects} objects uploaded (${(res.stats.bytes / 1e6).toFixed(1)} MB) in ${res.stats.ms} ms`);
       body = { ok: true, ...res };
     } else if (kind === "import") {
@@ -164,8 +222,8 @@ async function main() {
       body = { ok: true, import: res };
     } else throw new Error(`unknown job kind ${kind}`);
   } catch (e) {
-    log(`failed: ${e.message}`);
-    body = { ok: false, error: String(e.message || e).slice(0, 2000) };
+    log(`${e.notWanted ? "stopped" : "failed"}: ${e.message}`);
+    body = { ok: false, error: String(e.message || e).slice(0, 2000), ...(e.notWanted ? { aborted: true } : {}) };
   }
   body.runner_ms = Date.now() - startedAt;
   body.job_ms = Date.now() - t0;

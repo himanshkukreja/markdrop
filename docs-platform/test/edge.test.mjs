@@ -30,6 +30,13 @@ const manifest = {
   notFound: { ...put("<html>404</html>"), t: "text/html; charset=utf-8" },
   files: {
     "/docs-assets/a.bin": { ...put("0123456789"), t: "application/octet-stream" },
+    "/docs-assets/page.html": { ...put("<script>alert(document.cookie)</script>"), t: "text/html; charset=utf-8" },
+    "/docs-assets/page.xhtml": { ...put("<html xmlns='http://www.w3.org/1999/xhtml'/>"), t: "application/xhtml+xml" },
+    "/docs-assets/feed.xml": { ...put("<x/>"), t: "application/xml" },
+    "/docs-assets/atom.xml": { ...put("<x/>"), t: "application/atom+xml" },
+    "/docs-assets/logo.svg": { ...put("<svg xmlns='http://www.w3.org/2000/svg'/>"), t: "image/svg+xml" },
+    "/docs-assets/guide.pdf": { ...put("%PDF-1.7"), t: "application/pdf" },
+    "/docs-assets/sneaky.png": { ...put("<html>"), t: "image/png", h: { "content-security-policy": "default-src *", "x-content-type-options": "" } },
     "/_next/static/chunks/x.js": { ...put("js"), t: "application/javascript; charset=utf-8", immutable: true },
   },
   redirects: [{ from: "/old-start", to: "/guide/start", status: 301 }],
@@ -82,6 +89,35 @@ test("files: chunks immutable, site files with Range", async () => {
   assert.equal(await part.text(), "234");
   assert.equal((await go("/docs-assets/a.bin", { range: "bytes=20-" })).status, 416);
   assert.equal((await go("/docs-assets/a.bin", {}, "HEAD")).headers.get("content-length"), "10");
+});
+
+test("site files: nosniff and a sandboxing CSP; HTML and XML download, SVG stays an image", async () => {
+  const csp = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self'; sandbox";
+  for (const p of ["/docs-assets/a.bin", "/docs-assets/page.html", "/docs-assets/page.xhtml", "/docs-assets/feed.xml", "/docs-assets/atom.xml", "/docs-assets/logo.svg", "/docs-assets/sneaky.png"]) {
+    const r = await go(p);
+    assert.equal(r.status, 200, p);
+    assert.equal(r.headers.get("x-content-type-options"), "nosniff", p);
+    assert.equal(r.headers.get("content-security-policy"), csp, p);
+  }
+  for (const p of ["/docs-assets/page.html", "/docs-assets/page.xhtml", "/docs-assets/feed.xml", "/docs-assets/atom.xml"]) {
+    assert.equal((await go(p)).headers.get("content-disposition"), "attachment", p);
+  }
+  const svg = await go("/docs-assets/logo.svg");
+  assert.equal(svg.headers.get("content-type"), "image/svg+xml");
+  assert.equal(svg.headers.get("content-disposition"), null);
+  assert.equal((await go("/docs-assets/a.bin")).headers.get("content-disposition"), null);
+  // Range, HEAD and 304 answers carry them too.
+  assert.equal((await go("/docs-assets/page.html", { range: "bytes=0-1" })).headers.get("content-disposition"), "attachment");
+  assert.equal((await go("/docs-assets/page.html", {}, "HEAD")).headers.get("content-security-policy"), csp);
+  const etag = svg.headers.get("etag");
+  assert.equal((await go("/docs-assets/logo.svg", { "if-none-match": etag })).headers.get("content-security-policy"), csp);
+  // A PDF: nosniff, no CSP (Chrome's viewer refuses a sandboxed PDF).
+  const pdf = await go("/docs-assets/guide.pdf");
+  assert.equal(pdf.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(pdf.headers.get("content-security-policy"), null);
+  // A missing site file, and framework chunks (the engine's own code) are left alone.
+  assert.equal((await go("/docs-assets/missing.svg")).headers.get("x-content-type-options"), "nosniff");
+  assert.equal((await go("/_next/static/chunks/x.js")).headers.get("content-security-policy"), null);
 });
 
 test("redirects, 404s, unknown hosts", async () => {

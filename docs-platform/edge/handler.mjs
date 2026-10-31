@@ -9,7 +9,9 @@
  * an address means the same thing here as on docs.markdrop.in:
  *
  *   /_next/static/*                      framework chunks (immutable)
- *   pass-through paths (/docs-assets/…)  the site's files (Range supported, for video)
+ *   pass-through paths (/docs-assets/…)  the site's files (Range supported, for video), with
+ *                                        nosniff and a sandboxing CSP (fileHeaders): an HTML,
+ *                                        XML or SVG file never runs as a page of the site
  *   everything else                      the engine's route: HTML, or its RSC payload for the
  *                                        client router (`RSC: 1`), or the Markdown twin
  *                                        (`.md` / `Accept: text/markdown`), text outputs, OG cards
@@ -84,6 +86,26 @@ function noindexResponse(res) {
   const out = new Response(res.body, res);
   out.headers.set("x-robots-tag", "noindex");
   return out;
+}
+
+/** The sandboxing policy of a site file: nothing loads, nothing runs, no origin (an SVG still works as an <img>). */
+export const FILE_CSP = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self'; sandbox";
+
+/**
+ * Headers every site file (anything the manifest lists outside /_next/) is served with, set over
+ * whatever the build recorded. A site file is uploaded or imported content, served from the site's
+ * own origin: the browser must never sniff it into something else, and a document type (HTML, any
+ * XML, SVG) must never run there as a page. HTML and XML are downloads outright; SVG keeps working
+ * as an image. A PDF gets no CSP: Chrome's viewer refuses a sandboxed PDF (it runs no script of
+ * the origin anyway).
+ */
+export function fileHeaders(type) {
+  const base = String(type || "").split(";")[0].trim().toLowerCase();
+  const h = { "x-content-type-options": "nosniff" };
+  if (base !== "application/pdf") h["content-security-policy"] = FILE_CSP;
+  const xml = base === "text/xml" || base === "application/xml" || (base.endsWith("+xml") && base !== "image/svg+xml");
+  if (base === "text/html" || base === "application/xhtml+xml" || xml) h["content-disposition"] = "attachment";
+  return h;
 }
 
 /** `bytes=a-b` → {offset, length} within size, or null (whole body), or false (unsatisfiable). */
@@ -170,9 +192,9 @@ export function createHandler(store, options = {}) {
   }
 
   /** Serve one object with its type and headers; ETag is the object hash. */
-  async function serve(req, entry, { type, cache, status = 200, headers = {}, range = false, kind }) {
+  async function serve(req, entry, { type, cache, status = 200, headers = {}, locked = {}, range = false, kind }) {
     const etag = `"${entry.o}"`;
-    const h = new Headers({ "content-type": type, "cache-control": cache, etag, ...headers, ...(entry.h || {}) });
+    const h = new Headers({ "content-type": type, "cache-control": cache, etag, ...headers, ...(entry.h || {}), ...locked });
     if (range) h.set("accept-ranges", "bytes");
     options.onServe?.({ kind, status, size: entry.s });
     if (status === 200 && req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: h });
@@ -324,7 +346,8 @@ export function createHandler(store, options = {}) {
       const f = m.files[pathname];
       if (f) {
         const immutable = !!f.immutable;
-        return serve(req, f, { type: f.t, cache: immutable ? CACHE.immutable : CACHE.file, range: !immutable, kind: immutable ? "chunk" : "file" });
+        const locked = pathname.startsWith("/_next/") ? {} : fileHeaders(f.t);
+        return serve(req, f, { type: f.t, cache: immutable ? CACHE.immutable : CACHE.file, locked, range: !immutable, kind: immutable ? "chunk" : "file" });
       }
     } else {
       const r = m.routes[internal];
@@ -348,7 +371,7 @@ export function createHandler(store, options = {}) {
     // A missing site file: the engine's plain 404 (src/app/docs-site/docs-assets), not a page.
     if (pathname.startsWith("/docs-assets/")) {
       options.onServe?.({ kind: "404", status: 404, size: 0 });
-      return text("Not found", 404);
+      return text("Not found", 404, fileHeaders("text/plain"));
     }
     return notFound(req, m);
   }

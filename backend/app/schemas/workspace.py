@@ -194,3 +194,4 @@ class WorkspaceDeleteResponse(BaseModel):
     documents_released: int
     domains_removed: int
     members_removed: int
+    docs_sites_deleted: int = 0
