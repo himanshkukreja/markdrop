@@ -44,11 +44,11 @@ export function Checklist({ setup, className }: { setup: SetupStatus | null; cla
     {
       step: "domain", title: "Use your own domain",
       note: setup.own_domain ? (ownLive ? `Live at ${ownLive}` : "Waiting for its DNS record") : "help.yourcompany.com with one DNS record",
-      done: setup.own_domain, cta: "Add domain", href: `${base}/settings#address`,
+      done: setup.own_domain, cta: "Add domain", href: `${base}/settings/domains`,
     },
     ...(setup.team === null ? [] : [{
       step: "team" as const, title: "Invite your team", note: setup.team > 1 ? `${plural(setup.team, "person", "people")} work on it` : "Editors write, reviewers approve",
-      done: setup.team > 1, cta: "Invite", href: `${base}/settings#people`,
+      done: setup.team > 1, cta: "Invite", href: `${base}/settings/people`,
     }]),
     { step: "insights", title: "Check what readers look for", note: "Insights: searches with no results, feedback", done: setup.insights_data || seen, cta: "Insights", href: `${base}/insights` },
   ];
