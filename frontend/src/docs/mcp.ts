@@ -9,6 +9,8 @@
  *
  * Tools answer from the content built into the deployment (content.ts / outputs.ts): no network,
  * except report_problem, which forwards to the docs feedback endpoint after the response is sent.
+ * whats_changed is only offered when the site has changelog entries, report_problem only when it
+ * has a feedback endpoint (Docs Studio sites usually have neither).
  */
 import MiniSearch from "minisearch";
 import { absoluteUrl, agentMarkdown, defaultSite, getChangelog, getPage, getSite, orderedPages, withPrerequisites, type SiteBundle } from "./content";
@@ -44,14 +46,18 @@ function tracksCli(): boolean {
   return getChangelog().entries.some((e) => !!e.versions?.cli);
 }
 
+const hasChangelog = () => getChangelog().entries.length > 0;
+const hasFeedback = () => !!getSite().feedback;
+
 function instructions(): string {
   const site = getSite();
   const product = site.product?.name ?? site.name;
   return (
     `The official ${product} documentation (${site.url}). Use search_docs to find the sections that answer a question, ` +
     `then read_page for the full page (with include_prerequisites when the user is new to the topic). ` +
-    `Link the user to the exact section url you used. whats_changed lists recent changes, ${tracksCli() ? "by date or since a CLI version" : "by date"}. ` +
-    `If the docs are wrong, unclear or missing something, call report_problem with the page and what is wrong. ` +
+    `Link the user to the exact section url you used. ` +
+    (hasChangelog() ? `whats_changed lists recent changes, ${tracksCli() ? "by date or since a CLI version" : "by date"}. ` : "") +
+    (hasFeedback() ? `If the docs are wrong, unclear or missing something, call report_problem with the page and what is wrong. ` : "") +
     `If the docs don't answer the question, say so rather than guessing. This server only reads the docs` +
     // Markdrop has its own MCP server for publishing; another site's product may not.
     (markdropApp(site) ? `: to publish or manage documents, use ${product}'s own MCP server.` : ".")
@@ -155,8 +161,13 @@ function semverCmp(a: number[], b: number[]): number {
   return 0;
 }
 
-/** The tools, worded for the site: its brand name, example paths and whether it tracks CLI releases. */
+/** The tools the site offers, worded for it: its brand name, example paths and whether it tracks CLI releases. */
 function tools(): Tool[] {
+  const offered = new Set(["search_docs", "read_page", ...(hasChangelog() ? ["whats_changed"] : []), ...(hasFeedback() ? ["report_problem"] : [])]);
+  return allTools().filter((t) => offered.has(t.name));
+}
+
+function allTools(): Tool[] {
   const site = getSite();
   const name = brandName(site);
   const ex = examples(site);
