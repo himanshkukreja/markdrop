@@ -81,6 +81,8 @@ export const DOCS_PAGES = {
   studioDomain: "/guides/site-settings#your-own-domain",
   studioAccess: "/guides/site-settings#who-can-read-it",
   studioAskAi: "/guides/ask-ai",
+  studioApiReference: "/guides/api-reference",
+  studioApiCors: "/guides/api-reference#try-it-and-cors",
   studioReaders: "/guides/what-readers-get",
   studioSelfHost: "/guides/self-hosting",
   studioFaq: "/guides/faq",

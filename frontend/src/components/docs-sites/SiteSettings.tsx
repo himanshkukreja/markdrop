@@ -12,6 +12,7 @@ import {
   type AccessLevel, type SettingsPatch,
 } from "@/lib/docsSites";
 import { num, plural, timeAgo } from "./format";
+import ApiReferenceCard from "./ApiReferenceCard";
 import { aRole, RoleBadge } from "./people/roles";
 import SitePeople from "./people/SitePeople";
 import RedirectsEditor from "./RedirectsEditor";
@@ -247,6 +248,8 @@ export default function SiteSettings() {
           )}
           <p className="text-[13px] text-text-muted">At the limit, readers get links to ask Claude or ChatGPT with the page attached instead.</p>
         </Card>
+
+        <ApiReferenceCard />
 
         <Card id="access" title="Who can read it">
           <RadioGroup name={`${uid}-access`} value={level} onChange={chooseAccess} options={accessOptions} aria-label="Who can read it" />
