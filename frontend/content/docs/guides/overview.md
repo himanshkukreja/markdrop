@@ -37,6 +37,9 @@ Drafts stay private until you publish. Turn on reviews to have changes approved 
 :::card[Give people roles]{href="/guides/members-and-roles" icon="users"}
 Admin, Reviewer, Editor or Viewer, for the whole workspace or one guide.
 :::
+:::card[See how it's read]{href="/guides/insights" icon="chart"}
+Views, searches with no results, Ask AI questions and page feedback. No cookies.
+:::
 ::::
 
 ## How it works
@@ -45,6 +48,7 @@ Admin, Reviewer, Editor or Viewer, for the whole workspace or one guide.
 2. **Every page is a draft** until you publish. Drafts save as you type, and every save is a version you can go back to.
 3. **Publishing builds the guide.** Readers keep seeing the last published version until the new one is live, a few seconds later. Every publish is numbered, and an admin can put an earlier one back.
 4. **Readers get a fast static site** with search, an AI assistant that answers from your pages, a Markdown copy of every page and `llms.txt`. See [What readers get](/guides/what-readers-get).
+5. **Insights shows how it's read**: page views, top pages, searches that found nothing, Ask AI questions and page feedback, without cookies or personal data. See [Insights for your guide](/guides/insights).
 
 ## Watch it once
 
