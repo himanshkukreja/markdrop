@@ -15,21 +15,18 @@ import { num, plural, timeAgo } from "./format";
 import { aRole, RoleBadge } from "./people/roles";
 import SitePeople from "./people/SitePeople";
 import RedirectsEditor from "./RedirectsEditor";
-import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
+import SiteBar from "./SiteBar";
 import { useStudio } from "./studio/StudioContext";
 import { useSite } from "./SiteContext";
 
 const MAX_SUGGESTIONS = 5;
 
-/** Cards are anchors (/settings#people): land them below the sticky studio header and site bar. */
-const CARD_SCROLL_MARGIN = STUDIO_CHROME_H + 16;
-
+/** Cards are anchors (/settings#people); studio.css's scroll-padding lands them below the sticky bars. */
 function Card({ id, title, aside, children, tone }: { id: string; title: React.ReactNode; aside?: React.ReactNode; children: React.ReactNode; tone?: "danger" }) {
   return (
     <section
       id={id}
       aria-labelledby={`${id}-h`}
-      style={{ scrollMarginTop: CARD_SCROLL_MARGIN }}
       className={`flex min-w-0 flex-col gap-3 rounded-xl border p-5 ${tone === "danger" ? "border-danger bg-danger-soft" : "border-border bg-surface"}`}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2.5">
