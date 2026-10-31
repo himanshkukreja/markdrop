@@ -466,7 +466,13 @@ async def _drop_old_address(db: AsyncIOMotorDatabase, site: dict, build: dict, p
     from app.services import docs_snapshot
 
     old, new = await _snapshot_slug(db, prev), site.get("slug") or await _snapshot_slug(db, build)
-    if not old or not new or old == new or not store_available():
+    if not old or not new or old == new:
+        return []
+    from app.services import docs_cf_hosts
+
+    # Its Cloudflare custom domain too (the job keeps it while the site still wants it).
+    await docs_cf_hosts.queue(db, site["_id"], "moved", [docs_cf_hosts.free_host(old)])
+    if not store_available():
         return []
     try:
         return await asyncio.to_thread(drop_hosts, default_store(), str(site["_id"]), [docs_snapshot.host_for(old, site["_id"])])
@@ -578,14 +584,26 @@ async def run_server_job(db: AsyncIOMotorDatabase, job: dict, worker: str) -> di
             from app.services import docs_site_access
 
             res = await docs_site_access.sync_policy(db, job["site_id"])
+        elif job["kind"] == "cf_host":
+            from app.services import docs_cf_hosts
+
+            res = await docs_cf_hosts.reconcile(db, job["site_id"], p.get("hosts") or [])
         else:
             raise RestoreError(f"{job['kind']} jobs don't run on the server")
+        if job["kind"] == "restore":
+            from app.services import docs_cf_hosts
+
+            await docs_cf_hosts.queue(db, job["site_id"], "restore")  # live again: its address too
     except RestoreError as e:
         await docs_jobs.fail(db, job["_id"], worker, str(e))
         return {"ok": False, "error": str(e)}
-    except Exception as e:  # the bucket hiccuped: try again (until the job is out of attempts)
-        log.warning("docs %s job %s failed", job["kind"], job["_id"], exc_info=True)
-        err = f"{type(e).__name__} while writing to the docs bucket"
+    except Exception as e:  # the bucket (or Cloudflare) hiccuped: try again (until out of attempts)
+        log.warning("docs %s job %s failed: %s", job["kind"], job["_id"], type(e).__name__,
+                    exc_info=job["kind"] != "cf_host")
+        if job["kind"] == "cf_host":
+            err = str(e)[:1500] or type(e).__name__  # CfHostError: what Cloudflare said (never the token)
+        else:
+            err = f"{type(e).__name__} while writing to the docs bucket"
         await docs_jobs.retry_later(db, job, worker, err)
         return {"ok": False, "error": err}
     await docs_jobs.complete(db, job["_id"], worker, {"ok": True, **res})

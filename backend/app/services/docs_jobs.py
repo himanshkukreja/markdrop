@@ -37,7 +37,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.services.docs_site_jobs import KINDS  # noqa: E402  (build, import, restore, unpublish)
+from app.services.docs_site_jobs import KINDS  # noqa: E402  (build, import, restore, unpublish, access, cf_host)
 from app.services.docs_site_store import ASSETS, BUILDS, JOBS, PAGES, SITES, SNAPSHOTS, VERSIONS  # noqa: E402,F401
 
 
@@ -81,6 +81,13 @@ class DocsJobsSettings(BaseSettings):
     docs_local_build_max_mb: int = 768
     docs_local_min_free_mb: int = 1200
     docs_local_build_timeout_seconds: int = 900
+    # Free addresses on Cloudflare (services/docs_cf_hosts.py): each <slug>.<docs_sites_domain> is
+    # attached to the edge Worker as a Workers Custom Domain (its DNS record and certificate). Blank
+    # token or account: off. Only with docs_site_host_template blank (production addresses).
+    docs_cf_api_token: str = ""  # secret: never logged
+    docs_cf_account_id: str = ""
+    docs_cf_zone_name: str = "markdrop.in"
+    docs_cf_worker: str = "markdrop-docs-edge"
     # The docs bucket's keys are the app's (config.py docs_r2_*: MARKDROP_DOCS_R2_* or CF_ACCOUNT_ID /
     # R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY + MARKDROP_DOCS_R2_BUCKET).
 

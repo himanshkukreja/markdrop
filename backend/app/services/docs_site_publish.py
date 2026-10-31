@@ -27,6 +27,7 @@ from pymongo.errors import DuplicateKeyError
 
 from app.config import get_settings
 from app.models.user import User
+from app.services import docs_cf_hosts as cf_hosts
 from app.services import docs_site_access as access
 from app.services import docs_site_assets as assets
 from app.services import docs_site_pages as pages
@@ -196,6 +197,8 @@ async def publish(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, *
     if access.needs_policy(site):
         # The runner writes the policy before the site goes live; this covers a runner from before it did.
         await access.queue_sync(db, site["_id"], "publish")
+    # Its free address on Cloudflare, attached now so the certificate is ready when the build is.
+    await cf_hosts.queue_for_publish(db, site)
     await store.log_event(db, "docs_published", site, user.id, build_id=str(build["_id"]), number=number,
                           pages=len(snap["pages"]), review_id=str(review_id) if review_id else None)
     names = await store.user_names(db, [user.id])

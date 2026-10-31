@@ -300,6 +300,8 @@ export interface Site extends SiteSummary {
   limits: Limits;
   /** False while the docs edge doesn't hold the site's current access setting yet (the server keeps retrying). */
   access_enforced?: boolean;
+  /** False while the site's free address isn't attached on Cloudflare yet (its certificate is on its way). */
+  address_ready?: boolean;
   /** POST /docs-sites (GitBook import, template seed) and POST …/unpublish: the job it started. */
   job?: Job | null;
 }
