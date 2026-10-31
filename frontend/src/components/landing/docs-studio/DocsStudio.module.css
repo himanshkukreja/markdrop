@@ -127,7 +127,7 @@
 .menu > span { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 9px; border-radius: 8px; }
 .menu > .on { background: var(--studio-soft); color: var(--studio); }
 
-/* Floating chips: Try it, and the publish record */
+/* Floating chips: an endpoint card, and the publish record */
 .tryIt, .pub { display: flex; border-radius: 14px; background: var(--surface-raised); border: 1px solid var(--border-strong); box-shadow: var(--ds-card); font-size: 13px; color: var(--text); white-space: nowrap; }
 .tryIt { flex-direction: column; gap: 8px; width: 290px; padding: 12px 14px; }
 .tryH { display: flex; align-items: center; gap: 8px; font: 600 13px/1 var(--font-mono); }
@@ -232,7 +232,7 @@
 .cites > span { padding: 4px 7px; border-radius: 6px; background: color-mix(in srgb, var(--t-acc) 12%, transparent); color: var(--t-acc-text); font: 600 11px/1 var(--font-mono); white-space: nowrap; }
 
 /* ≥1024: the composed picture. The editor sits behind on the left, the site in front on the right,
-   the Try it card and the publish record pinned over their edges. (After the base rules, which set
+   the endpoint card and the publish record pinned over their edges. (After the base rules, which set
    position: relative on the site.) Below 1024 everything stacks, site first. */
 @media (min-width: 1024px) {
   .pic { display: block; height: 560px; margin-bottom: 24px; }

@@ -259,7 +259,7 @@ export function LeafView({ node, updateAttributes, deleteNode, selected }: React
               <code className="dxe-api__path">{path || a.op}</code>
             </>
           ) : (
-            <span className="dxe-api__empty">API endpoint: choose an operation from your OpenAPI file</span>
+            <span className="dxe-api__empty">API endpoint: type its method and path below</span>
           )}
           {del}
         </div>

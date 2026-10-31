@@ -30,8 +30,8 @@ Readers increasingly ask an assistant instead of reading. Every Docs Studio site
 | `/<page>.md` | Every page as Markdown: add `.md` to its address. Tools that ask for Markdown (`Accept: text/markdown`) get it at the normal address too. |
 | `/llms.txt` | A list of every page with its description, the standard way to point an AI tool at a site. |
 | `/llms-full.txt` | The whole site's text in one file. |
-| `/mcp` | An MCP server with tools to search the docs, read a page and see what changed, for assistants like Claude, Cursor or VS Code. |
-| `/sitemap.xml` | Every page, for search engines. |
+| `/mcp` | An MCP server with tools to search the docs and read a page, for assistants like Claude, Cursor or VS Code. |
+| `/sitemap.xml` | Every page, for search engines (empty when you turn [search indexing](/docs-studio/site-settings#who-can-read-it) off). |
 
 The **Copy page** menu on every page gives readers the same: copy the page as Markdown, view it as Markdown, open it in Claude, ChatGPT or Perplexity, or add the docs to Cursor or VS Code as an MCP server.
 
@@ -39,6 +39,6 @@ The **Copy page** menu on every page gives readers the same: copy the page as Ma
 
 ## Not yet
 
-- **An API reference with Try it** from an OpenAPI file isn't available for Docs Studio sites yet.
+- **An API reference generated from an OpenAPI file**, with Try it, is coming soon. Until then, write API pages in Markdown: the [API reference template](/docs-studio/create-a-site) starts you off.
 - **Password-protected and members-only sites** are [coming soon](/docs-studio/site-settings#who-can-read-it). Today every published site is public.
 - **Your own domain** is [coming soon](/docs-studio/site-settings#your-own-domain).

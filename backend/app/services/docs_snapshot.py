@@ -42,6 +42,8 @@ from app.services.docs_jobs import PAGES, SITES, SNAPSHOTS, get_jobs_settings, o
 PATH_RE = re.compile(r"^/(?:[a-z0-9][a-z0-9_-]{0,79})(?:/[a-z0-9][a-z0-9_-]{0,79}){0,7}$")
 # First segments the engine or the edge already answers.
 RESERVED_FIRST = {"public", "docs-assets", "_next", "og", "md", "mcp", "changelog", "api-reference", "node_modules", "video-scenes"}
+# Folder names the engine skips at any depth (frontend/src/docs/content.ts SKIP_DIRS).
+RESERVED_ANYWHERE = {"node_modules", "video-scenes"}
 # Frontmatter keys the snapshot fields own (frontmatter_extra can't override them).
 OWN_KEYS = {"title", "description", "icon", "updated"}
 
@@ -49,7 +51,10 @@ OWN_KEYS = {"title", "description", "icon", "updated"}
 def valid_page_path(p: Any) -> bool:
     if p == "/":
         return True
-    return isinstance(p, str) and bool(PATH_RE.match(p)) and p.split("/")[1] not in RESERVED_FIRST
+    if not isinstance(p, str) or not PATH_RE.match(p):
+        return False
+    segs = p.split("/")[1:]
+    return segs[0] not in RESERVED_FIRST and not RESERVED_ANYWHERE.intersection(segs[:-1])
 
 
 def page_file(p: str) -> str:
@@ -112,10 +117,17 @@ def site_url(site: dict, slug: str | None = None) -> str:
     return "https://" + (hosts[1] if len(hosts) > 1 else hosts[0])
 
 
+def header_label(name: str) -> str:
+    """The word after the site's name in its header: "Docs", unless the name already says it
+    ("Acme Docs" shows "Acme Docs", not "Acme Docs | Docs"; the engine applies the same rule)."""
+    n = name.strip().lower()
+    return "" if n == "docs" or n.endswith(" docs") else "Docs"
+
+
 def _brand(name: str, settings: dict, extra: dict) -> dict:
     b = (settings.get("theme") or {}).get("brand") or {}
     x = extra.get("brand") or {}
-    out: dict = {"name": name or "Docs", "label": "Docs"}
+    out: dict = {"name": name or "Docs", "label": header_label(name or "Docs")}
     if not b.get("enabled"):
         return out
     if b.get("logo_url"):
@@ -268,10 +280,12 @@ def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str) -> tuple
     files["site.json"] = json.dumps(site_json(str(site["_id"]), name, settings, extra, nav, url=url, ai_api=ai_api,
                                               public=is_public(site)),
                                     indent=2, ensure_ascii=False) + "\n"
-    redirects = settings.get("redirects") or extra.get("redirects")
-    if isinstance(redirects, list):
-        redirects = {r.get("from"): r.get("to") for r in redirects if isinstance(r, dict) and r.get("from") and r.get("to")}
-    if isinstance(redirects, dict) and redirects:
+    # The site's own redirects (Settings, and the ones a page move adds) over an import's: both
+    # reach readers, Settings wins on the same address, chains end in one hop.
+    from app.services.docs_site_redirects import merged
+
+    redirects = merged(settings.get("redirects"), extra.get("redirects"), {p["path"] for p in pages})
+    if redirects:
         files["redirects.json"] = json.dumps(redirects, indent=2, ensure_ascii=False) + "\n"
     if isinstance(extra.get("videos"), dict) and extra["videos"]:
         files["videos.json"] = json.dumps(extra["videos"], indent=2, ensure_ascii=False) + "\n"

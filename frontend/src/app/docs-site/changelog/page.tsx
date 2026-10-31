@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "@/docs/changelog.css";
-import { getChangelog, getSite } from "@/docs/content";
+import { notFound } from "next/navigation";
+import { getChangelog, getSite, hasChangelog } from "@/docs/content";
 import { bodyMap, mediaMap, toHubEntry, versionProduct } from "@/docs/changelog";
 import { ChangelogHub } from "@/docs/client/Changelog";
 import { DocsFooter, DocsHeader } from "@/docs/ui/Chrome";
@@ -23,6 +24,8 @@ export function generateMetadata(): Metadata {
 }
 
 export default function ChangelogPage() {
+  // A site with no changelog entries has no changelog page (the 404 page answers instead).
+  if (!hasChangelog()) notFound();
   const site = getSite();
   const cl = getChangelog();
   const tab = site.tabs.find((t) => t.href === "/changelog");

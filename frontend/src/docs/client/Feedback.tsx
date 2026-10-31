@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { Button, Textarea } from "@/components/ui";
 import { useDocPage } from "./page";
+import { useDocsSite } from "./site";
 import { AskAboutPageButton } from "./ask/entry";
 
 /**
  * "Did this page help?" Sends {path, helpful, comment?} to the site's feedback endpoint and thanks
- * the reader whatever happens: feedback must never show an error or block reading.
+ * the reader whatever happens: feedback must never show an error or block reading. A site without a
+ * feedback endpoint (site.json `feedback`, e.g. every Docs Studio site) doesn't ask, since nobody
+ * would receive the answer: its row only offers Ask AI, and is left out when Ask AI is off too.
  */
 function send(url: string | undefined, body: { path: string; helpful: boolean; comment?: string }) {
   if (!url) return;
@@ -20,9 +23,17 @@ function send(url: string | undefined, body: { path: string; helpful: boolean; c
 
 export function Feedback() {
   const page = useDocPage();
+  const { ai } = useDocsSite();
   const [state, setState] = useState<"ask" | "comment" | "done">("ask");
   const [comment, setComment] = useState("");
   if (!page) return null;
+  if (!page.feedbackUrl)
+    return ai ? (
+      <div className="dx-feedback">
+        <span className="dx-feedback__q">Still have a question?</span>
+        <AskAboutPageButton variant="ghost" />
+      </div>
+    ) : null;
   if (state === "done")
     return (
       <div className="dx-feedback" role="status">

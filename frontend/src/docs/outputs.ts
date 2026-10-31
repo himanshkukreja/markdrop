@@ -3,7 +3,7 @@
  * index, llms.txt / llms-full.txt (llmstxt.org), skill.md, sitemap.xml, robots.txt and the
  * changelog feeds (RSS 2.0, JSON Feed 1.1, Markdown).
  */
-import { absoluteUrl, getAllPages, getChangelog, getNav, getPage, getSite, homeMarkdown, mdUrl, navLabel, orderedPages, plainOf } from "./content";
+import { absoluteUrl, getAllPages, getChangelog, getNav, getPage, getSite, hasChangelog, homeMarkdown, indexable, mdUrl, navLabel, orderedPages, plainOf } from "./content";
 import { introOf, plainText, snippet } from "./markdown";
 import type { ChangelogEntry, SearchDoc } from "./types";
 
@@ -102,7 +102,7 @@ export function llmsTxt(): string {
   const extra = getAllPages().filter((p) => !listed.has(p.path));
   out.push("## Optional", "");
   for (const page of extra) out.push(`- [${page.meta.title}](${mdUrl(page.path)}): ${page.meta.description}`);
-  out.push(`- [Changelog](${site.url}/changelog.md): every change, newest first, with the pages it touched`);
+  if (hasChangelog()) out.push(`- [Changelog](${site.url}/changelog.md): every change, newest first, with the pages it touched`);
   out.push(`- [Full text](${site.url}/llms-full.txt): every page above in one file`);
   out.push(`- [Agent skill](${site.url}/skill.md): how an assistant should use these docs`);
   return out.join("\n") + "\n";
@@ -131,9 +131,18 @@ export function skillMd(): string {
     .filter(Boolean);
   const endpoints = nav.filter((g) => g.generated).reduce((n, g) => n + g.items.length, 0);
   if (endpoints) groups.push(`- API reference: ${endpoints} endpoints, one page each (method, parameters, body, responses, curl / JavaScript / Python samples), listed in ${site.url}/llms.txt`);
+  const changes = hasChangelog();
+  const steps = [
+    `Start from the index at ${site.url}/llms.txt. It lists every page with a one-line description.`,
+    `Read a page as Markdown by adding \`.md\` to its address (for example ${mdUrl(orderedPages()[0]?.path ?? "/")}), or request the page with \`Accept: text/markdown\`.`,
+    "Each page's frontmatter lists `prerequisites`: read those first when the user is new to the topic.",
+    `Link the user to the exact section: headings have stable anchors (\`${site.url}/<page>#<heading-slug>\`).`,
+    ...(changes ? [`For what changed recently, read ${site.url}/changelog.md (newest first).`] : []),
+    "If the docs don't answer the question, say so rather than guessing.",
+  ];
   return `---
 name: ${name}
-description: Answer questions about ${product} from its official documentation at ${site.url}. Use when the user asks how ${product} works, how to do something in it, or what changed.
+description: Answer questions about ${product} from its official documentation at ${site.url}. Use when the user asks how ${product} works${changes ? ", how to do something in it, or what changed" : " or how to do something in it"}.
 ---
 
 # ${site.name}
@@ -142,12 +151,7 @@ ${site.description}
 
 ## How to use these docs
 
-1. Start from the index at ${site.url}/llms.txt. It lists every page with a one-line description.
-2. Read a page as Markdown by adding \`.md\` to its address (for example ${mdUrl(orderedPages()[0]?.path ?? "/")}), or request the page with \`Accept: text/markdown\`.
-3. Each page's frontmatter lists \`prerequisites\`: read those first when the user is new to the topic.
-4. Link the user to the exact section: headings have stable anchors (\`${site.url}/<page>#<heading-slug>\`).
-5. For what changed recently, read ${site.url}/changelog.md (newest first).
-6. If the docs don't answer the question, say so rather than guessing.
+${steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}
 
 ## Pages
 
@@ -163,18 +167,24 @@ function xmlEscape(s: string): string {
 
 export function sitemapXml(): string {
   const site = getSite();
-  const urls: Array<{ loc: string; lastmod?: string }> = [{ loc: `${site.url}/` }, { loc: `${site.url}/changelog` }];
-  for (const page of orderedPages()) urls.push({ loc: absoluteUrl(page.path), lastmod: page.meta.updated || undefined });
-  for (const e of getChangelog().entries) urls.push({ loc: `${site.url}/changelog/${e.id}`, lastmod: e.date });
+  const urls: Array<{ loc: string; lastmod?: string }> = [];
+  // Search indexing off: an empty sitemap (robots.txt disallows everything and pages say noindex).
+  if (indexable(site)) {
+    urls.push({ loc: `${site.url}/` });
+    if (hasChangelog()) urls.push({ loc: `${site.url}/changelog` });
+    for (const page of orderedPages()) urls.push({ loc: absoluteUrl(page.path), lastmod: page.meta.updated || undefined });
+    for (const e of getChangelog().entries) urls.push({ loc: `${site.url}/changelog/${e.id}`, lastmod: e.date });
+  }
   return (
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
     urls.map((u) => `  <url><loc>${xmlEscape(u.loc)}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ""}</url>`).join("\n") +
-    `\n</urlset>\n`
+    `${urls.length ? "\n" : ""}</urlset>\n`
   );
 }
 
 export function robotsTxt(): string {
   const site = getSite();
+  if (!indexable(site)) return `User-agent: *\nDisallow: /\n`;
   return `User-agent: *\nAllow: /\n\nSitemap: ${site.url}/sitemap.xml\n# Docs for language models: ${site.url}/llms.txt\n`;
 }
 

@@ -67,7 +67,7 @@ export function PageSidePanel({ page, fields, readOnly, onChange, onRestore, isH
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-[14px] font-semibold text-text">Page</h2>
-      <Field label="Address" htmlFor={`${uid}-path`} error={bad || undefined} hint={isHome ? "The home page is always /." : undefined}>
+      <Field label="Address" htmlFor={`${uid}-path`} error={bad || undefined} hint={isHome ? "The home page is always /." : "Change it and the published address redirects to the new one (Settings › Redirects)."}>
         <Input mono size="sm" value={fields.path} readOnly={readOnly || isHome} spellCheck={false} autoCapitalize="none" onChange={(e) => onChange({ path: e.target.value.toLowerCase() })} />
       </Field>
       <Switch label="Show in the sidebar" checked={!fields.hidden} disabled={readOnly || isHome} onChange={(e) => onChange({ hidden: !e.target.checked })} />

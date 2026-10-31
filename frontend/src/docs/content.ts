@@ -94,12 +94,14 @@ export class SiteBundle {
 
   private readonly siteMemo = memo((): SiteConfig => {
     const s = this.readJson<Partial<SiteConfig>>("site.json", {});
+    const tabs = Array.isArray(s.tabs) ? s.tabs : [];
     return {
       ...s,
       name: s.name || "Docs",
       description: s.description || "",
       url: (s.url || "http://localhost").replace(/\/+$/, ""),
-      tabs: Array.isArray(s.tabs) ? s.tabs : [],
+      // A site with no changelog entries has no /changelog (see hasChangelog), so no tab to it either.
+      tabs: this.hasChangelog ? tabs : tabs.filter((t) => t?.href !== "/changelog"),
       nav: Array.isArray(s.nav) ? s.nav.filter((g) => g && Array.isArray(g.pages)) : [],
     } as SiteConfig;
   });
@@ -336,6 +338,14 @@ export class SiteBundle {
   get changelog(): Changelog {
     return this.changelogMemo();
   }
+  /**
+   * Whether the site has a changelog: at least one entry in changelog.json. Without one (every Docs
+   * Studio site today: the studio has no changelog editor) /changelog and its feeds answer 404 and
+   * nothing links to them (header tab, 404 page, sitemap, llms.txt, skill.md, RSS alternate).
+   */
+  get hasChangelog(): boolean {
+    return this.changelog.entries.length > 0;
+  }
 
   /* ── Markdown for agents ─────────────────────────────────────────────── */
 
@@ -456,6 +466,13 @@ export const prevNext = (p: string) => defaultSite().prevNext(p);
 export const getVideos = (): Record<string, VideoRef> => defaultSite().videos;
 export const getMedia = (): MediaManifest => defaultSite().media;
 export const getChangelog = (): Changelog => defaultSite().changelog;
+export const hasChangelog = (): boolean => defaultSite().hasChangelog;
+/**
+ * Whether search engines may index the site: site.json `seo.index` (default true). False: pages
+ * carry `<meta name="robots" content="noindex">`, robots.txt disallows everything, the sitemap is
+ * empty, and the edge adds `X-Robots-Tag: noindex` (docs-platform builder/build.mjs manifestSite).
+ */
+export const indexable = (site: SiteConfig): boolean => site.seo?.index !== false;
 export const absoluteUrl = (p: string): string => defaultSite().absoluteUrl(p);
 export const mdUrl = (p: string): string => defaultSite().mdUrl(p);
 export const agentMarkdown = (page: DocPage): string => defaultSite().agentMarkdown(page);

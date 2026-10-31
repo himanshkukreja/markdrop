@@ -24,16 +24,21 @@ from pymongo.errors import DuplicateKeyError
 
 from app.config import get_settings
 from app.models.user import User
+from app.services import docs_site_redirects as site_redirects
 from app.services import docs_site_store as store
 from app.services.docs_site_store import PAGES, SITES, SNAPSHOTS, BUILDS, VERSIONS, DocsError, aware, now
+from app.services.docs_snapshot import RESERVED_ANYWHERE, RESERVED_FIRST
 
 settings = get_settings()
 
 LOCK_TTL = timedelta(minutes=2)
 VERSIONS_KEPT = 50
 _PATH = re.compile(r"^(?:/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){1,6}$")
-# Routes the engine serves itself on every docs site.
-RESERVED_SEGMENTS = frozenset({"docs-assets", "mcp", "md", "og", "changelog", "_next", "api-reference-json"})
+# First segments a page can't use: routes the engine serves itself on every docs site, and the
+# folders the build reads as something else and skips as pages (docs_snapshot.RESERVED_FIRST:
+# public, api-reference, node_modules, video-scenes…). Without this a page saved there would
+# never be published, silently.
+RESERVED_SEGMENTS = frozenset(RESERVED_FIRST | {"api-reference-json"})
 FRONTMATTER_RESERVED = frozenset({"title", "description", "icon", "hidden"})
 
 
@@ -54,7 +59,11 @@ def normalize_path(path: str) -> str:
             detail="Use an address like /getting-started/quickstart: lowercase letters, numbers and hyphens, "
                    "at most 6 levels.")
     if p.split("/")[1] in RESERVED_SEGMENTS:
-        raise HTTPException(status_code=422, detail=f"/{p.split('/')[1]} is used by the docs site itself.")
+        raise HTTPException(status_code=422, detail=f"/{p.split('/')[1]} is used by the docs site itself. "
+                                                    "Start the address with another word.")
+    skipped = RESERVED_ANYWHERE.intersection(p.split("/")[1:])
+    if skipped:
+        raise HTTPException(status_code=422, detail=f"{min(skipped)} can't be part of a page's address.")
     return p
 
 
@@ -259,12 +268,37 @@ def _free_or_mine(user_id: str) -> dict:
     return {"$or": [{"lock": None}, {"lock.user_id": user_id}, {"lock.expires_at": {"$lte": now()}}]}
 
 
-def _not_redirected(site: dict, path: str) -> None:
-    """A page can't live at an address a redirect sends away (it would never be seen)."""
+def _not_redirected(site: dict, path: str, moving_from: str | None = None) -> None:
+    """A page can't live at an address a redirect sends away (it would never be seen), unless that
+    redirect leads to the page itself (``moving_from``: a page moving back to where it was; the
+    move drops the redirect)."""
     for r in (site.get("settings") or {}).get("redirects") or []:
-        if r.get("from") == path:
+        if r.get("from") == path and not (moving_from and site_redirects.points_at(str(r.get("to") or ""), moving_from)):
             raise HTTPException(status_code=409, detail=f"{path} redirects to {r.get('to')}. Remove that redirect "
                                                         "in Settings first, or choose another address.")
+
+
+async def _redirect_move(db: AsyncIOMotorDatabase, site: dict, old: str, new: str) -> None:
+    """A page moved from ``old`` to ``new``: keep links working (settings.redirects, live at the next
+    publish). ``old`` → ``new`` is added when ``old`` is on the live site (a draft-only address has
+    no links to keep), redirects to ``old`` are re-pointed to ``new`` (no chains), and one away from
+    ``new`` is dropped (docs_site_redirects.after_move). A compare-and-set on the stored list, so a
+    redirects save in Settings at the same moment is never lost."""
+    snap = await live_snapshot(db, site)
+    live = old in {p.get("path") for p in (snap or {}).get("pages") or []}
+    for _ in range(5):
+        row = await db[SITES].find_one({"_id": site["_id"]}, {"settings.redirects": 1})
+        if row is None:
+            return
+        current = (row.get("settings") or {}).get("redirects")
+        nxt = site_redirects.after_move(current or [], old, new, add=live)
+        if nxt == (current or []):
+            return
+        res = await db[SITES].update_one({"_id": site["_id"], "settings.redirects": current},
+                                         {"$set": {"settings.redirects": nxt}})
+        if res.matched_count:
+            site.setdefault("settings", {})["redirects"] = nxt
+            return
 
 
 def _locked(page: dict) -> DocsError:
@@ -323,7 +357,7 @@ async def save_page(db: AsyncIOMotorDatabase, site: dict, page: dict, user: User
                 raise HTTPException(status_code=422, detail="The home page's address can't change.")
             if new_path == "/":
                 raise HTTPException(status_code=409, detail="Another page already has that address.")
-            _not_redirected(site, new_path)
+            _not_redirected(site, new_path, moving_from=page.get("path"))
             sets["path"] = new_path
     at = now()
     sets.update({"draft.updated_by": user.id, "draft.updated_at": at, "lock": _lock_for(user)})
@@ -351,6 +385,8 @@ async def save_page(db: AsyncIOMotorDatabase, site: dict, page: dict, user: User
             "updated_at": aware((current.get("draft") or {}).get("updated_at")),
         })
     await _add_version(db, updated, by=user.id, kind="save")
+    if "path" in sets:
+        await _redirect_move(db, site, page.get("path"), sets["path"])
     if "hidden" in sets and sets["hidden"] != bool(page.get("hidden")):
         pid = str(page["_id"])
         if sets["hidden"]:

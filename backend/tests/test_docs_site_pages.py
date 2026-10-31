@@ -96,6 +96,48 @@ class Pages(DocsSitesCase):
         self.assertEqual(moved["path"], "/guides/renamed")
         await self.save(moved, path="/", expect=409)
 
+    async def test_addresses_the_build_skips_are_refused(self):
+        for bad in ("/public/x", "/api-reference", "/api-reference/payments", "/video-scenes/a", "/guides/video-scenes/a",
+                    "/node_modules/x"):
+            r = await self.http.post(f"{BASE}/{self.sid}/pages", json={"path": bad, "title": "x"}, headers=self.h["editor"])
+            self.assertEqual(r.status_code, 422, bad)
+        r = await self.http.post(f"{BASE}/{self.sid}/pages", json={"path": "/api-reference/x", "title": "x"},
+                                 headers=self.h["editor"])
+        self.assertEqual(r.json()["detail"], "/api-reference is used by the docs site itself. Start the address with another word.")
+        a = await self.new_page("/guides/a")
+        await self.save(a, path="/public/a", expect=422)
+        await self.new_page("/api/payments")  # close, but fine
+
+    async def redirects(self) -> list[dict]:
+        return (await self.get(f"/{self.sid}"))["settings"]["redirects"]
+
+    async def test_moving_a_page_redirects_its_published_address(self):
+        a = await self.new_page("/guides/a")
+        a = await self.save(a, path="/guides/a2")
+        self.assertEqual(await self.redirects(), [])  # never published: nobody has links to it
+        b = await self.call("POST", f"/{self.sid}/publish", expect=202, json={})
+        await self.mark_live(b["id"])
+        a = await self.save(a, path="/guides/a3")
+        self.assertEqual(await self.redirects(), [{"from": "/guides/a2", "to": "/guides/a3"}])
+        # Another move (autosave while typing): the redirect is re-pointed, no chain, no stale entry.
+        a = await self.save(a, path="/guides/a4")
+        self.assertEqual(await self.redirects(), [{"from": "/guides/a2", "to": "/guides/a4"}])
+        await self.call("PATCH", f"/{self.sid}", json={"settings": {"redirects": [
+            {"from": "/guides/a2", "to": "/guides/a4"}, {"from": "/old-x", "to": "/guides/a4#sec"}]}})
+        a = await self.save(a, path="/guides/a5")
+        self.assertEqual(await self.redirects(), [{"from": "/guides/a2", "to": "/guides/a5"},
+                                                  {"from": "/old-x", "to": "/guides/a5#sec"}])
+        # Back to the published address: the redirect away from it goes (it led to this page).
+        a = await self.save(a, path="/guides/a2")
+        self.assertEqual(await self.redirects(), [{"from": "/old-x", "to": "/guides/a2#sec"}])
+        # An address redirected to another page is still refused.
+        await self.new_page("/guides/b")
+        await self.call("PATCH", f"/{self.sid}", json={"settings": {"redirects": [{"from": "/gone", "to": "/guides/b"}]}})
+        await self.save(a, path="/gone", expect=409)
+        # The redirects Settings shows are valid as they are: saving them again passes the checks.
+        cur = await self.redirects()
+        await self.call("PATCH", f"/{self.sid}", json={"settings": {"redirects": cur}})
+
     async def test_locks(self):
         page = await self.new_page("/guides/a")
         lock = (await self.call("POST", f"/{self.sid}/pages/{page['id']}/lock", "editor"))["lock"]

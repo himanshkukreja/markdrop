@@ -43,6 +43,21 @@ function gateBrand(brand) {
   return Object.keys(out).length ? { brand: out } : {};
 }
 
+/**
+ * The manifest's `site` (site.json → what the edge needs). `noindex`: site.json `seo.index: false`
+ * (a Docs Studio site with search engines turned off): the edge sends `X-Robots-Tag: noindex` with
+ * every response, beside the engine's own robots meta tag and robots.txt.
+ */
+export function manifestSite(site) {
+  return {
+    id: site.id || "default",
+    name: site.name || "Docs",
+    url: (site.url || "").replace(/\/+$/, ""),
+    ...gateBrand(site.brand),
+    ...(site.seo && typeof site.seo === "object" && site.seo.index === false ? { noindex: true } : {}),
+  };
+}
+
 function walkFiles(dir, rel = "", out = []) {
   let entries = [];
   try {
@@ -339,7 +354,7 @@ export async function build(opts) {
   }
   const manifest = {
     format: FORMAT,
-    site: { id: site.id || "default", name: site.name || "Docs", url: (site.url || "").replace(/\/+$/, ""), ...gateBrand(site.brand) },
+    site: manifestSite(site),
     engine,
     inputs,
     builtAt: new Date().toISOString(),

@@ -112,7 +112,7 @@ export default function StudioHome() {
         <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-1.5">
           <h1 className="text-[28px] font-extrabold leading-9 tracking-[-0.02em] text-text">Your docs sites</h1>
           <p className="max-w-[640px] text-[15px] leading-6 text-text-secondary">
-            Documentation websites your team writes here and publishes to their own address, with search, Ask AI and a changelog built in.{" "}
+            Documentation websites your team writes here and publishes to their own address, with search and Ask AI built in.{" "}
             <ReadMore topic="docsStudio" />
           </p>
         </div>

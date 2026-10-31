@@ -52,22 +52,9 @@ const lockFrom = (e: unknown, fallback: PageLock | null): PageLock | null => {
   return l && typeof l === "object" && l.name ? l : fallback;
 };
 
-/** First path segments the docs site uses itself (the API refuses them too). */
-const RESERVED_SEGMENTS = new Set(["docs-assets", "mcp", "md", "og", "changelog"]);
+import { pathProblem } from "./pagePath";
 
-/** The API's page-address rules: "/" or up to 6 segments of [a-z0-9-]. */
-export function pathProblem(path: string): string {
-  if (path === "/") return "";
-  if (!path.startsWith("/")) return "The address starts with /.";
-  if (path.endsWith("/")) return "The address can't end with /.";
-  const parts = path.slice(1).split("/");
-  if (parts.some((p) => !p)) return "The address can't have //.";
-  if (parts.some((p) => !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(p))) return "Use lowercase letters, numbers and hyphens between the slashes.";
-  if (parts.length > 6) return "Use at most 6 levels.";
-  if (path.length > 200) return "That address is too long.";
-  if (RESERVED_SEGMENTS.has(parts[0]!)) return `/${parts[0]} is used by the docs site itself.`;
-  return "";
-}
+export { pathProblem };
 
 /**
  * One page open in the editor: loads it, holds its lock (acquire on open, heartbeat every 30 s,

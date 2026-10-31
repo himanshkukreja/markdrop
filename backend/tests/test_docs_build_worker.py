@@ -136,8 +136,76 @@ class SnapshotTests(unittest.TestCase):
     def test_paths(self):
         for ok in ("/", "/a", "/a-b/c_d", "/x1/y2/z3"):
             self.assertTrue(docs_snapshot.valid_page_path(ok), ok)
-        for bad in ("", "a", "/A", "/a/", "//a", "/_a", "/.a", "/a/../b", "/og/x", "/md", "/docs-assets/a", "/a b"):
+        for bad in ("", "a", "/A", "/a/", "//a", "/_a", "/.a", "/a/../b", "/og/x", "/md", "/docs-assets/a", "/a b",
+                    "/api-reference/x", "/public", "/video-scenes/a", "/a/video-scenes/b", "/a/node_modules/b"):
             self.assertFalse(docs_snapshot.valid_page_path(bad), bad)
+        self.assertTrue(docs_snapshot.valid_page_path("/a/video-scenes"))  # a file, not a folder the engine skips
+
+    def test_api_refuses_every_address_the_build_skips(self):
+        from app.services import docs_site_pages
+
+        self.assertLessEqual(docs_snapshot.RESERVED_FIRST, docs_site_pages.RESERVED_SEGMENTS)
+
+    def test_header_label(self):
+        site = _site()
+        site["settings"]["access"] = {"level": "public", "password_hash": None}
+        site["settings"]["theme"]["brand"]["enabled"] = False
+        for name, label in (("Acme Rockets", "Docs"), ("Acme Docs", ""), ("ACME DOCS", ""), ("Docs", ""), ("Autodocs", "Docs")):
+            site["name"] = name
+            files, _ = docs_snapshot.content_files(site, {"pages": [], "settings": site["settings"]}, url="https://u", ai_api="https://a")
+            self.assertEqual(json.loads(files["site.json"])["brand"], {"name": name, "label": label}, name)
+
+    def test_seo_index(self):
+        site = _site()
+        site["settings"]["access"] = {"level": "public", "password_hash": None}
+        build = lambda: json.loads(docs_snapshot.content_files(site, {"pages": [], "settings": site["settings"]},  # noqa: E731
+                                                               url="https://u", ai_api="https://a")[0]["site.json"])
+        self.assertEqual(build()["seo"], {"index": True})
+        site["settings"]["seo"] = {"index": False}
+        self.assertEqual(build()["seo"], {"index": False})
+
+    def test_redirects_imported_and_settings_merge(self):
+        site = _site(redirects={"/old": "/guide/start", "/legacy/a": "/moved#part", "/both": "/loose"})
+        site["settings"]["redirects"] = [{"from": "/moved", "to": "/guide/start"}, {"from": "/both", "to": "/guide/start"}]
+        snap = {"pages": _pages()[:4], "settings": site["settings"]}
+        files, _ = docs_snapshot.content_files(site, snap, url="https://u", ai_api="https://a")
+        # Imported ones still reach readers; Settings wins on the same address; chains end in one hop.
+        self.assertEqual(json.loads(files["redirects.json"]), {
+            "/old": "/guide/start", "/legacy/a": "/guide/start#part", "/moved": "/guide/start", "/both": "/guide/start"})
+        # Only Settings (no import): exactly as before.
+        site["engine_extra"] = {}
+        files, _ = docs_snapshot.content_files(site, snap, url="https://u", ai_api="https://a")
+        self.assertEqual(list(json.loads(files["redirects.json"]).items()), [("/moved", "/guide/start"), ("/both", "/guide/start")])
+        # Only an import (a list form too).
+        site["engine_extra"] = {"redirects": [{"from": "/x", "to": "/loose"}]}
+        site["settings"]["redirects"] = []
+        files, _ = docs_snapshot.content_files(site, snap, url="https://u", ai_api="https://a")
+        self.assertEqual(json.loads(files["redirects.json"]), {"/x": "/loose"})
+
+
+class RedirectRulesTests(unittest.TestCase):
+    def test_merged_never_follows_through_a_page_or_a_loop(self):
+        from app.services.docs_site_redirects import merged
+
+        # /b is a page again: /a → /b stays (the page answers), /b → /c is never used.
+        self.assertEqual(merged([], {"/a": "/b", "/b": "/c"}, {"/b", "/c"}), {"/a": "/b", "/b": "/c"})
+        self.assertEqual(merged([], {"/a": "/b", "/b": "/a"}), {"/a": "/b", "/b": "/a"})
+        self.assertEqual(merged([], {"/a": "/b#x", "/b": "/c#y"}), {"/a": "/c#y", "/b": "/c#y"})
+        self.assertEqual(merged([{"from": "/a", "to": "https://e.com/x"}], {"/a": "/b", "/z": "/a"}),
+                         {"/z": "https://e.com/x", "/a": "https://e.com/x"})
+        self.assertEqual(merged(None, None), {})
+
+    def test_after_move(self):
+        from app.services.docs_site_redirects import after_move
+
+        rs = [{"from": "/x", "to": "/old#sec"}, {"from": "/y", "to": "/other"}, {"from": "/new", "to": "/old"},
+              {"from": "/ext", "to": "https://e.com/old"}]
+        self.assertEqual(after_move(rs, "/old", "/new", add=True), [
+            {"from": "/x", "to": "/new#sec"}, {"from": "/y", "to": "/other"}, {"from": "/ext", "to": "https://e.com/old"},
+            {"from": "/old", "to": "/new"}])
+        self.assertEqual(after_move(rs, "/old", "/new", add=False)[-1], {"from": "/ext", "to": "https://e.com/old"})
+        # Moving back where a redirect pointed: the self-redirect goes.
+        self.assertEqual(after_move([{"from": "/a", "to": "/b"}], "/b", "/a", add=False), [])
 
 
 class TokenTests(unittest.TestCase):

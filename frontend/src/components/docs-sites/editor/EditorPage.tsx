@@ -20,6 +20,7 @@ import { useSite } from "../SiteContext";
 import PageSidePanel from "./PageSidePanel";
 import { PageTree, groupsOf } from "./PageTree";
 import { composeDoc, parseDoc, setDocKeys } from "./pageDoc";
+import { pathProblem, suggestedPath } from "./pagePath";
 import { usePageSession, type LockState, type PageFields, type SaveState } from "./usePageSession";
 
 const MarkdownPreview = dynamic(() => import("@/components/MarkdownPreview"), { ssr: false });
@@ -441,7 +442,8 @@ function NewPageDialog({ open, onClose, groups, currentGroup, afterId, onCreate 
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const groupName = group === "__new" ? newGroup.trim() : group;
-  const autoPath = (t: string, g: string) => `/${[g ? slugFrom(g) : "", slugFrom(t)].filter(Boolean).join("/")}`;
+  const autoPath = (t: string, g: string) => suggestedPath(slugFrom(t), g ? slugFrom(g) : "");
+  const bad = path && path !== "/" ? pathProblem(path) : "";
 
   return (
     <Dialog
@@ -455,7 +457,7 @@ function NewPageDialog({ open, onClose, groups, currentGroup, afterId, onCreate 
           <Button
             variant="primary"
             loading={busy}
-            disabled={!title.trim() || !path.startsWith("/") || (group === "__new" && !newGroup.trim())}
+            disabled={!title.trim() || !path.startsWith("/") || !!bad || (group === "__new" && !newGroup.trim())}
             onClick={async () => {
               setBusy(true);
               setError("");
@@ -488,7 +490,7 @@ function NewPageDialog({ open, onClose, groups, currentGroup, afterId, onCreate 
             <Input value={newGroup} maxLength={60} placeholder="Guides" onChange={(e) => { setNewGroup(e.target.value); if (!pathEdited.current) setPath(autoPath(title, e.target.value)); }} />
           </Field>
         )}
-        <Field label="Address" htmlFor={`${uid}-p`} hint="Where the page lives on the site.">
+        <Field label="Address" htmlFor={`${uid}-p`} hint="Where the page lives on the site." error={bad || undefined}>
           <Input mono value={path} spellCheck={false} autoCapitalize="none" onChange={(e) => { pathEdited.current = true; setPath(e.target.value.toLowerCase()); }} />
         </Field>
         {error && <Alert tone="danger">{error}</Alert>}

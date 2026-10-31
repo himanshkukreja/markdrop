@@ -58,7 +58,7 @@ Select text for the formatting bar: bold, italic, strikethrough, inline code, ke
 | **Quote**, **Divider**, **Keyboard key** | A quotation, a horizontal line, and keys like Ctrl K. |
 | **Math** | A LaTeX formula, previewed as you type. |
 
-The menu also lists **Video**, **Clip**, **Embed** and **API endpoint**. They come from the engine Markdrop's own docs use. On a Docs Studio site, an embedded page shows as a link card, and an API endpoint has no OpenAPI file to point at yet, so it shows as a plain card.
+The menu also lists **Video**, **Clip**, **Embed** and **API endpoint**. They come from the engine Markdrop's own docs use. On a Docs Studio site, an embedded page shows as a link card, and an API endpoint shows as a card with the method and path you type (reference pages generated from an OpenAPI file are coming soon).
 
 ## Images
 

@@ -30,8 +30,8 @@ const FEATURES: Array<{ icon: string; title: string; line: string }> = [
   { icon: "edit", title: "Visual and Markdown editor", line: "Write in blocks with a slash menu, or switch the page to Markdown." },
   { icon: "palette", title: "Six themes, or your brand", line: "Pick a theme, or add your logo and colours and the site matches them." },
   { icon: "sparkle", title: "Ask AI with citations", line: "Readers ask in their own words and get answers that link to your pages." },
-  { icon: "code", title: "API reference with Try it", line: "Add your OpenAPI file. Readers send real requests from the page." },
-  { icon: "history", title: "Changelog", line: "Post release notes to a changelog on the same site." },
+  { icon: "code", title: "API reference pages", line: "Write endpoint pages in Markdown, with tabbed code samples. OpenAPI import is coming soon." },
+  { icon: "history", title: "Version history", line: "Every save is a version. Open an earlier one and bring it back." },
   { icon: "download", title: "GitBook import", line: "Bring an existing GitBook site over, pages and navigation included." },
   { icon: "users", title: "Review and restore", line: "Changes go live after review. Restore an earlier version in one click." },
   { icon: "globe", title: "Your domain", line: "Serve the site on a domain you own, like docs.example.com." },
@@ -58,7 +58,7 @@ function Editor() {
           <span className={s.treeH}>API reference</span>
           <span><i className={s.post}>POST</i>Payments</span>
           <span><i className={s.get}>GET</i>Customers</span>
-          <span className={s.treeH}>Changelog</span>
+          <span className={s.treeH}>Help</span>
         </div>
         <div className={s.doc}>
           <span className={s.docH}>Quickstart</span>
@@ -73,7 +73,7 @@ function Editor() {
             <span className={s.on}><Icon name="code" size={13} />API endpoint</span>
             <span><Icon name="info" size={13} />Callout</span>
             <span><Icon name="columns" size={13} />Tabs</span>
-            <span><Icon name="history" size={13} />Changelog entry</span>
+            <span><Icon name="layers" size={13} />Cards</span>
           </span>
         </div>
       </div>
@@ -91,7 +91,7 @@ function Site() {
       <div className={s.sHead}>
         <span className={s.logo}>E</span>
         <span className={s.sName}>Example Docs</span>
-        <span className={s.topNav}><b>Guides</b><span>API</span><span>Changelog</span></span>
+        <span className={s.topNav}><b>Guides</b><span>API</span><span>Help</span></span>
         <span className={s.search}><Icon name="search" size={12} />Search or ask</span>
         <span className={s.askBtn}><Icon name="sparkle" size={12} />Ask AI</span>
       </div>
@@ -165,9 +165,10 @@ export default function DocsStudio() {
           <div className={s.pic}>
             <Editor />
             <Site />
+            {/* An endpoint card from a written API page: method and path, and its code sample. */}
             <div className={s.tryIt} aria-hidden="true">
-              <span className={s.tryH}><i className={s.post}>POST</i>/v1/payments<span className={s.tryBtn}><Icon name="play" size={11} />Try it</span></span>
-              <span className={s.tryR}><span className={s.ok}>200 OK</span><span className={s.mu}>142 ms</span></span>
+              <span className={s.tryH}><i className={s.post}>POST</i>/v1/payments<span className={s.tryBtn}><Icon name="copy" size={11} />Copy</span></span>
+              <span className={s.tryR}><span>curl -X POST /v1/payments</span><span className={s.mu}>cURL</span></span>
             </div>
             <div className={s.pub} aria-hidden="true">
               <Icon name="checkCircle" size={14} />
