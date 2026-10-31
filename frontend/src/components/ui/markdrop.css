@@ -328,12 +328,13 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 /* ── Tooltip ────────────────────────────────────────────────────────────── */
 .md-tip { position: relative; display: inline-flex; }
 .md-tip[tabindex] { border-radius: var(--radius-full); }
-.md-tip__bubble { position: absolute; z-index: var(--z-dropdown); width: max-content; max-width: 260px; padding: 4px var(--space-2); border-radius: var(--radius-md); background: var(--surface-inverse); color: var(--text-inverse); font-size: 12px; line-height: 16px; font-weight: 500; text-align: left; white-space: normal; box-shadow: var(--shadow-md); pointer-events: none; opacity: 0; visibility: hidden; transition: opacity var(--duration-menu) var(--ease-out), transform var(--duration-menu) var(--ease-out), visibility 0s linear var(--duration-menu); }
+.md-tip__bubble { position: absolute; z-index: var(--z-dropdown); width: max-content; max-width: 260px; padding: 4px var(--space-2); border-radius: var(--radius-md); background: var(--surface-inverse); color: var(--text-inverse); font-size: 12px; line-height: 16px; font-weight: 500; text-align: left; white-space: normal; box-shadow: var(--shadow-md); pointer-events: none; opacity: 0; visibility: hidden; scale: 0; transition: opacity var(--duration-menu) var(--ease-out), transform var(--duration-menu) var(--ease-out), visibility 0s linear var(--duration-menu), scale 0s linear var(--duration-menu); }
+/* Hidden bubbles still count toward the page's scrollable area: near the right edge of a phone they made the whole page scroll sideways. Hidden, they shrink to their anchor point (scale 0, after the fade-out). */
 .md-tip__bubble--top { left: 50%; bottom: calc(100% + 6px); transform: translate(-50%, 4px); }
 .md-tip__bubble--bottom { left: 50%; top: calc(100% + 6px); transform: translate(-50%, -4px); }
-.md-tip__bubble--left { right: calc(100% + 6px); top: 50%; transform: translate(4px, -50%); }
-.md-tip__bubble--right { left: calc(100% + 6px); top: 50%; transform: translate(-4px, -50%); }
-.md-tip:hover > .md-tip__bubble, .md-tip:focus-within > .md-tip__bubble { opacity: 1; visibility: visible; transition-delay: 0s; }
+.md-tip__bubble--left { right: calc(100% + 6px); top: 50%; transform: translate(4px, -50%); transform-origin: right center; }
+.md-tip__bubble--right { left: calc(100% + 6px); top: 50%; transform: translate(-4px, -50%); transform-origin: left center; }
+.md-tip:hover > .md-tip__bubble, .md-tip:focus-within > .md-tip__bubble { opacity: 1; visibility: visible; scale: 1; transition-delay: 0s; }
 .md-tip:hover > .md-tip__bubble--top, .md-tip:focus-within > .md-tip__bubble--top,
 .md-tip:hover > .md-tip__bubble--bottom, .md-tip:focus-within > .md-tip__bubble--bottom { transform: translate(-50%, 0); }
 .md-tip:hover > .md-tip__bubble--left, .md-tip:focus-within > .md-tip__bubble--left,
