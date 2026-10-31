@@ -18,6 +18,13 @@
  * scroll depth, reading time) still flow, sanitised. The Meta events inside recordings carry the
  * page URL too, so `$snapshot` batches are sanitised as well, as a second line of defence.
  *
+ * The one exception is a Guides screen (/guides/<site>…, lib/analyticsPath isRecordable): a site
+ * id isn't a secret, so that dashboard is recorded, reported as its route shape, with the
+ * customer's words in it blocked or masked (`ph-no-capture` on the editor, previews and lists of
+ * pages, sites, redirects and questions; `ph-sensitive ph-mask` on names and addresses). Readers
+ * of a published guide meet none of this: those sites run none of Markdrop's trackers
+ * (docs/client/AppTrackers).
+ *
  * Consent (lib/consent): "full" = cookies + replay + GA; "limited" = PostHog in cookieless mode
  * (counted, never linked across visits, never recorded) and no GA.
  *
@@ -26,7 +33,7 @@
  */
 import type { CaptureResult, PostHog } from "posthog-js";
 import { GA_ID, POSTHOG_KEY, POSTHOG_PROXY, POSTHOG_UI_HOST, thirdPartyAnalyticsHost } from "@/lib/analyticsConfig";
-import { redactPath } from "@/lib/analyticsPath";
+import { isRecordable, redactPath } from "@/lib/analyticsPath";
 import type { AnalyticsMode } from "@/lib/consent";
 import { trackingDisabled } from "@/lib/track";
 
@@ -98,13 +105,15 @@ const URL_KEY = /(url|referrer|href)$/i;
 const PATH_KEY = /pathname$/i;
 const TITLE_KEY = /^(\$?title|page_title)$/;
 
-/** Whether this URL needs nothing redacted: the only kind replay may see. */
+/**
+ * Whether this URL needs nothing redacted (or only a Guides site id, lib/analyticsPath
+ * isRecordable): the only kind replay may see.
+ */
 export function urlIsClean(href: string): boolean {
   try {
     const u = new URL(href);
     if (u.hash && u.hash !== "#") return false;
-    for (const k of u.searchParams.keys()) if (!k.startsWith("utm_")) return false;
-    return cleanPath(u.pathname) === u.pathname && !u.pathname.startsWith("/admin");
+    return isRecordable(u.pathname, u.searchParams.keys()) && !u.pathname.startsWith("/admin");
   } catch {
     return false;
   }
@@ -417,7 +426,7 @@ function pageview() {
  */
 export function pauseRecordingFor(pathname: string) {
   if (!ph || mode === null) return;
-  if (cleanPath(pathname) === pathname && !pathname.startsWith("/admin")) return;
+  if (isRecordable(pathname) && !pathname.startsWith("/admin")) return;
   try {
     if (ph.sessionRecordingStarted()) ph.stopSessionRecording();
   } catch {
@@ -434,7 +443,7 @@ export function onRoute(pathname: string) {
   syncRecording();
   if (pathname.startsWith("/admin")) return;
   // On a document, wait briefly for the viewer to say which document it is.
-  if (cleanPath(pathname) !== pathname && !doc) pendingDocView = setTimeout(pageview, 2500);
+  if (!isRecordable(pathname) && !doc) pendingDocView = setTimeout(pageview, 2500);
   else pageview();
 }
 
