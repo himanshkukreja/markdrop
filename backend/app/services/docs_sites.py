@@ -396,6 +396,7 @@ class StudioSite:
     ai_name: str | None
     suggestions: tuple[str, ...]
     row: dict = field(repr=False, compare=False, default_factory=dict)
+    insights: bool = True           # settings.insights.enabled (services/guide_insights.py)
 
 
 def _studio_from(row: dict, build: dict, snap_site: dict) -> StudioSite:
@@ -412,7 +413,8 @@ def _studio_from(row: dict, build: dict, snap_site: dict) -> StudioSite:
         id=str(row["_id"]), name=name, url=docs_snapshot.site_url(row, slug),
         hosts=tuple(h.lower() for h in docs_snapshot.site_hosts(row, slug)), live_build_id=str(build["_id"]),
         snapshot_id=build["snapshot_id"], ai_enabled=ai.get("enabled") is True and public,
-        ai_name=_str(ai.get("name"))[:40] or None, suggestions=suggestions, row=row)
+        ai_name=_str(ai.get("name"))[:40] or None, suggestions=suggestions, row=row,
+        insights=_dict(settings.get("insights")).get("enabled", True) is not False)
 
 
 _studio_cache: dict[tuple[str, str], tuple[float, StudioSite | None]] = {}

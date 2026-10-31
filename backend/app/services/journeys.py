@@ -102,6 +102,7 @@ GUIDES_TITLES = {
     "/[site]/design": "Guides · design",
     "/[site]/publish": "Guides · publish",
     "/[site]/settings": "Guides · settings",
+    "/[site]/insights": "Guides · insights",
     "/[site]/import": "Guides · import",
     "/[site]/[other]": "Guides",
 }
@@ -412,6 +413,7 @@ GUIDE_EVENTS = {
     "guide_renamed": ("form", "Guides: renamed a site"),
     "guide_address_changed": ("form", "Guides: changed a site's address"),
     "guide_ask_ai_toggled": ("form", "Guides: turned Ask AI {enabled}"),
+    "guide_insights_toggled": ("form", "Guides: turned Insights {enabled}"),
     "guide_ask_ai_renamed": ("form", "Guides: renamed Ask AI"),
     "guide_ask_ai_questions": ("form", "Guides: changed Ask AI's suggested questions"),
     "guide_access_changed": ("form", "Guides: changed who can read a site"),

@@ -25,6 +25,9 @@ domains; a set read from MongoDB and cached, see
 docs_sites.studio_origin_allowed). Try it stays with docs_cors_origins (the
 public API documented there is Markdrop's).
 
+A guide's Insights beacons (/api/v1/docs/insights/<site id>/…) are narrower: only that
+guide's own live addresses get CORS there, not every guide's.
+
 Every other path and every other origin passes straight through to the app's
 CORS layers unchanged, and an origin the app itself lists (markdrop.in) is never
 touched here, so it keeps its credentialed CORS.
@@ -41,6 +44,8 @@ import re
 from app.config import get_settings
 
 PREFIX = "/api/v1/docs/"
+# A guide's Insights beacons (routers/guide_insights.py): only that guide's own live addresses.
+_INSIGHTS = re.compile(r"^/api/v1/docs/insights/([0-9a-f]{24})/")
 API_PREFIX = "/api/v1/"
 _LOCAL = re.compile(r"^http://docs\.localhost(:\d{1,5})?$")
 _HEADER_LIST = re.compile(r"^[A-Za-z0-9!#$%&'*+\-.^_`|~,\s]{0,1000}$")
@@ -109,6 +114,19 @@ async def docs_origin_allowed_async(origin: str | None) -> bool:
     from app.services import docs_sites
 
     return await docs_sites.studio_origin_allowed(origin)
+
+
+async def insights_origin_allowed(site_id: str, origin: str | None) -> bool:
+    """For a guide's Insights beacons: that guide's own live https addresses, nothing else."""
+    if not origin:
+        return False
+    try:
+        from app.database import get_database
+        from app.services import guide_insights
+
+        return await guide_insights.origin_allowed(get_database(), site_id, origin)
+    except Exception:
+        return False
 
 
 def _denied(path: str) -> bool:
@@ -184,7 +202,8 @@ class DocsCORSMiddleware:
     async def _docs(self, scope, receive, send):
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers") or []}
         origin = headers.get("origin")
-        allowed = await docs_origin_allowed_async(origin)
+        own = _INSIGHTS.match(scope.get("path", ""))
+        allowed = await insights_origin_allowed(own.group(1), origin) if own else await docs_origin_allowed_async(origin)
         if scope["method"] == "OPTIONS" and origin and headers.get("access-control-request-method"):
             if not allowed:
                 return await self.app(scope, receive, send)

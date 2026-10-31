@@ -1150,6 +1150,10 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
     base_meta = {"conversation_id": conversation_id, "turn": turn, "page_path": page_path,
                  "question": question[:MAX_QUESTION], "signed_in": req.user is not None,
                  "effort": effort(), "history_turns": turn - 1}
+    # A Markdrop Guides site with Insights on: its team may see this question (services/guide_insights.py).
+    state = getattr(cfg, "state", None)
+    if getattr(cfg, "studio", False) and state is not None and state.insights:
+        base_meta["insights"] = True
 
     async def record_limit(reason: str) -> None:
         try:

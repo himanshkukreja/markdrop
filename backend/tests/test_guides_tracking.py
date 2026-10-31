@@ -35,7 +35,7 @@ class GuidesShapes(unittest.TestCase):
             self.assertEqual(traffic.clean_path(f"/{root}/new?ws=abc", host), f"/{root}/new")
             self.assertEqual(traffic.clean_path(f"/{root}/members", host), f"/{root}/members")
             self.assertEqual(traffic.clean_path(f"/{root}/{SITE}?page=p1", host), f"/{root}/[site]")
-            for s in ("design", "publish", "settings", "import"):
+            for s in ("design", "publish", "settings", "import", "insights"):
                 self.assertEqual(traffic.clean_path(f"/{root}/{SITE}/{s}", host), f"/{root}/[site]/{s}")
             self.assertEqual(traffic.clean_path(f"/{root}/{SITE}/x/y", host), f"/{root}/[site]/[other]")
         # Still a document.

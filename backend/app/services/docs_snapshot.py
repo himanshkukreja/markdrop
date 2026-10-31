@@ -169,7 +169,7 @@ def _theme(settings: dict) -> dict:
 
 
 def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[dict], *, url: str, ai_api: str,
-              public: bool = True) -> dict:
+              public: bool = True, insights: bool = False) -> dict:
     home = dict(extra.get("home") or {})
     ai = settings.get("ai") or {}
     suggestions = [s for s in (ai.get("suggestions") or []) if isinstance(s, str) and s.strip()][:5]
@@ -194,6 +194,13 @@ def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[di
         out["embedHosts"] = extra["embed_hosts"]
     out["brand"] = _brand(name, settings, extra)
     out["theme"] = _theme(settings)
+    # Insights on (services/guide_insights.py): "Did this page help?" and the docs MCP's
+    # report_problem post to `feedback`; the engine sends search and navigation beacons to
+    # `insights`/event, and the edge counts page views (manifest site.insights, from this key).
+    if insights and ai_api:
+        base = f"{ai_api.rstrip('/')}/api/v1/docs/insights/{site_id}"
+        out["feedback"] = f"{base}/feedback"
+        out["insights"] = base
     # A password or members-only site: the edge gates every address, but Ask AI is answered by the
     # API, which doesn't check the edge's session yet, so it stays off; and nothing is indexed.
     out["ai"] = (
@@ -277,8 +284,10 @@ def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str) -> tuple
     nav = build_nav(settings, pages, extra)
     from app.services.docs_site_access import is_public
 
+    from app.services.guide_insights import enabled as insights_enabled
+
     files["site.json"] = json.dumps(site_json(str(site["_id"]), name, settings, extra, nav, url=url, ai_api=ai_api,
-                                              public=is_public(site)),
+                                              public=is_public(site), insights=insights_enabled(site)),
                                     indent=2, ensure_ascii=False) + "\n"
     # The site's own redirects (Settings, and the ones a page move adds) over an import's: both
     # reach readers, Settings wins on the same address, chains end in one hop.

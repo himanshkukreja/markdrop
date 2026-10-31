@@ -4,6 +4,7 @@ one API worker runs it (§5.1, §5.5, A6):
     revalidate   every 5 s   send due purge jobs from the outbox
     sweeper      every 60 s  destroy expired documents (bytes, versions, grants)
     reconciler   every 60 s  re-derive dirty rows; a full pass once a day
+    guide_insights  hourly   roll up Markdrop Guides' reader insights (services/guide_insights.py)
 
 Started from the app lifespan when ``MARKDROP_BACKGROUND_WORKERS_ENABLED`` (on
 by default; tests leave it off and call the loop bodies directly).
@@ -102,12 +103,18 @@ async def _reconcile(db: AsyncIOMotorDatabase) -> None:
         _last_full["t"] = _now()
 
 
+async def _insights(db: AsyncIOMotorDatabase) -> None:
+    from app.services import guide_insights
+
+    await guide_insights.rollup_due(db)
+
+
 def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
     if not settings.background_workers_enabled or _TASKS:
         return
     loop = asyncio.get_running_loop()
     for name, every, body in (("revalidate", 5.0, _revalidate), ("sweeper", SWEEP_EVERY, _sweep),
-                              ("reconciler", 60.0, _reconcile)):
+                              ("reconciler", 60.0, _reconcile), ("guide_insights", 3600.0, _insights)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 
 
