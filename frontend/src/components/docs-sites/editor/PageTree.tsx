@@ -123,7 +123,7 @@ export function PageTree({
                   )}
                 </a>
                 {canEdit && (
-                  <div className="shrink-0 opacity-100 lg:opacity-0 lg:group-focus-within/row:opacity-100 lg:group-hover/row:opacity-100">
+                  <div className="shrink-0 opacity-100 lg:pointer-fine:opacity-0 lg:group-focus-within/row:opacity-100 lg:group-hover/row:opacity-100">
                     <RowMenu label={`More for ${p.title || "this page"}`} items={items} portal />
                   </div>
                 )}

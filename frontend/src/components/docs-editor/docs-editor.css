@@ -274,6 +274,14 @@ input.dxe-tabbar__tab { cursor: text; min-width: 3ch; }
   .dxe-header__title { font-size: 28px; line-height: 36px; }
 }
 
+/* Touch screens have no hover: the controls that wait for it are always there (the caret sits in the
+   editor's root, so :focus-within on a block doesn't reveal them either). */
+@media (hover: none) {
+  .dxe-blockbar, .dxe-card__del, .dxe-figure__tools { opacity: 1; }
+  .dxe-visual:not([data-readonly]) .dxe-callout:not(:hover):not(:focus-within) .dxe-label--empty { display: block; }
+  .dxe-visual:not([data-readonly]) .dxe-figure:not(:hover):not(:focus-within) .dxe-figure__cap input:placeholder-shown { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dxe-blockbar, .dxe-figure__tools { transition: none; }
 }
