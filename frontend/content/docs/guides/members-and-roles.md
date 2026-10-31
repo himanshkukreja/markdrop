@@ -60,7 +60,7 @@ Open the guide's **Settings** and find **People**:
 1. Choose **Add person**, pick someone from the workspace, and pick their **Role on this guide**. Choose **Save**.
 2. To change it, pick another role beside their name. To remove it, choose **×**: they're back to their workspace role.
 
-::clip{src="/docs-assets/guides/members-and-roles/site-role-override" alt="In Acme's settings under People, choosing Add person, picking Omar Haddad and the role Editor, and saving: Omar appears under Different on this guide."}
+::clip{src="/docs-assets/guides/members-and-roles/site-role-override" alt="In Acme's Settings › People and reviews, choosing Add person, picking Omar Haddad and the role Editor, and saving: Omar appears under Different on this guide, and a message says Omar is an editor on Acme."}
 
 **Everyone's role on this guide** lists each person's role here and where it comes from: workspace owner, workspace admin, their Guides role, or this guide only.
 

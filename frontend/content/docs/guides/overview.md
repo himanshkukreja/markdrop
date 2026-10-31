@@ -25,6 +25,10 @@ The Markdrop Guides home lists every guide you can open, in your workspaces and 
 - **Each guide** shows a small drawing of it in its own theme and colours, its state (**Live**, **In review**, **Draft**, **Building** while a publish runs, **Failed** when the last publish didn't go through), its address, its workspace, pages and last change. A live guide shows its views over the last 7 days and how many readers found it helpful. **Open editor** opens it, **View** opens the live guide, and **Preview** shows a draft's home page. **More** has the guide's Design, Publish, Insights and Settings, and **Delete guide** for admins.
 - **Search guides** in the header (**⌘K**, or **Ctrl K** on Windows) finds a guide by its name or address.
 
+Inside a guide, its name in the header opens the guide switcher: every guide in that workspace with its logo (or its initial in its colour) and your role on it, then **All guides**, **New guide** and the workspace's Guides members.
+
+![The guide switcher open on Acme: the Acme workspace's guides Acme, Acme Help Center and Acme Developers, each with its logo or initial and the role Admin, then All guides, New guide and Members of Acme.](/docs-assets/guides/overview/guide-switcher.webp)
+
 ## What you can do
 
 ::::cards

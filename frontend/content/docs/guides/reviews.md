@@ -12,7 +12,7 @@ With reviews on, editors and reviewers can't publish a guide directly. They subm
 
 A Guides admin opens the guide's **Settings** and, under **Reviews**, turns on **Editors and reviewers submit changes for approval before they're published**. The **Require reviews** link on the Publish tab goes there too.
 
-![The Reviews card in guide settings with the switch "Editors and reviewers submit changes for approval before they're published" turned on, and the note "Admins can always publish. Reviewers approve other people's changes, never their own."](/docs-assets/guides/reviews/review-setting.webp)
+![The Reviews card in Settings › People and reviews with Require a review before publishing turned on: "Editors send changes to a reviewer; admins can still publish. Reviewers approve other people's changes, never their own."](/docs-assets/guides/reviews/review-setting.webp)
 
 Admins can always publish, reviews or not.
 
@@ -28,7 +28,7 @@ Under **Note for the reviewer**, say what changed and why. A note is required.
 Choose **Send for review**. The card changes to **Waiting for review**, with when you sent it.
 ::::
 
-![Acme Help Center's Publishes tab for an editor: 2 changes since the last publish, This guide requires a review, a Note for the reviewer, and Submit for review.](/docs-assets/guides/reviews/review-submit.webp)
+![Acme Help Center's Publish tab for an editor: Send for review, "This guide requires a review before it's published", a Note for the reviewer, "The guide's reviewers and admins will be asked", Send for review and Preview first, and under it Readers see now.](/docs-assets/guides/reviews/review-submit.webp)
 
 A guide has one open review at a time. You can keep editing while it's open: when it's approved, what's published is the drafts **as they are then**, including edits made after you submitted.
 
@@ -38,12 +38,12 @@ To take it back, choose **Withdraw**. Your drafts stay as they are. Only the per
 
 Reviewers and admins see open reviews at the top of the guide's **Publish** tab: who wants to publish, how many changes, and their note, with **Compare** to see them line by line. The changes themselves are listed below, each with **Compare**. Open the **Publish** tab to check for reviews: Markdrop Guides doesn't send notifications for them yet.
 
-![A review card: "Priya wants to publish 2 changes", her note about the refund window, with Approve and publish and Request changes.](/docs-assets/guides/reviews/review-waiting.webp)
+![A review card: "Priya wants to publish 2 changes", her note about the refund window, with Approve and publish, Request changes and Compare.](/docs-assets/guides/reviews/review-waiting.webp)
 
 - **Approve and publish** publishes straight away. If that publish can't start (for example the day's publishes are used up), the review stays open.
 - **Request changes** asks **What should change** and sends the review back with your note. The drafts stay as they are.
 
-::clip{src="/docs-assets/guides/reviews/review-approve" alt="Noah, a reviewer, choosing Approve and publish on Priya's review; the publish starts, and the guide goes live with Published. Live at acme-help.guides.markdrop.in."}
+::clip{src="/docs-assets/guides/reviews/review-approve" alt="Noah, a reviewer, choosing Approve and publish on Priya's review; the Publish tab shows the publish's progress, then Your guide is live for acme-help.guides.markdrop.in with the message Publish #2 is live."}
 
 ![The Request changes dialog: "Send back to Priya", with a note asking to say working days and to link to Change your plan.](/docs-assets/guides/reviews/request-changes.webp)
 

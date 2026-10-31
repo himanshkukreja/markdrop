@@ -73,6 +73,17 @@ const settle = async (h, ms = 700) => {
   await h.page.mouse.move(5, 5);
 };
 const vis = (h, text) => h.page.getByText(text, { exact: true }).filter({ visible: true }).first();
+/** A theme card in Design › Theme, by its name (the filter has tabs with the same words). */
+const themeCard = (h, name) => h.page.locator("fieldset label").filter({ has: h.page.getByText(name, { exact: true }) }).first();
+/** A guide's own domain in a state (seed_extra_studio.py --guide-domain): live, pending or remove. */
+const guideDomain = (key, host, state) => extra("--guide-domain", key, host, state);
+/** Settings › <section> of a guide. */
+const settingsOf = (key) => (h, section) => `/guides/${fxS()[key]}/settings/${section}`;
+const SET = settingsOf("acme");
+/** The settings card (section) whose heading is `title`, marked for a crop. */
+const cardWith = (h, name, title) => mark(h, name, (t) => [...document.querySelectorAll("main h2")].find((e) => e.textContent.trim() === t)?.closest("section"), title);
+/** The studio header and the site bar under it. */
+const CHROME = { box: { x: 0, y: 0, width: 1440, height: 108 } };
 
 /** Mark an element (found in the page) so a crop can use it as a selector. */
 async function mark(h, name, fn, arg) {
@@ -210,6 +221,18 @@ async function restorePage(h, key, p) {
   }
 }
 
+/** One line more (or less) in acme-themes' release notes: a change to publish (Jordan's). */
+async function toggleReleaseNote(h) {
+  const id = fxS().themes;
+  const pid = await pageId(h, "themes", "/help/release-notes", "jordan");
+  const page = await api(h, "GET", `/api/v1/docs-sites/${id}/pages/${pid}`, null, "jordan");
+  const line = "- Workflows can call a webhook with a custom header.";
+  const md = page.markdown.includes(line) ? page.markdown.replace(`\n${line}`, "") : page.markdown.replace("- The CLI's", `${line}\n- The CLI's`);
+  await api(h, "PUT", `/api/v1/docs-sites/${id}/pages/${pid}`, { base_rev: page.rev, markdown: md, title: page.title, description: page.description }, "jordan");
+  await api(h, "DELETE", `/api/v1/docs-sites/${id}/pages/${pid}/lock`, null, "jordan");
+  return md.includes(line) ? "Release notes: webhook headers" : "Release notes: a line moved to 2.5";
+}
+
 let importProc = null;
 function playImport() {
   importProc = spawn(PY, [EXTRA, "--import-run", "--slow"], { env: { ...process.env, STACK_ID: String(STACK_ID) }, stdio: "ignore" });
@@ -244,6 +267,26 @@ export default [
     },
     // The 7-day tiles, the filters and the guides (not the header, title or plan card).
     crop: () => ({ union: [{ css: 'section[aria-label="Across your guides, last 7 days"]' }, { css: 'section[aria-labelledby="list-h"]' }], pad: 20 }),
+  },
+  {
+    // The guide switcher in the header: every guide with its logo (or initial), All guides, New guide.
+    id: "guide-switcher",
+    page: P("overview"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(S(h, "/publish"));
+      await h.page.getByText(/ready to publish/).first().waitFor();
+      await h.loc({ role: "button", name: /switch guide/ }).click();
+      await h.loc("[role=menu]").waitFor();
+      await h.sleep(500);
+      await h.page.mouse.move(5, 300);
+    },
+    crop: async (h) => {
+      const m = await h.loc("[role=menu]").boundingBox();
+      return { box: { x: 0, y: 0, width: Math.ceil(m.x + m.width + 28), height: Math.ceil(m.y + m.height + 20) } };
+    },
   },
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -504,20 +547,26 @@ export default [
     kind: "screenshot",
     auth: "owner",
     url: null,
+    // Settings › Redirects: one Markdrop added when a published page moved, one added here, and a
+    // new row whose page doesn't exist (marked).
     prepare: async (h) => {
-      await h.goto(S(h, "/settings"));
+      await api(h, "PATCH", `/api/v1/docs-sites/${fxS().acme}`, { settings: { redirects: [
+        { from: "/guides/postgres", to: "/guides/connect-postgres", why: "moved" },
+        { from: "/docs/alerts", to: "/guides/alert-rules", why: "added" },
+      ] } });
+      await h.goto(SET(h, "redirects"));
       const card = h.page.locator("#redirects");
-      await card.scrollIntoViewIfNeeded();
+      await card.getByLabel("Old address 2").waitFor();
       await card.getByRole("button", { name: "Add a redirect" }).click();
-      await card.getByLabel("Old address 1").fill("/guides/postgres");
-      await card.getByLabel("Goes to 1").fill("/guides/connect-postgres");
-      await card.getByRole("button", { name: "Add a redirect" }).click();
-      await card.getByLabel("Old address 2").fill("/setup");
-      await card.getByLabel("Goes to 2").fill("/getting-started/install");
+      await card.getByLabel("Old address 3").fill("/setup");
+      await card.getByLabel("Goes to 3").fill("/getting-started/install");
       await h.sleep(500);
+      await card.getByRole("button", { name: /^Save/ }).click({ timeout: 1500 }).catch(() => {});
+      await h.sleep(700);
       await h.page.mouse.move(5, 5);
     },
     crop: { selector: "#redirects", pad: 0 },
+    after: async (h) => api(h, "PATCH", `/api/v1/docs-sites/${fxS().acme}`, { settings: { redirects: [] } }),
   },
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -559,7 +608,10 @@ export default [
   // ════════════════════════════════════════════════════════════════════════════
   // Themes: the published site in each preset (Jordan's acme-themes copy)
   // ════════════════════════════════════════════════════════════════════════════
-  ...["clean", "editorial", "technical", "minimal", "playful", "helpcenter"].map((preset) => ({
+  // The fourteen presets. Midnight and Terminal open in dark for a reader who hasn't picked a mode,
+  // so their shots (light and dark) show what a first-time reader sees.
+  ...["clean", "editorial", "technical", "minimal", "playful", "helpcenter",
+    "midnight", "paper", "terminal", "corporate", "studio", "academic", "atlas", "pastel"].map((preset) => ({
     id: `theme-${preset}`,
     page: P("themes"),
     kind: "screenshot",
@@ -568,7 +620,13 @@ export default [
     viewport: { width: 1440, height: 860 },
     prepare: async (h) => {
       await themeSite(h, preset);
-      await h.goto(h.studioSite("acme-themes", preset === "helpcenter" ? "/" : "/getting-started/quickstart"), { settle: 1200 });
+      if (preset === "midnight" || preset === "terminal") {
+        await h.context.addInitScript(() => {
+          if (location.hostname.endsWith(".guides.markdrop.in")) localStorage.removeItem("md_theme");
+        });
+      }
+      const home = preset === "helpcenter" || preset === "atlas";
+      await h.goto(h.studioSite("acme-themes", home ? "/" : "/getting-started/quickstart"), { settle: 1200 });
       await h.page.mouse.move(5, 5);
     },
     crop: "viewport",
@@ -584,7 +642,45 @@ export default [
       await h.loc({ role: "heading", name: "Match my brand" }).waitFor();
       await settle(h, 1200);
     },
-    crop: { box: { x: 0, y: 56, width: 1440, height: 760 } },
+    crop: { box: { x: 0, y: 56, width: 1440, height: 800 } },
+  },
+  {
+    // Theme › New: the eight newer themes.
+    id: "design-theme-filter",
+    page: P("themes"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1100 },
+    prepare: async (h) => {
+      await h.goto(S(h, "/design"));
+      await h.loc({ role: "heading", name: "Match my brand" }).waitFor();
+      await h.loc({ role: "tab", name: /^New/ }).click();
+      await settle(h, 900);
+    },
+    crop: { selector: "main fieldset", pad: 16 },
+  },
+  {
+    // Save design: the banner that offers to publish.
+    id: "design-saved",
+    page: P("themes"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(S(h, "/design"));
+      await h.loc({ role: "heading", name: "Match my brand" }).waitFor();
+      await themeCard(h, "Editorial").click();
+      await h.loc({ role: "button", name: "Save design" }).click();
+      await h.page.getByText("Design saved", { exact: true }).waitFor();
+      await settle(h, 900);
+    },
+    crop: async (h) => {
+      const sel = await mark(h, "saved", () => [...document.querySelectorAll("[role=status]")].find((e) => /Design saved/.test(e.textContent)));
+      const b = await h.loc(sel).boundingBox();
+      return { box: { x: 0, y: 0, width: 1440, height: Math.ceil(b.y + b.height + 16) } };
+    },
+    after: async (h) => api(h, "PATCH", `/api/v1/docs-sites/${fxS().acme}`, { settings: { theme: { preset: "clean" } } }),
   },
   {
     id: "design-switch-themes",
@@ -600,11 +696,14 @@ export default [
       await settle(h, 1200);
     },
     steps: async (h) => {
-      for (const name of ["Editorial", "Technical", "Playful", "Help center"]) {
-        await h.click(vis(h, name), { after: 1000 });
+      for (const name of ["Editorial", "Help center"]) {
+        await h.click(themeCard(h, name), { after: 900 });
+      }
+      await h.click({ role: "tab", name: /^New/ }, { after: 600 });
+      for (const name of ["Midnight", "Atlas"]) {
+        await h.click(themeCard(h, name), { after: 900 });
       }
       await h.click({ role: "radio", name: "Dark", exact: true }, { after: 1100 });
-      await h.click({ role: "radio", name: "Light", exact: true }, { after: 500 });
       await h.click({ role: "button", name: "Reset" }, { after: 600 });
     },
     trim: { start: 0.5 },
@@ -645,11 +744,10 @@ export default [
       await h.page.getByLabel("Body font").selectOption("inter");
       await h.page.getByLabel("Corners").selectOption("round");
       await settle(h, 1200);
+      await h.page.mouse.move(5, 5);
     },
-    crop: async (h) => {
-      const a = await mark(h, "fonts", () => document.querySelector("main section[aria-label='Design settings'] > div.grid"));
-      return { union: [a, "section[aria-label='Preview']"], pad: 12 };
-    },
+    // The four settings (the preview is at the top of the page, far from them since the theme list grew).
+    crop: async (h) => ({ selector: await mark(h, "fonts", () => document.querySelector("main section[aria-label='Design settings'] > div.grid")), pad: 16 }),
   },
   {
     id: "custom-css",
@@ -682,7 +780,80 @@ export default [
       await h.page.getByText("First version").waitFor();
       await settle(h);
     },
-    crop: { box: { x: 0, y: 56, width: 1440, height: 720 } },
+    crop: { box: { x: 0, y: 56, width: 1440, height: 598 } },
+  },
+  {
+    // The bar under the header on every screen of a guide (here on Insights).
+    id: "site-bar",
+    page: P("publishing"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(S(h, "/insights?range=7d"));
+      await h.loc({ role: "button", name: "Publish 4 changes" }).first().waitFor();
+      await settle(h);
+    },
+    crop: CHROME,
+  },
+  {
+    // A publish running (acme-themes, Jordan's): the steps and how far along it is.
+    id: "publish-progress",
+    page: P("publishing"),
+    kind: "screenshot",
+    auth: "jordan",
+    url: null,
+    viewport: { width: 1440, height: 1000 },
+    prepare: async (h) => {
+      await themeSite(h, "clean");
+      const note = await toggleReleaseNote(h);
+      await h.goto(`/guides/${fxS().themes}/publish`);
+      await h.page.getByText("1 change ready to publish").waitFor();
+      await h.loc({ label: "What changed (optional)" }).fill(note);
+      await h.loc({ role: "button", name: "Publish 1 change", exact: true, nth: 1 }).click();
+      await h.loc({ role: "heading", name: "Publishing your guide" }).waitFor({ timeout: 60_000 });
+      await h.page.waitForFunction(() => {
+        const p = document.querySelector("main [role=progressbar]");
+        const n = Number(p?.getAttribute("aria-valuenow"));
+        return n >= 15 && n <= 90;
+      }, null, { timeout: 120_000, polling: 100 });
+      await h.sleep(1500);
+      await h.page.mouse.move(5, 5);
+    },
+    settle: 0,
+    crop: { selector: "main", pad: 0 },
+    after: async (h) => waitLive(h, "themes", "jordan"),
+  },
+  {
+    // Nothing waiting: the live guide, Finish setting up and the history (acme-themes).
+    id: "publish-live",
+    page: P("publishing"),
+    kind: "screenshot",
+    auth: "jordan",
+    url: null,
+    viewport: { width: 1440, height: 1300 },
+    prepare: async (h) => {
+      await themeSite(h, "clean");
+      await h.goto(`/guides/${fxS().themes}/publish`);
+      await h.loc({ role: "heading", name: "Your guide is live" }).waitFor();
+      await settle(h);
+    },
+    crop: { selector: "main", pad: 0 },
+  },
+  {
+    // What changed: the live publish against the drafts, Quickstart's lines.
+    id: "publish-compare",
+    page: P("publishing"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(S(h, "/publish/compare"));
+      await h.loc({ role: "heading", name: "What changed" }).waitFor();
+      await h.page.getByText(/unchanged lines/).first().waitFor();
+      await settle(h);
+    },
+    crop: { selector: "main", pad: 0, maxHeight: 600 },
   },
   {
     id: "restore-dialog",
@@ -745,7 +916,7 @@ export default [
     auth: "owner",
     url: null,
     prepare: async (h) => {
-      await h.goto(HELP(h, "/settings"));
+      await h.goto(HELP(h, "/settings/people"));
       await h.page.locator("#review").scrollIntoViewIfNeeded();
       await settle(h);
     },
@@ -869,7 +1040,7 @@ export default [
     auth: "owner",
     url: null,
     prepare: async (h) => {
-      await h.goto(HELP(h, "/settings#people"));
+      await h.goto(HELP(h, "/settings/people"));
       const card = h.page.locator("#people");
       await card.getByText(/Different on this guide/).waitFor();
       await card.scrollIntoViewIfNeeded();
@@ -888,7 +1059,7 @@ export default [
     prepare: async (h) => {
       const id = fxS().acme;
       await api(h, "DELETE", `/api/v1/docs-sites/${id}/members/${h.fx.users.omar.id}`).catch(() => {});
-      await h.goto(S(h, "/settings"));
+      await h.goto(SET(h, "people"));
       await h.page.locator("#people").getByText(/No one has a different role|Different on this guide/).waitFor();
       await h.page.locator("#people").evaluate((e) => e.scrollIntoView({ block: "start" }));
       await h.page.evaluate(() => window.scrollBy(0, -80));
@@ -919,17 +1090,123 @@ export default [
   // Site settings
   // ════════════════════════════════════════════════════════════════════════════
   {
+    // Settings › General, with the section list on the left.
+    id: "settings-general",
+    page: P("site-settings"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1000 },
+    prepare: async (h) => {
+      await h.goto(SET(h, "general"));
+      await h.page.locator("#address").waitFor();
+      await settle(h);
+    },
+    crop: { box: { x: 168, y: 108, width: 1104, height: 850 } },
+  },
+  {
     id: "settings-address",
     page: P("site-settings"),
     kind: "screenshot",
     auth: "owner",
     url: null,
     prepare: async (h) => {
-      await h.goto(S(h, "/settings"));
-      await h.page.locator("#domain").waitFor();
+      await h.goto(SET(h, "general"));
+      await h.page.locator("#address").waitFor();
       await settle(h);
     },
-    crop: { union: ["#address", "#domain"], pad: 0 },
+    crop: { selector: "#address", pad: 0 },
+  },
+  {
+    // Settings › Domains: the guide's own domain (live) and its free address.
+    id: "settings-domains",
+    page: P("site-settings"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      guideDomain("acme", "learn.acme.com", "live");
+      await h.goto(SET(h, "domains"));
+      await h.page.getByText("learn.acme.com", { exact: true }).first().waitFor();
+      await settle(h);
+    },
+    crop: { selector: "#domains", pad: 0 },
+    after: async () => guideDomain("acme", "learn.acme.com", "remove"),
+  },
+  {
+    // Add a domain, step 1: the subdomain.
+    id: "domain-add",
+    page: P("site-settings"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      guideDomain("acme", "learn.acme.com", "remove");
+      await h.goto(SET(h, "domains/new"));
+      await h.loc("#domain input").fill("learn.acme.com");
+      await h.sleep(400);
+      await h.page.mouse.move(5, 5);
+    },
+    crop: { union: ["main ol[aria-label=Steps]", "#domain"], pad: 12 },
+  },
+  {
+    // Add a domain, step 2: who runs the DNS, and the record in their words.
+    id: "domain-setup",
+    page: P("site-settings"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1400 },
+    prepare: async (h) => {
+      guideDomain("acme", "learn.acme.com", "remove");
+      await h.goto(SET(h, "domains/new"));
+      await h.loc("#domain input").fill("learn.acme.com");
+      await h.loc({ role: "button", name: "Continue" }).click();
+      await h.page.getByText(/DNS is at Cloudflare/).first().waitFor({ timeout: 30_000 });
+      await settle(h, 900);
+    },
+    crop: async (h) => {
+      const steps = await h.loc("main ol[aria-label=Steps]").boundingBox();
+      const rec = await h.loc("#handoff").boundingBox();
+      return { box: { x: steps.x - 12, y: steps.y - 12, width: steps.width + 24, height: rec.y - steps.y + 4 } };
+    },
+    after: async () => guideDomain("acme", "learn.acme.com", "remove"),
+  },
+  {
+    // Someone else runs the DNS: the message to send, and the status.
+    id: "domain-handoff",
+    page: P("site-settings"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1600 },
+    prepare: async (h) => {
+      guideDomain("acme", "learn.acme.com", "pending");
+      await h.goto(SET(h, "domains/learn.acme.com"));
+      await h.page.locator("#handoff").waitFor({ timeout: 30_000 });
+      await settle(h, 900);
+    },
+    crop: async (h) => {
+      const status = await cardWith(h, "status", "Status");
+      return { union: ["#handoff", status], pad: 12 };
+    },
+    after: async () => guideDomain("acme", "learn.acme.com", "remove"),
+  },
+  {
+    id: "settings-access",
+    page: P("site-settings"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(SET(h, "access"));
+      await h.page.locator("#access").waitFor();
+      await settle(h);
+    },
+    crop: async (h) => {
+      const seo = await mark(h, "seo", () => document.querySelector("[aria-label='Show in search engines']")?.closest("section"));
+      return { union: ["#access", seo], pad: 0 };
+    },
   },
   {
     id: "settings-danger",
@@ -938,11 +1215,132 @@ export default [
     auth: "owner",
     url: null,
     prepare: async (h) => {
-      await h.goto(S(h, "/settings"));
-      await h.page.locator("#danger").scrollIntoViewIfNeeded();
+      await h.goto(SET(h, "danger"));
+      await h.page.locator("#danger").waitFor();
       await settle(h);
     },
     crop: { selector: "#danger", pad: 0 },
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // API reference (Acme Developers, with the Acme API's OpenAPI file)
+  // ════════════════════════════════════════════════════════════════════════════
+  {
+    id: "api-reference-checked",
+    page: P("api-reference"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(settingsOf("developers")(h, "api-reference"));
+      await h.page.locator("#result").waitFor({ timeout: 30_000 });
+      await settle(h);
+    },
+    crop: { selector: "#result", pad: 0 },
+  },
+  {
+    id: "api-reference-endpoints",
+    page: P("api-reference"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1700 },
+    prepare: async (h) => {
+      await h.goto(settingsOf("developers")(h, "api-reference"));
+      await h.page.locator("#options").waitFor({ timeout: 30_000 });
+      await settle(h);
+    },
+    crop: async (h) => {
+      const get = await cardWith(h, "get", "What readers will get");
+      return { union: [get, "#options"], pad: 0 };
+    },
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Insights (Acme, the last 7 days; acme-themes for a live guide with no readers yet)
+  // ════════════════════════════════════════════════════════════════════════════
+  {
+    id: "insights-overview",
+    page: P("insights"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(S(h, "/insights?range=7d"));
+      await h.loc("section[aria-label=Summary]").waitFor();
+      await h.loc({ role: "heading", name: "Readers per day" }).waitFor();
+      await settle(h, 900);
+    },
+    crop: async (h) => {
+      const chart = await cardWith(h, "chart", "Readers per day");
+      const title = await mark(h, "ins-title", () => document.querySelector("main h1")?.parentElement?.parentElement);
+      return { union: [title, chart], pad: 12 };
+    },
+  },
+  {
+    id: "insights-pages",
+    page: P("insights"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1400 },
+    prepare: async (h) => {
+      await h.goto(S(h, "/insights?range=7d"));
+      await h.page.getByText("What readers couldn't find").waitFor();
+      await settle(h, 900);
+    },
+    crop: async (h) => {
+      const a = await cardWith(h, "top", "Top pages");
+      const b = await cardWith(h, "missing", "What readers couldn't find");
+      return { union: [a, b], pad: 12 };
+    },
+  },
+  {
+    id: "insights-feedback",
+    page: P("insights"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1800 },
+    prepare: async (h) => {
+      await h.goto(S(h, "/insights?range=7d"));
+      await h.page.getByText("Reader feedback").waitFor();
+      await settle(h, 900);
+    },
+    crop: async (h) => ({ selector: await cardWith(h, "fb", "Reader feedback"), pad: 12 }),
+  },
+  {
+    id: "insights-sources",
+    page: P("insights"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 2200 },
+    prepare: async (h) => {
+      await h.goto(S(h, "/insights?range=7d"));
+      await h.page.getByText("Where readers come from").waitFor();
+      await settle(h, 900);
+    },
+    crop: async (h) => {
+      const a = await cardWith(h, "from", "Where readers come from");
+      const b = await cardWith(h, "look", "What readers look for");
+      return { union: [a, b], pad: 12 };
+    },
+  },
+  {
+    // A live guide nobody has read yet.
+    id: "insights-empty",
+    page: P("insights"),
+    kind: "screenshot",
+    auth: "jordan",
+    url: null,
+    prepare: async (h) => {
+      await themeSite(h, "clean");
+      await h.goto(`/guides/${fxS().themes}/insights`);
+      await h.loc("main h1").first().waitFor();
+      await settle(h, 900);
+    },
+    crop: { selector: "main", pad: 0 },
   },
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -955,18 +1353,19 @@ export default [
     auth: "owner",
     url: null,
     prepare: async (h) => {
-      await h.goto(S(h, "/settings#ai"));
-      await h.page.locator("#ai").scrollIntoViewIfNeeded();
+      await h.goto(SET(h, "ask-ai"));
+      await h.page.getByText("Ask AI on your guide").waitFor();
       await settle(h);
     },
     // The name and suggested questions (not the usage meter above them: no plan numbers in the docs).
     crop: async (h) => {
-      const fields = await mark(h, "ai-fields", () => document.querySelector("#ai div.grid"));
-      const tags = await mark(h, "ai-tags", () => document.querySelector("#ai ul") || document.querySelector("#ai div.grid"));
+      const card = await cardWith(h, "ai", "Ask AI on your guide");
+      const fields = await mark(h, "ai-fields", (c) => document.querySelector(c).querySelector("div.grid"), card);
+      const tags = await mark(h, "ai-tags", (c) => document.querySelector(c).querySelector("ul[aria-label='Suggested questions']"), card);
       const b = await h.loc(fields).boundingBox();
       const c = await h.loc(tags).boundingBox();
-      const card = await h.loc("#ai").boundingBox();
-      return { box: { x: card.x, y: b.y - 16, width: card.width, height: c.y + c.height + 20 - (b.y - 16) } };
+      const box = await h.loc(card).boundingBox();
+      return { box: { x: box.x, y: b.y - 10, width: box.width, height: c.y + c.height + 14 - (b.y - 10) } };
     },
   },
   {

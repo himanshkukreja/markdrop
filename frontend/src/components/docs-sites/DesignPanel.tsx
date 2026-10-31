@@ -218,7 +218,7 @@ export default function DesignPanel() {
           {locked && <Alert tone="neutral" title="Only admins change the design">You can look around; ask an admin of this workspace to change it.</Alert>}
           {error && <Alert tone="danger" onDismiss={() => setError("")}>{error}</Alert>}
 
-          <fieldset className="flex flex-col gap-2.5" disabled={locked}>
+          <fieldset className="flex min-w-0 flex-col gap-2.5" disabled={locked}>
             <legend className="mb-2.5 text-[15px] font-semibold text-text">Theme</legend>
             <Tabs
               variant="pill"

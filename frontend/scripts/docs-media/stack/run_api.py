@@ -92,6 +92,9 @@ def _load_env() -> None:
     os.environ.update({
         "MARKDROP_DOCS_BUILD_TARGETS": "local",
         "MARKDROP_DOCS_STORE_DIR": str(DATA / "docs-store"),
+        # A guide's own domain is switched on against a fake Cloudflare (see "Fake DNS"): never a real token.
+        "MARKDROP_DOCS_CF_API_TOKEN": "sandbox-fake-token",
+        "MARKDROP_DOCS_CF_ZONE_ID": "0" * 32,
     })
     if os.environ.get("DOCS_MEDIA_REDIS_URL"):  # stack.sh with DOCS_MEDIA_REDIS=1
         os.environ["MARKDROP_REDIS_URL"] = os.environ["DOCS_MEDIA_REDIS_URL"]
@@ -484,6 +487,33 @@ def fake_nameservers(host: str) -> list[str]:
 domain.check_txt = fake_check_txt
 domain.check_routing = fake_check_routing
 dns_provider.nameservers_for = fake_nameservers
+# The zone and a name's CNAME as DNS has them: from the same file (no real DNS lookups).
+dns_provider.zone_for = lambda host: dns_provider.zone_of(host)
+
+
+def fake_cname_of(host: str) -> str | None:
+    return str((_dns().get(host) or {}).get("cname") or "").rstrip(".").lower()
+
+
+dns_provider.cname_of = fake_cname_of
+
+# Markdrop Guides' own domains: switched on (Settings › Domains › Add a domain works) against a fake
+# Cloudflare that only ever says "pending". The API only queues the domain job and the stack's worker
+# never takes it: the domain shots set a domain's state directly (seed_extra_studio.py --guide-domain).
+from app.services import docs_custom_domains, domain_connect  # noqa: E402
+
+
+def _fake_cloudflare(request: httpx.Request) -> httpx.Response:
+    if request.method == "GET":
+        return httpx.Response(200, json={"success": True, "result": []})
+    host = (json.loads(request.content or b"{}") or {}).get("hostname") or ""
+    return httpx.Response(200, json={"success": True, "result": {
+        "id": hashlib.sha1(host.encode()).hexdigest()[:32], "hostname": host, "status": "pending",
+        "ssl": {"status": "pending_validation"}}})
+
+
+docs_custom_domains._TRANSPORT = httpx.MockTransport(_fake_cloudflare)
+domain_connect._TXT = lambda name: []  # no Domain Connect discovery: no one-click link
 
 
 # ── Sandbox routes ────────────────────────────────────────────────────────────
