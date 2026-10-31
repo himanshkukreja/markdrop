@@ -227,6 +227,45 @@ export async function fetchApiSpec({ store, siteId, ref, contentDir }) {
 /* ── build ─────────────────────────────────────────────────────────────── */
 
 /**
+ * Progress for a slow transport: `send(p)` at most once every `minMs`, the last one wins (a held
+ * one is sent when the time is up); a new step or a step's last count ("13 of 13") goes at once.
+ * Next prints its last few page counts within a second: without the trailing send the card sat at
+ * "0 of 13". Returns push(p), with push.cancel() to drop a held one.
+ */
+export function throttleProgress(send, { minMs = 2000, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+  let last = -Infinity;
+  let lastStep;
+  let held = null;
+  let timer = null;
+  const out = (p) => {
+    held = null;
+    if (timer) clearTimer(timer);
+    timer = null;
+    last = now();
+    lastStep = p.step;
+    send(p);
+  };
+  const push = (p) => {
+    const finished = Number(p.total) > 0 && Number(p.done) >= Number(p.total);
+    if (p.step !== lastStep || finished || now() - last >= minMs) return out(p);
+    held = p;
+    if (!timer) {
+      timer = setTimer(() => {
+        timer = null;
+        if (held) out(held);
+      }, Math.max(0, minMs - (now() - last)));
+      timer?.unref?.();
+    }
+  };
+  push.cancel = () => {
+    if (timer) clearTimer(timer);
+    timer = null;
+    held = null;
+  };
+  return push;
+}
+
+/**
  * spec: { job, build, bundle: { site_id, files, openapi? }, publish: { site, hosts, access? } } (access: the
  * site's {level, policy_version}, written before the pointer flips; reported back as `access`).
  * Writes the content folder, fetches the site's files, writes media.json, builds, publishes, and
@@ -252,15 +291,18 @@ export async function runBuild(spec, { store, cfg, progress = () => {}, log = ()
     const media = await writeMediaManifest(contentDir, { engineDir: cfg.engineDir });
     log(`content: ${files} files, ${assets.used} of ${assets.listed} site files (${assets.fetched} downloaded, ${(assets.bytes / 1e6).toFixed(1)} MB)`);
 
-    // "build": the static pages as Next renders them (done of total); "index": the crawl that
-    // collects every route, search, Ask AI and link previews included (the studio's progress card:
+    // "compile": Next compiling (milestones 0, 1, 2 of 3); "build": the static pages as Next
+    // renders them (done of total); "index": the crawl that collects every route, search, Ask AI
+    // and link previews included (the studio's progress card:
     // backend/app/services/docs_site_compare.py progress_view).
-    progress({ step: "build", done: 0, total: 0, message: "Rendering pages" });
+    progress({ step: "compile", done: 0, total: 3, message: "Preparing the pages" });
     const res = await build({
       onProgress: (phase, done, total) =>
-        progress(phase === "pages"
-          ? { step: "build", done, total, message: `Rendering pages (${done} of ${total})` }
-          : { step: "index", done, total, message: "Search, Ask AI and link previews" }),
+        progress(phase === "compile"
+          ? { step: "compile", done, total, message: "Preparing the pages" }
+          : phase === "pages"
+            ? { step: "build", done, total, message: `Rendering pages (${done} of ${total})` }
+            : { step: "index", done, total, message: "Search, Ask AI and link previews" }),
       contentDir,
       outDir,
       engineDir: cfg.engineDir,

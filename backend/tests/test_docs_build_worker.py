@@ -924,6 +924,18 @@ class WorkerTests(DbCase):
         self.assertEqual((env_["NODE_OPTIONS"], env_["MARKDROP_DOCS_BUILD_CPUS"]), ("--max-old-space-size=768", "1"))
         self.assertNotIn("MARKDROP_MONGODB_URI", env_)  # the runner never sees the database
 
+    def test_progress_due(self):
+        w, _ = self.worker()
+        due = w.progress_due
+        # A new step, a second since the last one, a step's last count: at once.
+        self.assertTrue(due({"step": "build", "done": 0, "total": 13}, "compile", 10.0, 10.1))
+        self.assertTrue(due({"step": "build", "done": 6, "total": 13}, "build", 10.0, 11.5))
+        self.assertTrue(due({"step": "build", "done": 13, "total": 13}, "build", 10.0, 10.2))
+        # Mid-burst counts wait for the trailing flush; junk counts never raise.
+        self.assertFalse(due({"step": "build", "done": 6, "total": 13}, "build", 10.0, 10.2))
+        self.assertFalse(due({"step": "build", "done": "x", "total": None}, "build", 10.0, 10.2))
+        self.assertFalse(due({"step": "assets", "done": 0, "total": 0}, "assets", 10.0, 10.2))
+
     async def test_restore_job_through_the_worker(self):
         w, worker = self.worker()
         s = await self.make_site()

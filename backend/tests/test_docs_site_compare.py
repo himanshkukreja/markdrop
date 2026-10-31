@@ -70,8 +70,23 @@ class ProgressUnit(unittest.TestCase):
         self.assertEqual((p["stage"], p["percent"], p["eta_seconds"]), ("waiting", 2, 50))
         p = compare.progress_view(b, job("assets", 5, 10), pages_total=10, typical_ms=50_000, at=t0)
         self.assertEqual((p["stage"], p["percent"], p["pages_done"]), ("pages", 13, 0))
+        # Compiling (no counts from Next): the bar creeps with the time against half the usual
+        # publish (20 s of 25 s here), never past the next milestone.
+        p = compare.progress_view(b, job("compile", 0, 3), pages_total=10, typical_ms=50_000, at=t0)
+        self.assertEqual((p["stage"], p["percent"], p["pages_done"], p["step"]), ("pages", 27, 0, "compile"))
+        p = compare.progress_view({**b, "started_at": t0 - timedelta(seconds=5)}, job("compile", 0, 3), pages_total=10,
+                                  typical_ms=50_000, at=t0)
+        self.assertEqual(p["percent"], 18 + round(30 * 5 / 25))
+        p = compare.progress_view({**b, "started_at": t0 - timedelta(seconds=40)}, job("compile", 1, 3), pages_total=10,
+                                  typical_ms=50_000, at=t0)
+        self.assertEqual(p["percent"], 18 + round(30 * (2 / 3 - 0.04)))
+        p = compare.progress_view({**b, "started_at": t0}, job("compile", 2, 3), pages_total=10, typical_ms=50_000, at=t0)
+        self.assertEqual(p["percent"], 38)
+        # Rendering: Next's page counts, scaled to the snapshot's pages.
         p = compare.progress_view(b, job("build", 26, 52), pages_total=10, typical_ms=50_000, at=t0)
-        self.assertEqual((p["stage"], p["percent"], p["pages_done"], p["pages_total"]), ("pages", 45, 5, 10))
+        self.assertEqual((p["stage"], p["percent"], p["pages_done"], p["pages_total"]), ("pages", 60, 5, 10))
+        p = compare.progress_view(b, job("build", 25, 25), pages_total=13, typical_ms=50_000, at=t0)
+        self.assertEqual((p["percent"], p["pages_done"]), (72, 13))
         self.assertEqual(p["elapsed_seconds"], 20)
         self.assertTrue(3 <= p["eta_seconds"] <= 50)
         p = compare.progress_view(b, job("index", 1, 2), pages_total=10, typical_ms=None, at=t0)

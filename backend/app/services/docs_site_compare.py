@@ -299,17 +299,24 @@ def progress_view(build: dict, job: dict | None, *, pages_total: int, typical_ms
                   at: datetime | None = None) -> dict:
     """Where a running publish is, for the studio's progress card:
 
-    stage    waiting (queued) | pages (writing, fetching files, rendering) | extras (search, Ask AI,
-             link previews) | live (uploading, switching readers over)
+    stage    waiting (queued) | pages (writing, fetching files, compiling, rendering) | extras (search,
+             Ask AI, link previews) | live (uploading, switching readers over)
     percent  0–99 (100 once it's live: the build's status says that)
     pages_done / pages_total   rendering, scaled to the snapshot's pages
     eta_seconds                from the guide's recent publishes (else about a minute)
+
+    The runner's steps (docs-platform/runner/lib.mjs runBuild): prepare, assets (files fetched),
+    compile (Next compiling: milestones 0 compiling, 1 compiled, 2 collecting page data, of 3),
+    build (static pages rendered, done of total), index (the crawl), publish, done.
     """
     at = at or now()
     p = (job or {}).get("progress") or {}
     step = p.get("step") if isinstance(p, dict) else None
     frac = _frac(p.get("done"), p.get("total")) if isinstance(p, dict) else 0.0
     status = build.get("status")
+    started = aware(build.get("started_at")) or aware(build.get("created_at"))
+    elapsed = max(0.0, (at - started).total_seconds()) if started else 0.0
+    typical = (typical_ms or TYPICAL_MS) / 1000
     pages_done = 0
     if status == "publishing" or step == "done":
         stage, pct, pages_done = "live", 97, pages_total
@@ -318,17 +325,21 @@ def progress_view(build: dict, job: dict | None, *, pages_total: int, typical_ms
     elif step == "index":
         stage, pct, pages_done = "extras", 72 + round(16 * frac), pages_total
     elif step == "build":
-        stage, pct = "pages", 18 + round(54 * frac)
+        stage, pct = "pages", 48 + round(24 * frac)
         pages_done = round(frac * pages_total)
+    elif step == "compile":
+        # Compiling is most of a small guide's build and Next reports no counts for it: between
+        # its milestones, the bar creeps with the time spent (against half the usual publish),
+        # never past the next milestone.
+        timed = min(elapsed / max(typical * 0.5, 1.0), 1.0)
+        step_cap = min(1.0, frac + 1 / 3) - 0.04
+        stage, pct = "pages", 18 + round(30 * max(frac, min(timed, step_cap)))
     elif step == "assets":
         stage, pct = "pages", 8 + round(10 * frac)
     elif step == "prepare" or status == "building":
         stage, pct = "pages", 5
     else:
         stage, pct = "waiting", 2
-    started = aware(build.get("started_at")) or aware(build.get("created_at"))
-    elapsed = max(0.0, (at - started).total_seconds()) if started else 0.0
-    typical = (typical_ms or TYPICAL_MS) / 1000
     eta = max(typical - elapsed, 0.0)
     if pct >= 20 and elapsed > 0:
         # Past the start, how fast this one goes says more than the average.

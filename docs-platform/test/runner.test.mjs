@@ -11,8 +11,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { FsStore, NotWanted, claimHosts, pointSite, publish, withPointerGuard, writeAccess } from "../builder/store.mjs";
 import { mediaManifest } from "../builder/media.mjs";
-import { fetchApiSpec, fetchAssets, importFileAllowed, readImportFolder, readPageFile, referencedAssets, safeRel, uploadImportAssets, writeContent } from "../runner/lib.mjs";
-import { contentSnapshot, httpsUrl, readRedirects, sitePath } from "../builder/build.mjs";
+import { fetchApiSpec, fetchAssets, importFileAllowed, readImportFolder, readPageFile, referencedAssets, safeRel, throttleProgress, uploadImportAssets, writeContent } from "../runner/lib.mjs";
+import { contentSnapshot, httpsUrl, nextProgress, readRedirects, sitePath } from "../builder/build.mjs";
 
 const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const PNG = "\x89PNG\r\n\x1a\n\0\0\0\rIHDR"; // a PNG's first bytes (latin1)
@@ -350,4 +350,71 @@ test("API reference: the stored OpenAPI file lands in the content folder, and th
   assert.deepEqual(Object.fromEntries(built.ops.map((o) => [o.path, o.markdown])), golden.pages);
   assert.deepEqual(built.overview, golden.overview);
   for (const d of [root, content]) fs.rmSync(d, { recursive: true, force: true });
+});
+
+test("build progress: Next's compile milestones, then its page counts, from chunks of `next build` output", () => {
+  // As Next 15 prints them through a pipe (docs-platform/examples/minimal): the counts come within a second.
+  const chunks = [
+    "   ▲ Next.js 15.5.14\n\n",
+    "   Creating an optimized production build ...\n",
+    " ✓ Compiled successfully in 4.4s\n   Skipping validation of types\n   Skipping linting\n",
+    "   Collecting page data ...\n",
+    "   Generating static pages (0/25) ...\n",
+    "   Generating static pages (6/25) \r\n   Generating static pages (12/25) \r\n",
+    " ✓ Generating static pages (25/25)\n   Finalizing page optimization ...\n",
+  ];
+  assert.deepEqual(chunks.flatMap(nextProgress), [
+    ["compile", 0, 3], ["compile", 1, 3], ["compile", 2, 3],
+    ["pages", 0, 25], ["pages", 6, 25], ["pages", 12, 25], ["pages", 25, 25],
+  ]);
+  assert.deepEqual(nextProgress(" ⚠ Compiled with warnings in 2.0s\n"), [["compile", 1, 3]]);
+  assert.deepEqual(nextProgress("Route (app)  Size\n┌ ○ /_not-found  169 B\n"), []);
+});
+
+test("progress throttle: a burst sends its first and last count; a held one goes out when the time is up", () => {
+  let t = 0;
+  const sent = [];
+  const timers = [];
+  const push = throttleProgress((p) => sent.push(`${p.step} ${p.done}/${p.total}`), {
+    minMs: 2000,
+    now: () => t,
+    setTimer: (fn, ms) => timers.push({ fn, at: t + ms }),
+    clearTimer: (id) => {
+      timers[id - 1].fn = null;
+    },
+  });
+  const fire = () => {
+    for (const x of timers) {
+      if (x.fn && x.at <= t) {
+        const fn = x.fn;
+        x.fn = null;
+        fn();
+      }
+    }
+  };
+  push({ step: "compile", done: 0, total: 3 });
+  t = 300;
+  push({ step: "compile", done: 1, total: 3 }); // held
+  t = 500;
+  push({ step: "build", done: 0, total: 13 }); // a new step: at once, the held one dropped
+  t = 600;
+  push({ step: "build", done: 6, total: 13 }); // held
+  t = 700;
+  push({ step: "build", done: 13, total: 13 }); // the last count: at once
+  assert.deepEqual(sent, ["compile 0/3", "build 0/13", "build 13/13"]);
+  t = 5000;
+  fire();
+  assert.equal(sent.length, 3, "nothing held once the last count went");
+  push({ step: "index", done: 10, total: 20 });
+  t = 5100;
+  push({ step: "index", done: 15, total: 20 }); // held, then sent by the timer
+  t = 7000;
+  fire();
+  assert.deepEqual(sent.slice(3), ["index 10/20", "index 15/20"]);
+  t = 7100;
+  push({ step: "index", done: 18, total: 20 });
+  push.cancel();
+  t = 10000;
+  fire();
+  assert.equal(sent.at(-1), "index 15/20", "cancel drops a held one");
 });

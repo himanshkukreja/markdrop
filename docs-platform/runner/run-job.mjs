@@ -29,7 +29,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { configFromEnv, runBuild, runImport, storeFromEnv } from "./lib.mjs";
+import { configFromEnv, runBuild, runImport, storeFromEnv, throttleProgress } from "./lib.mjs";
 import { withPointerGuard } from "../builder/store.mjs";
 
 function parse(argv) {
@@ -87,6 +87,9 @@ function apiTransport({ api, job, token, runner }) {
   };
   const heartbeat = setInterval(() => lastProgress && Date.now() - lastSent > 25_000 && send(lastProgress), 5_000);
   heartbeat.unref();
+  // At most one progress call every 2 s, the last one wins (a held one goes out when the 2 s are
+  // up); a new step or a step's last count always goes out at once.
+  const throttled = throttleProgress((p) => (pending = send(p)), { minMs: 2000 });
   return {
     async spec() {
       const r = await call("GET", `${base}?runner=${encodeURIComponent(runner)}`);
@@ -115,13 +118,11 @@ function apiTransport({ api, job, token, runner }) {
     },
     progress(p) {
       lastProgress = p;
-      // At most one progress call every 2 s (the last one wins); steps that change always go out.
-      if (Date.now() - lastSent > 2000 || p.step === "done") {
-        pending = send(p);
-      }
+      throttled(p);
     },
     async result(kind, body) {
       clearInterval(heartbeat);
+      throttled.cancel();
       await pending;
       const r = await call("POST", `${base}/${kind === "import" && body.ok ? "import-result" : "result"}`, { runner, ...body });
       if (!r.ok) throw new Error(`result: HTTP ${r.status} ${(await r.text()).slice(0, 300)}`);
