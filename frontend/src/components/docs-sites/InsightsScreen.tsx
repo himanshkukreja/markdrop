@@ -99,6 +99,11 @@ export default function InsightsScreen() {
 
   const titles = useMemo(() => new Map((data?.pages ?? []).map((p) => [p.path, p.title])), [data]);
   const items = (data?.feedback.items ?? []).map((i) => patched[i.id] ?? i).filter((i) => fbFilter === "all" || i.resolved === (fbFilter === "resolved"));
+  // The open count, after what was resolved or reopened here since the last load.
+  const openCount = (data?.feedback.open ?? 0) + (data?.feedback.items ?? []).reduce((n, i) => {
+    const now = patched[i.id];
+    return !now || now.resolved === i.resolved ? n : n + (now.resolved ? -1 : 1);
+  }, 0);
 
   async function toggle(on: boolean) {
     setSaving(true);
@@ -146,7 +151,7 @@ export default function InsightsScreen() {
     { key: "people", label: "Visitors", value: data.totals.visitors, unit: "count", prev: data.previous?.visitors ?? null, note: "Counted once a day" },
     { key: "searches", label: "Searches", value: data.totals.searches, unit: "count", prev: data.previous?.searches ?? null,
       note: data.totals.searches ? `${num(data.totals.empty_searches)} found nothing` : null },
-    { key: "helpful", label: "Found it helpful", value: data.feedback.helpful_pct ?? 0, unit: "percent",
+    { key: "helpful", label: "Found it helpful", value: data.feedback.helpful_pct ?? Number.NaN, unit: "percent",
       note: data.feedback.yes + data.feedback.no ? `${num(data.feedback.yes + data.feedback.no)} votes` : "No votes yet" },
   ] : [];
 
@@ -249,7 +254,7 @@ export default function InsightsScreen() {
               aside={data.feedback.yes + data.feedback.no ? `${data.feedback.helpful_pct}% helpful · ${num(data.feedback.yes + data.feedback.no)} votes` : undefined}
               headerExtra={
                 <SegmentedControl size="sm" aria-label="Show feedback" value={fbFilter} onChange={(v) => { setPatched({}); setFbFilter(v); }}
-                  options={[{ value: "open", label: `Open${data.feedback.open ? ` (${num(data.feedback.open)})` : ""}` }, { value: "resolved", label: "Resolved" }, { value: "all", label: "All" }]} />
+                  options={[{ value: "open", label: `Open${openCount ? ` (${num(openCount)})` : ""}` }, { value: "resolved", label: "Resolved" }, { value: "all", label: "All" }]} />
               }>
               {data.feedback.pages.some((p) => p.no > 0) && (
                 <div className="flex flex-col gap-1.5">
