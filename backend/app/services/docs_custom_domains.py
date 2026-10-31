@@ -575,7 +575,7 @@ async def _check(db: AsyncIOMotorDatabase, site: dict, d: dict, *, force: bool) 
     if info["blocked"] or t - since > GIVE_UP_AFTER:
         message = info["message"] if info["blocked"] else (
             f"Not live after {int(GIVE_UP_AFTER.total_seconds() // 3600)} hours: "
-            + (info["message"] or f"the CNAME record for {host} isn't visible").rstrip(".") + ". Fix the record, then choose Re-check.")
+            + (info["message"] or f"the CNAME record for {host} isn't visible").rstrip(".") + ". Fix the record, then choose Check now.")
         await _set(db, site["_id"], host, {**base, "status": FAILED, "stage": None, "message": message[:400],
                                            "next_check_at": None, "failed_at": t})
         if not info["blocked"]:
