@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { ICONS, Icon, IconButton, RowMenu, Skeleton, cx, type MenuItem } from "@/components/ui";
 import type { NavGroup, PageSummary } from "@/lib/docsSites";
 import { firstName } from "../format";
@@ -28,6 +29,16 @@ export function groupsOf(nav: NavGroup[], pages: PageSummary[]): TreeGroup[] {
 
 const iconName = (icon: string | null | undefined) => (icon && icon in ICONS ? icon : "doc");
 
+/** Scrolls the tree's own scroll box (the side panel, the drawer) so `el` shows; never the page. */
+function revealIn(el: HTMLElement) {
+  let box = el.parentElement;
+  while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement;
+  if (!box || box === document.scrollingElement || box === document.body) return;
+  const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+  if (r.top < b.top + 8) box.scrollTop -= b.top + 8 - r.top + b.height / 3;
+  else if (r.bottom > b.bottom - 8) box.scrollTop += r.bottom - b.bottom + 8 + b.height / 3;
+}
+
 /**
  * The editor's page tree (Editor board, left): groups and pages in nav order; a lock and the
  * editor's first name on a page someone else is editing; a dot on pages with unpublished changes.
@@ -49,8 +60,15 @@ export function PageTree({
   loading?: boolean;
 }) {
   const visible = groups?.filter((g) => !g.hidden) ?? [];
+  // The open page in a long tree (a deep link, the drawer opening): bring it into view.
+  const navRef = useRef<HTMLElement>(null);
+  const loaded = !!groups;
+  useEffect(() => {
+    const el = navRef.current?.querySelector<HTMLElement>('a[aria-current="page"]');
+    if (el) revealIn(el);
+  }, [currentId, loaded]);
   return (
-    <nav aria-label="Pages" className="flex flex-col gap-0.5">
+    <nav ref={navRef} aria-label="Pages" className="flex flex-col gap-0.5">
       <div className="flex items-center gap-2 px-1.5 pb-2.5">
         <strong className="flex-1 text-[13px] text-text">Pages</strong>
         {canEdit && <IconButton icon="plus" label="New page" size="sm" onClick={onNewPage} />}
