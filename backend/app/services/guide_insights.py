@@ -465,9 +465,26 @@ async def traffic(db: AsyncIOMotorDatabase, site: str, days: list[str]) -> dict:
 
 
 async def totals(db: AsyncIOMotorDatabase, site: str, days: list[str]) -> dict:
-    """Just the headline numbers of a window (the previous period, for the change arrows)."""
+    """Just the headline numbers of a window (the previous period, for the change arrows): views,
+    visitors, searches, Ask AI answered / unanswered, and "Did this page help?" votes."""
+    from app.services import ai_usage, docs_agent
+
     t = await traffic(db, site, days)
-    return {"views": t["views"], "visitors": t["visitors"], "searches": t["searches"]}
+    out = {"views": t["views"], "visitors": t["visitors"], "searches": t["searches"],
+           "ask_answered": 0, "ask_unanswered": 0, "votes": 0, "helpful_pct": None}
+    if not days:
+        return out
+    window = {"$gte": _day_start(days[0]), "$lt": _day_start(days[-1]) + timedelta(days=1)}
+    async for r in db[ai_usage.REQUESTS].aggregate([
+        {"$match": {"feature": docs_agent.FEATURE, "site": site, "ts": window, "insights": True,
+                    "outcome": {"$in": ["answered", "no_answer"]}}},
+        {"$group": {"_id": "$outcome", "n": {"$sum": 1}}},
+    ]):
+        out["ask_answered" if r["_id"] == "answered" else "ask_unanswered"] = int(r["n"])
+    yes = await db[FEEDBACK].count_documents({"site": site, "ts": window, "helpful": True})
+    no = await db[FEEDBACK].count_documents({"site": site, "ts": window, "helpful": False})
+    out.update(votes=yes + no, helpful_pct=_pct(yes, no))
+    return out
 
 
 def _question_key(q: str) -> str:
@@ -530,17 +547,73 @@ async def feedback_summary(db: AsyncIOMotorDatabase, site: str, since: datetime,
                     "no": {"$sum": {"$cond": ["$helpful", 0, 1]}}}},
         {"$sort": {"no": -1, "yes": -1, "_id": 1}}, {"$limit": 10},
     ]).to_list(10)
-    listed = {**q, "$or": [{"comment": {"$ne": None}}, {"helpful": False}]}
+    # What's listed to work through: comments, and "not helpful" votes.
+    worth = [{"comment": {"$ne": None}}, {"helpful": False}]
+    listed = {**q, "$or": worth}
     if status in ("open", "resolved"):
         listed["resolved"] = status == "resolved"
-    open_n = await db[FEEDBACK].count_documents({**q, "resolved": False, "$or": listed["$or"]})
+    open_n = await db[FEEDBACK].count_documents({**q, "resolved": False, "$or": worth})
+    resolved_n = await db[FEEDBACK].count_documents({**q, "resolved": True, "$or": worth})
     items = await db[FEEDBACK].find(listed).sort("ts", -1).limit(limit).to_list(limit)
     return {
-        "yes": yes, "no": no, "helpful_pct": round(100 * yes / (yes + no)) if yes + no else None,
+        "yes": yes, "no": no, "helpful_pct": _pct(yes, no),
         "open": open_n,
+        "resolved": resolved_n,
         "pages": [{"path": r["_id"], "yes": r["yes"], "no": r["no"]} for r in by_page if r["_id"]],
         "items": [feedback_view(r) for r in items],
     }
+
+
+async def feedback_by_page(db: AsyncIOMotorDatabase, site: str, since: datetime,
+                           paths: list[str]) -> dict[str, tuple[int, int]]:
+    """path → (yes, no) "Did this page help?" votes since ``since``, for ``paths``."""
+    if not paths:
+        return {}
+    out: dict[str, tuple[int, int]] = {}
+    async for r in db[FEEDBACK].aggregate([
+        {"$match": {"site": site, "ts": {"$gte": since}, "path": {"$in": paths}}},
+        {"$group": {"_id": "$path", "yes": {"$sum": {"$cond": ["$helpful", 1, 0]}},
+                    "no": {"$sum": {"$cond": ["$helpful", 0, 1]}}}},
+    ]):
+        out[r["_id"]] = (int(r["yes"]), int(r["no"]))
+    return out
+
+
+MISSING_TOP = 20
+
+
+def couldnt_find(empty_searches: list[dict], unanswered: list[dict], limit: int = MISSING_TOP) -> list[dict]:
+    """What readers looked for and didn't get: searches with no results and Ask AI questions it
+    couldn't answer, in one list with the same words merged (a search for "sso" and the question
+    "SSO?" are one row), the most frequent first.
+
+    Each row: ``q`` (the reader's question when Ask AI was asked, else the search), ``kind``
+    (search | ask | both), ``searches`` (with no results), ``unanswered`` (by Ask AI), ``n`` (the
+    two added up), and ``last`` / ``page`` from the question when there is one."""
+    acc: dict[str, dict] = {}
+    for s in empty_searches or []:
+        key = _question_key(s.get("q") or "")
+        if not key or not s.get("n"):
+            continue
+        a = acc.setdefault(key, {"q": s["q"], "searches": 0, "unanswered": 0, "last": None, "page": None})
+        a["searches"] += int(s["n"])
+    for g in unanswered or []:
+        key = _question_key(g.get("q") or "")
+        if not key or not g.get("unanswered"):
+            continue
+        a = acc.get(key)
+        if a is None:
+            a = acc[key] = {"q": g["q"], "searches": 0, "unanswered": 0, "last": None, "page": None}
+        elif not a["unanswered"]:
+            a["q"] = g["q"]  # a reader's question reads better than a search
+        a["unanswered"] += int(g["unanswered"])
+        a["last"] = a["last"] or g.get("last")
+        a["page"] = a["page"] or g.get("page")
+    rows = []
+    for a in acc.values():
+        kind = "both" if a["searches"] and a["unanswered"] else "search" if a["searches"] else "ask"
+        rows.append({**a, "kind": kind, "n": a["searches"] + a["unanswered"]})
+    return sorted(rows, key=lambda r: (-r["n"], r["q"].lower()))[:limit]
 
 
 async def set_resolved(db: AsyncIOMotorDatabase, site: str, feedback_id: str, resolved: bool, user_id: str) -> dict | None:
@@ -568,13 +641,31 @@ async def page_titles(db: AsyncIOMotorDatabase, site_row: dict) -> dict[str, str
     return {p["path"]: (p.get("title") or "")[:200] for p in (snap or {}).get("pages") or [] if p.get("path")}
 
 
+async def draft_pages(db: AsyncIOMotorDatabase, site_row: dict) -> dict[str, tuple[str, str]]:
+    """path → (page id, title) of the guide's pages in the studio: what "Open page" opens, and a
+    title for a page that isn't in the live build (yet)."""
+    from app.services.docs_site_store import PAGES
+
+    out: dict[str, tuple[str, str]] = {}
+    async for p in db[PAGES].find({"site_id": site_row["_id"], "deleted_at": None},
+                                  {"path": 1, "title": 1}).limit(5000):
+        if p.get("path"):
+            out[p["path"]] = (str(p["_id"]), (p.get("title") or "")[:200])
+    return out
+
+
 async def first_seen(db: AsyncIOMotorDatabase, site: str) -> datetime | None:
+    """The first thing kept: the older of the first raw event and the first daily rollup (raw events
+    expire after 90 days, rollups after 13 months)."""
+    seen: list[datetime] = []
     r = await db[RAW].find_one({"site": site}, {"ts": 1}, sort=[("ts", 1)])
     if r:
         ts = r["ts"]
-        return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+        seen.append(ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc))
     d = await db[DAILY].find_one({"site": site}, {"day": 1}, sort=[("day", 1)])
-    return _day_start(d["day"]) if d else None
+    if d:
+        seen.append(_day_start(d["day"]))
+    return min(seen) if seen else None
 
 
 async def clear(db: AsyncIOMotorDatabase, site: str) -> dict:
@@ -599,8 +690,25 @@ async def overview(db: AsyncIOMotorDatabase, site_row: dict, range_key: str, *, 
     t = await traffic(db, site, days)
     prev = await totals(db, site, prev_days)
     titles = await page_titles(db, site_row)
+    drafts = await draft_pages(db, site_row)
+
+    def title_of(path: str | None) -> str | None:
+        return titles.get(path) or (drafts.get(path) or ("", ""))[1] or None
+
+    def page_id(path: str | None) -> str | None:
+        return (drafts.get(path) or (None, ""))[0]
+
+    votes = await feedback_by_page(db, site, since, [p["k"] for p in t["pages"]])
+    pages = []
     for p in t["pages"]:
-        p["title"] = titles.get(p["k"])
+        yes, no = votes.get(p["k"], (0, 0))
+        pages.append({"path": p["k"], "title": title_of(p["k"]), "page_id": page_id(p["k"]), "views": p["n"],
+                      "visitors": p.get("v", 0), "yes": yes, "no": no, "helpful_pct": _pct(yes, no)})
+    ask = await questions(db, site, since)
+    fb = await feedback_summary(db, site, since, status=status)
+    for i in fb["items"]:
+        i["title"] = title_of(i["path"])
+        i["page_id"] = page_id(i["path"])
     seen = await first_seen(db, site)
     return {
         "range": range_key if range_key in RANGES else "30d",
@@ -611,14 +719,14 @@ async def overview(db: AsyncIOMotorDatabase, site_row: dict, range_key: str, *, 
         "totals": {"views": t["views"], "visitors": t["visitors"], "searches": t["searches"],
                    "empty_searches": t["empty_searches"]},
         "previous": prev if seen and seen < since else None,
-        "pages": [{"path": p["k"], "title": p.get("title"), "views": p["n"], "visitors": p.get("v", 0)}
-                  for p in t["pages"]],
+        "pages": pages,
         "referrers": [{"host": r["k"], "views": r["n"]} for r in t["refs"]],
         "countries": [{"country": r["k"], "views": r["n"]} for r in t["countries"]],
         "devices": [{"device": r["k"], "views": r["n"]} for r in t["devices"] if r["k"] in DEVICES],
         "searches": {"top": t["queries"], "empty": t["empty"]},
-        "ask": await questions(db, site, since),
-        "feedback": await feedback_summary(db, site, since, status=status),
+        "ask": ask,
+        "missing": couldnt_find(t["empty"], ask["unanswered_top"]),
+        "feedback": fb,
     }
 
 

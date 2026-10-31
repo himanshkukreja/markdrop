@@ -24,6 +24,9 @@
  *   guide_unpublished / guide_deleted
  *   guide_domain_added / guide_domain_removed
  *   guide_domain_live             (seen going live on this screen; the server logs docs_domain_live too)
+ *   guide_insights_write_page     source: search|ask|both (Insights › "Write a page" for something readers couldn't find)
+ *   guide_feedback_resolved / guide_feedback_reopened
+ *   guide_insights_cleared        (an admin deleted the collected data)
  *
  * What finishes on the server (a build going live or failing, an import finishing or failing) is
  * recorded there, in docs_events, and shown in the admin's Product health tab.
@@ -62,6 +65,9 @@ export const guideEvents = {
   domainAdded: () => emit("guide_domain_added"),
   domainRemoved: () => emit("guide_domain_removed"),
   domainLive: () => emit("guide_domain_live"),
+  insightsWritePage: (source: "search" | "ask" | "both") => emit("guide_insights_write_page", { source }),
+  feedbackResolved: (resolved: boolean) => emit(resolved ? "guide_feedback_resolved" : "guide_feedback_reopened"),
+  insightsCleared: () => emit("guide_insights_cleared"),
   memberRole: (scope: "workspace" | "site", role: string | null) =>
     emit("guide_member_role_changed", { scope, role: role === null ? "inherit" : pick(role, ROLES) ?? "other" }),
 };

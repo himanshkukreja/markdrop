@@ -59,6 +59,19 @@ class PureTests(unittest.TestCase):
         self.assertEqual(gi.device_of(PHONE), "mobile")
         self.assertEqual(gi.device_of(DESKTOP), "desktop")
 
+    def test_couldnt_find_merges_and_ranks(self):
+        empty = [{"q": "cancel subscription", "n": 41}, {"q": "sso", "n": 3}, {"q": "zero", "n": 0}]
+        asked = [{"q": "SSO?", "n": 5, "unanswered": 4, "last": "2026-10-30T10:00:00Z", "page": "/auth"},
+                 {"q": "Do you ship to Sri Lanka?", "n": 7, "unanswered": 7, "last": None, "page": None},
+                 {"q": "answered after all", "n": 2, "unanswered": 0, "last": None, "page": None}]
+        rows = gi.couldnt_find(empty, asked)
+        self.assertEqual([(r["q"], r["kind"], r["n"]) for r in rows],
+                         [("cancel subscription", "search", 41), ("Do you ship to Sri Lanka?", "ask", 7),
+                          ("SSO?", "both", 7)])
+        self.assertEqual((rows[2]["searches"], rows[2]["unanswered"], rows[2]["page"]), (3, 4, "/auth"))
+        self.assertEqual(len(gi.couldnt_find([{"q": f"q{i:03d}", "n": 1} for i in range(40)], [])), gi.MISSING_TOP)
+        self.assertEqual(gi.couldnt_find([], []), [])
+
     def test_opt_out_signals(self):
         self.assertTrue(gi.opted_out("1", None))
         self.assertTrue(gi.opted_out(None, "1"))
@@ -376,7 +389,8 @@ class DashboardTests(InsightsCase):
         self.assertEqual((ov["can_manage"], ov["can_resolve"]), (False, False))
         self.assertEqual(len(ov["daily"]), 7)
         self.assertEqual(ov["totals"], {"views": 4, "visitors": 3, "searches": 3, "empty_searches": 2})
-        self.assertEqual(ov["pages"][0], {"path": "/start", "title": None, "views": 3, "visitors": 3})
+        self.assertEqual(ov["pages"][0], {"path": "/start", "title": None, "page_id": None, "views": 3, "visitors": 3,
+                                          "yes": 1, "no": 1, "helpful_pct": 50})
         self.assertEqual({r["host"] for r in ov["referrers"]}, {"google.com", "github.com"})
         self.assertEqual(ov["countries"], [{"country": "IN", "views": 4}])
         self.assertEqual({d["device"] for d in ov["devices"]}, {"desktop", "mobile"})
@@ -432,6 +446,61 @@ class DashboardTests(InsightsCase):
         self.assertEqual((ov["totals"]["views"], ov["since"], ov["previous"]), (0, None, None))
         self.assertEqual(len(ov["daily"]), 90)
         self.assertEqual(ov["feedback"]["helpful_pct"], None)
+        self.assertEqual((ov["missing"], ov["feedback"]["open"], ov["feedback"]["resolved"]), ([], 0, 0))
+
+    async def test_couldnt_find_pages_and_feedback_details(self):
+        """The redesigned tab's extras: one "couldn't find" list, per-page helpful %, the page each
+        feedback item is about (title and the studio page to open), and Open / Resolved counts."""
+        await self.seed()
+        # The same words searched (no results) and asked (no answer) are one row.
+        await self.event({"k": "search", "q": "Is there  SSO", "n": 0})
+        page = await self.call("POST", f"/{self.sid}/pages", json={"title": "Getting started", "path": "/start"},
+                               expect=201)
+        ov = await self.get(f"/{self.sid}/insights?range=7d", "viewer")
+        self.assertEqual([(m["q"], m["kind"], m["searches"], m["unanswered"], m["n"]) for m in ov["missing"]],
+                         [("Is there SSO?", "both", 1, 1, 2), ("webhooks", "search", 2, 0, 2)])
+        self.assertIsNotNone(ov["missing"][0]["last"])
+        start = next(p for p in ov["pages"] if p["path"] == "/start")
+        # Not in the live build yet: the studio's title, and the page to open.
+        self.assertEqual((start["title"], start["page_id"], start["helpful_pct"]), ("Getting started", page["id"], 50))
+        home = next(p for p in ov["pages"] if p["path"] == "/")
+        self.assertEqual((home["yes"], home["no"], home["helpful_pct"]), (0, 0, None))
+        self.assertIsNotNone(home["page_id"])
+        item = ov["feedback"]["items"][0]
+        self.assertEqual((item["title"], item["page_id"], item["source"]), ("Getting started", page["id"], "page"))
+        self.assertEqual((ov["feedback"]["open"], ov["feedback"]["resolved"]), (1, 0))
+        await self.call("PATCH", f"/{self.sid}/insights/feedback/{item['id']}", "editor", json={"resolved": True})
+        ov = await self.get(f"/{self.sid}/insights?range=7d&feedback=resolved", "viewer")
+        self.assertEqual((ov["feedback"]["open"], ov["feedback"]["resolved"]), (0, 1))
+        self.assertEqual(ov["feedback"]["items"][0]["page_id"], page["id"])
+
+    async def test_previous_period(self):
+        """The week before a 7-day range: views and visitors, Ask AI answers, helpful votes."""
+        await self.seed()
+        before = datetime.now(timezone.utc).replace(hour=12) - timedelta(days=9)
+        with mock.patch.object(gi, "now", lambda: before):
+            await self.hit({"path": "/start"})
+            await self.hit({"path": "/", "ua": PHONE})
+            await self.http.post(f"{INS}/{self.sid}/feedback", json={"path": "/start", "helpful": True},
+                                 headers={"Origin": self.origin})
+        await self.db[ai_usage.REQUESTS].insert_many([
+            {"feature": docs_agent.FEATURE, "request_id": f"p{i:031x}", "site": self.sid, "ts": before,
+             "outcome": outcome, "question": "old", "insights": True}
+            for i, outcome in enumerate(("answered", "answered", "no_answer", "limit"))])
+        ov = await self.get(f"/{self.sid}/insights?range=7d")
+        self.assertEqual(ov["previous"], {"views": 2, "visitors": 2, "searches": 0, "ask_answered": 2,
+                                          "ask_unanswered": 1, "votes": 1, "helpful_pct": 100})
+        # A rollup older than every raw event (raw events expire first) still counts as collecting.
+        await self.db[gi.RAW].delete_many({"site": self.sid, "day": {"$lt": gi.day_key(before + timedelta(days=1))}})
+        old = gi.day_key(before)
+        await self.db[gi.DAILY].replace_one({"_id": f"{self.sid}:{old}"}, {
+            "_id": f"{self.sid}:{old}", "site": self.sid, "day": old, "views": 5, "visitors": 3, "searches": 0,
+            "empty_searches": 0, "pages": [], "refs": [], "countries": [], "devices": [], "queries": []}, upsert=True)
+        ov = await self.get(f"/{self.sid}/insights?range=7d")
+        self.assertEqual(ov["since"][:10], old)
+        self.assertEqual((ov["previous"]["views"], ov["previous"]["visitors"]), (5, 3))
+        # The current week isn't counted twice.
+        self.assertEqual((ov["totals"]["views"], ov["ask"]["answered"], ov["feedback"]["yes"]), (4, 2, 1))
 
 
 class HomeSummaryTests(DashboardTests):

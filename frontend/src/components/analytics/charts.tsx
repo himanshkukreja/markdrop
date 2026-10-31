@@ -194,6 +194,87 @@ export function DailyViewsChart({ daily, marks, height = 180 }: {
   );
 }
 
+/* ── Readers per day (a line, Guides › Insights) ──────────────────────── */
+
+/**
+ * One line: readers (unique visitors) per day, on one y-axis with three gridlines. Hover or the
+ * arrow keys put a crosshair on a day, with its readers and page views in the tooltip.
+ */
+export function ReadersLineChart({ daily, height = 200 }: {
+  daily: { date: string; readers: number; views: number }[];
+  height?: number;
+}) {
+  const [ref, W] = useWidth<HTMLDivElement>();
+  const n = daily.length;
+  const scrub = useScrub(n);
+  const titleId = useId();
+  const PADT = 10, PADB = 6, PADL = 36, PADR = 6;
+  const plotH = height - PADT - PADB;
+  const plotW = Math.max(0, W - PADL - PADR);
+  const peak = daily.reduce((b, d, i) => (d.readers > daily[b]!.readers ? i : b), 0);
+  const max = niceMax(Math.max(1, daily[peak]?.readers ?? 0));
+  const x = (i: number) => PADL + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
+  const y = (v: number) => PADT + plotH - (v / max) * plotH;
+  const line = daily.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(d.readers).toFixed(1)}`).join(" ");
+  const total = daily.reduce((a, d) => a + d.readers, 0);
+  const summary = n
+    ? `Readers per day: ${num(total)} in all, the most on ${day(daily[peak]!.date)} with ${num(daily[peak]!.readers)}.`
+    : "No readers in this period.";
+  const h = scrub.i;
+  const ticks = [0, max / 2, max];
+
+  function onMove(e: React.PointerEvent<SVGSVGElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (!n || !plotW) return;
+    const t = n > 1 ? (e.clientX - r.left - PADL) / (plotW / (n - 1)) : 0;
+    scrub.setI(Math.max(0, Math.min(n - 1, Math.round(t))));
+  }
+
+  return (
+    <figure className="m-0 flex flex-col gap-1.5">
+      <div ref={ref} className="relative" style={{ height }}>
+        {W > 0 && (
+          <svg
+            width={W} height={height} viewBox={`0 0 ${W} ${height}`} role="img" aria-labelledby={titleId} tabIndex={0}
+            className={svgFocus} onPointerMove={onMove} onPointerLeave={scrub.clear} onBlur={scrub.clear} onKeyDown={scrub.onKeyDown}
+          >
+            <title id={titleId}>{summary} Use the arrow keys to read each day.</title>
+            {ticks.map((v) => (
+              <g key={v} aria-hidden>
+                <line x1={PADL} x2={W - PADR} y1={y(v)} y2={y(v)} stroke={GRID} strokeDasharray={v ? "2 4" : undefined} />
+                <text x={PADL - 8} y={y(v) + 4} textAnchor="end" fontSize={11} fill={AXIS} className="tabular-nums">{num(v)}</text>
+              </g>
+            ))}
+            {n > 0 && <path d={line} fill="none" stroke={SERIES} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
+            {h != null && (
+              <g aria-hidden>
+                <line x1={x(h)} x2={x(h)} y1={PADT} y2={y(0)} stroke={CROSS} />
+                <circle cx={x(h)} cy={y(daily[h]!.readers)} r={4.5} fill={SERIES} stroke="var(--surface)" strokeWidth={2} />
+              </g>
+            )}
+          </svg>
+        )}
+        {h != null && W > 0 && (
+          <Tip x={x(h)} width={W}>
+            <span className="block text-text-muted">{longDay(daily[h]!.date)}</span>
+            <strong className="block text-body-strong">{num(daily[h]!.readers)} {daily[h]!.readers === 1 ? "reader" : "readers"}</strong>
+            <span className="block text-text-secondary">{num(daily[h]!.views)} page {daily[h]!.views === 1 ? "view" : "views"}</span>
+          </Tip>
+        )}
+        <Live text={h != null ? `${longDay(daily[h]!.date)}: ${num(daily[h]!.readers)} readers, ${num(daily[h]!.views)} page views` : ""} />
+      </div>
+      {n > 0 && (
+        <div className="flex justify-between text-micro text-text-muted" style={{ paddingLeft: PADL, paddingRight: PADR }} aria-hidden>
+          <span>{day(daily[0]!.date)}</span>
+          {n > 2 && <span>{day(daily[Math.floor((n - 1) / 2)]!.date)}</span>}
+          {n > 1 && <span>{day(daily[n - 1]!.date)}</span>}
+        </div>
+      )}
+      <HiddenTable caption="Readers per day" head={["Day", "Readers", "Page views"]} rows={daily.map((d) => [longDay(d.date), d.readers, d.views])} />
+    </figure>
+  );
+}
+
 /* ── Retention ────────────────────────────────────────────────────────── */
 
 export interface RetentionMark { t: number; label: string }

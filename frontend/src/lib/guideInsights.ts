@@ -4,6 +4,7 @@
  */
 import { API_BASE } from "@/lib/api";
 import { DocsApiError } from "@/lib/docsSites";
+import { after, guideEvents } from "@/lib/guidesEvents";
 
 const TOKEN_KEY = "markdrop_token";
 const BASE = "/api/v1/docs-sites";
@@ -19,8 +20,41 @@ export const isInsightsRange = (v: string | null | undefined): v is InsightsRang
 export type FeedbackFilter = "open" | "resolved" | "all";
 
 export interface InsightsDay { date: string; views: number; visitors: number; searches: number }
-export interface FeedbackItem { id: string; path: string; helpful: boolean; comment: string | null; source: "page" | "mcp"; ts: string; resolved: boolean }
+export interface FeedbackItem {
+  id: string; path: string; helpful: boolean; comment: string | null; source: "page" | "mcp"; ts: string; resolved: boolean;
+  /** On GET …/insights: the page's title (the live build's, else the studio's) and the studio page to open. */
+  title?: string | null;
+  page_id?: string | null;
+}
 export interface AskQuestion { q: string; n: number; unanswered: number; last: string | null; page: string | null }
+
+/** One thing readers looked for and didn't get: searches with no results and Ask AI questions it
+ * couldn't answer, the same words merged into one row. */
+export interface MissingItem {
+  /** The reader's question when Ask AI was asked, else the search. */
+  q: string;
+  kind: "search" | "ask" | "both";
+  /** Searches with no results. */
+  searches: number;
+  /** Times Ask AI couldn't answer it. */
+  unanswered: number;
+  n: number;
+  last: string | null;
+  page: string | null;
+}
+
+export interface InsightsPage {
+  path: string;
+  title: string | null;
+  /** The studio page at this address (null: there is none now). */
+  page_id: string | null;
+  views: number;
+  visitors: number;
+  /** "Did this page help?" votes in the period. */
+  yes: number;
+  no: number;
+  helpful_pct: number | null;
+}
 
 export interface Insights {
   range: InsightsRange;
@@ -32,9 +66,12 @@ export interface Insights {
   since: string | null;
   daily: InsightsDay[];
   totals: { views: number; visitors: number; searches: number; empty_searches: number };
-  /** The window before, when there was data then. */
-  previous: { views: number; visitors: number; searches: number } | null;
-  pages: { path: string; title: string | null; views: number; visitors: number }[];
+  /** The window before, when Insights was already collecting then. */
+  previous: {
+    views: number; visitors: number; searches: number;
+    ask_answered: number; ask_unanswered: number; votes: number; helpful_pct: number | null;
+  } | null;
+  pages: InsightsPage[];
   referrers: { host: string; views: number }[];
   countries: { country: string; views: number }[];
   devices: { device: "desktop" | "mobile" | "tablet"; views: number }[];
@@ -43,8 +80,12 @@ export interface Insights {
     asked: number; answered: number; unanswered: number; helpful: number; not_helpful: number;
     top: AskQuestion[]; unanswered_top: AskQuestion[]; capped: boolean;
   };
+  /** Searches with no results and unanswered Ask AI questions, merged, the most frequent first. */
+  missing: MissingItem[];
   feedback: {
-    yes: number; no: number; helpful_pct: number | null; open: number;
+    yes: number; no: number; helpful_pct: number | null;
+    /** Comments and "not helpful" votes still open, and resolved, in the period. */
+    open: number; resolved: number;
     pages: { path: string; yes: number; no: number }[];
     items: FeedbackItem[];
   };
@@ -82,10 +123,12 @@ export function getInsights(siteId: string, range: InsightsRange, feedback: Feed
 
 /** Editors and up. */
 export function resolveFeedback(siteId: string, id: string, resolved: boolean): Promise<FeedbackItem> {
-  return call<FeedbackItem>(`/${enc(siteId)}/insights/feedback/${enc(id)}`, { method: "PATCH", json: { resolved } });
+  return call<FeedbackItem>(`/${enc(siteId)}/insights/feedback/${enc(id)}`, { method: "PATCH", json: { resolved } })
+    .then(after(() => guideEvents.feedbackResolved(resolved)));
 }
 
 /** Admins: delete everything Insights holds for the guide. */
 export function clearInsights(siteId: string): Promise<{ cleared: { events: number; days: number; feedback: number } }> {
-  return call(`/${enc(siteId)}/insights`, { method: "DELETE" });
+  return call<{ cleared: { events: number; days: number; feedback: number } }>(`/${enc(siteId)}/insights`, { method: "DELETE" })
+    .then(after(() => guideEvents.insightsCleared()));
 }

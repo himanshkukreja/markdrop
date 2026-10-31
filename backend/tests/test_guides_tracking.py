@@ -52,6 +52,9 @@ class GuidesShapes(unittest.TestCase):
         self.assertEqual(d["label"], "Guides: turned Ask AI on")
         d = journeys.describe("guide_publish_requested", {"note": False}, None, page)
         self.assertEqual((d["kind"], d["detail"]), ("publish", "Guides · editor"))
+        d = journeys.describe("guide_insights_write_page", {"source": "ask"}, None, page)
+        self.assertEqual((d["label"], d["detail"]), ("Guides: started a page readers couldn't find",
+                                                     "an unanswered Ask AI question"))
         d = journeys.describe("guide_something_new", {}, None, page)
         self.assertTrue(d["label"].startswith("Guides: "))
         for p in ("template", "preset", "mode", "brand", "css", "enabled", "role", "scope", "note"):
