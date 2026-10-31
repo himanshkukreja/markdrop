@@ -5,6 +5,7 @@
  * modes with the same maths as the tenant chrome (components/tenant/branding).
  */
 import { contrast, parseHex } from "@/components/tenant/branding";
+import { CORNERS, PRESETS as ENGINE } from "@/docs/theme.mjs";
 import { FONTS, type Corners, type SiteTheme, type ThemePreset } from "@/lib/docsSites";
 
 export interface Palette { bg: string; header: string; card: string; text: string; muted: string; line: string; code: string; codeText: string }
@@ -23,6 +24,27 @@ export interface PresetLook {
   accentDark: string;
   light: Palette;
   dark: Palette;
+  /** Thumbnails show the dark palette (a dark-first theme). */
+  darkFirst?: boolean;
+  /** The home is the help center's card grid (thumbnails draw the home: no sidebar). */
+  homeCards?: boolean;
+  /** The title on the Design panel's mini preview. */
+  headline?: string;
+}
+
+const family = (id: string) => FONTS.find((f) => f.id === id)?.family ?? "var(--font-sans)";
+
+/** A look drawn from the engine's own preset (theme.mjs: palettes, fonts, corners), so the two can't drift. */
+function engineLook(id: ThemePreset, look: Pick<PresetLook, "logoR"> & Partial<PresetLook>): PresetLook {
+  const p = ENGINE[id];
+  const pal = p.palette!;
+  const radius = typeof p.corners === "string" ? CORNERS[p.corners] : p.corners;
+  return {
+    head: family(p.fonts.heading), body: family(p.fonts.body), headW: p.headingWeight, r: `${radius.lg}px`,
+    sidebar: true, hero: false, measure: "760px", center: false,
+    accent: pal.accent, accentDark: pal.accentDark ?? pal.accent, light: pal.light, dark: pal.dark,
+    ...look,
+  };
 }
 
 export const LOOKS: Record<ThemePreset, PresetLook> = {
@@ -31,12 +53,20 @@ export const LOOKS: Record<ThemePreset, PresetLook> = {
   technical: { head: '"IBM Plex Sans", var(--font-sans)', body: '"IBM Plex Sans", var(--font-sans)', headW: 600, r: "3px", logoR: "3px", sidebar: true, hero: false, measure: "820px", center: false, accent: "#0369a1", accentDark: "#38bdf8", light: { bg: "#ffffff", header: "#ffffff", card: "#fafbfc", text: "#0b1220", muted: "#4b5565", line: "#e5e7eb", code: "#0b1220", codeText: "#e5f2ff" }, dark: { bg: "#0a0f17", header: "#0a0f17", card: "#0f1622", text: "#e6edf7", muted: "#93a1b5", line: "#1e2a3b", code: "#05080d", codeText: "#bfe6ff" } },
   minimal: { head: "Geist, var(--font-sans)", body: "Geist, var(--font-sans)", headW: 600, r: "10px", logoR: "50%", sidebar: false, hero: false, measure: "680px", center: true, accent: "#111827", accentDark: "#f4f4f5", light: { bg: "#ffffff", header: "#ffffff", card: "#ffffff", text: "#111827", muted: "#6b7280", line: "#eeeeee", code: "#f6f6f6", codeText: "#111827" }, dark: { bg: "#0b0b0c", header: "#0b0b0c", card: "#111113", text: "#f4f4f5", muted: "#a1a1aa", line: "#232326", code: "#141416", codeText: "#f4f4f5" } },
   playful: { head: "Nunito, var(--font-sans)", body: "Nunito, var(--font-sans)", headW: 800, r: "16px", logoR: "50%", sidebar: true, hero: false, measure: "760px", center: false, accent: "#7c3aed", accentDark: "#c4b5fd", light: { bg: "#faf7ff", header: "#ffffff", card: "#ffffff", text: "#24163f", muted: "#6c5b8c", line: "#ece4fb", code: "#f3edff", codeText: "#24163f" }, dark: { bg: "#140e22", header: "#1a1230", card: "#1e1535", text: "#efe7ff", muted: "#b6a5d8", line: "#33275a", code: "#0e0919", codeText: "#efe7ff" } },
-  helpcenter: { head: '"DM Sans", var(--font-sans)', body: '"DM Sans", var(--font-sans)', headW: 700, r: "12px", logoR: "8px", sidebar: false, hero: true, measure: "760px", center: true, accent: "#c2410c", accentDark: "#fdba74", light: { bg: "#ffffff", header: "#ffffff", card: "#ffffff", text: "#1c1917", muted: "#6b625c", line: "#ebe5df", code: "#f6f2ee", codeText: "#1c1917" }, dark: { bg: "#121010", header: "#121010", card: "#1a1716", text: "#f5f0eb", muted: "#ada39b", line: "#2e2826", code: "#0c0a0a", codeText: "#f5f0eb" } },
+  helpcenter: { head: '"DM Sans", var(--font-sans)', body: '"DM Sans", var(--font-sans)', headW: 700, r: "12px", logoR: "8px", sidebar: false, hero: true, measure: "760px", center: true, accent: "#c2410c", accentDark: "#fdba74", light: { bg: "#ffffff", header: "#ffffff", card: "#ffffff", text: "#1c1917", muted: "#6b625c", line: "#ebe5df", code: "#f6f2ee", codeText: "#1c1917" }, dark: { bg: "#121010", header: "#121010", card: "#1a1716", text: "#f5f0eb", muted: "#ada39b", line: "#2e2826", code: "#0c0a0a", codeText: "#f5f0eb" }, headline: "How can we help?" },
+  midnight: engineLook("midnight", { logoR: "7px", darkFirst: true }),
+  paper: engineLook("paper", { logoR: "50%" }),
+  terminal: engineLook("terminal", { logoR: "3px", darkFirst: true, headline: "$ get started" }),
+  corporate: engineLook("corporate", { logoR: "2px" }),
+  studio: engineLook("studio", { logoR: "12px", headline: "Ship faster" }),
+  academic: engineLook("academic", { logoR: "3px", headline: "1. Introduction" }),
+  atlas: engineLook("atlas", { logoR: "8px", homeCards: true, headline: "Browse topics" }),
+  pastel: engineLook("pastel", { logoR: "50%" }),
 };
 
 /** The Google Fonts the preview needs (presets + the font picker), loaded once by the Design panel. */
 export const PREVIEW_FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@400;700;800&family=DM+Sans:wght@400;600;700&family=Geist:wght@400;600&family=Inter:wght@400;600;700&family=Lora:wght@500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap";
+  "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@400;700;800&family=DM+Sans:wght@400;600;700;800&family=Geist:wght@400;600;700&family=Inter:wght@400;600;700&family=Lora:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap";
 
 const CORNER_R: Record<Corners, string> = { sharp: "3px", soft: "8px", round: "16px" };
 
@@ -134,17 +164,44 @@ export function contrastChecks(theme: ThemeInput): Array<{ label: string; ratio:
 /** Thumbnail colours for a site card (light palette of the preset, brand accent when set). */
 export function thumbColours(preset: ThemePreset | undefined, accent?: string | null) {
   const look = LOOKS[preset ?? "clean"] ?? LOOKS.clean;
-  const p = preset === "technical" ? look.dark : look.light;
-  const a = parseHex(accent) ? accent! : preset === "technical" ? look.accentDark : look.accent;
+  const dark = preset === "technical" || !!look.darkFirst;
+  const p = dark ? look.dark : look.light;
+  const a = parseHex(accent) ? accent! : dark ? look.accentDark : look.accent;
   const A = parseHex(a)!;
   return {
-    ground: preset === "technical" ? p.bg : toHex(mix(parseHex(p.bg)!, parseHex(p.line)!, 0.6)),
+    ground: dark ? p.bg : toHex(mix(parseHex(p.bg)!, parseHex(p.line)!, 0.6)),
     card: p.card,
     ink: p.text,
     line: p.line,
     accent: a,
-    callout: toHex(mix(parseHex(p.card)!, A, preset === "technical" ? 0.25 : 0.16)),
-    sidebar: look.sidebar,
+    callout: toHex(mix(parseHex(p.card)!, A, dark ? 0.25 : 0.16)),
+    sidebar: look.sidebar && !look.homeCards,
+  };
+}
+
+/**
+ * The Design panel's mini preview of a preset (Themes board, "Choose a look"): a page in its own
+ * palette (dark for the dark-first themes), its heading face, corners and accent; the brand accent,
+ * contrast-safe, when Match my brand is on.
+ */
+export function miniLook(preset: ThemePreset, brand: SiteTheme["brand"] | undefined) {
+  const look = LOOKS[preset] ?? LOOKS.clean;
+  const dark = preset === "technical" || !!look.darkFirst;
+  const t = previewTokens({ preset, brand: brand ?? { enabled: false, colors: [] }, fonts: {}, corners: null }, dark);
+  const bg = parseHex(t.bg)!;
+  return {
+    ground: toHex(dark ? mix(bg, BLACK, 0.35) : mix(bg, parseHex(t.accent)!, 0.08)),
+    page: t.card,
+    bar: t.header,
+    edge: t.line,
+    ink: t.text,
+    accent: t.accent,
+    tint: toHex(mix(parseHex(t.card)!, parseHex(t.accent)!, dark ? 0.2 : 0.12)),
+    r: `min(${t.r}, 10px)`,
+    font: t.head,
+    weight: t.headW,
+    headline: look.headline ?? "Get started",
+    sidebar: look.sidebar && !look.homeCards,
   };
 }
 
