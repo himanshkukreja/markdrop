@@ -174,6 +174,20 @@ export default function EditorPage() {
     previewAsked.current = true;
     setPreview(true);
   }, [wantsPreview, fields]);
+  // ?new=<title> (Insights › "Write a page"): open New page with the title filled in, once the
+  // page tree is here (for its groups), then take it out of the address.
+  const [newTitle, setNewTitle] = useState("");
+  const askedNew = new URLSearchParams(search).get("new");
+  useEffect(() => {
+    if (askedNew == null || !tree) return;
+    if (canEdit) {
+      setNewTitle(askedNew.slice(0, 120));
+      setNewOpen(true);
+    }
+    const p = new URLSearchParams(window.location.search);
+    p.delete("new");
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${p.size ? `?${p}` : ""}`);
+  }, [askedNew, tree, canEdit]);
   const summary = tree?.pages.find((p) => p.id === pageId) ?? null;
   const group = groups?.find((g) => g.pages.some((p) => p.id === pageId));
 
@@ -397,7 +411,8 @@ export default function EditorPage() {
 
       <NewPageDialog
         open={newOpen}
-        onClose={() => setNewOpen(false)}
+        onClose={() => { setNewOpen(false); setNewTitle(""); }}
+        initialTitle={newTitle}
         groups={tree?.nav.map((g) => g.group) ?? []}
         currentGroup={group && !group.hidden ? group.group : undefined}
         afterId={group && !group.hidden ? pageId : null}
@@ -406,6 +421,7 @@ export default function EditorPage() {
           await loadTree();
           open(p.id);
           setNewOpen(false);
+          setNewTitle("");
           toast.success(<><span className="ph-sensitive ph-mask">{p.title}</span> added as a draft.</>);
         }}
       />
@@ -458,9 +474,11 @@ function ConflictDialog({ conflict, mine, onResolve }: { conflict: SaveConflict 
   );
 }
 
-function NewPageDialog({ open, onClose, groups, currentGroup, afterId, onCreate }: {
+function NewPageDialog({ open, onClose, initialTitle = "", groups, currentGroup, afterId, onCreate }: {
   open: boolean;
   onClose: () => void;
+  /** A title to start from (Insights › "Write a page"). */
+  initialTitle?: string;
   groups: string[];
   currentGroup?: string;
   afterId: string | null;
@@ -475,14 +493,16 @@ function NewPageDialog({ open, onClose, groups, currentGroup, afterId, onCreate 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const autoPath = (t: string, g: string) => suggestedPath(slugFrom(t), g ? slugFrom(g) : "");
   useEffect(() => {
     if (!open) return;
-    setTitle(""); setPath(""); pathEdited.current = false; setNewGroup(""); setError(""); setBusy(false);
-    setGroup(currentGroup ?? groups[0] ?? "__new");
+    const g = currentGroup ?? groups[0] ?? "__new";
+    setTitle(initialTitle); setPath(initialTitle ? autoPath(initialTitle, g === "__new" ? "" : g) : "");
+    pathEdited.current = false; setNewGroup(""); setError(""); setBusy(false);
+    setGroup(g);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const groupName = group === "__new" ? newGroup.trim() : group;
-  const autoPath = (t: string, g: string) => suggestedPath(slugFrom(t), g ? slugFrom(g) : "");
   const bad = path && path !== "/" ? pathProblem(path) : "";
 
   return (
