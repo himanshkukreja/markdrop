@@ -94,6 +94,11 @@ class DocsJobsSettings(BaseSettings):
     # the owner creates once (docs-platform/README.md "Own domains"). Blank token or zone id: off.
     docs_cf_zone_id: str = ""
     docs_custom_domain_target: str = "cname.guides.markdrop.in"
+    # One-click DNS (services/domain_connect.py): the PEM private key that signs Domain Connect apply
+    # links (secret: never logged; blank: the one-click button is hidden), and the TXT record under
+    # markdrop.in that holds its public key (docs-platform/domain-connect/README.md).
+    docs_domain_connect_key: str = ""
+    docs_domain_connect_key_host: str = "_dcpubkeyv1"
     # The docs bucket's keys are the app's (config.py docs_r2_*: MARKDROP_DOCS_R2_* or CF_ACCOUNT_ID /
     # R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY + MARKDROP_DOCS_R2_BUCKET).
 

@@ -227,12 +227,7 @@ async def dns_provider_hint(
     zone = dns_provider_service.zone_of(domain.host)
 
     def relative(name: str) -> str:
-        name = name.rstrip(".")
-        if not provider.wants_relative:
-            return name
-        if name == zone:
-            return "@"
-        return name[: -(len(zone) + 1)] if name.endswith("." + zone) else name
+        return dns_provider_service.relative_name(name, zone, provider)
 
     return DnsProviderHint(
         detected=True,
@@ -240,6 +235,8 @@ async def dns_provider_hint(
         provider_name=provider.name,
         panel_url=provider.url.replace("{domain}", zone),
         host_field=provider.host_field,
+        value_field=provider.value_field,
+        extras=[{"label": k, "value": v} for k, v in provider.extras],
         record_host=relative(response.dns_record_name),
         target_host=relative(response.dns_target_name),
         note=provider.note or None,

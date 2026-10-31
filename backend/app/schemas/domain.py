@@ -78,6 +78,10 @@ class DnsProviderHint(BaseModel):
     provider_name: str | None = None
     panel_url: str | None = None
     host_field: str | None = None
+    # What the panel calls the value field ("Target" at Cloudflare), and the other fields its
+    # form asks for with what to choose ([{label: "Proxy status", value: "DNS only (grey cloud)"}]).
+    value_field: str | None = None
+    extras: list[dict[str, str]] = []
     # The two record names as this provider wants them typed -- relative to the
     # zone where that's what the panel expects, which is the single most common
     # way a correct value still ends up in the wrong place.

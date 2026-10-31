@@ -586,10 +586,12 @@ async def _check(db: AsyncIOMotorDatabase, site: dict, d: dict, *, force: bool) 
         from app.services import docs_jobs
 
         await docs_jobs.log_event(db, "docs_domain_failed", site["_id"], None, blocked=bool(info["blocked"]))
+        await notify(db, site["_id"], host, FAILED)
         return FAILED
     await _set(db, site["_id"], host, {**base, "status": PENDING, "stage": info["stage"], "message": info["message"],
                                        "pending_since": since, "checks": checks,
-                                       "next_check_at": t + next_wait(checks)}, unset=("failed_at",))
+                                       "next_check_at": t + next_wait(checks)},
+               unset=("failed_at", "emailed") if restart else ("failed_at",))
     return PENDING
 
 
@@ -604,6 +606,7 @@ async def _go_live(db: AsyncIOMotorDatabase, site: dict, d: dict, base: dict) ->
 
     await docs_jobs.log_event(db, "docs_domain_live", site["_id"], d.get("added_by"))
     await republish(db, site["_id"], d.get("added_by"), "domain_live")
+    await notify(db, site["_id"], host, LIVE)
 
 
 async def _map(db: AsyncIOMotorDatabase, site_id: Any, host: str) -> str | None:
@@ -654,6 +657,48 @@ async def _remove(db: AsyncIOMotorDatabase, site_id: Any, host: str, *, cloudfla
     await docs_jobs.log_event(db, "docs_domain_removed", site_id, entry.get("removed_by"))
     if entry.get("was_live") or entry.get("status") == LIVE:
         await republish(db, site_id, entry.get("removed_by") or entry.get("added_by"), "domain_removed")
+
+
+# ── telling whoever added it ────────────────────────────────────────────────
+
+
+async def notify(db: AsyncIOMotorDatabase, site_id: Any, host: str, state: str) -> bool:
+    """Email the person who added the domain that it went live (``LIVE``) or that the checks gave up
+    (``FAILED``): once per outcome per domain (the entry's ``emailed`` is claimed first, so a retried
+    job never sends twice). Skipped when email isn't configured and for addresses on the suppression
+    list (bounces, complaints). It's a transactional message about a change they asked for, so the
+    marketing opt-out (``unsubscribed_at``) doesn't apply. Never fails the caller. True when sent."""
+    from bson import ObjectId
+
+    from app.services import mailer
+
+    try:
+        if not mailer.is_configured():
+            return False
+        res = await db[SITES].update_one(
+            {"_id": oid(site_id), "domains": {"$elemMatch": {"host": host, "emailed": {"$ne": state}}}},
+            {"$set": {"domains.$.emailed": state}})
+        if not res.modified_count:
+            return False
+        site = await db[SITES].find_one({"_id": oid(site_id)}, {"name": 1, "domains": 1})
+        entry = next((d for d in (site or {}).get("domains") or [] if d.get("host") == host), None)
+        uid = (entry or {}).get("added_by")
+        if not entry or not isinstance(uid, str) or not ObjectId.is_valid(uid):
+            return False
+        user = await db["users"].find_one({"_id": ObjectId(uid)}, {"email": 1})
+        email = str((user or {}).get("email") or "").strip()
+        if not email or await db["email_suppressions"].find_one({"_id": email.lower()}, {"_id": 1}):
+            return False
+        base = (get_settings().frontend_url or "").rstrip("/")
+        await mailer.send_guide_domain_email(
+            to_email=email, host=host, guide_name=str(site.get("name") or "your guide"), live=state == LIVE,
+            settings_url=f"{base}/guides/{oid(site_id)}/settings/domains/{host}",
+            message=entry.get("message") if state == FAILED else None)
+        log.info("docs site %s: emailed that its domain is %s", site_id, state)
+        return True
+    except Exception:  # an email must never fail the domain job
+        log.warning("docs site %s: couldn't email about its domain", site_id, exc_info=True)
+        return False
 
 
 # ── publishing the live version again ───────────────────────────────────────

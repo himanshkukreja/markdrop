@@ -15,6 +15,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import docs_custom_domains as domains
+from app.services import docs_domain_setup as setup
 from app.services import docs_site_store as store
 
 router = APIRouter()
@@ -58,6 +59,7 @@ async def add_domain(request: Request, site_id: str, body: DomainAdd, db: AsyncI
 async def check_domain(request: Request, site_id: str, host: str, db: AsyncIOMotorDatabase = Depends(get_db),
                        user: User = Depends(require_user)):
     site, role = await store.site_access(db, site_id, user, "admin")
+    setup.forget(domains.clean(host))
     try:
         found = await domains.check_now(db, site, host)
     except PermissionError:
@@ -77,3 +79,29 @@ async def remove_domain(request: Request, site_id: str, host: str, db: AsyncIOMo
     if not await domains.remove(db, site, host, user.id):
         raise HTTPException(status_code=404, detail="That domain isn't on this guide.")
     return await _fresh(db, site, role)
+
+
+@router.get("/{site_id}/domains/{host}/setup")
+@limiter.limit("30/minute")
+async def domain_setup(request: Request, site_id: str, host: str, fresh: bool = False,
+                       db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """The setup screen's help for one domain (services/docs_domain_setup.py): who runs its DNS and
+    the record in their words, whether DNS has it yet, a one-click link where the provider offers
+    one, and the public check page's address. Costs DNS lookups (cached a minute; ``fresh`` reads
+    again), so it's asked for only while the screen is open."""
+    site, _role = await store.site_access(db, site_id, user, "admin")
+    view = await setup.setup_view(site, host, fresh=fresh)
+    if view is None:
+        raise HTTPException(status_code=404, detail="That domain isn't on this guide.")
+    return view
+
+
+@router.get("/domain-check/{host}")
+@limiter.limit("20/minute")
+async def domain_check(request: Request, host: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Public, for whoever runs the DNS (markdrop.in/d/check/<host>): the record to add and how far
+    along the domain is. Only for a host a guide is setting up; never which guide."""
+    view = await setup.public_view(db, host)
+    if view is None:
+        raise HTTPException(status_code=404, detail="Markdrop isn't setting up that domain.")
+    return view

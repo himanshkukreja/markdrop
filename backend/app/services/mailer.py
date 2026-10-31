@@ -780,6 +780,55 @@ async def send_access_decision_email(
     })
 
 
+# ── A guide's own domain: live, or given up on ────────────────────────────────
+
+
+def _guide_domain_html(*, host: str, guide_name: str, live: bool, settings_url: str,
+                       message: str | None) -> str:
+    h = html.escape(host)
+    guide = html.escape(guide_name)
+    if live:
+        content = (
+            _eyebrow("Markdrop Guides")
+            + _heading(f"{h} is live")
+            + _p(f"Readers get {_strong(guide)} at {_strong(h)} now, with HTTPS. Links, the sitemap "
+                 "and search results switch to it as the guide is published again, which Markdrop has "
+                 "started for you.")
+            + _button(html.escape(f"https://{host}", quote=True), f"Open {h}", margin="0 0 24px")
+            + _rule()
+            + _p("Keep the CNAME record in place: the domain stops working without it. The free "
+                 "address keeps working too.", size=13, color=_MUTED, margin="0 0 20px")
+        )
+        subject = f"{h} is live"
+    else:
+        why = f"<br>{html.escape(_one_line(message, 300))}" if message else ""
+        content = (
+            _eyebrow("Markdrop Guides")
+            + _heading(f"{h} isn't live yet")
+            + _p(f"Markdrop checked {_strong(h)} for {_strong(guide)} for three days and stopped.{why}")
+            + _p("Usually the DNS record is missing, has a typo, or the domain was added twice "
+                 "(help.acme.com.acme.com). Fix it, then choose Check now on the setup page to start again.")
+            + _button(html.escape(settings_url, quote=True), "Open the setup page", margin="0 0 24px")
+        )
+        subject = f"{h} isn't live yet"
+    footer = f"Sent by {_footer_link(_base(), 'markdrop.in')} because you added this domain to a guide."
+    return _shell(title=subject, preheader=subject, content=content, footer=footer)
+
+
+async def send_guide_domain_email(*, to_email: str, host: str, guide_name: str, live: bool,
+                                  settings_url: str, message: str | None = None) -> None:
+    """Tell whoever added a guide's own domain that it went live (or that checks gave up). Raises
+    on failure."""
+    await _post({
+        "from": _sender("share"),
+        "to": [to_email],
+        "subject": f"{_one_line(host, 120)} is live" if live else f"{_one_line(host, 120)} isn't live yet",
+        "reply_to": settings.email_reply_to,
+        "html": _guide_domain_html(host=host, guide_name=guide_name, live=live, settings_url=settings_url,
+                                   message=message),
+    })
+
+
 # ── Web pages in the email shell ───────────────────────────────────────────────
 
 

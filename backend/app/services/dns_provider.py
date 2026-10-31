@@ -34,6 +34,10 @@ class Provider:
     # Whether it wants the sub-part only ("docs") or the whole hostname.
     wants_relative: bool
     note: str = ""
+    # What this provider calls the field we mean by "value" (the CNAME's target).
+    value_field: str = "Value"
+    # Other fields its form asks for, with what to choose: ((label, value), ...).
+    extras: tuple[tuple[str, str], ...] = ()
 
 
 # Matched against the nameserver hostname by suffix. Ordered most specific
@@ -43,17 +47,20 @@ _BY_NAMESERVER: list[tuple[str, Provider]] = [
         "godaddy", "GoDaddy",
         "https://dcc.godaddy.com/control/{domain}/dns",
         "Name", True,
-        "GoDaddy appends the domain for you — enter just the sub-part, not the full hostname.")),
+        "GoDaddy appends the domain for you — enter just the sub-part, not the full hostname.",
+        "Value", (("TTL", "1 Hour"),))),
     ("ns.cloudflare.com", Provider(
         "cloudflare", "Cloudflare",
         "https://dash.cloudflare.com/?to=/:account/{domain}/dns",
         "Name", True,
-        "Set Proxy status to DNS only (grey cloud) — an orange cloud breaks certificate issuance.")),
+        "Set Proxy status to DNS only (grey cloud) — an orange cloud breaks certificate issuance.",
+        "Target", (("Proxy status", "DNS only (grey cloud)"),))),
     ("registrar-servers.com", Provider(
         "namecheap", "Namecheap",
         "https://ap.www.namecheap.com/domains/domaincontrolpanel/{domain}/advancedns",
         "Host", True,
-        "Use the Advanced DNS tab, not Domain > Redirect.")),
+        "Use the Advanced DNS tab, not Domain > Redirect.",
+        "Value", (("TTL", "Automatic"),))),
     ("awsdns", Provider(
         "route53", "AWS Route 53",
         "https://console.aws.amazon.com/route53/v2/hostedzones",
@@ -70,10 +77,10 @@ _BY_NAMESERVER: list[tuple[str, Provider]] = [
         "Google Domains moved to Squarespace — sign in with the same account.")),
     ("dns-parking.com", Provider(
         "hostinger", "Hostinger",
-        "https://hpanel.hostinger.com/domain", "Name", True)),
+        "https://hpanel.hostinger.com/domain", "Name", True, value_field="Target")),
     ("digitalocean.com", Provider(
         "digitalocean", "DigitalOcean",
-        "https://cloud.digitalocean.com/networking/domains", "Hostname", True)),
+        "https://cloud.digitalocean.com/networking/domains", "Hostname", True, value_field="Is an alias of")),
     ("vercel-dns.com", Provider(
         "vercel", "Vercel",
         "https://vercel.com/dashboard/domains", "Name", True)),
@@ -86,7 +93,7 @@ _BY_NAMESERVER: list[tuple[str, Provider]] = [
         "https://www.name.com/account/domain/details/{domain}#dns", "Host", True)),
     ("porkbun.com", Provider(
         "porkbun", "Porkbun",
-        "https://porkbun.com/account/domainsSpeedy", "Host", True)),
+        "https://porkbun.com/account/domainsSpeedy", "Host", True, value_field="Answer")),
     ("bigrock", Provider(
         "bigrock", "BigRock",
         "https://manage.bigrock.in/", "Host Name", True)),
@@ -163,3 +170,83 @@ def detect(host: str) -> tuple[Provider | None, list[str]]:
     """(provider, nameservers). Provider is None when we don't recognise them."""
     nameservers = nameservers_for(host)
     return _match(nameservers), nameservers
+
+
+# ── Shared by every custom-domain screen (workspace domains, a guide's own domain) ──
+
+
+def zone_for(host: str) -> str:
+    """The zone that actually holds ``host`` (an SOA lookup), else :func:`zone_of`'s guess.
+
+    Synchronous; through a threadpool. The lookup matters for names under a delegated
+    sub-zone (``help.eu.acme.com`` with ``eu.acme.com`` hosted elsewhere): the panel to
+    open, Domain Connect's discovery and the relative name are all the sub-zone's.
+    """
+    try:
+        import dns.name
+        import dns.resolver
+
+        resolver = dns.resolver.Resolver()
+        resolver.lifetime = 5.0
+        resolver.timeout = 5.0
+        zone = str(dns.resolver.zone_for_name(dns.name.from_text(host), resolver=resolver)).rstrip(".").lower()
+        if "." in zone and (host == zone or host.endswith("." + zone)):
+            return zone
+    except Exception:
+        pass
+    return zone_of(host)
+
+
+def relative_name(name: str, zone: str, provider: Provider | None) -> str:
+    """``name`` the way ``provider``'s form wants it typed: without the zone where the panel
+    appends it (``help`` for ``help.acme.com``, ``@`` for the zone itself); unchanged for a
+    panel that takes the whole hostname, or when the provider is unknown."""
+    name = name.rstrip(".")
+    if provider is None or not provider.wants_relative:
+        return name
+    if name == zone:
+        return "@"
+    return name[: -(len(zone) + 1)] if name.endswith("." + zone) else name
+
+
+def hint(host: str, names: dict[str, str], *, zone: str | None = None,
+         found: tuple[Provider | None, list[str]] | None = None) -> dict:
+    """Who runs ``host``'s DNS, and the given record names as their panel wants them typed.
+
+    ``names`` maps a key to a full record name ({"target": "help.acme.com"}); the answer's
+    ``names`` has the same keys, relative where the panel appends the zone. Synchronous
+    (DNS lookups unless ``zone`` and ``found`` are given): call it through a threadpool.
+    """
+    provider, nameservers = found if found is not None else detect(host)
+    zone = zone or (zone_for(host) if provider is not None else zone_of(host))
+    if provider is None:
+        return {"detected": False, "zone": zone, "nameservers": nameservers[:4],
+                "names": {k: v.rstrip(".") for k, v in names.items()}}
+    return {
+        "detected": True,
+        "zone": zone,
+        "provider_id": provider.id,
+        "provider_name": provider.name,
+        "panel_url": provider.url.replace("{domain}", zone),
+        "host_field": provider.host_field,
+        "value_field": provider.value_field,
+        "extras": [{"label": k, "value": v} for k, v in provider.extras],
+        "note": provider.note or None,
+        "nameservers": nameservers[:4],
+        "names": {k: relative_name(v, zone, provider) for k, v in names.items()},
+    }
+
+
+def cname_of(host: str) -> str | None:
+    """Where ``host``'s CNAME points right now: the target, "" when it has none, None when DNS
+    didn't answer. Synchronous: call it through a threadpool."""
+    try:
+        import dns.resolver
+
+        resolver = dns.resolver.Resolver()
+        resolver.lifetime = 4.0
+        resolver.timeout = 4.0
+        answer = resolver.resolve(host, "CNAME")
+        return str(answer[0].target).rstrip(".").lower()
+    except Exception as exc:  # NXDOMAIN / NoAnswer: there is none; anything else: unknown
+        return "" if type(exc).__name__ in ("NXDOMAIN", "NoAnswer") else None
