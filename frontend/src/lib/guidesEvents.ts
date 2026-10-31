@@ -24,6 +24,13 @@
  *   guide_unpublished / guide_deleted
  *   guide_domain_added / guide_domain_removed
  *   guide_domain_live             (seen going live on this screen; the server logs docs_domain_live too)
+ *   guide_publish_started         from: site_bar|publish_screen|design_banner (where Publish was pressed)
+ *   guide_compare_viewed          from: publish|none, to: publish|drafts
+ *   guide_compare_view_changed    view: text|split
+ *   guide_live_opened             from: site_bar|publish|toast|compare|banner (the live guide in a new tab)
+ *   guide_address_copied          own (an own domain, else the free address)
+ *   guide_share_copied
+ *   guide_setup_step_opened       step: pages|look|publish|domain|team|insights
  *
  * What finishes on the server (a build going live or failing, an import finishing or failing) is
  * recorded there, in docs_events, and shown in the admin's Product health tab.
@@ -62,6 +69,13 @@ export const guideEvents = {
   domainAdded: () => emit("guide_domain_added"),
   domainRemoved: () => emit("guide_domain_removed"),
   domainLive: () => emit("guide_domain_live"),
+  publishStarted: (from: "site_bar" | "publish_screen" | "design_banner") => emit("guide_publish_started", { from }),
+  compareViewed: (from: "publish" | "none", to: "publish" | "drafts") => emit("guide_compare_viewed", { from, to }),
+  compareView: (view: "text" | "split") => emit("guide_compare_view_changed", { view }),
+  liveOpened: (from: "site_bar" | "publish" | "toast" | "compare" | "banner") => emit("guide_live_opened", { from }),
+  addressCopied: (own: boolean) => emit("guide_address_copied", { own }),
+  shareCopied: () => emit("guide_share_copied"),
+  setupStep: (step: "pages" | "look" | "publish" | "domain" | "team" | "insights") => emit("guide_setup_step_opened", { step }),
   memberRole: (scope: "workspace" | "site", role: string | null) =>
     emit("guide_member_role_changed", { scope, role: role === null ? "inherit" : pick(role, ROLES) ?? "other" }),
 };

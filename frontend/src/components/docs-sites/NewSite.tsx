@@ -168,7 +168,8 @@ export default function NewSite() {
       const job = site.job?.id;
       const base = siteBase(site.id);
       void reloadAll();
-      router.push(job ? `${base}/import?job=${encodeURIComponent(job)}` : `${base}/design?new=1`);
+      // Straight into the editor (the Publish screen's "Finish setting up" leads on to the design, a domain, the team).
+      router.push(job ? `${base}/import?job=${encodeURIComponent(job)}` : base);
     } catch (err) {
       setError(docsErrorMessage(err, "We couldn't create the guide. Try again."));
       setBusy(false);
