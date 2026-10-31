@@ -330,7 +330,7 @@ export default function NewSite() {
           {error && <Alert tone="danger" title="We couldn't create the guide">{error}</Alert>}
 
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-            <p className="min-w-0 flex-[1_1_300px] text-[13px] text-text-muted">Nothing is public until you publish. Your guide opens in the editor next. <ReadMore topic="studioCreate" /></p>
+            <p className="min-w-0 flex-[1_1_300px] text-[13px] text-text-muted">Nothing is public until you publish. {source === "gitbook" ? "You can follow the import as it runs." : "Your guide opens in the editor next."} <ReadMore topic="studioCreate" /></p>
             <Button variant="ghost" href={listHref}>Cancel</Button>
             <Button variant="primary" type="submit" iconRight="arrowRight" loading={busy} disabled={!canSubmit && !busy}>
               {source === "gitbook" ? "Import" : "Create guide"}

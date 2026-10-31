@@ -794,13 +794,13 @@
   "/docs-assets/guides/create-a-site/new-site-template.dark.webp": {
     "w": 1728,
     "h": 1746,
-    "bytes": 97968,
+    "bytes": 98770,
     "kind": "image"
   },
   "/docs-assets/guides/create-a-site/new-site-template.webp": {
     "w": 1728,
     "h": 1746,
-    "bytes": 96956,
+    "bytes": 97782,
     "kind": "image"
   },
   "/docs-assets/guides/editor/editor-ai-menu.dark.webp": {
@@ -1962,14 +1962,14 @@
   "/docs-assets/videos/guides-import-video.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 45.87,
-    "bytes": 1378256,
+    "duration": 45.03,
+    "bytes": 1342813,
     "kind": "video"
   },
   "/docs-assets/videos/guides-import-video.webp": {
     "w": 1920,
     "h": 1080,
-    "bytes": 49036,
+    "bytes": 49750,
     "kind": "poster"
   },
   "/docs-assets/videos/local-mcp-publish.mp4": {
