@@ -20,6 +20,14 @@ Docs Studio is free while it's in beta. During the beta there are limits on how 
 No. Every published site is public and opens in any browser. Password-protected and members-only sites are [coming soon](/docs-studio/site-settings#who-can-read-it).
 :::
 
+:::details[Can I keep my site out of search engines?]
+Yes. Turn off **Let search engines index the site** in [Settings](/docs-studio/site-settings#who-can-read-it) and publish. The site stays public for anyone with the link, but asks search engines not to index it.
+:::
+
+:::details[Can readers ask questions about my docs?]
+Yes, with [Ask AI](/docs-studio/ask-ai). Turn it on in Settings and publish: readers get answers from your published pages, with links to the sections they came from. Each site has a monthly number of answers during the beta.
+:::
+
 :::details[Can I use my own domain?]
 Not yet: it's [coming soon](/docs-studio/site-settings#your-own-domain). Every site is served at its free `<address>.docs.markdrop.in` address.
 :::

@@ -34,7 +34,7 @@ Turn the assistant on or off, name it, and suggest questions. See [Ask AI on you
 For now every published docs site is public: **Anyone** can read it. **Anyone with the password** (for a beta or a partner preview) and **Workspace members only** (readers sign in with Markdrop) are listed but aren't available yet; choosing one says so and keeps the site public.
 :::
 
-**Let search engines index the site** is on by default. You can turn it off, but published sites don't apply it yet: they always allow search engines for now.
+**Let search engines index the site** is on by default. Turn it off to keep the site out of search results, for example while it's a work in progress: after the next publish, every page asks search engines not to index it (a `noindex` tag and header), `robots.txt` disallows crawling, and the sitemap is empty. Readers with the link can still open the site.
 
 ## Reviews
 

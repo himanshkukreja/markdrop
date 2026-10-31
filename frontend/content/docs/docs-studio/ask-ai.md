@@ -42,3 +42,7 @@ Readers get the assistant after the next [publish](/docs-studio/publishing). Tur
 Each site has a monthly number of Ask AI answers while Docs Studio is in beta. The **Ask AI** card shows how many have been used this month. At the limit, readers get links to ask Claude or ChatGPT with the page attached instead.
 
 Better pages make better answers: clear headings, one topic per section, and the words your readers use. See [Write in the editor](/docs-studio/editor).
+
+## Sites that aren't public
+
+Ask AI is for public sites. On a password-protected or members-only site it stays off, whatever the switch says. Those sites are [coming soon](/docs-studio/site-settings#who-can-read-it), so today every published site can have it.

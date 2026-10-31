@@ -62,7 +62,7 @@ Rows with nothing in them aren't shown. To open the report again later, go to th
 - **Old addresses:** a GitBook address that changes gets a redirect to its new page, so links people saved keep working. The report's last step says how many.
 
 :::note
-The redirects from an import aren't listed in **Settings › Redirects**. Readers get them as soon as you publish. For now, adding redirects of your own in Settings replaces the imported ones at the next publish, so add any old addresses you still need there too.
+The redirects from an import aren't listed in **Settings › Redirects**. Readers get them as soon as you publish, together with any redirects you add in Settings. If both have the same old address, the one in Settings wins.
 :::
 
 ## If the import fails

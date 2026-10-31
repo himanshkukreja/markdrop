@@ -54,14 +54,14 @@ An address starts with `/` and has up to 6 parts, like `/guides/connect-postgres
 - it can't end with `/` or contain `//`
 - it can be at most 200 characters
 - two pages can't have the same address
-- it can't start with a part the docs site uses itself: `docs-assets`, `mcp`, `md`, `og`, `changelog`, `_next` or `api-reference-json`
+- it can't start with a part the docs site uses itself: `docs-assets`, `mcp`, `md`, `og`, `changelog`, `public`, `api-reference`, `api-reference-json` or `video-scenes`, and `video-scenes` can't be any other part either
 
-Also avoid starting an address with `public`, `api-reference`, `node_modules` or `video-scenes`: the editor accepts them, but those pages are left out when the site is built.
+When you name a page in a group whose name can't start an address (a group called "API reference", say), the suggested address leaves the group out: `/payments`, not `/api-reference/payments`.
 
 The home page is always `/`. Its address can't change, it can't be hidden, and it can't be deleted.
 
-:::warning[Changing an address]
-When you change a page's address, its old address stops working at the next publish. Docs Studio doesn't add a redirect for you: add one in [Redirects](#redirects).
+:::note[Changing an address]
+When you change the address of a page that's on the published site, Docs Studio adds a redirect from the old address to the new one in [Redirects](#redirects), so links people saved keep working after the next publish. Change it again and that redirect follows the page: there's never a chain. Redirects that pointed at the old address are moved to the new one too. A page that was never published gets no redirect, since nobody has a link to it.
 :::
 
 ## Hidden pages
@@ -87,4 +87,4 @@ Choose **Save** (it says how many). Redirects go live at the next publish.
 
 A row is refused when it would break something: an old address that's still a page of the site, the home page, one of the site's own addresses like `/llms.txt`, a page that doesn't exist, a redirect to itself, the same old address twice, or a chain (an address that redirects again). Readers get a permanent redirect, and only when no page or file of the site is at that address.
 
-Pages imported from GitBook keep their old addresses working without rows here. See [Import from GitBook](/docs-studio/import-from-gitbook#what-comes-across).
+Pages imported from GitBook keep their old addresses working without rows here, alongside the ones you add. See [Import from GitBook](/docs-studio/import-from-gitbook#what-comes-across).
