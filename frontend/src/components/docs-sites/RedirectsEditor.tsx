@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { Alert, Button, IconButton, Input } from "@/components/ui";
 import { listPages, type Redirect } from "@/lib/docsSites";
 import { plural } from "./format";
+import useLeaveGuard from "./useLeaveGuard";
 
 type Row = Redirect & { key: number };
 
@@ -66,6 +67,7 @@ export function RedirectsEditor({ siteId, value, locked, saving, onSave }: {
   const problems = rows.map((r) => redirectProblem(r, filled, pageSet));
   const dirty = JSON.stringify(filled.map(({ from, to }) => ({ from: from.trim(), to: to.trim() }))) !== JSON.stringify(value.map(({ from, to }) => ({ from, to })));
   const bad = problems.some(Boolean);
+  const leaveGuard = useLeaveGuard(dirty && !locked, "the redirects");
 
   const set = (key: number, patch: Partial<Redirect>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const add = () => { setRows((rs) => [...rs, { from: "", to: "", key: next }]); setNext((n) => n + 1); };
@@ -129,6 +131,7 @@ export function RedirectsEditor({ siteId, value, locked, saving, onSave }: {
         </div>
       )}
       {dirty && bad && <Alert tone="warning">Fix the rows marked in red to save.</Alert>}
+      {leaveGuard}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { LOOKS, PREVIEW_FONTS_HREF, coloursFromImage, contrastChecks } from "./p
 import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useSite } from "./SiteContext";
 import ThemePreview from "./ThemePreview";
+import useLeaveGuard from "./useLeaveGuard";
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -93,13 +94,8 @@ export default function DesignPanel() {
     document.head.appendChild(l);
   }, []);
 
-  // Unsaved design: ask before leaving the page.
-  useEffect(() => {
-    if (!dirty) return;
-    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); };
-    window.addEventListener("beforeunload", h);
-    return () => window.removeEventListener("beforeunload", h);
-  }, [dirty]);
+  // Unsaved design: ask before leaving the page (the tab, and the studio's own links).
+  const leaveGuard = useLeaveGuard(dirty && !locked, "the design");
 
   // Forced colour mode decides which preview makes sense.
   useEffect(() => {
@@ -326,6 +322,7 @@ export default function DesignPanel() {
           {dirty && isAdmin && <p className="text-[13px] text-text-muted">Not saved yet. Readers see the new design after you save it and publish.</p>}
         </section>
       </main>
+      {leaveGuard}
     </>
   );
 }
