@@ -61,7 +61,7 @@ export default function AskAiSection() {
               value={suggestion}
               maxLength={120}
               disabled={locked || suggestions.length >= MAX_SUGGESTIONS}
-              placeholder="How do I connect Postgres?"
+              placeholder="e.g. How do I reset my password?"
               onChange={(e) => setSuggestion(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSuggestion(); } }}
               suffix={suggestion.trim() ? <IconButton icon="plus" label="Add question" size="sm" onClick={addSuggestion} /> : undefined}
