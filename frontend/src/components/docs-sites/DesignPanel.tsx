@@ -1,7 +1,7 @@
 "use client";
 
 import { ReadMore } from "@/components/ReadMore";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Alert, Anchor, Badge, Button, Field, Icon, SegmentedControl, Select, Spinner, Switch, Textarea, cx, useToast } from "@/components/ui";
 import { useLocationSearch } from "@/components/shell/useLocation";
 import { parseHex } from "@/components/tenant/branding";
@@ -11,7 +11,7 @@ import {
 } from "@/lib/docsSites";
 import { ratio } from "./format";
 import { LOOKS, PREVIEW_FONTS_HREF, coloursFromImage, contrastChecks } from "./presets";
-import SiteBar from "./SiteBar";
+import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useSite } from "./SiteContext";
 import ThemePreview from "./ThemePreview";
 
@@ -303,7 +303,12 @@ export default function DesignPanel() {
           </details>
         </section>
 
-        <section aria-label="Preview" className="flex min-w-0 flex-[999_1_600px] flex-col gap-3 p-4 sm:p-6">
+        {/* Side by side, the preview stays in view while the settings scroll (like the editor's side panels). */}
+        <section
+          aria-label="Preview"
+          className="flex min-w-0 flex-[999_1_600px] flex-col gap-3 p-4 sm:p-6 lg:sticky lg:top-[var(--chrome)] lg:max-h-[calc(100dvh-var(--chrome))] lg:self-start lg:overflow-y-auto"
+          style={{ "--chrome": `${STUDIO_CHROME_H}px` } as CSSProperties}
+        >
           <div className="flex flex-wrap items-center gap-2.5">
             <strong className="flex-1 text-text">Preview · {presetName(theme.preset)}</strong>
             <SegmentedControl
