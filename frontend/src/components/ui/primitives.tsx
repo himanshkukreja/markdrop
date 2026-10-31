@@ -476,7 +476,11 @@ function useModal(active: boolean, panel: React.RefObject<HTMLElement | null>, o
     if (el) {
       const want = initialFocus?.current;
       if (want) want.focus();
-      else if (!el.contains(document.activeElement)) (focusables(el).find(f => !f.hasAttribute("data-md-close")) ?? el).focus();
+      else if (!el.contains(document.activeElement)) {
+        // The first control of the body or footer, not a "Read more" link in the description.
+        const f = focusables(el).filter(x => !x.hasAttribute("data-md-close"));
+        (f.find(x => !x.closest(".md-dialog__head, .md-drawer__head")) ?? f[0] ?? el).focus();
+      }
     }
     return () => {
       unlockScroll();
@@ -493,7 +497,7 @@ export interface DialogProps {
   children?: React.ReactNode; footer?: React.ReactNode; size?: "sm" | "md" | "lg" | "xl";
   /** "danger" adds the danger glyph; use it only for actions that destroy data or access. */
   tone?: "default" | "danger";
-  /** Element to focus on open. Default: the first focusable that isn't the close button, else the dialog. */
+  /** Element to focus on open. Default: the first focusable of the body or footer (else of the header, skipping the close button), else the dialog. */
   initialFocus?: React.RefObject<HTMLElement | null>;
   hideClose?: boolean;
   /** A decorative tile before the title (e.g. the folder being shared). Ignored for tone="danger". */
