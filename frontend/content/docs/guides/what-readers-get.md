@@ -41,4 +41,3 @@ The **Copy page** menu on every page gives readers the same: copy the page as Ma
 
 - **An API reference generated from an OpenAPI file**, with Try it, is coming soon. Until then, write API pages in Markdown: the [API reference template](/guides/create-a-site) starts you off.
 - **Password-protected and members-only guides** are [coming soon](/guides/site-settings#who-can-read-it). Today every published guide is public.
-- **Your own domain** is [coming soon](/guides/site-settings#your-own-domain).

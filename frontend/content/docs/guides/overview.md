@@ -60,7 +60,6 @@ To create a guide in a workspace you need to be a Guides admin there. Workspace 
 
 These are planned and marked **Coming soon** in the app:
 
-- **Your own domain.** For now every guide is served at its free `<name>.guides.markdrop.in` address. See [Guide settings](/guides/site-settings#your-own-domain).
 - **Password-protected and members-only guides.** For now every published guide is public. See [Guide settings](/guides/site-settings#who-can-read-it).
 - **GitHub sync.** See [GitHub sync](/guides/github-sync).
 

@@ -29,7 +29,7 @@ Yes, with [Ask AI](/guides/ask-ai). Turn it on in Settings and publish: readers 
 :::
 
 :::details[Can I use my own domain?]
-Not yet: it's [coming soon](/guides/site-settings#your-own-domain). Every guide is served at its free `<address>.guides.markdrop.in` address.
+Yes. Add a subdomain such as `help.acme.com` under **Settings** › **Your own domain**, then add one `CNAME` record at your DNS provider. The certificate is handled for you, and the free `<address>.guides.markdrop.in` address keeps working. See [Use your own domain](/guides/site-settings#use-your-own-domain).
 :::
 
 :::details[Can I keep my pages in Git?]
@@ -49,6 +49,10 @@ Every published page is available as Markdown at its address plus `.md`, and the
 - **It's waiting for a review.** The card says **In review**. A reviewer or admin has to [approve it](/guides/reviews#approve-or-request-changes).
 - **It was unpublished.** The card says **Unpublished**. Publish again to put it back.
 - **You changed the address.** The new address goes live with the next publish, and the old one stops working.
+
+### My own domain isn't working
+
+See [When a domain doesn't go live](/guides/site-settings#when-a-domain-doesnt-go-live). Most often the `CNAME` record has a typo, its name was doubled by the DNS provider, or another record already uses that name.
 
 ### My changes aren't on the guide
 
