@@ -1,9 +1,9 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { ApiOperationOption, UploadImage } from "./types";
+import type { ApiOperationOption, AssistFn, TextAnchor, UploadImage } from "./types";
 
-/** What node views need from the editor's host (props of DocsEditor). */
+/** What node views and menus need from the editor's host (props of DocsEditor). */
 export interface EditorHost {
   upload?: UploadImage;
   resolveAsset: (src: string) => string;
@@ -11,6 +11,11 @@ export interface EditorHost {
   readOnly: boolean;
   /** Switches to Markdown mode (raw blocks offer it). */
   toMarkdown?: () => void;
+  /** Ask AI in the format toolbar. */
+  assist?: AssistFn;
+  assistLanguages?: string[];
+  /** Comment in the format toolbar. */
+  onComment?: (anchor: TextAnchor) => void;
 }
 
 export const EditorHostContext = createContext<EditorHost>({ resolveAsset: (s) => s, operations: [], readOnly: false });

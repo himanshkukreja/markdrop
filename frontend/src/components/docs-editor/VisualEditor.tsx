@@ -13,10 +13,9 @@ import "katex/dist/katex.min.css";
 import { useCallback, useEffect, useId, useMemo, useRef } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { Fragment, Slice, type Schema } from "@tiptap/pm/model";
 import type { EditorView } from "@tiptap/pm/view";
 import { useToast } from "@/components/ui";
-import { parseBlocks, parseMarkdown, serializeFlow, serializeMarkdown, type DocState } from "./core/markdown.mjs";
+import { parseMarkdown, serializeMarkdown, type DocState } from "./core/markdown.mjs";
 import { splitFrontmatter } from "./core/frontmatter.mjs";
 import { buildExtensions } from "./extensions";
 import { EditorHostContext, uploadUrl, type EditorHost } from "./host";
@@ -24,8 +23,12 @@ import { SlashMenu, SlashStore } from "./menus/slash";
 import { FormatToolbar } from "./menus/FormatToolbar";
 import { BlockHandle } from "./menus/BlockHandle";
 import { TableBar } from "./menus/TableBar";
+import { markdownSlice, sliceMarkdown } from "./menus/markdownSlice";
+import { createAnnotations, refreshAnnotations, type AnnotationSource } from "./menus/annotations";
+import { AssistPanel, AssistStore } from "./menus/assist";
+import type { VisualHandle } from "./FindBar";
 import { CODE_LANGS } from "./views/code";
-import type { ApiOperationOption, UploadImage } from "./types";
+import type { ApiOperationOption, AssistFn, CommentMark, TextAnchor, UploadImage } from "./types";
 
 export interface VisualEditorProps {
   value: string;
@@ -43,37 +46,22 @@ export interface VisualEditorProps {
   onReady?: (editor: Editor) => void;
   /** See DocsEditorProps.stickyTop. */
   stickyTop?: () => number;
+  /** Receives the editor and its annotation source once both exist (Find, reveal), null on unmount. */
+  onHandle?: (h: VisualHandle | null) => void;
+  assist?: AssistFn;
+  assistLanguages?: string[];
+  onComment?: (anchor: TextAnchor) => void;
+  comments?: CommentMark[];
+  onCommentClick?: (id: string) => void;
+  checkLink?: (href: string) => { message: string } | null;
+  flagImages?: boolean;
 }
 
 const EMIT_DELAY = 120;
 const identity = (s: string) => s;
 
-/** Pasted plain text is Markdown: callouts, tables and all come in as blocks. */
-function markdownSlice(text: string, schema: Schema, plain: boolean): Slice {
-  if (plain) {
-    const paras = text.split(/\n{2,}/).map((t) => schema.nodes.paragraph.create(null, t ? schema.text(t) : undefined));
-    return Slice.maxOpen(Fragment.from(paras));
-  }
-  try {
-    const blocks = parseBlocks(text.replace(/\r\n?/g, "\n"), { verify: true });
-    if (!blocks.length) return Slice.empty;
-    return Slice.maxOpen(Fragment.fromJSON(schema, blocks));
-  } catch {
-    return Slice.maxOpen(Fragment.from(schema.nodes.paragraph.create(null, schema.text(text))));
-  }
-}
-
-/** Copied blocks go to the clipboard's text as docs Markdown. */
-function sliceMarkdown(slice: Slice): string {
-  const json = slice.content.toJSON() as Array<{ type: string }> | null;
-  if (!json?.length) return "";
-  const inlineOnly = slice.content.childCount > 0 && slice.content.firstChild!.isInline;
-  if (inlineOnly) return slice.content.textBetween(0, slice.content.size, "\n\n");
-  return serializeFlow(json as never);
-}
-
 export default function VisualEditor(props: VisualEditorProps) {
-  const { value, readOnly = false, placeholder, onUploadImage, operations, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop } = props;
+  const { value, readOnly = false, placeholder, onUploadImage, operations, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop, onHandle, assist, assistLanguages, onComment, comments, onCommentClick, checkLink, flagImages = false } = props;
   const toast = useToast();
   const initial = useMemo(() => parseMarkdown(value), []); // eslint-disable-line react-hooks/exhaustive-deps -- parsed once; later values are synced below
   const meta = useRef<DocState>(initial);
@@ -85,11 +73,17 @@ export default function VisualEditor(props: VisualEditorProps) {
   const stickyTopRef = useRef(stickyTop);
   stickyTopRef.current = stickyTop;
   const editorRef = useRef<Editor | null>(null);
+  const onHandleRef = useRef(onHandle);
+  onHandleRef.current = onHandle;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const slash = useMemo(() => new SlashStore(), []);
   const listboxId = `dxe${useId().replace(/[^a-zA-Z0-9]/g, "")}-slash`;
-  const extensions = useMemo(() => buildExtensions({ slash, listboxId, placeholder }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  // What the annotations plugin paints (find, problems, comments): read on every recompute.
+  const source = useMemo<AnnotationSource>(() => ({ find: null, flagImages, comments: comments ?? [], checkLink, onCommentClick }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  source.onCommentClick = onCommentClick;
+  const assistStore = useMemo(() => new AssistStore(), []);
+  const extensions = useMemo(() => [...buildExtensions({ slash, listboxId, placeholder }), createAnnotations(source)], []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const emit = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -174,6 +168,7 @@ export default function VisualEditor(props: VisualEditorProps) {
     onCreate: ({ editor: e }) => {
       editorRef.current = e;
       onReady?.(e);
+      onHandleRef.current?.({ editor: e, source });
     },
     onUpdate: () => {
       if (timer.current) clearTimeout(timer.current);
@@ -184,6 +179,15 @@ export default function VisualEditor(props: VisualEditorProps) {
 
   // Flush on unmount (mode switch, navigation) so nothing typed is lost.
   useEffect(() => () => emit(), [emit]);
+  useEffect(() => () => onHandleRef.current?.(null), []);
+
+  // The host's problems and comments changed: repaint.
+  useEffect(() => {
+    source.checkLink = checkLink;
+    source.flagImages = flagImages;
+    source.comments = comments ?? [];
+    if (editor) refreshAnnotations(editor);
+  }, [editor, source, checkLink, flagImages, comments]);
 
   useEffect(() => {
     editor?.setEditable(!readOnly);
@@ -208,8 +212,8 @@ export default function VisualEditor(props: VisualEditorProps) {
   }, [editor, value]);
 
   const host: EditorHost = useMemo(
-    () => ({ upload: onUploadImage, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown }),
-    [onUploadImage, resolveAssetUrl, operations, readOnly, onRequestMarkdown],
+    () => ({ upload: onUploadImage, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown, assist, assistLanguages, onComment }),
+    [onUploadImage, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, onComment],
   );
 
   return (
@@ -218,7 +222,8 @@ export default function VisualEditor(props: VisualEditorProps) {
         <EditorContent editor={editor} className="dxe-surface" />
         {editor && !readOnly && (
           <>
-            <FormatToolbar editor={editor} stickyTop={stickyTop} />
+            <FormatToolbar editor={editor} stickyTop={stickyTop} assist={assistStore} />
+            {assist && <AssistPanel editor={editor} store={assistStore} assist={assist} container={wrap} />}
             <BlockHandle editor={editor} container={wrap} />
             <TableBar editor={editor} container={wrap} />
             <SlashMenu store={slash} listboxId={listboxId} stickyTop={stickyTop} />

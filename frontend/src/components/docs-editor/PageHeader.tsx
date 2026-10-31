@@ -16,7 +16,7 @@ function autosize(el: HTMLTextAreaElement | null) {
   el.style.height = `${el.scrollHeight}px`;
 }
 
-export function PageHeader({ front, onFront, readOnly }: { front: string; onFront: (front: string) => void; readOnly?: boolean }) {
+export function PageHeader({ front, onFront, readOnly, showIcon = true, top }: { front: string; onFront: (front: string) => void; readOnly?: boolean; showIcon?: boolean; top?: React.ReactNode }) {
   const meta = readMeta(front);
   const title = useRef<HTMLTextAreaElement>(null);
   const desc = useRef<HTMLTextAreaElement>(null);
@@ -43,10 +43,13 @@ export function PageHeader({ front, onFront, readOnly }: { front: string; onFron
   const over = meta.description.length > DESCRIPTION_MAX;
   return (
     <header className="dxe-header">
-      <div className="dxe-header__icon">
-        <IconPicker value={meta.icon || null} label="Page icon" readOnly={readOnly} onChange={(icon) => set("icon", icon)} />
-        {!meta.icon && !readOnly && <span className="dxe-muted">Icon</span>}
-      </div>
+      {top}
+      {showIcon && (
+        <div className="dxe-header__icon">
+          <IconPicker value={meta.icon || null} label="Page icon" readOnly={readOnly} onChange={(icon) => set("icon", icon)} />
+          {!meta.icon && !readOnly && <span className="dxe-muted">Icon</span>}
+        </div>
+      )}
       <textarea
         ref={title}
         className="dxe-header__title"
