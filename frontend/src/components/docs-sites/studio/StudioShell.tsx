@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { roleLabel, type SiteSummary } from "@/lib/docsSites";
 import { RoleBadge } from "../people/roles";
 import { SiteTile } from "../SiteBar";
+import { GuideMark, usePreviewDark } from "../home/GuidePreview";
 import { PERSONAL, scopeOf, siteBase, studioHome, studioMembers, studioNew } from "../routes";
 import { GuideSearch } from "./GuideSearch";
 import { StudioProvider, useStudio, useWorkspaceName } from "./StudioContext";
@@ -35,6 +36,12 @@ export function groupSites(sites: SiteSummary[], workspaces: Array<{ id: string;
   return out;
 }
 
+/** A guide in the switcher: its logo (Match my brand), else its initial on its accent, as on the home's cards. */
+function SwitcherMark({ site }: { site: SiteSummary }) {
+  const dark = usePreviewDark(site.theme);
+  return <GuideMark site={site} size={24} dark={dark} />;
+}
+
 /** The open site's name with a menu of every other site you can open, grouped by workspace. */
 function SiteSwitcher() {
   const { all, current } = useStudio();
@@ -48,7 +55,7 @@ function SiteSwitcher() {
         items.push({
           label: <span className="ph-sensitive ph-mask truncate" dir="auto" title={s.name}>{s.name}</span>,
           href: siteBase(s.id),
-          tile: <SiteTile site={s} size={20} />,
+          tile: <SwitcherMark site={s} />,
           description: roleLabel(s.your_role),
           icon: s.id === current.id ? "check" : undefined,
         });
