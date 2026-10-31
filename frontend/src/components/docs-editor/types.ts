@@ -1,3 +1,5 @@
+import type React from "react";
+
 export type EditorMode = "visual" | "markdown";
 
 /** What an image upload is for: the image itself, or the dark-theme version of an existing image. */
@@ -18,6 +20,55 @@ export type UploadImage = (file: File, info: UploadImageInfo) => Promise<string 
 export interface ApiOperationOption {
   op: string;
   summary?: string;
+}
+
+/** What Ask AI can do with a selection. */
+export type AssistAction = "improve" | "shorten" | "fix" | "translate";
+
+export interface AssistRequest {
+  action: AssistAction;
+  /** The selection as Markdown. */
+  text: string;
+  /** For "translate": the language's name, as offered in `assistLanguages`. */
+  language?: string;
+}
+
+/** Rewrites a selection: resolves with the suggested Markdown, or rejects with a message to show. */
+export type AssistFn = (req: AssistRequest) => Promise<string>;
+
+/** A comment's anchor in the text: what was selected and a little of what came before and after it. */
+export interface TextAnchor {
+  quote: string;
+  prefix: string;
+  suffix: string;
+}
+
+/** Something on the page to scroll to and select (the checks' Show, the outline). */
+export type RevealTarget =
+  | { kind: "link"; href: string }
+  | { kind: "image"; src: string }
+  /** The nth (0-based) heading whose text is `text` (any level when `level` is left out). */
+  | { kind: "heading"; text: string; level?: number; nth?: number }
+  | { kind: "quote"; quote: string; prefix?: string };
+
+/** What a host can do to the editor from outside (both modes). */
+export interface DocsEditorApi {
+  /** Opens the Find and replace bar (with the selection as the search, when there is one). */
+  openFind(): void;
+  /** Scrolls to the target and selects it; false when it isn't on the page. */
+  reveal(target: RevealTarget): boolean;
+  /** Sets the description of every image with this address that has none; returns how many. */
+  setImageAlt(src: string, alt: string): number;
+  /** Removes headings with no text; returns how many. */
+  removeEmptyHeadings(): number;
+  focus(): void;
+}
+
+export interface CommentMark {
+  id: string;
+  quote: string;
+  prefix?: string;
+  active?: boolean;
 }
 
 export interface DocsEditorProps {
@@ -53,4 +104,26 @@ export interface DocsEditorProps {
   stickyTop?: () => number;
   /** Accessible name of the editing area (default "Page content"). */
   "aria-label"?: string;
+  /** Shows the page icon picker in the header (default true; a host may offer it elsewhere). */
+  headerIcon?: boolean;
+  /** Rendered above the title, in line with it (a breadcrumb). */
+  headerTop?: React.ReactNode;
+  /** Receives the editor's API (Find, reveal, fixes). */
+  apiRef?: React.Ref<DocsEditorApi | null>;
+  /** Enables "Ask AI" in the format toolbar. */
+  assist?: AssistFn;
+  /** Languages offered by Ask AI › Translate. */
+  assistLanguages?: string[];
+  /** Enables "Comment" in the format toolbar: called with the selected text. */
+  onComment?: (anchor: TextAnchor) => void;
+  /** Review comments to highlight in the text (visual mode). */
+  comments?: CommentMark[];
+  /** A highlighted comment was clicked. */
+  onCommentClick?: (id: string) => void;
+  /** Flags a link whose target is a problem (wavy underline with the message as its tooltip). */
+  checkLink?: (href: string) => { message: string } | null;
+  /** Flags images without a description (default false). */
+  flagImages?: boolean;
+  /** The Find and replace bar was opened (analytics). */
+  onFindOpen?: () => void;
 }

@@ -43,7 +43,7 @@ Setup takes three steps: **Your domain**, **Connect DNS**, **Live with HTTPS**.
    |---|---|---|
    | `CNAME` | `help` | `cname.guides.markdrop.in` |
 
-   Where the provider supports it, **Connect with <provider>** adds the record in one click: sign in there and approve it. Markdrop asks for that one record and nothing else.
+   Where the provider supports it, **Connect with** your provider (**Connect with Cloudflare**, say) adds the record in one click: sign in there and approve it. Markdrop asks for that one record and nothing else.
 3. Sign in where your domain's DNS is managed (often where you bought it) and add that `CNAME` record. **Download as CSV** gives you the record as a file.
 4. Wait. **Status** shows **Record found**, **HTTPS certificate issued** and **Live**, and checks again every minute while the page is open, usually a few minutes after your DNS change is visible. Choose **Check now** to check right away. You can leave the page: Markdrop keeps checking, and emails you when the domain is live (or if it gives up).
 5. Once it's **Live**, readers get the guide at `https://help.acme.com`. Markdrop publishes the live version again, so links, the sitemap, `llms.txt` and preview cards use your domain from then on. Keep the record in place.

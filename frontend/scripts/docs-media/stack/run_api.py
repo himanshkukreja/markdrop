@@ -348,6 +348,64 @@ docs_site_assets._client = _no_boto
 # Routing an import reads the source's llms.txt over the internet: never here. The demo's imports
 # are played by seed_extra_studio.py --import-run (the worker doesn't take imports, see
 # run_docs_worker.py), so the source is never fetched.
+# ── The editor's AI help: a stand-in model ────────────────────────────────────
+# The sandbox never has a key (see _refuse_non_local). The editor's Ask AI (improve, shorten, fix,
+# translate a selection) talks to this instead, deterministically, so captures and browser checks
+# can show a suggestion. Only the editor's module sees it: the readers' Ask AI stays "not set up".
+# DOCS_MEDIA_FAKE_AI=0 turns it off.
+if os.environ.get("DOCS_MEDIA_FAKE_AI", "1") != "0":
+    import re as _re
+    from types import SimpleNamespace as _NS
+
+    from app.services import docs_agent as _docs_agent  # noqa: E402
+    from app.services import docs_editor_ai as _editor_ai  # noqa: E402
+
+    _FILLER = [(r"\bin order to\b", "to"), (r"\bis able to\b", "can"), (r"\bmake sure\b", "check"), (r"\bjust\b ", ""),
+               (r"\breally\b ", ""), (r"\bvery\b ", ""), (r"\bbasically,? ", ""), (r"\bsimply\b ", ""), (r"\bplease\b ", "")]
+    _TYPOS = {"teh": "the", "recieve": "receive", "adress": "address", "seperate": "separate", "occured": "occurred",
+              "untill": "until", "wich": "which", "acount": "account", "definately": "definitely", "succesful": "successful"}
+    _ES = {"create": "crea", "an": "una", "account": "cuenta", "in": "en", "under": "menos de", "a": "un", "minute": "minuto",
+           "you": "puedes", "can": "", "place": "hacer", "your": "tu", "first": "primer", "order": "pedido", "right": "",
+           "away": "ahora mismo", "the": "el", "and": "y", "to": "para", "is": "es", "saved": "guardado", "before": "antes de",
+           "sign": "iniciar", "basket": "carrito", "even": "incluso", "with": "con", "of": "de", "for": "para", "page": "página"}
+
+    def _fake_rewrite(action: str, text: str, language: str | None) -> str:
+        if action == "shorten":
+            paras = [p.strip() for p in text.split("\n\n")]
+            out = []
+            for p in paras:
+                m = _re.match(r"(.+?[.!?])(\s|$)", p, _re.S)
+                out.append(m.group(1) if m and not p.lstrip().startswith(("-", "*", "#", "1.", ":::", "|", "```")) else p)
+            return "\n\n".join(out)
+        if action == "fix":
+            return _re.sub(r"[A-Za-z]+", lambda m: _TYPOS.get(m.group(0).lower(), m.group(0)), text)
+        if action == "translate":
+            if (language or "").lower().startswith("spanish"):
+                words = _re.sub(r"[A-Za-z]+", lambda m: _ES.get(m.group(0).lower(), m.group(0)), text)
+                return _re.sub(r"  +", " ", words).strip()
+            return f"{text}\n\n({language})"
+        out = text
+        for pat, rep in _FILLER:
+            out = _re.sub(pat, rep, out, flags=_re.I)
+        out = _re.sub(r"\bYou can\b", "You can", out)
+        return out if out != text else _re.sub(r"\s+", " ", text).strip().rstrip(".") + ", in a few steps."
+
+    class _FakeMessages:
+        async def create(self, **params):
+            turn = params["messages"][-1]["content"][0]["text"]
+            m = _re.search(r"<passage>\n(.*)\n</passage>", turn, _re.S)
+            text = m.group(1) if m else ""
+            first = turn.split(None, 1)[0].lower()
+            action = {"improve": "improve", "shorten": "shorten", "fix": "fix", "translate": "translate"}.get(first, "improve")
+            lang = _re.search(r"into (.+?)\.", turn)
+            await asyncio.sleep(0.6)  # long enough to see the "Writing…" state
+            out = _fake_rewrite(action, text, lang.group(1) if lang else None)
+            return _NS(content=[_NS(type="text", text=out)], stop_reason="end_turn",
+                       usage={"input_tokens": 400 + len(text) // 4, "output_tokens": len(out) // 4 + 5})
+
+    _fake_client = _NS(messages=_FakeMessages())
+    _editor_ai.docs_agent = _NS(enabled=_docs_agent.enabled, configured=lambda: True, get_client=lambda: _fake_client)
+
 from app.services import docs_dispatch  # noqa: E402
 
 

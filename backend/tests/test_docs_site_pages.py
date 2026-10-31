@@ -52,8 +52,8 @@ class Pages(DocsSitesCase):
             await self.new_page(bad, expect=422)
         listing = await self.get(f"/{self.sid}/pages", "viewer")
         self.assertEqual(len(listing["pages"]), 5)
-        self.assertEqual(set(listing["pages"][0]), {"id", "path", "title", "icon", "hidden", "has_changes", "lock",
-                                                    "rev", "updated_at", "updated_by"})
+        self.assertEqual(set(listing["pages"][0]), {"id", "path", "title", "icon", "hidden", "has_changes",
+                                                    "published", "lock", "rev", "updated_at", "updated_by"})
         await self.get(f"/{self.sid}/pages/{ObjectId()}", expect=404)
         await self.get(f"/{self.sid}/pages/nope", expect=404)
 
@@ -111,6 +111,25 @@ class Pages(DocsSitesCase):
     async def redirects(self, why: bool = False) -> list[dict]:
         rows = (await self.get(f"/{self.sid}"))["settings"]["redirects"]
         return rows if why else [{k: v for k, v in r.items() if k != "why"} for r in rows]
+
+    async def test_published_flag(self):
+        """``published``: on the live site at all; ``has_changes``: differs from what's live. New and
+        never published is (False, True); changed since publish is (True, True)."""
+        def state(p):
+            return p["published"], p["has_changes"]
+
+        a = await self.new_page("/guides/a")
+        self.assertEqual(state(a), (False, True))
+        b = await self.call("POST", f"/{self.sid}/publish", expect=202, json={})
+        await self.mark_live(b["id"])
+        a = await self.get(f"/{self.sid}/pages/{a['id']}")
+        self.assertEqual(state(a), (True, False))
+        a = await self.save(a, markdown="# Changed\n")
+        self.assertEqual(state(a), (True, True))
+        c = await self.new_page("/guides/c")
+        listing = {p["id"]: state(p) for p in (await self.get(f"/{self.sid}/pages"))["pages"]}
+        self.assertEqual((listing[a["id"]], listing[c["id"]], listing[self.home_page["id"]]),
+                         ((True, True), (False, True), (True, False)))
 
     async def test_moving_a_page_redirects_its_published_address(self):
         a = await self.new_page("/guides/a")

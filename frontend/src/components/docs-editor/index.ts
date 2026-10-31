@@ -9,7 +9,9 @@
  * loaded lazily; this module itself is light.
  */
 export { DocsEditor, preloadDocsEditor } from "./DocsEditor";
-export type { DocsEditorProps, EditorMode, UploadImage, UploadImageInfo, ApiOperationOption } from "./types";
+export type {
+  DocsEditorProps, EditorMode, UploadImage, UploadImageInfo, ApiOperationOption, AssistAction, AssistFn, AssistRequest, CommentMark, DocsEditorApi, RevealTarget, TextAnchor,
+} from "./types";
 export { darkVariantPath } from "./host";
 /** Frontmatter helpers for hosts that store title / description / icon separately from the body. */
 export { splitFrontmatter, readFrontmatter, readMeta, writeFrontmatter } from "./core/frontmatter.mjs";

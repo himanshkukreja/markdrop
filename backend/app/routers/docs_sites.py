@@ -20,6 +20,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import require_user
 from app.routers.docs_site_domains import router as domains_router
+from app.routers.docs_site_editor import router as editor_router
 from app.routers.docs_site_api import router as api_router
 from app.routers.docs_site_pages import DocsRoute
 from app.routers.docs_site_pages import router as pages_router
@@ -296,3 +297,5 @@ router.include_router(domains_router)
 router.include_router(api_router)
 # An import's redirects, for Settings (routers/docs_site_redirects.py).
 router.include_router(redirects_router)
+# The page editor's AI help, review comments and presence (routers/docs_site_editor.py).
+router.include_router(editor_router)

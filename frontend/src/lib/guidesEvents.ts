@@ -37,6 +37,10 @@
  *   guide_domain_one_click        (the provider's Domain Connect page opened)
  *   guide_domain_handoff          how: copy|email|link|csv (the DNS steps sent on to someone)
  *   guide_api_sample_used         (an API reference started from the sample file)
+ *   guide_ai_assist               action: improve|shorten|fix|translate (the editor's Ask AI on a selection)
+ *   guide_find_replace            (the editor's Find and replace opened)
+ *   guide_comment_added           (a review comment on a page; replies aren't counted)
+ *   guide_check_fixed             kind: link_missing|image_alt|heading_empty (a page check's Fix)
  *
  * What finishes on the server (a build going live or failing, an import finishing or failing) is
  * recorded there, in docs_events, and shown in the admin's Product health tab.
@@ -88,6 +92,10 @@ export const guideEvents = {
   domainOneClick: () => emit("guide_domain_one_click"),
   domainHandoff: (how: "copy" | "email" | "link" | "csv") => emit("guide_domain_handoff", { how }),
   apiSampleUsed: () => emit("guide_api_sample_used"),
+  aiAssist: (action: "improve" | "shorten" | "fix" | "translate") => emit("guide_ai_assist", { action }),
+  findReplace: () => emit("guide_find_replace"),
+  commentAdded: () => emit("guide_comment_added"),
+  checkFixed: (kind: "link_missing" | "image_alt" | "heading_empty") => emit("guide_check_fixed", { kind }),
   memberRole: (scope: "workspace" | "site", role: string | null) =>
     emit("guide_member_role_changed", { scope, role: role === null ? "inherit" : pick(role, ROLES) ?? "other" }),
 };

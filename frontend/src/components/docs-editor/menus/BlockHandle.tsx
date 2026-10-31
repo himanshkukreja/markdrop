@@ -117,8 +117,44 @@ const LABEL: Record<string, string> = {
   horizontalRule: "divider",
 };
 
+/** Where the empty line with the caret is (it gets a "+" without hovering), relative to `wrap`. */
+function emptyLineAt(editor: Editor, wrap: HTMLElement): { pos: number; top: number; left: number } | null {
+  const { state, view } = editor;
+  const sel = state.selection;
+  if (!sel.empty || !view.hasFocus()) return null;
+  const $p = sel.$from;
+  const node = $p.parent;
+  if (node.type.name !== "paragraph" || node.content.size > 0 || $p.depth < 1) return null;
+  if (!FLOW.has($p.node($p.depth - 1).type.name)) return null;
+  const dom = view.nodeDOM($p.before());
+  if (!(dom instanceof HTMLElement)) return null;
+  const r = dom.getBoundingClientRect();
+  const w = wrap.getBoundingClientRect();
+  const line = Math.min(parseFloat(getComputedStyle(dom).lineHeight) || 24, 40);
+  return { pos: $p.before(), top: r.top - w.top + Math.max(0, (line - 24) / 2), left: r.left - w.left };
+}
+
 export function BlockHandle({ editor, container }: { editor: Editor; container: RefObject<HTMLDivElement | null> }) {
   const [t, setT] = useState<Placed | null>(null);
+  const [caret, setCaret] = useState<{ pos: number; top: number; left: number } | null>(null);
+
+  // The caret on an empty line: a "+" there opens the block menu on that line.
+  useEffect(() => {
+    const wrap = container.current;
+    if (!wrap) return;
+    const update = () => setCaret(editor.isEditable ? emptyLineAt(editor, wrap) : null);
+    const later = () => window.setTimeout(update, 0);
+    editor.on("selectionUpdate", update);
+    editor.on("update", update);
+    editor.on("focus", update);
+    editor.on("blur", later);
+    return () => {
+      editor.off("selectionUpdate", update);
+      editor.off("update", update);
+      editor.off("focus", update);
+      editor.off("blur", later);
+    };
+  }, [editor, container]);
   const [menu, setMenu] = useState(false);
   const frozen = useRef(false);
   frozen.current = menu;
@@ -165,7 +201,28 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
     };
   }, [editor, container]);
 
-  if (!t || !editor.isEditable) return null;
+  if (!editor.isEditable) return null;
+  if (!t) {
+    if (!caret) return null;
+    return (
+      <div className="dxe-handle dxe-handle--caret" style={{ top: caret.top, left: caret.left }} contentEditable={false}>
+        <button
+          type="button"
+          className="dxe-handle__btn"
+          aria-label="Add a block on this line"
+          title="Add a block (or type /)"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            const n = editor.state.doc.nodeAt(caret.pos);
+            if (!n || n.type.name !== "paragraph" || n.content.size) return;
+            editor.chain().focus().setTextSelection(caret.pos + 1).insertContent("/").run();
+          }}
+        >
+          <Icon name="plus" />
+        </button>
+      </div>
+    );
+  }
   const what = LABEL[t.node.type.name] ?? "block";
   const current = (): BlockTarget | null => {
     const n = editor.state.doc.nodeAt(t.pos);

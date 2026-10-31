@@ -155,9 +155,11 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 
     await db[ASSETS].create_index([("site_id", 1), ("sha256", 1)], unique=True)
 
-    from app.services import docs_api_spec
+    from app.services import docs_api_spec, docs_page_comments, docs_presence
 
     await docs_api_spec.ensure_indexes(db)
+    await docs_page_comments.ensure_indexes(db)
+    await docs_presence.ensure_indexes(db)
 
     await db[EVENTS].create_index([("kind", 1), ("ts", -1)])
     await db[EVENTS].create_index([("site_id", 1), ("ts", -1)])
@@ -295,12 +297,16 @@ def _scope_query(workspace_id: str | None, owner_id: str) -> dict:
 
 
 async def ai_answers(db: AsyncIOMotorDatabase, site_ids: list[str]) -> dict[str, int]:
-    """Ask AI answers this UTC month per site (the ledger's ``site`` is the site id)."""
+    """AI uses this UTC month per site (the ledger's ``site`` is the site id): its readers' Ask AI
+    answers plus its editors' AI help (services/docs_editor_ai.py). Both count against the guide's
+    one monthly AI allowance (settings.docs_ai_answers_per_month), which this is checked against
+    and the dashboard shows. Refused (limit) and failed requests don't count."""
     if not site_ids:
         return {}
     out: dict[str, int] = {}
     async for row in db["ai_requests"].aggregate([
-        {"$match": {"feature": "docs_ask", "site": {"$in": site_ids}, "ts": {"$gte": month_start()},
+        {"$match": {"feature": {"$in": ["docs_ask", "docs_editor"]}, "site": {"$in": site_ids},
+                    "ts": {"$gte": month_start()},
                     "outcome": {"$nin": ["limit", "error"]}}},
         {"$group": {"_id": "$site", "n": {"$sum": 1}}},
     ]):

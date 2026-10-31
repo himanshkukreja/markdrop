@@ -194,7 +194,7 @@ EVENT_PROPS = (
     "pct", "engaged_sec", "est_minutes", "depth", "seconds",
     "access", "encrypted", "expires", "password", "workspace", "source", "sections", "from", "files", "of",
     "toy", "id", "n", "how", "section",
-    "template", "preset", "mode", "brand", "css", "enabled", "role", "scope", "note",
+    "template", "preset", "mode", "brand", "css", "enabled", "role", "scope", "note", "action",
     "$exception_message", "$exception_type", "$geoip_country_code", "$geoip_city_name", "$device_type", "$browser",
 )
 
@@ -437,7 +437,14 @@ GUIDE_EVENTS = {
     "guide_feedback_resolved": ("form", "Guides: resolved reader feedback"),
     "guide_feedback_reopened": ("form", "Guides: reopened reader feedback"),
     "guide_insights_cleared": ("form", "Guides: deleted Insights data"),
+    # The page editor (routers/docs_site_editor.py and the editor's own tools).
+    "guide_ai_assist": ("form", "Guides: used AI help in the editor"),
+    "guide_find_replace": ("form", "Guides: used find and replace"),
+    "guide_comment_added": ("form", "Guides: added a review comment"),
+    "guide_check_fixed": ("form", "Guides: fixed a page check"),
 }
+_GUIDE_AI_ACTION = {"improve": "improve writing", "shorten": "shorten", "fix": "fix spelling and grammar",
+                    "translate": "translate"}
 _GUIDE_SOURCE = {"blank": "blank", "template": "from a template", "import": "imported from GitBook", "github": "from GitHub"}
 
 
@@ -464,6 +471,8 @@ def describe_guide(event: str, p: dict, where: Any) -> dict:
         bits = [f"{int(n)} in all" if n is not None else None]
     elif event == "guide_publish_requested":
         bits = ["with a note" if truthy(p.get("note")) else None]
+    elif event == "guide_ai_assist":
+        bits = [_GUIDE_AI_ACTION.get(str(p.get("action") or ""))]
     elif event == "guide_insights_write_page":
         bits = [{"search": "a search with no results", "ask": "an unanswered Ask AI question",
                  "both": "searched and asked"}.get(str(p.get("source") or ""))]

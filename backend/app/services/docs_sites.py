@@ -41,7 +41,8 @@ and not deleted; its settings come from the row (``settings.ai``: on/off,
 assistant name, suggestions) and its docs from the live build's snapshot (see
 docs_index.aget_index). It never gets the Markdrop account tools, links only to
 its own address(es), and has a monthly answer cap
-(settings.docs_ai_answers_per_month) inside the global spend caps. A site whose
+(settings.docs_ai_answers_per_month, shared with its editors' AI help) inside the
+global spend caps. A site whose
 access isn't public gets no Ask AI: the API can't tell its readers apart.
 """
 

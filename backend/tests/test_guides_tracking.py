@@ -62,7 +62,18 @@ class GuidesShapes(unittest.TestCase):
                                                      "an unanswered Ask AI question"))
         d = journeys.describe("guide_something_new", {}, None, page)
         self.assertTrue(d["label"].startswith("Guides: "))
-        for p in ("template", "preset", "mode", "brand", "css", "enabled", "role", "scope", "note"):
+        # The page editor's events.
+        for event, label in (("guide_ai_assist", "Guides: used AI help in the editor"),
+                             ("guide_find_replace", "Guides: used find and replace"),
+                             ("guide_comment_added", "Guides: added a review comment"),
+                             ("guide_check_fixed", "Guides: fixed a page check")):
+            d = journeys.describe(event, {}, None, page)
+            self.assertEqual((d["kind"], d["label"], d["detail"]), ("form", label, "Guides · editor"))
+        d = journeys.describe("guide_ai_assist", {"action": "translate"}, None, page)
+        self.assertEqual(d["detail"], "translate")
+        d = journeys.describe("guide_ai_assist", {"action": "fix"}, None, page)
+        self.assertEqual(d["detail"], "fix spelling and grammar")
+        for p in ("template", "preset", "mode", "brand", "css", "enabled", "role", "scope", "note", "action"):
             self.assertIn(p, journeys.EVENT_PROPS)
 
     def test_duration_bucket(self):
