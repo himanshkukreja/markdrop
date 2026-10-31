@@ -111,7 +111,7 @@ outbound HTTPS to github.com, api.markdrop.in and `<account>.r2.cloudflarestorag
 
 `builder/cli.mjs build`, `--force`, same work folder for cold (fresh) then warm:
 
-| Settings | Markdrop docs (190 pages, 560 routes): cold / warm | Senseloaf import (95 pages, 293 routes): cold / warm |
+| Settings | Markdrop docs (190 pages, 560 routes): cold / warm | Pilot GitBook import (95 pages, 293 routes): cold / warm |
 |---|---|---|
 | Next default (all cores, 22 processes) | 32.7 s, 2,475 MB / 26.7 s, 1,681 MB | 41.6 s, 1,742 MB / 24.5 s, 1,919 MB |
 | 1 render worker, heap cap 1,024 MB | 35.2 s, 1,091 MB / 22.9 s, 693 MB | 27.4 s, 1,161 MB / 26.5 s, 617 MB |
@@ -128,8 +128,8 @@ build slow (90 s at 640 MB). Whole jobs, end to end against the docs account's R
 | Same site, warm | Actions path | 16 s | 1.8 GB (all cores) | 14 objects, 0.4 MB |
 | Same site, a page edited | Python worker (1 render worker, heap 768, nice) | 16.9 s | 1.04 GB | 124 objects, 5.3 MB (another work folder: see cold/warm variance) |
 | Restore to version 1 | inline in the API process | 1.4 s (+ ≤ 5 s pointer TTL) | — | 1 pointer write |
-| GitBook import of Senseloaf (HTTP cache on disk; 81 GIFs → clips) | Actions path | 19.3 s | 0.5 GB | 269 files, 86 MB |
-| Senseloaf first publish | Actions path | 52 s (files 11 s, next build 10.7 s, publish 23 s) | 2.3 GB (all cores) | 387 of 832 objects, 20.6 MB |
+| GitBook import of the pilot site (HTTP cache on disk; 81 GIFs → clips) | Actions path | 19.3 s | 0.5 GB | 269 files, 86 MB |
+| Pilot site first publish | Actions path | 52 s (files 11 s, next build 10.7 s, publish 23 s) | 2.3 GB (all cores) | 387 of 832 objects, 20.6 MB |
 
 ## The local worker (API box fallback, local development, a dedicated box)
 

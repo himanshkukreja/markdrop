@@ -8,7 +8,7 @@ frontend's `src/docs` and `src/app/docs-site`, built by its own Next app. There 
 renderer.
 
 Status: prototype. Deployed only as two noindex previews on a separate Cloudflare account used for
-docs previews (`markdrop-docs-edge` serving docs.markdrop.in's content, and `senseloaf-preview`, both
+docs previews (`markdrop-docs-edge` serving docs.markdrop.in's content, and a pilot site preview, both
 on workers.dev), plus the theme previews below. Locally the Worker runs in Miniflare (workerd).
 
 ## Decision: prerender with the real Next app, then crawl it (option A, on a staged copy)
@@ -16,7 +16,7 @@ on workers.dev), plus the theme previews below. Locally the Worker runs in Minif
 | Option | What it is | Measured | Verdict |
 |---|---|---|---|
 | **A. Full app build + crawl** | `next build` of the whole frontend with `DOCS_CONTENT_DIR`, then crawl the docs routes | 72 s cold, 47 s warm (587 pages: the whole app plus 190 docs pages) | Works, but compiles and type-checks ~60 app routes no reader sees |
-| **A′. Staged docs-only build + crawl (chosen)** | Same app and same code, but the app routes outside the docs are renamed `_off-*` (Next's private folders) in a reused copy (`builder/stage.mjs`), and type-check and lint are skipped | **Markdrop (190 pages): 33 s cold, 11.5 s warm** (next build 9.5 s + crawl 1.9 s). **Senseloaf (95 pages): 10.9 s warm**. Minimal 2-page site: about 15 s | Rendered DOM is identical to the full build on all 190 pages. Only the chunk and stylesheet tags differ (hashes and how chunks are split) |
+| **A′. Staged docs-only build + crawl (chosen)** | Same app and same code, but the app routes outside the docs are renamed `_off-*` (Next's private folders) in a reused copy (`builder/stage.mjs`), and type-check and lint are skipped | **Markdrop (190 pages): 33 s cold, 11.5 s warm** (next build 9.5 s + crawl 1.9 s). **A pilot GitBook import (95 pages): 10.9 s warm**. Minimal 2-page site: about 15 s | Rendered DOM is identical to the full build on all 190 pages. Only the chunk and stylesheet tags differ (hashes and how chunks are split) |
 | **B. `output: "export"`** | Static export of the same staged app | Fails. `apple-icon` and `manifest.webmanifest` need `force-static`. Then an EISDIR collision: the route handler `/og/changelog` (a file) vs `/og/changelog/<id>` (a folder). Middleware and `/mcp` have to be removed. `404.html` would be the app's root not-found. The client router asks for `*.txt` payloads under `/docs-site/…` | Needs engine changes (OG paths with an extension, force-static icons) and still needs the edge for negotiation. Not faster (~22 s) |
 | C1. Read Next's prerender cache directly | Read `.next/server/app/docs-site/*.html/.rsc/.body/.meta` with no server | Would save the 1.9 s crawl | Couples the platform to Next's internal cache format. The crawl uses the public HTTP surface and records exactly what the server sends |
 | C2. A separate renderer (Astro, Markdoc, …) | — | — | Ruled out: a second renderer |
@@ -37,7 +37,7 @@ favicon, apple-icon) are fetched as well.
 | `<page>.md`, `/index.md`, `Accept: text/markdown` | Static objects, negotiated at the edge | Uses the engine's own `docsRewritePath` / `prefersMarkdown` (`src/docs/host.ts`, bundled into the edge) |
 | `llms.txt`, `llms-full.txt`, `skill.md`, `sitemap.xml`, `robots.txt`, `search-index.json`, `changelog.{md,rss,json}` | Static, with the engine's own cache headers | |
 | `/og/**` | Static PNG | Rendered by `next/og` at build time |
-| `/_next/static/{chunks,css,media}/**` | **Workers Static Assets** (no Worker invocation), immutable | Content-hashed engine output, shared by every site an engine builds (175 of 190 between Markdrop and Senseloaf; the rest differ only by inlined `NEXT_PUBLIC_*` values, so they have other names). Also in R2: the Worker serves one from there when the deployed assets lack it. See "Engine files as static assets" |
+| `/_next/static/{chunks,css,media}/**` | **Workers Static Assets** (no Worker invocation), immutable | Content-hashed engine output, shared by every site an engine builds (175 of 190 between Markdrop and the pilot site; the rest differ only by inlined `NEXT_PUBLIC_*` values, so they have other names). Also in R2: the Worker serves one from there when the deployed assets lack it. See "Engine files as static assets" |
 | `/_next/static/<build id>/*` | Static, from R2 through the Worker | `_buildManifest.js` carries the site's rewrites (its docs hosts), so it differs per site under one name. The app router never requests it |
 | `/docs-assets/**` (site files) | Static, `Range` supported (video) | Copied from `<content>/public` |
 | 404 | The engine's 404 page (status 404) | The Next server renders the 404 per request: same page, but the requested path appears in its payload |
@@ -122,7 +122,7 @@ uploads that folder as the Worker's static assets (`[assets]` in `edge/wrangler.
 
 ## Measurements (Apple-silicon laptop, Next 15.5.14, Node 22.18)
 
-| | Markdrop docs | Senseloaf (imported from GitBook) |
+| | Markdrop docs | Pilot site (imported from GitBook) |
 |---|---|---|
 | Routes (HTML pages) | 556 (190) | 293 (95) |
 | Objects / total size | 1,173 / 105.6 MB | 833 / 110.1 MB |
@@ -149,7 +149,7 @@ publish re-uploads about half the pages once (~35 MB for Markdrop). In CI, persi
 | | First view | Repeat view (HTTP cache warm) | Click to another page |
 |---|---|---|---|
 | Markdrop `/cli/install` | 43 = 1 page + 29 chunks + 10 RSC prefetches + 1 search index + 2 × 404 (`/_vercel/*insights/script.js`) | 12 (1 page + 9 prefetches + 2 × 404) | 4 prefetches; the navigation itself used a prefetched payload |
-| Senseloaf `/hiring-agents/sia-hiring-ai` | 50 = 1 page + 27 chunks + 20 RSC prefetches + 1 image + 1 search index | 21 (1 page + 20 prefetches) | 1 image |
+| Pilot site (a GitBook import), one page | 50 = 1 page + 27 chunks + 20 RSC prefetches + 1 image + 1 search index | 21 (1 page + 20 prefetches) | 1 image |
 
 **Prefetching costs more than anything else.** Next prefetches every link in view (the sidebar),
 so a view costs 10–20 Worker invocations for prefetches alone. If the chunks are kept off the Worker
@@ -168,8 +168,8 @@ loads the page, idles 3 s, scrolls, opens search, then hovers and clicks a sideb
 |---|---|---|---|
 | Markdrop `/cli/install`, before | 44 = 1 page + 30 chunks + 10 prefetches + 1 search index + 2 × 404 | 12 | 4 prefetches |
 | Markdrop `/cli/install`, after | **4** = 1 page + 1 search index + 2 × 404 (`/_vercel/*insights`, open decision 7); 25 chunks from Static Assets | **3** | **1** (the hover prefetch; the click used it) |
-| Senseloaf `/hiring-agents/sia-hiring-ai`, before | 50 = 1 page + 27 chunks + 20 prefetches + 1 image + 1 search index | 21 | 1 image |
-| Senseloaf `/hiring-agents/sia-hiring-ai`, after | **3** = 1 page + 1 image + 1 search index; 26 chunks from Static Assets | **1** | **2** (hover prefetch + 1 image) |
+| Pilot site (a GitBook import), one page, before | 50 = 1 page + 27 chunks + 20 prefetches + 1 image + 1 search index | 21 | 1 image |
+| Pilot site (a GitBook import), one page, after | **3** = 1 page + 1 image + 1 search index; 26 chunks from Static Assets | **1** | **2** (hover prefetch + 1 image) |
 
 A reader moving the pointer over the sidebar adds one prefetch per link they pass over (the
 router's cache makes a second pass free). On the free plan (100k requests a day) a first view now
@@ -195,7 +195,7 @@ chunks.
 
 ## Verification (`test/verify.mjs`: every route compared against `next start` of the same build)
 
-| Server | Markdrop | Senseloaf |
+| Server | Markdrop | Pilot site |
 |---|---|---|
 | Self-host (Node, `server/server.mjs serve`) | 1,329 / 1,331 byte-identical (after the hover-prefetch build) | 673 / 676 byte-identical (before) |
 | Worker in Miniflare (`test/miniflare.mjs`) | 1,316 / 1,319 byte-identical (before) | — (same handler) |
