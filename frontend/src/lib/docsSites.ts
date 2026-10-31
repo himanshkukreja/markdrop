@@ -170,9 +170,40 @@ export interface SiteSettings {
   redirects?: Redirect[];
 }
 
+/** A DNS record the customer adds for their own domain (CNAME: always; TXT: Cloudflare's alternatives). */
+export interface DomainRecord {
+  type: "CNAME" | "TXT" | string;
+  name: string;
+  value: string;
+  /** route: the CNAME that sends readers here; ownership / certificate: TXT records Cloudflare can
+   * check instead of the CNAME (only needed when it can't see it, e.g. behind another proxy). */
+  purpose: "route" | "ownership" | "certificate" | string;
+  optional: boolean;
+}
+
+/** One of the guide's own domains (backend services/docs_custom_domains.py). */
 export interface SiteDomain {
   host: string;
-  status: "pending" | "verified" | "live" | "failed" | string;
+  /** pending: waiting for DNS / the certificate; live: readers get the guide there; failed: gave up
+   * (see message); removing: being taken off. */
+  status: "pending" | "live" | "failed" | "removing" | "verified" | string;
+  /** While pending: dns (Cloudflare doesn't see the CNAME yet) or certificate (issuing it). */
+  stage?: "dns" | "certificate" | null;
+  /** Cloudflare's words (or ours) about what's in the way. */
+  message?: string | null;
+  /** Guides admins only. */
+  records?: DomainRecord[];
+  added_at?: string | null;
+  live_at?: string | null;
+  checked_at?: string | null;
+  next_check_at?: string | null;
+}
+
+/** Whether this server offers own domains, the CNAME target, and how many a guide may have. */
+export interface OwnDomains {
+  available: boolean;
+  target: string;
+  max: number;
 }
 
 export type BuildStatus = "queued" | "building" | "publishing" | "live" | "failed" | "superseded";
@@ -294,6 +325,7 @@ export interface Site extends SiteSummary {
   source: SiteSource;
   settings: SiteSettings;
   domains: SiteDomain[];
+  own_domains?: OwnDomains;
   live_build_id: string | null;
   /** The GitBook import that filled this site (its screen can be reopened while the job is kept). */
   last_import_job_id?: string | null;
@@ -514,6 +546,21 @@ export function deleteSite(id: string): Promise<{ deleted: true; job: Job | null
 
 export function unpublishSite(id: string): Promise<Site> {
   return request<Site>(`/${enc(id)}/unpublish`, { method: "POST" }).then(after(guideEvents.unpublished));
+}
+
+/** Admins: add an own domain (help.acme.com). The answer is the site, with the domain pending. */
+export function addSiteDomain(id: string, host: string): Promise<Site> {
+  return request<Site>(`/${enc(id)}/domains`, { method: "POST", json: { host } }).then(after(guideEvents.domainAdded));
+}
+
+/** Admins: ask Cloudflare about the domain now (a failed one starts over). */
+export function checkSiteDomain(id: string, host: string): Promise<Site> {
+  return request<Site>(`/${enc(id)}/domains/${enc(host)}/check`, { method: "POST" });
+}
+
+/** Admins: take the domain off the guide (the free address keeps working). */
+export function removeSiteDomain(id: string, host: string): Promise<Site> {
+  return request<Site>(`/${enc(id)}/domains/${enc(host)}`, { method: "DELETE" }).then(after(guideEvents.domainRemoved));
 }
 
 export interface SlugStatus {

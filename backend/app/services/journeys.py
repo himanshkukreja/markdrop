@@ -421,6 +421,9 @@ GUIDE_EVENTS = {
     "guide_member_role_changed": ("connect", "Guides: changed someone's role"),
     "guide_unpublished": ("form", "Guides: unpublished a site"),
     "guide_deleted": ("form", "Guides: deleted a site"),
+    "guide_domain_added": ("connect", "Guides: added their own domain"),
+    "guide_domain_removed": ("form", "Guides: removed their own domain"),
+    "guide_domain_live": ("connect", "Guides: their own domain went live"),
 }
 _GUIDE_SOURCE = {"blank": "blank", "template": "from a template", "import": "imported from GitBook", "github": "from GitHub"}
 
