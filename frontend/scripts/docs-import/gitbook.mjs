@@ -19,7 +19,13 @@
  *   3. <page>.md per page        GitBook's Markdown export of the page (converted, see lib/convert.mjs)
  *   4. <page> HTML per page      heading ids (to report deep links whose #anchor changes) and the
  *                                download URLs behind {% file %} blocks
- *   5. images and files          downloaded into <out>/public/docs-assets/<id>/<page>/
+ *   5. images and files          downloaded into <out>/public/docs-assets/<id>/<page>/ (from the site or
+ *                                GitBook's file hosts; PNG, JPEG, GIF, WebP, AVIF, PDF, MP4, WebM only,
+ *                                by their bytes; anything else stays a link to the original)
+ *
+ * Every request goes through lib/guard.mjs: https only, public addresses only (checked after DNS,
+ * the connection pinned to that address), redirects checked hop by hop, pages only from the site's
+ * own origin.
  *
  * Output (all inside --out):
  *   site.json, index.md, <section>/<page>.md, media.json, videos.json (when there are videos),
@@ -37,6 +43,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createFetcher } from "./lib/fetch.mjs";
+import { IMAGE_EXTS, IMPORT_EXTS, checkUrl, sniffExt } from "./lib/guard.mjs";
 import { decodeEntities, lighten } from "./lib/html.mjs";
 import { createSite, isOpaqueImage } from "./lib/site.mjs";
 import crypto from "node:crypto";
@@ -66,7 +73,13 @@ if (!args._[0] || !args.out) {
   console.error("usage: node scripts/docs-import/gitbook.mjs <site-url> --out <dir> [--cache dir] [--id id] [--date YYYY-MM-DD] [--refresh]");
   process.exit(2);
 }
-const SITE = new URL(args._[0].replace(/\/*$/, "/"));
+let SITE;
+try {
+  SITE = checkUrl(args._[0].replace(/\/*$/, "/"));
+} catch (e) {
+  console.error(`not a site this importer reads: ${e.message}`);
+  process.exit(2);
+}
 const ORIGIN = SITE.origin;
 const BASE = SITE.pathname.replace(/\/$/, ""); // a site under a path: https://x.gitbook.io/docs
 const OUT = path.resolve(args.out);
@@ -94,7 +107,10 @@ const FFPROBE = findTool("ffprobe");
 if (FFPROBE) process.env.PATH = `${path.dirname(FFPROBE)}:${process.env.PATH}`;
 
 const log = (...a) => console.log(...a);
-const http = createFetcher({ cacheDir: CACHE, refresh: !!args.refresh, log: process.env.DEBUG ? log : () => {} });
+// Pages (llms.txt, page HTML and Markdown, GitBook's redirects) only from the site itself; images and
+// files from it or GitBook's file hosts (FILE_HOSTS, `download`). Every request is guarded (lib/guard.mjs).
+const onSite = (u) => u.origin === ORIGIN;
+const http = createFetcher({ cacheDir: CACHE, refresh: !!args.refresh, log: process.env.DEBUG ? log : () => {}, allow: onSite });
 
 /* ── report state ────────────────────────────────────────────────────────── */
 const counts = new Map(); // kind → Map(how → n)
@@ -118,7 +134,7 @@ log(`GitBook import: ${ORIGIN}${BASE} → ${OUT} (site id "${ID}", cache ${CACHE
 
 const llmsRes = await http.text(abs("llms.txt"));
 if (!llmsRes.ok) {
-  console.error(`no llms.txt at ${abs("llms.txt")} (HTTP ${llmsRes.status}); is this a public GitBook site?`);
+  console.error(`no llms.txt at ${abs("llms.txt")} (${llmsRes.error || `HTTP ${llmsRes.status}`}); is this a public GitBook site?`);
   process.exit(1);
 }
 const sections = parseLlms(llmsRes.text);
@@ -175,7 +191,7 @@ log(`pages: ${pages.length} (${pages.filter((p) => p.inNav).length} in the sideb
 for (const p of pages) {
   const md = await http.text(p.mdUrl);
   if (!md.ok) {
-    issues.push({ page: p.gb, line: 0, kind: "fetch", msg: `couldn't fetch ${p.mdUrl} (HTTP ${md.status})` });
+    issues.push({ page: p.gb, line: 0, kind: "fetch", msg: `couldn't fetch ${p.mdUrl} (${md.error || `HTTP ${md.status}`})` });
     p.failed = true;
     continue;
   }
@@ -318,7 +334,6 @@ function pageCtx(p) {
 for (const p of live) p.out = convertBody(p.body, p.bodyLine, pageCtx(p));
 
 /* ── 4. download assets ──────────────────────────────────────────────────── */
-const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg", "image/gif": "gif", "image/webp": "webp", "image/svg+xml": "svg", "image/avif": "avif" };
 const taken = new Set();
 const media = {};
 let bytesTotal = 0;
@@ -368,28 +383,35 @@ function gifToClip(buf, a, dir, name) {
 }
 const gifStats = { n: 0, before: 0, after: 0 };
 const PUBLIC = path.join(OUT, "public");
+// Images and files: from the site itself or GitBook's file hosts, nowhere else (kept as links).
+const assetHost = (u) => u.origin === ORIGIN || FILE_HOSTS.test(u.hostname);
+/** → the response, or { failed: reason }. */
 async function download(url) {
-  const r = await http.get(url);
-  return r.ok && r.body.length ? r : null;
+  const r = await http.get(url, { allow: assetHost });
+  if (r.ok && r.body.length) return r;
+  return { failed: r.error ? `not downloaded (${r.error})` : `download failed (HTTP ${r.status})` };
 }
 log(`assets: ${assets.size} to download`);
 for (const a of assets.values()) {
   const r = await download(a.url);
-  if (!r) {
+  if (r.failed) {
     a.failed = true;
-    missing.push({ page: a.page.gb, line: 0, src: a.url, reason: "download failed: kept the original URL" });
+    missing.push({ page: a.page.gb, line: 0, src: a.url, reason: `${r.failed}: kept the original URL` });
     continue;
   }
   const dir = `${ASSET_BASE}/${a.page.our.slice(1)}`;
   const type = (r.type.split(";")[0] || "").trim().toLowerCase();
   const urlName = decodeURIComponent(new URL(a.url).pathname.split("/").pop() ?? "").split("/").pop();
+  // What the bytes are decides the extension (the docs host serves a file with its extension's type);
+  // only images, PDFs and video are kept (lib/guard.mjs IMPORT_EXTS: no SVG, HTML, XML or script).
+  const sniffed = sniffExt(r.body);
   if (a.kind === "image") {
-    if (type && !type.startsWith("image/")) {
+    const ext = sniffed;
+    if (!IMAGE_EXTS.has(ext)) {
       a.failed = true;
-      missing.push({ page: a.page.gb, line: 0, src: a.url, reason: `not an image (${type}): kept the original URL` });
+      missing.push({ page: a.page.gb, line: 0, src: a.url, reason: `${type === "image/svg+xml" || /\.svg$/i.test(urlName) ? "an SVG image (not imported)" : `not a PNG, JPEG, GIF, WebP or AVIF image (${type || "unknown type"})`}: kept the original URL` });
       continue;
     }
-    const ext = EXT[type] ?? (/\.([a-z0-9]+)$/i.exec(urlName)?.[1] ?? "png").toLowerCase().replace("jpeg", "jpg");
     if (ext === "gif" && FFMPEG && !a.hint?.darkSrc) {
       a.clip = gifToClip(r.body, a, dir, a.hint?.name || urlName);
       if (a.clip) {
@@ -406,8 +428,7 @@ for (const a of assets.values()) {
     media[a.rel] = { ...(size ?? {}), bytes: r.body.length, kind: "image" };
     if (a.hint?.darkSrc) {
       const d = await download(new URL(a.hint.darkSrc, ORIGIN).href);
-      const dtype = d ? (d.type.split(";")[0] || "").trim().toLowerCase() : "";
-      if (d && (EXT[dtype] ?? ext) === ext) {
+      if (!d.failed && sniffExt(d.body) === ext) {
         const drel = a.rel.replace(/(\.[a-z0-9]+)$/i, ".dark$1");
         write(drel, d.body);
         media[drel] = { ...(imageSize(d.body) ?? {}), bytes: d.body.length, kind: "image" };
@@ -416,8 +437,14 @@ for (const a of assets.values()) {
     }
   } else {
     const name = a.hint?.name || urlName || "file";
-    const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase() ?? "bin";
-    a.rel = assetName(dir, name, ext);
+    const named = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase() ?? "";
+    if (!sniffed || !IMPORT_EXTS.has(sniffed)) {
+      a.failed = true;
+      missing.push({ page: a.page.gb, line: 0, src: a.url, reason: `a ${named ? `.${named}` : "file of unknown type"} isn't imported (only images, PDFs and MP4/WebM video): kept the original URL` });
+      continue;
+    }
+    // A JPEG named .jpeg keeps its name; anything else is named by its bytes.
+    a.rel = assetName(dir, name, named === "jpeg" && sniffed === "jpg" ? "jpeg" : sniffed);
     write(a.rel, r.body);
   }
   bytesTotal += r.body.length;
@@ -560,13 +587,23 @@ const intro = root?.out ? firstParagraph(root.out) : "";
 const brandOut = { name: brandName, label: "Docs" };
 async function brandAsset(url, stem) {
   if (!url) return null;
-  const r = await download(url);
-  if (!r) {
-    missing.push({ page: "site.json", line: 0, src: url, reason: `brand ${stem} download failed` });
+  let abs;
+  try {
+    abs = new URL(url, ORIGIN).href;
+  } catch {
+    missing.push({ page: "site.json", line: 0, src: url, reason: `brand ${stem}: not a valid URL` });
     return null;
   }
-  const type = (r.type.split(";")[0] || "").trim().toLowerCase();
-  const ext = EXT[type] ?? (type.includes("icon") ? "ico" : "png");
+  const r = await download(abs);
+  if (r.failed) {
+    missing.push({ page: "site.json", line: 0, src: url, reason: `brand ${stem} ${r.failed}` });
+    return null;
+  }
+  const ext = sniffExt(r.body);
+  if (!IMAGE_EXTS.has(ext) && ext !== "ico") {
+    missing.push({ page: "site.json", line: 0, src: url, reason: `brand ${stem} not imported: not a PNG, JPEG, GIF, WebP, AVIF or ICO image (an SVG logo isn't imported)` });
+    return null;
+  }
   const rel = `${ASSET_BASE}/brand/${stem}.${ext}`;
   write(rel, r.body);
   media[rel] = { ...(imageSize(r.body) ?? {}), bytes: r.body.length, kind: "image" };

@@ -118,12 +118,29 @@ function run(cmd, args, { cwd, env, log }) {
   });
 }
 
+/** A path on the site: "/x", never "//host", a backslash (browsers read "/\host" as "//host"), whitespace or a control character. */
+export function sitePath(v) {
+  return typeof v === "string" && v.length <= 2048 && v.startsWith("/") && !v.startsWith("//") && !/[\\\s\x00-\x1f\x7f]/.test(v);
+}
+
+/** An https:// address with a host (no credentials, backslash, whitespace or control characters). */
+export function httpsUrl(v) {
+  if (typeof v !== "string" || v.length > 2048 || !/^https:\/\//i.test(v) || /[\\\s\x00-\x1f\x7f]/.test(v)) return false;
+  try {
+    const u = new URL(v);
+    return u.protocol === "https:" && !!u.hostname && !u.username && !u.password;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * The site's redirects.json as edge rules. Either the engine's map ({"/old": "/new", …}, what the
+ * The site's redirects.json as edge rules (a target that isn't a site path or an https URL is
+ * dropped: the edge answers with it as the Location). Either the engine's map ({"/old": "/new", …}, what the
  * importers write and the docs host serves; each key also answers its `.md` twin, like the engine's
  * redirects()) or {status, redirects:[{from,to,same?}]}.
  */
-function readRedirects(contentDir) {
+export function readRedirects(contentDir) {
   let doc;
   try {
     doc = JSON.parse(fs.readFileSync(path.join(contentDir, "redirects.json"), "utf8"));
@@ -144,6 +161,7 @@ function readRedirects(contentDir) {
   const out = [];
   for (const r of list) {
     if (!r || typeof r.from !== "string" || typeof r.to !== "string" || r.same || r.from === r.to) continue;
+    if (!sitePath(r.from) || !(sitePath(r.to) || httpsUrl(r.to))) continue; // never //host, \, javascript: …
     out.push({ from: r.from, to: r.to, status: [301, 302, 307, 308].includes(r.status) ? r.status : status });
   }
   return out;

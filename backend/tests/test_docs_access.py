@@ -154,6 +154,30 @@ class AccessApiTests(DocsSitesCase):
                 await self.pw("wrong-one", ip="192.0.2.1")
             self.assertIn("e=rate", (await self.pw(ip="192.0.2.1")).headers["location"])
 
+    async def test_wrong_passwords_per_site_from_every_ip_are_limited(self):
+        await self.make_live()
+        limiter.reset()
+        with mock.patch("app.routers.docs_access.SITE_FAILURES", access_limit("5/hour")):
+            # Right passwords don't count; wrong ones from many addresses do.
+            self.assertIn("#g=", (await self.pw(ip="198.51.100.1")).headers["location"])
+            for n in range(5):
+                self.assertIn("e=wrong", (await self.pw("guess-%d" % n, ip=f"198.51.100.{10 + n}")).headers["location"])
+            # Shut for everyone now, a fresh address and the right password included…
+            self.assertIn("e=rate", (await self.pw(ip="203.0.113.50")).headers["location"])
+            # …and a refusal doesn't even check the password.
+            with mock.patch("app.routers.docs_access.bcrypt.checkpw") as checkpw:
+                self.assertIn("e=rate", (await self.pw("guess-x", ip="203.0.113.51")).headers["location"])
+            checkpw.assert_not_called()
+            # Another site is unaffected.
+            other = await self.create("other", source={"kind": "template", "template": "product"})
+            await self.call("PATCH", f"/{other['id']}", json={"settings": {"access": {"level": "password", "password": "open-sesame"}}})
+            b = await self.call("POST", f"/{other['id']}/publish", json={}, expect=202)
+            await self.mark_live(b["id"])
+            self.assertIn("#g=", (await self.pw(site=other["id"], host="other.docs.markdrop.in", ip="203.0.113.52")).headers["location"])
+        # The window passes: open again.
+        limiter.reset()
+        self.assertIn("#g=", (await self.pw(ip="203.0.113.53")).headers["location"])
+
     async def test_admins_can_sign_everyone_out(self):
         url = f"/api/v1/docs-access/{self.sid}/sign-out-everyone"
         self.assertEqual((await self.http.post(url, headers=self.h["admin"])).status_code, 409)  # public
@@ -198,7 +222,7 @@ class AccessApiTests(DocsSitesCase):
         self.assertEqual(fragment(r.json()["url"])["next"], "/")
         with mock.patch.object(settings, "docs_access_secret", ""):
             self.assertEqual((await self.member_grant()).status_code, 503)
-        await self.call("PATCH", f"/{self.sid}", json={"settings": {"access": {"level": "password", "password": "abcdefg"}}})
+        await self.call("PATCH", f"/{self.sid}", json={"settings": {"access": {"level": "password", "password": "abcdefgh"}}})
         self.assertEqual((await self.member_grant()).status_code, 409)
         await self.call("PATCH", f"/{self.sid}", json={"settings": {"access": {"level": "members"}}})
         self.assertEqual((await self.member_grant()).json()["url"].count("#g="), 1)

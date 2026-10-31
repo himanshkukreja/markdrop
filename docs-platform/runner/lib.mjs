@@ -29,6 +29,39 @@ import { mimeOf } from "../builder/mime.mjs";
 /** The importer's asset folder name (its --id): files land at /docs-assets/import/<page>/<name>. */
 export const IMPORT_ASSET_ID = "import";
 
+/**
+ * Files an import may upload (the docs host serves them from the site's own origin with their
+ * extension's type): images, PDFs, video, each only when its bytes are that type. Never HTML,
+ * XHTML, XML, SVG or script. The importer keeps to the same list (frontend/scripts/docs-import/
+ * lib/guard.mjs) and the API records only these (backend docs_import_job.IMPORT_ASSET_TYPES).
+ */
+const IMPORT_FILE_TYPES = { png: "png", jpg: "jpg", jpeg: "jpg", gif: "gif", webp: "webp", avif: "avif", ico: "ico", pdf: "pdf", mp4: "mp4", webm: "webm" };
+const SAFE_SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,199}$/;
+
+/** What these bytes are, among IMPORT_FILE_TYPES' values, or null. */
+export function sniffImportFile(buf) {
+  if (!buf || buf.length < 12) return null;
+  const s = (a, b) => buf.toString("latin1", a, b);
+  if (buf.readUInt32BE(0) === 0x89504e47 && buf.readUInt32BE(4) === 0x0d0a1a0a) return "png";
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "jpg";
+  if (s(0, 6) === "GIF87a" || s(0, 6) === "GIF89a") return "gif";
+  if (s(0, 4) === "RIFF" && s(8, 12) === "WEBP") return "webp";
+  if (s(4, 8) === "ftyp") return ["avif", "avis"].includes(s(8, 12)) ? "avif" : "mp4";
+  if (buf.readUInt32BE(0) === 0x1a45dfa3) return "webm";
+  if (s(0, 5) === "%PDF-") return "pdf";
+  if (buf.readUInt32BE(0) === 0x00000100) return "ico";
+  return null;
+}
+
+/** Whether an imported file at docs-assets/<rel> with these bytes may be uploaded. */
+export function importFileAllowed(rel, body) {
+  const segs = String(rel).split("/");
+  if (segs[0] !== IMPORT_ASSET_ID || segs.length > 8 || !segs.every((x) => SAFE_SEGMENT.test(x))) return false;
+  const ext = /\.([a-z0-9]+)$/i.exec(segs[segs.length - 1])?.[1]?.toLowerCase();
+  const want = ext && IMPORT_FILE_TYPES[ext];
+  return !!want && sniffImportFile(body) === want;
+}
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "..", "..");
 
@@ -348,21 +381,28 @@ export function readImportFolder(dir, { parseYaml }) {
 
 /**
  * Upload `<dir>/public/docs-assets/**` to sites/<site>/assets/** (skipping files the store has with
- * the same bytes). Returns counts plus one item per file (rel, size, sha256, content type) for the
- * API's asset rows.
+ * the same bytes). Only files an import may keep are uploaded (importFileAllowed: images, PDFs and
+ * video whose bytes match their extension, under import/); the rest are listed in `skipped`.
+ * Returns counts plus one item per file (rel, size, sha256, content type) for the API's asset rows.
  */
 export async function uploadImportAssets({ store, siteId, dir, progress = () => {}, concurrency = 8 }) {
   const root = path.join(dir, "public", "docs-assets");
-  const files = [];
+  const found = [];
   const walk = (d, rel = "") => {
     for (const e of fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }) : []) {
       if (e.name.startsWith(".")) continue;
       const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) walk(path.join(d, e.name), r);
-      else if (e.isFile()) files.push(r);
+      else if (e.isFile()) found.push(r);
     }
   };
   walk(root);
+  const files = [];
+  const skipped = [];
+  for (const rel of found) {
+    const body = fs.readFileSync(path.join(root, ...rel.split("/")));
+    (importFileAllowed(rel, body) ? files : skipped).push(rel);
+  }
   const have = new Map((await store.listObjects(`sites/${siteId}/assets/`)).map((o) => [o.key, o]));
   let uploaded = 0;
   let uploadedBytes = 0;
@@ -385,7 +425,7 @@ export async function uploadImportAssets({ store, siteId, dir, progress = () => 
     if (done % 25 === 0 || done === files.length) progress({ step: "upload", done, total: files.length, message: `${done} of ${files.length} files` });
   });
   items.sort((a, b) => (a.rel < b.rel ? -1 : 1));
-  return { files: files.length, bytes, uploaded, uploaded_bytes: uploadedBytes, items };
+  return { files: files.length, bytes, uploaded, uploaded_bytes: uploadedBytes, items, skipped: skipped.sort().slice(0, 200) };
 }
 
 /**
@@ -405,7 +445,9 @@ export async function runImport(spec, { store, cfg, progress = () => {}, log = (
   } catch {
     throw new Error("spec.import.url is not a URL");
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("the import URL must be http(s)");
+  // The importer checks every address it fetches (lib/guard.mjs: public addresses only); this is the
+  // first refusal, before anything runs.
+  if (url.protocol !== "https:" || url.username || url.password || url.port) throw new Error("the import URL must be a plain https:// address");
   const jobDir = path.join(cfg.workDir, "jobs", String(spec.job?.id || "local"));
   const out = path.join(jobDir, "import");
   fs.rmSync(jobDir, { recursive: true, force: true });

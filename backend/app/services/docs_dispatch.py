@@ -16,9 +16,13 @@ Routing:
   small access-policy write in R2, run
   inline by whichever process holds the docs bucket keys (the API, right after
   the job is queued; else the local worker).
-- import → local when the source is small (its llms.txt lists at most
-  MARKDROP_DOCS_LOCAL_IMPORT_MAX_PAGES pages; local imports keep GIFs as GIFs, so
-  no ffmpeg runs on the box), else Actions (GIF → clip conversion included).
+- import → Actions, always (GIF → clip conversion included). An import fetches
+  whatever the given site and its llms.txt point at, so it never runs on the
+  API box, and the API never fetches the source itself. With Actions
+  unavailable the job waits unrouted (``route_reason`` says why) until Actions
+  is back; the sweeper fails it after MARKDROP_DOCS_JOB_QUEUED_TIMEOUT_MINUTES
+  with that reason. An import an older API routed "local" is routed again.
+  (MARKDROP_DOCS_LOCAL_IMPORT_MAX_PAGES is no longer read.)
 - build → Actions; local only when Actions is unavailable (not configured, the
   dispatch call failing, or the month's minutes budget
   MARKDROP_DOCS_ACTIONS_MONTHLY_MINUTES used up, counted from the jobs' own
@@ -35,7 +39,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import re
 import socket
 from datetime import datetime, timedelta
 from typing import Any, Callable
@@ -99,23 +102,7 @@ async def actions_status(db: AsyncIOMotorDatabase) -> tuple[bool, str]:
     return True, "ok"
 
 
-async def probe_import_pages(url: str, *, client: httpx.AsyncClient | None = None) -> int | None:
-    """Pages a GitBook site lists in its llms.txt (one link line each), or None when unknown."""
-    target = url.rstrip("/") + "/llms.txt"
-    try:
-        if client is None:
-            async with httpx.AsyncClient(timeout=6.0, follow_redirects=True, headers={"user-agent": "markdrop-docs-import/1"}) as c:
-                r = await c.get(target)
-        else:
-            r = await client.get(target)
-        if r.status_code != 200:
-            return None
-        return len(re.findall(r"^\s*[-*]\s+\[[^\]]*\]\([^)]+\)", r.text, flags=re.M))
-    except Exception:
-        return None
-
-
-async def choose_target(db: AsyncIOMotorDatabase, job: dict, *, probe: Callable | None = None) -> tuple[str | None, str]:
+async def choose_target(db: AsyncIOMotorDatabase, job: dict) -> tuple[str | None, str]:
     """(target, reason) for a queued job; target None = nowhere can take it now."""
     s = get_jobs_settings()
     local = "local" in s.targets
@@ -124,24 +111,22 @@ async def choose_target(db: AsyncIOMotorDatabase, job: dict, *, probe: Callable 
     if kind in SERVER_KINDS:
         return "local", f"{kind} runs on the server"
     if kind == "import":
-        from app.services.docs_import_job import source_of
-
-        url = source_of(job).get("url") or ""
-        if local:
-            pages = await (probe or probe_import_pages)(url)
-            if pages is not None and pages <= s.docs_local_import_max_pages:
-                return "local", f"small import ({pages} pages)"
+        # Never local (module docstring): an import waits for Actions.
         if actions_ok:
             return "actions", "import"
-        return ("local", f"actions unavailable: {why}") if local else (None, why)
+        return None, f"imports run on GitHub Actions, which is unavailable: {why}"
     if actions_ok:
         return "actions", "build"
     return ("local", f"fallback: {why}") if local else (None, why)
 
 
-async def route(db: AsyncIOMotorDatabase, job: dict, *, probe: Callable | None = None) -> str | None:
-    target, reason = await choose_target(db, job, probe=probe)
+async def route(db: AsyncIOMotorDatabase, job: dict) -> str | None:
+    target, reason = await choose_target(db, job)
     if target is None:
+        if job["kind"] == "import" and job.get("route_reason") != reason:
+            # Waiting: the job says why (and the sweeper's failure, if it comes to that, too).
+            await db[JOBS].update_one({"_id": job["_id"], "status": "queued", "target": None},
+                                      {"$set": {"route_reason": reason, "updated_at": now()}})
         return None
     t = now()
     got = await db[JOBS].find_one_and_update(
@@ -234,17 +219,21 @@ async def kick(db: AsyncIOMotorDatabase, job_id: Any = None, *, site_id: Any = N
         if site_id is not None:
             q["site_id"] = oid(site_id)
         async for job in db[JOBS].find(q).sort("created_at", 1).limit(20):
-            if job["kind"] == "import" and job.get("target") is None:
-                continue  # routed by the next pass, which looks at the source's size first
             await _advance(db, job, await docs_jobs.busy_sites(db))
     except Exception:
         log.warning("docs dispatch kick failed", exc_info=True)
 
 
-async def _advance(db: AsyncIOMotorDatabase, job: dict, busy: set, *, client: httpx.AsyncClient | None = None,
-                   probe: Callable | None = None) -> None:
+async def _advance(db: AsyncIOMotorDatabase, job: dict, busy: set, *, client: httpx.AsyncClient | None = None) -> None:
+    if job["kind"] == "import" and job.get("target") == "local":
+        # Routed by an API from before imports were Actions-only: unroute it, then route it again.
+        res = await db[JOBS].update_one({"_id": job["_id"], "status": "queued", "target": "local"},
+                                        {"$set": {"target": None, "updated_at": now()}})
+        if not res.modified_count:
+            return
+        job = {**job, "target": None}
     if job.get("target") is None:
-        target = await route(db, job, probe=probe)
+        target = await route(db, job)
         if target is None:
             return
         job = {**job, "target": target, "dispatched_at": None}
@@ -253,9 +242,10 @@ async def _advance(db: AsyncIOMotorDatabase, job: dict, busy: set, *, client: ht
             return  # dispatched when the running build of this site reports
         ok, _why = await actions_status(db)
         if not ok:
-            # Actions went away (budget, outage, config): somewhere else, or keep waiting.
-            if "local" in get_jobs_settings().targets:
-                await route(db, job, probe=probe)
+            # Actions went away (budget, outage, config): somewhere else, or keep waiting
+            # (an import always waits for Actions).
+            if "local" in get_jobs_settings().targets and job["kind"] != "import":
+                await route(db, job)
             return
         await _dispatch_one(db, job, client=client)
     elif job["target"] == "local" and job["kind"] in SERVER_KINDS:
@@ -263,10 +253,10 @@ async def _advance(db: AsyncIOMotorDatabase, job: dict, busy: set, *, client: ht
     elif job["target"] == "local" and job.get("fallback") and job["kind"] == "build":
         routed = docs_jobs.aware(job.get("routed_at"))
         if routed and now() - routed > FALLBACK_RECHECK and (await actions_status(db))[0]:
-            await route(db, job, probe=probe)  # back to Actions
+            await route(db, job)  # back to Actions
 
 
-async def run_once(db: AsyncIOMotorDatabase, *, client: httpx.AsyncClient | None = None, probe: Callable | None = None) -> dict:
+async def run_once(db: AsyncIOMotorDatabase, *, client: httpx.AsyncClient | None = None) -> dict:
     """One sweep: fail what can't finish, put back what lost its runner, route and dispatch."""
     s = get_jobs_settings()
     t = now()
@@ -291,6 +281,8 @@ async def run_once(db: AsyncIOMotorDatabase, *, client: httpx.AsyncClient | None
     stale = t - timedelta(minutes=s.docs_job_queued_timeout_minutes)
     async for job in db[JOBS].find({"status": "queued", "created_at": {"$lt": stale}}):
         err = f"no builder picked the job up in {s.docs_job_queued_timeout_minutes} minutes"
+        if job.get("target") is None and job.get("route_reason"):
+            err += f": {job['route_reason']}"
         if job["kind"] == "build":
             await docs_build.fail_build_job(db, job, None, err)
         else:
@@ -304,7 +296,7 @@ async def run_once(db: AsyncIOMotorDatabase, *, client: httpx.AsyncClient | None
     stats["requeued"] = res.modified_count
     busy = await docs_jobs.busy_sites(db)
     async for job in db[JOBS].find({"status": "queued"}).sort("created_at", 1).limit(100):
-        await _advance(db, job, busy, client=client, probe=probe)
+        await _advance(db, job, busy, client=client)
         stats["advanced"] += 1
     return stats
 

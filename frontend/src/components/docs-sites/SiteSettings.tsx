@@ -127,7 +127,7 @@ export default function SiteSettings() {
   }
 
   async function savePassword() {
-    if (password.length < 6) { setError("Use at least 6 characters for the password."); return; }
+    if (password.length < 8) { setError("Use at least 8 characters for the password."); return; }
     if (await patch("access", { settings: { access: { level: "password", password } } }, "Password set. Readers need it from now on.")) {
       setPassword("");
       setPendingLevel(null);

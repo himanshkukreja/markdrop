@@ -429,6 +429,14 @@ class Settings(BaseSettings):
     docs_sites_per_workspace: int = 3
     docs_pages_per_site: int = 1000
     docs_builds_per_day: int = 30          # server builds per site per UTC day
+    # Daily caps on the work that costs (builds, imports) and on making sites, per person and per
+    # workspace, per UTC day. Deleted sites count: deleting and recreating doesn't reset them.
+    docs_site_creations_per_user_per_day: int = 10
+    docs_site_creations_per_workspace_per_day: int = 20
+    docs_imports_per_user_per_day: int = 5
+    docs_imports_per_workspace_per_day: int = 10
+    docs_builds_per_user_per_day: int = 50  # publishes across all of a person's sites
+    docs_builds_per_workspace_per_day: int = 100
     # Password and members-only docs sites. The edge enforces them (docs-platform/edge/access.mjs,
     # services/docs_site_access.py); turn this on only once the docs Worker runs that code with its
     # DOCS_ACCESS_SECRET set to docs_access_secret below. Off: the API refuses non-public access,
@@ -477,7 +485,7 @@ class Settings(BaseSettings):
     docs_builder_ref: str = 'main'
     docs_actions_monthly_minutes: int = 1800
     docs_dispatch_retry_minutes: int = 10
-    docs_local_import_max_pages: int = 40
+    docs_local_import_max_pages: int = 40  # no longer read: imports run on Actions only (docs_dispatch)
     docs_local_build_max_mb: int = 768
     docs_local_min_free_mb: int = 1200
     docs_local_build_timeout_seconds: int = 900

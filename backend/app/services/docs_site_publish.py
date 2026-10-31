@@ -157,6 +157,7 @@ async def publish(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, *
         raise HTTPException(status_code=429,
                             detail=f"The free plan has {settings.docs_builds_per_day} publishes per site per day. "
                                    "Try again tomorrow (UTC).")
+    await store.check_build_quota(db, site, user.id)
     snap = await _snapshot(db, site, user)
     seq = await db[SITES].find_one_and_update({"_id": site["_id"]}, {"$inc": {"build_seq": 1}},
                                               {"build_seq": 1}, return_document=ReturnDocument.AFTER)

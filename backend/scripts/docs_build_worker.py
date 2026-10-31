@@ -1,10 +1,12 @@
 """Markdrop Docs local worker: runs the docs jobs routed to "local" (builds, imports, restores, unpublishes, access policies).
 
 GitHub Actions runs most builds (services/docs_dispatch.py). This worker runs
-what the dispatcher sends to the server (restores, small imports, builds when
-Actions is unavailable) and is the whole pipeline in local development or on a
-dedicated build box. A build or import is done by the same Node runner Actions
-uses (docs-platform/runner/run-job.mjs), fed a spec file instead of the API.
+what the dispatcher sends to the server (restores, unpublishes, builds when
+Actions is unavailable; never imports, which the dispatcher sends to Actions
+only) and is the whole pipeline in local development or on a dedicated build
+box. A build (or an import a job row names "local" by hand) is done by the same
+Node runner Actions uses (docs-platform/runner/run-job.mjs), fed a spec file
+instead of the API.
 
     cd backend
     .venv/bin/python -m scripts.docs_build_worker            # poll until SIGTERM
