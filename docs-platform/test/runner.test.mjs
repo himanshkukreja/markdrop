@@ -11,9 +11,11 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { FsStore, pointSite, publish, writeAccess } from "../builder/store.mjs";
 import { mediaManifest } from "../builder/media.mjs";
-import { fetchAssets, readImportFolder, readPageFile, referencedAssets, safeRel, uploadImportAssets, writeContent } from "../runner/lib.mjs";
+import { fetchAssets, importFileAllowed, readImportFolder, readPageFile, referencedAssets, safeRel, uploadImportAssets, writeContent } from "../runner/lib.mjs";
+import { httpsUrl, readRedirects, sitePath } from "../builder/build.mjs";
 
 const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
+const PNG = "\x89PNG\r\n\x1a\n\0\0\0\rIHDR"; // a PNG's first bytes (latin1)
 // A tiny YAML subset for the tests (the runner uses the engine's `yaml` package).
 const parseYaml = (s) => Object.fromEntries(s.split("\n").filter(Boolean).map((l) => {
   const i = l.indexOf(":");
@@ -109,18 +111,69 @@ test("import upload: only files the bucket doesn't already have with the same by
   const root = tmp("store-");
   const store = new FsStore(root);
   fs.mkdirSync(path.join(dir, "public/docs-assets/import/g"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "public/docs-assets/import/g/a.png"), "A");
-  fs.writeFileSync(path.join(dir, "public/docs-assets/import/b.png"), "B");
-  await store.put("sites/s1/assets/import/b.png", "B");
+  const A = PNG + "A";
+  const B = PNG + "B";
+  fs.writeFileSync(path.join(dir, "public/docs-assets/import/g/a.png"), A, "latin1");
+  fs.writeFileSync(path.join(dir, "public/docs-assets/import/b.png"), B, "latin1");
+  await store.put("sites/s1/assets/import/b.png", Buffer.from(B, "latin1"));
   const res = await uploadImportAssets({ store, siteId: "s1", dir });
-  const sha = (s) => crypto.createHash("sha256").update(s).digest("hex");
-  assert.deepEqual(res, { files: 2, bytes: 2, uploaded: 1, uploaded_bytes: 1, items: [
-    { rel: "import/b.png", size: 1, sha256: sha("B"), content_type: "image/png" },
-    { rel: "import/g/a.png", size: 1, sha256: sha("A"), content_type: "image/png" },
+  const sha = (s) => crypto.createHash("sha256").update(Buffer.from(s, "latin1")).digest("hex");
+  assert.deepEqual(res, { files: 2, bytes: 2 * A.length, uploaded: 1, uploaded_bytes: A.length, skipped: [], items: [
+    { rel: "import/b.png", size: B.length, sha256: sha(B), content_type: "image/png" },
+    { rel: "import/g/a.png", size: A.length, sha256: sha(A), content_type: "image/png" },
   ] });
-  assert.equal(await store.getText("sites/s1/assets/import/g/a.png"), "A");
+  assert.equal(fs.readFileSync(store.file("sites/s1/assets/import/g/a.png"), "latin1"), A);
   assert.equal((await uploadImportAssets({ store, siteId: "s1", dir })).uploaded, 0);
   for (const d of [dir, root]) fs.rmSync(d, { recursive: true, force: true });
+});
+
+
+test("import upload: only images, PDFs and video whose bytes match their name, under import/", async () => {
+  const dir = tmp("import-");
+  const root = tmp("store-");
+  const store = new FsStore(root);
+  const files = {
+    "import/g/shot.png": PNG,
+    "import/g/doc.pdf": "%PDF-1.7\n%....",
+    "import/g/clip.mp4": "\0\0\0\x18ftypisom\0\0\0\0",
+    "import/g/page.html": "<!doctype html><script>alert(document.cookie)</script>",
+    "import/g/logo.svg": '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>',
+    "import/g/feed.xml": '<?xml version="1.0"?><x/>',
+    "import/g/app.js": "alert(1)",
+    "import/g/x.xhtml": "<html/>",
+    "import/g/fake.png": "<html><script>alert(1)</script></html>",
+    "import/g/fake.pdf": PNG,
+    "import/g/noext": PNG,
+    "elsewhere/a.png": PNG,
+  };
+  for (const [rel, body] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(dir, "public/docs-assets", rel)), { recursive: true });
+    fs.writeFileSync(path.join(dir, "public/docs-assets", rel), body, "latin1");
+  }
+  const res = await uploadImportAssets({ store, siteId: "s1", dir });
+  assert.deepEqual(res.items.map((i) => i.rel), ["import/g/clip.mp4", "import/g/doc.pdf", "import/g/shot.png"]);
+  assert.deepEqual(res.skipped, ["elsewhere/a.png", "import/g/app.js", "import/g/fake.pdf", "import/g/fake.png", "import/g/feed.xml", "import/g/logo.svg", "import/g/noext", "import/g/page.html", "import/g/x.xhtml"]);
+  assert.equal(res.files, 3);
+  assert.deepEqual((await store.listObjects("sites/s1/assets/")).map((o) => o.key).sort(), ["sites/s1/assets/import/g/clip.mp4", "sites/s1/assets/import/g/doc.pdf", "sites/s1/assets/import/g/shot.png"]);
+  assert.equal(importFileAllowed("import/../x.png", Buffer.from(PNG, "latin1")), false);
+  assert.equal(importFileAllowed("import/.x/a.png", Buffer.from(PNG, "latin1")), false);
+  assert.equal(importFileAllowed("import/a.JPEG", Buffer.from("\xff\xd8\xff\xe0" + "\0".repeat(12), "latin1")), true);
+  for (const d of [dir, root]) fs.rmSync(d, { recursive: true, force: true });
+});
+
+test("redirects.json: a target that isn't a site path or an https URL never reaches the edge", () => {
+  const dir = tmp("redirects-");
+  fs.writeFileSync(path.join(dir, "redirects.json"), JSON.stringify({
+    "/a": "/guide/a", "/b": "https://acme.test/b", "/c": "//evil.test/x", "/d": "/\\evil.test", "/e": "javascript:alert(1)",
+    "/f": "http://evil.test/", "/g": "/x\ny", "/h": "https://u:p@evil.test/", "//i": "/guide/a", "/j": "data:text/html,x", "/k": "evil.test",
+  }));
+  const tos = readRedirects(dir).filter((r) => !r.from.endsWith(".md")).map((r) => [r.from, r.to]);
+  assert.deepEqual(tos, [["/a", "/guide/a"], ["/b", "https://acme.test/b"]]);
+  fs.writeFileSync(path.join(dir, "redirects.json"), JSON.stringify({ redirects: [{ from: "/x", to: "//evil.test" }, { from: "/y", to: "/ok" }] }));
+  assert.deepEqual(readRedirects(dir), [{ from: "/y", to: "/ok", status: 308 }]);
+  for (const [v, want] of [["/ok", true], ["//x", false], ["/\\x", false], ["/a b", false], ["x", false], [null, false]]) assert.equal(sitePath(v), want, String(v));
+  for (const [v, want] of [["https://a.test/x", true], ["HTTPS://a.test", true], ["http://a.test", false], ["https://", false], ["https://a.test/\\x", false]]) assert.equal(httpsUrl(v), want, v);
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test("point: a restore flips the pointer to a manifest the store has, of the same site", async () => {

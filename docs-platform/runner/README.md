@@ -7,7 +7,7 @@ each job runs (`backend/app/services/docs_dispatch.py`), and one Node program ru
 | Job | Where | Why |
 |---|---|---|
 | `build` (publish) | **GitHub Actions** in a private builder repo; the API box only as a fallback | A build peaks at 0.6–2.5 GB of memory; the API box has 2 GB |
-| `import` (GitBook) | The API box when the source is small (≤ `MARKDROP_DOCS_LOCAL_IMPORT_MAX_PAGES` pages in its `llms.txt`, GIFs kept as GIFs); else Actions (GIFs become MP4 clips) | Imports are light (~0.5 GB) except the ffmpeg step |
+| `import` (GitBook) | **GitHub Actions** only (GIFs become MP4 clips); with Actions unavailable the job waits, then fails with the reason | An import fetches whatever a third-party site points at: it never runs on the API box. Every fetch is guarded (`frontend/scripts/docs-import/lib/guard.mjs`: https, public addresses only, pinned connection, redirects checked hop by hop), and only images, PDFs and video are uploaded |
 | `restore`, `unpublish` | The API process itself, right after it queues the job | One small R2 write (the site pointer) or a few deletes |
 
 ```
