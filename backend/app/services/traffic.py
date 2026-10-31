@@ -63,7 +63,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 # Every real top-level route. Anything else with a single segment is a
 # document slug. Mirror of frontend/src/lib/analyticsPath.ts — keep in step.
 APP_ROUTES = {
-    "", "admin", "auth", "builder", "dashboard", "docs-studio", "enterprise", "extension", "f",
+    "", "admin", "auth", "builder", "d", "dashboard", "docs-studio", "enterprise", "extension", "f",
     "guides", "h", "invite", "login", "mcp", "new", "oauth", "privacy", "recent", "requests",
     "settings", "share", "shared", "upload", "w",
 }
@@ -73,6 +73,7 @@ APP_ROUTES = {
 _GUIDES_ROOTS = {"guides", "docs-studio"}
 _GUIDES_SCREENS = {"new", "members"}
 _GUIDES_SITE_SCREENS = {"design", "import", "insights", "publish", "settings"}
+_GUIDES_SETTINGS = {"general", "domains", "access", "ask-ai", "api-reference", "redirects", "people", "danger"}
 
 
 def _guides_shape(segments: list[str]) -> str:
@@ -83,6 +84,9 @@ def _guides_shape(segments: list[str]) -> str:
         return f"{root}/{segments[1]}" if segments[1] in _GUIDES_SCREENS else f"{root}/[site]"
     if len(segments) == 3 and segments[2] in _GUIDES_SITE_SCREENS:
         return f"{root}/[site]/{segments[2]}"
+    # Settings › <section> (a domain's own setup page names a customer's domain: [other]).
+    if len(segments) == 4 and segments[2] == "settings" and segments[3] in _GUIDES_SETTINGS:
+        return f"{root}/[site]/settings/{segments[3]}"
     return f"{root}/[site]/[other]"
 
 _ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
@@ -200,6 +204,9 @@ def clean_path(path: str, host: str) -> str | None:
         return "/w/[workspace]/f/[folder]" if len(segments) > 2 else "/w/[workspace]"
     if segments[0] == "h":
         return "/h/[workspace-doc]"
+    # /d/check/<host>: a guide's domain check page names a customer's domain.
+    if segments[0] == "d" and len(segments) > 1:
+        return "/d/check/[host]"
     if segments[0] in _GUIDES_ROOTS:
         return _guides_shape(segments)
     if len(segments) == 1 and segments[0] not in APP_ROUTES:
