@@ -132,7 +132,8 @@ export default function SiteSettings() {
   const suggestions = s.ai.suggestions ?? [];
   const addSuggestion = () => {
     const q = suggestion.trim();
-    if (!q || suggestions.length >= MAX_SUGGESTIONS || suggestions.includes(q)) return;
+    // One change at a time: each sends the whole list, so a second one built on the same list would undo the first.
+    if (!q || saving === "ai" || suggestions.length >= MAX_SUGGESTIONS || suggestions.includes(q)) return;
     void patch("ai", { settings: { ai: { suggestions: [...suggestions, q] } } }, "Suggested question added.").then((ok) => ok && setSuggestion(""));
   };
 
@@ -242,7 +243,7 @@ export default function SiteSettings() {
             <ul className="flex flex-wrap gap-2" aria-label="Suggested questions">
               {suggestions.map((q) => (
                 <li key={q}>
-                  <Tag removeLabel={`Remove "${q}"`} onRemove={locked ? undefined : () => void patch("ai", { settings: { ai: { suggestions: suggestions.filter((x) => x !== q) } } }, "Suggested question removed.")}>{q}</Tag>
+                  <Tag removeLabel={`Remove "${q}"`} onRemove={locked ? undefined : () => saving !== "ai" && void patch("ai", { settings: { ai: { suggestions: suggestions.filter((x) => x !== q) } } }, "Suggested question removed.")}>{q}</Tag>
                 </li>
               ))}
             </ul>
