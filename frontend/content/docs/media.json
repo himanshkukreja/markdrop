@@ -756,15 +756,15 @@
     "kind": "image"
   },
   "/docs-assets/guides/brand-and-style/fonts-mode-corners.dark.webp": {
-    "w": 2856,
-    "h": 3600,
-    "bytes": 166392,
+    "w": 768,
+    "h": 334,
+    "bytes": 8476,
     "kind": "image"
   },
   "/docs-assets/guides/brand-and-style/fonts-mode-corners.webp": {
-    "w": 2856,
-    "h": 3600,
-    "bytes": 165818,
+    "w": 768,
+    "h": 334,
+    "bytes": 9048,
     "kind": "image"
   },
   "/docs-assets/guides/brand-and-style/match-brand.dark.webp": {
@@ -1006,21 +1006,21 @@
   "/docs-assets/guides/members-and-roles/site-role-override.mp4": {
     "w": 1440,
     "h": 856,
-    "duration": 9.97,
-    "bytes": 183177,
+    "duration": 10.23,
+    "bytes": 219149,
     "kind": "clip"
   },
   "/docs-assets/guides/members-and-roles/site-role-override.webm": {
     "w": 1440,
     "h": 856,
-    "duration": 9.97,
-    "bytes": 232715,
+    "duration": 10.23,
+    "bytes": 266452,
     "kind": "clip"
   },
   "/docs-assets/guides/members-and-roles/site-role-override.webp": {
     "w": 1440,
     "h": 856,
-    "bytes": 43006,
+    "bytes": 48694,
     "kind": "poster"
   },
   "/docs-assets/guides/members-and-roles/studio-members.dark.webp": {
@@ -1145,34 +1145,34 @@
   },
   "/docs-assets/guides/publishing/publish-screen.dark.webp": {
     "w": 2880,
-    "h": 1220,
-    "bytes": 78616,
+    "h": 1196,
+    "bytes": 78332,
     "kind": "image"
   },
   "/docs-assets/guides/publishing/publish-screen.webp": {
     "w": 2880,
-    "h": 1220,
-    "bytes": 81786,
+    "h": 1196,
+    "bytes": 80968,
     "kind": "image"
   },
   "/docs-assets/guides/publishing/publish-to-live.mp4": {
     "w": 1440,
     "h": 856,
-    "duration": 11.33,
-    "bytes": 135465,
+    "duration": 11.53,
+    "bytes": 186925,
     "kind": "clip"
   },
   "/docs-assets/guides/publishing/publish-to-live.webm": {
     "w": 1440,
     "h": 856,
-    "duration": 11.33,
-    "bytes": 160390,
+    "duration": 11.53,
+    "bytes": 236149,
     "kind": "clip"
   },
   "/docs-assets/guides/publishing/publish-to-live.webp": {
     "w": 1440,
     "h": 856,
-    "bytes": 27204,
+    "bytes": 44260,
     "kind": "poster"
   },
   "/docs-assets/guides/publishing/restore-dialog.dark.webp": {
@@ -1226,21 +1226,21 @@
   "/docs-assets/guides/reviews/review-approve.mp4": {
     "w": 1440,
     "h": 810,
-    "duration": 7.67,
-    "bytes": 104703,
+    "duration": 10.43,
+    "bytes": 183829,
     "kind": "clip"
   },
   "/docs-assets/guides/reviews/review-approve.webm": {
     "w": 1440,
     "h": 810,
-    "duration": 7.67,
-    "bytes": 142954,
+    "duration": 10.43,
+    "bytes": 254193,
     "kind": "clip"
   },
   "/docs-assets/guides/reviews/review-approve.webp": {
     "w": 1440,
     "h": 810,
-    "bytes": 28356,
+    "bytes": 42778,
     "kind": "poster"
   },
   "/docs-assets/guides/reviews/review-setting.dark.webp": {
@@ -1402,21 +1402,21 @@
   "/docs-assets/guides/themes/design-switch-themes.mp4": {
     "w": 1440,
     "h": 820,
-    "duration": 12.37,
-    "bytes": 331965,
+    "duration": 13.47,
+    "bytes": 373155,
     "kind": "clip"
   },
   "/docs-assets/guides/themes/design-switch-themes.webm": {
     "w": 1440,
     "h": 820,
-    "duration": 12.37,
-    "bytes": 355822,
+    "duration": 13.47,
+    "bytes": 444461,
     "kind": "clip"
   },
   "/docs-assets/guides/themes/design-switch-themes.webp": {
     "w": 1440,
     "h": 820,
-    "bytes": 46128,
+    "bytes": 50694,
     "kind": "poster"
   },
   "/docs-assets/guides/themes/design-theme-filter.dark.webp": {
@@ -1431,28 +1431,64 @@
     "bytes": 57912,
     "kind": "image"
   },
+  "/docs-assets/guides/themes/theme-academic.dark.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 106158,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-academic.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 106866,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-atlas.dark.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 58586,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-atlas.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 61360,
+    "kind": "image"
+  },
   "/docs-assets/guides/themes/theme-clean.dark.webp": {
     "w": 2880,
     "h": 1720,
-    "bytes": 112392,
+    "bytes": 112336,
     "kind": "image"
   },
   "/docs-assets/guides/themes/theme-clean.webp": {
     "w": 2880,
     "h": 1720,
-    "bytes": 109094,
+    "bytes": 109058,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-corporate.dark.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 95434,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-corporate.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 100820,
     "kind": "image"
   },
   "/docs-assets/guides/themes/theme-editorial.dark.webp": {
     "w": 2880,
     "h": 1720,
-    "bytes": 83650,
+    "bytes": 83608,
     "kind": "image"
   },
   "/docs-assets/guides/themes/theme-editorial.webp": {
     "w": 2880,
     "h": 1720,
-    "bytes": 83922,
+    "bytes": 83894,
     "kind": "image"
   },
   "/docs-assets/guides/themes/theme-helpcenter.dark.webp": {
@@ -1467,40 +1503,100 @@
     "bytes": 57104,
     "kind": "image"
   },
+  "/docs-assets/guides/themes/theme-midnight.dark.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 109086,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-midnight.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 109086,
+    "kind": "image"
+  },
   "/docs-assets/guides/themes/theme-minimal.dark.webp": {
     "w": 2880,
     "h": 1720,
-    "bytes": 85108,
+    "bytes": 85008,
     "kind": "image"
   },
   "/docs-assets/guides/themes/theme-minimal.webp": {
     "w": 2880,
     "h": 1720,
-    "bytes": 89772,
+    "bytes": 89666,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-paper.dark.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 111406,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-paper.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 110384,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-pastel.dark.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 104782,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-pastel.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 104530,
     "kind": "image"
   },
   "/docs-assets/guides/themes/theme-playful.dark.webp": {
     "w": 2880,
     "h": 1720,
-    "bytes": 106738,
+    "bytes": 106694,
     "kind": "image"
   },
   "/docs-assets/guides/themes/theme-playful.webp": {
     "w": 2880,
     "h": 1720,
-    "bytes": 111782,
+    "bytes": 111646,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-studio.dark.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 108440,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-studio.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 109814,
     "kind": "image"
   },
   "/docs-assets/guides/themes/theme-technical.dark.webp": {
     "w": 2880,
     "h": 1720,
-    "bytes": 106326,
+    "bytes": 106374,
     "kind": "image"
   },
   "/docs-assets/guides/themes/theme-technical.webp": {
     "w": 2880,
     "h": 1720,
-    "bytes": 109964,
+    "bytes": 109932,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-terminal.dark.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 109558,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/theme-terminal.webp": {
+    "w": 2880,
+    "h": 1720,
+    "bytes": 109558,
     "kind": "image"
   },
   "/docs-assets/guides/what-readers-get/reader-copy-page.dark.webp": {

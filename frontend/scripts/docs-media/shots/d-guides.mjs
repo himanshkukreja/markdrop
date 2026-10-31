@@ -561,7 +561,7 @@ export default [
       await card.getByLabel("Old address 3").fill("/setup");
       await card.getByLabel("Goes to 3").fill("/getting-started/install");
       await h.sleep(500);
-      await card.getByRole("button", { name: /^Save/ }).click().catch(() => {});
+      await card.getByRole("button", { name: /^Save/ }).click({ timeout: 1500 }).catch(() => {});
       await h.sleep(700);
       await h.page.mouse.move(5, 5);
     },
@@ -696,15 +696,14 @@ export default [
       await settle(h, 1200);
     },
     steps: async (h) => {
-      for (const name of ["Editorial", "Technical", "Help center"]) {
-        await h.click(themeCard(h, name), { after: 1000 });
+      for (const name of ["Editorial", "Help center"]) {
+        await h.click(themeCard(h, name), { after: 900 });
       }
-      await h.click({ role: "tab", name: /^New/ }, { after: 800 });
-      for (const name of ["Midnight", "Paper", "Atlas"]) {
-        await h.click(themeCard(h, name), { after: 1000 });
+      await h.click({ role: "tab", name: /^New/ }, { after: 600 });
+      for (const name of ["Midnight", "Atlas"]) {
+        await h.click(themeCard(h, name), { after: 900 });
       }
       await h.click({ role: "radio", name: "Dark", exact: true }, { after: 1100 });
-      await h.click({ role: "radio", name: "Light", exact: true }, { after: 500 });
       await h.click({ role: "button", name: "Reset" }, { after: 600 });
     },
     trim: { start: 0.5 },
@@ -745,11 +744,10 @@ export default [
       await h.page.getByLabel("Body font").selectOption("inter");
       await h.page.getByLabel("Corners").selectOption("round");
       await settle(h, 1200);
+      await h.page.mouse.move(5, 5);
     },
-    crop: async (h) => {
-      const a = await mark(h, "fonts", () => document.querySelector("main section[aria-label='Design settings'] > div.grid"));
-      return { union: [a, "section[aria-label='Preview']"], pad: 12 };
-    },
+    // The four settings (the preview is at the top of the page, far from them since the theme list grew).
+    crop: async (h) => ({ selector: await mark(h, "fonts", () => document.querySelector("main section[aria-label='Design settings'] > div.grid")), pad: 16 }),
   },
   {
     id: "custom-css",
