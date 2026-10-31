@@ -15,17 +15,21 @@ import { num, plural, timeAgo } from "./format";
 import { aRole, RoleBadge } from "./people/roles";
 import SitePeople from "./people/SitePeople";
 import RedirectsEditor from "./RedirectsEditor";
-import SiteBar from "./SiteBar";
+import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useStudio } from "./studio/StudioContext";
 import { useSite } from "./SiteContext";
 
 const MAX_SUGGESTIONS = 5;
+
+/** Cards are anchors (/settings#people): land them below the sticky studio header and site bar. */
+const CARD_SCROLL_MARGIN = STUDIO_CHROME_H + 16;
 
 function Card({ id, title, aside, children, tone }: { id: string; title: React.ReactNode; aside?: React.ReactNode; children: React.ReactNode; tone?: "danger" }) {
   return (
     <section
       id={id}
       aria-labelledby={`${id}-h`}
+      style={{ scrollMarginTop: CARD_SCROLL_MARGIN }}
       className={`flex min-w-0 flex-col gap-3 rounded-xl border p-5 ${tone === "danger" ? "border-danger bg-danger-soft" : "border-border bg-surface"}`}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2.5">
@@ -72,6 +76,31 @@ export default function SiteSettings() {
     if (site.workspace_id) getWorkspace(site.workspace_id).then((w) => setWsName(w.name)).catch(() => {});
   }, [site.workspace_id]);
   useEffect(() => { setAiName(s.ai.name ?? ""); }, [s.ai.name]);
+
+  // Arriving at /settings#<card> (from Publishes, Members, a shared link): the cards render after the
+  // site loads, so the browser's own jump to the anchor found nothing. Go there once they're here, and
+  // stay with the card while People (above Redirects) fills in, until you scroll yourself.
+  useEffect(() => {
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    const main = document.getElementById("main");
+    if (!id || !main) return;
+    let on = true;
+    const go = () => { if (on) document.getElementById(id)?.scrollIntoView({ block: "start" }); };
+    const stop = () => { on = false; };
+    const first = window.setTimeout(go, 60);
+    const ro = new ResizeObserver(go);
+    ro.observe(main);
+    const end = window.setTimeout(stop, 2000);
+    const events = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
+    for (const ev of events) window.addEventListener(ev, stop, { passive: true });
+    return () => {
+      stop();
+      ro.disconnect();
+      window.clearTimeout(first);
+      window.clearTimeout(end);
+      for (const ev of events) window.removeEventListener(ev, stop);
+    };
+  }, []);
 
   async function patch(key: string, body: { slug?: string; settings?: SettingsPatch }, done: string) {
     if (locked) return false;
