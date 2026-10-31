@@ -218,7 +218,7 @@ export default function VisualEditor(props: VisualEditorProps) {
         <EditorContent editor={editor} className="dxe-surface" />
         {editor && !readOnly && (
           <>
-            <FormatToolbar editor={editor} />
+            <FormatToolbar editor={editor} stickyTop={stickyTop} />
             <BlockHandle editor={editor} container={wrap} />
             <TableBar editor={editor} container={wrap} />
             <SlashMenu store={slash} listboxId={listboxId} stickyTop={stickyTop} />
