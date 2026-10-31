@@ -105,3 +105,88 @@ def problems_against(redirects: list[dict], page_paths: set[str]) -> list[str]:
                 and not target.startswith("/changelog/"):
             out.append(f"{frm} → {to}: this site has no page {target}.")
     return out
+
+
+# ── A page moves ──────────────────────────────────────────────────────────────
+
+
+def _retarget(to: str, old: str, new: str) -> str:
+    """``to`` re-pointed from page ``old`` to page ``new`` (its #anchor kept); other targets as they are."""
+    if to.lower().startswith("https://"):
+        return to
+    base, sep, anchor = to.partition("#")
+    if _page_of(base) != old:
+        return to
+    return new + (sep + anchor if sep else "")
+
+
+def points_at(to: str, page: str) -> bool:
+    """Whether a redirect's ``to`` lands on ``page`` (any #anchor, trailing slash or .md twin)."""
+    return not to.lower().startswith("https://") and _page_of(to) == page
+
+
+def after_move(redirects: list[dict], old: str, new: str, *, add: bool) -> list[dict]:
+    """A site's redirects after its page at ``old`` moved to ``new``: redirects that led to ``old``
+    lead to ``new`` (no chains), a redirect away from ``new`` is dropped (the page lives there now:
+    the caller only moves a page there when that redirect led to this page), and, with ``add``
+    (``old`` was on the live site, so people have links to it), ``old`` → ``new`` is added.
+    Redirects that would now point to themselves are dropped; the list stays within MAX_REDIRECTS."""
+    out: list[dict] = []
+    for r in redirects or []:
+        frm, to = r.get("from"), r.get("to")
+        if not isinstance(frm, str) or not isinstance(to, str) or frm in (new, old):
+            continue
+        to = _retarget(to, old, new)
+        if not to.lower().startswith("https://") and _page_of(to) == _page_of(frm):
+            continue
+        out.append({"from": frm, "to": to})
+    if add and old != new and len(out) < MAX_REDIRECTS:
+        out.append({"from": old, "to": new})
+    return out
+
+
+# ── The build's redirects.json ────────────────────────────────────────────────
+
+
+def merged(settings_redirects, imported, pages: set[str] | frozenset[str] = frozenset()) -> dict[str, str]:
+    """What the build writes to redirects.json: an import's redirects (``engine_extra.redirects``, a
+    map or a list of {from, to}) with the site's own (``settings.redirects``) over them, which win
+    on the same ``from``. Chains are followed to their end (an imported /a → /b with /b → /c in
+    Settings becomes /a → /c, keeping /a's #anchor), so a reader takes one hop; never through one
+    of ``pages`` (a page answers before any redirect, so a redirect away from it is never used)."""
+    def pairs(src) -> list[tuple[str, str]]:
+        if isinstance(src, dict):
+            items = list(src.items())
+        elif isinstance(src, list):
+            items = [(r.get("from"), r.get("to")) for r in src if isinstance(r, dict)]
+        else:
+            return []
+        return [(f, t) for f, t in items if isinstance(f, str) and isinstance(t, str) and f and t]
+
+    out: dict[str, str] = {}
+    for f, t in pairs(imported):
+        out[f] = t
+    for f, t in pairs(settings_redirects):
+        out.pop(f, None)  # settings order last, as before for a site with no import
+        out[f] = t
+    by_page = {_page_of(f): f for f in out if _page_of(f) not in pages}
+
+    def final(frm: str, to: str) -> str:
+        first = to
+        seen = {_page_of(frm)}
+        for _ in range(20):
+            if to.lower().startswith("https://"):
+                return to
+            base, sep, anchor = to.partition("#")
+            nxt = by_page.get(_page_of(base))
+            if nxt is None:
+                return to
+            if _page_of(base) in seen:
+                return first  # a loop: leave it as it was written
+            seen.add(_page_of(base))
+            target = out[nxt]
+            # Keep this hop's anchor unless the next target names its own.
+            to = target if "#" in target or not sep else target + sep + anchor
+        return to
+
+    return {f: final(f, t) for f, t in out.items()}
