@@ -49,6 +49,12 @@ function SaveBadge({ save, lock, onRetry }: { save: SaveState; lock: LockState; 
   return <Badge size="sm" icon="clock">Draft · saved {save.at ? timeAgo(save.at) : "just now"}</Badge>;
 }
 
+/** Where the sticky studio header and site bar end (the site bar wraps to two or three rows below lg). */
+function chromeBottom(): number {
+  const bar = document.querySelector<HTMLElement>('nav[aria-label="Site"]')?.parentElement;
+  return bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : STUDIO_CHROME_H;
+}
+
 function moveIn(nav: NavGroup[], id: string, dir: -1 | 1): NavGroup[] {
   return nav.map((g) => {
     const i = g.pages.indexOf(id);
@@ -316,6 +322,7 @@ export default function EditorPage() {
                   resolveAssetUrl={resolveAssetUrl}
                   readOnly={!editable}
                   placeholder="Type / for blocks: callouts, steps, tabs, code, images…"
+                  stickyTop={chromeBottom}
                 />
               </>
             )}

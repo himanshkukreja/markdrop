@@ -91,6 +91,7 @@ export function DocsEditor({
   resolveAssetUrl,
   autoFocus,
   className,
+  stickyTop,
   "aria-label": ariaLabel = "Page content",
 }: DocsEditorProps) {
   const [own, setOwn] = useState<EditorMode>("visual");
@@ -135,6 +136,7 @@ export function DocsEditor({
             resolveAssetUrl={resolveAssetUrl}
             autoFocus={autoFocus}
             onRequestMarkdown={toMarkdown}
+            stickyTop={stickyTop}
             aria-label={ariaLabel}
           />
         </>

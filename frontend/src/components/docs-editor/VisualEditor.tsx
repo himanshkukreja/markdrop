@@ -41,6 +41,8 @@ export interface VisualEditorProps {
   "aria-label"?: string;
   /** Receives the editor once it exists (tests, host toolbars). */
   onReady?: (editor: Editor) => void;
+  /** See DocsEditorProps.stickyTop. */
+  stickyTop?: () => number;
 }
 
 const EMIT_DELAY = 120;
@@ -71,7 +73,7 @@ function sliceMarkdown(slice: Slice): string {
 }
 
 export default function VisualEditor(props: VisualEditorProps) {
-  const { value, readOnly = false, placeholder, onUploadImage, operations, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady } = props;
+  const { value, readOnly = false, placeholder, onUploadImage, operations, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop } = props;
   const toast = useToast();
   const initial = useMemo(() => parseMarkdown(value), []); // eslint-disable-line react-hooks/exhaustive-deps -- parsed once; later values are synced below
   const meta = useRef<DocState>(initial);
@@ -80,6 +82,8 @@ export default function VisualEditor(props: VisualEditorProps) {
   onChangeRef.current = props.onChange;
   const uploadRef = useRef(onUploadImage);
   uploadRef.current = onUploadImage;
+  const stickyTopRef = useRef(stickyTop);
+  stickyTopRef.current = stickyTop;
   const editorRef = useRef<Editor | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
@@ -135,6 +139,18 @@ export default function VisualEditor(props: VisualEditorProps) {
         "aria-expanded": "false",
         "aria-haspopup": "listbox",
         spellcheck: "true",
+      },
+      // Keep the caret clear of the host's sticky bars: ProseMirror only knows the window's edges, so a
+      // caret moved up to just under them counted as visible and stayed hidden behind them.
+      handleScrollToSelection: (view) => {
+        const covered = stickyTopRef.current?.() ?? 0;
+        if (!covered) return false;
+        let top: number;
+        try { top = view.coordsAtPos(view.state.selection.head).top; } catch { return false; }
+        const min = covered + 16;
+        if (top >= min) return false; // in view, or below it: ProseMirror's own scrolling
+        window.scrollBy(0, top - min);
+        return true;
       },
       clipboardTextParser: (text, _ctx, plain, view: EditorView) => markdownSlice(text, view.state.schema, plain),
       clipboardTextSerializer: (slice) => sliceMarkdown(slice),
