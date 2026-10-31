@@ -15,7 +15,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-PRESETS = ("clean", "editorial", "technical", "minimal", "playful", "helpcenter")
+# The docs engine's theme presets (frontend/src/docs/theme.mjs PRESETS; tests/test_docs_site_presets.py
+# keeps the two lists equal).
+PRESETS = (
+    "clean", "editorial", "technical", "minimal", "playful", "helpcenter",
+    "midnight", "paper", "terminal", "corporate", "studio", "academic", "atlas", "pastel",
+)
 # Font ids the engine can serve (self-hosted or Google). None = the theme's own.
 FONT_IDS = (
     "system", "inter", "manrope", "geist", "dmsans", "plex", "nunito", "source-sans-3",
