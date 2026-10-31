@@ -28,6 +28,10 @@ This is separate from a Markdrop workspace's [own domain](/workspaces/custom-dom
 
 Turn the assistant on or off, name it, and suggest questions. See [Ask AI on your guide](/guides/ask-ai).
 
+## API reference
+
+The OpenAPI file your guide's API reference is generated from: upload it or fetch it from a URL, see what it found, preview the sidebar it makes, and choose where it appears and whether readers get Try it. See [API reference from an OpenAPI file](/guides/api-reference).
+
 ## Who can read it
 
 :::note[Coming soon]

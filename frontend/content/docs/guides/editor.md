@@ -58,7 +58,7 @@ Select text for the formatting bar: bold, italic, strikethrough, inline code, ke
 | **Quote**, **Divider**, **Keyboard key** | A quotation, a horizontal line, and keys like Ctrl K. |
 | **Math** | A LaTeX formula, previewed as you type. |
 
-The menu also lists **Video**, **Clip**, **Embed** and **API endpoint**. They come from the engine Markdrop's own docs use. On a guide, an embedded page shows as a link card, and an API endpoint shows as a card with the method and path you type (reference pages generated from an OpenAPI file are coming soon).
+The menu also lists **Video**, **Clip**, **Embed** and **API endpoint**. They come from the engine Markdrop's own docs use. On a guide, an embedded page shows as a link card, and an API endpoint shows as a card with the method and path you type. With an [API reference](/guides/api-reference), the block offers your file's endpoints, and the card links to the endpoint's page.
 
 ## Images
 

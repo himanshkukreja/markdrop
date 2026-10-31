@@ -28,6 +28,10 @@ Yes. Turn off **Let search engines index the guide** in [Settings](/guides/site-
 Yes, with [Ask AI](/guides/ask-ai). Turn it on in Settings and publish: readers get answers from your published pages, with links to the sections they came from. Each guide has a monthly number of answers during the beta.
 :::
 
+:::details[Can I generate an API reference from an OpenAPI file?]
+Yes. Upload an OpenAPI 3.0 or 3.1 file, or give its address, in **Settings › API reference** and publish: every endpoint gets a page with code samples and Try it. See [API reference from an OpenAPI file](/guides/api-reference).
+:::
+
 :::details[Can I use my own domain?]
 Not yet: it's [coming soon](/guides/site-settings#your-own-domain). Every guide is served at its free `<address>.guides.markdrop.in` address.
 :::
@@ -64,6 +68,14 @@ The publish is marked **Failed** with the reason, and readers keep the last live
 - **"This guide is too large to publish in one snapshot."** Split very long pages.
 
 If it fails again with the same reason, contact Markdrop using the address in the [privacy policy](https://markdrop.in/privacy), with the guide's address.
+
+### Try it says the browser blocked the request
+
+Your API doesn't allow requests from the guide's address (CORS), or it couldn't be reached. Allow your guide's address, like `https://acme.guides.markdrop.in`, in your API's `Access-Control-Allow-Origin`, along with the headers the request sends. Until then, readers can copy the request as a `curl` command. See [Try it and CORS](/guides/api-reference#try-it-and-cors).
+
+### An OpenAPI file isn't accepted
+
+The card says why. The usual reasons: it's Swagger 2.0 (convert it to OpenAPI 3 first), it's larger than 5 MB or has more than 1,000 endpoints, or the address isn't a public `https://` address. See [the limits](/guides/api-reference#limits).
 
 ### An import failed
 

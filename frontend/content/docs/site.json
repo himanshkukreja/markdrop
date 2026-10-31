@@ -321,7 +321,8 @@
       "pages": [
         "/guides/members-and-roles",
         "/guides/site-settings",
-        "/guides/ask-ai"
+        "/guides/ask-ai",
+        "/guides/api-reference"
       ]
     },
     {
