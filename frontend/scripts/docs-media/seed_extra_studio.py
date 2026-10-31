@@ -54,7 +54,8 @@ import studio_content as C  # noqa: E402
 db, call, DATA = S.db, S.call, S.DATA
 STORE = DATA / "docs-store"
 DOCS = ("docs_sites", "docs_pages", "docs_page_versions", "docs_builds", "docs_snapshots", "docs_reviews",
-        "docs_jobs", "docs_assets", "docs_events", "docs_studio_members", "docs_site_members", "docs_migrations")
+        "docs_jobs", "docs_assets", "docs_events", "docs_studio_members", "docs_site_members", "docs_migrations",
+        "docs_api_specs")
 DEMO_WORKER = "docs-media-demo"
 
 
@@ -204,34 +205,141 @@ def add_member(ws_id: str, user: dict, role: str, age: timedelta, now: datetime)
         "role": role, "created_at": now - age, "email": user["email"], "name": user["name"]}}, upsert=True)
 
 
-def seed_insights(site: str, scale: float = 1.0) -> None:
-    """Two weeks of a live guide's readers (stored daily rollups up to yesterday, today's raw page
-    views), page feedback and Ask AI questions asked while Insights was on: deterministic, dated
-    from the API's own clock (the Guides home reads the last 7 UTC days)."""
+# What each live guide's readers do (Insights): the share of views per page, where they come from,
+# what they search for (count, how many found nothing), what they ask Ask AI, and their feedback.
+INSIGHTS_WORLD = {
+    "acme": {
+        "pages": {"/getting-started/quickstart": 22, "/": 16, "/guides/connect-postgres": 14, "/reference/api-keys": 10,
+                  "/guides/alert-rules": 9, "/getting-started/introduction": 7, "/reference/cli": 7,
+                  "/guides/build-a-dashboard": 6, "/help/faq": 5, "/guides/invite-your-team": 2, "/help/release-notes": 2},
+        "refs": {"google.com": 45, "github.com": 20, "news.ycombinator.com": 8, "bing.com": 7, "linkedin.com": 5,
+                 "duckduckgo.com": 3},
+        "searches": [("postgres", 46, 0), ("api key", 38, 0), ("alerts", 29, 0), ("invite", 21, 0), ("slack", 17, 0),
+                     ("sso", 14, 14), ("webhook", 12, 0), ("snowflake", 9, 9), ("mute alert", 8, 0),
+                     ("csv export", 7, 7), ("rate limit", 6, 6)],
+        "questions": [("How do I connect Postgres?", 9, 0), ("Where do I find my API key?", 7, 0),
+                      ("How do alert rules work?", 6, 0), ("Can I share a dashboard with someone outside my workspace?", 5, 0),
+                      ("How do I mute an alert over the weekend?", 4, 0), ("What does \"for 2 checks\" mean?", 3, 0),
+                      ("How do I invite my team?", 3, 0), ("Do you support SSO with Okta?", 0, 2),
+                      ("Can I export a dashboard to CSV?", 0, 1), ("How do I connect Snowflake?", 0, 1)],
+        # path: (yes, no)
+        "votes": {"/getting-started/quickstart": (6, 4), "/guides/connect-postgres": (9, 2), "/": (8, 0),
+                  "/reference/api-keys": (7, 1), "/guides/alert-rules": (6, 0), "/reference/cli": (5, 1),
+                  "/guides/build-a-dashboard": (4, 0), "/help/faq": (3, 0)},
+        # (hours ago, path, helpful, comment, source, resolved)
+        "comments": [
+            (2, "/getting-started/quickstart", False, "Step 2 fails behind our corporate proxy. Is there a proxy flag for acme login?", "page", False),
+            (5, "/guides/connect-postgres", False, "Which IP addresses do we allow? The warning says fixed addresses but doesn't list them.", "page", False),
+            (26, "/reference/api-keys", False, "How do I rotate a key without breaking our CI jobs?", "page", False),
+            (49, "/reference/cli", False, "The example for adding a source uses a project flag that the CLI reference doesn't list.", "mcp", False),
+            (73, "/guides/alert-rules", True, "The \"for 2 checks\" note saved us a lot of 3am pages.", "page", False),
+            (98, "/getting-started/quickstart", False, "It took us closer to half an hour than ten minutes.", "page", True),
+            (130, "/guides/connect-postgres", False, "Does this work with a read replica?", "page", True),
+        ],
+    },
+    "help": {
+        "pages": {"/": 24, "/billing/refunds": 19, "/troubleshooting/cant-sign-in": 17, "/account/two-factor": 12,
+                  "/billing/change-plan": 10, "/billing/invoices": 9, "/account/change-email": 6,
+                  "/troubleshooting/dashboard-not-loading": 3},
+        "refs": {"google.com": 52, "acme.com": 30, "bing.com": 6},
+        "searches": [("refund", 31, 0), ("invoice", 24, 0), ("password", 19, 0), ("2fa", 12, 0), ("cancel", 9, 9),
+                     ("vat", 5, 5)],
+        "questions": [("How do I get a refund?", 6, 0), ("I can't sign in", 4, 0), ("How do I cancel my plan?", 0, 2),
+                      ("Can I change my invoice address?", 2, 0)],
+        "votes": {"/billing/refunds": (5, 2), "/troubleshooting/cant-sign-in": (6, 1), "/": (4, 0), "/account/two-factor": (3, 0)},
+        "comments": [
+            (7, "/billing/refunds", False, "Doesn't say how long a card refund takes to show up.", "page", False),
+            (52, "/troubleshooting/cant-sign-in", False, "My code from the app is always rejected.", "page", False),
+        ],
+    },
+}
+COUNTRIES = {"US": 38, "IN": 17, "DE": 12, "GB": 10, "BR": 6, "CA": 5, "FR": 4, "NL": 3, "AU": 3, "JP": 2}
+DEVICES = {"desktop": 78, "mobile": 19, "tablet": 3}
+
+
+def _share(total: int, weights: dict[str, int]) -> list[tuple[str, int]]:
+    """``total`` split by ``weights`` into whole numbers that add up to it (largest remainders)."""
+    s = sum(weights.values())
+    raw = [(k, total * w / s) for k, w in weights.items()]
+    out = {k: int(v) for k, v in raw}
+    for k, v in sorted(raw, key=lambda kv: kv[1] - int(kv[1]), reverse=True)[: total - sum(out.values())]:
+        out[k] += 1
+    return [(k, n) for k, n in out.items() if n]
+
+
+def seed_insights(site: str, world: str, scale: float = 1.0) -> None:
+    """Two weeks of a live guide's readers (stored daily rollups up to yesterday, today's raw events):
+    pages, where readers come from, searches, page feedback and Ask AI questions asked while Insights
+    was on. Deterministic, dated from the API's own clock (the Guides home reads the last 7 UTC days)."""
+    w = INSIGHTS_WORLD[world]
     real = datetime.now(timezone.utc)
     today = real.strftime("%Y-%m-%d")
     week = [118, 131, 126, 142, 151, 139, 164]   # oldest → today
     before = [96, 104, 99, 111, 108, 102, 117]
-    for i, views in enumerate(before + week[:-1]):
+    days = before + week
+    for i, views in enumerate(days[:-1]):
         day = (real - timedelta(days=13 - i)).strftime("%Y-%m-%d")
         v = round(views * scale)
+        visitors = round(v * 0.62)
+        queries = []
+        for q, n, z in w["searches"]:
+            share = round(n * (i + 1) / 105)  # growing day by day; 1 + … + 14 = 105
+            if share:
+                queries.append({"k": q, "n": share, "z": min(share, round(z * share / n)) if n else 0})
         db["guide_daily"].replace_one({"_id": f"{site}:{day}"}, {
-            "_id": f"{site}:{day}", "site": site, "day": day, "views": v, "visitors": round(v * 0.62),
-            "searches": round(v * 0.2), "empty_searches": round(v * 0.03), "pages": [], "refs": [], "countries": [],
-            "devices": [], "queries": [], "rolled_at": real, "expires_at": real + timedelta(days=400)}, upsert=True)
+            "_id": f"{site}:{day}", "site": site, "day": day, "views": v, "visitors": visitors,
+            "searches": sum(q["n"] for q in queries), "empty_searches": sum(q["z"] for q in queries),
+            "pages": [{"k": p, "n": n, "v": round(n * 0.7)} for p, n in _share(v, w["pages"])],
+            "refs": [{"k": r, "n": n} for r, n in _share(round(v * 0.55), w["refs"])],
+            "countries": [{"k": c, "n": n} for c, n in _share(v, COUNTRIES)],
+            "devices": [{"k": d, "n": n} for d, n in _share(v, DEVICES)],
+            "queries": queries, "rolled_at": real, "expires_at": real + timedelta(days=400)}, upsert=True)
+    # Today: raw page views (a reader is a visitor code) and a few searches.
     n = round(week[-1] * scale)
+    paths = [p for p, k in _share(n, w["pages"]) for _ in range(k)]
+    refs = [r for r, k in _share(round(n * 0.55), w["refs"]) for _ in range(k)]
+    ccs = [c for c, k in _share(n, COUNTRIES) for _ in range(k)]
+    devs = [d for d, k in _share(n, DEVICES) for _ in range(k)]
     db["guide_events"].insert_many([{"site": site, "k": "view", "ts": real - timedelta(minutes=3 * j), "day": today,
-                                     "p": "/", "ref": None, "dev": "desktop", "cc": None, "v": f"demo{j % 100}"}
-                                    for j in range(n)])
-    yes, no = round(46 * scale), round(6 * scale)
-    db["guide_feedback"].insert_many([{"site": site, "ts": real - timedelta(hours=3 * j + 1), "day": today, "path": "/",
-                                       "helpful": j < yes, "comment": None, "source": "page", "resolved": False}
-                                      for j in range(yes + no)])
-    ok, miss = round(38 * scale), round(4 * scale)
+                                     "p": paths[j], "ref": refs[j] if j < len(refs) else None, "dev": devs[j], "cc": ccs[j],
+                                     "v": f"demo{j % round(n * 0.62)}"} for j in range(n)])
+    db["guide_events"].insert_many([{"site": site, "k": "search", "ts": real - timedelta(minutes=7 * j + 1), "day": today,
+                                     "q": q, "n": 0 if z else 4, "p": "/", "v": f"demo{j}"}
+                                    for j, (q, _, z) in enumerate(w["searches"][:4])])
+    # Feedback: votes on pages, then the comments (newest first), some already resolved.
+    # Votes without a comment, interleaved page by page and spread evenly over the two weeks.
+    queues = []
+    for path, (yes, no) in w["votes"].items():
+        no -= sum(1 for c in w["comments"] if c[1] == path and not c[2])
+        q = [True] * yes
+        for k in range(max(0, no)):  # the "no" votes among the yes ones, not all at one end
+            q.insert(min(len(q), (k + 1) * (len(q) // (no + 1) + 1)), False)
+        queues.append((path, q))
+    votes = []
+    while any(q for _, q in queues):
+        for path, q in queues:
+            if q:
+                votes.append((path, q.pop(0)))
+    gap = 320 / max(1, len(votes))
+    rows = [{"path": p, "helpful": ok, "hours": 4 + i * gap} for i, (p, ok) in enumerate(votes)]
+    fb = [{"site": site, "ts": real - timedelta(hours=r["hours"]), "day": (real - timedelta(hours=r["hours"])).strftime("%Y-%m-%d"),
+           "path": r["path"], "helpful": r["helpful"], "comment": None, "source": "page", "resolved": False} for r in rows]
+    fb += [{"site": site, "ts": real - timedelta(hours=hrs), "day": (real - timedelta(hours=hrs)).strftime("%Y-%m-%d"),
+            "path": path, "helpful": ok, "comment": text, "source": src, "resolved": res}
+           for hrs, path, ok, text, src, res in w["comments"]]
+    db["guide_feedback"].insert_many(fb)
+    # Ask AI questions, round-robin over the questions and spread over the two weeks (so the ones it
+    # couldn't answer show up in any period too).
+    queues = [[(q, "answered")] * ok + [(q, "no_answer")] * miss for q, ok, miss in w["questions"]]
+    order = []
+    while any(queues):
+        for q in queues:
+            if q:
+                order.append(q.pop(0))
+    gap = 320 / max(1, len(order))
     db["ai_requests"].insert_many([{"feature": "docs_ask", "request_id": f"demo-insights-{site}-{j}", "site": site,
-                                    "ts": real - timedelta(hours=3 * j + 2), "insights": True,
-                                    "outcome": "answered" if j < ok else "no_answer", "question": "How do I get started?"}
-                                   for j in range(ok + miss)])
+                                    "ts": real - timedelta(hours=2 + j * gap), "insights": True, "outcome": outcome,
+                                    "question": q} for j, (q, outcome) in enumerate(order)])
 
 
 # ── The world ───────────────────────────────────────────────────────────────────
@@ -268,7 +376,16 @@ def seed() -> dict:
         "workspace_id": ws, "name": "Acme", "slug": "acme", "source": {"kind": "template", "template": "product"}})
     sid = acme["id"]
     have = pages_of(T["riya"], sid)
+    # The first version of four pages was shorter: publishes #2 to #4 add to them, so the publish
+    # history shows what each one changed (and What changed has lines to compare).
+    early = {
+        "/guides/connect-postgres": lambda md: md.split("## Check the connection")[0],
+        "/guides/alert-rules": lambda md: md.split("## Mute a rule")[0],
+        "/getting-started/quickstart": lambda md: md.split("## Share it")[0],
+        "/help/release-notes": lambda md: md[md.index("## 2.3"):],
+    }
     for path, (title, desc, icon, md) in C.ACME_DOCS_PAGES.items():
+        md = early[path](md) if path in early else md
         write_page(T["riya"], sid, path, title, desc, icon, md, hidden=path in C.ACME_DOCS_HIDDEN)
     if "/guides/basics" in have:
         call("DELETE", f"/api/v1/docs-sites/{sid}/pages/{have['/guides/basics']['id']}", T["riya"])
@@ -286,12 +403,12 @@ def seed() -> dict:
     clock.phase(timedelta(days=6, hours=3))
     for path in ("/guides/connect-postgres", "/guides/alert-rules"):
         t, d, i, md = C.ACME_DOCS_PAGES[path]
-        write_page(T["alex"], sid, path, t, d, i, md + "\n")
+        write_page(T["alex"], sid, path, t, d, i, md)
     publish(T["alex"], sid, "Postgres guide and alert rules")
 
     clock.phase(timedelta(days=2, hours=1))
     t, d, i, md = C.ACME_DOCS_PAGES["/getting-started/quickstart"]
-    write_page(T["maya"], sid, "/getting-started/quickstart", t, d, i, md.replace("about ten minutes", "about 10 minutes"))
+    write_page(T["maya"], sid, "/getting-started/quickstart", t, d, i, md)
     publish(T["maya"], sid, "Quickstart for the new onboarding")
 
     clock.phase(timedelta(hours=5))
@@ -349,6 +466,10 @@ def seed() -> dict:
     clock.phase(timedelta(days=1))
     call("PATCH", f"/api/v1/docs-sites/{did}", T["riya"], json={"settings": {"theme": {"preset": "technical"}}})
     call("PUT", f"/api/v1/docs-sites/{did}/members/{U['alex']}", T["riya"], json={"role": "viewer"})
+    # Its API reference: the Acme API's OpenAPI file (Settings › API reference).
+    clock.phase(timedelta(hours=20))
+    call("POST", f"/api/v1/docs-sites/{did}/api-reference/upload", T["riya"],
+         files={"file": ("acme-openapi.yaml", (HERE / "acme-openapi.yaml").read_bytes(), "application/yaml")})
 
     # ── Theme previews: a personal copy of Acme's docs (Jordan's, so it isn't on Riya's home),
     #    without the brand, so each preset shows as it comes. The Themes shots switch its preset
@@ -370,7 +491,7 @@ def seed() -> dict:
 
     moved = clock.apply(now)
     for i, live in enumerate(r for r in db["docs_sites"].find({"workspace_id": ws, "status": "live"}).sort("created_at", 1)):
-        seed_insights(str(live["_id"]), scale=1.0 if i == 0 else 0.35)
+        seed_insights(str(live["_id"]), "acme" if i == 0 else "help", scale=1.0 if i == 0 else 0.35)
     out = {"acme": sid, "help": hid, "developers": did, "themes": tid, "review": review["id"], "workspace": ws,
            "slugs": {"acme": "acme", "help": "acme-help", "developers": "acme-developers", "themes": "acme-themes"}}
     (DATA / "fixtures_studio.json").write_text(json.dumps(out, indent=2))
@@ -444,15 +565,48 @@ def drop_sites(name: str) -> None:
         print(f"dropped {len(ids)} docs sites of {name}")
 
 
+def guide_domain(key: str, host: str, state: str) -> None:
+    """Put a guide's own domain in a state directly (the stack never runs the domain job): ``live``,
+    ``pending`` (added, the CNAME not seen yet) or ``remove``. Also drops the site's queued domain jobs."""
+    fs = json.loads((DATA / "fixtures_studio.json").read_text())
+    sid = ObjectId(fs[key])
+    db["docs_sites"].update_one({"_id": sid}, {"$pull": {"domains": {"host": host}}})
+    db["docs_jobs"].delete_many({"site_id": sid, "kind": "domain"})
+    if state == "remove":
+        print(f"{host} removed from {key}")
+        return
+    t = datetime.now(timezone.utc)
+    riya = fixtures()["users"]["riya"]["id"]
+    token = ObjectId().binary.hex()
+    records = [{"type": "CNAME", "name": host, "value": "cname.guides.markdrop.in", "purpose": "route", "optional": False},
+               {"type": "TXT", "name": f"_cf-custom-hostname.{host}", "value": f"{token[:8]}-{token[8:12]}-4{token[13:16]}-a{token[17:20]}-{token[:12]}",
+                "purpose": "ownership", "optional": True},
+               {"type": "TXT", "name": f"_acme-challenge.{host}", "value": f"Q{token}xT2v", "purpose": "certificate", "optional": True}]
+    if state == "live":
+        entry = {"host": host, "status": "live", "stage": None, "message": None, "records": records[:1], "cf_id": token[:32],
+                 "added_at": t - timedelta(days=6), "added_by": riya, "pending_since": t - timedelta(days=6), "checks": 3,
+                 "checked_at": t - timedelta(hours=2), "next_check_at": None, "live_at": t - timedelta(days=6, minutes=-14)}
+    else:
+        entry = {"host": host, "status": "pending", "stage": "dns", "message": None, "records": records, "cf_id": token[:32],
+                 "added_at": t - timedelta(minutes=4), "added_by": riya, "pending_since": t - timedelta(minutes=4), "checks": 2,
+                 "checked_at": t - timedelta(minutes=1), "next_check_at": t + timedelta(minutes=1), "live_at": None}
+    db["docs_sites"].update_one({"_id": sid}, {"$push": {"domains": entry}})
+    print(f"{host} on {key}: {state}")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--import-run", action="store_true")
     ap.add_argument("--slow", action="store_true")
     ap.add_argument("--drop-sites", metavar="WORKSPACE")
+    ap.add_argument("--guide-domain", nargs=3, metavar=("SITE", "HOST", "STATE"),
+                    help="SITE: a key of fixtures_studio.json (acme, help…); STATE: live, pending or remove")
     a = ap.parse_args()
     if a.import_run:
         asyncio.run(play_import(None, "Acme", slow=a.slow))
     elif a.drop_sites:
         drop_sites(a.drop_sites)
+    elif a.guide_domain:
+        guide_domain(*a.guide_domain)
     else:
         seed()
