@@ -1,5 +1,5 @@
 /**
- * The help-center home (theme preset "helpcenter"): a search hero, the nav groups as category
+ * The help-center home (theme presets "helpcenter" and "atlas"): a search hero, the nav groups as category
  * cards, then the "Start here" pages as popular articles. Everything comes from site.json, like
  * the default home (app/docs-site/page.tsx).
  */

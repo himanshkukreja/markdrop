@@ -9,7 +9,7 @@ export type Props = Record<string, string | number | boolean>;
 /** The API's source kinds as the events name them ("gitbook" is an import). */
 const SOURCE: Record<string, string> = { blank: "blank", template: "template", gitbook: "import", github: "github" };
 const TEMPLATES = new Set(["product", "api", "helpcenter"]);
-const PRESETS = new Set(["clean", "editorial", "technical", "minimal", "playful", "helpcenter"]);
+const PRESETS = new Set(["clean", "editorial", "technical", "minimal", "playful", "helpcenter", "midnight", "paper", "terminal", "corporate", "studio", "academic", "atlas", "pastel"]);
 const MODES = new Set(["both", "light", "dark"]);
 const ACCESS = new Set(["public", "password", "members"]);
 export const ROLES = new Set(["admin", "reviewer", "editor", "viewer", "none"]);

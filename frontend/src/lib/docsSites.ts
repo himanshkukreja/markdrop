@@ -116,7 +116,9 @@ export type StudioRole = "admin" | "reviewer" | "editor" | "viewer" | "none";
 export type RoleSource = "workspace_owner" | "workspace_admin" | "workspace" | "site" | "personal" | "none";
 export type SiteStatus = "draft" | "live" | "unpublished";
 export type SourceKind = "blank" | "template" | "gitbook" | "github";
-export type ThemePreset = "clean" | "editorial" | "technical" | "minimal" | "playful" | "helpcenter";
+export type ThemePreset =
+  | "clean" | "editorial" | "technical" | "minimal" | "playful" | "helpcenter"
+  | "midnight" | "paper" | "terminal" | "corporate" | "studio" | "academic" | "atlas" | "pastel";
 export type ThemeMode = "both" | "light" | "dark";
 export type Corners = "sharp" | "soft" | "round";
 export type AccessLevel = "public" | "password" | "members";
@@ -979,13 +981,24 @@ export function getSitePeopleHistory(siteId: string, limit = 50): Promise<{ even
   return request(`/${enc(siteId)}/members-history${q({ limit })}`);
 }
 
-export const PRESETS: Array<{ id: ThemePreset; name: string; blurb: string }> = [
-  { id: "clean", name: "Clean", blurb: "Sidebar layout. Calm and familiar." },
-  { id: "editorial", name: "Editorial", blurb: "Serif headings, centred reading." },
-  { id: "technical", name: "Technical", blurb: "Dense, mono accents, API-first." },
-  { id: "minimal", name: "Minimal", blurb: "No sidebar chrome, lots of air." },
-  { id: "playful", name: "Playful", blurb: "Round, bold and friendly." },
-  { id: "helpcenter", name: "Help center", blurb: "Search first, then categories." },
+/** What a theme suits, for the Design panel's filter (a theme can suit more than one). */
+export type PresetKind = "docs" | "help" | "dev";
+
+export const PRESETS: Array<{ id: ThemePreset; name: string; blurb: string; kinds: PresetKind[]; isNew?: boolean }> = [
+  { id: "clean", name: "Clean", blurb: "Sidebar layout. Calm and familiar.", kinds: ["docs"] },
+  { id: "editorial", name: "Editorial", blurb: "Serif headings, centred reading.", kinds: ["docs"] },
+  { id: "technical", name: "Technical", blurb: "Dense, mono accents, API-first.", kinds: ["dev"] },
+  { id: "minimal", name: "Minimal", blurb: "No sidebar chrome, lots of air.", kinds: ["docs"] },
+  { id: "playful", name: "Playful", blurb: "Round, bold and friendly.", kinds: ["docs"] },
+  { id: "helpcenter", name: "Help center", blurb: "Search first, then categories.", kinds: ["help"] },
+  { id: "midnight", name: "Midnight", blurb: "Deep navy, violet accent. Developer tools.", kinds: ["dev"], isNew: true },
+  { id: "paper", name: "Paper", blurb: "Warm paper, serif text. Handbooks.", kinds: ["docs"], isNew: true },
+  { id: "terminal", name: "Terminal", blurb: "Monospace headings, green accent. CLI tools.", kinds: ["dev"], isNew: true },
+  { id: "corporate", name: "Corporate", blurb: "Strict and compact, blue-grey. Enterprise.", kinds: ["docs", "help"], isNew: true },
+  { id: "studio", name: "Studio", blurb: "Bold display type, big rounded cards. Launches.", kinds: ["docs"], isNew: true },
+  { id: "academic", name: "Academic", blurb: "Serif, numbered sections. Knowledge bases.", kinds: ["docs", "help"], isNew: true },
+  { id: "atlas", name: "Atlas", blurb: "Top tabs, a card-grid home. Big help centers.", kinds: ["help"], isNew: true },
+  { id: "pastel", name: "Pastel", blurb: "Soft colours, friendly shapes. Education.", kinds: ["docs", "help"], isNew: true },
 ];
 
 export const presetName = (p: ThemePreset | undefined | null): string => PRESETS.find((x) => x.id === p)?.name ?? "Clean";

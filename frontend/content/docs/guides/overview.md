@@ -38,7 +38,7 @@ Bring pages, images, navigation and old links across from a public GitBook site.
 A visual editor with a slash menu for callouts, steps, tabs and code, or plain Markdown.
 :::
 :::card[Pick a theme]{href="/guides/themes" icon="image"}
-Six themes, your logo and colours, fonts, corners and custom CSS.
+Fourteen themes, your logo and colours, fonts, corners and custom CSS.
 :::
 :::card[Publish and review]{href="/guides/publishing" icon="send"}
 Drafts stay private until you publish. Turn on reviews to have changes approved first.

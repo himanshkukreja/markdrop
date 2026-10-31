@@ -2,15 +2,15 @@
 
 import { ReadMore } from "@/components/ReadMore";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Alert, Anchor, Badge, Button, Field, Icon, SegmentedControl, Select, Spinner, Switch, Textarea, cx, useToast } from "@/components/ui";
+import { Alert, Anchor, Badge, Button, Field, Icon, SegmentedControl, Select, Spinner, Switch, Tabs, Textarea, cx, useToast } from "@/components/ui";
 import { useLocationSearch } from "@/components/shell/useLocation";
 import { parseHex } from "@/components/tenant/branding";
 import {
   FONTS, PRESETS, assetPreviewUrl, customCssProblem, docsErrorMessage, presetName, updateSite, uploadAsset,
-  type Corners, type SiteTheme, type ThemeMode, type ThemePreset,
+  type Corners, type PresetKind, type SiteTheme, type ThemeMode, type ThemePreset,
 } from "@/lib/docsSites";
 import { ratio } from "./format";
-import { LOOKS, PREVIEW_FONTS_HREF, coloursFromImage, contrastChecks } from "./presets";
+import { LOOKS, PREVIEW_FONTS_HREF, coloursFromImage, contrastChecks, miniLook } from "./presets";
 import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useSite } from "./SiteContext";
 import ThemePreview from "./ThemePreview";
@@ -29,37 +29,62 @@ function normalise(t: SiteTheme): SiteTheme {
   };
 }
 
-/** A preset's radio card with its swatch (Themes board). */
-function PresetCard({ id, name, blurb, checked, onSelect, accent, disabled, group }: {
-  id: ThemePreset; name: string; blurb: string; checked: boolean; onSelect: () => void; accent: string | null; disabled: boolean; group: string;
+/** The theme filter (Themes board, "Choose a look"). */
+const PRESET_FILTERS: Array<{ value: "all" | PresetKind | "new"; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "docs", label: "Product docs" },
+  { value: "help", label: "Help center" },
+  { value: "dev", label: "Developer" },
+  { value: "new", label: "New" },
+];
+
+/** A preset's radio card with its mini preview: a page in the theme's palette, type and corners (Themes board). */
+function PresetCard({ id, name, blurb, isNew, checked, onSelect, brand, disabled, group }: {
+  id: ThemePreset; name: string; blurb: string; isNew?: boolean; checked: boolean; onSelect: () => void; brand: SiteTheme["brand"]; disabled: boolean; group: string;
 }) {
-  const look = LOOKS[id];
-  const l = look.light;
+  const m = miniLook(id, brand);
+  const bar = (w: string | number, bg: string, h = 4) => <span className="block shrink-0 rounded-[2px]" style={{ width: w, height: h, background: bg }} />;
   return (
     <label
       className={cx(
-        "flex cursor-pointer flex-col gap-2 rounded-lg bg-surface p-2.5 text-text has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-border-focus",
+        "flex cursor-pointer flex-col overflow-hidden rounded-lg bg-surface text-text has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-border-focus",
         checked ? "border-[1.5px] border-accent" : "border border-border hover:bg-surface-hover",
         disabled && "cursor-default",
       )}
     >
       <input type="radio" name={group} value={id} checked={checked} onChange={onSelect} disabled={disabled} className="md-visually-hidden" />
-      <span aria-hidden className="flex h-[54px] gap-1 rounded-md p-1.5" style={{ background: l.bg }}>
-        <span className="w-[18px] shrink-0 rounded-[3px]" style={{ background: look.sidebar ? l.line : l.bg }} />
-        <span className="flex flex-1 flex-col gap-1 p-1" style={{ borderRadius: look.r, background: l.card }}>
-          <span className="h-1.5 w-3/5 rounded-[2px]" style={{ background: l.text }} />
-          <span className="h-1 w-[90%] rounded-[2px]" style={{ background: l.line }} />
-          <span className="h-2 w-2/5 rounded-[2px]" style={{ background: accent ?? look.accent }} />
+      <span aria-hidden className="block h-[92px] p-2" style={{ background: m.ground }}>
+        <span className="flex h-full flex-col overflow-hidden rounded-md border" style={{ background: m.page, borderColor: m.edge }}>
+          <span className="flex h-[18px] shrink-0 items-center gap-1 border-b px-1.5" style={{ background: m.bar, borderColor: m.edge }}>
+            <span className="size-2 shrink-0" style={{ borderRadius: m.r, background: m.accent }} />
+            <span className="text-[8px] font-bold leading-none" style={{ fontFamily: m.font, color: m.ink }}>Acme</span>
+            <span className="flex-1" />
+            <span className="block h-1.5 w-6" style={{ borderRadius: m.r, background: m.edge }} />
+          </span>
+          <span className="flex min-h-0 flex-1 gap-1.5 p-1.5">
+            {m.sidebar && <span className="flex w-6 shrink-0 flex-col gap-[3px]">{bar("100%", m.accent, 3)}{bar("100%", m.edge, 3)}{bar("80%", m.edge, 3)}</span>}
+            <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
+              <span className="truncate text-[10px] leading-[13px]" style={{ fontFamily: m.font, fontWeight: m.weight, color: m.ink }}>{m.headline}</span>
+              {bar("92%", m.edge)}
+              {bar("78%", m.edge)}
+              <span className="mt-0.5 block h-3 shrink-0" style={{ borderRadius: `min(${m.r}, 4px)`, background: m.tint, borderLeft: `2px solid ${m.accent}` }} />
+            </span>
+          </span>
         </span>
       </span>
-      <span className="text-[13px] font-semibold">{name}</span>
-      <span className="text-[12px] leading-4 text-text-muted">{blurb}</span>
+      <span className="flex flex-col gap-0.5 px-2.5 pb-2.5 pt-2">
+        <span className="flex items-center gap-1.5">
+          <span className="flex-1 text-[13px] font-semibold">{name}</span>
+          {isNew && <Badge tone="info" size="sm">New</Badge>}
+        </span>
+        <span className="text-[12px] leading-4 text-text-muted">{blurb}</span>
+      </span>
     </label>
   );
 }
 
 /**
- * /guides/<site>/design (Themes board): six presets with a live preview, "Match my brand"
+ * /guides/<site>/design (Themes board): fourteen presets (filtered by what they suit) with a live preview, "Match my brand"
  * (logo → colours → a contrast-checked light and dark palette), fonts, colour mode, corners and
  * custom CSS. Nothing applies until "Save design"; the published site changes at the next publish.
  */
@@ -81,6 +106,8 @@ export default function DesignPanel() {
   const fileRef = useRef<HTMLInputElement>(null);
   const dirty = !same(theme, saved);
   const locked = !isAdmin;
+  const [presetFilter, setPresetFilter] = useState<(typeof PRESET_FILTERS)[number]["value"]>("all");
+  const shownPresets = PRESETS.filter((p) => presetFilter === "all" || (presetFilter === "new" ? p.isNew : p.kinds.includes(presetFilter)));
 
   useEffect(() => setTheme(saved), [saved]);
 
@@ -173,9 +200,17 @@ export default function DesignPanel() {
 
           <fieldset className="flex flex-col gap-2.5" disabled={locked}>
             <legend className="mb-2.5 text-[15px] font-semibold text-text">Theme</legend>
+            <Tabs
+              variant="pill"
+              size="sm"
+              aria-label="Filter themes"
+              value={presetFilter}
+              onChange={(v) => setPresetFilter(v as typeof presetFilter)}
+              items={PRESET_FILTERS.map((f) => ({ ...f, count: f.value === "all" ? PRESETS.length : f.value === "new" ? PRESETS.filter((p) => p.isNew).length : undefined }))}
+            />
             <div className="grid grid-cols-2 gap-2.5">
-              {PRESETS.map((p) => (
-                <PresetCard key={p.id} {...p} group={`${uid}-preset`} checked={theme.preset === p.id} onSelect={() => set({ preset: p.id })} accent={brandAccent} disabled={locked} />
+              {shownPresets.map((p) => (
+                <PresetCard key={p.id} {...p} group={`${uid}-preset`} checked={theme.preset === p.id} onSelect={() => set({ preset: p.id })} brand={theme.brand} disabled={locked} />
               ))}
             </div>
           </fieldset>

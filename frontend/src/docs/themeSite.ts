@@ -6,7 +6,7 @@
  * A site without a `theme` key gets nothing from here: no attribute, no stylesheet, no script,
  * so docs.markdrop.in renders exactly as before themes existed.
  */
-import { paletteTokens, resolveTheme, type ResolvedTheme, type ThemeLayout } from "./theme.mjs";
+import { paletteTokens, resolveTheme, type ResolvedTheme, type ThemeHome, type ThemeLayout } from "./theme.mjs";
 import type { SiteConfig } from "./types";
 
 const cache = new WeakMap<SiteConfig, ResolvedTheme | null>();
@@ -24,6 +24,11 @@ export function siteTheme(site: SiteConfig): ResolvedTheme | null {
 /** Which page structure the theme uses ("sidebar" without a theme). */
 export function themeLayout(site: SiteConfig): ThemeLayout {
   return siteTheme(site)?.layout ?? "sidebar";
+}
+
+/** Which home page the theme uses: the hero home, or the help center's categories ("hero" without a theme). */
+export function themeHome(site: SiteConfig): ThemeHome {
+  return siteTheme(site)?.home ?? "hero";
 }
 
 /** "light" or "dark" when the theme forces one (no theme switch then), else null. */
