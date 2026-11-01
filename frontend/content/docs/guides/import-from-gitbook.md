@@ -63,7 +63,7 @@ To open the report again later, go to the guide's **Settings** and choose **Open
 - **Sidebar groups** and their order. GitBook's hidden pages stay hidden.
 - **Blocks:** hints become callouts, and tabs, steps, cards and code blocks keep their shape. Cards keep their links, icons and cover images, and sit in the same grid (large cards two to a row).
 - **Images and files** are copied into the guide and count towards its storage. An image on another site comes through GitBook's own copy of it, and an SVG becomes a PNG.
-- **Brand and look:** the logo (and its dark version), favicon and accent colour, plus GitBook's corners and font, matched with a theme. The import screen says which of them came across, and why one didn't. A guide whose design you already changed keeps it. Change it in [Design](/guides/brand-and-style).
+- **Brand and look:** the logo (and its dark version), favicon and accent colour, plus GitBook's corners and font, matched with a theme. The import screen says which of them came across, and why one didn't. A guide whose design you already changed keeps it. Change it in [Design](/guides/brand-and-style); [Reset design](/guides/themes#reset-the-design) there brings back the look the import gave it.
 - **Old addresses:** a GitBook address that changes gets a redirect to its new page, so links people saved keep working. The report's last step says how many.
 
 :::note

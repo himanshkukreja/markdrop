@@ -919,6 +919,30 @@ export default [
     after: async (h) => api(h, "PATCH", `/api/v1/docs-sites/${fxS().acme}`, { settings: { theme: { preset: "clean" } } }),
   },
   {
+    // Reset design: the warning dialog listing what goes back (Acme's design changed first, put back after).
+    id: "design-reset",
+    page: P("themes"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await api(h, "PATCH", `/api/v1/docs-sites/${fxS().acme}`, { settings: { theme: {
+        preset: "midnight", fonts: { heading: "fraunces", body: null, mono: null },
+        custom: { light: null, dark: null, buttons: "pill", cards: "raised" },
+      } } });
+      await h.goto(S(h, "/design"));
+      await h.loc({ role: "heading", name: "Reset design" }).waitFor();
+      await h.page.locator("main").getByRole("button", { name: "Reset design" }).click();
+      await h.loc({ role: "dialog" }).waitFor();
+      await h.page.mouse.move(5, 5);
+      await settle(h, 800);
+    },
+    crop: { selector: "[role=dialog]", pad: 24 },
+    after: async (h) => api(h, "PATCH", `/api/v1/docs-sites/${fxS().acme}`, { settings: { theme: {
+      preset: "clean", fonts: { heading: null, body: null, mono: null }, custom: null,
+    } } }),
+  },
+  {
     id: "design-switch-themes",
     page: P("themes"),
     kind: "clip",
@@ -940,7 +964,7 @@ export default [
         await h.click(themeCard(h, name), { after: 900 });
       }
       await h.click({ role: "radio", name: "Dark", exact: true }, { after: 1100 });
-      await h.click({ role: "button", name: "Reset" }, { after: 600 });
+      await h.click({ role: "button", name: "Discard changes" }, { after: 600 });
     },
     trim: { start: 0.5 },
     tail: 400,
