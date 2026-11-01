@@ -11,7 +11,7 @@ Encrypted in your browser. Our servers store only the encrypted text and never r
 
 Turn on encryption and your browser encrypts the document's title and text before anything is sent. You can also require a password, so readers need the link *and* the password. Either way, the trade-off is plain: **the link is the key**. Share it like you'd share the document itself, and keep a copy.
 
-::video{id="encrypt-a-document" title="Encrypt a document in your browser" duration="0:42"}
+::video{id="encrypt-a-document" title="Encrypt a document in your browser" duration="0:49"}
 
 ## Encrypt a document
 

@@ -42,6 +42,34 @@ async function api(h, who, method, p, body) {
   return res.status === 204 ? null : res.json();
 }
 
+// ── End-to-end encrypted demo documents ──────────────────────────────────────
+
+const E2E_PASSWORD = "harbor lantern quietly orbit";
+const E2E_BOARD = {
+  title: "Board prep — private notes",
+  content: "## Before Thursday\n\n- Q3 bookings: $1.14M, 19% over plan\n- Ask: approve two senior hires for the Workflows team\n- Risk: Northwind renewal slips to January\n\n## Talking points\n\n1. Net revenue retention at 124%\n2. Workflows beta opens January 12\n",
+};
+const E2E_SITE_VISIT = {
+  title: "Northwind site visit",
+  content: "## Site visit, 14 October\n\nWalked the second floor with Northwind's facilities lead. The new analytics team sits in the east wing from January.\n\n![Floor plan, level 2](https://cdn.northwind-partners.com/plans/level-2.png)\n\n## Follow-ups\n\n- Badge access for six contractors\n- Confirm the move date with IT\n",
+};
+
+/** Publish an encrypted document straight to the sandbox API, sealed here with the app's own
+ *  e2e.ts (Node 22.18+ strips its types), the way the browser would. Signed out. */
+async function publishEncrypted(h, { title, content, password = null }) {
+  const e2e = await import("../../../src/lib/e2e.ts");
+  const key = e2e.generateKey();
+  const sealed = await e2e.seal(key, { title, content }, { password });
+  const res = await fetch(`${h.API}/api/v1/documents`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ title: null, content: sealed, encrypted: true, expires_in: "never", access_level: "link" }),
+  });
+  if (!res.ok) throw new Error(`publish encrypted → ${res.status} ${await res.text()}`);
+  const doc = await res.json();
+  return { slug: doc.slug, key: e2e.exportKey(key) };
+}
+
 /** From now on, documents in this context load signed in as `who` ("anon": signed out). Added
  *  after the runner's own init script, so it wins on every navigation. */
 async function signInAs(h, who) {
@@ -764,6 +792,13 @@ export default [
       await h.goto(link.split("#")[0], { settle: 1200 });
       await h.caption("The same link without the #k= part: nobody can read it, not even Markdrop", 300);
       await h.sleep(3500);
+      await h.caption("Found the full link? Paste it here: it's read in this browser", 300);
+      await h.click({ role: "button", name: "Have the full link? Paste it here" }, { after: 700 });
+      await h.paste({ label: "Full link" }, prodUrl(h, link));
+      await h.sleep(900);
+      await h.click({ role: "button", name: "Open", exact: true }, { after: 600 });
+      await h.settle(900);
+      await h.sleep(2200);
     },
     after: async (h) => {
       await h.sandbox("/__sandbox/cleanup");
@@ -783,10 +818,136 @@ export default [
       await h.loc({ role: "button", name: /^Encryption: / }).click();
       await h.loc(".md-popover label.md-switch").click();
       await h.loc({ text: "The link is the key" }).waitFor();
+      await h.page.locator(".md-popover label.md-switch", { hasText: "Also require a password" }).click();
+      await h.page.locator(".md-popover input[type=password]").fill(E2E_PASSWORD);
+      await h.loc({ text: "Strong" }).waitFor();
+      await h.page.locator(".md-popover input[type=password]").blur();
       await h.sleep(600);
       await parkMouse(h);
     },
     crop: { union: [{ text: "Publish settings", exact: true }, "button:has-text('Random link')", ".md-popover"], pad: 16 },
+  },
+
+  // ── /sharing/end-to-end-encryption: link + password, the Published panel ───
+  {
+    id: "published-password",
+    page: "/sharing/end-to-end-encryption",
+    kind: "screenshot",
+    auth: "anon",
+    url: "/new",
+    prepare: async (h) => {
+      await h.page.evaluate(() => localStorage.removeItem("md_new_draft"));
+      await h.loc({ role: "textbox", name: "Title" }).fill(E2E_BOARD.title);
+      await h.loc({ role: "textbox", name: "Markdown" }).fill(E2E_BOARD.content);
+      await h.loc({ role: "button", name: /^Encryption: / }).click();
+      await h.loc(".md-popover label.md-switch").click();
+      await h.page.locator(".md-popover label.md-switch", { hasText: "Also require a password" }).click();
+      await h.page.locator(".md-popover input[type=password]").fill(E2E_PASSWORD);
+      await h.page.keyboard.press("Escape");
+      // The edit secret is real (in the sandbox): the page only ever gets its start.
+      await h.page.route(`${h.API}/api/v1/documents`, async (route) => {
+        if (route.request().method() !== "POST") return route.continue();
+        const res = await route.fetch();
+        const body = await res.json();
+        if (typeof body.edit_secret === "string") body.edit_secret = `${body.edit_secret.slice(0, 11)}${"•".repeat(24)}`;
+        return route.fulfill({ response: res, json: body });
+      });
+      await h.loc({ role: "button", name: "Publish", exact: true }).click();
+      await h.page.waitForURL((u) => !u.pathname.startsWith("/new"), { timeout: 60_000 });
+      await h.settle(800);
+      await h.loc({ role: "region", name: "Published" }).getByRole("button", { name: "Copy password" }).waitFor({ timeout: 30_000 });
+      await h.sleep(600);
+      await parkMouse(h);
+    },
+    crop: { selector: { role: "region", name: "Published" }, pad: 16 },
+    after: async (h) => {
+      await h.sandbox("/__sandbox/cleanup");
+    },
+  },
+
+  // ── /sharing/end-to-end-encryption: a reader's password prompt ─────────────
+  {
+    id: "password-prompt",
+    page: "/sharing/end-to-end-encryption",
+    kind: "screenshot",
+    auth: "anon",
+    url: "/new",
+    prepare: async (h) => {
+      const { slug, key } = await publishEncrypted(h, { ...E2E_BOARD, password: E2E_PASSWORD });
+      await h.goto(`/${slug}#k=${key}`, { settle: 1200 });
+      await h.loc({ role: "heading", name: "This document also needs a password" }).waitFor({ timeout: 30_000 });
+      await h.sleep(600);
+      await parkMouse(h);
+    },
+    crop: { selector: ".md-card:has(h1:has-text('This document also needs a password'))", pad: 24 },
+    after: async (h) => {
+      await h.sandbox("/__sandbox/cleanup");
+    },
+  },
+
+  // ── /sharing/end-to-end-encryption: no key in the link, paste it ───────────
+  {
+    id: "no-key-paste",
+    page: "/sharing/end-to-end-encryption",
+    kind: "screenshot",
+    auth: "anon",
+    url: "/new",
+    prepare: async (h) => {
+      const { slug } = await publishEncrypted(h, E2E_BOARD);
+      await h.goto(`/${slug}`, { settle: 1200 });
+      await h.loc({ role: "button", name: "Have the full link? Paste it here" }).click();
+      await h.loc({ label: "Full link" }).waitFor();
+      await h.sleep(600);
+      await parkMouse(h);
+    },
+    crop: { selector: ".md-card:has(h1:has-text('This document is end-to-end encrypted'))", pad: 24 },
+    after: async (h) => {
+      await h.sandbox("/__sandbox/cleanup");
+    },
+  },
+
+  // ── /sharing/end-to-end-encryption: How this document is protected ─────────
+  {
+    id: "protection-panel",
+    page: "/sharing/end-to-end-encryption",
+    kind: "screenshot",
+    auth: "anon",
+    url: "/new",
+    prepare: async (h) => {
+      const { slug, key } = await publishEncrypted(h, E2E_BOARD);
+      await h.goto(`/${slug}#k=${key}`, { settle: 1500 });
+      await h.page.keyboard.press("Escape");
+      await h.sleep(600);
+      await h.loc({ role: "button", name: "More actions" }).click();
+      await h.loc({ role: "menuitem", name: /How this is protected/ }).click();
+      await h.loc({ role: "dialog", name: "How this document is protected" }).waitFor();
+      await h.sleep(700);
+      await parkMouse(h);
+    },
+    crop: { selector: ".md-dialog", pad: 0 },
+    after: async (h) => {
+      await h.sandbox("/__sandbox/cleanup");
+    },
+  },
+
+  // ── /sharing/end-to-end-encryption: images from other sites wait ───────────
+  {
+    id: "remote-images",
+    page: "/sharing/end-to-end-encryption",
+    kind: "screenshot",
+    auth: "anon",
+    url: "/new",
+    prepare: async (h) => {
+      const { slug, key } = await publishEncrypted(h, E2E_SITE_VISIT);
+      await h.goto(`/${slug}#k=${key}`, { settle: 1500 });
+      await h.loc({ role: "button", name: "Load images from other sites" }).waitFor({ timeout: 30_000 });
+      await h.sleep(600);
+      await parkMouse(h);
+    },
+    crop: { union: ["[role=note]:has-text('images from other sites')", { text: /Image from cdn\.northwind-partners\.com/ }], pad: 24 },
+    after: async (h) => {
+      await h.sandbox("/__sandbox/cleanup");
+    },
   },
 
   // ── /account/api-tokens ────────────────────────────────────────────────────

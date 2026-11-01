@@ -1784,15 +1784,75 @@
     "kind": "poster"
   },
   "/docs-assets/sharing/end-to-end-encryption/encrypt-chip.dark.webp": {
-    "w": 1944,
-    "h": 984,
-    "bytes": 64956,
+    "w": 1784,
+    "h": 1332,
+    "bytes": 77872,
     "kind": "image"
   },
   "/docs-assets/sharing/end-to-end-encryption/encrypt-chip.webp": {
-    "w": 1944,
-    "h": 984,
-    "bytes": 68354,
+    "w": 1784,
+    "h": 1332,
+    "bytes": 82194,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/end-to-end-encryption/no-key-paste.dark.webp": {
+    "w": 1376,
+    "h": 1532,
+    "bytes": 68778,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/end-to-end-encryption/no-key-paste.webp": {
+    "w": 1376,
+    "h": 1532,
+    "bytes": 70588,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/end-to-end-encryption/password-prompt.dark.webp": {
+    "w": 1136,
+    "h": 700,
+    "bytes": 23466,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/end-to-end-encryption/password-prompt.webp": {
+    "w": 1136,
+    "h": 700,
+    "bytes": 24484,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/end-to-end-encryption/protection-panel.dark.webp": {
+    "w": 896,
+    "h": 1182,
+    "bytes": 71360,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/end-to-end-encryption/protection-panel.webp": {
+    "w": 896,
+    "h": 1182,
+    "bytes": 73268,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/end-to-end-encryption/published-password.dark.webp": {
+    "w": 1424,
+    "h": 1396,
+    "bytes": 72498,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/end-to-end-encryption/published-password.webp": {
+    "w": 1424,
+    "h": 1396,
+    "bytes": 76292,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/end-to-end-encryption/remote-images.dark.webp": {
+    "w": 1328,
+    "h": 570,
+    "bytes": 35824,
+    "kind": "image"
+  },
+  "/docs-assets/sharing/end-to-end-encryption/remote-images.webp": {
+    "w": 1328,
+    "h": 570,
+    "bytes": 35718,
     "kind": "image"
   },
   "/docs-assets/sharing/request-access/request-access-gate.dark.webp": {
@@ -1936,14 +1996,14 @@
   "/docs-assets/videos/encrypt-a-document.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 41.9,
-    "bytes": 1201024,
+    "duration": 49.03,
+    "bytes": 1544769,
     "kind": "video"
   },
   "/docs-assets/videos/encrypt-a-document.webp": {
     "w": 1920,
     "h": 1080,
-    "bytes": 67714,
+    "bytes": 68814,
     "kind": "poster"
   },
   "/docs-assets/videos/guides-first-guide.mp4": {
