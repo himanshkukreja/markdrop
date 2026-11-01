@@ -265,6 +265,7 @@ export default async function TenantDocumentPage({ params }: Props) {
   }
 
   return (
+    <div className="contents" data-md-e2e={doc?.encrypted ? "" : undefined}>
     <Suspense fallback={<TenantFallback />}>
       <DocumentView
         slug={slug}
@@ -285,6 +286,7 @@ export default async function TenantDocumentPage({ params }: Props) {
         viewerChrome={viewerChrome}
       />
     </Suspense>
+    </div>
   );
 }
 

@@ -12,6 +12,10 @@
  *    `ph-no-capture` (not recorded, clicks not autocaptured) or `ph-sensitive ph-mask` (text masked).
  *    Every input is masked in replays.
  *  - Anything at all on /admin, on a workspace's custom domain, or with `md_notrack` set.
+ *  - Anything at all on an end-to-end encrypted document's page — with or without its #k= key in
+ *    the address. PostHog and GA never load when the page opens on one (the server-rendered
+ *    `data-md-e2e` marker, read before anything loads); arriving at one later by client-side
+ *    navigation drops every event, stops replay and turns GA off until the reader leaves it.
  *
  * Session replay runs only while the current URL is "clean": nothing in it needed redacting, so no
  * document page, invite, share room or sign-in link is ever recorded. On those pages events (clicks,
@@ -53,6 +57,10 @@ let gaLoaded = false;
 let currentPath: string | null = null;
 let doc: DocContext | null = null;
 let pendingDocView: ReturnType<typeof setTimeout> | null = null;
+/** Consent was known on an encrypted page, so nothing loaded; started on the first page that isn't one. */
+let deferredMode: AnalyticsMode | null = null;
+/** On an encrypted document right now (analytics already loaded): everything is dropped. */
+let encryptedPause = false;
 const queued: [string, Props | undefined][] = [];
 type User = { id: string; email: string; name: string | null; created_at?: string };
 let pendingUser: User | null = null;
@@ -229,6 +237,8 @@ function beforeSend(cr: CaptureResult | null): CaptureResult | null {
   const props = cr.properties as Props;
   const path = typeof window !== "undefined" ? window.location.pathname : "/";
   if (path.startsWith("/admin") || trackingDisabled()) return null;
+  // An encrypted document's page sends nothing at all, not even sanitised.
+  if (encryptedPause || onEncryptedPage()) return null;
   // Document titles are the documents' own words; only app pages keep theirs.
   const titleSafe = cleanPath(path) === path;
   cleanProps(props, titleSafe);
@@ -367,9 +377,45 @@ export function hasDocumentKey(hash: string): boolean {
   return /(^#|&)k=/.test(hash);
 }
 
+/**
+ * This page shows (or is about to show) an end-to-end encrypted document: a key in the address,
+ * the server-rendered `data-md-e2e` marker (there even when the key came from this browser's
+ * store, or isn't here at all), or the viewer's own report. Synchronous, so it can decide before
+ * anything loads.
+ */
+export function onEncryptedPage(): boolean {
+  if (typeof window === "undefined") return false;
+  if (hasDocumentKey(window.location.hash)) return true;
+  if (doc?.access === "encrypted") return true;
+  try {
+    return !!document.querySelector("[data-md-e2e]");
+  } catch {
+    return false;
+  }
+}
+
+/** Entering or leaving an encrypted document after analytics loaded: pause or resume everything. */
+function applyEncryptedPause() {
+  const on = onEncryptedPage();
+  if (on === encryptedPause) return;
+  encryptedPause = on;
+  const w = window as unknown as Record<string, unknown>;
+  if (on) {
+    try {
+      if (ph?.sessionRecordingStarted()) ph.stopSessionRecording();
+    } catch {
+      /* replay must never break the page */
+    }
+    if (gaLoaded && GA_ID) w[`ga-disable-${GA_ID}`] = true;
+  } else {
+    if (gaLoaded && GA_ID && mode === "full") w[`ga-disable-${GA_ID}`] = false;
+    syncRecording();
+  }
+}
+
 function syncRecording() {
   if (!ph) return;
-  const on = mode === "full" && urlIsClean(window.location.href);
+  const on = mode === "full" && urlIsClean(window.location.href) && !onEncryptedPage();
   try {
     if (on && !ph.sessionRecordingStarted()) ph.startSessionRecording();
     else if (!on && ph.sessionRecordingStarted()) ph.stopSessionRecording();
@@ -432,6 +478,7 @@ function installGaFilter() {
     navigator.sendBeacon = (url: string | URL, data?: BodyInit | null) => {
       const u = String(url);
       if (!isGaHit(u)) return beacon(url, data);
+      if (onEncryptedPage()) return true; // dropped: GA's own history listener fires on arrival
       const body = typeof data === "string" ? data.split("\n").map((l) => (l ? cleanGaParams(l) : l)).join("\n") : data;
       return beacon(cleanGaUrl(u), body);
     };
@@ -440,6 +487,7 @@ function installGaFilter() {
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const u = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (!isGaHit(u)) return realFetch(input, init);
+    if (onEncryptedPage()) return Promise.resolve(new Response(null, { status: 204 }));
     const body = typeof init?.body === "string" ? init.body.split("\n").map((l) => (l ? cleanGaParams(l) : l)).join("\n") : init?.body;
     return realFetch(cleanGaUrl(u), { ...init, body });
   };
@@ -472,9 +520,13 @@ function enabled(): boolean {
 /** Start (or switch) analytics. Called by ThirdPartyAnalytics once consent is known. */
 export async function startThirdParty(m: AnalyticsMode) {
   if (!enabled()) return;
-  // An encrypted document opened from its link: PostHog and Google Analytics never load on this
-  // page, so no third-party code can read the key in the address or the decrypted text.
-  if (hasDocumentKey(window.location.hash)) return;
+  // Nothing loads on an encrypted document's page (owner decision 2). Remember the choice and
+  // start on the first page that isn't one.
+  if (mode === null && onEncryptedPage()) {
+    deferredMode = m;
+    return;
+  }
+  deferredMode = null;
   const switching = mode !== null && mode !== m;
   mode = m;
   const posthog = await loadPostHog(m);
@@ -514,7 +566,13 @@ export function pauseRecordingFor(pathname: string) {
 
 /** Every route change (ThirdPartyAnalytics calls it with usePathname). */
 export function onRoute(pathname: string) {
-  if (!enabled() || mode === null) return;
+  if (!enabled()) return;
+  if (mode === null) {
+    // Opened on an encrypted document, now somewhere else: start as consent said.
+    if (deferredMode && !onEncryptedPage()) void startThirdParty(deferredMode);
+    return;
+  }
+  applyEncryptedPause();
   if (pathname === currentPath) return;
   currentPath = pathname;
   if (pendingDocView) clearTimeout(pendingDocView);
@@ -528,6 +586,8 @@ export function onRoute(pathname: string) {
 /** The viewer reports the open document (or null when it closes). */
 export function setAnalyticsDoc(next: DocContext | null) {
   doc = next;
+  if (mode !== null) applyEncryptedPause();
+  else if (!next && deferredMode && !onEncryptedPage()) void startThirdParty(deferredMode);
   if (next && pendingDocView) {
     clearTimeout(pendingDocView);
     pageview();

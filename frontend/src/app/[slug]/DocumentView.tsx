@@ -98,8 +98,10 @@ function opensWithOwnTitle(content: string, title: string | null): boolean {
  * re-parents it.
  */
 export default function DocumentView(props: DocumentViewProps) {
-  const { slug, url, isPasswordProtected = false, gate = null, isOwned = false, encrypted = false, viewerChrome = "full" } = props;
+  const { slug, url, isPasswordProtected = false, gate = null, isOwned = false, viewerChrome = "full" } = props;
   const v = useDocumentViewer(props);
+  // Live: a gated document can turn out to be encrypted only once a client read opens it.
+  const encrypted = v.encrypted;
   const {
     accessDenied, artifactDoc, claimed, claimMsg, claimSecret, decryptState, deviceKeySaved,
     displayContent, displayCreatedAt, displayExpiresAt, displayTitle, displayViews, editing, gConnected,
@@ -153,7 +155,7 @@ export default function DocumentView(props: DocumentViewProps) {
       : {
           ref: props.docRef ?? null,
           kind: "document",
-          access: props.encrypted ? "encrypted" : props.isPasswordProtected || props.gate ? "protected" : "public",
+          access: encrypted ? "encrypted" : props.isPasswordProtected || props.gate ? "protected" : "public",
         },
   );
   const pct = useReadingProgress();
@@ -328,7 +330,8 @@ export default function DocumentView(props: DocumentViewProps) {
   const guardActive = isNew && !!claimSecret && !secretCopied && !panelDismissed && !isOwner;
 
   return (
-    <div className={`flex min-w-0 flex-1 flex-col ${showImmersive ? "md-viewer-immersive" : ""}`}>
+    // data-md-e2e: third-party analytics (lib/thirdPartyAnalytics) never runs while this is on the page.
+    <div className={`flex min-w-0 flex-1 flex-col ${showImmersive ? "md-viewer-immersive" : ""}`} data-md-e2e={encrypted ? "" : undefined}>
       {framed && header}
 
       <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">

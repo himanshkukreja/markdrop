@@ -154,8 +154,10 @@ export default async function SlugPage({ params }: Props) {
   // it knows — see its `kind` check after unlock.
   // ph-no-capture (display: contents, so layout is untouched): nothing on a document page is ever
   // part of a session recording, even in the instant before recording pauses on navigation.
+  // data-md-e2e: rendered by the server, so third-party analytics can see before loading anything
+  // that this page is an encrypted document — even when it was opened without its #k= key.
   return (
-    <div className="ph-no-capture contents">
+    <div className="ph-no-capture contents" data-md-e2e={doc?.encrypted ? "" : undefined}>
     <Suspense fallback={<ViewerFallback />}>
     <DocumentView
       slug={slug}

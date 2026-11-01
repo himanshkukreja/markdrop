@@ -46,12 +46,15 @@ export function useDocumentViewer({
   isPasswordProtected = false,
   signInUrl = null,
   syncedWithVscode = false,
-  encrypted = false,
+  encrypted: encryptedProp = false,
   readTicket: initialReadTicket = null,
   rev: initialRev = null,
   gate = null,
 }: DocumentViewProps) {
   const router = useRouter();
+  // Encrypted, as far as anyone knows yet. The server render can't tell for a gated document (its
+  // read is refused), so a client read that turns up an envelope switches this on (adoptDoc).
+  const [encrypted, setEncrypted] = useState(encryptedProp);
   // Sign-in has to come back to the exact address the reader was refused at —
   // on a workspace's own domain that is not `/${slug}`.
   const pathname = usePathname();
@@ -286,6 +289,14 @@ export function useDocumentViewer({
     setDocRev(typeof doc.rev === "number" ? doc.rev : null);
     setServerPassword(!!doc.is_password_protected);
     if (doc.encrypted) {
+      // A gated document only now turns out to be encrypted: from here on it is
+      // handled as one (decryption, editing, analytics off).
+      if (!encrypted) {
+        setEncrypted(true);
+        setDisplayTitle(null);
+        setDisplayContent("");
+        setDecryptState("working");
+      }
       // Hand it to the decryption effect instead. `doc.title` is null on the
       // wire for these — the real one is sealed inside the envelope.
       setSealed(doc.content);
@@ -1319,6 +1330,7 @@ export function useDocumentViewer({
 
   return {
     access,
+    encrypted,
     applyPastedLink,
     publishedPassword,
     passwordChange,
