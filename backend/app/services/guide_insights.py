@@ -673,11 +673,17 @@ async def clear(db: AsyncIOMotorDatabase, site: str) -> dict:
     Ask AI questions out of Insights (the ledger row stays: it is Markdrop's own record)."""
     from app.services import ai_usage
 
+    from app.services import guide_fixes, guide_signals
+
     a = await db[RAW].delete_many({"site": site})
     b = await db[DAILY].delete_many({"site": site})
     c = await db[FEEDBACK].delete_many({"site": site})
     await db[ai_usage.REQUESTS].update_many({"site": site, "insights": True}, {"$set": {"insights": False}})
-    return {"events": a.deleted_count, "days": b.deleted_count, "feedback": c.deleted_count}
+    # What was read from them: the reader signals' rollups and the Fix list.
+    s = await guide_signals.clear(db, site)
+    f = await guide_fixes.clear(db, site)
+    return {"events": a.deleted_count, "days": b.deleted_count, "feedback": c.deleted_count, "signal_days": s,
+            "fixes": f}
 
 
 async def overview(db: AsyncIOMotorDatabase, site_row: dict, range_key: str, *, status: str = "open") -> dict:

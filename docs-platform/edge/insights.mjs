@@ -15,6 +15,12 @@
  * (not its RSC payload, a prefetch, a HEAD, a Markdown twin, a file or a 404), and only with the
  * secret set. Client-side navigations after the first page are counted by the engine
  * (src/docs/client/Insights.tsx), which the edge never sees.
+ *
+ * Agent reads (backend services/guide_signals.py): AI agents and tools read docs through their
+ * machine-readable outputs. Every request for a page's Markdown twin, llms.txt / llms-full.txt or
+ * the docs MCP server (a POST) is reported to `<api>/…/agent` as {path, via, ua} with the same key,
+ * after the response; the API keeps the path, the kind of read and the agent's family only. (A
+ * known AI agent loading a page's HTML is told apart by the API from the page view itself.)
  */
 export const EDGE_KEY_LABEL = "markdrop-docs-insights/v1";
 
@@ -71,6 +77,28 @@ export function sendView({ req, url, site, apiOrigin, secret, ctx, fetchFn = fet
         "x-docs-reader-ip": req.headers.get("cf-connecting-ip") || "",
       },
       body: JSON.stringify(viewBody(req, url)),
+      signal: AbortSignal.timeout(3000),
+    });
+  })().catch(() => {});
+  if (ctx?.waitUntil) ctx.waitUntil(task);
+  return task;
+}
+
+/** How a machine-readable output was read: "markdown" (a page's Markdown twin), "llms", or null. */
+export function agentVia(internal, type) {
+  if (typeof internal === "string" && /\/llms(-full)?\.txt$/.test(internal)) return "llms";
+  if (typeof type === "string" && type.startsWith("text/markdown")) return "markdown";
+  return null;
+}
+
+/** Report one agent read (never throws, never delays the response). */
+export function sendAgent({ req, url, site, apiOrigin, secret, ctx, via, fetchFn = fetch }) {
+  const task = (async () => {
+    const key = await edgeKey(secret);
+    await fetchFn(`${apiOrigin}/api/v1/docs/insights/${encodeURIComponent(site)}/agent`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body: JSON.stringify({ path: url.pathname.slice(0, 400), via, ua: (req.headers.get("user-agent") || "").slice(0, 512) }),
       signal: AbortSignal.timeout(3000),
     });
   })().catch(() => {});

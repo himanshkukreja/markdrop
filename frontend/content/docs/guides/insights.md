@@ -31,6 +31,8 @@ Choose **7 days**, **30 days** or **90 days** at the top right. Everything on th
 
 New page views usually show within a minute.
 
+The [Fix list](/guides/fix-list) turns all of this into one ranked list of what to fix next, with an AI-drafted fix for each item.
+
 Before there's anything to show, the tab says why. A guide that isn't published yet links to **Publish**. A live guide with no readers yet shows its address to copy or open, and what will show up. A guide with Insights off explains what it does, and an admin can turn it on from there.
 
 ![A live guide with no readers yet: Collecting, "Your first readers will show up here", its address with Copy link and Open, and What you'll see: readers and top pages, searches with no results, Ask AI questions and page feedback.](/docs-assets/guides/insights/insights-empty.webp)

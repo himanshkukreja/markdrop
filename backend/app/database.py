@@ -258,6 +258,11 @@ async def connect() -> None:
         from app.services import guide_insights as _guide_insights
 
         await _guide_insights.ensure_indexes(db)
+        from app.services import guide_fixes as _guide_fixes
+        from app.services import guide_signals as _guide_signals
+
+        await _guide_signals.ensure_indexes(db)
+        await _guide_fixes.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] guide insights indexes skipped: {exc}")
     # Guides roles (services/docs_studio_roles.py): once, members of workspaces that already

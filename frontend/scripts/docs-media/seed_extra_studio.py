@@ -23,6 +23,13 @@ published into the stack's folder store and served at http://<slug>.guides.markd
                   (acme-openapi.yaml, Settings › API reference)
         insights  two weeks of daily readers (pages, sites, countries, devices, searches), page
                   feedback with comments, and Ask AI questions for each live Acme guide (INSIGHTS_WORLD)
+        fix list  Acme's reader signals (FIX_WORLD: how far readers get down each page, a video and
+                  an embedded PDF losing readers, broken link hits, AI agent reads and the MCP's
+                  searches that found nothing), then a real detection run (POST …/fixes/check), one
+                  item in progress, one fixed, one dismissed, and drafted fixes on two items
+
+    seed_extra_studio.py --fix-list
+        Just the Fix list part again, for Acme (fixtures_studio.json), on the data already there.
 
     seed_extra_studio.py --guide-domain SITE HOST live|pending|remove
         A guide's own domain in that state, written directly (the stack never runs the domain job).
@@ -212,7 +219,7 @@ def seed_changelog(token: str, sid: str, now: datetime) -> None:
         call("POST", f"/api/v1/docs-sites/{sid}/changelog/entries", token, json=body)
 
 
-INSIGHTS = ("guide_events", "guide_daily", "guide_feedback")
+INSIGHTS = ("guide_events", "guide_daily", "guide_feedback", "guide_signal_daily", "guide_fixes", "guide_fix_state")
 
 
 def reset() -> None:
@@ -363,6 +370,156 @@ def seed_insights(site: str, world: str, scale: float = 1.0) -> None:
     db["ai_requests"].insert_many([{"feature": "docs_ask", "request_id": f"demo-insights-{site}-{j}", "site": site,
                                     "ts": real - timedelta(hours=2 + j * gap), "insights": True, "outcome": outcome,
                                     "question": q} for j, (q, outcome) in enumerate(order)])
+
+
+# What Acme's readers and the agents reading it do, for the Fix list (all fictional). Reading: per
+# page, its sections (the h2/h3 ids readers pass, in order) and how many readers stop at each
+# (-1 the introduction, len(ids) the end of the page).
+QS_IDS = ["before-you-start", "install-the-cli", "create-a-project", "sign-in", "create-the-project", "connect-a-source", "share-it"]
+FIX_WORLD = {
+    "reading": {
+        # Readers give up at "Install the CLI" (three OS tabs, no "check it worked" step).
+        "/getting-started/quickstart": (QS_IDS, [14, 12, 131, 11, 9, 10, 8, 18, 97]),
+        "/guides/connect-postgres": (["how-they-fit-together", "create-a-read-only-user", "add-the-source", "check-the-connection"],
+                                     [9, 8, 11, 10, 9, 61]),
+        "/guides/alert-rules": (["create-a-rule", "choose-a-threshold", "mute-a-rule"], [5, 6, 5, 4, 38]),
+        # Still collecting: under the minimum (needs more readers).
+        "/guides/invite-your-team": (["invite-by-email", "roles", "remove-someone"], [4, 5, 3, 2, 4]),
+    },
+    # A docs-player video: most viewers leave around 0:42 of 1:40.
+    "video": ("product-tour", "/getting-started/introduction", 100, 152,
+              [100, 99, 98, 97, 96, 95, 94, 93, 92, 91, 90, 89, 88, 88, 87, 86, 61, 47, 45, 44, 43, 42, 42, 41, 40, 40, 39, 38, 38,
+               37, 37, 36, 36, 35, 35, 34, 30, 26, 22, 18]),
+    # An embedded Markdrop PDF on the FAQ: readers stop at page 3 of 9.
+    "pdf": ("pricing-pdf", "/help/faq", "Pricing and plans", 9, [2, 2, 14, 1, 1, 1, 1, 1, 11]),
+    "broken": [("/guides/alerts", "/guides/build-a-dashboard", 9)],
+    "unanswered": [("Is there a Terraform provider?", 3), ("Can I use Acme with Terraform?", 2), ("Do you have a status page?", 2)],
+    "agent_reads": [("/reference/api-keys", "markdown", "ChatGPT", 140), ("/reference/api-keys", "page", "Claude", 96),
+                    ("/reference/cli", "markdown", "Claude", 210), ("/reference/cli", "page", "ChatGPT", 132),
+                    ("/getting-started/quickstart", "markdown", "Perplexity", 160), ("/getting-started/quickstart", "page", "Gemini", 58),
+                    ("/guides/legacy-connectors", "markdown", "Other tool", 34), ("/guides/connect-postgres", "markdown", "Claude", 120),
+                    ("/llms.txt", "llms", "Claude", 220), ("/llms.txt", "llms", "ChatGPT", 98), ("/mcp", "mcp", "Claude", 196)],
+    "agent_searches": [("terraform provider", 11), ("acme terraform", 5), ("acme terraform provider", 3)],
+    # The page nobody has edited in eight months, though it's read a lot.
+    "stale": ("/reference/api-keys", 250),
+}
+
+
+def seed_fix_list(site: str, token: str) -> None:
+    """The Fix list's signals for a live Acme guide (FIX_WORLD), spread over the last ten days, then
+    a detection run through the API, a few items moved along, and two drafted fixes."""
+    real = datetime.now(timezone.utc)
+    w = FIX_WORLD
+    for name in ("guide_signal_daily", "guide_fixes", "guide_fix_state"):
+        db[name].delete_many({"site": site} if name != "guide_fix_state" else {"_id": site})
+    db["guide_events"].delete_many({"site": site, "k": {"$in": ["read", "broken", "embed", "agent", "agent_search"]}})
+    db["ai_requests"].delete_many({"request_id": {"$regex": f"^demo-insights-{site}-fix-"}})
+    rows = []
+
+    def ts(j: int) -> datetime:
+        return real - timedelta(hours=1 + (j * 7) % 230)
+
+    j = 0
+    for path, (ids, stops) in w["reading"].items():
+        n = len(ids)
+        for d, count in zip(range(-1, n + 1), stops):
+            for _ in range(count):
+                t = ts(j)
+                j += 1
+                row = {"site": site, "k": "read", "ts": t, "day": t.strftime("%Y-%m-%d"), "p": path, "n": n, "d": d, "w": 1,
+                       "t": 20 + (j * 13) % 160}
+                if 0 <= d < n:
+                    row["h"] = ids[d]
+                rows.append(row)
+    vid, vpath, length, plays, curve = w["video"]
+    for k in range(plays):
+        # Viewer k watched every slice while the curve says at least k+1 of `plays` were still there.
+        sl = [i for i, pct in enumerate(curve) if pct * plays / 100 > k]
+        if not sl:
+            continue
+        t = ts(j)
+        j += 1
+        rows.append({"site": site, "k": "read", "ts": t, "day": t.strftime("%Y-%m-%d"), "p": vpath, "n": 3, "d": 3, "w": 1, "t": 90,
+                     "v": [{"i": vid, "l": length, "b": sl}]})
+    pid, ppath, pname, pages, stops = w["pdf"]
+    for r, count in enumerate(stops, start=1):
+        for _ in range(count):
+            t = ts(j)
+            j += 1
+            rows.append({"site": site, "k": "embed", "ts": t, "day": t.strftime("%Y-%m-%d"), "p": ppath, "w": 1,
+                         "e": [{"i": pid, "k": "pdf", "n": pages, "r": r, "name": pname}]})
+    for target, frm, count in w["broken"]:
+        for _ in range(count):
+            t = ts(j)
+            j += 1
+            rows.append({"site": site, "k": "broken", "ts": t, "day": t.strftime("%Y-%m-%d"), "p": target, "f": frm})
+    for path, via, fam, count in w["agent_reads"]:
+        for _ in range(count):
+            t = ts(j)
+            j += 1
+            rows.append({"site": site, "k": "agent", "ts": t, "day": t.strftime("%Y-%m-%d"), "p": path, "via": via, "a": fam})
+    for q, count in w["agent_searches"]:
+        for _ in range(count):
+            t = ts(j)
+            j += 1
+            rows.append({"site": site, "k": "agent_search", "ts": t, "day": t.strftime("%Y-%m-%d"), "q": q, "n": 0})
+    db["guide_events"].insert_many(rows)
+    db["ai_requests"].insert_many([{"feature": "docs_ask", "request_id": f"demo-insights-{site}-fix-{i}-{k}", "site": site,
+                                    "ts": real - timedelta(hours=5 + i * 19 + k * 7), "insights": True, "outcome": "no_answer",
+                                    "question": q, "page_path": "/reference/cli"}
+                                   for i, (q, n) in enumerate(w["unanswered"]) for k in range(n)])
+    spath, age = w["stale"]
+    db["docs_pages"].update_one({"site_id": ObjectId(site), "path": spath},
+                                {"$set": {"draft.updated_at": real - timedelta(days=age)}})
+
+    got = call("POST", f"/api/v1/docs-sites/{site}/fixes/check", token)
+    items: dict = {}
+    for i in got["items"]:  # biggest impact first: keep each type's first
+        items.setdefault(i["type"], i)
+    print(f"  fix list: {len(got['items'])} items ({', '.join(sorted(items))})", flush=True)
+
+    # Moved along by the team, so the list has history: one fixed (in a publish), one in progress
+    # with its fix applied, one dismissed.
+    fixes = db["guide_fixes"]
+    if "heavy" in items:
+        fixes.update_one({"_id": ObjectId(items["heavy"]["id"])}, {"$set": {"status": "dismissed", "reason": "wont_fix",
+                                                                            "note": "Reference pages stay whole."}})
+    if "agent_unfriendly" in items:
+        fixes.update_one({"_id": ObjectId(items["agent_unfriendly"]["id"])}, {"$set": {"status": "in_progress", "status_at": real - timedelta(hours=20)}})
+    fixes.insert_one({
+        "site": site, "key": "search:webhook retries", "aliases": ["search:webhook retries"], "type": "search", "path": None,
+        "page_id": None, "page_title": None, "section": None, "section_title": None,
+        "title": "People search for “webhook retries” and find nothing", "summary": "12 searches found no results.",
+        "readers": 12, "severity": 0.7, "recency": 0.6, "impact": 5.0, "level": "medium", "confidence": "high",
+        "evidence": {"searches": 12, "samples": [{"text": "webhook retries", "n": 9}, {"text": "retry webhook", "n": 3}]},
+        "status": "fixed", "status_at": real - timedelta(days=3), "fixed_at": real - timedelta(days=3), "fixed_by": "publish",
+        "fixed_build": 4, "detected_at": real - timedelta(days=12), "last_seen_at": real - timedelta(days=4), "checked_at": real,
+        "reopened": 0, "history": [{"at": real - timedelta(days=12), "status": "open", "by": "detector"},
+                                   {"at": real - timedelta(days=3), "status": "fixed", "by": "publish", "note": "Published in #4"}]})
+
+    # Drafted fixes (the sandbox has no AI key: written here as the AI would).
+    drop = next((i for i in got["items"] if i["type"] == "drop" and i["path"] == "/getting-started/quickstart"), None)
+    if drop:
+        before = C.QUICKSTART.split("## Install the CLI", 1)[1].split("## Create a project", 1)[0]
+        before = ("## Install the CLI" + before).rstrip("\n")
+        after = before.replace("## Install the CLI\n", "## Install the CLI\n\nPick your system, run one command, then check it worked.\n", 1) + (
+            "\n\nCheck it worked:\n\n```bash\nacme --version\n```\n\n"
+            ":::note[Behind a corporate proxy?]\nSet `HTTPS_PROXY` before you install: [Add your proxy address]\n:::")
+        fixes.update_one({"_id": ObjectId(drop["id"])}, {"$set": {"draft": {
+            "kind": "section", "page_id": drop["page_id"], "path": drop["path"], "page_title": drop["page_title"],
+            "section": "install-the-cli", "heading": "Install the CLI", "depth": 2, "before": before, "after": after,
+            "summary": "Adds a one-line intro, a “check it worked” step and the proxy note readers asked for, so they know when to move on.",
+            "at": real - timedelta(minutes=8), "by": "seed"}}})
+    ask = items.get("ask")
+    if ask:
+        fixes.update_one({"_id": ObjectId(ask["id"])}, {"$set": {"draft": {
+            "kind": "new_page", "title": "Use Acme with Terraform", "path": "/guides/terraform", "before": "",
+            "after": ("Manage Acme projects, sources and alert rules as code with the Acme Terraform provider.\n\n"
+                      "## Is there a Terraform provider?\n\n[Say whether the provider is available, and where to get it]\n\n"
+                      "## Set up the provider\n\n```hcl\nterraform {\n  required_providers {\n    acme = { source = \"[provider address]\" }\n  }\n}\n```\n\n"
+                      "## Manage alert rules\n\n[Add an example rule]"),
+            "summary": "Readers and agents keep asking about Terraform: an outline for a page that answers it, with placeholders for the facts.",
+            "at": real - timedelta(minutes=30), "by": "seed"}, "has_draft": True}})
 
 
 # ── The world ───────────────────────────────────────────────────────────────────
@@ -517,6 +674,7 @@ def seed() -> dict:
     moved = clock.apply(now)
     for i, live in enumerate(r for r in db["docs_sites"].find({"workspace_id": ws, "status": "live"}).sort("created_at", 1)):
         seed_insights(str(live["_id"]), "acme" if i == 0 else "help", scale=1.0 if i == 0 else 0.35)
+    seed_fix_list(sid, T["riya"])
     out = {"acme": sid, "help": hid, "developers": did, "themes": tid, "review": review["id"], "workspace": ws,
            "slugs": {"acme": "acme", "help": "acme-help", "developers": "acme-developers", "themes": "acme-themes"}}
     (DATA / "fixtures_studio.json").write_text(json.dumps(out, indent=2))
@@ -624,6 +782,7 @@ if __name__ == "__main__":
     ap.add_argument("--import-run", action="store_true")
     ap.add_argument("--slow", action="store_true")
     ap.add_argument("--drop-sites", metavar="WORKSPACE")
+    ap.add_argument("--fix-list", action="store_true")
     ap.add_argument("--guide-domain", nargs=3, metavar=("SITE", "HOST", "STATE"),
                     help="SITE: a key of fixtures_studio.json (acme, help…); STATE: live, pending or remove")
     a = ap.parse_args()
@@ -631,6 +790,9 @@ if __name__ == "__main__":
         asyncio.run(play_import(None, "Acme", slow=a.slow))
     elif a.drop_sites:
         drop_sites(a.drop_sites)
+    elif a.fix_list:
+        st = json.loads((DATA / "fixtures_studio.json").read_text())
+        seed_fix_list(st["acme"], tok(fixtures(), "riya"))
     elif a.guide_domain:
         guide_domain(*a.guide_domain)
     else:

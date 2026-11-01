@@ -61,6 +61,13 @@ export interface DocsEditorApi {
   setImageAlt(src: string, alt: string): number;
   /** Removes headings with no text; returns how many. */
   removeEmptyHeadings(): number;
+  /**
+   * Offers `markdown` as a suggestion over one section (Visual mode): from the heading whose text
+   * is `heading` (at `level`, when given) to the next heading of the same or a higher level, or the
+   * introduction (everything before the first heading) when `heading` is null. Shown like Ask AI's
+   * suggestions, Accept / Discard. False when the section isn't on the page or in Markdown mode.
+   */
+  suggest(s: { heading: string | null; level?: number; markdown: string; title: string; note?: string; onAccept?: () => void }): boolean;
   focus(): void;
 }
 

@@ -5,12 +5,19 @@ Collection, under /api/v1/docs/insights/{site_id} (CORS: the guide's own live ad
 middleware/docs_cors.py):
 
     POST …/hit        a page view, from the docs edge Worker (server side; `Authorization: Bearer
-                      <edge key>`, the reader's address in X-Docs-Reader-Ip, never stored)
+                      <edge key>`, the reader's address in X-Docs-Reader-Ip, never stored); a known
+                      AI agent's view is counted as an agent read instead (services/guide_signals.py)
+    POST …/agent      {path, via: markdown|llms|mcp, ua}: a page's Markdown twin, llms.txt or the
+                      docs MCP server was read (the edge, server side, with its key)
     POST …/event      {k: "view", p} (a client-side navigation) or {k: "search", q, n, p}, from
                       the guide's pages (Origin must be the guide's own address); sent as
-                      text/plain so the browser needs no preflight
+                      text/plain so the browser needs no preflight. {k: "search", q, n, src: "mcp"}:
+                      the docs MCP server's search (server side, no Origin), kept as an agent's
     POST …/feedback   {path, helpful, comment?}: "Did this page help?" (Origin: the guide's own
                       address) and the docs MCP server's report_problem (server side, no Origin)
+    POST …/signal     {k: "read", p, n, d, ...} (how far down a page a reader got, videos watched,
+                      code copied) or {k: "broken", p, f?} (the guide's 404 page), from the guide's
+                      pages as text/plain (services/guide_signals.py); dropped under DNT / GPC
 
 Each answers 202 {"status": "ok" | "ignored" | "off"}: a beacon never learns more than that.
 A guide that isn't live (or doesn't exist) is a 404; Insights turned off drops everything.
@@ -45,6 +52,7 @@ from app.routers.auth import require_user
 from app.services import docs_site_store as store
 from app.services import docs_sites
 from app.services import guide_insights as insights
+from app.services import guide_signals as signals
 from app.utils.net import get_client_ip
 
 log = logging.getLogger(__name__)
@@ -138,6 +146,11 @@ async def hit(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends
     if not st.insights:
         return _accepted("off")
     path = insights.clean_path(body.path)
+    agent = signals.agent_family(body.ua)
+    if path is not None and agent:
+        # An AI agent reading the page: counted apart from readers, never as one.
+        ok = await signals.record(db, st.id, "agent", {"p": path, "via": "page", "a": agent})
+        return _accepted("ok" if ok else "ignored")
     if path is None or insights.is_bot(body.ua):
         return _accepted("ignored")
     ip = (request.headers.get(READER_IP) or "").strip()[:64] or None
@@ -146,11 +159,35 @@ async def hit(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends
     return _accepted("ok" if ok else "ignored")
 
 
+class AgentBody(BaseModel):
+    path: str = Field(..., max_length=400)
+    via: str = Field(..., pattern=r"^(markdown|llms|mcp)$")
+    ua: str | None = Field(None, max_length=512)
+
+
+@router.post("/{site_id}/agent")
+@limiter.limit("600/minute", key_func=lambda request: f"agent:{request.path_params.get('site_id')}")
+async def agent(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """A machine-readable output was read (the edge, server side): a Markdown twin, llms.txt, MCP."""
+    if not insights.edge_authorized(request.headers.get("authorization")):
+        raise HTTPException(status_code=401, detail="Edge key required")
+    body = _model(AgentBody, await _json(request))
+    st = await _site(db, site_id)
+    if not st.insights:
+        return _accepted("off")
+    path = signals.agent_path(body.path, body.via)
+    if path is None:
+        return _accepted("ignored")
+    ok = await signals.record(db, st.id, "agent", {"p": path, "via": body.via, "a": signals.tool_family(body.ua)})
+    return _accepted("ok" if ok else "ignored")
+
+
 class EventBody(BaseModel):
     k: str = Field(..., pattern=r"^(view|search)$")
     p: str | None = Field(None, max_length=400)
     q: str | None = Field(None, max_length=500)
     n: int | None = Field(None, ge=0, le=100_000)
+    src: str | None = Field(None, pattern=r"^mcp$")
 
 
 @router.post("/{site_id}/event")
@@ -159,9 +196,17 @@ async def event(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depen
     """A client-side navigation or a settled search, from the guide's own pages."""
     body = _model(EventBody, await _json(request))
     st = await _site(db, site_id)
-    await _browser_origin(db, request, site_id, required=True)
+    mcp = body.src == "mcp" and body.k == "search" and not request.headers.get("origin")
+    await _browser_origin(db, request, site_id, required=not mcp)
     if not st.insights:
         return _accepted("off")
+    if mcp:
+        # The docs MCP server's search (an agent's, on someone's behalf): only "nothing found" is kept.
+        q = insights.normalize_query(body.q)
+        if q is None or body.n is None or body.n > 0:
+            return _accepted("ignored")
+        ok = await signals.record(db, st.id, "agent_search", {"q": q, "n": 0})
+        return _accepted("ok" if ok else "ignored")
     ua = request.headers.get("user-agent") or ""
     if insights.is_bot(ua):
         return _accepted("ignored")
@@ -179,6 +224,30 @@ async def event(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depen
     if q is None or body.n is None:
         return _accepted("ignored")
     ok = await insights.record_search(db, st.id, query=q, results=body.n, path=path, ua=ua, ip=ip, out=_out(request))
+    return _accepted("ok" if ok else "ignored")
+
+
+@router.post("/{site_id}/signal")
+@limiter.limit("60/minute")
+async def signal(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Reader signals (one beacon per page view, services/guide_signals.py), from the guide's own pages."""
+    body = await _json(request)
+    st = await _site(db, site_id)
+    await _browser_origin(db, request, site_id, required=True)
+    if not st.insights:
+        return _accepted("off")
+    # Signals are never taken from a browser that asked not to be tracked (the engine doesn't send
+    # them either): unlike a page view, nothing about them needs counting.
+    if _out(request) or insights.is_bot(request.headers.get("user-agent")):
+        return _accepted("ignored")
+    kind = body.get("k")
+    if kind not in signals.KINDS:
+        raise HTTPException(status_code=422, detail="Unknown signal")
+    clean = {"read": signals.clean_read, "broken": signals.clean_broken, "embed": signals.clean_embed_beacon}[kind]
+    data = clean(body)
+    if data is None:
+        return _accepted("ignored")
+    ok = await signals.record(db, st.id, kind, data)
     return _accepted("ok" if ok else "ignored")
 
 
