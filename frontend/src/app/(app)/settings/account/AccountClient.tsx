@@ -18,7 +18,7 @@ const NAME_MAX = 80;
 /** /settings/account (REVAMP_PLAN 7.11): profile, appearance, sign out. */
 export default function AccountClient() {
   const { user, ready } = useRequireUser("/settings/account");
-  const { updateUser, logout } = useAuth();
+  const { updateUser, signOut: authSignOut } = useAuth();
   const toast = useToast();
   const { lightEnabled, lightLaunched, lightBeta, setLightBeta } = useTheme();
   const mounted = useMounted();
@@ -74,11 +74,13 @@ export default function AccountClient() {
 
   async function signOut() {
     setSigningOut(true);
+    let done = true;
     try {
-      await logout();
+      done = await authSignOut();
     } finally {
       // useRequireUser sends a signed-out visitor to /login; go home instead, explicitly.
-      window.location.assign("/");
+      if (done) window.location.assign("/");
+      else setSigningOut(false);
     }
   }
 

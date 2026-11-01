@@ -41,7 +41,7 @@ export function UserAvatar({ user, size = "md", className }: { user: MeUser; siz
  * AuthContext.logout() (server revoke, then the local token is cleared).
  */
 export function AccountMenu({ user, align = "right" }: { user: MeUser; align?: "left" | "right" }) {
-  const { logout } = useAuth();
+  const { signOut } = useAuth();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const items: MenuEntry[] = [
@@ -79,7 +79,7 @@ export function AccountMenu({ user, align = "right" }: { user: MeUser; align?: "
         if (!openFeedback()) setFeedbackOpen(true);
       },
     },
-    { label: "Sign out", icon: "logOut", separated: true, onClick: () => void logout() },
+    { label: "Sign out", icon: "logOut", separated: true, onClick: () => void signOut() },
   ];
 
   return (

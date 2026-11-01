@@ -5,6 +5,8 @@ import { ApiError, fetchMe, getToken, setToken, clearToken, logoutRequest, MeUse
 import AuthModal from "@/components/AuthModal";
 import { track } from "@/lib/track";
 import { identifyUser, resetIdentity } from "@/lib/thirdPartyAnalytics";
+import { forgetAllKeys, rememberedKeyCount } from "@/lib/e2e";
+import { Checkbox, ConfirmDialog } from "@/components/ui";
 
 interface AuthModalOptions {
   next?: string;
@@ -18,6 +20,11 @@ interface AuthState {
   loading: boolean;
   login: (token: string, user?: MeUser) => Promise<void>;
   logout: () => Promise<void>;
+  /**
+   * Sign out from a "Sign out" button: when this browser keeps encryption keys, first asks whether
+   * to forget them too. Resolves false when the person cancelled (still signed in).
+   */
+  signOut: () => Promise<boolean>;
   refresh: () => Promise<void>;
   updateUser: (user: MeUser) => void;
   /** Open the in-place sign-in / sign-up modal (defaults `next` to the current URL). */
@@ -86,14 +93,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     resetIdentity();
   }, []);
 
+  // Sign out, offering to forget the encryption keys this browser kept (they never left it, but a
+  // shared computer shouldn't keep them after its user leaves).
+  const [signOutAsk, setSignOutAsk] = useState<{ count: number; resolve: (go: boolean) => void } | null>(null);
+  const [forgetKeys, setForgetKeys] = useState(true);
+  const signOut = useCallback(async () => {
+    const count = rememberedKeyCount();
+    if (count === 0) {
+      await logout();
+      return true;
+    }
+    setForgetKeys(true);
+    const go = await new Promise<boolean>((resolve) => setSignOutAsk({ count, resolve }));
+    return go;
+  }, [logout]);
+
   const updateUser = useCallback((u: MeUser) => setUser(u), []);
 
   const [authModal, setAuthModal] = useState<AuthModalOptions | null>(null);
   const openAuthModal = useCallback((opts?: AuthModalOptions) => setAuthModal(opts ?? {}), []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh, updateUser, openAuthModal }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, signOut, refresh, updateUser, openAuthModal }}>
       {children}
+      <ConfirmDialog
+        open={!!signOutAsk}
+        tone="default"
+        title="Sign out of Markdrop?"
+        body={
+          <Checkbox
+            label={`Also forget ${signOutAsk?.count ?? 0} encryption ${signOutAsk?.count === 1 ? "key" : "keys"} saved in this browser`}
+            description="Encrypted documents then open here only from their full link."
+            checked={forgetKeys}
+            onChange={(e) => setForgetKeys(e.target.checked)}
+          />
+        }
+        confirmLabel="Sign out"
+        onClose={() => {
+          signOutAsk?.resolve(false);
+          setSignOutAsk(null);
+        }}
+        onConfirm={async () => {
+          if (forgetKeys) forgetAllKeys();
+          await logout();
+          signOutAsk?.resolve(true);
+          setSignOutAsk(null);
+        }}
+      />
       {authModal && (
         <AuthModal
           next={

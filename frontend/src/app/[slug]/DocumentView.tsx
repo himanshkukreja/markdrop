@@ -11,7 +11,6 @@ import { SiteHeader } from "@/components/shell/SiteHeader";
 import { TenantHeader, useTenant } from "@/components/tenant";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import { ReadingProgress, Toc, TocTicks, tocHeadings, useReadingProgress, type Heading } from "@/components/reading";
-import * as e2e from "@/lib/e2e";
 import { removePerson } from "@/lib/access";
 import { recordEvent } from "@/lib/api";
 import { track } from "@/lib/track";
@@ -260,14 +259,22 @@ export default function DocumentView(props: DocumentViewProps) {
           ]
         : [{ label: v.gBusy ? "Publishing…" : "Publish to Google Docs", icon: "google", busy: v.gBusy, onClick: handleGoogleExport }]
       : []),
-    // A shared or borrowed computer shouldn't keep the key to someone's document.
-    ...(encrypted && deviceKeySaved
-      ? [{
-          label: "Forget key on this device",
-          icon: "key",
-          description: "The link still works; this browser just stops remembering it.",
-          onClick: () => { e2e.forgetKey(slug); setDeviceKeySaved(false); },
-        }]
+    // Readers choose whether this browser keeps the key (it never leaves it). A shared or
+    // borrowed computer shouldn't keep the key to someone's document.
+    ...(encrypted && readable && keyFragment
+      ? [deviceKeySaved
+          ? {
+              label: "Forget key on this device",
+              icon: "key",
+              description: "The link still works; this browser just stops remembering it.",
+              onClick: () => { v.forgetOnDevice(); toast.success("This browser no longer keeps the key."); },
+            }
+          : {
+              label: "Remember key on this device",
+              icon: "key",
+              description: "Opens here without the link next time. Kept only in this browser.",
+              onClick: () => { v.rememberOnDevice(); toast.success("Key kept in this browser. Forget it from this menu any time."); },
+            }]
       : []),
     ...(!secretUnlocked ? [{ label: "Edit", icon: "edit", disabled: editBlocked, onClick: startEdit }] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
@@ -410,7 +417,20 @@ export default function DocumentView(props: DocumentViewProps) {
                 )}
                 {claimMsg && !showPanel && <p className="no-print text-caption text-text-secondary" role="status">{claimMsg}</p>}
                 {rotated && <div className="no-print"><RotatedNotice link={rotated} /></div>}
-                {keySource === "device" && !rotated && readable && <div className="no-print"><DeviceKeyNotice shareUrl={shareUrl} /></div>}
+                {v.passwordChange && (
+                  <Alert
+                    tone={v.passwordChange === "set" ? "info" : "warning"}
+                    icon="lock"
+                    className="no-print"
+                    onDismiss={() => v.setPasswordChange(null)}
+                    title={v.passwordChange === "set" ? "New password set" : "Password removed"}
+                  >
+                    {v.passwordChange === "set"
+                      ? "Readers now need the link and the new password — send them separately. Anyone who saved an old copy can still read that copy with the old password."
+                      : "Anyone with the link can read the current version."}
+                  </Alert>
+                )}
+                {keySource === "device" && !rotated && readable && <div className="no-print"><DeviceKeyNotice shareUrl={shareUrl} linkStale={v.linkKeyStale} /></div>}
                 {v.gError && (
                   <Alert
                     tone="danger"
@@ -484,7 +504,13 @@ export default function DocumentView(props: DocumentViewProps) {
                   {!readable ? (
                     <EncryptionState
                       url={url}
-                      state={decryptState === "nokey" || decryptState === "failed" || decryptState === "unsupported" ? decryptState : "working"}
+                      state={decryptState === "nokey" || decryptState === "failed" || decryptState === "unsupported" || decryptState === "password" ? decryptState : "working"}
+                      reason={v.decryptReason}
+                      onPasteLink={v.applyPastedLink}
+                      onPassword={v.submitE2EPassword}
+                      passwordError={v.e2ePwdError}
+                      passwordErrorKey={v.e2ePwdErrorKey}
+                      passwordChecking={v.e2ePwdChecking}
                     />
                   ) : empty ? (
                     <EmptyState icon="doc" title="This document is empty" className="py-16" />

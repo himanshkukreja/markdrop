@@ -118,7 +118,7 @@ const FOLDER_PAGE = /^\/w\/[^/]+(\/f\/[^/]+)?\/?$/;
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const search = useLocationSearch();
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
   const active = railKeyFor(pathname, search);
   const activeWs = workspaceOfKey(active);
 
@@ -218,7 +218,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <span className="truncate text-body-strong text-text">{user.name || "Signed in"}</span>
                     <span className="truncate text-caption text-text-muted">{user.email}</span>
                   </span>
-                  <Button variant="secondary" className="h-11" onClick={() => { setBrowseOpen(false); void logout(); }}>Sign out</Button>
+                  <Button variant="secondary" className="h-11" onClick={() => { setBrowseOpen(false); void signOut(); }}>Sign out</Button>
                 </div>
               )}
             </div>

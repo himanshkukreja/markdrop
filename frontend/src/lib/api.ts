@@ -1,4 +1,5 @@
 import { utmFrom } from "@/lib/engageCore";
+import { moveRememberedKey } from "@/lib/e2e";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.markdrop.in";
 
@@ -94,6 +95,8 @@ export interface DocumentResponse {
   updated_at: string;
   expires_at: string | null;
   views: number;
+  /** Bumped by every write. An editor sends it back as `base_rev` so it never saves over a newer version. */
+  rev?: number | null;
   is_password_protected: boolean;
   is_owned?: boolean;
   is_owner?: boolean;
@@ -424,6 +427,8 @@ export async function updateDocument(
     customExpiresAt?: string;
     /** True when `content` is a re-sealed envelope; keeps the title column null. */
     encrypted?: boolean;
+    /** The rev the editor opened. A newer one on the server answers 409 and nothing is written. */
+    baseRev?: number | null;
   }
 ): Promise<DocumentResponse> {
   const res = await fetch(`${API_BASE}/api/v1/documents/${slug}`, {
@@ -440,6 +445,7 @@ export async function updateDocument(
       remove_password: options?.removePassword ?? false,
       expires_in: options?.expiresIn ?? null,
       custom_expires_at: options?.expiresIn === "custom" ? (options?.customExpiresAt ?? null) : null,
+      ...(typeof options?.baseRev === "number" && options.baseRev > 0 ? { base_rev: options.baseRev } : {}),
     }),
   });
   if (!res.ok) {
@@ -577,7 +583,10 @@ export async function changeSlug(slug: string, newSlug: string, editSecret?: str
   if (!res.ok) {
     throw await apiError(res, "Failed to change URL");
   }
-  return res.json();
+  const doc = (await res.json()) as DocumentResponse;
+  // An encrypted document's key, if this browser kept one, follows it to the new link.
+  moveRememberedKey(slug, doc.slug || newSlug);
+  return doc;
 }
 
 /** Import a copy of a readable document into the logged-in user's account.
@@ -1279,10 +1288,10 @@ export interface DocumentSettings {
  * dialog's "More options", for documents and files alike. Owner (or the edit secret) only; the
  * server applies it through the same narrowing/widening as an editor save.
  */
-export async function updateDocumentSettings(slug: string, settings: DocumentSettings): Promise<DocumentResponse> {
+export async function updateDocumentSettings(slug: string, settings: DocumentSettings, editSecret?: string): Promise<DocumentResponse> {
   const res = await fetch(`${API_BASE}/api/v1/documents/${encodeURIComponent(slug)}/settings`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...(editSecret ? { "x-edit-secret": editSecret } : {}) },
     body: JSON.stringify({
       read_password: settings.readPassword ?? null,
       remove_password: settings.removePassword ?? false,

@@ -21,7 +21,7 @@ export function MobileNav({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
   const signInHref = useSignInHref();
 
   useEffect(() => setOpen(false), [pathname]);
@@ -101,7 +101,7 @@ export function MobileNav({ className }: { className?: string }) {
                 <span className="truncate text-body-strong text-text">{user.name || "Signed in"}</span>
                 <span className="truncate text-caption text-text-muted">{user.email}</span>
               </span>
-              <Button variant="secondary" className="h-11" onClick={() => { close(); void logout(); }}>Sign out</Button>
+              <Button variant="secondary" className="h-11" onClick={() => { close(); void signOut(); }}>Sign out</Button>
             </div>
           ) : (
             <>

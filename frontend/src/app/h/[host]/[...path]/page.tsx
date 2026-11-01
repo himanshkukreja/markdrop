@@ -280,6 +280,7 @@ export default async function TenantDocumentPage({ params }: Props) {
         isOwned={doc?.is_owned ?? false}
         syncedWithVscode={doc?.vscode_synced ?? false}
         encrypted={doc?.encrypted ?? false}
+        rev={doc?.rev ?? null}
         readTicket={doc?.read_ticket ?? null}
         viewerChrome={viewerChrome}
       />

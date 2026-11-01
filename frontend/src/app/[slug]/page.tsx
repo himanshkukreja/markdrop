@@ -170,6 +170,7 @@ export default async function SlugPage({ params }: Props) {
       isOwned={doc?.is_owned ?? false}
       syncedWithVscode={doc?.vscode_synced ?? false}
       encrypted={doc?.encrypted ?? false}
+      rev={doc?.rev ?? null}
       docRef={doc?.ref ?? null}
       readTicket={doc?.read_ticket ?? null}
     />

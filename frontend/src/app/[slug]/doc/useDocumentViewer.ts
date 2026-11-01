@@ -12,7 +12,7 @@ import { flushSync } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryFlags } from "@/lib/useQueryFlags";
 import * as e2e from "@/lib/e2e";
-import { updateDocument, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl, type DeniedInfo } from "@/lib/api";
+import { ApiError, updateDocument, updateDocumentSettings, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl, type DeniedInfo } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
 import { HANDOFF_FRAGMENT, HANDOFF_NONE_FRAGMENT, silentSignInUrl } from "@/lib/hosts";
 import { isPrimaryHost } from "@/components/tenant/hosts";
@@ -26,8 +26,13 @@ import { shortcutsEnabled } from "@/lib/shortcuts";
 import type { DocumentViewProps } from "./types";
 
 export type ViewMode = "write" | "split" | "preview";
-/** "unsupported": this browser has no WebCrypto (old, or plain http) — not the same as a wrong key. */
-export type DecryptState = "plain" | "working" | "ok" | "nokey" | "failed" | "unsupported";
+/**
+ * "unsupported": this browser has no WebCrypto (old, or plain http) — not the same as a wrong key.
+ * "password": the document also needs its password, asked for here and checked only in this browser.
+ */
+export type DecryptState = "plain" | "working" | "ok" | "nokey" | "failed" | "unsupported" | "password";
+/** Where the key that opened the document came from. */
+export type KeySource = "link" | "device" | "pasted";
 
 export function useDocumentViewer({
   slug,
@@ -43,6 +48,8 @@ export function useDocumentViewer({
   syncedWithVscode = false,
   encrypted = false,
   readTicket: initialReadTicket = null,
+  rev: initialRev = null,
+  gate = null,
 }: DocumentViewProps) {
   const router = useRouter();
   // Sign-in has to come back to the exact address the reader was refused at —
@@ -182,6 +189,8 @@ export function useDocumentViewer({
 
   function requestCopy() {
     if (!user) {
+      // Google sign-in leaves the page and comes back on `next`, without the fragment.
+      if (encrypted) e2e.stashPendingKey();
       // Not signed in: open the shared sign-in modal right here (no page nav).
       // Email sign-in resumes the copy in-place; Google redirects and resumes
       // on return via ?copy=1.
@@ -263,6 +272,8 @@ export function useDocumentViewer({
         ? doc.folder_path.filter((s): s is string => typeof s === "string" && s.length > 0)
         : [];
       const target = [...folders, doc.slug].map(encodeURIComponent).join("/");
+      // A key this browser kept for the old address follows the document.
+      e2e.moveRememberedKey(slug, doc.slug);
       router.replace(`/${target}${window.location.search}${window.location.hash}`);
       return true;
     }
@@ -271,6 +282,9 @@ export function useDocumentViewer({
       setPwdLocked(false);
       return true;
     }
+    // The rev that goes with this exact content: a save sends it back as base_rev.
+    setDocRev(typeof doc.rev === "number" ? doc.rev : null);
+    setServerPassword(!!doc.is_password_protected);
     if (doc.encrypted) {
       // Hand it to the decryption effect instead. `doc.title` is null on the
       // wire for these — the real one is sealed inside the envelope.
@@ -299,18 +313,41 @@ export function useDocumentViewer({
   //
   // The envelope arrives over the wire like any other content; the key does not,
   // and never has. It comes out of the URL fragment, which the browser keeps to
-  // itself. Two effects: one turns the fragment into a CryptoKey, the other
-  // opens whatever envelope is currently in hand — so a live update from another
-  // tab or the editor re-decrypts on its own.
+  // itself — or out of this browser's own store, or a link the reader pastes
+  // (parsed here, never sent). One effect gathers the candidate keys; another
+  // opens whatever envelope is currently in hand with them, so a live update
+  // from another tab or the editor re-decrypts on its own.
   const [cryptoKey, setCryptoKey] = useState<e2e.DocKey | null>(null);
   const [keyFragment, setKeyFragment] = useState<string | null>(null);
-  const [keySource, setKeySource] = useState<"link" | "device" | null>(null);
+  const [keySource, setKeySource] = useState<KeySource | null>(null);
+  // Keys to try, best first: the link's (or a pasted one), then this browser's.
+  const [candidates, setCandidates] = useState<{ link: string | null; device: string | null; pasted: boolean } | null>(null);
+  // The link's own key didn't open this version, but the one this browser kept did.
+  const [linkKeyStale, setLinkKeyStale] = useState(false);
   const [rotated, setRotated] = useState<string | null>(null);
+  // The document's own password just changed in this tab ("set" or "removed").
+  const [passwordChange, setPasswordChange] = useState<"set" | "removed" | null>(null);
   // Read after mount: localStorage doesn't exist during the server render, and
   // deriving this during render would desync the two.
   const [deviceKeySaved, setDeviceKeySaved] = useState(false);
   const [sealed, setSealed] = useState<string | null>(encrypted ? initialContent : null);
   const [decryptState, setDecryptState] = useState<DecryptState>(encrypted ? "working" : "plain");
+  // Why it didn't open (decryptState "failed"): "key", "altered", "malformed".
+  const [decryptReason, setDecryptReason] = useState<e2e.DecryptReason | null>(null);
+  // Version and mode of the envelope that opened, for "How this is protected".
+  const [opened, setOpened] = useState<{ version: 1 | 2; mode: "key" | "password" } | null>(null);
+  // The document's password, once typed. Memory only: never stored, never sent.
+  const [e2ePassword, setE2EPassword] = useState<string | null>(null);
+  const [e2ePwdError, setE2EPwdError] = useState("");
+  const [e2ePwdErrorKey, setE2EPwdErrorKey] = useState(0);
+  const [e2ePwdChecking, setE2EPwdChecking] = useState(false);
+  // A key stashed for the trip through sign-in, to put back in the address bar
+  // once any handoff fragment has been dealt with.
+  const [restoreToBar, setRestoreToBar] = useState<string | null>(null);
+  // The rev of the content in hand (base_rev on save) and whether the server
+  // also checks a (legacy) read password.
+  const [docRev, setDocRev] = useState<number | null>(initialRev);
+  const [serverPassword, setServerPassword] = useState(isPasswordProtected && gate !== "signin");
 
   useEffect(() => {
     if (!encrypted) return;
@@ -320,54 +357,189 @@ export function useDocumentViewer({
       setDecryptState("unsupported");
       return;
     }
-    // The link first, then whatever this browser saved when it last opened the
-    // document. The second is what makes "I lost the link" survivable at all.
-    const fromLink = e2e.readKeyFromFragment();
-    const raw = fromLink ?? e2e.recallKey(slug);
-    if (!raw) {
+    // Back from sign-in: the key waited in this tab's sessionStorage, because
+    // /login and the workspace handoff both drop the fragment.
+    const pending = e2e.restorePendingKey();
+    const inLink = e2e.readKeyFromFragment();
+    if (pending && !inLink) setRestoreToBar(pending);
+    // The link first, then whatever this browser kept for this document. The
+    // second is what makes "I lost the link" survivable at all.
+    const link = inLink ?? pending;
+    const device = e2e.recallKey(slug);
+    if (!link && !device) {
       setDecryptState("nokey");
       return;
     }
-    let cancelled = false;
-    setKeyFragment(raw);
-    setKeySource(fromLink ? "link" : "device");
-    try {
-      setCryptoKey(e2e.importKey(raw));
-    } catch {
-      setDecryptState("failed");
+    setCandidates({ link, device, pasted: false });
+  }, [encrypted]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Every candidate key, in the order to try: the one already working first.
+  const keyOrder = useCallback((): string[] => {
+    const out: string[] = [];
+    for (const k of [keyFragment, candidates?.link ?? null, candidates?.device ?? null]) {
+      if (k && !out.includes(k)) out.push(k);
     }
-    return () => {
-      cancelled = true;
-    };
-  }, [encrypted]);
+    return out;
+  }, [keyFragment, candidates]);
 
   useEffect(() => {
-    if (!encrypted || !cryptoKey || sealed === null) return;
+    if (!encrypted || !candidates || sealed === null) return;
     let cancelled = false;
+    const needsPassword = e2e.requiresPassword(sealed);
+    if (needsPassword && !e2ePassword) {
+      setDecryptState("password");
+      return;
+    }
     // Only fall back to the "decrypting" screen when there is nothing on it yet.
     // A live update re-decrypts in place; blanking the page for it would be a
-    // flash of nothing every time someone else typed.
-    setDecryptState((prev) => (prev === "ok" ? "ok" : "working"));
-    e2e
-      .unseal(cryptoKey, sealed)
-      .then(({ title, content }) => {
-        if (cancelled) return;
-        setDisplayTitle(title);
-        setDisplayContent(content);
-        setDecryptState("ok");
-        // Only after it demonstrably opens this document — caching a key that
-        // doesn't work would just poison later visits.
-        if (keyFragment) e2e.rememberKey(slug, keyFragment);
-      })
-      .catch(() => !cancelled && setDecryptState("failed"));
+    // flash of nothing every time someone else typed. A password check keeps
+    // its own screen up, busy, rather than flashing to "Decrypting…".
+    setDecryptState((prev) => (prev === "ok" || prev === "password" ? prev : "working"));
+    if (needsPassword) setE2EPwdChecking(true);
+    (async () => {
+      let last: unknown = null;
+      for (const encoded of keyOrder()) {
+        let key: e2e.DocKey;
+        try {
+          key = e2e.importKey(encoded);
+        } catch (err) {
+          last = err;
+          continue;
+        }
+        try {
+          const result = await e2e.unseal(key, sealed, { password: e2ePassword });
+          if (cancelled) return;
+          const fromLink = encoded === candidates.link;
+          setCryptoKey(key);
+          setKeyFragment(encoded);
+          setKeySource(fromLink ? (candidates.pasted ? "pasted" : "link") : "device");
+          setLinkKeyStale(!fromLink && !!candidates.link);
+          setDisplayTitle(result.title);
+          setDisplayContent(result.content);
+          setOpened({ version: result.version, mode: result.mode });
+          setDecryptReason(null);
+          setE2EPwdError("");
+          setE2EPwdChecking(false);
+          setDecryptState("ok");
+          // Readers keep a key only when they asked to. A key this browser
+          // already keeps is brought up to date with the one that works.
+          const kept = e2e.recallKey(slug);
+          if (kept && kept !== encoded) e2e.rememberKey(slug, encoded);
+          setDeviceKeySaved(e2e.hasRememberedKey(slug));
+          return;
+        } catch (err) {
+          last = err;
+          // Only a wrong key (or password) is worth trying the next key for.
+          if (!(err instanceof e2e.DecryptError) || (err.reason !== "key" && err.reason !== "password")) break;
+        }
+      }
+      if (cancelled) return;
+      setE2EPwdChecking(false);
+      const reason: e2e.DecryptReason = last instanceof e2e.DecryptError ? last.reason : "malformed";
+      if (reason === "unsupported") {
+        setDecryptState("unsupported");
+        return;
+      }
+      if (reason === "password" || reason === "password-required") {
+        setE2EPassword(null);
+        setE2EPwdError(
+          decryptState === "ok"
+            ? "This document was updated and that password no longer opens it. If the owner changed the password or issued a new key, ask them for the new one."
+            : "That password doesn't open it. Check it with whoever shared the link — passwords are case-sensitive."
+        );
+        setE2EPwdErrorKey((n) => n + 1);
+        setDecryptState("password");
+        return;
+      }
+      setDecryptReason(reason);
+      setDecryptState("failed");
+    })();
     return () => {
       cancelled = true;
     };
-  }, [encrypted, cryptoKey, sealed, keyFragment, slug]);
+  }, [encrypted, candidates, sealed, e2ePassword, slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Back from sign-in with a stashed key: put it back in the address bar, but
+  // only after a handoff fragment (#mdt=…) has been taken and stripped.
+  useEffect(() => {
+    if (!restoreToBar || typeof window === "undefined") return;
+    const hash = window.location.hash;
+    if (hash && hash !== "#") return; // a handoff is still in the bar; wait for it to go
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}#k=${restoreToBar}`);
+    setRestoreToBar(null);
+  });
 
   useEffect(() => {
     if (encrypted) setDeviceKeySaved(e2e.hasRememberedKey(slug));
   }, [encrypted, slug, keyFragment, rotated]);
+
+  /** The password prompt (client-side; the server never sees it). */
+  function submitE2EPassword(value: string) {
+    if (!value) return;
+    setE2EPwdError("");
+    setE2EPassword(value);
+  }
+
+  /**
+   * "Have the full link? Paste it here": the key is parsed out locally and put
+   * in the address bar with replaceState — no navigation, no request.
+   */
+  function applyPastedLink(text: string): string | null {
+    const key = e2e.keyFromPastedLink(text);
+    if (!key) return "That doesn't contain a key. The full link ends in #k= followed by 43 letters and numbers.";
+    try {
+      const hashAt = text.indexOf("#");
+      const before = (hashAt >= 0 ? text.slice(0, hashAt) : "").trim();
+      if (before) {
+        const u = new URL(/^https?:\/\//i.test(before) ? before : `https://${before}`);
+        const last = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() ?? "");
+        if (last && last !== slug) return "That link is for a different document.";
+      }
+    } catch {
+      /* not a URL: a bare key or a fragment, fine */
+    }
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}#k=${key}`);
+    setDecryptReason(null);
+    setDecryptState("working");
+    setKeyFragment(null);
+    setCandidates((c) => ({ link: key, device: c?.device ?? e2e.recallKey(slug), pasted: true }));
+    return null;
+  }
+
+  /** Readers opt in to keeping the key on this device (decision 3). */
+  function rememberOnDevice() {
+    if (!keyFragment) return;
+    e2e.rememberKey(slug, keyFragment);
+    setDeviceKeySaved(true);
+  }
+  function forgetOnDevice() {
+    e2e.forgetKey(slug);
+    setDeviceKeySaved(false);
+  }
+
+  /**
+   * Keep the key through a trip to sign in (`/login?next=…`, the workspace
+   * handoff, Google). This tab only, single use, never a query string.
+   */
+  const stashKeyForSignIn = useCallback(() => {
+    if (encrypted) e2e.stashPendingKey();
+  }, [encrypted]);
+
+  // Any sign-in link on this page drops the fragment on its way out: catch the
+  // click (capture phase, before navigation) and stash the key first.
+  useEffect(() => {
+    if (!encrypted) return;
+    const onClick = (ev: MouseEvent) => {
+      const a = (ev.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a) return;
+      const href = a.href || "";
+      if (/\/(login|signup|auth)(\/|\?|$)/.test(href) || (signInUrl && href.startsWith(signInUrl.split("?")[0]!))) {
+        e2e.stashPendingKey();
+      }
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [encrypted, signInUrl]);
 
   /**
    * Whether the text itself can be changed — settings still can be, without a key.
@@ -402,6 +574,12 @@ export function useDocumentViewer({
   const [editShowPassword, setEditShowPassword] = useState(false);
   const [editExpiresIn, setEditExpiresIn] = useState<import("@/lib/api").ExpiresIn | "">("");
   const [rotateKey, setRotateKey] = useState(false);
+  // Encrypted documents: the password that opens them, set in this browser. null = keep as it is,
+  // "" = remove it, anything else = the new password (re-sealed on Save; we can't reset it).
+  const [editE2EPassword, setEditE2EPassword] = useState<string | null>(null);
+  // A save refused because the document moved on (409): the reader decides what next.
+  const [saveConflict, setSaveConflict] = useState(false);
+  const [reloadingLatest, setReloadingLatest] = useState(false);
   const [editCustomExpiresAt, setEditCustomExpiresAt] = useState("");
 
   // Save / delete state
@@ -747,6 +925,7 @@ export function useDocumentViewer({
         }
         if (!tried) {
           setPwdFetching(true); // "Opening…", not a Sign in screen that is about to vanish
+          stashKeyForSignIn(); // the handoff comes back on #mdt=…, without the key
           window.location.replace(silentSignInUrl(signInUrl));
           return;
         }
@@ -888,6 +1067,8 @@ export function useDocumentViewer({
     setEditExpiresIn("");
     setEditCustomExpiresAt("");
     setRotateKey(false);
+    setEditE2EPassword(null);
+    setSaveConflict(false);
     setEditing(true);
   }
 
@@ -917,48 +1098,117 @@ export function useDocumentViewer({
     handleEditClick();
   }
 
+  /** Settings a save carries (password, expiry), in the API's terms. */
+  function settingsPayload() {
+    return {
+      readPassword: editNewPassword || undefined,
+      removePassword: editRemovePassword,
+      expiresIn: editExpiresIn || undefined,
+      customExpiresAt: editExpiresIn === "custom" ? editCustomExpiresAt : undefined,
+    };
+  }
+
+  /** Re-read after a refused save: the newest version, re-decrypted with the key in hand. */
+  async function reloadLatest() {
+    setReloadingLatest(true);
+    try {
+      const cachedPwd = isPasswordProtected ? sessionStorage.getItem(`pwd:${slug}`) || undefined : undefined;
+      const doc = await getDocument(slug, cachedPwd, claimSecret || secretInput || undefined);
+      adoptDoc(doc, { created: false });
+      setSaveConflict(false);
+      setSaveError("");
+      if (!encrypted) {
+        // Plain text: the newest version goes into the editor (theirs is in the copy button).
+        setEditTitle(doc.title || "");
+        setEditContent(doc.content);
+      }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Couldn't load the latest version. Try again.");
+    } finally {
+      setReloadingLatest(false);
+    }
+  }
+
   async function handleSave() {
-    if (!editContent.trim()) return;
+    if (canEditContent && !editContent.trim()) return;
     setSaving(true);
     setSaveError("");
+    setSaveConflict(false);
     try {
+      // ── No key: settings only, through PATCH …/settings. The stored envelope
+      // is never sent back — resending a copy read earlier would overwrite a
+      // newer version (or undo a key rotation made in another tab).
+      if (encrypted && !canEditContent) {
+        const s = settingsPayload();
+        if (!s.removePassword && !s.expiresIn) {
+          setSaveError("Nothing to save. Without the key only the expiry and the old server password can change here.");
+          return;
+        }
+        const doc = await updateDocumentSettings(slug, {
+          removePassword: s.removePassword || undefined,
+          expiresIn: s.expiresIn,
+          customExpiresAt: s.customExpiresAt,
+        }, secretInput || undefined);
+        if (typeof doc.rev === "number") setDocRev(doc.rev);
+        setServerPassword(!!doc.is_password_protected);
+        setDisplayExpiresAt(doc.expires_at);
+        fetch("/api/revalidate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug }),
+        }).catch(() => {});
+        setEditing(false);
+        return;
+      }
+
       let body = editContent;
       let nextKey: e2e.DocKey | null = null;
       let nextEncoded = "";
-      if (encrypted) {
-        if (!cryptoKey) {
-          // No key, so the text can't be touched — but expiry, password and
-          // deletion don't need one. Hand the stored envelope straight back so
-          // the document survives a settings change unchanged. The API requires
-          // a content field; this satisfies it without inventing anything.
-          if (!sealed) throw new Error("This document can't be saved without its key.");
-          body = sealed;
-        } else {
-          // Rotation issues a brand-new key. Because the ciphertext changes, the
-          // old link stops opening the document — which is the point — though it
-          // cannot un-read what someone already read.
-          nextKey = rotateKey ? e2e.generateKey() : cryptoKey;
-          if (rotateKey) nextEncoded = e2e.exportKey(nextKey);
-          // Same key or new, always a fresh IV: reusing a nonce under one key
-          // undoes AES-GCM entirely.
-          body = await e2e.seal(nextKey, {
-            title: editTitle.trim() || null,
-            content: editContent,
-          });
-        }
+      // The password the new version needs: unchanged, removed ("") or new.
+      const nextPassword = editE2EPassword === null ? e2ePassword : editE2EPassword || null;
+      if (encrypted && cryptoKey) {
+        // A new key (rotation) gives the document a new link. The old one stops
+        // opening this version — which is the point — though it can't un-read
+        // what someone already read, or a copy someone saved.
+        nextKey = rotateKey ? e2e.generateKey() : cryptoKey;
+        if (rotateKey) nextEncoded = e2e.exportKey(nextKey);
+        // Same key or new, always a fresh salt and nonce (lib/e2e.ts). Re-saving
+        // a v1 document writes v2 under the same link key, so its link holds.
+        body = await e2e.seal(nextKey, { title: editTitle.trim() || null, content: editContent }, { password: nextPassword });
       }
+      const s = settingsPayload();
       const doc = await updateDocument(slug, editTitle, body, secretInput, {
-        readPassword: editNewPassword || undefined,
-        removePassword: editRemovePassword,
-        expiresIn: editExpiresIn || undefined,
-        customExpiresAt: editExpiresIn === "custom" ? editCustomExpiresAt : undefined,
+        // An encrypted document never gets a new server password (its password
+        // is the one above); an old one can only be removed.
+        readPassword: encrypted ? undefined : s.readPassword,
+        removePassword: s.removePassword,
+        expiresIn: s.expiresIn,
+        customExpiresAt: s.customExpiresAt,
         encrypted: encrypted || undefined,
+        baseRev: docRev,
       });
-      if (canEditContent) {
-        setDisplayTitle(editTitle || null);
-        setDisplayContent(editContent);
+      if (typeof doc.rev === "number") setDocRev(doc.rev);
+      setServerPassword(!!doc.is_password_protected);
+      setDisplayTitle(editTitle || null);
+      setDisplayContent(editContent);
+      if (encrypted) {
+        setE2EPassword(nextPassword);
+        if (nextKey && nextEncoded) {
+          setCryptoKey(nextKey);
+          setKeyFragment(nextEncoded);
+          setKeySource("link");
+          setLinkKeyStale(false);
+          setCandidates({ link: nextEncoded, device: null, pasted: false });
+          // The publisher's browser keeps the key, as it did when publishing.
+          e2e.rememberKey(slug, nextEncoded);
+          // Put the new key in the address bar so a refresh — or a copy straight
+          // out of it — still opens the document.
+          window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#k=${nextEncoded}`);
+          setRotated(e2e.withKey(url, nextEncoded));
+        }
+        if (editE2EPassword !== null && (editE2EPassword || e2ePassword)) setPasswordChange(editE2EPassword ? "set" : "removed");
+        setSealed(body);
       }
-      if (encrypted) setSealed(body);
       // Drop the cached render so the next visitor doesn't get the previous
       // ciphertext — which, after a rotation, the old link would still open.
       // Best-effort: a failure here costs freshness, not correctness.
@@ -967,27 +1217,29 @@ export function useDocumentViewer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug }),
       }).catch(() => {});
-      if (nextKey && nextEncoded) {
-        setCryptoKey(nextKey);
-        setKeyFragment(nextEncoded);
-        setKeySource("link");
-        e2e.rememberKey(slug, nextEncoded);
-        // Put the new key in the address bar so a refresh — or a copy straight
-        // out of it — still opens the document.
-        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#k=${nextEncoded}`);
-        setRotated(e2e.withKey(url, nextEncoded));
-      }
       setDisplayExpiresAt(doc.expires_at);
       setEditing(false);
       // The edit bumped the document's rev, so any linked Google Doc is now
       // behind — flip the sync affordance to "Sync changes" without a reload.
       if (googleDocUrl) setGoogleDocStale(true);
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Failed to save");
+      if (e instanceof ApiError && e.status === 409) {
+        // Someone (or another tab) saved since this editor opened. Nothing was
+        // written; the text typed here is still in the editor.
+        setSaveConflict(true);
+        setSaveError(
+          encrypted
+            ? "This document was changed somewhere else since you opened it, so nothing was saved. Load the latest version, then make your change again. If the owner issued a new key, this key won't open the latest version."
+            : "This document was changed somewhere else since you opened it, so nothing was saved. Copy your text, load the latest version, then make your change again."
+        );
+      } else {
+        setSaveError(e instanceof Error ? e.message : "Failed to save");
+      }
     } finally {
       setSaving(false);
     }
   }
+
 
   async function handleDelete() {
     setDeleting(true);
@@ -1055,6 +1307,28 @@ export function useDocumentViewer({
 
   return {
     access,
+    applyPastedLink,
+    passwordChange,
+    setPasswordChange,
+    decryptReason,
+    docRev,
+    e2ePassword,
+    e2ePwdChecking,
+    e2ePwdError,
+    e2ePwdErrorKey,
+    editE2EPassword,
+    forgetOnDevice,
+    linkKeyStale,
+    opened,
+    reloadLatest,
+    reloadingLatest,
+    rememberOnDevice,
+    saveConflict,
+    sealed,
+    serverPassword,
+    setEditE2EPassword,
+    stashKeyForSignIn,
+    submitE2EPassword,
     loadAccess,
     canShare,
     canEditSettings,

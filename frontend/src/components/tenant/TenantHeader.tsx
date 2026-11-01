@@ -106,7 +106,7 @@ export function TenantBrand({ tenant, className }: { tenant: TenantChrome; class
 export function TenantHeader({ tenant: override, returnPath, hideAuth, className }: TenantHeaderProps) {
   const fromContext = useTenant();
   const tenant = override === undefined ? fromContext : override;
-  const { user, loading, logout } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [path, setPath] = useState<string | null>(returnPath ?? null);
 
@@ -156,7 +156,7 @@ export function TenantHeader({ tenant: override, returnPath, hideAuth, className
                   }
                   items={[
                     { header: <span className="block max-w-60 truncate">{who || "Signed in"}</span> },
-                    { label: "Sign out", icon: "logOut", onClick: () => void logout() },
+                    { label: "Sign out", icon: "logOut", onClick: () => void signOut() },
                   ]}
                 />
               ) : (

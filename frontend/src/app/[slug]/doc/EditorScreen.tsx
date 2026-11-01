@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert, Badge, Button, Card, Checkbox, ConfirmDialog, Drawer, EmptyState, Field, Icon,
+  Alert, Badge, Button, Card, Checkbox, ConfirmDialog, CopyButton, Drawer, EmptyState, Field, Icon,
   Input, Kbd, Select, Switch, Tabs,
 } from "@/components/ui";
+import { passwordStrength } from "@/lib/e2e";
 import { EditorFrame } from "@/components/kit/EditorFrame";
 import { SecretReveal } from "@/components/kit/SecretReveal";
 import { DateTimePicker } from "@/components/kit/DateTimePicker";
@@ -87,7 +88,7 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
   const saveRef = useRef(v.handleSave);
   saveRef.current = v.handleSave;
 
-  const settingsDirty = !!(v.editNewPassword || v.editRemovePassword || v.editExpiresIn || v.rotateKey);
+  const settingsDirty = !!(v.editNewPassword || v.editRemovePassword || v.editExpiresIn || v.rotateKey || v.editE2EPassword !== null);
   const dirty =
     (v.canEditContent && (v.editTitle !== (displayTitle || "") || v.editContent !== displayContent)) || settingsDirty;
   const dirtyRef = useRef(dirty);
@@ -120,7 +121,12 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
   // Split needs width; phones get Write / Preview only (as before).
   const modes: ViewMode[] = phone ? ["write", "preview"] : ["write", "split", "preview"];
   const mode: ViewMode = phone && v.viewMode === "split" ? "write" : v.viewMode;
-  const saveLabel = v.saving ? "Saving…" : v.canEditContent ? (v.rotateKey ? "Save with new key" : "Save changes") : "Save settings";
+  const saveLabel = v.saving
+    ? (encrypted && v.canEditContent ? "Encrypting and saving…" : "Saving…")
+    : !v.canEditContent ? "Save settings"
+    : v.rotateKey ? "Save with new key"
+    : encrypted && v.editE2EPassword ? "Save with new password"
+    : "Save changes";
   const nearLimit = v.remaining < 1000;
 
   const textareaCls =
@@ -157,7 +163,22 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
         </div>
       </div>
 
-      {v.saveError && <Alert tone="danger">{v.saveError}</Alert>}
+      {v.saveError && (
+        <Alert
+          tone={v.saveConflict ? "warning" : "danger"}
+          title={v.saveConflict ? "Not saved: there's a newer version" : undefined}
+          actions={v.saveConflict ? (
+            <span className="flex flex-wrap gap-2">
+              {v.canEditContent && <CopyButton text={v.editContent} label="Copy your text" size="sm" variant="secondary" />}
+              <Button size="sm" variant="secondary" iconLeft="refresh" loading={v.reloadingLatest} onClick={v.reloadLatest}>
+                Load the latest version
+              </Button>
+            </span>
+          ) : undefined}
+        >
+          {v.saveError}
+        </Alert>
+      )}
       {v.sessionEditor && !v.canEditSettings && (
         <p className="text-caption text-text-muted">You can edit the text. Its password, expiry, link and who can open it stay with its owner.</p>
       )}
@@ -264,38 +285,42 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
         footer={<Button variant="secondary" onClick={() => setSettingsOpen(false)}>Done</Button>}
       >
         <div className="flex flex-col gap-6">
-          <section className="flex flex-col gap-2">
-            <h3 className="text-eyebrow text-text-muted">Password</h3>
-            {isPasswordProtected ? (
-              <Checkbox
-                label="Remove password"
-                description="Anyone with the link can open it again."
-                checked={v.editRemovePassword}
-                onChange={(e) => v.setEditRemovePassword(e.target.checked)}
-              />
-            ) : (
-              <Field label="Add a password" hint="Readers are asked for this before the document opens.">
-                <Input
-                  type={v.editShowPassword ? "text" : "password"}
-                  value={v.editNewPassword}
-                  onChange={(e) => v.setEditNewPassword(e.target.value)}
-                  maxLength={100}
-                  autoComplete="new-password"
-                  suffix={v.editNewPassword ? (
-                    <button
-                      type="button"
-                      className="md-focus grid h-8 w-8 place-items-center rounded-md text-text-muted hover:text-text"
-                      aria-label={v.editShowPassword ? "Hide password" : "Show password"}
-                      aria-pressed={v.editShowPassword}
-                      onClick={() => v.setEditShowPassword((s: boolean) => !s)}
-                    >
-                      <Icon name={v.editShowPassword ? "eyeOff" : "eye"} />
-                    </button>
-                  ) : undefined}
+          {encrypted ? (
+            <EncryptedPasswordSection v={v} />
+          ) : (
+            <section className="flex flex-col gap-2">
+              <h3 className="text-eyebrow text-text-muted">Password</h3>
+              {isPasswordProtected ? (
+                <Checkbox
+                  label="Remove password"
+                  description="Anyone with the link can open it again."
+                  checked={v.editRemovePassword}
+                  onChange={(e) => v.setEditRemovePassword(e.target.checked)}
                 />
-              </Field>
-            )}
-          </section>
+              ) : (
+                <Field label="Add a password" hint="Readers are asked for this before the document opens.">
+                  <Input
+                    type={v.editShowPassword ? "text" : "password"}
+                    value={v.editNewPassword}
+                    onChange={(e) => v.setEditNewPassword(e.target.value)}
+                    maxLength={100}
+                    autoComplete="new-password"
+                    suffix={v.editNewPassword ? (
+                      <button
+                        type="button"
+                        className="md-focus grid h-8 w-8 place-items-center rounded-md text-text-muted hover:text-text"
+                        aria-label={v.editShowPassword ? "Hide password" : "Show password"}
+                        aria-pressed={v.editShowPassword}
+                        onClick={() => v.setEditShowPassword((s: boolean) => !s)}
+                      >
+                        <Icon name={v.editShowPassword ? "eyeOff" : "eye"} />
+                      </button>
+                    ) : undefined}
+                  />
+                </Field>
+              )}
+            </section>
+          )}
 
           <section className="flex flex-col gap-2">
             <h3 className="text-eyebrow text-text-muted">Expiry</h3>
@@ -327,7 +352,7 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
                   <span className="flex flex-col">
                     <span className="text-body text-text">Issue a new key</span>
                     <span className="text-caption text-text-muted">
-                      The old link stops working. Anyone who already read it keeps what they read.
+                      The link changes. Old links stop opening the current version. Anyone who saved an old copy can still read that copy.
                     </span>
                   </span>
                 }
@@ -406,6 +431,116 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
         cancelLabel="Keep editing"
       />
     </div>
+  );
+}
+
+/**
+ * An encrypted document's password (link + password, checked in the reader's browser). Changing it
+ * needs the decrypted document, so with no key only the legacy server-checked password can go.
+ */
+function EncryptedPasswordSection({ v }: { v: Viewer }) {
+  const [reveal, setReveal] = useState(false);
+  const hasPassword = v.opened?.mode === "password" || !!v.e2ePassword;
+  const pending = v.editE2EPassword;
+  const strength = pending ? passwordStrength(pending) : null;
+  const passwordField = (label: string) => (
+    <Field
+      label={label}
+      hint={strength?.label || "Readers need the link and this password. Send them separately."}
+    >
+      <Input
+        type={reveal ? "text" : "password"}
+        value={pending ?? ""}
+        onChange={(e) => v.setEditE2EPassword(e.target.value)}
+        maxLength={200}
+        autoComplete="new-password"
+        autoCapitalize="off"
+        spellCheck={false}
+        suffix={
+          <button
+            type="button"
+            className="md-focus grid h-8 w-8 place-items-center rounded-md text-text-muted hover:text-text"
+            aria-label={reveal ? "Hide password" : "Show password"}
+            aria-pressed={reveal}
+            onClick={() => setReveal((r) => !r)}
+          >
+            <Icon name={reveal ? "eyeOff" : "eye"} />
+          </button>
+        }
+      />
+    </Field>
+  );
+  return (
+    <section className="flex flex-col gap-3">
+      <h3 className="text-eyebrow text-text-muted">Password</h3>
+      {v.canEditContent ? (
+        hasPassword ? (
+          <>
+            <p className="text-caption text-text-secondary">
+              Opening it takes the link and its password. Your browser checks the password; our servers never see it.
+            </p>
+            {pending === "" ? (
+              <Alert tone="warning" title="The password will be removed">
+                Anyone with the link will be able to read the current version.{" "}
+                <button type="button" className="md-focus font-semibold text-accent-text underline underline-offset-4" onClick={() => v.setEditE2EPassword(null)}>
+                  Keep the password
+                </button>
+              </Alert>
+            ) : (
+              <>
+                {passwordField("New password")}
+                <div className="flex flex-wrap gap-2">
+                  {pending !== null && (
+                    <Button size="sm" variant="ghost" onClick={() => v.setEditE2EPassword(null)}>Keep the current password</Button>
+                  )}
+                  <Button size="sm" variant="ghost" iconLeft="x" onClick={() => v.setEditE2EPassword("")}>Remove the password</Button>
+                </div>
+              </>
+            )}
+            <p className="text-caption text-text-muted">
+              A new password applies to the current version. Anyone who saved an old copy can still read that copy with the old one. We can&apos;t reset it.
+            </p>
+          </>
+        ) : (
+          <>
+            <Switch
+              checked={pending !== null}
+              onChange={(e) => v.setEditE2EPassword(e.target.checked ? "" : null)}
+              label={
+                <span className="flex flex-col">
+                  <span className="text-body text-text">Also require a password</span>
+                  <span className="text-caption text-text-muted">Readers need the link and the password. Your browser checks it; we never see it.</span>
+                </span>
+              }
+            />
+            {pending !== null && (
+              <>
+                {passwordField("Password")}
+                <p className="text-caption text-text-muted">We can&apos;t reset it. Lose it and the document can&apos;t be opened.</p>
+              </>
+            )}
+          </>
+        )
+      ) : (
+        <p className="text-caption text-text-secondary">
+          The document&apos;s own password can only change while it&apos;s open with its full link.
+        </p>
+      )}
+      {v.serverPassword && (
+        <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+          <p className="text-caption-strong text-text">Older server-checked password</p>
+          <p className="text-caption text-text-secondary">
+            Set before encrypted documents had their own password. Our server asks for it before sending the encrypted text.
+          </p>
+          <Checkbox
+            label="Remove it"
+            description={v.canEditContent ? "Use the password above instead, which our servers never see." : "The link alone opens it again."}
+            checked={v.editRemovePassword}
+            onChange={(e) => v.setEditRemovePassword(e.target.checked)}
+          />
+        </div>
+      )}
+    </section>
   );
 }
 
