@@ -37,7 +37,7 @@ import { directiveFromMarkdown, directiveToMarkdown } from "mdast-util-directive
 
 export const CALLOUT_KINDS = ["note", "tip", "warning", "danger"];
 /** Leaf directives the editor renders as blocks (`api` is the OpenAPI operation placeholder). */
-export const LEAF_NAMES = ["video", "clip", "embed", "api"];
+export const LEAF_NAMES = ["video", "clip", "embed", "markdrop", "api"];
 /** Container node types that serialize as `:::name` directives. */
 const CONTAINER_TYPES = new Set(["callout", "steps", "tabs", "tab", "cards", "card", "details", "private"]);
 

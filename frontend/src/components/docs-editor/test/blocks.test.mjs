@@ -6,6 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseMarkdown, serializeMarkdown, serializeBlock, parseBlocks, fp } from "../core/markdown.mjs";
 import { schema, throughEditor, sameContent, clone, p } from "./helpers.mjs";
+import { BLOCK_ITEMS } from "../blocks.ts";
 
 /** Markdown of a document built from fresh nodes (no source to reuse). */
 function write(...content) {
@@ -83,6 +84,25 @@ test("details, video, clip, embed, api", () => {
     assert.equal(n.attrs.name, name);
     roundTrips(md);
   }
+});
+
+test("::markdrop: a directive leaf that round-trips, and edits write canonical attributes", () => {
+  const md = '::markdrop{src="https://markdrop.in/acme-pricing" title="Pricing calculator" height=640 summary="Pick a plan &amp; seats; the &quot;total&quot; updates."}\n';
+  const n = one(md);
+  assert.equal(n.type, "directiveLeaf");
+  assert.equal(n.attrs.name, "markdrop");
+  assert.deepEqual(n.attrs.attributes, { src: "https://markdrop.in/acme-pricing", title: "Pricing calculator", height: "640", summary: 'Pick a plan & seats; the "total" updates.' });
+  roundTrips(md);
+  roundTrips("::markdrop[Tour]{src=https://markdrop.in/acme-tour version=3 mode=preview}\n");
+  // Edited in the block's panel (title, mode, version pinned): written back canonically, quotes escaped.
+  const doc = clone(parseMarkdown(md).doc);
+  doc.content[0].attrs.attributes = { src: "https://markdrop.in/acme-pricing", title: 'Say "hi"', mode: "card", version: "2", summary: "A & B" };
+  const out = write(doc.content[0]);
+  assert.equal(out.trimEnd(), '::markdrop{src="https://markdrop.in/acme-pricing" title="Say &quot;hi&quot;" mode="card" version="2" summary="A &amp; B"}');
+  // …and reads back to the same attributes.
+  assert.deepEqual(one(out.trimEnd() + "\n").attrs.attributes, doc.content[0].attrs.attributes);
+  // The slash menu offers it.
+  assert.ok(BLOCK_ITEMS.some((b) => b.id === "markdrop" && b.label === "Markdrop file"));
 });
 
 test("a paragraph holding only an image is a figure; alt keeps colons", () => {

@@ -33,6 +33,7 @@ from app.routers.docs_ai import router as docs_ai_router
 from app.routers.docs_github import router as docs_github_router
 from app.routers.docs_jobs_internal import router as docs_jobs_internal_router
 from app.routers.docs_sites import router as docs_sites_router
+from app.routers.docs_embeds import public_router as docs_embeds_public_router
 from app.routers.guide_insights import app_router as guide_insights_app_router
 from app.routers.guide_insights import router as guide_insights_router
 from app.routers.docs_studio import router as docs_studio_router
@@ -211,6 +212,8 @@ app.include_router(live_router)
 app.include_router(feedback_router)
 app.include_router(docs_ai_router)
 app.include_router(guide_insights_router, include_in_schema=False)
+# Markdrop files embedded in docs pages: resolve + beacons (public, CORS *; routers/docs_embeds.py).
+app.include_router(docs_embeds_public_router, include_in_schema=False)
 # Hosted docs sites (dashboard/editor API; app-internal, see routers/docs_sites.py).
 app.include_router(docs_sites_router, include_in_schema=False)
 app.include_router(guide_insights_app_router, include_in_schema=False)

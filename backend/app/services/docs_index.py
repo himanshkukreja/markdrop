@@ -214,7 +214,38 @@ def parse_attrs(src: str | None) -> dict[str, str]:
     return out
 
 
-def to_plain_markdown(body: str, *, base: str | None = None, videos: dict | None = None) -> str:
+def markdrop_lines(a: dict, label: str | None, info: dict | None) -> list[str]:
+    """A ``::markdrop`` block's text version (port of embed.mjs embedTextLines, without captions):
+    the link, the author's summary, then what the build knows of the file (embeds.json)."""
+    from app.services.docs_embeds import canonical_link, slug_from_src
+
+    slug = slug_from_src(a.get("src"))
+    if not slug or not a.get("src", "").startswith(("https://markdrop.in/", "https://www.markdrop.in/")):
+        return []
+    info = info or {}
+    title = re.sub(r"[\[\]]", "", str(a.get("title") or label or info.get("title") or slug))
+    kind = f"{info['type']}: " if info.get("type") else "Markdrop file: "
+    facts = []
+    if info.get("duration"):
+        s = int(round(float(info["duration"])))
+        facts.append(f"{s // 3600}:{s % 3600 // 60:02d}:{s % 60:02d}" if s >= 3600 else f"{s // 60}:{s % 60:02d}")
+    if info.get("pages"):
+        facts.append(f"{info['pages']} {'page' if info['pages'] == 1 else 'pages'}")
+    out = [f"[{kind}{title}]({canonical_link(slug)})" + (f" ({', '.join(facts)})" if facts else "")]
+    summary = re.sub(r"\s+", " ", a.get("summary") or "").strip()
+    if summary:
+        out += ["", summary]
+    outline = [o for o in (info.get("outline") or []) if isinstance(o, str) and o.strip()]
+    if outline:
+        out += ["", "Contents:", *[f"- {re.sub(r'\s+', ' ', o).strip()}" for o in outline[:40]]]
+    text = re.sub(r"\s+", " ", info.get("text") or "").strip()
+    if text:
+        out += ["", f"Text: {text[:6000]}" + ("…" if len(text) > 6000 else "")]
+    return out
+
+
+def to_plain_markdown(body: str, *, base: str | None = None, videos: dict | None = None,
+                      embeds: dict | None = None) -> str:
     """Directive syntax → plain GitHub Markdown (port of `toPlainMarkdown`)."""
     out: list[str] = []
     stack: list[bool] = []  # True = this container renders as a blockquote
@@ -269,6 +300,15 @@ def to_plain_markdown(body: str, *, base: str | None = None, videos: dict | None
                     emit(f"[Video: {a.get('title') or label or a.get('id')}{dur}]({v['url']})")
             elif name == "embed" and a.get("src"):
                 emit(f"[{a.get('title') or label or a['src']}]({a['src']})")
+            elif name == "markdrop":
+                from app.services.docs_embeds import slug_from_src
+
+                lines = markdrop_lines(a, label, (embeds or {}).get(slug_from_src(a.get("src")) or ""))
+                if lines:
+                    emit("")
+                    for ln in lines:
+                        emit(ln)
+                    emit("")
             continue
         line = _TEXT_DIRECTIVE.sub(lambda m: f"{m.group(1)}{m.group(3)}" if m.group(2) in TEXT_DIRECTIVES else m.group(0), raw)
         if base:
@@ -542,6 +582,7 @@ class Index:
         self.cfg = cfg
         self.changelog = _parse_json(files.get("changelog.json"))
         self.videos = _parse_json(files.get("videos.json"))
+        self.embeds = _parse_json(files.get("embeds.json"))
         rels = sorted((r for r in files if _walkable(r)), key=_walk_order)
         return self._build((r, files[r]) for r in rels)
 
@@ -698,7 +739,7 @@ class Index:
     # ── reading ──
 
     def plain(self, md: str) -> str:
-        return to_plain_markdown(md, base=self.site_url, videos=self.videos)
+        return to_plain_markdown(md, base=self.site_url, videos=self.videos, embeds=getattr(self, "embeds", None))
 
     def resolve_page(self, ref: str) -> Page | None:
         """'/a/b', 'a/b', 'https://docs.markdrop.in/a/b#x', '/a/b.md' → the page."""

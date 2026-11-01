@@ -59,7 +59,33 @@ export function manifestSite(site) {
     ...gateBrand(site.brand),
     ...(site.seo && typeof site.seo === "object" && site.seo.index === false ? { noindex: true } : {}),
     ...(typeof site.insights === "string" && site.insights ? { insights: true } : {}),
+    frames: frameOrigins(site),
   };
+}
+
+const PROD_FILES = "https://markdrop-artifacts.markdrop-in.workers.dev";
+
+/**
+ * What a page of the site may frame (the edge's `frame-src`): Markdrop's artifact origin, where
+ * `::markdrop` blocks render (site.json `markdrop.files`, else production's), and the hosts
+ * `::embed` may frame (site.json `embedHosts`). Nothing else: a page can't be made to frame
+ * another site, whatever its content says.
+ */
+export function frameOrigins(site) {
+  const out = new Set();
+  const origin = (u) => {
+    try {
+      const x = new URL(u);
+      return x.protocol === "https:" || (x.protocol === "http:" && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(x.hostname)) ? x.origin : null;
+    } catch {
+      return null;
+    }
+  };
+  out.add(origin(site.markdrop?.files) || PROD_FILES);
+  for (const h of Array.isArray(site.embedHosts) ? site.embedHosts : []) {
+    if (typeof h === "string" && /^[a-z0-9.-]+(?::\d{1,5})?$/i.test(h.trim())) out.add(`https://${h.trim().toLowerCase()}`);
+  }
+  return [...out].filter(Boolean).sort();
 }
 
 function walkFiles(dir, rel = "", out = []) {

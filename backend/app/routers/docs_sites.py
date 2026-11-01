@@ -29,6 +29,7 @@ from app.routers.docs_site_pages import DocsRoute
 from app.routers.docs_site_pages import router as pages_router
 from app.routers.docs_site_people import router as people_router
 from app.routers.docs_site_redirects import router as redirects_router
+from app.routers.docs_embeds import router as embeds_router
 from app.schemas.docs_site import PublishRequest, ReviewCreate, ReviewDecision, SiteCreate, SiteUpdate
 from app.services import docs_site_assets as assets
 from app.services import docs_site_compare as compare
@@ -331,6 +332,8 @@ router.include_router(domains_router)
 router.include_router(api_router)
 # An import's redirects, for Settings (routers/docs_site_redirects.py).
 router.include_router(redirects_router)
+# Markdrop files embedded in pages: the picker, link checks, sharing, version pins, Insights (routers/docs_embeds.py).
+router.include_router(embeds_router)
 # The page editor's AI help, review comments and presence (routers/docs_site_editor.py).
 router.include_router(editor_router)
 # The changelog: entries, its settings, a page of release notes → entries (routers/docs_site_changelog.py).

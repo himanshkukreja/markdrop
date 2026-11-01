@@ -80,9 +80,15 @@ export function accessPlan(snapshot, { access, parseYaml }) {
   const publicParts = [];
   const publicSnapshot = {};
   const canaries = [];
+  const deferred = [];
   for (const [key, text] of Object.entries(snapshot)) {
     const rel = key.startsWith("/site/") ? key.slice(6) : null;
     const p = rel && rel.endsWith(".md") ? pagePath(rel) : null;
+    // Embedded files' text versions and caption files: decided once we know what is public.
+    if (key === "/site/embeds.json" || (key.startsWith("/public/") && key.endsWith(".vtt"))) {
+      deferred.push([key, text]);
+      continue;
+    }
     if (!p) {
       publicSnapshot[key] = text;
       if (!key.startsWith("/public/")) publicParts.push(text);
@@ -120,11 +126,52 @@ export function accessPlan(snapshot, { access, parseYaml }) {
     publicSnapshot[key] = text;
     publicParts.push(body);
   }
-  const publicText = publicParts.join("\n");
+  let publicText = publicParts.join("\n");
+  const privateAll = [...privateText.values()].join("\n");
+  // `::markdrop` embeds (frontend/src/docs/embed.mjs) inside private content: the summary an author
+  // wrote, and what embeds.json says of a file only private content embeds (a PDF's text and
+  // outline, a document's excerpt), are private too; so are caption and chapter files only they use.
+  for (const m of privateAll.matchAll(/\bsummary=(?:"([^"]*)"|'([^']*)')/g)) {
+    canaries.push(...canariesOf(m[1] ?? m[2]).map((c) => ({ text: c, where: "summary of a private embed" })));
+  }
+  const privateEmbeds = [];
+  for (const [key, text] of deferred) {
+    if (key === "/site/embeds.json") {
+      let embeds = {};
+      try {
+        embeds = JSON.parse(text) || {};
+      } catch {
+        embeds = {};
+      }
+      const kept = {};
+      for (const [slug, info] of Object.entries(embeds)) {
+        const re = new RegExp(`/${esc(slug)}(?![\\w-])`);
+        if (re.test(publicText)) {
+          kept[slug] = info;
+          continue;
+        }
+        if (!re.test(privateAll)) continue; // nothing embeds it: nothing to say about it
+        privateEmbeds.push(slug);
+        const words = [info?.text, ...(Array.isArray(info?.outline) ? info.outline : [])].filter((x) => typeof x === "string").join("\n");
+        canaries.push(...canariesOf(words.replace(/([.!?])\s+/g, "$1\n")).map((c) => ({ text: c, where: `file ${slug} (embedded only in private content)` })));
+      }
+      const json = JSON.stringify(kept, null, 2) + "\n";
+      publicSnapshot[key] = json;
+      publicText += `\n${json}`;
+      continue;
+    }
+    const url = key.slice("/public".length);
+    if (refersTo(publicText, url) || !refersTo(privateAll, url)) {
+      publicSnapshot[key] = text;
+      continue;
+    }
+    const cues = text.split(/\r?\n/).filter((l) => l && !/-->|^WEBVTT|^\d+$/.test(l)).join("\n");
+    canaries.push(...canariesOf(cues).map((c) => ({ text: c, where: `${url}, used only by private content` })));
+  }
   // Text that public content also has proves nothing.
   const kept = canaries.filter((c) => !publicText.includes(c.text));
   const rules = new Set([...pages.values(), ...[...sections.values()].flat()]);
-  return { pages, sections, rules, publicText, privateText, canaries: kept, publicSnapshot };
+  return { pages, sections, rules, publicText, privateText, canaries: kept, publicSnapshot, privateEmbeds };
 }
 
 /** Distinctive runs of words from protected text (the leak check looks for them in public objects). */
@@ -240,6 +287,10 @@ export function leakCheck(manifest, plan, readObject) {
   for (const obj of publicObjects(manifest)) {
     const text = norm(readObject(obj.o).toString("utf8"));
     for (const c of plan.canaries) if (text.includes(c.text)) leaks.push({ where: obj.where, what: `text of the ${c.where}: "${c.text}"` });
+    // A file only private content embeds: not even its address (or its embeds.json entry) is public.
+    for (const slug of plan.privateEmbeds ?? []) {
+      if (new RegExp(`/${esc(slug)}(?![\\w-])|"${esc(slug)}"\\s*:`).test(text)) leaks.push({ where: obj.where, what: `the private embed ${slug}` });
+    }
   }
   // Protected addresses must not be listed by the outputs that list pages.
   const url = manifest.site?.url || "";

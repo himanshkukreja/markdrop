@@ -16,8 +16,9 @@ import path from "node:path";
 import { parseFrontmatter } from "./frontmatter";
 import { introOf, plainText, readingMinutes, scanHeadings, snippet, splitSections, toPlainMarkdown } from "./markdown";
 import { buildApiReference, type ApiReference } from "./openapi.mjs";
-import { clipVariants, formatDuration, type MediaManifest } from "./media";
-import { videoLink } from "./brand";
+import { clipVariants, formatDuration, readVttCues, type MediaManifest } from "./media";
+import { embedTextLines, parseMarkdropSrc, type EmbedTextInfo } from "./embed.mjs";
+import { markdropFilesConfig, videoLink } from "./brand";
 import { effectiveRule, hasPrivate, readAccess, ruleOf, splitPrivate, type AccessRule, type SiteAccess } from "./access.mjs";
 import type { Changelog, ChangelogEntry, DocPage, NavGroup, SiteConfig, VideoRef } from "./types";
 
@@ -419,6 +420,31 @@ export class SiteBundle {
   }
 
   private readonly videosMemo = memo((): Record<string, VideoRef> => this.readJson<Record<string, VideoRef>>("videos.json", {}));
+
+  /**
+   * embeds.json: what the build knows of the Markdrop files the pages embed (a Markdrop Guides
+   * site's, written by the API at publish, public files only): slug → {title, type, duration,
+   * pages, outline, text}. The `::markdrop` blocks' text versions read it.
+   */
+  private readonly embedsMemo = memo((): Record<string, EmbedTextInfo> => {
+    const m = this.readJson<Record<string, EmbedTextInfo>>("embeds.json", {});
+    return m && typeof m === "object" && !Array.isArray(m) ? m : {};
+  });
+  get embeds(): Record<string, EmbedTextInfo> {
+    return this.embedsMemo();
+  }
+
+  /** A `::markdrop` block's text version: summary, the file's text from embeds.json, chapters and captions. */
+  markdropText(attrs: Record<string, string | undefined>, label?: string): string[] {
+    const slug = parseMarkdropSrc(attrs.src, markdropFilesConfig(this.site).extraHosts);
+    const info = slug ? this.embeds[slug] ?? null : null;
+    const chapters = readVttCues(attrs.chapters);
+    const captions = readVttCues(attrs.captions);
+    const media = { chapters, transcript: captions.map((c) => c.text).join(" ") };
+    return embedTextLines({ src: attrs.src, title: attrs.title, summary: attrs.summary, label }, info, media);
+  }
+
+  private markdropResolver = (a: Record<string, string>, label?: string): string[] => this.markdropText(a, label);
   get videos(): Record<string, VideoRef> {
     return this.videosMemo();
   }
@@ -489,7 +515,7 @@ export class SiteBundle {
   };
 
   private get resolvers() {
-    return { video: this.videoResolver, clip: this.clipResolver };
+    return { video: this.videoResolver, clip: this.clipResolver, markdrop: this.markdropResolver };
   }
 
   /** The page as served at `<path>.md`: frontmatter for agents, the title, then plain Markdown. */
@@ -596,6 +622,8 @@ export const orderedPages = (): DocPage[] => defaultSite().orderedPages();
 export const prevNext = (p: string) => defaultSite().prevNext(p);
 export const getVideos = (): Record<string, VideoRef> => defaultSite().videos;
 export const getMedia = (): MediaManifest => defaultSite().media;
+export const getEmbeds = (): Record<string, EmbedTextInfo> => defaultSite().embeds;
+export const markdropText = (attrs: Record<string, string | undefined>, label?: string): string[] => defaultSite().markdropText(attrs, label);
 export const getChangelog = (): Changelog => defaultSite().changelog;
 export const hasChangelog = (): boolean => defaultSite().hasChangelog;
 /**

@@ -10,6 +10,7 @@ import { Button, Icon, IconButton, Input, Spinner, Switch, useToast } from "@/co
 import { darkVariantPath, uploadUrl, useHost } from "../host";
 import { createProbe } from "../core/assetProbe.mjs";
 import { cx, TextField, withAttr } from "./shared";
+import { MarkdropView } from "./markdrop";
 
 /* ── Figure ──────────────────────────────────────────────────────────────── */
 
@@ -182,11 +183,17 @@ export function FigureView({ node, updateAttributes, deleteNode, selected }: Rea
   );
 }
 
-/* ── ::video / ::clip / ::embed / ::api ──────────────────────────────────── */
+/* ── ::video / ::clip / ::embed / ::api (::markdrop: views/markdrop.tsx) ──── */
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 
-export function LeafView({ node, updateAttributes, deleteNode, selected }: ReactNodeViewProps) {
+export function LeafView(props: ReactNodeViewProps) {
+  // ::markdrop{src=…}: a Markdrop file, with its own picker and preview (views/markdrop.tsx).
+  if ((props.node.attrs.name as string) === "markdrop") return <MarkdropView {...props} />;
+  return <DirectiveLeafForm {...props} />;
+}
+
+function DirectiveLeafForm({ node, updateAttributes, deleteNode, selected }: ReactNodeViewProps) {
   const host = useHost();
   const listId = useId();
   const name = node.attrs.name as string;

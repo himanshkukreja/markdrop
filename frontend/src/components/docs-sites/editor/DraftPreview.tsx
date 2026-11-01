@@ -9,7 +9,8 @@
  * page in the editor (with the preview still open), so cards and links are clickable here too.
  *
  * Not the engine itself (that is a server renderer reading the published content): videos show as
- * their title, embeds as a link, and an ::api chip without the reference's lookup.
+ * their title, embeds as a link, and an ::api chip without the reference's lookup. A Markdrop file
+ * (::markdrop) is the engine's own live block (client/MarkdropEmbed.tsx), without analytics.
  */
 import { Children, isValidElement, useEffect, useId, useMemo, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import Markdown, { defaultUrlTransform, type Components } from "react-markdown";
@@ -29,6 +30,7 @@ import { cardColumns } from "@/docs/render/rules.mjs";
 import { presetName, type SiteTheme } from "@/lib/docsSites";
 import { guideLook } from "../guideTheme";
 import { previewLinkTarget } from "./pageChecks";
+import { MarkdropEmbed, type MarkdropEmbedConfig } from "@/docs/client/MarkdropEmbed";
 import { PREVIEW_FONTS_HREF } from "../presets";
 
 type P = Record<string, unknown> & { children?: ReactNode; node?: unknown };
@@ -42,7 +44,9 @@ function textOf(n: ReactNode): string {
   return "";
 }
 
-function makeComponents(resolve: (src: string) => string): Components {
+const PREVIEW_FILES: MarkdropEmbedConfig = { api: process.env.NEXT_PUBLIC_API_URL || "https://api.markdrop.in", app: "https://markdrop.in", files: null, site: "", guide: "", track: false };
+
+function makeComponents(resolve: (src: string) => string, files: MarkdropEmbedConfig = PREVIEW_FILES, dark?: boolean): Components {
   const img = (src: unknown) => (typeof src === "string" && src ? (/^\/docs-assets\//.test(src) ? resolve(src) : /^https:\/\//.test(src) ? src : "") : "");
   const CALLOUT_TONE = { note: "info", tip: "success", warning: "warning", danger: "danger" } as const;
   const map = {
@@ -144,6 +148,11 @@ function makeComponents(resolve: (src: string) => string): Components {
       if (!url) return null;
       return <p><a href={url}>{typeof label === "string" && label ? label : url}</a></p>;
     },
+    "docs-markdrop"({ src, label, summary, height, aspect, mode, version }: P) {
+      const s = (v: unknown) => (typeof v === "string" ? v : undefined);
+      const raw = Object.fromEntries(Object.entries({ src: s(src), summary: s(summary), height: s(height), aspect: s(aspect), mode: s(mode), version: s(version) }).filter(([, v]) => v !== undefined));
+      return <MarkdropEmbed raw={raw} label={s(label)} config={{ ...files, track: false }} theme={dark === undefined ? undefined : dark ? "dark" : "light"} />;
+    },
     "docs-api"({ op, label }: P) {
       return <code className="dx-apiop">{typeof label === "string" && label ? `${label} · ` : ""}{String(op ?? "")}</code>;
     },
@@ -186,13 +195,15 @@ export interface DraftPreviewProps {
   resolveAsset: (src: string) => string;
   /** A click on a link to a page of the guide (path without .md or a trailing slash). */
   onOpenPath: (path: string, hash: string) => void;
+  /** Where Markdrop file blocks resolve (the editor host's config); default: production. */
+  files?: MarkdropEmbedConfig;
 }
 
-export function DraftPreview({ theme, title, description, markdown, dark, onDark, resolveAsset, onOpenPath }: DraftPreviewProps) {
+export function DraftPreview({ theme, title, description, markdown, dark, onDark, resolveAsset, onOpenPath, files }: DraftPreviewProps) {
   // The root's own name: the theme's scoped rules (and custom CSS) reach this preview and nothing else.
   const scopeId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const look = useMemo(() => guideLook(theme, dark, `[data-dx-preview="${scopeId}"]`), [theme, dark, scopeId]);
-  const components = useMemo(() => makeComponents(resolveAsset), [resolveAsset]);
+  const components = useMemo(() => makeComponents(resolveAsset, files, dark), [resolveAsset, files, dark]);
   const forced = theme.mode === "light" || theme.mode === "dark";
 
   // The theme fonts (the Design panel loads the same sheet).

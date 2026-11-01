@@ -22,6 +22,7 @@ import { commentsSummary, editorAiEdit, editorAiStatus, type EditorAiStatus, typ
 import { guideEvents } from "@/lib/guidesEvents";
 import { getPrivate, previewAs, ruleLabel, type PreviewRow, type PrivateState } from "@/lib/guidePrivate";
 import { settingsHref } from "../settings/sections";
+import { markdropHost } from "@/lib/docsEmbeds";
 import { fixApplied, getFix, type FixDraft } from "@/lib/guideFixes";
 import { firstName, timeAgo } from "../format";
 import { usePublishState } from "../PublishState";
@@ -243,12 +244,17 @@ function AltTextDialog({ src, onClose, onSave }: { src: string | null; onClose: 
 }
 
 /** The bar under the page: words and reading time, Find and replace, Shortcuts. */
-function StatusBar({ words, onFind, onShortcuts }: { words: number; onFind: () => void; onShortcuts: () => void }) {
+function StatusBar({ words, onFind, onShortcuts, onEmbed }: { words: number; onFind: () => void; onShortcuts: () => void; onEmbed?: () => void }) {
   const mins = readMinutes(words);
   return (
     <div className="sticky bottom-0 z-10 mt-auto flex h-[34px] shrink-0 items-center gap-4 border-t border-border bg-surface px-4 text-[12px] text-text-muted sm:px-5">
       <span aria-live="off">{words.toLocaleString("en")} {words === 1 ? "word" : "words"}{mins ? ` · ${mins} min read` : ""}</span>
       <span className="flex-1" />
+      {onEmbed && (
+        <button type="button" onClick={onEmbed} className="md-focus inline-flex items-center gap-1.5 rounded hover:text-text" title="Embed an interactive HTML demo, a website, a PDF or a video from Markdrop">
+          <Icon name="layers" size={14} /><span className="max-sm:hidden">Embed a Markdrop file</span><span className="sm:hidden">Embed</span>
+        </button>
+      )}
       <button type="button" onClick={onFind} className="md-focus inline-flex items-center gap-1.5 rounded hover:text-text">
         <Kbd>{isMac() ? "⌘F" : "Ctrl F"}</Kbd><span className="max-sm:hidden">Find and replace</span><span className="sm:hidden">Find</span>
       </button>
@@ -538,6 +544,8 @@ export default function EditorPage() {
     await uploadAsset(site.id, file, info.variant === "dark" ? { variant: "dark", for: info.for } : undefined)
   ).url, [site.id]);
   const resolveAssetUrl = useCallback((src: string) => assetPreviewUrl(site.id, src) ?? src, [site.id]);
+  // Markdrop files (::markdrop): the picker, sharing check, version pins and live previews.
+  const mdHost = useMemo(() => markdropHost(site, site.workspace_id ? "Workspace files" : null), [site.id, site.name, site.workspace_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Ask AI ──
   const [ai, setAi] = useState<EditorAiStatus | null>(null);
@@ -928,11 +936,12 @@ export default function EditorPage() {
                   checkLink={checkLink}
                   flagImages
                   onFindOpen={guideEvents.findReplace}
+                  markdrop={mdHost}
                 />
               )}
             </div>
           </div>
-          {fields && <StatusBar words={scan?.words ?? 0} onFind={() => editorApi.current?.openFind()} onShortcuts={() => setShortcuts(true)} />}
+          {fields && <StatusBar words={scan?.words ?? 0} onFind={() => editorApi.current?.openFind()} onShortcuts={() => setShortcuts(true)} onEmbed={editable && mode === "visual" ? () => editorApi.current?.insertMarkdropFile() : undefined} />}
         </main>
 
         <aside aria-label="Page panel" className="sticky hidden w-[288px] shrink-0 border-l border-border bg-surface xl:block" style={sideH}>
@@ -957,6 +966,7 @@ export default function EditorPage() {
             dark={previewDark}
             onDark={setPreviewDark}
             resolveAsset={resolveAssetUrl}
+            files={{ ...mdHost.config, files: mdHost.config.files ?? null, track: false }}
             onOpenPath={(path) => {
               const to = tree?.pages.find((p) => p.path === path);
               if (to) open(to.id);

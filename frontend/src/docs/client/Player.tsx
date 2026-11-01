@@ -66,6 +66,11 @@ export interface VideoPlayerProps {
   /** Under the player: the title and length (the docs page). Off in the dialog. */
   caption?: boolean;
   className?: string;
+  /**
+   * Receives the <video> element once mounted (null when unmounted): a Markdrop file embedded in a
+   * guide (MarkdropEmbed) reads its events for the file's creator analytics and the guide's Insights.
+   */
+  onVideo?: (video: HTMLVideoElement | null) => void;
 }
 
 const REDUCE = "(prefers-reduced-motion: reduce)";
@@ -141,7 +146,7 @@ function Glyph({ name }: { name: string }) {
 
 type Menu = null | "speed" | "chapters";
 
-export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chaptersProp, chaptersSrc, captionsSrc, autoPlay = false, chapterList = true, caption = false, className, videoId }: VideoPlayerProps) {
+export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chaptersProp, chaptersSrc, captionsSrc, autoPlay = false, chapterList = true, caption = false, className, onVideo, videoId }: VideoPlayerProps) {
   const uid = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -205,6 +210,13 @@ export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chap
     const root = rootRef.current as FsEl | null;
     setCanFs(!!root && (!!root.requestFullscreen || !!root.webkitRequestFullscreen || !!v?.webkitEnterFullscreen));
   }, [src, captionsSrc, labelDur]);
+
+  /* ── the element, for a host that measures playback (MarkdropEmbed) ── */
+  useEffect(() => {
+    if (!onVideo) return;
+    onVideo(videoRef.current);
+    return () => onVideo(null);
+  }, [onVideo]);
 
   /* ── lazy: nothing is fetched until the player is near the screen ── */
   useEffect(() => {

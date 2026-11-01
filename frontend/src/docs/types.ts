@@ -169,6 +169,12 @@ export interface SiteConfig {
   signals?: { sample?: number };
   /** Hosts whose links `::embed` may frame. Anything else renders as a link card. */
   embedHosts?: string[];
+  /**
+   * Where `::markdrop{src=…}` blocks ask about their files (written by the API for a Markdrop
+   * Guides site): the API, the app ("Open on Markdrop") and the artifact origin frames must come
+   * from. Absent: Markdrop's production addresses (Markdrop's own docs follow NEXT_PUBLIC_*).
+   */
+  markdrop?: { api?: string; app?: string; files?: string };
   eyebrow?: string;
   headline?: string;
   tabs: SiteTab[];

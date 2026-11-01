@@ -195,6 +195,76 @@
 .dx-embed__open { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-text); text-decoration: none; }
 .dx-embed__frame { width: 100%; height: 480px; border: 0; border-top: 1px solid var(--border); background: var(--bg); }
 
+/* A Markdrop file (::markdrop{src=…}, client/MarkdropEmbed.tsx): chrome bar + the file's frame,
+   player, image or card. Tokens only, so every theme (custom ones too) and both modes follow. */
+.dx-mde { position: relative; margin: 24px 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); overflow: hidden; }
+.dx-mde__bar { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 6px 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.dx-mde--state .dx-mde__bar, .dx-mde--card .dx-mde__bar { border-bottom: 0; }
+.dx-mde__kind { display: inline-flex; flex-shrink: 0; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: var(--radius-md); background: var(--accent-soft); color: var(--accent-text); }
+.dx-mde--state .dx-mde__kind { background: var(--surface-inset); color: var(--text-muted); }
+.dx-mde__kind svg { width: 16px; height: 16px; }
+.dx-mde__name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dx-mde__title { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dx-mde__meta { font-size: 12px; line-height: 16px; color: var(--text-muted); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dx-mde__actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.dx-mde__btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.dx-mde__btn:hover { background: var(--surface-hover); color: var(--text); }
+.dx-mde__btn:focus-visible, .dx-mde__cta:focus-visible, .dx-mde__handle:focus-visible, .dx-mde__skip:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.dx-mde__btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+.dx-mde__frame { position: relative; width: 100%; background: var(--bg); }
+.dx-mde__frame--paper { background: #fff; }
+.dx-mde__frame iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; }
+.dx-mde__loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--surface-inset); color: var(--text-muted); font-size: 13px; pointer-events: none; overflow: hidden; }
+.dx-mde__loading::before { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--surface) 60%, transparent) 50%, transparent 70%); background-size: 200% 100%; animation: dx-mde-shimmer 1.4s linear infinite; }
+.dx-mde__loading span { position: relative; }
+@keyframes dx-mde-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.dx-mde__cover { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px 16px; text-align: center; background: var(--surface-inset); min-height: 160px; box-sizing: border-box; }
+.dx-mde__cover--start { position: absolute; inset: 0; }
+.dx-mde__coverkind { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
+.dx-mde__coverkind svg { width: 22px; height: 22px; }
+.dx-mde__covertitle { font-size: 15px; line-height: 22px; font-weight: 600; color: var(--text); max-width: 100%; overflow-wrap: anywhere; }
+.dx-mde__coverhint { font-size: 13px; line-height: 18px; color: var(--text-muted); }
+.dx-mde__cta { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border: 0; border-radius: var(--radius-lg); background: var(--accent); color: var(--on-accent); font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.dx-mde__cta:hover { background: var(--accent-hover); }
+.dx-mde__cta svg { width: 16px; height: 16px; }
+.dx-mde__state { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 0 16px 16px 52px; font-size: 14px; line-height: 22px; color: var(--text-secondary); }
+.dx-mde__state strong { color: var(--text); font-weight: 600; }
+.dx-mde__state .dx-mde__cta { margin-top: 8px; height: 36px; background: var(--surface-raised); color: var(--text); border: 1px solid var(--border); }
+.dx-mde__state .dx-mde__cta:hover { background: var(--surface-hover); }
+.dx-mde__card { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 0 16px 16px 52px; }
+.dx-mde__excerpt { margin: 0; font-size: 14px; line-height: 22px; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.dx-mde__card .dx-mde__cta { height: 36px; }
+.dx-mde__video > * { margin: 0 !important; }
+/* The text version: what readers without JavaScript, screen readers, search and agents get. */
+.dx-mde__text { border-top: 1px solid var(--border); background: var(--surface); }
+.dx-mde__text > summary { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; list-style: none; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.dx-mde__text > summary::-webkit-details-marker { display: none; }
+.dx-mde__text > summary svg { width: 15px; height: 15px; color: var(--text-muted); }
+.dx-mde__text > summary:hover { color: var(--text); }
+.dx-mde__text > summary:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.dx-mde__textbody { max-height: 320px; overflow: auto; padding: 0 16px 14px; font-size: 14px; line-height: 22px; color: var(--text-secondary); }
+.dx-mde__textbody p { margin: 0 0 8px; }
+.dx-mde__textbody ul { margin: 0 0 8px; padding-left: 20px; }
+.dx-mde__textbody strong { color: var(--text); font-weight: 600; }
+.dx-mde--big .dx-mde__text { display: none; }
+.dx-mde__handle { display: flex; align-items: center; justify-content: center; height: 14px; border-top: 1px solid var(--border); background: var(--surface); cursor: ns-resize; touch-action: none; }
+.dx-mde__handle span { width: 36px; height: 4px; border-radius: var(--radius-full); background: var(--border-strong); }
+.dx-mde__handle:hover span, .dx-mde__handle:focus-visible span { background: var(--accent); }
+.dx-mde__skip { position: absolute; left: 12px; top: 56px; z-index: 3; padding: 6px 10px; border-radius: var(--radius-md); background: var(--surface-raised); color: var(--text); font-size: 13px; font-weight: 600; text-decoration: none; box-shadow: var(--shadow-md); transform: translateY(-200%); opacity: 0; }
+.dx-mde__skip:focus { transform: none; opacity: 1; }
+.dx-mde__after { display: block; height: 0; outline: none; }
+/* Full screen (the element's own) and the expanded overlay where that isn't available. */
+.dx-mde--big { margin: 0; border-radius: 0; border: 0; height: 100%; }
+.dx-mde--big .dx-mde__frame { flex: 1; min-height: 0; }
+.dx-mde:fullscreen { width: 100vw; height: 100vh; background: var(--surface); }
+.dx-mde--expanded { position: fixed; inset: 0; z-index: 1000; width: auto; height: auto; }
+@media (max-width: 639px) {
+  .dx-mde__btnlabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .dx-mde__btn { width: 40px; padding: 0; justify-content: center; }
+  .dx-mde__state, .dx-mde__card { padding-left: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .dx-mde__loading::before { animation: none; } }
+
 /* API operation (::api{op="GET /path"}): a card to its reference page, or just method + path */
 .dx-apiop { display: flex; flex-direction: column; gap: 6px; margin: 24px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); color: var(--text); text-decoration: none; }
 .dx-apiop--link:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }

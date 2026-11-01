@@ -25,7 +25,9 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 _EXACT = frozenset({"/mcp", "/oauth/token", "/oauth/register", "/oauth/revoke"})
-_PREFIXES = ("/.well-known/",)
+# /api/v1/embeds/: what a `::markdrop` block on any docs page asks about a public file, and its
+# beacons (routers/docs_embeds.py). No credentials are read there.
+_PREFIXES = ("/.well-known/", "/api/v1/embeds/")
 _DEFAULT_HEADERS = (
     "Authorization, Content-Type, Accept, MCP-Protocol-Version, Mcp-Method, Mcp-Name, "
     "Mcp-Session-Id, Last-Event-ID"

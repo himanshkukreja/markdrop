@@ -143,6 +143,9 @@ test("moving blocks between containers, and deleting blocks", () => {
       const [moved] = from.arr.splice(from.i, 1);
       if (!from.arr.length) from.arr.push({ type: "paragraph", attrs: { md: null }, content: [] });
       if (round % 3 === 2) {
+        // Deleting a link-reference or footnote definition changes what `[text][ref]` elsewhere reads
+        // as: that's Markdown, not the editor (the shuffle reaches one whenever the corpus grows).
+        if (moved.type === "rawBlock" && /^\s*\[[^\]]+\]:/.test(moved.attrs?.value ?? "")) continue;
         check(state, d, `${path.basename(f)} delete ${moved.type}`);
         continue;
       }

@@ -1063,6 +1063,66 @@
     "bytes": 88044,
     "kind": "image"
   },
+  "/docs-assets/guides/embed-files/insights.dark.webp": {
+    "w": 1600,
+    "h": 543,
+    "bytes": 27996,
+    "kind": "image"
+  },
+  "/docs-assets/guides/embed-files/insights.webp": {
+    "w": 1600,
+    "h": 543,
+    "bytes": 28740,
+    "kind": "image"
+  },
+  "/docs-assets/guides/embed-files/pdf.dark.webp": {
+    "w": 1520,
+    "h": 1652,
+    "bytes": 34270,
+    "kind": "image"
+  },
+  "/docs-assets/guides/embed-files/pdf.webp": {
+    "w": 1520,
+    "h": 1652,
+    "bytes": 35748,
+    "kind": "image"
+  },
+  "/docs-assets/guides/embed-files/picker.dark.webp": {
+    "w": 1600,
+    "h": 1166,
+    "bytes": 61988,
+    "kind": "image"
+  },
+  "/docs-assets/guides/embed-files/picker.webp": {
+    "w": 1600,
+    "h": 1166,
+    "bytes": 65956,
+    "kind": "image"
+  },
+  "/docs-assets/guides/embed-files/sandbox-probe.dark.webp": {
+    "w": 1520,
+    "h": 972,
+    "bytes": 48330,
+    "kind": "image"
+  },
+  "/docs-assets/guides/embed-files/sandbox-probe.webp": {
+    "w": 1520,
+    "h": 972,
+    "bytes": 49280,
+    "kind": "image"
+  },
+  "/docs-assets/guides/embed-files/sharing-gate.dark.webp": {
+    "w": 1600,
+    "h": 1086,
+    "bytes": 57064,
+    "kind": "image"
+  },
+  "/docs-assets/guides/embed-files/sharing-gate.webp": {
+    "w": 1600,
+    "h": 1086,
+    "bytes": 58690,
+    "kind": "image"
+  },
   "/docs-assets/guides/fix-list/fixlist-agents.dark.webp": {
     "w": 688,
     "h": 940,

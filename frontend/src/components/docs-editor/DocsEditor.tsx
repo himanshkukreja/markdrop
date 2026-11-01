@@ -186,6 +186,7 @@ export function DocsEditor({
   checkLink,
   flagImages,
   onFindOpen,
+  markdrop,
 }: DocsEditorProps) {
   const [own, setOwn] = useState<EditorMode>("visual");
   const mode = modeProp ?? own;
@@ -236,6 +237,16 @@ export function DocsEditor({
 
   useImperativeHandle(apiRef, (): DocsEditorApi => ({
     openFind,
+    insertMarkdropFile() {
+      const v = visualRef.current;
+      if (modeRef.current === "visual" && v && !v.editor.isDestroyed) {
+        // After the selection (never in place of a selected block), so a new block mounts and opens its picker.
+        v.editor.chain().focus().insertContentAt(v.editor.state.selection.to, { type: "directiveLeaf", attrs: { name: "markdrop", attributes: {} } }).run();
+        return;
+      }
+      const md = valueRef.current;
+      onChangeRef.current(`${md.replace(/\s*$/, "")}\n\n::markdrop{src="https://markdrop.in/"}\n`);
+    },
     focus() {
       const v = visualRef.current;
       if (modeRef.current === "visual" && v) v.editor.commands.focus();
@@ -457,6 +468,7 @@ export function DocsEditor({
             onCommentClick={onCommentClick}
             checkLink={checkLink}
             flagImages={flagImages}
+            markdrop={markdrop}
           />
         </>
       ) : (

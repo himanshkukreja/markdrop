@@ -35,6 +35,7 @@ import { parse as parseYaml } from "yaml";
 import { buildApiReference } from "../src/docs/openapi.mjs";
 import { expandRedirects } from "../src/docs/siteFiles.mjs";
 import { validateBrandColors, validateTheme } from "../src/docs/theme.mjs";
+import { embedAttrs } from "../src/docs/embed.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONTENT = process.env.DOCS_CONTENT_DIR || path.join(ROOT, "content", "docs");
@@ -43,7 +44,7 @@ const STRICT = args.includes("--strict");
 const ONLY = args.filter((a) => !a.startsWith("--")).map((a) => a.replace(/^\/+|\/+$/g, ""));
 
 const CONTAINERS = new Set(["note", "tip", "warning", "danger", "steps", "tabs", "tab", "cards", "card", "details"]);
-const LEAVES = new Set(["video", "clip", "embed", "api"]);
+const LEAVES = new Set(["video", "clip", "embed", "markdrop", "api"]);
 const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
 // `{…}` attributes: a quoted value may hold `}` (op="GET /a/{id}"), as in remark-directive.
 const ATTRS = String.raw`(?:\{((?:[^}"']|"[^"]*"|'[^']*')*)\})?`;
@@ -382,6 +383,12 @@ for (const [p, pg] of pages) {
         if (!a.title) warn(file, "::video should have a title", ln(i));
       }
       if (name === "embed" && !/^https:\/\//.test(a.src ?? "")) err(file, "::embed needs src=\"https://…\"", ln(i));
+      if (name === "markdrop") {
+        // The rules the renderer applies (src/docs/embed.mjs): a Markdrop link, known attributes.
+        const e = embedAttrs(a, { label: leaf[2] });
+        for (const m of e.errors) err(file, m, ln(i));
+        for (const m of e.warnings) warn(file, m, ln(i));
+      }
       if (name === "api") {
         const op = /^([A-Za-z]+)\s+(\/\S*)$/.exec((a.op ?? "").trim());
         if (!op || !HTTP_METHODS.has(op[1].toUpperCase()))
@@ -603,6 +610,15 @@ const brandAssets = [];
     else {
       unknown("integrations", ig, ["markdropApp"]);
       if (ig.markdropApp !== undefined && typeof ig.markdropApp !== "boolean") err(S, "integrations.markdropApp must be true or false");
+    }
+  }
+  // Where ::markdrop blocks resolve their files (a Markdrop Guides site's, written by the API).
+  const mf = site.markdrop;
+  if (mf !== undefined) {
+    if (!isObj(mf)) err(S, 'markdrop must be an object: { "api"?, "app"?, "files"? }');
+    else {
+      unknown("markdrop", mf, ["api", "app", "files"]);
+      for (const k of ["api", "app", "files"]) if (mf[k] !== undefined && !(typeof mf[k] === "string" && /^https?:\/\/[^/\s]+\/?$/.test(mf[k]))) err(S, `markdrop.${k} must be an origin like https://api.markdrop.in`);
     }
   }
 

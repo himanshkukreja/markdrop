@@ -7,10 +7,11 @@
  */
 import { createSlugger, headingSourceText, inlineText } from "@/components/reading/slug";
 import type { Heading, Section } from "./types";
+import { embedTextLines } from "./embed.mjs";
 
 /** Every directive name the renderer understands. `docs:check` flags anything else. */
 export const CONTAINER_DIRECTIVES = ["note", "tip", "warning", "danger", "steps", "tabs", "tab", "cards", "card", "details", "private"] as const;
-export const LEAF_DIRECTIVES = ["video", "clip", "embed", "api", "private-locked"] as const;
+export const LEAF_DIRECTIVES = ["video", "clip", "embed", "markdrop", "api", "private-locked"] as const;
 export const TEXT_DIRECTIVES = ["kbd"] as const;
 export const CALLOUTS: Record<string, string> = { note: "Note", tip: "Tip", warning: "Warning", danger: "Danger" };
 
@@ -143,6 +144,11 @@ export interface PlainOptions {
   video?: (id: string) => { url: string; duration?: string } | undefined;
   /** Resolves a `::clip` src (no extension) to its file and length. */
   clip?: (src: string) => { url: string; duration?: string };
+  /**
+   * A `::markdrop` block's text version (embed.mjs embedTextLines with what the build knows of the
+   * file). Without it: the link and the author's summary.
+   */
+  markdrop?: (attrs: Record<string, string>, label?: string) => string[];
 }
 
 function absolutize(line: string, base?: string): string {
@@ -173,7 +179,7 @@ function apiLine(op: string, label?: string): string {
  * Directive syntax → plain GitHub Markdown, for agents, llms-full.txt, clipboard and search.
  * Callouts become blockquotes with a bold label, tabs/cards/details become bold labels, steps keep
  * their headings, videos and clips become `[Video: title (0:45)](url)` lines (an unfilled video slot
- * vanishes), embeds become links, an API operation becomes `` `GET /a/{id}` `` (after its label,
+ * vanishes), embeds become links, a Markdrop file becomes `[Markdrop file: title](https://markdrop.in/x)`, an API operation becomes `` `GET /a/{id}` `` (after its label,
  * if it has one), images keep their Markdown with absolute URLs.
  * Code is never touched. Unbalanced fences (a section cut out of a container) are tolerated.
  */
@@ -235,6 +241,13 @@ export function toPlainMarkdown(body: string, opts: PlainOptions = {}): string {
         emit("");
       } else if (name === "embed" && a.src) {
         emit(`[${a.title || label || a.src}](${a.src})`);
+      } else if (name === "markdrop") {
+        const lines = opts.markdrop ? opts.markdrop(a, label) : embedTextLines({ ...a, label });
+        if (lines.length) {
+          emit("");
+          for (const l of lines) emit(l);
+          emit("");
+        }
       } else if (name === "api" && a.op?.trim()) {
         emit(apiLine(a.op, label));
       } else if (name === "private-locked") {

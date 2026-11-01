@@ -3,8 +3,8 @@
  *
  * remarkDocs (after remark-directive): turns the directive nodes into custom elements the
  * component map renders (`docs-callout`, `docs-steps`/`docs-step`, `docs-tabs`/`docs-tab`,
- * `docs-cards`/`docs-card`, `docs-details`, `docs-video`, `docs-clip`, `docs-embed`, `docs-api`,
- * `docs-kbd`), turns a paragraph that is just one image into a `docs-figure` (title → caption),
+ * `docs-cards`/`docs-card`, `docs-details`, `docs-video`, `docs-clip`, `docs-embed`, `docs-markdrop`,
+ * `docs-api`, `docs-kbd`), turns a paragraph that is just one image into a `docs-figure` (title → caption),
  * recomputes image alt text the directive syntax cut short ("0:15", see rules.mjs), and reads
  * code-fence meta (`title="…"`, `{2,4-5}`). Only whitelisted attributes are carried over; an
  * unknown directive keeps its content (containers) or reads as the literal text it was. Fence meta
@@ -17,6 +17,7 @@
 import { createSlugger, headingSourceText } from "@/components/reading/slug";
 import { CALLOUTS, CONTAINER_DIRECTIVES } from "../markdown";
 import { aliasNodes, aliasesByTarget, cardColumns, fixImageAlts, hasWrapFlag, parserOptions } from "./rules.mjs";
+import { embedIds, parseMarkdropSrc } from "../embed.mjs";
 
 /* ── mdast ───────────────────────────────────────────────────────────────── */
 
@@ -182,6 +183,22 @@ function transform(node: MdNode, parent: MdNode | null, index: number) {
     } else if (node.name === "embed") {
       set(node, "docs-embed", { src: attr(node, "src"), label: attr(node, "title") || textOf(node).trim() });
       node.children = [];
+    } else if (node.name === "markdrop") {
+      // ::markdrop[label]{src title height aspect mode version captions chapters}: a Markdrop file
+      // as a live block (client/MarkdropEmbed.tsx; the rules are docs/embed.mjs).
+      set(node, "docs-markdrop", {
+        src: attr(node, "src"),
+        label: attr(node, "title") || textOf(node).trim(),
+        summary: attr(node, "summary"),
+        eid: typeof node.data?.eid === "string" ? node.data.eid : undefined,
+        height: attr(node, "height"),
+        aspect: attr(node, "aspect"),
+        mode: attr(node, "mode"),
+        version: attr(node, "version"),
+        captions: attr(node, "captions"),
+        chapters: attr(node, "chapters"),
+      });
+      node.children = [];
     } else if (node.name === "api") {
       // ::api[label]{op="GET /v1/things/{id}"}: a card for that operation (DocsMarkdown ApiOp).
       set(node, "docs-api", { op: attr(node, "op"), label: textOf(node).trim() });
@@ -206,6 +223,20 @@ function transform(node: MdNode, parent: MdNode | null, index: number) {
   if (kids) for (let i = 0; i < kids.length; i++) transform(kids[i], node, i);
 }
 
+/** Each ::markdrop block's stable id on its page (embed.mjs embedIds), kept on the node for transform. */
+function numberEmbeds(tree: MdNode) {
+  const found: MdNode[] = [];
+  const visit = (n: MdNode) => {
+    if (n.type === "leafDirective" && n.name === "markdrop") found.push(n);
+    n.children?.forEach(visit);
+  };
+  visit(tree);
+  const slugs = found.map((n) => parseMarkdropSrc(attr(n, "src")) ?? "file");
+  embedIds(slugs).forEach((id, i) => {
+    found[i].data = { ...(found[i].data ?? {}), eid: id };
+  });
+}
+
 /**
  * `this` is the processor (unified attachers run bound to it): its data holds the parser
  * extensions, read when the transformer runs so every plugin has registered its own.
@@ -215,6 +246,7 @@ export function remarkDocs(this: unknown) {
   return (tree: MdNode, file?: { value?: unknown }) => {
     const source = typeof file?.value === "string" ? file.value : null;
     if (source !== null) fixImageAlts(tree, source, parserOptions(typeof processor?.data === "function" ? processor.data() : undefined));
+    numberEmbeds(tree);
     transform(tree, null, 0);
   };
 }

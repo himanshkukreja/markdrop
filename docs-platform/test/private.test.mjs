@@ -124,6 +124,48 @@ test("the leak check catches protected text and protected addresses in public ou
   assert.ok(leakCheck(m2, plan, read).some((l) => l.where === "MCP snapshot"));
 });
 
+test("embeds in private content stay private: embeds.json, summaries, captions, the leak check", () => {
+  const snap = {
+    ...SNAP,
+    "/site/guides/sso.md": SNAP["/site/guides/sso.md"] + '\n::markdrop{src="https://markdrop.in/pub-deck"}\n\n:::private{access="northwind"}\n::markdrop{src="https://markdrop.in/nw-runbook" summary="The northwind failover runbook walks through regional cutover" chapters="/docs-assets/nw.vtt"}\n:::\n',
+    "/site/embeds.json": JSON.stringify({
+      "pub-deck": { title: "Launch deck", text: "Public launch deck text everyone may read today." },
+      "nw-runbook": { title: "Runbook", type: "PDF", text: "Failover starts with draining the eu west cluster before the cutover window.", outline: ["Draining the primary cluster first"] },
+      "nw-setup-pdf": { title: "Setup", text: "Okta tenant configuration checklist for the northwind admins only." },
+    }),
+    "/site/enterprise/setup.md": SNAP["/site/enterprise/setup.md"] + '\n::markdrop{src="https://markdrop.in/nw-setup-pdf"}\n',
+    "/public/docs-assets/nw.vtt": "WEBVTT\n\n00:00.000 --> 00:05.000\nRegional cutover begins with the database replicas\n",
+    "/public/docs-assets/pub.vtt": "WEBVTT\n\n00:00.000 --> 00:05.000\nA public caption line shown to everyone\n",
+  };
+  const plan = accessPlan(snap, tools);
+  const pub = JSON.parse(plan.publicSnapshot["/site/embeds.json"]);
+  assert.deepEqual(Object.keys(pub), ["pub-deck"]);
+  assert.deepEqual(plan.privateEmbeds.sort(), ["nw-runbook", "nw-setup-pdf"]);
+  assert.ok(!("/public/docs-assets/nw.vtt" in plan.publicSnapshot));
+  assert.ok("/public/docs-assets/pub.vtt" in plan.publicSnapshot);
+  const where = plan.canaries.map((c) => c.where).join("\n");
+  assert.match(where, /summary/);
+  assert.match(where, /file nw-runbook/);
+  assert.match(where, /file nw-setup-pdf/);
+  assert.match(where, /nw\.vtt/);
+  // A build that put a private embed's text, or its address, where signed-out readers can fetch it fails.
+  const m = manifest({
+    "/docs-site/llms-full.txt": { ...put("Failover starts with draining the eu west cluster before the cutover window."), t: "text/plain" },
+    "/docs-site/guides/public": { ...put('<iframe src="https://markdrop.in/nw-setup-pdf">'), t: HTML, rsc: put("0:p") },
+  });
+  m.mcp = put(JSON.stringify({ files: { "/site/embeds.json": JSON.stringify({ "nw-runbook": {} }) } }));
+  annotate(m, plan, tools);
+  const leaks = leakCheck(m, plan, read).map((l) => `${l.where}: ${l.what}`);
+  assert.ok(leaks.some((l) => l.startsWith("/docs-site/llms-full.txt: text of the file nw-runbook")), leaks.join("\n"));
+  assert.ok(leaks.some((l) => l === "/docs-site/guides/public: the private embed nw-setup-pdf"), leaks.join("\n"));
+  assert.ok(leaks.some((l) => l === "MCP snapshot: the private embed nw-runbook"), leaks.join("\n"));
+  // The clean manifest passes.
+  const ok = manifest();
+  ok.mcp = put(JSON.stringify({ files: plan.publicSnapshot }));
+  annotate(ok, plan, tools);
+  assert.deepEqual(leakCheck(ok, plan, read), []);
+});
+
 test("a site with no private content is untouched", () => {
   const snap = { "/site/site.json": "{}", "/site/a.md": fm("A") + "Hello there everyone, this is public." };
   const plan = accessPlan(snap, tools);
