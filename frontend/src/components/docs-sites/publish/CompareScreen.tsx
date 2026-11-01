@@ -201,7 +201,9 @@ export default function CompareScreen() {
           <Badge tone="neutral" icon="sun">{s.design ? "Design changed" : "Design unchanged"}</Badge>
           <Badge tone="neutral" icon="link">{s.redirects ? "Redirects changed" : "Redirects unchanged"}</Badge>
           {s.api && <Badge tone="neutral" icon="code">API reference changed</Badge>}
-          {s.settings.some((k) => !["theme", "redirects", "api"].includes(k)) && <Badge tone="neutral" icon="settings">Settings changed</Badge>}
+          {(s.changelog ?? 0) > 0 && <Badge tone="neutral" icon="megaphone">{plural(s.changelog ?? 0, "changelog entry", "changelog entries")} changed</Badge>}
+          {s.settings.includes("changelog") && !s.changelog && <Badge tone="neutral" icon="megaphone">Changelog settings changed</Badge>}
+          {s.settings.some((k) => !["theme", "redirects", "api", "changelog"].includes(k)) && <Badge tone="neutral" icon="settings">Settings changed</Badge>}
         </div>
       )}
 
@@ -213,7 +215,8 @@ export default function CompareScreen() {
         </div>
       )}
       {data && data.pages.length === 0 && (
-        <EmptyState icon="checkCircle" title="No page changes" description={s && s.settings.length ? "Only settings differ between these two versions (see above)." : "These two versions are the same."} />
+        <EmptyState icon="checkCircle" title="No page changes"
+          description={data.changelog?.length ? "Only the changelog differs between these two versions (below)." : s && s.settings.length ? "Only settings differ between these two versions (see above)." : "These two versions are the same."} />
       )}
 
       {data && data.pages.length > 0 && (
@@ -284,6 +287,27 @@ export default function CompareScreen() {
             </section>
           )}
         </div>
+      )}
+
+      {data && (data.changelog?.length ?? 0) > 0 && (
+        <section aria-labelledby={`${uid}-cl`} className="flex flex-col gap-2">
+          <h2 id={`${uid}-cl`} className="flex items-center gap-2 text-[16px] font-semibold text-text"><Icon name="megaphone" size={16} /> Changelog</h2>
+          <ul className="ph-no-capture flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
+            {data.changelog!.map((c) => (
+              <li key={c.id} className="flex items-center gap-2.5 border-b border-border px-3.5 py-[11px] last:border-b-0">
+                <span className={cx("size-2 shrink-0 rounded-full", DOT[c.change as keyof typeof DOT] ?? "bg-border-strong")} aria-hidden />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <strong className="ph-sensitive ph-mask truncate font-semibold text-text" dir="auto">{c.title}</strong>
+                  <span className="ph-sensitive ph-mask truncate font-mono text-[11px] text-text-muted">/changelog/{c.slug} · {c.date}</span>
+                </span>
+                <span className="shrink-0 text-[12px] text-text-muted">{c.change === "added" ? "new" : c.change}</span>
+                {c.change !== "removed" && to === "drafts" && (
+                  <Button variant="ghost" size="sm" href={`${base}/changelog?entry=${encodeURIComponent(c.id)}`}>Open<span className="md-visually-hidden"> {c.title}</span></Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </main>
   );

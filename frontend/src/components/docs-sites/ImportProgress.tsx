@@ -13,6 +13,7 @@ import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useSite } from "./SiteContext";
 import { studioNew, scopeOf } from "./routes";
 import { useJob } from "./useJob";
+import { ReleaseNotesOffer } from "./changelog/ReleaseNotesOffer";
 
 interface StepDef { id: string; running: string; done: string; detail?: (r: ImportReport["summary"]) => string | null }
 
@@ -201,7 +202,7 @@ function MiniSite({ name }: { name: string }) {
  * screen reopens from the site's last import (Settings › Imported from GitBook).
  */
 export default function ImportProgress() {
-  const { site, base, reload } = useSite();
+  const { site, base, reload, canEdit } = useSite();
   const search = useLocationSearch();
   const jobId = new URLSearchParams(search).get("job") || site.job?.id || site.last_import_job_id || null;
   const { job, error } = useJob(site.id, jobId);
@@ -303,6 +304,8 @@ export default function ImportProgress() {
               </ol>
             </>
           )}
+
+          {!isTemplate && <ReleaseNotesOffer siteId={site.id} base={base} canEdit={canEdit} ready={done} />}
 
           {!isTemplate && jobId && (
             <section aria-labelledby="needs-h" className="flex flex-col gap-3">

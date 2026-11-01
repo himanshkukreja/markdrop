@@ -33,7 +33,7 @@
  *   guide_live_opened             from: site_bar|publish|toast|compare|banner (the live guide in a new tab)
  *   guide_address_copied          own (an own domain, else the free address)
  *   guide_share_copied
- *   guide_setup_step_opened       step: pages|look|publish|domain|team|insights
+ *   guide_setup_step_opened       step: pages|look|publish|domain|team|insights|changelog
  *   guide_domain_one_click        (the provider's Domain Connect page opened)
  *   guide_domain_handoff          how: copy|email|link|csv (the DNS steps sent on to someone)
  *   guide_api_sample_used         (an API reference started from the sample file)
@@ -41,6 +41,8 @@
  *   guide_find_replace            (the editor's Find and replace opened)
  *   guide_comment_added           (a review comment on a page; replies aren't counted)
  *   guide_check_fixed             kind: link_missing|image_alt|heading_empty (a page check's Fix)
+ *   guide_changelog_entry_created kind: new|improved|fixed (a changelog entry written)
+ *   guide_changelog_imported      n (a page of release notes turned into n changelog entries)
  *
  * What finishes on the server (a build going live or failing, an import finishing or failing) is
  * recorded there, in docs_events, and shown in the admin's Product health tab.
@@ -88,7 +90,9 @@ export const guideEvents = {
   liveOpened: (from: "site_bar" | "publish" | "toast" | "compare" | "banner") => emit("guide_live_opened", { from }),
   addressCopied: (own: boolean) => emit("guide_address_copied", { own }),
   shareCopied: () => emit("guide_share_copied"),
-  setupStep: (step: "pages" | "look" | "publish" | "domain" | "team" | "insights") => emit("guide_setup_step_opened", { step }),
+  setupStep: (step: "pages" | "look" | "publish" | "domain" | "team" | "insights" | "changelog") => emit("guide_setup_step_opened", { step }),
+  changelogEntryCreated: (kind: "new" | "improved" | "fixed") => emit("guide_changelog_entry_created", { kind }),
+  changelogImported: (n: number) => emit("guide_changelog_imported", { n }),
   domainOneClick: () => emit("guide_domain_one_click"),
   domainHandoff: (how: "copy" | "email" | "link" | "csv") => emit("guide_domain_handoff", { how }),
   apiSampleUsed: () => emit("guide_api_sample_used"),

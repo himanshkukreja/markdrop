@@ -12,6 +12,7 @@ export const SETTING_LABEL: Record<string, { title: string; meta: string; badge:
   nav: { title: "Sidebar order", meta: "The order of pages and groups", badge: "Pages", icon: "listTree", href: "" },
   redirects: { title: "Redirects", meta: "Old addresses that send readers on", badge: "Redirects", icon: "link", href: "/settings#redirects" },
   api: { title: "API reference", meta: "Your OpenAPI file and its settings", badge: "API", icon: "code", href: "/settings#api" },
+  changelog: { title: "Changelog settings", meta: "Title, products, Coming next", badge: "Changelog", icon: "megaphone", href: "/changelog" },
   ai: { title: "Ask AI", meta: "Guide settings", badge: "Settings", icon: "sparkle", href: "/settings#ai" },
   seo: { title: "Search indexing", meta: "Guide settings", badge: "Settings", icon: "search", href: "/settings#access" },
   access: { title: "Who can read it", meta: "Guide settings", badge: "Settings", icon: "lock", href: "/settings#access" },
@@ -29,7 +30,9 @@ export function summaryBadges(s: ChangeSummary | null | undefined): Array<{ key:
   if (s.design) out.push({ key: "design", tone: "neutral", icon: "sun", label: "New design" });
   if (s.redirects) out.push({ key: "redirects", tone: "neutral", icon: "link", label: "Redirects" });
   if (s.api) out.push({ key: "api", tone: "neutral", icon: "code", label: "API reference" });
-  const other = s.settings.filter((k) => !["theme", "redirects", "api"].includes(k));
+  if (s.changelog) out.push({ key: "changelog", tone: "neutral", icon: "megaphone", label: plural(s.changelog, "changelog entry", "changelog entries") });
+  else if (s.settings.includes("changelog")) out.push({ key: "changelog", tone: "neutral", icon: "megaphone", label: "Changelog" });
+  const other = s.settings.filter((k) => !["theme", "redirects", "api", "changelog"].includes(k));
   if (other.length) out.push({ key: "settings", tone: "neutral", icon: "settings", label: other.includes("nav") && other.length === 1 ? "Sidebar order" : "Settings" });
   return out;
 }
@@ -54,15 +57,17 @@ export function summarySentence(s: ChangeSummary | null | undefined): string {
   if (s.design) bits.push("a new design");
   if (s.redirects) bits.push("redirects");
   if (s.api) bits.push("the API reference");
-  const other = s.settings.filter((k) => !["theme", "redirects", "api"].includes(k));
+  if (s.changelog) bits.push(plural(s.changelog, "changelog entry", "changelog entries"));
+  else if (s.settings.includes("changelog")) bits.push("the changelog's settings");
+  const other = s.settings.filter((k) => !["theme", "redirects", "api", "changelog"].includes(k));
   if (other.length) bits.push(other.length === 1 && other[0] === "nav" ? "the sidebar order" : "settings");
   if (!bits.length) return "";
   const text = bits.length === 1 ? bits[0]! : `${bits.slice(0, -1).join(", ")} and ${bits[bits.length - 1]}`;
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
 }
 
-/** How many things a summary counts (pages + design + redirects + API + other settings). */
-export const summaryCount = (s: ChangeSummary | null | undefined): number => (s ? s.added + s.edited + s.removed + s.settings.length : 0);
+/** How many things a summary counts (pages + changelog entries + design + redirects + API + other settings). */
+export const summaryCount = (s: ChangeSummary | null | undefined): number => (s ? s.added + s.edited + s.removed + (s.changelog ?? 0) + s.settings.length : 0);
 
 /** A publish that went live once (it can be compared against and restored). */
 export const wentLive = (b: Build) => !!b.manifest_hash && (b.status === "live" || b.status === "superseded");

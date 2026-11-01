@@ -10,7 +10,7 @@ import { previewTokens } from "./presets";
 import { liveUrl, usePublishState } from "./PublishState";
 import { useSite } from "./SiteContext";
 
-export type SiteSection = "pages" | "design" | "publish" | "insights" | "settings";
+export type SiteSection = "pages" | "changelog" | "design" | "publish" | "insights" | "settings";
 
 /**
  * The site's letter tile on its accent, as the guide draws it (presets.ts previewTokens: the
@@ -51,6 +51,7 @@ export function SiteTile({ site, size = 22 }: {
 
 const TABS: Array<{ id: SiteSection; label: string; path: string }> = [
   { id: "pages", label: "Pages", path: "" },
+  { id: "changelog", label: "Changelog", path: "/changelog" },
   { id: "design", label: "Design", path: "/design" },
   { id: "publish", label: "Publish", path: "/publish" },
   { id: "insights", label: "Insights", path: "/insights" },

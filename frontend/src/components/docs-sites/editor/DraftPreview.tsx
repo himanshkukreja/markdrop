@@ -157,6 +157,23 @@ function makeComponents(resolve: (src: string) => string): Components {
   return map as unknown as Components;
 }
 
+/** Markdown drawn with the engine's pipeline and the preview's components (the changelog preview's entry bodies). */
+export function PreviewMarkdown({ markdown, resolveAsset, className }: { markdown: string; resolveAsset: (src: string) => string; className?: string }) {
+  const components = useMemo(() => makeComponents(resolveAsset), [resolveAsset]);
+  return (
+    <div className={cx("prose md-prose md-prose--reading dx-prose", className)}>
+      <Markdown
+        remarkPlugins={[remarkGfm, remarkMath, remarkDirective, remarkDocs]}
+        rehypePlugins={[[rehypeHighlight, { detect: false }], [rehypeDocs, {}], [rehypeKatex, { errorColor: "var(--danger)" }]]}
+        components={components}
+        urlTransform={defaultUrlTransform}
+      >
+        {markdown}
+      </Markdown>
+    </div>
+  );
+}
+
 export interface DraftPreviewProps {
   /** The guide's saved theme (site.settings.theme). */
   theme: SiteTheme;

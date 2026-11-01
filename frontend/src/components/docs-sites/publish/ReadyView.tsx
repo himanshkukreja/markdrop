@@ -44,9 +44,16 @@ export function summaryOf(ch: ChangesResponse | null): ChangeSummary | null {
     design: s.includes("theme"),
     redirects: s.includes("redirects"),
     api: s.includes("api"),
+    changelog: ch.changelog?.length ?? 0,
     settings: s,
   };
 }
+
+const ENTRY_KIND: Record<string, { label: string; tone: Tone; meta: string }> = {
+  added: { label: "New", tone: "success", meta: "New changelog entry" },
+  modified: { label: "Edited", tone: "info", meta: "Changelog entry edited" },
+  deleted: { label: "Removed", tone: "danger", meta: "Leaves the changelog" },
+};
 
 export interface ReviewActions {
   busy: string;
@@ -86,6 +93,7 @@ export function ReadyView(props: {
   const { site, base, isAdmin, canEdit, canReview } = useSite();
   const uid = useId();
   const pageChanges = changes?.pages ?? [];
+  const entryChanges = changes?.changelog ?? [];
   const settingKeys = changes?.settings_changed ?? [];
   const count = changes?.count ?? 0;
   const mine = reviews?.filter((r) => r.requested_by === you) ?? [];
@@ -164,6 +172,23 @@ export function ReadyView(props: {
                   </Button>
                 </li>
               ))}
+              {entryChanges.map((c) => {
+                const k = ENTRY_KIND[c.change] ?? ENTRY_KIND.modified!;
+                const who = c.updated_by_name ? firstName(c.updated_by_name) : null;
+                return (
+                  <li key={`entry-${c.id}`} className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0">
+                    <span className="grid size-[30px] shrink-0 place-items-center rounded-md bg-surface-inset text-text-secondary" aria-hidden><Icon name="megaphone" size={15} /></span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <strong className="truncate font-semibold text-text" dir="auto" title={c.title}>{c.title}</strong>
+                      <span className="truncate text-[12px] text-text-muted">{[k.meta, c.change !== "deleted" ? who : null, c.updated_at && c.change === "modified" ? timeAgo(c.updated_at) : null].filter(Boolean).join(" · ")}</span>
+                    </span>
+                    <Badge tone={k.tone} size="sm">{k.label}</Badge>
+                    {c.change !== "deleted" ? (
+                      <Button variant="ghost" size="sm" href={`${base}/changelog?entry=${encodeURIComponent(c.id)}`}>Open<span className="md-visually-hidden"> {c.title}</span></Button>
+                    ) : <span className="w-[62px]" aria-hidden />}
+                  </li>
+                );
+              })}
               {settingKeys.map((k) => {
                 const s = SETTING_LABEL[k] ?? { title: k, meta: "Guide settings", badge: "Settings", icon: "settings", href: "/settings" };
                 return (

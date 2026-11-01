@@ -49,7 +49,7 @@ const APP_ROUTES = new Set([
 const GUIDES_ROOTS = new Set(["guides", "docs-studio"]);
 const GUIDES_SCREENS = new Set(["new", "members"]);
 /** A site's screens below /guides/<site> (the [siteId] route's children). */
-const GUIDES_SITE_SCREENS = new Set(["design", "import", "insights", "publish", "settings"]);
+const GUIDES_SITE_SCREENS = new Set(["changelog", "design", "import", "insights", "publish", "settings"]);
 /** The sections of a site's Settings (/guides/<site>/settings/<section>). */
 const GUIDES_SETTINGS = new Set(["general", "domains", "access", "ask-ai", "api-reference", "redirects", "people", "danger"]);
 

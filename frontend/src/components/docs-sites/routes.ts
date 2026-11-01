@@ -6,6 +6,7 @@
  *                              ?start=blank|template|gitbook|openapi how it starts)
  *   /guides/<site>             the editor (?page=<id>)
  *   /guides/<site>/import      the GitBook import (?job=<id>, else the site's last import)
+ *   /guides/<site>/changelog   the changelog: entries (?entry=<id>|new), Coming next, products, preview
  *   /guides/<site>/design      themes, brand, fonts, custom CSS
  *   /guides/<site>/publish     changes, publish, reviews, history
  *   /guides/<site>/insights    readers: views, searches, Ask AI questions, feedback (?range=7d|30d|90d)

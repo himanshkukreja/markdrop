@@ -267,8 +267,22 @@ export interface ChangeSummary {
   redirects: boolean;
   /** The API reference. */
   api: boolean;
-  /** "theme" | "nav" | "redirects" | "ai" | "seo" | "api" | "name" | "address" */
+  /** Changelog entries added, edited or removed (older APIs leave it out). */
+  changelog?: number;
+  /** "theme" | "nav" | "redirects" | "ai" | "seo" | "api" | "changelog" | "name" | "address" */
   settings: string[];
+}
+
+/** A changelog entry added, edited or removed (GET /changes uses modified/deleted, /compare edited/removed). */
+export interface ChangelogChange {
+  id: string;
+  slug: string;
+  title: string;
+  date: string;
+  change: "added" | "modified" | "deleted" | "edited" | "removed";
+  updated_by?: string | null;
+  updated_by_name?: string | null;
+  updated_at?: string | null;
 }
 
 /** A running publish (backend docs_site_compare.progress_view). */
@@ -331,6 +345,8 @@ export interface CompareResponse {
   from: CompareSide;
   to: CompareSide;
   pages: ComparePage[];
+  /** Changelog entries (older APIs leave it out). */
+  changelog?: ChangelogChange[];
   summary: ChangeSummary;
   page: (ComparePage & { rows: DiffRow[]; truncated: boolean }) | null;
 }
@@ -346,6 +362,8 @@ export interface SetupStatus {
   /** People with a Guides role on it; null for a personal guide. */
   team: number | null;
   insights_data: boolean;
+  /** Changelog entries written (older APIs leave it out). */
+  changelog_entries?: number;
 }
 
 export interface Usage {
@@ -598,7 +616,9 @@ export interface ChangesResponse {
   live_build: Build | null;
   last_published_at: string | null;
   pages: PageChange[];
-  /** "theme" | "ai" | "access" | "seo" | "nav" | "name" | "address" */
+  /** Changelog entries added, modified or deleted since the live publish (older APIs leave it out). */
+  changelog?: ChangelogChange[];
+  /** "theme" | "ai" | "access" | "seo" | "nav" | "changelog" | "name" | "address" */
   settings_changed: string[];
   count: number;
   ever_published: boolean;

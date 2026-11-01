@@ -9,13 +9,14 @@ import { plural, timeAgo } from "../format";
 import { insightsSeenKey } from "../SiteBar";
 import { useSite } from "../SiteContext";
 
-type Step = "pages" | "look" | "publish" | "domain" | "team" | "insights";
+type Step = "pages" | "look" | "publish" | "domain" | "team" | "insights" | "changelog";
 interface Item { step: Step; title: string; note: string; done: boolean; cta: string; href: string }
 
 /**
  * "Finish setting up" (PublishLive board), from the guide's real state (GET /setup): pages written,
  * a look chosen (the design saved once), published, an own domain, a team (more than one person
- * with a Guides role; not on a personal guide), and Insights (data, or opened on this device).
+ * with a Guides role; not on a personal guide), a changelog (an entry written), and Insights (data,
+ * or opened on this device).
  */
 export function Checklist({ setup, className }: { setup: SetupStatus | null; className?: string }) {
   const { site, base, isAdmin } = useSite();
@@ -51,6 +52,11 @@ export function Checklist({ setup, className }: { setup: SetupStatus | null; cla
       step: "team" as const, title: "Invite your team", note: setup.team > 1 ? `${plural(setup.team, "person", "people")} work on it` : "Editors write, reviewers approve",
       done: setup.team > 1, cta: "Invite", href: `${base}/settings/people`,
     }]),
+    {
+      step: "changelog", title: "Start a changelog",
+      note: setup.changelog_entries ? plural(setup.changelog_entries, "entry", "entries") : "Tell readers what's new, with an RSS feed",
+      done: (setup.changelog_entries ?? 0) > 0, cta: "Write", href: `${base}/changelog`,
+    },
     { step: "insights", title: "Check what readers look for", note: "Insights: searches with no results, feedback", done: setup.insights_data || seen, cta: "Insights", href: `${base}/insights` },
   ];
   // Only admins add a domain or people: for anyone else those steps are informational.
