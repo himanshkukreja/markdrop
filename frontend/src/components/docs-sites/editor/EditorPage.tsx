@@ -35,6 +35,7 @@ import { RESERVED_FIRST, pathProblem, suggestedPath } from "./pagePath";
 import { usePageSession, type LockState, type PageFields, type SaveState } from "./usePageSession";
 import { usePresence } from "./usePresence";
 import { opensDark } from "../guideTheme";
+import { SyncedPageBanner, useDismissedBanners } from "../github/SyncedPageBanner";
 
 // The preview draws the page in the guide's saved design (the engine's pipeline and theme tokens); loaded when opened.
 const DraftPreview = dynamic(() => import("./DraftPreview").then((m) => m.DraftPreview), { ssr: false });
@@ -398,6 +399,9 @@ export default function EditorPage() {
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${p.size ? `?${p}` : ""}`);
   }, [askedNew, tree, canEdit]);
   const summary = tree?.pages.find((p) => p.id === pageId) ?? null;
+  // A synced page (from the linked GitHub repository): the banner says the next push replaces edits.
+  const origin = page?.origin ?? summary?.origin ?? null;
+  const [bannerHidden, hideBanner] = useDismissedBanners();
   const group = groups?.find((g) => g.pages.some((p) => p.id === pageId));
 
   /** Saves a new order (the tree shows it at once); `moved` says what moved, with Undo. */
@@ -787,6 +791,11 @@ export default function EditorPage() {
                 <div className="flex min-h-[40vh] items-center justify-center" aria-busy="true"><Spinner size={20} label="Loading the page" /></div>
               )}
               <div className={cx(mode === "visual" && "sm:pl-14")}>{lockBanner}</div>
+              {fields && page && site.github && origin?.kind === "github" && !bannerHidden.has(page.id) && (
+                <div className={cx(mode === "visual" && "sm:pl-14")}>
+                  <SyncedPageBanner link={site.github} origin={origin} onDismiss={() => hideBanner(page.id)} />
+                </div>
+              )}
               {lock.kind === "acquiring" && <p className={cx("flex items-center gap-2 text-[13px] text-text-muted", mode === "visual" && "sm:pl-14")}><Spinner size={12} /> Opening for editing…</p>}
 
               {fields && page && (
