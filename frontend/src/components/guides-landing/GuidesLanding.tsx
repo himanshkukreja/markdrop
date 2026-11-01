@@ -403,6 +403,17 @@ export default function GuidesLanding() {
                   <p className={s.cap}>A drawing of the reader&apos;s view, with fictional data.</p>
                 </div>
               </div>
+              {PRIVATE_PAGES_LIVE && (
+                <figure className={`${s.figure} ${s.privShot}`}>
+                  <Shot
+                    src="/docs-assets/guides/private-pages/reader-locked-sections.webp"
+                    alt="Acme Docs' public Single sign-on page as a signed-out reader sees it: the Northwind tenant values section locked to people at Northwind with Sign in with email, a private section for the team with Sign in, and the Enterprise and Team pages marked with a lock in the sidebar."
+                    w={1400}
+                    h={941}
+                  />
+                  <figcaption>A public page with two private sections, as a signed-out reader sees it (fictional data).</figcaption>
+                </figure>
+              )}
               <p className={s.contrast}>
                 For comparison ({COMPARED_LABEL}): GitBook keeps authenticated access in Ultimate, $249 per site a month; Mintlify asks for Pro
                 ($450 a month, billed yearly) for a password and Enterprise for reader sign-in. <a href="#compare">See the comparison</a>.
