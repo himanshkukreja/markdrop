@@ -71,6 +71,8 @@ export function usePageSession({ siteId, pageId, canEdit, onSaved }: {
   const [page, setPage] = useState<Page | null>(null);
   const [fields, setFields] = useState<PageFields | null>(null);
   const [loadError, setLoadError] = useState<{ status: number; message: string } | null>(null);
+  /** Moves to open the page again (the error state's Try again). */
+  const [loadKey, setLoadKey] = useState(0);
   const [save, setSave] = useState<SaveState>({ state: "saved", at: null });
   const [lock, setLockState] = useState<LockState>({ kind: "none" });
   const [conflict, setConflict] = useState<SaveConflict | null>(null);
@@ -210,7 +212,10 @@ export function usePageSession({ siteId, pageId, canEdit, onSaved }: {
         void unlockPage(siteId, pageId, { keepalive: true }).catch(() => {});
       }
     };
-  }, [siteId, pageId, canEdit, apply, acquire]);
+  }, [siteId, pageId, canEdit, apply, acquire, loadKey]);
+
+  /** Open the page again (after a load error). */
+  const reload = useCallback(() => setLoadKey((n) => n + 1), []);
 
   // Heartbeat while we hold the lock; if someone took it, stop editing (keep the text on screen).
   useEffect(() => {
@@ -322,5 +327,5 @@ export function usePageSession({ siteId, pageId, canEdit, onSaved }: {
     if (!ok && p.lock) setLock((l) => (l.kind === "theirs" && !l.lock ? { kind: "theirs", lock: p.lock } : l));
   }, [siteId, pageId, canEdit, apply, acquire, setLock]);
 
-  return { page, fields, loadSeq, loadError, save, lock, conflict, update, saveNow: doSave, retry, resolveConflict, takeOver, restore, reloadLatest };
+  return { page, fields, loadSeq, loadError, reload, save, lock, conflict, update, saveNow: doSave, retry, resolveConflict, takeOver, restore, reloadLatest };
 }

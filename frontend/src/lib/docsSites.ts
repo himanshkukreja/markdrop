@@ -88,6 +88,27 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown },
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
+/**
+ * The reads a studio screen opens with (the guide, its page list, a page) try again after these
+ * pauses when the answer was worth another try: status 0 (no readable answer: offline, or the
+ * proxy in front of the API refused the request while busy; its 429 carries no CORS headers, so
+ * the browser reports a network error), 429 and 502–504. A page full of imported images can send
+ * a burst of requests at once; the pauses are long enough for it to drain. Other answers are final.
+ */
+export const RETRY_MS = [1500, 4000];
+export const retryable = (status: number): boolean => status === 0 || status === 429 || (status >= 502 && status <= 504);
+
+async function requestRetrying<T>(path: string): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await request<T>(path);
+    } catch (e) {
+      if (i >= RETRY_MS.length || !(e instanceof DocsApiError) || !retryable(e.status)) throw e;
+      await new Promise((r) => setTimeout(r, RETRY_MS[i]));
+    }
+  }
+}
+
 /** The same request, for a feature's own module (lib/docsApiReference.ts). */
 export const docsRequest = request;
 
@@ -747,7 +768,7 @@ export function createSite(input: CreateSiteInput): Promise<Site> {
 }
 
 export function getSite(id: string): Promise<Site> {
-  return request(`/${enc(id)}`);
+  return requestRetrying(`/${enc(id)}`);
 }
 
 /** A partial `settings` (the API deep-merges, then validates the whole; arrays replace). Nav: use saveNav. */
@@ -834,7 +855,7 @@ export function slugAvailable(slug: string, siteId?: string): Promise<SlugStatus
 // ── Pages ────────────────────────────────────────────────────────────────────
 
 export function listPages(siteId: string): Promise<PagesResponse> {
-  return request(`/${enc(siteId)}/pages`);
+  return requestRetrying(`/${enc(siteId)}/pages`);
 }
 
 export function createPage(siteId: string, input: { path: string; title: string; group?: string; after_page_id?: string; markdown?: string; description?: string; icon?: string | null }): Promise<Page> {
@@ -842,7 +863,7 @@ export function createPage(siteId: string, input: { path: string; title: string;
 }
 
 export function getPage(siteId: string, pageId: string): Promise<Page> {
-  return request(`/${enc(siteId)}/pages/${enc(pageId)}`);
+  return requestRetrying(`/${enc(siteId)}/pages/${enc(pageId)}`);
 }
 
 export interface SavePageInput {
