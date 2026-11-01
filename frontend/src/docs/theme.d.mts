@@ -20,6 +20,14 @@ export interface BasePalette {
   line: string;
   code: string;
   codeText: string;
+  /** Custom themes only. */
+  sidebar?: string;
+  note?: string;
+  tip?: string;
+  warning?: string;
+  danger?: string;
+  selection?: string;
+  codeSet?: boolean;
 }
 
 export interface Palette {
@@ -28,6 +36,8 @@ export interface Palette {
   tint?: string;
   light: BasePalette;
   dark: BasePalette;
+  /** A custom theme's palette: held to WCAG AA rather than the presets' designed ratios. */
+  custom?: boolean;
 }
 
 export interface Preset {
@@ -69,6 +79,59 @@ export declare function buildPalette(presetId: string, opts?: { colors?: unknown
 export declare function paletteTokens(palette: Palette, theme: "light" | "dark"): Record<string, string>;
 export declare function paletteReport(palette: Palette): Record<"light" | "dark", { text: number; muted: number; links: number; button: number }>;
 
+/* Custom themes (the theme builder). */
+export type CustomColorKey =
+  | "bg" | "surface" | "sidebar" | "header" | "text" | "muted" | "accent" | "border"
+  | "codeBg" | "codeText" | "note" | "tip" | "warning" | "danger" | "selection";
+export type CustomColors = Partial<Record<CustomColorKey, string>>;
+export interface CustomOptions {
+  radius: "none" | "small" | "medium" | "large" | "xlarge";
+  buttons: "square" | "rounded" | "pill";
+  cards: "flat" | "bordered" | "raised";
+  headerAlign: "left" | "center";
+  headerStyle: "solid" | "transparent";
+  tabStyle: "pills" | "underline";
+  sidebarStyle: "pills" | "lines" | "plain";
+  callouts: "tinted" | "bordered" | "bar";
+  codeTheme: "auto" | "light" | "dark";
+  links: "underline" | "accent" | "plain";
+  icons: "regular" | "light" | "bold" | "duotone";
+}
+export interface CustomTheme extends Partial<CustomOptions> {
+  light?: CustomColors;
+  dark?: CustomColors;
+  baseSize?: number;
+  lineHeight?: number;
+  headingWeight?: number;
+  contentWidth?: number;
+  sectionTabs?: boolean;
+  sidebarIcons?: boolean;
+}
+export interface GuardRow {
+  mode: "light" | "dark";
+  /** The custom colour "Fix" replaces. */
+  key: CustomColorKey;
+  label: string;
+  fg: string;
+  bg: string;
+  ratio: number;
+  min: number;
+  ok: boolean;
+  fix: string | null;
+}
+export declare const CUSTOM_COLORS: CustomColorKey[];
+export declare const CUSTOM_OPTIONS: { [K in keyof CustomOptions]: Array<CustomOptions[K]> };
+export declare const CUSTOM_BOOLS: Array<"sectionTabs" | "sidebarIcons">;
+export declare const CUSTOM_RANGES: Record<"baseSize" | "lineHeight" | "headingWeight" | "contentWidth", [number, number, number]>;
+export declare const CUSTOM_RADIUS: Record<CustomOptions["radius"], RadiusScale>;
+export declare const CALLOUT_KINDS: Array<"note" | "tip" | "warning" | "danger">;
+export declare function normalizeCustom(raw: unknown): CustomTheme | null;
+export declare function validateCustom(raw: unknown): string[];
+export declare function applyCustomColors(palette: Palette | null, custom: CustomTheme | null): Palette | null;
+export declare function codeTokens(palette: Palette, theme: "light" | "dark", codeTheme?: string): Record<string, string> | null;
+export declare function contrastGuard(theme: unknown, brand?: { accent?: string | null; accentDark?: string | null; colors?: unknown }): GuardRow[];
+export declare function themeAttrs(t: ResolvedTheme | null): Record<string, string>;
+
 export declare function sanitizeCss(input: unknown, scope?: string): { css: string; errors: string[] };
 
 /** site.json `theme`. null is "the preset's default". Brand colours live in `brand.colors`. */
@@ -78,6 +141,7 @@ export interface ThemeConfig {
   corners?: string | null;
   mode?: string | null;
   customCss?: string | null;
+  custom?: CustomTheme | null;
 }
 
 export interface ResolvedTheme {
@@ -90,11 +154,12 @@ export interface ResolvedTheme {
   radius: RadiusScale;
   mode: ThemeMode;
   palette: Palette | null;
+  custom: CustomTheme | null;
   customCss: string;
   customCssErrors: string[];
 }
 
-export declare function resolveTheme(theme: unknown, brand?: { accent?: string; accentDark?: string; colors?: unknown }): ResolvedTheme | null;
+export declare function resolveTheme(theme: unknown, brand?: { accent?: string | null; accentDark?: string | null; colors?: unknown }): ResolvedTheme | null;
 export declare function themeCss(t: ResolvedTheme, families: Record<string, string>): string;
 export declare function validateTheme(theme: unknown): Array<{ level: "error" | "warn"; msg: string }>;
 export declare function validateBrandColors(colors: unknown): string[];

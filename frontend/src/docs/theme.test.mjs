@@ -23,6 +23,14 @@ import {
   themeCss,
   validateBrandColors,
   validateTheme,
+  CUSTOM_COLORS,
+  CUSTOM_OPTIONS,
+  CUSTOM_RADIUS,
+  codeTokens,
+  contrastGuard,
+  normalizeCustom,
+  themeAttrs,
+  validateCustom,
 } from "./theme.mjs";
 
 /** Awkward brand colours: yellow, lime, white-ish, near-black, pure primaries, greys, the board's teal. */
@@ -342,4 +350,158 @@ test("Atlas: the header shows the nav groups as tabs when the site has no tabs o
   assert.deepEqual(headerTabs(two, groups, { sections: true, activeTab: "api" }).map((t) => [t.label, t.current]), [["Docs", false], ["API", true]]);
   // Fewer than two sections: no point in tabs.
   assert.deepEqual(headerTabs([], groups.slice(0, 1), { sections: true }), []);
+});
+
+/* ── custom themes (the theme builder) ───────────────────────────────────── */
+
+test("custom: presets stay exactly as they were without a custom block", () => {
+  for (const p of Object.keys(PRESETS)) {
+    const plain = resolveTheme({ preset: p });
+    for (const empty of [undefined, null, {}, { light: {}, dark: {} }, { baseSize: "big", icons: "emoji" }]) {
+      const t = resolveTheme({ preset: p, custom: empty });
+      assert.equal(t.custom, null, p);
+      assert.equal(themeCss(t, {}), themeCss(plain, {}), p);
+      assert.deepEqual(themeAttrs(t), { "data-preset": p, "data-layout": plain.layout });
+    }
+  }
+  // Clean with no colours still writes no palette.
+  assert.ok(!themeCss(resolveTheme({ preset: "clean", custom: { buttons: "pill" } }), {}).includes("--bg"));
+});
+
+test("custom: validation (engine and docs:check)", () => {
+  assert.deepEqual(validateCustom(undefined), []);
+  assert.deepEqual(validateCustom({ light: { bg: "#fff", accent: null }, buttons: "pill", baseSize: 16.5, headingWeight: 700, sectionTabs: false }), []);
+  const errs = validateCustom({ light: { bg: "white", glow: "#fff" }, buttons: "blob", baseSize: 30, headingWeight: 650, lineHeight: 1.33, contentWidth: 2000, sidebarIcons: "yes", sparkle: 1 });
+  for (const re of [/light.bg "white" must be a hex/, /light.glow is not a colour setting/, /buttons "blob" must be one of square, rounded, pill/, /baseSize must be a number from 14 to 20/, /headingWeight/, /lineHeight/, /contentWidth/, /sidebarIcons must be true or false/, /sparkle is not a setting/]) {
+    assert.ok(errs.some((e) => re.test(e)), `${re} in ${errs.join(" | ")}`);
+  }
+  assert.match(validateCustom("dark")[0], /must be an object/);
+  const msgs = validateTheme({ custom: { icons: "emoji", extra: 1 } }).map((p) => `${p.level}: ${p.msg}`);
+  assert.ok(msgs.includes('error: theme.custom.icons "emoji" must be one of regular, light, bold, duotone'), msgs.join("\n"));
+  assert.ok(msgs.includes("warn: theme.custom.extra is not a setting"));
+  // normalizeCustom keeps only what is valid, colours as lower-case 6-digit hex.
+  assert.deepEqual(normalizeCustom({ light: { bg: "#FFF", text: "nope" }, cards: "raised", baseSize: 15.25, icons: "duotone" }), { light: { bg: "#ffffff" }, cards: "raised", icons: "duotone" });
+  for (const [k, v] of Object.entries(CUSTOM_OPTIONS)) assert.equal(new Set(v).size, v.length, k);
+  assert.equal(CUSTOM_COLORS.length, 15);
+  // A code font may head a page (Terminal does), never be the body.
+  const mono = resolveTheme({ preset: "clean", fonts: { heading: "fira-code", body: "fira-code" } });
+  assert.equal(mono.fonts.heading, "fira-code");
+  assert.equal(mono.fonts.body, "manrope");
+  assert.deepEqual(validateTheme({ fonts: { heading: "jetbrains-mono" } }), []);
+  for (const id of ["space-grotesk", "plus-jakarta-sans", "figtree", "fraunces", "crimson-pro", "fira-code", "source-code-pro"]) assert.ok(FONTS[id], id);
+});
+
+test("custom: colours per mode override the preset (and Match my brand), typography and shape", () => {
+  const t = resolveTheme(
+    { preset: "editorial", custom: { light: { bg: "#fbfaf7", accent: "#0f766e", sidebar: "#f1efe8", note: "#2563eb" }, dark: { accent: "#5eead4" }, radius: "none", headingWeight: 500, baseSize: 17, lineHeight: 1.7, contentWidth: 720, sectionTabs: true } },
+    { colors: ["#e11d48"] },
+  );
+  assert.equal(t.palette.light.bg, "#fbfaf7");
+  assert.equal(t.palette.accent, "#0f766e");
+  assert.equal(t.palette.accentDark, "#5eead4");
+  assert.equal(t.palette.custom, true);
+  assert.deepEqual(t.radius, CUSTOM_RADIUS.none);
+  assert.equal(t.headingWeight, 500);
+  assert.equal(t.sectionTabs, true);
+  const css = themeCss(t, {});
+  assert.ok(css.includes("--dx-measure:720px"));
+  assert.ok(css.includes("--radius-lg:0px"));
+  assert.ok(css.includes("--dx-sidebar-bg:#f1efe8"));
+  assert.ok(css.includes("--dx-note-soft:"));
+  assert.ok(css.includes(".dx-root.dx-root[data-custom] .dx-prose.md-prose--reading{font-size:17px;line-height:1.7}"));
+  assert.ok(css.includes("font-weight:500"));
+  assert.ok(css.includes("minmax(0,720px)"));
+  assert.equal(paletteTokens(t.palette, "light")["--bg"], "#fbfaf7");
+  // Clean with a custom colour: Markdrop's own neutrals underneath.
+  const clean = resolveTheme({ preset: "clean", custom: { light: { accent: "#7c3aed" } } });
+  assert.equal(clean.palette.light.bg, "#e3e7ed");
+  assert.equal(clean.palette.accent, "#7c3aed");
+  // The custom radius beats theme.corners.
+  assert.deepEqual(resolveTheme({ preset: "clean", corners: "round", custom: { radius: "small" } }).radius, CORNERS.sharp);
+});
+
+test("custom: the root's attributes, and themes.css styles each of them", () => {
+  const t = resolveTheme({ preset: "clean", custom: { buttons: "pill", cards: "flat", headerAlign: "center", headerStyle: "transparent", tabStyle: "underline", sidebarStyle: "lines", sidebarIcons: false, callouts: "bar", codeTheme: "dark", links: "plain", icons: "duotone", light: { sidebar: "#f4f4f5" } } });
+  assert.deepEqual(themeAttrs(t), {
+    "data-preset": "clean", "data-layout": "sidebar", "data-custom": "", "data-buttons": "pill", "data-cards": "flat", "data-header-align": "center", "data-header-style": "transparent",
+    "data-tab-style": "underline", "data-sidebar": "lines", "data-callouts": "bar", "data-code": "dark", "data-links": "plain", "data-icons": "duotone", "data-sidebar-icons": "off", "data-sidebar-bg": "",
+  });
+  assert.deepEqual(themeAttrs(null), {});
+  const css = readFileSync(new URL("./themes.css", import.meta.url), "utf8");
+  const ATTR = { buttons: "buttons", cards: "cards", headerAlign: "header-align", headerStyle: "header-style", tabStyle: "tab-style", sidebarStyle: "sidebar", callouts: "callouts", links: "links", icons: "icons" };
+  // Values that are the design system's own look need no rule.
+  const plain = { headerAlign: "left", headerStyle: "solid", callouts: "tinted", links: "underline", icons: "regular" };
+  for (const [k, attr] of Object.entries(ATTR)) {
+    for (const v of CUSTOM_OPTIONS[k]) if (plain[k] !== v) assert.ok(css.includes(`[data-${attr}="${v}"]`), `themes.css styles data-${attr}="${v}"`);
+  }
+  assert.ok(css.includes('[data-sidebar-icons="off"]'));
+  assert.ok(css.includes("[data-sidebar-bg]"));
+});
+
+test("custom: code blocks follow the code theme, text readable on the block", () => {
+  const dark = resolveTheme({ preset: "clean", custom: { codeTheme: "dark", light: { accent: "#2563eb" } } });
+  const tok = codeTokens(dark.palette, "light", "dark");
+  assert.equal(tok["color-scheme"], "dark");
+  assert.equal(tok["--code-bg"], "#0d1117");
+  assert.ok(contrast(parseHex(tok["--text"]), parseHex(tok["--code-bg"])) >= 4.5);
+  assert.equal(tok["--syntax-keyword"], "#ff7b72");
+  assert.equal(codeTokens(dark.palette, "dark", "light")["color-scheme"], "light");
+  // The owner's code colours: kept, text clamped to stay readable.
+  const own = resolveTheme({ preset: "minimal", custom: { light: { codeBg: "#1e293b", codeText: "#334155" } } });
+  const o = codeTokens(own.palette, "light", undefined);
+  assert.equal(o["--code-bg"], "#1e293b");
+  assert.ok(contrast(parseHex(o["--text"]), parseHex("#1e293b")) >= 4.5);
+  // No code theme and no code colours: the preset's code, no extra rule.
+  assert.equal(codeTokens(resolveTheme({ preset: "minimal", custom: { light: { bg: "#ffffff" } } }).palette, "light", undefined), null);
+  assert.ok(themeCss(dark, {}).includes(".dx-root.dx-root .md-codeblock{color-scheme:dark"));
+});
+
+test("custom: never publishes illegible text, whatever colours the owner picks", () => {
+  const awful = [
+    { bg: "#ffffff", surface: "#ffffff", text: "#eeeeee", muted: "#f5f5f5", accent: "#fef08a", note: "#fde68a", tip: "#bbf7d0", warning: "#fef3c7", danger: "#fecaca", selection: "#111111", sidebar: "#fafafa", header: "#ffffff" },
+    { bg: "#0b0b0c", surface: "#111111", text: "#1f1f1f", muted: "#222222", accent: "#1e1b4b", note: "#1e3a8a", tip: "#14532d", warning: "#451a03", danger: "#450a0a", selection: "#fafafa" },
+    // A dark ground in the light theme: text moves toward white, not black.
+    { bg: "#101828", surface: "#1d2939", text: "#344054", muted: "#475467", accent: "#344054" },
+  ];
+  for (const colours of awful) {
+    for (const mode of ["light", "dark"]) {
+      const t = resolveTheme({ preset: "clean", custom: { [mode]: colours } });
+      const tok = paletteTokens(t.palette, mode);
+      const g = ["--bg", "--surface", "--surface-raised", "--surface-inset", "--dx-header-bg"].map((k) => parseHex(tok[k]));
+      if (tok["--dx-sidebar-bg"]) g.push(parseHex(tok["--dx-sidebar-bg"]));
+      for (const k of ["--text", "--text-muted", "--text-secondary", "--accent-text"]) {
+        for (const ground of g) assert.ok(contrast(parseHex(tok[k]), ground) >= 4.5, `${mode} ${k} ${tok[k]} on ${ground} (${JSON.stringify(colours)})`);
+      }
+      assert.ok(contrast(parseHex(tok["--on-accent"]), parseHex(tok["--accent"])) >= 4.5);
+      for (const kind of ["note", "tip", "warning", "danger"]) {
+        if (tok[`--dx-${kind}`]) assert.ok(contrast(parseHex(tok[`--dx-${kind}`]), parseHex(tok[`--dx-${kind}-soft`])) >= 4.5, `${mode} ${kind}`);
+      }
+      if (tok["--dx-selection"]) assert.ok(contrast(parseHex(tok["--text"]), parseHex(tok["--dx-selection"])) >= 4.5);
+    }
+  }
+});
+
+test("custom: the builder's contrast guard flags failing pairs and offers a passing fix (without changing the colour)", () => {
+  const theme = { preset: "clean", custom: { light: { bg: "#ffffff", text: "#9ca3af", accent: "#facc15", tip: "#86efac", selection: "#e5e7eb", codeBg: "#f8fafc", codeText: "#cbd5e1" } } };
+  const rows = contrastGuard(theme);
+  const get = (mode, label) => rows.find((r) => r.mode === mode && r.label === label);
+  for (const label of ["Body text", "Links", "Tip callout", "Selected text", "Code"]) {
+    const r = get("light", label);
+    assert.ok(r, label);
+    assert.equal(r.ok, false, label);
+    assert.ok(r.ratio < 4.5);
+    assert.match(r.fix, /^#[0-9a-f]{6}$/);
+  }
+  const text = get("light", "Body text");
+  assert.equal(text.fg, "#9ca3af"); // reported as picked
+  assert.ok(contrast(parseHex(text.fix), parseHex("#ffffff")) >= 4.5);
+  // Applying a fix makes the pair pass.
+  const tip = get("light", "Tip callout");
+  const fixed = contrastGuard({ preset: "clean", custom: { light: { ...theme.custom.light, tip: tip.fix } } }).find((r) => r.mode === "light" && r.label === "Tip callout");
+  assert.equal(fixed.ok, true);
+  // The guard never touches the theme.
+  assert.equal(theme.custom.light.text, "#9ca3af");
+  // The untouched dark theme passes, and so does every preset as designed (links are derived from the accent).
+  assert.ok(rows.filter((r) => r.mode === "dark").every((r) => r.ok || r.label === "Links"));
+  for (const p of Object.keys(PRESETS)) for (const r of contrastGuard({ preset: p })) assert.ok(r.ok || r.label === "Links", `${p} ${r.mode} ${r.label} ${r.ratio}`);
 });

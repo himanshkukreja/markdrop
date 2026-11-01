@@ -1,4 +1,5 @@
-Fonts for docs themes (src/docs/themeFonts.ts). Latin subsets of the Google Fonts releases,
+Fonts for docs themes (src/docs/themeFonts.ts). Latin subsets of the Google Fonts releases
+(the newer ones through Fontsource's variable builds),
 self-hosted so a reader's browser never contacts a third party. All are licensed under the SIL
 Open Font License, Version 1.1 (text below):
 
@@ -14,6 +15,13 @@ nunito.woff2           Copyright 2014 The Nunito Project Authors (https://github
 newsreader.woff2       Copyright 2020 The Newsreader Project Authors (https://github.com/productiontype/Newsreader)
 lora.woff2             Copyright 2011 The Lora Project Authors (https://github.com/cyrealtype/Lora-Cyrillic),
                        with Reserved Font Name "Lora"
+space-grotesk.woff2    Copyright 2020 The Space Grotesk Project Authors (https://github.com/floriankarsten/space-grotesk)
+plus-jakarta-sans.woff2 Copyright 2020 The Plus Jakarta Sans Project Authors (https://github.com/tokotype/PlusJakartaSans)
+figtree.woff2          Copyright 2022 The Figtree Project Authors (https://github.com/erikdkennedy/figtree)
+fraunces.woff2         Copyright 2020 The Fraunces Project Authors (https://github.com/undercasetype/Fraunces)
+crimson-pro.woff2      Copyright 2018 The Crimson Pro Project Authors (https://github.com/Fonthausen/CrimsonPro)
+fira-code.woff2        Copyright 2014-2020 The Fira Code Project Authors (https://github.com/tonsky/FiraCode)
+source-code-pro.woff2  Copyright 2010-2020 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'
 
 Manrope and JetBrains Mono are the app's own fonts (src/app/fonts).
 

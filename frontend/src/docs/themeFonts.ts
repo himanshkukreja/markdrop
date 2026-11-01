@@ -26,6 +26,13 @@ const nunito = localFont({ src: "./fonts/nunito.woff2", weight: "200 1000", disp
 const newsreader = localFont({ src: "./fonts/newsreader.woff2", weight: "200 800", display: "swap", preload: false, adjustFontFallback: "Times New Roman" });
 const sourceSerif = localFont({ src: "./fonts/source-serif-4.woff2", weight: "200 900", display: "swap", preload: false, adjustFontFallback: "Times New Roman" });
 const lora = localFont({ src: "./fonts/lora.woff2", weight: "400 700", display: "swap", preload: false, adjustFontFallback: "Times New Roman" });
+const spaceGrotesk = localFont({ src: "./fonts/space-grotesk.woff2", weight: "300 700", display: "swap", preload: false, adjustFontFallback: "Arial" });
+const jakarta = localFont({ src: "./fonts/plus-jakarta-sans.woff2", weight: "200 800", display: "swap", preload: false, adjustFontFallback: "Arial" });
+const figtree = localFont({ src: "./fonts/figtree.woff2", weight: "300 900", display: "swap", preload: false, adjustFontFallback: "Arial" });
+const fraunces = localFont({ src: "./fonts/fraunces.woff2", weight: "100 900", display: "swap", preload: false, adjustFontFallback: "Times New Roman" });
+const crimson = localFont({ src: "./fonts/crimson-pro.woff2", weight: "200 900", display: "swap", preload: false, adjustFontFallback: "Times New Roman" });
+const firaCode = localFont({ src: "./fonts/fira-code.woff2", weight: "300 700", display: "swap", preload: false, adjustFontFallback: false });
+const sourceCode = localFont({ src: "./fonts/source-code-pro.woff2", weight: "200 900", display: "swap", preload: false, adjustFontFallback: false });
 const geistMono = localFont({ src: "./fonts/geist-mono.woff2", weight: "100 900", display: "swap", preload: false, adjustFontFallback: false });
 const plexMono = localFont({
   src: [
@@ -54,6 +61,13 @@ export const THEME_FONT_FAMILIES: Record<string, string> = {
   lora: lora.style.fontFamily,
   "geist-mono": geistMono.style.fontFamily,
   "plex-mono": plexMono.style.fontFamily,
+  "space-grotesk": spaceGrotesk.style.fontFamily,
+  "plus-jakarta-sans": jakarta.style.fontFamily,
+  figtree: figtree.style.fontFamily,
+  fraunces: fraunces.style.fontFamily,
+  "crimson-pro": crimson.style.fontFamily,
+  "fira-code": firaCode.style.fontFamily,
+  "source-code-pro": sourceCode.style.fontFamily,
 };
 
 /** The theme's stylesheet (fonts, corners, palette, custom CSS), or null for a site without a theme. */
