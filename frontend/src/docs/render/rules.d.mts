@@ -25,4 +25,6 @@ export interface AltNode {
   position?: unknown;
 }
 export declare function imageAltFromSource(source: string, node: AltNode, options?: Partial<ParserOptions>): string | undefined;
+/** Columns of a card grid: `cols` (1–4) when set, else from the count (1, 2, 3, 4 → 2, more → 3). */
+export declare function cardColumns(count: number, cols?: unknown): number;
 export declare function fixImageAlts(tree: AltNode, source: string | null | undefined, options?: Partial<ParserOptions>): void;

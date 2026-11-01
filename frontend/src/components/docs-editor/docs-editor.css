@@ -114,7 +114,11 @@ input.dxe-tabbar__tab { cursor: text; min-width: 3ch; }
 /* ── cards ───────────────────────────────────────────────────────────────── */
 .dxe-content .dxe-cards { margin: 24px 0; }
 .dxe-cards__grid.dx-cards { display: block; margin: 0; }
-.dxe-cards__grid > [data-node-view-content-react] { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+/* The published grid's columns (docs.css .dx-cards): --dx-cols at full width, at least 200px each. */
+.dxe-cards__grid > [data-node-view-content-react] { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(200px, calc((100% - (var(--dx-cols, 2) - 1) * 12px) / var(--dx-cols, 2)))), 1fr)); gap: 12px; }
+@media (max-width: 639px) { .dxe-cards__grid > [data-node-view-content-react] { grid-template-columns: minmax(0, 1fr); } }
+.dxe-cards__cols { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; color: var(--text-muted); }
+.dxe-cards__cols select { height: 26px; padding: 0 6px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text); font: inherit; font-size: 12px; }
 .dxe-cards__grid > [data-node-view-content-react] > * { min-width: 0; }
 .dxe-card .dx-card__body > [data-node-view-content-react] > * { margin: 0; }
 .dxe-card { min-width: 0; }

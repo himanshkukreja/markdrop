@@ -6,12 +6,13 @@
  * once published, plus the controls to change what the Markdown can express: callout kind and
  * title, tab names, card title / link / icon, the details summary.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { TextSelection } from "@tiptap/pm/state";
 import { Dropdown, Icon, IconButton, Badge } from "@/components/ui";
 import { labelText, textLabel } from "../core/fence.mjs";
 import { useHost } from "../host";
+import { cardColumns } from "@/docs/render/rules.mjs";
 import { IconPicker, LabelInput, childPositions, cx, setAttrsAt, withAttr } from "./shared";
 
 /* ── Callout ─────────────────────────────────────────────────────────────── */
@@ -272,7 +273,7 @@ export function TabsView(props: ReactNodeViewProps) {
 
 /* ── Cards ───────────────────────────────────────────────────────────────── */
 
-export function CardsView({ node, editor, getPos }: ReactNodeViewProps) {
+export function CardsView({ node, editor, getPos, updateAttributes }: ReactNodeViewProps) {
   const host = useHost();
   const addCard = () => {
     const pos = getPos();
@@ -289,14 +290,28 @@ export function CardsView({ node, editor, getPos }: ReactNodeViewProps) {
       })
       .run();
   };
+  const attrs = (node.attrs.attributes ?? {}) as Record<string, string>;
+  // The same columns the published guide uses (rules.mjs cardColumns: `cols`, else from the count).
+  const cols = cardColumns(node.childCount, attrs.cols);
   return (
     <NodeViewWrapper className="dxe-block dxe-cards">
-      <NodeViewContent className="dx-cards dxe-cards__grid" />
+      <NodeViewContent className="dx-cards dxe-cards__grid" data-cols={cols} style={{ "--dx-cols": cols } as CSSProperties} />
       {!host.readOnly && (
         <div contentEditable={false} className="dxe-blockbar">
           <button type="button" className="dxe-linkbtn" onClick={addCard}>
             <Icon name="plus" /> Add card
           </button>
+          <label className="dxe-cards__cols">
+            <span>Columns</span>
+            <select
+              value={/^[1-4]$/.test(attrs.cols ?? "") ? attrs.cols : ""}
+              aria-label="Columns"
+              onChange={(e) => updateAttributes({ attributes: withAttr(attrs, "cols", e.target.value) })}
+            >
+              <option value="">Auto ({cardColumns(node.childCount)})</option>
+              {["1", "2", "3", "4"].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
         </div>
       )}
     </NodeViewWrapper>
@@ -307,7 +322,13 @@ export function CardView({ node, updateAttributes, deleteNode }: ReactNodeViewPr
   const host = useHost();
   const attrs = (node.attrs.attributes ?? {}) as Record<string, string>;
   return (
-    <NodeViewWrapper className={cx("dx-card", attrs.href && "dx-card--link", "dxe-card")}>
+    <NodeViewWrapper className={cx("dx-card", attrs.href && "dx-card--link", attrs.cover && "dx-card--cover", "dxe-card")}>
+      {attrs.cover && (
+        <span contentEditable={false} className="dx-card__cover" aria-hidden>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={host.resolveAsset(attrs.cover)} alt="" />
+        </span>
+      )}
       <div contentEditable={false} className="dxe-card__head">
         <IconPicker
           className="dx-card__icon"

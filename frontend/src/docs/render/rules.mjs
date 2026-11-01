@@ -108,3 +108,19 @@ export function fixImageAlts(tree, source, options = {}) {
   };
   visit(tree);
 }
+
+/**
+ * How many columns a card grid lays out in at full width (narrower screens drop to fewer, phones
+ * to one): `cols` when the author set one (1–4; GitBook's large cards import as 2), else from the
+ * count the way GitBook balances a grid: 1 → 1, 2 → 2, 3 → 3, 4 → 2 (a 2×2 square, not 3 + 1),
+ * 5 or more → 3.
+ * @param {number} count
+ * @param {unknown} [cols]
+ */
+export function cardColumns(count, cols) {
+  const n = typeof cols === "number" ? cols : typeof cols === "string" && /^\s*[1-4]\s*$/.test(cols) ? Number(cols) : NaN;
+  if (n >= 1 && n <= 4) return n;
+  if (count <= 1) return 1;
+  if (count === 2 || count === 4) return 2;
+  return 3;
+}

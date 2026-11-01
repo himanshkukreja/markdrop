@@ -58,6 +58,18 @@ test("cards hold cards with title, href and icon", () => {
   assert.deepEqual(n.content[0].attrs.attributes, { href: "/a", icon: "zap" });
 });
 
+test("cards keep the grid's columns and each card's cover through the editor", () => {
+  const md = '::::cards{cols="2"}\n:::card[One]{href="/a" icon="zap" cover="/docs-assets/x/one-cover.png"}\nBody.\n:::\n:::card[Two]{href="/b"}\nMore.\n:::\n::::\n';
+  const n = one(md);
+  assert.deepEqual(n.attrs.attributes, { cols: "2" });
+  assert.equal(n.content[0].attrs.attributes.cover, "/docs-assets/x/one-cover.png");
+  roundTrips(md);
+  // Columns changed in the editor (the grid's Columns menu) are written back on the outer fence.
+  const doc = clone(parseMarkdown(md).doc);
+  doc.content[0].attrs.attributes = { cols: "3" };
+  assert.match(write(doc.content[0]), /^::::cards\{cols="3"\}\n/);
+});
+
 test("details, video, clip, embed, api", () => {
   assert.equal(one(":::details[More]\nX.\n:::\n").type, "details");
   for (const [md, name] of [

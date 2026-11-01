@@ -20,7 +20,7 @@ import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkDirective from "remark-directive";
-import { fixImageAlts, imageAltFromSource, parserOptions } from "./rules.mjs";
+import { cardColumns, fixImageAlts, imageAltFromSource, parserOptions } from "./rules.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND = path.resolve(HERE, "../../..");
@@ -228,4 +228,20 @@ test("docs:check: with an OpenAPI reference, an op that isn't in it warns", () =
   assert.doesNotMatch(out, /doesn't build|is missing/, out);
   assert.doesNotMatch(out, /"GET \/v1\/things\/\{id\}" isn't an operation/, out);
   assert.match(out, /::api op "DELETE \/v1\/things\/\{id\}" isn't an operation in the API reference/, out);
+});
+
+/* ── card grids ──────────────────────────────────────────────────────────── */
+
+test("cards: columns follow the count like GitBook (4 → 2×2, not 3 + 1)", () => {
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 9].map((n) => cardColumns(n)), [1, 2, 3, 2, 3, 3, 3, 3]);
+  assert.equal(cardColumns(0), 1);
+});
+
+test("cards: an author's cols (1-4) wins; anything else falls back to the count", () => {
+  assert.equal(cardColumns(4, "3"), 3);
+  assert.equal(cardColumns(6, "2"), 2);
+  assert.equal(cardColumns(3, 1), 1);
+  assert.equal(cardColumns(4, "7"), 2);
+  assert.equal(cardColumns(5, "two"), 3);
+  assert.equal(cardColumns(4, ""), 2);
 });
