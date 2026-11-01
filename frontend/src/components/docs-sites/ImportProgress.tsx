@@ -34,7 +34,8 @@ const REPORT_COPY: Record<string, { tone: Tone; title: string; body: string; act
   hidden_pages: { tone: "neutral", title: "Pages hidden from the sidebar in GitBook", body: "Imported and reachable by link. Keep them hidden or show them.", action: "Review" },
   broken_links: { tone: "danger", title: "Links that were already broken", body: "Fix or remove them.", action: "Show links" },
   icons: { tone: "neutral", title: "Page icons we couldn't match", body: "Brand logos and single letters. Pick an icon or leave them blank.", action: "Show" },
-  missing_assets: { tone: "warning", title: "Images or files we couldn't copy", body: "They were missing or unreachable on the old site.", action: "Show" },
+  missing_assets: { tone: "warning", title: "Images or files we couldn't copy", body: "The download failed: they're missing or unreachable on the old site. Upload them again or remove them.", action: "Show" },
+  kept_assets: { tone: "neutral", title: "Files still on GitBook", body: "Not copied (a file type we don't host, like a spreadsheet), but the page still shows or links them on GitBook. Upload your own copy before you close your GitBook site.", action: "Show" },
   lossy: { tone: "neutral", title: "Blocks converted approximately", body: "GitBook blocks with no exact match here. Check they read right.", action: "Show" },
 };
 
@@ -60,6 +61,7 @@ export function importReportOf(job: Job | null, pageIds: Map<string, string>): I
   const q = (v: unknown) => (typeof v === "string" && v ? v : null);
   const needs: ReportItem[] = [
     { kind: "missing_assets", count: total("missing"), items: (items.missing ?? []).map((x) => row(x, [q(x.src), q(x.reason)].filter(Boolean).join(" · ") || null)) },
+    { kind: "kept_assets", count: total("keptOriginal"), items: (items.keptOriginal ?? []).map((x) => row(x, [q(x.src), q(x.reason)].filter(Boolean).join(" · ") || null)) },
     { kind: "broken_links", count: total("brokenLinks"), items: (items.brokenLinks ?? []).map((x) => row(x, [q(x.href), q(x.reason)].filter(Boolean).join(" · ") || null)) },
     { kind: "alt_text", count: total("altGenerated"), items: (items.altGenerated ?? []).map((x) => row(x, q(x.alt) ? `“${x.alt}”` : null)) },
     { kind: "hidden_pages", count: total("hidden"), items: (items.hidden ?? []).map((x) => row(x, q(x.title))) },
@@ -81,8 +83,22 @@ export function importReportOf(job: Job | null, pageIds: Map<string, string>): I
     },
     needs_look: needs.filter((n) => n.count > 0),
     skipped: w.skipped ?? [],
+    ...(w.report?.brand ? { brand: w.report.brand } : {}),
   };
 }
+
+/**
+ * "We picked up Acme's logo, colour and favicon and matched them with the Clean theme": only what
+ * the guide actually has now (its saved logo and accent; the importer's word for the favicon), and
+ * what didn't come across with the importer's reason, never a logo it didn't get.
+ */
+export function brandSentence(brand: { logo: boolean; accent: boolean; favicon: boolean; logoReason?: string | null }): { picked: string[]; missed: string | null } {
+  const picked = [brand.logo && "logo", brand.accent && "colour", brand.favicon && "favicon"].filter(Boolean) as string[];
+  const missed = !brand.logo && (brand.accent || brand.favicon) ? `We couldn't copy the logo${brand.logoReason ? ` (${brand.logoReason})` : ""}: upload it in Design.` : null;
+  return { picked, missed };
+}
+
+const listWords = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
 /** The step index a job is on (0-based), from `progress.step` (an id or a 1-based number). */
 function stepIndex(job: Job | null, steps: StepDef[]): number {
@@ -317,9 +333,24 @@ export default function ImportProgress() {
         <aside aria-label="Preview" className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 lg:sticky lg:self-start" style={{ top: STUDIO_CHROME_H + 24 }}>
           <MiniSite name={report?.brand?.name || site.name} />
           <p className="text-[13px] text-text-muted">
-            {site.settings.theme.brand.enabled
-              ? <>We picked up <span className="ph-sensitive ph-mask">{report?.brand?.name || site.name.replace(/\s+docs$/i, "")}</span>&apos;s logo, colour and favicon and matched them with the {presetName(site.settings.theme.preset)} theme. Change it in <Anchor href={`${base}/design`} className="text-accent-text underline">Design</Anchor>.</>
-              : <>Your guide uses the {presetName(site.settings.theme.preset)} theme. Change it in <Anchor href={`${base}/design`} className="text-accent-text underline">Design</Anchor>.</>}
+            {(() => {
+              const b = site.settings.theme.brand;
+              const got = brandSentence({
+                logo: !!b.logo_url,
+                accent: b.enabled && !!(b.accent || b.colors?.[0]),
+                favicon: !!(report?.brand?.favicon ?? report?.brand?.favicon_url),
+                logoReason: report?.brand?.logoReason,
+              });
+              const theme = presetName(site.settings.theme.preset);
+              const design = <Anchor href={`${base}/design`} className="text-accent-text underline">Design</Anchor>;
+              if (!done || !got.picked.length) return <>Your guide uses the {theme} theme. Change it in {design}.</>;
+              return (
+                <>
+                  We picked up <span className="ph-sensitive ph-mask">{report?.brand?.name || site.name.replace(/\s+docs$/i, "")}</span>&apos;s {listWords(got.picked)} and matched {got.picked.length === 1 ? "it" : "them"} with the {theme} theme.{" "}
+                  {got.missed && <>{got.missed} </>}Change it in {design}.
+                </>
+              );
+            })()}
           </p>
           {done ? (
             <Button variant="primary" block iconLeft="edit" href={base}>Open the editor</Button>

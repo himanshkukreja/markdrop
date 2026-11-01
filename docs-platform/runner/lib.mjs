@@ -446,6 +446,8 @@ export function readImportFolder(dir, { parseYaml }) {
       footer: site.footer || null,
       embed_hosts: site.embedHosts || null,
       brand: site.brand || null,
+      // GitBook's look as theme settings (preset, corners, fonts, mode): the API applies it to a guide whose design is untouched.
+      theme: site.theme || null,
     },
     nav: (site.nav || []).map((g) => ({ group: g.group, ...(g.icon ? { icon: g.icon } : {}), ...(g.tab ? { tab: g.tab } : {}), pages: g.pages || [] })),
     pages,

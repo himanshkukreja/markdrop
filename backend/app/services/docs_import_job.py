@@ -275,19 +275,72 @@ def engine_extra_from(imported: dict, data: dict) -> dict:
     return extra
 
 
+def _picked_brand(v: Any) -> dict:
+    """The importer's ``brand`` (what of GitBook's brand came across, and why not) → flags and short
+    reasons only, for the import screen's sentence."""
+    if not isinstance(v, dict):
+        return {}
+    out: dict = {k: bool(v[k]) for k in ("logo", "logoDark", "favicon") if k in v}
+    for k in ("name", "logoReason", "faviconReason"):
+        if isinstance(v.get(k), str) and v[k].strip():
+            out[k] = _s(v[k], 200)
+    if isinstance(v.get("accent"), str) and _HEX.match(v["accent"]):
+        out["accent"] = v["accent"]
+    return out
+
+
 def summarize_report(report: dict | None) -> dict:
     """The importer's _import-report.json → the job's "needs a look" summary (lists capped)."""
     if not isinstance(report, dict):
         return {"counts": {}, "items": {}}
     counts = report.get("counts") if isinstance(report.get("counts"), dict) else {}
     items = report.get("items") if isinstance(report.get("items"), dict) else {}
-    keep = ("altGenerated", "hidden", "brokenLinks", "missing", "unmatchedIcons", "notes", "external")
-    return {
+    # missing: images and files that failed to download; keptOriginal: not copied on purpose (a file
+    # type or host the import doesn't copy) and still shown or linked from GitBook, so not "broken".
+    keep = ("altGenerated", "hidden", "brokenLinks", "missing", "keptOriginal", "unmatchedIcons", "notes", "external")
+    out = {
         "source": report.get("source"),
         "counts": {k: v for k, v in counts.items() if isinstance(v, (int, float, bool))},
         "items": {k: list(items.get(k) or [])[:REPORT_ITEMS] for k in keep},
         "truncated": {k: len(items.get(k) or []) for k in keep if len(items.get(k) or []) > REPORT_ITEMS},
     }
+    brand = _picked_brand(report.get("brand"))
+    if brand:
+        out["brand"] = brand
+    return out
+
+
+def imported_look(theme: Any) -> dict:
+    """The importer's site.json ``theme`` (GitBook's look: preset, corners, fonts, mode) → the
+    theme settings it may set; anything the settings model refuses is dropped when validated."""
+    from app.services import docs_site_settings as site_settings
+
+    if not isinstance(theme, dict):
+        return {}
+    out: dict = {}
+    if isinstance(theme.get("preset"), str) and theme["preset"] in site_settings.PRESETS:
+        out["preset"] = theme["preset"]
+    if theme.get("corners") in ("sharp", "soft", "round"):
+        out["corners"] = theme["corners"]
+    if theme.get("mode") in ("both", "light", "dark"):
+        out["mode"] = theme["mode"]
+    fonts = theme.get("fonts") if isinstance(theme.get("fonts"), dict) else {}
+    f = {k: fonts[k] for k in ("heading", "body") if isinstance(fonts.get(k), str) and fonts[k] in site_settings.FONT_IDS}
+    if f:
+        out["fonts"] = f
+    return out
+
+
+def design_untouched(theme: Any) -> bool:
+    """True when a guide's design is still the default one (preset, fonts, mode, corners, custom
+    CSS; the brand aside): an import may then bring GitBook's look; it never overrides a design
+    someone chose."""
+    from app.services import docs_site_settings as site_settings
+
+    base = site_settings.default_settings()["theme"]
+    t = theme if isinstance(theme, dict) else {}
+    return all((t.get(k) or base.get(k)) == base.get(k) for k in ("preset", "mode")) and \
+        not t.get("corners") and not t.get("custom_css") and not any((t.get("fonts") or {}).values())
 
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -410,9 +463,13 @@ async def apply_import(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
     brand, brand_extra = _brand(imported.get("brand"))
     settings = dict(site.get("settings") or site_settings.default_settings())
     settings["nav"] = nav
-    if brand:
+    look = imported_look(imported.get("theme"))
+    if brand or look:
         theme = dict(settings.get("theme") or {})
-        theme["brand"] = {**(theme.get("brand") or {}), **brand}
+        if look and design_untouched(theme):
+            theme.update(look)
+        if brand:
+            theme["brand"] = {**(theme.get("brand") or {}), **brand}
         settings["theme"] = theme
     try:
         settings = site_settings.validate(settings)

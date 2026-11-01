@@ -83,7 +83,7 @@ test("an imported folder reads back as pages, nav, brand, redirects and the repo
     fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
     fs.writeFileSync(path.join(dir, rel), s);
   };
-  w("site.json", JSON.stringify({ name: "S Docs", headline: "Hi", nav: [{ group: "G", icon: "home", pages: ["/g/a"] }], pages: { icons: true }, brand: { name: "S", accent: "#123456" } }));
+  w("site.json", JSON.stringify({ name: "S Docs", headline: "Hi", nav: [{ group: "G", icon: "home", pages: ["/g/a"] }], pages: { icons: true }, brand: { name: "S", accent: "#123456" }, theme: { preset: "clean", corners: "sharp" } }));
   w("index.md", "---\ntitle: S Docs\ndescription: Home\nupdated: 2026-10-31\n---\n\nHome body");
   w("g/a.md", '---\ntitle: A\ndescription: About A\nupdated: 2026-10-31\nicon: zap\nnav: Short A\nanchors: {"old-id": "new-id"}\n---\n\n## A\n');
   w("g/hidden.md", "---\ntitle: H\ndescription: d\nupdated: 2026-10-31\n---\n\nx");
@@ -100,6 +100,7 @@ test("an imported folder reads back as pages, nav, brand, redirects and the repo
   assert.deepEqual(data.nav, [{ group: "G", icon: "home", pages: ["/g/a"] }]);
   assert.equal(data.site.headline, "Hi");
   assert.deepEqual(data.site.brand, { name: "S", accent: "#123456" });
+  assert.deepEqual(data.site.theme, { preset: "clean", corners: "sharp" });
   assert.deepEqual(data.redirects, { "/old": "/g/a" });
   assert.deepEqual(data.report, { counts: { pages: 3 } });
   assert.equal(readPageFile("no frontmatter", parseYaml).markdown, "no frontmatter");
