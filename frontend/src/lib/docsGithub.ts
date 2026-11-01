@@ -285,7 +285,7 @@ export function connectSiteGithub(siteId: string, choice: GithubRepoChoice): Pro
 }
 
 /** Admins: change how it syncs. */
-export function updateSiteGithub(siteId: string, patch: Partial<Pick<GithubLink, "mode" | "sync" | "format" | "branch">>): Promise<SiteLinkAnswer> {
+export function updateSiteGithub(siteId: string, patch: Partial<Pick<GithubLink, "mode" | "sync" | "format" | "branch">> & { installation_id?: number }): Promise<SiteLinkAnswer> {
   return docsRequest(`/${enc(siteId)}/github`, { method: "PATCH", json: patch });
 }
 

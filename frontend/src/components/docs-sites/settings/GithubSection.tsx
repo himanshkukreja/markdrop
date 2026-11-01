@@ -19,7 +19,7 @@ import {
 } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
 import {
-  FORMAT_CHOICES, FORMAT_LABELS, adoptGithubOpenapi, connectSiteGithub, disconnectSiteGithub, folderLabel, formatLabel, getGithubRepo,
+  FORMAT_CHOICES, FORMAT_LABELS, adoptGithubOpenapi, connectSiteGithub, disconnectSiteGithub, folderLabel, formatLabel, getGithubRepo, getGithubStatus,
   commitUrl, getSiteGithub, githubError, repoUrl, syncSiteGithub, updateSiteGithub, type GithubFormatChoice, type GithubLink, type GithubRepoChoice,
   type GithubSync, type GithubSyncMode, type SiteGithubState, type SiteLinkAnswer,
 } from "@/lib/docsGithub";
@@ -27,7 +27,7 @@ import { docsErrorMessage } from "@/lib/docsSites";
 import { timeAgo } from "../format";
 import { useSite } from "../SiteContext";
 import { useJob } from "../useJob";
-import { NOT_SET_UP_BODY } from "../github/GithubNotes";
+import { ConnectGithubButton, NOT_SET_UP_BODY } from "../github/GithubNotes";
 import RepoPicker, { type RepoPickerState } from "../github/RepoPicker";
 import { SyncControls } from "../github/SyncControls";
 import { LinkStatusBadge, SyncStatusBadge, pagesWords, stepWords, triggerWords } from "../github/syncCopy";
@@ -51,6 +51,36 @@ function CommitLink({ sha, short, url }: { sha: string | null; short?: string | 
     </a>
   ) : (
     <code className="ph-sensitive ph-mask font-mono text-[13px] text-text">{text}</code>
+  );
+}
+
+/**
+ * A guide imported as a public repository (read without the app) can't sync: when the app is
+ * installed on the repository's account, read through it from now on (and turn sync on); otherwise
+ * install the app there first.
+ */
+function UseAppNote({ link, workspace, returnTo, busy, onUse }: {
+  link: GithubLink; workspace: string; returnTo: string; busy: boolean; onUse: (installationId: number) => void;
+}) {
+  const status = useGithubQuery(`s|${workspace}`, (signal) => getGithubStatus(workspace, signal));
+  const owner = link.owner.toLowerCase();
+  const inst = status.data?.installations.find((i) => !i.suspended && i.account.login.toLowerCase() === owner) ?? null;
+  return (
+    <Alert
+      tone="info"
+      title="Sync needs the Markdrop Guides app"
+      actions={inst ? (
+        <Button size="sm" variant="secondary" iconLeft="github" loading={busy} onClick={() => onUse(inst.installation_id)}>
+          Use the app on <span className="ph-sensitive ph-mask">{inst.account.login}</span>
+        </Button>
+      ) : status.loading ? null : (
+        <ConnectGithubButton size="sm" variant="secondary" workspace={workspace} returnTo={returnTo}>Install the app</ConnectGithubButton>
+      )}
+    >
+      {inst
+        ? <>The app is installed on <span className="ph-sensitive ph-mask">{inst.account.login}</span>. Read this repository through it and every push to <span className="ph-sensitive ph-mask">{link.branch}</span> updates the guide.</>
+        : <>Install the app on <span className="ph-sensitive ph-mask">{link.owner}</span> with access to this repository, then come back here to turn on sync.</>}
+    </Alert>
   );
 }
 
@@ -196,7 +226,7 @@ export default function GithubSection() {
     setSite({ ...site, github: link });
   };
 
-  async function patch(body: { mode?: GithubSyncMode; sync?: boolean; branch?: string; format?: GithubFormatChoice }, key: typeof saving, done: string) {
+  async function patch(body: { mode?: GithubSyncMode; sync?: boolean; branch?: string; format?: GithubFormatChoice; installation_id?: number }, key: typeof saving, done: string) {
     if (!isAdmin) return;
     setSaving(key);
     setError("");
@@ -399,6 +429,10 @@ export default function GithubSection() {
           onSync={(on) => void patch({ sync: on }, "sync", on ? "Pushes update the guide again." : "Syncing is off. Pushes don't change the guide.")}
           onMode={(m) => void patch({ mode: m }, "mode", m === "publish" ? "Each push is published after it syncs." : "Each push updates the drafts.")}
         />
+        {isAdmin && st.app.configured && link.installation_id == null && (
+          <UseAppNote link={link} workspace={workspace} returnTo={settingsHref(base, "github")} busy={saving === "sync"}
+            onUse={(iid) => void patch({ installation_id: iid, sync: true }, "sync", "The repository is read through the app now. Pushes update the guide.")} />
+        )}
         {isAdmin && (
           <div className="border-t border-border pt-3.5">
             <SourceOptions link={link} workspace={workspace} locked={!isAdmin} saving={saving} onSave={(body, done) => void patch(body, body.branch ? "branch" : "format", done)} />
