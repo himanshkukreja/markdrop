@@ -235,9 +235,12 @@ export function PageTree({
     const dir = event.code === "ArrowDown" ? 1 : event.code === "ArrowUp" ? -1 : 0;
     if (!dir) return undefined;
     event.preventDefault();
-    const next = stepKeyed(measure(what), slotRef.current, dir, keyOf(what));
+    const slots = measure(what);
+    const center = rect.top + rect.height / 2;
+    // An unlisted page starts below every group: its first press goes to the nearest place.
+    const next = slotRef.current ? stepKeyed(slots, slotRef.current, dir, keyOf(what)) : nearestSlot(slots, center);
     if (!next) return undefined;
-    return { x: currentCoordinates.x, y: currentCoordinates.y + (next.y - (rect.top + rect.height / 2)) };
+    return { x: currentCoordinates.x, y: currentCoordinates.y + (next.y - center) };
   };
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
