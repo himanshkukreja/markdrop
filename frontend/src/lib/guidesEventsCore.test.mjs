@@ -16,6 +16,9 @@ test("guide_created names the source, never the import's address", () => {
   assert.deepEqual(createdEvents({ workspace_id: null, source: { kind: "template", template: "api" } }), [["guide_created", { source: "template", template: "api", workspace: false }]]);
   assert.deepEqual(createdEvents({ source: { kind: "template", template: "<b>x</b>" } }), [["guide_created", { source: "template", workspace: false }]]);
   assert.deepEqual(createdEvents({ source: { kind: "blank" } }), [["guide_created", { source: "blank", workspace: false }]]);
+  const gh = createdEvents({ workspace_id: "ws1", source: { kind: "github", repo: { owner: "acme", name: "secret-docs" }, sync: true, mode: "publish" } });
+  assert.deepEqual(gh, [["guide_created", { source: "github", workspace: true }], ["guide_import_started", { source: "github", sync: true, mode: "publish" }]]);
+  assert.ok(!JSON.stringify(gh).includes("secret-docs"));
 });
 
 test("a design save reports its choices, not its CSS or logo", () => {

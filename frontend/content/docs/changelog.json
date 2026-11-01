@@ -24,6 +24,29 @@
   "next": [],
   "entries": [
     {
+      "id": "guides-import-from-github",
+      "date": "2026-11-02",
+      "title": "Markdrop Guides: import from GitHub and keep in sync",
+      "kind": "new",
+      "area": "Markdrop Guides",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Bring a repository's docs into a guide (Markdown, GitBook Git Sync, Mintlify, Docusaurus or MkDocs) and keep it in sync: every push to the branch updates the guide.",
+      "body": "- **Import from GitHub** is a new way to start a guide. Pick a repository, a branch and a folder; Markdrop Guides works out the format and previews the pages and sidebar before anything is imported.\n- **Five formats:** a plain Markdown folder, GitBook Git Sync (`SUMMARY.md`), Mintlify (`docs.json` or `mint.json`, tabs included), Docusaurus (`sidebars.js`, read without running it) and MkDocs (`mkdocs.yml`). Their callouts, tabs, steps, cards and expandable sections become the guide's own blocks, and images and PDFs become the guide's files.\n- **Keep in sync:** with the Markdrop Guides GitHub app installed, every push updates the guide's drafts, or publishes it automatically if you choose. A renamed file keeps its page and history, and its old address redirects.\n- **GitHub is the source of truth** for the pages it brought: the editor shows where a page comes from, with **Edit on GitHub**. Pages you add in the editor are never touched.\n- **Private or public:** the app reads only the repositories you choose, read-only. A public repository imports without it.\n- **Settings › GitHub** has the sync history, **Sync now**, the mode, and **Disconnect** (the pages stay). An OpenAPI file found in the repository can become the guide's API reference.",
+      "highlights": [
+        "Mintlify, Docusaurus, MkDocs, GitBook and plain Markdown",
+        "Read-only GitHub app: Contents and Metadata only"
+      ],
+      "docs": [
+        "/guides/import-from-github",
+        "/guides/create-a-site",
+        "/guides/import-from-gitbook",
+        "/guides/site-settings"
+      ]
+    },
+    {
       "id": "guides-fix-list",
       "date": "2026-11-02",
       "title": "Markdrop Guides: the Fix list, what to fix next",

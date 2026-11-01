@@ -80,7 +80,29 @@ export function configFromEnv(env = process.env) {
     keepGifs: env.MARKDROP_DOCS_KEEP_GIFS === "1" || env.MARKDROP_DOCS_KEEP_GIFS === "true",
     bucket: env.MARKDROP_DOCS_R2_BUCKET || "",
     storeDir: env.MARKDROP_DOCS_STORE_DIR || "",
+    codeload: codeloadBase(env.MARKDROP_DOCS_GITHUB_CODELOAD),
   };
+}
+
+export const CODELOAD = "https://codeload.github.com";
+
+/**
+ * Where a GitHub import downloads its tarball from: GitHub's codeload, or (the local docs media
+ * stack, which serves a fictional repository itself) a loopback http address. Anything else throws.
+ */
+export function codeloadBase(value) {
+  const v = String(value || CODELOAD).replace(/\/+$/, "");
+  if (v === CODELOAD) return v;
+  let u;
+  try {
+    u = new URL(v);
+  } catch {
+    throw new Error("MARKDROP_DOCS_GITHUB_CODELOAD is not an address");
+  }
+  if (u.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(u.hostname) || !u.port || u.username || u.password || u.search || u.hash) {
+    throw new Error("MARKDROP_DOCS_GITHUB_CODELOAD must be https://codeload.github.com or a loopback http://127.0.0.1:<port> address");
+  }
+  return v;
 }
 
 /**
@@ -455,6 +477,10 @@ export function readImportFolder(dir, { parseYaml }) {
     redirects: readJson(path.join(dir, "redirects.json"), {}),
     videos: readJson(path.join(dir, "videos.json"), null),
     report: readJson(path.join(dir, "_import-report.json"), null),
+    // A GitHub import: each page's repository file (the API keeps a page tied to its file across
+    // syncs), and OpenAPI files it found.
+    origins: readJson(path.join(dir, "_origins.json"), null),
+    openapi: (readJson(path.join(dir, "_import-report.json"), null) || {}).openapi || [],
   };
 }
 
@@ -517,6 +543,7 @@ export async function runImport(spec, { store, cfg, progress = () => {}, log = (
   const imp = spec.import || {};
   const siteId = imp.site_id;
   if (!siteId || !/^[A-Za-z0-9_-]{1,64}$/.test(siteId)) throw new Error("spec.import.site_id is missing or invalid");
+  if (imp.kind === "github") return runGithubImport(spec, { store, cfg, progress, log });
   if (imp.kind !== "gitbook") throw new Error(`unsupported import kind ${imp.kind}`);
   let url;
   try {
@@ -567,6 +594,113 @@ export async function runImport(spec, { store, cfg, progress = () => {}, log = (
     log(`import assets: ${assets.files} files, ${assets.uploaded} uploaded (${(assets.uploaded_bytes / 1e6).toFixed(1)} MB)`);
     progress({ step: "save", done: 2, total: 3, message: "Saving pages" });
     return { ...data, assets, timings: { import: importMs, total: Date.now() - t0 } };
+  } finally {
+    fs.rmSync(jobDir, { recursive: true, force: true });
+  }
+}
+
+/* ── GitHub import ─────────────────────────────────────────────────────── */
+
+const MAX_TARBALL = 300 * 1024 * 1024;
+const GH_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,99})$/;
+
+/** The tarball address the API gave, checked: under the codeload base, a GitHub-shaped path. */
+export function checkTarballUrl(url, base = CODELOAD) {
+  const u = String(url || "");
+  if (!u.startsWith(base + "/")) throw new Error(`the repository download must come from ${base}`);
+  let parsed;
+  try {
+    parsed = new URL(u);
+  } catch {
+    throw new Error("the repository download address is invalid");
+  }
+  if (parsed.username || parsed.password) throw new Error("the repository download address is invalid");
+  return parsed.href;
+}
+
+/** The tarball's bytes: through the import guard for codeload (public addresses, pinned), plain
+ * fetch for the local stack's loopback base. At most MAX_TARBALL. */
+export async function downloadTarball(url, { cfg, fetchImpl = fetch, guard } = {}) {
+  const href = checkTarballUrl(url, cfg.codeload);
+  if (cfg.codeload !== CODELOAD) {
+    const r = await fetchImpl(href, { signal: AbortSignal.timeout(120_000) });
+    if (!r.ok) throw new Error(`downloading the repository: HTTP ${r.status}`);
+    const len = Number(r.headers.get("content-length") || 0);
+    if (len > MAX_TARBALL) throw new Error("the repository is larger than 300 MB");
+    const body = Buffer.from(await r.arrayBuffer());
+    if (body.length > MAX_TARBALL) throw new Error("the repository is larger than 300 MB");
+    return body;
+  }
+  const { safeGet } = guard || (await import(path.join(cfg.engineDir, "scripts", "docs-import", "lib", "guard.mjs")));
+  const host = new URL(CODELOAD).hostname;
+  const r = await safeGet(href, { allow: (u) => u.hostname === host, maxBytes: MAX_TARBALL, timeoutMs: 120_000 });
+  if (!r.ok) throw new Error(r.status === 404 ? "GitHub has no such repository or commit (or the download link expired)" : `downloading the repository: HTTP ${r.status}`);
+  return r.body;
+}
+
+/**
+ * spec: { job, import: { kind: "github", site_id, repo: {owner, name}, branch, ref, path, format,
+ * tarball_url, sync } }. Downloads the repository at `ref`, unpacks it (frontend/scripts/docs-import/
+ * lib/repo/tar.mjs: regular files only, nothing outside the folder), converts it (github.mjs, in a
+ * child process like the GitBook importer), uploads the files it keeps, and returns the folder read
+ * as data plus `commit` (the sha GitHub's tarball names).
+ */
+export async function runGithubImport(spec, { store, cfg, progress = () => {}, log = () => {}, download = downloadTarball }) {
+  const t0 = Date.now();
+  const imp = spec.import || {};
+  const siteId = imp.site_id;
+  const owner = imp.repo?.owner;
+  const name = imp.repo?.name;
+  if (!GH_NAME.test(String(owner || "")) || !GH_NAME.test(String(name || ""))) throw new Error("spec.import.repo is invalid");
+  const folder = String(imp.path || "").replace(/^\/+|\/+$/g, "");
+  if (folder.split("/").some((x) => x === ".." || x === ".") || folder.includes("\\") || folder.includes("\0")) throw new Error("spec.import.path is invalid");
+  const format = imp.format || "auto";
+  if (!["auto", "markdown", "gitbook", "mintlify", "docusaurus", "mkdocs"].includes(format)) throw new Error("spec.import.format is invalid");
+  checkTarballUrl(imp.tarball_url, cfg.codeload);
+  const jobDir = path.join(cfg.workDir, "jobs", String(spec.job?.id || "local"));
+  const repoDir = path.join(jobDir, "repo");
+  const out = path.join(jobDir, "import");
+  fs.rmSync(jobDir, { recursive: true, force: true });
+  fs.mkdirSync(out, { recursive: true });
+  try {
+    progress({ step: "fetch", done: 0, total: 2, message: `Downloading ${owner}/${name}` });
+    const td = Date.now();
+    const tarball = await download(imp.tarball_url, { cfg });
+    const { extractTarGz } = await import(path.join(cfg.engineDir, "scripts", "docs-import", "lib", "repo", "tar.mjs"));
+    // The folder, plus the repository's top level (README, .gitbook.yaml): nothing else is read.
+    const keep = (p) => !folder || p === folder || p.startsWith(folder + "/") || !p.includes("/");
+    const unpacked = await extractTarGz(tarball, repoDir, { keep });
+    const commit = /^[0-9a-f]{40}$/.test(String(unpacked.commit || "")) ? unpacked.commit : (/^[0-9a-f]{40}$/.test(String(imp.ref || "")) ? imp.ref : null);
+    log(`github: ${unpacked.files} files unpacked (${(tarball.length / 1e6).toFixed(1)} MB download, ${unpacked.refused.length} refused) in ${Date.now() - td} ms`);
+    progress({ step: "fetch", done: 1, total: 2, message: `${unpacked.files} files from ${owner}/${name}${commit ? ` at ${commit.slice(0, 7)}` : ""}` });
+    const args = [path.join(cfg.engineDir, "scripts", "docs-import", "github.mjs"), "--dir", repoDir, "--path", folder, "--out", out, "--id", IMPORT_ASSET_ID,
+      "--format", format, "--repo", `${owner}/${name}`, "--ref", commit || String(imp.ref || imp.branch || "HEAD"),
+      // The output is this job's own folder (a work folder may sit inside a checkout, like the local stack's).
+      "--allow-repo"];
+    if (imp.branch) args.push("--branch", String(imp.branch));
+    const ti = Date.now();
+    await runNode(args, {
+      cwd: cfg.engineDir,
+      env: { ...process.env, DEBUG: "" },
+      timeoutMs: 15 * 60 * 1000,
+      onLine: (line) => {
+        let m;
+        if ((m = /^pages: (\d+)/.exec(line))) progress({ step: "convert", done: 0, total: Number(m[1]), message: `${m[1]} pages found` });
+        else if ((m = /^progress: pages (\d+)\/(\d+)$/.exec(line))) progress({ step: "convert", done: Number(m[1]), total: Number(m[2]), message: `Converting pages · ${m[1]} of ${m[2]}` });
+        else if ((m = /^progress: assets (\d+)\/(\d+)$/.exec(line))) progress({ step: "upload", done: Number(m[1]), total: Number(m[2]), message: `Copying images and files · ${m[1]} of ${m[2]}` });
+      },
+    });
+    fs.rmSync(repoDir, { recursive: true, force: true });
+    const importMs = Date.now() - ti;
+    const require = createRequire(path.join(cfg.engineDir, "package.json"));
+    const { parse: parseYaml } = require("yaml");
+    const data = readImportFolder(out, { parseYaml });
+    log(`github import: ${data.pages.length} pages, ${data.nav.length} groups (${importMs} ms)`);
+    progress({ step: "upload", done: 0, total: 0, message: "Uploading images and files" });
+    const assets = await uploadImportAssets({ store, siteId, dir: out, progress });
+    log(`github import assets: ${assets.files} files, ${assets.uploaded} uploaded (${(assets.uploaded_bytes / 1e6).toFixed(1)} MB)`);
+    progress({ step: "save", done: 0, total: data.pages.length, message: "Saving pages" });
+    return { ...data, commit, assets, unpacked: { files: unpacked.files, refused: unpacked.refused.length }, timings: { import: importMs, total: Date.now() - t0 } };
   } finally {
     fs.rmSync(jobDir, { recursive: true, force: true });
   }

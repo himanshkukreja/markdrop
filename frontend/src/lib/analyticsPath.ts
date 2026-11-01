@@ -51,7 +51,7 @@ const GUIDES_SCREENS = new Set(["new", "members"]);
 /** A site's screens below /guides/<site> (the [siteId] route's children). */
 const GUIDES_SITE_SCREENS = new Set(["changelog", "design", "import", "insights", "publish", "settings"]);
 /** The sections of a site's Settings (/guides/<site>/settings/<section>). */
-const GUIDES_SETTINGS = new Set(["general", "domains", "access", "ask-ai", "api-reference", "redirects", "people", "danger"]);
+const GUIDES_SETTINGS = new Set(["general", "domains", "access", "ask-ai", "api-reference", "github", "redirects", "people", "danger"]);
 
 /**
  * /guides/<site>[/<screen>] → /guides/[site][/<screen>]. Site ids aren't secrets (one opens
@@ -63,6 +63,8 @@ function guidesShape(segments: string[]): string {
   if (segments.length === 1) return root;
   if (segments.length === 2 && GUIDES_SCREENS.has(segments[1]!)) return `${root}/${segments[1]}`;
   if (segments.length === 2) return `${root}/[site]`;
+  // Back from github.com (/guides/github/installed): a literal screen, not a site.
+  if (segments.length === 3 && segments[1] === "github" && segments[2] === "installed") return `${root}/github/installed`;
   if (segments.length === 3 && GUIDES_SITE_SCREENS.has(segments[2]!)) return `${root}/[site]/${segments[2]}`;
   // Settings › <section>. A domain's own setup page (…/settings/domains/<host>) names a customer's domain: [other].
   if (segments.length === 4 && segments[2] === "settings" && GUIDES_SETTINGS.has(segments[3]!)) return `${root}/[site]/settings/${segments[3]}`;

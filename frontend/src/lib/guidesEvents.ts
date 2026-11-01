@@ -7,7 +7,7 @@
  * address or domain, a URL (an import's source included), CSS, a note or an email.
  *
  *   guide_created                 source: blank|template|import|github, template?: product|api|helpcenter, workspace
- *   guide_import_started          source: gitbook
+ *   guide_import_started          source: gitbook | github (+ sync, mode for github)
  *   guide_page_created / guide_page_deleted / guide_page_restored
  *   guide_publish_requested       note (a publish note was written)
  *   guide_review_submitted / guide_review_approved / guide_review_changes_requested / guide_review_withdrawn

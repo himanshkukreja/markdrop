@@ -1,0 +1,3 @@
+# Tips
+
+Batch your questions.

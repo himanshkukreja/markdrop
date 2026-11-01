@@ -3,12 +3,13 @@
 import { ReadMore } from "@/components/ReadMore";
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Anchor, Badge, Button, Field, Icon, Input, Select, Spinner, cx } from "@/components/ui";
+import { Alert, Anchor, Button, Field, Icon, Input, Select, Spinner, cx } from "@/components/ui";
 import { useLocationSearch } from "@/components/shell/useLocation";
 import {
   DOCS_HOST_SUFFIX, createSite, docsErrorMessage, slugAvailable, slugFrom, slugProblem,
   type SourceKind, type TemplateId,
 } from "@/lib/docsSites";
+import RepoPicker, { type RepoPickerState } from "./github/RepoPicker";
 import { StudioLoader, useStudioSession } from "./SiteContext";
 import { PERSONAL, siteBase, studioHome, studioNew } from "./routes";
 import { useStudio } from "./studio/StudioContext";
@@ -17,8 +18,20 @@ const SOURCES: Array<{ id: SourceKind; icon: string; title: string; body: string
   { id: "blank", icon: "doc", title: "Blank guide", body: "Start with a home page and write in the editor." },
   { id: "template", icon: "layers", title: "From a template", body: "A product guide, API reference or help center, ready to fill in." },
   { id: "gitbook", icon: "download", title: "Import from GitBook", body: "Paste your GitBook address. Pages, images, navigation and old links come across." },
-  { id: "github", icon: "github", title: "Connect a GitHub repo", body: "Your Markdown stays in Git. Push to publish; edit in the browser too." },
+  { id: "github", icon: "github", title: "Import from GitHub", body: "Markdown, GitBook, Mintlify, Docusaurus or MkDocs from a repo. Keep it in sync on every push." },
 ];
+
+/** Repository names that say nothing about the product ("docs") → the owner's name instead. */
+const GENERIC_REPOS = new Set(["docs", "doc", "documentation", "website", "site", "guides", "guide", "help", "handbook", "manual", "wiki"]);
+const titleCase = (s: string) => s.replace(/[-_.]+/g, " ").trim().replace(/\s+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+/** A guide name for a repository: "acme/docs" → "Acme Docs", "acme/widget-docs" → "Widget Docs". */
+function nameFromRepo(owner: string, name: string): string {
+  const base = name.toLowerCase().replace(/\.git$/, "");
+  if (GENERIC_REPOS.has(base)) return `${titleCase(owner)} Docs`.slice(0, 80);
+  const t = titleCase(base);
+  return (/\b(docs?|documentation|guides?|help|handbook)\b/i.test(t) ? t : `${t} Docs`).slice(0, 80);
+}
 
 const TEMPLATES: Array<{ id: TemplateId; title: string; body: string }> = [
   { id: "product", title: "Product guide", body: "Get started, how-tos, FAQ and release notes." },
@@ -91,6 +104,8 @@ export default function NewSite() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const slugEdited = useRef(false);
+  const nameEdited = useRef(false);
+  const [gh, setGh] = useState<RepoPickerState>({ choice: null, repo: null, inspect: null, busy: false });
   const [slugState, setSlugState] = useState<SlugState>({ state: "idle" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -112,9 +127,19 @@ export default function NewSite() {
   useEffect(() => {
     if (startApplied.current || !start) return;
     startApplied.current = true;
-    if (start === "blank" || start === "template" || start === "gitbook") setSource(start);
+    if (start === "blank" || start === "template" || start === "gitbook" || start === "github") setSource(start);
     else if (start === "openapi") { setSource("template"); setTemplate("api"); }
   }, [start]);
+
+  // Suggest a name and address from the repository ("acme/docs" → "Acme Docs", acme-docs), until
+  // the person types their own.
+  const ghRepo = gh.repo ? `${gh.repo.owner}/${gh.repo.name}` : "";
+  useEffect(() => {
+    if (source !== "github" || !gh.repo || nameEdited.current) return;
+    const n = nameFromRepo(gh.repo.owner, gh.repo.name);
+    setName(n);
+    if (!slugEdited.current) setSlug(slugFrom(n.replace(/\s+Docs$/, "")));
+  }, [source, ghRepo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Suggest a name and address from the GitBook address (docs.acme.com → "acme").
   useEffect(() => {
@@ -150,7 +175,8 @@ export default function NewSite() {
   const listHref = studioHome(wanted);
   const canSubmit =
     !busy && !!chosen && !notAdmin && !full && name.trim().length > 0 && slugState.state !== "invalid" && slugState.state !== "taken" && !!slug &&
-    (source !== "gitbook" || validUrl(url)) && source !== "github";
+    (source !== "gitbook" || validUrl(url)) && (source !== "github" || !!gh.choice);
+  const importing = source === "gitbook" || source === "github";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -163,7 +189,17 @@ export default function NewSite() {
         workspace_id: scope === PERSONAL ? null : scope,
         name: name.trim(),
         slug,
-        source: source === "gitbook" ? { kind: "gitbook", url: url.trim() } : source === "template" ? { kind: "template", template } : { kind: source },
+        source: source === "gitbook" ? { kind: "gitbook", url: url.trim() }
+          : source === "template" ? { kind: "template", template }
+            : source === "github" && gh.choice ? {
+              kind: "github",
+              repo: { owner: gh.choice.owner, name: gh.choice.name, branch: gh.choice.branch, path: gh.choice.path },
+              installation_id: gh.choice.installation_id,
+              format: gh.choice.format,
+              mode: gh.choice.mode,
+              sync: gh.choice.sync,
+            }
+              : { kind: source },
       });
       const job = site.job?.id;
       const base = siteBase(site.id);
@@ -255,7 +291,7 @@ export default function NewSite() {
                 />
               </Field>
               <p className="text-[13px] text-text-muted">
-                Private GitBook spaces: export with Git Sync and choose <strong>Connect a GitHub repo</strong> instead.{" "}
+                Private GitBook spaces: export with Git Sync and choose <strong>Import from GitHub</strong> instead.{" "}
                 <ReadMore topic="studioImport" />
               </p>
             </section>
@@ -273,18 +309,18 @@ export default function NewSite() {
           )}
 
           {source === "github" && (
-            <section aria-labelledby={`${uid}-repo`} className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-5">
-              <div className="flex items-center gap-2">
-                <h2 id={`${uid}-repo`} className="text-[16px] font-semibold text-text">GitHub repository</h2>
-                <Badge tone="info" size="sm">Coming soon</Badge>
+            <section aria-labelledby={`${uid}-repo`} className="flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-surface p-4 sm:p-5">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <h2 id={`${uid}-repo`} className="text-[16px] font-semibold text-text">Your GitHub repository</h2>
+                <p className="text-[13px] text-text-muted">
+                  We copy the pages, images, navigation and old links. Your repository isn&apos;t changed. <ReadMore topic="studioGithubImport" />
+                </p>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <Button variant="secondary" iconLeft="github" disabled>Connect GitHub</Button>
-                <span className="min-w-0 flex-[1_1_280px] text-[13px] text-text-muted">
-                  Pick a repo and folder. Every push to the main branch publishes; pull requests get a preview link. Edits in the browser come back as commits.
-                </span>
-              </div>
-              <p className="text-[13px] text-text-muted">Until then, start blank or import from GitBook; you can connect the repo to this guide later in Settings. <ReadMore topic="studioGithub" /></p>
+              {scope ? (
+                <RepoPicker key={scope} workspace={scope} returnTo={studioNew(scope, "github")} onChange={setGh} disabled={busy} />
+              ) : (
+                <p className="flex items-center gap-2 text-body text-text-muted"><Spinner size={14} /> Loading…</p>
+              )}
             </section>
           )}
 
@@ -298,6 +334,7 @@ export default function NewSite() {
                   maxLength={80}
                   placeholder="Acme Help Center"
                   onChange={(e) => {
+                    nameEdited.current = e.target.value.trim().length > 0;
                     setName(e.target.value);
                     if (!slugEdited.current) setSlug(slugFrom(e.target.value));
                   }}
@@ -330,10 +367,10 @@ export default function NewSite() {
           {error && <Alert tone="danger" title="We couldn't create the guide">{error}</Alert>}
 
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-            <p className="min-w-0 flex-[1_1_300px] text-[13px] text-text-muted">Nothing is public until you publish. {source === "gitbook" ? "You can follow the import as it runs." : "Your guide opens in the editor next."} <ReadMore topic="studioCreate" /></p>
+            <p className="min-w-0 flex-[1_1_300px] text-[13px] text-text-muted">Nothing is public until you publish. {source === "github" && !gh.choice ? "Choose a repository and a folder with pages to import. " : ""}{importing ?"You can follow the import as it runs." : "Your guide opens in the editor next."} <ReadMore topic="studioCreate" /></p>
             <Button variant="ghost" href={listHref}>Cancel</Button>
             <Button variant="primary" type="submit" iconRight="arrowRight" loading={busy} disabled={!canSubmit && !busy}>
-              {source === "gitbook" ? "Import" : "Create guide"}
+              {importing ? "Import" : "Create guide"}
             </Button>
           </div>
         </form>

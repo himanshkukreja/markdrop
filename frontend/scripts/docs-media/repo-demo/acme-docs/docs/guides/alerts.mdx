@@ -1,0 +1,24 @@
+---
+title: Alerts
+description: Get a message when a number crosses a line.
+icon: bell
+---
+
+An alert watches one metric and tells you when it goes above or below a value you choose.
+
+1. Open a dashboard and choose a metric.
+2. Choose **Alert me**, then the condition, like *daily signups below 50*.
+3. Pick where the message goes: email, Slack or a webhook.
+
+```json title="Webhook body"
+{
+  "alert": "Daily signups",
+  "value": 42,
+  "threshold": 50,
+  "dashboard": "https://app.acme.com/d/growth"
+}
+```
+
+<Info>
+Alerts check every five minutes. A metric that crosses and recovers within that window doesn't alert.
+</Info>

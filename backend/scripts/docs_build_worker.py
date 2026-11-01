@@ -58,7 +58,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 ROOT = Path(__file__).resolve().parents[2]
 
 from app.config import get_settings  # noqa: E402
-from app.services import docs_build, docs_dispatch, docs_import_job, docs_jobs  # noqa: E402
+from app.services import docs_build, docs_dispatch, docs_github_sync, docs_import_job, docs_jobs  # noqa: E402
 from app.services.docs_jobs import JOBS, get_jobs_settings, now  # noqa: E402
 
 
@@ -83,7 +83,8 @@ class Config:
         self.nice = env.get("MARKDROP_DOCS_NICE", "1") == "1"
         self.convert_gifs = env.get("MARKDROP_DOCS_LOCAL_CONVERT_GIFS", "0") == "1"
         self.passthrough = {k: env[k] for k in ("MARKDROP_DOCS_STORE_DIR", "MARKDROP_DOCS_IMPORT_CACHE_DIR",
-                                                  "MARKDROP_DOCS_ENGINE_ASSETS_DIR", "MARKDROP_DOCS_ASSET_CACHE") if env.get(k)}
+                                                  "MARKDROP_DOCS_ENGINE_ASSETS_DIR", "MARKDROP_DOCS_ASSET_CACHE",
+                                                  "MARKDROP_DOCS_GITHUB_CODELOAD") if env.get(k)}
 
 
 def mem_available_mb() -> int | None:
@@ -345,7 +346,12 @@ class Worker:
                     stats=result.get("stats"), timings=result.get("timings"))
                 await docs_dispatch.kick(db, site_id=job["site_id"])
             elif job["kind"] == "import":
-                spec = docs_import_job.import_spec(job, keep_gifs=not self.cfg.convert_gifs)
+                try:
+                    spec = await docs_import_job.spec_for(db, job, keep_gifs=not self.cfg.convert_gifs)
+                except LookupError as e:
+                    await docs_jobs.fail(db, job["_id"], self.id, str(e))
+                    await docs_github_sync.job_failed(db, job, str(e))
+                    return
                 result = await self.run_runner(run, spec, heavy=False)
                 if run.abandon:
                     return
@@ -356,7 +362,9 @@ class Worker:
                         counts=(out.get("report") or {}).get("counts"), timings={**(result.get("import", {}).get("timings") or {}),
                                                                                   **(result.get("timings") or {})})
                 else:
-                    await docs_jobs.fail(db, job["_id"], self.id, str(result.get("error") or "the import failed"))
+                    err = str(result.get("error") or "the import failed")
+                    await docs_jobs.fail(db, job["_id"], self.id, err)
+                    await docs_github_sync.job_failed(db, job, err)
         except Exception as e:  # never leave a claimed job hanging
             log("job_error", level="error", job=job["_id"], error=f"{type(e).__name__}: {e}"[:500])
             if job["kind"] == "build":

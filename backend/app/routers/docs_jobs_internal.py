@@ -27,7 +27,7 @@ from fastapi.responses import JSONResponse
 
 from app.database import get_database
 from app.limiter import limiter
-from app.services import docs_build, docs_dispatch, docs_import_job, docs_jobs
+from app.services import docs_build, docs_dispatch, docs_github_sync, docs_import_job, docs_jobs
 
 log = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ async def get_job(request: Request, job_id: str, runner: str = ""):
             build = await docs_build.start_build(db, job)
             spec = await docs_build.build_spec(db, job, build)
         elif job["kind"] == "import":
-            spec = docs_import_job.import_spec(job)
+            spec = await docs_import_job.spec_for(db, job)
         else:
             await docs_jobs.release(db, job["_id"], runner)
             return JSONResponse({"detail": f"{job['kind']} jobs run on the server"}, status_code=409)
@@ -105,6 +105,7 @@ async def get_job(request: Request, job_id: str, runner: str = ""):
             await docs_build.fail_build_job(db, job, runner, str(e))
         else:
             await docs_jobs.fail(db, job["_id"], runner, str(e))
+            await docs_github_sync.job_failed(db, job, str(e))
         return JSONResponse({"detail": str(e)}, status_code=410)
     log.info("docs job %s (%s) claimed by %s", job_id, job["kind"], runner)
     return spec
@@ -153,6 +154,7 @@ async def post_result(request: Request, job_id: str):
     else:
         err = str(body.get("error") or ("the import reported no data" if body.get("ok") else "the job failed"))
         await docs_jobs.fail(db, job["_id"], runner, err)
+        await docs_github_sync.job_failed(db, job, err)
         out = {"ok": False, "error": err}
     await _minutes(db, job, body)
     await docs_dispatch.kick(db, site_id=job["site_id"])
@@ -171,7 +173,9 @@ async def post_import_result(request: Request, job_id: str):
         raise HTTPException(409, "not an import job")
     data = body.get("import")
     if not body.get("ok") or not isinstance(data, dict):
-        await docs_jobs.fail(db, job["_id"], runner, str(body.get("error") or "the import reported no data"))
+        err = str(body.get("error") or "the import reported no data")
+        await docs_jobs.fail(db, job["_id"], runner, err)
+        await docs_github_sync.job_failed(db, job, err)
         return {"ok": True, "result": {"ok": False}}
     out = await docs_import_job.apply_import(db, job, runner, data)
     await _minutes(db, job, body)

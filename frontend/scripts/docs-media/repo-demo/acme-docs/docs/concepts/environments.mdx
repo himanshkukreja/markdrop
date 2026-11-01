@@ -1,0 +1,22 @@
+---
+title: Environments
+description: Keep test data away from the dashboards your team reads.
+icon: layers
+---
+
+Every project starts with a **Production** environment. Add a **Sandbox** to try changes without touching what people read.
+
+<Tabs>
+  <Tab title="In the app">
+    Open **Project settings › Environments** and choose **Add environment**.
+  </Tab>
+  <Tab title="With the CLI">
+    ```bash
+    acme env create sandbox --project analytics
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+Alerts are on in every environment. Turn them off in a sandbox so nobody gets a test alert.
+</Warning>
