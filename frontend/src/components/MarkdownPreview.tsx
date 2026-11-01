@@ -62,8 +62,54 @@ interface ReadingSettings {
   encrypted: boolean;
   sectionBaseUrl?: string;
   onCodeCopy?: (code: string, block: HTMLElement | null) => void;
+  /** Images from other sites wait for a click (an encrypted document, until the reader allows them). */
+  blockRemoteImages?: boolean;
+  onAllowRemoteImages?: () => void;
 }
 const ReadingContext = createContext<ReadingSettings>({ anchors: false, encrypted: false });
+
+const API_HOST = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_API_URL || "https://api.markdrop.in").host;
+  } catch {
+    return "api.markdrop.in";
+  }
+})();
+
+/**
+ * An image address on someone else's server. Our own hosts (this origin, markdrop.in and its
+ * subdomains, the API) and inline data are not: loading those tells no third party anything.
+ */
+export function isRemoteImage(src: unknown): boolean {
+  if (typeof src !== "string" || !src.trim()) return false;
+  const v = src.trim();
+  if (/^(data|blob):/i.test(v)) return false;
+  if (!/^([a-z][a-z0-9+.-]*:)?\/\//i.test(v)) return false; // relative: this origin
+  try {
+    const u = new URL(v, typeof window === "undefined" ? "https://markdrop.in" : window.location.href);
+    const here = typeof window === "undefined" ? "" : window.location.host;
+    if (u.host === here || u.host === API_HOST) return false;
+    return !/(^|\.)markdrop\.in$/i.test(u.hostname);
+  } catch {
+    return true;
+  }
+}
+
+/** Inline images (`![alt](https://…)`) whose address is remote. Reference-style images still get their own button. */
+function hasRemoteImages(content: string): boolean {
+  const re = /!\[[^\]]*\]\(\s*<?([^)\s>]+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content))) if (isRemoteImage(m[1])) return true;
+  return false;
+}
+
+function hostOf(src: string): string {
+  try {
+    return new URL(src, "https://markdrop.in").hostname;
+  } catch {
+    return "another site";
+  }
+}
 
 /* ── Markdown components (module-level so a parent re-render never remounts them) ── */
 
@@ -167,6 +213,25 @@ function MdTable({ node: _node, children, ...props }: ComponentProps<"table"> & 
 }
 
 function MdImg({ node: _node, alt, ...props }: ComponentProps<"img"> & ExtraProps) {
+  const { blockRemoteImages, onAllowRemoteImages } = useContext(ReadingContext);
+  if (blockRemoteImages && isRemoteImage(props.src)) {
+    // Not loaded: the other site would learn the reader's IP address and that this was opened.
+    return (
+      <span className="not-prose my-2 inline-flex max-w-full flex-wrap items-center gap-2 rounded-lg border border-dashed border-border-strong bg-surface-inset px-3 py-2 align-middle text-caption text-text-secondary">
+        <Icon name="image" aria-hidden />
+        <span className="min-w-0 break-words">
+          {alt ? <><span className="text-text">{alt}</span> · </> : null}
+          Image from {hostOf(String(props.src))}, not loaded
+        </span>
+        {onAllowRemoteImages && (
+          <button type="button" onClick={onAllowRemoteImages}
+            className="md-focus rounded-md px-1.5 py-0.5 font-semibold text-accent-text underline underline-offset-4">
+            Load images
+          </button>
+        )}
+      </span>
+    );
+  }
   // #gh-dark-mode-only / #gh-light-mode-only suffixes are handled in CSS by [data-theme] (D15).
   // eslint-disable-next-line @next/next/no-img-element
   return <img alt={alt ?? ""} loading="lazy" decoding="async" {...props} />;
@@ -217,6 +282,12 @@ export interface MarkdownPreviewProps {
    * owner's analytics by a hash of the code, lib/engage.ts). Off unless given.
    */
   onCodeCopy?: (code: string, block: HTMLElement | null) => void;
+  /**
+   * "ask": images from other sites stay unloaded until the reader clicks "Load images from other
+   * sites" (`onAllowRemoteImages`). The viewer asks for encrypted documents. Default "allow".
+   */
+  remoteImages?: "allow" | "ask";
+  onAllowRemoteImages?: () => void;
   className?: string;
 }
 
@@ -228,8 +299,11 @@ export default function MarkdownPreview({
   sectionBaseUrl,
   onHeadings,
   onCodeCopy,
+  remoteImages = "allow",
+  onAllowRemoteImages,
   className,
 }: MarkdownPreviewProps) {
+  const blockRemoteImages = remoteImages === "ask";
   const collected = useRef<Heading[]>([]);
   const sent = useRef<string | null>(null);
   const onHeadingsRef = useRef(onHeadings);
@@ -262,9 +336,10 @@ export default function MarkdownPreview({
   );
 
   const settings = useMemo(
-    () => ({ anchors, encrypted, sectionBaseUrl, onCodeCopy }),
-    [anchors, encrypted, sectionBaseUrl, onCodeCopy],
+    () => ({ anchors, encrypted, sectionBaseUrl, onCodeCopy, blockRemoteImages, onAllowRemoteImages }),
+    [anchors, encrypted, sectionBaseUrl, onCodeCopy, blockRemoteImages, onAllowRemoteImages],
   );
+  const remoteNotice = useMemo(() => blockRemoteImages && hasRemoteImages(content), [blockRemoteImages, content]);
 
   useEffect(() => {
     const key = JSON.stringify(collected.current);
@@ -283,6 +358,20 @@ export default function MarkdownPreview({
 
   return (
     <ReadingContext.Provider value={settings}>
+      {remoteNotice && (
+        <div role="note" className="no-print mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border bg-surface px-4 py-3 text-caption text-text-secondary">
+          <Icon name="image" aria-hidden className="text-text-muted" />
+          <span className="min-w-0 flex-1 basis-60">
+            This document has images from other sites. Loading them tells those sites your IP address and that you opened it.
+          </span>
+          {onAllowRemoteImages && (
+            <button type="button" onClick={onAllowRemoteImages}
+              className="md-focus rounded-md border border-border-strong bg-surface-raised px-3 py-1.5 text-caption-strong text-text hover:bg-surface-inset">
+              Load images from other sites
+            </button>
+          )}
+        </div>
+      )}
       {/* ph-no-capture: rendered documents and previews are never recorded (lib/thirdPartyAnalytics). */}
       <Prose size={size} className={["ph-no-capture", className].filter(Boolean).join(" ")}>
         {tree}

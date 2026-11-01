@@ -12,7 +12,7 @@ import { flushSync } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryFlags } from "@/lib/useQueryFlags";
 import * as e2e from "@/lib/e2e";
-import { ApiError, updateDocument, updateDocumentSettings, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl, type DeniedInfo } from "@/lib/api";
+import { ApiError, createDocument, updateDocument, updateDocumentSettings, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl, type DeniedInfo } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
 import { HANDOFF_FRAGMENT, HANDOFF_NONE_FRAGMENT, silentSignInUrl } from "@/lib/hosts";
 import { isPrimaryHost } from "@/components/tenant/hosts";
@@ -243,6 +243,56 @@ export function useDocumentViewer({
       setCopyBusy(null);
     }
   }
+
+  // ── Save a copy of an encrypted document (client-side) ──────────────────────
+  const [showEncCopy, setShowEncCopy] = useState(false);
+  const [encCopyBusy, setEncCopyBusy] = useState<null | "encrypted" | "plain">(null);
+  const [encCopyError, setEncCopyError] = useState("");
+
+  /**
+   * The server can't copy an encrypted document (it can't read it), so this browser does: the
+   * decrypted text it already holds is sealed under a brand-new key — or published as plain text,
+   * by choice — and opened with its new link. Like publishing, this browser keeps the new key.
+   */
+  async function handleEncryptedCopy(plain: boolean) {
+    if (!readable) return;
+    setEncCopyBusy(plain ? "plain" : "encrypted");
+    setEncCopyError("");
+    try {
+      const title = displayTitle;
+      const content = displayContent;
+      let body = content;
+      let encoded = "";
+      if (!plain) {
+        const key = e2e.generateKey();
+        body = await e2e.seal(key, { title: title || null, content });
+        encoded = e2e.exportKey(key);
+      }
+      const doc = await createDocument(plain ? title || "" : "", body, { encrypted: !plain || undefined });
+      try { sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret); } catch { /* storage blocked */ }
+      track("doc_copied", { encrypted: !plain, from_encrypted: true });
+      if (encoded) e2e.rememberKey(doc.slug, encoded);
+      router.push(`/${doc.slug}?new=1${encoded ? `#k=${encoded}` : ""}`);
+    } catch (e) {
+      setEncCopyError(e instanceof e2e.TooLargeError || e instanceof Error ? e.message : "Couldn't make the copy. Try again.");
+      setEncCopyBusy(null);
+    }
+  }
+
+  // ── "How this is protected" ─────────────────────────────────────────────────
+  const [showProtection, setShowProtection] = useState(false);
+
+  // ── Remote images in an encrypted document ──────────────────────────────────
+  // An image from another site tells that site the reader's IP address and that the document was
+  // opened, so they wait for the reader's click. Remembered per document for this tab only.
+  const [remoteImagesOk, setRemoteImagesOk] = useState(false);
+  useEffect(() => {
+    try { setRemoteImagesOk(sessionStorage.getItem(`md_remote_images:${slug}`) === "1"); } catch { /* storage off */ }
+  }, [slug]);
+  const allowRemoteImages = useCallback(() => {
+    setRemoteImagesOk(true);
+    try { sessionStorage.setItem(`md_remote_images:${slug}`, "1"); } catch { /* storage off */ }
+  }, [slug]);
 
   async function handleGoogleReconnect() {
     try {
@@ -1332,6 +1382,15 @@ export function useDocumentViewer({
     access,
     encrypted,
     applyPastedLink,
+    allowRemoteImages,
+    encCopyBusy,
+    encCopyError,
+    handleEncryptedCopy,
+    remoteImagesOk,
+    setShowEncCopy,
+    setShowProtection,
+    showEncCopy,
+    showProtection,
     publishedPassword,
     passwordChange,
     setPasswordChange,

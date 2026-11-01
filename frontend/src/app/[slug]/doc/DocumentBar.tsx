@@ -20,6 +20,8 @@ export interface DocumentBarProps {
   gated?: boolean;
   gateBadge?: "private" | "password" | null;
   encrypted: boolean;
+  /** The E2E badge opens "How this is protected". */
+  onProtection?: (() => void) | null;
   /** Read-mode actions (absent while gated). */
   onCopyLink?: () => void;
   onEdit?: (() => void) | null;
@@ -78,7 +80,17 @@ export function DocumentBar(p: DocumentBarProps) {
                   className="min-w-0"
                 />
               </span>
-              {p.encrypted && <span className="hidden md:flex xl:hidden"><Badge tone="info" icon="key" size="sm">E2E</Badge></span>}
+              {p.encrypted && (
+                <span className="hidden md:flex xl:hidden">
+                  {p.onProtection ? (
+                    <button type="button" onClick={p.onProtection} className="md-focus rounded-full" aria-label="End-to-end encrypted: how this is protected">
+                      <Badge tone="info" icon="key" size="sm">E2E</Badge>
+                    </button>
+                  ) : (
+                    <Badge tone="info" icon="key" size="sm">E2E</Badge>
+                  )}
+                </span>
+              )}
             </>
           )}
         </div>

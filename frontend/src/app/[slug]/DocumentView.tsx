@@ -39,6 +39,8 @@ const EditorScreen = dynamic(() => import("./doc/EditorScreen").then((m) => m.Ed
 const SecretUnlock = dynamic(() => import("./doc/EditorScreen").then((m) => m.SecretUnlock), { loading: () => null });
 const ReportDialog = dynamic(() => import("./doc/ReportDialog").then((m) => m.ReportDialog), { loading: () => null });
 const SaveCopyDialog = dynamic(() => import("./doc/SaveCopyDialog").then((m) => m.SaveCopyDialog), { loading: () => null });
+const EncryptedCopyDialog = dynamic(() => import("./doc/SaveCopyDialog").then((m) => m.EncryptedCopyDialog), { loading: () => null });
+const ProtectionDialog = dynamic(() => import("./doc/ProtectionDialog").then((m) => m.ProtectionDialog), { loading: () => null });
 
 /**
  * Does the document already open with its own title?
@@ -250,9 +252,11 @@ export default function DocumentView(props: DocumentViewProps) {
   const menu: MenuEntry[] = gated ? [] : [
     ...(readable && !empty ? [{ label: showRaw ? "View rendered" : "View raw", icon: "code", onClick: () => setShowRaw(!showRaw) }] : []),
     ...(readable ? [{ label: "Export PDF", icon: "printer", onClick: exportPdf }] : []),
-    // Hidden for encrypted documents: the copy happens server-side, which would
-    // duplicate ciphertext under a slug whose link carries no key.
+    // An encrypted document is copied by this browser (decrypted text, new key); the server
+    // can't copy what it can't read.
     ...(!isOwner && !encrypted ? [{ label: "Save a copy", icon: "copy", onClick: requestCopy }] : []),
+    ...(encrypted && readable ? [{ label: "Save a copy", icon: "copy", onClick: () => v.setShowEncCopy(true) }] : []),
+    ...(encrypted && readable ? [{ label: "How this is protected", icon: "key", onClick: () => v.setShowProtection(true) }] : []),
     ...(googleOn
       ? v.googleDocUrl
         ? [
@@ -305,6 +309,10 @@ export default function DocumentView(props: DocumentViewProps) {
       views={displayViews}
       content={displayContent}
       protection={protection}
+      onProtection={encrypted && readable ? () => { setDetailsOpen(false); v.setShowProtection(true); } : undefined}
+      deviceKeySaved={deviceKeySaved}
+      onRemember={encrypted && readable && keyFragment ? v.rememberOnDevice : undefined}
+      onForget={encrypted && readable ? v.forgetOnDevice : undefined}
       vscodeSynced={vscodeSynced}
       live={v.live}
       access={v.access}
@@ -344,6 +352,7 @@ export default function DocumentView(props: DocumentViewProps) {
             gated={gated}
             gateBadge={protection}
             encrypted={encrypted}
+            onProtection={encrypted && readable ? () => v.setShowProtection(true) : null}
             onCopyLink={copyLinkEvent}
             onEdit={secretUnlocked && !editBlocked ? handleEditClick : null}
             onShare={v.canShare && !pwdLocked ? () => setShowShare(true) : null}
@@ -534,6 +543,8 @@ export default function DocumentView(props: DocumentViewProps) {
                       encrypted={encrypted}
                       onHeadings={setHeadings}
                       onCodeCopy={encrypted ? undefined : v.onCodeCopy}
+                      remoteImages={encrypted && !v.remoteImagesOk ? "ask" : "allow"}
+                      onAllowRemoteImages={v.allowRemoteImages}
                     />
                   )}
                   {readable && !empty && <Colophon />}
@@ -596,6 +607,28 @@ export default function DocumentView(props: DocumentViewProps) {
         gConnected={gConnected}
         onCopy={v.handleCopy}
       />
+
+      {encrypted && (
+        <>
+          <EncryptedCopyDialog
+            open={v.showEncCopy}
+            onClose={() => { if (!v.encCopyBusy) v.setShowEncCopy(false); }}
+            busy={v.encCopyBusy}
+            error={v.encCopyError}
+            onCopy={v.handleEncryptedCopy}
+            signedIn={!!user}
+          />
+          <ProtectionDialog
+            open={v.showProtection}
+            onClose={() => v.setShowProtection(false)}
+            sealed={v.sealed}
+            keySource={keySource}
+            deviceKeySaved={deviceKeySaved}
+            onRemember={keyFragment ? v.rememberOnDevice : undefined}
+            onForget={v.forgetOnDevice}
+          />
+        </>
+      )}
 
       {showShare && (
         <ShareDialog

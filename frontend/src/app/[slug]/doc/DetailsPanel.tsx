@@ -36,6 +36,11 @@ export interface DetailsPanelProps {
   shareUrl: string;
   encrypted: boolean;
   readable: boolean;
+  /** Encrypted and open: "How this is protected", and keeping the key on this device. */
+  onProtection?: () => void;
+  deviceKeySaved?: boolean;
+  onRemember?: () => void;
+  onForget?: () => void;
   keyFragment: string | null;
   createdAt: string;
   expiresAt: string | null;
@@ -131,10 +136,18 @@ export function DetailsPanel(p: DetailsPanelProps) {
             End-to-end encrypted
           </h2>
           <p className="text-caption text-text-secondary">
-            Markdrop stores ciphertext it has no key for. The key is the part after the #, and
-            browsers never send it to a server. <ReadMore topic="encryption" />
+            Encrypted in your browser. Our servers store only the encrypted text and never receive
+            the key — the part of the link after #. <ReadMore topic="encryption" />
           </p>
           <KeyAnatomy url={p.url} fragment={p.keyFragment ? `#k=${p.keyFragment}` : undefined} layout="compact" />
+          <div className="flex flex-wrap gap-2">
+            {p.onProtection && (
+              <Button variant="secondary" size="sm" iconLeft="key" onClick={p.onProtection}>How this is protected</Button>
+            )}
+            {p.deviceKeySaved
+              ? p.onForget && <Button variant="ghost" size="sm" onClick={p.onForget}>Forget on this device</Button>
+              : p.onRemember && <Button variant="ghost" size="sm" onClick={p.onRemember}>Remember on this device</Button>}
+          </div>
         </section>
       )}
 
