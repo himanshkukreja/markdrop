@@ -15,6 +15,39 @@ from app.utils.slug import generate_slug, is_reserved_slug, is_valid_slug, slugi
 
 settings = get_settings()
 
+# End-to-end envelopes (frontend/src/lib/e2e.ts): ``mdx1.<iv>.<ct>`` and
+# ``mdx2.<header>.<ct>``, base64url parts. The server can't open them, but it
+# can refuse anything that is obviously not one — and refuse plaintext that
+# looks like one, which is what a client that lost the ``encrypted`` flag would
+# send (and every plaintext path would then show as gibberish).
+_ENVELOPE_RE = re.compile(r"^mdx[12]\.[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+$")
+_LOOKS_SEALED_RE = re.compile(r"^mdx[12]\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]")
+NOT_AN_ENVELOPE = ("An encrypted document's content must be the envelope your browser made "
+                   "(mdx1./mdx2.), with no title. Nothing was saved.")
+LOOKS_SEALED = ("This looks like an encrypted document's envelope but was sent as plain text. "
+                "Publish it with encryption on, or remove the mdx prefix. Nothing was saved.")
+STALE_REV = ("This document was changed somewhere else since you opened it. "
+             "Nothing was saved. Load the latest version, then make your change again.")
+
+
+def check_envelope_shape(*, encrypted: bool, title: str | None, content: str) -> None:
+    """422 unless the content is shaped like what it claims to be. Shape only:
+    the server has no key and never checks more than this."""
+    if encrypted:
+        if title or not _ENVELOPE_RE.match(content):
+            raise HTTPException(status_code=422, detail=NOT_AN_ENVELOPE)
+    elif _LOOKS_SEALED_RE.match(content):
+        raise HTTPException(status_code=422, detail=LOOKS_SEALED)
+
+
+class StaleRevision(HTTPException):
+    """409: the document moved on since the caller read it (``base_rev``)."""
+
+    def __init__(self, current: int):
+        super().__init__(status_code=409, detail=STALE_REV, headers={"X-Markdrop-Rev": str(current)})
+        self.current = current
+
+
 _EXPIRY_DELTA: dict[str, timedelta | None] = {
     "never": None,
     "1h": timedelta(hours=1),
@@ -152,8 +185,11 @@ async def create_document(
     # take one from the text. Never for an encrypted document — its title must
     # stay null, the server can't read the text — nor for an artifact, whose
     # `content` is only its filename.
+    is_markdown = (extra or {}).get("kind", "markdown") == "markdown"
+    if is_markdown:
+        check_envelope_shape(encrypted=data.encrypted, title=data.title, content=data.content)
     title = data.title or None
-    if title is None and not data.encrypted and (extra or {}).get("kind", "markdown") == "markdown":
+    if title is None and not data.encrypted and is_markdown:
         title = title_from_markdown(data.content)
 
     read_pwd_hash = None
@@ -389,6 +425,20 @@ async def update_document(
     if settings_change:
         await access.require(actor, raw, "edit_settings", ctx)
 
+    if raw.get("kind") != "artifact":
+        check_envelope_shape(encrypted=bool(raw.get("encrypted")), title=data.title, content=data.content)
+    # M1: an editor that read rev N writes only over rev N. Without this, a tab
+    # left open re-saved its stale text — or, for an encrypted document, its old
+    # key — over a newer version (an undone key rotation). Checked here for a
+    # clear answer and again in the write itself (cas) for the race.
+    cas: dict = {"slug": slug}
+    if data.base_rev is not None:
+        current = raw.get("rev", 1)
+        if data.base_rev != current:
+            raise StaleRevision(current)
+        if "rev" in raw:
+            cas["rev"] = current
+
     now = datetime.now(timezone.utc)
     sets: dict = {"title": data.title or None, "updated_at": now}
     # Artifacts keep their bytes in R2 — `content` is only a search stand-in, so
@@ -401,10 +451,17 @@ async def update_document(
         expires_in=data.expires_in, custom_expires_at=data.custom_expires_at, now=now)
     sets.update(extra)
 
-    after = await transitions.change(
-        db, raw, sets=sets, inc={"rev": 1}, narrows=narrows or None,
-        cas={"slug": slug},
-    )
+    try:
+        after = await transitions.change(
+            db, raw, sets=sets, inc={"rev": 1}, narrows=narrows or None,
+            cas=cas,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 409 and "rev" in cas:
+            fresh = await db["documents"].find_one({"_id": raw["_id"]}, {"rev": 1})
+            if fresh is not None and fresh.get("rev", 1) != cas["rev"]:
+                raise StaleRevision(fresh.get("rev", 1))
+        raise
     ctx.forget(raw)
     return after
 
@@ -454,8 +511,9 @@ async def copy_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx) -> tupl
     if raw.get("encrypted"):
         raise HTTPException(
             status_code=422,
-            detail="Encrypted documents can't be copied on the server. "
-                   "Open the document and use Save a copy there.",
+            detail="Encrypted documents can't be copied on the server, because it can't read "
+                   "them. Open the document with its full link and choose Save a copy from its "
+                   "menu: your browser decrypts it and encrypts the copy with a new key.",
         )
     plain_public = publicity.is_public(
         raw, require_auth=await publicity.workspace_requires_auth(db, raw.get("workspace_id")))

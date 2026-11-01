@@ -60,6 +60,7 @@ def _to_response(doc, viewer_id: str | None = None, *, public: bool | None = Non
         updated_at=doc.updated_at,
         expires_at=doc.expires_at,
         views=doc.views,
+        rev=doc.rev,
         is_password_protected=bool(doc.read_password_hash),
         is_owned=bool(doc.owner_id),
         is_owner=is_owner,

@@ -75,6 +75,10 @@ class DocumentUpdate(BaseModel):
     # Optional: update expiry. None = don't change. "never" = clear expiry.
     expires_in: Literal["never", "1h", "1d", "7d", "30d", "custom"] | None = None
     custom_expires_at: datetime | None = None
+    # The ``rev`` the editor read. When set, the save is refused (409) unless
+    # the document is still at that rev — no silent overwrite of a newer
+    # version. Omitted: last write wins, as before.
+    base_rev: int | None = Field(None, ge=1)
 
 
 class DocumentResponse(BaseModel):
@@ -90,6 +94,8 @@ class DocumentResponse(BaseModel):
     updated_at: datetime
     expires_at: datetime | None = None
     views: int = 0
+    # Bumped by every write; an editor sends it back as ``base_rev``.
+    rev: int | None = None
     is_password_protected: bool = False
     is_owned: bool = False   # document has been claimed by some account
     is_owner: bool = False   # the requesting user owns this document

@@ -219,6 +219,7 @@ async def sync_push(
             return _doc_response(doc, content=data.content)
     else:
         _require_markdown_size(data.content)
+        doc_service.check_envelope_shape(encrypted=False, title=data.title, content=data.content)
         status, doc = await doc_service.sync_push(
             db, doc_id, user.id, data.content, data.title, data.base_rev
         )

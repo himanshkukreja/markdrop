@@ -199,7 +199,7 @@ class TitleFromContent(AccessWorld):
         self.assertEqual(r.json()["title"], "From text")
 
     async def test_encrypted_documents_keep_a_null_title(self):
-        r = await self.http.post("/api/v1/documents", json={"content": "# looks like a heading", "encrypted": True})
+        r = await self.http.post("/api/v1/documents", json={"content": "mdx1.ZGVmZ2hpamtsbW5v.IyBsb29rcyBsaWtlIGEgaGVhZGluZw", "encrypted": True})
         self.assertEqual(r.status_code, 201, r.text)
         self.assertIsNone(r.json()["title"])
         self.assertIsNone((await self.doc(r.json()["slug"]))["title"])
