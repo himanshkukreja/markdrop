@@ -307,6 +307,34 @@ export function DocsEditor({
       scrollToY(ta.getBoundingClientRect().top + textareaOffsetTop(ta, at[0]), covered());
       return true;
     },
+    suggest({ heading, level, markdown, title, note, onAccept }) {
+      const v = visualRef.current;
+      if (modeRef.current !== "visual" || !v || v.editor.isDestroyed || !v.assist) return false;
+      const ed = v.editor;
+      const { doc } = ed.state;
+      // Top-level blocks: a section runs from its heading to the next heading of its level or higher.
+      const blocks: { pos: number; level: number | null; text: string }[] = [];
+      doc.forEach((n, pos) => blocks.push({ pos, level: n.type.name === "heading" ? Number(n.attrs.level) : null, text: n.textContent.trim() }));
+      let from = 0;
+      let to = doc.content.size;
+      if (heading == null) {
+        const first = blocks.find((b) => b.level !== null);
+        if (first) to = first.pos;
+      } else {
+        const at = blocks.findIndex((b) => b.level !== null && (!level || b.level === level) && b.text === heading.trim());
+        if (at < 0) return false;
+        from = blocks[at].pos;
+        const lvl = blocks[at].level!;
+        const next = blocks.slice(at + 1).find((b) => b.level !== null && b.level <= lvl);
+        if (next) to = next.pos;
+      }
+      if (to <= from && heading != null) return false;
+      v.assist.offer(ed, { from, to }, markdown, { title, note, onAccept });
+      try {
+        scrollToY(ed.view.coordsAtPos(Math.min(from + 1, doc.content.size)).top, covered());
+      } catch { /* not rendered */ }
+      return true;
+    },
     setImageAlt(src, alt) {
       const v = visualRef.current;
       const clean = alt.replace(/[\n\r\]]/g, " ").trim();

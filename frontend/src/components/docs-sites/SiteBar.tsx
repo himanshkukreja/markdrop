@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Anchor, Badge, Button, Icon, Spinner, cx } from "@/components/ui";
 import { guideEvents } from "@/lib/guidesEvents";
+import { getFixCount } from "@/lib/guideFixes";
 import { assetPreviewUrl, primaryAddress, type SiteSummary, type SiteTheme } from "@/lib/docsSites";
 import { plural } from "./format";
 import { opensDark } from "./guideTheme";
@@ -10,7 +11,7 @@ import { previewTokens } from "./presets";
 import { liveUrl, usePublishState } from "./PublishState";
 import { useSite } from "./SiteContext";
 
-export type SiteSection = "pages" | "changelog" | "design" | "publish" | "insights" | "settings";
+export type SiteSection = "pages" | "fixes" | "changelog" | "design" | "publish" | "insights" | "settings";
 
 /**
  * The site's letter tile on its accent, as the guide draws it (presets.ts previewTokens: the
@@ -51,6 +52,7 @@ export function SiteTile({ site, size = 22 }: {
 
 const TABS: Array<{ id: SiteSection; label: string; path: string }> = [
   { id: "pages", label: "Pages", path: "" },
+  { id: "fixes", label: "Fix list", path: "/fixes" },
   { id: "changelog", label: "Changelog", path: "/changelog" },
   { id: "design", label: "Design", path: "/design" },
   { id: "publish", label: "Publish", path: "/publish" },
@@ -62,6 +64,25 @@ const TABS: Array<{ id: SiteSection; label: string; path: string }> = [
 export const SITE_BAR_H = 52;
 /** Studio header (56) + site bar: the top of anything sticky under both. */
 export const STUDIO_CHROME_H = 56 + SITE_BAR_H;
+
+/** The Fix list's open count per guide, shared by every tab's site bar (re-read at most every 30 s). */
+const fixCounts = new Map<string, { n: number; at: number }>();
+
+function useFixCount(siteId: string, on: boolean): number {
+  const [n, setN] = useState(() => fixCounts.get(siteId)?.n ?? 0);
+  useEffect(() => {
+    if (!on) return;
+    const hit = fixCounts.get(siteId);
+    if (hit && Date.now() - hit.at < 30_000) { setN(hit.n); return; }
+    let live = true;
+    getFixCount(siteId).then((c) => {
+      fixCounts.set(siteId, { n: c.open, at: Date.now() });
+      if (live) setN(c.open);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [siteId, on]);
+  return n;
+}
 
 /** Insights was opened on this device (the Publish screen's "Check what readers look for"). */
 export const insightsSeenKey = (siteId: string) => `guides:insights-seen:${siteId}`;
@@ -150,6 +171,7 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
 }) {
   const { site, base, role } = useSite();
   const { count } = usePublishState();
+  const fixes = useFixCount(site.id, site.settings.insights?.enabled !== false && (site.status === "live" || !!site.last_published_at));
 
   useEffect(() => {
     if (section !== "insights") return;
@@ -168,7 +190,7 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
       <nav aria-label="Guide" className="order-last -mx-1 flex w-full gap-0.5 overflow-x-auto px-1 md:order-none md:w-auto md:shrink-0">
         {TABS.map((t) => {
           const on = t.id === section;
-          const badge = t.id === "publish" && !on && count > 0 ? count : 0;
+          const badge = t.id === "publish" && !on && count > 0 ? count : t.id === "fixes" && fixes > 0 ? fixes : 0;
           return (
             <Anchor
               key={t.id}
@@ -183,7 +205,7 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
               {badge > 0 && (
                 <span className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-accent px-[5px] text-[11px] font-bold leading-none text-on-accent">
                   {badge > 99 ? "99+" : badge}
-                  <span className="md-visually-hidden"> {badge === 1 ? "change" : "changes"} to publish</span>
+                  <span className="md-visually-hidden"> {t.id === "fixes" ? (badge === 1 ? "thing to fix" : "things to fix") : badge === 1 ? "change" : "changes"}{t.id === "fixes" ? "" : " to publish"}</span>
                 </span>
               )}
             </Anchor>

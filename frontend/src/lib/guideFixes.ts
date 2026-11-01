@@ -9,7 +9,8 @@ import { after, guideEvents } from "@/lib/guidesEvents";
 
 const enc = encodeURIComponent;
 
-export type FixType = "drop" | "search" | "ask" | "not_helpful" | "video" | "broken" | "stale" | "heavy";
+export type FixType = "drop" | "search" | "ask" | "not_helpful" | "video" | "pdf" | "broken" | "stale" | "heavy" | "agent_unanswered" | "agent_unfriendly";
+export type Confidence = "high" | "medium" | "low";
 export type FixStatus = "open" | "in_progress" | "fixed" | "dismissed";
 export type FixLevel = "high" | "medium" | "low";
 export type DismissReason = "not_a_problem" | "wont_fix" | "duplicate" | "other";
@@ -21,7 +22,7 @@ export interface Sample { text: string; n: number }
 /** What an item's evidence can carry (by type; the list has the headline numbers only). */
 export interface FixEvidence {
   // drop
-  measured?: number; left?: number; left_pct?: number; typical_pct?: number; curve?: DropPoint[] | number[]; seconds?: number | null;
+  measured?: number; left?: number; left_pct?: number; typical_pct?: number; curve?: DropPoint[] | number[] | PdfPoint[]; seconds?: number | null;
   // search / ask
   searches?: number; questions?: number; wordings?: number; samples?: Sample[];
   pages?: { path: string; title: string; n?: number; link?: boolean; hits?: number }[];
@@ -33,6 +34,26 @@ export interface FixEvidence {
   target?: string; hits?: number; suggested?: string | null;
   // stale / heavy
   updated_at?: string; age_days?: number; readers?: number; words?: number; media?: number;
+  // pdf (and an embedded video: embed = true)
+  embed?: string | boolean; name?: string; pages_total?: number; page?: number; readers_pdf?: number;
+  // agents
+  reason?: "hidden" | "media" | "no_headings"; agent_reads?: number; families?: { name: string; n: number }[];
+  via?: Record<string, number>; headings?: number;
+  /** The sample behind it, against the type's minimum. */
+  sample?: { have: number; need: number };
+}
+
+export interface PdfPoint { page: number; reached_pct: number; left_pct: number }
+
+export interface PendingItem { type: FixType; path: string | null; title: string | null; have: number; need: number }
+
+export interface AgentSummary {
+  total: number;
+  /** People in the same window (counted apart). */
+  readers: number;
+  families: { name: string; n: number }[];
+  via: Partial<Record<"page" | "markdown" | "llms" | "mcp", number>>;
+  pages: { path: string; title: string; n: number }[];
 }
 
 export interface FixDraft {
@@ -73,6 +94,7 @@ export interface FixItem {
   recency: number;
   impact: number;
   level: FixLevel;
+  confidence: Confidence;
   detected_at: string | null;
   last_seen_at: string | null;
   status_at: string | null;
@@ -100,6 +122,10 @@ export interface FixList {
   checked_at: string | null;
   readers: number | null;
   window_days: number;
+  /** Collecting toward a minimum: can't be judged yet ("needs more readers"). */
+  pending: PendingItem[];
+  /** AI agents' reads over the window, apart from readers (null before the first check). */
+  agents: AgentSummary | null;
   can_edit: boolean;
   enabled: boolean;
   live: boolean;

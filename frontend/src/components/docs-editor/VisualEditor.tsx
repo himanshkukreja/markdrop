@@ -168,7 +168,7 @@ export default function VisualEditor(props: VisualEditorProps) {
     onCreate: ({ editor: e }) => {
       editorRef.current = e;
       onReady?.(e);
-      onHandleRef.current?.({ editor: e, source });
+      onHandleRef.current?.({ editor: e, source, assist: assistStore });
     },
     onUpdate: () => {
       if (timer.current) clearTimeout(timer.current);
@@ -223,7 +223,7 @@ export default function VisualEditor(props: VisualEditorProps) {
         {editor && !readOnly && (
           <>
             <FormatToolbar editor={editor} stickyTop={stickyTop} assist={assistStore} />
-            {assist && <AssistPanel editor={editor} store={assistStore} assist={assist} container={wrap} />}
+            <AssistPanel editor={editor} store={assistStore} assist={assist} container={wrap} />
             <BlockHandle editor={editor} container={wrap} />
             <TableBar editor={editor} container={wrap} />
             <SlashMenu store={slash} listboxId={listboxId} stickyTop={stickyTop} />

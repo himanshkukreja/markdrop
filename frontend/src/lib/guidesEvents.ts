@@ -45,7 +45,7 @@
  *   guide_changelog_entry_created kind: new|improved|fixed (a changelog entry written)
  *   guide_changelog_imported      n (a page of release notes turned into n changelog entries)
  *   guide_fixes_checked           (the Fix list re-checked now)
- *   guide_fix_status              type: drop|search|ask|not_helpful|video|broken|stale|heavy, status: open|in_progress|fixed|dismissed
+ *   guide_fix_status              type: drop|search|ask|not_helpful|video|pdf|broken|stale|heavy|agent_unanswered|agent_unfriendly, status: open|in_progress|fixed|dismissed
  *   guide_fix_drafted             type (an AI-drafted fix)
  *   guide_fix_applied             type, how: editor|new_page (a drafted fix put in a page)
  *   guide_fix_demo_viewed         (the Fix list's sample, before a guide has readers)
@@ -56,7 +56,7 @@
 import { track } from "@/lib/track";
 import { ROLES, createdEvents, pick, sitePatchEvents, type Props, type SitePatchLike } from "@/lib/guidesEventsCore";
 
-const FIX_TYPES = new Set(["drop", "search", "ask", "not_helpful", "video", "broken", "stale", "heavy"]);
+const FIX_TYPES = new Set(["drop", "search", "ask", "not_helpful", "video", "pdf", "broken", "stale", "heavy", "agent_unanswered", "agent_unfriendly"]);
 const fixType = (t: string) => pick(t, FIX_TYPES) ?? "other";
 
 /** track() itself stays silent on a customer's published guide (data-docs-trackers="off"). */

@@ -4,6 +4,9 @@
  * Ask AI on a selection: the request, then the answer as a suggestion under the text. Nothing in
  * the page changes until Accept; Discard (or Esc) drops it. While a suggestion is open the passage
  * it would replace stays highlighted, and that range follows edits made meanwhile (annotations.ts).
+ *
+ * The host can also offer a suggestion it already has (`offer`: a drafted fix from the guide's Fix
+ * list, over the section it rewrites), shown and accepted the same way, with no Try again.
  */
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
@@ -19,9 +22,16 @@ export const ASSIST_LABEL: Record<AssistAction, string> = {
   translate: "Translate",
 };
 
+/** A suggestion the host offered (not asked of Ask AI here): its card's title, what Accept also does. */
+export interface Offered {
+  title: string;
+  note?: string;
+  onAccept?: () => void;
+}
+
 type State =
   | { phase: "idle" }
-  | { phase: "loading" | "ready" | "error"; action: AssistAction; language?: string; text: string; result?: string; message?: string; seq: number };
+  | { phase: "loading" | "ready" | "error"; action: AssistAction; language?: string; text: string; result?: string; message?: string; seq: number; offered?: Offered };
 
 /** One suggestion at a time, shared by the toolbar (starts it) and the panel (shows it). */
 export class AssistStore {
@@ -53,9 +63,16 @@ export class AssistStore {
     this.run(editor, assist, action, language, text);
   }
 
+  /** Shows `result` as the suggestion for `range` (a host's own, e.g. a drafted fix). */
+  offer(editor: Editor, range: { from: number; to: number }, result: string, offered: Offered) {
+    setPending(editor, range);
+    editor.chain().setTextSelection(range.from).run();
+    this.set({ phase: "ready", action: "improve", text: "", seq: ++this.seq, result: result.trim(), offered });
+  }
+
   retry(editor: Editor, assist: AssistFn) {
     const s = this.state;
-    if (s.phase === "idle") return;
+    if (s.phase === "idle" || s.offered) return;
     this.run(editor, assist, s.action, s.language, s.text);
   }
 
@@ -87,6 +104,7 @@ export class AssistStore {
     this.seq++;
     this.set({ phase: "idle" });
     editor.commands.focus();
+    if (ok) s.offered?.onAccept?.();
     return ok;
   }
 
@@ -99,7 +117,7 @@ export class AssistStore {
 }
 
 /** The suggestion card, under the passage it would replace. */
-export function AssistPanel({ editor, store, assist, container }: { editor: Editor; store: AssistStore; assist: AssistFn; container: RefObject<HTMLDivElement | null> }) {
+export function AssistPanel({ editor, store, assist, container }: { editor: Editor; store: AssistStore; assist?: AssistFn; container: RefObject<HTMLDivElement | null> }) {
   const s = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [top, setTop] = useState<number | null>(null);
   const card = useRef<HTMLDivElement>(null);
@@ -146,7 +164,7 @@ export function AssistPanel({ editor, store, assist, container }: { editor: Edit
   }, [editor, store, s.phase]);
 
   if (s.phase === "idle" || top === null) return null;
-  const title = s.action === "translate" && s.language ? `Translate to ${s.language}` : ASSIST_LABEL[s.action];
+  const title = s.offered?.title ?? (s.action === "translate" && s.language ? `Translate to ${s.language}` : ASSIST_LABEL[s.action]);
   return (
     <div
       ref={card}
@@ -181,11 +199,11 @@ export function AssistPanel({ editor, store, assist, container }: { editor: Edit
         {s.phase === "ready" && (
           <Button ref={acceptRef} size="sm" variant="primary" iconLeft="check" onClick={() => store.accept(editor)}>Accept</Button>
         )}
-        {s.phase !== "loading" && (
+        {s.phase !== "loading" && !s.offered && assist && (
           <Button size="sm" variant="ghost" iconLeft="refresh" onClick={() => store.retry(editor, assist)}>Try again</Button>
         )}
         <Button size="sm" variant="ghost" onClick={() => store.discard(editor)}>{s.phase === "loading" ? "Cancel" : "Discard"}</Button>
-        <span className="dxe-assist__note">{s.phase === "ready" ? "Check it before you accept. AI can make mistakes." : ""}</span>
+        <span className="dxe-assist__note">{s.phase === "ready" ? (s.offered?.note ?? "Check it before you accept. AI can make mistakes.") : ""}</span>
       </div>
     </div>
   );

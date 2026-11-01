@@ -74,6 +74,8 @@ t("retention points and addresses", () => {
   assert.deepEqual(pts, [{ x: 5, y: 100 }, { x: 15, y: 50 }, { x: 25, y: 25 }, { x: 35, y: 10 }]);
   assert.equal(editorHref("/guides/s1", "p 1", "f1"), "/guides/s1?page=p%201&fix=f1");
   assert.equal(draftUsesAi("broken"), false);
+  assert.equal(draftUsesAi("agent_unfriendly", "hidden"), false);
+  assert.equal(draftUsesAi("agent_unfriendly", "no_headings"), true);
   assert.equal(draftUsesAi("drop"), true);
   assert.equal(draftLabel("ask"), "Write an answer");
 });
@@ -91,4 +93,18 @@ t("the sample list is ranked, fictional and complete", () => {
     assert.ok(!/senseloaf/i.test(JSON.stringify(it)));
   }
   assert.equal(items[0].evidence.curve.length, 6);
+});
+
+t("needs more readers, confidence and agents", () => {
+  const { pendingWords, pendingPct, familyShares, CONFIDENCE_META, demoExtras } = mod;
+  assert.equal(pendingWords({ type: "drop", have: 12, need: 25 }), "12 of 25 reads");
+  assert.equal(pendingWords({ type: "video", have: 3, need: 8 }), "3 of 8 plays");
+  assert.equal(pendingWords({ type: "not_helpful", have: 2, need: 3 }), "2 of 3 votes");
+  assert.equal(pendingPct({ have: 12, need: 25 }), 48);
+  assert.equal(pendingPct({ have: 0, need: 25 }), 4);
+  assert.deepEqual(familyShares([{ name: "Claude", n: 3 }, { name: "ChatGPT", n: 1 }]).map((f) => f.pct), [75, 25]);
+  assert.ok(CONFIDENCE_META.low.label && CONFIDENCE_META.high.hint);
+  const x = demoExtras();
+  assert.ok(x.agents.total > x.agents.readers); // agents outnumber readers in the sample, as they often do
+  assert.equal(x.pending.length, 3);
 });

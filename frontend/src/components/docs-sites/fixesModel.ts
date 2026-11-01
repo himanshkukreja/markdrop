@@ -4,12 +4,12 @@
  * without readers sees. No imports, so node's type stripping can test it (fixesModel.test.mjs).
  */
 
-export type FixType = "drop" | "search" | "ask" | "not_helpful" | "video" | "broken" | "stale" | "heavy";
+export type FixType = "drop" | "search" | "ask" | "not_helpful" | "video" | "pdf" | "broken" | "stale" | "heavy" | "agent_unanswered" | "agent_unfriendly";
 export type FixStatus = "open" | "in_progress" | "fixed" | "dismissed";
 export type FixLevel = "high" | "medium" | "low";
 export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 
-export const FIX_TYPES: FixType[] = ["drop", "search", "ask", "not_helpful", "video", "broken", "stale", "heavy"];
+export const FIX_TYPES: FixType[] = ["drop", "search", "ask", "not_helpful", "video", "pdf", "broken", "agent_unanswered", "agent_unfriendly", "stale", "heavy"];
 
 /** Per type: the filter's label, the row's icon, what its reader count counts, and what a draft does. */
 export const TYPE_META: Record<FixType, { label: string; icon: string; unit: [string, string]; draft: string; watches: string }> = {
@@ -23,13 +23,42 @@ export const TYPE_META: Record<FixType, { label: string; icon: string; unit: [st
     draft: "Rewrite with the feedback", watches: "Pages readers say didn’t help, with their comments." },
   video: { label: "Video drop-off", icon: "film", unit: ["viewer lost", "viewers lost"],
     draft: "Add a written summary", watches: "The moment a video loses most of its viewers." },
+  pdf: { label: "PDF drop-off", icon: "doc", unit: ["reader stopped here", "readers stopped here"],
+    draft: "Suggest what to change", watches: "The page of an embedded PDF where most readers stop." },
   broken: { label: "Broken links", icon: "link", unit: ["reader hit it", "readers hit it"],
     draft: "Fix the link", watches: "Links to pages that don’t exist, and the 404s readers hit." },
   stale: { label: "Stale pages", icon: "clock", unit: ["reader", "readers"],
     draft: "List what to check", watches: "Heavily read pages nobody has updated in months." },
   heavy: { label: "Long, heavy pages", icon: "layers", unit: ["reader", "readers"],
     draft: "Plan a split", watches: "Very long or media-heavy pages that are slow to read." },
+  agent_unanswered: { label: "Agents find nothing", icon: "terminal", unit: ["agent search", "agent searches"],
+    draft: "Write an answer", watches: "What AI assistants search your docs for (MCP) and don’t find." },
+  agent_unfriendly: { label: "Hard for agents", icon: "server", unit: ["agent read", "agent reads"],
+    draft: "Make it agent-friendly", watches: "Pages agents read that have no headings, are mostly images, or are hidden from llms.txt." },
 };
+
+export type Confidence = "high" | "medium" | "low";
+export const CONFIDENCE_META: Record<Confidence, { label: string; hint: string }> = {
+  high: { label: "Confident", hint: "Plenty of readers behind this: four times the minimum or more." },
+  medium: { label: "Likely", hint: "Enough readers to flag it, and twice the minimum." },
+  low: { label: "Early signal", hint: "Just past the minimum number of readers. Worth a look, may change." },
+};
+
+/** "12 of 25 reads", for a "needs more readers" row. */
+export function pendingWords(p: { type: FixType; have: number; need: number }): string {
+  const noun = p.type === "video" ? ["play", "plays"] : p.type === "pdf" ? ["reader", "readers"] : p.type === "not_helpful" ? ["vote", "votes"] : ["read", "reads"];
+  return `${fmt(p.have)} of ${fmt(p.need)} ${p.need === 1 ? noun[0] : noun[1]}`;
+}
+
+export function pendingPct(p: { have: number; need: number }): number {
+  return p.need > 0 ? Math.max(4, Math.min(100, Math.round((p.have / p.need) * 100))) : 0;
+}
+
+/** Agent families as a share of all agent reads ("Claude 42%"). */
+export function familyShares(families: { name: string; n: number }[]): { name: string; n: number; pct: number }[] {
+  const total = families.reduce((a, f) => a + f.n, 0);
+  return families.map((f) => ({ ...f, pct: total ? Math.round((f.n / total) * 100) : 0 }));
+}
 
 export const LEVEL_META: Record<FixLevel, { label: string; tone: Tone }> = {
   high: { label: "High impact", tone: "danger" },
@@ -136,9 +165,9 @@ export function draftLabel(type: FixType): string {
   return TYPE_META[type].draft;
 }
 
-/** Whether drafting this one spends an AI use (a link fix doesn't). */
-export function draftUsesAi(type: FixType): boolean {
-  return type !== "broken";
+/** Whether drafting this one spends an AI use (a link fix, or a hidden page's advice, doesn't). */
+export function draftUsesAi(type: FixType, reason?: string | null): boolean {
+  return type !== "broken" && !(type === "agent_unfriendly" && reason === "hidden");
 }
 
 /* ── The sample list (a guide with no readers yet) ────────────────────── */
@@ -150,7 +179,7 @@ export function demoItems(now: number = Date.now()) {
   const ago = (d: number) => new Date(now - d * DAY).toISOString();
   const base = {
     status: "open" as FixStatus, severity: 0.6, recency: 1, reason: null, note: null, reopened: 0, fixed_by: null, fixed_build: null,
-    quiet: false, has_draft: false, applied: null, status_at: null, page_id: null,
+    quiet: false, has_draft: false, applied: null, status_at: null, page_id: null, confidence: "high" as Confidence,
   };
   const curve = [
     { i: -1, id: null, title: "Introduction", reached: 412, left: 21, reached_pct: 100, left_pct: 5 },
@@ -199,5 +228,33 @@ export function demoItems(now: number = Date.now()) {
       title: "“API keys” hasn’t been updated in 8 months", summary: "Last edited 8 months ago, and 31 readers opened it in the last 30 days.",
       path: "/reference/api-keys", page_title: "API keys", section: null, section_title: null, readers: 31, impact: 9.3,
       detected_at: ago(20), last_seen_at: ago(0), evidence: { updated_at: ago(250), age_days: 250, readers: 31 } },
+    { ...base, id: "demo-agents", type: "agent_unanswered" as FixType, key: "agent_unanswered:terraform provider", level: "medium" as FixLevel,
+      severity: 0.6, confidence: "medium" as Confidence,
+      title: "Agents search for “terraform provider” and nothing answers it",
+      summary: "AI assistants searched your docs for this 19 times through the docs MCP server and found nothing.",
+      path: null, page_title: null, section: null, section_title: null, readers: 19, impact: 11.1, recency: 0.97, detected_at: ago(4), last_seen_at: ago(1),
+      evidence: { searches: 19, wordings: 3, samples: [{ text: "terraform provider", n: 11 }, { text: "acme terraform", n: 5 }, { text: "terraform module for acme alerts", n: 3 }] } },
+    { ...base, id: "demo-pdf", type: "pdf" as FixType, key: "pdf:q3-board-deck", level: "low" as FixLevel, severity: 0.5, confidence: "low" as Confidence,
+      title: "Readers stop at page 3 of “Pricing and plans”", summary: "41% of readers go no further than page 3 of 9; about 7% stop at a typical page.",
+      path: "/help/faq", page_title: "FAQ", section: null, section_title: null, readers: 14, impact: 7, detected_at: ago(2), last_seen_at: ago(0),
+      evidence: { embed: "pricing-pdf", name: "Pricing and plans", pages_total: 9, page: 3, readers_pdf: 34, left_pct: 41, typical_pct: 7,
+        curve: [100, 94, 88, 47, 43, 40, 37, 35, 33].map((r, i) => ({ page: i + 1, reached_pct: r, left_pct: [6, 6, 41, 4, 3, 3, 2, 2, 0][i] })) } },
   ];
+}
+
+/** The sample's "needs more readers" rows and agent traffic (fictional Acme). */
+export function demoExtras() {
+  return {
+    pending: [
+      { type: "drop" as FixType, path: "/guides/invite-your-team", title: "Invite your team", have: 18, need: 25 },
+      { type: "video" as FixType, path: null, title: "Alert rules in 90 seconds", have: 5, need: 8 },
+      { type: "not_helpful" as FixType, path: "/reference/cli", title: "CLI reference", have: 2, need: 3 },
+    ],
+    agents: {
+      total: 2140, readers: 1386,
+      families: [{ name: "ChatGPT", n: 812 }, { name: "Claude", n: 655 }, { name: "Perplexity", n: 301 }, { name: "Other tool", n: 214 }, { name: "Gemini", n: 158 }],
+      via: { page: 1022, markdown: 604, llms: 318, mcp: 196 },
+      pages: [{ path: "/reference/api-keys", title: "API keys", n: 388 }, { path: "/reference/cli", title: "CLI reference", n: 342 }, { path: "/getting-started/quickstart", title: "Quickstart", n: 297 }],
+    },
+  };
 }

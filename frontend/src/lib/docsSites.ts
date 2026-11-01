@@ -473,6 +473,8 @@ export type HomeSiteInsights =
       votes: number;
       ask_answered: number;
       ask_unanswered: number;
+      /** The Fix list's open items (high impact among them). */
+      fixes?: { open: number; high: number };
     };
 
 /** A workspace as Markdrop Guides shows it beside its sites. */
