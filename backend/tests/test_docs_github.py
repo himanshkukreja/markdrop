@@ -409,6 +409,13 @@ class Sync(GitHubCase):
         advanced_id = next(x["_id"] for x in await self.db["docs_pages"].find({"site_id": sid}).to_list(None)
                            if (x.get("origin") or {}).get("path") == "docs/guide/deep.md")
         self.assertEqual(advanced_id, advanced["_id"])
+        # Renamed and edited a little (as Git would still call it a rename): it moves too, with the new text.
+        long = "A long page about deploying Acme with many words in it. " * 6
+        sm = sync._renamed_from({"draft": {"markdown": long + "One more line."}},
+                                [{"path": "/x", "draft": {"markdown": long}}, {"path": "/", "draft": {"markdown": long}}])
+        self.assertEqual(sm["path"], "/x")
+        self.assertIsNone(sync._renamed_from({"draft": {"markdown": "Something else entirely."}},
+                                             [{"path": "/x", "draft": {"markdown": long}}]))
         self.assertIn("/faq: a page made in the studio has this address; kept the studio page", out["skipped"])
         faq = await self.db["docs_pages"].find_one({"_id": ObjectId(mine["id"])})
         self.assertEqual((faq["draft"]["markdown"], faq.get("origin")), ("Ours", None))

@@ -467,6 +467,30 @@ def _same(cur: dict, fields: dict, markdown: str, extra: dict) -> bool:
         (d.get("markdown") or "") == markdown and (d.get("frontmatter_extra") or {}) == (extra or {})
 
 
+def _renamed_from(row: dict, gone: list[dict]) -> dict | None:
+    """The page whose file is gone that a new page most likely is (a file renamed or moved, maybe
+    edited a little, as Git judges a rename): the same text, or at least 80% alike. Never the home."""
+    import difflib
+
+    text = row["draft"]["markdown"]
+    if not text.strip():
+        return None
+    best, score = None, 0.0
+    for p in gone:
+        other = (p.get("draft") or {}).get("markdown") or ""
+        if p.get("path") == "/" or not other.strip():
+            continue
+        if other == text:
+            return p
+        sm = difflib.SequenceMatcher(None, other, text, autojunk=False)
+        if sm.real_quick_ratio() < 0.8 or sm.quick_ratio() < 0.8:
+            continue
+        r = sm.ratio()
+        if r >= 0.8 and r > score:
+            best, score = p, r
+    return best
+
+
 def _merge_nav(imported: list[dict], old: list[dict], studio_ids: set[str], home_id: str | None) -> list[dict]:
     """GitHub's groups, then the studio's own pages where they were: in a group of the same name, or
     in their old group after GitHub's."""
@@ -648,16 +672,22 @@ async def apply_github(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
     # redirects once it was published).
     gone = [p for p in existing if (p.get("origin") or {}).get("kind") == "github" and p["_id"] not in matched]
     for row in list(created_rows):
-        twin = next((p for p in gone if p.get("path") != "/" and (p.get("draft") or {}).get("markdown") == row["draft"]["markdown"]
-                     and (p.get("draft") or {}).get("markdown")), None)
+        twin = _renamed_from(row, gone)
         if twin is None:
             continue
         gone.remove(twin)
         await db[PAGES].delete_one({"_id": row["_id"]})
         await db[VERSIONS].delete_many({"page_id": row["_id"]})
         old_path = twin.get("path")
-        fields = {k: row.get(k) for k in ("title", "description", "icon", "hidden")}
-        await db[PAGES].update_one({"_id": twin["_id"]}, {"$set": {**fields, "path": row["path"], "origin": row["origin"]}})
+        sets = {**{k: row.get(k) for k in ("title", "description", "icon", "hidden")}, "path": row["path"], "origin": row["origin"]}
+        if (twin.get("draft") or {}).get("markdown") != row["draft"]["markdown"]:
+            draft = {**row["draft"], "rev": int((twin.get("draft") or {}).get("rev") or 0) + 1}
+            sets["draft"] = draft
+            try:
+                await db[VERSIONS].insert_one(store.version_row({**twin, **sets}, by=by, at=t, kind="import"))
+            except DuplicateKeyError:
+                pass
+        await db[PAGES].update_one({"_id": twin["_id"]}, {"$set": sets})
         matched.add(twin["_id"])
         ids_by_path[row["path"]] = twin["_id"]
         counts["created"] -= 1
