@@ -331,7 +331,13 @@ export async function build(opts) {
 
   // 2. next build.
   t = Date.now();
-  const env = { DOCS_CONTENT_DIR: contentDir, MARKDROP_DOCS_BUILD_ID: engine, NEXT_TELEMETRY_DISABLED: "1", NODE_ENV: "production" };
+  // NEXT_PUBLIC_LIGHT_THEME: light is launched. Without it the app shell treats light as a beta, so
+  // every guide rendered dark only with no light/dark switch, whatever its Design mode said; the
+  // guide's own theme.mode (light, dark or both) decides from here.
+  const env = {
+    DOCS_CONTENT_DIR: contentDir, MARKDROP_DOCS_BUILD_ID: engine, NEXT_TELEMETRY_DISABLED: "1", NODE_ENV: "production",
+    NEXT_PUBLIC_LIGHT_THEME: "true",
+  };
   // Progress: Next prints milestones while it compiles ("compile": 0 compiling, 1 compiled, 2
   // collecting page data, of 3: no counts, and it's most of a small guide's build), then
   // "Generating static pages (x/y)" as it renders them ("pages"; the last few come within a
