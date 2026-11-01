@@ -154,6 +154,10 @@ class Detection(unittest.TestCase):
         self.assertEqual(by["how do i connect snowflake"]["n"], 2)
         self.assertEqual(by["how do i connect postgres"]["n"], 1)
         self.assertEqual(cl[0]["key"], "do you support sso with okta")
+        # The product's own name says nothing about what a question is about.
+        cl = gf.cluster([{"text": t, "n": 1} for t in ("terraform provider", "acme terraform", "Acme Terraform provider?")],
+                        stop=frozenset({"acme"}))
+        self.assertEqual([c["n"] for c in cl], [3])
 
     def test_asks_and_searches(self):
         data = {"now": NOW, "pages": self.pages(), "asked": [],

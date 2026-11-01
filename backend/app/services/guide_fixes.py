@@ -290,10 +290,13 @@ def similarity(a: frozenset[str], b: frozenset[str], idf: dict[str, float]) -> f
     return sim
 
 
-def cluster(entries: list[dict], *, corpus: list[str] | None = None, threshold: float = CLUSTER_SIM) -> list[dict]:
+def cluster(entries: list[dict], *, corpus: list[str] | None = None, threshold: float = CLUSTER_SIM,
+            stop: frozenset[str] = frozenset()) -> list[dict]:
     """Group entries ({text, n, last?, page?}) that mean the same thing. Same words (case, spacing,
     trailing ?) always group; then each wording, most frequent first, joins the cluster whose
     representative (its most frequent wording) is most similar, if at least ``threshold``.
+
+    ``stop``: words that say nothing here (the product's own name: "acme terraform" is "terraform").
 
     Returns clusters, biggest first: {key, text, n, last, aliases, samples: [{text, n}], pages}."""
     groups: dict[str, dict] = {}
@@ -313,7 +316,7 @@ def cluster(entries: list[dict], *, corpus: list[str] | None = None, threshold: 
     idf = idf_of([*(corpus or []), *(g["text"] for g in groups.values())])
     out: list[dict] = []
     for g in sorted(groups.values(), key=lambda g: (-g["n"], g["key"])):
-        toks = _tokens(g["text"])
+        toks = _tokens(g["text"]) - stop
         best, best_sim = None, 0.0
         for c in out:
             s = similarity(toks, c["_toks"], idf)
@@ -357,6 +360,11 @@ def _cand(type_: str, key: str, *, path: str | None, title: str, summary: str, r
             "severity": SEVERITY[type_] if severity is None else round(severity, 3), "evidence": evidence,
             "last_seen": aware(last), "confidence": confidence(sample, need),
             "sample": {"have": round(sample), "need": need} if sample is not None and need else None}
+
+
+def brand_stop(data: dict) -> frozenset[str]:
+    """The guide's own name as words (never what a question is about)."""
+    return _tokens(data.get("brand") or "")
 
 
 def _pct(x: float) -> int:
@@ -429,7 +437,8 @@ def detect_searches(data: dict) -> list[dict]:
     rows = data.get("empty_searches") or []
     corpus = [p.get("title") or "" for p in (data.get("pages") or {}).values()]
     out = []
-    for c in cluster([{"text": r["q"], "n": r["n"], "last": r.get("last")} for r in rows], corpus=corpus):
+    for c in cluster([{"text": r["q"], "n": r["n"], "last": r.get("last")} for r in rows], corpus=corpus,
+                     stop=brand_stop(data)):
         if c["n"] < SEARCH_MIN:
             continue
         others = len(c["aliases"]) - 1
@@ -446,7 +455,8 @@ def detect_asks(data: dict) -> list[dict]:
     qs = data.get("questions") or []
     corpus = [p.get("title") or "" for p in (data.get("pages") or {}).values()] + [q["q"] for q in data.get("asked") or []]
     out = []
-    for c in cluster([{"text": q["q"], "n": 1, "last": q.get("ts"), "page": q.get("page")} for q in qs], corpus=corpus):
+    for c in cluster([{"text": q["q"], "n": 1, "last": q.get("ts"), "page": q.get("page")} for q in qs], corpus=corpus,
+                     stop=brand_stop(data)):
         if c["n"] < ASK_MIN:
             continue
         page = max(c["pages"].items(), key=lambda kv: kv[1])[0] if c["pages"] else None
@@ -673,7 +683,8 @@ def detect_agent_searches(data: dict) -> list[dict]:
     rows = data.get("agent_searches") or []
     corpus = [p.get("title") or "" for p in (data.get("pages") or {}).values()]
     out = []
-    for c in cluster([{"text": r["q"], "n": r["n"], "last": r.get("last")} for r in rows], corpus=corpus):
+    for c in cluster([{"text": r["q"], "n": r["n"], "last": r.get("last")} for r in rows], corpus=corpus,
+                     stop=brand_stop(data)):
         if c["n"] < AGENT_ASK_MIN:
             continue
         out.append(_cand(
@@ -822,7 +833,7 @@ async def gather(db: AsyncIOMotorDatabase, site_row: dict, *, at: datetime | Non
     site = str(site_row["_id"])
     days = window_days(at, after=after)
     since = gi._day_start(days[0]) if days else at
-    data: dict = {"now": at, "days": days, "since": since}
+    data: dict = {"now": at, "days": days, "since": since, "brand": site_row.get("name") or ""}
     if not days:
         return {**data, **{k: v for k, v in (base or {}).items() if k in ("pages", "links", "redirects", "video_titles")},
                 "total_readers": 0}
