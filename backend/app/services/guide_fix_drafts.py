@@ -86,6 +86,16 @@ KIND_INSTRUCTIONS = {
               "screenshots, UI labels, limits, links, steps). Return only the checklist."),
     "heavy": ("This page is very long. Propose how to split it into smaller pages: a Markdown list of the new pages, "
               "each with a title and the sections that move to it, and what stays on this page. Return only the list."),
+    "pdf": ("Many readers stop reading the embedded PDF on this page at the page given. You can't see the PDF. Suggest, as "
+            "a short Markdown list, what the writer could do on this docs page so readers still get what they need: a "
+            "summary of what comes after that page, moving the key part earlier, or splitting the PDF. Return only the list."),
+    "agent_no_headings": ("AI agents read this page a lot, but it's one long block with no headings, so they can't find "
+                          "the part that answers a question. Return the same content with clear level-2 headings (and "
+                          "level-3 where useful) phrased as what each part answers. Change no facts and no wording beyond "
+                          "what the headings need."),
+    "agent_media": ("AI agents read this page a lot, but most of it is images or video they can't see. Add short, plain "
+                    "text that says what each image or video shows (the steps, the values, the result), next to it. "
+                    "Keep every image and video directive exactly where it is. Return the whole passage."),
 }
 
 
@@ -139,6 +149,13 @@ def evidence_text(it: dict) -> str:
         parts.append(f"{ev.get('left_pct')}% of readers stop in this section; about {ev.get('typical_pct')}% per section elsewhere on the page.")
     elif t == "video":
         parts.append(f"Video “{ev.get('video_title')}”: {ev.get('fall_pct')}% of viewers stop around {gf.clock(ev.get('at') or 0)} of {gf.clock(ev.get('length') or 0)}.")
+    elif t == "pdf":
+        parts.append(f"PDF “{ev.get('name')}”: {ev.get('left_pct')}% of readers go no further than page {ev.get('page')} of {ev.get('pages_total')}.")
+    elif t == "agent_unanswered":
+        words = _quote_list(ev.get("samples") or [])
+        parts.append("These searches came from AI assistants (through the docs MCP server), asking on someone's behalf.")
+    elif t == "agent_unfriendly":
+        parts.append(f"AI agents read this page {ev.get('agent_reads')} times.")
     if words:
         parts.append(f"What readers typed:\n<reader_input>\n{words}\n</reader_input>")
     return "\n".join(parts)
@@ -214,7 +231,9 @@ async def plan(db: AsyncIOMotorDatabase, site_row: dict, it: dict) -> dict:
     t = it["type"]
     if t == "broken":
         return {"kind": "link"}
-    if t in ("search", "ask"):
+    if t == "agent_unfriendly" and (it.get("evidence") or {}).get("reason") == "hidden":
+        return {"kind": "hidden"}
+    if t in ("search", "ask", "agent_unanswered"):
         page = await _page(db, site_row, path=it.get("path")) if it.get("path") else None
         if page is None:
             page = await best_page_for(db, site_row, " ".join(s["text"] for s in (it.get("evidence") or {}).get("samples") or []) or it.get("title") or "")
@@ -232,8 +251,12 @@ async def plan(db: AsyncIOMotorDatabase, site_row: dict, it: dict) -> dict:
     if page is None:
         raise _error(404, "no_page", "The page this is about isn't in the guide any more.")
     md = (page.get("draft") or {}).get("markdown") or ""
-    if t in ("stale", "heavy"):
+    if t in ("stale", "heavy", "pdf"):
         return {"kind": "notes", "page": page, "section": {"id": None, "markdown": gf.strip_frontmatter(md)[:MAX_SECTION_CHARS]}}
+    if t == "agent_unfriendly":
+        # The introduction: the whole page when it has no headings (the "no headings" case).
+        sec = gf.section_of(md, None)
+        return {"kind": "section", "page": page, "section": sec}
     sid = it.get("section")
     if t == "video":
         sid = _video_section(md, (it.get("evidence") or {}).get("video") or "")
@@ -286,6 +309,13 @@ async def draft(db: AsyncIOMotorDatabase, site_row: dict, user: User, item_id: s
     if it is None:
         raise _error(404, "not_found", "That item isn't on the Fix list any more.")
     p = await plan(db, site_row, it)
+    if p["kind"] == "hidden":
+        d = {"kind": "notes", "page_id": it.get("page_id"), "path": it.get("path"), "page_title": it.get("page_title"),
+             "before": "", "after": ("- Show the page in the sidebar (Pages, then the page's menu, then Show in sidebar), so it is "
+                                     "listed in llms.txt and agents can find it.\n- Or link to it from a page that is shown.\n"
+                                     "- If it should stay hidden, dismiss this: agents will keep reading it from links."),
+             "summary": "A hidden page isn't in llms.txt: agents only reach it from links."}
+        return await _store(db, it, d, user)
     if p["kind"] == "link":
         pages = [x["path"] for x in (it.get("evidence") or {}).get("pages") or [] if x.get("link")]
         page = await _page(db, site_row, path=pages[0]) if pages else None
@@ -303,6 +333,8 @@ async def draft(db: AsyncIOMotorDatabase, site_row: dict, user: User, item_id: s
     md = ((page or {}).get("draft") or {}).get("markdown") or ""
     outline = [("  " * max(0, h["depth"] - 2)) + h["text"] for h in gf.headings_of(md)] if page else []
     prompt_kind = it["type"] if kind == "section" else kind if kind in ("append", "new_page") else it["type"]
+    if it["type"] == "agent_unfriendly":
+        prompt_kind = "agent_media" if (it.get("evidence") or {}).get("reason") == "media" else "agent_no_headings"
     turn = user_turn(prompt_kind, it, page_title=(page or {}).get("title"), outline=outline,
                      section_md=None if kind == "new_page" else sec["markdown"])
 

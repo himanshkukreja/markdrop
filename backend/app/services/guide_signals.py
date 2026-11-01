@@ -23,14 +23,37 @@ reading session costs one request:
         w   the sampling weight (1 = every view is measured; a guide sampling 1 in 4 sends 4)
         c   copy-code clicks: [[section index, code block index on the page], ...]
         v   videos played: [{i: video id, l: length in seconds, b: 40 watched slices as 10 hex digits}]
+        e   embedded Markdrop files on the page (videos, PDFs; see Embeds below)
     {k: "broken", p, f?}
         a page that doesn't exist (the guide's 404 page): p the address, f the guide page the
         reader came from (same guide only, path only)
+    {k: "embed", p, w?, e: [embed entries]}
+        embeds' signals on their own, for an embed that reports outside the page's read beacon
 
-Storage: the beacons are raw events in ``guide_events`` (kind ``read`` / ``broken``, 90 days,
-like the rest of Insights); a background job rolls each complete day into ``guide_signal_daily``
-(13 months): per page a histogram of how deep readers got, per video a retention curve, per code
-block its copies, per missing address its hits.
+Embeds (a guide page's live blocks of Markdrop files: an uploaded video, a PDF; one entry each,
+keyed by the embed's stable id, never a reader's):
+
+    {i: embed id, k: "video", l: length (s), b: 40 slices as 10 hex digits | q: furthest quartile
+     reached 1-4 | s: furthest second reached, name?: the file's title}
+    {i: embed id, k: "pdf", n: pages, r: the furthest page the reader reached, name?}
+
+A video embed becomes a retention curve like a docs-player video (id ``embed:<id>``), so the Fix
+list's "loses most viewers at 0:42" covers both; a PDF a histogram of the furthest page reached
+("readers stop at page 3").
+
+AI agents. Agents and AI assistants read docs too, often more than people. They are counted apart
+from readers and never as one: the docs edge reports, server side, a page view whose user agent is a
+known AI agent (``/hit``, routers/guide_insights.py) and every request for a page's Markdown twin,
+llms.txt or the docs MCP server (``/agent``); the docs MCP server reports its searches that found
+nothing (``agent_search``, the query normalised like a reader's search). Kept: the path, how it was
+read (page | markdown | llms | mcp) and the agent's family ("ChatGPT", "Claude", "Other tool"...),
+never its address or full user agent.
+
+Storage: the beacons are raw events in ``guide_events`` (90 days, like the rest of Insights); a
+background job rolls each complete day into ``guide_signal_daily`` (13 months): per page a
+histogram of how deep readers got, per video a retention curve, per PDF a histogram of pages
+reached, per code block its copies, per missing address its hits, agent reads per page and family,
+and agents' searches with no results.
 """
 
 from __future__ import annotations
@@ -47,10 +70,14 @@ from app.services import guide_insights as gi
 log = logging.getLogger("markdrop.guide_signals")
 
 DAILY = "guide_signal_daily"
-KINDS = ("read", "broken")
+KINDS = ("read", "broken", "embed")
+STORED_KINDS = ("read", "broken", "embed", "agent", "agent_search")
 MAX_SECTIONS = 200
 MAX_COPIES = 20
 MAX_VIDEOS = 6
+MAX_EMBEDS = 10
+MAX_PDF_PAGES = 5000
+VIA = ("page", "markdown", "llms", "mcp")
 SLICES = 40                 # a video's watched slices (2.5% each)
 MAX_SECONDS = 4 * 3600
 MAX_WEIGHT = 20
@@ -58,6 +85,27 @@ ROLLUP_KEEP = 500
 
 _ID = re.compile(r"^[\w\-.:~%]{1,120}$", re.UNICODE)
 _HEX = re.compile(r"^[0-9a-f]{10}$")
+_CTRL = re.compile(r"[\x00-\x1f\x7f]")
+
+# Known AI agents and assistants, by family (their published user-agent tokens).
+AGENTS: tuple[tuple[str, re.Pattern], ...] = tuple((name, re.compile(rx, re.I)) for name, rx in (
+    ("ChatGPT", r"ChatGPT-User|OAI-SearchBot|GPTBot|OpenAI"),
+    ("Claude", r"Claude-User|Claude-SearchBot|ClaudeBot|Claude-Web|anthropic-ai|Claude/"),
+    ("Perplexity", r"Perplexity-User|PerplexityBot"),
+    ("Gemini", r"Google-Extended|Gemini|GoogleAgent|Google-CloudVertexBot|Google-NotebookLM"),
+    ("Copilot", r"Copilot|MicrosoftPreview"),
+    ("Meta AI", r"meta-externalagent|meta-externalfetcher|FacebookBot"),
+    ("Mistral", r"MistralAI-User"),
+    ("DuckDuckGo AI", r"DuckAssistBot"),
+    ("Apple", r"Applebot-Extended"),
+    ("Amazon", r"Amazonbot"),
+    ("Cohere", r"cohere-ai|cohere-training"),
+    ("You.com", r"YouBot"),
+    ("Cursor", r"Cursor/"),
+    ("Common Crawl", r"CCBot"),
+    ("ByteDance", r"Bytespider"),
+))
+_TOOL = re.compile(r"curl|wget|python|node|axios|go-http-client|okhttp|java/|httpx|aiohttp|deno|bun/|undici|fetch", re.I)
 
 
 def now() -> datetime:
@@ -94,6 +142,96 @@ def watched(hexstr: Any) -> list[int] | None:
     return out or None
 
 
+def agent_family(ua: str | None) -> str | None:
+    """The family of a known AI agent's user agent ("ChatGPT", "Claude", ...), else None."""
+    for name, rx in AGENTS:
+        if ua and rx.search(ua):
+            return name
+    return None
+
+
+def tool_family(ua: str | None) -> str:
+    """Who read a machine-readable output (a Markdown twin, llms.txt, the MCP server): a known AI
+    agent's family, "Other tool" for a script or HTTP library, else "Browser or other"."""
+    fam = agent_family(ua)
+    if fam:
+        return fam
+    if not (ua or "").strip() or _TOOL.search(ua or ""):
+        return "Other tool"
+    return "Browser or other"
+
+
+def agent_path(path: Any, via: str) -> str | None:
+    """The guide page an agent read: a Markdown twin's address (/md/x, /x.md) is its page's."""
+    if via == "llms":
+        return "/llms.txt"
+    if via == "mcp":
+        return "/mcp"
+    p = gi.clean_path(path)
+    if p is None:
+        return None
+    if via == "markdown":
+        if p.startswith("/md/") or p == "/md":
+            p = p[3:] or "/"
+        if p.endswith(".md"):
+            p = p[:-3] or "/"
+        p = p.removesuffix("/index") or "/"
+    return p
+
+
+def clean_name(v: Any) -> str | None:
+    """An embed's title (the author's file name), short and plain."""
+    if not isinstance(v, str):
+        return None
+    v = _CTRL.sub("", v).strip()[:120]
+    return v or None
+
+
+def clean_embed(e: Any) -> dict | None:
+    """One embed entry (see Embeds above) as stored, or None."""
+    if not isinstance(e, dict):
+        return None
+    i = clean_id(e.get("i"))
+    kind = e.get("k")
+    if not i or kind not in ("video", "pdf"):
+        return None
+    out: dict = {"i": i, "k": kind}
+    name = clean_name(e.get("name"))
+    if name:
+        out["name"] = name
+    if kind == "video":
+        length = _int(e.get("l"), 1, 6 * 3600)
+        if not length:
+            return None
+        slices = watched(e.get("b"))
+        if slices is None and e.get("q") is not None:
+            q = _int(e.get("q"), 1, 4)
+            slices = list(range(q * SLICES // 4)) if q else None
+        if slices is None and e.get("s") is not None:
+            s = _int(e.get("s"), 1, length)
+            slices = list(range(max(1, min(SLICES, -(-s * SLICES // length))))) if s else None
+        if not slices:
+            return None
+        out.update(l=length, b=slices)
+        return out
+    n = _int(e.get("n"), 1, MAX_PDF_PAGES)
+    r = _int(e.get("r"), 1, n) if n else None
+    if not n or not r:
+        return None
+    out.update(n=n, r=r)
+    return out
+
+
+def clean_embed_beacon(body: dict) -> dict | None:
+    """A standalone {k: "embed", p, w?, e: [entries]} beacon as stored."""
+    p = gi.clean_path(body.get("p"))
+    raw = body.get("e") if isinstance(body.get("e"), list) else []
+    e = [x for x in map(clean_embed, raw[:MAX_EMBEDS]) if x]
+    if p is None or not e:
+        return None
+    return {"p": p, "w": _int(body.get("w"), 1, MAX_WEIGHT) or 1, "e": e}
+
+
 def clean_read(body: dict) -> dict | None:
     """A "read" beacon as stored (minus site and time), or None when it can't be used."""
     p = gi.clean_path(body.get("p"))
@@ -127,6 +265,9 @@ def clean_read(body: dict) -> dict | None:
             vids.append({"i": vid, "l": length, "b": slices})
     if vids:
         out["v"] = vids
+    embeds = [x for x in map(clean_embed, (body.get("e") or [])[:MAX_EMBEDS] if isinstance(body.get("e"), list) else []) if x]
+    if embeds:
+        out["e"] = embeds
     return out
 
 
@@ -181,6 +322,35 @@ def _facets() -> list[dict]:
             {"$group": {"_id": {"p": "$p", "f": "$f"}, "n": {"$sum": 1}, "last": {"$max": "$ts"}}},
             {"$sort": {"n": -1}}, {"$limit": ROLLUP_KEEP},
         ],
+        "embed_videos": [
+            {"$match": {"k": {"$in": ["read", "embed"]}, "e.k": "video"}},
+            {"$unwind": "$e"}, {"$match": {"e.k": "video"}},
+            {"$group": {"_id": {"i": "$e.i", "p": "$p"}, "plays": {"$sum": "$w"}, "l": {"$max": "$e.l"},
+                        "name": {"$max": "$e.name"}}},
+            {"$sort": {"plays": -1}}, {"$limit": 200},
+        ],
+        "embed_slices": [
+            {"$match": {"k": {"$in": ["read", "embed"]}, "e.k": "video"}},
+            {"$unwind": "$e"}, {"$match": {"e.k": "video"}}, {"$unwind": "$e.b"},
+            {"$group": {"_id": {"i": "$e.i", "p": "$p", "s": "$e.b"}, "n": {"$sum": "$w"}}},
+        ],
+        "pdfs": [
+            {"$match": {"k": {"$in": ["read", "embed"]}, "e.k": "pdf"}},
+            {"$unwind": "$e"}, {"$match": {"e.k": "pdf"}},
+            {"$group": {"_id": {"i": "$e.i", "p": "$p", "r": "$e.r"}, "m": {"$sum": "$w"}, "n": {"$max": "$e.n"},
+                        "name": {"$max": "$e.name"}}},
+            {"$limit": 5000},
+        ],
+        "agents": [
+            {"$match": {"k": "agent"}},
+            {"$group": {"_id": {"p": "$p", "via": "$via", "a": "$a"}, "n": {"$sum": 1}}},
+            {"$sort": {"n": -1}}, {"$limit": ROLLUP_KEEP * 4},
+        ],
+        "agent_searches": [
+            {"$match": {"k": "agent_search", "n": 0}},
+            {"$group": {"_id": "$q", "n": {"$sum": 1}, "last": {"$max": "$ts"}}},
+            {"$sort": {"n": -1}}, {"$limit": ROLLUP_KEEP},
+        ],
     }}]
 
 
@@ -207,7 +377,33 @@ def _shape(f: dict) -> dict:
     videos = [{"i": r["_id"]["i"], "p": r["_id"]["p"], "l": int(r.get("l") or 0), "plays": int(r["plays"]),
                "curve": curves.get((r["_id"]["i"], r["_id"]["p"]), [0] * SLICES)}
               for r in f.get("videos") or [] if r["_id"].get("i")]
+    ecurves: dict[tuple, list[int]] = {}
+    for r in f.get("embed_slices") or []:
+        key = (r["_id"]["i"], r["_id"]["p"])
+        i = r["_id"].get("s")
+        if isinstance(i, int) and 0 <= i < SLICES:
+            ecurves.setdefault(key, [0] * SLICES)[i] += int(r["n"])
+    for r in f.get("embed_videos") or []:
+        if not r["_id"].get("i"):
+            continue
+        videos.append({"i": f"embed:{r['_id']['i']}", "p": r["_id"]["p"], "l": int(r.get("l") or 0),
+                       "plays": int(r["plays"]), "name": r.get("name"),
+                       "curve": ecurves.get((r["_id"]["i"], r["_id"]["p"]), [0] * SLICES)})
+    pdfs: dict[tuple, dict] = {}
+    for r in f.get("pdfs") or []:
+        key = (r["_id"]["i"], r["_id"]["p"])
+        if not key[0] or r["_id"].get("r") is None:
+            continue
+        d = pdfs.setdefault(key, {"i": key[0], "p": key[1], "n": 0, "name": None, "hist": {}})
+        d["n"] = max(d["n"], int(r.get("n") or 0))
+        d["name"] = d["name"] or r.get("name")
+        d["hist"][str(r["_id"]["r"])] = d["hist"].get(str(r["_id"]["r"]), 0) + int(r["m"])
     return {
+        "pdfs": list(pdfs.values()),
+        "agents": [{"p": r["_id"].get("p"), "via": r["_id"].get("via"), "a": r["_id"].get("a"), "n": int(r["n"])}
+                   for r in f.get("agents") or []],
+        "agent_searches": [{"q": r["_id"], "n": int(r["n"]), "last": r.get("last")}
+                           for r in f.get("agent_searches") or [] if r["_id"]],
         "reading": sorted(pages.values(), key=lambda x: -x["m"])[:ROLLUP_KEEP],
         "copies": [{"p": r["_id"]["p"], "s": r["_id"]["s"], "b": r["_id"]["b"], "n": int(r["n"])}
                    for r in f.get("copies") or [] if r["_id"].get("p")],
@@ -220,7 +416,7 @@ def _shape(f: dict) -> dict:
 async def _aggregate(db: AsyncIOMotorDatabase, site: str, days: list[str], since: datetime | None = None) -> dict:
     if not days:
         return _shape({})
-    match: dict = {"site": site, "day": {"$in": days}, "k": {"$in": list(KINDS)}}
+    match: dict = {"site": site, "day": {"$in": days}, "k": {"$in": list(STORED_KINDS)}}
     if since is not None:
         match["ts"] = {"$gte": since}
     rows = await db[gi.RAW].aggregate([{"$match": match}, *_facets()]).to_list(1)
@@ -241,7 +437,7 @@ async def rollup_due(db: AsyncIOMotorDatabase, today: datetime | None = None) ->
     written = 0
     for i in range(1, gi.ROLLUP_LOOKBACK_DAYS + 1):
         day = gi.day_key(t - timedelta(days=i))
-        sites = set(await db[gi.RAW].distinct("site", {"day": day, "k": {"$in": list(KINDS)}}))
+        sites = set(await db[gi.RAW].distinct("site", {"day": day, "k": {"$in": list(STORED_KINDS)}}))
         if not sites:
             continue
         done = set(await db[DAILY].distinct("site", {"day": day}))
@@ -264,7 +460,32 @@ def merge(parts: list[dict]) -> dict:
     copies: dict[tuple, dict] = {}
     videos: dict[str, dict] = {}
     broken: dict[tuple, dict] = {}
+    pdfs: dict[str, dict] = {}
+    agents: dict[tuple, int] = {}
+    asearch: dict[str, dict] = {}
+
+    def later(a, b):
+        if b is None:
+            return a
+        b = b if b.tzinfo else b.replace(tzinfo=timezone.utc)
+        return max(a, b) if a else b
+
     for part in parts:
+        for r in part.get("pdfs") or []:
+            d = pdfs.setdefault(r["i"], {"i": r["i"], "pages": {}, "n": 0, "name": None, "hist": {}})
+            d["n"] = max(d["n"], int(r.get("n") or 0))
+            d["name"] = d["name"] or r.get("name")
+            total = sum(int(c) for c in (r.get("hist") or {}).values())
+            d["pages"][r.get("p")] = d["pages"].get(r.get("p"), 0) + total
+            for k, c in (r.get("hist") or {}).items():
+                d["hist"][k] = d["hist"].get(k, 0) + int(c)
+        for r in part.get("agents") or []:
+            key = (r.get("p"), r.get("via"), r.get("a"))
+            agents[key] = agents.get(key, 0) + int(r.get("n") or 0)
+        for r in part.get("agent_searches") or []:
+            a = asearch.setdefault(r["q"], {"q": r["q"], "n": 0, "last": None})
+            a["n"] += int(r.get("n") or 0)
+            a["last"] = later(a["last"], r.get("last"))
         for r in part.get("reading") or []:
             pg = pages.setdefault(r["p"], {"p": r["p"], "n": 0, "m": 0, "t": 0, "hist": {}, "ids": {}})
             pg["n"] = max(pg["n"], int(r.get("n") or 0))
@@ -279,7 +500,8 @@ def merge(parts: list[dict]) -> dict:
             c = copies.setdefault(key, {"p": r["p"], "s": r.get("s"), "b": r.get("b"), "n": 0})
             c["n"] += int(r.get("n") or 0)
         for r in part.get("videos") or []:
-            v = videos.setdefault(r["i"], {"i": r["i"], "pages": {}, "l": 0, "plays": 0, "curve": [0] * SLICES})
+            v = videos.setdefault(r["i"], {"i": r["i"], "pages": {}, "l": 0, "plays": 0, "curve": [0] * SLICES, "name": None})
+            v["name"] = v["name"] or r.get("name")
             v["l"] = max(v["l"], int(r.get("l") or 0))
             v["plays"] += int(r.get("plays") or 0)
             v["pages"][r.get("p")] = v["pages"].get(r.get("p"), 0) + int(r.get("plays") or 0)
@@ -293,7 +515,9 @@ def merge(parts: list[dict]) -> dict:
             if last is not None:
                 last = last if last.tzinfo else last.replace(tzinfo=timezone.utc)
                 b["last"] = max(b["last"], last) if b["last"] else last
-    return {"reading": pages, "copies": list(copies.values()), "videos": videos, "broken": list(broken.values())}
+    return {"reading": pages, "copies": list(copies.values()), "videos": videos, "broken": list(broken.values()),
+            "pdfs": pdfs, "agents": [{"p": k[0], "via": k[1], "a": k[2], "n": n} for k, n in agents.items()],
+            "agent_searches": sorted(asearch.values(), key=lambda a: -a["n"])}
 
 
 async def window(db: AsyncIOMotorDatabase, site: str, days: list[str]) -> dict:
@@ -301,7 +525,7 @@ async def window(db: AsyncIOMotorDatabase, site: str, days: list[str]) -> dict:
     today = gi.day_key(now())
     stored = {r["day"]: r async for r in db[DAILY].find({"site": site, "day": {"$in": [d for d in days if d < today]}})}
     for r in stored.values():
-        for b in r.get("broken") or []:
+        for b in [*(r.get("broken") or []), *(r.get("agent_searches") or [])]:
             if b.get("last") is None:
                 b["last"] = gi._day_start(r["day"]) + timedelta(hours=12)
     live = await _aggregate(db, site, [d for d in days if d not in stored])

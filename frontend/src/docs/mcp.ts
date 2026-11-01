@@ -196,7 +196,10 @@ function allTools(): Tool[] {
         if (raw !== undefined && (typeof raw !== "number" || !Number.isInteger(raw))) throw new ToolError("limit must be an integer.");
         const limit = Math.max(1, Math.min(20, (raw as number | undefined) ?? 8));
         const results = search(query, limit);
-        if (!results.length) return { text: `No sections match "${query}". Try other words, or read ${getSite().url}/llms.txt for the list of pages.`, structured: { results: [] } };
+        if (!results.length) {
+          sendUnanswered(query);
+          return { text: `No sections match "${query}". Try other words, or read ${getSite().url}/llms.txt for the list of pages.`, structured: { results: [] } };
+        }
         const text = results.map((r, i) => `${i + 1}. ${r.title} (${r.page})\n   ${r.url}\n   ${r.snippet}`).join("\n\n");
         return { text, structured: { results } };
       },
@@ -335,6 +338,28 @@ function sendReport(path: string, problem: string) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ path, helpful: false, comment: `[docs MCP] ${problem}` }),
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch {
+      /* fire and forget */
+    }
+  });
+}
+
+/**
+ * A search that found nothing, on a Markdrop Guides site with Insights on: the guide's Fix list
+ * shows what agents ask for and nothing answers (backend routers/guide_insights.py, kept apart from
+ * readers' searches). Only the query (normalised and masked by the API) and that it found nothing.
+ */
+function sendUnanswered(query: string) {
+  const base = getSite().insights;
+  if (!base || !/^https?:\/\//.test(base)) return;
+  schedule(async () => {
+    try {
+      await fetch(`${base.replace(/\/+$/, "")}/event`, {
+        method: "POST",
+        headers: { "content-type": "text/plain;charset=UTF-8" },
+        body: JSON.stringify({ k: "search", q: query.slice(0, 500), n: 0, src: "mcp" }),
         signal: AbortSignal.timeout(5000),
       });
     } catch {

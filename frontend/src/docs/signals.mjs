@@ -12,6 +12,9 @@ export const MIN_SECONDS = 3;
 export const MAX_SECTIONS = 200;
 export const MAX_COPIES = 20;
 export const MAX_VIDEOS = 6;
+export const MAX_EMBEDS = 10;
+/** The event an embedded Markdrop file dispatches on its element (it bubbles to the document). */
+export const EMBED_EVENT = "md:embed-signal";
 /** A heading counts as reached once its top passes this share of the window's height. */
 export const REACH_LINE = 0.75;
 
@@ -89,6 +92,50 @@ export function maskHex(mask) {
   return Math.max(0, Math.floor(mask)).toString(16).padStart(10, "0").slice(-10);
 }
 
+/**
+ * An embed's signal (the `md:embed-signal` event's detail, from an embedded Markdrop file on the
+ * page) merged into what this view has for it: videos keep every slice played (or the furthest
+ * quartile / second when that's all the embed reports), PDFs the furthest page reached. Returns
+ * the new entry, or `prev` when the detail can't be used.
+ */
+export function mergeEmbed(prev, d) {
+  if (!d || typeof d !== "object") return prev;
+  const i = cleanId(d.id);
+  const name = typeof d.name === "string" ? d.name.slice(0, 120) : undefined;
+  if (!i) return prev;
+  if (d.kind === "video") {
+    const length = Number(d.length);
+    if (!(length > 0)) return prev;
+    const out = { i, k: "video", l: Math.round(length), mask: prev?.mask || 0, q: prev?.q || 0, s: prev?.s || 0, ...(name ? { name } : prev?.name ? { name: prev.name } : {}) };
+    if (typeof d.mask === "number" && d.mask > 0) {
+      for (let b = 0; b < SLICES; b++) if (Math.floor(d.mask / 2 ** b) % 2 === 1 && Math.floor(out.mask / 2 ** b) % 2 === 0) out.mask += 2 ** b;
+    }
+    if (typeof d.from === "number" && typeof d.to === "number") out.mask = markPlayed(out.mask, d.from, d.to, length);
+    if (Number.isInteger(d.quartile) && d.quartile >= 1 && d.quartile <= 4) out.q = Math.max(out.q, d.quartile);
+    if (typeof d.seconds === "number" && d.seconds > 0) out.s = Math.max(out.s, Math.min(length, Math.round(d.seconds)));
+    return out;
+  }
+  if (d.kind === "pdf") {
+    const n = Math.round(Number(d.pages));
+    const r = Math.round(Number(d.page));
+    if (!(n >= 1) || !(r >= 1)) return prev;
+    return { i, k: "pdf", n, r: Math.max(prev?.r || 0, Math.min(n, r)), ...(name ? { name } : prev?.name ? { name: prev.name } : {}) };
+  }
+  return prev;
+}
+
+/** An embed entry as the beacon carries it (see backend services/guide_signals.py, Embeds). */
+export function embedEntry(e) {
+  if (!e) return null;
+  if (e.k === "pdf") return { i: e.i, k: "pdf", n: e.n, r: e.r, ...(e.name ? { name: e.name } : {}) };
+  const out = { i: e.i, k: "video", l: e.l, ...(e.name ? { name: e.name } : {}) };
+  if (e.mask) out.b = maskHex(e.mask);
+  else if (e.q) out.q = e.q;
+  else if (e.s) out.s = e.s;
+  else return null;
+  return out;
+}
+
 /** A heading or video id as the API takes it (the author's slug), or null. */
 export function cleanId(v) {
   return typeof v === "string" && /^[\p{L}\p{M}\p{N}_\-.:~%]{1,120}$/u.test(v) ? v : null;
@@ -109,7 +156,13 @@ export function readBeacon(view, rate = 1) {
     videos.push({ i: vid, l: Math.round(v.length), b: maskHex(v.mask) });
     if (videos.length >= MAX_VIDEOS) break;
   }
-  if (seconds < MIN_SECONDS && !videos.length) return null;
+  const embeds = [];
+  for (const e of (view.embeds || new Map()).values()) {
+    const entry = embedEntry(e);
+    if (entry) embeds.push(entry);
+    if (embeds.length >= MAX_EMBEDS) break;
+  }
+  if (seconds < MIN_SECONDS && !videos.length && !embeds.length) return null;
   const n = Math.min(MAX_SECTIONS, Math.max(0, view.n | 0));
   const d = view.end ? n : Math.min(n, Math.max(-1, view.deepest | 0));
   const out = { k: "read", p: view.path.split("#")[0].split("?")[0], n, d, t: seconds, w: weightOf(rate) };
@@ -117,6 +170,7 @@ export function readBeacon(view, rate = 1) {
   if (h) out.h = h;
   if (view.copies && view.copies.length) out.c = view.copies.slice(0, MAX_COPIES);
   if (videos.length) out.v = videos;
+  if (embeds.length) out.e = embeds;
   return out;
 }
 

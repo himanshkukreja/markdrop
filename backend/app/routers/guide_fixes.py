@@ -45,7 +45,7 @@ def _out(data: dict, site: dict, role: str) -> dict:
 @limiter.limit("60/minute")
 async def list_fixes(request: Request, site_id: str,
                      status: str = Query("active", pattern="^(active|open|in_progress|fixed|dismissed|all)$"),
-                     type: str | None = Query(None, pattern="^(drop|search|ask|not_helpful|video|broken|stale|heavy)$"),
+                     type: str | None = Query(None, pattern="^(drop|search|ask|not_helpful|video|pdf|broken|stale|heavy|agent_unanswered|agent_unfriendly)$"),
                      path: str | None = Query(None, max_length=400),
                      db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
     site, role = await store.load_site(db, site_id, user)

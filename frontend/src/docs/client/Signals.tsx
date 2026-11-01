@@ -11,6 +11,10 @@
  *   videos played                     which 40ths of each docs-player video (data-video-id) played
  *   code copied                       which code block's Copy was used, and in which section
  *
+ *   embedded files                    what an embedded Markdrop file reports with an `md:embed-signal`
+ *                                     event (bubbling, detail: ../signals.d.mts EmbedSignal): a video's
+ *                                     slices played (or furthest quartile / second), a PDF's furthest page
+ *
  * and, from the guide's 404 page, the missing address and the guide page that linked to it
  * (`BrokenLinkSignal`).
  *
@@ -22,7 +26,7 @@
  */
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { brokenBeacon, deepestReached, markPlayed, optedOut, readBeacon, sampled, sectionAt, type ViewState } from "../signals.mjs";
+import { EMBED_EVENT, brokenBeacon, deepestReached, markPlayed, mergeEmbed, optedOut, readBeacon, sampled, sectionAt, type ViewState } from "../signals.mjs";
 import { useDocsSite } from "./site";
 
 const ARTICLE = "main#main";
@@ -67,7 +71,7 @@ export function ReaderSignals({ base, sample }: { base: string; sample?: number 
     const heads = headingsOf(article);
     const view: ViewState = {
       path: window.location.pathname, n: heads.length, deepest: -1, end: false, ids: heads.map((h) => h.id),
-      seconds: 0, copies: [], videos: new Map(),
+      seconds: 0, copies: [], videos: new Map(), embeds: new Map(),
     };
     let sent = false;
     let frame = 0;
@@ -115,6 +119,12 @@ export function ReaderSignals({ base, sample }: { base: string; sample?: number 
       rec.length = dur;
       view.videos.set(v.dataset.videoId, rec);
     };
+    const onEmbed = (e: Event) => {
+      const d = (e as CustomEvent).detail as { id?: unknown } | null;
+      if (!d || typeof d.id !== "string") return;
+      const next = mergeEmbed(view.embeds!.get(d.id), d);
+      if (next) view.embeds!.set(d.id, next);
+    };
     const onSeek = (e: Event) => {
       if (e.target instanceof HTMLVideoElement) last.delete(e.target);
     };
@@ -136,6 +146,7 @@ export function ReaderSignals({ base, sample }: { base: string; sample?: number 
     document.addEventListener("click", onClick, true);
     document.addEventListener("timeupdate", onTime, true);
     document.addEventListener("seeking", onSeek, true);
+    document.addEventListener(EMBED_EVENT, onEmbed);
     document.addEventListener("visibilitychange", onHide);
     window.addEventListener("pagehide", onPageHide);
     return () => {
@@ -149,6 +160,7 @@ export function ReaderSignals({ base, sample }: { base: string; sample?: number 
       document.removeEventListener("click", onClick, true);
       document.removeEventListener("timeupdate", onTime, true);
       document.removeEventListener("seeking", onSeek, true);
+      document.removeEventListener(EMBED_EVENT, onEmbed);
       document.removeEventListener("visibilitychange", onHide);
       window.removeEventListener("pagehide", onPageHide);
     };

@@ -646,5 +646,140 @@ class Drafts(FixCase):
         self.assertIn("rotate an API key", turn)
 
 
+# ── Agents, embeds, confidence ────────────────────────────────────────────────
+
+
+class AgentsAndEmbedsPure(unittest.TestCase):
+    def test_agent_families(self):
+        self.assertEqual(gs.agent_family("Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ChatGPT-User/1.0)"), "ChatGPT")
+        self.assertEqual(gs.agent_family("Claude-User/1.0 (+Claude-User@anthropic.com)"), "Claude")
+        self.assertEqual(gs.agent_family("Mozilla/5.0 (compatible; PerplexityBot/1.0)"), "Perplexity")
+        self.assertIsNone(gs.agent_family(DESKTOP))
+        self.assertIsNone(gs.agent_family("Googlebot/2.1"))   # a search crawler is not an AI agent
+        self.assertEqual(gs.tool_family("curl/8.4"), "Other tool")
+        self.assertEqual(gs.tool_family(""), "Other tool")
+        self.assertEqual(gs.tool_family(DESKTOP), "Browser or other")
+        self.assertEqual(gs.agent_path("/md/guides/start", "markdown"), "/guides/start")
+        self.assertEqual(gs.agent_path("/guides/start.md", "markdown"), "/guides/start")
+        self.assertEqual(gs.agent_path("/md/index.md", "markdown"), "/")
+        self.assertEqual(gs.agent_path("/anything", "llms"), "/llms.txt")
+        self.assertEqual(gs.agent_path("/mcp", "mcp"), "/mcp")
+        self.assertIsNone(gs.agent_path("bad path", "page"))
+
+    def test_embed_entries(self):
+        self.assertEqual(gs.clean_embed({"i": "emb1", "k": "video", "l": 100, "b": bits([0, 1]), "name": "Tour\x00"}),
+                         {"i": "emb1", "k": "video", "name": "Tour", "l": 100, "b": [0, 1]})
+        self.assertEqual(gs.clean_embed({"i": "emb1", "k": "video", "l": 100, "q": 2})["b"], list(range(20)))
+        self.assertEqual(gs.clean_embed({"i": "emb1", "k": "video", "l": 100, "s": 42})["b"], list(range(17)))
+        self.assertEqual(gs.clean_embed({"i": "deck", "k": "pdf", "n": 12, "r": 3}), {"i": "deck", "k": "pdf", "n": 12, "r": 3})
+        for bad in ({"i": "deck", "k": "pdf", "n": 12, "r": 13}, {"i": "a b", "k": "pdf", "n": 2, "r": 1},
+                    {"i": "x", "k": "sheet"}, {"i": "x", "k": "video", "l": 0, "q": 1}, {"i": "x", "k": "video", "l": 9}):
+            self.assertIsNone(gs.clean_embed(bad), bad)
+        got = gs.clean_read({"p": "/a", "n": 2, "d": 0, "e": [{"i": "deck", "k": "pdf", "n": 5, "r": 2}, {"i": "?", "k": "pdf"}]})
+        self.assertEqual(got["e"], [{"i": "deck", "k": "pdf", "n": 5, "r": 2}])
+        self.assertEqual(gs.clean_embed_beacon({"k": "embed", "p": "/a/", "e": [{"i": "deck", "k": "pdf", "n": 5, "r": 5}, 7]}),
+                         {"p": "/a", "w": 1, "e": [{"i": "deck", "k": "pdf", "n": 5, "r": 5}]})
+        self.assertIsNone(gs.clean_embed_beacon({"k": "embed", "p": "/a", "e": [{"i": "deck", "k": "pdf"}]}))
+
+    def test_pdf_drop(self):
+        hist = {"1": 4, "2": 3, "3": 14, "4": 2, "5": 2, "6": 5}
+        data = {"now": NOW, "pages": {"/board": {"title": "Board pack", "readers": 40}},
+                "pdfs": {"deck": {"n": 6, "name": "Q3 Board Deck", "hist": hist, "pages": {"/board": 30}}}}
+        [c] = gf.detect_pdfs(data)
+        self.assertEqual((c["key"], c["path"], c["readers"]), ("pdf:deck", "/board", 14))
+        self.assertEqual(c["title"], "Readers stop at page 3 of “Q3 Board Deck”")
+        self.assertEqual(c["confidence"], "medium")      # 30 readers, twice the minimum
+        self.assertEqual(c["evidence"]["curve"][0], {"page": 1, "reached_pct": 100, "left_pct": 13})
+        data["pdfs"]["deck"]["hist"] = {"1": 3, "3": 6}  # 9 readers: too few
+        self.assertEqual(gf.detect_pdfs(data), [])
+        self.assertEqual(gf.pending(data)[0], {"type": "pdf", "path": None, "title": "Q3 Board Deck", "have": 9, "need": gf.PDF_MIN})
+
+    def test_agent_items(self):
+        pages = {"/ref/cli": {"title": "CLI reference", "readers": 5, "words": 2400, "media": 0, "headings": []},
+                 "/tour": {"title": "Product tour", "readers": 5, "words": 60, "media": 6, "headings": [{"id": "a", "depth": 2}]},
+                 "/secret": {"title": "Internal", "readers": 0, "words": 300, "media": 0, "hidden": True, "headings": []},
+                 "/fine": {"title": "Fine", "readers": 9, "words": 900, "media": 1, "headings": [{"id": "x", "depth": 2}]}}
+        agents = [{"p": p, "via": via, "a": a, "n": n} for p, via, a, n in (
+            ("/ref/cli", "markdown", "Claude", 30), ("/ref/cli", "page", "ChatGPT", 12), ("/tour", "page", "Perplexity", 11),
+            ("/secret", "markdown", "Other tool", 14), ("/fine", "markdown", "Claude", 50), ("/llms.txt", "llms", "Claude", 80),
+            ("/mcp", "mcp", "Claude", 40))]
+        data = {"now": NOW, "pages": pages, "agents": agents, "total_readers": 300,
+                "agent_searches": [{"q": "terraform provider", "n": 3, "last": NOW}, {"q": "terraform", "n": 1, "last": NOW},
+                                   {"q": "pricing", "n": 1, "last": NOW}]}
+        got = {c["key"]: c for c in gf.detect_agent_unfriendly(data)}
+        self.assertEqual(set(got), {"agent_unfriendly:/ref/cli", "agent_unfriendly:/tour", "agent_unfriendly:/secret"})
+        self.assertEqual(got["agent_unfriendly:/ref/cli"]["evidence"]["reason"], "no_headings")
+        self.assertEqual(got["agent_unfriendly:/ref/cli"]["readers"], 42)
+        self.assertEqual(got["agent_unfriendly:/tour"]["evidence"]["reason"], "media")
+        self.assertEqual(got["agent_unfriendly:/secret"]["evidence"]["reason"], "hidden")
+        [ask] = gf.detect_agent_searches(data)
+        self.assertEqual((ask["key"], ask["readers"]), ("agent_unanswered:terraform provider", 4))
+        s = gf.agents_summary(data)
+        self.assertEqual(s["total"], 237)
+        self.assertEqual(s["families"][0], {"name": "Claude", "n": 200})
+        self.assertEqual(s["via"], {"markdown": 94, "page": 23, "llms": 80, "mcp": 40})
+        self.assertEqual(s["pages"][0]["path"], "/fine")
+        self.assertEqual(s["readers"], 300)              # people, counted apart
+
+    def test_confidence_and_pending(self):
+        self.assertEqual(gf.confidence(25, 25), "low")
+        self.assertEqual(gf.confidence(50, 25), "medium")
+        self.assertEqual(gf.confidence(100, 25), "high")
+        self.assertEqual(gf.confidence(None, None), "high")
+        data = {"now": NOW, "pages": {"/a": {"title": "A"}}, "votes": {"/a": (0, 2)},
+                "reading": {"/a": hist_rec(4, {1: 10, 4: 2})}, "videos": {"tour": {"plays": 3, "l": 9, "curve": []}}}
+        got = gf.pending(data)
+        self.assertEqual({(p["type"], p["have"], p["need"]) for p in got},
+                         {("drop", 12, gf.MIN_READS), ("video", 3, gf.VIDEO_MIN_PLAYS), ("not_helpful", 2, gf.HELPFUL_MIN_VOTES)})
+
+
+class AgentsAndEmbedsApi(FixCase):
+    async def test_agent_reads_are_counted_apart(self):
+        edge = {"Authorization": f"Bearer {gi.edge_key('s' * 40)}", "X-Docs-Reader-Ip": "203.0.113.7"}
+        r = await self.http.post(f"{SIG}/{self.sid}/hit", headers=edge, json={
+            "path": "/start", "ua": "Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)"})
+        self.assertEqual(r.json(), {"status": "ok"})
+        r = await self.http.post(f"{SIG}/{self.sid}/agent", headers=edge, json={"path": "/md/start", "via": "markdown", "ua": "Claude-User/1.0"})
+        self.assertEqual(r.json(), {"status": "ok"})
+        r = await self.http.post(f"{SIG}/{self.sid}/agent", json={"path": "/llms.txt", "via": "llms"})
+        self.assertEqual(r.status_code, 401)
+        r = await self.http.post(f"{SIG}/{self.sid}/agent", headers=edge, json={"path": "/x", "via": "sitemap"})
+        self.assertEqual(r.status_code, 422)
+        rows = await self.db[gi.RAW].find({"site": self.sid}).to_list(10)
+        self.assertEqual(sorted((r["k"], r["p"], r["via"], r["a"]) for r in rows),
+                         [("agent", "/start", "markdown", "Claude"), ("agent", "/start", "page", "ChatGPT")])
+        self.assertFalse(any(r["k"] == "view" for r in rows))   # never a reader
+        for row in rows:
+            self.assertNotIn("203.0.113.7", json.dumps(row, default=str))
+        # The docs MCP server's searches that found nothing (server side, no Origin).
+        h = {"Content-Type": "text/plain;charset=UTF-8"}
+        r = await self.http.post(f"{SIG}/{self.sid}/event", headers=h, content=json.dumps(
+            {"k": "search", "q": "Terraform provider for jane@acme.com", "n": 0, "src": "mcp"}))
+        self.assertEqual(r.json(), {"status": "ok"})
+        r = await self.http.post(f"{SIG}/{self.sid}/event", headers=h, content=json.dumps({"k": "search", "q": "found", "n": 3, "src": "mcp"}))
+        self.assertEqual(r.json(), {"status": "ignored"})
+        r = await self.http.post(f"{SIG}/{self.sid}/event", headers=h, content=json.dumps({"k": "search", "q": "no origin", "n": 0}))
+        self.assertEqual(r.status_code, 403)   # a reader's search still needs the guide's own Origin
+        [s] = await self.db[gi.RAW].find({"site": self.sid, "k": "agent_search"}).to_list(5)
+        self.assertEqual(s["q"], "terraform provider for [email]")
+
+    async def test_embed_beacons_roll_up_into_videos_and_pdfs(self):
+        r = await self.signal({"k": "read", "p": "/start", "n": 4, "d": 1, "t": 20,
+                               "e": [{"i": "deck", "k": "pdf", "n": 6, "r": 3, "name": "Q3 Board Deck"},
+                                     {"i": "demo", "k": "video", "l": 40, "q": 1, "name": "Product demo"}]})
+        self.assertEqual(r.json(), {"status": "ok"})
+        r = await self.signal({"k": "embed", "p": "/start", "e": [{"i": "deck", "k": "pdf", "n": 6, "r": 6}]})
+        self.assertEqual(r.json(), {"status": "ok"})
+        w = await gs.window(self.db, self.sid, gf.window_days(now()))
+        self.assertEqual(w["pdfs"]["deck"]["hist"], {"3": 1, "6": 1})
+        self.assertEqual(w["pdfs"]["deck"]["name"], "Q3 Board Deck")
+        v = w["videos"]["embed:demo"]
+        self.assertEqual((v["plays"], v["name"], v["curve"][:11]), (1, "Product demo", [1] * 10 + [0]))
+        listing = await self.get(f"/{self.sid}/fixes")
+        self.assertIn("pending", listing)
+        self.assertEqual({p["type"] for p in listing["pending"]} >= {"pdf", "video"}, True)
+        self.assertIsNotNone(listing["agents"])
+
+
 if __name__ == "__main__":
     unittest.main()

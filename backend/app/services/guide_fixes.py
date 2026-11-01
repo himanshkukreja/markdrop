@@ -5,7 +5,8 @@ services/guide_signals.py; same privacy rules: nothing here identifies a reader)
 build itself, re-detected once a day (the background job) and when the list is opened after a day
 without a check. Each problem is an *item* in ``guide_fixes``:
 
-    type       drop | search | ask | not_helpful | video | broken | stale | heavy
+    type       drop | search | ask | not_helpful | video | pdf | broken | stale | heavy |
+               agent_unanswered | agent_unfriendly
     key        what makes it the same problem from one day to the next ("drop:/start#install",
                "video:product-tour", "search:sso"...); clustered searches and questions also keep
                ``aliases`` (every wording they grouped) so a cluster whose most frequent wording
@@ -26,10 +27,23 @@ Detection rules (all over the last ``WINDOW_DAYS`` days, pure functions below, u
     not_helpful  "Did this page help?": 3+ votes, 2+ "no", and helpful <= 60%; open comments attached
     video        a video played 8+ times whose retention falls 15+ points within 5% of its length
                  (and 2x its average fall) before the last 12.5%: "loses most viewers at 0:42"
+                 (docs-player videos and embedded Markdrop videos alike)
+    pdf          an embedded PDF opened 15+ times where an abnormal share of readers stop at one
+                 page (>= 20%, 1.8x the median, 6+ readers), the last page excepted
+    agent_unanswered  the docs MCP server's searches (AI agents asking on someone's behalf) that
+                 found nothing, clustered, 2+ in a cluster
+    agent_unfriendly  a page AI agents read 10+ times that is hard for them to use: long with no
+                 headings, mostly images or video with little text, or hidden from llms.txt
     broken       an address in the guide readers hit that doesn't exist (2+ hits, or 1 from a link on
                  one of its own pages), and links in the live pages to a page that doesn't exist
     stale        a page not edited in STALE_DAYS that is read a lot (25+ readers, top half of pages)
     heavy        a very long or media-heavy page that people read (cheap to tell from the Markdown)
+
+Confidence: every item says how sure it is (low / medium / high: its sample is at least the
+type's minimum, twice it, four times it), and below the minimum nothing is flagged at all: the list
+shows those as "needs more readers" (pages, videos and PDFs collecting toward their minimum).
+
+Agents are counted apart from readers (services/guide_signals.py) and never in a reader number.
 
 Scoring: ``impact = readers affected x severity x recency``. Readers affected is what the evidence
 counts (readers who left at that section, searches that found nothing, viewers lost...). Severity
@@ -68,7 +82,8 @@ log = logging.getLogger("markdrop.guide_fixes")
 FIXES = "guide_fixes"
 STATE = "guide_fix_state"
 
-TYPES = ("drop", "search", "ask", "not_helpful", "video", "broken", "stale", "heavy")
+TYPES = ("drop", "search", "ask", "not_helpful", "video", "pdf", "broken", "stale", "heavy", "agent_unanswered",
+         "agent_unfriendly")
 STATUSES = ("open", "in_progress", "fixed", "dismissed")
 DISMISS_REASONS = ("not_a_problem", "wont_fix", "duplicate", "other")
 
@@ -82,10 +97,10 @@ HISTORY_KEEP = 20
 ITEMS_MAX = 300
 RECHECK_GROUPS = 6
 
-SEVERITY = {"drop": 0.6, "search": 0.7, "ask": 0.8, "not_helpful": 0.5, "video": 0.5, "broken": 1.0,
-            "stale": 0.3, "heavy": 0.2}
+SEVERITY = {"drop": 0.6, "search": 0.7, "ask": 0.8, "not_helpful": 0.5, "video": 0.5, "pdf": 0.5, "broken": 1.0,
+            "stale": 0.3, "heavy": 0.2, "agent_unanswered": 0.6, "agent_unfriendly": 0.4}
 # Problems the live build has (re-checked against a publish), as opposed to ones readers report.
-BUILD_TYPES = {"stale", "heavy"}
+BUILD_TYPES = {"stale", "heavy", "agent_unfriendly"}
 
 # drop
 MIN_READS = 25
@@ -105,6 +120,16 @@ SAMPLES = 6
 HELPFUL_MIN_VOTES = 3
 HELPFUL_MIN_NO = 2
 HELPFUL_MAX_PCT = 60
+# pdf
+PDF_MIN = 15
+PDF_MIN_SHARE = 0.2
+PDF_MIN_READERS = 6
+# agents
+AGENT_ASK_MIN = 2
+AGENT_READS_MIN = 10
+AGENT_NO_HEADINGS_WORDS = 400
+AGENT_MEDIA_HEAVY = 3
+AGENT_MEDIA_WORDS = 150
 # stale / heavy
 STALE_MIN_READERS = 25
 HEAVY_WORDS = 6000
@@ -252,11 +277,17 @@ def idf_of(corpus: list[str]) -> dict[str, float]:
 
 
 def similarity(a: frozenset[str], b: frozenset[str], idf: dict[str, float]) -> float:
-    """Weighted Jaccard: rare shared words count, common ones ("connect", "set") barely do."""
+    """Weighted Jaccard: rare shared words count, common ones ("connect", "set") barely do. A
+    wording whose words are all in the other ("terraform" in "terraform provider") gets a little
+    more, as long as its words carry enough of the other's weight."""
     if not a or not b:
         return 0.0
     w = lambda s: sum(idf.get(t, 1.0) for t in s)  # noqa: E731
-    return w(a & b) / w(a | b)
+    sim = w(a & b) / w(a | b)
+    if a <= b or b <= a:
+        small, large = (a, b) if a <= b else (b, a)
+        sim = max(sim, min(1.0, w(small) / w(large) + 0.15))
+    return sim
 
 
 def cluster(entries: list[dict], *, corpus: list[str] | None = None, threshold: float = CLUSTER_SIM) -> list[dict]:
@@ -308,13 +339,24 @@ def cluster(entries: list[dict], *, corpus: list[str] | None = None, threshold: 
 # ── Detection (pure: data in, candidates out) ────────────────────────────────
 
 
+def confidence(sample: float | None, need: float | None) -> str:
+    """How sure an item is: its sample against the type's minimum (x4 high, x2 medium, else low).
+    Deterministic findings (a link to a missing page, a page's age) pass no sample: high."""
+    if sample is None or not need:
+        return "high"
+    r = sample / need
+    return "high" if r >= 4 else "medium" if r >= 2 else "low"
+
+
 def _cand(type_: str, key: str, *, path: str | None, title: str, summary: str, readers: float,
           evidence: dict, last: datetime | None, section: str | None = None, section_title: str | None = None,
-          aliases: list[str] | None = None, severity: float | None = None) -> dict:
+          aliases: list[str] | None = None, severity: float | None = None, sample: float | None = None,
+          need: float | None = None) -> dict:
     return {"type": type_, "key": key, "aliases": aliases or [key], "path": path, "section": section,
             "section_title": section_title, "title": title, "summary": summary, "readers": round(readers, 1),
             "severity": SEVERITY[type_] if severity is None else round(severity, 3), "evidence": evidence,
-            "last_seen": aware(last)}
+            "last_seen": aware(last), "confidence": confidence(sample, need),
+            "sample": {"have": round(sample), "need": need} if sample is not None and need else None}
 
 
 def _pct(x: float) -> int:
@@ -377,6 +419,7 @@ def detect_drops(data: dict) -> list[dict]:
             title=f"Readers leave at “{stitle}”" if best >= 0 else f"Readers leave “{label}” before the first section",
             summary=f"{_pct(shares[best])}% of readers stop here on “{label}”; on the rest of the page it’s about {_pct(base)}% per section.",
             readers=left, last=data.get("now"), severity=SEVERITY["drop"] * (0.7 if best < 0 else 1.0),
+            sample=total, need=MIN_READS,
             evidence={"measured": total, "left": left, "left_pct": _pct(shares[best]), "typical_pct": _pct(base),
                       "curve": drop_curve(rec, titles), "seconds": round(rec.get("t", 0) / total) if total else None}))
     return out
@@ -394,7 +437,7 @@ def detect_searches(data: dict) -> list[dict]:
             "search", f"search:{c['key']}", aliases=[f"search:{a}" for a in c["aliases"]], path=None,
             title=f"People search for “{c['text']}” and find nothing",
             summary=f"{c['n']} searches found no results" + (f" ({others + 1} wordings)" if others else "") + ".",
-            readers=c["n"], last=c["last"],
+            readers=c["n"], last=c["last"], sample=c["n"], need=SEARCH_MIN,
             evidence={"searches": c["n"], "samples": c["samples"], "wordings": len(c["aliases"])}))
     return out
 
@@ -412,7 +455,7 @@ def detect_asks(data: dict) -> list[dict]:
             path=page if page in (data.get("pages") or {}) else None,
             title=f"Ask AI couldn’t answer “{c['text']}”",
             summary=f"Asked {c['n']} times without an answer" + (f", in {len(c['aliases'])} wordings" if len(c["aliases"]) > 1 else "") + ".",
-            readers=c["n"], last=c["last"],
+            readers=c["n"], last=c["last"], sample=c["n"], need=ASK_MIN,
             evidence={"questions": c["n"], "samples": c["samples"], "pages": [
                 {"path": p, "title": _page_label(data.get("pages") or {}, p), "n": k}
                 for p, k in sorted(c["pages"].items(), key=lambda kv: -kv[1])[:5]]}))
@@ -436,6 +479,7 @@ def detect_not_helpful(data: dict) -> list[dict]:
             title=f"“{label}” marked not helpful",
             summary=f"{no} of {votes} readers said it didn’t help ({pct}% helpful)" + (f"; {len(comments)} left a comment." if comments else "."),
             readers=readers, last=last, severity=SEVERITY["not_helpful"] * (1 + no / votes),
+            sample=votes, need=HELPFUL_MIN_VOTES,
             evidence={"yes": yes, "no": no, "helpful_pct": pct, "comments": [
                 {"id": c.get("id"), "text": c["comment"], "ts": gi.iso(aware(c.get("ts")))} for c in comments[:SAMPLES]]}))
     return out
@@ -472,15 +516,15 @@ def detect_videos(data: dict) -> list[dict]:
         b, fall, avg = hit
         length = int(v.get("l") or 0)
         at = length * b / gs.SLICES
-        title = titles.get(vid) or humanize(vid)
+        title = titles.get(vid) or v.get("name") or humanize(vid.removeprefix("embed:"))
         page = max((v.get("pages") or {}).items(), key=lambda kv: kv[1])[0] if v.get("pages") else None
         lost = round(plays * fall)
         out.append(_cand(
             "video", f"video:{vid}", path=page,
             title=f"“{title}” loses most viewers at {clock(at)}",
             summary=f"{_pct(fall)}% of viewers stop around {clock(at)} of {clock(length)}" + (f" on “{_page_label(pages, page)}”." if page else "."),
-            readers=lost, last=data.get("now"),
-            evidence={"video": vid, "video_title": title, "plays": plays, "length": length, "at": round(at, 1),
+            readers=lost, last=data.get("now"), sample=plays, need=VIDEO_MIN_PLAYS,
+            evidence={"embed": vid.startswith("embed:"), "video": vid, "video_title": title, "plays": plays, "length": length, "at": round(at, 1),
                       "fall_pct": _pct(fall), "typical_pct": _pct(avg),
                       "curve": [_pct(min(1.0, c / plays)) for c in v.get("curve") or []]}))
     return out
@@ -539,6 +583,7 @@ def detect_broken(data: dict) -> list[dict]:
             title=f"Broken link to {target}",
             summary=(f"{a['hits']} readers hit a page that doesn’t exist" if a["hits"] else "A link points to a page that doesn’t exist") + where + ".",
             readers=max(readers, 1), last=a["last"] or data.get("now"),
+            sample=a["hits"] if a["hits"] and not a["links"] else None, need=2 if a["hits"] and not a["links"] else None,
             severity=SEVERITY["broken"] if a["hits"] else 0.6,
             evidence={"target": target, "hits": a["hits"], "suggested": fix,
                       "pages": [{"path": p, "title": _page_label(pages, p), "link": p in a["links"], "hits": a["from"].get(p, 0)}
@@ -586,8 +631,148 @@ def detect_heavy(data: dict) -> list[dict]:
     return out
 
 
-DETECTORS = (detect_drops, detect_searches, detect_asks, detect_not_helpful, detect_videos, detect_broken,
-             detect_stale, detect_heavy)
+def detect_pdfs(data: dict) -> list[dict]:
+    """Embedded PDFs: the page most readers stop at, against the document's own curve."""
+    out = []
+    pages = data.get("pages") or {}
+    for pid, d in (data.get("pdfs") or {}).items():
+        n = int(d.get("n") or 0)
+        hist = {int(k): int(v) for k, v in (d.get("hist") or {}).items() if str(k).isdigit()}
+        total = sum(hist.values())
+        if n < 3 or total < PDF_MIN:
+            continue
+        positions = list(range(1, n))  # the last page is finishing
+        shares = {r: hist.get(r, 0) / total for r in positions}
+        base = statistics.median(shares.values())
+        best = None
+        for r in positions:
+            s = shares[r]
+            if s >= PDF_MIN_SHARE and s >= DROP_RATIO * base and s - base >= DROP_MARGIN and hist.get(r, 0) >= PDF_MIN_READERS:
+                if best is None or s > shares[best]:
+                    best = r
+        if best is None:
+            continue
+        name = d.get("name") or humanize(pid)
+        page = max((d.get("pages") or {}).items(), key=lambda kv: kv[1])[0] if d.get("pages") else None
+        reached, curve = total, []
+        for r in range(1, n + 1):
+            curve.append({"page": r, "reached_pct": _pct(reached / total), "left_pct": _pct(hist.get(r, 0) / total) if r < n else 0})
+            reached -= hist.get(r, 0)
+        out.append(_cand(
+            "pdf", f"pdf:{pid}", path=page,
+            title=f"Readers stop at page {best} of “{name}”",
+            summary=f"{_pct(shares[best])}% of readers go no further than page {best} of {n}; about {_pct(base)}% stop at a typical page.",
+            readers=hist.get(best, 0), last=data.get("now"), sample=total, need=PDF_MIN,
+            evidence={"embed": pid, "name": name, "pages_total": n, "page": best, "readers_pdf": total,
+                      "left_pct": _pct(shares[best]), "typical_pct": _pct(base), "curve": curve[:200]}))
+    return out
+
+
+def detect_agent_searches(data: dict) -> list[dict]:
+    """What AI agents searched the docs for (the docs MCP server) and found nothing."""
+    rows = data.get("agent_searches") or []
+    corpus = [p.get("title") or "" for p in (data.get("pages") or {}).values()]
+    out = []
+    for c in cluster([{"text": r["q"], "n": r["n"], "last": r.get("last")} for r in rows], corpus=corpus):
+        if c["n"] < AGENT_ASK_MIN:
+            continue
+        out.append(_cand(
+            "agent_unanswered", f"agent_unanswered:{c['key']}", aliases=[f"agent_unanswered:{a}" for a in c["aliases"]], path=None,
+            title=f"Agents search for “{c['text']}” and nothing answers it",
+            summary=f"AI assistants searched your docs for this {c['n']} times through the docs MCP server and found nothing.",
+            readers=c["n"], last=c["last"], sample=c["n"], need=AGENT_ASK_MIN,
+            evidence={"searches": c["n"], "samples": c["samples"], "wordings": len(c["aliases"])}))
+    return out
+
+
+def agent_reads(data: dict) -> dict[str, dict]:
+    """page path → {n, families: {name: n}, via: {page|markdown: n}} over the window."""
+    out: dict[str, dict] = {}
+    for r in data.get("agents") or []:
+        p = r.get("p")
+        if not p or r.get("via") in ("llms", "mcp"):
+            continue
+        a = out.setdefault(p, {"n": 0, "families": {}, "via": {}})
+        a["n"] += int(r.get("n") or 0)
+        a["families"][r.get("a") or "Other"] = a["families"].get(r.get("a") or "Other", 0) + int(r.get("n") or 0)
+        a["via"][r.get("via") or "page"] = a["via"].get(r.get("via") or "page", 0) + int(r.get("n") or 0)
+    return out
+
+
+def detect_agent_unfriendly(data: dict) -> list[dict]:
+    """Pages agents read that are hard for them to use."""
+    out = []
+    pages = data.get("pages") or {}
+    for path, a in agent_reads(data).items():
+        p = pages.get(path)
+        if not p or a["n"] < AGENT_READS_MIN:
+            continue
+        words, media = p.get("words", 0), p.get("media", 0)
+        heads = [h for h in p.get("headings") or [] if h.get("depth") in (2, 3)]
+        why = None
+        if p.get("hidden"):
+            why = ("hidden", "it’s hidden, so it isn’t in llms.txt or the sidebar, and agents can’t find it from there")
+        elif media >= AGENT_MEDIA_HEAVY and words < AGENT_MEDIA_WORDS:
+            why = ("media", f"most of it is in {media} images or videos, with only {words} words of text they can read")
+        elif words >= AGENT_NO_HEADINGS_WORDS and not heads:
+            why = ("no_headings", f"it’s {words:,} words with no headings, so they can’t jump to the part that answers the question")
+        if why is None:
+            continue
+        label = p.get("title") or path
+        fams = sorted(a["families"].items(), key=lambda kv: -kv[1])
+        out.append(_cand(
+            "agent_unfriendly", f"agent_unfriendly:{path}", path=path,
+            title=f"Agents read “{label}” but it’s hard for them to use",
+            summary=f"AI agents read it {a['n']} times, but {why[1]}.",
+            readers=a["n"], last=data.get("now"),
+            evidence={"reason": why[0], "agent_reads": a["n"], "families": [{"name": k, "n": v} for k, v in fams[:6]],
+                      "via": a["via"], "words": words, "media": media, "headings": len(heads)}))
+    return out
+
+
+DETECTORS = (detect_drops, detect_searches, detect_asks, detect_not_helpful, detect_videos, detect_pdfs, detect_broken,
+             detect_stale, detect_heavy, detect_agent_searches, detect_agent_unfriendly)
+
+
+def pending(data: dict, limit: int = 12) -> list[dict]:
+    """What's collecting toward a minimum and can't be judged yet ("needs more readers"): pages
+    measured fewer than MIN_READS times, videos and PDFs under theirs, pages with a few votes."""
+    out = []
+    pages = data.get("pages") or {}
+    for path, rec in (data.get("reading") or {}).items():
+        total = sum(int(v) for v in (rec.get("hist") or {}).values())
+        if 0 < total < MIN_READS and int(rec.get("n") or 0) >= 3:
+            out.append({"type": "drop", "path": path, "title": _page_label(pages, path), "have": total, "need": MIN_READS})
+    for vid, v in (data.get("videos") or {}).items():
+        plays = int(v.get("plays") or 0)
+        if 0 < plays < VIDEO_MIN_PLAYS:
+            out.append({"type": "video", "path": None, "title": (data.get("video_titles") or {}).get(vid) or v.get("name")
+                        or humanize(vid.removeprefix("embed:")), "have": plays, "need": VIDEO_MIN_PLAYS})
+    for pid, d in (data.get("pdfs") or {}).items():
+        total = sum(int(c) for c in (d.get("hist") or {}).values())
+        if 0 < total < PDF_MIN:
+            out.append({"type": "pdf", "path": None, "title": d.get("name") or humanize(pid), "have": total, "need": PDF_MIN})
+    for path, (yes, no) in (data.get("votes") or {}).items():
+        if no and yes + no < HELPFUL_MIN_VOTES:
+            out.append({"type": "not_helpful", "path": path, "title": _page_label(pages, path), "have": yes + no,
+                        "need": HELPFUL_MIN_VOTES})
+    return sorted(out, key=lambda x: (-x["have"] / x["need"], x["title"] or ""))[:limit]
+
+
+def agents_summary(data: dict) -> dict:
+    """AI agents over the window, apart from readers: total reads, by family, by how they read,
+    and the pages they read most."""
+    fam: dict[str, int] = {}
+    via: dict[str, int] = {}
+    for r in data.get("agents") or []:
+        n = int(r.get("n") or 0)
+        fam[r.get("a") or "Other"] = fam.get(r.get("a") or "Other", 0) + n
+        via[r.get("via") or "page"] = via.get(r.get("via") or "page", 0) + n
+    pages = data.get("pages") or {}
+    top = sorted(agent_reads(data).items(), key=lambda kv: -kv[1]["n"])[:8]
+    return {"total": sum(fam.values()), "families": [{"name": k, "n": v} for k, v in sorted(fam.items(), key=lambda kv: -kv[1])[:8]],
+            "via": via, "pages": [{"path": p, "title": _page_label(pages, p), "n": a["n"]} for p, a in top],
+            "readers": int(data.get("total_readers") or 0)}
 
 
 def detect_all(data: dict) -> list[dict]:
@@ -607,6 +792,8 @@ def detect_all(data: dict) -> list[dict]:
             p = (data.get("pages") or {}).get(c["path"] or "") or {}
             c["page_id"] = p.get("page_id")
             c["page_title"] = p.get("title")
+            if c.get("sample"):
+                c["evidence"] = {**c["evidence"], "sample": c["sample"]}
             out.append(c)
     return sorted(out, key=lambda c: (-c["impact"], c["key"]))
 
@@ -659,7 +846,7 @@ async def gather(db: AsyncIOMotorDatabase, site_row: dict, *, at: datetime | Non
                 continue
             md = p.get("markdown") or ""
             d = drafts.get(p.get("page_id") or "") or {}
-            pages[path] = {"title": p.get("title") or d.get("title"), "page_id": p.get("page_id"),
+            pages[path] = {"title": p.get("title") or d.get("title"), "page_id": p.get("page_id"), "hidden": bool(p.get("hidden")),
                            "readers": readers.get(path, 0), "headings": headings_of(md), "words": word_count(md),
                            "media": media_count(md), "hash": p.get("hash"),
                            "updated_at": aware((d.get("draft") or {}).get("updated_at"))}
@@ -682,6 +869,9 @@ async def gather(db: AsyncIOMotorDatabase, site_row: dict, *, at: datetime | Non
     data["videos"] = sig["videos"]
     data["broken_hits"] = sig["broken"]
     data["copies"] = sig["copies"]
+    data["pdfs"] = sig.get("pdfs") or {}
+    data["agents"] = sig.get("agents") or []
+    data["agent_searches"] = [{**a, "last": aware(a.get("last"))} for a in sig.get("agent_searches") or []]
 
     data["empty_searches"] = [{"q": r["_id"], "n": int(r["n"]), "last": aware(r["last"])} async for r in db[gi.RAW].aggregate([
         {"$match": {"site": site, "day": {"$in": days}, "k": "search", "n": 0}},
@@ -736,7 +926,7 @@ def _push_history(entry: dict) -> dict:
 
 
 FIELDS = ("type", "path", "page_id", "page_title", "section", "section_title", "title", "summary", "readers",
-          "severity", "recency", "impact", "level", "evidence")
+          "severity", "recency", "impact", "level", "evidence", "confidence")
 
 
 def _match(items: list[dict], c: dict) -> dict | None:
@@ -862,7 +1052,9 @@ async def check(db: AsyncIOMotorDatabase, site_row: dict, *, at: datetime | None
                             last_published=aware(site_row.get("last_published_at")))
     stats["fixed_by_publish"] = await reconcile_applied(db, site_row, at)
     await db[STATE].update_one({"_id": site}, {"$set": {"checked_at": at, "stats": stats,
-                                                        "readers": data.get("total_readers", 0)}}, upsert=True)
+                                                        "readers": data.get("total_readers", 0),
+                                                        "pending": pending(data), "agents": agents_summary(data)}},
+                               upsert=True)
     return stats
 
 
@@ -919,7 +1111,7 @@ def view(it: dict, *, full: bool = False) -> dict:
         "title": it.get("title"), "summary": it.get("summary"), "path": it.get("path"), "page_id": it.get("page_id"),
         "page_title": it.get("page_title"), "section": it.get("section"), "section_title": it.get("section_title"),
         "readers": it.get("readers", 0), "severity": it.get("severity", 0), "recency": it.get("recency", 1),
-        "impact": it.get("impact", 0), "level": it.get("level", "low"),
+        "impact": it.get("impact", 0), "level": it.get("level", "low"), "confidence": it.get("confidence") or "high",
         "detected_at": gi.iso(aware(it.get("detected_at"))), "last_seen_at": gi.iso(aware(it.get("last_seen_at"))),
         "status_at": gi.iso(aware(it.get("status_at"))), "reason": it.get("reason"), "note": it.get("note"),
         "reopened": int(it.get("reopened") or 0), "fixed_by": it.get("fixed_by"), "fixed_build": it.get("fixed_build"),
@@ -934,7 +1126,8 @@ def view(it: dict, *, full: bool = False) -> dict:
         ev = it.get("evidence") or {}
         # What a row draws without opening the drawer: a few numbers, never the curves.
         out["evidence"] = {k: ev[k] for k in ("left_pct", "typical_pct", "searches", "questions", "helpful_pct", "no",
-                                             "yes", "fall_pct", "at", "length", "hits", "target", "age_days", "words")
+                                             "yes", "fall_pct", "at", "length", "hits", "target", "age_days", "words",
+                                             "page", "pages_total", "agent_reads", "reason", "sample", "embed")
                            if k in ev}
         if ev.get("samples"):
             out["evidence"]["samples"] = ev["samples"][:3]
@@ -977,6 +1170,8 @@ async def listing(db: AsyncIOMotorDatabase, site_row: dict, *, status: str = "ac
         "pages": sorted(pages.values(), key=lambda p: (-p["n"], p["path"]))[:50],
         "checked_at": gi.iso(aware(st.get("checked_at"))),
         "readers": st.get("readers"),
+        "pending": st.get("pending") or [],
+        "agents": st.get("agents") or None,
         "window_days": WINDOW_DAYS,
     }
 

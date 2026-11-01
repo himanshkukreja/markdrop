@@ -99,3 +99,25 @@ test("the 404 beacon", () => {
   assert.deepEqual(brokenBeacon("/old", "not a url", "https://docs.acme.com"), { k: "broken", p: "/old" });
   assert.equal(brokenBeacon("/", null, "https://docs.acme.com"), null);
 });
+
+test("embedded files: merged per view, sent in the read beacon", async () => {
+  const { mergeEmbed, embedEntry, EMBED_EVENT } = await import("./signals.mjs");
+  assert.equal(EMBED_EVENT, "md:embed-signal");
+  let v = mergeEmbed(undefined, { id: "emb_q3-deck", kind: "pdf", pages: 12, page: 2, name: "Q3 Board Deck" });
+  v = mergeEmbed(v, { id: "emb_q3-deck", kind: "pdf", pages: 12, page: 4 });
+  v = mergeEmbed(v, { id: "emb_q3-deck", kind: "pdf", pages: 12, page: 3 }); // going back keeps the furthest
+  assert.deepEqual(embedEntry(v), { i: "emb_q3-deck", k: "pdf", n: 12, r: 4, name: "Q3 Board Deck" });
+  let w = mergeEmbed(undefined, { id: "tour", kind: "video", length: 100, from: 0, to: 7.4 });
+  w = mergeEmbed(w, { id: "tour", kind: "video", length: 100, mask: 2 ** 39 });
+  assert.deepEqual(embedEntry(w), { i: "tour", k: "video", l: 100, b: "8000000007" });
+  // An embed that only reports quartiles or seconds.
+  assert.deepEqual(embedEntry(mergeEmbed(undefined, { id: "a", kind: "video", length: 60, quartile: 2 })), { i: "a", k: "video", l: 60, q: 2 });
+  assert.deepEqual(embedEntry(mergeEmbed(undefined, { id: "a", kind: "video", length: 60, seconds: 42.4 })), { i: "a", k: "video", l: 60, s: 42 });
+  // Unusable details change nothing.
+  assert.equal(mergeEmbed(undefined, { id: "a b", kind: "pdf", pages: 3, page: 1 }), undefined);
+  assert.equal(mergeEmbed(undefined, { id: "a", kind: "sheet" }), undefined);
+  assert.equal(mergeEmbed(undefined, { id: "a", kind: "video", length: 0 }), undefined);
+  // In the beacon, even for a short visit.
+  const b = readBeacon(view({ seconds: 1, embeds: new Map([["emb_q3-deck", v]]) }));
+  assert.deepEqual(b.e, [{ i: "emb_q3-deck", k: "pdf", n: 12, r: 4, name: "Q3 Board Deck" }]);
+});

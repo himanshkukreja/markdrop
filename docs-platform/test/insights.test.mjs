@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { createHandler } from "../edge/dist/handler.mjs";
-import { EDGE_KEY_LABEL, edgeKey, isPageView, viewBody } from "../edge/insights.mjs";
+import { EDGE_KEY_LABEL, agentVia, edgeKey, isPageView, viewBody } from "../edge/insights.mjs";
 
 const SECRET = "s".repeat(40);
 const SITE = "6650f2c4a1b2c3d4e5f60718";
@@ -116,7 +116,40 @@ test("payloads, prefetches, HEAD, Markdown, files, text outputs, redirects and 4
   await go("/docs-assets/a.png", BROWSER);
   await go("/old", BROWSER);
   await go("/nope", BROWSER);
-  assert.equal(sent.length, 0);
+  assert.equal(sent.filter((s) => s.url.endsWith("/hit")).length, 0);
+});
+
+test("agent reads: Markdown twins, llms.txt and MCP calls go to /agent, nothing else does", async () => {
+  const { sent, go } = edgeWith();
+  const agent = { "user-agent": "Claude-User/1.0 (+https://anthropic.com)" };
+  await go("/start.md", agent);
+  await go("/start", { ...agent, accept: "text/markdown" });
+  await go("/llms.txt", { "user-agent": "curl/8.4" });
+  await go("/docs-assets/a.png", agent);
+  await go("/nope", agent);
+  await go("/start", agent, { method: "HEAD" });
+  const agents = sent.filter((s) => s.url.endsWith("/agent"));
+  assert.equal(agents.length, 3);
+  assert.equal(agents[0].url, `https://api.test/api/v1/docs/insights/${SITE}/agent`);
+  assert.equal(agents[0].init.headers.authorization, `Bearer ${await edgeKey(SECRET)}`);
+  assert.deepEqual(agents.map((s) => s.body.via), ["markdown", "markdown", "llms"]);
+  assert.deepEqual(agents[2].body, { path: "/llms.txt", via: "llms", ua: "curl/8.4" });
+  assert.ok(!("x-docs-reader-ip" in agents[0].init.headers)); // no address: agents are never counted as readers
+  // Nothing for a site without the flag, or with Insights off.
+  let e = edgeWith();
+  await e.go("/start.md", agent, { host: "quiet.guides.markdrop.in" });
+  assert.equal(e.sent.length, 0);
+  e = edgeWith({ insights: false });
+  await e.go("/llms.txt", agent);
+  assert.equal(e.sent.length, 0);
+});
+
+test("agentVia", () => {
+  assert.equal(agentVia("/docs-site/llms.txt", "text/plain"), "llms");
+  assert.equal(agentVia("/docs-site/llms-full.txt", "text/plain"), "llms");
+  assert.equal(agentVia("/docs-site/md/start", "text/markdown; charset=utf-8"), "markdown");
+  assert.equal(agentVia("/docs-site/sitemap.xml", "application/xml"), null);
+  assert.equal(agentVia("/docs-site/og/start", "image/png"), null);
 });
 
 test("nothing is sent without the manifest flag, the secret, or with Insights off", async () => {
