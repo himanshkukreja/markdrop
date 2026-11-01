@@ -101,16 +101,19 @@ Signing in doesn't unlock an encrypted document, not even for its owner. If sign
 
 ## What Markdrop can and can't see
 
-| | Markdrop's servers |
-|---|---|
-| The title and the text | Can't see. Only the encrypted text is stored. |
-| The key (after `#k=`) | Never receive it. |
-| The password | Never receive it. |
-| The link name | Can see. Leave it blank for a random one. |
-| The size | Can see, rounded up to the next 512 bytes. |
-| Dates: created, updated, expires | Can see. |
-| Views, time on page and how far people scrolled | Count them, for your [analytics](/analytics/documents-and-pdfs#encrypted-documents). No content. |
-| Who can open it and who it's shared with | Can see. Those are server settings. |
+Markdrop's servers never receive:
+
+- the title or the text: only the encrypted text is stored,
+- the key, the part of the link after `#k=`,
+- the password, if there is one.
+
+Markdrop's servers can see:
+
+- the link name, so leave it blank for a random one,
+- the size, rounded up to the next 512 bytes,
+- the dates it was created, updated and expires,
+- views, time on page and how far people scrolled, which feed your [analytics](/analytics/documents-and-pdfs#encrypted-documents) with no content,
+- who can open it and who it's shared with, because those are server settings.
 
 PostHog and Google Analytics never run on an encrypted document's page, so they record nothing there. Markdrop's own view counts still do, with no content. See [Privacy at Markdrop](/security/privacy).
 
