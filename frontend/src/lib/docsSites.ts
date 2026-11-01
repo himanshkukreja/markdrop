@@ -165,9 +165,14 @@ export interface GithubLink {
   status: "idle" | "queued" | "syncing" | "error";
   last_synced_sha: string | null;
   last_synced_at: string | null;
+  /** The last synced commit on github.com. */
+  last_commit_url?: string | null;
   last_error: string | null;
   last_job_id: string | null;
-  /** https://github.com/<owner>/<name> */
+  /** The format the last sync found (when `format` is "auto"). */
+  detected_format?: GithubFormat | null;
+  connected_at?: string | null;
+  /** https://github.com/<owner>/<name>, or the folder (…/tree/<branch>/<path>) when there is one. */
   html_url: string | null;
   /** OpenAPI files found in the repository (repo-relative). */
   openapi_paths: string[];

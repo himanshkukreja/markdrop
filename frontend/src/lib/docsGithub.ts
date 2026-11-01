@@ -120,6 +120,9 @@ export interface SiteGithubState {
   app: { configured: boolean; slug: string | null };
 }
 
+/** PUT / PATCH / POST sync answer with the whole state (link, history, app); older answers only the link. */
+export type SiteLinkAnswer = { link: GithubLink | null } & Partial<Omit<SiteGithubState, "link">>;
+
 export interface GithubConnectResult {
   installations: GithubInstallation[];
   /** The installation ids this linked to the workspace. */
@@ -160,17 +163,31 @@ export const MODE_COPY: Record<GithubSyncMode, { label: string; body: string }> 
 /** "docs" or "the repository root". */
 export const folderLabel = (path: string | null | undefined): string => (path ? path : "Repository root");
 
-/** github.com's editor for a file in the linked repository. */
-export function editOnGithubUrl(link: Pick<GithubLink, "owner" | "name" | "branch" | "html_url">, path: string): string {
-  const web = link.html_url && /^https:\/\//.test(link.html_url) ? link.html_url.replace(/\/+$/, "") : `https://github.com/${enc(link.owner)}/${enc(link.name)}`;
-  const file = path.split("/").filter(Boolean).map(enc).join("/");
-  return `${web}/edit/${link.branch.split("/").map(enc).join("/")}/${file}`;
+/**
+ * The repository's own address (https://github.com/<owner>/<name>): `html_url` may point at the
+ * folder (…/tree/<branch>/<path>), so only its origin is kept (GitHub Enterprise or a test server).
+ */
+export function repoBase(link: Pick<GithubLink, "owner" | "name" | "html_url">): string {
+  let origin = "https://github.com";
+  try {
+    if (link.html_url && /^https:\/\//i.test(link.html_url)) origin = new URL(link.html_url).origin;
+  } catch { /* keep github.com */ }
+  return `${origin}/${enc(link.owner)}/${enc(link.name)}`;
 }
 
-/** The repository's page on github.com. */
-export function repoUrl(link: Pick<GithubLink, "owner" | "name" | "html_url">): string {
-  return link.html_url && /^https:\/\//.test(link.html_url) ? link.html_url : `https://github.com/${enc(link.owner)}/${enc(link.name)}`;
+/** github.com's editor for a file in the linked repository. */
+export function editOnGithubUrl(link: Pick<GithubLink, "owner" | "name" | "branch" | "html_url">, path: string): string {
+  const file = path.split("/").filter(Boolean).map(enc).join("/");
+  return `${repoBase(link)}/edit/${link.branch.split("/").map(enc).join("/")}/${file}`;
 }
+
+/** The linked folder on github.com (the repository when it's the root). */
+export function repoUrl(link: Pick<GithubLink, "owner" | "name" | "html_url">): string {
+  return link.html_url && /^https:\/\//i.test(link.html_url) ? link.html_url : repoBase(link);
+}
+
+/** A commit on github.com. */
+export const commitUrl = (link: Pick<GithubLink, "owner" | "name" | "html_url">, sha: string): string => `${repoBase(link)}/commit/${enc(sha)}`;
 
 // ── Errors ───────────────────────────────────────────────────────────────────
 
@@ -214,7 +231,7 @@ export function startGithubAuthorize(workspace: string, returnTo: string): Promi
 }
 
 /** Back from github.com (/guides/github/installed): finish linking. */
-export function connectGithub(input: { code?: string | null; state: string; installation_id?: number | null; setup_action?: string | null }): Promise<GithubConnectResult> {
+export function connectGithub(input: { code: string; state: string; installation_id?: number | null; setup_action?: string | null }): Promise<GithubConnectResult> {
   return docsRequest("/connect", { method: "POST", json: input }, GH);
 }
 
@@ -233,13 +250,19 @@ export function getGithubRepo(workspace: string, owner: string, name: string, in
     .then((r) => ({ ...r, branches: r.branches?.length ? r.branches : [r.repo.default_branch] }));
 }
 
+/**
+ * What a folder holds. `path` null: let the API choose (its best suggestion, `folders[0]`); ""
+ * is the repository root, asked for explicitly.
+ */
 export function inspectGithubRepo(
-  input: { workspace: string; owner: string; name: string; branch: string; path: string; installationId: number | null; format?: GithubFormatChoice | null },
+  input: { workspace: string; owner: string; name: string; branch: string; path: string | null; installationId: number | null; format?: GithubFormatChoice | null },
   signal?: AbortSignal,
 ): Promise<GithubInspect> {
   const format = input.format && input.format !== "auto" ? input.format : undefined;
+  const base = q({ workspace_id: input.workspace, owner: input.owner, name: input.name, branch: input.branch, installation_id: input.installationId, format });
+  const path = input.path === null ? "" : `${base ? "&" : "?"}path=${enc(input.path)}`;
   return docsRequest<GithubInspect>(
-    `/inspect${q({ workspace_id: input.workspace, owner: input.owner, name: input.name, branch: input.branch, path: input.path, installation_id: input.installationId, format })}`,
+    `/inspect${base}${path}`,
     { signal },
     GH,
   ).then((r) => ({
@@ -257,17 +280,17 @@ export function getSiteGithub(siteId: string, signal?: AbortSignal): Promise<Sit
 }
 
 /** Admins: link an existing guide to a repository and start the first sync. */
-export function connectSiteGithub(siteId: string, choice: GithubRepoChoice): Promise<{ link: GithubLink; job: Job | null }> {
+export function connectSiteGithub(siteId: string, choice: GithubRepoChoice): Promise<SiteLinkAnswer & { job: Job | null }> {
   return docsRequest(`/${enc(siteId)}/github`, { method: "PUT", json: choice });
 }
 
 /** Admins: change how it syncs. */
-export function updateSiteGithub(siteId: string, patch: Partial<Pick<GithubLink, "mode" | "sync" | "format" | "branch">>): Promise<{ link: GithubLink }> {
+export function updateSiteGithub(siteId: string, patch: Partial<Pick<GithubLink, "mode" | "sync" | "format" | "branch">>): Promise<SiteLinkAnswer> {
   return docsRequest(`/${enc(siteId)}/github`, { method: "PATCH", json: patch });
 }
 
 /** Editors and admins: sync now (a sync already waiting comes back instead of a new one). */
-export function syncSiteGithub(siteId: string): Promise<{ link: GithubLink; job: Job | null }> {
+export function syncSiteGithub(siteId: string): Promise<SiteLinkAnswer & { job: Job | null }> {
   return docsRequest(`/${enc(siteId)}/github/sync`, { method: "POST" });
 }
 

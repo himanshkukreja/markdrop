@@ -65,8 +65,19 @@ export default function GithubInstalled() {
       setView({ kind: "error", title: "GitHub wasn't connected", body: p.get("error_description") || "The request was cancelled on GitHub. Nothing changed." });
       return;
     }
-    if (!state) {
-      setView({ kind: "error", title: "This link is incomplete", body: "Start again from Guides: choose Import from GitHub, then Connect GitHub." });
+    // An organization member asked its owners to install the app: nothing to link until they approve.
+    if (setup === "request" && !code) {
+      setView({ kind: "done", accounts: [], to: safeGuidesPath(started?.returnTo) ?? STUDIO, requested: true });
+      return;
+    }
+    if (!state || !code) {
+      setView({
+        kind: "error",
+        title: state ? "One more step" : "This link is incomplete",
+        body: state
+          ? "GitHub needs you to sign in to finish linking the app. Choose Try again."
+          : "Start again from Guides: choose Import from GitHub, then Connect GitHub.",
+      });
       return;
     }
     const once = `${state}|${code ?? ""}|${instRaw ?? ""}`;

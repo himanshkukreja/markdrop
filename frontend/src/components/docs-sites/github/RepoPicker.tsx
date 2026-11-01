@@ -360,30 +360,26 @@ export default function RepoPicker({ workspace, returnTo, onChange, disabled }: 
   const fKey = `${repoKey}@${branch ?? ""}`;
   const [folderSel, setFolderSel] = useState<{ key: string; path: string; other: boolean; text: string } | null>(null);
   const fs = folderSel?.key === fKey ? folderSel : null;
-  const [auto, setAuto] = useState<{ key: string; path: string } | null>(null);
   const urlPath = source === "public" && parsed?.path ? normPath(parsed.path) : null;
-  const path = fs ? (fs.other ? normPath(fs.text) : fs.path) : urlPath ?? (auto?.key === fKey ? auto.path : "");
+  // The folder asked for: chosen or typed, else from the pasted address, else null (the API opens
+  // its best suggestion: docs.json, SUMMARY.md, docs/…, rather than the root).
+  const asked: string | null = fs ? (fs.other ? normPath(fs.text) : fs.path) : urlPath;
   const [fmtSel, setFmtSel] = useState<{ key: string; value: GithubFormatChoice } | null>(null);
   const format: GithubFormatChoice = fmtSel?.key === repoKey ? fmtSel.value : "auto";
 
-  const inspectKey = target && detail.data && branch ? `i|${workspace}|${repoKey}|${branch}|${path}|${installationId ?? ""}|${format}` : null;
+  const inspectKey = target && detail.data && branch ? `i|${workspace}|${repoKey}|${branch}|${asked ?? "\u0000"}|${installationId ?? ""}|${format}` : null;
   const inspect = useGithubQuery<GithubInspect>(
     inspectKey,
-    (signal) => inspectGithubRepo({ workspace, owner: target!.owner, name: target!.name, branch: branch!, path, installationId, format }, signal),
+    (signal) => inspectGithubRepo({ workspace, owner: target!.owner, name: target!.name, branch: branch!, path: asked, installationId, format }, signal),
     { delay: fs?.other ? 500 : 150 },
   );
+  // The folder the preview is for (what the import gets).
+  const path = asked ?? (inspect.dataKey === inspectKey ? inspect.data?.selected.path ?? "" : "");
 
   // The folder list is the repository's (the same for every folder): kept while another folder loads.
   const [folders, setFolders] = useState<{ key: string; list: GithubFolder[] } | null>(null);
   useEffect(() => {
-    const d = inspect.data;
-    if (!d) return;
-    setFolders({ key: fKey, list: d.folders });
-    // First look at a repository: open the best suggestion (docs.json, SUMMARY.md, docs/…) rather than the root.
-    if (!fs && !urlPath && auto?.key !== fKey) {
-      const best = d.folders[0]?.path ?? d.selected.path;
-      setAuto({ key: fKey, path: best });
-    }
+    if (inspect.data) setFolders({ key: fKey, list: inspect.data.folders });
   }, [inspect.data]); // eslint-disable-line react-hooks/exhaustive-deps
   const folderList = folders?.key === fKey ? folders.list : [];
   const folderOptions = folderList.some((f) => f.path === path) || (fs?.other ?? false) ? folderList : [...folderList, { path, format: inspect.data?.selected.format ?? "markdown", pages: inspect.data?.selected.pages ?? 0 }];

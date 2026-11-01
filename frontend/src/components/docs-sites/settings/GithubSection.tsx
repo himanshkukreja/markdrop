@@ -20,8 +20,8 @@ import {
 import { ReadMore } from "@/components/ReadMore";
 import {
   FORMAT_CHOICES, FORMAT_LABELS, adoptGithubOpenapi, connectSiteGithub, disconnectSiteGithub, folderLabel, formatLabel, getGithubRepo,
-  getSiteGithub, githubError, repoUrl, syncSiteGithub, updateSiteGithub, type GithubFormatChoice, type GithubLink, type GithubRepoChoice,
-  type GithubSync, type GithubSyncMode, type SiteGithubState,
+  commitUrl, getSiteGithub, githubError, repoUrl, syncSiteGithub, updateSiteGithub, type GithubFormatChoice, type GithubLink, type GithubRepoChoice,
+  type GithubSync, type GithubSyncMode, type SiteGithubState, type SiteLinkAnswer,
 } from "@/lib/docsGithub";
 import { docsErrorMessage } from "@/lib/docsSites";
 import { timeAgo } from "../format";
@@ -56,11 +56,11 @@ function CommitLink({ sha, short, url }: { sha: string | null; short?: string | 
 
 /** The sync history: a table on wide screens, cards on phones. */
 function History({ syncs, link }: { syncs: GithubSync[]; link: GithubLink }) {
-  const commitUrl = (s: GithubSync) => s.commit_url || (s.sha ? `${repoUrl(link).replace(/\/+$/, "")}/commit/${s.sha}` : null);
+  const urlOf = (s: GithubSync) => s.commit_url || (s.sha ? commitUrl(link, s.sha) : null);
   const columns: Column<GithubSync>[] = [
     { key: "when", header: "When", render: (s) => <span title={fullDate(s.created_at)} className="whitespace-nowrap">{timeAgo(s.created_at)}</span> },
     { key: "trigger", header: "Started by", render: (s) => <span className="ph-sensitive ph-mask">{triggerWords(s)}</span> },
-    { key: "commit", header: "Commit", render: (s) => <CommitLink sha={s.sha} short={s.short_sha} url={commitUrl(s)} /> },
+    { key: "commit", header: "Commit", render: (s) => <CommitLink sha={s.sha} short={s.short_sha} url={urlOf(s)} /> },
     { key: "pages", header: "Pages", render: (s) => <span className="text-text-secondary">{pagesWords(s.pages)}</span> },
     {
       key: "status",
@@ -89,7 +89,7 @@ function History({ syncs, link }: { syncs: GithubSync[]; link: GithubLink }) {
               <span className="text-caption text-text-muted" title={fullDate(s.created_at)}>{timeAgo(s.created_at)}</span>
             </div>
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
-              <CommitLink sha={s.sha} short={s.short_sha} url={commitUrl(s)} />
+              <CommitLink sha={s.sha} short={s.short_sha} url={urlOf(s)} />
               <span className="text-text-secondary">{pagesWords(s.pages)}</span>
               {s.published_build ? <span className="text-text-muted">Published #{s.published_build}</span> : null}
             </div>
@@ -190,9 +190,10 @@ export default function GithubSection() {
   }, [job?.id, jobOver]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** A new link: the section's, and the site's (the editor's banner and General read `site.github`). */
-  const took = (l: GithubLink | null) => {
-    setSt((s) => (s ? { ...s, link: l } : s));
-    setSite({ ...site, github: l });
+  const took = (l: GithubLink | null, answer?: SiteLinkAnswer) => {
+    const link = l ? { ...l, openapi_paths: l.openapi_paths ?? [] } : null;
+    setSt((s) => (s ? { ...s, link, ...(answer?.syncs ? { syncs: answer.syncs } : {}), ...(answer?.app ? { app: answer.app } : {}) } : s));
+    setSite({ ...site, github: link });
   };
 
   async function patch(body: { mode?: GithubSyncMode; sync?: boolean; branch?: string; format?: GithubFormatChoice }, key: typeof saving, done: string) {
@@ -200,7 +201,8 @@ export default function GithubSection() {
     setSaving(key);
     setError("");
     try {
-      took((await updateSiteGithub(site.id, body)).link);
+      const r = await updateSiteGithub(site.id, body);
+      took(r.link, r);
       toast.success(done);
     } catch (e) {
       setError(docsErrorMessage(e, "That didn't save. Try again."));
@@ -214,7 +216,7 @@ export default function GithubSection() {
     setError("");
     try {
       const r = await connectSiteGithub(site.id, choice);
-      took(r.link);
+      took(r.link, r);
       if (r.job?.id) setJobId(r.job.id);
       toast.success(<>Connected to <span className="ph-sensitive ph-mask">{choice.owner}/{choice.name}</span>. The first sync is running.</>);
       void load();
@@ -230,7 +232,7 @@ export default function GithubSection() {
     setError("");
     try {
       const r = await syncSiteGithub(site.id);
-      took(r.link);
+      took(r.link, r);
       if (r.job?.id) setJobId(r.job.id);
       toast.info("Syncing with GitHub…");
     } catch (e) {
@@ -354,12 +356,12 @@ export default function GithubSection() {
         </div>
         <dl className="grid min-w-0 grid-cols-1 gap-x-6 gap-y-2 text-[13px] sm:grid-cols-[auto_minmax(0,1fr)]">
           <dt className="text-text-muted">Format</dt>
-          <dd className="text-text">{formatLabel(link.format)}{link.public ? <span className="text-text-muted"> · read as a public repository</span> : null}</dd>
+          <dd className="text-text">{link.format === "auto" && link.detected_format ? `Auto (${formatLabel(link.detected_format)})` : formatLabel(link.format)}{link.public ? <span className="text-text-muted"> · read as a public repository</span> : null}</dd>
           <dt className="text-text-muted">Last sync</dt>
           <dd className="flex min-w-0 flex-wrap items-center gap-x-2 text-text">
             {link.last_synced_sha ? (
               <>
-                <CommitLink sha={link.last_synced_sha} short={lastSync?.sha === link.last_synced_sha ? lastSync.short_sha : null} url={lastSync?.sha === link.last_synced_sha && lastSync.commit_url ? lastSync.commit_url : `${repoUrl(link).replace(/\/+$/, "")}/commit/${link.last_synced_sha}`} />
+                <CommitLink sha={link.last_synced_sha} short={lastSync?.sha === link.last_synced_sha ? lastSync.short_sha : null} url={link.last_commit_url || commitUrl(link, link.last_synced_sha)} />
                 {link.last_synced_at && <span className="text-text-muted" title={fullDate(link.last_synced_at)}>{timeAgo(link.last_synced_at)}</span>}
               </>
             ) : (
