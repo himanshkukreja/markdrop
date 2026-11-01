@@ -21,6 +21,13 @@
  *      pages     pg, n           the page was left after a PDF was read: furthest page, page count
  *    The API keeps the page path, the device class, a daily-rotating visitor hash (none under Do Not
  *    Track / Global Privacy Control), and nothing else about the reader (services/guide_insights.py).
+ * 1b. The guide's Fix list, through the engine's reader signals (client/Signals.tsx, the contract in
+ *    ../signals.d.mts): the block dispatches a bubbling `md:embed-signal` CustomEvent, detail
+ *    {id: <embed id>, kind: "video", length, quartile?, seconds?, name} or {id, kind: "pdf", pages,
+ *    page, name}, merged into the page view's one reader beacon. A video's slices played come from
+ *    the docs player itself (its <video data-video-id> is the embed id).
+ *    Under Do Not Track or Global Privacy Control nothing at all is sent: no Insights event, no
+ *    signal, no creator beacon, no engagement session.
  * 2. The file's own creator analytics: `POST /api/v1/embeds/{slug}/beacon` {site, p, a: "view"}
  *    counts a view of the file, from the "Guides" channel with the guide's name as its campaign
  *    ("seen in <guide>"); and for a video or a PDF, the engagement session the file's page on
@@ -30,6 +37,7 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { MediaAgg, PdfAgg, emptyDelta, type BridgeMessage, type EngageDelta, type EngagePos } from "@/lib/engageCore";
 import { sendInsight } from "./Insights";
+import { EMBED_EVENT } from "../signals.mjs";
 
 export interface EmbedTrackConfig {
   api: string;
@@ -250,6 +258,9 @@ export interface EmbedAnalyticsInput {
   video: HTMLVideoElement | null;
   frame: RefObject<HTMLIFrameElement | null>;
   frameOrigin: string | null;
+  /** The block (signals bubble from it) and its title (the Fix list's name for it). */
+  root: RefObject<HTMLElement | null>;
+  title: string | null;
 }
 
 /**
@@ -257,10 +268,28 @@ export interface EmbedAnalyticsInput {
  * (Full screen, Open on Markdrop) and `interact()` for a click into the frame.
  */
 export function useEmbedAnalytics(i: EmbedAnalyticsInput) {
-  const { cfg, track, slug, eid, kind, version, pinned, seen, video, frame, frameOrigin } = i;
+  const { cfg, slug, eid, kind, version, pinned, seen, video, frame, frameOrigin, root, title } = i;
+  // Nothing at all from a browser that asked not to be tracked (Do Not Track, Global Privacy Control).
+  const track = i.track && !optedOut();
+  const titleRef = useRef(title);
+  titleRef.current = title;
+  /** One `md:embed-signal` for the engine's reader beacon (the Fix list). */
+  const signal = useCallback(
+    (detail: Record<string, unknown>) => {
+      if (!track || !slug) return;
+      try {
+        const el = root.current ?? document.body;
+        el.dispatchEvent(new CustomEvent(EMBED_EVENT, { bubbles: true, detail: { id: eid || slug, ...(titleRef.current ? { name: titleRef.current } : {}), ...detail } }));
+      } catch {
+        /* never breaks reading */
+      }
+    },
+    [track, slug, eid, root],
+  );
   const onScreen = useRef(i.onScreen);
   onScreen.current = i.onScreen;
   const once = useRef(new Set<string>());
+  const signalled = useRef(new Set<number>());
   const session = useRef<EmbedSession | null>(null);
   const media = useRef({ played: false, max: 0, last: 0, dur: 0 });
   const pdf = useRef({ max: 0, n: 0 });
@@ -339,10 +368,19 @@ export function useEmbedAnalytics(i: EmbedAnalyticsInput) {
       if (st.played && st.dur > 0 && typeof m.t === "number" && m.e !== "seeking") {
         st.max = Math.max(st.max, m.t);
         const frac = m.e === "ended" ? 1 : st.max / st.dur;
-        for (const q of [25, 50, 75, 100]) if (frac >= q / 100 - (q === 100 ? 0.02 : 0)) insight("quartile", { qt: q }, `q${q}`);
+        for (const q of [25, 50, 75, 100]) {
+          if (frac >= q / 100 - (q === 100 ? 0.02 : 0) && !signalled.current.has(q)) {
+            signalled.current.add(q);
+            insight("quartile", { qt: q }, `q${q}`);
+            signal({ kind: "video", length: st.dur, quartile: q / 25 });
+          }
+        }
+      }
+      if ((m.e === "pause" || m.e === "ended") && st.played && st.dur > 0) {
+        signal({ kind: "video", length: st.dur, seconds: session.current?.watched() ?? st.max });
       }
     });
-  }, [track, video, slug, insight, interact]);
+  }, [track, video, slug, insight, interact, signal]);
 
   // The PDF viewer's page reports (its bridge), from our frame and the artifact origin only.
   useEffect(() => {
@@ -357,12 +395,13 @@ export function useEmbedAnalytics(i: EmbedAnalyticsInput) {
         const p = Math.floor(m.p);
         if (p > 1) interact();
         pdf.current.max = Math.max(pdf.current.max, p);
+        if (pdf.current.n > 0) signal({ kind: "pdf", pages: pdf.current.n, page: p });
       }
       if (m.ev === "pdf" || m.ev === "page") session.current?.pdf(m);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [track, kind, frameOrigin, frame, interact]);
+  }, [track, kind, frameOrigin, frame, interact, signal]);
 
   // A click into the frame moves focus out of this window: the reader is using the file.
   useEffect(() => {

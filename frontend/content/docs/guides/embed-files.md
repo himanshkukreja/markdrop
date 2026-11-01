@@ -92,7 +92,7 @@ Embedded HTML is someone's code running inside your docs, so it never runs on yo
 
 ## See how readers use them
 
-With [Insights](/guides/insights) on, **Embedded files** shows each block with its page: views, how many readers used it, full-screen opens and opens on Markdrop. For a video: plays, how far viewers got and where most of them stop. For a PDF: the page readers typically reach. Each file's own analytics on Markdrop counts these views too, under the **Guides** channel, with your guide's name.
+With [Insights](/guides/insights) on, **Embedded files** shows each block with its page: views, how many readers used it, full-screen opens and opens on Markdrop. For a video: plays, how far viewers got and where most of them stop. For a PDF: the page readers typically reach. The [Fix list](/guides/fix-list) ranks the same signals, like a video that loses viewers at 0:42 or a PDF readers stop reading at page 3. Each file's own analytics on Markdrop counts these views too, under the **Guides** channel, with your guide's name.
 
 ![Embedded files: the pricing calculator (64 views, 66% used it), the product tour (41 views, 30 plays, the 25%, 50%, 75% and end bars, 13 of 30 viewers stop around 0:15) and the price list (page 1 of 3 reached).](/docs-assets/guides/embed-files/insights.webp)
 

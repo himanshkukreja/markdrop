@@ -318,6 +318,8 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
     video,
     frame: iframeRef,
     frameOrigin,
+    root: figRef,
+    title: view.title || attrs.title || null,
   });
 
   const toggleFullscreen = useCallback(() => {
@@ -477,6 +479,7 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
           chaptersSrc={attrs.chapters ?? undefined}
           chapterList={!!attrs.chapters}
           onVideo={setVideo}
+          videoId={config.track ? eid ?? slug ?? undefined : undefined}
         />
       </div>
     );
