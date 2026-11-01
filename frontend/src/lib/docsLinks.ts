@@ -86,6 +86,7 @@ export const DOCS_PAGES = {
   studioInsights: "/guides/insights",
   studioInsightsOff: "/guides/insights#turn-it-off",
   studioFixList: "/guides/fix-list",
+  studioEmbedFiles: "/guides/embed-files",
   studioFixListPrivacy: "/guides/fix-list#what-it-collects",
   studioFixListAgents: "/guides/fix-list#ai-agents",
   studioChangelog: "/guides/changelog",

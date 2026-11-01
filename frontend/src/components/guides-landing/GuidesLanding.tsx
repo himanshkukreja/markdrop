@@ -31,8 +31,8 @@ import s from "./GuidesLanding.module.css";
 const NEW_GUIDE = "/guides/new";
 const signIn = (next: string) => `/login?next=${encodeURIComponent(next)}`;
 const docs = (topic: keyof typeof DOCS_PAGES) => docsUrl(DOCS_PAGES[topic]);
-/** The Private pages docs page (merged with the feature); falls back to the overview. */
-const PRIVATE_DOCS = docsUrl("/guides/private-pages");
+const PRIVATE_DOCS = docs("privatePages");
+const EMBED_DOCS = docs("studioEmbedFiles");
 
 const TRAILER: Trailer = {
   src: "/docs-assets/videos/guides-trailer.mp4",
@@ -355,7 +355,7 @@ export default function GuidesLanding() {
                   Embed a live demo
                   <Icon name="arrowRight" size={16} />
                 </StartLink>
-                <a href={docsUrl("/guides/embed-files")} className={s.more} data-cta="docs">How embeds work</a>
+                <a href={EMBED_DOCS} className={s.more} data-cta="docs">How embeds work</a>
               </div>
             </div>
           </section>
