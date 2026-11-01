@@ -156,7 +156,13 @@ export default function GithubSection() {
 
   const load = useCallback(async () => {
     try {
-      const s = await getSiteGithub(site.id);
+      const r = await getSiteGithub(site.id);
+      const s: SiteGithubState = {
+        ...r,
+        syncs: r.syncs ?? [],
+        link: r.link ? { ...r.link, openapi_paths: r.link.openapi_paths ?? [] } : null,
+        app: r.app ?? { configured: false, slug: null },
+      };
       setSt(s);
       setLoadError(null);
       return s;

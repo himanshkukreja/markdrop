@@ -317,7 +317,7 @@ export default function NewSite() {
                 </p>
               </div>
               {scope ? (
-                <RepoPicker workspace={scope} returnTo={studioNew(scope, "github")} onChange={setGh} disabled={busy} />
+                <RepoPicker key={scope} workspace={scope} returnTo={studioNew(scope, "github")} onChange={setGh} disabled={busy} />
               ) : (
                 <p className="flex items-center gap-2 text-body text-text-muted"><Spinner size={14} /> Loading…</p>
               )}

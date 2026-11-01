@@ -229,7 +229,8 @@ export function listGithubRepos(workspace: string, installationId: number, searc
 
 /** No installation: read it as a public repository (404 when it doesn't exist or is private). */
 export function getGithubRepo(workspace: string, owner: string, name: string, installationId: number | null, signal?: AbortSignal): Promise<GithubRepoDetail> {
-  return docsRequest(`/repo${q({ workspace_id: workspace, owner, name, installation_id: installationId })}`, { signal }, GH);
+  return docsRequest<GithubRepoDetail>(`/repo${q({ workspace_id: workspace, owner, name, installation_id: installationId })}`, { signal }, GH)
+    .then((r) => ({ ...r, branches: r.branches?.length ? r.branches : [r.repo.default_branch] }));
 }
 
 export function inspectGithubRepo(
@@ -237,11 +238,16 @@ export function inspectGithubRepo(
   signal?: AbortSignal,
 ): Promise<GithubInspect> {
   const format = input.format && input.format !== "auto" ? input.format : undefined;
-  return docsRequest(
+  return docsRequest<GithubInspect>(
     `/inspect${q({ workspace_id: input.workspace, owner: input.owner, name: input.name, branch: input.branch, path: input.path, installation_id: input.installationId, format })}`,
     { signal },
     GH,
-  );
+  ).then((r) => ({
+    ...r,
+    folders: r.folders ?? [],
+    truncated: !!r.truncated,
+    selected: { ...r.selected, groups: r.selected?.groups ?? [], openapi: r.selected?.openapi ?? [], warnings: r.selected?.warnings ?? [] },
+  }));
 }
 
 // ── /api/v1/docs-sites/<site>/github ─────────────────────────────────────────
