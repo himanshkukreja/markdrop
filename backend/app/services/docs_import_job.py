@@ -376,6 +376,7 @@ async def _asset_rows(db: AsyncIOMotorDatabase, site_id: Any, by: str | None, as
 
 async def apply_import(db: AsyncIOMotorDatabase, job: dict, worker: str | None, data: dict) -> dict:
     """Store an import (the runner's result). Returns the job's stored result."""
+    from app.services import docs_site_design as site_design
     from app.services import docs_site_settings as site_settings
     from app.services import docs_site_store as store
 
@@ -485,6 +486,8 @@ async def apply_import(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
     if nav_meta:
         extra["nav"] = nav_meta
     await db[SITES].update_one({"_id": site_id}, {"$set": {"settings": settings, "engine_extra": extra, "updated_at": t}})
+    # Reset design goes back to the design the import left, when it changed the design.
+    await site_design.record_after_import(db, site, site_design.current_theme(site), settings["theme"])
 
     assets = data.get("assets") if isinstance(data.get("assets"), dict) else {}
     asset_rows = await _asset_rows(db, site_id, by, assets)
@@ -497,6 +500,8 @@ async def apply_import(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
         "assets": {**{k: v for k, v in assets.items() if isinstance(k, str) and isinstance(v, int) and not isinstance(v, bool)}, "rows": asset_rows},
         "report": report,
         "skipped": skipped[:100],
+        # The design the import left (the guide's settings.theme), for Reset design.
+        "design": settings["theme"],
     }
     await docs_jobs.complete(db, job["_id"], worker, result)
     # Usage counts only: the kind of source, never its address (the site row keeps that).
