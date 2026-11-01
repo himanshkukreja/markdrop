@@ -39,7 +39,7 @@ export const CALLOUT_KINDS = ["note", "tip", "warning", "danger"];
 /** Leaf directives the editor renders as blocks (`api` is the OpenAPI operation placeholder). */
 export const LEAF_NAMES = ["video", "clip", "embed", "markdrop", "api"];
 /** Container node types that serialize as `:::name` directives. */
-const CONTAINER_TYPES = new Set(["callout", "steps", "tabs", "tab", "cards", "card", "details"]);
+const CONTAINER_TYPES = new Set(["callout", "steps", "tabs", "tab", "cards", "card", "details", "private"]);
 
 /** Attributes that carry meaning, per node / mark type (everything else, `md` included, is UI state). */
 const SEM = {
@@ -59,6 +59,7 @@ const SEM = {
   cards: ["label", "attributes"],
   card: ["label", "attributes"],
   details: ["label", "attributes"],
+  private: ["label", "attributes"],
   directiveLeaf: ["name", "label", "attributes"],
   rawBlock: ["value"],
   rawInline: ["value"],
@@ -329,7 +330,7 @@ function container(n, ctx, strip, src) {
   let node;
   const blocks = () => (body.length ? flow(body, ctx, strip) : [paragraph([])]);
   if (CALLOUT_KINDS.includes(n.name)) node = { type: "callout", attrs: { kind: n.name, ...base }, content: blocks() };
-  else if (n.name === "steps" || n.name === "details") node = { type: n.name, attrs: base, content: blocks() };
+  else if (n.name === "steps" || n.name === "details" || n.name === "private") node = { type: n.name, attrs: base, content: blocks() };
   else if (n.name === "tabs" || n.name === "cards") {
     const child = n.name === "tabs" ? "tab" : "card";
     if (!body.length || body.some((k) => k.type !== "containerDirective" || k.name !== child)) return raw(src);
@@ -614,8 +615,9 @@ function serializeBlockImpl(node, opts = {}) {
   const listHazard = isList(node) && isList(prev) && node.type === prev.type && md?.prev !== fp(prev);
   // …but a list written with another marker than the one before it never merges with it: keep it.
   const listSafe = listHazard && typeof md?.src === "string" && typeof prevText === "string" && listMarker(node.type, md.src) !== listMarker(node.type, prevText);
-  // Indented code right after a list would continue the list's last item.
-  const indentHazard = isList(prev) && md?.prev !== fp(prev) && /^[ \t]/.test(md?.src ?? "");
+  // Indented code right after a list (or a footnote definition) would continue its last item.
+  const footnoteDef = prev?.type === "rawBlock" && /^\[\^[^\]]+\]:/m.test(prevText ?? prev.attrs?.value ?? "");
+  const indentHazard = (isList(prev) || footnoteDef) && md?.prev !== fp(prev) && /^[ \t]/.test(md?.src ?? "");
   if (preserve && md && typeof md.src === "string" && md.fp === fp(node) && (!listHazard || listSafe) && !indentHazard) return md.src;
   if (node.type === "rawBlock") return node.attrs.value ?? "";
   if (CONTAINER_TYPES.has(node.type)) return serializeContainer(node, preserve);

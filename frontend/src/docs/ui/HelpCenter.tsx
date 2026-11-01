@@ -5,7 +5,7 @@
  */
 import Link from "@/docs/client/Link";
 import { Icon } from "@/components/ui";
-import { getNav, getPage, getSite } from "../content";
+import { getNav, getPublicPage, getSite } from "../content";
 import { heroLede, startCardText } from "../present.mjs";
 import { HomeAsk } from "../client/Chrome";
 import { DocsFooter, DocsHeader } from "./Chrome";
@@ -15,7 +15,7 @@ export function HelpCenterHome() {
   const home = site.home ?? {};
   const nav = getNav();
   const areas = (home.areas?.length ? home.areas.map((a) => nav.find((g) => g.group === a)) : nav).filter((g): g is NonNullable<typeof g> => !!g);
-  const popular = (home.start ?? []).map((s) => ({ ...s, page: getPage(s.page) })).filter((s) => s.page);
+  const popular = (home.start ?? []).map((s) => ({ ...s, page: getPublicPage(s.page) })).filter((s) => s.page);
   const headline = site.headline ?? site.name;
   const lede = heroLede(headline, site.description);
 

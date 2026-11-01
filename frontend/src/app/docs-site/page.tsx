@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "@/docs/client/Link";
 import { Button, Icon } from "@/components/ui";
-import { getChangelog, getNav, getPage, getSite } from "@/docs/content";
+import { getChangelog, getNav, getPublicPage, getSite } from "@/docs/content";
 import { formatDate } from "@/docs/outputs";
 import { isAppPath } from "@/docs/markdown";
 import { heroLede, startCardText } from "@/docs/present.mjs";
@@ -28,7 +28,7 @@ export default function DocsHome() {
   if (themeHome(site) === "categories") return <HelpCenterHome />;
   const home = site.home ?? {};
   const nav = getNav();
-  const start = (home.start ?? []).map((s) => ({ ...s, page: getPage(s.page) })).filter((s) => s.page);
+  const start = (home.start ?? []).map((s) => ({ ...s, page: getPublicPage(s.page) })).filter((s) => s.page);
   const areas = (home.areas?.length ? home.areas.map((a) => nav.find((g) => g.group === a)) : nav).filter((g): g is NonNullable<typeof g> => !!g);
   const news = getChangelog().entries.slice(0, 3);
   const headline = site.headline ?? site.name;

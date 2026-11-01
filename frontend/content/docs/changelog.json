@@ -64,6 +64,23 @@
       ]
     },
     {
+      "id": "guides-private-pages",
+      "date": "2026-11-02",
+      "title": "Markdrop Guides: private pages and sections, free",
+      "kind": "new",
+      "area": "Markdrop Guides",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Keep a guide public and make some pages, groups or sections private: for your team, a customer's people by email or @domain, or partners with a password. On every guide, with no plan to upgrade.",
+      "body": "- **Who can open this page** in the editor's Page tab: inherit, public, the team, specific people or email domains, or a password. A rule for a whole sidebar group in Settings.\n- **Private sections** inside a public page: type `/` and choose **Private section**. Everyone else sees a lock card with the way in.\n- **Readers sign in with their email:** a one-time link, no Markdrop account needed. Team members use Sign in with Markdrop; partners type the password.\n- **Access requests** from the lock page reach the guide's admins by email; approving adds the reader to the rule. **Access history** lists every change.\n- **Preview as** a public reader, a team member, an email address or someone with a password, and warnings for public pages that link to private ones.\n- **Nothing private leaks:** private pages and sections are left out of search, llms.txt, the sitemap, the MCP server, feeds and Ask AI for readers who can't open them, and every publish checks it.",
+      "docs": [
+        "/guides/private-pages",
+        "/guides/site-settings"
+      ]
+    },
+    {
       "id": "guides-reset-design",
       "date": "2026-11-02",
       "title": "Markdrop Guides: reset a guide's design",

@@ -1479,6 +1479,126 @@
     "bytes": 48408,
     "kind": "image"
   },
+  "/docs-assets/guides/private-pages/access-requests.dark.webp": {
+    "w": 1400,
+    "h": 495,
+    "bytes": 32442,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/access-requests.webp": {
+    "w": 1400,
+    "h": 495,
+    "bytes": 33174,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/editor-page-access.dark.webp": {
+    "w": 1400,
+    "h": 941,
+    "bytes": 90504,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/editor-page-access.webp": {
+    "w": 1400,
+    "h": 941,
+    "bytes": 92772,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/editor-private-section.dark.webp": {
+    "w": 1312,
+    "h": 630,
+    "bytes": 33942,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/editor-private-section.webp": {
+    "w": 1312,
+    "h": 630,
+    "bytes": 30986,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/lock-page-password.dark.webp": {
+    "w": 936,
+    "h": 1066,
+    "bytes": 22440,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/lock-page-password.webp": {
+    "w": 936,
+    "h": 1066,
+    "bytes": 24904,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/lock-page.dark.webp": {
+    "w": 936,
+    "h": 1108,
+    "bytes": 24720,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/lock-page.webp": {
+    "w": 936,
+    "h": 1108,
+    "bytes": 27514,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/preview-as.dark.webp": {
+    "w": 1400,
+    "h": 850,
+    "bytes": 57494,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/preview-as.webp": {
+    "w": 1400,
+    "h": 850,
+    "bytes": 59956,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/private-settings.dark.webp": {
+    "w": 1400,
+    "h": 992,
+    "bytes": 57030,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/private-settings.webp": {
+    "w": 1400,
+    "h": 992,
+    "bytes": 58786,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/reader-locked-sections.dark.webp": {
+    "w": 1400,
+    "h": 941,
+    "bytes": 60448,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/reader-locked-sections.webp": {
+    "w": 1400,
+    "h": 941,
+    "bytes": 58922,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/reader-northwind-section.dark.webp": {
+    "w": 1400,
+    "h": 470,
+    "bytes": 28572,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/reader-northwind-section.webp": {
+    "w": 1400,
+    "h": 470,
+    "bytes": 25814,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/rule-people.dark.webp": {
+    "w": 928,
+    "h": 1098,
+    "bytes": 44912,
+    "kind": "image"
+  },
+  "/docs-assets/guides/private-pages/rule-people.webp": {
+    "w": 928,
+    "h": 1098,
+    "bytes": 49542,
+    "kind": "image"
+  },
   "/docs-assets/guides/publishing/publish-compare.dark.webp": {
     "w": 2480,
     "h": 1126,

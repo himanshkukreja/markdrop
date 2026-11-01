@@ -9,6 +9,7 @@ import { GuidePreview } from "../home/GuidePreview";
 import { liveUrl, usePublishState } from "../PublishState";
 import { useSite } from "../SiteContext";
 import { Checklist } from "./Checklist";
+import { PrivateCheck } from "./PrivateCheck";
 import { History } from "./History";
 import { AddressRow, seconds } from "./shared";
 
@@ -102,7 +103,10 @@ export function LiveView({ live, builds, setup, restoring, onRestore }: {
       </section>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
-        <Checklist setup={setup} />
+        <div className="flex min-w-0 flex-col gap-6">
+          <Checklist setup={setup} />
+          <PrivateCheck />
+        </div>
         <History builds={builds} restoring={restoring} onRestore={onRestore} />
       </div>
     </main>

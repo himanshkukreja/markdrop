@@ -130,6 +130,8 @@ export interface AiSettings {
   name: string;
   /** Send a Markdrop session token stored for the docs origin (Markdrop's own docs only). */
   appSession: boolean;
+  /** The guide has private pages (access.mjs): Ask AI sends the edge's reader token, so it answers from what the reader may open. */
+  privatePages?: boolean;
 }
 
 /** Markdrop's own docs follow NEXT_PUBLIC_API_URL (local and preview backends); other sites never do. */
@@ -143,7 +145,7 @@ export function aiSettings(site: SiteConfig): AiSettings | null {
   if (!ai?.enabled) return null;
   const api = (appApi(site) || ai.api || "").replace(/\/+$/, "");
   if (!/^https?:\/\//.test(api)) return null;
-  return { api, site: ai.site?.trim() || siteId(site), name: ai.assistantName?.trim() || DEFAULT_ASSISTANT, appSession: markdropApp(site) };
+  return { api, site: ai.site?.trim() || siteId(site), name: ai.assistantName?.trim() || DEFAULT_ASSISTANT, appSession: markdropApp(site), ...(site.access?.rules ? { privatePages: true } : {}) };
 }
 
 export interface TryItSettings {

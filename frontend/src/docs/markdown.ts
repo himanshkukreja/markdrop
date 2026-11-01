@@ -10,8 +10,8 @@ import type { Heading, Section } from "./types";
 import { embedTextLines } from "./embed.mjs";
 
 /** Every directive name the renderer understands. `docs:check` flags anything else. */
-export const CONTAINER_DIRECTIVES = ["note", "tip", "warning", "danger", "steps", "tabs", "tab", "cards", "card", "details"] as const;
-export const LEAF_DIRECTIVES = ["video", "clip", "embed", "markdrop", "api"] as const;
+export const CONTAINER_DIRECTIVES = ["note", "tip", "warning", "danger", "steps", "tabs", "tab", "cards", "card", "details", "private"] as const;
+export const LEAF_DIRECTIVES = ["video", "clip", "embed", "markdrop", "api", "private-locked"] as const;
 export const TEXT_DIRECTIVES = ["kbd"] as const;
 export const CALLOUTS: Record<string, string> = { note: "Note", tip: "Tip", warning: "Warning", danger: "Danger" };
 
@@ -250,6 +250,11 @@ export function toPlainMarkdown(body: string, opts: PlainOptions = {}): string {
         }
       } else if (name === "api" && a.op?.trim()) {
         emit(apiLine(a.op, label));
+      } else if (name === "private-locked") {
+        // A private section cut out of the page (access.mjs): only that it is there.
+        emit("");
+        emit(`_Private section${label?.trim() ? `: ${label.trim()}` : ""}. Open the page in a browser to sign in._`);
+        emit("");
       }
       continue;
     }

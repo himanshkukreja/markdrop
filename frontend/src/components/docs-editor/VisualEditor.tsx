@@ -37,6 +37,7 @@ export interface VisualEditorProps {
   placeholder?: string;
   onUploadImage?: UploadImage;
   operations?: ApiOperationOption[];
+  accessRules?: Array<{ id: string; name: string; kind: string }>;
   resolveAssetUrl?: (src: string) => string;
   autoFocus?: boolean;
   /** Switches the host to Markdown mode (raw blocks offer it). */
@@ -62,7 +63,7 @@ const EMIT_DELAY = 120;
 const identity = (s: string) => s;
 
 export default function VisualEditor(props: VisualEditorProps) {
-  const { value, readOnly = false, placeholder, onUploadImage, operations, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop, onHandle, assist, assistLanguages, onComment, comments, onCommentClick, checkLink, flagImages = false, markdrop } = props;
+  const { value, readOnly = false, placeholder, onUploadImage, operations, accessRules, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop, onHandle, assist, assistLanguages, onComment, comments, onCommentClick, checkLink, flagImages = false, markdrop } = props;
   const toast = useToast();
   const initial = useMemo(() => parseMarkdown(value), []); // eslint-disable-line react-hooks/exhaustive-deps -- parsed once; later values are synced below
   const meta = useRef<DocState>(initial);
@@ -213,8 +214,8 @@ export default function VisualEditor(props: VisualEditorProps) {
   }, [editor, value]);
 
   const host: EditorHost = useMemo(
-    () => ({ upload: onUploadImage, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown, assist, assistLanguages, onComment, markdrop }),
-    [onUploadImage, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, onComment, markdrop],
+    () => ({ upload: onUploadImage, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown, assist, assistLanguages, onComment, accessRules, markdrop }),
+    [onUploadImage, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, onComment, accessRules, markdrop],
   );
 
   return (

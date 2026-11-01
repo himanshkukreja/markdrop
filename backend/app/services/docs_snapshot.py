@@ -360,6 +360,17 @@ def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str,
                    insights=insights_enabled(site))
     if api_spec:
         add_api_reference(sj, settings, api_spec, _date(api_spec.get("created_at")) or default_updated)
+    # Private pages and sections (services/docs_page_access.py): the rules' kinds and names, and
+    # each group's rule. Who a rule lets in never goes into the content.
+    from app.services import docs_page_access
+
+    rules_json = docs_page_access.content_access(site)
+    if rules_json:
+        sj["access"] = rules_json
+        g_access = docs_page_access.groups({"page_access": {"groups": snapshot["page_access_groups"]}} if "page_access_groups" in snapshot else site)
+        for g in sj.get("nav") or []:
+            if g_access.get(g.get("group")):
+                g["access"] = g_access[g["group"]]
     # The changelog (services/docs_site_changelog.py): changelog.json when the publish has entries,
     # a header tab to /changelog, and the videos its entries show.
     from app.services import docs_site_changelog as changelog
@@ -410,7 +421,7 @@ async def bundle(db: AsyncIOMotorDatabase, build: dict) -> dict:
     site = await db[SITES].find_one({"_id": oid(build["site_id"])})
     if site is None:
         raise LookupError(f"site {build.get('site_id')} not found")
-    from app.services.docs_site_access import policy
+    from app.services.docs_site_access import full_policy
 
     await _page_ids(db, snapshot)
     slug = site.get("slug") or (snapshot.get("site") or {}).get("slug")
@@ -441,5 +452,5 @@ async def bundle(db: AsyncIOMotorDatabase, build: dict) -> dict:
         "bundle": out_bundle,
         # access: the policy the runner writes (sites/<id>/access.json) before it flips the pointer,
         # so a password or members-only site is never live without it (services/docs_site_access.py).
-        "publish": {"site": str(site["_id"]), "hosts": hosts, "access": policy(site)},
+        "publish": {"site": str(site["_id"]), "hosts": hosts, "access": full_policy(site)},
     }

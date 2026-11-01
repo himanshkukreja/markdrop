@@ -14,7 +14,7 @@ import { serializeFlow } from "../core/markdown.mjs";
 import { openSlashAt } from "./slash";
 
 /** Containers whose children can be reordered freely. */
-const FLOW = new Set(["doc", "callout", "steps", "details", "tab", "card", "blockquote"]);
+const FLOW = new Set(["doc", "callout", "steps", "details", "private", "tab", "card", "blockquote"]);
 
 function movable(node: PMNode, parent: PMNode) {
   if (!node.isBlock) return false;
@@ -104,6 +104,7 @@ const LABEL: Record<string, string> = {
   cards: "cards",
   card: "card",
   details: "details",
+  private: "private section",
   codeBlock: "code block",
   table: "table",
   figure: "image",

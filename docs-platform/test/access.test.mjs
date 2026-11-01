@@ -246,7 +246,8 @@ test("sessions: forged, expired, for another site, or from before a policy chang
   assert.equal(await get(await mk({ exp: now + 30 * 86400 })), 401);
   assert.equal(await get(await mk({ s: "globex" })), 401);
   assert.equal(await get(await mk({ k: "members" })), 401);
-  assert.equal(await get((await mk()).replace(/.$/, "A")), 401);
+  // A tampered MAC (its first character: the last one's low bits are padding, so changing it may not change the bytes).
+  assert.equal(await get((await mk()).replace(/\.(.)/, (_, c) => `.${c === "A" ? "B" : "A"}`)), 401);
   assert.equal(await get(await grant({ state: "A".repeat(43) })), 401); // a grant isn't a session
   // A new password (policy_version 2) signs everyone out; so does a new level.
   const { res } = await signIn();

@@ -7,6 +7,7 @@ import { docsErrorMessage, getVersion, listVersions, type Page, type PageVersion
 import { firstName, timeAgo, whenShort } from "../format";
 import type { Check, OutlineItem } from "./pageChecks";
 import { pathProblem, type PageFields } from "./usePageSession";
+import { PageAccess, type PageAccessInfo } from "./PageAccess";
 
 export type PanelTab = "checks" | "page" | "comments" | "history";
 
@@ -99,7 +100,7 @@ function ChecksTab({ checks, onShow, onFix, readOnly, outline, active, onOutline
 }
 
 /** The Page tab: address, icon, description (meta description and llms.txt), "Show in the sidebar". */
-function PageTab({ fields, readOnly, isHome, onChange, origin }: { fields: PageFields; readOnly: boolean; isHome: boolean; onChange: (patch: Partial<PageFields>) => void; origin?: string | null }) {
+function PageTab({ fields, readOnly, isHome, onChange, origin, access }: { fields: PageFields; readOnly: boolean; isHome: boolean; onChange: (patch: Partial<PageFields>) => void; origin?: string | null; access?: PageAccessInfo }) {
   const uid = useId();
   const bad = pathProblem(fields.path);
   const over = fields.description.length > DESCRIPTION_MAX;
@@ -141,6 +142,15 @@ function PageTab({ fields, readOnly, isHome, onChange, origin }: { fields: PageF
         />
       </Field>
       <Switch label="Show in the sidebar" checked={!fields.hidden} disabled={readOnly || isHome} onChange={(e) => onChange({ hidden: !e.target.checked })} />
+      {access && (
+        <PageAccess
+          value={typeof fields.frontmatter_extra?.access === "string" ? (fields.frontmatter_extra.access as string) : null}
+          info={access}
+          readOnly={readOnly}
+          isHome={isHome}
+          onChange={(v) => onChange({ frontmatter_extra: { ...fields.frontmatter_extra, access: v ?? undefined } })}
+        />
+      )}
     </div>
   );
 }
@@ -250,7 +260,7 @@ export interface PanelFooter {
 export function EditorPanel({
   tab, onTab, page, fields, readOnly, isHome, onChange, onRestore,
   checks, onShow, onFix, outline, activeHeading, onOutline, mode,
-  comments, commentCount, footer,
+  comments, commentCount, footer, access,
 }: {
   tab: PanelTab;
   onTab: (t: PanelTab) => void;
@@ -271,6 +281,8 @@ export function EditorPanel({
   comments: React.ReactNode | null;
   commentCount: number;
   footer: PanelFooter;
+  /** Private pages: the page's "Who can open this page" (PageAccess). */
+  access?: PageAccessInfo;
 }) {
   const problems = checks.filter((c) => c.kind !== "ok").length;
   const tabs: Array<{ id: PanelTab; label: string; count?: number; warn?: boolean }> = [
@@ -331,7 +343,7 @@ export function EditorPanel({
         {current === "checks" && (
           <ChecksTab checks={checks} onShow={onShow} onFix={onFix} readOnly={readOnly} outline={outline} active={activeHeading} onOutline={onOutline} mode={mode} />
         )}
-        {current === "page" && <PageTab fields={fields} readOnly={readOnly} isHome={isHome} onChange={onChange} origin={page.origin?.kind === "github" ? page.origin.path : null} />}
+        {current === "page" && <PageTab fields={fields} readOnly={readOnly} isHome={isHome} onChange={onChange} origin={page.origin?.kind === "github" ? page.origin.path : null} access={access} />}
         {current === "comments" && comments}
         {current === "history" && <HistoryTab page={page} title={fields.title} readOnly={readOnly} onRestore={onRestore} />}
       </div>

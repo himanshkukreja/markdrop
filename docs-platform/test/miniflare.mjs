@@ -29,7 +29,8 @@ const mf = new Miniflare(convertV4MiniflareOptions({
       scriptPath: path.join(ROOT, "edge", "dist", "worker.mjs"),
       compatibilityDate: "2026-01-01",
       r2Buckets: ["DOCS"],
-      bindings: { POINTER_TTL_MS: "1000" },
+      // --secret (and --api / --app): password, members-only and private pages, as in production.
+      bindings: { POINTER_TTL_MS: "1000", ...(args.secret ? { DOCS_ACCESS_SECRET: args.secret, MARKDROP_API_ORIGIN: args.api || "http://localhost:8000", MARKDROP_APP_ORIGIN: args.app || "http://localhost:3000", INSIGHTS: "off" } : {}) },
     },
   ],
 }));
@@ -101,6 +102,8 @@ const server = http.createServer(async (req, res) => {
   if (kind === "404" || kind === "text") (stats[`${kind}Paths`] ||= []).push(url.pathname);
   const out = {};
   response.headers.forEach((v, k) => (out[k] = v));
+  const cookies = response.headers.getSetCookie?.() || [];
+  if (cookies.length) out["set-cookie"] = cookies;
   res.writeHead(response.status, out);
   if (response.body && req.method !== "HEAD") res.end(Buffer.from(await response.arrayBuffer()));
   else res.end();

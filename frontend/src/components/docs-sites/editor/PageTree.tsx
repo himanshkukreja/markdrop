@@ -116,7 +116,7 @@ function Grip({ label, handle, className }: { label: string; handle: ReturnType<
  * never changes with where it sits.
  */
 export function PageTree({
-  siteId, groups, currentId, myId, hrefFor, onOpen, canEdit, onNewPage, onMove, onMoveToGroup, onDropPage, onDropGroup, onDelete, loading, comments,
+  siteId, groups, currentId, myId, hrefFor, onOpen, canEdit, onNewPage, onMove, onMoveToGroup, onDropPage, onDropGroup, onDelete, loading, comments, privateLabels,
 }: {
   siteId: string;
   groups: TreeGroup[] | null;
@@ -134,6 +134,8 @@ export function PageTree({
   onDropGroup?: (from: number, to: number) => void;
   onDelete: (p: PageSummary) => void;
   loading?: boolean;
+  /** Private pages (page id → who can open it), shown with a badge. */
+  privateLabels?: Record<string, string>;
   /** Open review comments per page. */
   comments?: Record<string, number>;
 }) {
@@ -329,6 +331,7 @@ export function PageTree({
                   muted={!!g.hidden}
                   lockedByOther={lockedByOther}
                   talk={comments?.[p.id] ?? 0}
+                  priv={privateLabels?.[p.id]}
                   href={hrefFor(p.id)}
                   onOpen={() => onOpen(p.id)}
                   canEdit={canEdit}
@@ -474,13 +477,15 @@ function TreeGroupBox({
 
 /** A page row: the link (icon, title, lock, comments, dot), a grip on its left and its menu on the right. */
 function PageRow({
-  p, on, muted, lockedByOther, talk, href, onOpen, canEdit, items, dragOn, dimmed,
+  p, on, muted, lockedByOther, talk, priv, href, onOpen, canEdit, items, dragOn, dimmed,
 }: {
   p: PageSummary;
   on: boolean;
   muted: boolean;
   lockedByOther: boolean;
   talk: number;
+  /** Who can open it, when it is a private page. */
+  priv?: string;
   href: string;
   onOpen: () => void;
   canEdit: boolean;
@@ -519,6 +524,12 @@ function PageRow({
       >
         <span className={cx("inline-flex shrink-0", on ? "text-text" : "text-text-muted")}><Icon name={pageIcon(p.icon)} size={14} /></span>
         <span className="min-w-0 flex-1 truncate" dir="auto" title={p.title || undefined}>{p.title || "Untitled"}</span>
+        {priv && (
+          <span className="inline-flex shrink-0 text-text-muted" title={`Private: ${priv}`} data-private="">
+            <Icon name="eyeOff" size={12} />
+            <span className="md-visually-hidden">, private ({priv})</span>
+          </span>
+        )}
         {p.origin?.kind === "github" && (
           <span className="inline-flex shrink-0 text-text-muted" title="From GitHub">
             <Icon name="github" size={11} />

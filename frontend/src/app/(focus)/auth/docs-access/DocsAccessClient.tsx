@@ -49,7 +49,10 @@ export default function DocsAccessClient() {
   const host = (params.get("host") || "").trim().toLowerCase();
   const next = params.get("next") || "/";
   const sh = params.get("sh") || "";
-  const here = `/auth/docs-access?${new URLSearchParams({ site, host, next, sh })}`;
+  // mode=reader: a private page of a guide (docs-platform/edge/readers.mjs): the grant carries the
+  // reader's email and whether they are on the team, and the edge decides what it opens.
+  const reader = params.get("mode") === "reader";
+  const here = `/auth/docs-access?${new URLSearchParams({ site, host, next, sh, ...(reader ? { mode: "reader" } : {}) })}`;
   const loginUrl = `/login?next=${encodeURIComponent(here)}`;
 
   const toLogin = useCallback(() => {
@@ -73,7 +76,7 @@ export default function DocsAccessClient() {
     (async () => {
       let res: Response;
       try {
-        res = await fetch(`${API_BASE}/api/v1/docs-access/grant`, {
+        res = await fetch(`${API_BASE}/api/v1/docs-access/${reader ? "reader-grant" : "grant"}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ site_id: site, host, next, sh }),
@@ -95,7 +98,7 @@ export default function DocsAccessClient() {
       } else if (res.status === 404 || res.status === 409 || res.status === 400) setFailure({ kind: "gone" });
       else setFailure({ kind: "error" });
     })();
-  }, [loading, site, host, next, sh, toLogin]);
+  }, [loading, site, host, next, sh, reader, toLogin]);
 
   async function switchAccount() {
     setLeaving("Signing out…");

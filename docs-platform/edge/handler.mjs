@@ -36,6 +36,7 @@ import {
   grantProblem, mintSession, newState, parseCookies, parsePolicy, privatePage, safeNext, sessionValid, stateHash, validState,
 } from "./access.mjs";
 import { agentVia, isPageView, sendAgent, sendView } from "./insights.mjs";
+import { READER_COOKIE, READER_TTL, aiToken, allowed, allowedRules, lockPage, mergeReader, mintReader, parseReaders, readerGrant, readerOf } from "./readers.mjs";
 
 const RSC_VARY = "RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch, Accept";
 const MCP_ROUTE = `${DOCS_INTERNAL}/mcp`;
@@ -217,12 +218,18 @@ export function createHandler(store, options = {}) {
 
   /** sites/<site>/access.json, trusted as long as the pointer. A read error throws (500): never open. */
   async function policyFor(site) {
+    return (await accessFor(site)).policy;
+  }
+
+  /** The site-wide policy and the private pages' rules (readers.mjs), from the one object. */
+  async function accessFor(site) {
     let hit = policies.get(site);
     if (!hit || Date.now() - hit.at > pointerTtl) {
-      hit = { policy: parsePolicy(await store.getText(`sites/${site}/access.json`)), at: Date.now() };
+      const raw = await store.getText(`sites/${site}/access.json`);
+      hit = { policy: parsePolicy(raw), readers: parseReaders(raw), at: Date.now() };
       policies.set(site, hit);
     }
-    return hit.policy;
+    return hit;
   }
 
   /** Serve one object with its type and headers; ETag is the object hash. */
@@ -323,9 +330,129 @@ export function createHandler(store, options = {}) {
       return new Response(null, { status: 303, headers: h });
     }
     if (path === "/_access/logout" && (req.method === "GET" || req.method === "POST")) {
-      return new Response(null, { status: 303, headers: { location: "/", "cache-control": "no-store", "set-cookie": cookie(SESSION_COOKIE, "", 0) } });
+      const h = new Headers({ location: "/", "cache-control": "no-store" });
+      h.append("set-cookie", cookie(SESSION_COOKIE, "", 0));
+      h.append("set-cookie", cookie(READER_COOKIE, "", 0));
+      return new Response(null, { status: 303, headers: h });
+    }
+    if (m.access) return readerRoute(req, url, site, m);
+    return text("Not found\n", 404);
+  }
+
+  /* ── private pages and sections (readers.mjs) ────────────────────── */
+
+  /** The reader of a request (cached on it) and the site's rules. */
+  const readerCache = new WeakMap();
+  async function readerFor(req, site) {
+    let hit = readerCache.get(req);
+    if (!hit) {
+      const { readers } = await accessFor(site);
+      hit = { readers, reader: await readerOf(secret, req, site, readers) };
+      readerCache.set(req, hit);
+    }
+    return hit;
+  }
+
+  function isNavigation(req) {
+    const accept = req.headers.get("accept") || "";
+    return (req.method === "GET" || req.method === "HEAD") && req.headers.get("rsc") !== "1" && (req.headers.get("sec-fetch-dest") === "document" || accept.includes("text/html"));
+  }
+
+  /** The lock page for `ruleId` (with this browser's state cookie, kept or new), or a bare 401. */
+  async function lockedResponse(req, url, site, m, ruleId, { next, message = null, status = 401, section = false }) {
+    privateReqs.add(req);
+    if (!isNavigation(req) && !url.pathname.startsWith("/_access/")) {
+      options.onServe?.({ kind: "denied", status: 401, size: 0 });
+      return text("This page is private. Open it in a browser to sign in.\n", 401, { "cache-control": "private, no-store" });
+    }
+    const { readers, reader } = await readerFor(req, site);
+    let state = parseCookies(req.headers.get("cookie")).get(STATE_COOKIE);
+    if (!validState(state)) state = newState();
+    const body = lockPage({
+      manifest: m, rule: readers.rules.get(ruleId), ruleId, reader, site, host: url.host.toLowerCase(), next, state: await stateHash(state), message,
+      apiOrigin, appOrigin, section,
+    });
+    const csp = `default-src 'none'; img-src 'self' https: data:; style-src 'unsafe-inline'; form-action 'self' ${apiOrigin}; frame-ancestors 'none'; base-uri 'none'`;
+    options.onServe?.({ kind: "lock", status, size: 0 });
+    return html(req.method === "HEAD" ? null : body, status, {
+      "content-security-policy": csp, "set-cookie": cookie(STATE_COOKIE, state, STATE_TTL), "cache-control": "private, no-store", "x-robots-tag": "noindex, nofollow",
+    });
+  }
+
+  /** The rule protecting a page address (its route's `a`), if any. */
+  function ruleOfPath(m, pathname, accept) {
+    const internal = docsRewritePath(pathname, accept || "text/html");
+    return internal ? m.routes[internal]?.a : undefined;
+  }
+
+  /** /_access/{page,callback,reader,me}: the reader sign-in of a site with private pages. */
+  async function readerRoute(req, url, site, m) {
+    privateReqs.add(req);
+    const path = url.pathname;
+    const read = req.method === "GET" || req.method === "HEAD";
+    if (!secret) return html(privatePage(m.site?.name || "Docs"), 503);
+    if (path === "/_access/page" && read) {
+      const next = safeNext(url.searchParams.get("next") || "/");
+      const asked = url.searchParams.get("rule");
+      const pageRule = ruleOfPath(m, next.split("?")[0]);
+      const ruleId = pageRule || (asked && m.access.rules.includes(asked) ? asked : null);
+      if (!ruleId) return new Response(null, { status: 303, headers: { location: next, "cache-control": "no-store" } });
+      const { readers, reader } = await readerFor(req, site);
+      // Already in (a section's rule, after signing in elsewhere): straight back.
+      if (allowed(readers, reader, ruleId) && !url.searchParams.get("m")) return new Response(null, { status: 303, headers: { location: next, "cache-control": "no-store" } });
+      return lockedResponse(req, url, site, m, ruleId, { next, message: url.searchParams.get("m"), status: 200, section: !pageRule });
+    }
+    if (path === "/_access/callback" && read) {
+      const nonce = b64url(crypto.getRandomValues(new Uint8Array(16)));
+      const csp = `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`;
+      return html(callbackPage(nonce), 200, { "content-security-policy": csp, "referrer-policy": "same-origin" });
+    }
+    if (path === "/_access/reader" && req.method === "POST") {
+      const origin = req.headers.get("origin");
+      if (origin && origin !== url.origin) return text("Cross-site sign-in refused.\n", 403);
+      if (Number(req.headers.get("content-length") || 0) > 16384) return text("Too large.\n", 413);
+      let form;
+      try {
+        form = await req.formData();
+      } catch {
+        return text("Bad request.\n", 400);
+      }
+      const next = safeNext(String(form.get("next") || "/"));
+      const { readers, reader } = await readerFor(req, site);
+      const state = parseCookies(req.headers.get("cookie")).get(STATE_COOKIE);
+      const res = await readerGrant(secret, String(form.get("g") || ""), { site, host: url.host.toLowerCase(), readers, state });
+      const ruleId = ruleOfPath(m, next.split("?")[0]) || m.access.rules[0];
+      if (res.problem) return lockedResponse(req, url, site, m, ruleId, { next, message: res.problem, status: 403 });
+      const merged = mergeReader(reader, res.add);
+      const h = new Headers({ location: next, "cache-control": "no-store" });
+      h.append("set-cookie", cookie(READER_COOKIE, await mintReader(secret, site, readers, merged), READER_TTL));
+      h.append("set-cookie", cookie(STATE_COOKIE, "", 0));
+      options.onServe?.({ kind: "reader-signin", status: 303, size: 0 });
+      return new Response(null, { status: 303, headers: h });
+    }
+    if (path === "/_access/logout" && (read || req.method === "POST")) {
+      const h = new Headers({ location: safeNext(url.searchParams.get("next") || "/"), "cache-control": "no-store" });
+      h.append("set-cookie", cookie(READER_COOKIE, "", 0));
+      return new Response(null, { status: 303, headers: h });
+    }
+    if (path === "/_access/me" && read) {
+      const { readers, reader } = await readerFor(req, site);
+      const rules = allowedRules(readers, reader, m.access.rules);
+      const body = JSON.stringify({
+        signed_in: reader.signedIn, email: reader.e, member: reader.m, rules,
+        ...(rules.length ? { ai_token: await aiToken(secret, site, rules) } : {}),
+      });
+      return new Response(req.method === "HEAD" ? null : body, { status: 200, headers: { "content-type": "application/json", "cache-control": "private, no-store" } });
     }
     return text("Not found\n", 404);
+  }
+
+  /** A response that depended on who the reader is: never stored by a browser or a shared cache. */
+  function readerResponse(res) {
+    const out = new Response(res.body, res);
+    out.headers.set("cache-control", "private, no-store");
+    if (!out.headers.has("referrer-policy")) out.headers.set("referrer-policy", "same-origin");
+    return out;
   }
 
   /** A non-public site: the reader's session, or the sign-in page / a 401. */
@@ -381,16 +508,48 @@ export function createHandler(store, options = {}) {
       const f = m.files[pathname];
       if (f) {
         const immutable = !!f.immutable;
-        const locked = pathname.startsWith("/_next/") ? {} : fileHeaders(f.t);
-        return serve(req, f, { type: f.t, cache: immutable ? CACHE.immutable : CACHE.file, locked, range: !immutable, kind: immutable ? "chunk" : "file" });
+        const fh = pathname.startsWith("/_next/") ? {} : fileHeaders(f.t);
+        // A file only private content uses: for readers of any of its rules (readers.mjs).
+        if (Array.isArray(f.a)) {
+          const { readers, reader } = await readerFor(req, site);
+          privateReqs.add(req);
+          if (!f.a.some((id) => allowed(readers, reader, id))) {
+            options.onServe?.({ kind: "denied", status: 401, size: 0 });
+            return text("This file is private.\n", 401, { ...fileHeaders("text/plain"), "cache-control": "private, no-store" });
+          }
+          return readerResponse(await serve(req, f, { type: f.t, cache: CACHE.file, locked: fh, range: true, kind: "file" }));
+        }
+        return serve(req, f, { type: f.t, cache: immutable ? CACHE.immutable : CACHE.file, locked: fh, range: !immutable, kind: immutable ? "chunk" : "file" });
       }
     } else {
-      const r = m.routes[internal];
+      let r = m.routes[internal];
+      // A variant (a page with its private sections revealed) is never served at its own address.
+      if (r?.variant) r = undefined;
       if (r) {
+        let personal = false;
+        // A private page (and its payload, .md twin, OG card): only for readers its rule lets in.
+        if (r.a) {
+          const { readers, reader } = await readerFor(req, site);
+          if (!allowed(readers, reader, r.a)) return lockedResponse(req, url, site, m, r.a, { next: safeNext(url.pathname + url.search) });
+          privateReqs.add(req);
+          personal = true;
+        }
+        // A page with private sections: the variant this reader may see, else the public page.
+        if (Array.isArray(r.sec) && r.sec.length) {
+          const { readers, reader } = await readerFor(req, site);
+          const set = allowedRules(readers, reader, r.sec);
+          const v = set.length ? m.routes[`${DOCS_INTERNAL}/x-access/${[...set].sort().join(".")}${internal.slice(DOCS_INTERNAL.length)}`] : null;
+          if (v) {
+            privateReqs.add(req);
+            r = v;
+          }
+          personal = true;
+        }
+        const out = personal ? readerResponse : (x) => x;
         const isPage = !!r.rsc;
         if (isPage && req.headers.get("rsc") === "1") {
           const v = (req.headers.get("next-router-prefetch") === "1" && r.prefetch) || r.rsc;
-          return serve(req, v, { type: "text/x-component", cache: CACHE.page, headers: { vary: RSC_VARY }, kind: "rsc" });
+          return out(await serve(req, v, { type: "text/x-component", cache: CACHE.page, headers: { vary: RSC_VARY }, kind: "rsc" }));
         }
         // Text outputs keep the cache policy the engine gave them; pages revalidate by ETag.
         const cache = r.h?.["cache-control"] || CACHE.page;
@@ -398,7 +557,7 @@ export function createHandler(store, options = {}) {
         const res = await serve(req, r, { type: r.t, cache, headers: { vary: isPage ? RSC_VARY : "Accept", ...(csp ? { "content-security-policy": csp } : {}) }, kind: isPage ? "page" : r.t.startsWith("image/") ? "og" : "text" });
         if (isPage && (res.status === 200 || res.status === 304)) countView(req, url, site, m);
         else if (!isPage && req.method === "GET" && (res.status === 200 || res.status === 304)) countAgent(req, url, site, m, agentVia(internal, r.t));
-        return res;
+        return out(res);
       }
     }
 
@@ -426,7 +585,8 @@ export function createHandler(store, options = {}) {
       const [m, policy] = await Promise.all([manifestFor(site), policyFor(site)]);
       if (!m) return text("This site has not been published yet.\n", 404);
       if (policy.level === "public") {
-        const res = await route(req, url, site, m, ctx);
+        // Private pages' sign-in (readers.mjs); every other address is the site's own.
+        const res = m.access && url.pathname.startsWith("/_access/") ? await readerRoute(req, url, site, m) : await route(req, url, site, m, ctx);
         return m.site?.noindex ? noindexResponse(res) : res;
       }
       return privateResponse(await gated(req, url, site, m, policy, ctx));

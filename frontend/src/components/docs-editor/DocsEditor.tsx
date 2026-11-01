@@ -169,6 +169,7 @@ export function DocsEditor({
   showHeader = true,
   showModeSwitch = true,
   operations,
+  accessRules,
   resolveAssetUrl,
   autoFocus,
   className,
@@ -453,6 +454,7 @@ export function DocsEditor({
             placeholder={placeholder}
             onUploadImage={onUploadImage}
             operations={operations}
+            accessRules={accessRules}
             resolveAssetUrl={resolveAssetUrl}
             autoFocus={autoFocus}
             onRequestMarkdown={toMarkdown}

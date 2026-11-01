@@ -463,8 +463,21 @@ async def _reconcile_access(db: AsyncIOMotorDatabase, site_id: Any, written: Any
     the current one."""
     from app.services import docs_site_access
 
-    site = await db[SITES].find_one({"_id": site_id}, {"settings.access.level": 1, "access_version": 1})
-    if site is None or not docs_site_access.needs_policy(site):
+    site = await db[SITES].find_one({"_id": site_id}, {"settings.access.level": 1, "access_version": 1, "page_access": 1,
+                                                       "page_access_synced_version": 1})
+    if site is None:
+        return
+    # Private pages: the runner wrote the readers policy the spec carried; the access job brings a
+    # newer one (a rule changed while it built).
+    readers = written.get("readers") if isinstance(written, dict) else None
+    from app.services import docs_page_access
+
+    if docs_page_access.needs_readers(site):
+        if isinstance(readers, dict) and readers.get("version") == docs_page_access.version_of(site):
+            await docs_site_access.mark_readers_synced(db, site)
+        elif not docs_page_access.enforced(site):
+            await docs_site_access.queue_sync(db, site_id, "build")
+    if not docs_site_access.needs_policy(site):
         return
     want = docs_site_access.policy(site)
     if isinstance(written, dict) and written.get("level") == want["level"] \

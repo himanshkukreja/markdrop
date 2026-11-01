@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field
 from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
-from app.services import api_token, docs_agent, docs_sites
+from app.services import api_token, docs_agent, docs_page_access, docs_sites
 from app.services import user as user_service
 from app.utils.auth import decode_access_token
 from app.utils.net import get_client_ip
@@ -101,6 +101,8 @@ class AskBody(BaseModel):
     page_path: str | None = Field(None, max_length=300)
     conversation_id: str | None = Field(None, max_length=64)
     site: str | None = Field(None, max_length=64)
+    # The docs edge's short token for a reader of private pages (/_access/me): Ask AI then also answers from them.
+    access_token: str | None = Field(None, max_length=4096)
 
 
 def _sse(event: str, data: dict) -> bytes:
@@ -119,6 +121,7 @@ async def ask(
     req = docs_agent.AskRequest(
         question=body.question, history=body.history, page_path=body.page_path,
         conversation_id=body.conversation_id, user=user, ip=get_client_ip(request), site=site,
+        reveal=docs_page_access.ai_rules(body.access_token, site),
     )
 
     async def stream():

@@ -83,6 +83,8 @@ export const Callout = container("callout", "block+", {}, { kind: str("kind", "n
 export const Steps = container("steps", "block+");
 /** `:::details[summary]`: a collapsible section. */
 export const Details = container("details", "block+");
+/** `:::private[title]{access="<rule>"}`: a section only some readers see (frontend/src/docs/access.mjs). */
+export const Private = container("private", "block+");
 /** `::::tabs{sync}` holding `:::tab[label]` panes. */
 export const Tabs = container("tabs", "tab+");
 export const Tab = container("tab", "block+", { group: undefined, isolating: true, draggable: false });
@@ -294,6 +296,7 @@ export function baseExtensions() {
     Callout,
     Steps,
     Details,
+    Private,
     Tabs,
     Tab,
     Cards,

@@ -19,6 +19,7 @@ import { buildApiReference, type ApiReference } from "./openapi.mjs";
 import { clipVariants, formatDuration, readVttCues, type MediaManifest } from "./media";
 import { embedTextLines, parseMarkdropSrc, type EmbedTextInfo } from "./embed.mjs";
 import { markdropFilesConfig, videoLink } from "./brand";
+import { effectiveRule, hasPrivate, readAccess, ruleOf, splitPrivate, type AccessRule, type SiteAccess } from "./access.mjs";
 import type { Changelog, ChangelogEntry, DocPage, NavGroup, SiteConfig, VideoRef } from "./types";
 
 export const CONTENT_DIR = process.env.DOCS_CONTENT_DIR || path.join(process.cwd(), "content", "docs");
@@ -70,6 +71,13 @@ function yamlList(xs: string[]): string {
 
 const KINDS = new Set(["new", "improved", "fixed"]);
 
+/**
+ * The key a revealed private section carries into the renderer (access.mjs splitPrivate): random per
+ * process, so a `:::private` container the split didn't produce (one it couldn't recognise) never
+ * renders its content.
+ */
+export const PRIVATE_KEY = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
+
 export type HomeDoc = { meta: DocPage["meta"]; body: string };
 export type ApiReferenceWithDate = ApiReference & { updated: string };
 
@@ -112,9 +120,15 @@ export class SiteBundle {
 
   private loadPage(file: string): DocPage {
     const src = fs.readFileSync(path.join(this.dir, file), "utf8");
-    const { data, body } = parseFrontmatter(src);
-    const headings = scanHeadings(body);
+    const parsed = parseFrontmatter(src);
+    const data = parsed.data;
     const p = fileToPath(file);
+    // Private sections never reach the page's public body (or anything built from it).
+    const split = hasPrivate(parsed.body) ? splitPrivate(parsed.body, null) : null;
+    const body = split ? split.body : parsed.body;
+    if (split) this.privateSources.set(p, parsed.body);
+    const headings = scanHeadings(body);
+    const access = (data as Record<string, unknown>).access;
     return {
       path: p,
       file,
@@ -134,7 +148,68 @@ export class SiteBundle {
       headings,
       sections: splitSections(body, headings),
       minutes: readingMinutes(body),
+      ...(access !== undefined && access !== null ? { access: String(access) } : {}),
+      ...(split?.rules.length ? { sectionRules: split.rules } : {}),
     };
+  }
+
+  /** The full bodies of pages with private sections (by path): only variant() reads them. */
+  private readonly privateSources = new Map<string, string>();
+
+  /* ── private pages and sections (access.mjs) ─────────────────────────── */
+
+  private readonly accessMemo = memo((): SiteAccess => readAccess(this.site));
+  get access(): SiteAccess {
+    return this.accessMemo();
+  }
+
+  /** Every page's access rule (its own, else its nav group's), for the pages that have one. */
+  private readonly rulesMemo = memo((): Map<string, string> => {
+    const groupOfPath = new Map<string, unknown>();
+    for (const g of this.site.nav) for (const p of g.pages) if (!groupOfPath.has(p)) groupOfPath.set(p, g.access);
+    const out = new Map<string, string>();
+    for (const page of this.pages.values()) {
+      const rule = effectiveRule(page.access, groupOfPath.get(page.path));
+      if (rule) out.set(page.path, rule);
+    }
+    return out;
+  });
+
+  /** The rule that protects a page, or undefined for a public one. */
+  ruleFor(p: string): string | undefined {
+    return this.rulesMemo().get(p);
+  }
+
+  rule(id: string): AccessRule {
+    return ruleOf(this.access, id);
+  }
+
+  /** Whether a page is public (no rule): only those go into the search index, llms*.txt, sitemap, MCP, feeds. */
+  isPublic(p: string): boolean {
+    return !this.ruleFor(p);
+  }
+
+  /** A page by path if it is public (what aggregate outputs and agents may read), else undefined. */
+  publicPage(p: string): DocPage | undefined {
+    return this.isPublic(p) ? this.page(p) : undefined;
+  }
+
+  /** Protected pages: path → rule. */
+  protectedPages(): Map<string, string> {
+    return this.rulesMemo();
+  }
+
+  /**
+   * A page with its private sections for `rules` revealed (the others stay locked): what a variant
+   * route renders. Without private sections, the page itself.
+   */
+  variant(page: DocPage, rules: string[]): DocPage {
+    if (!this.pages.has(page.path)) return page;
+    const src = this.privateSources.get(page.path);
+    if (!src) return page;
+    const body = splitPrivate(src, new Set(rules), PRIVATE_KEY).body;
+    const headings = scanHeadings(body);
+    return { ...page, body, headings, sections: splitSections(body, headings), minutes: readingMinutes(body) };
   }
 
   /**
@@ -269,9 +344,12 @@ export class SiteBundle {
           .map((p) => {
             const page = this.page(p);
             const icon = icons ? page?.meta.icon : undefined;
-            return { path: p, title: page ? navLabel(page) : p.split("/").pop()!.replace(/-/g, " "), available: !!page, isNew: !!g.new, ...(icon ? { icon } : {}) };
+            const rule = page ? this.ruleFor(p) : undefined;
+            // A protected page: listed with a lock when its rule says so, else left out.
+            if (rule && this.rule(rule).nav !== "show") return null;
+            return { path: p, title: page ? navLabel(page) : p.split("/").pop()!.replace(/-/g, " "), available: !!page, isNew: !!g.new, ...(icon ? { icon } : {}), ...(rule ? { locked: true } : {}) };
           })
-          .filter((it) => it.available || DEV),
+          .filter((it): it is NonNullable<typeof it> => !!it && (it.available || DEV)),
       }))
       .filter((g) => g.items.length > 0);
     const ref = this.apiReference;
@@ -309,20 +387,29 @@ export class SiteBundle {
     return this.nav.find((g) => g.items.some((it) => it.path === p));
   }
 
-  /** Pages in reading order (nav order, available only), then any page not in the nav. */
+  /**
+   * Public pages in reading order (nav order, available only), then any page not in the nav. A
+   * protected page is never in it: this list feeds the search index, llms*.txt, the sitemap,
+   * skill.md, the MCP server and prev/next.
+   */
   orderedPages(): DocPage[] {
     const seen = new Set<string>();
     const out: DocPage[] = [];
     for (const g of this.nav)
       for (const it of g.items) {
-        const page = this.page(it.path);
+        const page = this.publicPage(it.path);
         if (page && !seen.has(page.path)) {
           seen.add(page.path);
           out.push(page);
         }
       }
-    for (const page of this.allPages()) if (!seen.has(page.path)) out.push(page);
+    for (const page of this.allPages()) if (!seen.has(page.path) && this.isPublic(page.path)) out.push(page);
     return out;
+  }
+
+  /** Every public page (no order): aggregate outputs that list pages outside the nav. */
+  publicPages(): DocPage[] {
+    return this.allPages().filter((p) => this.isPublic(p.path));
   }
 
   prevNext(p: string): { prev?: DocPage; next?: DocPage } {
@@ -457,9 +544,17 @@ export class SiteBundle {
 
   /** The page plus the pages it lists as prerequisites (each once, prerequisites first). */
   withPrerequisites(page: DocPage): { markdown: string; count: number } {
-    const pre = (page.meta.prerequisites ?? []).map((p) => this.page(p)).filter((p): p is DocPage => !!p);
+    const pre = this.prerequisitesOf(page);
     const parts = [...pre.map((p) => this.agentMarkdown(p)), this.agentMarkdown(page)];
     return { markdown: parts.join("\n\n"), count: pre.length };
+  }
+
+  /** A page's prerequisites that every reader of it may also read (public ones, or the same rule's). */
+  prerequisitesOf(page: DocPage): DocPage[] {
+    const own = this.ruleFor(page.path);
+    return (page.meta.prerequisites ?? [])
+      .map((p) => this.page(p))
+      .filter((p): p is DocPage => !!p && (this.isPublic(p.path) || this.ruleFor(p.path) === own));
   }
 
   homeMarkdown(): string {
@@ -513,6 +608,13 @@ export const getSite = (): SiteConfig => defaultSite().site;
 export const getApiReference = (): ApiReferenceWithDate | null => defaultSite().apiReference;
 export const getAllPages = (): DocPage[] => defaultSite().allPages();
 export const getPage = (p: string): DocPage | undefined => defaultSite().page(p);
+/** A page only when it is public (aggregates, agents, feeds, home cards). */
+export const getPublicPage = (p: string): DocPage | undefined => defaultSite().publicPage(p);
+export const getPublicPages = (): DocPage[] => defaultSite().publicPages();
+export const pageRule = (p: string): string | undefined => defaultSite().ruleFor(p);
+export const getAccess = (): SiteAccess => defaultSite().access;
+export const pageVariant = (page: DocPage, rules: string[]): DocPage => defaultSite().variant(page, rules);
+export const prerequisitesOf = (page: DocPage): DocPage[] => defaultSite().prerequisitesOf(page);
 export const getHome = (): HomeDoc | null => defaultSite().home;
 export const getNav = (): NavGroup[] => defaultSite().nav;
 export const groupOf = (p: string): NavGroup | undefined => defaultSite().groupOf(p);

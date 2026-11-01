@@ -13,6 +13,27 @@ export interface AskApi {
   api: string;
   site: string;
   appSession: boolean;
+  /** The guide has private pages: send the docs edge's reader token (readerToken). */
+  privatePages?: boolean;
+}
+
+let reader: { token: string | null; at: number } | null = null;
+
+/**
+ * The docs edge's short token naming the private rules this reader may open (`/_access/me`,
+ * docs-platform/edge/readers.mjs), kept a few minutes. Without one (signed out, or a host without
+ * the edge) Ask AI answers from the public guide only.
+ */
+async function readerToken(): Promise<string | null> {
+  if (reader && Date.now() - reader.at < 5 * 60_000) return reader.token;
+  try {
+    const r = await fetch("/_access/me", { headers: { Accept: "application/json" }, cache: "no-store", credentials: "same-origin" });
+    const j = r.ok ? ((await r.json()) as { ai_token?: string }) : null;
+    reader = { token: typeof j?.ai_token === "string" ? j.ai_token : null, at: Date.now() };
+  } catch {
+    reader = { token: null, at: Date.now() };
+  }
+  return reader.token;
 }
 
 export type Phase = "searching" | "reading" | "checking" | "writing";
@@ -86,10 +107,11 @@ export function fetchStatus(cfg: AskApi): Promise<Availability> {
 }
 
 export async function streamAsk(cfg: AskApi, body: AskBody, signal: AbortSignal, onMessage: (m: SseMessage) => void): Promise<void> {
+  const accessToken = cfg.privatePages ? await readerToken() : null;
   const res = await fetch(`${cfg.api}/api/v1/docs/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream", "X-Docs-Site": cfg.site, ...bearer(cfg) },
-    body: JSON.stringify({ ...body, site: cfg.site }),
+    body: JSON.stringify({ ...body, site: cfg.site, ...(accessToken ? { access_token: accessToken } : {}) }),
     signal,
     cache: "no-store",
   });

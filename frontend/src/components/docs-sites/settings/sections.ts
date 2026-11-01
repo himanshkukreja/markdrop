@@ -4,6 +4,7 @@
  *   general        name, address, logo, where it started, GitHub (a summary)
  *   domains        the free address and your own domains (…/domains/new, …/domains/<host>: setup)
  *   access         who can read it, search indexing
+ *   private        private pages and sections: rules, requests, preview as, history
  *   ask-ai         on/off, usage, name, suggested questions
  *   api-reference  the OpenAPI file and how the reference appears
  *   github         the repository it's imported from and kept in sync with, sync history
@@ -14,12 +15,13 @@
  * The old one-page Settings used #anchors (/settings#people, #redirects, #review…), which Publishes,
  * Members and shared links still use: /settings reads the hash and goes to the section (ANCHORS).
  */
-export type SettingsSection = "general" | "domains" | "access" | "ask-ai" | "api-reference" | "github" | "redirects" | "people" | "danger";
+export type SettingsSection = "general" | "domains" | "access" | "private" | "ask-ai" | "api-reference" | "github" | "redirects" | "people" | "danger";
 
 export const SECTIONS: ReadonlyArray<{ id: SettingsSection; label: string; icon: string; blurb: string }> = [
   { id: "general", label: "General", icon: "settings", blurb: "The guide's name, its address and where it started." },
   { id: "domains", label: "Domains", icon: "globe", blurb: "Where readers find your guide. Old links keep working when you change it." },
   { id: "access", label: "Readers and access", icon: "lock", blurb: "Who can read the guide, and whether search engines list it." },
+  { id: "private", label: "Private pages", icon: "eyeOff", blurb: "Pages and sections for some readers only: your team, a customer's people, partners with a password. Free on every guide." },
   { id: "ask-ai", label: "Ask AI", icon: "zap", blurb: "Readers ask questions and get answers from your pages, with a link to the exact section." },
   { id: "api-reference", label: "API reference", icon: "code", blurb: "Bring your OpenAPI file. Readers get a page for every endpoint, code samples, and Try it against your real API." },
   { id: "github", label: "GitHub", icon: "github", blurb: "Import a repository's docs and keep them in sync: each push to the branch updates the guide." },
@@ -44,6 +46,8 @@ export const ANCHORS: Record<string, SettingsSection> = {
   domain: "domains",
   domains: "domains",
   access: "access",
+  private: "private",
+  requests: "private",
   seo: "access",
   ai: "ask-ai",
   "ask-ai": "ask-ai",

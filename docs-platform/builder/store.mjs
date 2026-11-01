@@ -246,14 +246,26 @@ export async function writeAccess(store, site, access, { dryRun = false } = {}) 
   } catch {
     cur = null;
   }
+  // Private pages (edge/readers.mjs): `readers`, versioned on its own; the newer one wins too.
+  const wantReaders = access.readers && typeof access.readers === "object" && Number.isSafeInteger(access.readers.version) ? access.readers : null;
+  const rv = (r) => (r && Number.isSafeInteger(r.version) ? r.version : -1);
+  let level = access.level;
+  let version = access.policy_version;
+  let readers = wantReaders;
   if (cur && Number.isSafeInteger(cur.policy_version) && ACCESS_LEVELS.has(cur.level)) {
-    if (cur.policy_version > access.policy_version) return { level: cur.level, policy_version: cur.policy_version, written: false };
-    if (cur.policy_version === access.policy_version && cur.level === access.level) return { level: cur.level, policy_version: cur.policy_version, written: false };
+    if (cur.policy_version > version) {
+      level = cur.level;
+      version = cur.policy_version;
+    }
+    if (cur.readers && rv(cur.readers) > rv(readers)) readers = cur.readers;
+    if (cur.level === level && cur.policy_version === version && JSON.stringify(cur.readers ?? null) === JSON.stringify(readers ?? null)) {
+      return { level, policy_version: version, ...(readers ? { readers: { version: readers.version } } : {}), written: false };
+    }
   }
   // A site that was never anything but public needs no object (no object = public).
-  if (!raw && access.level === "public" && access.policy_version === 0) return { level: "public", policy_version: 0, written: false };
-  if (!dryRun) await store.put(key, JSON.stringify({ site, level: access.level, policy_version: access.policy_version, updatedAt: new Date().toISOString() }));
-  return { level: access.level, policy_version: access.policy_version, written: true };
+  if (!raw && level === "public" && version === 0 && !readers) return { level: "public", policy_version: 0, written: false };
+  if (!dryRun) await store.put(key, JSON.stringify({ site, level, policy_version: version, ...(readers ? { readers } : {}), updatedAt: new Date().toISOString() }));
+  return { level, policy_version: version, ...(readers ? { readers: { version: readers.version } } : {}), written: true };
 }
 
 /** Thrown by a store from withPointerGuard when the site is no longer wanted live. */

@@ -413,6 +413,46 @@ export function CardView({ node, editor, getPos, updateAttributes, deleteNode }:
   );
 }
 
+/* ── Private section ─────────────────────────────────────────────────────── */
+
+/**
+ * `:::private[title]{access="<rule>"}`: who may see it (the guide's rules, from the host), an
+ * optional title readers without access see on the lock card, and the content.
+ */
+export function PrivateView({ node, updateAttributes }: ReactNodeViewProps) {
+  const host = useHost();
+  const attrs = (node.attrs.attributes ?? {}) as Record<string, string>;
+  const access = attrs.access || "members";
+  const rules = host.accessRules ?? [];
+  const known = rules.some((r) => r.id === access);
+  return (
+    <NodeViewWrapper className="dxe-private" data-access={access}>
+      <div contentEditable={false} className="dxe-private__head">
+        <Icon name="lock" className="dxe-private__icon" />
+        <span className="dxe-private__kicker">Private section</span>
+        <label className="dxe-private__who">
+          <span className="sr-only">Who can see this section</span>
+          <select
+            value={access}
+            disabled={host.readOnly}
+            aria-label="Who can see this section"
+            onChange={(e) => updateAttributes({ attributes: withAttr(attrs, "access", e.target.value) })}
+          >
+            {!known && <option value={access}>{access} (not a rule on this guide)</option>}
+            {(rules.length ? rules : [{ id: "members", name: "Team members", kind: "members" }]).map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.kind === "members" ? "Team members" : r.kind === "password" ? `${r.name} (password)` : r.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <LabelInput label={node.attrs.label} placeholder="Title readers see on the lock (optional)" aria-label="Private section title" readOnly={host.readOnly} onChange={(label) => updateAttributes({ label })} />
+      </div>
+      <NodeViewContent className="dxe-private__body" />
+    </NodeViewWrapper>
+  );
+}
+
 /* ── Details ─────────────────────────────────────────────────────────────── */
 
 export function DetailsView({ node, updateAttributes }: ReactNodeViewProps) {
