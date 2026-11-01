@@ -99,7 +99,8 @@
 .dx-root[data-preset="technical"] :is(.dx-eyebrow, .dx-meta, .dx-crumbs, .dx-startcard__time, .dx-news__date) { font-family: var(--font-mono); letter-spacing: 0.02em; }
 .dx-root[data-preset="technical"] .dx-eyebrow { text-transform: none; font-weight: 600; }
 .dx-root[data-preset="technical"] :is(.dx-startcard, .dx-card, .dx-ask__box, .md-codeblock, .dx-prevnext__link) { box-shadow: none; }
-[data-theme="light"] .dx-root.dx-root[data-preset="technical"] .md-codeblock {
+/* Try it's request and response panels are drawn on the code ground too (dark here): same text tokens */
+[data-theme="light"] .dx-root.dx-root[data-preset="technical"] :is(.md-codeblock, .dx-tryit__cmd, .dx-tryit__resp) {
   color-scheme: dark;
   --code-bg: #0b1220;
   --code-border: #1e2a3b;

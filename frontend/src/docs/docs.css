@@ -729,6 +729,8 @@ html.dx-modal-open { overflow: hidden; }
   .dx-layout { grid-template-columns: 220px minmax(0, 1fr); gap: 32px; }
   .dx-layout__rail { display: none; }
   .dx-otp { display: flex; }
+  /* the sticky "On this page" bar sits under the header here: a linked heading lands below both */
+  .dx-root [id] { scroll-margin-top: calc(var(--dx-header-h) + 64px); }
   .dx-only-xwide { display: none; }
   .dx-searchbox { width: 220px; }
 }

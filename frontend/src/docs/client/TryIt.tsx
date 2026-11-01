@@ -322,7 +322,8 @@ export function TryIt({ op }: { op: TryItOperation }) {
 
   const method = op.method.toUpperCase();
   const writes = method !== "GET" && method !== "HEAD";
-  const wantsToken = op.auth === "token" || op.auth === "optional";
+  // Someone else's API (auto) asks for its own credentials below: Markdrop's token field is only for Markdrop's docs.
+  const wantsToken = !auto && (op.auth === "token" || op.auth === "optional");
   const multipart = op.body?.contentType === "multipart/form-data";
   const { values: req, error } = useMemo(() => toRequest(op, values, fileNames), [op, values, fileNames]);
   /** {scheme id: value} of what's filled in (basic: "user:password"). */
