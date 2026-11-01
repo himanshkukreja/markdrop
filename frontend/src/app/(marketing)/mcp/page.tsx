@@ -89,7 +89,7 @@ const PRIVACY: Array<{ icon: string; body: ReactNode }> = [
   },
   {
     icon: "lock",
-    body: <>Assistants can&apos;t read end-to-end encrypted documents. Markdrop stores ciphertext it has no key for, and the key never reaches the server.</>,
+    body: <>Assistants can&apos;t read end-to-end encrypted documents. Our servers store only the encrypted text and never receive the key.</>,
   },
   {
     icon: "history",

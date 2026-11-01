@@ -66,7 +66,50 @@
   font: 600 0.9375em/1 var(--font-mono);
   color: var(--accent-text);
 }
+/* Three facts under the lead: one column on phones, a row from 768 (wider from 1024, two lines each). */
+@media (min-width: 1024px) {
+  .head.head {
+    max-width: 1120px;
+  }
+}
+.facts {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.fact {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font: 400 14px/21px var(--font-sans);
+  color: var(--text-secondary);
+}
+.fact b {
+  font-weight: 650;
+  color: var(--text);
+}
+.factIc {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: -3px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 15px;
+}
 @media (min-width: 768px) {
+  .head {
+    max-width: 960px;
+  }
+  .facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
   .bighash {
     right: -16px;
     top: -88px;

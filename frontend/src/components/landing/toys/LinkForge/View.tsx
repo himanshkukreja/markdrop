@@ -246,7 +246,7 @@ function Card({ vm, on, ghost }: { vm: ViewModel; on?: Handlers; ghost?: boolean
             <span className={s.txb} id={id("lf-enc-l")}>
               Encrypt in this browser
             </span>
-            <span className={s.txs}>AES-256-GCM for documents. The key goes in the link after the #.</span>
+            <span className={s.txs}>AES-256-GCM for documents. The key goes in the link after the #, and never reaches our servers.</span>
           </div>
           <button
             id={id("lf-enc-sw")}
@@ -268,7 +268,7 @@ function Card({ vm, on, ghost }: { vm: ViewModel; on?: Handlers; ghost?: boolean
               <Icon name="alert" size={14} />
             </span>
             <span>
-              <b>The link is the key.</b> Lose it and the document is gone. Logging in does not unlock it.
+              <b>The link is the key.</b> We can&rsquo;t recover it, and signing in doesn&rsquo;t unlock it.
             </span>
           </div>
         ) : null}

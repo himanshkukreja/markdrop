@@ -61,7 +61,7 @@ test("the chat unfurl mirrors the real OG cards: content-free when protected", (
   assert.equal(cv.title, "Encrypted document");
   assert.equal(cv.lockIcon, "key");
   assert.equal(cv.sealed, true);
-  assert.match(deriveView(s).summary, /ciphertext it has no key for/);
+  assert.match(deriveView(s).summary, /store only the encrypted text/);
   // Password and encryption are allowed together on documents: both gates are described.
   assert.match(deriveView(s).pw.hint, /Two gates/);
   assert.match(derive(s).url, /#k=Qx7[A-Za-z0-9_-]{40}$/);

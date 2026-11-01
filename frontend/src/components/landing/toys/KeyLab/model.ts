@@ -63,11 +63,11 @@ export const STEPS: ReadonlyArray<{ id: StepId; n: string; t: string }> = [
 export const MSG = {
   idle: "Drag the key out of the link, rotate it, or switch what you see.",
   idleOut: "This link is missing its key. Drag it back up, or press Put the key back.",
-  server: "Markdrop gets a request without the #k= part, and stores ciphertext it has no key for.",
+  server: "Markdrop gets a request without the #k= part, and stores only the encrypted text.",
   browser: "Your browser reads the key from the link and decrypts the note on your device.",
   out: "Key out. This link is missing its key, so the page cannot be decrypted.",
   back: "Key back in the link. Your browser decrypts the note again.",
-  rotate: "New key, so the note is re-encrypted. The old link stops working.",
+  rotate: "New key, so the note is re-encrypted. Old links stop opening it.",
   rotateOut: "Put the key back first. Rotating re-encrypts the note, and that takes the current key.",
   sign: "Signing in does not unlock it. Only the link with its key does.",
   dragIn: "Drag the key down into the tray to take it out of the link.",
@@ -401,8 +401,8 @@ export function deriveView(s: State): Vm {
     blocks: doc.blocks,
     titleSealed: chars(fnv(doc.title, 3266489917 + s.keyIdx * 131), 28, STD) + "…",
     serverFoot: keyOut
-      ? "Same as before: the server never had the key. Markdrop stores ciphertext it has no key for."
-      : "Key: none. Markdrop stores ciphertext it has no key for.",
+      ? "Same as before: the server never had the key. It stores only the encrypted text."
+      : "Key: never received. Markdrop stores only the encrypted text.",
     fragShort: "#k=" + key.slice(0, 10) + "…",
     steps: STEPS.map((st) => ({ id: st.id, n: st.n, t: st.t, done: s.done[st.id] })),
     doneN: STEPS.filter((st) => s.done[st.id]).length,

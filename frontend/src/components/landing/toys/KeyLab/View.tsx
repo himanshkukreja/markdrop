@@ -114,7 +114,7 @@ export default function View({ state, on }: { state: State; on?: Handlers }) {
               </span>
               <span>
                 <b>AES-256-GCM, in your browser</b>
-                Only ciphertext is uploaded. The key never leaves the link.
+                Only the encrypted text is uploaded. The key never reaches our servers.
               </span>
             </div>
           </div>
@@ -327,7 +327,7 @@ export default function View({ state, on }: { state: State; on?: Handlers }) {
                         <Ico name="lock" size={24} />
                       </span>
                       <b>This link is missing its key</b>
-                      <p>Everything after the # is gone, so your browser has nothing to decrypt with. Put the key back to read the note.</p>
+                      <p>Everything after the # is gone, so your browser has nothing to decrypt with. Put the key back, or paste the full link, to read the note.</p>
                     </div>
                   </div>
                 </div>
@@ -340,8 +340,8 @@ export default function View({ state, on }: { state: State; on?: Handlers }) {
                       <Ico name="userX" size={20} />
                     </span>
                     <b id="kl-signin-title">Signing in does not unlock it</b>
-                    <p>The key lives only in the link. Markdrop never had it, so there is nothing your account could unlock.</p>
-                    <p>Lose the link and you lose the document. Keep it somewhere safe.</p>
+                    <p>The key is in the link and in browsers you let keep it. Markdrop never had it, so there is nothing your account could unlock.</p>
+                    <p>Lose the link and we can&rsquo;t recover it. Keep it somewhere safe.</p>
                     <button id="kl-signin-ok" type="button" className={s.btn} onClick={on?.closeSignin}>
                       Got it
                     </button>
@@ -405,7 +405,7 @@ export default function View({ state, on }: { state: State; on?: Handlers }) {
                 Publish encrypted
               </Link>
             </span>
-            <p>For documents, no account needed. Uploaded files use a password or access level instead.</p>
+            <p>For documents, no account needed, with an optional password. Uploaded files use a password or access level instead.</p>
           </div>
         </div>
       </div>

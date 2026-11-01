@@ -131,7 +131,7 @@ const SNIP = "Week one: accounts, rituals, and who to ask for what.";
 const SNIP_SHORT = "Accounts, rituals, who to ask.";
 /** The real OG cards for documents that are not readable anonymously (REVAMP_PLAN 7.21, F2). */
 const CARD_PASSWORD = { title: "Password-protected document", snip: "Open the link and enter the password to read it." };
-const CARD_ENCRYPTED = { title: "Encrypted document", snip: "The key is in the link. Markdrop stores ciphertext it has no key for." };
+const CARD_ENCRYPTED = { title: "Encrypted document", snip: "The key is in the link. Our servers store only the encrypted text." };
 
 const IDLE: Settings = {
   dest: "link",
@@ -278,12 +278,13 @@ export function derive(s: Settings & { minDate: string }): Derived {
   if (status === "short") lines.push("A custom name needs at least 3 characters. Leave it blank and you get a short random one.");
   else if (status === "taken") lines.push("In this demo, markdrop.in/" + clean + " is already taken. Use " + TAKEN[clean.toLowerCase()] + ", or try another name. Real names are checked when you publish.");
   else {
-    if (s.enc) lines.push("Encrypted in your browser: Markdrop stores ciphertext it has no key for, and the title is sealed too.");
+    if (s.enc) lines.push("Encrypted in your browser: our servers store only the encrypted text, title included, and never receive the key.");
     else if (ws) lines.push("Opens on docs.example.com with your logo and name. You pick who can open it: just you, anyone with the link, the workspace, or named people.");
     else if (pwSet) lines.push("Anyone with the link and the password can read it, no account needed. You can edit it later.");
     else lines.push("Anyone with the link can read it, no account needed. You can edit it later.");
-    if (pwSet && (s.enc || ws)) lines.push("Readers enter the password first.");
-    if (s.enc) lines.push("Lose the link and the document is gone.");
+    if (pwSet && s.enc) lines.push("Readers also need the password. It's checked in their browser and never sent to Markdrop.");
+    else if (pwSet && ws) lines.push("Readers enter the password first.");
+    if (s.enc) lines.push("Lose the link and we can't recover it.");
     lines.push(expLine);
   }
   const summary = lines.join(" ");
@@ -540,11 +541,11 @@ export function deriveView(s: State): ViewModel {
   const enc = !!s.enc;
   const pw = {
     on: !!s.pwOn,
-    sub: enc ? "Optional here: the key in the link already locks the text." : "Readers type it before the page opens.",
+    sub: enc ? "Optional: readers then need the link and the password. It never reaches our servers." : "Readers type it before the page opens.",
     subDim: enc,
     val: s.pw,
     show: !!s.pwShow,
-    hint: !s.pw ? "Type a password to turn it on." : enc ? "Two gates: the password opens the page, the key after # decrypts it." : "Share the password separately from the link.",
+    hint: !s.pw ? "Type a password to turn it on." : enc ? "Two gates: the key after # and this password, both checked in the reader's browser. Send them separately." : "Share the password separately from the link.",
     hintDim: enc,
   };
 

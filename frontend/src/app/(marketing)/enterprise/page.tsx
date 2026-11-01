@@ -102,7 +102,7 @@ const FEATURES = [
   { icon: "lock", t: "Only your documents", d: "A slug from elsewhere on Markdrop returns 404 on your host." },
   { icon: "folder", t: "Folders & roles", d: "Owner, admin, member, viewer. Folders file; they never grant access." },
   { icon: "users", t: "Require sign-in", d: "Refuse anonymous reads — on every link, not just your domain." },
-  { icon: "key", t: "End-to-end encryption", d: "Sealed in the browser. The key rides in the link, never our servers." },
+  { icon: "key", t: "End-to-end encryption", d: "Sealed in the browser, with an optional password. The key never reaches our servers." },
 ];
 
 const CAN_SEE = [
@@ -113,7 +113,7 @@ const CAN_SEE = [
 
 const NEVER_SEE = [
   { t: "A member’s own documents", d: "A document joins the workspace only when its owner shares it in." },
-  { t: "The text of an encrypted document", d: "Markdrop stores ciphertext it has no key for. Signing in never unlocks it." },
+  { t: "The text of an encrypted document", d: "Our servers store only the encrypted text and never receive the key. Signing in never unlocks it." },
   { t: "Anyone else’s ownership", d: "Documents never change owner. Delete the workspace and they go back to their owners, with the same links and analytics." },
 ];
 
