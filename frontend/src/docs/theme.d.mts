@@ -55,6 +55,8 @@ export interface Preset {
 }
 
 export declare const CORNERS: Record<CornersId, RadiusScale>;
+/** Markdrop's own neutrals (tokens.css): the base when Clean gets colours. */
+export declare const MARKDROP_BASE: { accent: string; light: BasePalette; dark: BasePalette };
 export declare const PRESETS: Record<PresetId, Preset>;
 export declare const FONTS: Record<string, { label: string; kind: FontKind }>;
 export declare const FONT_STACKS: Record<FontKind, string>;

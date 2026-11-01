@@ -108,7 +108,7 @@ export interface PreviewTokens extends Palette {
   calloutBorder: string;
 }
 
-export type ThemeInput = Pick<SiteTheme, "preset" | "brand" | "fonts" | "corners">;
+export type ThemeInput = Pick<SiteTheme, "preset" | "brand" | "fonts" | "corners"> & { custom?: SiteTheme["custom"] };
 
 /** The brand accent the theme uses, or null when "Match my brand" is off or has no colour. */
 export function brandAccent(theme: ThemeInput): { light: string; dark: string | null } | null {
@@ -119,11 +119,18 @@ export function brandAccent(theme: ThemeInput): { light: string; dark: string | 
 
 export function previewTokens(theme: ThemeInput, dark: boolean): PreviewTokens {
   const look = LOOKS[theme.preset] ?? LOOKS.clean;
-  const pal = dark ? look.dark : look.light;
+  // A custom theme's colours for this mode (the theme builder) over the preset's.
+  const cc = theme.custom?.[dark ? "dark" : "light"] ?? null;
+  const own = (k: keyof NonNullable<typeof cc>) => (cc?.[k] && parseHex(cc[k]) ? cc[k]! : undefined);
+  const base0 = dark ? look.dark : look.light;
+  const pal: Palette = {
+    bg: own("bg") ?? base0.bg, header: own("header") ?? base0.header, card: own("surface") ?? base0.card, text: own("text") ?? base0.text,
+    muted: own("muted") ?? base0.muted, line: own("border") ?? base0.line, code: own("code_bg") ?? base0.code, codeText: own("code_text") ?? base0.codeText,
+  };
   const bg = parseHex(pal.bg)!;
   const card = parseHex(pal.card)!;
   const brand = brandAccent(theme);
-  const base = parseHex(brand ? (dark ? brand.dark ?? brand.light : brand.light) : dark ? look.accentDark : look.accent)!;
+  const base = parseHex(own("accent") ?? (brand ? (dark ? brand.dark ?? brand.light : brand.light) : dark ? look.accentDark : look.accent))!;
   // Links: readable on the page and on cards (4.5:1).
   const text = clamp(base, [bg, card], dark ? WHITE : BLACK, 4.5);
   // Fill: whichever of white / ink reads better on it, nudged until it reaches 4.5:1.

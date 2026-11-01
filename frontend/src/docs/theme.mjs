@@ -253,7 +253,7 @@ export const PRESETS = {
  * Markdrop's own neutrals (tokens.css), the base when the clean preset is given brand colours.
  * Mirrors styles/ds/tokens.css; only used to derive a brand palette, never written for clean alone.
  */
-const MARKDROP_BASE = {
+export const MARKDROP_BASE = {
   accent: "#2150d8",
   light: P("#e3e7ed", "#ebeef2", "#ebeef2", "#111a2c", "#4a5567", "#cdd4de", "#ebeef2", "#111a2c"),
   dark: P("#030712", "#101828", "#101828", "#f3f4f6", "#99a1af", "#1e2939", "#0d1117", "#f3f4f6"),
