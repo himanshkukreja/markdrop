@@ -177,6 +177,26 @@ class KeylessSettings(AccessWorld):
         self.assertIsNone((await self.doc(d["slug"]))["read_password_hash"])
         self.assertEqual((await self.get(d["slug"])).json()["content"], V2)
 
+    async def test_no_new_server_password_on_an_encrypted_document(self):
+        # Create, PATCH settings and PUT all refuse it; nothing is written.
+        r = await self.http.post("/api/v1/documents", json={"content": V2, "encrypted": True, "read_password": "hunter22"})
+        self.assertEqual(r.status_code, 422, r.text)
+        self.assertIn("Also require a password", r.text)
+        d = await self.mkdoc("UL", encrypted=True, content=V2, title=None)
+        r = await self.http.patch(f"/api/v1/documents/{d['slug']}/settings",
+                                  headers={"X-Edit-Secret": ES_SECRET}, json={"read_password": "hunter22"})
+        self.assertEqual(r.status_code, 422, r.text)
+        r = await self.http.put(f"/api/v1/documents/{d['slug']}", headers={"X-Edit-Secret": ES_SECRET},
+                                json={"content": V2_NEXT, "read_password": "hunter22"})
+        self.assertEqual(r.status_code, 422, r.text)
+        raw = await self.doc(d["slug"])
+        self.assertEqual((raw.get("read_password_hash"), raw["content"]), (None, V2))
+        # A plain document still takes one.
+        p = await self.mkdoc("UL", content="# hello")
+        r = await self.http.patch(f"/api/v1/documents/{p['slug']}/settings",
+                                  headers={"X-Edit-Secret": ES_SECRET}, json={"read_password": "hunter22"})
+        self.assertEqual(r.status_code, 200, r.text)
+
     async def test_patch_settings_needs_the_secret_or_the_owner(self):
         d = await self.mkdoc("UL", encrypted=True, content=V2, title=None)
         r = await self.http.patch(f"/api/v1/documents/{d['slug']}/settings", json={"expires_in": "7d"})

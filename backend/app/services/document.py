@@ -40,6 +40,19 @@ def check_envelope_shape(*, encrypted: bool, title: str | None, content: str) ->
         raise HTTPException(status_code=422, detail=LOOKS_SEALED)
 
 
+SERVER_PASSWORD_ON_ENCRYPTED = (
+    "An encrypted document's password is part of its encryption: set it in the document's "
+    "Edit › Settings (Also require a password), where readers' browsers check it. "
+    "Markdrop's server-checked password isn't used for encrypted documents.")
+
+
+def refuse_server_password(*, encrypted: bool, read_password: str | None) -> None:
+    """422 for a new server-checked password on an encrypted document (owner decision
+    2026-11-01: there the password is the encrypted one). Removing an older one stays allowed."""
+    if encrypted and read_password:
+        raise HTTPException(status_code=422, detail=SERVER_PASSWORD_ON_ENCRYPTED)
+
+
 class StaleRevision(HTTPException):
     """409: the document moved on since the caller read it (``base_rev``)."""
 
@@ -188,6 +201,7 @@ async def create_document(
     is_markdown = (extra or {}).get("kind", "markdown") == "markdown"
     if is_markdown:
         check_envelope_shape(encrypted=data.encrypted, title=data.title, content=data.content)
+        refuse_server_password(encrypted=data.encrypted, read_password=data.read_password)
     title = data.title or None
     if title is None and not data.encrypted and is_markdown:
         title = title_from_markdown(data.content)
@@ -394,6 +408,7 @@ async def update_settings(
 
     raw = await db["documents"].find_one({"slug": slug})
     await access.require(actor, raw, "edit_settings", ctx)
+    refuse_server_password(encrypted=bool(raw.get("encrypted")), read_password=read_password)
     now = datetime.now(timezone.utc)
     sets, narrows = settings_sets(
         read_password=read_password, remove_password=remove_password,
@@ -427,6 +442,7 @@ async def update_document(
 
     if raw.get("kind") != "artifact":
         check_envelope_shape(encrypted=bool(raw.get("encrypted")), title=data.title, content=data.content)
+    refuse_server_password(encrypted=bool(raw.get("encrypted")), read_password=data.read_password)
     # M1: an editor that read rev N writes only over rev N. Without this, a tab
     # left open re-saved its stale text — or, for an encrypted document, its old
     # key — over a newer version (an undone key rotation). Checked here for a

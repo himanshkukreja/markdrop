@@ -407,6 +407,7 @@ export default function ShareDialog({
                     <MoreOptions
                       slug={slug}
                       hasPassword={pw}
+                      encrypted={!!state.encrypted}
                       expiresAt={state.expires_at ?? null}
                       onSaved={() => { purgeDocument(slug); void load(); onChanged?.(); }}
                     />
@@ -550,8 +551,8 @@ function localInput(d: Date): string {
  * it with the old one; the server does that, this only asks.
  */
 function MoreOptions({
-  slug, hasPassword, expiresAt, onSaved,
-}: { slug: string; hasPassword: boolean; expiresAt: string | null; onSaved: () => void }) {
+  slug, hasPassword, encrypted, expiresAt, onSaved,
+}: { slug: string; hasPassword: boolean; encrypted: boolean; expiresAt: string | null; onSaved: () => void }) {
   const toast = useToast();
   const [password, setPassword] = useState("");
   const [expiry, setExpiry] = useState<"" | ExpiresIn>("");
@@ -584,7 +585,7 @@ function MoreOptions({
     <div className="flex flex-col gap-3 rounded-lg bg-surface-inset p-3">
       {(hasPassword || expires) && (
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-text-secondary" role="status">
-          {hasPassword && <span className="inline-flex items-center gap-1"><Icon name="lock" size={12} />Has a password</span>}
+          {hasPassword && <span className="inline-flex items-center gap-1"><Icon name="lock" size={12} />{encrypted ? "Has an older server-checked password" : "Has a password"}</span>}
           {expires && (
             <span className="inline-flex items-center gap-1">
               <Icon name="clock" size={12} />
@@ -593,10 +594,19 @@ function MoreOptions({
           )}
         </p>
       )}
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-        <Field label="Password" hint="Only for people without access.">
-          <Input type="password" placeholder={hasPassword ? "Set · type a new one" : "Add a password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" maxLength={100} />
-        </Field>
+      {/* An encrypted document's password is part of its encryption (Edit › Settings), checked in
+          readers' browsers; the server-checked one isn't offered for it. */}
+      {encrypted && (
+        <p className="text-caption text-text-secondary">
+          To require a password, open the document&apos;s <strong>Edit › Settings</strong> and turn on <strong>Also require a password</strong>. It&apos;s part of the encryption and checked only in readers&apos; browsers.
+        </p>
+      )}
+      <div className={`grid min-w-0 gap-3 ${encrypted ? "" : "sm:grid-cols-2"}`}>
+        {!encrypted && (
+          <Field label="Password" hint="Only for people without access.">
+            <Input type="password" placeholder={hasPassword ? "Set · type a new one" : "Add a password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" maxLength={100} />
+          </Field>
+        )}
         <Field label="Expires">
           <Select value={expiry} onChange={(e) => setExpiry(e.target.value as "" | ExpiresIn)} options={EXPIRY} />
         </Field>
