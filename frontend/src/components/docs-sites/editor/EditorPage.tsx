@@ -33,8 +33,10 @@ import { composeDoc, parseDoc, setDocKeys } from "./pageDoc";
 import { RESERVED_FIRST, pathProblem, suggestedPath } from "./pagePath";
 import { usePageSession, type LockState, type PageFields, type SaveState } from "./usePageSession";
 import { usePresence } from "./usePresence";
+import { opensDark } from "../guideTheme";
 
-const MarkdownPreview = dynamic(() => import("@/components/MarkdownPreview"), { ssr: false });
+// The preview draws the page in the guide's saved design (the engine's pipeline and theme tokens); loaded when opened.
+const DraftPreview = dynamic(() => import("./DraftPreview").then((m) => m.DraftPreview), { ssr: false });
 
 const MODE_KEY = "md_docs_editor_mode";
 const isMac = () => typeof navigator !== "undefined" && /Mac|iP(hone|ad)/.test(navigator.platform);
@@ -271,7 +273,7 @@ const typing = (t: EventTarget | null) => {
  * History; who else is editing what). Drafts autosave; Publish is in the site bar.
  */
 export default function EditorPage() {
-  const { site, base, canEdit, isAdmin } = useSite();
+  const { site, base, canEdit, isAdmin, reload: reloadSite } = useSite();
   const apiOps = useApiOperations(site.id, site.settings.api?.spec_id ?? null);
   const { user } = useAuth();
   const toast = useToast();
@@ -284,6 +286,13 @@ export default function EditorPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [tab, setTab] = useState<PanelTab>("checks");
   const [preview, setPreview] = useState(false);
+  // The preview's light/dark: the guide's own default (a dark-first or dark-only design opens dark).
+  const [previewDark, setPreviewDark] = useState(() => opensDark(site.settings.theme));
+  useEffect(() => setPreviewDark(opensDark(site.settings.theme)), [site.settings.theme]);
+  // Opening the preview re-reads the guide, so a design saved in another tab (or by someone else) shows.
+  useEffect(() => {
+    if (preview) void reloadSite();
+  }, [preview, reloadSite]);
   const [newOpen, setNewOpen] = useState(false);
   const [newInit, setNewInit] = useState<{ title: string; path?: string; stay?: boolean }>({ title: "" });
   const [deleting, setDeleting] = useState<PageSummary | null>(null);
@@ -811,12 +820,22 @@ export default function EditorPage() {
         <div className="-mx-5 -my-4 flex min-h-full flex-col">{!panelWide && panel}</div>
       </Drawer>
 
-      <Drawer open={preview} onClose={() => setPreview(false)} title={fields?.title ? <span className="ph-sensitive ph-mask">{fields.title}</span> : "Preview"} description="A quick look at the draft. Callouts, steps and tabs render fully on the published guide." width={760}>
+      <Drawer open={preview} onClose={() => setPreview(false)} title={fields?.title ? <span className="ph-sensitive ph-mask">{fields.title}</span> : "Preview"} description="The draft as readers will see it, in the guide's saved design. Links to other pages open them here." width={820}>
         {fields && (
-          <div className="ph-no-capture flex flex-col gap-3">
-            {fields.description && <p className="text-[16px] text-text-secondary">{fields.description}</p>}
-            <MarkdownPreview content={fields.markdown} size="reading" />
-          </div>
+          <DraftPreview
+            theme={site.settings.theme}
+            title={fields.title}
+            description={fields.description}
+            markdown={fields.markdown}
+            dark={previewDark}
+            onDark={setPreviewDark}
+            resolveAsset={resolveAssetUrl}
+            onOpenPath={(path) => {
+              const to = tree?.pages.find((p) => p.path === path);
+              if (to) open(to.id);
+              else toast.error(`There's no page at ${path} in this guide.`);
+            }}
+          />
         )}
       </Drawer>
 
