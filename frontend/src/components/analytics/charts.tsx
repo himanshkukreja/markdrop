@@ -200,9 +200,12 @@ export function DailyViewsChart({ daily, marks, height = 180 }: {
  * One line: readers (unique visitors) per day, on one y-axis with three gridlines. Hover or the
  * arrow keys put a crosshair on a day, with its readers and page views in the tooltip.
  */
-export function ReadersLineChart({ daily, height = 200 }: {
+export function ReadersLineChart({ daily, height = 200, today }: {
   daily: { date: string; readers: number; views: number }[];
   height?: number;
+  /** Today's date (YYYY-MM-DD, the days' own calendar): when the last day is today it's still counting, so
+   * its segment is dashed and its tooltip says "so far" (a partial day isn't a drop). */
+  today?: string;
 }) {
   const [ref, W] = useWidth<HTMLDivElement>();
   const n = daily.length;
@@ -215,10 +218,15 @@ export function ReadersLineChart({ daily, height = 200 }: {
   const max = niceMax(Math.max(1, daily[peak]?.readers ?? 0));
   const x = (i: number) => PADL + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
   const y = (v: number) => PADT + plotH - (v / max) * plotH;
-  const line = daily.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(d.readers).toFixed(1)}`).join(" ");
+  const partial = n > 1 && !!today && daily[n - 1]!.date === today;
+  const solid = partial ? daily.slice(0, -1) : daily;
+  const line = solid.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(d.readers).toFixed(1)}`).join(" ");
+  const tail = partial ? `M${x(n - 2).toFixed(1)} ${y(daily[n - 2]!.readers).toFixed(1)} L${x(n - 1).toFixed(1)} ${y(daily[n - 1]!.readers).toFixed(1)}` : "";
+  const soFar = (i: number) => partial && i === n - 1;
+  const dayLabel = (i: number) => `${longDay(daily[i]!.date)}${soFar(i) ? " (today so far)" : ""}`;
   const total = daily.reduce((a, d) => a + d.readers, 0);
   const summary = n
-    ? `Readers per day: ${num(total)} in all, the most on ${day(daily[peak]!.date)} with ${num(daily[peak]!.readers)}.`
+    ? `Readers per day: ${num(total)} in all, the most on ${day(daily[peak]!.date)} with ${num(daily[peak]!.readers)}.${partial ? " Today is still counting." : ""}`
     : "No readers in this period.";
   const h = scrub.i;
   const ticks = [0, max / 2, max];
@@ -246,22 +254,28 @@ export function ReadersLineChart({ daily, height = 200 }: {
               </g>
             ))}
             {n > 0 && <path d={line} fill="none" stroke={SERIES} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
+            {partial && (
+              <g aria-hidden>
+                <path d={tail} fill="none" stroke={SERIES} strokeWidth={2} strokeDasharray="4 4" strokeLinecap="round" />
+                {h !== n - 1 && <circle cx={x(n - 1)} cy={y(daily[n - 1]!.readers)} r={3.5} fill="var(--surface)" stroke={SERIES} strokeWidth={2} />}
+              </g>
+            )}
             {h != null && (
               <g aria-hidden>
                 <line x1={x(h)} x2={x(h)} y1={PADT} y2={y(0)} stroke={CROSS} />
-                <circle cx={x(h)} cy={y(daily[h]!.readers)} r={4.5} fill={SERIES} stroke="var(--surface)" strokeWidth={2} />
+                <circle cx={x(h)} cy={y(daily[h]!.readers)} r={4.5} fill={soFar(h) ? "var(--surface)" : SERIES} stroke={soFar(h) ? SERIES : "var(--surface)"} strokeWidth={2} />
               </g>
             )}
           </svg>
         )}
         {h != null && W > 0 && (
           <Tip x={x(h)} width={W}>
-            <span className="block text-text-muted">{longDay(daily[h]!.date)}</span>
+            <span className="block text-text-muted">{longDay(daily[h]!.date)}{soFar(h) && <> · today so far</>}</span>
             <strong className="block text-body-strong">{num(daily[h]!.readers)} {daily[h]!.readers === 1 ? "reader" : "readers"}</strong>
             <span className="block text-text-secondary">{num(daily[h]!.views)} page {daily[h]!.views === 1 ? "view" : "views"}</span>
           </Tip>
         )}
-        <Live text={h != null ? `${longDay(daily[h]!.date)}: ${num(daily[h]!.readers)} readers, ${num(daily[h]!.views)} page views` : ""} />
+        <Live text={h != null ? `${dayLabel(h)}: ${num(daily[h]!.readers)} readers, ${num(daily[h]!.views)} page views` : ""} />
       </div>
       {n > 0 && (
         <div className="flex justify-between text-micro text-text-muted" style={{ paddingLeft: PADL, paddingRight: PADR }} aria-hidden>
@@ -270,7 +284,7 @@ export function ReadersLineChart({ daily, height = 200 }: {
           {n > 1 && <span>{day(daily[n - 1]!.date)}</span>}
         </div>
       )}
-      <HiddenTable caption="Readers per day" head={["Day", "Readers", "Page views"]} rows={daily.map((d) => [longDay(d.date), d.readers, d.views])} />
+      <HiddenTable caption="Readers per day" head={["Day", "Readers", "Page views"]} rows={daily.map((d, i) => [dayLabel(i), d.readers, d.views])} />
     </figure>
   );
 }

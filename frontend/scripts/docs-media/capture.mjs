@@ -778,7 +778,9 @@ async function main() {
     if (Object.keys(videosJson).length) {
       // Re-read just before writing and merge only this run's entries: parallel runs (STACK_ID)
       // may have written theirs since this one started.
-      const merged = { ...readJson(VIDEOS_JSON), ...videosJson };
+      // An entry keeps the fields the run doesn't write (its title).
+      const merged = readJson(VIDEOS_JSON);
+      for (const [k, v] of Object.entries(videosJson)) merged[k] = { ...merged[k], ...v };
       const sorted = Object.fromEntries(Object.entries(merged).sort(([a], [b]) => a.localeCompare(b)));
       writeFileSync(VIDEOS_JSON, `${JSON.stringify(sorted, null, 2)}\n`);
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Alert, Button, Field, Icon, Input, Switch, cx } from "@/components/ui";
+import { Alert, Badge, Button, Field, Icon, Input, Switch, cx } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
 import type { AccessLevel } from "@/lib/docsSites";
 import { useSite } from "../SiteContext";
@@ -10,8 +10,10 @@ import { SECTIONS } from "./sections";
 import usePatch from "./usePatch";
 
 /** A choice drawn as a card (Settings.dc.html's access options): a native radio, so arrows and forms work. */
-export function OptionCard({ name, value, checked, disabled, icon, label, note, onChange }: {
+export function OptionCard({ name, value, checked, disabled, icon, label, note, badge, onChange }: {
   name: string; value: string; checked: boolean; disabled?: boolean; icon?: string; label: React.ReactNode; note?: React.ReactNode;
+  /** A mark under the label ("Coming soon"). */
+  badge?: React.ReactNode;
   onChange: (v: string) => void;
 }) {
   return (
@@ -25,6 +27,7 @@ export function OptionCard({ name, value, checked, disabled, icon, label, note, 
         {icon && <Icon name={icon} size={15} className="shrink-0 text-text-secondary" />}
         <strong className="min-w-0 text-body-strong text-text">{label}</strong>
       </span>
+      {badge && <span className="flex">{badge}</span>}
       {note && <span className="text-caption text-text-muted">{note}</span>}
     </label>
   );
@@ -43,6 +46,8 @@ export default function AccessSection() {
   const [password, setPassword] = useState("");
   const [pendingLevel, setPendingLevel] = useState<AccessLevel | null>(null);
   const level = pendingLevel ?? s.access.level;
+  // Password and members-only guides, while this server doesn't take them yet (the API refuses them).
+  const privateSoon = site.private_access === false;
 
   const options: Array<{ value: AccessLevel; label: string; note: string; icon: string }> = [
     { value: "public", label: "Anyone", note: "A public guide.", icon: "globe" },
@@ -73,9 +78,23 @@ export default function AccessSection() {
 
       <SettingsCard id="access" title="Who can read it" description={<>Changes reach readers at the next publish. <ReadMore topic="studioAccess" /></>}>
         <div role="radiogroup" aria-label="Who can read it" className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-          {options.map((o) => (
-            <OptionCard key={o.value} name={`${uid}-access`} value={o.value} checked={level === o.value} disabled={locked || saving === "access"} icon={o.icon} label={o.label} note={o.note} onChange={choose} />
-          ))}
+          {options.map((o) => {
+            const soon = privateSoon && o.value !== "public" && s.access.level !== o.value;
+            return (
+              <OptionCard
+                key={o.value}
+                name={`${uid}-access`}
+                value={o.value}
+                checked={level === o.value}
+                disabled={locked || saving === "access" || soon}
+                icon={o.icon}
+                label={o.label}
+                note={o.note}
+                badge={soon ? <Badge tone="info" size="sm">Coming soon</Badge> : undefined}
+                onChange={choose}
+              />
+            );
+          })}
         </div>
         {site.access_enforced === false && s.access.level !== "public" && (
           <p className="text-[13px] text-text-muted" role="status">Not enforced yet — retrying. Readers may still see the previous setting for a few minutes.</p>

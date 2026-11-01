@@ -38,14 +38,16 @@ Deleting a page asks first. If it's on the published guide, it disappears at the
 
 ## Page settings
 
-The panel on the right of the editor (**Page settings** on smaller screens) has:
+The **Page** tab of the panel on the right of the editor (**Page** in the bar on smaller screens) has:
 
 - **Address**: where the page lives in the guide.
+- **Icon**: shown beside the page in the sidebar. **Remove** takes it away.
+- **Description**: one sentence under the title, in search results and link previews.
 - **Show in the sidebar**: turn it off to [hide the page](#hidden-pages).
-- **Icon**: shown beside the page in the sidebar, or **No icon**.
-- **History**: the page's last saves, and **See all versions**. See [History and versions](/guides/history).
 
-![The page settings panel of Quickstart: Address /getting-started/quickstart, Show in the sidebar on, Icon zap, and History with three saves by Alex, Maya and Riya.](/docs-assets/guides/pages-and-navigation/page-settings.webp)
+The page's saves are in the **History** tab. See [History and versions](/guides/history).
+
+![The Page tab of Quickstart: Address /getting-started/quickstart, Icon (a lightning bolt) with Remove, the Description with its length, and Show in the sidebar on.](/docs-assets/guides/pages-and-navigation/page-settings.webp)
 
 ## Page addresses
 

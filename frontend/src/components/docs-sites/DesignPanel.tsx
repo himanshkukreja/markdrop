@@ -33,8 +33,8 @@ function normalise(t: SiteTheme): SiteTheme {
 /** The theme filter (Themes board, "Choose a look"). */
 const PRESET_FILTERS: Array<{ value: "all" | PresetKind | "new"; label: string }> = [
   { value: "all", label: "All" },
-  { value: "docs", label: "Product docs" },
-  { value: "help", label: "Help center" },
+  { value: "docs", label: "Docs" },
+  { value: "help", label: "Help" },
   { value: "dev", label: "Developer" },
   { value: "new", label: "New" },
 ];
@@ -224,6 +224,8 @@ export default function DesignPanel() {
               variant="pill"
               size="sm"
               aria-label="Filter themes"
+              // The settings column is ~350px at 1440px wide: let the filter wrap to a second row instead of scrolling "New" out of view.
+              className="flex-wrap overflow-visible"
               value={presetFilter}
               onChange={(v) => setPresetFilter(v as typeof presetFilter)}
               items={PRESET_FILTERS.map((f) => ({ ...f, count: f.value === "all" ? PRESETS.length : f.value === "new" ? PRESETS.filter((p) => p.isNew).length : undefined }))}

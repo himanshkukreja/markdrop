@@ -47,7 +47,7 @@
   "guides-first-guide": {
     "src": "/docs-assets/videos/guides-first-guide.mp4",
     "poster": "/docs-assets/videos/guides-first-guide.webp",
-    "duration": "0:56",
+    "duration": "0:49",
     "title": "Create and publish your first guide",
     "chapters": "/docs-assets/videos/guides-first-guide.vtt"
   },

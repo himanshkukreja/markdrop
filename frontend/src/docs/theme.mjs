@@ -219,6 +219,7 @@ export const PRESETS = {
     blurb: "Top tabs and a card-grid home. Big help centers.",
     layout: "sidebar",
     home: "categories",
+    sectionTabs: true,
     fonts: { heading: "inter", body: "inter", mono: "jetbrains-mono" },
     corners: { sm: 4, md: 6, lg: 8, xl: 10, "2xl": 14, "3xl": 20 },
     headingWeight: 700,
@@ -744,6 +745,7 @@ export function resolveTheme(theme, brand) {
     preset: presetId,
     layout: preset.layout,
     home: preset.home ?? (preset.layout === "helpcenter" ? "categories" : "hero"),
+    sectionTabs: !!preset.sectionTabs,
     fonts: { heading: font("heading", ["sans", "serif"]), body: font("body", ["sans", "serif"]), mono: font("mono", ["mono"]) },
     headingWeight: preset.headingWeight,
     radius: corners,
@@ -752,6 +754,26 @@ export function resolveTheme(theme, brand) {
     customCss: custom.css,
     customCssErrors: custom.errors,
   };
+}
+
+/**
+ * The header's tabs: the site's own tabs; or, for a theme with section tabs (Atlas) and a site with
+ * at most one tab, that tab's nav groups (two or more), each opening its first page, current when it
+ * holds the page being read.
+ * @param {Array<{id: string, label: string, href: string}>} tabs
+ * @param {Array<{group: string, tab?: string, items: Array<{path: string, available?: boolean}>}>} groups
+ * @param {{sections: boolean, activeTab?: string, current?: string}} opts
+ */
+export function headerTabs(tabs, groups, { sections, activeTab, current }) {
+  const own = () => tabs.map((t) => ({ key: t.id, label: t.label, href: t.href, current: t.id === activeTab }));
+  if (!sections || tabs.length > 1) return own();
+  const out = [];
+  for (const g of groups) {
+    if (tabs.length && g.tab && g.tab !== tabs[0].id) continue;
+    const first = g.items.find((it) => it.available);
+    if (first) out.push({ key: `g-${g.group}`, label: g.group, href: first.path, current: !!current && g.items.some((it) => it.path === current) });
+  }
+  return out.length > 1 ? out : own();
 }
 
 const decls = (o) =>

@@ -36,6 +36,8 @@ export interface Preset {
   layout: ThemeLayout;
   /** Overrides the layout's own home ("categories" for helpcenter, else "hero"). */
   home?: ThemeHome;
+  /** The header shows the nav groups as tabs when the site has no tabs of its own (Atlas). */
+  sectionTabs?: boolean;
   fonts: { heading: string; body: string; mono: string };
   corners: CornersId | RadiusScale;
   headingWeight: number;
@@ -82,6 +84,7 @@ export interface ResolvedTheme {
   preset: PresetId;
   layout: ThemeLayout;
   home: ThemeHome;
+  sectionTabs: boolean;
   fonts: { heading: string; body: string; mono: string };
   headingWeight: number;
   radius: RadiusScale;
@@ -95,3 +98,10 @@ export declare function resolveTheme(theme: unknown, brand?: { accent?: string; 
 export declare function themeCss(t: ResolvedTheme, families: Record<string, string>): string;
 export declare function validateTheme(theme: unknown): Array<{ level: "error" | "warn"; msg: string }>;
 export declare function validateBrandColors(colors: unknown): string[];
+
+export interface HeaderTab { key: string; label: string; href: string; current: boolean }
+export function headerTabs(
+  tabs: Array<{ id: string; label: string; href: string }>,
+  groups: Array<{ group: string; tab?: string; items: Array<{ path: string; available?: boolean }> }>,
+  opts: { sections: boolean; activeTab?: string; current?: string },
+): HeaderTab[];

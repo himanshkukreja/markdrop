@@ -28,6 +28,8 @@ export interface PresetLook {
   darkFirst?: boolean;
   /** The home is the help center's card grid (thumbnails draw the home: no sidebar). */
   homeCards?: boolean;
+  /** The header shows the sections as tabs (Atlas: theme.mjs sectionTabs). */
+  tabs?: boolean;
   /** The title on the Design panel's mini preview. */
   headline?: string;
 }
@@ -41,7 +43,7 @@ function engineLook(id: ThemePreset, look: Pick<PresetLook, "logoR"> & Partial<P
   const radius = typeof p.corners === "string" ? CORNERS[p.corners] : p.corners;
   return {
     head: family(p.fonts.heading), body: family(p.fonts.body), headW: p.headingWeight, r: `${radius.lg}px`,
-    sidebar: true, hero: false, measure: "760px", center: false,
+    sidebar: true, hero: false, measure: "760px", center: false, tabs: !!p.sectionTabs,
     accent: pal.accent, accentDark: pal.accentDark ?? pal.accent, light: pal.light, dark: pal.dark,
     ...look,
   };
@@ -95,6 +97,8 @@ export interface PreviewTokens extends Palette {
   logoR: string;
   sidebar: boolean;
   hero: boolean;
+  /** Section tabs in the header (Atlas). */
+  tabs: boolean;
   measure: string;
   center: boolean;
   accent: string;
@@ -138,6 +142,7 @@ export function previewTokens(theme: ThemeInput, dark: boolean): PreviewTokens {
     logoR: theme.corners === "sharp" ? "3px" : look.logoR,
     sidebar: look.sidebar,
     hero: look.hero,
+    tabs: !!look.tabs,
     measure: look.measure,
     center: look.center,
     accent: toHex(fill),

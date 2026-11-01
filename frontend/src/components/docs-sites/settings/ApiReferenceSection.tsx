@@ -305,7 +305,8 @@ export default function ApiReferenceSection() {
       )}
 
       {st && cur && (
-        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        // Side by side only when the preview still has room for a path and its summary (the settings nav takes a column too).
+        <div className="grid grid-cols-1 items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_340px]">
           <SettingsCard
             id="preview"
             title="What readers will get"
@@ -322,10 +323,11 @@ export default function ApiReferenceSection() {
                   <strong className="text-[12px] font-semibold uppercase tracking-[0.06em] text-text-muted">{g.group}</strong>
                   <ul className="m-0 flex list-none flex-col p-0">
                     {g.items.filter((it) => it.method).map((it) => (
-                      <li key={it.page} className="flex min-w-0 items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-surface-hover">
-                        <Badge size="sm" tone={METHOD_TONE[it.method!] ?? "neutral"} className="w-[58px] shrink-0 justify-center font-mono">{it.method}</Badge>
-                        <code className="min-w-0 truncate font-mono text-[13px] text-text" title={it.path ?? undefined}>{it.path}</code>
-                        <span className="ml-auto hidden min-w-0 truncate text-right text-[13px] text-text-muted sm:block">{it.title}</span>
+                      <li key={it.page} className="flex min-w-0 items-start gap-2.5 rounded-md px-2 py-1.5 hover:bg-surface-hover">
+                        <Badge size="sm" tone={METHOD_TONE[it.method!] ?? "neutral"} className="mt-px w-[58px] shrink-0 justify-center font-mono">{it.method}</Badge>
+                        {/* The path wraps (never cut off); the summary gives way first, the full text on hover. */}
+                        <code className="min-w-0 font-mono text-[13px] leading-5 text-text [overflow-wrap:anywhere] sm:max-w-[70%]">{it.path}</code>
+                        <span className="ml-auto hidden min-w-0 flex-1 truncate text-right text-[13px] leading-5 text-text-muted sm:block" title={it.title ?? undefined}>{it.title}</span>
                       </li>
                     ))}
                   </ul>

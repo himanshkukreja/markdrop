@@ -116,6 +116,32 @@ async function endOfFirstParagraph(h) {
   });
 }
 
+/** Select a paragraph of the open page (a triple click), so the formatting bar shows. */
+async function selectParagraph(h, text) {
+  const p = h.page.locator(".dxe-content p", { hasText: text }).first();
+  await p.scrollIntoViewIfNeeded();
+  await p.click({ clickCount: 3 });
+  await h.loc("[role=toolbar][aria-label='Format text']").waitFor();
+  await h.sleep(300);
+}
+
+/** A crop around a paragraph of the page and the editor's own pop-ups next to it. */
+async function editorCrop(h, text, more, pad = 28) {
+  // A box, not a marked element: ProseMirror puts back any attribute set on its own nodes.
+  const boxes = [await h.page.locator(".dxe-content p", { hasText: text }).first().boundingBox()];
+  for (const sel of more) boxes.push(await h.loc(sel).boundingBox());
+  const x1 = Math.min(...boxes.map((b) => b.x)) - pad, y1 = Math.min(...boxes.map((b) => b.y)) - pad;
+  const x2 = Math.max(...boxes.map((b) => b.x + b.width)) + pad, y2 = Math.max(...boxes.map((b) => b.y + b.height)) + pad;
+  return { box: { x: Math.max(0, x1), y: Math.max(0, y1), width: Math.min(1440, x2) - Math.max(0, x1), height: y2 - Math.max(0, y1) } };
+}
+
+/** The editor's page panel from its tabs down to `last` (the panel is as tall as the window). */
+async function panelCrop(h, last) {
+  const a = await h.loc("aside[aria-label='Page panel']").boundingBox();
+  const b = await h.loc(last).boundingBox();
+  return { box: { x: a.x, y: a.y, width: a.width, height: Math.ceil(b.y + b.height + 20 - a.y) } };
+}
+
 /** The newest build of a site, waiting while one runs. */
 async function waitLive(h, key, who = "riya", timeout = 240_000) {
   const end = Date.now() + timeout;
@@ -449,7 +475,10 @@ export default [
       await h.loc("main textarea, main .cm-editor").first().waitFor({ timeout: 60_000 });
       await settle(h, 900);
     },
-    crop: { selector: "main#main", pad: 0, maxHeight: 720 },
+    // The bar (Visual · Markdown) over the tree, the page and its panel.
+    crop: async (h) => {
+      return { box: { x: 0, y: 56, width: 1440, height: 700 } };
+    },
     after: async (h) => {
       await h.page.evaluate(() => localStorage.setItem("md_docs_editor_mode", "visual")).catch(() => {});
     },
@@ -458,13 +487,15 @@ export default [
     id: "image-block",
     page: P("editor"),
     kind: "screenshot",
+    keepScroll: true,
     auth: "owner",
     url: null,
     prepare: async (h) => {
       await h.goto(`${DEV(h)}?page=${await pageId(h, "developers", "/getting-started/authentication")}`);
       await editorReady(h);
       const fig = h.page.locator(".dxe-figure").first();
-      await fig.scrollIntoViewIfNeeded();
+      // Near the top of the window, clear of the status bar pinned to its bottom (keepScroll).
+      await fig.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 140));
       await fig.locator("img").first().click();
       await h.sleep(500);
       await h.page.mouse.move(5, 5);
@@ -485,11 +516,193 @@ export default [
       await h.page.getByText("Alex Chen is editing this page").waitFor({ timeout: 30_000 });
       await settle(h);
     },
-    crop: async (h) => ({ box: { x: 0, y: 56, width: 1140, height: 470 } }),
+    crop: async (h) => ({ box: { x: 0, y: 56, width: 1440, height: 470 } }),
     after: async (h) => {
       const id = fxS().acme;
       const pid = await pageId(h, "acme", "/guides/connect-postgres");
       await api(h, "DELETE", `/api/v1/docs-sites/${id}/pages/${pid}/lock`, null, "alex");
+    },
+  },
+
+  {
+    // Select a paragraph, then Ask AI: the formatting bar and the AI actions.
+    id: "editor-ai-menu",
+    page: P("editor"),
+    kind: "screenshot",
+    keepScroll: true,
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(`${S(h)}?page=${await keepPage(h, "acme", "/getting-started/quickstart")}`);
+      await editorReady(h);
+      await selectParagraph(h, "You need an Acme account");
+      await h.loc({ role: "button", name: "Ask AI" }).click();
+      await h.loc({ role: "menu", name: "Ask AI" }).waitFor();
+      await h.sleep(400);
+    },
+    crop: async (h) => editorCrop(h, "You need an Acme account", ["[role=toolbar][aria-label='Format text']", "[role=menu][aria-label='Ask AI']"], 16),
+    after: async (h) => restorePage(h, "acme", "/getting-started/quickstart"),
+  },
+  {
+    // Make it shorter: the suggestion under the passage, with Accept, Try again and Discard.
+    id: "editor-ai-suggestion",
+    page: P("editor"),
+    kind: "screenshot",
+    keepScroll: true,
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(`${S(h)}?page=${await keepPage(h, "acme", "/getting-started/quickstart")}`);
+      await editorReady(h);
+      await selectParagraph(h, "You need an Acme account");
+      await h.loc({ role: "button", name: "Ask AI" }).click();
+      await h.loc({ role: "menuitem", name: "Make it shorter" }).click();
+      await h.loc({ role: "button", name: "Accept" }).waitFor({ timeout: 30_000 });
+      await h.sleep(500);
+      await h.page.mouse.move(5, 5);
+    },
+    crop: async (h) => editorCrop(h, "You need an Acme account", [".dxe-content h2:has-text('Before you start')", "[role=region][aria-label='AI suggestion']"]),
+    after: async (h) => restorePage(h, "acme", "/getting-started/quickstart"),
+  },
+  {
+    // ⌘F: Find and replace over the page, with the replace row open.
+    id: "editor-find-replace",
+    page: P("editor"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(`${S(h)}?page=${await pageId(h, "acme", "/getting-started/quickstart")}`);
+      await editorReady(h);
+      await h.loc({ role: "button", name: /Find and replace/ }).first().click();
+      await h.loc("input[aria-label='Find']").fill("workspace");
+      await h.loc({ role: "button", name: "Show replace" }).click();
+      await h.loc("input[aria-label='Replace with']").fill("team");
+      await h.sleep(500);
+      await h.page.mouse.move(5, 5);
+    },
+    crop: async (h) => {
+      const bar = await h.loc("[role=search][aria-label='Find and replace']").boundingBox();
+      const main = await h.loc(".dxe-content").first().boundingBox();
+      const x = Math.min(main.x, bar.x) - 24;
+      return { box: { x, y: 108, width: Math.ceil(Math.max(main.x + main.width, bar.x + bar.width) + 24 - x), height: 480 } };
+    },
+  },
+  {
+    id: "editor-shortcuts",
+    page: P("editor"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1000 },
+    prepare: async (h) => {
+      await h.goto(`${S(h)}?page=${await pageId(h, "acme", "/getting-started/quickstart")}`);
+      await editorReady(h);
+      await h.loc({ role: "button", name: /Shortcuts/ }).first().click();
+      await h.loc({ role: "dialog", name: "Keyboard shortcuts" }).waitFor();
+      await h.sleep(600);
+    },
+    crop: { selector: "[role=dialog]", pad: 0 },
+  },
+  {
+    // Checks: a link to a page that doesn't exist and an image without a description (Acme Developers).
+    id: "editor-checks",
+    page: P("editor"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1000 },
+    prepare: async (h) => {
+      const id = fxS().developers;
+      const pid = await keepPage(h, "developers", "/getting-started/authentication");
+      const page = await api(h, "GET", `/api/v1/docs-sites/${id}/pages/${pid}`);
+      const md = page.markdown
+        .replace("![Where to create a key in Settings]", "![]")
+        .replace("in the `Authorization` header.", "in the `Authorization` header. If a key leaks, [rotate it](/guides/key-rotation) at once.");
+      await api(h, "PUT", `/api/v1/docs-sites/${id}/pages/${pid}`, { base_rev: page.rev, markdown: md, title: page.title, description: page.description });
+      await api(h, "DELETE", `/api/v1/docs-sites/${id}/pages/${pid}/lock`).catch(() => {});
+      await h.goto(`${DEV(h)}?page=${pid}`);
+      await editorReady(h);
+      await h.page.getByText("Link to a page that doesn't exist").first().waitFor({ timeout: 15_000 });
+      await h.page.locator(".dxe-content img").first().evaluate((img) => img.complete || new Promise((r) => { img.onload = r; img.onerror = r; }));
+      await settle(h, 900);
+    },
+    crop: async (h) => {
+      const main = await h.loc(".dxe-content").first().boundingBox();
+      const x = Math.max(0, Math.round(main.x - 40));
+      return { box: { x, y: 108, width: 1440 - x, height: 640 } };
+    },
+    after: async (h) => restorePage(h, "developers", "/getting-started/authentication"),
+  },
+  {
+    // A review comment on Quickstart (Noah's, with Alex's reply), opened from the Comments tab.
+    id: "editor-comments",
+    page: P("editor"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      const id = fxS().acme;
+      const pid = await pageId(h, "acme", "/getting-started/quickstart");
+      const path = `/api/v1/docs-sites/${id}/pages/${pid}/comments`;
+      for (const c of (await api(h, "GET", path)).comments) await api(h, "DELETE", `${path}/${c.id}`);
+      const c = await api(h, "POST", path, {
+        quote: "A read-only user is enough.",
+        prefix: "the address of a database Acme can reach. ",
+        body: "Can we say which permissions? Support gets this question every week.",
+      }, "noah");
+      await api(h, "POST", `${path}/${c.id}/replies`, { body: "Good call. I'll link to the read-only user steps in Connect Postgres." }, "alex");
+      await h.goto(`${S(h)}?page=${pid}`);
+      await editorReady(h);
+      await h.loc({ role: "tab", name: /^Comments/ }).click();
+      await h.page.getByText("Support gets this question every week.").first().click();
+      await h.sleep(700);
+      await h.page.mouse.move(5, 5);
+    },
+    crop: async (h) => {
+      const p = await h.page.locator(".dxe-content p", { hasText: "You need an Acme account" }).first().boundingBox();
+      const x = Math.max(0, Math.round(p.x - 40));
+      const y = 108; // the page from its top: the panel's tabs and the open thread stay in view
+      return { box: { x, y, width: 1440 - x, height: Math.min(Math.ceil(p.y + p.height + 160 - y), 900 - y) } };
+    },
+    after: async (h) => {
+      const id = fxS().acme;
+      const pid = await pageId(h, "acme", "/getting-started/quickstart");
+      const path = `/api/v1/docs-sites/${id}/pages/${pid}/comments`;
+      for (const c of (await api(h, "GET", path)).comments) await api(h, "DELETE", `${path}/${c.id}`);
+    },
+  },
+  {
+    // Who else is here: Alex (editing Connect Postgres) and Maya (on Quickstart) in the header.
+    id: "editor-presence",
+    page: P("editor"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      const id = fxS().acme;
+      const pg = await pageId(h, "acme", "/guides/connect-postgres");
+      const qs = await pageId(h, "acme", "/getting-started/quickstart");
+      await api(h, "POST", `/api/v1/docs-sites/${id}/pages/${pg}/lock`, null, "alex");
+      await api(h, "POST", `/api/v1/docs-sites/${id}/presence`, { session: "demo-alex-tab-1", page_id: pg }, "alex");
+      await api(h, "POST", `/api/v1/docs-sites/${id}/presence`, { session: "demo-maya-tab-1", page_id: qs }, "maya");
+      await h.goto(`${S(h)}?page=${qs}`);
+      await editorReady(h);
+      await h.page.getByText(/^(Alex and Maya|Maya and Alex) are here$/).waitFor({ timeout: 15_000 });
+      await settle(h, 600);
+    },
+    // The studio header's right side: the two avatars and "… are here".
+    crop: async (h) => {
+      const b = await h.loc("[aria-label='Also on this guide']").boundingBox();
+      const x = Math.max(0, Math.round(b.x - 24));
+      return { box: { x, y: 0, width: 1440 - x, height: 56 } };
+    },
+    after: async (h) => {
+      const id = fxS().acme;
+      const pg = await pageId(h, "acme", "/guides/connect-postgres");
+      await api(h, "DELETE", `/api/v1/docs-sites/${id}/presence?session=demo-alex-tab-1`, null, "alex").catch(() => {});
+      await api(h, "DELETE", `/api/v1/docs-sites/${id}/presence?session=demo-maya-tab-1`, null, "maya").catch(() => {});
+      await api(h, "DELETE", `/api/v1/docs-sites/${id}/pages/${pg}/lock`, null, "alex").catch(() => {});
     },
   },
 
@@ -510,7 +723,7 @@ export default [
       await row.getByRole("button", { name: /More for Alert rules/ }).click();
       await h.sleep(500);
     },
-    crop: async (h) => ({ box: { x: 0, y: 108, width: 360, height: 700 } }),
+    crop: async (h) => ({ box: { x: 0, y: 108, width: Math.floor((await h.loc("main#main").boundingBox()).x), height: 700 } }),
   },
   {
     id: "new-page-dialog",
@@ -536,10 +749,12 @@ export default [
     prepare: async (h) => {
       await h.goto(`${S(h)}?page=${await pageId(h, "acme", "/getting-started/quickstart")}`);
       await editorReady(h);
-      await h.page.getByText("See all versions").waitFor();
+      await h.loc({ role: "tab", name: "Page", exact: true }).click();
+      await h.loc({ label: "Address" }).waitFor();
       await settle(h);
     },
-    crop: { selector: "aside[aria-label='Page settings']", pad: 0, maxHeight: 520 },
+    // The panel from its tabs down to Show in the sidebar (not the empty space under it).
+    crop: async (h) => panelCrop(h, { text: "Show in the sidebar", exact: true }),
   },
   {
     id: "redirects",
@@ -581,11 +796,12 @@ export default [
     prepare: async (h) => {
       await h.goto(`${S(h)}?page=${await pageId(h, "acme", "/getting-started/quickstart")}`);
       await editorReady(h);
-      await h.page.getByText("See all versions").click();
-      await h.loc({ role: "dialog" }).waitFor();
-      await h.sleep(700);
+      await h.loc({ role: "tab", name: "History", exact: true }).click();
+      await h.page.getByText("Every save is kept").waitFor();
+      await h.page.locator("aside[aria-label='Page panel'] li").nth(1).waitFor();
+      await settle(h);
     },
-    crop: { selector: "[role=dialog]", pad: 0, maxHeight: 430 },
+    crop: async (h) => panelCrop(h, "aside[aria-label='Page panel'] li:last-of-type"),
   },
   {
     id: "publishes-list",
@@ -1439,7 +1655,10 @@ export default [
     },
     crop: async (h) => {
       const menu = await h.loc("[role=menu]").first().boundingBox();
-      return { box: { x: Math.max(0, menu.x - 520), y: 60, width: Math.min(1440 - Math.max(0, menu.x - 520), menu.width + 560), height: menu.y + menu.height + 24 - 60 } };
+      // From the article's own column (the breadcrumb), so no edge of the sidebar's current page shows.
+      const crumbs = await h.loc(".dx-crumbs").first().boundingBox();
+      const x = Math.max(0, Math.round(crumbs.x - 40), menu.x - 560);
+      return { box: { x, y: 60, width: Math.min(1440 - x, Math.ceil(menu.x + menu.width + 24 - x)), height: menu.y + menu.height + 24 - 60 } };
     },
   },
 
@@ -1469,21 +1688,26 @@ export default [
       await h.caption("The free address is checked as you type", 1800);
       await h.caption("");
       await h.click({ role: "button", name: "Create guide" }, { after: 1500 });
-      await h.loc({ role: "heading", name: "Match my brand" }).waitFor({ timeout: 60_000 });
-      await h.caption("Pick a theme. The preview updates as you go", 600);
-      await h.settle(800);
-      await h.click(vis(h, "Editorial"), { after: 1300 });
-      await h.click(vis(h, "Clean"), { after: 1100 });
-      await h.click({ role: "button", name: "Save design" }, { after: 1300 });
-      await h.caption("");
-      await h.click({ role: "link", name: "Pages", exact: true }, { after: 600 });
+      // A new guide opens in the editor.
       await editorReady(h);
-      await h.caption("Write in the visual editor. Drafts save themselves", 600);
+      await h.caption("It opens in the editor. Drafts save themselves", 600);
       await h.click(await endOfFirstParagraph(h), { after: 300 });
       await h.press("Enter", 200);
       await h.type(null, "Northwind keeps your team's runbooks in one place.", { speed: 2 });
-      await h.page.getByText(/Draft · saved/).waitFor({ timeout: 20_000 });
+      // The bar goes Unsaved changes, Saving…, then Saved.
+      await h.page.getByText("Unsaved changes").waitFor({ state: "detached", timeout: 20_000 }).catch(() => {});
+      await h.page.getByText("Saved", { exact: true }).first().waitFor({ timeout: 20_000 });
       await h.sleep(1200);
+      await h.caption("");
+      await h.click({ role: "link", name: "Design", exact: true }, { after: 600 });
+      await h.loc({ role: "heading", name: "Match my brand" }).waitFor({ timeout: 60_000 });
+      // The window keeps the editor's scroll across the tab change: start Design at its top (Theme, the filter).
+      await h.page.evaluate(() => window.scrollTo(0, 0));
+      await h.caption("Pick a theme. The preview updates as you go", 600);
+      await h.settle(800);
+      await h.click(themeCard(h, "Help center"), { after: 1300 });
+      await h.click(themeCard(h, "Editorial"), { after: 1100 });
+      await h.click({ role: "button", name: "Save design" }, { after: 1300 });
       await h.caption("");
       await h.click({ role: "link", name: /^Publish/ }, { after: 1200 });
       await h.caption("Publish: every publish is numbered, and you can go back", 600);
@@ -1499,7 +1723,7 @@ export default [
       await h.caption("");
     },
     after: async () => extra("--drop-sites", "Northwind"),
-    poster: 3,
+    poster: 41, // Your guide is live
   },
   {
     id: "guides-import-video",

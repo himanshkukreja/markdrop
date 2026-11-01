@@ -114,6 +114,19 @@ def tree_rss_mb(pgid: int) -> int:
     return kb // 1024
 
 
+def progress_due(p: dict, last_step: str | None, last_at: float, t: float, min_s: float = 1.0) -> bool:
+    """Whether a runner progress line goes to the job now: a new step, a step's last count (Next
+    prints its last few page counts within a second; holding back "13 of 13" left the card at
+    "0 of 13"), or a second since the last one. Lines held back are sent by the trailing flush."""
+    if p.get("step") != last_step or t - last_at > min_s:
+        return True
+    try:
+        done, total = int(p.get("done") or 0), int(p.get("total") or 0)
+    except (TypeError, ValueError):
+        return False
+    return total > 0 and done >= total
+
+
 class Running:
     def __init__(self, job: dict, slot: int):
         self.job = job
@@ -209,7 +222,14 @@ class Worker:
                 *cmd, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
                 env=self.runner_env(run.slot, heavy), cwd=str(self.cfg.platform), start_new_session=True,
             )
-            last = {"at": 0.0, "step": None}
+            last = {"at": 0.0, "step": None, "held": None}
+
+            async def record(p: dict) -> None:
+                last.update(at=time.monotonic(), step=p.get("step"), held=None)
+                if not await docs_jobs.set_progress(self.db, job["_id"], self.id, p):
+                    log("job_lost", level="warning", job=job["_id"])
+                    run.abandon = True
+                    self.kill(run)
 
             async def read_out():
                 async for raw in proc.stdout:
@@ -230,13 +250,20 @@ class Worker:
                             p = json.loads(line[11:])
                         except ValueError:
                             continue
-                        t = time.monotonic()
-                        if p.get("step") != last["step"] or t - last["at"] > 1.0:
-                            last.update(at=t, step=p.get("step"))
-                            if not await docs_jobs.set_progress(self.db, job["_id"], self.id, p):
-                                log("job_lost", level="warning", job=job["_id"])
-                                run.abandon = True
-                                self.kill(run)
+                        if not isinstance(p, dict):
+                            continue
+                        if progress_due(p, last["step"], last["at"], time.monotonic()):
+                            await record(p)
+                        else:
+                            last["held"] = p
+
+            async def flush_held():
+                # The trailing send: the last progress line of a burst reaches the card within ~1 s.
+                while True:
+                    await asyncio.sleep(0.5)
+                    held = last["held"]
+                    if held is not None and time.monotonic() - last["at"] > 1.0:
+                        await record(held)
 
             async def read_err():
                 async for raw in proc.stderr:
@@ -260,7 +287,7 @@ class Worker:
                     run.peak_rss_mb = max(run.peak_rss_mb, await asyncio.to_thread(tree_rss_mb, proc.pid))
                     await asyncio.sleep(1.0)
 
-            helpers = [asyncio.create_task(c) for c in (heartbeat(), sample())]
+            helpers = [asyncio.create_task(c) for c in (heartbeat(), sample(), flush_held())]
             readers = asyncio.gather(read_out(), read_err())
             try:
                 await asyncio.wait_for(proc.wait(), timeout=s.docs_local_build_timeout_seconds)

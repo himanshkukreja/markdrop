@@ -130,6 +130,19 @@ function run(cmd, args, { cwd, env, log, onOutput }) {
   });
 }
 
+/** Next's milestones in a chunk of `next build` output: [phase, done, total] in order ("compile" of 3, then "pages"). */
+export function nextProgress(text) {
+  const out = [];
+  const re = /Creating an optimized production build|Compiled( successfully| with warnings)?\b|Collecting page data|Generating static pages[^(\n]*\((\d+)\/(\d+)\)/g;
+  for (const m of String(text).matchAll(re)) {
+    if (m[0].startsWith("Creating")) out.push(["compile", 0, 3]);
+    else if (m[0].startsWith("Compiled")) out.push(["compile", 1, 3]);
+    else if (m[0].startsWith("Collecting")) out.push(["compile", 2, 3]);
+    else out.push(["pages", Number(m[2]), Number(m[3])]);
+  }
+  return out;
+}
+
 /** A path on the site: "/x", never "//host", a backslash (browsers read "/\host" as "//host"), whitespace or a control character. */
 export function sitePath(v) {
   return typeof v === "string" && v.length <= 2048 && v.startsWith("/") && !v.startsWith("//") && !/[\\\s\x00-\x1f\x7f]/.test(v);
@@ -319,7 +332,10 @@ export async function build(opts) {
   // 2. next build.
   t = Date.now();
   const env = { DOCS_CONTENT_DIR: contentDir, MARKDROP_DOCS_BUILD_ID: engine, NEXT_TELEMETRY_DISABLED: "1", NODE_ENV: "production" };
-  // Progress: Next prints "Generating static pages (x/y)" as it renders them.
+  // Progress: Next prints milestones while it compiles ("compile": 0 compiling, 1 compiled, 2
+  // collecting page data, of 3: no counts, and it's most of a small guide's build), then
+  // "Generating static pages (x/y)" as it renders them ("pages"; the last few come within a
+  // second of each other). nextProgress reads both.
   const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : null;
   const report = (phase, done, total) => {
     try {
@@ -333,7 +349,7 @@ export async function build(opts) {
     env,
     log: path.join(workDir, "next-build.log"),
     onOutput: onProgress ? (text) => {
-      for (const m of text.matchAll(/Generating static pages[^(\n]*\((\d+)\/(\d+)\)/g)) report("pages", Number(m[1]), Number(m[2]));
+      for (const [phase, done, total] of nextProgress(text)) report(phase, done, total);
     } : undefined,
   });
   mark("nextBuild", t);

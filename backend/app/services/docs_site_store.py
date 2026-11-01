@@ -562,6 +562,9 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_rol
         # False while the edge doesn't hold the site's access policy yet (the access job is
         # retried until it does): the dashboard says "Not enforced yet".
         "access_enforced": docs_site_access.enforced(site),
+        # Whether this server takes password and members-only guides (settings refuse them while
+        # docs_private_sites_enabled is off): Settings › Readers and access marks them "Coming soon".
+        "private_access": bool(get_settings().docs_private_sites_enabled),
         # False while the free address isn't attached on Cloudflare yet (services/docs_cf_hosts.py:
         # its certificate is on its way); always True where addresses aren't managed there.
         "address_ready": docs_cf_hosts.address_ready(site),

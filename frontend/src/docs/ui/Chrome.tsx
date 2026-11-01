@@ -12,7 +12,8 @@ import { MobileMenu, NavLinks } from "../client/Chrome";
 import { AskButton } from "../client/ask/entry";
 import { SearchTrigger } from "../client/Search";
 import { isAppPath } from "../markdown";
-import { forcedMode } from "../themeSite";
+import { headerTabs } from "../theme.mjs";
+import { forcedMode, themeSectionTabs } from "../themeSite";
 import type { NavGroup } from "../types";
 
 /** The header's logo: the Markdrop mark and wordmark, the site's images, or its name as text. */
@@ -51,6 +52,7 @@ export function DocsHeader({ activeTab, current }: { activeTab?: string; current
   const site = getSite();
   const nav = getNav();
   const ai = !!aiSettings(site);
+  const tabs = headerTabs(site.tabs, nav, { sections: themeSectionTabs(site), activeTab, current });
   return (
     <header className="dx-header">
       <div className="dx-header__in">
@@ -59,8 +61,8 @@ export function DocsHeader({ activeTab, current }: { activeTab?: string; current
           <BrandMark brand={headerBrand(site)} />
         </Link>
         <nav aria-label="Docs sections" className="dx-tabsnav">
-          {site.tabs.map((t) => (
-            <Link key={t.id} href={t.href} className="dx-tabsnav__item" aria-current={t.id === activeTab ? "page" : undefined}>
+          {tabs.map((t) => (
+            <Link key={t.key} href={t.href} className="dx-tabsnav__item" aria-current={t.current ? "page" : undefined}>
               {t.label}
             </Link>
           ))}

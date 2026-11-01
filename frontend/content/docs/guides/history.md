@@ -13,19 +13,19 @@ Markdrop Guides keeps two kinds of history: each **page's versions** (its drafts
 
 Every save of a page is a version: who saved it and when. The editor saves as you type, so you rarely lose more than a few seconds of work. A page keeps its last 50 versions.
 
-The page settings panel shows the latest three under **History**. Choose **See all versions** for the full list:
+The **History** tab of the editor's page panel lists them, newest first (**Version history** under the panel opens it too):
 
 - **Edited**: a save from the editor.
 - **Imported**: the page as it came from [GitBook](/guides/import-from-gitbook).
 - **Restored an earlier version**: a restore, below.
 
-![All versions of Quickstart: four saves, the current one by Alex Chen today and earlier ones by Maya Patel and Riya Sharma, each with View and Restore.](/docs-assets/guides/history/versions-drawer.webp)
+![The History tab of Quickstart: four saves, the current one by Alex Chen today and earlier ones by Maya Patel and Riya Sharma, each with View.](/docs-assets/guides/history/versions-drawer.webp)
 
-**View** shows a version's title, description and Markdown.
+**View** opens a version beside the page: its title, description and Markdown.
 
 ### Restore a version
 
-Choose **Restore** on a version, then **Restore** again. Its text, title and description become the newest draft of the page. Nothing is lost: the draft you had stays in the history, so you can restore it back. The page's address, icon and sidebar setting don't change.
+**View** a version, choose **Restore this version**, then **Restore**. Its text, title and description become the newest draft of the page. Nothing is lost: the draft you had stays in the history, so you can restore it back. The page's address, icon and sidebar setting don't change.
 
 A restore changes the draft only. Readers see it after the next [publish](/guides/publishing).
 

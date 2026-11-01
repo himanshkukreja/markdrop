@@ -31,9 +31,11 @@ export function ProgressView({ build, queuedAfter, compareHref }: { build: Build
   const pct = p?.percent ?? 2;
   const host = primaryAddress(site);
   const state = (i: number): StepState => (i < at ? "done" : i === at ? "running" : "waiting");
+  // Before Next renders (writing, fetching files, compiling) there's no page count to show yet.
+  const preparing = stage === "pages" && !!p?.step && p.step !== "build";
   const pagesDetail = !p || !p.pages_total
-    ? stage === "waiting" ? "waiting to start" : "rendering"
-    : stage === "pages" ? `${num(p.pages_done)} of ${plural(p.pages_total, "page")}` : plural(p.pages_total, "page");
+    ? stage === "waiting" ? "waiting to start" : preparing ? "preparing" : "rendering"
+    : stage === "pages" ? preparing ? "preparing" : `${num(p.pages_done)} of ${plural(p.pages_total, "page")}` : plural(p.pages_total, "page");
   const steps: Array<{ label: React.ReactNode; detail: string; state: StepState }> = [
     { label: "Saved a snapshot of your pages", detail: build.changes ? plural(summaryCount(build.changes) || 1, "change") : "done", state: "done" },
     { label: "Building the pages", detail: pagesDetail, state: stage === "waiting" ? "running" : state(1) },
