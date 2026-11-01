@@ -28,12 +28,14 @@ Security model
 
 Analytics (cookieless)
 ----------------------
-:func:`record_beacon` takes the block's beacons (``POST /api/v1/embeds/{slug}/beacon``): a view
-counts once per page load in the file's own creator analytics, from the "Guides" channel with the
-guide's name as the campaign ("seen in Acme Docs"), and, for a Markdrop Guides site with Insights
-on, as daily counts per file and page in ``guide_embed_daily`` (views, full screen, opened on
-Markdrop, plays, seconds watched). Nothing is kept per reader: no hash, no address, no id. A beacon
-is accepted only from the guide's own live addresses (Origin), only for a file that is public now.
+* The file's creator: :func:`record_beacon` (``POST /api/v1/embeds/{slug}/beacon``) counts one view
+  per page load, from the "Guides" channel with the guide's name as the campaign ("seen in Acme
+  Docs"); the block's video / PDF engagement goes to the file's own ``/engage`` beacon.
+* The guide's Insights and its Fix list: the Insights beacon (``POST /api/v1/docs/insights/{site}/
+  event`` ``{k: "embed", p, e, s, a, …}``, routers/guide_insights.py → :func:`record_insight`): raw
+  events in ``guide_events`` like every other Insights event (page path, device class, a daily
+  visitor hash, nothing else about the reader; 90 days). :func:`stats` reads them per block.
+Both are accepted only from the docs site's own live addresses (Origin).
 """
 
 from __future__ import annotations
@@ -57,12 +59,10 @@ from app.config import get_settings
 log = logging.getLogger(__name__)
 
 PINS = "docs_embed_pins"
-DAILY = "guide_embed_daily"
-DAILY_TTL_DAYS = 400
-ROWS_PER_SITE_DAY = 2000
 SLUG_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MARKDROP_HOSTS = {"markdrop.in", "www.markdrop.in"}
-ACTIONS = {"view": "views", "fullscreen": "fullscreen", "open": "opens", "play": "plays", "watch": "watch_s"}
+#: Creator-analytics beacon actions (only "view" is counted; the rest are the Insights beacon's).
+ACTIONS = ("view", "fullscreen", "open", "play", "watch")
 #: The campaign Markdrop's own docs report as.
 MARKDROP_DOCS_ID = "markdrop"
 MARKDROP_DOCS_NAME = "Markdrop Docs"
@@ -92,8 +92,7 @@ def _iso(dt: datetime | None) -> str | None:
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[PINS].create_index([("site_id", 1), ("doc_id", 1), ("version", 1)], unique=True)
     await db[PINS].create_index([("doc_id", 1)])
-    await db[DAILY].create_index([("site", 1), ("day", 1), ("slug", 1), ("path", 1)], unique=True)
-    await db[DAILY].create_index("expires_at", expireAfterSeconds=0)
+    await db[TEXTS].create_index("key", unique=True)
 
 
 # ── Links ─────────────────────────────────────────────────────────────────────
@@ -519,9 +518,7 @@ async def library(db: AsyncIOMotorDatabase, actor, user_id: str, site: dict, *, 
     return {"items": items, "total": total, "page": page, "pages": max(1, math.ceil(total / per_page)), "workspace": ws}
 
 
-# ── Beacons ───────────────────────────────────────────────────────────────────
-
-_rows_seen: dict[tuple[str, str], int] = {}
+# ── The creator's beacon ──────────────────────────────────────────────────────
 
 
 def parse_beacon(raw_body: bytes) -> dict | None:
@@ -568,105 +565,319 @@ async def _beacon_site(db: AsyncIOMotorDatabase, site: str, origin: str | None) 
 
 async def record_beacon(db: AsyncIOMotorDatabase, slug: str, msg: dict, *, origin: str | None,
                         ip: str | None, ua: str) -> str:
-    """One beacon. Returns what happened ("ok" | "ignored"), which the caller doesn't reveal
-    beyond a 202."""
+    """The creator-analytics beacon: a block showing a public file was seen on a docs page, counted
+    as one view of the file from the "Guides" channel with the guide's name as the campaign.
+    Returns what happened ("ok" | "ignored"), which the caller doesn't reveal beyond a 202.
+    (The guide's own Insights get their events through the Insights beacon: :func:`record_insight`.)"""
     from app.services import analytics, guide_insights
     from app.services import document as doc_service
 
-    if not SLUG_RE.match(slug or "") or guide_insights.is_bot(ua):
+    if msg["a"] != "view" or not SLUG_RE.match(slug or "") or guide_insights.is_bot(ua):
         return "ignored"
     where = await _beacon_site(db, msg["site"], origin)
     if where is None:
         return "ignored"
-    site_id, guide_name, insights_on = where
+    _site_id, guide_name, _insights_on = where
     raw = await db["documents"].find_one({"slug": slug})
     if await blocked_reason(db, raw) is not None:
         return "ignored"
     assert raw is not None
-    if msg["a"] == "view":
-        result = await doc_service.register_event(db, raw, "view")
-        if result is not None:
-            doc_id, owner_id = result
-            ver = None
-            if raw.get("kind") == "artifact":
-                cur = int(raw.get("file_version") or 1)
-                ver = msg["v"] if msg["v"] and msg["v"] <= cur else cur
-            await analytics.record_event(
-                db, doc_id, owner_id, "view", ip=ip, referrer=None, user_agent=ua,
-                utm={"source": UTM_SOURCE, "medium": UTM_MEDIUM, "campaign": guide_name[:100]}, ver=ver,
-            )
-    if not insights_on:
-        return "ok"
-    path = guide_insights.clean_path(msg.get("p"))
-    if path is None:
-        return "ok"
-    day = guide_insights.day_key(now())
-    key = {"site": site_id, "day": day, "slug": slug, "path": path}
-    inc = {ACTIONS[msg["a"]]: msg["s"] if msg["a"] == "watch" else 1}
-    res = await db[DAILY].update_one(key, {"$inc": inc}, upsert=False)
-    if res.matched_count == 0:
-        # A new (file, page) row today: bounded per guide per day, so forged paths can't grow it.
-        seen_key = (site_id, day)
-        n = _rows_seen.get(seen_key)
-        if n is None:
-            n = await db[DAILY].count_documents({"site": site_id, "day": day})
-        if n >= ROWS_PER_SITE_DAY:
-            return "ignored"
-        if len(_rows_seen) > 20_000:
-            _rows_seen.clear()
-        _rows_seen[seen_key] = n + 1
-        expires = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=DAILY_TTL_DAYS)
-        await db[DAILY].update_one(
-            key, {"$inc": inc, "$setOnInsert": {"doc_id": str(raw["_id"]), "expires_at": expires}}, upsert=True)
+    result = await doc_service.register_event(db, raw, "view")
+    if result is None:
+        return "ignored"
+    doc_id, owner_id = result
+    ver = None
+    if raw.get("kind") == "artifact":
+        cur = int(raw.get("file_version") or 1)
+        ver = msg["v"] if msg["v"] and msg["v"] <= cur else cur
+    await analytics.record_event(
+        db, doc_id, owner_id, "view", ip=ip, referrer=None, user_agent=ua,
+        utm={"source": UTM_SOURCE, "medium": UTM_MEDIUM, "campaign": guide_name[:100]}, ver=ver,
+    )
     return "ok"
 
 
-# ── The Insights tab ──────────────────────────────────────────────────────────
+# ── The guide's Insights (and its Fix list) ───────────────────────────────────
+
+#: Insights event actions (client/embedTrack.ts). Raw events in guide_events, k = "embed":
+#:   {site, k: "embed", ts, day, p: page path, e: embed id, s: file slug, a: action,
+#:    qt?: quartile (25|50|75|100), t?: where the video stopped (s), w?: seconds watched,
+#:    d?: video length (s), pg?: furthest PDF page, n?: PDF page count, dev, v: visitor hash}
+INSIGHT_ACTIONS = ("view", "interact", "fullscreen", "open", "play", "quartile", "leave", "pages")
+_EID = re.compile(r"^(?:[A-Za-z0-9_-]{1,64}|file)(?:~\d{1,3})?$")
+QUARTILES = (25, 50, 75, 100)
+DROP_BUCKET_S = 5
+
+
+def _num(v, lo: float, hi: float) -> float | None:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    f = float(v)
+    if not math.isfinite(f) or f < lo or f > hi:
+        return None
+    return f
+
+
+def parse_insight(body: dict) -> dict | None:
+    """An `embed` Insights event, validated (None: ignore it)."""
+    e, s, a = body.get("e"), body.get("s"), body.get("a")
+    if a not in INSIGHT_ACTIONS or not isinstance(e, str) or not _EID.match(e) or not isinstance(s, str) or not SLUG_RE.match(s):
+        return None
+    out: dict[str, Any] = {"e": e, "s": s, "a": a}
+    if a == "quartile":
+        q = body.get("qt")
+        if q not in QUARTILES or isinstance(q, bool):
+            return None
+        out["qt"] = int(q)
+    elif a == "leave":
+        t, w, d = _num(body.get("t"), 0, 86_400), _num(body.get("w"), 0, 86_400), _num(body.get("d"), 0, 86_400)
+        if t is None:
+            return None
+        out["t"] = round(t, 1)
+        if w is not None:
+            out["w"] = int(w)
+        if d is not None and d > 0:
+            out["d"] = round(d, 1)
+    elif a == "pages":
+        pg, n = _num(body.get("pg"), 1, 5000), _num(body.get("n"), 1, 5000)
+        if pg is None:
+            return None
+        out["pg"] = int(pg)
+        if n is not None:
+            out["n"] = int(n)
+    return out
+
+
+async def record_insight(db: AsyncIOMotorDatabase, site_id: str, ev: dict, *, path: str, ua: str | None,
+                         ip: str | None, out: bool) -> bool:
+    """One `embed` event into the guide's raw Insights events (90 days, like every other event)."""
+    from app.services import guide_insights as gi
+
+    ts = gi.now()
+    day = gi.day_key(ts)
+    if not gi._within_cap(site_id, day):
+        return False
+    await db[gi.RAW].insert_one({
+        "site": site_id, "k": "embed", "ts": ts, "day": day, "p": path, **ev,
+        "dev": gi.device_of(ua), "v": await gi._visitor(db, site_id, day, ip, ua, out),
+    })
+    return True
+
+
+def _median(xs: list[float]) -> float | None:
+    if not xs:
+        return None
+    ys = sorted(xs)
+    m = len(ys) // 2
+    return ys[m] if len(ys) % 2 else (ys[m - 1] + ys[m]) / 2
+
+
+def drop_off(leaves: list[dict]) -> dict | None:
+    """Where viewers stop a video, from `leave` events that didn't reach the end: the 5-second
+    stretch most of them stopped in, with how many did (the Fix list's "loses viewers at 0:42")."""
+    stops = [ev["t"] for ev in leaves if ev.get("d") and ev["t"] < ev["d"] * 0.95]
+    if not stops:
+        return None
+    buckets: dict[int, int] = {}
+    for t in stops:
+        b = int(t // DROP_BUCKET_S) * DROP_BUCKET_S
+        buckets[b] = buckets.get(b, 0) + 1
+    at, n = max(buckets.items(), key=lambda kv: (kv[1], -kv[0]))
+    return {"at": at, "stopped": n, "of": len(leaves)}
 
 
 async def stats(db: AsyncIOMotorDatabase, site_id: str, range_key: str) -> dict:
-    """GET /docs-sites/{id}/insights/embeds: per embedded file, over the range: views, full-screen
-    opens, opens on Markdrop, plays and minutes watched, and the pages it was seen on. A file
-    that isn't public any more is listed without its title."""
-    from app.services import guide_insights
+    """GET /docs-sites/{id}/insights/embeds: per embedded block (page + embed id) over the range:
+    views, interaction, full screen, opens on Markdrop; for a video plays, how far viewers got
+    (quartiles), the median share watched and where most of them stop; for a PDF the median
+    furthest page. A file that isn't public any more is listed without its title."""
+    from app.services import guide_insights as gi
 
-    days = guide_insights.range_days(range_key)
-    rows = await db[DAILY].aggregate([
-        {"$match": {"site": site_id, "day": {"$in": days}}},
-        {"$group": {
-            "_id": {"slug": "$slug", "path": "$path"},
-            "doc_id": {"$last": "$doc_id"},
-            **{f: {"$sum": f"${f}"} for f in ACTIONS.values()},
-        }},
-    ]).to_list(length=20_000)
-    by: dict[str, dict] = {}
-    for r in rows:
-        slug = r["_id"]["slug"]
-        e = by.setdefault(slug, {"slug": slug, "doc_id": r.get("doc_id"), "pages": [], **{f: 0 for f in ACTIONS.values()}})
-        for f in ACTIONS.values():
-            e[f] += int(r.get(f) or 0)
-        e["pages"].append({"path": r["_id"]["path"], "views": int(r.get("views") or 0)})
-    slugs = list(by)
-    docs = {d["slug"]: d for d in await db["documents"].find(
-        {"slug": {"$in": slugs}}, {"slug": 1, "title": 1, "original_filename": 1, "kind": 1, "mime": 1, "access_level": 1,
-                                   "read_password_hash": 1, "expires_at": 1, "workspace_id": 1, "encrypted": 1, "owner_id": 1}).to_list(length=len(slugs) or 1)}
+    days = gi.range_days(range_key)
+    rows = await db[gi.RAW].find(
+        {"site": site_id, "k": "embed", "day": {"$in": days}},
+        {"_id": 0, "p": 1, "e": 1, "s": 1, "a": 1, "qt": 1, "t": 1, "w": 1, "d": 1, "pg": 1, "n": 1},
+    ).to_list(length=200_000)
+    blocks: dict[tuple[str, str], dict] = {}
+    for ev in rows:
+        key = (ev.get("p") or "/", ev.get("e") or ev.get("s"))
+        b = blocks.setdefault(key, {"page": key[0], "embed": key[1], "slug": ev.get("s"), "views": 0, "interactions": 0,
+                                    "fullscreen": 0, "opens": 0, "plays": 0, "quartiles": {str(q): 0 for q in QUARTILES},
+                                    "_leaves": [], "_pages": [], "_n": 0})
+        a = ev.get("a")
+        if a == "view":
+            b["views"] += 1
+        elif a == "interact":
+            b["interactions"] += 1
+        elif a == "fullscreen":
+            b["fullscreen"] += 1
+        elif a == "open":
+            b["opens"] += 1
+        elif a == "play":
+            b["plays"] += 1
+        elif a == "quartile" and ev.get("qt") in QUARTILES:
+            b["quartiles"][str(ev["qt"])] += 1
+        elif a == "leave":
+            b["_leaves"].append(ev)
+        elif a == "pages":
+            b["_pages"].append(int(ev.get("pg") or 0))
+            b["_n"] = max(b["_n"], int(ev.get("n") or 0))
+    slugs = list({b["slug"] for b in blocks.values() if b["slug"]})
+    docs = {d["slug"]: d for d in await db["documents"].find({"slug": {"$in": slugs}}).to_list(length=len(slugs) or 1)}
     out = []
-    for slug, e in by.items():
-        raw = docs.get(slug)
+    for b in blocks.values():
+        raw = docs.get(b["slug"])
         public = raw is not None and await blocked_reason(db, raw) is None
-        e.pop("doc_id", None)
-        e["pages"] = sorted(e["pages"], key=lambda p: -p["views"])[:10]
-        out.append({
-            **e,
-            "url": canonical_link(slug),
-            "title": (raw.get("title") or raw.get("original_filename") or slug) if public else None,
+        leaves = b.pop("_leaves")
+        pages = b.pop("_pages")
+        n = b.pop("_n")
+        shares = [min(1.0, ev["w"] / ev["d"]) for ev in leaves if ev.get("d") and ev.get("w") is not None]
+        b.update({
+            "url": canonical_link(b["slug"]),
+            "title": (raw.get("title") or raw.get("original_filename") or b["slug"]) if public else None,
             "renderer": renderer_of(raw) if raw else None,
             "public": public,
+            "interaction_rate": round(b["interactions"] / b["views"], 3) if b["views"] else None,
+            "watch_s": sum(int(ev.get("w") or 0) for ev in leaves),
+            "watched_share": round(_median(shares), 3) if shares else None,
+            "drop_off": drop_off(leaves),
+            "pdf": {"median_page": _median([float(p) for p in pages if p]), "pages": n or None, "readers": len(pages)} if pages else None,
         })
-    out.sort(key=lambda e: (-e["views"], e["slug"]))
-    totals = {f: sum(e[f] for e in out) for f in ACTIONS.values()}
-    return {"range": range_key, "embeds": out[:100], "totals": {**totals, "files": len(out)}}
+        out.append(b)
+    out.sort(key=lambda x: (-x["views"], x["page"], x["embed"]))
+    totals = {k: sum(x[k] for x in out) for k in ("views", "interactions", "fullscreen", "opens", "plays", "watch_s")}
+    return {"range": range_key, "embeds": out[:200], "totals": {**totals, "blocks": len(out), "files": len({x["slug"] for x in out})}}
 
 
-async def clear(db: AsyncIOMotorDatabase, site_id: str) -> int:
-    return (await db[DAILY].delete_many({"site": site_id})).deleted_count
+# ── Text versions (the build's embeds.json) ───────────────────────────────────
+
+TEXTS = "docs_embed_text"
+PDF_PAGES = 60
+PDF_CHARS = 40_000
+PDF_TIMEOUT_S = 20
+EMBEDS_PER_SITE = 200
+_LEAF = re.compile(r"^\s*::markdrop(?:\[([^\]]*)\])?\{((?:[^}\"']|\"[^\"]*\"|'[^']*')*)\}\s*$", re.M)
+
+
+def embedded_slugs(pages: list[dict]) -> list[str]:
+    """The slugs every page's ``::markdrop`` blocks name, in order, once each."""
+    from app.services.docs_index import parse_attrs
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for p in pages or []:
+        body = next((p[k] for k in ("markdown", "body", "content") if isinstance(p.get(k), str)), "")
+        for m in _LEAF.finditer(body or ""):
+            slug = slug_from_src(parse_attrs(m.group(2)).get("src"))
+            if slug and slug not in seen:
+                seen.add(slug)
+                out.append(slug)
+                if len(out) >= EMBEDS_PER_SITE:
+                    return out
+    return out
+
+
+def extract_pdf(data: bytes) -> dict:
+    """A PDF's page count, outline (bookmark titles) and text (the first pages), with pypdf; {}
+    when it can't be read (no pypdf, encrypted, malformed)."""
+    import io
+
+    try:
+        from pypdf import PdfReader
+    except ImportError:  # pragma: no cover - pypdf is in requirements.txt
+        return {}
+    try:
+        reader = PdfReader(io.BytesIO(data))
+        if reader.is_encrypted:
+            return {"pages": len(reader.pages)}
+        outline: list[str] = []
+
+        def walk(items) -> None:
+            for it in items:
+                if isinstance(it, list):
+                    walk(it)
+                elif len(outline) < 40:
+                    t = getattr(it, "title", None)
+                    if isinstance(t, str) and t.strip():
+                        outline.append(re.sub(r"\s+", " ", t).strip()[:200])
+
+        try:
+            walk(reader.outline)
+        except Exception:
+            pass
+        parts: list[str] = []
+        total = 0
+        for page in reader.pages[:PDF_PAGES]:
+            try:
+                t = page.extract_text() or ""
+            except Exception:
+                t = ""
+            t = re.sub(r"\s+", " ", t).strip()
+            if t:
+                parts.append(t)
+                total += len(t) + 1
+            if total >= PDF_CHARS:
+                break
+        return {"pages": len(reader.pages), "outline": outline, "text": " ".join(parts)[:PDF_CHARS]}
+    except Exception:
+        log.debug("pdf text extraction failed", exc_info=True)
+        return {}
+
+
+async def _pdf_text(db: AsyncIOMotorDatabase, raw: dict) -> dict:
+    """The current PDF's text, extracted once per blob (``docs_embed_text``, keyed by the blob)."""
+    import asyncio
+
+    from app.services import r2
+
+    key = raw.get("blob_key")
+    if not key or not r2.is_configured():
+        return {}
+    hit = await db[TEXTS].find_one({"key": key}, {"_id": 0, "pages": 1, "outline": 1, "text": 1})
+    if hit is not None:
+        return hit
+    try:
+        data = await run_in_threadpool(r2.get_bytes, key, get_settings().artifact_max_bytes)
+        if not data:
+            return {}
+        out = await asyncio.wait_for(run_in_threadpool(extract_pdf, data), timeout=PDF_TIMEOUT_S)
+    except Exception:
+        log.info("pdf text skipped for %s", raw.get("slug"), exc_info=True)
+        return {}
+    await db[TEXTS].update_one({"key": key}, {"$set": {**out, "key": key, "at": now()}}, upsert=True)
+    return out
+
+
+async def text_infos(db: AsyncIOMotorDatabase, pages: list[dict]) -> dict[str, dict]:
+    """embeds.json for a build: what the build may say about each file the pages embed. Public files
+    only (anything else has no entry at all): the title, the kind, a video's length, a PDF's pages,
+    outline and text (a pinned version's text isn't extracted; the current file's is)."""
+    from app.services import artifact as art_service
+    from app.services import document as doc_service
+
+    out: dict[str, dict] = {}
+    for slug in embedded_slugs(pages):
+        raw, _moved = await doc_service.find_for_read(db, slug)
+        if await blocked_reason(db, raw) is not None:
+            continue
+        assert raw is not None
+        renderer = renderer_of(raw)
+        info: dict[str, Any] = {"title": raw.get("title") or raw.get("original_filename") or slug}
+        if raw.get("kind") == "artifact":
+            info["type"] = {"html": "Interactive page", "bundle": "Website", "pdf": "PDF", "video": "Video"}.get(
+                renderer, art_service.label_for(raw.get("mime") or ""))
+            m = _media(raw.get("media"))
+            if m and m.get("duration"):
+                info["duration"] = round(float(m["duration"]), 1)
+            if renderer == "pdf":
+                t = await _pdf_text(db, raw)
+                for k in ("pages", "outline", "text"):
+                    if t.get(k):
+                        info[k] = t[k]
+        else:
+            info["type"] = "Markdrop document"
+            ex = excerpt(raw.get("content"), 1200)
+            if ex:
+                info["text"] = ex
+        out[slug] = info
+    return out

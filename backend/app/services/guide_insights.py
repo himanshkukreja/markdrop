@@ -676,9 +676,6 @@ async def clear(db: AsyncIOMotorDatabase, site: str) -> dict:
     a = await db[RAW].delete_many({"site": site})
     b = await db[DAILY].delete_many({"site": site})
     c = await db[FEEDBACK].delete_many({"site": site})
-    from app.services import docs_embeds
-
-    await docs_embeds.clear(db, site)
     await db[ai_usage.REQUESTS].update_many({"site": site, "insights": True}, {"$set": {"insights": False}})
     return {"events": a.deleted_count, "days": b.deleted_count, "feedback": c.deleted_count}
 

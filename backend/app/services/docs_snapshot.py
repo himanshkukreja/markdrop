@@ -373,6 +373,10 @@ def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str,
     videos = {**(extra["videos"] if isinstance(extra.get("videos"), dict) else {}), **cl_videos}
     if videos:
         files["videos.json"] = json.dumps(videos, indent=2, ensure_ascii=False) + "\n"
+    # What the build may say about the Markdrop files the pages embed (services/docs_embeds.py
+    # text_infos, written on the snapshot when its build starts): the blocks' text versions.
+    if isinstance(snapshot.get("embeds"), dict) and snapshot["embeds"]:
+        files["embeds.json"] = json.dumps(snapshot["embeds"], indent=2, ensure_ascii=False) + "\n"
     return files, warnings
 
 
@@ -409,6 +413,17 @@ async def bundle(db: AsyncIOMotorDatabase, build: dict) -> dict:
     from app.services import docs_api_spec
 
     spec_row = await docs_api_spec.build_ref(db, site, snapshot.get("settings") or {})
+    # The embedded Markdrop files' text versions, as of this build: public files only. Kept on the
+    # snapshot too, so the guide's Ask AI index (docs_index) reads the same text.
+    from app.services import docs_embeds
+
+    try:
+        embeds = await docs_embeds.text_infos(db, snapshot.get("pages") or [])
+    except Exception:  # pragma: no cover - a text version never fails a build
+        embeds = snapshot.get("embeds") if isinstance(snapshot.get("embeds"), dict) else {}
+    if embeds != snapshot.get("embeds"):
+        snapshot["embeds"] = embeds
+        await db[SNAPSHOTS].update_one({"_id": snapshot["_id"]}, {"$set": {"embeds": embeds}})
     files, warnings = content_files(site, snapshot, url=site_url(site, slug), ai_api=ai_api, api_spec=spec_row)
     out_bundle: dict = {"site_id": str(site["_id"]), "files": files, "warnings": warnings}
     if spec_row:

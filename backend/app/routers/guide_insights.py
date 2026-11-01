@@ -6,9 +6,10 @@ middleware/docs_cors.py):
 
     POST …/hit        a page view, from the docs edge Worker (server side; `Authorization: Bearer
                       <edge key>`, the reader's address in X-Docs-Reader-Ip, never stored)
-    POST …/event      {k: "view", p} (a client-side navigation) or {k: "search", q, n, p}, from
-                      the guide's pages (Origin must be the guide's own address); sent as
-                      text/plain so the browser needs no preflight
+    POST …/event      {k: "view", p} (a client-side navigation), {k: "search", q, n, p}, or
+                      {k: "embed", p, e, s, a, …} (a Markdrop file's block: services/docs_embeds.py
+                      record_insight), from the guide's pages (Origin must be the guide's own
+                      address); sent as text/plain so the browser needs no preflight
     POST …/feedback   {path, helpful, comment?}: "Did this page help?" (Origin: the guide's own
                       address) and the docs MCP server's report_problem (server side, no Origin)
 
@@ -147,10 +148,19 @@ async def hit(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends
 
 
 class EventBody(BaseModel):
-    k: str = Field(..., pattern=r"^(view|search)$")
+    k: str = Field(..., pattern=r"^(view|search|embed)$")
     p: str | None = Field(None, max_length=400)
     q: str | None = Field(None, max_length=500)
     n: int | None = Field(None, ge=0, le=100_000)
+    # k = "embed" (services/docs_embeds.py parse_insight validates them)
+    e: str | None = Field(None, max_length=80)
+    s: str | None = Field(None, max_length=80)
+    a: str | None = Field(None, max_length=20)
+    t: float | None = None
+    w: float | None = None
+    d: float | None = None
+    pg: int | None = None
+    qt: int | None = None
 
 
 @router.post("/{site_id}/event")
@@ -167,6 +177,14 @@ async def event(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depen
         return _accepted("ignored")
     ip = get_client_ip(request)
     path = insights.clean_path(body.p) if body.p else None
+    if body.k == "embed":
+        from app.services import docs_embeds
+
+        ev = docs_embeds.parse_insight(body.model_dump(exclude_none=True))
+        if path is None or ev is None:
+            return _accepted("ignored")
+        ok = await docs_embeds.record_insight(db, st.id, ev, path=path, ua=ua, ip=ip, out=_out(request))
+        return _accepted("ok" if ok else "ignored")
     if body.k == "view":
         if path is None:
             return _accepted("ignored")

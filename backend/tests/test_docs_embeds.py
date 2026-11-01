@@ -4,8 +4,10 @@ The public resolve (only files anyone with the link can open; every other state 
 no size, no address; renamed files follow; a pinned version only for the guide it was pinned for,
 signed), CORS `*`, the studio's picker / link check / "anyone with the link" / version pins and
 their roles, the beacons (the guide's own addresses only; the file's creator analytics get a view
-from the "Guides" channel with the guide as campaign; the guide's Insights get daily counts and
-nothing per reader), the Insights tab's per-file numbers and site.json's `markdrop` block.
+from the "Guides" channel with the guide as campaign), the guide's Insights events (k "embed" in the
+Insights beacon format: stable block ids, quartiles, drop-off, PDF pages; the Fix list reads them),
+the Insights tab's per-block numbers, the text versions (a PDF's text and outline extracted once per
+blob, public files only, in the build's embeds.json and the Ask AI index) and site.json's `markdrop`.
 """
 
 from __future__ import annotations
@@ -92,7 +94,7 @@ class EmbedsCase(DocsSitesCase):
             p.start()
             self.addCleanup(p.stop)
         de._ae_cache.clear()
-        de._rows_seen.clear()
+        await self.db[de.TEXTS].delete_many({})
         self.site = await self.create("acme")
         self.sid = self.site["id"]
         limiter.reset()
@@ -282,8 +284,44 @@ class StudioTests(EmbedsCase):
         self.assertEqual((await self.resolve("acme-tour", site=self.sid, v=1)).json(), {"state": "private", "slug": "acme-tour"})
 
 
+def tiny_pdf(lines: list[str], outline: list[str] = ()) -> bytes:
+    """A small, valid PDF: one page per line of text (Helvetica), with bookmarks."""
+    objs: list[bytes] = []
+    n_pages = len(lines)
+    font = 3 + 2 * n_pages
+    outline_root = font + 1 if outline else None
+    kids = " ".join(f"{3 + 2 * i} 0 R" for i in range(n_pages))
+    objs.append(b"<</Type/Catalog/Pages 2 0 R" + (f"/Outlines {outline_root} 0 R".encode() if outline else b"") + b">>")
+    objs.append(f"<</Type/Pages/Kids[{kids}]/Count {n_pages}>>".encode())
+    for i, text in enumerate(lines):
+        stream = f"BT /F1 18 Tf 72 720 Td ({text}) Tj ET".encode()
+        objs.append(f"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 {font} 0 R>>>>/Contents {4 + 2 * i} 0 R>>".encode())
+        objs.append(b"<</Length " + str(len(stream)).encode() + b">>stream\n" + stream + b"\nendstream")
+    objs.append(b"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>")
+    if outline:
+        first = outline_root + 1
+        last = outline_root + len(outline)
+        objs.append(f"<</Type/Outlines/First {first} 0 R/Last {last} 0 R/Count {len(outline)}>>".encode())
+        for j, title in enumerate(outline):
+            me = first + j
+            prev = f"/Prev {me - 1} 0 R" if j else ""
+            nxt = f"/Next {me + 1} 0 R" if j < len(outline) - 1 else ""
+            objs.append(f"<</Title({title})/Parent {outline_root} 0 R{prev}{nxt}/Dest[3 0 R/Fit]>>".encode())
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for i, body in enumerate(objs):
+        offsets.append(len(out))
+        out += f"{i + 1} 0 obj\n".encode() + body + b"\nendobj\n"
+    xref = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode()
+    for off in offsets:
+        out += f"{off:010d} 00000 n \n".encode()
+    out += f"trailer\n<</Size {len(objs) + 1}/Root 1 0 R>>\nstartxref\n{xref}\n%%EOF\n".encode()
+    return bytes(out)
+
+
 class BeaconTests(EmbedsCase):
-    async def test_views_count_for_the_creator_and_the_guide(self):
+    async def test_a_view_counts_for_the_creator_from_the_guides_channel(self):
         d = await self.doc("acme-pricing")
         r = await self.beacon("acme-pricing", {"p": "/pricing?x=1", "a": "view"})
         self.assertEqual((r.status_code, r.json()), (202, {"status": "ok"}))
@@ -292,16 +330,9 @@ class BeaconTests(EmbedsCase):
         [ev] = await self.db["events"].find({"doc_id": str(d["_id"])}).to_list(10)
         self.assertEqual((ev["type"], ev["channel"], ev["utm_source"], ev["utm_medium"], ev["utm_campaign"]),
                          ("view", "Guides", "markdrop-guides", "embed", "Acme Docs"))
-        for body in ({"p": "/pricing", "a": "fullscreen"}, {"p": "/pricing", "a": "open"}, {"p": "/tour", "a": "view"},
-                     {"p": "/pricing", "a": "watch", "s": 42.6}):
-            self.assertEqual((await self.beacon("acme-pricing", body)).json(), {"status": "ok"})
-        rows = {r["path"]: r for r in await self.db[de.DAILY].find({"site": self.sid}).to_list(10)}
-        self.assertEqual((rows["/pricing"]["views"], rows["/pricing"]["fullscreen"], rows["/pricing"]["opens"], rows["/pricing"]["watch_s"]),
-                         (1, 1, 1, 42))
-        self.assertEqual(rows["/tour"]["views"], 1)
-        stored = json.dumps(rows, default=str)
-        self.assertNotIn("Mozilla", stored)  # nothing per reader
-        self.assertEqual(set(rows["/pricing"]) - {"_id"}, {"site", "day", "slug", "path", "views", "fullscreen", "opens", "watch_s", "doc_id", "expires_at"})
+        # Only views reach the creator; the guide's own events go through the Insights beacon.
+        self.assertEqual((await self.beacon("acme-pricing", {"p": "/pricing", "a": "fullscreen"})).json(), {"status": "ignored"})
+        self.assertEqual(await self.db["events"].count_documents({}), 1)
 
     async def test_only_from_the_guides_own_address_and_only_public_files(self):
         await self.doc("acme-pricing")
@@ -312,15 +343,6 @@ class BeaconTests(EmbedsCase):
         self.assertEqual((await self.beacon("acme-pricing", {"p": "/", "a": "view"}, ua="curl/8")).json(), {"status": "ignored"})
         self.assertEqual((await self.beacon("acme-pricing", {"p": "/", "a": "steal"})).json(), {"status": "ignored"})
         self.assertEqual(await self.db["events"].count_documents({}), 0)
-        self.assertEqual(await self.db[de.DAILY].count_documents({}), 0)
-
-    async def test_insights_off_still_counts_for_the_creator(self):
-        d = await self.doc("acme-pricing")
-        await self.db["docs_sites"].update_one({"_id": ObjectId(self.sid)}, {"$set": {"settings.insights.enabled": False}})
-        docs_sites.reset()
-        self.assertEqual((await self.beacon("acme-pricing", {"p": "/", "a": "view"})).json(), {"status": "ok"})
-        self.assertEqual(await self.db["events"].count_documents({"doc_id": str(d["_id"])}), 1)
-        self.assertEqual(await self.db[de.DAILY].count_documents({}), 0)
 
     async def test_markdrops_own_docs(self):
         d = await self.doc("acme-pricing")
@@ -330,26 +352,133 @@ class BeaconTests(EmbedsCase):
         [ev] = await self.db["events"].find({"doc_id": str(d["_id"])}).to_list(10)
         self.assertEqual(ev["utm_campaign"], "Markdrop Docs")
 
-    async def test_the_insights_tab(self):
+
+INS = "/api/v1/docs/insights"
+
+
+class InsightTests(EmbedsCase):
+    async def event(self, body: dict, origin: str | None = "own", dnt: bool = False):
+        h = {"Content-Type": "text/plain;charset=UTF-8", "User-Agent": DESKTOP}
+        if origin:
+            h["Origin"] = self.origin if origin == "own" else origin
+        if dnt:
+            h["DNT"] = "1"
+        return await self.http.post(f"{INS}/{self.sid}/event", content=json.dumps({"k": "embed", **body}), headers=h)
+
+    async def raw(self) -> list[dict]:
+        return await self.db[gi.RAW].find({"site": self.sid, "k": "embed"}).sort([("ts", 1), ("_id", 1)]).to_list(1000)
+
+    async def test_events_in_the_insights_format_with_a_stable_block_id(self):
+        r = await self.event({"p": "/start/tour?x=1", "e": "acme-tour", "s": "acme-tour", "a": "view"})
+        self.assertEqual((r.status_code, r.json()), (202, {"status": "ok"}))
+        for body in ({"a": "play"}, {"a": "quartile", "qt": 25}, {"a": "quartile", "qt": 50},
+                     {"a": "leave", "t": 42.4, "w": 40, "d": 125.0}, {"a": "pages", "pg": 3, "n": 12, "e": "acme-prices", "s": "acme-prices"}):
+            r = await self.event({"p": "/start/tour", "e": "acme-tour", "s": "acme-tour", **body})
+            self.assertEqual(r.json(), {"status": "ok"}, body)
+        evs = await self.raw()
+        self.assertEqual([(e["a"], e["p"], e["e"]) for e in evs][:2], [("view", "/start/tour", "acme-tour"), ("play", "/start/tour", "acme-tour")])
+        leave = next(e for e in evs if e["a"] == "leave")
+        self.assertEqual((leave["t"], leave["w"], leave["d"]), (42.4, 40, 125.0))
+        self.assertEqual(next(e for e in evs if e["a"] == "pages")["pg"], 3)
+        self.assertEqual(len(evs[0]["v"]), 24)  # the Insights visitor hash, nothing else about the reader
+        stored = json.dumps(evs, default=str)
+        self.assertNotIn("Mozilla", stored)
+        self.assertNotIn("x=1", stored)
+
+    async def test_bad_events_dnt_and_foreign_origins(self):
+        for body in ({"e": "x", "s": "x", "a": "steal"}, {"e": "<x>", "s": "x", "a": "view"}, {"e": "x", "s": "x", "a": "quartile", "qt": 33},
+                     {"e": "x", "s": "x", "a": "leave"}, {"e": "x", "s": "../x", "a": "view"}):
+            self.assertEqual((await self.event({"p": "/a", **body})).json(), {"status": "ignored"}, body)
+        r = await self.event({"p": "/a", "e": "x", "s": "x", "a": "view"}, origin="https://evil.example")
+        self.assertEqual(r.status_code, 403)
+        await self.event({"p": "/a", "e": "x", "s": "x", "a": "view"}, dnt=True)
+        [ev] = await self.raw()
+        self.assertIsNone(ev["v"])  # Do Not Track: counted, without a visitor hash
+
+    async def test_the_insights_tab_ranks_blocks_and_finds_the_drop_off(self):
         await self.doc("acme-pricing")
         await self.doc("acme-tour", mime=MP4)
+        await self.doc("acme-prices", mime=PDF)
+        tour = {"p": "/start", "e": "acme-tour", "s": "acme-tour"}
         for _ in range(3):
-            await self.beacon("acme-pricing", {"p": "/pricing", "a": "view"})
-        await self.beacon("acme-tour", {"p": "/start", "a": "play"})
-        await self.beacon("acme-tour", {"p": "/start", "a": "watch", "s": 120})
+            await self.event({"p": "/pricing", "e": "acme-pricing", "s": "acme-pricing", "a": "view"})
+        await self.event({"p": "/pricing", "e": "acme-pricing", "s": "acme-pricing", "a": "interact"})
+        await self.event({"p": "/pricing", "e": "acme-pricing~2", "s": "acme-pricing", "a": "view"})
+        for t in (42.0, 43.5, 44.9, 90.0, 124.0):
+            await self.event({**tour, "a": "view"})
+            await self.event({**tour, "a": "play"})
+            await self.event({**tour, "a": "leave", "t": t, "w": int(t), "d": 125.0})
+        await self.event({**tour, "a": "quartile", "qt": 25})
+        for pg in (2, 3, 3):
+            await self.event({"p": "/pricing", "e": "acme-prices", "s": "acme-prices", "a": "pages", "pg": pg, "n": 12})
         out = await self.get(f"/{self.sid}/insights/embeds?range=7d", who="viewer")
-        self.assertEqual([e["slug"] for e in out["embeds"]], ["acme-pricing", "acme-tour"])
-        first = out["embeds"][0]
-        self.assertEqual((first["views"], first["title"], first["renderer"], first["pages"]), (3, "Acme Pricing", "html", [{"path": "/pricing", "views": 3}]))
-        self.assertEqual((out["totals"]["views"], out["totals"]["plays"], out["totals"]["watch_s"], out["totals"]["files"]), (3, 1, 120, 2))
+        tour_b = next(b for b in out["embeds"] if b["embed"] == "acme-tour")
+        self.assertEqual((tour_b["views"], tour_b["plays"], tour_b["page"], tour_b["renderer"]), (5, 5, "/start", "video"))
+        self.assertEqual(tour_b["drop_off"], {"at": 40, "stopped": 3, "of": 5})
+        self.assertEqual(tour_b["quartiles"]["25"], 1)
+        price = next(b for b in out["embeds"] if b["embed"] == "acme-pricing")
+        self.assertEqual((price["views"], price["interaction_rate"], price["title"]), (3, 0.333, "Acme Pricing"))
+        self.assertTrue(any(b["embed"] == "acme-pricing~2" for b in out["embeds"]))
+        pdf = next(b for b in out["embeds"] if b["embed"] == "acme-prices")
+        self.assertEqual(pdf["pdf"], {"median_page": 3.0, "pages": 12, "readers": 3})
+        self.assertEqual(out["totals"]["files"], 3)
         # No longer public: listed, without its title.
         await self.db["documents"].update_one({"slug": "acme-pricing"}, {"$set": {"access_level": "private"}})
-        first = (await self.get(f"/{self.sid}/insights/embeds"))["embeds"][0]
-        self.assertEqual((first["title"], first["public"]), (None, False))
+        price = next(b for b in (await self.get(f"/{self.sid}/insights/embeds"))["embeds"] if b["embed"] == "acme-pricing")
+        self.assertEqual((price["title"], price["public"]), (None, False))
         await self.get(f"/{self.sid}/insights/embeds", who="stranger", expect=404)
-        # Clearing Insights clears these too.
+        # Clearing Insights clears these too (they are the guide's raw events).
         await self.call("DELETE", f"/{self.sid}/insights")
-        self.assertEqual(await self.db[de.DAILY].count_documents({}), 0)
+        self.assertEqual(await self.raw(), [])
+
+
+class TextVersionTests(EmbedsCase):
+    def test_pdf_text_and_outline(self):
+        out = de.extract_pdf(tiny_pdf(["Acme price list", "Starter 9 dollars a month"], ["Plans", "Add-ons"]))
+        self.assertEqual(out["pages"], 2)
+        self.assertEqual(out["outline"], ["Plans", "Add-ons"])
+        self.assertIn("Acme price list", out["text"])
+        self.assertIn("Starter 9 dollars", out["text"])
+        self.assertEqual(de.extract_pdf(b"not a pdf"), {})
+
+    async def test_build_writes_embeds_json_for_public_files_only(self):
+        pdf = await self.doc("acme-prices", mime=PDF)
+        await self.doc("acme-tour", mime=MP4, media={"duration_s": 125.4})
+        await self.doc("acme-secret", access_level="private")
+        data = tiny_pdf(["Acme price list"], ["Plans"])
+        calls = []
+
+        def get_bytes(key, max_bytes):
+            calls.append(key)
+            return data if key == pdf["blob_key"] else None
+
+        pages = [{"path": "/start", "markdown": '::markdrop{src="https://markdrop.in/acme-prices"}\n\n::markdrop{src="https://markdrop.in/acme-tour" summary="x"}\n\n'
+                  '::markdrop{src="https://markdrop.in/acme-secret"}\n\n::markdrop{src="https://markdrop.in/acme-prices"}'}]
+        with mock.patch.object(r2, "get_bytes", get_bytes):
+            infos = await de.text_infos(self.db, pages)
+            again = await de.text_infos(self.db, pages)
+        self.assertEqual(sorted(infos), ["acme-prices", "acme-tour"])  # nothing at all about the private file
+        self.assertEqual((infos["acme-prices"]["type"], infos["acme-prices"]["pages"], infos["acme-prices"]["outline"]), ("PDF", 1, ["Plans"]))
+        self.assertIn("Acme price list", infos["acme-prices"]["text"])
+        self.assertEqual((infos["acme-tour"]["type"], infos["acme-tour"]["duration"]), ("Video", 125.4))
+        self.assertEqual(again, infos)
+        self.assertEqual(calls, [pdf["blob_key"]])  # extracted once per blob
+        # The Ask AI index reads the same text version.
+        from app.services import docs_index
+
+        plain = docs_index.to_plain_markdown('::markdrop{src="https://markdrop.in/acme-prices" summary="Plans and prices."}', embeds=infos)
+        self.assertIn("[PDF: Acme Prices](https://markdrop.in/acme-prices) (1 page)", plain)
+        self.assertIn("Plans and prices.", plain)
+        self.assertIn("Text: Acme price list", plain)
+        self.assertEqual(docs_index.to_plain_markdown('::markdrop{src="https://markdrop.in/acme-secret"}', embeds=infos),
+                         "[Markdrop file: acme-secret](https://markdrop.in/acme-secret)")
+
+    async def test_content_files_carry_embeds_json(self):
+        row = {"_id": ObjectId(), "name": "Acme", "slug": "acme", "settings": {}, "engine_extra": {}, "domains": []}
+        files, _ = docs_snapshot.content_files(row, {"pages": [], "settings": {}, "embeds": {"a": {"title": "A"}}}, url="https://u", ai_api="https://a")
+        self.assertEqual(json.loads(files["embeds.json"]), {"a": {"title": "A"}})
+        files, _ = docs_snapshot.content_files(row, {"pages": [], "settings": {}}, url="https://u", ai_api="https://a")
+        self.assertNotIn("embeds.json", files)
 
 
 if __name__ == "__main__":
