@@ -334,7 +334,7 @@ export default function GuidesLanding() {
                 </figure>
                 <figure className={s.tile}>
                   <Shot src="/docs-assets/guides/embed-files/insights.webp" alt="Embedded files in Insights: the pricing calculator (64 views, 66% used it), the product tour (41 views, 30 plays, where viewers stop) and the price list." w={1600} h={543} />
-                  <figcaption><strong>Video</strong> with chapters and captions, and per-embed analytics that feed the Fix list.</figcaption>
+                  <figcaption><strong>Video and per-embed analytics</strong>: chapters and captions, plays, where viewers stop, all fed into the Fix list.</figcaption>
                 </figure>
                 <figure className={s.tile}>
                   <Shot src="/docs-assets/guides/embed-files/sandbox-probe.webp" alt="A test page embedded in a guide reports what it can reach: localStorage, cookies, the guide page, IndexedDB, a service worker and navigating the guide away are all blocked, and its origin is opaque." w={1520} h={972} />
@@ -405,7 +405,7 @@ export default function GuidesLanding() {
               </div>
               <p className={s.contrast}>
                 For comparison ({COMPARED_LABEL}): GitBook keeps authenticated access in Ultimate, $249 per site a month; Mintlify asks for Pro
-                ($450 a month) for a password and Enterprise for reader sign-in. <a href="#compare">See the comparison</a>.
+                ($450 a month, billed yearly) for a password and Enterprise for reader sign-in. <a href="#compare">See the comparison</a>.
               </p>
               <div className={s.pillarCta}>
                 <StartLink cta="pillar" pillar="private_pages" className={`md-btn md-btn--lg ${s.primary}`}>

@@ -53,7 +53,7 @@ export const COMPARISON: Row[] = [
     label: "What to fix next",
     guides: { text: "Free: one ranked Fix list with an AI-drafted fix for each item", tone: "yes" },
     gitbook: { text: "Content gaps and Broken links: Ultimate, $249/site/month + $12/user (beta)", href: SRC.gitbookQuality, tone: "part" },
-    mintlify: { text: "Analytics and assistant insights need Pro, $450/month", href: SRC.mintlifyAnalytics, tone: "part" },
+    mintlify: { text: "Analytics and assistant insights need Pro, $450/month billed yearly", href: SRC.mintlifyAnalytics, tone: "part" },
   },
   {
     label: "AI answers for readers",

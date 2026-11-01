@@ -28,6 +28,7 @@ import { GUIDES_VIEW_ATTR, TOKEN_KEY_FOR_VIEW, isAboutQuery } from "./view";
 const StudioShell = dynamic(() => import("@/components/docs-sites/studio/StudioShell"), { loading: () => <StudioLoader /> });
 const StudioHome = dynamic(() => import("@/components/docs-sites/StudioHome"), { loading: () => <StudioLoader /> });
 
+const STUDIO_HOME_TITLE = "Your guides · Markdrop Guides";
 const noSubscribe = () => () => {};
 function readToken(): boolean {
   try {
@@ -56,12 +57,23 @@ export default function GuidesFrame({ children }: { children: React.ReactNode })
   // Keep the pre-paint marker in step with what is shown (and gone once we leave /guides).
   useEffect(() => {
     const html = document.documentElement;
-    if (atHome && view === "studio") {
-      html.setAttribute(GUIDES_VIEW_ATTR, "studio");
-      // The static page's title is the landing page's; the studio home keeps its own.
-      document.title = "Your guides · Markdrop Guides";
-    } else html.removeAttribute(GUIDES_VIEW_ATTR);
-    return () => html.removeAttribute(GUIDES_VIEW_ATTR);
+    if (!(atHome && view === "studio")) {
+      html.removeAttribute(GUIDES_VIEW_ATTR);
+      return;
+    }
+    html.setAttribute(GUIDES_VIEW_ATTR, "studio");
+    // The static page's <title> is the landing page's (and Next may write it again after
+    // hydration): the studio home keeps its own while it's the one showing.
+    const apply = () => {
+      if (window.location.pathname.replace(/\/+$/, "") === "/guides" && document.title !== STUDIO_HOME_TITLE) document.title = STUDIO_HOME_TITLE;
+    };
+    apply();
+    const mo = new MutationObserver(apply);
+    mo.observe(document.head, { subtree: true, childList: true, characterData: true });
+    return () => {
+      mo.disconnect();
+      html.removeAttribute(GUIDES_VIEW_ATTR);
+    };
   }, [atHome, view]);
 
   if (landing) return <>{children}</>;
