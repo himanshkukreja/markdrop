@@ -13,6 +13,7 @@ import { PREVIEW_FONTS_HREF, coloursFromImage, contrastChecks, miniLook, preview
 import { usePublishState } from "./PublishState";
 import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useSite } from "./SiteContext";
+import DesignReset from "./DesignReset";
 import ThemePreview from "./ThemePreview";
 import useLeaveGuard from "./useLeaveGuard";
 import { fullCustom, isEmptyCustom, templateTheme, type ThemeTemplate } from "@/lib/guideThemes";
@@ -204,7 +205,7 @@ export default function DesignPanel() {
         status={dirty ? <Badge size="sm" tone="warning" dot>Unsaved</Badge> : null}
         actions={isAdmin ? (
           <>
-            {dirty && <Button variant="ghost" size="sm" disabled={saving} onClick={() => setTheme(saved)}>Reset</Button>}
+            {dirty && <Button variant="ghost" size="sm" disabled={saving} onClick={() => setTheme(saved)}>Discard changes</Button>}
             {dirty || saving
               ? <Button variant="primary" size="sm" loading={saving} disabled={!!cssProblem} onClick={() => void save()}>Save design</Button>
               : <Button variant="secondary" size="sm" iconLeft="check" disabled>Saved</Button>}
@@ -406,6 +407,8 @@ export default function DesignPanel() {
               )}
             </div>
           </details>
+
+          {isAdmin && <DesignReset site={site} saved={saved} dirty={dirty} onSite={setSite} onReset={() => setSavedBanner(true)} />}
         </section>
 
         {/* Side by side, the preview stays in view while the settings scroll (like the editor's side panels). */}

@@ -782,7 +782,10 @@ export default function EditorPage() {
             <div className="flex w-full min-w-0 max-w-[756px] flex-col gap-4">
               {session.loadError && (
                 <EmptyState icon="alertCircle" title={session.loadError.status === 404 ? "This page doesn't exist any more" : "We couldn't open this page"} description={session.loadError.message}
-                  actions={firstPage ? <Button variant="secondary" onClick={() => open(firstPage)}>Open the first page</Button> : undefined} />
+                  actions={<>
+                    {session.loadError.status !== 404 && <Button variant="primary" iconLeft="refresh" onClick={session.reload}>Try again</Button>}
+                    {firstPage && firstPage !== pageId && <Button variant="secondary" onClick={() => open(firstPage)}>Open the first page</Button>}
+                  </>} />
               )}
               {tree && tree.pages.length === 0 && (
                 <EmptyState icon="doc" title="No pages yet" description="Add the first page of your guide." actions={canEdit ? <Button variant="primary" iconLeft="plus" onClick={() => { setNewInit({ title: "" }); setNewOpen(true); }}>New page</Button> : undefined} />

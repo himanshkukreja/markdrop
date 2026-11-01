@@ -1567,6 +1567,18 @@
     "bytes": 113116,
     "kind": "image"
   },
+  "/docs-assets/guides/themes/design-reset.dark.webp": {
+    "w": 992,
+    "h": 850,
+    "bytes": 37156,
+    "kind": "image"
+  },
+  "/docs-assets/guides/themes/design-reset.webp": {
+    "w": 992,
+    "h": 850,
+    "bytes": 38240,
+    "kind": "image"
+  },
   "/docs-assets/guides/themes/design-saved.dark.webp": {
     "w": 2880,
     "h": 444,

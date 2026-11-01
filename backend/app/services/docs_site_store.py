@@ -795,6 +795,8 @@ async def seed_pages(db: AsyncIOMotorDatabase, site_id: ObjectId, user: User, te
 async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str | None, name: str, slug: str,
                       source: dict) -> tuple[dict, studio_roles.Resolved, dict | None]:
     """(site, caller's role, job or None)."""
+    from app.services import docs_site_design
+
     name = (name or "").strip()
     if not name:
         raise HTTPException(status_code=422, detail="Give the guide a name.")
@@ -860,6 +862,9 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
         "last_published_at": None,
         "last_published_by": None,
         "build_seq": 0,
+        # Reset design goes back to this (services/docs_site_design.py); an import that brings a
+        # look replaces it with the design it leaves.
+        **docs_site_design.baseline_fields(st["theme"], "created"),
         "created_at": at,
         "updated_at": at,
         "deleted_at": None,
@@ -905,6 +910,8 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
 
 async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None, slug: str | None,
                       settings_patch: dict | None) -> dict:
+    from app.services import docs_site_design
+
     updates: dict = {}
     if name is not None:
         n = name.strip()
@@ -938,6 +945,9 @@ async def update_site(db: AsyncIOMotorDatabase, site: dict, *, name: str | None,
                     import bcrypt
 
                     access["password_hash"] = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+        if "theme" in patch and site.get("design_baseline") is None:
+            # A guide from before resets were recorded: keep its starting design before it changes.
+            await docs_site_design.ensure(db, site)
         merged = site_settings.deep_merge(site.get("settings") or site_settings.default_settings(), patch)
         try:
             validated = site_settings.validate(merged)
