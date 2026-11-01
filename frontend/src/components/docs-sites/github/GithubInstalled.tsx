@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, Button, Icon, Spinner } from "@/components/ui";
 import { useLocationSearch, useMounted } from "@/components/shell/useLocation";
-import { connectGithub, githubError, startGithubAuthorize, type GithubInstallation } from "@/lib/docsGithub";
+import { connectGithub, githubError, isGithubRedirect, startGithubAuthorize, type GithubInstallation } from "@/lib/docsGithub";
 import { StudioLoader, useStudioSession } from "../SiteContext";
 import { STUDIO, STUDIO_GITHUB_INSTALLED, studioNew } from "../routes";
 import { NOT_SET_UP, recallConnect } from "./GithubNotes";
@@ -129,7 +129,7 @@ export default function GithubInstalled() {
     setRetryError("");
     try {
       const { url } = await startGithubAuthorize(s.workspace, s.returnTo);
-      if (!/^https:\/\//i.test(url)) throw new Error("GitHub didn't answer as expected. Try again.");
+      if (!isGithubRedirect(url)) throw new Error("GitHub didn't answer as expected. Try again.");
       window.location.assign(url);
     } catch (e) {
       const g = githubError(e);

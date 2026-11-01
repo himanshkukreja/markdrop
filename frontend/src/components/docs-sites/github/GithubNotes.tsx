@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Alert, Button, type ButtonProps } from "@/components/ui";
-import { githubError, startGithubAuthorize, startGithubInstall } from "@/lib/docsGithub";
+import { githubError, isGithubRedirect, startGithubAuthorize, startGithubInstall } from "@/lib/docsGithub";
 
 /** The one sentence for a server without the Markdrop Guides app. */
 export const NOT_SET_UP = "Not set up yet: private repositories and sync need the Markdrop Guides GitHub App. Public repositories import without it.";
@@ -93,7 +93,7 @@ export function ConnectGithubButton({ workspace, returnTo, link, children, onErr
     setBusy(true);
     try {
       const { url } = await (link ? startGithubAuthorize : startGithubInstall)(workspace, returnTo);
-      if (typeof url !== "string" || !/^https:\/\//i.test(url)) throw new Error("GitHub didn't answer as expected. Try again.");
+      if (!isGithubRedirect(url)) throw new Error("GitHub didn't answer as expected. Try again.");
       rememberConnect(workspace, returnTo);
       window.location.assign(url);
     } catch (err) {

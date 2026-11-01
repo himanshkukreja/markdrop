@@ -303,3 +303,9 @@ export function disconnectSiteGithub(siteId: string): Promise<{ ok: true }> {
 export function adoptGithubOpenapi(siteId: string, path: string): Promise<ApiReferenceStatus> {
   return docsRequest(`/${enc(siteId)}/github/openapi`, { method: "POST", json: { path } });
 }
+
+/** Where the browser may be sent to install or authorize the app: an https:// address (GitHub), or a
+ * loopback http:// one (a local stack's stand-in for GitHub). */
+export function isGithubRedirect(url: unknown): url is string {
+  return typeof url === "string" && (/^https:\/\//i.test(url) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(url));
+}
