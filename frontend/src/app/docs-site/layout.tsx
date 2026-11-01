@@ -9,6 +9,7 @@ import { AskRoot } from "@/docs/client/ask/AskRoot";
 import { MediaLightbox } from "@/docs/client/Media";
 import { DocsSiteProvider } from "@/docs/client/site";
 import { InsightsBeacon } from "@/docs/client/Insights";
+import { ReaderSignals } from "@/docs/client/Signals";
 import { defaultModeScript, forcedModeScript, siteTheme } from "@/docs/themeSite";
 import { themeAttrs } from "@/docs/theme.mjs";
 import { themeStylesheet } from "@/docs/themeFonts";
@@ -23,7 +24,8 @@ import { themeStylesheet } from "@/docs/themeFonts";
  * also gets `data-preset` and `data-layout` on the root (and one attribute per custom-theme choice:
  * theme.mjs themeAttrs), the theme's stylesheet and, when it forces
  * a colour mode, the script that pins it; a site without one gets none of these. A Markdrop Guides
- * site with Insights on (site.json `insights`) also gets the navigation beacon (client/Insights.tsx).
+ * site with Insights on (site.json `insights`) also gets the navigation beacon (client/Insights.tsx) and
+ * the reader signals its Fix list reads (client/Signals.tsx).
  */
 export function generateMetadata(): Metadata {
   const site = getSite();
@@ -69,6 +71,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         {client.ai && <AskRoot siteUrl={site.url} suggestions={site.home?.chips} />}
         <MediaLightbox />
         {client.insights && <InsightsBeacon base={client.insights} />}
+        {client.insights && <ReaderSignals base={client.insights} sample={client.signalsSample} />}
       </DocsSiteProvider>
     </div>
   );

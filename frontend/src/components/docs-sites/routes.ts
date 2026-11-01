@@ -9,6 +9,8 @@
  *   /guides/<site>/changelog   the changelog: entries (?entry=<id>|new), Coming next, products, preview
  *   /guides/<site>/design      themes, brand, fonts, custom CSS
  *   /guides/<site>/publish     changes, publish, reviews, history
+ *   /guides/<site>/fixes       the Fix list: what to fix next (?status=…&type=…&page=<path>&item=<id>,
+ *                              ?sample=1 the sample list)
  *   /guides/<site>/insights    readers: views, searches, Ask AI questions, feedback (?range=7d|30d|90d)
  *   /guides/<site>/settings    → /settings/general (an old #anchor → its section, settings/sections.ts)
  *   /guides/<site>/settings/<section>  general, domains (…/new, …/<host>), access, ask-ai, api-reference,

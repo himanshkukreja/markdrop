@@ -333,6 +333,7 @@ export function VideoSlot({ vid, label, duration }: P) {
     const poster = assetPath(ref.poster) ?? undefined;
     return (
       <VideoPlayer
+        videoId={id || undefined}
         src={file}
         poster={poster}
         w={m?.w}

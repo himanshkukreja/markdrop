@@ -2,6 +2,7 @@ import Link from "@/docs/client/Link";
 import { Button } from "@/components/ui";
 import { getSite, hasChangelog } from "@/docs/content";
 import { DocsFooter, DocsHeader } from "@/docs/ui/Chrome";
+import { BrokenLinkSignal } from "@/docs/client/Signals";
 
 export default function DocsNotFound() {
   const site = getSite();
@@ -24,6 +25,8 @@ export default function DocsNotFound() {
         </div>
       </main>
       <DocsFooter />
+      {/* A Markdrop Guides site with Insights on: the address goes to its Fix list as a broken link. */}
+      <BrokenLinkSignal />
     </>
   );
 }

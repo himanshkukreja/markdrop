@@ -57,6 +57,8 @@ export interface VideoPlayerProps {
   chapters?: Chapter[];
   chaptersSrc?: string;
   captionsSrc?: string;
+  /** The `::video` slot's id: on the <video> as data-video-id, for a guide's reader signals (client/Signals.tsx). */
+  videoId?: string;
   /** Start playing as soon as it mounts (a dialog opened by a click), unless reduced motion. */
   autoPlay?: boolean;
   /** The chapter list under the player (the docs page). Off in the dialog. */
@@ -144,7 +146,7 @@ function Glyph({ name }: { name: string }) {
 
 type Menu = null | "speed" | "chapters";
 
-export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chaptersProp, chaptersSrc, captionsSrc, autoPlay = false, chapterList = true, caption = false, className, onVideo }: VideoPlayerProps) {
+export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chaptersProp, chaptersSrc, captionsSrc, autoPlay = false, chapterList = true, caption = false, className, onVideo, videoId }: VideoPlayerProps) {
   const uid = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -698,6 +700,7 @@ export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chap
           ref={videoRef}
           src={src}
           className="dx-vp__video"
+          data-video-id={videoId || undefined}
           preload={near ? "metadata" : "none"}
           playsInline
           width={w}

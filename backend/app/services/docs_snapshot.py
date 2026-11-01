@@ -219,6 +219,12 @@ def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[di
         base = f"{ai_api.rstrip('/')}/api/v1/docs/insights/{site_id}"
         out["feedback"] = f"{base}/feedback"
         out["insights"] = base
+        # Reader signals (services/guide_signals.py): the share of page views measured (1 = all).
+        try:
+            sample = float(((settings.get("insights") or {}).get("sample")) or 1)
+        except (TypeError, ValueError):
+            sample = 1.0
+        out["signals"] = {"sample": min(1.0, max(0.05, sample))}
     # A password or members-only site: the edge gates every address, but Ask AI is answered by the
     # API, which doesn't check the edge's session yet, so it stays off; and nothing is indexed.
     out["ai"] = (

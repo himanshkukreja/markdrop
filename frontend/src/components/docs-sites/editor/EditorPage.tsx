@@ -21,6 +21,7 @@ import {
 import { commentsSummary, editorAiEdit, editorAiStatus, type EditorAiStatus, type PresencePerson } from "@/lib/guideEditor";
 import { guideEvents } from "@/lib/guidesEvents";
 import { markdropHost } from "@/lib/docsEmbeds";
+import { fixApplied, getFix, type FixDraft } from "@/lib/guideFixes";
 import { firstName, timeAgo } from "../format";
 import { usePublishState } from "../PublishState";
 import SiteBar, { STUDIO_CHROME_H } from "../SiteBar";
@@ -403,6 +404,53 @@ export default function EditorPage() {
     p.delete("new");
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${p.size ? `?${p}` : ""}`);
   }, [askedNew, tree, canEdit]);
+  // ?fix=<id> (the Fix list's "Open in editor"): the drafted fix, offered as a suggestion over the
+  // section it rewrites once the page is open for editing (Visual mode); nothing changes until Accept.
+  const askedFix = new URLSearchParams(search).get("fix");
+  const [fixOffer, setFixOffer] = useState<{ id: string; type: string; draft: FixDraft } | null>(null);
+  const [fixFallback, setFixFallback] = useState<{ draft: FixDraft; why: string } | null>(null);
+  useEffect(() => {
+    if (!askedFix) return;
+    const p = new URLSearchParams(window.location.search);
+    p.delete("fix");
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${p.size ? `?${p}` : ""}`);
+    getFix(site.id, askedFix).then((f) => {
+      const d = f.draft;
+      if (d && (d.kind === "section" || d.kind === "append" || d.kind === "link")) setFixOffer({ id: f.id, type: f.type, draft: d });
+      else toast.info("That fix has no draft to apply any more.");
+    }).catch(() => toast.error("Couldn't load the suggested fix."));
+  }, [askedFix, site.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!fixOffer || !page || !fields || page.id !== fixOffer.draft.page_id) return;
+    if (lock.kind === "theirs" || lock.kind === "readonly") {
+      setFixFallback({ draft: fixOffer.draft, why: "Someone else is editing this page, so the fix can't be offered in place." });
+      setFixOffer(null);
+      return;
+    }
+    if (lock.kind !== "mine") return;
+    if (mode !== "visual") { setMode("visual"); return; }
+    const offer = fixOffer;
+    const t = window.setTimeout(() => {
+      const d = offer.draft;
+      const ok = editorApi.current?.suggest({
+        heading: d.heading ?? null,
+        level: d.heading ? d.depth || undefined : undefined,
+        markdown: d.after,
+        title: "Suggested fix from the Fix list",
+        note: "Edit it after you accept, or discard it. It's marked fixed when you publish.",
+        onAccept: () => {
+          guideEvents.fixApplied(offer.type, "editor");
+          void fixApplied(site.id, offer.id, page.id).then(
+            () => toast.success("Fix applied. Publish to put it live: the Fix list marks it fixed then."),
+            () => toast.success("Fix applied."),
+          );
+        },
+      });
+      if (!ok) setFixFallback({ draft: d, why: "The section this fix rewrites has changed since it was drafted." });
+      setFixOffer(null);
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [fixOffer, page, fields, lock.kind, mode]); // eslint-disable-line react-hooks/exhaustive-deps
   const summary = tree?.pages.find((p) => p.id === pageId) ?? null;
   const group = groups?.find((g) => g.pages.some((p) => p.id === pageId));
 
@@ -799,6 +847,17 @@ export default function EditorPage() {
               )}
               <div className={cx(mode === "visual" && "sm:pl-14")}>{lockBanner}</div>
               {lock.kind === "acquiring" && <p className={cx("flex items-center gap-2 text-[13px] text-text-muted", mode === "visual" && "sm:pl-14")}><Spinner size={12} /> Opening for editing…</p>}
+              {fixFallback && (
+                <div className={cx(mode === "visual" && "sm:pl-14")}>
+                  <Alert tone="info" title="Suggested fix from the Fix list"
+                    actions={<>
+                      <Button size="sm" variant="secondary" iconLeft="copy" onClick={() => void copyText(fixFallback.draft.after).then((ok) => ok && toast.success("Copied. Paste it where it belongs."))}>Copy the fix</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setFixFallback(null)}>Dismiss</Button>
+                    </>}>
+                    {fixFallback.why} Copy it and paste it where it belongs{fixFallback.draft.heading ? ` (it rewrites “${fixFallback.draft.heading}”)` : ""}.
+                  </Alert>
+                </div>
+              )}
 
               {fields && page && (
                 <DocsEditor

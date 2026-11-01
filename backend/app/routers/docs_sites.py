@@ -23,6 +23,7 @@ from app.routers.docs_site_domains import router as domains_router
 from app.routers.docs_site_editor import router as editor_router
 from app.routers.docs_site_api import router as api_router
 from app.routers.docs_site_changelog import router as changelog_router
+from app.routers.guide_fixes import router as fixes_router
 from app.routers.docs_site_pages import DocsRoute
 from app.routers.docs_site_pages import router as pages_router
 from app.routers.docs_site_people import router as people_router
@@ -70,9 +71,15 @@ async def insights_summary(request: Request, db: AsyncIOMotorDatabase = Depends(
     guide its daily views, readers and % helpful. A guide with Insights off shows no numbers and
     counts in no total (services/guide_insights.py ``home_summary``). Declared before
     ``/{site_id}`` so the path isn't read as a site id."""
-    from app.services import guide_insights
+    from app.services import guide_fixes, guide_insights
 
-    return await guide_insights.home_summary(db, await store.visible_site_rows(db, user))
+    out = await guide_insights.home_summary(db, await store.visible_site_rows(db, user))
+    # The cards' "N things to fix" (services/guide_fixes.py): guides with Insights on only.
+    counts = await guide_fixes.open_counts(db, [s for s, v in out["sites"].items() if v.get("enabled")])
+    for sid, v in out["sites"].items():
+        if v.get("enabled"):
+            v["fixes"] = counts.get(sid, {"open": 0, "high": 0})
+    return out
 
 
 @router.get("/slug-available")
@@ -330,3 +337,5 @@ router.include_router(embeds_router)
 router.include_router(editor_router)
 # The changelog: entries, its settings, a page of release notes → entries (routers/docs_site_changelog.py).
 router.include_router(changelog_router)
+# The Fix list: what to fix next, from readers' signals (routers/guide_fixes.py).
+router.include_router(fixes_router)

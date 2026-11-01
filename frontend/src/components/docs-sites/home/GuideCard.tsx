@@ -60,6 +60,7 @@ function MoreMenu({ site, canManagePeople, onDelete }: Pick<GuideItemProps, "sit
   const items: MenuEntry[] = [
     { label: "Design", href: `${base}/design`, icon: "image" },
     { label: "Publish", description: "Changes, reviews and history", href: `${base}/publish`, icon: "history" },
+    { label: "Fix list", href: `${base}/fixes`, icon: "flag" },
     { label: "Insights", href: `${base}/insights`, icon: "chart" },
     { label: "Settings", href: `${base}/settings`, icon: "settings" },
   ];
@@ -142,6 +143,20 @@ function Numbers({ ins, compact }: { ins: CardInsights; compact?: boolean }) {
   );
 }
 
+/** "3 to fix" (the Fix list's open items; red when one is high impact), linking to the Fix list. */
+function FixChip({ ins, site, className }: { ins: CardInsights; site: SiteSummary; className?: string }) {
+  const f = viewsOf(ins)?.fixes;
+  if (!f?.open) return null;
+  const words = `${num(f.open)} ${f.open === 1 ? "thing" : "things"} to fix`;
+  return (
+    <Anchor href={`${siteBase(site.id)}/fixes`} title={f.high ? `${words}, ${f.high} high impact` : words}
+      className={cx("md-focus inline-flex h-[26px] shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-semibold no-underline hover:underline",
+        f.high ? "bg-danger-soft text-danger" : "bg-warning-soft text-warning", className)}>
+      <Icon name="flag" size={12} />{num(f.open)} to fix<span className="md-visually-hidden"> in {site.name}</span>
+    </Anchor>
+  );
+}
+
 /** A guide that isn't (only) live: its one-line note. */
 function Note({ text }: { text: string }) {
   return (
@@ -188,6 +203,7 @@ export function GuideCard({ site, where, insights, canManagePeople, onDelete }: 
       <div className="flex items-center gap-1.5 border-t border-border px-3 py-2.5">
         <OpenButton site={site} className="max-sm:flex-1" block />
         <ViewButton site={site} />
+        {showNumbers && <FixChip ins={insights} site={site} />}
         <span className="flex-1 max-sm:hidden" />
         {!isAdminRole(site.your_role) && <RoleBadge role={site.your_role} className="max-sm:hidden" title={site.your_role_source === "site" ? "Your role on this guide (different from your workspace role)" : "Your Guides role"} />}
         <MoreMenu site={site} canManagePeople={canManagePeople} onDelete={onDelete} />
@@ -216,6 +232,7 @@ export function GuideRow({ site, where, insights, canManagePeople, onDelete }: G
         {showNumbers ? <Numbers ins={insights} /> : <Note text={note ?? "Live"} />}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        {showNumbers && <FixChip ins={insights} site={site} className="max-sm:hidden" />}
         <OpenButton site={site} />
         <ViewButton site={site} />
         <MoreMenu site={site} canManagePeople={canManagePeople} onDelete={onDelete} />

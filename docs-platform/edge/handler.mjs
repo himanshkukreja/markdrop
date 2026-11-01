@@ -35,7 +35,7 @@ import {
   SECRET_MIN, SESSION_COOKIE, SESSION_TTL, STATE_COOKIE, STATE_TTL, brandFiles, b64url, callbackPage, cookie, gatePage,
   grantProblem, mintSession, newState, parseCookies, parsePolicy, privatePage, safeNext, sessionValid, stateHash, validState,
 } from "./access.mjs";
-import { isPageView, sendView } from "./insights.mjs";
+import { agentVia, isPageView, sendAgent, sendView } from "./insights.mjs";
 
 const RSC_VARY = "RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch, Accept";
 const MCP_ROUTE = `${DOCS_INTERNAL}/mcp`;
@@ -179,6 +179,12 @@ export function createHandler(store, options = {}) {
     sendView({ req, url, site, apiOrigin, secret, ctx: ctxOf.get(req), fetchFn });
   }
 
+  /** An agent read of a machine-readable output (a Markdown twin, llms.txt, MCP), after the response. */
+  function countAgent(req, url, site, m, via) {
+    if (!insightsOn || !m.site?.insights || !via) return;
+    sendAgent({ req, url, site, apiOrigin, secret, via, ctx: ctxOf.get(req), fetchFn });
+  }
+
   async function siteFor(host) {
     if (options.fixedSite) return options.fixedSite;
     const hit = hosts.get(host);
@@ -266,6 +272,7 @@ export function createHandler(store, options = {}) {
     }
     if (ctx?.waitUntil) engine.hooks.after = (task) => ctx.waitUntil(Promise.resolve().then(task).catch(() => {}));
     options.onServe?.({ kind: "mcp", status: 200, size: 0 });
+    if (req.method === "POST") countAgent(req, new URL(req.url), site, m, "mcp");
     const fn = engine.route[req.method];
     if (typeof fn !== "function") return text("Method not allowed\n", 405, { allow: "POST, GET, DELETE, OPTIONS" });
     return fn(req);
@@ -390,6 +397,7 @@ export function createHandler(store, options = {}) {
         const csp = isPage ? pageCsp(m.site) : null;
         const res = await serve(req, r, { type: r.t, cache, headers: { vary: isPage ? RSC_VARY : "Accept", ...(csp ? { "content-security-policy": csp } : {}) }, kind: isPage ? "page" : r.t.startsWith("image/") ? "og" : "text" });
         if (isPage && (res.status === 200 || res.status === 304)) countView(req, url, site, m);
+        else if (!isPage && req.method === "GET" && (res.status === 200 || res.status === 304)) countAgent(req, url, site, m, agentVia(internal, r.t));
         return res;
       }
     }

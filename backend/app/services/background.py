@@ -4,7 +4,9 @@ one API worker runs it (§5.1, §5.5, A6):
     revalidate   every 5 s   send due purge jobs from the outbox
     sweeper      every 60 s  destroy expired documents (bytes, versions, grants)
     reconciler   every 60 s  re-derive dirty rows; a full pass once a day
-    guide_insights  hourly   roll up Markdrop Guides' reader insights (services/guide_insights.py)
+    guide_insights  hourly   roll up Markdrop Guides' reader insights (services/guide_insights.py) and
+                             reader signals (services/guide_signals.py), and re-detect each active
+                             guide's Fix list once a day (services/guide_fixes.py)
 
 Started from the app lifespan when ``MARKDROP_BACKGROUND_WORKERS_ENABLED`` (on
 by default; tests leave it off and call the loop bodies directly).
@@ -104,9 +106,11 @@ async def _reconcile(db: AsyncIOMotorDatabase) -> None:
 
 
 async def _insights(db: AsyncIOMotorDatabase) -> None:
-    from app.services import guide_insights
+    from app.services import guide_fixes, guide_insights, guide_signals
 
     await guide_insights.rollup_due(db)
+    await guide_signals.rollup_due(db)
+    await guide_fixes.check_due(db)
 
 
 def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:

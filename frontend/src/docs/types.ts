@@ -160,6 +160,11 @@ export interface SiteConfig {
    * (client/Insights.tsx), and the docs edge counts page loads. Absent: nothing is sent.
    */
   insights?: string;
+  /**
+   * Reader signals (client/Signals.tsx, sent to `${insights}/signal` for the guide's Fix list):
+   * `sample` is the share of page views measured (default 1, every view).
+   */
+  signals?: { sample?: number };
   /** Hosts whose links `::embed` may frame. Anything else renders as a link card. */
   embedHosts?: string[];
   /**
