@@ -177,3 +177,16 @@ test("an untouched page stays byte-identical after unrelated edits elsewhere are
     assert.equal(fp(t.node), t.node.attrs.md.fp);
   }
 });
+
+test("lists: a blank line ending a list inside a quote doesn't make it loose; an edit keeps the next list as written", () => {
+  // "> - a\n> - b\n>\n> > q": mdast calls the list loose; written back loose it would gain blank lines.
+  const quoted = parseMarkdown("> - list in quote\n> - second\n>\n> > nested quote\n").doc;
+  assert.equal(quoted.content[0].content[0].attrs.spread, false);
+  // Editing "2) b" re-writes that list; the "." list after it can't merge with it, so it keeps its own numbering.
+  const src = "1) a\n2) b\n\n3. c\n4. d\n\n1. e\n1. f\n";
+  const { state, doc } = load(src);
+  const d = clone(doc);
+  lastText(d.content[0].content[1].content[0]).text += " edited";
+  const out = serializeMarkdown({ ...state, doc: d });
+  assert.equal(out, "1) a\n2) b edited\n\n3. c\n4. d\n\n1. e\n1. f\n");
+});

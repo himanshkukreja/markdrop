@@ -254,8 +254,12 @@ function list(n, ctx, strip, src) {
     const inner = kids.length ? flow(kids, ctx, [...strip, { kind: "indent", n: n2 }]) : [paragraph([])];
     return { type: "listItem", attrs: { checked: typeof it.checked === "boolean" ? it.checked : null, spread: !!it.spread, md: null }, content: inner };
   });
-  if (n.ordered) return { type: "orderedList", attrs: { start: n.start ?? 1, spread: !!n.spread, marker, incr, md: null }, content };
-  return { type: "bulletList", attrs: { spread: !!n.spread, marker, md: null }, content };
+  // Loose only with a blank line between items or inside one: mdast also calls a list loose when the
+  // blank line that ends it sits inside a container ("> - a\n> - b\n>\n> > quote"), and writing that
+  // back would put blank lines between the items.
+  const spread = !!n.spread && (items.some((it) => it.spread) || items.some((it, i) => i > 0 && it.position.start.line - items[i - 1].position.end.line > 1));
+  if (n.ordered) return { type: "orderedList", attrs: { start: n.start ?? 1, spread, marker, incr, md: null }, content };
+  return { type: "bulletList", attrs: { spread, marker, md: null }, content };
 }
 
 function table(n, ctx, strip, src) {
@@ -591,6 +595,8 @@ function gapFor(child, prev, preserve) {
 }
 
 const isList = (n) => n && (n.type === "bulletList" || n.type === "orderedList");
+/** A written list's marker: "." or ")" for an ordered list, "-", "*" or "+" for a bulleted one. */
+const listMarker = (type, text) => (type === "orderedList" ? /^\s*\d+([.)])/.exec(text)?.[1] : text.trimStart()[0]);
 
 /** One block → Markdown (no trailing newline). */
 function serializeBlockImpl(node, opts = {}) {
@@ -599,9 +605,11 @@ function serializeBlockImpl(node, opts = {}) {
   const { prev, prevText } = opts;
   // Two lists in a row merge unless their markers differ: only reuse `src` where it was written.
   const listHazard = isList(node) && isList(prev) && node.type === prev.type && md?.prev !== fp(prev);
+  // …but a list written with another marker than the one before it never merges with it: keep it.
+  const listSafe = listHazard && typeof md?.src === "string" && typeof prevText === "string" && listMarker(node.type, md.src) !== listMarker(node.type, prevText);
   // Indented code right after a list would continue the list's last item.
   const indentHazard = isList(prev) && md?.prev !== fp(prev) && /^[ \t]/.test(md?.src ?? "");
-  if (preserve && md && typeof md.src === "string" && md.fp === fp(node) && !listHazard && !indentHazard) return md.src;
+  if (preserve && md && typeof md.src === "string" && md.fp === fp(node) && (!listHazard || listSafe) && !indentHazard) return md.src;
   if (node.type === "rawBlock") return node.attrs.value ?? "";
   if (CONTAINER_TYPES.has(node.type)) return serializeContainer(node, preserve);
   if (node.type === "directiveLeaf") return serializeLeaf(node);
