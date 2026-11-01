@@ -373,14 +373,19 @@ export default function EditorPage() {
   const editable = lock.kind === "mine";
   const people = usePresence(site.id, pageId);
 
-  // ?preview=1 (the Guides home's Preview on a guide that isn't live): open the page's preview once.
-  const previewAsked = useRef(false);
+  // ?preview=1 (the site bar's Preview, Design's "Preview the guide", the Guides home's Preview):
+  // open the page's preview once the page is here. Remembered as soon as it's seen: landing without
+  // ?page= rewrites the address to the first page's (dropping ?preview=1) before that page loads.
   const wantsPreview = new URLSearchParams(search).get("preview") === "1";
+  const [previewPending, setPreviewPending] = useState(false);
   useEffect(() => {
-    if (!wantsPreview || !fields || previewAsked.current) return;
-    previewAsked.current = true;
+    if (wantsPreview) setPreviewPending(true);
+  }, [wantsPreview, search]);
+  useEffect(() => {
+    if (!previewPending || !fields) return;
+    setPreviewPending(false);
     setPreview(true);
-  }, [wantsPreview, fields]);
+  }, [previewPending, fields]);
   // ?new=<title> (Insights › "Write a page"): open New page with the title filled in, once the
   // page tree is here (for its groups), then take it out of the address.
   const askedNew = new URLSearchParams(search).get("new");
