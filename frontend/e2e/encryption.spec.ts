@@ -12,7 +12,7 @@ const NO_KEY_COPY = /This document is end-to-end encrypted/i;
 
 async function expectNoEnvelope(page: Page) {
   // The ciphertext is never rendered (REVAMP §7.3 "Publishing", §10.3 E2E).
-  expect(await page.evaluate(() => document.body.innerText.includes("mdx1."))).toBe(false);
+  expect(await page.evaluate(() => /mdx[12]\./.test(document.body.innerText))).toBe(false);
 }
 
 test("2 · encrypted publish keeps #k=, reload decrypts, a no-key URL shows the missing-key state", async ({ browser }) => {
@@ -43,7 +43,7 @@ test("2 · encrypted publish keeps #k=, reload decrypts, a no-key URL shows the 
   const sent = (await createReq).postDataJSON() as { title: string | null; content: string; encrypted: boolean };
   expect(sent.encrypted).toBe(true);
   expect(sent.title).toBeNull();
-  expect(sent.content).toMatch(/^mdx1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+  expect(sent.content).toMatch(/^mdx2\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
   expect(sent.content).not.toContain(marker);
 
   // The URL keeps the key in the fragment.
@@ -53,7 +53,7 @@ test("2 · encrypted publish keeps #k=, reload decrypts, a no-key URL shows the 
   const hash = url.hash;
   await expect(page.getByRole("heading", { name: `Sealed ${marker}` }).first()).toBeVisible();
   await expectNoEnvelope(page);
-  expect((await readDoc(slug)).body?.content).toMatch(/^mdx1\./);
+  expect((await readDoc(slug)).body?.content).toMatch(/^mdx2\./);
 
   // Reload decrypts, and nothing rewrote the fragment.
   await page.reload({ waitUntil: "domcontentloaded" });

@@ -55,6 +55,8 @@ export function useDocumentViewer({
   // Encrypted, as far as anyone knows yet. The server render can't tell for a gated document (its
   // read is refused), so a client read that turns up an envelope switches this on (adoptDoc).
   const [encrypted, setEncrypted] = useState(encryptedProp);
+  // The same, for callbacks created before the switch (adoptDoc runs from several effects).
+  const encryptedRef = useRef(encryptedProp);
   // Sign-in has to come back to the exact address the reader was refused at —
   // on a workspace's own domain that is not `/${slug}`.
   const pathname = usePathname();
@@ -193,7 +195,7 @@ export function useDocumentViewer({
   function requestCopy() {
     if (!user) {
       // Google sign-in leaves the page and comes back on `next`, without the fragment.
-      if (encrypted) e2e.stashPendingKey();
+      e2e.stashPendingKey();
       // Not signed in: open the shared sign-in modal right here (no page nav).
       // Email sign-in resumes the copy in-place; Google redirects and resumes
       // on return via ?copy=1.
@@ -341,7 +343,8 @@ export function useDocumentViewer({
     if (doc.encrypted) {
       // A gated document only now turns out to be encrypted: from here on it is
       // handled as one (decryption, editing, analytics off).
-      if (!encrypted) {
+      if (!encryptedRef.current) {
+        encryptedRef.current = true;
         setEncrypted(true);
         setDisplayTitle(null);
         setDisplayContent("");
@@ -579,6 +582,21 @@ export function useDocumentViewer({
     return null;
   }
 
+  // A new link pasted into the address bar for the same page only changes the fragment: the
+  // browser doesn't reload, so pick the key up here ("ask them for the new link" has to work).
+  useEffect(() => {
+    if (!encrypted) return;
+    const onHash = () => {
+      const key = e2e.readKeyFromFragment();
+      if (!key || key === keyFragment) return;
+      setDecryptReason(null);
+      setKeyFragment(null);
+      setCandidates((c) => ({ link: key, device: c?.device ?? e2e.recallKey(slug), pasted: false }));
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, [encrypted, keyFragment, slug]);
+
   /** Readers opt in to keeping the key on this device (decision 3). */
   function rememberOnDevice() {
     if (!keyFragment) return;
@@ -594,14 +612,16 @@ export function useDocumentViewer({
    * Keep the key through a trip to sign in (`/login?next=…`, the workspace
    * handoff, Google). This tab only, single use, never a query string.
    */
+  // Not only once the document is known to be encrypted: a gated one (private, or behind the old
+  // server password) can't say so until after sign-in. A `#k=` in the address is reason enough;
+  // without one, stashPendingKey does nothing.
   const stashKeyForSignIn = useCallback(() => {
-    if (encrypted) e2e.stashPendingKey();
-  }, [encrypted]);
+    e2e.stashPendingKey();
+  }, []);
 
   // Any sign-in link on this page drops the fragment on its way out: catch the
   // click (capture phase, before navigation) and stash the key first.
   useEffect(() => {
-    if (!encrypted) return;
     const onClick = (ev: MouseEvent) => {
       const a = (ev.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
       if (!a) return;
@@ -612,7 +632,7 @@ export function useDocumentViewer({
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [encrypted, signInUrl]);
+  }, [signInUrl]);
 
   /**
    * Whether the text itself can be changed — settings still can be, without a key.
@@ -918,12 +938,15 @@ export function useDocumentViewer({
   }, [slug, isPasswordProtected, pwdLocked, claimSecret, readTicket]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Open the editor directly when arriving via ?edit=1 (owner/secret ready).
+  // An encrypted document waits for its decryption to finish (or to fail for good): opening on the
+  // moment before would put an empty document in the editor.
+  const decryptSettled = !encrypted || decryptState === "ok" || decryptState === "nokey" || decryptState === "failed" || decryptState === "unsupported";
   useEffect(() => {
-    if (startInEdit && secretUnlocked && !editOpened.current && !pwdLocked) {
+    if (startInEdit && secretUnlocked && !editOpened.current && !pwdLocked && decryptSettled) {
       editOpened.current = true;
       handleEditClick();
     }
-  }, [startInEdit, secretUnlocked, pwdLocked]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [startInEdit, secretUnlocked, pwdLocked, decryptSettled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resume "Save a copy" after a sign-in redirect (?copy=1), once we know the
   // viewer isn't the owner and the content is unlocked. Opens the modal once.
