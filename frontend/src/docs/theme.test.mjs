@@ -416,6 +416,9 @@ test("custom: colours per mode override the preset (and Match my brand), typogra
   const clean = resolveTheme({ preset: "clean", custom: { light: { accent: "#7c3aed" } } });
   assert.equal(clean.palette.light.bg, "#e3e7ed");
   assert.equal(clean.palette.accent, "#7c3aed");
+  // Only a light accent: the dark theme follows it rather than keeping the preset's own dark accent.
+  assert.equal(resolveTheme({ preset: "midnight", custom: { light: { accent: "#0f766e" } } }).palette.accentDark, undefined);
+  assert.equal(resolveTheme({ preset: "midnight", custom: { light: { bg: "#ffffff" } } }).palette.accentDark, "#a78bfa");
   // The custom radius beats theme.corners.
   assert.deepEqual(resolveTheme({ preset: "clean", corners: "round", custom: { radius: "small" } }).radius, CORNERS.sharp);
 });

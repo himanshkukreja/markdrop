@@ -730,7 +730,8 @@ export function applyCustomColors(palette, custom) {
   }
   if (custom.light?.accent) out.accent = custom.light.accent;
   if (custom.dark?.accent) out.accentDark = custom.dark.accent;
-  else if (custom.light?.accent && !base.accentDark) out.accentDark = undefined;
+  // Only a light accent: dark follows it (lightened by the maths), as a brand accent does.
+  else if (custom.light?.accent) out.accentDark = undefined;
   return out;
 }
 
