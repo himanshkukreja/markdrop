@@ -9,6 +9,7 @@ import { HomeAsk, InstallBox } from "@/docs/client/Chrome";
 import { DocsFooter, DocsHeader, InlineCode } from "@/docs/ui/Chrome";
 import { HelpCenterHome } from "@/docs/ui/HelpCenter";
 import { themeHome } from "@/docs/themeSite";
+import { cardColumns } from "@/docs/render/rules.mjs";
 
 export const dynamic = "force-static";
 
@@ -52,7 +53,8 @@ export default function DocsHome() {
             <h2 id="dx-start-h" className="dx-home__h">
               Start here
             </h2>
-            <div className="dx-grid dx-grid--3">
+            {/* Balanced like a card grid (rules.mjs cardColumns): four start cards are a 2×2 square, not 3 + 1. */}
+            <div className="dx-grid dx-grid--start" style={{ "--dx-cols": cardColumns(start.length) } as React.CSSProperties}>
               {start.map((s) => {
                 const text = startCardText(s, s.page!.meta);
                 return (

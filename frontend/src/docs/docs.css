@@ -389,6 +389,7 @@ html.dx-modal-open { overflow: hidden; }
 .dx-grid { display: grid; gap: 16px; }
 .dx-grid--3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .dx-grid--4 { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.dx-grid--start { --dx-cols: 3; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(240px, calc((100% - (var(--dx-cols) - 1) * 16px) / var(--dx-cols)))), 1fr)); }
 .dx-startcard { display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); color: var(--text); text-decoration: none; }
 .dx-startcard:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
 .dx-startcard:focus-visible, .dx-news__item:focus-visible, .dx-prevnext__link:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
