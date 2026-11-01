@@ -1087,6 +1087,54 @@
     "bytes": 22494,
     "kind": "image"
   },
+  "/docs-assets/guides/import-from-github/import-done.dark.webp": {
+    "w": 1760,
+    "h": 1560,
+    "bytes": 85400,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/import-done.webp": {
+    "w": 1760,
+    "h": 1560,
+    "bytes": 83714,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/import-form.dark.webp": {
+    "w": 1664,
+    "h": 2260,
+    "bytes": 102258,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/import-form.webp": {
+    "w": 1664,
+    "h": 2260,
+    "bytes": 107224,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/settings-github.dark.webp": {
+    "w": 1640,
+    "h": 2424,
+    "bytes": 99894,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/settings-github.webp": {
+    "w": 1640,
+    "h": 2424,
+    "bytes": 102802,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/synced-page.dark.webp": {
+    "w": 1760,
+    "h": 880,
+    "bytes": 65072,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/synced-page.webp": {
+    "w": 1760,
+    "h": 880,
+    "bytes": 67076,
+    "kind": "image"
+  },
   "/docs-assets/guides/import/import-form.dark.webp": {
     "w": 1728,
     "h": 1014,

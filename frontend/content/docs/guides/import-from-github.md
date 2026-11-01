@@ -80,7 +80,11 @@ The preview shows how many pages the folder has and the sidebar groups the guide
 Turn on **Keep in sync** and choose **Update drafts** (each push updates the drafts; you publish when ready) or **Publish automatically** (each push is published after it syncs). Then name the guide and choose **Import**.
 ::::
 
+![The GitHub repository panel on New guide: Your repositories for the acme organization with acme/docs selected, branch main, folder docs (Mintlify, 9 pages), format Auto (Mintlify), What the import brings with 9 pages in 4 groups and an OpenAPI file found, and Keep in sync on with Update drafts chosen.](/docs-assets/guides/import-from-github/import-form.webp)
+
 The import screen shows four steps: downloading the repository, converting pages, copying images and files, and saving as drafts. You can close it: the import keeps running. When it's done, check what **Needs a look before you publish**, as for a [GitBook import](/guides/import-from-gitbook#check-the-report). Nothing is public until you publish.
+
+![The finished import from acme/docs: four completed steps (commit 8d05730; 4 groups, 8 pages; 5 images; 2 old links kept working), Kept in sync with Update drafts, the OpenAPI file offered as the API reference, release notes found, and one row under Needs a look before you publish.](/docs-assets/guides/import-from-github/import-done.webp)
 
 If the repository has an OpenAPI file (a Mintlify site's `openapi` setting, or a file named `openapi.yaml`), the import screen and **Settings › GitHub** offer **Use as API reference**. See [API reference](/guides/api-reference).
 
@@ -102,6 +106,8 @@ Pushes to other branches, and pushes that change nothing in the folder, are igno
 GitHub is the source of truth for the pages it brought:
 
 - A page from GitHub shows **This page comes from GitHub** with its repository and file, and **Edit on GitHub**. You can still edit it here, but the next push that syncs replaces your edit (the page's history keeps it).
+
+![The editor on a page from GitHub: the banner This page comes from GitHub, acme/docs › docs/quickstart.mdx, Changes here are replaced by the next push, with Edit on GitHub; the page tree marks each synced page with a GitHub icon.](/docs-assets/guides/import-from-github/synced-page.webp)
 - Pages you add in the editor stay yours: a sync never changes or removes them, and keeps them in the sidebar where you put them. A file whose address belongs to one of your pages is left out of the sync, and the sync history says so.
 - Design, settings, the changelog and the guide's domains are yours too: a sync only changes pages and the sidebar.
 
@@ -113,6 +119,8 @@ A connected guide's **Settings › GitHub** shows the repository, branch and fol
 - **Keep in sync** and what pushes do (**Update drafts** or **Publish automatically**), the branch and the format. Admins can change them.
 - **Sync history**: each sync with what started it (the first import, a push and who pushed, or **Sync now**), the commit, how many pages were added, updated and removed, and any problem.
 - **Disconnect**: syncing stops, and the pages stay in the guide as ordinary pages you edit here.
+
+![Settings › GitHub for a connected guide: acme/docs › main › docs, In sync, last sync 8b195c2, Keep in sync on with Update drafts, the branch and format, the OpenAPI offer, and a sync history with a push by ada (1 new, 1 updated) and the first import (8 new).](/docs-assets/guides/import-from-github/settings-github.webp)
 
 To connect a guide you made another way, open **Settings › GitHub**, choose the repository and folder, and choose **Connect**. The first sync takes over pages at the same addresses, so a guide's home page becomes the repository's.
 
