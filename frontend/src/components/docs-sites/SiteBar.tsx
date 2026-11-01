@@ -187,7 +187,7 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
 
   return (
     <div className={cx("sticky top-14 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface px-3 py-2 sm:px-5 lg:h-[52px] lg:flex-nowrap lg:py-0", className)}>
-      <nav aria-label="Guide" className="order-last -mx-1 flex w-full gap-0.5 overflow-x-auto px-1 md:order-none md:w-auto md:shrink-0">
+      <nav aria-label="Guide" className="relative order-last -mx-1 flex w-full gap-0.5 overflow-x-auto px-1 md:order-none md:w-auto md:shrink-0">
         {TABS.map((t) => {
           const on = t.id === section;
           const badge = t.id === "publish" && !on && count > 0 ? count : t.id === "fixes" && fixes > 0 ? fixes : 0;
@@ -197,7 +197,7 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
               href={`${base}${t.path}`}
               aria-current={on ? "page" : undefined}
               className={cx(
-                "md-focus inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-body no-underline transition-colors",
+                "md-focus relative inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-body no-underline transition-colors",
                 on ? "bg-surface-active font-semibold text-text" : "text-text-secondary hover:bg-surface-hover hover:text-text",
               )}
             >
