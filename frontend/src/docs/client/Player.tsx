@@ -139,7 +139,7 @@ function Glyph({ name }: { name: string }) {
 
 type Menu = null | "speed" | "chapters";
 
-export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chaptersProp, chaptersSrc, captionsSrc, autoPlay = false, chapterList = true, caption = true, className }: VideoPlayerProps) {
+export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chaptersProp, chaptersSrc, captionsSrc, autoPlay = false, chapterList = true, caption = false, className }: VideoPlayerProps) {
   const uid = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -157,6 +157,8 @@ export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chap
   const [ended, setEnded] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [failed, setFailed] = useState(false);
+  /** The poster stays until the video has a frame to show (no black flash while it loads). */
+  const [hasFrame, setHasFrame] = useState(false);
   const [current, setCurrent] = useState(0);
   const [dur, setDur] = useState<number>(labelDur ?? 0);
   const [buffered, setBuffered] = useState(0);
@@ -661,7 +663,7 @@ export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chap
     <figure className={cx("dx-video dx-vp not-prose", className)}>
       <div
         ref={rootRef}
-        className={cx("dx-vp__frame", started && "is-started", playing && "is-playing", showBar && "has-bar", fs && "is-fs", !showBar && playing && "is-idle")}
+        className={cx("dx-vp__frame", started && "is-started", playing && "is-playing", showBar && "has-bar", fs && "is-fs", menu && "has-menu", !showBar && playing && "is-idle")}
         style={frameStyle}
         role="group"
         aria-label={`Video: ${title}`}
@@ -706,9 +708,15 @@ export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chap
             writeStore(resumeKey(src), null);
           }}
           onWaiting={() => setWaiting(true)}
-          onPlaying={() => setWaiting(false)}
+          onPlaying={() => {
+            setWaiting(false);
+            setHasFrame(true);
+          }}
           onCanPlay={() => setWaiting(false)}
-          onSeeked={() => setWaiting(false)}
+          onSeeked={() => {
+            setWaiting(false);
+            if (started) setHasFrame(true);
+          }}
           onTimeUpdate={onTimeUpdate}
           onProgress={() => {
             const v = videoRef.current;
@@ -741,7 +749,7 @@ export function VideoPlayer({ src, poster, w, h, title, duration, chapters: chap
 
         {poster && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img className={cx("dx-vp__poster", started && "is-gone")} src={poster} alt="" width={w} height={h} loading="lazy" decoding="async" aria-hidden />
+          <img className={cx("dx-vp__poster", started && hasFrame && "is-gone")} src={poster} alt="" width={w} height={h} loading="lazy" decoding="async" aria-hidden />
         )}
 
         <div

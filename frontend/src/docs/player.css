@@ -15,7 +15,7 @@
 .dx-vp__frame.is-idle, .dx-vp__frame.is-idle .dx-vp__surface { cursor: none; }
 
 /* Poster: a large Play, the title and the length (and where this browser left off). */
-.dx-vp__start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(to top, rgb(0 0 0 / 0.62), rgb(0 0 0 / 0.08) 52%, rgb(0 0 0 / 0) 70%); pointer-events: none; }
+.dx-vp__start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(to top, rgb(0 0 0 / 0.78), rgb(0 0 0 / 0.42) 24%, rgb(0 0 0 / 0) 50%); pointer-events: none; }
 .dx-vp__big { pointer-events: auto; display: inline-flex; width: 76px; height: 76px; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: var(--radius-full, 999px); background: var(--accent); color: var(--on-accent, #fff); box-shadow: 0 8px 28px rgb(0 0 0 / 0.35), 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent); cursor: pointer; transition: transform var(--duration-fast, 150ms) var(--ease-out, ease-out); }
 .dx-vp__big .dx-vp__icon { width: 32px; height: 32px; }
 .dx-vp__big:hover { transform: scale(1.05); }
@@ -46,8 +46,8 @@
 .dx-vp__top { position: absolute; left: 0; right: 0; top: 0; padding: 18px 24px 40px; background: linear-gradient(to bottom, rgb(0 0 0 / 0.6), transparent); color: #fff; font-size: 17px; font-weight: 600; pointer-events: none; }
 
 /* The bar: floats over the bottom of the picture. */
-.dx-vp__bar { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 2px; padding: 4px 6px 4px; border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); border-radius: var(--radius-lg, 10px); background: var(--dx-vp-bar); color: var(--dx-vp-ink); box-shadow: 0 6px 24px rgb(0 0 0 / 0.22); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3); opacity: 0; transform: translateY(6px); visibility: hidden; transition: opacity var(--duration-fast, 150ms) var(--ease-out, ease-out), transform var(--duration-fast, 150ms) var(--ease-out, ease-out), visibility 0s linear var(--duration-fast, 150ms); font-family: var(--font-sans, system-ui, sans-serif); }
-.dx-vp__bar.is-shown { opacity: 1; transform: none; visibility: visible; transition-delay: 0s; }
+.dx-vp__bar { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 2px; padding: 4px 6px 4px; border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); border-radius: var(--radius-lg, 10px); background: var(--dx-vp-bar); color: var(--dx-vp-ink); box-shadow: 0 6px 24px rgb(0 0 0 / 0.22); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3); opacity: 0; transform: translateY(6px); pointer-events: none; transition: opacity var(--duration-fast, 150ms) var(--ease-out, ease-out), transform var(--duration-fast, 150ms) var(--ease-out, ease-out); font-family: var(--font-sans, system-ui, sans-serif); }
+.dx-vp__bar.is-shown { opacity: 1; transform: none; pointer-events: auto; }
 .dx-vp__row { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .dx-vp__btn { position: relative; display: inline-flex; flex: none; min-width: var(--dx-vp-btn); height: var(--dx-vp-btn); align-items: center; justify-content: center; padding: 0 6px; border: 0; border-radius: var(--radius-md, 6px); background: transparent; color: var(--dx-vp-ink); font: inherit; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; cursor: pointer; }
 .dx-vp__btn:hover, .dx-vp__btn.is-open { background: var(--surface-hover); }
@@ -113,21 +113,6 @@
 .dx-vp__frame.is-fs .dx-vp__bar { left: 16px; right: 16px; bottom: 16px; }
 .dx-vp__frame.is-fs .dx-vp__icon { width: 22px; height: 22px; }
 
-/* Narrow players (phones, the sidebar): fewer words, the same controls. */
-@container (max-width: 520px) {
-  .dx-vp__chapter { display: none; }
-  .dx-vp__time { padding: 0 4px; font-size: 12px; }
-  .dx-vp__title { font-size: 14px; line-height: 20px; }
-  .dx-vp__meta { left: 12px; right: 12px; bottom: 10px; }
-  .dx-vp__big { width: 64px; height: 64px; }
-  .dx-vp__big .dx-vp__icon { width: 26px; height: 26px; }
-  .dx-vp__menu { right: 6px; bottom: calc(var(--dx-vp-btn) + 32px); max-height: calc(100% - var(--dx-vp-btn) - 40px); }
-  .dx-vp__bar { left: 4px; right: 4px; bottom: 4px; padding: 2px 4px; }
-}
-@container (max-width: 400px) {
-  .dx-vp__sep, .dx-vp__total { display: none; }
-  .dx-vp__pip { display: none; }
-}
 /* Touch: larger targets, no hover-only volume slider (the device's buttons do volume). */
 @media (pointer: coarse) {
   .dx-vp { --dx-vp-btn: 44px; }
@@ -135,6 +120,27 @@
   .dx-vp__track { height: 28px; }
   .dx-vp__rail { height: 5px; margin-top: -2.5px; }
   .dx-vp__thumb { transform: scale(1); }
+}
+/* Narrow players (phones, the sidebar): fewer words, the bar flush with the bottom edge. */
+@container (max-width: 520px) {
+  .dx-vp__bar, .dx-vp__menu, .dx-vp__cues { --dx-vp-btn: 40px; }
+  .dx-vp__btn { min-width: 44px; }
+  .dx-vp__chapter { display: none; }
+  .dx-vp__time { padding: 0 4px; font-size: 12px; }
+  .dx-vp__title { font-size: 14px; line-height: 20px; }
+  .dx-vp__meta { left: 12px; right: 12px; bottom: 10px; }
+  .dx-vp__big { width: 64px; height: 64px; }
+  .dx-vp__big .dx-vp__icon { width: 26px; height: 26px; }
+  .dx-vp__bar { left: 0; right: 0; bottom: 0; gap: 0; padding: 0 2px 2px; border-width: 1px 0 0; border-radius: 0; box-shadow: none; }
+  .dx-vp__track { height: 20px; margin: 0 10px; }
+  .dx-vp__frame.has-bar .dx-vp__cues { bottom: calc(var(--dx-vp-btn) + 28px); }
+  /* A small player gives an open menu the whole picture (a tap outside or Esc closes it). */
+  .dx-vp__frame.has-menu .dx-vp__bar { opacity: 0; pointer-events: none; }
+  .dx-vp__menu { top: 6px; right: 6px; bottom: auto; max-height: calc(100% - 12px); }
+}
+@container (max-width: 400px) {
+  .dx-vp__sep, .dx-vp__total { display: none; }
+  .dx-vp__pip { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .dx-vp__bar, .dx-vp__poster, .dx-vp__rail, .dx-vp__thumb, .dx-vp__big, .dx-vp__cues, .dx-vp__volslider { transition: none; }
