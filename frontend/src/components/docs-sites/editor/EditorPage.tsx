@@ -28,6 +28,7 @@ import { HEADER_SLOT_ID } from "../studio/StudioShell";
 import { CommentsTab, usePageComments } from "./CommentsTab";
 import { EditorPanel, type PanelTab } from "./EditorPanel";
 import { PageTree, groupsOf } from "./PageTree";
+import { moveGroup, movePage, pageToGroup, stepPage } from "./navMove";
 import { linkProblem, outlineOf, pageChecks, readMinutes, scanPage, type Check, type CheckContext } from "./pageChecks";
 import { composeDoc, parseDoc, setDocKeys } from "./pageDoc";
 import { RESERVED_FIRST, pathProblem, suggestedPath } from "./pagePath";
@@ -72,21 +73,6 @@ function SaveStatus({ save, lock, onRetry }: { save: SaveState; lock: LockState;
 function chromeBottom(): number {
   const bar = document.querySelector<HTMLElement>('nav[aria-label="Guide"]')?.parentElement;
   return bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : STUDIO_CHROME_H;
-}
-
-function moveIn(nav: NavGroup[], id: string, dir: -1 | 1): NavGroup[] {
-  return nav.map((g) => {
-    const i = g.pages.indexOf(id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= g.pages.length) return g;
-    const pages = [...g.pages];
-    [pages[i], pages[j]] = [pages[j]!, pages[i]!];
-    return { ...g, pages };
-  });
-}
-
-function moveTo(nav: NavGroup[], id: string, group: string): NavGroup[] {
-  return nav.map((g) => (g.group === group ? { ...g, pages: [...g.pages.filter((x) => x !== id), id] } : { ...g, pages: g.pages.filter((x) => x !== id) }));
 }
 
 /** The guide's API reference operations, offered by the editor's API endpoint block (none without one). */
@@ -176,6 +162,7 @@ const SHORTCUTS: Array<{ group: string; rows: Array<[string, string[]]> }> = [
       ["Quote", ["mod", "⇧", "B"]],
       ["Code block", ["mod", "alt", "C"]],
       ["Move a block", ["alt", "⇧", "↑ / ↓"]],
+      ["Move a card (on its grip)", ["alt", "← / →"]],
       ["Line break", ["⇧", "Enter"]],
     ],
   },
@@ -188,6 +175,14 @@ const SHORTCUTS: Array<{ group: string; rows: Array<[string, string[]]> }> = [
       ["Redo", ["mod", "⇧", "Z"]],
       ["Send a comment or reply", ["mod", "Enter"]],
       ["Keyboard shortcuts", ["?"]],
+    ],
+  },
+  {
+    group: "Page tree (on a page's grip)",
+    rows: [
+      ["Pick up / drop", ["Space"]],
+      ["Move", ["↑ / ↓"]],
+      ["Cancel", ["Esc"]],
     ],
   },
 ];
@@ -280,6 +275,9 @@ export default function EditorPage() {
   const search = useLocationSearch();
   const wanted = new URLSearchParams(search).get("page");
   const [tree, setTree] = useState<PagesResponse | null>(null);
+  // The tree as it is now, for callbacks that outlive a render (a toast's Undo).
+  const treeRef = useRef(tree);
+  treeRef.current = tree;
   const [treeError, setTreeError] = useState("");
   const [mode, setModeState] = useState<EditorMode>("visual");
   const [treeOpen, setTreeOpen] = useState(false);
@@ -402,16 +400,21 @@ export default function EditorPage() {
   const summary = tree?.pages.find((p) => p.id === pageId) ?? null;
   const group = groups?.find((g) => g.pages.some((p) => p.id === pageId));
 
-  async function updateNav(next: NavGroup[]) {
-    const prev = tree;
+  /** Saves a new order (the tree shows it at once); `moved` says what moved, with Undo. */
+  async function updateNav(next: NavGroup[], moved?: string) {
+    const prev = treeRef.current;
+    if (!prev || next === prev.nav) return;
     setTree((t) => t && { ...t, nav: next });
     try {
       await saveNav(site.id, next);
     } catch (e) {
       setTree(prev);
       toast.error(docsErrorMessage(e, "The order didn't save."));
+      return;
     }
+    if (moved) toast.success(moved, { action: { label: "Undo", onClick: () => void updateNav(prev.nav) } });
   }
+  const pageTitle = (id: string) => tree?.pages.find((p) => p.id === id)?.title || "Untitled";
 
   /**
    * The page as one document for the editor (header in the frontmatter, see pageDoc.ts), rebuilt
@@ -711,8 +714,16 @@ export default function EditorPage() {
         loading={!tree}
         comments={talk}
         onNewPage={() => { setNewInit({ title: "" }); setNewOpen(true); }}
-        onMove={(id, dir) => tree && void updateNav(moveIn(tree.nav, id, dir))}
-        onMoveToGroup={(id, g) => tree && void updateNav(moveTo(tree.nav, id, g))}
+        onMove={(id, dir) => tree && void updateNav(stepPage(tree.nav, id, dir))}
+        onMoveToGroup={(id, g) => tree && void updateNav(pageToGroup(tree.nav, id, g), `Moved “${pageTitle(id)}” to ${g}.`)}
+        onDropPage={(id, g, beforeId) => {
+          if (!tree) return;
+          const pages = tree.nav.find((x) => x.group === g)?.pages ?? [];
+          const at = beforeId ? pages.indexOf(beforeId) : -1;
+          const from = tree.nav.find((x) => x.pages.includes(id))?.group;
+          void updateNav(movePage(tree.nav, id, g, at < 0 ? pages.length : at), from === g ? `Moved “${pageTitle(id)}”.` : `Moved “${pageTitle(id)}” to ${g}.`);
+        }}
+        onDropGroup={(from, to) => tree && void updateNav(moveGroup(tree.nav, from, to), `Moved the group ${tree.nav[from]?.group ?? ""}.`)}
         onDelete={setDeleting}
       />
     </>

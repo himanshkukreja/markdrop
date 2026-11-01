@@ -590,9 +590,15 @@ function gapFor(child, prev, preserve) {
   const g = md?.gap;
   if (!preserve || typeof g !== "string" || !/^[ \t]*\n[ \t\n]*$/.test(g)) return "\n\n";
   const blank = (g.match(/\n/g) ?? []).length - 1;
-  if (blank === 0) return md.prev === fp(prev) ? g : "\n\n";
+  if (blank === 0) return md.prev === fp(prev) || fencedSiblings(prev, child) ? g : "\n\n";
   return g;
 }
+
+/**
+ * Two cards (or two tab panes) in a row: the first ends on its closing `:::` fence, so the next can
+ * follow without a blank line whatever the first holds (cards and tabs reordered keep a tight grid).
+ */
+const fencedSiblings = (prev, child) => prev.type === child.type && (child.type === "card" || child.type === "tab");
 
 const isList = (n) => n && (n.type === "bulletList" || n.type === "orderedList");
 /** A written list's marker: "." or ")" for an ordered list, "-", "*" or "+" for a bulleted one. */
