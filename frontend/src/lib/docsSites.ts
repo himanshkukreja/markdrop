@@ -146,11 +146,65 @@ export type Corners = "sharp" | "soft" | "round";
 export type AccessLevel = "public" | "password" | "members";
 export type TemplateId = "product" | "api" | "helpcenter";
 
+/** A repository's docs format (detected from its files; the import can be told which). */
+export type GithubFormat = "markdown" | "gitbook" | "mintlify" | "docusaurus" | "mkdocs";
+/** What a GitHub import is told: work it out ("auto"), or this format. */
+export type GithubFormatChoice = "auto" | GithubFormat;
+/** What a push does to a synced guide: update the drafts, or publish after the sync. */
+export type GithubSyncMode = "drafts" | "publish";
+
 export interface SiteSource {
   kind: SourceKind;
   url?: string | null;
   template?: TemplateId | string | null;
+  /** GitHub: the repository, its branch and the folder ("" = the repo root). */
   repo?: { owner: string; name: string; branch: string; path: string } | null;
+  /** GitHub: the Markdrop Guides app installation that reads it (null: a public repo read without the app). */
+  installation_id?: number | null;
+  format?: GithubFormatChoice | null;
+  mode?: GithubSyncMode | null;
+  /** GitHub: keep the guide in sync on every push (needs the app). */
+  sync?: boolean | null;
+}
+
+/**
+ * A guide's link to a GitHub repository (backend: GET /docs-sites/<site>/github, and the site's
+ * `github`). Synced pages carry `origin`; pages made in the studio don't, and a sync never touches them.
+ */
+export interface GithubLink {
+  installation_id: number | null;
+  owner: string;
+  name: string;
+  branch: string;
+  /** The folder ("" = the repo root): the project folder for config-based formats. */
+  path: string;
+  format: GithubFormatChoice;
+  mode: GithubSyncMode;
+  sync: boolean;
+  /** Read without the app (a public repository). */
+  public: boolean;
+  status: "idle" | "queued" | "syncing" | "error";
+  last_synced_sha: string | null;
+  last_synced_at: string | null;
+  /** The last synced commit on github.com. */
+  last_commit_url?: string | null;
+  last_error: string | null;
+  last_job_id: string | null;
+  /** The format the last sync found (when `format` is "auto"). */
+  detected_format?: GithubFormat | null;
+  connected_at?: string | null;
+  /** https://github.com/<owner>/<name>, or the folder (…/tree/<branch>/<path>) when there is one. */
+  html_url: string | null;
+  /** OpenAPI files found in the repository (repo-relative). */
+  openapi_paths: string[];
+}
+
+/** Where a page came from: a file in the linked repository (null: made in the studio). */
+export interface PageOrigin {
+  kind: "github";
+  /** Repo-relative path of the file. */
+  path: string;
+  sha?: string | null;
 }
 
 export interface SiteBrand {
@@ -564,6 +618,8 @@ export interface Site extends SiteSummary {
   address_ready?: boolean;
   /** POST /docs-sites (GitBook import, template seed) and POST …/unpublish: the job it started. */
   job?: Job | null;
+  /** The GitHub repository the guide is linked to (null or absent: not linked). */
+  github?: GithubLink | null;
 }
 
 export interface PageLock {
@@ -586,6 +642,8 @@ export interface PageSummary {
   rev: number;
   updated_at: string;
   updated_by: string;
+  /** A synced page's file in the linked repository (null or absent: a studio page). */
+  origin?: PageOrigin | null;
 }
 
 export interface PagesResponse {
@@ -729,6 +787,18 @@ export interface WorkerImportResult {
     brand?: ImportedBrand;
   };
   skipped?: string[];
+  /** A GitHub import or sync: the commit it read and what it changed. */
+  github?: {
+    sha: string;
+    short_sha: string;
+    commit_url: string;
+    format: GithubFormat | string;
+    pages: { created: number; updated: number; deleted: number; unchanged: number };
+    /** OpenAPI files found in the repository (repo-relative paths). */
+    openapi: string[];
+    /** Mode "publish": the publish the sync started. */
+    published_build?: number | null;
+  } | null;
 }
 
 export interface UploadedAsset {

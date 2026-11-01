@@ -1,0 +1,26 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Acme Cloud",
+  "description": "Run Acme in the cloud.",
+  "colors": { "primary": "#2563EB", "light": "#60A5FA", "dark": "#1D4ED8" },
+  "logo": "/images/logo.png",
+  "favicon": "/images/logo.png",
+  "api": { "openapi": "api/openapi.json" },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guides",
+        "groups": [
+          { "group": "Start", "pages": ["index", "guides/first-steps"] },
+          { "group": "Deploy", "icon": "server", "pages": ["guides/deploy", { "group": "Regions", "pages": ["guides/regions/eu"] }] }
+        ]
+      },
+      {
+        "tab": "API",
+        "groups": [{ "group": "Reference", "pages": ["api/overview"] }]
+      }
+    ]
+  },
+  "redirects": [{ "source": "/getting-started", "destination": "/guides/first-steps" }]
+}

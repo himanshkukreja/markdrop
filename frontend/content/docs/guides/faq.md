@@ -37,7 +37,7 @@ Yes. Add a subdomain such as `help.acme.com` under **Settings** › **Your own d
 :::
 
 :::details[Can I keep my pages in Git?]
-[GitHub sync](/guides/github-sync) is coming soon. Until then the editor's Markdown mode shows each page as a file, and the engine can be [self-hosted](/guides/self-hosting) from a folder.
+Yes. [Import from GitHub](/guides/import-from-github) brings a repository's docs into a guide (Markdown, GitBook, Mintlify, Docusaurus or MkDocs), and with **Keep in sync** on, every push updates the guide. GitHub stays the source of truth for those pages.
 :::
 
 :::details[Can I get my content out?]

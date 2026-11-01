@@ -72,4 +72,4 @@ node server/server.mjs start --content ../my-guide --data /tmp/my-guide-data --p
 - **No password or members-only access.** Put the server behind your own sign-in if you need that.
 - **One build at a time** per data folder.
 
-Want the Markdown in Git *and* the Markdrop Guides editor? That's [GitHub sync](/guides/github-sync), which is coming soon.
+Want the Markdown in Git *and* hosted guides with the Markdrop Guides editor? [Import from GitHub](/guides/import-from-github) and keep the guide in sync with every push.

@@ -21,7 +21,7 @@ In [Markdrop Guides](https://markdrop.in/guides), choose **New guide**. With a w
 Under **Where it lives**, pick a **Workspace**, or **Personal (only you)**. Workspaces you aren't a Guides admin of are listed with "(Guides admins only)" and can't be picked.
 
 ### Choose how to start
-Under **How do you want to start?**, pick **Blank guide** or **From a template**. **Import from GitBook** has [its own page](/guides/import-from-gitbook). **Connect a GitHub repo** is [coming soon](/guides/github-sync).
+Under **How do you want to start?**, pick **Blank guide** or **From a template**. **Import from GitBook** and **Import from GitHub** have their own pages: [Import from GitBook](/guides/import-from-gitbook) and [Import from GitHub](/guides/import-from-github).
 
 ### Name it and pick its address
 Type the **Guide name**. It's shown in the guide's header and in link previews. The **Address** fills in from the name and is checked as you type.

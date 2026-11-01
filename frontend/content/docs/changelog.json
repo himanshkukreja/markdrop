@@ -24,19 +24,26 @@
   "next": [],
   "entries": [
     {
-      "id": "guides-embed-files",
+      "id": "guides-import-from-github",
       "date": "2026-11-02",
-      "title": "Markdrop Guides: embed files that render",
+      "title": "Markdrop Guides: import from GitHub and keep in sync",
       "kind": "new",
       "area": "Markdrop Guides",
       "products": [
         "web",
         "api"
       ],
-      "summary": "Put an interactive HTML demo, a zipped site, a PDF or a video from Markdrop in a guide page as a live block that updates when you replace the file.",
-      "body": "- **Markdrop file** block in the editor (`/markdrop`): pick from your files or the guide's workspace, paste a link, or upload.\n- **Interactive HTML and zipped sites** run in the page in a locked sandbox on Markdrop's file domain; **PDFs** get page controls and zoom; **videos** play in the docs player with captions and chapters.\n- **Replace the file on Markdrop** and every guide shows the new one, no republish. Pin a version to keep one.\n- **Only files anyone with the link can open** show to readers; anything else is a notice that names nothing.\n- **Text version** for search, Ask AI, llms.txt and screen readers: your summary, a PDF's text, a video's transcript.\n- **Insights › Embedded files**: views, use, where viewers stop a video, the PDF page readers reach.",
+      "summary": "Bring a repository's docs into a guide (Markdown, GitBook Git Sync, Mintlify, Docusaurus or MkDocs) and keep it in sync: every push to the branch updates the guide.",
+      "body": "- **Import from GitHub** is a new way to start a guide. Pick a repository, a branch and a folder; Markdrop Guides works out the format and previews the pages and sidebar before anything is imported.\n- **Five formats:** a plain Markdown folder, GitBook Git Sync (`SUMMARY.md`), Mintlify (`docs.json` or `mint.json`, tabs included), Docusaurus (`sidebars.js`, read without running it) and MkDocs (`mkdocs.yml`). Their callouts, tabs, steps, cards and expandable sections become the guide's own blocks, and images and PDFs become the guide's files.\n- **Keep in sync:** with the Markdrop Guides GitHub app installed, every push updates the guide's drafts, or publishes it automatically if you choose. A renamed file keeps its page and history, and its old address redirects.\n- **GitHub is the source of truth** for the pages it brought: the editor shows where a page comes from, with **Edit on GitHub**. Pages you add in the editor are never touched.\n- **Private or public:** the app reads only the repositories you choose, read-only. A public repository imports without it.\n- **Settings › GitHub** has the sync history, **Sync now**, the mode, and **Disconnect** (the pages stay). An OpenAPI file found in the repository can become the guide's API reference.",
+      "highlights": [
+        "Mintlify, Docusaurus, MkDocs, GitBook and plain Markdown",
+        "Read-only GitHub app: Contents and Metadata only"
+      ],
       "docs": [
-        "/guides/embed-files"
+        "/guides/import-from-github",
+        "/guides/create-a-site",
+        "/guides/import-from-gitbook",
+        "/guides/site-settings"
       ]
     },
     {
@@ -70,6 +77,22 @@
       "body": "- **Reset design** at the bottom of Design goes back to the design the guide had right after its import, or the one it was created with.\n- **The dialog lists what changes** (theme, brand colours, logo, fonts, colour mode, corners, custom theme, custom CSS) before anything happens.\n- **Saved like Save design:** readers see it after you publish, and Undo puts back the design you had.\n- **Kept:** your saved design templates and uploaded logos. Pages, navigation, domains and other settings don't change.\n- In Design, the button that drops unsaved edits is now called **Discard changes**.",
       "docs": [
         "/guides/themes"
+      ]
+    },
+    {
+      "id": "guides-embed-files",
+      "date": "2026-11-02",
+      "title": "Markdrop Guides: embed files that render",
+      "kind": "new",
+      "area": "Markdrop Guides",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Put an interactive HTML demo, a zipped site, a PDF or a video from Markdrop in a guide page as a live block that updates when you replace the file.",
+      "body": "- **Markdrop file** block in the editor (`/markdrop`): pick from your files or the guide's workspace, paste a link, or upload.\n- **Interactive HTML and zipped sites** run in the page in a locked sandbox on Markdrop's file domain; **PDFs** get page controls and zoom; **videos** play in the docs player with captions and chapters.\n- **Replace the file on Markdrop** and every guide shows the new one, no republish. Pin a version to keep one.\n- **Only files anyone with the link can open** show to readers; anything else is a notice that names nothing.\n- **Text version** for search, Ask AI, llms.txt and screen readers: your summary, a PDF's text, a video's transcript.\n- **Insights › Embedded files**: views, use, where viewers stop a video, the PDF page readers reach.",
+      "docs": [
+        "/guides/embed-files"
       ]
     },
     {

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Acme",
+  "logo": { "light": "/logo/light.svg", "dark": "/logo/dark.svg" },
+  "favicon": "/favicon.png",
+  "colors": { "primary": "#0D9373", "light": "#07C983", "dark": "#0D9373" },
+  "openapi": "openapi.yaml",
+  "tabs": [{ "name": "API reference", "url": "api-reference" }],
+  "anchors": [{ "name": "Community", "icon": "slack", "url": "https://example.com/community" }],
+  "navigation": [
+    {
+      "group": "Get started",
+      "icon": "rocket",
+      "pages": ["introduction", "quickstart", { "group": "Essentials", "pages": ["essentials/settings", "essentials/missing-page"] }]
+    },
+    { "group": "Endpoints", "pages": ["api-reference/introduction", "api-reference/users/get"] }
+  ],
+  "redirects": [
+    { "source": "/old-quickstart", "destination": "/quickstart" },
+    { "source": "/blog/:slug*", "destination": "/introduction" }
+  ]
+}

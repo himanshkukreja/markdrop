@@ -53,7 +53,7 @@ class Pages(DocsSitesCase):
         listing = await self.get(f"/{self.sid}/pages", "viewer")
         self.assertEqual(len(listing["pages"]), 5)
         self.assertEqual(set(listing["pages"][0]), {"id", "path", "title", "icon", "hidden", "has_changes",
-                                                    "published", "lock", "rev", "updated_at", "updated_by"})
+                                                    "published", "lock", "rev", "updated_at", "updated_by", "origin"})
         await self.get(f"/{self.sid}/pages/{ObjectId()}", expect=404)
         await self.get(f"/{self.sid}/pages/nope", expect=404)
 

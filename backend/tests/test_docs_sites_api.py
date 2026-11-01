@@ -173,11 +173,20 @@ class Create(DocsSitesCase):
                     "ftp://docs.acme.test/", "javascript:alert(1)", "", "notaurl"):
             self.assertFalse(public_https_url(bad), bad)
 
-    async def test_github_source_is_pending(self):
-        site = await self.create("from-gh", source={"kind": "github", "repo": {
-            "owner": "acme", "name": "docs", "branch": "main", "path": "docs/"}})
-        self.assertEqual(site["source"], {"kind": "github", "status": "pending", "repo": {
-            "owner": "acme", "name": "docs", "branch": "main", "path": "/docs"}})
+    async def test_github_source_starts_an_import(self):
+        # GitHub's API is faked here; tests/test_docs_github.py covers the feature.
+        repo = {"id": 7, "owner": "acme", "name": "docs", "full_name": "acme/docs", "private": False,
+                "default_branch": "main", "description": None, "pushed_at": None, "installation_id": None}
+
+        async def get_repo(owner, name, installation_id=None):
+            return repo
+
+        with mock.patch("app.services.docs_github_app.get_repo", get_repo):
+            site = await self.create("from-gh", source={"kind": "github", "repo": {
+                "owner": "acme", "name": "docs", "branch": "main", "path": "docs/"}})
+        self.assertEqual(site["source"], {"kind": "github", "repo": {
+            "owner": "acme", "name": "docs", "branch": "main", "path": "docs"}})
+        self.assertEqual((site["github"]["public"], site["github"]["sync"], site["job"]["kind"]), (True, False, "import"))
         self.assertEqual(site["counts"]["pages"], 0)
         await self.create("from-gh2", source={"kind": "github"}, expect=422)
         await self.create("from-gh3", source={"kind": "github", "repo": {"owner": "a b", "name": "d"}}, expect=422)

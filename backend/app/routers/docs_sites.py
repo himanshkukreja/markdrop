@@ -24,6 +24,7 @@ from app.routers.docs_site_editor import router as editor_router
 from app.routers.docs_site_api import router as api_router
 from app.routers.docs_site_changelog import router as changelog_router
 from app.routers.guide_fixes import router as fixes_router
+from app.routers.docs_site_github import router as github_router
 from app.routers.docs_site_pages import DocsRoute
 from app.routers.docs_site_pages import router as pages_router
 from app.routers.docs_site_people import router as people_router
@@ -339,3 +340,5 @@ router.include_router(editor_router)
 router.include_router(changelog_router)
 # The Fix list: what to fix next, from readers' signals (routers/guide_fixes.py).
 router.include_router(fixes_router)
+# The guide's GitHub repository: link, sync, history (routers/docs_site_github.py).
+router.include_router(github_router)

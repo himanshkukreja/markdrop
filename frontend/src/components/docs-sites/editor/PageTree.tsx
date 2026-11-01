@@ -519,6 +519,12 @@ function PageRow({
       >
         <span className={cx("inline-flex shrink-0", on ? "text-text" : "text-text-muted")}><Icon name={pageIcon(p.icon)} size={14} /></span>
         <span className="min-w-0 flex-1 truncate" dir="auto" title={p.title || undefined}>{p.title || "Untitled"}</span>
+        {p.origin?.kind === "github" && (
+          <span className="inline-flex shrink-0 text-text-muted" title="From GitHub">
+            <Icon name="github" size={11} />
+            <span className="md-visually-hidden">, from GitHub</span>
+          </span>
+        )}
         {lockedByOther && (
           <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-warning" title={`${p.lock!.name} is editing`}>
             <Icon name="lock" size={11} />

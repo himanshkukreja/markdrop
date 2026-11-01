@@ -5,7 +5,7 @@
  *
  * No shot id or asset path may contain the letters g-i-t (a command guard on the capture machine
  * refuses any command line with them): the GitBook import and GitHub sync shots write to
- * guides/import/ and guides/repo-sync/ through `dir`.
+ * guides/import/ through `dir`.
  *
  *   STACK_ID=13 npm run docs:media -- $(npm run -s docs:media -- --list | awk '/ \/guides\//{print $1}')
  *
@@ -413,29 +413,6 @@ export default [
       await settle(h);
     },
     crop: { selector: "main", pad: 0 },
-  },
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // GitHub sync (coming soon)
-  // ════════════════════════════════════════════════════════════════════════════
-  {
-    id: "repo-coming-soon",
-    page: P("github-sync"),
-    dir: "guides/repo-sync",
-    kind: "screenshot",
-    auth: "owner",
-    url: (fx) => `/guides/new?ws=${fx.northwind.id}`,
-    viewport: { width: 1280, height: 900 },
-    prepare: async (h) => {
-      await h.loc({ role: "heading", name: "New guide" }).waitFor();
-      await vis(h, "Connect a GitHub repo").click();
-      await settle(h);
-    },
-    crop: async (h) => {
-      const a = await mark(h, "src", () => document.querySelector("main form fieldset"));
-      const b = await mark(h, "gh", () => [...document.querySelectorAll("main h2")].find((e) => e.textContent.trim() === "GitHub repository")?.closest("section"));
-      return { union: [a, b], pad: 16 };
-    },
   },
 
   // ════════════════════════════════════════════════════════════════════════════

@@ -61,7 +61,9 @@ os.environ.update({
     "MARKDROP_DOCS_WORK_DIR": str(DATA / "docs-work"),
     "MARKDROP_DOCS_BUILD_PORT_BASE": str(NEXT_PORT + 6),
     "MARKDROP_DOCS_WORKER_POLL_SECONDS": "1",
-    "MARKDROP_DOCS_WORKER_KINDS": "build,restore,unpublish",
+    # Imports from GitHub too (from the fake GitHub, fake_gh.py): GitBook imports never run here.
+    "MARKDROP_DOCS_WORKER_KINDS": "build,import,restore,unpublish",
+    "MARKDROP_DOCS_GITHUB_CODELOAD": f"http://127.0.0.1:{API_PORT}/__fakegh/codeload",
     "MARKDROP_DOCS_NICE": "0",
     "MARKDROP_DOCS_BUILD_CPUS": os.environ.get("MARKDROP_DOCS_BUILD_CPUS", "2"),
 })
@@ -109,6 +111,24 @@ def _fake_get_bytes(key: str, max_bytes: int):
 
 _r2.is_configured = lambda: True
 _r2.get_bytes = _fake_get_bytes
+
+# GitHub: the fake (fake_gh.py), and GitHub imports routed to this worker (GitBook ones still wait
+# for Actions, which the stack doesn't have, so they never fetch a real site).
+sys.path.insert(0, str(HERE))
+import fake_gh  # noqa: E402
+
+fake_gh.install(settings, f"http://127.0.0.1:{API_PORT}", DATA)
+_choose = docs_dispatch.choose_target
+
+
+async def _choose_target(db, job):
+    src = (job.get("payload") or {}).get("source")
+    if job["kind"] == "import" and isinstance(src, dict) and src.get("kind") == "github":
+        return "local", "sandbox: GitHub imports run on the stack's worker"
+    return await _choose(db, job)
+
+
+docs_dispatch.choose_target = _choose_target
 
 from scripts.docs_build_worker import main  # noqa: E402
 
