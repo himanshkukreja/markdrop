@@ -75,5 +75,10 @@ export function createdEvents(input: { workspace_id?: string | null; source: { k
     workspace: !!input.workspace_id,
   })]];
   if (kind === "gitbook") out.push(["guide_import_started", { source: "gitbook" }]);
+  // A GitHub import: whether it keeps syncing and how (never the repository's name).
+  if (kind === "github") {
+    const src = input.source as { sync?: unknown; mode?: unknown };
+    out.push(["guide_import_started", clean({ source: "github", sync: src.sync === true, mode: src.mode === "publish" ? "publish" : src.sync === true ? "drafts" : undefined })]);
+  }
   return out;
 }
