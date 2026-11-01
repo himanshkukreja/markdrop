@@ -13,7 +13,15 @@
  *   field                           **name** `type` line + its children
  *
  * Nodes: { type: "text", lines: [string] } | { type: "block", kind, label?, attrs?, children: [] }.
+ *
+ * Fidelity: text is never reflowed. Blank lines this module adds (around a directive) and lines a
+ * conversion removes (an import, a comment, the duplicate H1) are written as SENT, a blank line
+ * that `settle` merges into the blank lines the source already has, so the source's own spacing
+ * stays byte for byte.
  */
+
+/** A blank line the converter added or left behind (merged away by `settle`). U+2028 counts as whitespace for trim() and \s. */
+export const SENT = " ";
 
 export const CALLOUT_KINDS = new Set(["note", "tip", "warning", "danger"]);
 
@@ -112,7 +120,8 @@ export function renderBlock(n) {
   const h = height(n);
   const c = colons(h);
   const kids = () => trimBlank(renderNodes(n.children));
-  const wrap = (open, lines) => ["", open, ...lines, c, ""];
+  const S = SENT;
+  const wrap = (open, lines) => [S, open, ...lines, c, S];
   switch (n.kind) {
     case "note":
     case "tip":
@@ -122,9 +131,9 @@ export function renderBlock(n) {
     case "details":
       return wrap(`${c}details[${label(n.label || "Details")}]`, kids());
     case "tab":
-      return ["", `${c}tab[${label(n.label || "Tab")}]`, ...kids(), c];
+      return [S, `${c}tab[${label(n.label || "Tab")}]`, ...kids(), c];
     case "card":
-      return ["", `${c}card[${label(n.label || "Card")}]${attrs(n.attrs ?? {})}`, ...kids(), c];
+      return [S, `${c}card[${label(n.label || "Card")}]${attrs(n.attrs ?? {})}`, ...kids(), c];
     case "tabs":
     case "cards": {
       const want = n.kind === "tabs" ? "tab" : "card";
@@ -141,60 +150,75 @@ export function renderBlock(n) {
       for (const s of n.children) {
         if (s.type === "block" && s.kind === "step") {
           k++;
-          lines.push("", `### ${label(s.label || `Step ${k}`)}`, ...stepBody(trimBlank(renderNodes(s.children))));
+          lines.push(S, `### ${label(s.label || `Step ${k}`)}`, ...stepBody(trimBlank(renderNodes(s.children))));
         } else if (!isBlank(s)) lines.push(...renderNodes([s]));
       }
       if (!k) return renderNodes(n.children);
       return wrap(`${c}steps`, trimBlank(lines));
     }
     case "step":
-      return ["", `### ${label(n.label || "Step")}`, ...stepBody(kids())];
+      return [S, `### ${label(n.label || "Step")}`, ...stepBody(kids())];
     case "video":
-      return ["", `::video${attrs({ id: n.attrs?.id, title: n.attrs?.title })}`, ""];
+      return [S, `::video${attrs({ id: n.attrs?.id, title: n.attrs?.title })}`, S];
     case "embed":
-      return ["", `::embed${attrs({ src: n.attrs?.src, title: n.attrs?.title })}`, ""];
+      return [S, `::embed${attrs({ src: n.attrs?.src, title: n.attrs?.title })}`, S];
     case "section":
-      return ["", `### ${n.label}`, ...(n.description ? ["", n.description] : []), "", ...kids(), ""];
+      return [S, `### ${n.label}`, ...(n.description ? [S, n.description] : []), S, ...kids(), S];
     case "field":
-      return ["", n.line, ...(n.children.some((k) => !isBlank(k)) ? ["", ...kids()] : []), ""];
+      return [S, n.line, ...(n.children.some((k) => !isBlank(k)) ? [S, ...kids()] : []), S];
     case "plain":
     default:
-      return ["", ...renderNodes(n.children), ""];
+      return [S, ...renderNodes(n.children), S];
   }
 }
 
-/** Renders a whole tree (the root's text keeps its indentation) and tidies blank lines. */
+/** Renders a whole tree (the root's text keeps its indentation). SENT lines stay: see settle(). */
 export function renderTree(root) {
-  const lines = renderNodes(root.children ?? [root], { dedent: false });
-  return tidy(lines.join("\n"));
+  return renderNodes(root.children ?? [root], { dedent: false }).join("\n");
 }
 
-/** Collapses runs of blank lines outside code fences. */
-export function tidy(md) {
+const blankLine = (l) => l === SENT || !l.trim();
+
+/**
+ * Merges SENT lines into the source's own blank lines: a run of blank lines without SENT stays
+ * exactly as written; with SENT, the longest stretch of real blank lines stays (one blank line when
+ * there is none); runs at the start or the end go. Code fences are left alone. Ends with one
+ * newline. Nothing else changes.
+ */
+export function settle(md) {
   const out = [];
   let fence = null;
-  let blank = 0;
-  for (const l of md.split("\n")) {
-    const f = /^\s*(`{3,}|~{3,})(.*)$/.exec(l);
+  let run = [];
+  // The longest stretch of the source's own blank lines in the run (SENT lines split stretches:
+  // blank lines on both sides of a removed line don't add up), else one blank line.
+  const flush = () => {
+    if (run.length && out.length) {
+      let best = [];
+      let cur = [];
+      for (const l of run) {
+        if (l === SENT) cur = [];
+        else if ((cur = [...cur, l]).length > best.length) best = cur;
+      }
+      out.push(...(best.length ? best : [""]));
+    }
+    run = [];
+  };
+  for (const l of String(md).split("\n")) {
     if (fence) {
       out.push(l);
+      const f = /^\s*(`{3,}|~{3,})(.*)$/.exec(l);
       if (f && f[1][0] === fence[0] && f[1].length >= fence.length && !f[2].trim()) fence = null;
       continue;
     }
-    if (f && !(f[1][0] === "`" && f[2].includes("`"))) {
-      fence = f[1];
-      blank = 0;
-      out.push(l);
+    if (blankLine(l)) {
+      run.push(l);
       continue;
     }
-    if (!l.trim()) {
-      if (++blank > 1 || !out.length) continue;
-      out.push("");
-      continue;
-    }
-    blank = 0;
-    out.push(l.replace(/[ \t]+$/, ""));
+    flush();
+    const f = /^\s*(`{3,}|~{3,})(.*)$/.exec(l);
+    if (f && !(f[1][0] === "`" && f[2].includes("`"))) fence = f[1];
+    out.push(l.replaceAll(SENT, ""));
   }
-  while (out.length && !out[out.length - 1].trim()) out.pop();
-  return out.join("\n") + "\n";
+  return out.length ? out.join("\n") + "\n" : "";
 }
+

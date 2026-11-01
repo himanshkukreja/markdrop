@@ -88,7 +88,7 @@ export function pathSegment(s) {
  */
 export const RESERVED_FIRST = new Map([
   ["docs-assets", "assets"], ["mcp", "mcp-docs"], ["md", "md-docs"], ["og", "og-docs"], ["changelog", "release-notes"],
-  ["api-reference-json", "api-json"], ["public", "public-docs"], ["api-reference", "api"], ["node-modules", "modules"], ["video-scenes", "scenes"],
+  ["api-reference-json", "api-json"], ["public", "public-docs"], ["api-reference", "api-ref"], ["node-modules", "modules"], ["video-scenes", "scenes"],
 ]);
 
 /**
@@ -166,7 +166,7 @@ export function repoPathAllowed(p) {
     const s = segs[i];
     if (s === "node_modules") return false;
     if (s.startsWith(".")) {
-      if (i === segs.length - 1 && s === ".gitbook.yaml") continue;
+      if (i === segs.length - 1 && (s === ".gitbook.yaml" || s === ".mintignore")) continue;
       if (s === ".gitbook" && segs[i + 1] === "assets" && i + 2 < segs.length) continue;
       return false;
     }

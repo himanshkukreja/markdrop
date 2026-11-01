@@ -9,7 +9,7 @@
  * `convertAdmonitions(src, {flavor})` renders a page's admonitions on their own (the converter
  * parses them together with MDX components in lib/repo/mdx.mjs).
  */
-import { block, renderTree, text } from "./blocks.mjs";
+import { block, renderTree, settle, text } from "./blocks.mjs";
 
 /** Docusaurus admonition types → the engine's callouts. */
 export const DOCUSAURUS_KINDS = { note: "note", info: "note", important: "note", secondary: "note", tip: "tip", success: "tip", caution: "warning", warning: "warning", danger: "danger" };
@@ -193,7 +193,7 @@ export function parseMkdocsBlocks(lines, { count = () => {}, issue = () => {}, l
  */
 export function convertAdmonitions(src, { flavor = "docusaurus", count = () => {}, issue = () => {} } = {}) {
   const lines = String(src ?? "").replace(/\r\n?/g, "\n").split("\n");
-  if (flavor === "mkdocs") return renderTree({ children: parseMkdocsBlocks(lines, { count, issue }) });
+  if (flavor === "mkdocs") return settle(renderTree({ children: parseMkdocsBlocks(lines, { count, issue }) }));
   // Docusaurus: a stack of open admonitions; a closing fence closes the innermost one.
   const root = { children: [] };
   const stack = [root];
@@ -234,5 +234,5 @@ export function convertAdmonitions(src, { flavor = "docusaurus", count = () => {
     buf.push(l);
   });
   flush();
-  return renderTree(root);
+  return settle(renderTree(root));
 }

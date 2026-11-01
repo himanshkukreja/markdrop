@@ -15,7 +15,7 @@
  *             unwrapped; HTML comments dropped; in MDX also {/* comments *\/} and import/export lines.
  *             Any other capitalised component: its content kept, its tags dropped (reported).
  */
-import { block, renderTree, text, trimBlank, minIndent, dedentLines } from "./blocks.mjs";
+import { SENT, block, renderTree, settle, text, trimBlank, minIndent, dedentLines } from "./blocks.mjs";
 import { DOCUSAURUS_KINDS, docusaurusClose, docusaurusOpen, githubAlertsToTags, parseMkdocsBlocks } from "./admonitions.mjs";
 import { videoProvider } from "../convert.mjs";
 import { decodeEntities } from "../html.mjs";
@@ -31,7 +31,7 @@ const INLINE = new Set(["Tooltip", "Icon", "Badge", "Kbd", "Tag"]);
 const KNOWN_BLOCKS = new Set([
   "Note", "Info", "Tip", "Check", "Warning", "Danger", "Callout", "CardGroup", "Columns", "Card", "Tabs", "Tab", "Steps", "Step",
   "AccordionGroup", "Accordion", "Expandable", "CodeGroup", "RequestExample", "ResponseExample", "Frame", "ResponseField", "ParamField",
-  "Update", "Panel", "TabItem", "Admonition", "CodeBlock",
+  "Update", "Panel", "TabItem", "Admonition", "CodeBlock", "Tree", "Color", "Visibility", "Prompt", "Tile", "View", "Column", "Banner",
 ]);
 
 /* ── preprocessing ───────────────────────────────────────────────────────── */
@@ -69,9 +69,12 @@ const keepLines = (m) => m.replace(/[^\n]/g, "");
 /** HTML comments (and MDX {/* *\/} comments) → blank, keeping line numbers. */
 export function stripComments(lines, mdx) {
   return outsideFences(lines, (run) => {
-    let s = run.join("\n").replace(/<!--[\s\S]*?-->/g, keepLines);
+    const src = run.join("\n");
+    let s = src.replace(/<!--[\s\S]*?-->/g, keepLines);
     if (mdx) s = s.replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, keepLines);
-    return s.split("\n");
+    if (s === src) return run;
+    // A line the removal emptied is a SENT blank (merged into the blank lines around it).
+    return s.split("\n").map((l, i) => (!l.trim() && run[i]?.trim() ? SENT : l));
   });
 }
 
@@ -107,7 +110,7 @@ export function stripModuleLines(lines) {
       }
       const m = /^import\s+([A-Za-z_$][\w$]*)\s+from\s+['"]([^'"]+)['"]/.exec(stmt);
       if (m) imports.set(m[1], m[2]);
-      for (let k = i; k <= j; k++) r[k] = "";
+      for (let k = i; k <= j; k++) r[k] = SENT;
       i = j;
     }
     return r;
@@ -412,6 +415,49 @@ export function normalize(nodes, ctx, state = { videos: 0 }, parent = "#root") {
     if (n.type === "text") out.push(n);
     else out.push(...normalizeEl(n, ctx, state, parent));
   }
+  // Mintlify <View title> siblings (one view per language or audience): tabs.
+  const grouped = [];
+  for (let i = 0; i < out.length; i++) {
+    if (!out[i].fromView) {
+      grouped.push(out[i]);
+      continue;
+    }
+    const views = [];
+    let j = i;
+    while (j < out.length && (out[j].fromView || isBlankNode(out[j]))) {
+      if (out[j].fromView) views.push(out[j]);
+      j++;
+    }
+    grouped.push(views.length > 1 ? block("tabs", {}, views) : block("plain", {}, views[0].children));
+    i = j - 1;
+  }
+  return grouped;
+}
+
+/** A Mintlify <Tree> as a ```text block: folders end in "/", children indented two spaces. */
+function treeText(el, depth = 0, out = []) {
+  for (const k of el.children) {
+    if (k.type !== "el") continue;
+    const name = k.attrs?.name ?? "";
+    if (/Folder$/.test(k.name)) {
+      out.push(`${"  ".repeat(depth)}${name}/`);
+      treeText(k, depth + 1, out);
+    } else if (/File$/.test(k.name)) out.push(`${"  ".repeat(depth)}${name}`);
+    else treeText(k, depth, out);
+  }
+  return out;
+}
+
+/** Mintlify <Color> palettes as lines: **row title** then `- name: `value``. */
+function colorLines(el, out = []) {
+  for (const k of el.children) {
+    if (k.type !== "el") continue;
+    if (/Row$/.test(k.name)) {
+      if (k.attrs?.title) out.push("", `**${k.attrs.title}**`, "");
+      colorLines(k, out);
+    } else if (/Item$/.test(k.name)) out.push(`- ${k.attrs?.name ? `${k.attrs.name}: ` : ""}\`${k.attrs?.value ?? ""}\``);
+    else colorLines(k, out);
+  }
   return out;
 }
 
@@ -525,9 +571,47 @@ function normalizeEl(el, ctx, state, parent) {
     case "Update":
       counted("### label section");
       return [block("section", { label: a.label ?? "Update", description: a.description ?? "" }, kids())];
+    case "Tree":
+      counted("```text file tree");
+      return [text([SENT, "```text", ...treeText(el), "```", SENT])];
+    case "Color":
+      counted("a list of colour names and values");
+      return [text([SENT, ...colorLines(el), SENT])];
+    case "Visibility": {
+      const who = String(a.for ?? "humans").toLowerCase();
+      if (who === "agents") {
+        counted("content for AI agents only: dropped");
+        return [text([SENT])];
+      }
+      counted("its content kept");
+      return [block("plain", {}, kids())];
+    }
+    case "Prompt": {
+      // Copyable text, soft-wrapped (like the GitBook import's {% prompt %}).
+      const lines = el.children.flatMap((k) => (k.type === "text" ? k.lines : []));
+      const body = trimBlank(dedentLines(lines, minIndent(lines)));
+      const title = String(a.description ?? a.title ?? "Prompt").replace(/"/g, "'");
+      counted("```text wrap fence titled with the description");
+      return [text([SENT, `\`\`\`text wrap title="${title}"`, ...body, "```", SENT])];
+    }
+    case "Tile": {
+      counted(":::card[title]{href}");
+      const href = a.href ? ctx.link(a.href, { line: el.line }) ?? undefined : undefined;
+      const card = block("card", { label: a.title ?? "", attrs: { href } }, a.description ? [text([a.description])] : []);
+      return parent === "Columns" || parent === "CardGroup" || parent === "Tiles" ? [card] : [block("cards", { attrs: {} }, [card])];
+    }
+    case "View": {
+      counted("tabs (one per view)");
+      const tab = block("tab", { label: a.title ?? a.name ?? "View" }, kids());
+      tab.fromView = true;
+      return [tab];
+    }
+    case "Column":
+    case "Banner":
+      return [block("plain", {}, kids())];
     case "Icon":
       counted("dropped (no inline icons)");
-      return [];
+      return [text([SENT])];
     case "Tooltip":
     case "Badge":
     case "Panel":
@@ -545,7 +629,7 @@ function normalizeEl(el, ctx, state, parent) {
       const title = a.title ?? "";
       if (!/^https:\/\//.test(src.replace(/^http:/, "https:"))) {
         ctx.issue("<iframe>", el.line, `iframe without an https address: dropped`);
-        return [];
+        return [text([SENT])];
       }
       if (videoProvider(src) && state.videos === 0) {
         const id = ctx.video(src, title || "Video");
@@ -570,7 +654,7 @@ function normalizeEl(el, ctx, state, parent) {
       if (!children.some((k) => !isBlankNode(k))) {
         ctx.count(`<${name}>`, "unknown component: dropped");
         ctx.issue("component", el.line, `<${name} /> isn't supported: dropped`);
-        return [];
+        return [text([SENT])];
       }
       ctx.count(`<${name}>`, "unknown component: content kept, tags dropped");
       ctx.issue("component", el.line, `<${name}> isn't supported: its content was kept without it`);
@@ -622,12 +706,13 @@ function inlineSnippets(lines, imports, ctx, depth = 0) {
 /** Dark-only images (`className="hidden dark:block"`): the light twin is the one imported. */
 function dropDarkOnly(lines, ctx) {
   return outsideFences(lines, (run) =>
-    run.map((l) =>
-      l.replace(/<img\b(?:[^>"']|"[^"]*"|'[^']*')*\bclass(?:Name)?=["'][^"']*\bdark:block\b[^"']*["'](?:[^>"']|"[^"]*"|'[^']*')*\/?>/g, () => {
+    run.map((l) => {
+      const s = l.replace(/<img\b(?:[^>"']|"[^"]*"|'[^']*')*\bclass(?:Name)?=["'][^"']*\bdark:block\b[^"']*["'](?:[^>"']|"[^"]*"|'[^']*')*\/?>/g, () => {
         ctx.count("dark-only image", "dropped (the light image stays)");
         return "";
-      }),
-    ),
+      });
+      return s !== l && !s.trim() ? SENT : s;
+    }),
   );
 }
 
@@ -635,7 +720,7 @@ function dropDarkOnly(lines, ctx) {
  * A page body (front matter already removed) → Markdown with the engine's directives.
  * flavor: "mintlify" | "docusaurus" (MDX) | "markdown" | "mkdocs".
  */
-export function convertMdx(src, { flavor = "mintlify", line0 = 0, ctx: given = {} } = {}) {
+export function convertMdx(src, { flavor = "mintlify", line0 = 0, ctx: given = {}, raw = false } = {}) {
   const ctx = { ...defaultCtx, ...given };
   const mdx = MDX_FLAVORS.has(flavor);
   let lines = String(src ?? "").replace(/\r\n?/g, "\n").split("\n");
@@ -654,7 +739,8 @@ export function convertMdx(src, { flavor = "mintlify", line0 = 0, ctx: given = {
     const expand = (ns) => ns.flatMap((n) => (n.type === "text" ? toNodes(n.lines, line0) : [{ ...n, children: expand(n.children) }]));
     nodes = expand(parseMkdocsBlocks(lines, { count: ctx.count, issue: ctx.issue, line0 }));
   } else nodes = toNodes(lines, line0);
-  return renderTree({ children: nodes });
+  const md = renderTree({ children: nodes });
+  return raw ? md : settle(md);
 }
 
 export { trimBlank };

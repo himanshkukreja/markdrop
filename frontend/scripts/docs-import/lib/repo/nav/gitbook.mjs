@@ -63,7 +63,30 @@ export default {
     }
     const groups = [];
     let first = true;
-    for (const g of parseSummary(summary)) {
+    let parsed = parseSummary(summary);
+    // No `## Group` headings: GitBook shows each top-level page with children as its own section,
+    // so each becomes a group (led by its page); runs of single top-level pages share one.
+    if (parsed.length === 1 && parsed[0].group === "" && parsed[0].items.some((it, i, all) => it.depth === 0 && all[i + 1]?.depth > 0)) {
+      const split = [];
+      let run = null;
+      const items = parsed[0].items;
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (it.depth > 0) {
+          (split[split.length - 1] ?? (split[0] = { group: "", items: [] })).items.push(it);
+          continue;
+        }
+        if (items[i + 1]?.depth > 0) {
+          split.push({ group: it.title, items: [it] });
+          run = null;
+        } else {
+          if (!run) split.push((run = { group: "", items: [] }));
+          run.items.push(it);
+        }
+      }
+      parsed = split;
+    }
+    for (const g of parsed) {
       const files = [];
       for (const it of g.items) {
         if (/^[a-z][a-z0-9+.-]*:/i.test(it.href)) {

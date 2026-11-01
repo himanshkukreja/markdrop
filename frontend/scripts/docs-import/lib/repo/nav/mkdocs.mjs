@@ -55,6 +55,15 @@ export default {
     }
     const navTitles = new Map();
     const missing = new Set();
+    // A folder in the nav (`User guide: user-guide/`, as section-index and awesome-pages plugins
+    // allow): its pages in folder order.
+    const folderFiles = (ref) => {
+      const d = normRepoPath(String(ref ?? "").trim().replace(/^\.\//, "").replace(/\/+$/, ""));
+      if (d === null) return [];
+      const dir = joinRepo(root, d);
+      if (!env.pages.some((p) => p.file.startsWith(dir + "/"))) return [];
+      return folderNav(env.pages, { root: dir }).groups.flatMap((g) => g.files);
+    };
     const pageFile = (ref, title) => {
       const s = String(ref ?? "").trim();
       if (/^[a-z][a-z0-9+.-]*:/i.test(s)) {
@@ -79,6 +88,7 @@ export default {
         } else if (it && typeof it === "object") {
           for (const [title, v] of Object.entries(it)) {
             if (Array.isArray(v)) flat(v, out);
+            else if (typeof v === "string" && v.trim().endsWith("/") && folderFiles(v).length) out.push(...folderFiles(v));
             else {
               const f = pageFile(v, title);
               if (f) out.push(f);
@@ -97,9 +107,10 @@ export default {
     for (const it of cfg.nav) {
       if (it && typeof it === "object" && !Array.isArray(it)) {
         for (const [title, v] of Object.entries(it)) {
-          if (Array.isArray(v)) {
+          const dirFiles = typeof v === "string" && !/\.mdx?$/i.test(v.trim()) && !/^[a-z][a-z0-9+.-]*:/i.test(v.trim()) ? folderFiles(v) : [];
+          if (Array.isArray(v) || dirFiles.length) {
             flush();
-            const files = flat(v, []);
+            const files = dirFiles.length ? dirFiles : flat(v, []);
             if (files.length) groups.push({ group: title, files });
           } else {
             const f = pageFile(v, title);
