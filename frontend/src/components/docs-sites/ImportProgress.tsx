@@ -206,9 +206,14 @@ export default function ImportProgress() {
     status: failed && i === at ? "failed" : i < at ? "done" : i === at ? "running" : "waiting",
     detail: i < at ? d.detail?.(report?.summary) ?? null : i === at ? job?.progress?.message ?? null : i === at + 1 ? "next" : null,
   }));
-  // Progress counts steps; the running step's own count ("12 of 40 files") is its detail.
+  // Progress counts steps, plus how far the running step is ("Copying pages · 34 of 93" fills that
+  // step's share of the bar), so a long step moves instead of sitting still.
   const total = steps.length;
-  const value = done ? total : at;
+  const p = job?.progress;
+  const within = !done && p && typeof p.done === "number" && typeof p.total === "number" && p.total > 0 && steps[at]?.id === p.step
+    ? Math.min(0.99, Math.max(0, p.done / p.total))
+    : 0;
+  const value = done ? total : at + within;
   const needs = report?.needs_look?.filter((x) => x.count > 0) ?? [];
 
   // The site finished importing: refresh it once so the editor opens with its pages and brand, and

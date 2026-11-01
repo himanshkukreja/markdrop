@@ -539,12 +539,19 @@ export async function runImport(spec, { store, cfg, progress = () => {}, log = (
       cwd: cfg.engineDir,
       env: { ...process.env, DEBUG: "" },
       timeoutMs: 20 * 60 * 1000,
+      // The importer's own lines: the page list (step 1), then one line per page fetched (step 2:
+      // "Copying pages · 34 of 93") and per image or file downloaded (step 3), so the import screen
+      // moves page by page instead of sitting at 0% until the end.
       onLine: (line) => {
-        const m = /^llms\.txt: (\d+) pages/.exec(line) || /^pages: (\d+)/.exec(line);
-        if (m) {
+        let m;
+        if ((m = /^llms\.txt: (\d+) pages/.exec(line) || /^pages: (\d+)/.exec(line))) {
           total = Number(m[1]);
-          progress({ step: "fetch", done: 0, total: 3, message: `Converting ${total} pages` });
-        } else if (/^done: /.test(line)) progress({ step: "convert", done: 1, total: 3, message: "Converted" });
+          progress({ step: "fetch", done: 1, total: 1, message: `${total} pages found` });
+        } else if ((m = /^progress: pages (\d+)\/(\d+)$/.exec(line))) {
+          progress({ step: "convert", done: Number(m[1]), total: Number(m[2]), message: `Copying pages · ${m[1]} of ${m[2]}` });
+        } else if ((m = /^progress: assets (\d+)\/(\d+)$/.exec(line))) {
+          progress({ step: "upload", done: Number(m[1]), total: Number(m[2]), message: `Copying images and files · ${m[1]} of ${m[2]}` });
+        } else if (/^done: /.test(line)) progress({ step: "upload", done: 1, total: 1, message: "Converted" });
       },
     });
     const importMs = Date.now() - ti;

@@ -188,12 +188,14 @@ for (const l of llmsPages) addPage(l.gb, { title: l.title, url: l.url, descripti
 
 log(`pages: ${pages.length} (${pages.filter((p) => p.inNav).length} in the sidebar, ${pages.filter((p) => !p.inNav).length} hidden)`);
 
-for (const p of pages) {
+// Each page: its Markdown and its HTML (for heading ids, files, dates and icons). A few at a time, in the
+// pages' own order; "progress: pages i/N" lines let the runner show the import moving page by page.
+async function fetchPage(p) {
   const md = await http.text(p.mdUrl);
   if (!md.ok) {
     issues.push({ page: p.gb, line: 0, kind: "fetch", msg: `couldn't fetch ${p.mdUrl} (${md.error || `HTTP ${md.status}`})` });
     p.failed = true;
-    continue;
+    return;
   }
   p.src = md.text;
   const html = await http.text(p.htmlUrl);
@@ -212,6 +214,18 @@ for (const p of pages) {
   p.gbIcon = gbIcons.get(p.gb);
   p.icon = p.gbIcon ? faName(p.gbIcon) : undefined;
   if (p.gbIcon) count("page icon", p.icon ? "frontmatter icon" : "dropped (no matching icon)");
+}
+{
+  let next = 0, fetched = 0;
+  const worker = async () => {
+    while (next < pages.length) {
+      const p = pages[next++];
+      await fetchPage(p);
+      fetched++;
+      log(`progress: pages ${fetched}/${pages.length}`);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, pages.length) }, worker));
 }
 const live = pages.filter((p) => !p.failed);
 
@@ -238,7 +252,8 @@ const moved = new Map(); // old GitBook path → current GitBook path
 const assets = new Map(); // url → { token, kind, page, base, dark?, alt, … }
 let tokenN = 0;
 const videos = {};
-const FILE_HOSTS = /(^|\.)(files\.gitbook\.io|content\.gitbook\.com|gitbook-x-prod\.appspot\.com|firebasestorage\.googleapis\.com)$/;
+// GitBook's file hosts, including a space's numbered one ("1117388020-files.gitbook.io").
+const FILE_HOSTS = /(^|\.)((?:[a-z0-9-]+-)?files\.gitbook\.io|content\.gitbook\.com|gitbook-x-prod\.appspot\.com|firebasestorage\.googleapis\.com)$/;
 
 function assetFor(url, kind, page, hint) {
   if (assets.has(url)) return assets.get(url);
@@ -392,7 +407,9 @@ async function download(url) {
   return { failed: r.error ? `not downloaded (${r.error})` : `download failed (HTTP ${r.status})` };
 }
 log(`assets: ${assets.size} to download`);
+let assetsDone = 0;
 for (const a of assets.values()) {
+  log(`progress: assets ${++assetsDone}/${assets.size}`);
   const r = await download(a.url);
   if (r.failed) {
     a.failed = true;
