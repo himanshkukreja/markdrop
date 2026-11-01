@@ -31,7 +31,7 @@ The **Visual** / **Markdown** switch in the bar changes how you edit, not what's
 
 The Markdown is the same format docs.markdrop.in is written in: callouts are `:::note`, steps are `::::steps`, tabs are `::::tabs` and so on. Anything the visual editor can't show as a block, it keeps exactly as written and labels "Edit it in Markdown mode". Switching back and forth changes nothing.
 
-**Preview** opens a quick look at the draft. Callouts, steps and tabs render fully on the published guide.
+**Preview** shows the draft as readers will see it, in the guide's saved design: its theme, colours, fonts and corners, light or dark. A design you haven't saved yet doesn't show. Links and cards in the preview open their page in the editor.
 
 ## The slash menu
 
@@ -132,7 +132,7 @@ Add an **Image** block, then **Upload an image**, drop one onto it, or paste an 
 | **Callout**, **Tip callout**, **Warning callout**, **Danger callout** | Notes, shortcuts, things to be careful about, and data-loss or security risks. Each can have a title. |
 | **Steps** | A numbered how-to: each step has a title and text. |
 | **Tabs** | The same thing for macOS, Windows and Linux, or for several languages. |
-| **Cards** | Links to other pages, with an icon each. |
+| **Cards** | Links to other pages, with an icon each. The grid balances itself (four cards make a 2 × 2 square); choose **Columns** under the grid to set 1 to 4. |
 | **Details** | A collapsible section, good for FAQs. |
 | **Image** | An image with a caption, alt text and an optional dark-theme version. |
 | **Code** | Code with a language, an optional title and a copy button. |
