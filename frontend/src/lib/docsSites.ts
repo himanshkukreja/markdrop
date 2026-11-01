@@ -935,7 +935,7 @@ export async function uploadAsset(siteId: string, file: File, opts?: { variant?:
 export function assetPreviewUrl(siteId: string, url: string | null | undefined): string | null {
   if (!url) return null;
   // An upload (<sha256>.<ext>, its dark version <sha256>.dark.<ext>) or an imported file (import/<page>/<name>).
-  const m = /^\/docs-assets\/((?:[A-Za-z0-9_][A-Za-z0-9._-]*\/){0,7}[A-Za-z0-9_][A-Za-z0-9._-]*)$/.exec(url);
+  const m = /^\/docs-assets\/((?:[A-Za-z0-9_][A-Za-z0-9._@-]*\/){0,7}[A-Za-z0-9_][A-Za-z0-9._@-]*)$/.exec(url);
   return m ? `${API_BASE}${BASE}/${enc(siteId)}/assets/${m[1].split("/").map(enc).join("/")}` : url;
 }
 

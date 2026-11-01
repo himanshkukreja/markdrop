@@ -125,8 +125,9 @@ def url_for(name: str) -> str:
 IMMUTABLE = "public, max-age=31536000, immutable"
 SHORT = "public, max-age=3600"
 
-# An address under /docs-assets/: an upload (<sha256>.<ext>) or an imported file (import/<page>/<name>).
-_REL = re.compile(r"^(?:[A-Za-z0-9_][A-Za-z0-9._-]{0,199})(?:/[A-Za-z0-9_][A-Za-z0-9._-]{0,199}){0,7}$")
+# An address under /docs-assets/: an upload (<sha256>.<ext>) or an imported file (import/<page>/<name>; "@" too: the
+# importer names an image shown at its pixel width <name>@1x.<ext>, the engine's 1x marker).
+_REL = re.compile(r"^(?:[A-Za-z0-9_][A-Za-z0-9._@-]{0,199})(?:/[A-Za-z0-9_][A-Za-z0-9._@-]{0,199}){0,7}$")
 
 
 def rel_of(url: str) -> str | None:

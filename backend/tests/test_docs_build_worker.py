@@ -718,6 +718,14 @@ class ImportTests(DbCase):
         self.assertEqual((t["preset"], t["corners"], t["fonts"]), ("editorial", None, {"heading": None, "body": None}))
         self.assertEqual(t["brand"]["logo_url"], "/docs-assets/import/brand/logo.png")
 
+    def test_images_named_at_1x_are_kept(self):
+        # The importer names an image shown at its pixel width <name>@1x.<ext> (the engine's 1x
+        # marker); refusing "@" dropped every such image from an imported guide.
+        self.assertEqual(docs_import_job.import_asset_type("import/g/shot@1x.png"), "image/png")
+        self.assertEqual(docs_import_job.import_asset_type("import/g/shot@1x.dark.png"), "image/png")
+        self.assertIsNone(docs_import_job.import_asset_type("import/g/@x.png"))
+        self.assertIsNone(docs_import_job.import_asset_type("import/g/../x.png"))
+
     def test_report_keeps_files_left_on_gitbook_apart_and_what_brand_came_across(self):
         rep = docs_import_job.summarize_report({
             "counts": {"missing": 0, "keptOriginal": 1},

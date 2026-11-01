@@ -159,6 +159,10 @@ test("import upload: only images, PDFs and video whose bytes match their name, u
   assert.equal(importFileAllowed("import/../x.png", Buffer.from(PNG, "latin1")), false);
   assert.equal(importFileAllowed("import/.x/a.png", Buffer.from(PNG, "latin1")), false);
   assert.equal(importFileAllowed("import/a.JPEG", Buffer.from("\xff\xd8\xff\xe0" + "\0".repeat(12), "latin1")), true);
+  // The importer's 1x marker (an image shown at its pixel width): <name>@1x.<ext>, and its dark twin.
+  assert.equal(importFileAllowed("import/g/shot@1x.png", Buffer.from(PNG, "latin1")), true);
+  assert.equal(importFileAllowed("import/g/shot@1x.dark.png", Buffer.from(PNG, "latin1")), true);
+  assert.equal(importFileAllowed("import/g/@shot.png", Buffer.from(PNG, "latin1")), false);
   for (const d of [dir, root]) fs.rmSync(d, { recursive: true, force: true });
 });
 
