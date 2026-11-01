@@ -16,7 +16,7 @@
  */
 import { createSlugger, headingSourceText } from "@/components/reading/slug";
 import { CALLOUTS, CONTAINER_DIRECTIVES } from "../markdown";
-import { aliasNodes, aliasesByTarget, fixImageAlts, hasWrapFlag, parserOptions } from "./rules.mjs";
+import { aliasNodes, aliasesByTarget, cardColumns, fixImageAlts, hasWrapFlag, parserOptions } from "./rules.mjs";
 
 /* ── mdast ───────────────────────────────────────────────────────────────── */
 
@@ -129,11 +129,12 @@ function transformContainer(node: MdNode) {
     }
     case "cards": {
       takeLabel(node);
-      set(node, "docs-cards");
+      const count = (node.children ?? []).filter((k) => k.type === "containerDirective" && k.name === "card").length;
+      set(node, "docs-cards", { cols: String(cardColumns(count, attr(node, "cols"))) });
       return;
     }
     case "card": {
-      set(node, "docs-card", { label: takeLabel(node), href: attr(node, "href"), icon: attr(node, "icon") });
+      set(node, "docs-card", { label: takeLabel(node), href: attr(node, "href"), icon: attr(node, "icon"), cover: attr(node, "cover") });
       return;
     }
     case "details": {

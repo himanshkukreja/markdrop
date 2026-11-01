@@ -646,7 +646,22 @@ export interface ImportReport {
   skipped?: string[];
   /** The importer's full Markdown report (_IMPORT_REPORT.md). */
   markdown?: string;
-  brand?: { name?: string; logo_url?: string | null; accent?: string | null; favicon_url?: string | null };
+  brand?: ImportedBrand;
+}
+
+/** What of the old site's brand an import brought across (scripts/docs-import `_import-report.json` brand). */
+export interface ImportedBrand {
+  name?: string;
+  logo?: boolean;
+  logoDark?: boolean;
+  favicon?: boolean;
+  /** Why the logo or favicon didn't come across ("download failed (HTTP 404)"…). */
+  logoReason?: string | null;
+  faviconReason?: string | null;
+  accent?: string | null;
+  /** Older reports. */
+  logo_url?: string | null;
+  favicon_url?: string | null;
 }
 
 /**
@@ -662,8 +677,9 @@ export interface WorkerImportResult {
   report?: {
     source?: string;
     counts?: Record<string, number | boolean>;
-    items?: Partial<Record<"altGenerated" | "hidden" | "brokenLinks" | "missing" | "unmatchedIcons" | "notes" | "external", Array<Record<string, unknown>>>>;
+    items?: Partial<Record<"altGenerated" | "hidden" | "brokenLinks" | "missing" | "keptOriginal" | "unmatchedIcons" | "notes" | "external", Array<Record<string, unknown>>>>;
     truncated?: Record<string, number>;
+    brand?: ImportedBrand;
   };
   skipped?: string[];
 }
@@ -922,7 +938,7 @@ export async function uploadAsset(siteId: string, file: File, opts?: { variant?:
 export function assetPreviewUrl(siteId: string, url: string | null | undefined): string | null {
   if (!url) return null;
   // An upload (<sha256>.<ext>, its dark version <sha256>.dark.<ext>) or an imported file (import/<page>/<name>).
-  const m = /^\/docs-assets\/((?:[A-Za-z0-9_][A-Za-z0-9._-]*\/){0,7}[A-Za-z0-9_][A-Za-z0-9._-]*)$/.exec(url);
+  const m = /^\/docs-assets\/((?:[A-Za-z0-9_][A-Za-z0-9._@-]*\/){0,7}[A-Za-z0-9_][A-Za-z0-9._@-]*)$/.exec(url);
   return m ? `${API_BASE}${BASE}/${enc(siteId)}/assets/${m[1].split("/").map(enc).join("/")}` : url;
 }
 

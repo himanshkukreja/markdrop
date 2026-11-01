@@ -290,3 +290,22 @@ export function outlineOf(scan: Scan): OutlineItem[] {
   }
   return out;
 }
+
+/**
+ * A link in the Preview (DraftPreview): a page of the guide (opened in the editor), an #anchor on
+ * the page, a file under /docs-assets, or another site (opened in a new tab).
+ */
+export function previewLinkTarget(href: string): { kind: "page"; path: string; hash: string } | { kind: "hash"; hash: string } | { kind: "external" } | { kind: "asset" } {
+  const h = href.trim();
+  if (h.startsWith("#")) return { kind: "hash", hash: h.slice(1) };
+  if (h.startsWith("/") && !h.startsWith("//")) {
+    if (/^\/docs-assets\//.test(h)) return { kind: "asset" };
+    const [p, hash = ""] = h.split("#");
+    let path = p.split("?")[0];
+    try {
+      path = decodeURIComponent(path);
+    } catch { /* keep it as written */ }
+    return { kind: "page", path: path.replace(/\.md$/i, "").replace(/\/+$/, "") || "/", hash };
+  }
+  return { kind: "external" };
+}

@@ -26,6 +26,7 @@ import { DocsTabs } from "../client/Tabs";
 import { ClipPlayer, VideoPlayer } from "../client/Media";
 import { HeadingActions } from "../client/PageActions";
 import { rehypeDocs, remarkDocs } from "./plugins";
+import { cardColumns } from "./rules.mjs";
 import { isAppPath, normalizeApiOp } from "../markdown";
 
 /* ── helpers ─────────────────────────────────────────────────────────────── */
@@ -236,11 +237,33 @@ function Tab({ children }: P) {
   return <div className="dx-tab">{children}</div>;
 }
 
-function Cards({ children }: P) {
-  return <div className="dx-cards">{Children.toArray(children).filter(isValidElement)}</div>;
+function Cards({ cols, children }: P) {
+  const kids = Children.toArray(children).filter(isValidElement);
+  const n = cardColumns(kids.length, cols);
+  return (
+    <div className="dx-cards" data-cols={n} style={{ "--dx-cols": n } as React.CSSProperties}>
+      {kids}
+    </div>
+  );
 }
 
-function Card({ label, href, icon, children }: P) {
+/** A card's cover (GitBook's card covers): the light image, and its dark variant when there is one. */
+function CardCover({ src }: { src: unknown }) {
+  const url = imageUrl(src);
+  if (!url) return null;
+  const a = assetPath(url);
+  const v = a ? imageVariants(getMedia(), a) : { src: url };
+  return (
+    <span className="dx-card__cover" aria-hidden>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={v.src} alt="" loading="lazy" decoding="async" className={v.dark ? "dx-themed-light" : undefined} />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {v.dark && <img src={v.dark} alt="" loading="lazy" decoding="async" className="dx-themed-dark" />}
+    </span>
+  );
+}
+
+function Card({ label, href, icon, cover, children }: P) {
   const h = typeof href === "string" ? href : "";
   const title = typeof label === "string" ? label : h;
   const link = h ? (
@@ -257,7 +280,8 @@ function Card({ label, href, icon, children }: P) {
     <span>{title}</span>
   );
   return (
-    <div className={cx("dx-card", h && "dx-card--link")}>
+    <div className={cx("dx-card", h && "dx-card--link", cover ? "dx-card--cover" : undefined)}>
+      {cover ? <CardCover src={cover} /> : null}
       {typeof icon === "string" && (
         <span className="dx-card__icon" aria-hidden>
           <Icon name={icon} />

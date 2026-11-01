@@ -7,6 +7,7 @@
 import { contrast, parseHex } from "@/components/tenant/branding";
 import { CORNERS, PRESETS as ENGINE } from "@/docs/theme.mjs";
 import { FONTS, type Corners, type SiteTheme, type ThemePreset } from "@/lib/docsSites";
+import { guideThemeVars } from "./guideTheme";
 
 export interface Palette { bg: string; header: string; card: string; text: string; muted: string; line: string; code: string; codeText: string }
 
@@ -139,7 +140,21 @@ export function previewTokens(theme: ThemeInput, dark: boolean): PreviewTokens {
   for (let i = 1; contrast(lightOn ? WHITE : INK, fill) < 4.5 && i <= 40; i++) fill = mix(base, lightOn ? BLACK : WHITE, i / 100);
   const soft = toHex(mix(bg, base, dark ? 0.16 : 0.1));
   const font = (id: string | null | undefined, fallback: string) => FONTS.find((f) => f.id === id)?.family ?? fallback;
-  return {
+  // The colours the published guide uses (guideTheme.ts: the engine's palette with the brand built
+  // in), so this drawing and the editor's Preview show the same design. A preset without a palette
+  // of its own and no brand colours keeps the drawing's stand-in for Markdrop's tokens.
+  const v = guideThemeVars({ ...theme, mode: undefined }, dark);
+  const engine = v["--bg"]
+    ? {
+        bg: v["--bg"], header: v["--dx-header-bg"] ?? pal.header, card: v["--surface"], text: v["--text"], muted: v["--text-muted"], line: v["--border"],
+        code: v["--code-bg"] ?? pal.code, codeText: pal.codeText,
+        accent: v["--accent"], accentText: v["--accent-text"], onAccent: v["--on-accent"],
+        soft: toHex(mix(parseHex(v["--bg"])!, parseHex(v["--accent"])!, dark ? 0.16 : 0.1)),
+      }
+    : v["--accent"]
+      ? { accent: v["--accent"], accentText: v["--accent-text"], onAccent: v["--on-accent"], soft: toHex(mix(bg, parseHex(v["--accent"])!, dark ? 0.16 : 0.1)) }
+      : null;
+  const out: PreviewTokens = {
     ...pal,
     head: font(theme.fonts?.heading, look.head),
     body: font(theme.fonts?.body, look.body),
@@ -158,6 +173,7 @@ export function previewTokens(theme: ThemeInput, dark: boolean): PreviewTokens {
     onAccent: lightOn ? "#ffffff" : toHex(INK),
     calloutBorder: theme.preset === "technical" ? `1px solid ${pal.line}` : "0",
   };
+  return engine ? { ...out, ...engine } : out;
 }
 
 /** The three contrast checks the panel shows: body text, links (light) and links (dark). */

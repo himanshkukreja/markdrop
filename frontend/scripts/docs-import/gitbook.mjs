@@ -21,7 +21,11 @@
  *                                download URLs behind {% file %} blocks
  *   5. images and files          downloaded into <out>/public/docs-assets/<id>/<page>/ (from the site or
  *                                GitBook's file hosts; PNG, JPEG, GIF, WebP, AVIF, PDF, MP4, WebM only,
- *                                by their bytes; anything else stays a link to the original)
+ *                                by their bytes; anything else stays a link to the original). An image
+ *                                on another host comes through GitBook's own copy (its image proxy on
+ *                                the site), and a self-contained SVG is drawn into a PNG (sharp).
+ *   6. card tables               card covers and targets; a target the Markdown wrote as
+ *                                broken://pages/<id> takes the link GitBook's page gives the same card
  *
  * Every request goes through lib/guard.mjs: https only, public addresses only (checked after DNS,
  * the connection pinned to that address), redirects checked hop by hop, pages only from the site's
@@ -43,7 +47,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createFetcher } from "./lib/fetch.mjs";
-import { IMAGE_EXTS, IMPORT_EXTS, checkUrl, sniffExt } from "./lib/guard.mjs";
+import { IMAGE_EXTS, IMPORT_EXTS, checkUrl, isSvg, sniffExt, svgSelfContained } from "./lib/guard.mjs";
 import { decodeEntities, lighten } from "./lib/html.mjs";
 import { createSite, isOpaqueImage } from "./lib/site.mjs";
 import crypto from "node:crypto";
@@ -116,7 +120,8 @@ const http = createFetcher({ cacheDir: CACHE, refresh: !!args.refresh, log: proc
 const counts = new Map(); // kind → Map(how → n)
 const issues = []; // { page, line, kind, msg }
 const broken = []; // { page, line, href, reason }
-const missing = []; // { page, line, src, reason }
+const missing = []; // { page, line, src, reason }: images and files that failed to download
+const keptOriginal = []; // { page, line, src, reason }: not copied on purpose; still shown or linked from the original
 const altGenerated = []; // { page, line, alt }
 const anchorFixes = []; // { page, href, to }
 const notes = [];
@@ -127,7 +132,13 @@ function count(kind, how) {
 }
 
 /* ── 1. discover ─────────────────────────────────────────────────────────── */
-const { abs, gbPathOf, parseLlms, parseSidebar, detectBrand, fileLinks, pageIcons } = createSite(ORIGIN, BASE);
+const { abs, gbPathOf, parseLlms, parseSidebar, detectBrand, detectLook, fileLinks, pageIcons, proxiedImages, htmlCards } = createSite(ORIGIN, BASE);
+// GitBook's own copies of images whose originals live on hosts this import doesn't read (its image
+// proxy on the site: /~gitbook/image?url=…&sign=…): original URL → proxy URL, from every page's HTML.
+const proxies = new Map();
+const addProxies = (html) => {
+  for (const [orig, proxy] of proxiedImages(html)) if (!proxies.has(orig)) proxies.set(orig, proxy);
+};
 
 /* ── main ────────────────────────────────────────────────────────────────── */
 log(`GitBook import: ${ORIGIN}${BASE} → ${OUT} (site id "${ID}", cache ${CACHE})`);
@@ -143,6 +154,8 @@ log(`llms.txt: ${llmsPages.length} pages in ${sections.length} section(s)`);
 
 const rootHtml = (await http.text(abs(""))).text;
 const brand = detectBrand(rootHtml);
+const look = detectLook(rootHtml);
+addProxies(rootHtml);
 
 // Sidebar per section (one section: the root page's sidebar).
 const sidebars = [];
@@ -207,6 +220,8 @@ async function fetchPage(p) {
   p.bodyLine = parsed.bodyLine;
   p.gbIds = [...(p.html.matchAll(/<h[1-4][^>]*\sid="([^"]+)"/g) ?? [])].map((m) => decodeEntities(m[1]));
   p.files = fileLinks(p.html);
+  p.cards = htmlCards(p.html);
+  addProxies(p.html);
   // --keep-dates: GitBook's "Last updated" (<time dateTime="…">) instead of the import date.
   p.gbUpdated = /dateTime="(\d{4}-\d{2}-\d{2})T/.exec(p.html)?.[1];
   p.updated = (args["keep-dates"] && p.gbUpdated) || TODAY;
@@ -236,7 +251,7 @@ const moved = new Map(); // old GitBook path → current GitBook path
   for (const p of live)
     for (const m of p.body.matchAll(/\]\(([^)\s]+)|href="([^"]+)"|url="([^"]+)"/g)) {
       const href = unescapeMd(decodeEntities(m[1] ?? m[2] ?? m[3]));
-      if (/^(#|mailto:|tel:|broken:)/.test(href)) continue;
+      if (/^(#|mailto:|tel:|broken:)/.test(href) || /(^|\/)broken-reference(\.md)?$/.test(href)) continue;
       const gb = gbPathOf(href, p.gb);
       if (gb && gb !== "/" && !byGb.has(gb) && !/^\/(~gitbook|~\/files|files)\//.test(gb) && !/\.[a-z0-9]{2,5}$/i.test(gb)) candidates.add(gb);
     }
@@ -265,15 +280,33 @@ function assetFor(url, kind, page, hint) {
 function pageCtx(p) {
   const at = (line) => (typeof line === "number" ? line + 1 : 0);
   let images = 0;
+  let cardN = 0;
   return {
     count,
     issue: (kind, line, msg) => issues.push({ page: p.gb, line: at(line), kind, msg }),
-    link(href, { line } = {}) {
+    nextCard: () => cardN++,
+    // The link GitBook's page gives the same card, when its text matches the Markdown's card title.
+    cardTarget(index, title) {
+      const c = p.cards?.[index];
+      if (!c?.href) return null;
+      const norm = (s) => String(s ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+      return title && norm(c.text).slice(0, 400).includes(norm(title)) ? c.href : null;
+    },
+    link(href, { line, card } = {}) {
       const h = decodeEntities(String(href ?? "")).trim();
       if (!h) return null;
       if (h.startsWith("#")) return h;
-      if (/^broken:/.test(h)) {
-        broken.push({ page: p.gb, line: at(line), href: h, reason: "broken link in GitBook itself (its target page was deleted)" });
+      // GitBook's word for a reference it can't resolve: broken://pages/<id> (its Markdown export) or
+      // "broken-reference" (Git Sync's).
+      if (/^broken:/.test(h) || /^(\.\.?\/)*broken-reference(\.md)?$/.test(h)) {
+        broken.push({
+          page: p.gb,
+          line: at(line),
+          href: h,
+          reason: card
+            ? `card “${card}” links to a page that no longer exists in GitBook (the card isn't a link on GitBook's page either): imported without a link`
+            : "broken link in GitBook itself (its target page was deleted): imported as plain text",
+        });
         return null;
       }
       if (/^(mailto|tel):/i.test(h)) return h;
@@ -301,7 +334,7 @@ function pageCtx(p) {
       broken.push({ page: p.gb, line: at(line), href: h, reason: "no such page in the import: kept as a link to the original site" });
       return ORIGIN + BASE + gb + hash;
     },
-    image(src, { alt, caption, darkSrc, line }) {
+    image(src, { alt, caption, darkSrc, line, decorative }) {
       if (!src) return null;
       let u;
       try {
@@ -314,6 +347,7 @@ function pageCtx(p) {
         missing.push({ page: p.gb, line: at(line), src: src.slice(0, 40) + "…", reason: "inline data: image not imported" });
         return null;
       }
+      if (decorative) return { src: assetFor(u.href, "image", p, { name: `${slugify(p.our.split("/").pop()) || "card"}-cover`, darkSrc, cover: true }).token, alt: "" };
       images++;
       let a = alt || caption;
       if (!a || /^(image|img|screenshot|untitled|alt)\s*\d*$/i.test(a)) {
@@ -400,20 +434,72 @@ const gifStats = { n: 0, before: 0, after: 0 };
 const PUBLIC = path.join(OUT, "public");
 // Images and files: from the site itself or GitBook's file hosts, nowhere else (kept as links).
 const assetHost = (u) => u.origin === ORIGIN || FILE_HOSTS.test(u.hostname);
-/** → the response, or { failed: reason }. */
-async function download(url) {
-  const r = await http.get(url, { allow: assetHost });
-  if (r.ok && r.body.length) return r;
+/**
+ * → the response, or { failed: reason, kept }. An original on a host this import doesn't read comes
+ * through GitBook's own copy of it (its image proxy on the site) when a page shows it that way;
+ * `kept`: not copied, but the page still points at the original, which GitBook serves (a host we
+ * don't read), so readers still see it; otherwise the download really failed (HTTP error, timeout).
+ */
+async function download(url, proxy = proxies.get(url)) {
+  let host = true;
+  try {
+    host = assetHost(new URL(url));
+  } catch {
+    return { failed: "not a valid URL" };
+  }
+  const r = host ? await http.get(url, { allow: assetHost }) : null;
+  if (r?.ok && r.body.length) return r;
+  if (proxy) {
+    const viaProxy = await http.get(proxy, { allow: onSite });
+    if (viaProxy.ok && viaProxy.body.length) {
+      count("image from another host", "copied through GitBook's image proxy on the site");
+      return viaProxy;
+    }
+  }
+  if (!r) return { failed: `not copied (${new URL(url).hostname} isn't one of the hosts this import copies from)`, kept: true };
   return { failed: r.error ? `not downloaded (${r.error})` : `download failed (HTTP ${r.status})` };
+}
+
+/* SVG images: drawn into PNG with sharp when it's installed (Next's image optimizer brings it), so
+   an SVG cover, diagram or logo comes across as a picture (the docs host never serves SVG). Only a
+   self-contained SVG: no DOCTYPE/entities, no references outside the file (href only to #ids or
+   data: images), so drawing it reads nothing but its own bytes. */
+let sharpMod;
+async function loadSharp() {
+  if (sharpMod === undefined) {
+    try {
+      sharpMod = (await import("sharp")).default;
+    } catch {
+      sharpMod = null;
+    }
+  }
+  return sharpMod;
+}
+/** SVG bytes → PNG bytes (about 2× the SVG's size, at most 2400 px wide), or null. */
+async function svgToPng(buf) {
+  if (!isSvg(buf) || !svgSelfContained(buf.toString("utf8"))) return null;
+  const sharp = await loadSharp();
+  if (!sharp) return null;
+  try {
+    const img = sharp(buf, { density: 144, limitInputPixels: 40_000_000 });
+    const meta = await img.metadata();
+    const out = meta.width && meta.width > 2400 ? img.resize({ width: 2400 }) : img;
+    return await out.png({ compressionLevel: 9 }).toBuffer();
+  } catch {
+    return null;
+  }
 }
 log(`assets: ${assets.size} to download`);
 let assetsDone = 0;
+let svgsDrawn = 0;
+/** Not copied: a real failure (missing), or left where it is and still shown from there (kept). */
+const notCopied = (a, src, reason, kept) => (kept ? keptOriginal : missing).push({ page: a.page.gb, line: 0, src, reason });
 for (const a of assets.values()) {
   log(`progress: assets ${++assetsDone}/${assets.size}`);
   const r = await download(a.url);
   if (r.failed) {
     a.failed = true;
-    missing.push({ page: a.page.gb, line: 0, src: a.url, reason: `${r.failed}: kept the original URL` });
+    notCopied(a, a.url, `${r.failed}: the page still points at the original`, r.kept);
     continue;
   }
   const dir = `${ASSET_BASE}/${a.page.our.slice(1)}`;
@@ -421,12 +507,26 @@ for (const a of assets.values()) {
   const urlName = decodeURIComponent(new URL(a.url).pathname.split("/").pop() ?? "").split("/").pop();
   // What the bytes are decides the extension (the docs host serves a file with its extension's type);
   // only images, PDFs and video are kept (lib/guard.mjs IMPORT_EXTS: no SVG, HTML, XML or script).
-  const sniffed = sniffExt(r.body);
+  let sniffed = sniffExt(r.body);
   if (a.kind === "image") {
+    // An SVG: drawn into a PNG (sharp), else left on GitBook.
+    if (!sniffed && (type === "image/svg+xml" || isSvg(r.body))) {
+      const png = await svgToPng(r.body);
+      if (png) {
+        r.body = png;
+        sniffed = "png";
+        svgsDrawn++;
+        count("SVG image", "drawn into a PNG (sharp)");
+      }
+    }
     const ext = sniffed;
     if (!IMAGE_EXTS.has(ext)) {
       a.failed = true;
-      missing.push({ page: a.page.gb, line: 0, src: a.url, reason: `${type === "image/svg+xml" || /\.svg$/i.test(urlName) ? "an SVG image (not imported)" : `not a PNG, JPEG, GIF, WebP or AVIF image (${type || "unknown type"})`}: kept the original URL` });
+      const svg = type === "image/svg+xml" || /\.svg$/i.test(urlName) || isSvg(r.body);
+      if (a.hint?.cover) {
+        // A card's cover that can't come across: the card goes without it (dropped below).
+        notCopied(a, a.url, `card cover not copied (${svg ? "an SVG that couldn't be drawn into a PNG" : `not a PNG, JPEG, GIF, WebP or AVIF image (${type || "unknown type"})`}): the card shows without it`, false);
+      } else notCopied(a, a.url, `${svg ? "an SVG image (not copied: SVG isn't served from the docs host)" : `not a PNG, JPEG, GIF, WebP or AVIF image (${type || "unknown type"})`}: the page still shows it from GitBook`, true);
       continue;
     }
     if (ext === "gif" && FFMPEG && !a.hint?.darkSrc) {
@@ -444,20 +544,25 @@ for (const a of assets.values()) {
     write(a.rel, r.body);
     media[a.rel] = { ...(size ?? {}), bytes: r.body.length, kind: "image" };
     if (a.hint?.darkSrc) {
-      const d = await download(new URL(a.hint.darkSrc, ORIGIN).href);
+      const durl = new URL(a.hint.darkSrc, ORIGIN).href;
+      const d = await download(durl);
+      if (!d.failed && !sniffExt(d.body) && isSvg(d.body)) {
+        const png = await svgToPng(d.body);
+        if (png) d.body = png;
+      }
       if (!d.failed && sniffExt(d.body) === ext) {
         const drel = a.rel.replace(/(\.[a-z0-9]+)$/i, ".dark$1");
         write(drel, d.body);
         media[drel] = { ...(imageSize(d.body) ?? {}), bytes: d.body.length, kind: "image" };
         count("dark image", "saved as <name>.dark.<ext>");
-      } else missing.push({ page: a.page.gb, line: 0, src: a.hint.darkSrc, reason: "dark variant not saved (download failed or different format)" });
+      } else notCopied(a, a.hint.darkSrc, `dark variant not saved (${d.failed ?? "a different format from the light image"}): dark-theme readers see the light image`, !!d.kept);
     }
   } else {
     const name = a.hint?.name || urlName || "file";
     const named = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase() ?? "";
     if (!sniffed || !IMPORT_EXTS.has(sniffed)) {
       a.failed = true;
-      missing.push({ page: a.page.gb, line: 0, src: a.url, reason: `a ${named ? `.${named}` : "file of unknown type"} isn't imported (only images, PDFs and MP4/WebM video): kept the original URL` });
+      notCopied(a, a.url, `a ${named ? `.${named}` : "file of unknown type"} isn't copied (only images, PDFs and MP4/WebM video): the link still opens it on GitBook`, true);
       continue;
     }
     // A JPEG named .jpeg keeps its name; anything else is named by its bytes.
@@ -482,6 +587,11 @@ function write(rel, buf) {
   const f = path.join(PUBLIC, rel);
   fs.mkdirSync(path.dirname(f), { recursive: true });
   fs.writeFileSync(f, buf);
+}
+// A card cover that didn't come across: the card goes without one (never a hotlinked cover).
+{
+  const byToken = new Map([...assets.values()].map((a) => [a.token, a]));
+  for (const p of live) p.out = p.out.replace(/ cover="(@@ASSET\d+@@)"/g, (m, tok) => (byToken.get(tok)?.failed ? "" : m));
 }
 const tokenMap = new Map([...assets.values()].map((a) => [a.token, a.failed ? a.url : a.rel]));
 const detok = (s) => s.replace(/@@ASSET\d+@@/g, (t) => tokenMap.get(t) ?? t);
@@ -582,7 +692,7 @@ const embedHosts = [...new Set(live.flatMap((p) => [...p.out.matchAll(/::embed\{
 // titles and texts where they differ from the page's title and description.
 const start = [];
 if (root?.out) {
-  const grid = /::::cards\n([\s\S]*?)\n::::/.exec(root.out)?.[1] ?? "";
+  const grid = /::::cards(?:\{[^}\n]*\})?\n([\s\S]*?)\n::::/.exec(root.out)?.[1] ?? "";
   for (const m of grid.matchAll(/:::card\[([^\]]*)\]\{([^}]*)\}((?:\n(?!:::)[^\n]*)*)/g)) {
     const href = /href="(\/[^"#]*)"/.exec(m[2])?.[1];
     const icon = /icon="([^"]+)"/.exec(m[2])?.[1];
@@ -600,41 +710,55 @@ if (root?.out) {
 }
 const intro = root?.out ? firstParagraph(root.out) : "";
 
-// Brand assets.
+// Brand assets: the logo (light, and dark when GitBook has a different one) and the favicon. A logo
+// whose original lives elsewhere (Google's favicon service, a company CDN) comes through GitBook's
+// own copy on the site (its image proxy); an SVG logo is drawn into a PNG. `brandPicked` says what
+// came across and why anything didn't, for the report and the import screen.
 const brandOut = { name: brandName, label: "Docs" };
-async function brandAsset(url, stem) {
-  if (!url) return null;
-  let abs;
+const brandPicked = { name: brandName };
+async function brandAsset(url, stem, proxy) {
+  if (!url && !proxy) return { rel: null, reason: "GitBook shows none" };
+  let abs = null;
   try {
-    abs = new URL(url, ORIGIN).href;
+    abs = url ? new URL(url, ORIGIN).href : null;
   } catch {
-    missing.push({ page: "site.json", line: 0, src: url, reason: `brand ${stem}: not a valid URL` });
-    return null;
+    abs = null;
   }
-  const r = await download(abs);
-  if (r.failed) {
-    missing.push({ page: "site.json", line: 0, src: url, reason: `brand ${stem} ${r.failed}` });
-    return null;
+  const r = abs ? await download(abs, proxy || proxies.get(abs)) : await http.get(proxy, { allow: onSite });
+  const fail = (reason) => {
+    missing.push({ page: "site.json", line: 0, src: url || proxy, reason: `brand ${stem} not copied: ${reason}` });
+    return { rel: null, reason };
+  };
+  if (r.failed) return fail(r.failed);
+  if (!r.ok || !r.body?.length) return fail(r.error ? `not downloaded (${r.error})` : `download failed (HTTP ${r.status})`);
+  let body = r.body;
+  let ext = sniffExt(body);
+  if (!ext && isSvg(body)) {
+    const png = await svgToPng(body);
+    if (png) {
+      body = png;
+      ext = "png";
+      count("SVG logo", "drawn into a PNG (sharp)");
+    }
   }
-  const ext = sniffExt(r.body);
-  if (!IMAGE_EXTS.has(ext) && ext !== "ico") {
-    missing.push({ page: "site.json", line: 0, src: url, reason: `brand ${stem} not imported: not a PNG, JPEG, GIF, WebP, AVIF or ICO image (an SVG logo isn't imported)` });
-    return null;
-  }
+  if (!IMAGE_EXTS.has(ext) && ext !== "ico") return fail(isSvg(body) ? "an SVG that couldn't be drawn into a PNG" : "not a PNG, JPEG, GIF, WebP, AVIF or ICO image");
   const rel = `${ASSET_BASE}/brand/${stem}.${ext}`;
-  write(rel, r.body);
-  media[rel] = { ...(imageSize(r.body) ?? {}), bytes: r.body.length, kind: "image" };
-  brandFiles.set(rel, r.body);
-  return rel;
+  write(rel, body);
+  media[rel] = { ...(imageSize(body) ?? {}), bytes: body.length, kind: "image" };
+  brandFiles.set(rel, body);
+  return { rel, reason: null };
 }
 const brandFiles = new Map(); // rel → bytes
-const logoRel = await brandAsset(brand.logo, "logo");
+const logoGot = await brandAsset(brand.logo, "logo", brand.logoProxy);
+const logoRel = logoGot.rel;
 // GitBook's dark-theme logo, when the site has a different one.
-const logoDarkRel = logoRel && brand.logoDark ? await brandAsset(brand.logoDark, "logo-dark") : null;
+const logoDarkGot = logoRel && (brand.logoDark || (brand.logoDarkProxy && brand.logoDarkProxy !== brand.logoProxy)) ? await brandAsset(brand.logoDark, "logo-dark", brand.logoDarkProxy) : { rel: null, reason: null };
+const logoDarkRel = logoDarkGot.rel;
 // No dark logo and an image that can't be transparent (a logo on a white square): the engine
 // sets it on a light tile in the dark theme instead of showing a white box.
 const logoTile = !!logoRel && !logoDarkRel && isOpaqueImage(brandFiles.get(logoRel));
-const faviconRel = brand.favicon === brand.logo ? logoRel : await brandAsset(brand.favicon, "favicon");
+const faviconGot = brand.favicon && brand.favicon === brand.logo && logoRel ? { rel: logoRel, reason: null } : await brandAsset(brand.favicon, "favicon", brand.faviconProxy);
+const faviconRel = faviconGot.rel;
 if (logoRel)
   brandOut.logo = {
     light: logoRel,
@@ -644,11 +768,36 @@ if (logoRel)
     ...(logoTile ? { tile: true } : {}),
   };
 if (faviconRel) brandOut.favicon = faviconRel;
+Object.assign(brandPicked, {
+  logo: !!logoRel,
+  ...(logoRel ? {} : { logoReason: logoGot.reason }),
+  logoDark: !!logoDarkRel,
+  favicon: !!faviconRel,
+  ...(faviconRel ? {} : { faviconReason: faviconGot.reason }),
+  accent: brand.accent ?? null,
+});
 if (brand.accent) {
   brandOut.accent = brand.accent;
   brandOut.accentDark = lighten(brand.accent, 0.45);
   brandOut.og = { background: brand.tint && brand.tint !== brand.accent ? "#17131f" : "#111111", accent: lighten(brand.accent, 0.45) };
 }
+
+// GitBook's look as the engine's theme: the sidebar layout (Clean), GitBook's corners, and its font
+// when the engine has it or a close one (GitBook's own ABC Favorit has no free twin: Geist is the
+// nearest grotesk). Light and dark both, like GitBook. The brand colour and logo are in `brand`.
+const GB_FONTS = {
+  Inter: "inter", ABCFavorit: "geist", Geist: "geist", SourceSansPro: "source-sans-3", SourceSans3: "source-sans-3", IBMPlexSans: "plex",
+  DMSans: "dmsans", Nunito: "nunito", Manrope: "manrope", Lora: "lora", Merriweather: "source-serif-4", IBMPlexSerif: "source-serif-4",
+  SourceSerifPro: "source-serif-4", RobotoSlab: "source-serif-4", Roboto: "inter", OpenSans: "inter", Lato: "inter", Poppins: "dmsans",
+  Raleway: "dmsans", Ubuntu: "inter", Overpass: "inter", NotoSans: "inter", FiraSans: "plex",
+};
+const themeFont = look.font ? GB_FONTS[look.font] ?? null : null;
+const theme = {
+  preset: "clean",
+  corners: look.corners,
+  mode: "both",
+  ...(themeFont ? { fonts: { heading: themeFont, body: themeFont } } : {}),
+};
 
 // The hero: GitBook's root description as the headline, the root page's first paragraph under it
 // (the engine leaves the subtitle out when the two say the same thing).
@@ -671,6 +820,7 @@ const site = {
   pages: { showDescription: true, ...(live.some((p) => p.icon) ? { icons: true } : {}) },
   footer: [{ label: "llms.txt", href: "/llms.txt" }],
   brand: brandOut,
+  theme,
   ai: { enabled: false },
   integrations: { markdropApp: false },
 };
@@ -744,7 +894,7 @@ R.push(`| Assets | ${[...assets.values()].filter((a) => a.kind === "image" && !a
 if (gifStats.n) R.push(`| Animated GIFs | ${gifStats.n} converted to clips (MP4 + poster): ${(gifStats.before / 1048576).toFixed(0)} MB → ${(gifStats.after / 1048576).toFixed(1)} MB |`);
 else if (!FFMPEG) R.push(`| Animated GIFs | kept as GIFs (${args["keep-gifs"] ? "--keep-gifs" : "no ffmpeg on PATH"}) |`);
 R.push(`| Descriptions | ${live.filter((p) => !p.descriptionFromBody).length} from GitBook, ${live.filter((p) => p.descriptionFromBody).length} from the first paragraph |`);
-R.push(`| Problems | ${issues.length} conversion notes, ${broken.length} broken links, ${missing.length} missing images/files, ${altGenerated.length} generated alt texts |`);
+R.push(`| Problems | ${issues.length} conversion notes, ${broken.length} broken links, ${missing.length} images/files that failed to copy, ${keptOriginal.length} left on GitBook, ${altGenerated.length} generated alt texts |`);
 R.push(`| HTTP | ${http.stats.network} network requests, ${http.stats.cached} from cache, ${http.stats.failed} failed |`, "");
 R.push("## How the content was read", "");
 R.push("- `llms.txt` for the page list (all pages, hidden ones included) and page descriptions.");
@@ -757,11 +907,12 @@ for (const [kind, hows] of [...counts.entries()].sort((a, b) => [...b[1].values(
 R.push("");
 R.push("## Brand detected", "");
 R.push(`- Name: ${brand.siteName} (brand.name "${brandName}")`);
-R.push(`- Logo: ${brand.logo ? `${brand.logo} → ${logoRel ?? "not saved"}${brand.wordmark ? " (wordmark)" : ""}` : "none found"}`);
+R.push(`- Logo: ${brand.logo || brand.logoProxy ? `${brand.logo ?? brand.logoProxy} → ${logoRel ?? `not saved (${logoGot.reason})`}${brand.wordmark ? " (wordmark)" : ""}` : "none found"}`);
 R.push(`- Dark logo: ${logoDarkRel ? `${brand.logoDark} → ${logoDarkRel}` : brand.logoDark ? `${brand.logoDark} (not saved)` : `none (GitBook shows the same image)${logoTile ? "; the logo is opaque, so brand.logo.tile sets it on a light tile in the dark theme" : ""}`}`);
-R.push(`- Favicon: ${brand.favicon ? `${brand.favicon} → ${faviconRel ?? "not saved"}` : "none found"}`);
+R.push(`- Favicon: ${brand.favicon || brand.faviconProxy ? `${brand.favicon ?? brand.faviconProxy} → ${faviconRel ?? `not saved (${faviconGot.reason})`}` : "none found"}`);
 R.push(`- Accent: ${brand.accent ?? "not found"}${brand.accent ? ` (GitBook --primary-original); accentDark ${brandOut.accentDark} is derived, not read` : ""}`);
-R.push(`- GitBook theme classes: \`${brand.themeClass.split(/\s+/).filter((c) => /theme|tint|corners|sidebar|font/.test(c)).join(" ")}\` (not carried over)`, "");
+R.push(`- Theme: Clean (GitBook's sidebar layout), corners ${look.corners}${look.font ? `, GitBook font ${look.font} → ${themeFont ?? "the theme's own (no close match)"}` : ""}, light and dark (site.json \`theme\`)`);
+R.push(`- GitBook theme classes: \`${brand.themeClass.split(/\s+/).filter((c) => /theme|tint|corners|sidebar|font/.test(c)).join(" ")}\` (the gradient/tint background isn't carried over)`, "");
 const section = (title, rows, render, empty = "None.") => {
   R.push(`## ${title}`, "");
   if (!rows.length) R.push(empty);
@@ -770,7 +921,8 @@ const section = (title, rows, render, empty = "None.") => {
 };
 section("Unconverted or lossy (check these)", issues, (x) => `- ${fmtLine(x)} **${x.kind}**: ${x.msg}`);
 section("Broken links", broken, (x) => `- ${fmtLine(x)} \`${x.href}\`: ${x.reason}`);
-section("Missing images and files", missing, (x) => `- ${fmtLine(x)} ${x.src}: ${x.reason}`);
+section("Images and files that failed to copy", missing, (x) => `- ${fmtLine(x)} ${x.src}: ${x.reason}`);
+section("Images and files left on GitBook (not copied; the page still shows or links them there)", keptOriginal, (x) => `- ${fmtLine(x)} ${x.src}: ${x.reason}`);
 section("Alt text written by the importer (GitBook had none; please describe these)", altGenerated, (x) => `- ${fmtLine(x)} “${x.alt}”`);
 section("Hidden pages (in llms.txt, not in the sidebar; imported, left out of the nav)", hidden, (p) => `- \`${p.our}\` ${p.title}`);
 section("Sidebar links that aren't pages (not imported)", external, (x) => `- [${x.title}](${x.href})`);
@@ -807,6 +959,9 @@ fs.writeFileSync(path.join(OUT, "_IMPORT_REPORT.md"), R.join("\n"));
   const at = (x) => ({ page: ourOf(x.page), gitbook: x.page, line: x.line || null });
   const json = {
     format: "markdrop-docs-import/1",
+    // What of GitBook's brand came across (the import screen says only what's true).
+    brand: brandPicked,
+    look: { ...look, theme },
     source: ORIGIN + BASE,
     site: brand.siteName,
     imported: TODAY,
@@ -825,6 +980,8 @@ fs.writeFileSync(path.join(OUT, "_IMPORT_REPORT.md"), R.join("\n"));
       notes: issues.length,
       brokenLinks: broken.length,
       missing: missing.length,
+      keptOriginal: keptOriginal.length,
+      svgsDrawn,
       altGenerated: altGenerated.length,
       unmatchedIcons: unmatchedIcons.length,
       headingIdsChanged: idChanges.length,
@@ -836,6 +993,7 @@ fs.writeFileSync(path.join(OUT, "_IMPORT_REPORT.md"), R.join("\n"));
       hidden: hidden.map((p) => ({ page: p.our, title: p.title })),
       brokenLinks: broken.map((x) => ({ ...at(x), href: x.href, reason: x.reason })),
       missing: missing.map((x) => ({ ...at(x), src: x.src, reason: x.reason })),
+      keptOriginal: keptOriginal.map((x) => ({ ...at(x), src: x.src, reason: x.reason })),
       unmatchedIcons,
       notes: issues.map((x) => ({ ...at(x), kind: x.kind, message: x.msg })),
       external: external.map((x) => ({ title: x.title, href: x.href })),
@@ -844,5 +1002,5 @@ fs.writeFileSync(path.join(OUT, "_IMPORT_REPORT.md"), R.join("\n"));
   fs.writeFileSync(path.join(OUT, "_import-report.json"), JSON.stringify(json, null, 2) + "\n");
 }
 
-log(`done: ${live.length} pages, ${assets.size} assets, ${issues.length} notes, ${broken.length} broken links, ${missing.length} missing → ${path.join(OUT, "_IMPORT_REPORT.md")}`);
+log(`done: ${live.length} pages, ${assets.size} assets, ${issues.length} notes, ${broken.length} broken links, ${missing.length} missing, ${keptOriginal.length} left on GitBook → ${path.join(OUT, "_IMPORT_REPORT.md")}`);
 log(`HTTP: ${http.stats.network} network, ${http.stats.cached} cached, ${http.stats.failed} failed`);

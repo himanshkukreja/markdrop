@@ -98,3 +98,15 @@ test("the outline: h2 and h3 outside containers, with which one of the same text
   assert.equal(out[0].slug, "pay-now");
   assert.equal(out[2].slug, "track-orders");
 });
+
+test("preview links: pages of the guide open in the editor; anchors, files and other sites don't", { skip }, () => {
+  const t = mod.previewLinkTarget;
+  assert.deepEqual(t("/getting-started/quickstart"), { kind: "page", path: "/getting-started/quickstart", hash: "" });
+  assert.deepEqual(t("/getting-started/quickstart.md#install"), { kind: "page", path: "/getting-started/quickstart", hash: "install" });
+  assert.deepEqual(t("/guides/a/?x=1"), { kind: "page", path: "/guides/a", hash: "" });
+  assert.deepEqual(t("/caf%C3%A9"), { kind: "page", path: "/café", hash: "" });
+  assert.deepEqual(t("/"), { kind: "page", path: "/", hash: "" });
+  assert.deepEqual(t("#setup"), { kind: "hash", hash: "setup" });
+  assert.deepEqual(t("/docs-assets/import/a/b.pdf"), { kind: "asset" });
+  for (const h of ["https://example.com/a", "//cdn.example.com/x", "mailto:a@b.c"]) assert.deepEqual(t(h), { kind: "external" }, h);
+});

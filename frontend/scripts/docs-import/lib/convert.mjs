@@ -20,7 +20,7 @@
  *   {% include %} {% openapi %} {% swagger %}     → a :::note pointing at the source (reported)
  *   <details><summary>                            → :::details[summary]
  *   <figure>/<img>/<picture> and ![](…)           → ![alt](local "caption") (dark <source> → .dark file)
- *   <table data-view="cards">                     → ::::cards (cover images dropped, reported)
+ *   <table data-view="cards">                     → ::::cards{cols="2" for large cards} / :::card[title]{href icon cover}
  *   <table>                                       → GFM table
  *   inline <a> <strong> <em> <code> <kbd> <mark> <br> → Markdown; anything else → its text (reported)
  *
@@ -56,6 +56,9 @@ export const FA_ICONS = {
   "sitemap": "listTree", "diagram-project": "listTree", "github": "github", "google": "google", "palette": "palette", "droplet": "droplet",
   "music": "music", "print": "printer", "qrcode": "qr", "inbox": "inbox", "archive": "archive", "box-archive": "archive", "bug": "bug",
   "share": "share", "share-nodes": "share", "arrow-up-right-from-square": "external", "up-right-from-square": "external",
+  // Close stand-ins (no exact icon in the set).
+  "thumbs-up": "checkCircle", "landmark-dome": "shield", landmark: "shield", memory: "server", cloud: "server", "cloud-arrow-up": "upload",
+  slack: "message", zoom: "film", notion: "doc",
 };
 
 /** A Font Awesome name (`bolt`, `fa-bolt`, `fa-regular fa-bolt`) → a design-system icon, or undefined. */
@@ -332,6 +335,10 @@ const attrVal = (s) => String(s ?? "").replace(/"/g, "'");
  *   link(href, {line}) → new href | null      image(src, {alt, caption, darkSrc, line}) → Markdown path
  *   file(index, src, {line}) → {href, name, size?} | null   video(url, title) → id | null
  *   pageInfo(href) → {title, description} | null             count(kind, how)   issue(kind, line, msg)
+ * and optionally, for card tables:
+ *   nextCard() → the card's index on the page (every row of every cards table, in order)
+ *   cardTarget(index, title) → the href GitBook's page links that card to | null (a target the
+ *     Markdown wrote as broken://pages/<id>); image(…, {decorative: true}) for card covers (no alt).
  */
 export function convertBody(body, bodyLine, ctx) {
   const tree = buildTree(body, bodyLine);
@@ -753,22 +760,38 @@ function cardsTable(table, line, ctx) {
   const rows = findTag(findTag(table, "tbody")[0] ?? table, "tr");
   const hooks = inlineHooks(line, ctx);
   const cards = [];
-  let covers = 0;
+  // GitBook's large cards sit two to a row (its grid: 1 column, 2 from xl); medium ones follow the
+  // engine's count-based columns (4 → 2×2, 5+ → 3).
+  const cols = table.attrs["data-card-size"] === "large" ? "2" : null;
+  const cellUrl = (td) => {
+    const a = findTag(td, "a")[0];
+    const img = findTag(td, "img")[0];
+    return a?.attrs.href || img?.attrs.src || "";
+  };
   for (const tr of rows) {
+    // Every row is a card on GitBook's page (titled or not): the HTML's cards line up by this index.
+    const cardIndex = ctx.nextCard ? ctx.nextCard() : -1;
     const cells = tr.children.filter((c) => c.tag === "td");
     let title = "";
-    let href = "";
+    let titleHref = "";
+    let target = null; // { href } when the row has a card target
+    let coverSrc = "";
+    let coverDark = "";
     let icon;
     const body = [];
     cells.forEach((td, k) => {
       const th = heads[k]?.attrs ?? {};
       if ("data-card-target" in th) {
         const a = findTag(td, "a")[0];
-        if (a?.attrs.href) href = ctx.link(a.attrs.href, { line }) ?? "";
+        if (a?.attrs.href) target = { href: decodeEntities(a.attrs.href) };
         return;
       }
-      if ("data-card-cover" in th || "data-card-cover-dark" in th) {
-        if (textOf(td).trim()) covers++;
+      if ("data-card-cover-dark" in th) {
+        coverDark = decodeEntities(cellUrl(td));
+        return;
+      }
+      if ("data-card-cover" in th) {
+        coverSrc = decodeEntities(cellUrl(td));
         return;
       }
       if ("data-hidden" in th) return;
@@ -779,23 +802,44 @@ function cardsTable(table, line, ctx) {
       if (!txt) return;
       if (!title) {
         title = plainText(txt); // icons (<i class="fa-…">:bolt:</i>) already dropped
-        if (strongLink?.attrs.href && !href) href = ctx.link(strongLink.attrs.href, { line }) ?? "";
-        else {
-          const a = findTag(td, "a")[0];
-          if (a?.attrs.href && !href) href = ctx.link(a.attrs.href, { line }) ?? "";
-        }
+        const a = strongLink ?? findTag(td, "a")[0];
+        if (a?.attrs.href) titleHref = decodeEntities(a.attrs.href);
       } else body.push(txt.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1"));
     });
     if (!title) continue;
-    cards.push(`:::card[${label(title)}]${href || icon ? `{${[href && `href="${href}"`, icon && `icon="${icon}"`].filter(Boolean).join(" ")}}` : ""}`, ...body, ":::");
+    // The card's link: its card target; a target GitBook's Markdown wrote as broken://pages/<id>
+    // (an internal reference it couldn't write as a path) takes the target GitBook's page links the
+    // same card to; else the link on the card's title; else none (reported).
+    let href = "";
+    // GitBook writes a reference it can't resolve as broken://pages/<id> (its Markdown export) or
+    // "broken-reference" (Git Sync).
+    const broken = (h) => /^(broken:|(\.\.?\/)*broken-reference(\.md)?$)/i.test(h);
+    if (target && !broken(target.href)) href = ctx.link(target.href, { line }) ?? "";
+    if (!href && target && broken(target.href)) {
+      const fromHtml = ctx.cardTarget?.(cardIndex, title);
+      if (fromHtml) {
+        href = ctx.link(fromHtml, { line }) ?? "";
+        if (href) ctx.count("card target (broken:// in GitBook's Markdown)", "resolved from the card's link on GitBook's page");
+      }
+    }
+    if (!href && titleHref && !broken(titleHref)) href = ctx.link(titleHref, { line }) ?? "";
+    if (!href && target && broken(target.href)) {
+      ctx.link(target.href, { line, card: title }); // reported as a broken link, with the card's title
+    }
+    let cover = "";
+    if (coverSrc) {
+      const img = ctx.image(coverSrc, { alt: "", caption: "", darkSrc: coverDark || null, line, decorative: true });
+      if (img?.src) {
+        cover = img.src;
+        ctx.count("card cover image", "cover=\"…\" (downloaded)");
+      }
+    }
+    const attrs = [href && `href="${href}"`, icon && `icon="${icon}"`, cover && `cover="${cover}"`].filter(Boolean);
+    cards.push(`:::card[${label(title)}]${attrs.length ? `{${attrs.join(" ")}}` : ""}`, ...body, ":::");
   }
-  ctx.count("cards table", "::::cards / :::card[title]{href icon}");
-  if (covers) {
-    ctx.count("card cover image", "dropped (cards have no cover images)");
-    ctx.issue("cards", line, `${covers} card cover image(s) dropped: the engine's cards have no cover`);
-  }
+  ctx.count("cards table", "::::cards / :::card[title]{href icon cover}");
   if (!cards.length) return [];
-  return ["::::cards", ...cards, "::::"];
+  return [cols ? `::::cards{cols="${cols}"}` : "::::cards", ...cards, "::::"];
 }
 
 function gfmTable(table, hooks) {

@@ -41,7 +41,8 @@ When the import is done, the screen says **Your pages are here** and lists what 
 
 | Row | What it means | What to do |
 | --- | --- | --- |
-| **Images or files we couldn't copy** | They were missing or unreachable on the old site. | Upload them again in the editor, or remove them. |
+| **Images or files we couldn't copy** | The download failed: they're missing or unreachable on the old site. | Upload them again in the editor, or remove them. |
+| **Files still on GitBook** | Not copied (a file type the guide doesn't host, like a spreadsheet), but the page still shows or links them on GitBook. | Upload your own copy before you close your GitBook site. |
 | **Links that were already broken** | Links that didn't work on the GitBook site either. | Fix or remove them. |
 | **Image descriptions we wrote for you** | GitBook had no alt text, so the importer used the file names. | Write a real description: screen readers and search use it. |
 | **Pages hidden from the sidebar in GitBook** | Imported and reachable by link, but not in the sidebar. | Keep them hidden or show them. See [Hidden pages](/guides/pages-and-navigation#hidden-pages). |
@@ -56,9 +57,9 @@ Rows with nothing in them aren't shown. To open the report again later, go to th
 
 - **Pages** become drafts, each with a first version marked **Imported** in its [history](/guides/history). Nothing is published.
 - **Sidebar groups** and their order. GitBook's hidden pages stay hidden.
-- **Blocks:** hints become callouts, and tabs, steps, cards and code blocks keep their shape.
-- **Images and files** are copied into the guide and count towards its storage.
-- **Brand:** the logo and accent colour, matched with a theme. Change it in [Design](/guides/brand-and-style).
+- **Blocks:** hints become callouts, and tabs, steps, cards and code blocks keep their shape. Cards keep their links, icons and cover images, and sit in the same grid (large cards two to a row).
+- **Images and files** are copied into the guide and count towards its storage. An image on another site comes through GitBook's own copy of it, and an SVG becomes a PNG.
+- **Brand and look:** the logo (and its dark version), favicon and accent colour, plus GitBook's corners and font, matched with a theme. The import screen says which of them came across, and why one didn't. A guide whose design you already changed keeps it. Change it in [Design](/guides/brand-and-style).
 - **Old addresses:** a GitBook address that changes gets a redirect to its new page, so links people saved keep working. The report's last step says how many.
 
 :::note

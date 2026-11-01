@@ -247,3 +247,24 @@ export function sniffExt(buf) {
   if (buf.readUInt32BE(0) === 0x00000100) return "ico";
   return null;
 }
+
+/** True when these bytes start like an SVG document (an XML declaration and comments allowed). */
+export function isSvg(buf) {
+  return !!buf && /^\s*(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg[\s>]/i.test(buf.toString("utf8", 0, 2048));
+}
+
+/**
+ * Whether an SVG may be drawn into a PNG (the importer's svgToPng): it must be self-contained, so
+ * drawing it reads nothing but its own bytes. No DOCTYPE or entities (no external or expanding
+ * entities), every href only to an #id or a data: raster image, no url(…) or @import outside the
+ * file. (The drawing is pixels: a script inside never runs, and the SVG itself is never served.)
+ */
+export function svgSelfContained(text) {
+  const s = String(text ?? "");
+  if (/<!DOCTYPE|<!ENTITY/i.test(s)) return false;
+  for (const m of s.matchAll(/\b(?:xlink:)?href\s*=\s*(["'])\s*([^"']*)\1/gi)) if (!/^(#|data:image\/(png|jpe?g|gif|webp)[;,])/i.test(m[2])) return false;
+  if (/\b(?:xlink:)?href\s*=\s*[^"'\s>]/i.test(s)) return false;
+  if (/url\(\s*["']?\s*(?!#|data:image\/(png|jpe?g|gif|webp)[;,])/i.test(s)) return false;
+  if (/@import/i.test(s)) return false;
+  return true;
+}

@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { GuardError, blockedAddress, checkUrl, pinnedLookup, resolvePublic, safeGet, sniffExt } from "../lib/guard.mjs";
+import { GuardError, blockedAddress, checkUrl, isSvg, pinnedLookup, resolvePublic, safeGet, sniffExt, svgSelfContained } from "../lib/guard.mjs";
 import { createFetcher } from "../lib/fetch.mjs";
 
 /** A resolver from a table: host → [addresses]. */
@@ -156,4 +156,25 @@ test("files an import keeps are named by their bytes", () => {
   for (const s of ["<!doctype html><script>alert(1)</script>", '<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>', '<?xml version="1.0"?><x/>', "alert(1)//", "PK\x03\x04zip"])
     assert.equal(sniffExt(b(s)), null, s);
   assert.equal(sniffExt(Buffer.alloc(0)), null);
+});
+
+test("SVGs drawn into PNGs must be self-contained", () => {
+  const svg = (inner) => `<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">${inner}</svg>`;
+  assert.equal(isSvg(Buffer.from(svg(""))), true);
+  assert.equal(isSvg(Buffer.from("<!-- hi -->\n<svg width='1'/>")), true);
+  assert.equal(isSvg(Buffer.from("<html><svg/></html>")), false);
+  // Fine: internal references, gradients and filters by #id, embedded raster images.
+  assert.equal(svgSelfContained(svg('<defs><filter id="b"/></defs><rect filter="url(#b)" fill="url(#g)"/><use href="#b"/><image href="data:image/png;base64,iVBORw0KGgo="/>')), true);
+  // Refused: anything that would make drawing read outside the file.
+  for (const bad of [
+    '<image href="https://tracker.example/p.png"/>',
+    '<image xlink:href="file:///etc/passwd"/>',
+    "<use href='other.svg#x'/>",
+    '<rect style="fill:url(https://x.example/a)"/>',
+    "<style>@import 'https://x.example/a.css';</style>",
+    "<image href=/etc/hosts />",
+    '<image href="data:image/svg+xml;base64,PHN2Zz4="/>',
+  ])
+    assert.equal(svgSelfContained(svg(bad)), false, bad);
+  assert.equal(svgSelfContained('<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg>&x;</svg>'), false);
 });

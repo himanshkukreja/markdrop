@@ -694,6 +694,49 @@ class ImportTests(DbCase):
         self.assertIn("the imported brand (logo or colour) couldn't be used", out["skipped"])
         self.assertFalse((await self.db[SITES].find_one({"_id": s["_id"]}))["settings"]["theme"]["brand"]["enabled"])
 
+    async def test_gitbook_look_sets_an_untouched_design_only(self):
+        look = {"preset": "clean", "corners": "sharp", "mode": "both", "fonts": {"heading": "geist", "body": "geist"}}
+        # A guide whose design nobody chose: the import brings GitBook's corners and font.
+        s = await self.make_site()
+        job = await self.job("import", s, {"source": "gitbook", "url": "https://x"}, target="local")
+        job = await docs_jobs.claim_next(self.db, "w1")
+        data = self.data()
+        data["site"]["theme"] = {**look, "preset": "not-a-preset", "fonts": {"heading": "geist", "body": "comic-sans"}, "customCss": "x"}
+        await docs_import_job.apply_import(self.db, job, "w1", data)
+        t = (await self.db[SITES].find_one({"_id": s["_id"]}))["settings"]["theme"]
+        self.assertEqual((t["preset"], t["corners"], t["mode"], t["fonts"], t["custom_css"]), ("clean", "sharp", "both", {"heading": "geist", "body": None}, None))
+        self.assertEqual(t["brand"]["accent"], "#535061")
+        # A guide someone already designed (Editorial): its design stays; the brand still comes across.
+        s2 = await self.make_site("designed")
+        await self.db[SITES].update_one({"_id": s2["_id"]}, {"$set": {"settings.theme.preset": "editorial"}})
+        job = await self.job("import", s2, {"source": "gitbook", "url": "https://x"}, target="local")
+        job = await docs_jobs.claim_next(self.db, "w1")
+        data = self.data()
+        data["site"]["theme"] = look
+        await docs_import_job.apply_import(self.db, job, "w1", data)
+        t = (await self.db[SITES].find_one({"_id": s2["_id"]}))["settings"]["theme"]
+        self.assertEqual((t["preset"], t["corners"], t["fonts"]), ("editorial", None, {"heading": None, "body": None}))
+        self.assertEqual(t["brand"]["logo_url"], "/docs-assets/import/brand/logo.png")
+
+    def test_images_named_at_1x_are_kept(self):
+        # The importer names an image shown at its pixel width <name>@1x.<ext> (the engine's 1x
+        # marker); refusing "@" dropped every such image from an imported guide.
+        self.assertEqual(docs_import_job.import_asset_type("import/g/shot@1x.png"), "image/png")
+        self.assertEqual(docs_import_job.import_asset_type("import/g/shot@1x.dark.png"), "image/png")
+        self.assertIsNone(docs_import_job.import_asset_type("import/g/@x.png"))
+        self.assertIsNone(docs_import_job.import_asset_type("import/g/../x.png"))
+
+    def test_report_keeps_files_left_on_gitbook_apart_and_what_brand_came_across(self):
+        rep = docs_import_job.summarize_report({
+            "counts": {"missing": 0, "keptOriginal": 1},
+            "items": {"missing": [], "keptOriginal": [{"page": "/a", "src": "https://x/files/t.xlsx", "reason": "a .xlsx isn't copied"}]},
+            "brand": {"name": "Acme", "logo": False, "logoReason": "download failed (HTTP 404)", "favicon": True, "accent": "#535061", "evil": {"x": 1}},
+        })
+        self.assertEqual(rep["counts"], {"missing": 0, "keptOriginal": 1})
+        self.assertEqual(rep["items"]["keptOriginal"][0]["src"], "https://x/files/t.xlsx")
+        self.assertEqual(rep["brand"], {"logo": False, "favicon": True, "name": "Acme", "logoReason": "download failed (HTTP 404)", "accent": "#535061"})
+        self.assertNotIn("brand", docs_import_job.summarize_report({"counts": {}}))
+
 
 class DispatchTests(DbCase):
     async def test_routing(self):

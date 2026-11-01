@@ -152,7 +152,10 @@
 .dx-tabs__panel > .dx-tab > .md-codeblock:only-child { margin: 0; border: 0; border-radius: 0; box-shadow: none; }
 
 /* Cards */
-.dx-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 24px 0; }
+/* --dx-cols (Cards: `cols`, else from the count, rules.mjs cardColumns) columns at full width; each column
+   at least 200px, so a narrower column holds fewer and a phone one. */
+.dx-cards { --dx-cols: 2; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(200px, calc((100% - (var(--dx-cols) - 1) * 12px) / var(--dx-cols)))), 1fr)); gap: 12px; margin: 24px 0; }
+@media (max-width: 639px) { .dx-cards { grid-template-columns: minmax(0, 1fr); } }
 .dx-card { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
 .dx-card--link:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
 .dx-card--link:focus-within { outline: 2px solid var(--border-focus); outline-offset: 2px; }
@@ -163,6 +166,9 @@
 .dx-card__body { font-size: 14px; line-height: 22px; color: var(--text-secondary); }
 .dx-card__body > * { margin: 0 !important; }
 .dx-card__body a { position: relative; z-index: 1; }
+.dx-card--cover { padding-top: 0; overflow: hidden; }
+.dx-card__cover { display: block; margin: 0 -16px 10px; aspect-ratio: 16 / 9; background: var(--surface-inset); border-bottom: 1px solid var(--border); }
+.dx-card__cover img { display: block; width: 100%; height: 100%; margin: 0 !important; object-fit: cover; border-radius: 0 !important; box-shadow: none !important; }
 
 /* Details / FAQ */
 .dx-details { margin: 8px 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
@@ -383,6 +389,7 @@ html.dx-modal-open { overflow: hidden; }
 .dx-grid { display: grid; gap: 16px; }
 .dx-grid--3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .dx-grid--4 { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.dx-grid--start { --dx-cols: 3; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(240px, calc((100% - (var(--dx-cols) - 1) * 16px) / var(--dx-cols)))), 1fr)); }
 .dx-startcard { display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); color: var(--text); text-decoration: none; }
 .dx-startcard:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); }
 .dx-startcard:focus-visible, .dx-news__item:focus-visible, .dx-prevnext__link:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }

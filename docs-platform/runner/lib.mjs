@@ -36,7 +36,8 @@ export const IMPORT_ASSET_ID = "import";
  * lib/guard.mjs) and the API records only these (backend docs_import_job.IMPORT_ASSET_TYPES).
  */
 const IMPORT_FILE_TYPES = { png: "png", jpg: "jpg", jpeg: "jpg", gif: "gif", webp: "webp", avif: "avif", ico: "ico", pdf: "pdf", mp4: "mp4", webm: "webm" };
-const SAFE_SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,199}$/;
+// "@" for the importer's <name>@1x.<ext> (an image shown at its pixel width: the engine's 1x marker).
+const SAFE_SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._@-]{0,199}$/;
 
 /** What these bytes are, among IMPORT_FILE_TYPES' values, or null. */
 export function sniffImportFile(buf) {
@@ -446,6 +447,8 @@ export function readImportFolder(dir, { parseYaml }) {
       footer: site.footer || null,
       embed_hosts: site.embedHosts || null,
       brand: site.brand || null,
+      // GitBook's look as theme settings (preset, corners, fonts, mode): the API applies it to a guide whose design is untouched.
+      theme: site.theme || null,
     },
     nav: (site.nav || []).map((g) => ({ group: g.group, ...(g.icon ? { icon: g.icon } : {}), ...(g.tab ? { tab: g.tab } : {}), pages: g.pages || [] })),
     pages,

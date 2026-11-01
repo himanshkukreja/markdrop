@@ -348,7 +348,9 @@ for (const [p, pg] of pages) {
         if (!label) err(file, ":::card needs a title, like :::card[Title]{href=\"/a/b\"}", ln(i));
         if (a.href) pg.links.push({ href: a.href, line: ln(i), what: "card href" });
         if (a.icon && ICONS && !ICONS.has(a.icon)) err(file, `card icon "${a.icon}" is not a design-system icon`, ln(i));
+        if (a.cover) mediaRefs.push({ file, line: ln(i), type: "cover", src: a.cover });
       }
+      if (name === "cards" && a.cols !== undefined && !/^[1-4]$/.test(a.cols)) err(file, `cards cols="${a.cols}" must be 1, 2, 3 or 4 (leave it out to follow the number of cards)`, ln(i));
       if (parent) parent.children.push(name);
       stack.push({ name, colons: colons.length, line: i, children: [], steps: 0 });
       return;
@@ -755,6 +757,13 @@ function checkAsset(file, line, rel, budget, what = "") {
 const NOT_UI = /^(diagram|photo|art|logo)-/;
 
 for (const r of mediaRefs) {
+  if (r.type === "cover") {
+    // A card's cover is decorative (no alt); its .dark variant, when there is one, is picked up.
+    if (/^https:\/\//.test(r.src)) warn(r.file, `card cover ${r.src}: keep docs images under /docs-assets/`, r.line);
+    else if (!r.src.startsWith("/docs-assets/")) err(r.file, `card cover ${r.src}: images live under /docs-assets/<page>/ in frontend/public`, r.line);
+    else if (checkAsset(r.file, r.line, r.src, "image", "card cover ") && exists(darkOf(r.src))) checkAsset(r.file, r.line, darkOf(r.src), "image", "card cover dark variant ");
+    continue;
+  }
   if (r.type === "image") {
     checkAlt(r, "image");
     if (/^https?:\/\//.test(r.src)) {
