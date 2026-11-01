@@ -2,11 +2,13 @@
 
 import { ReadMore } from "@/components/ReadMore";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Anchor, Badge, Button, Icon, Progress, Spinner, type Tone } from "@/components/ui";
+import { Alert, Anchor, Badge, Button, Icon, Progress, Spinner, type Tone, useToast } from "@/components/ui";
 import { useLocationSearch } from "@/components/shell/useLocation";
 import {
-  assetPreviewUrl, listPages, presetName, type ImportReport, type Job, type JobStep, type ReportItem, type WorkerImportResult,
+  assetPreviewUrl, docsErrorMessage, listPages, presetName, type ImportReport, type Job, type JobStep, type ReportItem, type WorkerImportResult,
 } from "@/lib/docsSites";
+import { adoptGithubOpenapi } from "@/lib/docsGithub";
+import { settingsHref } from "./settings/sections";
 import { num, plural } from "./format";
 import { previewTokens } from "./presets";
 import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
@@ -25,6 +27,14 @@ export const IMPORT_STEPS: StepDef[] = [
   { id: "save", running: "Saving the pages as drafts", done: "Saved the pages as drafts", detail: (s) => (s?.redirects ? `${num(s.redirects)} old links kept working` : null) },
 ];
 
+/** A GitHub import's steps (docs-platform/runner: fetch → convert → upload → save). */
+export const GITHUB_IMPORT_STEPS: StepDef[] = [
+  { id: "fetch", running: "Downloading the repository", done: "Downloaded the repository" },
+  { id: "convert", running: "Converting pages", done: "Converted pages", detail: (s) => (s?.pages ? `${num(s.groups ?? 0)} groups · ${num(s.pages)} pages` : null) },
+  { id: "upload", running: "Copying images and files", done: "Copied images and files", detail: (s) => (s?.images !== undefined ? `${num(s.images)} images · ${num(s.files ?? 0)} ${s.files === 1 ? "file" : "files"}` : null) },
+  { id: "save", running: "Saving as drafts", done: "Saved as drafts", detail: (s) => (s?.redirects ? `${num(s.redirects)} old links kept working` : null) },
+];
+
 const TEMPLATE_STEPS: StepDef[] = [
   { id: "seed", running: "Adding the template's pages", done: "Added the template's pages" },
   { id: "check", running: "Getting the editor ready", done: "The editor is ready" },
@@ -40,6 +50,17 @@ const REPORT_COPY: Record<string, { tone: Tone; title: string; body: string; act
   lossy: { tone: "neutral", title: "Blocks converted approximately", body: "GitBook blocks with no exact match here. Check they read right.", action: "Show" },
 };
 
+/** The same rows for a GitHub import: about the repository, not a GitBook site. */
+const GITHUB_REPORT_COPY: Record<string, { tone: Tone; title: string; body: string; action: string }> = {
+  ...REPORT_COPY,
+  alt_text: { tone: "warning", title: "Image descriptions we wrote for you", body: "These images had no alt text in the repository, so we used the file names. Screen readers and search read them: check they make sense.", action: "Show" },
+  hidden_pages: { tone: "neutral", title: "Pages left out of the navigation", body: "In the repository but not in its sidebar. Imported and reachable by link: keep them hidden or show them.", action: "Review" },
+  icons: { tone: "neutral", title: "Page icons we couldn't match", body: "Icons from the repository's config with no match here. Pick an icon or leave them blank.", action: "Show" },
+  missing_assets: { tone: "warning", title: "Images or files we couldn't copy", body: "Missing from the repository, or a file we can't host. Add them to the repository or remove the reference.", action: "Show" },
+  kept_assets: { tone: "neutral", title: "Files linked on GitHub", body: "Not copied (a file type we don't host), so the page links to the file in the repository instead.", action: "Show" },
+  lossy: { tone: "neutral", title: "Blocks converted approximately", body: "Components with no exact match here. Check they read right.", action: "Show" },
+};
+
 type Row = { page?: string | null; line?: number | null; [k: string]: unknown };
 
 /**
@@ -47,7 +68,7 @@ type Row = { page?: string | null; line?: number | null; [k: string]: unknown };
  * {counts, items, truncated}) → what this screen shows: a summary for the steps and the "needs a
  * look" rows. `pageIds` maps page paths to ids so a row can open the page in the editor.
  */
-export function importReportOf(job: Job | null, pageIds: Map<string, string>): ImportReport | null {
+export function importReportOf(job: Job | null, pageIds: Map<string, string>, source: "gitbook" | "github" = "gitbook"): ImportReport | null {
   const r = job?.result as WorkerImportResult | ImportReport | null | undefined;
   if (!r) return null;
   if ("needs_look" in r || "summary" in r) return r as ImportReport;
@@ -69,7 +90,7 @@ export function importReportOf(job: Job | null, pageIds: Map<string, string>): I
     {
       kind: "icons",
       count: (items.unmatchedIcons ?? []).reduce((n, x) => n + (Array.isArray(x.pages) ? x.pages.length : 1), 0),
-      items: (items.unmatchedIcons ?? []).flatMap((x) => (Array.isArray(x.pages) ? (x.pages as string[]) : []).map((page) => row({ page }, `GitBook icon “${String(x.icon ?? "")}”`))),
+      items: (items.unmatchedIcons ?? []).flatMap((x) => (Array.isArray(x.pages) ? (x.pages as string[]) : []).map((page) => row({ page }, `${source === "github" ? "Icon" : "GitBook icon"} “${String(x.icon ?? "")}”`))),
     },
     { kind: "lossy", count: total("notes"), items: (items.notes ?? []).map((x) => row(x, q(x.message))) },
   ];
@@ -126,8 +147,8 @@ function StepDot({ status }: { status: JobStep["status"] }) {
   );
 }
 
-function ReportRow({ item, editorHref }: { item: ReportItem; editorHref: (pageId: string) => string }) {
-  const copy = REPORT_COPY[item.kind] ?? { tone: "neutral" as Tone, title: item.title ?? item.kind, body: item.body ?? "", action: "Show" };
+function ReportRow({ item, editorHref, github }: { item: ReportItem; editorHref: (pageId: string) => string; github?: boolean }) {
+  const copy = (github ? GITHUB_REPORT_COPY : REPORT_COPY)[item.kind] ?? { tone: "neutral" as Tone, title: item.title ?? item.kind, body: item.body ?? "", action: "Show" };
   const [open, setOpen] = useState(false);
   const listId = `report-${item.kind}`;
   return (
@@ -195,33 +216,98 @@ function MiniSite({ name }: { name: string }) {
   );
 }
 
+/** A GitHub import found an OpenAPI file: offer it as the guide's API reference (admins). */
+function OpenapiOffer({ siteId, base, paths }: { siteId: string; base: string; paths: string[] }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [used, setUsed] = useState<string | null>(null);
+  const [hidden, setHidden] = useState(false);
+  const [error, setError] = useState("");
+  const path = paths[0]!;
+  if (hidden) return null;
+  if (used) {
+    return (
+      <Alert tone="success" title="The API reference is set" live>
+        From <code className="ph-sensitive ph-mask font-mono [overflow-wrap:anywhere]">{used}</code>. It goes live when you publish.{" "}
+        <Anchor href={settingsHref(base, "api-reference")} className="font-semibold text-accent-text underline">API reference settings</Anchor>
+      </Alert>
+    );
+  }
+  async function use() {
+    setBusy(true);
+    setError("");
+    try {
+      await adoptGithubOpenapi(siteId, path);
+      setUsed(path);
+      toast.success("The API reference is set. It goes live when you publish.");
+    } catch (e) {
+      setError(docsErrorMessage(e, "We couldn't use that file. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section aria-labelledby="openapi-offer-h" className="flex min-w-0 flex-col gap-3 rounded-xl border-[1.5px] border-accent bg-surface px-[18px] py-4">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-text" aria-hidden><Icon name="code" size={16} /></span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h2 id="openapi-offer-h" className="font-semibold text-text">
+            We found <code className="ph-sensitive ph-mask font-mono [overflow-wrap:anywhere]">{path.split("/").pop()}</code> in the repo
+          </h2>
+          <span className="text-[13px] text-text-secondary">
+            Use it as the API reference? Readers get a page for every endpoint, code samples and Try it.
+            {paths.length > 1 ? ` ${plural(paths.length - 1, "other OpenAPI file")} can be chosen in Settings › GitHub.` : ""}
+          </span>
+        </div>
+      </div>
+      {error && <Alert tone="danger">{error}</Alert>}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" size="sm" iconLeft="code" loading={busy} onClick={() => void use()}>Use as API reference</Button>
+        <Button variant="ghost" size="sm" disabled={busy} onClick={() => setHidden(true)}>Not now</Button>
+      </div>
+    </section>
+  );
+}
+
 /**
  * /guides/<site>/import?job=<id> (Import board): the import's steps with live progress (the
  * job is polled every 2 s), then "Needs a look before you publish" from the importer's report, and
  * a preview of the site in its matched theme. Safe to leave: the job runs on the server, and the
- * screen reopens from the site's last import (Settings › Imported from GitBook).
+ * screen reopens from the site's last import (Settings › General › Imported from GitBook / GitHub).
+ *
+ * A GitHub import (site.source.kind "github") has its own steps and words (the repository, never a
+ * GitBook site), says it's kept in sync and how when syncing is on, and offers an OpenAPI file the
+ * import found in the repository as the guide's API reference (admins).
  */
 export default function ImportProgress() {
-  const { site, base, reload, canEdit } = useSite();
+  const { site, base, reload, canEdit, isAdmin } = useSite();
   const search = useLocationSearch();
   const jobId = new URLSearchParams(search).get("job") || site.job?.id || site.last_import_job_id || null;
   const { job, error } = useJob(site.id, jobId);
   const isTemplate = site.source.kind === "template";
-  const steps = isTemplate ? TEMPLATE_STEPS : IMPORT_STEPS;
+  const isGithub = site.source.kind === "github";
+  const steps = isTemplate ? TEMPLATE_STEPS : isGithub ? GITHUB_IMPORT_STEPS : IMPORT_STEPS;
   const at = stepIndex(job, steps);
   const [pageIds, setPageIds] = useState<Map<string, string>>(new Map());
-  const report = useMemo(() => importReportOf(job, pageIds), [job, pageIds]);
+  const report = useMemo(() => importReportOf(job, pageIds, isGithub ? "github" : "gitbook"), [job, pageIds, isGithub]);
   const done = job?.status === "done";
   const failed = job?.status === "failed";
   const fromHost = (() => {
     try { return site.source.url ? new URL(site.source.url).hostname : null; } catch { return null; }
   })();
+  const repo = isGithub ? (site.github ?? site.source.repo ?? null) : null;
+  const repoName = repo ? `${repo.owner}/${repo.name}` : null;
+  const ghResult = (job?.result as WorkerImportResult | null | undefined)?.github ?? null;
+  // Kept in sync after the import: the guide's link when it's there, else what the import was asked.
+  const syncOn = isGithub && (site.github ? site.github.sync : !!site.source.sync);
+  const syncMode = site.github?.mode ?? site.source.mode ?? "drafts";
+  const syncBranch = site.github?.branch ?? site.source.repo?.branch ?? null;
 
   const rows: JobStep[] = job?.progress?.steps ?? steps.map((d, i) => ({
     id: d.id,
     label: i < at ? d.done : d.running,
     status: failed && i === at ? "failed" : i < at ? "done" : i === at ? "running" : "waiting",
-    detail: i < at ? d.detail?.(report?.summary) ?? null : i === at ? job?.progress?.message ?? null : i === at + 1 ? "next" : null,
+    detail: i < at ? (isGithub && d.id === "fetch" && ghResult?.short_sha ? `Commit ${ghResult.short_sha}` : d.detail?.(report?.summary) ?? null) : i === at ? job?.progress?.message ?? null : i === at + 1 ? "next" : null,
   }));
   // Progress counts steps, plus how far the running step is ("Copying pages · 34 of 93" fills that
   // step's share of the bar), so a long step moves instead of sitting still.
@@ -248,7 +334,7 @@ export default function ImportProgress() {
     <>
       <SiteBar
         section={null}
-        crumb={isTemplate ? "Setting up from a template" : fromHost ? `Import from ${fromHost}` : "Import"}
+        crumb={isTemplate ? "Setting up from a template" : repoName ? `Import from ${repoName}` : fromHost ? `Import from ${fromHost}` : "Import"}
         status={job ? <Badge size="sm" tone={failed ? "danger" : done ? "success" : "neutral"} dot>{failed ? "Failed" : done ? "Imported" : queued ? "Waiting to start" : "Importing"}</Badge> : null}
       />
 
@@ -262,8 +348,8 @@ export default function ImportProgress() {
               {done
                 ? "Everything is in the editor as a draft. Nothing is public until you publish."
                 : failed
-                  ? "Nothing was published, and your GitBook site wasn't changed."
-                  : "This takes a few minutes for a large site. You can close this page: the import keeps running. Come back to Guides to see it."}
+                  ? isGithub ? "Nothing was published, and your repository wasn't changed." : "Nothing was published, and your GitBook site wasn't changed."
+                  : `This takes a few minutes for a large ${isGithub ? "repository" : "site"}. You can close this page: the import keeps running. Come back to Guides to see it.`}
             </p>
           </div>
 
@@ -274,7 +360,7 @@ export default function ImportProgress() {
           )}
           {error && !job && <Alert tone="danger" title="We couldn't check the import">{error}</Alert>}
           {failed && (
-            <Alert tone="danger" title="Import failed" actions={<Button size="sm" variant="secondary" href={studioNew(scopeOf(site))}>Start again</Button>}>
+            <Alert tone="danger" title="Import failed" actions={<Button size="sm" variant="secondary" href={studioNew(scopeOf(site), isGithub ? "github" : null)}>Start again</Button>}>
               <span className="ph-sensitive ph-mask">{job?.error || "Something went wrong on our side."}</span>
             </Alert>
           )}
@@ -305,13 +391,31 @@ export default function ImportProgress() {
             </>
           )}
 
+          {isGithub && jobId && syncOn && !failed && (
+            <div className="flex min-w-0 flex-wrap items-start gap-3 rounded-xl border border-border bg-surface px-[18px] py-3.5">
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-text" aria-hidden><Icon name="refresh" size={16} /></span>
+              <div className="flex min-w-0 flex-[1_1_240px] flex-col gap-0.5">
+                <strong className="font-semibold text-text">Kept in sync</strong>
+                <span className="text-[13px] text-text-secondary">
+                  Each push to {syncBranch ? <code className="ph-sensitive ph-mask font-mono">{syncBranch}</code> : "the branch"}{" "}
+                  {syncMode === "publish" ? "is published after it syncs." : "updates the drafts. You publish when ready."}
+                </span>
+              </div>
+              <Button variant="ghost" size="sm" iconRight="arrowRight" href={settingsHref(base, "github")}>GitHub settings</Button>
+            </div>
+          )}
+
+          {isGithub && done && isAdmin && (ghResult?.openapi?.length ?? 0) > 0 && (
+            <OpenapiOffer siteId={site.id} base={base} paths={ghResult!.openapi} />
+          )}
+
           {!isTemplate && <ReleaseNotesOffer siteId={site.id} base={base} canEdit={canEdit} ready={done} />}
 
           {!isTemplate && jobId && (
             <section aria-labelledby="needs-h" className="flex flex-col gap-3">
               <div className="flex flex-wrap items-baseline gap-x-3"><h2 id="needs-h" className="text-[16px] font-semibold text-text">Needs a look before you publish</h2><ReadMore topic="studioImportReport" className="text-[13px]" /></div>
               {needs.length > 0 ? (
-                needs.map((item) => <ReportRow key={item.kind} item={item} editorHref={(pid) => `${base}?page=${encodeURIComponent(pid)}`} />)
+                needs.map((item) => <ReportRow key={item.kind} item={item} github={isGithub} editorHref={(pid) => `${base}?page=${encodeURIComponent(pid)}`} />)
               ) : done ? (
                 <p className="text-body text-text-secondary">Nothing. Everything came across cleanly.</p>
               ) : (
