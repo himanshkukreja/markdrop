@@ -50,6 +50,8 @@ if STACK_ID:
         "MARKDROP_MONGODB_DB": f"markdrop_docs_demo_{STACK_ID}",
         "MARKDROP_FRONTEND_URL": f"http://localhost:{NEXT_PORT}",
         "MARKDROP_API_BASE_URL": f"http://127.0.0.1:{API_PORT}",
+        # Where ::markdrop blocks frame files (site.json markdrop.files): this instance's Worker.
+        "MARKDROP_ARTIFACT_ORIGIN": f"http://127.0.0.1:{8787 + 10 * STACK_ID}",
         "MARKDROP_CORS_ORIGINS": json.dumps([f"http://localhost:{NEXT_PORT}"]),
     })
 (DATA / "docs-store").mkdir(parents=True, exist_ok=True)
@@ -89,6 +91,24 @@ async def _no_probe(url, *, client=None):
 # (MARKDROP_DOCS_WORKER_KINDS below), and routing one never reads the source's llms.txt.
 # seed_extra_studio.py --import-run plays the import with synthetic content instead.
 docs_dispatch.probe_import_pages = _no_probe
+
+# A build reads embedded PDFs for their text version (services/docs_embeds.py): from the sandbox
+# API's fake R2 (/__fakes3/<key>), the same bytes the Worker serves. Never a real bucket.
+from app.services import r2 as _r2  # noqa: E402
+
+
+def _fake_get_bytes(key: str, max_bytes: int):
+    import httpx
+
+    try:
+        r = httpx.get(f"http://127.0.0.1:{API_PORT}/__fakes3/{key}", timeout=30)
+    except Exception:
+        return None
+    return r.content[:max_bytes] if r.status_code == 200 else None
+
+
+_r2.is_configured = lambda: True
+_r2.get_bytes = _fake_get_bytes
 
 from scripts.docs_build_worker import main  # noqa: E402
 

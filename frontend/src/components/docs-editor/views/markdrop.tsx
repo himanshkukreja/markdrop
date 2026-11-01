@@ -638,7 +638,7 @@ export function MarkdropView({ node, updateAttributes, deleteNode, selected }: R
           </div>
           <div className="dxe-mdblock__tools">
             {md && <Button size="sm" variant="ghost" iconLeft="refresh" onClick={() => setPicking(true)}>Replace</Button>}
-            {slug && <Button size="sm" variant="ghost" iconLeft="external" href={info?.url ?? `https://markdrop.in/${slug}`} target="_blank" rel="noopener">Open on Markdrop</Button>}
+            {slug && <Button size="sm" variant="ghost" iconLeft="external" className="no-underline" href={info?.url ?? `https://markdrop.in/${slug}`} target="_blank" rel="noopener">Open on Markdrop</Button>}
             <span className="flex-1" />
             {del}
           </div>

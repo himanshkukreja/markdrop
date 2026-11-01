@@ -457,7 +457,7 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
         {view.excerpt && <p className="dx-mde__excerpt">{view.excerpt}</p>}
         {openUrl && (
           <a className="dx-mde__cta" href={openUrl} target="_blank" rel="noopener" onClick={onOpen}>
-            {view.renderer === "doc" ? "Read on Markdrop" : `Open ${(view.typeLabel || "file").toLowerCase()}`}
+            {view.renderer === "doc" ? "Read on Markdrop" : view.typeLabel ? `Open the ${view.typeLabel} on Markdrop` : "Open on Markdrop"}
             <Icon name="arrowRight" />
           </a>
         )}
