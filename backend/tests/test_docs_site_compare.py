@@ -188,7 +188,7 @@ class HistoryAndStatus(DocsSitesCase):
                           st["running"]["progress"]["pages_done"], st["running"]["progress"]["pages_total"]),
                          (1, "pages", 3, 6))
         builds = await self.get(f"/{self.sid}/builds")
-        self.assertEqual(builds[0]["progress"]["percent"], 45)
+        self.assertEqual(builds[0]["progress"]["percent"], 60)  # rendering: 48 + half of 24
         self.assertEqual(builds[0]["changes"]["added"], 6)
 
         await self.db["docs_builds"].update_one({"_id": ObjectId(b1["id"])}, {"$set": {"stats": {"ms": 40_000}}})
