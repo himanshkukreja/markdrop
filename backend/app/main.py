@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.database import connect, disconnect
 from app.limiter import limiter
 from app.middleware.docs_cors import DocsCORSMiddleware
+from app.middleware.errors import ServerErrorJSONMiddleware
 from app.middleware.internal import InternalRequestMiddleware
 from app.middleware.public_cors import PublicCORSMiddleware
 from app.middleware.tenant_cors import TenantCORSMiddleware
@@ -96,6 +97,11 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Added first, so it sits innermost: an exception no handler caught becomes a JSON
+# 500 here, inside every CORS layer below, so the browser can read it (Starlette's
+# own 500 is written outside them and reads as a network error in the app).
+app.add_middleware(ServerErrorJSONMiddleware)
 
 # CORS
 app.add_middleware(

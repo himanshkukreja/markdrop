@@ -8,9 +8,19 @@ import { useEffect, useId, useState } from "react";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { Button, Icon, IconButton, Input, Spinner, Switch, useToast } from "@/components/ui";
 import { darkVariantPath, uploadUrl, useHost } from "../host";
+import { createProbe } from "../core/assetProbe.mjs";
 import { cx, TextField, withAttr } from "./shared";
 
 /* ── Figure ──────────────────────────────────────────────────────────────── */
+
+// Dark versions: each address asked about once per session, two at a time (core/assetProbe.mjs).
+const darkProbe = createProbe((url) => new Promise<boolean>((resolve) => {
+  if (typeof Image === "undefined") return resolve(false);
+  const img = new Image();
+  img.onload = () => resolve(true);
+  img.onerror = () => resolve(false);
+  img.src = url;
+}));
 
 function useUpload() {
   const host = useHost();
@@ -60,11 +70,12 @@ export function FigureView({ node, updateAttributes, deleteNode, selected }: Rea
     setDark(null);
     if (!src) return;
     const d = host.resolveAsset(darkVariantPath(src));
-    const img = new Image();
-    img.onload = () => setDark(d);
-    img.src = d;
+    let live = true;
+    void darkProbe.probe(d).then((ok) => {
+      if (live && ok) setDark(d);
+    });
     return () => {
-      img.onload = null;
+      live = false;
     };
   }, [src, host]);
 
@@ -74,7 +85,11 @@ export function FigureView({ node, updateAttributes, deleteNode, selected }: Rea
   };
   const uploadDark = async (file: File) => {
     const u = await up.run(file, { variant: "dark", for: src });
-    if (u) setDark(host.resolveAsset(u));
+    if (u) {
+      const d = host.resolveAsset(u);
+      darkProbe.set(d, true);
+      setDark(d);
+    }
   };
 
   if (!src) {
@@ -130,7 +145,7 @@ export function FigureView({ node, updateAttributes, deleteNode, selected }: Rea
       <figure className="dx-fig not-prose">
         <div className="dx-fig__frame dxe-figure__frame" data-drag-handle="">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={host.resolveAsset(src)} alt={alt} className="dx-fig__img" draggable={false} />
+          <img src={host.resolveAsset(src)} alt={alt} className="dx-fig__img" draggable={false} loading="lazy" decoding="async" />
           {dark && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={dark} alt="" className="dxe-figure__dark" title="Dark-theme version" />
