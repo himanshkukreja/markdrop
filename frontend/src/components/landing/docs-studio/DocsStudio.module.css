@@ -63,7 +63,9 @@
 .ctas { display: flex; flex-wrap: wrap; gap: 12px; }
 .primary { background: var(--studio-fill); color: #fff; box-shadow: 0 10px 24px -12px var(--studio-fill); }
 .primary:hover { background: color-mix(in srgb, var(--studio-fill) 88%, #000); color: #fff; }
-.ctas a:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.ctas a:focus-visible, .ctas button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.tour { gap: 10px; padding-left: 8px; color: var(--text); }
+.tour svg { box-sizing: content-box; padding: 6px 5px 6px 7px; border-radius: var(--radius-full); background: var(--studio-fill); color: #fff; width: 12px; height: 12px; }
 
 /* ── Theme picker (a real radio group; it re-skins the drawn site) ─────── */
 .stage { margin-top: 32px; }
