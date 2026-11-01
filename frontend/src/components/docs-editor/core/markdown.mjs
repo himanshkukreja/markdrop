@@ -615,8 +615,9 @@ function serializeBlockImpl(node, opts = {}) {
   const listHazard = isList(node) && isList(prev) && node.type === prev.type && md?.prev !== fp(prev);
   // …but a list written with another marker than the one before it never merges with it: keep it.
   const listSafe = listHazard && typeof md?.src === "string" && typeof prevText === "string" && listMarker(node.type, md.src) !== listMarker(node.type, prevText);
-  // Indented code right after a list would continue the list's last item.
-  const indentHazard = isList(prev) && md?.prev !== fp(prev) && /^[ \t]/.test(md?.src ?? "");
+  // Indented code right after a list (or a footnote definition) would continue its last item.
+  const footnoteDef = prev?.type === "rawBlock" && /^\[\^[^\]]+\]:/m.test(prevText ?? prev.attrs?.value ?? "");
+  const indentHazard = (isList(prev) || footnoteDef) && md?.prev !== fp(prev) && /^[ \t]/.test(md?.src ?? "");
   if (preserve && md && typeof md.src === "string" && md.fp === fp(node) && (!listHazard || listSafe) && !indentHazard) return md.src;
   if (node.type === "rawBlock") return node.attrs.value ?? "";
   if (CONTAINER_TYPES.has(node.type)) return serializeContainer(node, preserve);
