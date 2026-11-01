@@ -9,7 +9,10 @@
  *     "fonts": { "heading": "newsreader", "body": "source-sans-3", "mono": "plex-mono" },
  *     "corners": "sharp" | "soft" | "round",          // overrides the preset's radius scale
  *     "mode": "both" | "light" | "dark",               // light-only / dark-only hide the switch
- *     "customCss": ".dx-title { letter-spacing: 0 }"   // sanitised, scoped under .dx-root
+ *     "customCss": ".dx-title { letter-spacing: 0 }",  // sanitised, scoped under .dx-root
+ *     "custom": { "light": { "bg": "#fbfaf7", "accent": "#0f766e" }, "dark": { … },
+ *                 "baseSize": 17, "buttons": "pill", "sidebarStyle": "lines", "icons": "duotone", … }
+ *                                                       // a custom theme: the preset, then these
  *   },
  *   "brand": { "colors": ["#0f766e", "#13203a", "#e6f4f1"], "accent": "#0f766e", … }
  *                                                       // Match my brand: accent, ink, soft tint
@@ -250,7 +253,7 @@ export const PRESETS = {
  * Markdrop's own neutrals (tokens.css), the base when the clean preset is given brand colours.
  * Mirrors styles/ds/tokens.css; only used to derive a brand palette, never written for clean alone.
  */
-const MARKDROP_BASE = {
+export const MARKDROP_BASE = {
   accent: "#2150d8",
   light: P("#e3e7ed", "#ebeef2", "#ebeef2", "#111a2c", "#4a5567", "#cdd4de", "#ebeef2", "#111a2c"),
   dark: P("#030712", "#101828", "#101828", "#f3f4f6", "#99a1af", "#1e2939", "#0d1117", "#f3f4f6"),
@@ -278,6 +281,14 @@ export const FONTS = {
   "plex-mono": { label: "IBM Plex Mono", kind: "mono" },
   "geist-mono": { label: "Geist Mono", kind: "mono" },
   system: { label: "System UI", kind: "sans" },
+  // Added with custom themes (the theme builder): two display sans, a humanist sans, two serifs, two code faces.
+  "space-grotesk": { label: "Space Grotesk", kind: "sans" },
+  "plus-jakarta-sans": { label: "Plus Jakarta Sans", kind: "sans" },
+  figtree: { label: "Figtree", kind: "sans" },
+  fraunces: { label: "Fraunces", kind: "serif" },
+  "crimson-pro": { label: "Crimson Pro", kind: "serif" },
+  "fira-code": { label: "Fira Code", kind: "mono" },
+  "source-code-pro": { label: "Source Code Pro", kind: "mono" },
 };
 
 /** The fallback stack after a font of each kind. */
@@ -425,30 +436,51 @@ export function buildPalette(presetId, { colors, accent, accentDark } = {}) {
   };
 }
 
+/** Which way a colour on `ground` moves to gain contrast: toward black on a light ground, white on a dark one. */
+function awayFrom(ground) {
+  return luminance(ground) > 0.18 ? BLACK : WHITE;
+}
+
+/**
+ * Minimum contrast the engine enforces. A preset's own colours are held to their designed ratios
+ * (text 12:1); a custom theme's are held to WCAG AA (4.5:1), so what the owner picked is what
+ * readers see whenever it is legible, and the nearest legible shade when it isn't.
+ */
+const MIN = { preset: { text: 12, muted: 4.6, secondary: 7 }, custom: { text: 4.5, muted: 4.5, secondary: 4.5 } };
+
+/** The callout kinds a custom theme can colour. */
+export const CALLOUT_KINDS = ["note", "tip", "warning", "danger"];
+
 /** The design-system tokens for one theme of a palette, every text pair clamped to its minimum. */
 export function paletteTokens(palette, theme) {
   const p = palette[theme];
-  const toward = theme === "dark" ? WHITE : BLACK;
+  const custom = !!palette.custom;
+  const min = custom ? MIN.custom : MIN.preset;
   const bg = parseHex(p.bg);
+  // A custom palette may put a dark ground in the light theme (or the reverse): text moves away
+  // from its own ground, whatever the theme is called.
+  const toward = custom ? awayFrom(bg) : theme === "dark" ? WHITE : BLACK;
+  const look = custom ? (toward === WHITE ? "dark" : "light") : theme;
   const card = parseHex(p.card);
   const header = parseHex(p.header);
   const line = parseHex(p.line);
+  const sidebar = parseHex(p.sidebar);
   let text = parseHex(p.text);
-  const raised = theme === "light" ? mix(card, WHITE, 0.6) : mix(card, text, 0.05);
+  const raised = look === "light" ? mix(card, WHITE, 0.6) : mix(card, text, 0.05);
   const hover = mix(card, text, 0.05);
   const active = mix(card, text, 0.1);
-  const inset = mix(bg, text, theme === "light" ? 0.04 : 0.03);
-  const grounds = [bg, card, header, raised, hover, inset];
-  text = clampAgainst(text, grounds, toward, 12);
-  const muted = clampAgainst(parseHex(p.muted), grounds, toward, 4.6);
-  const secondary = clampAgainst(mix(text, muted, 0.45), grounds, toward, 7);
+  const inset = mix(bg, text, look === "light" ? 0.04 : 0.03);
+  const grounds = [bg, card, header, raised, hover, inset, ...(sidebar ? [sidebar] : [])];
+  text = clampAgainst(text, grounds, toward, min.text);
+  const muted = clampAgainst(parseHex(p.muted), grounds, toward, min.muted);
+  const secondary = clampAgainst(mix(text, muted, 0.45), grounds, toward, min.secondary);
   const subtle = mix(muted, bg, 0.25);
-  const a = accentFor(theme === "dark" ? palette.accentDark ?? palette.accent : palette.accent, theme, [bg, card, raised, header, hover, inset]);
+  const a = accentFor(theme === "dark" ? palette.accentDark ?? palette.accent : palette.accent, look, grounds);
   const inlineBg = mix(bg, text, 0.06);
-  const soft = theme === "light" && palette.tint ? palette.tint : `color-mix(in oklab, ${a.accent} ${Math.round(WASH[theme] * 100)}%, transparent)`;
+  const soft = theme === "light" && palette.tint ? palette.tint : `color-mix(in oklab, ${a.accent} ${Math.round(WASH[look] * 100)}%, transparent)`;
   // With a light tint as the wash, accent text is re-clamped against it too.
   const accentText = theme === "light" && palette.tint ? toHex(clampAgainst(parseHex(a.text), [parseHex(palette.tint)], toward, 4.6)) : a.text;
-  return {
+  const out = {
     "--bg": toHex(bg),
     "--surface": toHex(card),
     "--surface-raised": toHex(raised),
@@ -477,6 +509,64 @@ export function paletteTokens(palette, theme) {
     "--code-inline": toHex(clampAgainst(secondary, [inlineBg], toward, 4.6)),
     "--dx-header-bg": toHex(header),
   };
+  // Custom-theme colours: only written when set, so a preset's stylesheet is exactly what it was.
+  if (palette.light.sidebar || palette.dark.sidebar) out["--dx-sidebar-bg"] = toHex(sidebar ?? bg);
+  for (const kind of CALLOUT_KINDS) {
+    const tone = parseHex(p[kind]);
+    if (!tone) continue;
+    const wash = mix(bg, tone, look === "light" ? 0.12 : 0.2);
+    out[`--dx-${kind}`] = toHex(clampAgainst(tone, [bg, card, wash], toward, 4.6));
+    out[`--dx-${kind}-soft`] = toHex(wash);
+  }
+  const sel = parseHex(p.selection);
+  if (sel) out["--dx-selection"] = toHex(selectionFor(sel, text, bg));
+  return out;
+}
+
+/** A selection colour text stays readable on (4.5:1): moved toward the page until it is. */
+function selectionFor(sel, text, bg) {
+  for (let i = 0; i <= 50; i++) {
+    const c = mix(sel, bg, i / 50);
+    if (contrast(text, c) >= 4.6) return c;
+  }
+  return bg;
+}
+
+/** GitHub's syntax colours, light and dark (as styles/ds/tokens.css): a forced code theme brings its own. */
+const SYNTAX = {
+  light: { keyword: "#c11f2b", string: "#0a3069", comment: "#57606a", number: "#0550ae", title: "#7340d0", attr: "#116329", builtin: "#953800", meta: "#0550ae", punct: "#1f2328", addition: "#116329", "addition-bg": "#dafbe1", deletion: "#82071e", "deletion-bg": "#ffebe9" },
+  dark: { keyword: "#ff7b72", string: "#a5d6ff", comment: "#8b949e", number: "#79c0ff", title: "#d2a8ff", attr: "#7ee787", builtin: "#ffa657", meta: "#79c0ff", punct: "#c9d1d9", addition: "#aff5b4", "addition-bg": "#033a16", deletion: "#ffdcd7", "deletion-bg": "#67060c" },
+};
+const CODE_DEFAULT = { light: { bg: "#f6f8fa", text: "#1f2328" }, dark: { bg: "#0d1117", text: "#e6edf3" } };
+
+/**
+ * A custom theme's code blocks in one theme: the block's own tokens (ground, text, syntax), or
+ * null when the theme leaves code to the preset (no code theme, no code colours). "auto" follows
+ * the palette's code colours; "light" / "dark" use that look in both themes (the owner's code
+ * ground is kept when it suits the look). Text is clamped to 4.5:1 on the block, and the syntax
+ * colours follow how dark the block is.
+ */
+export function codeTokens(palette, theme, codeTheme) {
+  const p = palette[theme];
+  const forced = codeTheme === "light" || codeTheme === "dark" ? codeTheme : null;
+  if (!palette.custom || (!p.codeSet && !forced)) return null;
+  const ownBg = p.codeSet ? parseHex(p.code) : null;
+  const bg = ownBg && (!forced || (luminance(ownBg) > 0.18) === (forced === "light")) ? ownBg : parseHex(forced ? CODE_DEFAULT[forced].bg : p.code);
+  const dark = luminance(bg) <= 0.18;
+  const ownText = p.codeSet ? parseHex(p.codeText) : null;
+  const text = clampAgainst(ownText ?? parseHex(forced ? CODE_DEFAULT[forced].text : p.codeText), [bg], dark ? WHITE : BLACK, 4.5);
+  const muted = clampAgainst(mix(text, bg, 0.35), [bg], dark ? WHITE : BLACK, 4.5);
+  return {
+    "color-scheme": dark ? "dark" : "light",
+    "--code-bg": toHex(bg),
+    "--code-border": toHex(mix(bg, text, 0.14)),
+    "--text": toHex(text),
+    "--text-secondary": toHex(muted),
+    "--text-muted": toHex(muted),
+    "--surface-hover": toHex(mix(bg, text, 0.07)),
+    "--surface-active": toHex(mix(bg, text, 0.12)),
+    ...Object.fromEntries(Object.entries(SYNTAX[dark ? "dark" : "light"]).map(([k, v]) => [`--syntax-${k}`, v])),
+  };
 }
 
 /**
@@ -497,6 +587,245 @@ export function paletteReport(palette) {
       button: round(contrast(parseHex(t["--on-accent"]), parseHex(t["--accent"]))),
     };
   }
+  return out;
+}
+
+/* ── custom themes (the theme builder) ───────────────────────────────────── */
+
+/**
+ * A custom theme (site.json `theme.custom`): the preset, then the owner's choices. Every key is
+ * optional and null keeps the preset's. Colours are per theme (light / dark); the rest applies to
+ * both. The API stores the same block with snake_case keys (docs_site_settings.py Custom;
+ * tests/test_docs_site_presets.py keeps the lists below equal to the API's).
+ *
+ *   light / dark   colours: CUSTOM_COLORS
+ *   baseSize       reading size, px (14–20)        lineHeight     1.3–2
+ *   headingWeight  400–900 by 100                  contentWidth   the article column, px (560–1040)
+ *   radius, buttons, cards, headerAlign, headerStyle, tabStyle, sidebarStyle, callouts, codeTheme,
+ *   links, icons   one of CUSTOM_OPTIONS
+ *   sectionTabs    the header shows the nav groups as tabs (Atlas does by default)
+ *   sidebarIcons   false hides the sidebar's page icons
+ */
+export const CUSTOM_COLORS = ["bg", "surface", "sidebar", "header", "text", "muted", "accent", "border", "codeBg", "codeText", "note", "tip", "warning", "danger", "selection"];
+
+export const CUSTOM_OPTIONS = {
+  radius: ["none", "small", "medium", "large", "xlarge"],
+  buttons: ["square", "rounded", "pill"],
+  cards: ["flat", "bordered", "raised"],
+  headerAlign: ["left", "center"],
+  headerStyle: ["solid", "transparent"],
+  tabStyle: ["pills", "underline"],
+  sidebarStyle: ["pills", "lines", "plain"],
+  callouts: ["tinted", "bordered", "bar"],
+  codeTheme: ["auto", "light", "dark"],
+  links: ["underline", "accent", "plain"],
+  icons: ["regular", "light", "bold", "duotone"],
+};
+
+export const CUSTOM_BOOLS = ["sectionTabs", "sidebarIcons"];
+
+/** [min, max, step] of the numeric settings. */
+export const CUSTOM_RANGES = {
+  baseSize: [14, 20, 0.5],
+  lineHeight: [1.3, 2, 0.05],
+  headingWeight: [400, 900, 100],
+  contentWidth: [560, 1040, 10],
+};
+
+/** The radius scales behind `radius` ("medium" is the design system's own, as corners "soft"). */
+export const CUSTOM_RADIUS = {
+  none: { sm: 0, md: 0, lg: 0, xl: 0, "2xl": 0, "3xl": 0 },
+  small: CORNERS.sharp,
+  medium: CORNERS.soft,
+  large: CORNERS.round,
+  xlarge: { sm: 10, md: 12, lg: 16, xl: 20, "2xl": 24, "3xl": 32 },
+};
+
+/** Where each custom colour lands in a base palette (theme.mjs P()). */
+const COLOR_SLOT = { bg: "bg", surface: "card", sidebar: "sidebar", header: "header", text: "text", muted: "muted", border: "line", codeBg: "code", codeText: "codeText", note: "note", tip: "tip", warning: "warning", danger: "danger", selection: "selection" };
+
+const onStep = (v, [lo, hi, step]) => typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi && Math.abs(Math.round((v - lo) / step) * step - (v - lo)) < 1e-6;
+
+/**
+ * `theme.custom` with every invalid or unset value dropped, or null when nothing is left (the
+ * preset as it is). Colours are lower-case six-digit hex.
+ */
+export function normalizeCustom(raw) {
+  if (!isObj(raw)) return null;
+  const out = {};
+  for (const mode of ["light", "dark"]) {
+    if (!isObj(raw[mode])) continue;
+    const colors = {};
+    for (const k of CUSTOM_COLORS) {
+      const c = parseHex(raw[mode][k]);
+      if (c) colors[k] = toHex(c);
+    }
+    if (Object.keys(colors).length) out[mode] = colors;
+  }
+  for (const [k, allowed] of Object.entries(CUSTOM_OPTIONS)) if (allowed.includes(raw[k])) out[k] = raw[k];
+  for (const k of CUSTOM_BOOLS) if (typeof raw[k] === "boolean") out[k] = raw[k];
+  for (const [k, range] of Object.entries(CUSTOM_RANGES)) if (onStep(raw[k], range)) out[k] = raw[k];
+  return Object.keys(out).length ? out : null;
+}
+
+/** Problems with site.json `theme.custom`, for docs:check (and the builder): messages. */
+export function validateCustom(raw) {
+  if (raw === undefined || raw === null) return [];
+  if (!isObj(raw)) return ["theme.custom must be an object"];
+  const out = [];
+  const known = new Set(["light", "dark", ...Object.keys(CUSTOM_OPTIONS), ...CUSTOM_BOOLS, ...Object.keys(CUSTOM_RANGES)]);
+  for (const k of Object.keys(raw)) if (!known.has(k)) out.push(`theme.custom.${k} is not a setting`);
+  for (const mode of ["light", "dark"]) {
+    const m = raw[mode];
+    if (m === undefined || m === null) continue;
+    if (!isObj(m)) {
+      out.push(`theme.custom.${mode} must be an object of colours`);
+      continue;
+    }
+    for (const [k, v] of Object.entries(m)) {
+      if (!CUSTOM_COLORS.includes(k)) out.push(`theme.custom.${mode}.${k} is not a colour setting (${CUSTOM_COLORS.join(", ")})`);
+      else if (v !== null && !parseHex(v)) out.push(`theme.custom.${mode}.${k} "${v}" must be a hex colour like #0f766e`);
+    }
+  }
+  for (const [k, allowed] of Object.entries(CUSTOM_OPTIONS)) {
+    if (raw[k] !== undefined && raw[k] !== null && !allowed.includes(raw[k])) out.push(`theme.custom.${k} "${raw[k]}" must be one of ${allowed.join(", ")}`);
+  }
+  for (const k of CUSTOM_BOOLS) if (raw[k] !== undefined && raw[k] !== null && typeof raw[k] !== "boolean") out.push(`theme.custom.${k} must be true or false`);
+  for (const [k, range] of Object.entries(CUSTOM_RANGES)) {
+    if (raw[k] !== undefined && raw[k] !== null && !onStep(raw[k], range)) out.push(`theme.custom.${k} must be a number from ${range[0]} to ${range[1]} in steps of ${range[2]}`);
+  }
+  return out;
+}
+
+/**
+ * The palette with a custom theme's colours on top (they beat the preset's and Match my brand's),
+ * or the palette unchanged when the theme sets no colour. Marks it `custom` (AA clamping) and
+ * notes per theme whether code colours were set (codeTokens).
+ */
+export function applyCustomColors(palette, custom) {
+  if (!custom?.light && !custom?.dark) return palette;
+  const base = palette ?? { accent: MARKDROP_BASE.accent, light: { ...MARKDROP_BASE.light }, dark: { ...MARKDROP_BASE.dark } };
+  const out = { ...base, light: { ...base.light }, dark: { ...base.dark }, custom: true };
+  for (const mode of ["light", "dark"]) {
+    const c = custom[mode] ?? {};
+    // A page that changed side (a dark ground in the light theme, say): what the owner didn't set
+    // is derived from their ground, not kept from the preset's opposite one.
+    const bg = parseHex(c.bg);
+    const lightSide = bg && luminance(bg) > 0.18;
+    if (bg && lightSide !== luminance(parseHex(base[mode].bg)) > 0.18) {
+      const text = parseHex(c.text) ?? (lightSide ? [17, 24, 39] : [243, 244, 246]);
+      const card = lightSide ? mix(bg, WHITE, 0.55) : mix(bg, WHITE, 0.05);
+      Object.assign(out[mode], {
+        card: toHex(card),
+        header: toHex(base[mode].header === base[mode].bg ? bg : card),
+        text: toHex(text),
+        muted: toHex(mix(text, bg, 0.38)),
+        line: toHex(mix(bg, text, 0.14)),
+        code: toHex(mix(bg, text, lightSide ? 0.05 : 0.04)),
+        codeText: toHex(text),
+      });
+    }
+    for (const [k, slot] of Object.entries(COLOR_SLOT)) if (c[k]) out[mode][slot] = c[k];
+    if (c.codeBg || c.codeText) out[mode].codeSet = true;
+  }
+  if (custom.light?.accent) out.accent = custom.light.accent;
+  if (custom.dark?.accent) out.accentDark = custom.dark.accent;
+  // Only a light accent: dark follows it (lightened by the maths), as a brand accent does.
+  else if (custom.light?.accent) out.accentDark = undefined;
+  return out;
+}
+
+/**
+ * The builder's contrast guard: every pair readers read, per theme, with the owner's colours as
+ * picked (before the engine clamps them). `fix` is the nearest colour that passes, for "Fix"; the
+ * published guide uses a passing shade either way (paletteTokens), so nothing illegible ships.
+ *   [{ mode, key, label, fg, bg, ratio, min, ok, fix }]  key: the custom colour "Fix" replaces.
+ */
+export function contrastGuard(theme, brand) {
+  const t = resolveTheme(isObj(theme) ? theme : {}, brand);
+  const palette = t?.palette ?? applyCustomColors(null, { light: { bg: MARKDROP_BASE.light.bg }, dark: { bg: MARKDROP_BASE.dark.bg } });
+  const out = [];
+  const round = (n) => Math.round(n * 100) / 100;
+  for (const mode of ["light", "dark"]) {
+    const p = palette[mode];
+    const bg = parseHex(p.bg);
+    const toward = awayFrom(bg);
+    const grounds = (keys) => keys.map((k) => p[k]).filter(Boolean).map(parseHex);
+    const pair = (key, label, fgHex, onKeys, min, fixFn) => {
+      const fg = parseHex(fgHex);
+      const gs = grounds(onKeys);
+      if (!fg || !gs.length) return;
+      const ratio = Math.min(...gs.map((g) => contrast(fg, g)));
+      const worst = gs.reduce((a, g) => (contrast(fg, g) < contrast(fg, a) ? g : a));
+      const ok = ratio >= min;
+      out.push({ mode, key, label, fg: toHex(fg), bg: toHex(worst), ratio: round(ratio), min, ok, fix: ok ? null : toHex(fixFn ? fixFn(fg, gs) : clampAgainst(fg, gs, awayFrom(worst), min + 0.1)) });
+    };
+    pair("text", "Body text", p.text, ["bg", "card", "header", "sidebar"], 4.5);
+    pair("muted", "Muted text", p.muted, ["bg", "card"], 4.5);
+    const accent = mode === "dark" ? palette.accentDark ?? palette.accent : palette.accent;
+    pair("accent", "Links", accent, ["bg", "card"], 4.5);
+    // The button label: white or ink on the accent fill, whichever reads better.
+    const fill = parseHex(accent);
+    if (fill) {
+      const on = contrast(WHITE, fill) >= contrast(INK, fill) ? WHITE : INK;
+      const ratio = contrast(on, fill);
+      let fixed = fill;
+      for (let i = 1; contrast(on, fixed) < 4.6 && i <= 60; i++) fixed = mix(fill, on === WHITE ? BLACK : WHITE, i / 100);
+      out.push({ mode, key: "accent", label: "Button label", fg: toHex(on), bg: toHex(fill), ratio: round(ratio), min: 4.5, ok: ratio >= 4.5, fix: ratio >= 4.5 ? null : toHex(fixed) });
+    }
+    if (p.codeSet) pair("codeText", "Code", p.codeText, ["code"], 4.5);
+    for (const kind of CALLOUT_KINDS) {
+      const tone = parseHex(p[kind]);
+      if (!tone) continue;
+      const strength = toward === BLACK ? 0.12 : 0.2;
+      const wash = mix(bg, tone, strength);
+      const ratio = Math.min(contrast(tone, wash), contrast(tone, bg));
+      // The wash is made from the tone, so the fix is the first shade that passes on its own wash.
+      let fix = toward;
+      for (let i = 1; i <= 50; i++) {
+        const c = mix(tone, toward, i / 50);
+        const w = mix(bg, c, strength);
+        if (contrast(c, w) >= 4.6 && contrast(c, bg) >= 4.6) {
+          fix = c;
+          break;
+        }
+      }
+      out.push({ mode, key: kind, label: `${kind[0].toUpperCase()}${kind.slice(1)} callout`, fg: toHex(tone), bg: toHex(wash), ratio: round(ratio), min: 4.5, ok: ratio >= 4.5, fix: ratio >= 4.5 ? null : toHex(fix) });
+    }
+    const sel = parseHex(p.selection);
+    if (sel) {
+      const text = parseHex(p.text);
+      const ratio = contrast(text, sel);
+      out.push({ mode, key: "selection", label: "Selected text", fg: toHex(text), bg: toHex(sel), ratio: round(ratio), min: 4.5, ok: ratio >= 4.5, fix: ratio >= 4.5 ? null : toHex(selectionFor(sel, text, bg)) });
+    }
+  }
+  // `set`: the pair involves a colour the owner picked (in that theme; dark's accent is the light
+  // one when dark has none). The builder warns about those; a preset's own pairs are as designed.
+  const INVOLVES = { text: ["text", "bg", "surface", "header", "sidebar"], muted: ["muted", "bg", "surface"], codeText: ["codeText", "codeBg"], selection: ["selection", "text"] };
+  const c = t?.custom ?? {};
+  const picked = (mode, k) => !!c[mode]?.[k] || (k === "accent" && mode === "dark" && !!c.light?.accent && !c.dark?.accent);
+  for (const r of out) {
+    const keys = r.label === "Links" ? ["accent", "bg", "surface"] : r.label === "Button label" ? ["accent"] : CALLOUT_KINDS.includes(r.key) ? [r.key, "bg"] : INVOLVES[r.key] ?? [r.key];
+    r.set = keys.some((k) => picked(r.mode, k));
+  }
+  return out;
+}
+
+/**
+ * The docs root's attributes for a resolved theme: data-preset and data-layout, then one per
+ * custom choice the stylesheet (themes.css) keys on. Only set choices get one, so a preset's root
+ * is exactly what it was.
+ */
+export function themeAttrs(t) {
+  if (!t) return {};
+  const out = { "data-preset": t.preset, "data-layout": t.layout };
+  const c = t.custom;
+  if (!c) return out;
+  out["data-custom"] = "";
+  const attr = { buttons: "data-buttons", cards: "data-cards", headerAlign: "data-header-align", headerStyle: "data-header-style", tabStyle: "data-tab-style", sidebarStyle: "data-sidebar", callouts: "data-callouts", codeTheme: "data-code", links: "data-links", icons: "data-icons" };
+  for (const [k, name] of Object.entries(attr)) if (c[k]) out[name] = c[k];
+  if (c.sidebarIcons === false) out["data-sidebar-icons"] = "off";
+  if (t.palette?.light.sidebar || t.palette?.dark.sidebar) out["data-sidebar-bg"] = "";
   return out;
 }
 
@@ -738,21 +1067,31 @@ export function resolveTheme(theme, brand) {
     const id = theme.fonts?.[key];
     return Object.hasOwn(FONTS, id) && kinds.includes(FONTS[id].kind) ? id : preset.fonts[key];
   };
-  const corners = Object.hasOwn(CORNERS, theme.corners) ? CORNERS[theme.corners] : typeof preset.corners === "string" ? CORNERS[preset.corners] : preset.corners;
+  const custom = normalizeCustom(theme.custom);
+  const corners = custom?.radius
+    ? CUSTOM_RADIUS[custom.radius]
+    : Object.hasOwn(CORNERS, theme.corners)
+      ? CORNERS[theme.corners]
+      : typeof preset.corners === "string"
+        ? CORNERS[preset.corners]
+        : preset.corners;
   const mode = MODES.includes(theme.mode) ? theme.mode : "both";
-  const custom = typeof theme.customCss === "string" && theme.customCss.trim() ? sanitizeCss(theme.customCss) : { css: "", errors: [] };
+  const css = typeof theme.customCss === "string" && theme.customCss.trim() ? sanitizeCss(theme.customCss) : { css: "", errors: [] };
+  const palette = applyCustomColors(buildPalette(presetId, { colors, accent: brand?.accent, accentDark: brand?.accentDark }), custom);
   return {
     preset: presetId,
     layout: preset.layout,
     home: preset.home ?? (preset.layout === "helpcenter" ? "categories" : "hero"),
-    sectionTabs: !!preset.sectionTabs,
-    fonts: { heading: font("heading", ["sans", "serif"]), body: font("body", ["sans", "serif"]), mono: font("mono", ["mono"]) },
-    headingWeight: preset.headingWeight,
+    sectionTabs: typeof custom?.sectionTabs === "boolean" ? custom.sectionTabs : !!preset.sectionTabs,
+    // A code face can head a page (Terminal does), never be its body.
+    fonts: { heading: font("heading", ["sans", "serif", "mono"]), body: font("body", ["sans", "serif"]), mono: font("mono", ["mono"]) },
+    headingWeight: custom?.headingWeight ?? preset.headingWeight,
     radius: corners,
     mode,
-    palette: buildPalette(presetId, { colors, accent: brand?.accent, accentDark: brand?.accentDark }),
-    customCss: custom.css,
-    customCssErrors: custom.errors,
+    palette,
+    custom,
+    customCss: css.css,
+    customCssErrors: css.errors,
   };
 }
 
@@ -799,17 +1138,45 @@ export function themeCss(t, families) {
     "--dx-heading-weight": String(t.headingWeight),
     ...Object.fromEntries(Object.entries(t.radius).map(([k, v]) => [`--radius-${k}`, `${v}px`])),
   };
+  const c = t.custom;
+  if (c?.contentWidth) rootVars["--dx-measure"] = `${c.contentWidth}px`;
   const out = [`html:root{${decls(rootVars)}}`];
   if (t.palette) {
     const themes = t.mode === "light" ? ["light"] : t.mode === "dark" ? ["dark"] : ["dark", "light"];
     for (const theme of themes) {
       const sel = theme === "dark" ? `:root,[data-theme="dark"][data-theme]` : `[data-theme="light"][data-theme]`;
       // A forced mode paints its palette whatever the attribute says (before the script runs, too).
-      out.push(`${t.mode === "both" ? sel : `:root,[data-theme][data-theme]`}{${decls(paletteTokens(t.palette, theme))}}`);
+      const at = t.mode === "both" ? sel : `:root,[data-theme][data-theme]`;
+      out.push(`${at}{${decls(paletteTokens(t.palette, theme))}}`);
+      const code = codeTokens(t.palette, theme, c?.codeTheme);
+      if (code) out.push(`${at.split(",").map((s) => `${s} .dx-root.dx-root .md-codeblock`).join(",")}{${decls(code)}}`);
     }
   }
+  if (c) out.push(...customRules(c));
   if (t.customCss) out.push(t.customCss);
   return out.join("\n");
+}
+
+/**
+ * A custom theme's type and width as rules (doubled root specificity, like the palette, so they
+ * beat every preset's own sizes in themes.css). Choices that are attributes (buttons, sidebar…)
+ * are styled by themes.css itself.
+ */
+function customRules(c) {
+  const R = ".dx-root.dx-root[data-custom]";
+  const out = [];
+  const prose = {};
+  if (c.baseSize) prose["font-size"] = `${c.baseSize}px`;
+  if (c.lineHeight) prose["line-height"] = String(c.lineHeight);
+  if (Object.keys(prose).length) out.push(`${R} .dx-prose.md-prose--reading{${decls(prose)}}`);
+  if (c.headingWeight) out.push(`${R} :is(.dx-title,.dx-hero__title,.dx-home__h),${R} .dx-prose :is(h1,h2,h3){font-weight:${c.headingWeight}}`);
+  if (c.contentWidth) {
+    const w = `${c.contentWidth}px`;
+    out.push(
+      `@media (min-width:1200px){${R} .dx-layout:not(.dx-layout--top,.dx-layout--hc,.dx-layout--api){grid-template-columns:236px minmax(0,${w}) 232px}${R} .dx-layout--hc{grid-template-columns:minmax(0,${w}) 248px}}`,
+    );
+  }
+  return out;
 }
 
 /* ── validation (docs:check) ─────────────────────────────────────────────── */
@@ -821,7 +1188,7 @@ export function validateTheme(theme) {
   const warn = (msg) => out.push({ level: "warn", msg });
   if (theme === undefined) return out;
   if (!isObj(theme)) return [{ level: "error", msg: "theme must be an object" }];
-  for (const k of Object.keys(theme)) if (!["preset", "fonts", "corners", "mode", "customCss"].includes(k)) warn(`theme.${k} is not a setting (ignored)`);
+  for (const k of Object.keys(theme)) if (!["preset", "fonts", "corners", "mode", "customCss", "custom"].includes(k)) warn(`theme.${k} is not a setting (ignored)`);
   // null is "the preset's default" (the API's "Theme default").
   const set = (v) => v !== undefined && v !== null;
   if (set(theme.preset) && !Object.hasOwn(PRESETS, theme.preset)) err(`theme.preset "${theme.preset}" must be one of ${Object.keys(PRESETS).join(", ")}`);
@@ -834,7 +1201,7 @@ export function validateTheme(theme) {
         if (!set(id)) continue;
         if (!Object.hasOwn(FONTS, id)) err(`theme.fonts.${k} "${id}" isn't an available font (${Object.keys(FONTS).join(", ")})`);
         else if (k === "mono" && FONTS[id].kind !== "mono") err(`theme.fonts.mono "${id}" isn't a monospaced font`);
-        else if (k !== "mono" && FONTS[id].kind === "mono") err(`theme.fonts.${k} "${id}" is a code font; pick a sans or serif`);
+        else if (k === "body" && FONTS[id].kind === "mono") err(`theme.fonts.body "${id}" is a code font; pick a sans or serif`);
       }
     }
   }
@@ -844,6 +1211,7 @@ export function validateTheme(theme) {
     if (typeof theme.customCss !== "string") err("theme.customCss must be a string");
     else for (const e of sanitizeCss(theme.customCss).errors) err(`theme.customCss: ${e}`);
   }
+  for (const e of validateCustom(theme.custom)) (/is not a( colour)? setting/.test(e) ? warn : err)(e);
   return out;
 }
 

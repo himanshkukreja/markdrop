@@ -15,6 +15,7 @@
 import { API_BASE } from "@/lib/api";
 import { after, guideEvents } from "@/lib/guidesEvents";
 import { sanitizeCss } from "@/docs/theme.mjs";
+import type { CustomThemeSettings } from "@/lib/guideThemes";
 
 const TOKEN_KEY = "markdrop_token";
 const BASE = "/api/v1/docs-sites";
@@ -144,12 +145,14 @@ export interface SiteBrand {
 export interface SiteTheme {
   preset: ThemePreset;
   brand: SiteBrand;
-  /** Font ids (FONTS); null = the preset's own. */
-  fonts: { heading?: string | null; body?: string | null };
+  /** Font ids (FONTS); null = the preset's own. mono: a code face (kind "mono"). */
+  fonts: { heading?: string | null; body?: string | null; mono?: string | null };
   mode: ThemeMode;
   corners?: Corners | null;
   /** ≤ 20 KB; no remote @import, no non-https url(), no expressions (validated by the API). */
   custom_css?: string | null;
+  /** A custom theme (the theme builder, lib/guideThemes.ts); null = the preset as designed. */
+  custom?: CustomThemeSettings | null;
 }
 
 export interface NavGroup {
@@ -1124,20 +1127,28 @@ export const PRESETS: Array<{ id: ThemePreset; name: string; blurb: string; kind
 export const presetName = (p: ThemePreset | undefined | null): string => PRESETS.find((x) => x.id === p)?.name ?? "Clean";
 
 /** The font ids the API accepts (services/docs_site_settings.py FONT_IDS); null = the preset's own. */
-export const FONTS: Array<{ id: string; label: string; family: string }> = [
-  { id: "system", label: "System UI", family: "system-ui, sans-serif" },
-  { id: "inter", label: "Inter", family: "Inter, sans-serif" },
-  { id: "manrope", label: "Manrope", family: "Manrope, var(--font-sans)" },
-  { id: "geist", label: "Geist", family: "Geist, sans-serif" },
-  { id: "dmsans", label: "DM Sans", family: '"DM Sans", sans-serif' },
-  { id: "plex", label: "IBM Plex Sans", family: '"IBM Plex Sans", sans-serif' },
-  { id: "nunito", label: "Nunito", family: "Nunito, sans-serif" },
-  { id: "source-sans-3", label: "Source Sans 3", family: '"Source Sans 3", sans-serif' },
-  { id: "newsreader", label: "Newsreader", family: "Newsreader, Georgia, serif" },
-  { id: "source-serif-4", label: "Source Serif 4", family: '"Source Serif 4", Georgia, serif' },
-  { id: "lora", label: "Lora", family: "Lora, Georgia, serif" },
-  { id: "jetbrains-mono", label: "JetBrains Mono", family: '"JetBrains Mono", var(--font-mono)' },
-  { id: "plex-mono", label: "IBM Plex Mono", family: '"IBM Plex Mono", var(--font-mono)' },
+export const FONTS: Array<{ id: string; label: string; family: string; kind: "sans" | "serif" | "mono" }> = [
+  { id: "system", label: "System UI", family: "system-ui, sans-serif", kind: "sans" },
+  { id: "inter", label: "Inter", family: "Inter, sans-serif", kind: "sans" },
+  { id: "manrope", label: "Manrope", family: "Manrope, var(--font-sans)", kind: "sans" },
+  { id: "geist", label: "Geist", family: "Geist, sans-serif", kind: "sans" },
+  { id: "dmsans", label: "DM Sans", family: '"DM Sans", sans-serif', kind: "sans" },
+  { id: "plex", label: "IBM Plex Sans", family: '"IBM Plex Sans", sans-serif', kind: "sans" },
+  { id: "nunito", label: "Nunito", family: "Nunito, sans-serif", kind: "sans" },
+  { id: "source-sans-3", label: "Source Sans 3", family: '"Source Sans 3", sans-serif', kind: "sans" },
+  { id: "space-grotesk", label: "Space Grotesk", family: '"Space Grotesk", sans-serif', kind: "sans" },
+  { id: "plus-jakarta-sans", label: "Plus Jakarta Sans", family: '"Plus Jakarta Sans", sans-serif', kind: "sans" },
+  { id: "figtree", label: "Figtree", family: "Figtree, sans-serif", kind: "sans" },
+  { id: "newsreader", label: "Newsreader", family: "Newsreader, Georgia, serif", kind: "serif" },
+  { id: "source-serif-4", label: "Source Serif 4", family: '"Source Serif 4", Georgia, serif', kind: "serif" },
+  { id: "lora", label: "Lora", family: "Lora, Georgia, serif", kind: "serif" },
+  { id: "fraunces", label: "Fraunces", family: "Fraunces, Georgia, serif", kind: "serif" },
+  { id: "crimson-pro", label: "Crimson Pro", family: '"Crimson Pro", Georgia, serif', kind: "serif" },
+  { id: "jetbrains-mono", label: "JetBrains Mono", family: '"JetBrains Mono", var(--font-mono)', kind: "mono" },
+  { id: "plex-mono", label: "IBM Plex Mono", family: '"IBM Plex Mono", var(--font-mono)', kind: "mono" },
+  { id: "geist-mono", label: "Geist Mono", family: '"Geist Mono", var(--font-mono)', kind: "mono" },
+  { id: "fira-code", label: "Fira Code", family: '"Fira Code", var(--font-mono)', kind: "mono" },
+  { id: "source-code-pro", label: "Source Code Pro", family: '"Source Code Pro", var(--font-mono)', kind: "mono" },
 ];
 
 export const CUSTOM_CSS_MAX = 20 * 1024;

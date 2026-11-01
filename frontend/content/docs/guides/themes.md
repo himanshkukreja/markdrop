@@ -1,10 +1,10 @@
 ---
 title: Pick a theme
 nav: Themes
-description: The fourteen Markdrop Guides themes, from Clean and Help center to Midnight, Paper and Atlas, what each looks like, and how to switch.
+description: The fourteen Markdrop Guides themes and how to switch, customizing one live in the theme builder, and saving designs as templates for other guides.
 updated: 2026-11-01
 prerequisites: [/guides/create-a-site]
-keywords: [theme, design, preset, layout, clean, editorial, technical, minimal, playful, help center, midnight, paper, terminal, corporate, studio, academic, atlas, pastel, dark theme, look and feel]
+keywords: [theme, design, preset, layout, custom theme, theme builder, customize, template, saved design, icons, contrast, clean, editorial, technical, minimal, playful, help center, midnight, paper, terminal, corporate, studio, academic, atlas, pastel, dark theme, look and feel]
 ---
 
 A theme sets the whole guide's layout, fonts, colours and corners. Pick one in the guide's **Design** tab; you can switch any time, and nothing about your pages changes.
@@ -120,6 +120,52 @@ For education and communities: soft pink-tinted grounds and cards, rounded butto
 
 ![Quickstart in the Pastel theme: soft pink-tinted grounds, a rounded search box and buttons, and a pink current page.](/docs-assets/guides/themes/theme-pastel.webp)
 
+## Customize a theme
+
+When a theme is close but not quite right, make it your own. In **Design**, under **Custom theme**, choose **Customize**. The theme builder opens full screen: the controls on the left, and on the right a large live preview of your guide's pages, drawn with the same styles your readers get.
+
+Above the preview, switch between **Home** and **Article**, **Light** and **Dark**, and desktop and phone width. The article has a callout of each kind, code, a table and cards, so you can see every change where it matters. Everything updates as you change it.
+
+::::steps
+### Pick a starting point
+**Start from** (at the top) is the theme your design builds on. Its layout, fonts and colours are the defaults for everything you don't change. You can switch it at any time; your changes stay.
+
+### Change what you like
+The controls are grouped. Each group has **Reset** to put that group back to the theme's own.
+
+### Save your design
+Choose **Save design**. You're back in **Design**, with the **Design saved** banner and **Publish now**. Readers see the new look after you publish.
+::::
+
+**Undo** and **Redo** at the top step back and forward through your changes (or press ⌘Z and ⇧⌘Z; Ctrl on Windows). Closing the builder with the back arrow keeps your changes in the design without saving them; **Save design** in Design saves them later, and **Reset** there drops them.
+
+| Group | What you can change |
+| --- | --- |
+| **Colours** | For light and dark separately: page background, cards and panels, sidebar, header, borders, text, muted text, the accent (links and buttons), text selection, code background and text, and the note, tip, warning and danger callouts. Also the colour mode (both, light only or dark only). |
+| **Typography** | The heading, body and code fonts, the text size, line height, heading weight and the width of the article column. |
+| **Shape** | Corner radius (none to extra large), buttons and the search box (square, rounded or pill) and cards (flat, bordered or raised). |
+| **Layout** | The header (left or centred, solid or transparent, the sections as header tabs or not), the tabs' style (pills or underline), the sidebar (pills, lines or plain, with or without page icons), callouts (tinted, bordered or a bar down the left), code blocks (match the page, always light or always dark) and links in text (underlined, underlined on hover, or bold). |
+| **Icons** | One style for every icon in the guide: **Regular**, **Light** (a finer stroke), **Bold** (a heavier one) or **Duotone** (shapes washed with their own colour). |
+| **Advanced** | Custom CSS, for anything the controls don't cover. See [Custom CSS](/guides/brand-and-style#custom-css). |
+
+A setting you haven't changed says **Theme default** and follows the theme you started from. To clear one colour, choose the **×** beside it. **Back to** the theme's name, under **Custom theme** in Design, drops every customization at once.
+
+### Colours that stay readable
+
+Each colour has a swatch (the colour picker), its hex value and, in browsers that have one, an eyedropper to pick a colour from anywhere on your screen. Under **Suggested palettes**, choose a ready-made set of light and dark colours, or one built from your logo's colours when [Match my brand](/guides/brand-and-style#match-my-brand) is on.
+
+The builder checks every pair readers read against the WCAG AA contrast level (4.5:1): text on the page, cards, header and sidebar, muted text, links, button labels, code, each callout and selected text. When a colour you picked falls short, it says which pair and by how much. Choose **Fix** beside it, or **Fix all**, to switch to the nearest colour that passes. Your colour is never changed without you asking, but a published guide never shows unreadable text either: until you fix it, readers get the nearest readable shade.
+
+## Your templates
+
+Save a design to use it again, on this guide or any other guide in the workspace. Templates keep the theme, colours, fonts, shape, layout, icons and custom CSS, but not a guide's logo or brand colours, so each guide keeps its own.
+
+- **Save as template** is in the theme builder's top bar. In Design, **Save current** under **Your templates** does the same.
+- **Your templates** in Design lists the workspace's templates, beside the themes. Choose one to load it into the design, then **Save design**. (A guide in your personal space has your personal templates.)
+- The **⋯** menu on a template has **Rename**, **Duplicate**, **Update with current design**, **Export as JSON** and **Delete**. **Import** (beside **Save current**) adds a template from an exported file, for example one from another workspace.
+
+Guides admins of a workspace save and change its templates; everyone who can open a guide's Design can see them. A workspace can have up to 50 templates. Deleting a template doesn't change guides that use its design.
+
 ## Make it yours
 
-On top of a theme you can add your logo and colours, change the fonts, colour mode and corners, and add custom CSS. See [Brand and style](/guides/brand-and-style).
+On top of a theme you can add your logo and colours, change the fonts, colour mode and corners, and add custom CSS. See [Brand and style](/guides/brand-and-style). For everything else, [customize the theme](#customize-a-theme).

@@ -211,3 +211,20 @@ class CommentResolve(_Body):
 class PresenceBeat(_Body):
     session: str = Field(..., pattern=r"^[A-Za-z0-9_-]{8,40}$")
     page_id: str | None = Field(None, max_length=64)
+
+
+class ThemeTemplateCreate(_Body):
+    """A saved design (services/docs_theme_templates.py). No workspace_id: a personal template."""
+    workspace_id: str | None = Field(None, max_length=64)
+    name: str = Field(..., max_length=200)
+    # A site's settings.theme without brand; validated like one (docs_site_settings.validate_theme).
+    theme: dict[str, Any]
+
+
+class ThemeTemplateUpdate(_Body):
+    name: str | None = Field(None, max_length=200)
+    theme: dict[str, Any] | None = None
+
+
+class ThemeTemplateDuplicate(_Body):
+    name: str | None = Field(None, max_length=200)

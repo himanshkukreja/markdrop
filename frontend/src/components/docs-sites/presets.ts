@@ -68,7 +68,7 @@ export const LOOKS: Record<ThemePreset, PresetLook> = {
 
 /** The Google Fonts the preview needs (presets + the font picker), loaded once by the Design panel. */
 export const PREVIEW_FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@400;700;800&family=DM+Sans:wght@400;600;700;800&family=Geist:wght@400;600;700&family=Inter:wght@400;600;700&family=Lora:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap";
+  "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@400;700;800&family=DM+Sans:wght@400;600;700;800&family=Geist:wght@400;600;700&family=Inter:wght@400;600;700&family=Lora:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=Space+Grotesk:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600;800&family=Figtree:wght@400;600;800&family=Fraunces:wght@400;600;800&family=Crimson+Pro:wght@400;600&family=Fira+Code:wght@400;500&family=Source+Code+Pro:wght@400;500&display=swap";
 
 const CORNER_R: Record<Corners, string> = { sharp: "3px", soft: "8px", round: "16px" };
 
@@ -108,7 +108,7 @@ export interface PreviewTokens extends Palette {
   calloutBorder: string;
 }
 
-export type ThemeInput = Pick<SiteTheme, "preset" | "brand" | "fonts" | "corners">;
+export type ThemeInput = Pick<SiteTheme, "preset" | "brand" | "fonts" | "corners"> & { custom?: SiteTheme["custom"] };
 
 /** The brand accent the theme uses, or null when "Match my brand" is off or has no colour. */
 export function brandAccent(theme: ThemeInput): { light: string; dark: string | null } | null {
@@ -119,11 +119,18 @@ export function brandAccent(theme: ThemeInput): { light: string; dark: string | 
 
 export function previewTokens(theme: ThemeInput, dark: boolean): PreviewTokens {
   const look = LOOKS[theme.preset] ?? LOOKS.clean;
-  const pal = dark ? look.dark : look.light;
+  // A custom theme's colours for this mode (the theme builder) over the preset's.
+  const cc = theme.custom?.[dark ? "dark" : "light"] ?? null;
+  const own = (k: keyof NonNullable<typeof cc>) => (cc?.[k] && parseHex(cc[k]) ? cc[k]! : undefined);
+  const base0 = dark ? look.dark : look.light;
+  const pal: Palette = {
+    bg: own("bg") ?? base0.bg, header: own("header") ?? base0.header, card: own("surface") ?? base0.card, text: own("text") ?? base0.text,
+    muted: own("muted") ?? base0.muted, line: own("border") ?? base0.line, code: own("code_bg") ?? base0.code, codeText: own("code_text") ?? base0.codeText,
+  };
   const bg = parseHex(pal.bg)!;
   const card = parseHex(pal.card)!;
   const brand = brandAccent(theme);
-  const base = parseHex(brand ? (dark ? brand.dark ?? brand.light : brand.light) : dark ? look.accentDark : look.accent)!;
+  const base = parseHex(own("accent") ?? (brand ? (dark ? brand.dark ?? brand.light : brand.light) : dark ? look.accentDark : look.accent))!;
   // Links: readable on the page and on cards (4.5:1).
   const text = clamp(base, [bg, card], dark ? WHITE : BLACK, 4.5);
   // Fill: whichever of white / ink reads better on it, nudged until it reaches 4.5:1.

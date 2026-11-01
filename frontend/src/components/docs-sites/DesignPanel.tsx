@@ -16,6 +16,9 @@ import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useSite } from "./SiteContext";
 import ThemePreview from "./ThemePreview";
 import useLeaveGuard from "./useLeaveGuard";
+import { fullCustom, isEmptyCustom, templateTheme, type ThemeTemplate } from "@/lib/guideThemes";
+import ThemeBuilder from "./theme-builder/ThemeBuilder";
+import { TemplatesSection, useThemeTemplates } from "./theme-builder/TemplatesSection";
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -23,10 +26,11 @@ function normalise(t: SiteTheme): SiteTheme {
   return {
     preset: t.preset ?? "clean",
     brand: { enabled: !!t.brand?.enabled, logo_url: t.brand?.logo_url ?? null, logo_dark_url: t.brand?.logo_dark_url ?? null, colors: t.brand?.colors ?? [], accent: t.brand?.accent ?? null, accent_dark: t.brand?.accent_dark ?? null },
-    fonts: { heading: t.fonts?.heading ?? null, body: t.fonts?.body ?? null },
+    fonts: { heading: t.fonts?.heading ?? null, body: t.fonts?.body ?? null, mono: t.fonts?.mono ?? null },
     mode: t.mode ?? "both",
     corners: t.corners ?? null,
     custom_css: t.custom_css ?? "",
+    custom: fullCustom(t.custom),
   };
 }
 
@@ -92,6 +96,7 @@ function PresetCard({ id, name, blurb, isNew, checked, onSelect, brand, disabled
 export default function DesignPanel() {
   const { site, setSite, base, isAdmin, canEdit } = useSite();
   const { publish, starting, mustReview, running } = usePublishState();
+  const toast = useToast();
   /** "Design saved — readers see the new look after you publish" (DesignSaved board), until dismissed. */
   const [savedBanner, setSavedBanner] = useState(false);
   const uid = useId();
@@ -110,6 +115,10 @@ export default function DesignPanel() {
   const dirty = !same(theme, saved);
   const locked = !isAdmin;
   const [presetFilter, setPresetFilter] = useState<(typeof PRESET_FILTERS)[number]["value"]>("all");
+  /** The theme builder (Customize), full screen over the panel. */
+  const [building, setBuilding] = useState(false);
+  const templates = useThemeTemplates(site.workspace_id ?? null);
+  const customized = !isEmptyCustom(theme.custom);
   const shownPresets = PRESETS.filter((p) => presetFilter === "all" || (presetFilter === "new" ? p.isNew : p.kinds.includes(presetFilter)));
 
   useEffect(() => setTheme(saved), [saved]);
@@ -159,22 +168,32 @@ export default function DesignPanel() {
     }
   }
 
-  async function save() {
-    if (locked || cssProblem) return;
+  async function save(): Promise<boolean> {
+    if (locked || cssProblem) return false;
     setSaving(true);
     setError("");
     try {
-      const next = await updateSite(site.id, { settings: { theme: { ...theme, custom_css: theme.custom_css || null } } });
+      // The whole custom block (every key, null where unset): the API deep-merges objects.
+      const next = await updateSite(site.id, { settings: { theme: { ...theme, custom_css: theme.custom_css || null, custom: fullCustom(theme.custom) } } });
       setSite(next);
       setSavedBanner(true);
+      return true;
     } catch (e) {
       setError(docsErrorMessage(e, "The design didn't save. Try again."));
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
-  const fontOptions = [{ value: "", label: "Theme default" }, ...FONTS.map((f) => ({ value: f.id, label: f.label }))];
+  /** A saved design into the draft: everything but the guide's own brand (logo, brand colours). */
+  function applyTemplate(t: ThemeTemplate) {
+    if (locked) return;
+    setTheme((cur) => normalise({ ...cur, ...t.theme, brand: cur.brand }));
+    toast.success(`Loaded "${t.name}". Save the design to keep it.`);
+  }
+
+  const fontOptions = (kinds: string[]) => [{ value: "", label: "Theme default" }, ...FONTS.filter((f) => kinds.includes(f.kind)).map((f) => ({ value: f.id, label: f.label }))];
   // Uploads are stored by content hash: name the file you picked, else just "Your logo".
   const logoName = theme.brand.logo_url ? (pickedName && pickedFor === theme.brand.logo_url ? pickedName : "Your logo") : null;
 
@@ -236,6 +255,39 @@ export default function DesignPanel() {
               ))}
             </div>
           </fieldset>
+
+          <div className="flex flex-col gap-3 rounded-xl border border-border bg-bg p-4">
+            <div className="flex items-start gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-text" aria-hidden><Icon name="palette" size={18} /></span>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <h2 className="flex items-center gap-2 text-[15px] font-semibold text-text">
+                  Custom theme
+                  {customized && <Badge size="sm" tone="info">Customized</Badge>}
+                </h2>
+                <p className="text-[13px] text-text-secondary">
+                  {customized
+                    ? `${presetName(theme.preset)} with your colours, type and styles.`
+                    : "Start from this theme and change colours, fonts, shapes, layout and icons, live."}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant={customized ? "secondary" : "primary"} size="sm" iconLeft="palette" disabled={locked} onClick={() => setBuilding(true)}>
+                {customized ? "Edit custom theme" : "Customize"}
+              </Button>
+              {customized && (
+                <Button variant="ghost" size="sm" disabled={locked} onClick={() => set({ custom: null })}>Back to {presetName(theme.preset)}</Button>
+              )}
+            </div>
+          </div>
+
+          <TemplatesSection
+            templates={templates}
+            theme={theme}
+            canApply={!locked}
+            onApply={applyTemplate}
+            scopeLabel={site.workspace_id ? "this workspace" : "your personal guides"}
+          />
 
           <div className="flex flex-col gap-3 rounded-xl border border-border bg-bg p-4">
             <div className="flex items-center gap-2.5">
@@ -309,10 +361,10 @@ export default function DesignPanel() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Headings font" htmlFor={`${uid}-hf`}>
-              <Select value={theme.fonts.heading ?? ""} disabled={locked} options={fontOptions} onChange={(e) => set({ fonts: { ...theme.fonts, heading: e.target.value || null } })} />
+              <Select value={theme.fonts.heading ?? ""} disabled={locked} options={fontOptions(["sans", "serif", "mono"])} onChange={(e) => set({ fonts: { ...theme.fonts, heading: e.target.value || null } })} />
             </Field>
             <Field label="Body font" htmlFor={`${uid}-bf`}>
-              <Select value={theme.fonts.body ?? ""} disabled={locked} options={fontOptions} onChange={(e) => set({ fonts: { ...theme.fonts, body: e.target.value || null } })} />
+              <Select value={theme.fonts.body ?? ""} disabled={locked} options={fontOptions(["sans", "serif"])} onChange={(e) => set({ fonts: { ...theme.fonts, body: e.target.value || null } })} />
             </Field>
             <Field label="Colour mode" htmlFor={`${uid}-mode`}>
               <Select
@@ -322,10 +374,10 @@ export default function DesignPanel() {
                 onChange={(e) => set({ mode: e.target.value as ThemeMode })}
               />
             </Field>
-            <Field label="Corners" htmlFor={`${uid}-corners`}>
+            <Field label="Corners" htmlFor={`${uid}-corners`} hint={theme.custom?.radius ? "Set in your custom theme" : undefined}>
               <Select
                 value={theme.corners ?? ""}
-                disabled={locked}
+                disabled={locked || !!theme.custom?.radius}
                 options={[{ value: "", label: "Theme default" }, { value: "sharp", label: "Sharp" }, { value: "soft", label: "Soft" }, { value: "round", label: "Round" }]}
                 onChange={(e) => set({ corners: (e.target.value || null) as Corners | null })}
               />
@@ -379,6 +431,33 @@ export default function DesignPanel() {
           {dirty && isAdmin && <p className="text-[13px] text-text-muted">Not saved yet. Readers see the new design after you save it and publish.</p>}
         </section>
       </main>
+      {building && (
+        <ThemeBuilder
+          siteName={site.name}
+          theme={theme}
+          onChange={setTheme}
+          onClose={() => setBuilding(false)}
+          onSave={async () => {
+            if (await save()) {
+              setBuilding(false);
+              // The Design saved banner (and Publish now) sits at the top.
+              window.scrollTo({ top: 0 });
+            }
+          }}
+          saving={saving}
+          dirty={dirty}
+          logo={theme.brand.enabled ? assetPreviewUrl(site.id, theme.brand.logo_url) : null}
+          brandColors={theme.brand.colors}
+          onSaveTemplate={templates.canEdit ? async (name) => {
+            try {
+              await templates.create(name, templateTheme(theme));
+              toast.success(`Saved "${name}" to your templates.`);
+            } catch (e) {
+              throw new Error(docsErrorMessage(e, "That template didn't save. Try again."));
+            }
+          } : null}
+        />
+      )}
       {leaveGuard}
     </>
   );

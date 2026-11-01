@@ -10,6 +10,7 @@ import { MediaLightbox } from "@/docs/client/Media";
 import { DocsSiteProvider } from "@/docs/client/site";
 import { InsightsBeacon } from "@/docs/client/Insights";
 import { defaultModeScript, forcedModeScript, siteTheme } from "@/docs/themeSite";
+import { themeAttrs } from "@/docs/theme.mjs";
 import { themeStylesheet } from "@/docs/themeFonts";
 
 /**
@@ -19,7 +20,8 @@ import { themeStylesheet } from "@/docs/themeFonts";
  * page knows statically) and the ⌘K palette is mounted once here. The site's settings (brand,
  * accent, Ask AI) come from site.json; `data-docs-trackers="off"` tells the root layout's
  * Markdrop trackers to stay out of a site that isn't Markdrop's. A site with a `theme` (theme.mjs)
- * also gets `data-preset` and `data-layout` on the root, the theme's stylesheet and, when it forces
+ * also gets `data-preset` and `data-layout` on the root (and one attribute per custom-theme choice:
+ * theme.mjs themeAttrs), the theme's stylesheet and, when it forces
  * a colour mode, the script that pins it; a site without one gets none of these. A Markdrop Guides
  * site with Insights on (site.json `insights`) also gets the navigation beacon (client/Insights.tsx).
  */
@@ -52,7 +54,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
   // A forced mode (light-only / dark-only), else a dark-first preset's starting mode.
   const forced = forcedModeScript(site) ?? defaultModeScript(site);
   return (
-    <div className="dx-root" data-docs-trackers={markdropApp(site) ? undefined : "off"} {...(theme ? { "data-preset": theme.preset, "data-layout": theme.layout } : {})}>
+    <div className="dx-root" data-docs-trackers={markdropApp(site) ? undefined : "off"} {...themeAttrs(theme)}>
       {forced ? (
         <>
           <script dangerouslySetInnerHTML={{ __html: forced }} />

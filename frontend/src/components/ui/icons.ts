@@ -115,6 +115,11 @@ const PATHS = {
   sparkle: "M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z",
   layers: "M12 2 2 7l10 5 10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
   droplet: "M12 3s6.5 8.8 6.5 12.5a6.5 6.5 0 0 1-13 0C5.5 11.8 12 3 12 3z",
+  undo: "M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11",
+  redo: "m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13",
+  type: "M4 7V4h16v3M9 20h6M12 4v16",
+  square: "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+  pipette: "m2 22 1-1h3l9-9M3 21v-3l9-9m3-3 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4z",
 } satisfies Record<string, string>;
 
 /** Every icon name in the set. `Icon` still accepts any string (unknown names draw nothing). */

@@ -43,6 +43,28 @@ class Presets(unittest.TestCase):
         self.assertEqual(default_settings()["theme"]["preset"], "clean")
         self.assertEqual(site_settings.Theme().preset, "clean")
 
+    def test_same_fonts_and_custom_theme_lists_as_the_engine(self):
+        """theme.mjs FONTS, CUSTOM_COLORS, CUSTOM_OPTIONS, CUSTOM_BOOLS and CUSTOM_RANGES: the API's
+        lists are the engine's (snake_case here, camelCase there)."""
+        if not THEME_MJS.is_file():
+            self.skipTest("the docs engine is missing; run from a full checkout of the repo")
+        src = THEME_MJS.read_text(encoding="utf-8")
+        snake = lambda k: re.sub(r"[A-Z]", lambda m: "_" + m.group(0).lower(), k)  # noqa: E731
+        fonts_block = src.split("export const FONTS = {", 1)[1].split("\n};", 1)[0]
+        fonts = re.findall(r'^  "?([a-z0-9-]+)"?: \{ label: "[^"]+", kind: "(\w+)"', fonts_block, re.M)
+        self.assertEqual(sorted(f for f, _ in fonts), sorted(site_settings.FONT_IDS))
+        self.assertEqual(sorted(f for f, k in fonts if k == "mono"), sorted(site_settings.MONO_FONT_IDS))
+        colors = re.search(r"export const CUSTOM_COLORS = \[([^\]]+)\]", src).group(1)
+        self.assertEqual([snake(c) for c in re.findall(r'"(\w+)"', colors)], list(site_settings.CUSTOM_COLORS))
+        opts_block = src.split("export const CUSTOM_OPTIONS = {", 1)[1].split("\n};", 1)[0]
+        opts = {snake(k): tuple(re.findall(r'"(\w+)"', v)) for k, v in re.findall(r"^  (\w+): \[([^\]]+)\]", opts_block, re.M)}
+        self.assertEqual(opts, site_settings.CUSTOM_OPTIONS)
+        bools = re.search(r"export const CUSTOM_BOOLS = \[([^\]]+)\]", src).group(1)
+        self.assertEqual([snake(b) for b in re.findall(r'"(\w+)"', bools)], list(site_settings.CUSTOM_BOOLS))
+        ranges_block = src.split("export const CUSTOM_RANGES = {", 1)[1].split("\n};", 1)[0]
+        ranges = {snake(k): tuple(float(x) for x in v.split(",")) for k, v in re.findall(r"^  (\w+): \[([^\]]+)\]", ranges_block, re.M)}
+        self.assertEqual(ranges, {k: tuple(float(x) for x in v) for k, v in site_settings.CUSTOM_RANGES.items()})
+
     def test_unknown_preset_refused(self):
         for bad in ("Midnight", "dark", "", "night"):
             with self.subTest(bad=bad), self.assertRaises(SettingsError):

@@ -246,6 +246,82 @@
 .dx-root[data-preset="pastel"] :is(.dx-startcard, .dx-area, .dx-hc-cat) { border-color: transparent; background: color-mix(in oklab, var(--accent) 8%, var(--surface)); box-shadow: none; }
 .dx-root[data-preset="pastel"] :is(.dx-card, .dx-ask__box, .md-codeblock, .dx-prevnext__link) { box-shadow: none; }
 
+/* ── Custom themes (theme.custom, the theme builder) ─────────────────────────
+ * Each choice is an attribute on the root (theme.mjs themeAttrs), set only when the owner made it,
+ * so a preset renders as above. `.dx-root.dx-root[…]` outranks every preset rule here; colours
+ * arrive as tokens (--dx-sidebar-bg, --dx-note…), with today's values as the fallbacks. */
+
+/* Colours a custom theme may set: callout tones, selection, a sidebar ground. */
+.dx-root[data-preset] .dx-callout--note { background: var(--dx-note-soft, var(--accent-soft)); color: var(--dx-note, var(--accent-text)); }
+.dx-root[data-preset] .dx-callout--tip { background: var(--dx-tip-soft, var(--success-soft)); color: var(--dx-tip, var(--success)); }
+.dx-root[data-preset] .dx-callout--warning { background: var(--dx-warning-soft, var(--warning-soft)); color: var(--dx-warning, var(--warning)); }
+.dx-root[data-preset] .dx-callout--danger { background: var(--dx-danger-soft, var(--danger-soft)); color: var(--dx-danger, var(--danger)); }
+.dx-root[data-custom] ::selection { background: var(--dx-selection, var(--accent-soft)); color: var(--text); }
+@media (min-width: 900px) {
+  .dx-root.dx-root[data-sidebar-bg] .dx-layout__nav { min-height: calc(100dvh - var(--dx-header-h)); background: var(--dx-sidebar-bg); border-right: 1px solid var(--border); margin-left: -24px; padding-left: 14px; padding-right: 10px; }
+}
+
+/* Buttons and the search box: square, rounded or pill. */
+.dx-root.dx-root[data-buttons="square"] :is(.md-btn, .dx-searchbox, .dx-split__main, .dx-chip) { border-radius: min(var(--radius-sm), 4px); }
+.dx-root.dx-root[data-buttons="square"] .dx-split__main { border-radius: min(var(--radius-sm), 4px) 0 0 min(var(--radius-sm), 4px); }
+.dx-root.dx-root[data-buttons="square"] .dx-split__more { border-radius: 0 min(var(--radius-sm), 4px) min(var(--radius-sm), 4px) 0; }
+.dx-root.dx-root[data-buttons="rounded"] :is(.md-btn, .dx-searchbox, .dx-chip) { border-radius: var(--radius-lg); }
+.dx-root.dx-root[data-buttons="pill"] :is(.md-btn, .dx-searchbox, .dx-chip, .dx-ask__box) { border-radius: var(--radius-full); }
+.dx-root.dx-root[data-buttons="pill"] .dx-split__main { border-radius: var(--radius-full) 0 0 var(--radius-full); }
+.dx-root.dx-root[data-buttons="pill"] .dx-split__more { border-radius: 0 var(--radius-full) var(--radius-full) 0; }
+
+/* Cards (start cards, areas, categories, page cards, panels): flat, bordered or raised. */
+.dx-root.dx-root[data-cards="flat"] :is(.dx-card, .dx-startcard, .dx-area, .dx-hc-cat, .dx-panel, .dx-prevnext__link, .dx-apiop, .dx-hc-pop, .dx-askcard) { border-color: transparent; background: color-mix(in oklab, var(--text) 4%, var(--surface)); box-shadow: none; }
+.dx-root.dx-root[data-cards="bordered"] :is(.dx-card, .dx-startcard, .dx-area, .dx-hc-cat, .dx-panel, .dx-prevnext__link, .dx-apiop, .dx-hc-pop, .dx-askcard) { border: 1px solid var(--border); box-shadow: none; }
+.dx-root.dx-root[data-cards="raised"] :is(.dx-card, .dx-startcard, .dx-area, .dx-hc-cat, .dx-panel, .dx-prevnext__link, .dx-apiop, .dx-hc-pop, .dx-askcard) { border: 1px solid color-mix(in oklab, var(--border) 60%, transparent); box-shadow: var(--shadow-md); }
+
+/* Header: centred brand and tabs; transparent over the page. */
+@media (min-width: 900px) {
+  .dx-root.dx-root[data-header-align="center"] .dx-brand { margin-left: auto; }
+  .dx-root.dx-root[data-header-align="center"] .dx-tabsnav { flex: 0 1 auto; }
+  .dx-root.dx-root[data-header-align="center"] .dx-topnav__in { justify-content: center; }
+}
+.dx-root.dx-root[data-header-style="transparent"] :is(.dx-header, .dx-topnav) { background: color-mix(in oklab, var(--bg) 84%, transparent); border-bottom-color: transparent; -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px); }
+
+/* Header tabs: pills (the design system's) or an underline under the current one. */
+@media (min-width: 900px) {
+  .dx-root.dx-root[data-tab-style="underline"] .dx-header__in { padding-top: 0; padding-bottom: 0; min-height: 60px; }
+  .dx-root.dx-root[data-tab-style="underline"] .dx-tabsnav { align-self: stretch; }
+  .dx-root.dx-root[data-tab-style="underline"] .dx-tabsnav__item { display: flex; align-items: center; padding: 2px 12px 0; border-radius: 0; border-bottom: 2px solid transparent; background: none; }
+  .dx-root.dx-root[data-tab-style="underline"] .dx-tabsnav__item[aria-current="page"] { background: none; border-bottom-color: var(--accent); }
+}
+.dx-root.dx-root[data-tab-style="pills"] .dx-tabsnav { align-self: center; }
+.dx-root.dx-root[data-tab-style="pills"] .dx-tabsnav__item { display: block; padding: 6px 10px; border-bottom: 0; border-radius: var(--radius-md); }
+.dx-root.dx-root[data-tab-style="pills"] .dx-tabsnav__item[aria-current="page"] { background: var(--surface-active); }
+.dx-root.dx-root[data-tab-style="pills"] .dx-topnav__item { margin: 6px 0; padding: 6px 10px; border-bottom: 0; border-radius: var(--radius-md); }
+.dx-root.dx-root[data-tab-style="pills"] .dx-topnav__item[aria-current] { background: var(--surface-active); }
+
+/* Sidebar: pills, a guide line with the current page marked on it, or plain text. */
+.dx-root.dx-root[data-sidebar="pills"] .dx-nav__item { border-radius: var(--radius-md); box-shadow: none; }
+.dx-root.dx-root[data-sidebar="pills"] .dx-nav__item[aria-current="page"] { background: var(--accent-soft); box-shadow: none; border-radius: var(--radius-md); }
+.dx-root.dx-root[data-sidebar="lines"] .dx-nav__group ul { gap: 0; margin-left: 10px; border-left: 1px solid var(--border); }
+.dx-root.dx-root[data-sidebar="lines"] .dx-nav__item { margin-left: -1px; padding-left: 14px; border-radius: 0; border-left: 2px solid transparent; box-shadow: none; }
+.dx-root.dx-root[data-sidebar="lines"] .dx-nav__item:hover { background: none; border-left-color: var(--border-strong); }
+.dx-root.dx-root[data-sidebar="lines"] .dx-nav__item[aria-current="page"] { background: none; border-left-color: var(--accent); }
+.dx-root.dx-root[data-sidebar="plain"] .dx-nav__item { box-shadow: none; }
+.dx-root.dx-root[data-sidebar="plain"] .dx-nav__item:hover { background: none; text-decoration: underline; text-underline-offset: 3px; }
+.dx-root.dx-root[data-sidebar="plain"] .dx-nav__item[aria-current="page"] { background: none; box-shadow: none; }
+.dx-root.dx-root[data-sidebar-icons="off"] .dx-nav__icon { display: none; }
+
+/* Callouts: tinted (the design system's), bordered, or a bar down the left. */
+.dx-root.dx-root[data-callouts="bordered"] .dx-callout { background: transparent; border: 1px solid color-mix(in oklab, currentColor 45%, transparent); }
+.dx-root.dx-root[data-callouts="bar"] .dx-callout { border: 0; border-left: 3px solid currentColor; border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+
+/* Links in the text: always underlined (the default), underlined on hover, or never (then bold). */
+.dx-root.dx-root[data-links="accent"] .dx-prose :where(a):not(:where(.not-prose, .not-prose *, .dx-card__link)) { text-decoration-line: none; }
+.dx-root.dx-root[data-links="accent"] .dx-prose :where(a):not(:where(.not-prose, .not-prose *, .dx-card__link)):hover { text-decoration-line: underline; }
+.dx-root.dx-root[data-links="plain"] .dx-prose :where(a):not(:where(.not-prose, .not-prose *, .dx-card__link)) { text-decoration-line: none; font-weight: 600; }
+
+/* Icons: the set's stroke (1.8) lighter or bolder, or duotone (closed shapes washed with their colour). */
+.dx-root.dx-root[data-icons="light"] .md-icon { stroke-width: 1.35; }
+.dx-root.dx-root[data-icons="bold"] .md-icon { stroke-width: 2.4; }
+.dx-root.dx-root[data-icons="duotone"] :is(.dx-tile .md-icon, .dx-card__icon .md-icon, .dx-area__icon, .dx-nav__icon, .dx-hc-pop__icon, .dx-title__icon, .dx-prereq > .md-icon, .md-alert > .md-icon) { fill: currentColor; fill-opacity: 0.2; }
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 1199px) {
   .dx-root[data-layout] .dx-layout--top { grid-template-columns: minmax(0, 1fr) minmax(0, var(--dx-measure)) minmax(0, 1fr); gap: 32px; }
