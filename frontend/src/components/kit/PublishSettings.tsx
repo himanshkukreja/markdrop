@@ -23,6 +23,7 @@
 import React, { useId, useRef, useState } from "react";
 import { Alert, Badge, Drawer, Field, Icon, IconButton, Input, Popover, Radio, Select, Switch, Tooltip } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
+import { passwordStrength } from "@/lib/e2e";
 import { SettingChip } from "./SettingChip";
 import { DateTimePicker } from "./DateTimePicker";
 import {
@@ -117,7 +118,9 @@ export function PublishSettings(props: PublishSettingsProps) {
   };
 
   const showTarget = signedIn && workspaces.length > 0;
-  const visible = (f: PublishField) => fields.includes(f) && (f !== "target" || showTarget);
+  // With Encrypt on, the password is the document's own and is set in the Encryption panel.
+  const encryptOn = value.encrypt && e2eSupported && fields.includes("encrypt");
+  const visible = (f: PublishField) => fields.includes(f) && (f !== "target" || showTarget) && !(f === "password" && encryptOn);
   const set = <K extends PublishField>(field: K, v: PublishSettingsValue[K]) => onChange({ ...value, [field]: v }, field);
 
   const ws = workspaces.find((w) => w.id === value.target.workspaceId) ?? null;
@@ -163,7 +166,7 @@ export function PublishSettings(props: PublishSettingsProps) {
           value: <span className={s.chipTrunc}>{words}</span>, valueText: words, set: value.access !== "link",
         };
       }
-      case "encrypt": return { icon: "key", label: PANEL_TITLE.encrypt, value: value.encrypt ? "Encrypted" : "Encrypt", set: value.encrypt, emphasis: value.encrypt };
+      case "encrypt": return { icon: "key", label: PANEL_TITLE.encrypt, value: value.encrypt ? (value.password ? "Encrypted + password" : "Encrypted") : "Encrypt", set: value.encrypt, emphasis: value.encrypt };
       case "password": return { icon: "lock", label: PANEL_TITLE.password, value: value.password ? "Password set" : "No password", set: !!value.password };
       case "expires": return { icon: "clock", label: PANEL_TITLE.expires, value: expiryChipLabel(value.expires, isClient), set: value.expires !== "never" };
       case "slug": {
@@ -318,14 +321,20 @@ function AccessPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean })
 }
 
 function EncryptPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }) {
-  const { value, set, e2eSupported, disabled, prefix, layout } = ctx;
+  const { value, set, onChange, e2eSupported, disabled, prefix, layout, passwordMaxLength } = ctx;
   const uid = useId();
   const descId = `${uid}-d`;
   const slug = value.slug.trim() || "random";
+  // "Also require a password" can be on with nothing typed yet; an empty password publishes none.
+  const [wantPassword, setWantPassword] = useState(!!value.password);
+  const [reveal, setReveal] = useState(false);
+  const pw = value.password ?? "";
+  const strength = passwordStrength(pw);
+  const on = value.encrypt && e2eSupported;
   return (
     <div className={[s.block, layout !== "chips" && !inPopover && s.encryptCard].filter(Boolean).join(" ")}>
       <div className={s.encryptHead}>
-        <Switch checked={value.encrypt && e2eSupported} label="Encrypt in this browser" aria-describedby={descId}
+        <Switch checked={on} label="Encrypt in this browser" aria-describedby={descId}
           disabled={disabled}
           aria-disabled={!e2eSupported || undefined} className={!e2eSupported ? s.switchOff : undefined}
           onChange={(e) => { if (e2eSupported) set("encrypt", e.target.checked); }} />
@@ -333,7 +342,7 @@ function EncryptPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }
       </div>
       {e2eSupported ? (
         <p id={descId} className={s.body}>
-          Your browser encrypts the title and the text before publishing. The key goes in the # part of the link, which browsers never send to a server — so only ciphertext ever reaches Markdrop. <ReadMore topic="encryption" />
+          Your browser encrypts the title and text before publishing. The key goes after the # in the link, and our servers never receive it. <ReadMore topic="encryption" />
         </p>
       ) : (
         <p id={descId} className={s.hintWarn}><Icon name="alert" /> Unavailable — this browser doesn&apos;t expose WebCrypto on an insecure connection.</p>
@@ -350,13 +359,42 @@ function EncryptPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }
           </div>
         </div>
       )}
-      {value.encrypt && e2eSupported && (
+      {on && (
         <>
           <Alert tone="warning" title="The link is the key">Lose it and the document is gone — no recovery, by anyone.</Alert>
           <ul className={s.facts}>
-            <li><Icon name="link" /> Anyone with the link can read it.</li>
+            <li><Icon name="link" /> Anyone with the link can read it{pw ? " — with the password" : ""}.</li>
+            <li><Icon name="info" /> The link name, size and dates aren&apos;t encrypted.</li>
             <li><Icon name="x" /> Google Docs export, VS Code sync and link previews switch off.</li>
           </ul>
+          {value.slug.trim() && (
+            <p className={s.hintWarn}><Icon name="alert" /> The link name isn&apos;t encrypted. Leave it blank for a random one.</p>
+          )}
+          <Switch
+            checked={wantPassword}
+            disabled={disabled}
+            label="Also require a password"
+            onChange={(e) => {
+              setWantPassword(e.target.checked);
+              if (!e.target.checked && value.password) onChange({ ...value, password: null }, "password");
+            }}
+          />
+          {wantPassword && (
+            <Field
+              label="Password"
+              hint={pw ? strength.label : "Readers need the link and this password. Send them separately — not in the same message."}
+            >
+              <Input type={reveal ? "text" : "password"} value={pw} autoComplete="new-password"
+                autoCapitalize="off" spellCheck={false} maxLength={Math.max(passwordMaxLength, 200)} disabled={disabled}
+                wrapClassName={layout === "sheet" ? s.pwWrapLg : s.pwWrap}
+                onChange={(e) => onChange({ ...value, password: e.target.value === "" ? null : e.target.value }, "password")}
+                suffix={<IconButton icon={reveal ? "eyeOff" : "eye"} label={reveal ? "Hide password" : "Show password"} aria-pressed={reveal}
+                  size={layout === "sheet" ? "lg" : "sm"} disabled={disabled} onClick={() => setReveal((r) => !r)} />} />
+            </Field>
+          )}
+          {wantPassword && (
+            <p className={s.caption}>Checked in readers&apos; browsers; our servers never see it. We can&apos;t reset it.</p>
+          )}
         </>
       )}
     </div>
@@ -403,9 +441,14 @@ function ExpiresPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }
 }
 
 function LinkPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }) {
-  const { value, set, disabled, errors, prefix, fullPrefix, slugMaxLength } = ctx;
+  const { value, set, disabled, errors, prefix, fullPrefix, slugMaxLength, e2eSupported } = ctx;
+  const encryptedName = value.encrypt && e2eSupported && !!value.slug.trim();
   return (
-    <Field label={labelFor("slug", inPopover)} hint={<>Leave blank for a short random link. <ReadMore topic="addresses" /></>} error={errors.slug}>
+    <Field label={labelFor("slug", inPopover)}
+      hint={encryptedName
+        ? "The link name isn't encrypted. Leave it blank for a random one."
+        : <>Leave blank for a short random link. <ReadMore topic="addresses" /></>}
+      error={errors.slug}>
       <Input mono textPrefix={prefix} value={value.slug} placeholder="random" maxLength={slugMaxLength} disabled={disabled}
         autoCapitalize="off" autoCorrect="off" autoComplete="off" spellCheck={false} title={fullPrefix !== prefix ? fullPrefix : undefined}
         onChange={(e) => set("slug", e.target.value)} />

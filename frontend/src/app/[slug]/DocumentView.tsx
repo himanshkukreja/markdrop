@@ -383,6 +383,8 @@ export default function DocumentView(props: DocumentViewProps) {
                     shareUrl={shareUrl}
                     access={publishedAccess}
                     encrypted={encrypted}
+                    password={v.publishedPassword}
+                    passwordProtected={v.opened?.mode === "password" || !!v.publishedPassword}
                     secret={claimSecret}
                     signedIn={!!user}
                     isOwner={isOwner}

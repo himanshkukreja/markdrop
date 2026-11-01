@@ -264,7 +264,9 @@ export default function NewEditor() {
         setPhase("encrypting");
         announce("Encrypting in your browser…");
         const key = e2e.generateKey();
-        body = await e2e.seal(key, { title: title.trim() || null, content });
+        // With Encrypt on, the password is the document's own (link + password): mixed into the
+        // key here, checked only in readers' browsers, never sent to us.
+        body = await e2e.seal(key, { title: title.trim() || null, content }, { password: settings.password || null });
         encodedKey = e2e.exportKey(key);
         keyFragment = `#k=${encodedKey}`;
       }
@@ -272,7 +274,8 @@ export default function NewEditor() {
       announce("Publishing…");
 
       const { expiresIn, customExpiresAt } = toApiExpiry(settings.expires);
-      const readPassword = settings.password || "";
+      // A server-checked password only for a plain document; an encrypted one carries its own.
+      const readPassword = useE2E ? "" : settings.password || "";
       const accessLevel = settings.access;
       const target = settings.target;
       const doc = await createDocument(title, body, {
@@ -283,7 +286,7 @@ export default function NewEditor() {
         encrypted: useE2E || undefined,
         accessLevel: createAccess(accessLevel),
       });
-      track("doc_published", { encrypted: !!useE2E, access: accessLevel, password: !!readPassword, expires: !!expiresIn, workspace: !!target.workspaceId });
+      track("doc_published", { encrypted: !!useE2E, access: accessLevel, password: !!settings.password, expires: !!expiresIn, workspace: !!target.workspaceId });
       // Keep the secret in sessionStorage only — never in the URL (it would leak via history,
       // referrer headers and server logs).
       sessionStorage.setItem(`secret:${doc.slug}`, doc.edit_secret);
@@ -301,6 +304,7 @@ export default function NewEditor() {
       // Keep a copy on this device so losing the link isn't automatically fatal. Still never
       // leaves the browser — see lib/e2e.ts.
       if (encodedKey) e2e.rememberKey(doc.slug, encodedKey);
+      if (encodedKey && settings.password) e2e.handOverPassword(doc.slug, settings.password);
       publishedRef.current = true;
       clearDraft();
       // The fragment survives a client-side push and is never sent to a server.

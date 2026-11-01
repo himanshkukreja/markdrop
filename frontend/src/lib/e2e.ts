@@ -717,3 +717,23 @@ export function restorePendingKey(): string | null {
   }
   return key;
 }
+
+// ── A just-set password, from the publish screen to the published page ───────
+//
+// Publishing navigates client-side (router.push), so a module variable survives
+// the trip: the publisher isn't asked for the password they just typed, and the
+// Published panel can offer "Copy password". Memory only — never storage, never
+// a URL. A reload forgets it, which is the point.
+
+const justPublished = new Map<string, string>();
+
+export function handOverPassword(slug: string, password: string): void {
+  justPublished.set(slug, password);
+}
+
+/** Single use. */
+export function takeHandedOverPassword(slug: string): string | null {
+  const pw = justPublished.get(slug) ?? null;
+  justPublished.delete(slug);
+  return pw;
+}

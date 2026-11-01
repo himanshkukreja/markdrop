@@ -40,6 +40,10 @@ export interface PublishedPanelProps {
   encrypted: boolean;
   /** An anonymous author's edit secret (from sessionStorage `secret:<slug>`). */
   secret?: string | null;
+  /** Encrypted with a password: the one just set (in memory only), for "Copy password". */
+  password?: string | null;
+  /** The document needs a password as well as the link. */
+  passwordProtected?: boolean;
   signedIn: boolean;
   isOwner: boolean;
   /** Names the workspace in the access sentence for `access="workspace"`. */
@@ -91,7 +95,7 @@ function DropTile({ animate, small }: { animate: boolean; small?: boolean }) {
 
 export function PublishedPanel(props: PublishedPanelProps) {
   const {
-    url, shareUrl, access, encrypted, secret, signedIn, isOwner, workspaceName, onOpenFullScreen, onShowDetails, onSaveToAccount,
+    url, shareUrl, access, encrypted, secret, password, passwordProtected = !!password, signedIn, isOwner, workspaceName, onOpenFullScreen, onShowDetails, onSaveToAccount,
     secretSaved, signInHref, onSignIn, compact, onDismiss, workspaceShareFailed, onLinkCopied, onSecretCopied, animate = true,
     headingLevel = 2, className,
   } = props;
@@ -145,7 +149,11 @@ export function PublishedPanel(props: PublishedPanelProps) {
             <H id={`${uid}-t`} className={s.pubTitle}>Published</H>
             <Badge tone="success" size="sm" dot>Live</Badge>
           </div>
-          {encrypted && <p className={s.pubSub}>End-to-end encrypted. The key is in this link.</p>}
+          {encrypted && (
+            <p className={s.pubSub}>
+              {passwordProtected ? "End-to-end encrypted. Readers need this link and the password." : "End-to-end encrypted. The key is in this link."}
+            </p>
+          )}
         </div>
         {onDismiss && <IconButton icon="x" label="Dismiss" size="sm" onClick={onDismiss} />}
       </div>
@@ -166,8 +174,22 @@ export function PublishedPanel(props: PublishedPanelProps) {
         </div>
         <div className={s.linkCaption}>
           <span>{accessSentence(access, { workspaceName })}</span>
-          {encrypted && <span className={s.linkCaptionKey}>The part after # never reaches a server</span>}
+          {encrypted && <span className={s.linkCaptionKey}>The part after # never reaches our servers</span>}
         </div>
+        {encrypted && passwordProtected && (
+          <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-inset p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Icon name="lock" className="text-text-muted" />
+              <span className="text-body-strong text-text">Password</span>
+              {password && (
+                <CopyButton text={password} label="Copy password" variant="secondary" size="sm" announceText="Password copied" className="ml-auto" />
+              )}
+            </div>
+            <p className="text-caption text-text-secondary">
+              Send the link and the password separately — in two different messages or apps. We can&apos;t reset the password.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className={s.pubActions}>
@@ -178,7 +200,7 @@ export function PublishedPanel(props: PublishedPanelProps) {
       </div>
       {qr && (
         <div id={qrId} className={s.pubQr}>
-          <QRFrame value={shareUrl} size={152} label="Scan to open on a phone" caption={encrypted ? "The key is included." : "Point a phone camera at it."} expandable
+          <QRFrame value={shareUrl} size={152} label="Scan to open on a phone" caption={encrypted ? "Includes the key" : "Point a phone camera at it."} expandable
             ariaLabel={encrypted ? "QR code for the full link, key included" : undefined} />
         </div>
       )}

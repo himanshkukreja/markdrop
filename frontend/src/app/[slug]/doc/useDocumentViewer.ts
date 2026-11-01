@@ -341,6 +341,8 @@ export function useDocumentViewer({
   const [e2ePwdError, setE2EPwdError] = useState("");
   const [e2ePwdErrorKey, setE2EPwdErrorKey] = useState(0);
   const [e2ePwdChecking, setE2EPwdChecking] = useState(false);
+  // The password set on the publish screen a moment ago (this tab, memory only), for "Copy password".
+  const [publishedPassword, setPublishedPassword] = useState<string | null>(null);
   // A key stashed for the trip through sign-in, to put back in the address bar
   // once any handoff fragment has been dealt with.
   const [restoreToBar, setRestoreToBar] = useState<string | null>(null);
@@ -349,13 +351,23 @@ export function useDocumentViewer({
   const [docRev, setDocRev] = useState<number | null>(initialRev);
   const [serverPassword, setServerPassword] = useState(isPasswordProtected && gate !== "signin");
 
+  // Once per mounted view: the stash and the handed-over password are single use, and an effect
+  // re-run (Strict Mode, or a suspended lazy child re-showing this view) must not lose them.
+  const keysGathered = useRef(false);
   useEffect(() => {
-    if (!encrypted) return;
+    if (!encrypted || keysGathered.current) return;
+    keysGathered.current = true;
     if (!e2e.isSupported()) {
       // Not "failed": nothing is wrong with the key or the document, this
       // browser just can't run the decryption (REVAMP_PLAN 7.6 "Unsupported").
       setDecryptState("unsupported");
       return;
+    }
+    // Just published with a password in this tab: don't ask for what was just typed.
+    const handed = e2e.takeHandedOverPassword(slug);
+    if (handed) {
+      setE2EPassword(handed);
+      setPublishedPassword(handed);
     }
     // Back from sign-in: the key waited in this tab's sessionStorage, because
     // /login and the workspace handoff both drop the fragment.
@@ -1308,6 +1320,7 @@ export function useDocumentViewer({
   return {
     access,
     applyPastedLink,
+    publishedPassword,
     passwordChange,
     setPasswordChange,
     decryptReason,

@@ -108,7 +108,7 @@ export default function PublishDialog({ open, onClose, title, onTitleChange, set
       let encodedKey = "";
       if (settings.encrypt) {
         const key = e2e.generateKey();
-        body = await e2e.seal(key, { title: title.trim() || null, content: markdown });
+        body = await e2e.seal(key, { title: title.trim() || null, content: markdown }, { password: settings.password || null });
         encodedKey = e2e.exportKey(key);
         keyFragment = `#k=${encodedKey}`;
       }
@@ -117,7 +117,8 @@ export default function PublishDialog({ open, onClose, title, onTitleChange, set
         customSlug: settings.slug.trim() || undefined,
         expiresIn,
         customExpiresAt,
-        readPassword: settings.password || undefined,
+        // An encrypted README carries its own password (sealed above); the server never sees it.
+        readPassword: settings.encrypt ? undefined : settings.password || undefined,
         encrypted: settings.encrypt || undefined,
         accessLevel: createAccess(settings.access),
       });
@@ -138,6 +139,7 @@ export default function PublishDialog({ open, onClose, title, onTitleChange, set
         }
       }
       if (encodedKey) e2e.rememberKey(doc.slug, encodedKey);
+      if (encodedKey && settings.password) e2e.handOverPassword(doc.slug, settings.password);
       // The fragment survives a client-side push and never reaches a server.
       router.push(`/${doc.slug}?new=1${keyFragment}`);
       // Stay in the publishing state until the route changes.
