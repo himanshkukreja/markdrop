@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-const UPDATED = "16 October 2026";
+const UPDATED = "1 November 2026";
 
 function H2({ id, children }: { id: string; children: React.ReactNode }) {
   return <h2 id={id} className="mt-12 mb-3 scroll-mt-24 text-h3 text-text">{children}</h2>;
@@ -38,7 +38,7 @@ export default function PrivacyPage() {
       <H2 id="publish">What you publish</H2>
       <ul className="mb-4 list-disc pl-5">
         <Li>Documents and files you publish are stored so the link can show them. Anyone with a link-access link can open it; private, password-protected and workspace documents are checked before they open.</Li>
-        <Li>Encrypted documents are encrypted in your browser. We store only ciphertext. The key is in the part of the link after <code className="font-mono text-code">#</code>, which browsers never send to us.</Li>
+        <Li>Encrypted documents are encrypted in your browser. Our servers store only the encrypted text and never receive the key — the part of the link after <code className="font-mono text-code">#</code>. Anyone with the full link can read it, and we can&rsquo;t recover it. We still see the link name, the size of the encrypted text, dates and view counts, and the page code that does the encrypting is served by us.</Li>
         <Li>Documents you set to expire are deleted when they expire. You can delete anything you own from your dashboard.</Li>
       </ul>
 
@@ -70,6 +70,7 @@ export default function PrivacyPage() {
       <ul className="mb-4 list-disc pl-5">
         <Li>Document and file links. A document is reported as an anonymous reference, never its address.</Li>
         <Li>Anything after <code className="font-mono text-code">#</code> in a link, including encryption keys, and sign-in or invite tokens.</Li>
+        <Li>Anything at all from an encrypted document&rsquo;s page: they don&rsquo;t run there.</Li>
         <Li>What you write. Editors, previews, document pages and lists of your documents are not recorded, and every text field is masked.</Li>
         <Li>The contents or names of files you send with Share.</Li>
       </ul>

@@ -1,7 +1,7 @@
 ---
 title: Privacy at Markdrop
 description: What Markdrop keeps about you and your readers, what it measures, what it never records, and how to opt out.
-updated: 2026-10-30
+updated: 2026-11-01
 keywords: [privacy, gdpr, cookies, consent, analytics, posthog, google analytics, global privacy control, delete account, data]
 ---
 
@@ -11,7 +11,7 @@ This page explains, in plain terms, what Markdrop keeps and why. The [privacy po
 
 Documents and files you publish are stored so the link can show them. Anyone with a link set to **Anyone with the link** can open it. Private, password-protected and workspace items are checked before they open. See [Who can open a link](/sharing/who-can-open).
 
-[End-to-end encrypted](/sharing/end-to-end-encryption) documents are encrypted in your browser. Markdrop stores only ciphertext. The key is in the part of the link after `#`, which browsers never send to a server.
+[End-to-end encrypted](/sharing/end-to-end-encryption) documents are encrypted in your browser. Markdrop's servers store only the encrypted text and never receive the key — the part of the link after `#`. Anyone with the full link can read it, and Markdrop can't recover it. Markdrop still sees the link name, the size of the encrypted text, dates and view counts, and the page code that does the encrypting is served by Markdrop.
 
 Documents you set to expire are deleted when they expire. You can delete anything you own from your dashboard.
 
@@ -39,6 +39,7 @@ PostHog and Google Analytics never receive:
 
 - document and file links (a document is reported as an anonymous reference, never its address),
 - anything after `#` in a link, including encryption keys and sign-in or invite tokens,
+- anything at all from an encrypted document's page: they don't run there,
 - what you write: editors, previews, document pages and lists of your documents aren't recorded, and every text field is masked,
 - the contents or names of files you send peer to peer.
 
