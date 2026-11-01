@@ -13,7 +13,9 @@ import { Dropdown, Icon, IconButton, Badge } from "@/components/ui";
 import { labelText, textLabel } from "../core/fence.mjs";
 import { useHost } from "../host";
 import { cardColumns } from "@/docs/render/rules.mjs";
+import { cardAt } from "../core/cards.mjs";
 import { IconPicker, LabelInput, childPositions, cx, setAttrsAt, withAttr } from "./shared";
+import { focusGripAt, pressCardGrip, stepCardIn } from "./cardDrag";
 
 /* ── Callout ─────────────────────────────────────────────────────────────── */
 
@@ -318,9 +320,28 @@ export function CardsView({ node, editor, getPos, updateAttributes }: ReactNodeV
   );
 }
 
-export function CardView({ node, updateAttributes, deleteNode }: ReactNodeViewProps) {
+/** Where a card sits in its grid, read when its grip is used (siblings change without re-rendering it). */
+function cardPlace(editor: ReactNodeViewProps["editor"], getPos: ReactNodeViewProps["getPos"]) {
+  const pos = getPos();
+  const c = typeof pos === "number" ? cardAt(editor.state.doc, pos) : null;
+  if (!c) return { index: 0, count: 1, vertical: false };
+  const cols = cardColumns(c.grid.childCount, ((c.grid.attrs.attributes ?? {}) as Record<string, string>).cols);
+  return { index: c.index, count: c.grid.childCount, vertical: cols === 1 };
+}
+
+export function CardView({ node, editor, getPos, updateAttributes, deleteNode }: ReactNodeViewProps) {
   const host = useHost();
+  const [menu, setMenu] = useState(false);
   const attrs = (node.attrs.attributes ?? {}) as Record<string, string>;
+  const title = labelText(node.attrs.label);
+  const place = cardPlace(editor, getPos);
+  const [earlier, later] = place.vertical ? ["Move up", "Move down"] : ["Move left", "Move right"];
+  const step = (dir: -1 | 1, refocus: boolean) => {
+    const pos = getPos();
+    if (typeof pos !== "number") return;
+    const at = stepCardIn(editor, pos, dir);
+    if (at !== null && refocus) focusGripAt(editor, at);
+  };
   return (
     <NodeViewWrapper className={cx("dx-card", attrs.href && "dx-card--link", attrs.cover && "dx-card--cover", "dxe-card")}>
       {attrs.cover && (
@@ -337,7 +358,42 @@ export function CardView({ node, updateAttributes, deleteNode }: ReactNodeViewPr
           readOnly={host.readOnly}
           onChange={(icon) => updateAttributes({ attributes: withAttr(attrs, "icon", icon ?? "") })}
         />
-        {!host.readOnly && <IconButton icon="trash" label="Delete card" size="sm" className="dxe-card__del" onClick={() => deleteNode()} />}
+        {!host.readOnly && (
+          <span className={cx("dxe-card__tools", menu && "dxe-card__tools--on")}>
+            <Dropdown
+              open={menu}
+              onOpenChange={setMenu}
+              align="right"
+              portal
+              aria-label="Card actions"
+              trigger={
+                <button
+                  type="button"
+                  className="dxe-card__grip"
+                  aria-label={`Move card${title ? ` “${title}”` : ""}, ${place.index + 1} of ${place.count}`}
+                  aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
+                  title={`Drag to move · click for options · Alt+arrows move it`}
+                  onPointerDown={(e) => pressCardGrip(e, editor, getPos, title)}
+                  onKeyDown={(e) => {
+                    if (!e.altKey || e.metaKey || e.ctrlKey) return;
+                    const dir = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : 0;
+                    if (!dir) return;
+                    e.preventDefault();
+                    step(dir, true);
+                  }}
+                >
+                  <Icon name="grip" />
+                </button>
+              }
+              items={[
+                { label: earlier, icon: place.vertical ? "arrowUp" : "arrowLeft", kbd: place.vertical ? "Alt ↑" : "Alt ←", disabled: place.index === 0, onClick: () => step(-1, false) },
+                { label: later, icon: place.vertical ? "arrowDown" : "arrowRight", kbd: place.vertical ? "Alt ↓" : "Alt →", disabled: place.index >= place.count - 1, onClick: () => step(1, false) },
+                { label: "Delete card", icon: "trash", danger: true, separated: true, onClick: () => deleteNode() },
+              ]}
+            />
+            <IconButton icon="trash" label="Delete card" size="sm" className="dxe-card__del" onClick={() => deleteNode()} />
+          </span>
+        )}
       </div>
       <span contentEditable={false} className="dxe-card__fields">
         <LabelInput className="dx-card__title" label={node.attrs.label} placeholder="Card title" aria-label="Card title" readOnly={host.readOnly} onChange={(label) => updateAttributes({ label })} />

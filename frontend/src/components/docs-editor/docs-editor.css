@@ -124,8 +124,17 @@ input.dxe-tabbar__tab { cursor: text; min-width: 3ch; }
 .dxe-card { min-width: 0; }
 .dxe-card__head { display: flex; align-items: center; justify-content: space-between; }
 .dxe-card .dx-card__icon { border: 0; font-size: 16px; }
-.dxe-card__del { opacity: 0; }
-.dxe-card:hover .dxe-card__del, .dxe-card:focus-within .dxe-card__del { opacity: 1; }
+.dxe-card__tools { display: inline-flex; align-items: center; gap: 2px; opacity: 0; transition: opacity 120ms var(--ease-out); }
+.dxe-card:hover .dxe-card__tools, .dxe-card:focus-within .dxe-card__tools, .dxe-card__tools--on { opacity: 1; }
+.dxe-card__tools .md-popover-wrap { display: inline-flex; }
+.dxe-card__grip { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-muted); font-size: 15px; cursor: grab; touch-action: none; }
+.dxe-card__grip:hover, .dxe-card__grip[aria-expanded="true"] { background: var(--surface-hover); color: var(--text); }
+.dxe-card__grip:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; color: var(--text); }
+/* A card being dragged by its grip, the line where it lands, and the label under the pointer. */
+.dxe-card--dragging { opacity: 0.45; }
+.dxe-card-dragging, .dxe-card-dragging * { cursor: grabbing !important; user-select: none; }
+.dxe-card-drop { position: fixed; z-index: 60; display: none; border-radius: 3px; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+.dxe-card-ghost { position: fixed; top: 0; left: 0; z-index: 61; max-width: 240px; overflow: hidden; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--shadow-md); color: var(--text); font-size: 12px; font-weight: 600; line-height: 18px; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
 .dxe-card__fields { display: flex; flex-direction: column; gap: 2px; }
 .dxe-card__fields .dx-card__title { font-size: 15px; line-height: 22px; font-weight: 600; color: var(--text); }
 .dxe-card__href { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
@@ -281,13 +290,13 @@ input.dxe-tabbar__tab { cursor: text; min-width: 3ch; }
 /* Touch screens have no hover: the controls that wait for it are always there (the caret sits in the
    editor's root, so :focus-within on a block doesn't reveal them either). */
 @media (hover: none) {
-  .dxe-blockbar, .dxe-card__del, .dxe-figure__tools { opacity: 1; }
+  .dxe-blockbar, .dxe-card__tools, .dxe-figure__tools { opacity: 1; }
   .dxe-visual:not([data-readonly]) .dxe-callout:not(:hover):not(:focus-within) .dxe-label--empty { display: block; }
   .dxe-visual:not([data-readonly]) .dxe-figure:not(:hover):not(:focus-within) .dxe-figure__cap input:placeholder-shown { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dxe-blockbar, .dxe-figure__tools { transition: none; }
+  .dxe-blockbar, .dxe-figure__tools, .dxe-card__tools { transition: none; }
   .dxe-assist__skeleton span { animation: none; }
 }
 
