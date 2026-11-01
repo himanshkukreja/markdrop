@@ -251,7 +251,7 @@ const moved = new Map(); // old GitBook path → current GitBook path
   for (const p of live)
     for (const m of p.body.matchAll(/\]\(([^)\s]+)|href="([^"]+)"|url="([^"]+)"/g)) {
       const href = unescapeMd(decodeEntities(m[1] ?? m[2] ?? m[3]));
-      if (/^(#|mailto:|tel:|broken:)/.test(href)) continue;
+      if (/^(#|mailto:|tel:|broken:)/.test(href) || /(^|\/)broken-reference(\.md)?$/.test(href)) continue;
       const gb = gbPathOf(href, p.gb);
       if (gb && gb !== "/" && !byGb.has(gb) && !/^\/(~gitbook|~\/files|files)\//.test(gb) && !/\.[a-z0-9]{2,5}$/i.test(gb)) candidates.add(gb);
     }
@@ -296,7 +296,9 @@ function pageCtx(p) {
       const h = decodeEntities(String(href ?? "")).trim();
       if (!h) return null;
       if (h.startsWith("#")) return h;
-      if (/^broken:/.test(h)) {
+      // GitBook's word for a reference it can't resolve: broken://pages/<id> (its Markdown export) or
+      // "broken-reference" (Git Sync's).
+      if (/^broken:/.test(h) || /^(\.\.?\/)*broken-reference(\.md)?$/.test(h)) {
         broken.push({
           page: p.gb,
           line: at(line),

@@ -257,6 +257,15 @@ test("cards: a broken target falls back to the card title's own link; large card
   assertBalanced(out);
 });
 
+test("cards: Git Sync's broken-reference target counts as broken too", () => {
+  const html =
+    '<table data-view="cards"><thead><tr><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody>' +
+    '<tr><td><a href="/guides/start.md"><strong>Start</strong></a></td><td><a href="broken-reference">Broken link</a></td></tr></tbody></table>';
+  const { out } = convert(html);
+  assert.match(out, /:::card\[Start\]\{href="\/guides\/start"\}/);
+  assert.doesNotMatch(out, /broken/);
+});
+
 test("cards: covers keep their dark variant and need no alt text", () => {
   const html =
     '<table data-view="cards"><thead><tr><th></th><th data-hidden data-card-cover data-type="image">Cover</th><th data-hidden data-card-cover-dark data-type="image">Dark</th></tr></thead><tbody>' +

@@ -808,7 +808,9 @@ function cardsTable(table, line, ctx) {
     // (an internal reference it couldn't write as a path) takes the target GitBook's page links the
     // same card to; else the link on the card's title; else none (reported).
     let href = "";
-    const broken = (h) => /^broken:/i.test(h);
+    // GitBook writes a reference it can't resolve as broken://pages/<id> (its Markdown export) or
+    // "broken-reference" (Git Sync).
+    const broken = (h) => /^(broken:|(\.\.?\/)*broken-reference(\.md)?$)/i.test(h);
     if (target && !broken(target.href)) href = ctx.link(target.href, { line }) ?? "";
     if (!href && target && broken(target.href)) {
       const fromHtml = ctx.cardTarget?.(cardIndex, title);
