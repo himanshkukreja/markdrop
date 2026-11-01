@@ -24,6 +24,23 @@
   "next": [],
   "entries": [
     {
+      "id": "guides-fix-list",
+      "date": "2026-11-02",
+      "title": "Markdrop Guides: the Fix list, what to fix next",
+      "kind": "new",
+      "area": "Markdrop Guides",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "One ranked list of what to fix next in a guide: where readers leave a page, searches that find nothing, questions Ask AI couldn't answer, video and PDF drop-off, broken links and pages AI agents can't use, each with an AI-drafted fix to review in the editor.",
+      "body": "- **Ranked by impact:** the readers each problem affects, how serious it is and how recent. Nothing is flagged on a handful of visits; each item says how sure it is, and pages still collecting show under **Needs more readers**.\n- **Evidence for every item:** how far readers got down the page section by section, a video's viewers over time, the wordings readers searched for or asked, their comments.\n- **Draft a fix:** a rewritten section, an answer to add, a new page outline or a corrected link, shown as a change. **Open in editor** offers it as a suggestion over the section; nothing is published until you publish, and the next publish marks it fixed.\n- **Start, Mark fixed, Dismiss** with a reason. A fixed item whose problem comes back reopens.\n- **AI agents counted apart from readers:** reads by ChatGPT, Claude, Perplexity and others, Markdown and llms.txt reads, MCP calls, and what agents search for and don't find.\n- **Private like Insights:** no cookies, nothing that identifies a reader, nothing sent when a browser asks not to be tracked. A **Fix list** tab with its open count, and **N to fix** on the Guides home cards.",
+      "docs": [
+        "/guides/fix-list",
+        "/guides/insights"
+      ]
+    },
+    {
       "id": "guides-reset-design",
       "date": "2026-11-02",
       "title": "Markdrop Guides: reset a guide's design",

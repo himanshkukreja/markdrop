@@ -1063,6 +1063,78 @@
     "bytes": 88044,
     "kind": "image"
   },
+  "/docs-assets/guides/fix-list/fixlist-agents.dark.webp": {
+    "w": 688,
+    "h": 940,
+    "bytes": 27642,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-agents.webp": {
+    "w": 688,
+    "h": 940,
+    "bytes": 28832,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-drawer.dark.webp": {
+    "w": 1120,
+    "h": 2600,
+    "bytes": 105000,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-drawer.webp": {
+    "w": 1120,
+    "h": 2600,
+    "bytes": 107416,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-editor.dark.webp": {
+    "w": 1592,
+    "h": 1490,
+    "bytes": 46444,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-editor.webp": {
+    "w": 1592,
+    "h": 1490,
+    "bytes": 45316,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-empty.dark.webp": {
+    "w": 2360,
+    "h": 2020,
+    "bytes": 141194,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-empty.webp": {
+    "w": 2360,
+    "h": 2020,
+    "bytes": 142486,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-overview.dark.webp": {
+    "w": 2312,
+    "h": 1920,
+    "bytes": 142100,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-overview.webp": {
+    "w": 2312,
+    "h": 1920,
+    "bytes": 143904,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-video.dark.webp": {
+    "w": 1120,
+    "h": 1112,
+    "bytes": 39142,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-video.webp": {
+    "w": 1120,
+    "h": 1112,
+    "bytes": 41052,
+    "kind": "image"
+  },
   "/docs-assets/guides/history/publishes-list.dark.webp": {
     "w": 2192,
     "h": 970,

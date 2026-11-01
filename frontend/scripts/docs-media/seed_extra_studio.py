@@ -473,7 +473,9 @@ def seed_fix_list(site: str, token: str) -> None:
                                 {"$set": {"draft.updated_at": real - timedelta(days=age)}})
 
     got = call("POST", f"/api/v1/docs-sites/{site}/fixes/check", token)
-    items = {i["type"]: i for i in got["items"]}
+    items: dict = {}
+    for i in got["items"]:  # biggest impact first: keep each type's first
+        items.setdefault(i["type"], i)
     print(f"  fix list: {len(got['items'])} items ({', '.join(sorted(items))})", flush=True)
 
     # Moved along by the team, so the list has history: one fixed (in a publish), one in progress
