@@ -48,7 +48,12 @@ const KIND: Record<ChangeKind, { label: string; icon: string }> = {
   fixed: { label: "Fixed", icon: "bug" },
 };
 
-const PRODUCT_ICON: Record<string, string> = { web: "globe", cli: "terminal", mcp: "server", api: "code" };
+/** A product's glyph by its id (Markdrop's own, and ids a guide's products commonly get); else layers. */
+const PRODUCT_ICON: Record<string, string> = {
+  web: "globe", "web-app": "globe", app: "globe", dashboard: "globe", cli: "terminal", mcp: "server", api: "code", sdk: "code",
+  ios: "phone", android: "phone", mobile: "phone", desktop: "monitor", windows: "monitor", mac: "laptop", macos: "laptop",
+  tablet: "tablet", server: "server", "self-hosted": "server",
+};
 
 const isExternal = (href: string) => /^https?:/.test(href);
 

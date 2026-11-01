@@ -1098,21 +1098,25 @@ export function resolveTheme(theme, brand) {
 /**
  * The header's tabs: the site's own tabs; or, for a theme with section tabs (Atlas) and a site with
  * at most one tab, that tab's nav groups (two or more), each opening its first page, current when it
- * holds the page being read.
+ * holds the page being read. A tab to the changelog (/changelog) isn't a section of the docs: it
+ * doesn't count as the site's own tab there and stays after the group tabs.
  * @param {Array<{id: string, label: string, href: string}>} tabs
  * @param {Array<{group: string, tab?: string, items: Array<{path: string, available?: boolean}>}>} groups
  * @param {{sections: boolean, activeTab?: string, current?: string}} opts
  */
 export function headerTabs(tabs, groups, { sections, activeTab, current }) {
-  const own = () => tabs.map((t) => ({ key: t.id, label: t.label, href: t.href, current: t.id === activeTab }));
-  if (!sections || tabs.length > 1) return own();
+  const view = (t) => ({ key: t.id, label: t.label, href: t.href, current: t.id === activeTab });
+  const own = () => tabs.map(view);
+  const extra = tabs.filter((t) => t.href === "/changelog");
+  const docs = tabs.filter((t) => t.href !== "/changelog");
+  if (!sections || docs.length > 1) return own();
   const out = [];
   for (const g of groups) {
-    if (tabs.length && g.tab && g.tab !== tabs[0].id) continue;
+    if (docs.length && g.tab && g.tab !== docs[0].id) continue;
     const first = g.items.find((it) => it.available);
     if (first) out.push({ key: `g-${g.group}`, label: g.group, href: first.path, current: !!current && g.items.some((it) => it.path === current) });
   }
-  return out.length > 1 ? out : own();
+  return out.length > 1 ? [...out, ...extra.map(view)] : own();
 }
 
 const decls = (o) =>

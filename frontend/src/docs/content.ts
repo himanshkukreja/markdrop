@@ -367,9 +367,10 @@ export class SiteBundle {
     return this.changelogMemo();
   }
   /**
-   * Whether the site has a changelog: at least one entry in changelog.json. Without one (every Docs
-   * Studio site today: the studio has no changelog editor) /changelog and its feeds answer 404 and
-   * nothing links to them (header tab, 404 page, sitemap, llms.txt, skill.md, RSS alternate).
+   * Whether the site has a changelog: at least one entry in changelog.json (a guide's comes from
+   * the studio's Changelog section, written at publish). Without one /changelog and its feeds
+   * answer 404 and nothing links to them (header tab, 404 page, sitemap, llms.txt, skill.md, RSS
+   * alternate).
    */
   get hasChangelog(): boolean {
     return this.changelog.entries.length > 0;

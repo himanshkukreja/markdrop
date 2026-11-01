@@ -350,6 +350,13 @@ test("Atlas: the header shows the nav groups as tabs when the site has no tabs o
   assert.deepEqual(headerTabs(two, groups, { sections: true, activeTab: "api" }).map((t) => [t.label, t.current]), [["Docs", false], ["API", true]]);
   // Fewer than two sections: no point in tabs.
   assert.deepEqual(headerTabs([], groups.slice(0, 1), { sections: true }), []);
+  // A guide with a changelog (Docs + Changelog tabs): the sections, then the changelog's tab.
+  const withChangelog = [...one, { id: "changelog", label: "Changelog", href: "/changelog" }];
+  assert.deepEqual(headerTabs(withChangelog, groups, { sections: true, activeTab: "changelog" }).map((t) => [t.label, t.current]), [
+    ["Getting started", false], ["Guides", false], ["Changelog", true],
+  ]);
+  // One section only: the guide's own tabs as they are.
+  assert.deepEqual(headerTabs(withChangelog, groups.slice(0, 1), { sections: true }).map((t) => t.label), ["Docs", "Changelog"]);
 });
 
 /* ── custom themes (the theme builder) ───────────────────────────────────── */
