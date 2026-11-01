@@ -7,7 +7,7 @@ import { deleteSite, primaryAddress, unpublishSite } from "@/lib/docsSites";
 import { useStudio } from "../studio/StudioContext";
 import { useSite } from "../SiteContext";
 import { SectionHeader, SettingsCard } from "./SettingsShell";
-import { SECTIONS } from "./sections";
+import { blurbOf } from "./sections";
 
 /** Settings › Take it down: unpublish (keeps everything) or delete (typed confirmation). Admins only. */
 export default function DangerSection() {
@@ -20,7 +20,7 @@ export default function DangerSection() {
 
   return (
     <>
-      <SectionHeader title="Take it down" description={SECTIONS[7].blurb} />
+      <SectionHeader title="Take it down" description={blurbOf("danger")} />
       {!isAdmin ? (
         <SettingsCard>
           <p className="text-body text-text-secondary">Only Guides admins can unpublish or delete a guide.</p>

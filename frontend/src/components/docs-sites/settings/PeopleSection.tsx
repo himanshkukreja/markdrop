@@ -7,7 +7,7 @@ import { aRole, RoleBadge } from "../people/roles";
 import SitePeople from "../people/SitePeople";
 import { useSite } from "../SiteContext";
 import { LockedNote, SectionHeader, SettingsCard, SwitchRow, useWorkspaceName } from "./SettingsShell";
-import { SECTIONS } from "./sections";
+import { blurbOf } from "./sections";
 import usePatch from "./usePatch";
 
 /**
@@ -22,7 +22,7 @@ export default function PeopleSection() {
 
   return (
     <>
-      <SectionHeader title="People and reviews" description={SECTIONS[6].blurb} />
+      <SectionHeader title="People and reviews" description={blurbOf("people")} />
       <LockedNote />
       {error && <Alert tone="danger" onDismiss={() => setError("")}>{error}</Alert>}
 

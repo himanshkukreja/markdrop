@@ -4,7 +4,9 @@ import { useEffect, useId, useState } from "react";
 import { Alert, Anchor, Badge, Button, CopyButton, Field, Icon, Input } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
 import { DOCS_HOST_SUFFIX, assetPreviewUrl, siteHost, slugAvailable, slugProblem } from "@/lib/docsSites";
+import { folderLabel } from "@/lib/docsGithub";
 import { timeAgo } from "../format";
+import { LinkStatusBadge } from "../github/syncCopy";
 import { SiteTile } from "../SiteBar";
 import { useSite } from "../SiteContext";
 import useLeaveGuard from "../useLeaveGuard";
@@ -14,8 +16,8 @@ import usePatch from "./usePatch";
 
 /**
  * Settings › General: the guide's name, its free address (and changing it), its logo and favicon
- * (set in Design), where it started (a template, blank, or a GitBook import and its report), and
- * GitHub sync.
+ * (set in Design), where it started (a template, blank, or a GitBook or GitHub import and its
+ * report), and a summary of the GitHub link (Settings › GitHub has the rest).
  */
 export default function GeneralSection() {
   const { site, isAdmin, base } = useSite();
@@ -32,7 +34,7 @@ export default function GeneralSection() {
   const guard = useLeaveGuard(nameDirty || slugDirty, nameDirty ? "the name" : "the address");
 
   const host = siteHost(site);
-  const repo = site.source.kind === "github" ? site.source.repo : null;
+  const gh = site.github ?? null;
   const brand = site.settings.theme.brand;
   const logo = brand?.enabled ? assetPreviewUrl(site.id, brand.logo_url) : null;
 
@@ -115,18 +117,25 @@ export default function GeneralSection() {
       </SettingsCard>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <SettingsCard id="github" title="GitHub sync" aside={repo ? <Badge tone="success" size="sm" dot>Connected</Badge> : <Badge tone="info" size="sm">Coming soon</Badge>}>
-          {repo ? (
+        <SettingsCard id="github" title="GitHub" aside={gh ? <LinkStatusBadge link={gh} /> : <Badge size="sm">Not connected</Badge>}>
+          {gh ? (
             <>
-              <div className="flex items-center gap-2"><Icon name="github" size={16} /><code className="ph-sensitive ph-mask font-mono text-text">{repo.owner}/{repo.name} · {repo.branch} · {repo.path || "/"}</code></div>
-              <p className="text-[13px] text-text-muted">Pushes publish automatically. Browser edits are committed as you.{site.last_published_at ? ` Last sync ${timeAgo(site.last_published_at)}.` : ""}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                <Icon name="github" size={16} className="shrink-0" />
+                <code className="ph-sensitive ph-mask min-w-0 font-mono text-text [overflow-wrap:anywhere]">{gh.owner}/{gh.name} › {gh.branch} › {folderLabel(gh.path)}</code>
+              </div>
+              <p className="text-[13px] text-text-muted">
+                {!gh.sync ? "Syncing is off: pushes don't change the guide." : gh.mode === "publish" ? "Each push is published after it syncs." : "Each push updates the drafts. You publish when ready."}
+                {gh.last_synced_at ? ` Last sync ${timeAgo(gh.last_synced_at)}.` : ""}
+              </p>
             </>
           ) : (
             <>
               <div className="flex items-center gap-2 text-text-secondary"><Icon name="github" size={16} /> Not connected</div>
-              <p className="text-[13px] text-text-muted">Keep the Markdown in a repo: pushes publish, pull requests get a preview link, and browser edits come back as commits. <ReadMore topic="studioGithub" /></p>
+              <p className="text-[13px] text-text-muted">Import a repository&apos;s docs and keep them in sync on every push. <ReadMore topic="studioGithubImport" /></p>
             </>
           )}
+          <Button variant="secondary" size="sm" iconRight="arrowRight" href={settingsHref(base, "github")} className="self-start">Open GitHub settings</Button>
         </SettingsCard>
 
         {site.source.kind === "gitbook" ? (
@@ -134,6 +143,14 @@ export default function GeneralSection() {
             <p className="text-body text-text-secondary">
               {site.source.url ? <>From <code className="ph-sensitive ph-mask font-mono [overflow-wrap:anywhere]">{site.source.url}</code>. </> : null}
               The import&apos;s report lists what needs a look: image descriptions, broken links, hidden pages.
+            </p>
+            {site.last_import_job_id && <Button variant="secondary" size="sm" iconLeft="listTree" href={`${base}/import`} className="self-start">Open the import report</Button>}
+          </SettingsCard>
+        ) : site.source.kind === "github" ? (
+          <SettingsCard id="import" title="Imported from GitHub" aside={site.last_import_job_id ? <Badge size="sm" icon="download">Import</Badge> : null}>
+            <p className="text-body text-text-secondary">
+              {site.source.repo ? <>From <code className="ph-sensitive ph-mask font-mono [overflow-wrap:anywhere]">{site.source.repo.owner}/{site.source.repo.name}</code>. </> : null}
+              The import&apos;s report lists what needs a look: broken links, missing images, blocks converted approximately.
             </p>
             {site.last_import_job_id && <Button variant="secondary" size="sm" iconLeft="listTree" href={`${base}/import`} className="self-start">Open the import report</Button>}
           </SettingsCard>
