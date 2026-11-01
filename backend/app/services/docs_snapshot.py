@@ -348,6 +348,14 @@ def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str,
                    insights=insights_enabled(site))
     if api_spec:
         add_api_reference(sj, settings, api_spec, _date(api_spec.get("created_at")) or default_updated)
+    # The changelog (services/docs_site_changelog.py): changelog.json when the publish has entries,
+    # a header tab to /changelog, and the videos its entries show.
+    from app.services import docs_site_changelog as changelog
+
+    cl, cl_videos = changelog.changelog_json(snapshot.get("changelog"), pages)
+    if cl:
+        changelog.add_to_site(sj, snapshot.get("changelog"))
+        files["changelog.json"] = json.dumps(cl, indent=2, ensure_ascii=False) + "\n"
     files["site.json"] = json.dumps(sj, indent=2, ensure_ascii=False) + "\n"
     # The site's own redirects (Settings, and the ones a page move adds) over an import's: both
     # reach readers, Settings wins on the same address, chains end in one hop.
@@ -356,8 +364,9 @@ def content_files(site: dict, snapshot: dict, *, url: str, ai_api: str,
     redirects = merged(settings.get("redirects"), extra.get("redirects"), {p["path"] for p in pages})
     if redirects:
         files["redirects.json"] = json.dumps(redirects, indent=2, ensure_ascii=False) + "\n"
-    if isinstance(extra.get("videos"), dict) and extra["videos"]:
-        files["videos.json"] = json.dumps(extra["videos"], indent=2, ensure_ascii=False) + "\n"
+    videos = {**(extra["videos"] if isinstance(extra.get("videos"), dict) else {}), **cl_videos}
+    if videos:
+        files["videos.json"] = json.dumps(videos, indent=2, ensure_ascii=False) + "\n"
     return files, warnings
 
 

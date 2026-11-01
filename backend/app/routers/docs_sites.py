@@ -22,6 +22,7 @@ from app.routers.auth import require_user
 from app.routers.docs_site_domains import router as domains_router
 from app.routers.docs_site_editor import router as editor_router
 from app.routers.docs_site_api import router as api_router
+from app.routers.docs_site_changelog import router as changelog_router
 from app.routers.docs_site_pages import DocsRoute
 from app.routers.docs_site_pages import router as pages_router
 from app.routers.docs_site_people import router as people_router
@@ -299,3 +300,5 @@ router.include_router(api_router)
 router.include_router(redirects_router)
 # The page editor's AI help, review comments and presence (routers/docs_site_editor.py).
 router.include_router(editor_router)
+# The changelog: entries, its settings, a page of release notes → entries (routers/docs_site_changelog.py).
+router.include_router(changelog_router)

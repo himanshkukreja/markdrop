@@ -27,6 +27,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.services import docs_api_spec as api_spec
+from app.services import docs_site_changelog as changelog
 from app.services import docs_site_pages as pages
 from app.services import docs_site_store as store
 from app.services.docs_site_store import BUILDS, JOBS, PAGES, SNAPSHOTS, aware, now
@@ -75,7 +76,8 @@ async def _drafts(db: AsyncIOMotorDatabase, site: dict) -> dict:
     rows = await db[PAGES].find({"site_id": site["_id"], "deleted_at": None}).sort("path", 1).to_list(
         length=settings.docs_pages_per_site + 50)
     return {"pages": [_draft_page(r) for r in rows], "settings": site.get("settings") or {},
-            "site": {"name": site.get("name"), "slug": site.get("slug")}}
+            "site": {"name": site.get("name"), "slug": site.get("slug")},
+            "changelog": await changelog.drafts(db, site)}
 
 
 def _build_meta(b: dict, site: dict, names: dict[str, str]) -> dict:
@@ -218,6 +220,12 @@ def compare(old: dict | None, new: dict | None, *, lines: bool = True) -> dict:
     order = {"added": 0, "edited": 1, "removed": 2}
     out.sort(key=lambda x: (order[x["change"]], x.get("path") or ""))
     changed = _settings_changed(old, new)
+    # The changelog's entries (no line diff: the entry list is enough) and its settings.
+    entries, cl_settings = changelog.compare_parts(old, new)
+    order_e = {"added": 0, "edited": 1, "removed": 2}
+    entries.sort(key=lambda x: (order_e[x["change"]], x.get("date") or ""))
+    if cl_settings:
+        changed.append("changelog")
     summary = {
         "added": sum(1 for x in out if x["change"] == "added"),
         "edited": sum(1 for x in out if x["change"] == "edited"),
@@ -225,9 +233,10 @@ def compare(old: dict | None, new: dict | None, *, lines: bool = True) -> dict:
         "design": "theme" in changed,
         "redirects": "redirects" in changed,
         "api": "api" in changed,
+        "changelog": len(entries),
         "settings": changed,
     }
-    return {"pages": out, "summary": summary}
+    return {"pages": out, "changelog": entries, "summary": summary}
 
 
 async def compare_versions(db: AsyncIOMotorDatabase, site: dict, ref_from: str, ref_to: str,
@@ -255,7 +264,9 @@ async def compare_versions(db: AsyncIOMotorDatabase, site: dict, ref_from: str, 
 # ── History: each publish against the one before it ──────────────────────────
 
 
-_LIGHT = {"pages.page_id": 1, "pages.hash": 1, "pages.path": 1, "pages.title": 1, "settings": 1, "site": 1}
+_LIGHT = {"pages.page_id": 1, "pages.hash": 1, "pages.path": 1, "pages.title": 1, "settings": 1, "site": 1,
+          "changelog.meta_hash": 1, "changelog.entries.entry_id": 1, "changelog.entries.hash": 1,
+          "changelog.entries.slug": 1, "changelog.entries.title": 1, "changelog.entries.date": 1}
 
 
 async def history_summaries(db: AsyncIOMotorDatabase, site: dict, rows: list[dict]) -> dict[Any, dict]:
@@ -405,6 +416,7 @@ async def publish_status(db: AsyncIOMotorDatabase, site: dict, *, details: bool 
             "design": "theme" in ch["settings_changed"],
             "redirects": "redirects" in ch["settings_changed"],
             "api": "api" in ch["settings_changed"],
+            "changelog": len(ch["changelog"]),
             "settings": ch["settings_changed"],
         },
         "status": site.get("status"),
@@ -438,6 +450,7 @@ async def setup_status(db: AsyncIOMotorDatabase, site: dict) -> dict:
         team = sum(1 for m in members if m.get("effective_role") in roles.ROLES)
     seen = await insights.first_seen(db, str(sid))
     return {
+        "changelog_entries": await changelog.entry_count(db, sid),
         "pages": page_total,
         "look_chosen": look,
         "published": went_live,

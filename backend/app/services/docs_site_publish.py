@@ -31,6 +31,7 @@ from app.services import docs_api_spec as api_spec
 from app.services import docs_cf_hosts as cf_hosts
 from app.services import docs_site_access as access
 from app.services import docs_site_assets as assets
+from app.services import docs_site_changelog as changelog
 from app.services import docs_site_compare as compare
 from app.services import docs_site_pages as pages
 from app.services import docs_site_store as store
@@ -92,6 +93,11 @@ async def changes(db: AsyncIOMotorDatabase, site: dict, *, lines: bool = True) -
     current = site.get("settings") or {}
     before = (snap or {}).get("settings") or {}
     settings_changed = [k for k in _COMPARED_SETTINGS if snap is not None and current.get(k) != before.get(k)]
+    # The changelog: entries added, edited or deleted since, and its own settings (title,
+    # description, products, Coming next).
+    cl_changes, cl_settings = await changelog.changes(db, site, snap)
+    if cl_settings:
+        settings_changed.append("changelog")
     # The API reference (a site from before it has none stored: the defaults).
     if snap is not None and api_spec.api_settings({"settings": current}) != api_spec.api_settings({"settings": before}):
         settings_changed.append("api")
@@ -105,8 +111,9 @@ async def changes(db: AsyncIOMotorDatabase, site: dict, *, lines: bool = True) -
         "live_build": store.build_view(live_build),
         "last_published_at": aware(site.get("last_published_at")),
         "pages": out,
+        "changelog": cl_changes,
         "settings_changed": settings_changed,
-        "count": len(out) + len(settings_changed),
+        "count": len(out) + len(cl_changes) + len(settings_changed),
         "ever_published": snap is not None,
     }
 
@@ -136,6 +143,8 @@ async def _snapshot(db: AsyncIOMotorDatabase, site: dict, user: User) -> dict:
             "hash": pages.content_hash(r),
         } for r in rows],
         "settings": site.get("settings") or {},
+        # The changelog's entries and settings (services/docs_site_changelog.py): changelog.json.
+        "changelog": await changelog.snapshot_part(db, site),
         "created_by": user.id,
         "created_at": now(),
     }

@@ -104,6 +104,7 @@ GUIDES_TITLES = {
     "/[site]/settings": "Guides · settings",
     "/[site]/insights": "Guides · insights",
     "/[site]/import": "Guides · import",
+    "/[site]/changelog": "Guides · changelog",
     "/[site]/[other]": "Guides",
 }
 for _root in ("/guides", "/docs-studio"):
@@ -442,6 +443,9 @@ GUIDE_EVENTS = {
     "guide_find_replace": ("form", "Guides: used find and replace"),
     "guide_comment_added": ("form", "Guides: added a review comment"),
     "guide_check_fixed": ("form", "Guides: fixed a page check"),
+    # The changelog (routers/docs_site_changelog.py).
+    "guide_changelog_entry_created": ("form", "Guides: wrote a changelog entry"),
+    "guide_changelog_imported": ("form", "Guides: turned release notes into changelog entries"),
 }
 _GUIDE_AI_ACTION = {"improve": "improve writing", "shorten": "shorten", "fix": "fix spelling and grammar",
                     "translate": "translate"}

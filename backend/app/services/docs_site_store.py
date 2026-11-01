@@ -155,9 +155,10 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 
     await db[ASSETS].create_index([("site_id", 1), ("sha256", 1)], unique=True)
 
-    from app.services import docs_api_spec, docs_page_comments, docs_presence, docs_theme_templates
+    from app.services import docs_api_spec, docs_page_comments, docs_presence, docs_site_changelog, docs_theme_templates
 
     await docs_api_spec.ensure_indexes(db)
+    await docs_site_changelog.ensure_indexes(db)
     await docs_page_comments.ensure_indexes(db)
     await docs_presence.ensure_indexes(db)
     await docs_theme_templates.ensure_indexes(db)
