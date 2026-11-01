@@ -6,7 +6,7 @@ updated: 2026-11-01
 keywords: [markdrop guides, guides, documentation site, help center, knowledge base, product guide, gitbook alternative, hosted docs, beta]
 ---
 
-::video{id="guides-trailer" title="Markdrop Guides in two minutes" duration="2:15"}
+::video{id="guides-trailer" title="Markdrop Guides in two minutes" duration="2:29"}
 
 Markdrop Guides builds and hosts guides for your product: help centers, product guides, API references and handbooks. These pages explain how to use it. You write pages in the browser, pick a theme, and publish to an address like `acme.guides.markdrop.in`. Your readers get search, Ask AI, a changelog they can subscribe to, and pages their AI tools can read.
 

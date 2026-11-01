@@ -2153,10 +2153,7 @@
     "kind": "poster"
   },
   "/docs-assets/videos/guides-trailer.mp4": {
-    "w": 1920,
-    "h": 1080,
-    "duration": 135.1,
-    "bytes": 17722603,
+    "bytes": 16596610,
     "kind": "video"
   },
   "/docs-assets/videos/guides-trailer.webp": {
