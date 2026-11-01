@@ -21,6 +21,8 @@ export interface NavGroupConfig {
   tab?: string;
   /** Marks every page in the group "New" in the left nav. */
   new?: boolean;
+  /** An access rule for every page in the group (access.mjs), unless a page sets its own. */
+  access?: string;
   pages: string[];
 }
 
@@ -188,6 +190,11 @@ export interface SiteConfig {
   integrations?: IntegrationsConfig;
   /** `index: false`: keep the site out of search engines (noindex meta + header, robots.txt Disallow, empty sitemap). */
   seo?: { index?: boolean };
+  /**
+   * Private pages and sections (access.mjs): the rules pages, groups and `:::private` sections name.
+   * Who each rule lets in is not here: the docs edge holds that.
+   */
+  access?: { rules?: Record<string, { kind: string; name?: string; nav?: "show" | "hide" }> };
 }
 
 export interface Frontmatter {
@@ -243,6 +250,10 @@ export interface DocPage {
   minutes: number;
   /** Set on pages generated from the OpenAPI description. */
   api?: ApiOperation;
+  /** Frontmatter `access` as written (a rule id, "public"); the effective rule is SiteBundle.ruleFor. */
+  access?: string;
+  /** The rules of the page's private sections (`:::private`), in order; their text isn't in `body`. */
+  sectionRules?: string[];
 }
 
 export interface NavItem {
@@ -255,6 +266,8 @@ export interface NavItem {
   method?: string;
   /** The page's icon, when site.json `pages.icons` is on and the page has one. */
   icon?: string;
+  /** A protected page listed in the nav (its rule says `nav: "show"`): shown with a lock. */
+  locked?: boolean;
 }
 
 export interface NavGroup {

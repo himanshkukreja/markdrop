@@ -3,7 +3,7 @@
  * index, llms.txt / llms-full.txt (llmstxt.org), skill.md, sitemap.xml, robots.txt and the
  * changelog feeds (RSS 2.0, JSON Feed 1.1, Markdown).
  */
-import { absoluteUrl, getAllPages, getChangelog, getNav, getPage, getSite, hasChangelog, homeMarkdown, indexable, mdUrl, navLabel, orderedPages, plainOf } from "./content";
+import { absoluteUrl, getChangelog, getNav, getPublicPage, getPublicPages, getSite, pageRule, hasChangelog, homeMarkdown, indexable, mdUrl, navLabel, orderedPages, plainOf } from "./content";
 import { introOf, plainText, snippet } from "./markdown";
 import type { ChangelogEntry, SearchDoc } from "./types";
 
@@ -88,18 +88,18 @@ export function llmsTxt(): string {
   );
   const listed = new Set<string>();
   for (const g of getNav()) {
-    const items = g.items.filter((it) => it.available);
+    const items = g.items.filter((it) => it.available && !it.locked && getPublicPage(it.path));
     if (!items.length) continue;
     const tabLabel = g.generated ? site.tabs.find((t) => t.id === g.tab)?.label : undefined;
     out.push(`## ${tabLabel ? `${tabLabel}: ${g.group}` : g.group}`, "");
     for (const it of items) {
-      const page = getPage(it.path)!;
+      const page = getPublicPage(it.path)!;
       listed.add(page.path);
       out.push(`- [${page.meta.title}](${mdUrl(page.path)}): ${page.meta.description}`);
     }
     out.push("");
   }
-  const extra = getAllPages().filter((p) => !listed.has(p.path));
+  const extra = getPublicPages().filter((p) => !listed.has(p.path));
   out.push("## Optional", "");
   for (const page of extra) out.push(`- [${page.meta.title}](${mdUrl(page.path)}): ${page.meta.description}`);
   if (hasChangelog()) out.push(`- [Changelog](${site.url}/changelog.md): every change, newest first, with the pages it touched`);
@@ -125,7 +125,7 @@ export function skillMd(): string {
   const groups = nav
     .filter((g) => !g.generated)
     .map((g) => {
-      const items = g.items.filter((it) => it.available);
+      const items = g.items.filter((it) => it.available && !it.locked);
       return items.length ? `- ${g.group}: ${items.map((it) => `[${it.title}](${mdUrl(it.path)})`).join(", ")}` : "";
     })
     .filter(Boolean);
@@ -213,7 +213,8 @@ export function entryMarkdown(e: ChangelogEntry, level = 2): string {
   if (e.highlights?.length) lines.push("", ...e.highlights.map((x) => `- ${x}`));
   if (e.body) lines.push("", plainOf(e.body, site.url));
   if (e.try) lines.push("", `Try it: [${e.try.label}](${e.try.href})`);
-  if (e.docs?.length) lines.push("", `Docs updated: ${e.docs.map((d) => `[${getPage(d)?.meta.title ?? d}](${mdUrl(d)})`).join(", ")}`);
+  const docs = (e.docs ?? []).filter((d) => !pageRule(d));
+  if (docs.length) lines.push("", `Docs updated: ${docs.map((d) => `[${getPublicPage(d)?.meta.title ?? d}](${mdUrl(d)})`).join(", ")}`);
   lines.push("", `Permalink: ${site.url}/changelog/${e.id}`);
   return lines.join("\n");
 }

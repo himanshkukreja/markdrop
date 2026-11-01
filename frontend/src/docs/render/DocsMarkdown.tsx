@@ -19,7 +19,9 @@ import { cx } from "../cx";
 import { CodeBlock } from "@/components/reading/CodeBlock";
 import { DiagramFrame } from "@/components/reading/DiagramFrame";
 import { ScrollBox } from "@/components/reading/ScrollBox";
-import { getApiReference, getMedia, getSite, getVideos } from "../content";
+import { getAccess, getApiReference, getMedia, getSite, getVideos, PRIVATE_KEY } from "../content";
+import { lockText, ruleOf } from "../access.mjs";
+import { LockedAction } from "../client/Locked";
 import { videoLink } from "../brand";
 import { assetPath, clipVariants, imageVariants, readVttCues } from "../media";
 import { DocsTabs } from "../client/Tabs";
@@ -431,6 +433,46 @@ function KbdC({ children }: P) {
   return <Kbd>{children}</Kbd>;
 }
 
+/**
+ * Where a private section was cut out (access.mjs): a lock card that says who it is for, with the
+ * way in (the edge's sign-in page for that rule, which comes back to this page). Its text was never
+ * in the page.
+ */
+function Locked({ access, label }: P) {
+  const id = typeof access === "string" ? access : "members";
+  const rule = ruleOf(getAccess(), id);
+  const text = lockText(rule);
+  return (
+    <div className="dx-locked not-prose" data-access={id} role="note">
+      <span className="dx-locked__icon" aria-hidden>
+        <Icon name="lock" />
+      </span>
+      <span className="dx-locked__body">
+        <strong className="dx-locked__title">{typeof label === "string" && label ? label : "Private section"}</strong>
+        <span className="dx-locked__text">{text.body}</span>
+      </span>
+      <LockedAction rule={id} kind={rule.kind} />
+    </div>
+  );
+}
+
+/** A revealed private section: its content, marked as private (only with this process's key, else locked). */
+function Private({ access, label, k, children }: P) {
+  if (typeof k !== "string" || k !== PRIVATE_KEY) return <Locked access={access} label={label} />;
+  const id = typeof access === "string" ? access : "members";
+  const rule = ruleOf(getAccess(), id);
+  return (
+    <section className="dx-private" data-access={id} aria-label={typeof label === "string" && label ? label : "Private section"}>
+      <p className="dx-private__tag not-prose">
+        <Icon name="lock" />
+        <span>{rule.kind === "members" ? "Team only" : rule.kind === "password" ? "Password protected" : `Only ${rule.name}`}</span>
+        {typeof label === "string" && label ? <span className="dx-private__label">· {label}</span> : null}
+      </p>
+      {children}
+    </section>
+  );
+}
+
 const COMPONENTS = {
   pre: Pre,
   code: Code,
@@ -454,6 +496,8 @@ const COMPONENTS = {
   "docs-embed": Embed,
   "docs-api": ApiOp,
   "docs-kbd": KbdC,
+  "docs-private": Private,
+  "docs-locked": Locked,
 } as unknown as Components;
 
 const KATEX = { errorColor: "var(--danger)" };

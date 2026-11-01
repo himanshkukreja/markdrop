@@ -769,3 +769,21 @@ html.dx-modal-open { overflow: hidden; }
   html[data-docs-ask] .dx-root { padding-right: 0 !important; }
   .dx-layout { display: block; }
 }
+
+/* ── Private pages and sections (access.mjs) ─────────────────────────────── */
+.dx-locked { display: flex; align-items: center; gap: 14px; margin: 24px 0; padding: 14px 16px; border: 1px dashed var(--border-strong); border-radius: var(--radius-xl); background: var(--surface-inset); color: var(--text); }
+.dx-locked__icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 36px; height: 36px; border-radius: var(--radius-full); background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); }
+.dx-locked__icon svg { width: 18px; height: 18px; }
+.dx-locked__body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.dx-locked__title { font-size: 15px; line-height: 22px; font-weight: 600; }
+.dx-locked__text { font-size: 14px; line-height: 20px; color: var(--text-secondary); }
+.dx-locked__action { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 7px 12px; border-radius: var(--radius-lg); background: var(--accent); color: var(--on-accent); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.dx-locked__action svg { width: 14px; height: 14px; }
+.dx-locked__action:hover { filter: brightness(1.06); }
+.dx-locked__action:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+@media (max-width: 560px) { .dx-locked { flex-wrap: wrap; } .dx-locked__action { width: 100%; justify-content: center; } }
+.dx-private { margin: 24px 0; padding: 4px 16px 2px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
+.dx-private__tag { display: flex; align-items: center; gap: 6px; margin: 10px 0 4px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--accent-text); }
+.dx-private__tag svg { width: 13px; height: 13px; }
+.dx-private__label { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-secondary); }
+.dx-nav__lock { flex: none; width: 13px; height: 13px; margin-left: auto; color: var(--text-muted); }

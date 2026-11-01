@@ -14,7 +14,7 @@
  * land in its Insights tab).
  */
 import MiniSearch from "minisearch";
-import { absoluteUrl, agentMarkdown, defaultSite, getChangelog, getPage, getSite, orderedPages, withPrerequisites, type SiteBundle } from "./content";
+import { absoluteUrl, agentMarkdown, defaultSite, getChangelog, getPublicPage, getSite, orderedPages, withPrerequisites, type SiteBundle } from "./content";
 import { brandName, markdropApp, mcpName } from "./brand";
 import { buildSearchIndex, entryMarkdown } from "./outputs";
 import { apiBoost } from "./searchBoost";
@@ -141,7 +141,7 @@ function search(query: string, limit: number) {
   return hits.map((h) => {
     const href = String(h.href);
     const pagePath = href.split("#")[0];
-    const page = getPage(pagePath);
+    const page = getPublicPage(pagePath);
     return {
       kind: h.kind as string,
       title: h.title as string,
@@ -221,7 +221,7 @@ function allTools(): Tool[] {
         const pre = args.include_prerequisites;
         if (pre !== undefined && typeof pre !== "boolean") throw new ToolError("include_prerequisites must be true or false.");
         const path = normalizePath(raw);
-        const page = getPage(path);
+        const page = getPublicPage(path);
         if (!page) {
           const near = search(path.replace(/[/-]+/g, " ").trim(), 3);
           throw new ToolError(

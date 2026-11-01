@@ -30,6 +30,7 @@ export function NavLinks({ groups, current, onPick }: { groups: NavGroup[]; curr
                         </span>
                       )}
                       <span className="dx-nav__label">{it.title}</span>
+                      {it.locked && <Icon name="lock" className="dx-nav__lock" aria-label="Private" />}
                       {it.isNew && (
                         <Badge tone="info" size="sm" upper>
                           New

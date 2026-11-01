@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "@/docs/client/Link";
 import { notFound } from "next/navigation";
 import { Badge, Breadcrumb, Icon } from "@/components/ui";
-import { absoluteUrl, agentMarkdown, getAllPages, getPage, getSite, groupOf, mdUrl, navLabel, prevNext, sectionMarkdown, withPrerequisites } from "@/docs/content";
+import { absoluteUrl, agentMarkdown, getAccess, getAllPages, getPage, getSite, groupOf, mdUrl, navLabel, pageRule, pageVariant, prerequisitesOf, prevNext, sectionMarkdown, withPrerequisites } from "@/docs/content";
+import { parseVariant, ruleOf, ruleSetKey, ruleSets, VARIANT_SEGMENT } from "@/docs/access.mjs";
 import { formatDate } from "@/docs/outputs";
 import { introOf, plainText } from "@/docs/markdown";
 import { pageLede } from "@/docs/present.mjs";
@@ -24,13 +25,31 @@ interface Props {
   params: Promise<{ path: string[] }>;
 }
 
+/**
+ * Every page, plus a variant of each page with private sections for every combination of their
+ * rules (access.mjs): `x-access/<rules>/<page>`, which the docs edge never serves at that address,
+ * only at the page's own one to a reader those rules let in.
+ */
 export function generateStaticParams() {
-  return getAllPages().map((p) => ({ path: p.path.slice(1).split("/") }));
+  const out: Array<{ path: string[] }> = [];
+  for (const p of getAllPages()) {
+    const segs = p.path.slice(1).split("/");
+    out.push({ path: segs });
+    if (p.sectionRules?.length) for (const set of ruleSets(p.sectionRules)) out.push({ path: [VARIANT_SEGMENT, ruleSetKey(set), ...segs] });
+  }
+  return out;
 }
 
 async function load(params: Props["params"]) {
   const { path } = await params;
-  return getPage("/" + path.map(decodeURIComponent).join("/"));
+  const segs = path.map(decodeURIComponent);
+  const v = parseVariant(segs);
+  if (v) {
+    const page = getPage(v.path);
+    if (!page?.sectionRules?.length) return undefined;
+    return pageVariant(page, v.rules);
+  }
+  return getPage("/" + segs.join("/"));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -89,7 +108,9 @@ export default async function DocsArticle({ params }: Props) {
   const { prev, next } = prevNext(page.path);
   const toc: TocEntry[] = page.headings.filter((h) => (h.depth === 2 || h.depth === 3) && !h.nested).map(({ id, text, depth }) => ({ id, text, depth }));
   const prereq = withPrerequisites(page);
-  const prereqPages = (page.meta.prerequisites ?? []).map((p) => getPage(p)).filter((p): p is NonNullable<typeof p> => !!p);
+  const prereqPages = prerequisitesOf(page);
+  const ruleId = pageRule(page.path);
+  const rule = ruleId ? ruleOf(getAccess(), ruleId) : undefined;
   const firstOfGroup = group?.items.find((it) => it.available)?.path;
   // site.json `pages`: the description under the title, the page's icon beside it.
   const lede = pageLede(site.pages, page.meta.description, plainText(introOf(page.body, page.headings), { code: false }));
@@ -186,6 +207,11 @@ export default async function DocsArticle({ params }: Props) {
       {page.meta.since && (
         <Badge tone="neutral" size="sm" icon="code">
           Since {page.meta.since}
+        </Badge>
+      )}
+      {rule && (
+        <Badge tone="neutral" size="sm" icon="lock">
+          {rule.kind === "members" ? "Team only" : rule.kind === "password" ? "Password protected" : `Private · ${rule.name}`}
         </Badge>
       )}
       <ChangedBadge />

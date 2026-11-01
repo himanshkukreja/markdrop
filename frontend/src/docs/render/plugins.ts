@@ -141,6 +141,12 @@ function transformContainer(node: MdNode) {
       set(node, "docs-details", { label: takeLabel(node) || "Details" });
       return;
     }
+    case "private": {
+      // A private section the content loader revealed (access.mjs splitPrivate). DocsMarkdown shows
+      // its content only when `k` is this process's key; any other one renders locked.
+      set(node, "docs-private", { access: attr(node, "access"), label: takeLabel(node), k: attr(node, "k") });
+      return;
+    }
     case "tab": {
       if (node.data?.hName === "docs-tab") return; // already labelled by its tabs parent
       set(node, "docs-tab", { label: takeLabel(node) });
@@ -179,6 +185,10 @@ function transform(node: MdNode, parent: MdNode | null, index: number) {
     } else if (node.name === "api") {
       // ::api[label]{op="GET /v1/things/{id}"}: a card for that operation (DocsMarkdown ApiOp).
       set(node, "docs-api", { op: attr(node, "op"), label: textOf(node).trim() });
+      node.children = [];
+    } else if (node.name === "private-locked") {
+      // Where a private section was cut out for readers its rule doesn't let in (access.mjs).
+      set(node, "docs-locked", { access: attr(node, "access"), label: textOf(node).trim() });
       node.children = [];
     } else if (parent) {
       // Unknown leaf: show what was written rather than dropping it silently.

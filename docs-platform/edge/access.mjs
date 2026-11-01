@@ -228,13 +228,16 @@ export function gatePage({ manifest, policy, site, host, next, state, error, api
 <footer>Published with <a href="https://markdrop.in" rel="noopener">Markdrop</a></footer></main></body></html>`;
 }
 
-/** /_access/callback: hands the grant from the URL fragment to /_access/session in a POST body. */
+/**
+ * /_access/callback: hands the grant from the URL fragment to /_access/session in a POST body (or,
+ * for a private page's reader grant, `kind=reader`, to /_access/reader: edge/readers.mjs).
+ */
 export function callbackPage(nonce) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Signing in…</title>
 <style>body{font:16px/1.5 system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;color:#64748b}</style></head>
 <body><p>Signing in…</p><form id="f" method="post" action="/_access/session"><input type="hidden" name="g"><input type="hidden" name="next"></form>
 <noscript>Signing in needs JavaScript. Turn it on, then open this site again.</noscript>
-<script nonce="${nonce}">(function(){var h=new URLSearchParams(location.hash.slice(1));history.replaceState(null,"",location.pathname);var g=h.get("g");if(!g){location.replace("/");return}var f=document.getElementById("f");f.g.value=g;f.next.value=h.get("next")||"/";f.submit()})();</script></body></html>`;
+<script nonce="${nonce}">(function(){var h=new URLSearchParams(location.hash.slice(1));history.replaceState(null,"",location.pathname);var g=h.get("g");if(!g){location.replace("/");return}var f=document.getElementById("f");if(h.get("kind")==="reader")f.action="/_access/reader";f.g.value=g;f.next.value=h.get("next")||"/";f.submit()})();</script></body></html>`;
 }
 
 export function privatePage(name) {

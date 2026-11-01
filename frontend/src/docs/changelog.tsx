@@ -3,7 +3,7 @@
  * media rendered on the server. Media renders only when it really exists (a video filled in
  * videos.json, or an image): the hub never shows a placeholder.
  */
-import { getChangelog, getMedia, getPage, getSite, getVideos, navLabel } from "./content";
+import { getChangelog, getMedia, getPublicPage, getSite, getVideos, navLabel } from "./content";
 import { videoLink } from "./brand";
 import { plainText } from "./markdown";
 import { formatDate } from "./outputs";
@@ -30,9 +30,9 @@ export function toHubEntry(e: ChangelogEntry): HubEntry {
     summary: e.summary,
     highlights: e.highlights ?? [],
     docs: (e.docs ?? []).map((p) => {
-      const page = getPage(p);
+      const page = getPublicPage(p);
       return { path: p, title: page ? navLabel(page) : p };
-    }).filter((d) => getPage(d.path)),
+    }).filter((d) => getPublicPage(d.path)),
     try: e.try && typeof e.try.href === "string" ? e.try : undefined,
     text: [e.title, e.area, e.summary, ...(e.highlights ?? []), plainText(e.body ?? "")].join(" ").toLowerCase(),
     hasBody: !!e.body?.trim(),

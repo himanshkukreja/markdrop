@@ -16,6 +16,7 @@ import { spawn } from "node:child_process";
 import { stage, engineVersion } from "./stage.mjs";
 import { crawl, startServer } from "./crawl.mjs";
 import { mimeOf } from "./mime.mjs";
+import { accessPlan, annotate, leakCheck, loadAccessTools } from "./access.mjs";
 
 export const FORMAT = "markdrop-docs/1";
 
@@ -412,8 +413,12 @@ export async function build(opts) {
   }
   mark("crawl", t);
 
-  // 4. MCP input (never served as a file: only the edge's /mcp reads it).
-  const mcp = { o: objects.put(Buffer.from(snapshotJson)), s: snapshotJson.length };
+  // 4. MCP input (never served as a file: only the edge's /mcp reads it). Private pages and
+  // sections (builder/access.mjs) are not in it: the MCP server answers anyone.
+  const accessTools = await loadAccessTools(engineDir);
+  const plan = accessPlan(snapshot, accessTools);
+  const mcpJson = plan.rules.size ? JSON.stringify({ format: FORMAT, files: plan.publicSnapshot }) : snapshotJson;
+  const mcp = { o: objects.put(Buffer.from(mcpJson)), s: Buffer.byteLength(mcpJson) };
 
   let site = {};
   try {
@@ -433,6 +438,10 @@ export async function build(opts) {
     redirects: readRedirects(contentDir),
     mcp,
   };
+  // What the edge protects, then a check that nothing a signed-out reader can fetch holds protected text.
+  const accessStats = annotate(manifest, plan, accessTools);
+  const leaks = leakCheck(manifest, plan, (h) => fs.readFileSync(path.join(objects.dir, h)));
+  if (leaks.length) throw new Error(`access: protected content would be public:\n${leaks.slice(0, 20).map((l) => `- ${l.where}: ${l.what}`).join("\n")}`);
   const manifestJson = JSON.stringify(manifest);
   fs.writeFileSync(manifestFile, manifestJson);
   const engineAssets = opts.engineAssetsDir ? exportEngineAssets(manifest, (h) => fs.readFileSync(path.join(objects.dir, h)), opts.engineAssetsDir) : undefined;
@@ -458,6 +467,7 @@ export async function build(opts) {
       objectsWritten: objects.written,
       objectsPruned: pruned,
       ...(engineAssets ? { engineAssets } : {}),
+      ...(plan.rules.size ? { access: accessStats } : {}),
       manifestBytes: manifestJson.length,
     },
   };
