@@ -149,7 +149,7 @@ export default function ApiReferenceSection() {
     <>
       <SectionHeader
         title="API reference"
-        description={<>{SECTIONS[4].blurb} <ReadMore topic="studioApiReference" /></>}
+        description={<>{SECTIONS.find((s) => s.id === "api-reference")?.blurb} <ReadMore topic="studioApiReference" /></>}
       />
       {error && <Alert tone="danger" onDismiss={() => setError("")}>{error}</Alert>}
       {loadError && <Alert tone="danger" actions={<Button variant="secondary" size="sm" onClick={load}>Try again</Button>}>{loadError}</Alert>}

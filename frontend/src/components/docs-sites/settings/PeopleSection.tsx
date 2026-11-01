@@ -22,7 +22,7 @@ export default function PeopleSection() {
 
   return (
     <>
-      <SectionHeader title="People and reviews" description={SECTIONS[6].blurb} />
+      <SectionHeader title="People and reviews" description={SECTIONS.find((s) => s.id === "people")?.blurb} />
       <LockedNote />
       {error && <Alert tone="danger" onDismiss={() => setError("")}>{error}</Alert>}
 

@@ -6,7 +6,7 @@ import { ReadMore } from "@/components/ReadMore";
 import type { AccessLevel } from "@/lib/docsSites";
 import { useSite } from "../SiteContext";
 import { LockedNote, SectionHeader, SettingsCard, SwitchRow, useWorkspaceName } from "./SettingsShell";
-import { SECTIONS } from "./sections";
+import { SECTIONS, settingsHref } from "./sections";
 import usePatch from "./usePatch";
 
 /** A choice drawn as a card (Settings.dc.html's access options): a native radio, so arrows and forms work. */
@@ -38,7 +38,7 @@ export function OptionCard({ name, value, checked, disabled, icon, label, note, 
  * workspace members), the password, and whether search engines index it.
  */
 export default function AccessSection() {
-  const { site, isAdmin } = useSite();
+  const { site, isAdmin, base } = useSite();
   const { patch, saving, error, setError, locked } = usePatch();
   const ws = useWorkspaceName();
   const uid = useId();
@@ -125,6 +125,13 @@ export default function AccessSection() {
           />
         </SwitchRow>
       </SettingsCard>
+
+      <SettingsCard
+        id="private"
+        title="Private pages and sections"
+        description="Keep the guide public and make some pages or sections private: for your team, a customer's people (by email or @domain), or partners with a password. Free."
+        aside={<Button size="sm" variant="secondary" href={settingsHref(base, "private")} iconRight="arrowRight">Private pages</Button>}
+      />
     </>
   );
 }

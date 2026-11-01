@@ -9,6 +9,7 @@ import { firstName, plural, timeAgo } from "../format";
 import { liveUrl } from "../PublishState";
 import { useSite } from "../SiteContext";
 import { Checklist } from "./Checklist";
+import { PrivateCheck } from "./PrivateCheck";
 import { compareHref } from "./CompareScreen";
 import { History } from "./History";
 import { SETTING_LABEL, SummaryBadges } from "./shared";
@@ -282,6 +283,8 @@ export function ReadyView(props: {
               <span className="text-[13px] text-text-muted">{site.status === "unpublished" ? "Nothing: the guide is unpublished." : "Nothing yet: the guide isn't published."}</span>
             )}
           </div>
+
+          <PrivateCheck />
 
           {!ever && <Checklist setup={props.setup} />}
         </aside>

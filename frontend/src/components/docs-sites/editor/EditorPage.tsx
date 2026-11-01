@@ -20,6 +20,8 @@ import {
 } from "@/lib/docsSites";
 import { commentsSummary, editorAiEdit, editorAiStatus, type EditorAiStatus, type PresencePerson } from "@/lib/guideEditor";
 import { guideEvents } from "@/lib/guidesEvents";
+import { getPrivate, previewAs, ruleLabel, type PreviewRow, type PrivateState } from "@/lib/guidePrivate";
+import { settingsHref } from "../settings/sections";
 import { firstName, timeAgo } from "../format";
 import { usePublishState } from "../PublishState";
 import SiteBar, { STUDIO_CHROME_H } from "../SiteBar";
@@ -342,6 +344,33 @@ export default function EditorPage() {
   }, [loadTree, loadTalk]);
 
   const groups = useMemo(() => (tree ? groupsOf(tree.nav, tree.pages) : null), [tree]);
+
+  // ── Private pages (Settings › Private pages): the rules for the Page tab and private sections,
+  // and which pages are private, for the tree's badges. As of the drafts saved on the server.
+  const [priv, setPriv] = useState<PrivateState | null>(null);
+  const [privRows, setPrivRows] = useState<PreviewRow[] | null>(null);
+  useEffect(() => {
+    if (!canEdit) return;
+    getPrivate(site.id).then(setPriv).catch(() => setPriv(null));
+  }, [site.id, canEdit]);
+  useEffect(() => {
+    if (!canEdit || !tree) return;
+    previewAs(site.id, "public").then((r) => setPrivRows(r.pages)).catch(() => setPrivRows(null));
+  }, [site.id, canEdit, tree]);
+  const editorRules = useMemo(() => priv?.rules.map((r) => ({ id: r.id, name: r.name, kind: r.kind })), [priv]);
+  const privateLabels = useMemo(() => {
+    if (!tree || !privRows || !priv) return undefined;
+    const byPath = new Map(privRows.filter((r) => r.rule).map((r) => [r.path, r.rule!]));
+    const out: Record<string, string> = {};
+    for (const p of tree.pages) {
+      const rid = byPath.get(p.path);
+      if (rid) {
+        const r = priv.rules.find((x) => x.id === rid);
+        out[p.id] = r ? ruleLabel(r) : rid;
+      }
+    }
+    return out;
+  }, [tree, privRows, priv]);
   const firstPage = groups?.find((g) => !g.hidden)?.pages[0]?.id ?? groups?.[0]?.pages[0]?.id ?? null;
   const pageId = wanted && tree?.pages.some((p) => p.id === wanted) ? wanted : wanted && !tree ? wanted : firstPage;
 
@@ -443,6 +472,11 @@ export default function EditorPage() {
     if ("icon" in patch) keys.icon = patch.icon ?? null;
     if ("description" in patch) keys.description = patch.description ?? "";
     if ("hidden" in patch) keys.hidden = null;
+    // Who can open the page (PageAccess): the frontmatter's `access` key.
+    if (patch.frontmatter_extra && (patch.frontmatter_extra.access ?? null) !== (extraRef.current.access ?? null)) {
+      const v = patch.frontmatter_extra.access;
+      keys.access = typeof v === "string" && v ? v : null;
+    }
     if (Object.keys(keys).length) setEdited({ seq: seqRef.current, doc: setDocKeys(docRef.current, keys) });
   }, [session.update]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -697,6 +731,10 @@ export default function EditorPage() {
         />
       ) : null}
       footer={{ editedBy: page.updated_by_name ?? null, editedAt: page.updated_at ?? null, editing: editingNow }}
+      access={priv ? (() => {
+        const group = tree?.nav.find((g) => g.pages.includes(page.id))?.group ?? null;
+        return { rules: priv.rules, group, groupRule: group ? priv.groups[group] ?? null : null, settingsHref: settingsHref(base, "private"), guidePrivate: site.settings.access.level !== "public" };
+      })() : undefined}
     />
   ) : null;
 
@@ -713,6 +751,7 @@ export default function EditorPage() {
         canEdit={canEdit}
         loading={!tree}
         comments={talk}
+        privateLabels={privateLabels}
         onNewPage={() => { setNewInit({ title: "" }); setNewOpen(true); }}
         onMove={(id, dir) => tree && void updateNav(stepPage(tree.nav, id, dir))}
         onMoveToGroup={(id, g) => tree && void updateNav(pageToGroup(tree.nav, id, g), `Moved “${pageTitle(id)}” to ${g}.`)}
@@ -810,6 +849,7 @@ export default function EditorPage() {
                   readOnly={!editable}
                   placeholder="Type / for blocks: callouts, steps, tabs, code, images…"
                   operations={apiOps}
+                  accessRules={editorRules}
                   stickyTop={chromeBottom}
                   apiRef={editorApi}
                   assist={editable ? assist : undefined}

@@ -33,7 +33,7 @@ export default function AskAiSection() {
 
   return (
     <>
-      <SectionHeader title="Ask AI" description={SECTIONS[3].blurb} />
+      <SectionHeader title="Ask AI" description={SECTIONS.find((s) => s.id === "ask-ai")?.blurb} />
       <LockedNote />
       {error && <Alert tone="danger" onDismiss={() => setError("")}>{error}</Alert>}
 

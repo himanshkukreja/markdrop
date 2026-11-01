@@ -34,7 +34,7 @@ export default function RedirectsSection() {
 
   return (
     <>
-      <SectionHeader title="Redirects" description={SECTIONS[5].blurb} />
+      <SectionHeader title="Redirects" description={SECTIONS.find((s) => s.id === "redirects")?.blurb} />
       <LockedNote />
       {error && <Alert tone="danger" onDismiss={() => setError("")}>{error}</Alert>}
 

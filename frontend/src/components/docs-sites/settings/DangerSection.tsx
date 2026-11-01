@@ -20,7 +20,7 @@ export default function DangerSection() {
 
   return (
     <>
-      <SectionHeader title="Take it down" description={SECTIONS[7].blurb} />
+      <SectionHeader title="Take it down" description={SECTIONS.find((s) => s.id === "danger")?.blurb} />
       {!isAdmin ? (
         <SettingsCard>
           <p className="text-body text-text-secondary">Only Guides admins can unpublish or delete a guide.</p>
