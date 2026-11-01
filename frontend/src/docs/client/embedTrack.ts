@@ -15,7 +15,7 @@
  *      interact                  the reader first used it (a click into the frame, a play, a page turn)
  *      fullscreen | open         Full screen / Open on Markdrop (each time)
  *      play                      the video's first play
- *      quartile  q: 25|50|75|100 the furthest point watched crossed that share of the video
+ *      quartile  qt: 25|50|75|100 the furthest point watched crossed that share of the video
  *      leave     t, w, d         the page was left after the video played: where it stopped (t, s),
  *                                seconds watched (w) and its length (d): drop-off for the Fix list
  *      pages     pg, n           the page was left after a PDF was read: furthest page, page count
@@ -339,7 +339,7 @@ export function useEmbedAnalytics(i: EmbedAnalyticsInput) {
       if (st.played && st.dur > 0 && typeof m.t === "number" && m.e !== "seeking") {
         st.max = Math.max(st.max, m.t);
         const frac = m.e === "ended" ? 1 : st.max / st.dur;
-        for (const q of [25, 50, 75, 100]) if (frac >= q / 100 - (q === 100 ? 0.02 : 0)) insight("quartile", { q }, `q${q}`);
+        for (const q of [25, 50, 75, 100]) if (frac >= q / 100 - (q === 100 ? 0.02 : 0)) insight("quartile", { qt: q }, `q${q}`);
       }
     });
   }, [track, video, slug, insight, interact]);

@@ -28,7 +28,7 @@ import { createAnnotations, refreshAnnotations, type AnnotationSource } from "./
 import { AssistPanel, AssistStore } from "./menus/assist";
 import type { VisualHandle } from "./FindBar";
 import { CODE_LANGS } from "./views/code";
-import type { ApiOperationOption, AssistFn, CommentMark, TextAnchor, UploadImage } from "./types";
+import type { ApiOperationOption, AssistFn, CommentMark, TextAnchor, UploadImage, MarkdropFilesHost } from "./types";
 
 export interface VisualEditorProps {
   value: string;
@@ -55,13 +55,14 @@ export interface VisualEditorProps {
   onCommentClick?: (id: string) => void;
   checkLink?: (href: string) => { message: string } | null;
   flagImages?: boolean;
+  markdrop?: MarkdropFilesHost;
 }
 
 const EMIT_DELAY = 120;
 const identity = (s: string) => s;
 
 export default function VisualEditor(props: VisualEditorProps) {
-  const { value, readOnly = false, placeholder, onUploadImage, operations, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop, onHandle, assist, assistLanguages, onComment, comments, onCommentClick, checkLink, flagImages = false } = props;
+  const { value, readOnly = false, placeholder, onUploadImage, operations, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop, onHandle, assist, assistLanguages, onComment, comments, onCommentClick, checkLink, flagImages = false, markdrop } = props;
   const toast = useToast();
   const initial = useMemo(() => parseMarkdown(value), []); // eslint-disable-line react-hooks/exhaustive-deps -- parsed once; later values are synced below
   const meta = useRef<DocState>(initial);
@@ -212,8 +213,8 @@ export default function VisualEditor(props: VisualEditorProps) {
   }, [editor, value]);
 
   const host: EditorHost = useMemo(
-    () => ({ upload: onUploadImage, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown, assist, assistLanguages, onComment }),
-    [onUploadImage, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, onComment],
+    () => ({ upload: onUploadImage, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown, assist, assistLanguages, onComment, markdrop }),
+    [onUploadImage, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, onComment, markdrop],
   );
 
   return (

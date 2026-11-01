@@ -51,6 +51,75 @@ export type RevealTarget =
   | { kind: "heading"; text: string; level?: number; nth?: number }
   | { kind: "quote"; quote: string; prefix?: string };
 
+/* ── Markdrop files (::markdrop) ─────────────────────────────────────────── */
+
+/** Why a guide's readers (signed out) can't see a file (the API's `reason`). */
+export type MarkdropFileBlock = "private" | "signin" | "password" | "encrypted" | "unavailable";
+
+/** One file in the picker (GET …/embeds/library). */
+export interface MarkdropLibraryItem {
+  slug: string;
+  src: string;
+  title: string;
+  kind: "artifact" | "document";
+  renderer: string;
+  type_label: string;
+  filename?: string | null;
+  size_bytes?: number | null;
+  updated_at?: string | null;
+  public: boolean;
+  reason: MarkdropFileBlock | null;
+  embeddable: boolean;
+}
+
+export interface MarkdropLibraryPage {
+  items: MarkdropLibraryItem[];
+  total: number;
+  page: number;
+  pages: number;
+  workspace: { id: string; name: string } | null;
+}
+
+/** What a link is, and whether the guide's readers can see it (POST …/embeds/check). */
+export interface MarkdropFileInfo extends Omit<MarkdropLibraryItem, "embeddable"> {
+  url: string;
+  reason_text?: string | null;
+  access_level: "private" | "link" | "workspace";
+  has_password: boolean;
+  workspace_name?: string | null;
+  can_share: boolean;
+  embeddable: boolean;
+  can_pin: boolean;
+  current_version: number | null;
+  versions: Array<{ version: number; created_at?: string | null; size_bytes?: number | null; filename?: string | null; current: boolean }>;
+  media?: { duration?: number | null; width?: number | null; height?: number | null } | null;
+  poster_url?: string | null;
+}
+
+export type MarkdropLibraryType = "all" | "html" | "bundle" | "pdf" | "sheet" | "docx" | "video" | "image" | "doc";
+
+/**
+ * Enables the "Markdrop file" block's picker (your files, the guide's workspace, a pasted link,
+ * an upload), its sharing check and version pins, and its live preview (`config`, the same as a
+ * published page's, without analytics).
+ */
+export interface MarkdropFilesHost {
+  config: { api: string; app: string; files: string | null; site: string; guide: string; extraHosts?: string[] };
+  library(params: { scope: "mine" | "workspace"; q?: string; type?: MarkdropLibraryType; page?: number }): Promise<MarkdropLibraryPage>;
+  check(src: string): Promise<MarkdropFileInfo>;
+  /** "Anyone with the link can view" (the file's owner). */
+  share(src: string): Promise<MarkdropFileInfo>;
+  pin(src: string, version: number): Promise<{ version: number; current_version: number }>;
+  /** Uploads a file to Markdrop (viewable by anyone with the link) and resolves with its info. */
+  upload?(file: File, onProgress?: (pct: number) => void): Promise<MarkdropFileInfo>;
+  /** The guide's workspace, for the picker's second tab (null for a personal guide). */
+  workspaceName?: string | null;
+  /** Accepted upload types (an <input accept>). */
+  accept?: string;
+  /** A block was added, replaced or removed (analytics). */
+  onEvent?(name: "inserted" | "uploaded" | "shared" | "pinned", detail?: Record<string, unknown>): void;
+}
+
 /** What a host can do to the editor from outside (both modes). */
 export interface DocsEditorApi {
   /** Opens the Find and replace bar (with the selection as the search, when there is one). */
@@ -62,6 +131,8 @@ export interface DocsEditorApi {
   /** Removes headings with no text; returns how many. */
   removeEmptyHeadings(): number;
   focus(): void;
+  /** Adds an empty "Markdrop file" block at the caret (its picker opens); Markdown mode adds the line. */
+  insertMarkdropFile(): void;
 }
 
 export interface CommentMark {
@@ -126,4 +197,6 @@ export interface DocsEditorProps {
   flagImages?: boolean;
   /** The Find and replace bar was opened (analytics). */
   onFindOpen?: () => void;
+  /** Enables the "Markdrop file" block's picker, sharing check, version pins and live preview. */
+  markdrop?: MarkdropFilesHost;
 }

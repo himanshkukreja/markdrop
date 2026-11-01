@@ -75,6 +75,14 @@ export const BLOCK_ITEMS: BlockItem[] = [
   { id: "image", label: "Image", hint: "Light and dark versions", icon: "image", keywords: "image picture screenshot figure photo", run: insert({ type: "figure", attrs: { src: "", alt: "", title: null } }) },
   { id: "video", label: "Video", hint: "Upload or Markdrop link", icon: "film", keywords: "video recording screencast", run: insert({ type: "directiveLeaf", attrs: { name: "video", attributes: {} } }) },
   { id: "clip", label: "Clip", hint: "Short silent loop", icon: "play", keywords: "clip loop gif animation", run: insert({ type: "directiveLeaf", attrs: { name: "clip", attributes: {} } }) },
+  {
+    id: "markdrop",
+    label: "Markdrop file",
+    hint: "Interactive HTML, PDF, video",
+    icon: "layers",
+    keywords: "markdrop file embed html demo prototype calculator interactive pdf video website zip site upload artifact",
+    run: insert({ type: "directiveLeaf", attrs: { name: "markdrop", attributes: {} } }),
+  },
   { id: "embed", label: "Embed", hint: "A page from another site", icon: "globe", keywords: "embed iframe page", run: insert({ type: "directiveLeaf", attrs: { name: "embed", attributes: {} } }) },
   { id: "code", label: "Code", hint: "With a title and copy button", icon: "code", keywords: "code snippet fence pre", run: (e, r) => e.chain().focus().deleteRange(r).setCodeBlock().run() },
   {

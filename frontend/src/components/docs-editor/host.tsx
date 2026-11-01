@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { ApiOperationOption, AssistFn, TextAnchor, UploadImage } from "./types";
+import type { ApiOperationOption, AssistFn, MarkdropFilesHost, TextAnchor, UploadImage } from "./types";
 
 /** What node views and menus need from the editor's host (props of DocsEditor). */
 export interface EditorHost {
@@ -16,6 +16,8 @@ export interface EditorHost {
   assistLanguages?: string[];
   /** Comment in the format toolbar. */
   onComment?: (anchor: TextAnchor) => void;
+  /** The "Markdrop file" block's picker and preview. */
+  markdrop?: MarkdropFilesHost;
 }
 
 export const EditorHostContext = createContext<EditorHost>({ resolveAsset: (s) => s, operations: [], readOnly: false });

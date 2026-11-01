@@ -80,6 +80,10 @@ Hidden body.
 
 ::embed{src="https://example.com/demo" title="A demo"}
 
+::markdrop{src="https://markdrop.in/acme-pricing" title="Pricing calculator" height=640 summary="Pick a plan and seats; the totals update."}
+
+::markdrop[Product tour]{src="https://markdrop.in/acme-tour" version=3 mode=preview captions="/docs-assets/tour/tour.en.vtt"}
+
 ::api{op="GET /api/v1/documents/{id}"}
 
 :::::steps
