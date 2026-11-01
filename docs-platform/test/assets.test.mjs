@@ -11,7 +11,7 @@ import { FsStore, syncEngineAssets } from "../builder/store.mjs";
 
 test("manifest site: noindex only when site.json turns search indexing off", () => {
   assert.equal(manifestSite({ id: "a", name: "A", url: "https://a.test/", seo: { index: false } }).noindex, true);
-  assert.deepEqual(manifestSite({ id: "a", name: "A", url: "https://a.test/" }), { id: "a", name: "A", url: "https://a.test" });
+  assert.deepEqual(manifestSite({ id: "a", name: "A", url: "https://a.test/" }), { id: "a", name: "A", url: "https://a.test", frames: ["https://markdrop-artifacts.markdrop-in.workers.dev"] });
   assert.equal(manifestSite({ seo: { index: true } }).noindex, undefined);
   assert.equal(manifestSite({ seo: "no" }).noindex, undefined);
 });

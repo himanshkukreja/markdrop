@@ -92,6 +92,19 @@ function noindexResponse(res) {
   return out;
 }
 
+/**
+ * A page's Content-Security-Policy (manifest site.frames, from builder/build.mjs frameOrigins): it
+ * may frame only itself, Markdrop's artifact origin (`::markdrop` blocks, which put author HTML in
+ * an opaque sandbox there) and the site's embed hosts; no plugins. Nothing else is restricted
+ * here (the engine's scripts, styles, fonts and API calls are unchanged). A manifest from before
+ * frames existed gets no header.
+ */
+export function pageCsp(site) {
+  if (!Array.isArray(site?.frames)) return null;
+  const frames = site.frames.filter((f) => typeof f === "string" && /^https?:\/\/[^\s;,'"]+$/.test(f));
+  return `frame-src 'self' ${frames.join(" ")}`.trim() + "; object-src 'none'";
+}
+
 /** The sandboxing policy of a site file: nothing loads, nothing runs, no origin (an SVG still works as an <img>). */
 export const FILE_CSP = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self'; sandbox";
 
@@ -374,7 +387,8 @@ export function createHandler(store, options = {}) {
         }
         // Text outputs keep the cache policy the engine gave them; pages revalidate by ETag.
         const cache = r.h?.["cache-control"] || CACHE.page;
-        const res = await serve(req, r, { type: r.t, cache, headers: { vary: isPage ? RSC_VARY : "Accept" }, kind: isPage ? "page" : r.t.startsWith("image/") ? "og" : "text" });
+        const csp = isPage ? pageCsp(m.site) : null;
+        const res = await serve(req, r, { type: r.t, cache, headers: { vary: isPage ? RSC_VARY : "Accept", ...(csp ? { "content-security-policy": csp } : {}) }, kind: isPage ? "page" : r.t.startsWith("image/") ? "og" : "text" });
         if (isPage && (res.status === 200 || res.status === 304)) countView(req, url, site, m);
         return res;
       }
