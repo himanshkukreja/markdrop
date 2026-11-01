@@ -30,6 +30,7 @@ from app.routers.docs_site_redirects import router as redirects_router
 from app.schemas.docs_site import PublishRequest, ReviewCreate, ReviewDecision, SiteCreate, SiteUpdate
 from app.services import docs_site_assets as assets
 from app.services import docs_site_compare as compare
+from app.services import docs_site_design as design
 from app.services import docs_site_publish as publishing
 from app.services import docs_site_store as store
 
@@ -107,6 +108,30 @@ async def update_site(request: Request, site_id: str, body: SiteUpdate, db: Asyn
     site, role = await store.site_access(db, site_id, user, "admin")
     site = await store.update_site(db, site, name=body.name, slug=body.slug, settings_patch=body.settings)
     return await store.site_view(db, site, role)
+
+
+@router.get("/{site_id}/design/baseline")
+@limiter.limit("120/minute")
+async def design_baseline(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                          user: User = Depends(require_user)):
+    """Reset design (Design screen, admins): the design a reset goes back to (the one the guide
+    had after its import, or when it was created), how it's known, and what a reset would change
+    (``changes``: [{field, label}], ``same`` when nothing)."""
+    site, _role = await store.site_access(db, site_id, user, "admin")
+    return design.view(site, await design.ensure(db, site))
+
+
+@router.post("/{site_id}/design/reset")
+@limiter.limit("20/minute")
+async def reset_design(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                       user: User = Depends(require_user)):
+    """The design back to its baseline, written like a Design save (nothing is published; logos
+    stay uploaded). Returns the site, like PATCH, with ``design`` (the baseline view after it)."""
+    site, role = await store.site_access(db, site_id, user, "admin")
+    site = await design.reset(db, site)
+    out = await store.site_view(db, site, role)
+    out["design"] = design.view(site, await design.ensure(db, site))
+    return out
 
 
 @router.delete("/{site_id}")

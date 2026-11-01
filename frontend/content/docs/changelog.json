@@ -24,6 +24,22 @@
   "next": [],
   "entries": [
     {
+      "id": "guides-reset-design",
+      "date": "2026-11-02",
+      "title": "Markdrop Guides: reset a guide's design",
+      "kind": "improved",
+      "area": "Markdrop Guides",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Put a guide's design back to the one it started with, after its GitBook import or when it was created, with a list of what changes first and Undo after.",
+      "body": "- **Reset design** at the bottom of Design goes back to the design the guide had right after its import, or the one it was created with.\n- **The dialog lists what changes** (theme, brand colours, logo, fonts, colour mode, corners, custom theme, custom CSS) before anything happens.\n- **Saved like Save design:** readers see it after you publish, and Undo puts back the design you had.\n- **Kept:** your saved design templates and uploaded logos. Pages, navigation, domains and other settings don't change.\n- In Design, the button that drops unsaved edits is now called **Discard changes**.",
+      "docs": [
+        "/guides/themes"
+      ]
+    },
+    {
       "id": "guides-changelog",
       "date": "2026-11-01",
       "title": "Markdrop Guides: a changelog for your guide",

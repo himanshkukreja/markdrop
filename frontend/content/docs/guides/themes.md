@@ -1,10 +1,10 @@
 ---
 title: Pick a theme
 nav: Themes
-description: The fourteen Markdrop Guides themes and how to switch, customizing one live in the theme builder, and saving designs as templates for other guides.
-updated: 2026-11-01
+description: The fourteen Markdrop Guides themes, how to switch and customize one in the theme builder, save designs as templates, and reset a guide's design.
+updated: 2026-11-02
 prerequisites: [/guides/create-a-site]
-keywords: [theme, design, preset, layout, custom theme, theme builder, customize, template, saved design, icons, contrast, clean, editorial, technical, minimal, playful, help center, midnight, paper, terminal, corporate, studio, academic, atlas, pastel, dark theme, look and feel]
+keywords: [theme, design, preset, layout, custom theme, theme builder, customize, template, saved design, icons, contrast, clean, editorial, technical, minimal, playful, help center, midnight, paper, terminal, corporate, studio, academic, atlas, pastel, dark theme, look and feel, reset design, start over, discard changes]
 ---
 
 A theme sets the whole guide's layout, fonts, colours and corners. Pick one in the guide's **Design** tab; you can switch any time, and nothing about your pages changes.
@@ -21,7 +21,7 @@ Open the guide and choose **Design**. Only Guides admins can change it; everyone
 Choose a theme under **Theme**. The **Preview** updates at once. Use **Light** and **Dark** above the preview to see both. To narrow the list, choose **Docs** (product docs), **Help** (help centers), **Developer** or **New** above the themes.
 
 ### Save it
-Choose **Save design**, or **Reset** to go back to what's saved. Readers see the new design after the next [publish](/guides/publishing).
+Choose **Save design**, or **Discard changes** to go back to what's saved. Readers see the new design after the next [publish](/guides/publishing).
 ::::
 
 ![Theme filtered to New: the eight newer themes as cards, Midnight, Paper, Terminal, Corporate, Studio, Academic, Atlas and Pastel, each marked New with a line about what it's for.](/docs-assets/guides/themes/design-theme-filter.webp)
@@ -30,7 +30,7 @@ Once it's saved, a banner says **Design saved**, with **Preview the guide** and 
 
 ![The Design saved banner under the guide's bar: "Readers see the new look after you publish. It takes about a minute.", with Preview the guide and Publish now.](/docs-assets/guides/themes/design-saved.webp)
 
-::clip{src="/docs-assets/guides/themes/design-switch-themes" alt="In Design, choosing Editorial and Help center in turn while the preview changes layout, then New in the filter and Midnight and Atlas, then the Dark preview, then Reset."}
+::clip{src="/docs-assets/guides/themes/design-switch-themes" alt="In Design, choosing Editorial and Help center in turn while the preview changes layout, then New in the filter and Midnight and Atlas, then the Dark preview, then Discard changes."}
 
 ## The fourteen themes
 
@@ -137,7 +137,7 @@ The controls are grouped. Each group has **Reset** to put that group back to the
 Choose **Save design**. You're back in **Design**, with the **Design saved** banner and **Publish now**. Readers see the new look after you publish.
 ::::
 
-**Undo** and **Redo** at the top step back and forward through your changes (or press ⌘Z and ⇧⌘Z; Ctrl on Windows). Closing the builder with the back arrow keeps your changes in the design without saving them; **Save design** in Design saves them later, and **Reset** there drops them.
+**Undo** and **Redo** at the top step back and forward through your changes (or press ⌘Z and ⇧⌘Z; Ctrl on Windows). Closing the builder with the back arrow keeps your changes in the design without saving them; **Save design** in Design saves them later, and **Discard changes** there drops them.
 
 | Group | What you can change |
 | --- | --- |
@@ -165,6 +165,19 @@ Save a design to use it again, on this guide or any other guide in the workspace
 - The **⋯** menu on a template has **Rename**, **Duplicate**, **Update with current design**, **Export as JSON** and **Delete**. **Import** (beside **Save current**) adds a template from an exported file, for example one from another workspace.
 
 Guides admins of a workspace save and change its templates; everyone who can open a guide's Design can see them. A workspace can have up to 50 templates. Deleting a template doesn't change guides that use its design.
+
+## Reset the design
+
+To start over, put the design back to the one your guide started with: the design it had right after a [GitBook import](/guides/import-from-gitbook) (the look and brand the import brought), or the one it was created with (a template's theme, or Clean).
+
+1. In **Design**, scroll to **Reset design** at the bottom and choose **Reset design**.
+2. The dialog lists what changes, for example the theme, brand colours, fonts or custom theme. Choose **Reset design** to confirm.
+
+The reset is saved like **Save design**: readers see it after you [publish](/guides/publishing), and the **Publish** screen counts it as a change. Right after, **Undo** in the message at the bottom of the screen puts back the design you had. Your [templates](#your-templates) stay, and logos you uploaded stay in the guide's files. Pages, navigation, domains, people and settings outside Design don't change.
+
+**Reset design** is greyed out when the design already is the starting one. A guide made before resets were recorded goes back to the best match: its design if it was never changed, a rebuilt import look (Clean with the logo and colour the import brought), or else the default design. The dialog says which.
+
+![The Reset the design? dialog: "This puts back the design Acme had when it was created", then What changes: Theme Midnight → Clean, Match my brand turned off, Brand colours, Fonts (headings Fraunces → Theme default) and Custom theme removed; a line that saved design templates are kept and nothing changes for readers until you publish; Cancel and Reset design.](/docs-assets/guides/themes/design-reset.webp)
 
 ## Make it yours
 
