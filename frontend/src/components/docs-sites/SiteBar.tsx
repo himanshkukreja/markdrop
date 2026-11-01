@@ -145,6 +145,13 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
     try { localStorage.setItem(insightsSeenKey(site.id), "1"); } catch { /* a convenience only */ }
   }, [section, site.id]);
 
+  // The guide's layout stays mounted across tabs, so the window keeps the last tab's scroll and the
+  // next one would open part-way down. A new tab starts at the top, unless the address asks for a
+  // section (#…).
+  useEffect(() => {
+    if (!window.location.hash) window.scrollTo({ top: 0 });
+  }, [section]);
+
   return (
     <div className={cx("sticky top-14 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface px-3 py-2 sm:px-5 lg:h-[52px] lg:flex-nowrap lg:py-0", className)}>
       <nav aria-label="Guide" className="order-last -mx-1 flex w-full gap-0.5 overflow-x-auto px-1 md:order-none md:w-auto md:shrink-0">
