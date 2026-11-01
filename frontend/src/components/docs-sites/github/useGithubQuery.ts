@@ -6,6 +6,8 @@ export interface GithubQuery<T> {
   data: T | null;
   error: unknown;
   loading: boolean;
+  /** The key `data` answers (null: none). */
+  dataKey: string | null;
   /** Ask again (same key). */
   retry: () => void;
 }
@@ -21,19 +23,19 @@ export function useGithubQuery<T>(key: string | null, fn: (signal: AbortSignal) 
   const fnRef = useRef(fn);
   useEffect(() => { fnRef.current = fn; });
   const [nonce, setNonce] = useState(0);
-  const [state, setState] = useState<{ key: string | null; data: T | null; error: unknown; loading: boolean }>({ key: null, data: null, error: null, loading: false });
+  const [state, setState] = useState<{ key: string | null; data: T | null; dataKey: string | null; error: unknown; loading: boolean }>({ key: null, data: null, dataKey: null, error: null, loading: false });
 
   useEffect(() => {
     if (key === null) {
-      setState({ key: null, data: null, error: null, loading: false });
+      setState({ key: null, data: null, dataKey: null, error: null, loading: false });
       return;
     }
     const ac = new AbortController();
-    setState((s) => ({ key, data: keep || s.key === key ? s.data : null, error: null, loading: true }));
+    setState((s) => (keep || s.key === key ? { ...s, key, error: null, loading: true } : { key, data: null, dataKey: null, error: null, loading: true }));
     const t = window.setTimeout(() => {
       fnRef.current(ac.signal)
-        .then((data) => { if (!ac.signal.aborted) setState({ key, data, error: null, loading: false }); })
-        .catch((error: unknown) => { if (!ac.signal.aborted) setState({ key, data: null, error, loading: false }); });
+        .then((data) => { if (!ac.signal.aborted) setState({ key, data, dataKey: key, error: null, loading: false }); })
+        .catch((error: unknown) => { if (!ac.signal.aborted) setState({ key, data: null, dataKey: null, error, loading: false }); });
     }, delay);
     return () => {
       window.clearTimeout(t);
@@ -42,7 +44,7 @@ export function useGithubQuery<T>(key: string | null, fn: (signal: AbortSignal) 
   }, [key, nonce, delay, keep]);
 
   const retry = useCallback(() => setNonce((n) => n + 1), []);
-  return { data: state.data, error: state.error, loading: state.loading, retry };
+  return { data: state.data, dataKey: state.dataKey, error: state.error, loading: state.loading, retry };
 }
 
 export default useGithubQuery;

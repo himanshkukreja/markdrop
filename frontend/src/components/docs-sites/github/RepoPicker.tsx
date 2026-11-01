@@ -366,8 +366,9 @@ export default function RepoPicker({ workspace, returnTo, onChange, disabled }: 
   const [fmtSel, setFmtSel] = useState<{ key: string; value: GithubFormatChoice } | null>(null);
   const format: GithubFormatChoice = fmtSel?.key === repoKey ? fmtSel.value : "auto";
 
+  const inspectKey = target && detail.data && branch ? `i|${workspace}|${repoKey}|${branch}|${path}|${installationId ?? ""}|${format}` : null;
   const inspect = useGithubQuery<GithubInspect>(
-    target && detail.data && branch ? `i|${workspace}|${repoKey}|${branch}|${path}|${installationId ?? ""}|${format}` : null,
+    inspectKey,
     (signal) => inspectGithubRepo({ workspace, owner: target!.owner, name: target!.name, branch: branch!, path, installationId, format }, signal),
     { delay: fs?.other ? 500 : 150 },
   );
@@ -395,7 +396,8 @@ export default function RepoPicker({ workspace, returnTo, onChange, disabled }: 
   const [syncConnectError, setSyncConnectError] = useState("");
 
   const sel = inspect.data?.selected ?? null;
-  const ready = !!(target && repo && branch && sel && !inspect.loading && !detail.loading && sel.pages > 0);
+  // Only an answer for exactly what's chosen now counts (not the folder before, still on screen).
+  const ready = !!(target && repo && branch && sel && inspect.dataKey === inspectKey && !inspect.loading && !detail.loading && sel.pages > 0);
   const choice: GithubRepoChoice | null = ready
     ? { installation_id: installationId, owner: repo!.owner, name: repo!.name, branch: branch!, path, format, mode, sync }
     : null;
