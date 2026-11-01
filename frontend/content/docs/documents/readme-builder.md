@@ -1,7 +1,7 @@
 ---
 title: Build a README
 description: Assemble a README from 49 ready-made sections, reorder them, see it render, then copy, download or publish it.
-updated: 2026-10-30
+updated: 2026-11-01
 keywords: [readme, builder, template, github profile, sections, readme.md]
 ---
 
@@ -59,7 +59,7 @@ Diagram and math sections render on Markdrop. GitHub renders Mermaid and math to
 
 ## Publish it as a link
 
-Choose **Publish…**. The **Publish README** dialog has the same settings as any document: **Link**, **Who can open it**, **Encrypt in this browser**, **Password** and **Expires**, plus **Location** if you're in a workspace. Choose **Publish** and the README opens at its new link.
+Choose **Publish…**. The **Publish README** dialog has the same settings as any document: **Link**, **Who can open it**, **Encrypt in this browser**, **Password** and **Expires**, plus **Location** if you're in a workspace. With encryption on, the password moves into the encryption settings as **Also require a password**, and it's checked in the reader's browser. See [End-to-end encryption](/sharing/end-to-end-encryption#add-a-password). Choose **Publish** and the README opens at its new link.
 
 From then on it's an ordinary Markdrop document: edit it, share it, or check who read it. Later changes in the builder don't reach the published copy, and publishing again makes a new link. To update the same link, open the document, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Edit**.
 

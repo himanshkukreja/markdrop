@@ -24,6 +24,24 @@
   "next": [],
   "entries": [
     {
+      "id": "encryption-passwords-and-recovery",
+      "date": "2026-11-01",
+      "title": "Encrypted documents: an optional password, recovery and a look under the hood",
+      "kind": "improved",
+      "area": "Security",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Require a password on top of the link, get back into a document with a pasted link or a saved key, save copies in your browser, and see exactly how a document is protected.",
+      "body": "- **Also require a password:** readers need the link and the password. It's checked in their browser and never sent to Markdrop. After publishing, **Copy link** and **Copy password** are separate, so you can send them separately.\n- **A stronger format:** AES-256-GCM with keys derived by HKDF-SHA256, a key commitment checked before decrypting (so a wrong or old key is told apart from altered content), and padding so the stored size doesn't give away the exact length. Older documents keep opening, and saving one upgrades it without changing the link.\n- **Recovery:** paste the full link on the no-key screen, keep the key through signing in, and fall back to a key saved in this browser when the link's key doesn't open the current version.\n- **Readers choose** whether a device remembers the key, and signing out offers to forget saved keys.\n- **No lost edits:** a save over a newer version, or after the owner issued a new key, is refused instead of written over it.\n- **Save a copy** of an encrypted document in your browser, encrypted with a new key or unencrypted.\n- **How this is protected:** a panel showing the format, the algorithms, where the key came from and the start of what our servers store.\n- **Images from other sites** in an encrypted document wait for the reader's click, and PostHog and Google Analytics don't run on an encrypted document's page.",
+      "docs": [
+        "/sharing/end-to-end-encryption",
+        "/documents/passwords-and-expiry",
+        "/security/privacy"
+      ]
+    },
+    {
       "id": "guides-beta",
       "date": "2026-10-31",
       "title": "Markdrop Guides (beta): build and host guides for your product",

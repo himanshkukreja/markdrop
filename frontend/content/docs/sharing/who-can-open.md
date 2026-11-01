@@ -1,7 +1,7 @@
 ---
 title: Who can open what
 description: Every document and file is open to anyone with the link, only people added, or a workspace team. Here is how each choice works with passwords and sign-in.
-updated: 2026-10-30
+updated: 2026-11-01
 keywords: [access, permissions, private, public, team, who can see, visibility, access level]
 ---
 
@@ -59,7 +59,7 @@ A password only applies to **Anyone with the link**, and only to strangers. You,
 
 ### Encryption
 
-An end-to-end encrypted document needs the full link, with its `#k=` key, on top of everything else. Adding someone by email lets them fetch it; it doesn't give them the key. See [End-to-end encryption](/sharing/end-to-end-encryption).
+An end-to-end encrypted document needs the full link, with its `#k=` key, on top of everything else, and its password if it has one. That password is checked in the reader's browser, not by Markdrop, so nobody skips it: not the owner, not people you added. Adding someone by email lets them fetch the encrypted text; it doesn't give them the key. Send them the whole link. See [End-to-end encryption](/sharing/end-to-end-encryption).
 
 ### Workspaces that require sign-in
 
@@ -94,7 +94,7 @@ Add people by email with Can view or Can edit.
 Ask an owner for access, or answer someone who asked you.
 :::
 :::card[End-to-end encryption]{href="/sharing/end-to-end-encryption" icon="lock"}
-Encrypt a document so Markdrop stores only ciphertext.
+Encrypt a document in your browser, with an optional password. Markdrop never receives the key.
 :::
 :::card[Workspace privacy]{href="/workspaces/privacy" icon="globe"}
 Set defaults for a whole team, or require sign-in for everything.

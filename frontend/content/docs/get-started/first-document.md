@@ -1,7 +1,7 @@
 ---
 title: Publish your first document
 description: Write or paste Markdown at markdrop.in/new, choose Publish, and share the link. No account needed.
-updated: 2026-10-30
+updated: 2026-11-01
 keywords: [publish, new document, markdown, quickstart, edit secret]
 ---
 
@@ -67,6 +67,6 @@ Everything the renderer supports, from tables to diagrams and math.
 Ask readers for a password, or have the link stop working on a date.
 :::
 :::card[Encrypt it in your browser]{href="/sharing/end-to-end-encryption" icon="eyeOff"}
-Publish so that Markdrop stores only ciphertext it has no key for.
+Markdrop stores only the encrypted text and never receives the key. Add a password if you like.
 :::
 ::::

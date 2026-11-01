@@ -1,7 +1,7 @@
 ---
 title: Share with specific people
 description: Add people by email with Can view or Can edit, email them a note, let them share it on, and remove them later.
-updated: 2026-10-30
+updated: 2026-11-01
 prerequisites: [/get-started/accounts]
 keywords: [share, invite, email, grant, collaborator, can view, can edit, reshare]
 ---
@@ -86,7 +86,7 @@ It's on by default for documents outside a workspace, and off by default for doc
 
 ## Encrypted documents
 
-Adding someone to an end-to-end encrypted document lets them fetch it, but they still need the full link, including the part after `#`. Send them the whole link. See [End-to-end encryption](/sharing/end-to-end-encryption).
+Adding someone to an end-to-end encrypted document lets them fetch it, but they still need the full link, including the part after `#`, and its password if it has one. Send them the whole link, and the password in a separate message. See [End-to-end encryption](/sharing/end-to-end-encryption).
 
 ## Related
 

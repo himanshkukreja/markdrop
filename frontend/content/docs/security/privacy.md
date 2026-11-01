@@ -11,7 +11,7 @@ This page explains, in plain terms, what Markdrop keeps and why. The [privacy po
 
 Documents and files you publish are stored so the link can show them. Anyone with a link set to **Anyone with the link** can open it. Private, password-protected and workspace items are checked before they open. See [Who can open a link](/sharing/who-can-open).
 
-[End-to-end encrypted](/sharing/end-to-end-encryption) documents are encrypted in your browser. Markdrop's servers store only the encrypted text and never receive the key — the part of the link after `#`. Anyone with the full link can read it, and Markdrop can't recover it. Markdrop still sees the link name, the size of the encrypted text, dates and view counts, and the page code that does the encrypting is served by Markdrop.
+[End-to-end encrypted](/sharing/end-to-end-encryption) documents are encrypted in your browser. Markdrop's servers store only the encrypted text and never receive the key — the part of the link after `#` — or the document's password, if it has one. Anyone with the full link (and the password) can read it, and Markdrop can't recover either. Markdrop still sees the link name, the size of the encrypted text (rounded), dates, view counts and who it's shared with, and the page code that does the encrypting is served by Markdrop. Images from other sites in an encrypted document load only when the reader chooses, because loading them tells those sites the reader's IP address.
 
 Documents you set to expire are deleted when they expire. You can delete anything you own from your dashboard.
 

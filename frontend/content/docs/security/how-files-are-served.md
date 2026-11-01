@@ -1,7 +1,7 @@
 ---
 title: How files are served
 description: Why uploaded files open from a separate site, how protected files use short-lived links, and what Markdrop stores for passwords and keys.
-updated: 2026-10-30
+updated: 2026-11-01
 keywords: [security, isolation, sandbox, origin, signed url, html, xss, passwords, edit key, encryption]
 ---
 
@@ -42,7 +42,7 @@ Old versions of a file are never public. See [Replace a file and versions](/file
 
 - **Read passwords** are stored as bcrypt hashes, never as the password itself. Too many wrong guesses for a document from one place are refused for a while.
 - **Edit keys** (they start with `sk_`) are stored as bcrypt hashes. You can rotate one if it leaks. See [Your edit key](/documents/edit-key).
-- **End-to-end encrypted documents** are encrypted in your browser with AES-256-GCM. The key is in the part of the link after `#k=`, which browsers never send to a server, so Markdrop stores only ciphertext and can't read it. See [End-to-end encryption](/sharing/end-to-end-encryption).
+- **End-to-end encrypted documents** are encrypted in your browser with AES-256-GCM, with keys derived by HKDF-SHA256 and a key commitment checked before decrypting. The key is in the part of the link after `#k=`, which browsers never send to a server. An optional password goes through PBKDF2-SHA256 in the reader's browser and is never sent either. Markdrop stores only the encrypted text and can't read it. See [End-to-end encryption](/sharing/end-to-end-encryption).
 
 ## Workspace logos and favicons
 

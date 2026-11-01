@@ -1,8 +1,8 @@
 ---
 title: Frequently asked questions
-description: Short answers about accounts, sharing, workspaces, domains, analytics, peer-to-peer transfers and your data.
-updated: 2026-10-30
-keywords: [faq, questions, help, account, free, delete account, who can see]
+description: Short answers about accounts, sharing, encryption, workspaces, domains, analytics, peer-to-peer transfers and your data.
+updated: 2026-11-01
+keywords: [faq, questions, help, account, free, delete account, who can see, encryption, lost link, forgot password]
 ---
 
 ## Accounts
@@ -31,6 +31,24 @@ No. A folder link never opens anything by itself. Each visitor sees only the ite
 
 :::details[What happens to my files if I leave a workspace, or it's deleted?]
 You keep them. When you leave, files you added stay in the workspace and you still own them. When a workspace is deleted, every file goes back to the person who owns it, with the same link and analytics; anything that was open to the team becomes "Only people added".
+:::
+
+## Encrypted documents
+
+:::details[Can Markdrop read an end-to-end encrypted document?]
+No. It's encrypted in your browser. Our servers store only the encrypted text and never receive the key — the part of the link after `#` — or the password, if you set one. Markdrop still sees the link name, the size, dates, view counts and who it's shared with. See [End-to-end encryption](/sharing/end-to-end-encryption#what-markdrop-can-and-cant-see).
+:::
+
+:::details[I lost the link to an encrypted document, or forgot its password. Can you help?]
+Markdrop can't: it never had the key or the password. Open the document in the browser you published from, which keeps the key, and choose **Copy full link**. If you find the link in a message, paste it into **Have the full link? Paste it here**. A forgotten password can't be reset. See [Keep the link safe](/sharing/end-to-end-encryption#keep-the-link-safe).
+:::
+
+:::details[How do I send an encrypted document with a password?]
+Send the link and the password separately, in two different messages or apps. After you publish, the **Published** panel has **Copy link** and **Copy password**. See [Share the link and the password](/sharing/end-to-end-encryption#share-the-link-and-the-password).
+:::
+
+:::details[I issued a new key. Can people with the old link still read it?]
+Not the current version: old links stop opening it. Anyone who saved a copy of what they already read keeps that copy. See [Issue a new key or change the password](/sharing/end-to-end-encryption#issue-a-new-key-or-change-the-password).
 :::
 
 ## Domains

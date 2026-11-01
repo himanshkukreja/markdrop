@@ -1,8 +1,8 @@
 ---
 title: Passwords and expiry
 description: Ask readers for a password before a document or file opens, and have its link stop working after a day, a week, a month or on a date.
-updated: 2026-10-30
-keywords: [password, expiry, expire, ttl, self-destruct, X-Read-Password]
+updated: 2026-11-01
+keywords: [password, expiry, expire, ttl, self-destruct, X-Read-Password, encrypted password]
 ---
 
 A password makes readers type something before a link opens. An expiry makes the link stop working at a time you choose. Both work on documents and files, and you can set them when you publish or change them later.
@@ -30,6 +30,18 @@ A password only matters when **Who can open it** is **Anyone with the link**. A 
 ### Wrong guesses
 
 After 10 wrong passwords in a minute, or 50 in an hour, from the same IP address, Markdrop stops checking passwords for a while, and the password box shows an error even for the right one. Wait a few minutes and try again.
+
+## Passwords on encrypted documents
+
+The password on this page is checked by Markdrop's server before it sends the document. That's different from encryption: the server knows the right answer, and it's the one deciding.
+
+An [end-to-end encrypted](/sharing/end-to-end-encryption) document has its own password instead. Turn on **Encrypt in this browser**, then **Also require a password**; the **Password** chip makes way for it. That password is mixed into the key in the reader's browser and is never sent to Markdrop, so:
+
+- readers need the full link *and* the password, and nobody skips it, not even you;
+- Markdrop can't check it, count wrong guesses or reset it, and the `X-Read-Password` header doesn't apply;
+- you change or remove it in **Edit › Settings**, under **Password**, while the document is open with its full link.
+
+Some encrypted documents were published before they had their own password, with the server-checked one. They keep it until you remove it: open the document with its full link, choose **Edit › Settings**, and tick **Remove it** under **Older server-checked password**. Set the encrypted password above it at the same time if you still want one.
 
 ## Set an expiry
 

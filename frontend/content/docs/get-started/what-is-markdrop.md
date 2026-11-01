@@ -1,7 +1,7 @@
 ---
 title: What is Markdrop
 description: Markdrop turns documents and files into links that open rendered in any browser. Here is what it does and where to start.
-updated: 2026-10-30
+updated: 2026-11-01
 keywords: [overview, introduction, markdown, artifacts, files, links]
 ---
 
@@ -35,7 +35,7 @@ You stay in control of the link after you share it:
 
 - **Edit it.** Change a document's text or swap the file behind a link. The address stays the same, and pages that are open update in place.
 - **Decide who can open it.** Keep it open to anyone with the link, limit it to people you add by email, or to your team. See [Who can open what](/sharing/who-can-open).
-- **Lock it down further.** Add a password, set it to expire, or encrypt a document in your browser so Markdrop stores only ciphertext it has no key for.
+- **Lock it down further.** Add a password, set it to expire, or [encrypt a document in your browser](/sharing/end-to-end-encryption): Markdrop stores only the encrypted text and never receives the key, and you can require a password on top.
 - **See who reads it.** Signed in, you get views, read depth and, for video, how much people watched. See [Analytics](/analytics/overview).
 
 ## When teams use it
