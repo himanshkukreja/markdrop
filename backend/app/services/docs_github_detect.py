@@ -118,10 +118,15 @@ def suggest_folders(paths: list[str]) -> list[str]:
     files = [p for p in paths if usable(p)]
     names = set(files)
     out: list[str] = []
+    projects: list[str] = []  # folders with a config: their own docs folder isn't offered again
 
-    def add(f: str) -> None:
+    def add(f: str, project: bool = True) -> None:
+        if not project and any(under(f, c) for c in projects):
+            return
         if f not in out:
             out.append(f)
+        if project:
+            projects.append(f)
 
     for p in files:
         if p.endswith(("/docs.json", "/mint.json")) or p in ("docs.json", "mint.json"):
@@ -141,8 +146,9 @@ def suggest_folders(paths: list[str]) -> list[str]:
             add(parent(p))
     for f in ("docs", "website/docs", "documentation", "doc"):
         if any(under(p, f) and is_page(rel(p, f)) for p in files):
-            add(f)
-    add("")
+            add(f, project=False)
+    if "" not in out:
+        out.append("")
     return out[:MAX_FOLDERS]
 
 

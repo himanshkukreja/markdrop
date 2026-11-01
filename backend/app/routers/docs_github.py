@@ -18,8 +18,6 @@ services/docs_github_app.py (GitHub), docs_github_detect.py (the preview), docs_
 App-internal (kept out of the public schema), like the docs-sites API.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 

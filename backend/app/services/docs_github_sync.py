@@ -451,7 +451,9 @@ async def import_spec(db: AsyncIOMotorDatabase, job: dict) -> dict:
 
 async def job_failed(db: AsyncIOMotorDatabase, job: dict, error: str) -> None:
     """The runner reported a failed GitHub import: the history row and the link say so."""
-    if ((job.get("payload") or {}).get("source") or {}).get("kind") != "github":
+    from app.services.docs_import_job import source_of
+
+    if source_of(job).get("kind") != "github":
         return
     t = now()
     await db[SYNCS].update_one({"job_id": job["_id"]}, {"$set": {"status": "failed", "error": str(error)[:500], "finished_at": t}})
