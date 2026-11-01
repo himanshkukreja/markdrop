@@ -239,11 +239,11 @@ export function EntryEditor({ entryId, overview, pages, onClose, onSaved, onDele
   ) : null;
 
   const saveState = !canEdit ? null : busy ? (
-    <span className="inline-flex items-center gap-1.5 text-[12px] text-text-muted" aria-live="polite"><Spinner size={11} /> Saving…</span>
+    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] text-text-muted" aria-live="polite"><Spinner size={11} /> Saving…</span>
   ) : dirty ? (
-    <span className="inline-flex items-center gap-1.5 text-[12px] text-text-muted"><Icon name="edit" size={13} /> Unsaved changes</span>
+    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] text-text-muted"><Icon name="edit" size={13} /> Unsaved changes</span>
   ) : entry ? (
-    <span className="inline-flex items-center gap-1.5 text-[12px] text-text-muted" title={entry.updated_at ? `Saved ${timeAgo(entry.updated_at)}` : undefined}><Icon name="checkCircle" size={13} /> Saved</span>
+    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] text-text-muted" title={entry.updated_at ? `Saved ${timeAgo(entry.updated_at)}` : undefined}><Icon name="checkCircle" size={13} /> Saved</span>
   ) : null;
 
   return (
@@ -395,8 +395,10 @@ export function EntryEditor({ entryId, overview, pages, onClose, onSaved, onDele
                               onChange={() => set("products", on ? draft.products.filter((x) => x !== p.id) : [...draft.products, p.id])}
                               label={<span className="ph-sensitive ph-mask truncate">{p.label}</span>}
                             />
-                            <Input aria-label={`${p.label} version`} size="sm" mono value={draft.versions[p.id] ?? ""} placeholder="Version" disabled={!on || readOnly}
-                              onChange={(e) => set("versions", { ...draft.versions, [p.id]: e.target.value })} wrapClassName="w-[110px] shrink-0" />
+                            <div className="w-[104px] shrink-0">
+                              <Input aria-label={`${p.label} version`} size="sm" mono value={draft.versions[p.id] ?? ""} placeholder={on ? "Version" : ""} disabled={!on || readOnly}
+                                onChange={(e) => set("versions", { ...draft.versions, [p.id]: e.target.value })} />
+                            </div>
                           </li>
                         );
                       })}
@@ -410,8 +412,10 @@ export function EntryEditor({ entryId, overview, pages, onClose, onSaved, onDele
                   {draft.highlights.map((h, i) => (
                     <div key={i} className="flex items-center gap-1.5">
                       <Icon name="check" size={14} className="shrink-0 text-success" />
-                      <Input aria-label={`Highlight ${i + 1}`} size="sm" value={h} readOnly={readOnly} maxLength={LIMITS.highlight + 10} placeholder="Follows the system by default"
-                        onChange={(e) => set("highlights", draft.highlights.map((x, k) => (k === i ? e.target.value : x)))} className="ph-sensitive ph-mask" wrapClassName="min-w-0 flex-1" />
+                      <div className="min-w-0 flex-1">
+                        <Input aria-label={`Highlight ${i + 1}`} size="sm" value={h} readOnly={readOnly} maxLength={LIMITS.highlight + 10} placeholder="Follows the system by default"
+                          onChange={(e) => set("highlights", draft.highlights.map((x, k) => (k === i ? e.target.value : x)))} className="ph-sensitive ph-mask" />
+                      </div>
                       {canEdit && <IconButton icon="x" label={`Remove highlight ${i + 1}`} size="sm" onClick={() => set("highlights", draft.highlights.filter((_, k) => k !== i))} />}
                     </div>
                   ))}

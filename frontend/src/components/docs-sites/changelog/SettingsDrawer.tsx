@@ -42,6 +42,7 @@ export function SettingsDrawer({ open, onClose, siteId, settings, focus, canEdit
     setProducts(settings.products.map((p) => ({ ...p })));
     setNext(settings.next.map((n) => ({ ...n })));
     setError("");
+    if (focus === "page") return;
     const t = window.setTimeout(() => document.getElementById(`${uid}-${focus}`)?.scrollIntoView({ block: "start" }), 120);
     return () => window.clearTimeout(t);
   }, [open, settings, focus, uid]);
@@ -149,8 +150,10 @@ export function SettingsDrawer({ open, onClose, siteId, settings, focus, canEdit
                 <li key={i} className="flex flex-col gap-2 rounded-lg border border-border bg-surface-inset p-3">
                   <div className="flex items-center gap-2">
                     <span className="grid size-6 shrink-0 place-items-center rounded-full bg-surface text-[12px] font-semibold text-text-secondary" aria-hidden>{i + 1}</span>
-                    <Input aria-label={`Item ${i + 1} title`} value={n.title} maxLength={120} placeholder="Offline mode" disabled={!canEdit}
-                      onChange={(e) => setNext((xs) => xs.map((x, k) => (k === i ? { ...x, title: e.target.value } : x)))} className="ph-sensitive ph-mask" wrapClassName="min-w-0 flex-1" />
+                    <div className="min-w-0 flex-1">
+                      <Input aria-label={`Item ${i + 1} title`} value={n.title} maxLength={120} placeholder="Offline mode" disabled={!canEdit}
+                        onChange={(e) => setNext((xs) => xs.map((x, k) => (k === i ? { ...x, title: e.target.value } : x)))} className="ph-sensitive ph-mask" />
+                    </div>
                     {canEdit && (
                       <span className="flex shrink-0">
                         <IconButton icon="arrowUp" label={`Move item ${i + 1} up`} size="sm" disabled={i === 0} onClick={() => setNext((xs) => move(xs, i, -1))} />

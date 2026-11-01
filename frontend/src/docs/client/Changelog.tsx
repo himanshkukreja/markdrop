@@ -196,7 +196,12 @@ export function ReleaseVisual({ e, compact }: { e: HubEntry; compact?: boolean }
       <span className="dxc-visual__stage">
         <span className="dxc-tile dxc-tile--ghost" />
         {left.map((p) => tile(p))}
-        {lead && tile(lead, true)}
+        {lead ? tile(lead, true) : (
+          // No products (most guides): the kind's glyph is the lit tile.
+          <span className="dxc-tile dxc-tile--lead" style={{ "--i": i++ } as React.CSSProperties}>
+            <Icon name={KIND[e.kind].icon} />
+          </span>
+        )}
         {right.map((p) => tile(p))}
         {v && (
           <span className="dxc-tile dxc-tile--ver" style={{ "--i": i++ } as React.CSSProperties}>
