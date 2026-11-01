@@ -100,12 +100,18 @@ function ChecksTab({ checks, onShow, onFix, readOnly, outline, active, onOutline
 }
 
 /** The Page tab: address, icon, description (meta description and llms.txt), "Show in the sidebar". */
-function PageTab({ fields, readOnly, isHome, onChange, access }: { fields: PageFields; readOnly: boolean; isHome: boolean; onChange: (patch: Partial<PageFields>) => void; access?: PageAccessInfo }) {
+function PageTab({ fields, readOnly, isHome, onChange, origin, access }: { fields: PageFields; readOnly: boolean; isHome: boolean; onChange: (patch: Partial<PageFields>) => void; origin?: string | null; access?: PageAccessInfo }) {
   const uid = useId();
   const bad = pathProblem(fields.path);
   const over = fields.description.length > DESCRIPTION_MAX;
   return (
     <div className="flex flex-col gap-4">
+      {origin && (
+        <p className="flex min-w-0 items-start gap-2 rounded-md bg-surface-inset px-2.5 py-2 text-[12px] text-text-secondary">
+          <Icon name="github" size={13} className="mt-px shrink-0" />
+          <span className="min-w-0">From GitHub: <code className="ph-sensitive ph-mask font-mono [overflow-wrap:anywhere]">{origin}</code>. Its title, description and icon come from the file too.</span>
+        </p>
+      )}
       <Field label="Address" htmlFor={`${uid}-path`} error={bad || undefined} hint={isHome ? "The home page is always /." : "Change it and the old address redirects to the new one (Settings › Redirects)."}>
         <Input id={`${uid}-path`} className="ph-no-capture" mono size="sm" value={fields.path} readOnly={readOnly || isHome} spellCheck={false} autoCapitalize="none" onChange={(e) => onChange({ path: e.target.value.toLowerCase() })} />
       </Field>
@@ -337,7 +343,7 @@ export function EditorPanel({
         {current === "checks" && (
           <ChecksTab checks={checks} onShow={onShow} onFix={onFix} readOnly={readOnly} outline={outline} active={activeHeading} onOutline={onOutline} mode={mode} />
         )}
-        {current === "page" && <PageTab fields={fields} readOnly={readOnly} isHome={isHome} onChange={onChange} access={access} />}
+        {current === "page" && <PageTab fields={fields} readOnly={readOnly} isHome={isHome} onChange={onChange} origin={page.origin?.kind === "github" ? page.origin.path : null} access={access} />}
         {current === "comments" && comments}
         {current === "history" && <HistoryTab page={page} title={fields.title} readOnly={readOnly} onRestore={onRestore} />}
       </div>

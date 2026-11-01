@@ -283,7 +283,7 @@
         "/guides/overview",
         "/guides/create-a-site",
         "/guides/import-from-gitbook",
-        "/guides/github-sync"
+        "/guides/import-from-github"
       ]
     },
     {
@@ -325,6 +325,7 @@
         "/guides/private-pages",
         "/guides/ask-ai",
         "/guides/insights",
+        "/guides/fix-list",
         "/guides/api-reference"
       ]
     },

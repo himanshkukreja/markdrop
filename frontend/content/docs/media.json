@@ -1063,6 +1063,78 @@
     "bytes": 88044,
     "kind": "image"
   },
+  "/docs-assets/guides/fix-list/fixlist-agents.dark.webp": {
+    "w": 688,
+    "h": 940,
+    "bytes": 27642,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-agents.webp": {
+    "w": 688,
+    "h": 940,
+    "bytes": 28832,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-drawer.dark.webp": {
+    "w": 1120,
+    "h": 2600,
+    "bytes": 105000,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-drawer.webp": {
+    "w": 1120,
+    "h": 2600,
+    "bytes": 107416,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-editor.dark.webp": {
+    "w": 1592,
+    "h": 1490,
+    "bytes": 46444,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-editor.webp": {
+    "w": 1592,
+    "h": 1490,
+    "bytes": 45316,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-empty.dark.webp": {
+    "w": 2360,
+    "h": 2020,
+    "bytes": 141194,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-empty.webp": {
+    "w": 2360,
+    "h": 2020,
+    "bytes": 142486,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-overview.dark.webp": {
+    "w": 2312,
+    "h": 1920,
+    "bytes": 142100,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-overview.webp": {
+    "w": 2312,
+    "h": 1920,
+    "bytes": 143904,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-video.dark.webp": {
+    "w": 1120,
+    "h": 1112,
+    "bytes": 39142,
+    "kind": "image"
+  },
+  "/docs-assets/guides/fix-list/fixlist-video.webp": {
+    "w": 1120,
+    "h": 1112,
+    "bytes": 41052,
+    "kind": "image"
+  },
   "/docs-assets/guides/history/publishes-list.dark.webp": {
     "w": 2192,
     "h": 970,
@@ -1085,6 +1157,54 @@
     "w": 576,
     "h": 710,
     "bytes": 22494,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/import-done.dark.webp": {
+    "w": 1760,
+    "h": 1560,
+    "bytes": 85400,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/import-done.webp": {
+    "w": 1760,
+    "h": 1560,
+    "bytes": 83714,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/import-form.dark.webp": {
+    "w": 1664,
+    "h": 2260,
+    "bytes": 102258,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/import-form.webp": {
+    "w": 1664,
+    "h": 2260,
+    "bytes": 107224,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/settings-github.dark.webp": {
+    "w": 1640,
+    "h": 2424,
+    "bytes": 99894,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/settings-github.webp": {
+    "w": 1640,
+    "h": 2424,
+    "bytes": 102802,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/synced-page.dark.webp": {
+    "w": 1760,
+    "h": 880,
+    "bytes": 65072,
+    "kind": "image"
+  },
+  "/docs-assets/guides/import-from-github/synced-page.webp": {
+    "w": 1760,
+    "h": 880,
+    "bytes": 67076,
     "kind": "image"
   },
   "/docs-assets/guides/import/import-form.dark.webp": {
@@ -1509,18 +1629,6 @@
     "w": 2880,
     "h": 216,
     "bytes": 20438,
-    "kind": "image"
-  },
-  "/docs-assets/guides/repo-sync/repo-coming-soon.dark.webp": {
-    "w": 1728,
-    "h": 926,
-    "bytes": 60128,
-    "kind": "image"
-  },
-  "/docs-assets/guides/repo-sync/repo-coming-soon.webp": {
-    "w": 1728,
-    "h": 926,
-    "bytes": 61018,
     "kind": "image"
   },
   "/docs-assets/guides/reviews/request-changes.dark.webp": {
@@ -2273,10 +2381,7 @@
     "kind": "poster"
   },
   "/docs-assets/videos/guides-trailer.mp4": {
-    "w": 1920,
-    "h": 1080,
-    "duration": 135.1,
-    "bytes": 17722603,
+    "bytes": 16596610,
     "kind": "video"
   },
   "/docs-assets/videos/guides-trailer.webp": {

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Acme",
+  "colors": { "primary": "#2563EB", "light": "#60A5FA", "dark": "#1D4ED8" },
+  "logo": { "light": "/logo/light.png", "dark": "/logo/dark.png" },
+  "favicon": "/logo/favicon.png",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guides",
+        "groups": [
+          { "group": "Get started", "pages": ["introduction", "quickstart"] },
+          { "group": "Concepts", "pages": ["concepts/projects", "concepts/environments"] },
+          { "group": "Guides", "pages": ["guides/alerts", "guides/sharing", "changelog"] }
+        ]
+      },
+      {
+        "tab": "API reference",
+        "groups": [{ "group": "API", "pages": ["api-reference/overview"] }],
+        "openapi": "openapi.yaml"
+      }
+    ]
+  },
+  "redirects": [{ "source": "/start", "destination": "/quickstart" }]
+}

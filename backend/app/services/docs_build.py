@@ -436,11 +436,25 @@ async def finish_build(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
     if moved:
         out["old_hosts_removed"] = moved
     await _reconcile_access(db, build["site_id"], result.get("access"))
+    await _fixes_published(db, build["site_id"])
     await docs_jobs.complete(db, job["_id"], worker, out)
     await docs_jobs.log_event(db, "docs_build_live", build["site_id"], build.get("requested_by"),
                               build_id=str(build["_id"]), number=build.get("number"), pages=stats.get("pages"),
                               ms=stats.get("ms"), target=job.get("target"))
     return out
+
+
+async def _fixes_published(db: AsyncIOMotorDatabase, site_id: Any) -> None:
+    """The Fix list (services/guide_fixes.py): drafted fixes applied in the editor are fixed once a
+    publish changes their page. Never fails the build."""
+    from app.services import guide_fixes
+
+    try:
+        site = await db[SITES].find_one({"_id": site_id})
+        if site:
+            await guide_fixes.reconcile_applied(db, site)
+    except Exception:
+        log.warning("fix list: publish reconcile failed for %s", site_id, exc_info=True)
 
 
 async def _reconcile_access(db: AsyncIOMotorDatabase, site_id: Any, written: Any) -> None:

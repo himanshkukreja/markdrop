@@ -1,0 +1,39 @@
+---
+title: Quickstart
+description: Connect a source and build your first dashboard in five minutes.
+icon: rocket
+---
+
+<Steps>
+  <Step title="Create a project">
+    Sign in to Acme and choose **New project**. A project holds your dashboards, sources and the people who can see them.
+  </Step>
+  <Step title="Connect a source">
+    Choose **Add source** and pick where your data lives. Acme reads it; it never writes to it.
+
+    <Tip>Start with a spreadsheet: it takes a minute and you can swap it later.</Tip>
+  </Step>
+  <Step title="Build a dashboard">
+    Choose **New dashboard**, drag a metric onto the canvas and pick a chart.
+  </Step>
+</Steps>
+
+## Install the CLI
+
+<CodeGroup>
+
+```bash npm
+npm install -g @acme/cli
+```
+
+```bash Homebrew
+brew install acme/tap/acme
+```
+
+</CodeGroup>
+
+Then sign in:
+
+```bash
+acme login
+```

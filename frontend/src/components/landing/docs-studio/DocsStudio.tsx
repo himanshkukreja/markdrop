@@ -24,7 +24,7 @@ const TRAILER: Trailer = {
   src: "/docs-assets/videos/guides-trailer.mp4",
   poster: "/docs-assets/videos/guides-trailer.webp",
   title: "Markdrop Guides in two minutes",
-  duration: "2:15",
+  duration: "2:29",
   chaptersSrc: "/docs-assets/videos/guides-trailer.vtt",
   captionsSrc: "/docs-assets/videos/guides-trailer.captions.vtt",
   w: 1920,

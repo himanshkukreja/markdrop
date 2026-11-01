@@ -7,7 +7,7 @@
  * address or domain, a URL (an import's source included), CSS, a note or an email.
  *
  *   guide_created                 source: blank|template|import|github, template?: product|api|helpcenter, workspace
- *   guide_import_started          source: gitbook
+ *   guide_import_started          source: gitbook | github (+ sync, mode for github)
  *   guide_page_created / guide_page_deleted / guide_page_restored
  *   guide_publish_requested       note (a publish note was written)
  *   guide_review_submitted / guide_review_approved / guide_review_changes_requested / guide_review_withdrawn
@@ -44,12 +44,20 @@
  *   guide_check_fixed             kind: link_missing|image_alt|heading_empty (a page check's Fix)
  *   guide_changelog_entry_created kind: new|improved|fixed (a changelog entry written)
  *   guide_changelog_imported      n (a page of release notes turned into n changelog entries)
+ *   guide_fixes_checked           (the Fix list re-checked now)
+ *   guide_fix_status              type: drop|search|ask|not_helpful|video|pdf|broken|stale|heavy|agent_unanswered|agent_unfriendly, status: open|in_progress|fixed|dismissed
+ *   guide_fix_drafted             type (an AI-drafted fix)
+ *   guide_fix_applied             type, how: editor|new_page (a drafted fix put in a page)
+ *   guide_fix_demo_viewed         (the Fix list's sample, before a guide has readers)
  *
  * What finishes on the server (a build going live or failing, an import finishing or failing) is
  * recorded there, in docs_events, and shown in the admin's Product health tab.
  */
 import { track } from "@/lib/track";
 import { ROLES, createdEvents, pick, sitePatchEvents, type Props, type SitePatchLike } from "@/lib/guidesEventsCore";
+
+const FIX_TYPES = new Set(["drop", "search", "ask", "not_helpful", "video", "pdf", "broken", "stale", "heavy", "agent_unanswered", "agent_unfriendly"]);
+const fixType = (t: string) => pick(t, FIX_TYPES) ?? "other";
 
 /** track() itself stays silent on a customer's published guide (data-docs-trackers="off"). */
 function emit(name: string, props?: Props): void {
@@ -102,6 +110,11 @@ export const guideEvents = {
   findReplace: () => emit("guide_find_replace"),
   commentAdded: () => emit("guide_comment_added"),
   checkFixed: (kind: "link_missing" | "image_alt" | "heading_empty") => emit("guide_check_fixed", { kind }),
+  fixesChecked: () => emit("guide_fixes_checked"),
+  fixStatus: (type: string, status: "open" | "in_progress" | "fixed" | "dismissed") => emit("guide_fix_status", { type: fixType(type), status }),
+  fixDrafted: (type: string) => emit("guide_fix_drafted", { type: fixType(type) }),
+  fixApplied: (type: string, how: "editor" | "new_page") => emit("guide_fix_applied", { type: fixType(type), how }),
+  fixDemo: () => emit("guide_fix_demo_viewed"),
   memberRole: (scope: "workspace" | "site", role: string | null) =>
     emit("guide_member_role_changed", { scope, role: role === null ? "inherit" : pick(role, ROLES) ?? "other" }),
 };

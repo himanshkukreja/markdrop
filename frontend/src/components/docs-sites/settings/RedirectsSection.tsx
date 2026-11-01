@@ -8,7 +8,7 @@ import { num, plural } from "../format";
 import RedirectsEditor from "../RedirectsEditor";
 import { useSite } from "../SiteContext";
 import { LockedNote, SectionHeader, SettingsCard } from "./SettingsShell";
-import { SECTIONS } from "./sections";
+import { blurbOf } from "./sections";
 import usePatch from "./usePatch";
 
 const SHOWN = 10;
@@ -34,7 +34,7 @@ export default function RedirectsSection() {
 
   return (
     <>
-      <SectionHeader title="Redirects" description={SECTIONS.find((s) => s.id === "redirects")?.blurb} />
+      <SectionHeader title="Redirects" description={blurbOf("redirects")} />
       <LockedNote />
       {error && <Alert tone="danger" onDismiss={() => setError("")}>{error}</Alert>}
 

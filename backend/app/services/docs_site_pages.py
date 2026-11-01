@@ -141,7 +141,15 @@ def page_summary(page: dict, live: dict[str, str]) -> dict:
         "rev": (page.get("draft") or {}).get("rev"),
         "updated_at": aware((page.get("draft") or {}).get("updated_at")),
         "updated_by": (page.get("draft") or {}).get("updated_by"),
+        # A page a GitHub repository brings (services/docs_github_sync.py): the next sync replaces it.
+        "origin": _origin(page.get("origin")),
     }
+
+
+def _origin(o) -> dict | None:
+    if not isinstance(o, dict) or o.get("kind") != "github" or not isinstance(o.get("path"), str):
+        return None
+    return {"kind": "github", "path": o["path"], "sha": o.get("sha")}
 
 
 def page_view(page: dict, live: dict[str, str], names: dict[str, str] | None = None) -> dict:
@@ -176,7 +184,7 @@ async def list_pages(db: AsyncIOMotorDatabase, site: dict) -> dict:
         {"site_id": site["_id"], "deleted_at": None},
         {"draft.frontmatter_extra": 1, "draft.markdown": 1, "draft.rev": 1, "draft.updated_at": 1,
          "draft.updated_by": 1, "path": 1, "title": 1, "description": 1, "icon": 1, "hidden": 1, "lock": 1,
-         "site_id": 1},
+         "site_id": 1, "origin": 1},
     ).sort("path", 1).to_list(length=settings.docs_pages_per_site + 50)
     live = await live_hashes(db, site)
     return {"nav": (site.get("settings") or {}).get("nav") or [], "pages": [page_summary(r, live) for r in rows]}

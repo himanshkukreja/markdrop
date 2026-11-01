@@ -5,7 +5,7 @@
  *
  * No shot id or asset path may contain the letters g-i-t (a command guard on the capture machine
  * refuses any command line with them): the GitBook import and GitHub sync shots write to
- * guides/import/ and guides/repo-sync/ through `dir`.
+ * guides/import/ through `dir`.
  *
  *   STACK_ID=13 npm run docs:media -- $(npm run -s docs:media -- --list | awk '/ \/guides\//{print $1}')
  *
@@ -413,29 +413,6 @@ export default [
       await settle(h);
     },
     crop: { selector: "main", pad: 0 },
-  },
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // GitHub sync (coming soon)
-  // ════════════════════════════════════════════════════════════════════════════
-  {
-    id: "repo-coming-soon",
-    page: P("github-sync"),
-    dir: "guides/repo-sync",
-    kind: "screenshot",
-    auth: "owner",
-    url: (fx) => `/guides/new?ws=${fx.northwind.id}`,
-    viewport: { width: 1280, height: 900 },
-    prepare: async (h) => {
-      await h.loc({ role: "heading", name: "New guide" }).waitFor();
-      await vis(h, "Connect a GitHub repo").click();
-      await settle(h);
-    },
-    crop: async (h) => {
-      const a = await mark(h, "src", () => document.querySelector("main form fieldset"));
-      const b = await mark(h, "gh", () => [...document.querySelectorAll("main h2")].find((e) => e.textContent.trim() === "GitHub repository")?.closest("section"));
-      return { union: [a, b], pad: 16 };
-    },
   },
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -1601,6 +1578,131 @@ export default [
       await settle(h, 900);
     },
     crop: { selector: "main", pad: 0 },
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Fix list (Acme: seed_extra_studio.py FIX_WORLD, re-seeded before each shot so earlier shots
+  // that start, fix or apply items don't change the next one; acme-themes for a live guide with no
+  // readers yet)
+  // ════════════════════════════════════════════════════════════════════════════
+  {
+    id: "fixlist-overview",
+    page: P("fix-list"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1500 },
+    prepare: async (h) => {
+      extra("--fix-list");
+      await h.goto(S(h, "/fixes"));
+      await h.page.getByText("Readers leave at", { exact: false }).first().waitFor();
+      await settle(h, 900);
+    },
+    crop: async (h) => {
+      const head = await mark(h, "fx-head", () => document.querySelector("main h1")?.parentElement?.parentElement);
+      const rows = await mark(h, "fx-rows", () => document.querySelector("main ul[aria-label^='Things to fix']")?.children[4]);
+      const side = await mark(h, "fx-side", () => document.querySelector("main aside[aria-label=More]"));
+      return { union: [head, rows, side, "main section[aria-label=Summary]"], pad: 12 };
+    },
+  },
+  {
+    id: "fixlist-drawer",
+    page: P("fix-list"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1300 },
+    prepare: async (h) => {
+      extra("--fix-list");
+      await h.goto(S(h, "/fixes"));
+      await h.page.getByText("Readers leave at", { exact: false }).first().click();
+      await h.page.getByText("Suggested fix", { exact: true }).waitFor();
+      await h.loc(".md-drawer pre").waitFor();
+      await settle(h, 900);
+    },
+    crop: { selector: ".md-drawer", pad: 0 },
+  },
+  {
+    id: "fixlist-video",
+    page: P("fix-list"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 900 },
+    prepare: async (h) => {
+      extra("--fix-list");
+      await h.goto(S(h, "/fixes"));
+      await h.page.getByText("loses most viewers", { exact: false }).first().click();
+      await h.loc(".md-drawer svg[role=img]").waitFor();
+      await settle(h, 900);
+    },
+    crop: async (h) => {
+      const d = await h.loc(".md-drawer").boundingBox();
+      const s = await h.loc(".md-drawer svg[role=img]").boundingBox();
+      return { box: { x: d.x, y: d.y, width: d.width, height: Math.ceil(s.y + s.height + 20 - d.y) } };
+    },
+  },
+  {
+    id: "fixlist-editor",
+    page: P("fix-list"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1300 },
+    prepare: async (h) => {
+      extra("--fix-list");
+      await h.goto(S(h, "/fixes"));
+      await h.page.getByText("Readers leave at", { exact: false }).first().click();
+      await h.page.getByRole("link", { name: "Open in editor" }).click();
+      await h.loc(".dxe-assist").waitFor({ timeout: 60_000 });
+      // The card's bottom well above the editor's status bar (fixed at the bottom of the window).
+      await h.page.evaluate(() => {
+        const r = document.querySelector(".dxe-assist").getBoundingClientRect();
+        window.scrollBy(0, r.bottom - (window.innerHeight - 90));
+        // The editor's status bar is pinned to the window's bottom edge: out of this crop.
+        const bar = [...document.querySelectorAll("main *")].find((e) => getComputedStyle(e).position === "sticky" && /Find and replace/.test(e.textContent || "") && e.getBoundingClientRect().bottom >= window.innerHeight - 2);
+        if (bar) bar.style.visibility = "hidden";
+      });
+      await settle(h, 900);
+    },
+    crop: async (h) => {
+      const a = await h.loc(".dxe-assist").boundingBox();
+      const head = await h.page.locator(".dxe-content h2", { hasText: "Install the CLI" }).first().boundingBox();
+      const top = Math.max(108, (head ? head.y : a.y - 300) - 24);
+      return { box: { x: a.x - 72, y: top, width: a.width + 96, height: Math.ceil(a.y + a.height + 20 - top) } };
+    },
+  },
+  {
+    // A live guide nobody has read yet: what it watches, and the way to the sample.
+    id: "fixlist-empty",
+    page: P("fix-list"),
+    kind: "screenshot",
+    auth: "jordan",
+    url: null,
+    viewport: { width: 1440, height: 1200 },
+    prepare: async (h) => {
+      await themeSite(h, "clean");
+      await h.goto(`/guides/${fxS().themes}/fixes`);
+      await h.page.getByText("See a sample Fix list").waitFor();
+      await settle(h, 900);
+    },
+    crop: { selector: "main", pad: 0 },
+  },
+  {
+    id: "fixlist-agents",
+    page: P("fix-list"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1100 },
+    prepare: async (h) => {
+      extra("--fix-list");
+      await h.goto(S(h, "/fixes"));
+      await h.loc("main aside[aria-label=More]").waitFor();
+      await h.page.getByText("AI agents", { exact: true }).waitFor();
+      await settle(h, 900);
+    },
+    crop: { selector: "main aside[aria-label=More]", pad: 12 },
   },
 
   // ════════════════════════════════════════════════════════════════════════════

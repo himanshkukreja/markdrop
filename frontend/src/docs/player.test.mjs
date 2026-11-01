@@ -74,10 +74,12 @@ test("parseVtt: cues in order, markup stripped, NOTE blocks skipped, settings af
 
 test("parseVtt reads the trailer's chapters and captions files", () => {
   const chapters = parseVtt(fs.readFileSync(path.join(VIDEOS, "guides-trailer.vtt"), "utf8"));
-  assert.equal(chapters.length, 9);
+  assert.equal(chapters.length, 10);
   assert.deepEqual(chapters[0], { start: 0, end: 15, text: "A reader asks; the docs answer" });
   assert.equal(chapters[8].text, "Your own domain");
   assert.equal(chapters[8].start, 117);
+  assert.equal(chapters[9].text, "Changelog: a What's new page");
+  assert.equal(chapters[9].start, 127);
   const captions = parseVtt(fs.readFileSync(path.join(VIDEOS, "guides-trailer.captions.vtt"), "utf8"));
   assert.ok(captions.length > 20);
   assert.equal(captions[0].text, "A reader has a question.");

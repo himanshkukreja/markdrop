@@ -6,7 +6,7 @@ updated: 2026-11-01
 keywords: [markdrop guides, guides, documentation site, help center, knowledge base, product guide, gitbook alternative, hosted docs, beta]
 ---
 
-::video{id="guides-trailer" title="Markdrop Guides in two minutes" duration="2:15"}
+::video{id="guides-trailer" title="Markdrop Guides in two minutes" duration="2:29"}
 
 Markdrop Guides builds and hosts guides for your product: help centers, product guides, API references and handbooks. These pages explain how to use it. You write pages in the browser, pick a theme, and publish to an address like `acme.guides.markdrop.in`. Your readers get search, Ask AI, a changelog they can subscribe to, and pages their AI tools can read.
 
@@ -39,6 +39,9 @@ Start blank or from a template: a product guide, a help center, or an API refere
 :::
 :::card[Import from GitBook]{href="/guides/import-from-gitbook" icon="download"}
 Bring pages, images, navigation and old links across from a public GitBook site.
+:::
+:::card[Import from GitHub]{href="/guides/import-from-github" icon="github"}
+Markdown, GitBook, Mintlify, Docusaurus or MkDocs from a repository, kept in sync on every push.
 :::
 :::card[Write in the editor]{href="/guides/editor" icon="edit"}
 A visual editor with a slash menu for callouts, steps, tabs and code, or plain Markdown.
@@ -79,7 +82,6 @@ To create a guide in a workspace you need to be a Guides admin there. Workspace 
 These are planned and marked **Coming soon** in the app:
 
 - **Password-protected and members-only guides.** For now every published guide is public. See [Guide settings](/guides/site-settings#who-can-read-it).
-- **GitHub sync.** See [GitHub sync](/guides/github-sync).
 
 ## Open Markdrop Guides
 
