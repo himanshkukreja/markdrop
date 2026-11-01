@@ -227,6 +227,12 @@ def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[di
     )
     out["seo"] = {"index": bool((settings.get("seo") or {}).get("index", True)) and public}
     out["integrations"] = {"markdropApp": False}
+    # `::markdrop{src=…}` blocks ask the API about their file when a reader scrolls to them
+    # (services/docs_embeds.py), open it on the app, and frame only the artifact origin.
+    s = get_settings()
+    mf = {k: v.rstrip("/") for k, v in (("api", ai_api), ("app", s.frontend_url), ("files", s.artifact_origin)) if v}
+    if mf:
+        out["markdrop"] = mf
     return out
 
 

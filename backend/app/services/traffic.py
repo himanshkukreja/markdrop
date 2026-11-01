@@ -120,6 +120,9 @@ def channel_for(ref_host: str | None, utm_source: str | None, utm_medium: str | 
     """The marketing channel a session arrived through."""
     medium = (utm_medium or "").lower()
     source = (utm_source or "").lower()
+    if source == "markdrop-guides":
+        # Seen in a docs page (a `::markdrop` block in a Markdrop Guides site or Markdrop's docs).
+        return "Guides"
     if medium in ("email", "e-mail", "newsletter") or source in ("email", "newsletter", "resend"):
         return "Email"
     if medium in ("cpc", "ppc", "paid", "paidsocial", "display", "ads"):

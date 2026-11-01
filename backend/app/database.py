@@ -260,6 +260,14 @@ async def connect() -> None:
         await _guide_insights.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] guide insights indexes skipped: {exc}")
+    # Markdrop files embedded in docs pages (services/docs_embeds.py): version pins per guide,
+    # daily per-file counts for a guide's Insights (13 months).
+    try:
+        from app.services import docs_embeds as _docs_embeds
+
+        await _docs_embeds.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] docs embed indexes skipped: {exc}")
     # Guides roles (services/docs_studio_roles.py): once, members of workspaces that already
     # had docs sites keep the access the old workspace-role mapping gave them. Idempotent (a marker
     # row; insert-only grants), so it runs on every start. Never fatal.
