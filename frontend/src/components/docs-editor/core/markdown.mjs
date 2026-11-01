@@ -214,7 +214,8 @@ function block(n, ctx, strip, src) {
     case "thematicBreak":
       return { type: "horizontalRule", attrs: { md: null } };
     case "blockquote":
-      if (!n.children.length) return raw(src);
+      // An empty quote (">", what the editor writes once its last block is moved out) stays a quote.
+      if (!n.children.length) return { type: "blockquote", attrs: { md: null }, content: [paragraph([])] };
       return { type: "blockquote", attrs: { md: null }, content: flow(n.children, ctx, [...strip, { kind: "quote" }]) };
     case "list":
       return list(n, ctx, strip, src);
