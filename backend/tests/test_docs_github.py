@@ -393,6 +393,7 @@ class Sync(GitHubCase):
         mine = await self.call("POST", f"/{site['id']}/pages", json={"path": "/faq", "title": "FAQ", "markdown": "Ours", "group": "Guide"},
                                expect=201)
         start = await self.db["docs_pages"].find_one({"site_id": sid, "path": "/guide/start"})
+        advanced = await self.db["docs_pages"].find_one({"site_id": sid, "path": "/guide/advanced"})
         await self.db["docs_pages"].update_one({"_id": start["_id"]}, {"$set": {"draft.markdown": "studio edit", "draft.rev": 2}})
         # The next push: start changed, advanced renamed to /guide/deep, a new page, one at the studio's /faq.
         v2 = [page("/", "Acme", "Welcome", "docs/index.md"), page("/guide/start", "Start", "Step one, better", "docs/guide/start.md"),
@@ -403,8 +404,11 @@ class Sync(GitHubCase):
                                    user_id=self.uid["owner"], sha=SHA2)
         out = await self.run_job(job["_id"], result(v2, nav2, commit=SHA2))
         p = out["github"]["pages"]
-        # advanced → deep is a new file to GitHub (a different path): advanced goes, deep comes.
-        self.assertEqual((p["created"], p["updated"], p["deleted"], p["unchanged"]), (2, 1, 1, 1))
+        # advanced.md renamed to deep.md with the same content: the page moves (same id), it isn't re-made.
+        self.assertEqual((p["created"], p["updated"], p["deleted"], p["unchanged"], p["moved"]), (1, 1, 0, 1, 1))
+        advanced_id = next(x["_id"] for x in await self.db["docs_pages"].find({"site_id": sid}).to_list(None)
+                           if (x.get("origin") or {}).get("path") == "docs/guide/deep.md")
+        self.assertEqual(advanced_id, advanced["_id"])
         self.assertIn("/faq: a page made in the studio has this address; kept the studio page", out["skipped"])
         faq = await self.db["docs_pages"].find_one({"_id": ObjectId(mine["id"])})
         self.assertEqual((faq["draft"]["markdown"], faq.get("origin")), ("Ours", None))

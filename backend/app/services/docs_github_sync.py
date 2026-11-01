@@ -543,6 +543,7 @@ async def apply_github(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
     by_path = {p["path"]: p for p in existing if p.get("path")}
     room = cfg.docs_pages_per_site - len(existing)
     matched: set = set()
+    created_rows: list[dict] = []
     ids_by_path: dict[str, Any] = {}
     counts = {"created": 0, "updated": 0, "deleted": 0, "unchanged": 0, "moved": 0, "adopted": 0}
 
@@ -634,6 +635,7 @@ async def apply_github(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
                 pass
             room -= 1
             counts["created"] += 1
+            created_rows.append(row)
             by_path[path] = row
             matched.add(row["_id"])
             ids_by_path[path] = row["_id"]
@@ -641,8 +643,31 @@ async def apply_github(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
             await docs_jobs.set_progress(db, job["_id"], worker, {"step": "save", "done": i + 1, "total": len(pages_in),
                                                                   "message": "Saving pages"})
 
-    # Pages whose file is gone from the repository (only GitHub's own pages).
+    # A file renamed or moved in the repository: a new page with exactly the content of a page whose
+    # file is gone. The old page moves there instead (it keeps its id and history, and its old address
+    # redirects once it was published).
     gone = [p for p in existing if (p.get("origin") or {}).get("kind") == "github" and p["_id"] not in matched]
+    for row in list(created_rows):
+        twin = next((p for p in gone if p.get("path") != "/" and (p.get("draft") or {}).get("markdown") == row["draft"]["markdown"]
+                     and (p.get("draft") or {}).get("markdown")), None)
+        if twin is None:
+            continue
+        gone.remove(twin)
+        await db[PAGES].delete_one({"_id": row["_id"]})
+        await db[VERSIONS].delete_many({"page_id": row["_id"]})
+        old_path = twin.get("path")
+        fields = {k: row.get(k) for k in ("title", "description", "icon", "hidden")}
+        await db[PAGES].update_one({"_id": twin["_id"]}, {"$set": {**fields, "path": row["path"], "origin": row["origin"]}})
+        matched.add(twin["_id"])
+        ids_by_path[row["path"]] = twin["_id"]
+        counts["created"] -= 1
+        counts["moved"] += 1
+        try:
+            await pages_service._redirect_move(db, site, old_path, row["path"])
+        except Exception:  # noqa: BLE001 - a redirect must not fail the sync
+            log.warning("github sync: redirect %s → %s not kept", old_path, row["path"], exc_info=True)
+
+    # Pages whose file is gone from the repository (only GitHub's own pages).
     for p in gone:
         if p.get("path") == "/":
             await db[PAGES].update_one({"_id": p["_id"]}, {"$unset": {"origin": ""}})
