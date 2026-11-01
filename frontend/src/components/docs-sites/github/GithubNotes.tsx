@@ -57,6 +57,25 @@ export function GithubErrorNote({ error, onRetry, what = "repository", compact }
   );
 }
 
+const CONNECT_KEY = "markdrop_github_connect";
+
+/**
+ * Where a "Connect GitHub" started (the workspace, and the /guides address to come back to), kept
+ * for this tab so /guides/github/installed can offer "Try again" and "Back" when linking fails
+ * (the API's state is opaque, and a failed connect doesn't return it). Never holds a secret.
+ */
+export function rememberConnect(workspace: string, returnTo: string) {
+  try { sessionStorage.setItem(CONNECT_KEY, JSON.stringify({ workspace, returnTo })); } catch { /* private mode */ }
+}
+export function recallConnect(): { workspace: string; returnTo: string } | null {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(CONNECT_KEY) || "null") as { workspace?: unknown; returnTo?: unknown } | null;
+    return v && typeof v.workspace === "string" && typeof v.returnTo === "string" ? { workspace: v.workspace, returnTo: v.returnTo } : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * "Connect GitHub": asks the API for the app's install address (it carries a signed state with the
  * workspace and where to come back to) and goes there. `link`: link an installation that already
@@ -74,6 +93,8 @@ export function ConnectGithubButton({ workspace, returnTo, link, children, onErr
     setBusy(true);
     try {
       const { url } = await (link ? startGithubAuthorize : startGithubInstall)(workspace, returnTo);
+      if (typeof url !== "string" || !/^https:\/\//i.test(url)) throw new Error("GitHub didn't answer as expected. Try again.");
+      rememberConnect(workspace, returnTo);
       window.location.assign(url);
     } catch (err) {
       const e = githubError(err);
