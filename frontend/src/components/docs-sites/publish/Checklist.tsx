@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { Anchor, Icon, Progress, Skeleton } from "@/components/ui";
 import { guideEvents } from "@/lib/guidesEvents";
 import { presetName, type SetupStatus } from "@/lib/docsSites";
+import { isEmptyCustom } from "@/lib/guideThemes";
 import { plural, timeAgo } from "../format";
 import { insightsSeenKey } from "../SiteBar";
 import { useSite } from "../SiteContext";
@@ -37,7 +38,7 @@ export function Checklist({ setup, className }: { setup: SetupStatus | null; cla
     { step: "pages", title: "Write your first pages", note: setup.pages ? plural(setup.pages, "page") : "Start with what readers ask most", done: setup.pages > 0, cta: "Write", href: base },
     {
       step: "look", title: "Choose a look",
-      note: setup.look_chosen ? `${presetName(theme.preset)}${theme.brand?.enabled ? ", matched to your logo" : ""}` : "A theme, your colours and logo",
+      note: setup.look_chosen ? `${presetName(theme.preset)}${isEmptyCustom(theme.custom) ? "" : ", customised"}${theme.brand?.enabled ? ", matched to your logo" : ""}` : "A theme, your colours and logo",
       done: setup.look_chosen, cta: "Design", href: `${base}/design`,
     },
     { step: "publish", title: "Publish", note: setup.published ? (setup.live_since ? `Live since ${timeAgo(setup.live_since)}` : "Published") : "Readers see it at its address", done: setup.published, cta: "Publish", href: `${base}/publish` },

@@ -4,13 +4,12 @@ import { ReadMore } from "@/components/ReadMore";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Alert, Anchor, Badge, Button, Field, Icon, IconButton, SegmentedControl, Select, Spinner, Switch, Tabs, Textarea, cx, useToast } from "@/components/ui";
 import { useLocationSearch } from "@/components/shell/useLocation";
-import { parseHex } from "@/components/tenant/branding";
 import {
   FONTS, PRESETS, assetPreviewUrl, customCssProblem, docsErrorMessage, presetName, updateSite, uploadAsset,
   type Corners, type PresetKind, type SiteTheme, type ThemeMode, type ThemePreset,
 } from "@/lib/docsSites";
 import { ratio } from "./format";
-import { LOOKS, PREVIEW_FONTS_HREF, coloursFromImage, contrastChecks, miniLook } from "./presets";
+import { PREVIEW_FONTS_HREF, coloursFromImage, contrastChecks, miniLook, previewTokens } from "./presets";
 import { usePublishState } from "./PublishState";
 import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
 import { useSite } from "./SiteContext";
@@ -146,7 +145,8 @@ export default function DesignPanel() {
   const setBrand = (patch: Partial<SiteTheme["brand"]>) => setTheme((t) => ({ ...t, brand: { ...t.brand, ...patch } }));
   const cssProblem = customCssProblem(theme.custom_css ?? "");
   const checks = contrastChecks(theme);
-  const brandAccent = theme.brand.enabled ? theme.brand.accent || theme.brand.colors[0] || null : null;
+  // The guide's mark as it draws it: a custom theme's accent, else the brand's, else the preset's (contrast-safe).
+  const mark = previewTokens(theme, false);
 
   async function onLogo(file: File | undefined) {
     if (!file || locked) return;
@@ -299,7 +299,7 @@ export default function DesignPanel() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={assetPreviewUrl(site.id, theme.brand.logo_url) ?? undefined} alt="" className="ph-no-capture size-11 shrink-0 rounded-[10px] bg-logo-well-light object-contain p-1" />
               ) : (
-                <span className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[20px] font-extrabold text-white" style={{ background: brandAccent && parseHex(brandAccent) ? brandAccent : LOOKS[theme.preset].accent }} aria-hidden>
+                <span className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[20px] font-extrabold" style={{ background: mark.accent, color: mark.onAccent }} aria-hidden>
                   {site.name.charAt(0).toUpperCase()}
                 </span>
               )}

@@ -1,9 +1,9 @@
 "use client";
 
 import { cx } from "@/components/ui";
-import { assetPreviewUrl, type SiteBrand, type SiteSummary, type SummaryTheme } from "@/lib/docsSites";
+import { assetPreviewUrl, type SiteSummary, type SummaryTheme } from "@/lib/docsSites";
 import { useTheme } from "@/lib/theme";
-import { previewTokens } from "../presets";
+import { summaryTokens } from "../presets";
 
 /** Light or dark, as the guide shows it: its own mode, or (both) the one you're looking at the app in. */
 export function usePreviewDark(theme: SummaryTheme | undefined): boolean {
@@ -13,15 +13,7 @@ export function usePreviewDark(theme: SummaryTheme | undefined): boolean {
   return resolved === "dark";
 }
 
-function tokensFor(site: SiteSummary, dark: boolean) {
-  const theme = site.theme ?? { preset: site.preset, mode: "both" as const, brand: { enabled: false, colors: [] } };
-  return previewTokens({
-    preset: theme.preset ?? site.preset,
-    brand: { ...theme.brand, colors: theme.brand.colors ?? [] } as SiteBrand,
-    fonts: {},
-    corners: theme.corners ?? null,
-  }, dark);
-}
+const tokensFor = summaryTokens;
 
 /** The guide's logo (Match my brand), else its initial on the accent. */
 export function GuideMark({ site, size, dark }: { site: SiteSummary; size: number; dark: boolean }) {
@@ -63,7 +55,8 @@ export function GuidePreview({ site, className, height }: { site: SiteSummary; c
       </div>
       <div className="flex min-h-0 flex-1 gap-2.5 p-2.5">
         {t.sidebar && (
-          <div className="flex w-[54px] shrink-0 flex-col gap-[5px]">
+          // A custom theme's sidebar colour fills the column to the card's edges.
+          <div className="flex w-[54px] shrink-0 flex-col gap-[5px]" style={t.sidebarBg ? { background: t.sidebarBg, width: 64, margin: "-10px 0 -10px -10px", padding: "10px 0 10px 10px" } : undefined}>
             {bar(38, 5, t.accentText)}
             {bar(46, 5, t.line)}
             {bar(30, 5, t.line)}

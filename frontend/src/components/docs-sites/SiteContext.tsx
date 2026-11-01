@@ -91,8 +91,9 @@ export function SiteProvider({ siteId, children }: { siteId: string; children: R
     const prev = siteRef.current;
     siteRef.current = s;
     setSiteState(s);
-    // A rename or a new theme shows in the switcher and on the studio's home too.
-    if (prev && (prev.name !== s.name || prev.settings.theme.preset !== s.settings.theme.preset || prev.status !== s.status)) void reloadAll();
+    // A rename or a new design (preset, brand, custom theme…) shows in the switcher and on the studio's home too.
+    const designChanged = JSON.stringify(prev?.settings.theme) !== JSON.stringify(s.settings.theme);
+    if (prev && (prev.name !== s.name || designChanged || prev.status !== s.status)) void reloadAll();
   }, [reloadAll]);
 
   const reload = useCallback(async () => {

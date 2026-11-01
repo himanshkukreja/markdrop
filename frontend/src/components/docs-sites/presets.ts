@@ -6,7 +6,7 @@
  */
 import { contrast, parseHex } from "@/components/tenant/branding";
 import { CORNERS, PRESETS as ENGINE } from "@/docs/theme.mjs";
-import { FONTS, type Corners, type SiteTheme, type ThemePreset } from "@/lib/docsSites";
+import { FONTS, type Corners, type SiteBrand, type SiteSummary, type SiteTheme, type ThemePreset } from "@/lib/docsSites";
 import { guideThemeVars } from "./guideTheme";
 
 export interface Palette { bg: string; header: string; card: string; text: string; muted: string; line: string; code: string; codeText: string }
@@ -69,7 +69,7 @@ export const LOOKS: Record<ThemePreset, PresetLook> = {
 
 /** The Google Fonts the preview needs (presets + the font picker), loaded once by the Design panel. */
 export const PREVIEW_FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@400;700;800&family=DM+Sans:wght@400;600;700;800&family=Geist:wght@400;600;700&family=Inter:wght@400;600;700&family=Lora:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=Space+Grotesk:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600;800&family=Figtree:wght@400;600;800&family=Fraunces:wght@400;600;800&family=Crimson+Pro:wght@400;600&family=Fira+Code:wght@400;500&family=Source+Code+Pro:wght@400;500&display=swap";
+  "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@400;700;800&family=DM+Sans:wght@400;600;700;800&family=Geist:wght@400;600;700&family=Inter:wght@400;600;700&family=Lora:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=Space+Grotesk:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600;800&family=Figtree:wght@400;600;800&family=Fraunces:wght@400;600;800&family=Crimson+Pro:wght@400;600&family=Fira+Code:wght@400;500&family=Source+Code+Pro:wght@400;500&family=Geist+Mono:wght@400;500&display=swap";
 
 const CORNER_R: Record<Corners, string> = { sharp: "3px", soft: "8px", round: "16px" };
 
@@ -107,6 +107,8 @@ export interface PreviewTokens extends Palette {
   soft: string;
   onAccent: string;
   calloutBorder: string;
+  /** A custom theme's sidebar colour (the engine's --dx-sidebar-bg); unset: the page's ground. */
+  sidebarBg?: string;
 }
 
 export type ThemeInput = Pick<SiteTheme, "preset" | "brand" | "fonts" | "corners"> & { custom?: SiteTheme["custom"] };
@@ -159,9 +161,10 @@ export function previewTokens(theme: ThemeInput, dark: boolean): PreviewTokens {
     head: font(theme.fonts?.heading, look.head),
     body: font(theme.fonts?.body, look.body),
     mono: '"IBM Plex Mono", var(--font-mono)',
-    headW: look.headW,
-    r: theme.corners ? CORNER_R[theme.corners] : look.r,
-    logoR: theme.corners === "sharp" ? "3px" : look.logoR,
+    // A custom theme's heading weight and corner scale (theme builder) beat the preset's.
+    headW: theme.custom?.heading_weight ? Number(v["--dx-heading-weight"]) : look.headW,
+    r: theme.custom?.radius ? v["--radius-lg"] : theme.corners ? CORNER_R[theme.corners] : look.r,
+    logoR: theme.custom?.radius === "none" ? "0px" : theme.custom?.radius === "small" || (!theme.custom?.radius && theme.corners === "sharp") ? "3px" : look.logoR,
     sidebar: look.sidebar,
     hero: look.hero,
     tabs: !!look.tabs,
@@ -172,8 +175,25 @@ export function previewTokens(theme: ThemeInput, dark: boolean): PreviewTokens {
     soft,
     onAccent: lightOn ? "#ffffff" : toHex(INK),
     calloutBorder: theme.preset === "technical" ? `1px solid ${pal.line}` : "0",
+    ...(v["--dx-sidebar-bg"] ? { sidebarBg: v["--dx-sidebar-bg"] } : {}),
   };
   return engine ? { ...out, ...engine } : out;
+}
+
+/**
+ * A guide's card (the Guides home, the switcher, the Publish screen) in its own design: the
+ * listing's theme (GET /docs-sites summary_theme: preset, brand, fonts, corners, custom theme)
+ * through previewTokens, so a custom theme's colours, corners and type show, not the preset's.
+ */
+export function summaryTokens(site: Pick<SiteSummary, "preset" | "theme">, dark: boolean): PreviewTokens {
+  const theme = site.theme ?? { preset: site.preset, mode: "both" as const, brand: { enabled: false, colors: [] } };
+  return previewTokens({
+    preset: theme.preset ?? site.preset,
+    brand: { ...theme.brand, colors: theme.brand.colors ?? [] } as SiteBrand,
+    fonts: theme.fonts ?? {},
+    corners: theme.corners ?? null,
+    custom: theme.custom ?? null,
+  }, dark);
 }
 
 /** The three contrast checks the panel shows: body text, links (light) and links (dark). */

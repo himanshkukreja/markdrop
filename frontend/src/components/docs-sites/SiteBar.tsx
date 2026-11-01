@@ -2,26 +2,36 @@
 
 import { useEffect } from "react";
 import { Anchor, Badge, Button, Icon, Spinner, cx } from "@/components/ui";
-import { parseHex } from "@/components/tenant/branding";
 import { guideEvents } from "@/lib/guidesEvents";
-import { assetPreviewUrl, primaryAddress, type Site, type SiteSummary } from "@/lib/docsSites";
+import { assetPreviewUrl, primaryAddress, type SiteSummary, type SiteTheme } from "@/lib/docsSites";
 import { plural } from "./format";
-import { thumbColours } from "./presets";
+import { opensDark } from "./guideTheme";
+import { previewTokens } from "./presets";
 import { liveUrl, usePublishState } from "./PublishState";
 import { useSite } from "./SiteContext";
 
 export type SiteSection = "pages" | "design" | "publish" | "insights" | "settings";
 
-/** The site's letter tile on its accent (the brand's when "Match my brand" is on). */
+/**
+ * The site's letter tile on its accent, as the guide draws it (presets.ts previewTokens: the
+ * brand's when "Match my brand" is on, a custom theme's when it sets one), in the guide's opening mode.
+ */
 export function SiteTile({ site, size = 22 }: {
   site: Pick<SiteSummary, "id" | "name" | "preset"> & {
-    settings?: { theme: { preset: Site["settings"]["theme"]["preset"]; brand?: Partial<Site["settings"]["theme"]["brand"]> } };
+    settings?: { theme: Pick<SiteTheme, "preset"> & Partial<Pick<SiteTheme, "mode" | "custom">> & { brand?: Partial<SiteTheme["brand"]> } };
   };
   size?: number;
 }) {
-  const brand = site.settings?.theme.brand;
-  const accent = (brand?.enabled && (brand.accent || brand.colors?.[0])) || null;
-  const c = thumbColours(site.settings?.theme.preset ?? site.preset, parseHex(accent) ? accent : null);
+  const theme = site.settings?.theme;
+  const brand = theme?.brand;
+  const look = { preset: theme?.preset ?? site.preset, mode: theme?.mode };
+  const c = previewTokens({
+    ...look,
+    brand: { enabled: !!brand?.enabled, colors: brand?.colors ?? [], accent: brand?.accent ?? null, accent_dark: brand?.accent_dark ?? null },
+    fonts: {},
+    corners: null,
+    custom: theme?.custom ?? null,
+  }, opensDark(look));
   const logo = brand?.enabled ? assetPreviewUrl(site.id, brand.logo_url) : null;
   const box = { width: size, height: size, borderRadius: Math.max(4, Math.round(size * 0.27)) };
   if (logo) {
@@ -33,7 +43,7 @@ export function SiteTile({ site, size = 22 }: {
     );
   }
   return (
-    <span className="grid shrink-0 place-items-center font-extrabold leading-none text-white" style={{ ...box, background: c.accent, fontSize: Math.round(size * 0.55) }} aria-hidden>
+    <span className="grid shrink-0 place-items-center font-extrabold leading-none" style={{ ...box, background: c.accent, color: c.onAccent, fontSize: Math.round(size * 0.55) }} aria-hidden>
       {(site.name || "?").trim().charAt(0).toUpperCase()}
     </span>
   );

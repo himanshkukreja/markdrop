@@ -592,7 +592,8 @@ class HomeSummaryTests(DashboardTests):
 
     async def test_listing_carries_what_the_cards_draw(self):
         await self.call("PATCH", f"/{self.sid}", "admin", json={"settings": {"theme": {
-            "preset": "editorial", "mode": "dark", "brand": {"enabled": True, "accent": "#c2410c", "colors": ["#c2410c", "#111111"]}}}})
+            "preset": "editorial", "mode": "dark", "brand": {"enabled": True, "accent": "#c2410c", "colors": ["#c2410c", "#111111"]},
+            "fonts": {"heading": "lora"}, "custom": {"light": {"bg": "#FBFAF7"}, "radius": "large", "heading_weight": 600}}}})
         draft = await self.create("draft", name="Draft")
         listing = await self.get("?scope=all")
         by = {s["id"]: s for s in listing["sites"]}
@@ -600,7 +601,12 @@ class HomeSummaryTests(DashboardTests):
         self.assertEqual(live["theme"]["preset"], "editorial")
         self.assertEqual(live["theme"]["mode"], "dark")
         self.assertEqual((live["theme"]["brand"]["enabled"], live["theme"]["brand"]["accent"]), (True, "#c2410c"))
-        self.assertEqual(live["theme"]["brand"]["colors"], ["#c2410c"])
+        # Every brand colour (the card builds the engine's palette: ink and tint come from the others),
+        # the fonts and the custom theme, so the card draws the design the guide publishes with.
+        self.assertEqual(live["theme"]["brand"]["colors"], ["#c2410c", "#111111"])
+        self.assertEqual(live["theme"]["fonts"]["heading"], "lora")
+        self.assertEqual(live["theme"]["custom"]["light"]["bg"], "#fbfaf7")
+        self.assertEqual((live["theme"]["custom"]["radius"], live["theme"]["custom"]["heading_weight"]), ("large", 600))
         self.assertNotIn("custom_css", live["theme"])
         self.assertEqual((live["build_status"], live["domains"], live["review_pages"], live["insights_enabled"]),
                          ("live", [], 0, True))

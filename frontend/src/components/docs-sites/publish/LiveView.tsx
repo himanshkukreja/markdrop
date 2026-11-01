@@ -35,7 +35,7 @@ export function LiveView({ live, builds, setup, restoring, onRestore }: {
   // The thumbnail draws the saved design (the listing's theme can lag a save).
   const summary: SiteSummary = {
     ...site,
-    theme: { preset: theme.preset, mode: theme.mode ?? "both", corners: theme.corners ?? null, brand: { ...theme.brand, colors: theme.brand?.colors ?? [] } },
+    theme: { preset: theme.preset, mode: theme.mode ?? "both", corners: theme.corners ?? null, brand: { ...theme.brand, colors: theme.brand?.colors ?? [] }, fonts: theme.fonts ?? {}, custom: theme.custom ?? null },
   };
   const meta = live ? [
     `Publish #${live.number}`,

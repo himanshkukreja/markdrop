@@ -411,6 +411,10 @@ export interface SummaryTheme {
   mode: ThemeMode;
   corners?: Corners | null;
   brand: Pick<SiteBrand, "enabled" | "accent" | "accent_dark" | "colors" | "logo_url" | "logo_dark_url">;
+  /** The chosen faces (null: the preset's). */
+  fonts?: SiteTheme["fonts"];
+  /** A custom theme (the theme builder): the card draws its colours, corners and type. */
+  custom?: SiteTheme["custom"];
 }
 
 /** GET /docs-sites/insights-summary: the Guides home's last 7 days. Totals are null when nothing

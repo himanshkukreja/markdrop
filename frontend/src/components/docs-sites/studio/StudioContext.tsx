@@ -2,11 +2,11 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { docsErrorMessage, listAllSites, type AllSitesResponse, type SiteSummary } from "@/lib/docsSites";
+import { docsErrorMessage, listAllSites, type AllSitesResponse, type SiteSummary, type SiteTheme } from "@/lib/docsSites";
 
 /** The site open in the studio right now (the header's switcher and workspace badge show it). */
 export type CurrentSite = Pick<SiteSummary, "id" | "name" | "workspace_id" | "preset" | "your_role"> & {
-  settings?: { theme: { preset: SiteSummary["preset"]; brand: { enabled: boolean; logo_url?: string | null; accent?: string | null; colors: string[] } } };
+  settings?: { theme: { preset: SiteSummary["preset"]; brand: { enabled: boolean; logo_url?: string | null; accent?: string | null; colors: string[] } } & Partial<Pick<SiteTheme, "mode" | "custom">> };
 };
 
 interface StudioCtx {

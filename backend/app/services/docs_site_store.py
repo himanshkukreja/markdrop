@@ -453,7 +453,9 @@ def sees_details(role: str | studio_roles.Resolved | None) -> bool:
 
 def summary_theme(site: dict) -> dict:
     """What the home's card draws the guide's little preview with: the preset, light / dark, the
-    corners and, when "Match my brand" is on, the brand's accent and logo (never the custom CSS)."""
+    corners, the fonts, a custom theme (the theme builder) and, when "Match my brand" is on, the
+    brand's colours and logo (never the custom CSS). The card builds its colours with the engine's
+    palette maths, so it gets every brand colour (the ink and tint roles come from the others)."""
     theme = (site.get("settings") or {}).get("theme") or {}
     brand = theme.get("brand") or {}
     on = bool(brand.get("enabled"))
@@ -461,11 +463,13 @@ def summary_theme(site: dict) -> dict:
         "preset": theme.get("preset", "clean"),
         "mode": theme.get("mode") or "both",
         "corners": theme.get("corners"),
+        "fonts": theme.get("fonts") or {},
+        "custom": theme.get("custom") or None,
         "brand": {
             "enabled": on,
             "accent": brand.get("accent") if on else None,
             "accent_dark": brand.get("accent_dark") if on else None,
-            "colors": list(brand.get("colors") or [])[:1] if on else [],
+            "colors": list(brand.get("colors") or []) if on else [],
             "logo_url": brand.get("logo_url") if on else None,
             "logo_dark_url": brand.get("logo_dark_url") if on else None,
         },
