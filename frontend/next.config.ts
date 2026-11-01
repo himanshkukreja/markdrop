@@ -6,6 +6,45 @@ import { docsHostsFromEnv, hostPattern, nextRedirects } from "./src/docs/siteFil
 const DOCS_CONTENT = process.env.DOCS_CONTENT_DIR || path.join(process.cwd(), "content", "docs");
 const DOCS_HOSTS = docsHostsFromEnv();
 
+/**
+ * Content-Security-Policy, REPORT-ONLY for now: browsers log what it would block (devtools
+ * console) and block nothing. It exists to find what enforcing it would break before it is
+ * enforced — the encrypted reader's keys and plaintext live in this origin's pages, so an
+ * enforced script-src is the next layer of defence after "user HTML never runs here".
+ *
+ * Why 'unsafe-inline' in script-src: Next 15 inlines its bootstrap scripts, and nonces need a
+ * per-request middleware nonce, which makes every page dynamic (no ISR for documents). Enforcing
+ * later means either hashes for those inline scripts or nonce + 'strict-dynamic' with dynamic
+ * rendering. No report-uri on purpose: nothing about readers is collected while we look.
+ */
+function cspReportOnly(): string {
+  const dev = process.env.NODE_ENV !== "production";
+  const api = (() => {
+    try {
+      return new URL(process.env.NEXT_PUBLIC_API_URL || "https://api.markdrop.in");
+    } catch {
+      return new URL("https://api.markdrop.in");
+    }
+  })();
+  const apiWs = `${api.protocol === "https:" ? "wss:" : "ws:"}//${api.host}`;
+  const ga = ["https://www.googletagmanager.com", "https://*.google-analytics.com", "https://*.analytics.google.com"];
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""} ${ga[0]} https://cdnjs.cloudflare.com https://va.vercel-scripts.com`,
+    `connect-src 'self' ${api.origin} ${apiWs} https://api.markdrop.in wss://api.markdrop.in https://*.r2.cloudflarestorage.com https://cdnjs.cloudflare.com ${ga.join(" ")}${dev ? " ws: http://localhost:* http://127.0.0.1:*" : ""}`,
+    "img-src * data: blob:",
+    "media-src * data: blob:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "frame-src 'self' blob: https:",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    `form-action 'self' ${api.origin}`,
+    "frame-ancestors 'self'",
+  ].join("; ");
+}
+
 const nextConfig: NextConfig = {
   // Lets a dev server (NEXT_DIST_DIR=.next-dev) run alongside `next build` without the two
   // overwriting each other's output. Vercel builds use the default.
@@ -26,6 +65,8 @@ const nextConfig: NextConfig = {
    */
   async headers() {
     return [
+      // Report-only (see cspReportOnly): logs, never blocks.
+      { source: "/:path*", headers: [{ key: "Content-Security-Policy-Report-Only", value: cspReportOnly() }] },
       {
         source: "/oauth/:path*",
         headers: [
