@@ -162,6 +162,7 @@ const SHORTCUTS: Array<{ group: string; rows: Array<[string, string[]]> }> = [
       ["Quote", ["mod", "⇧", "B"]],
       ["Code block", ["mod", "alt", "C"]],
       ["Move a block", ["alt", "⇧", "↑ / ↓"]],
+      ["Move a card (on its grip)", ["alt", "← / →"]],
       ["Line break", ["⇧", "Enter"]],
     ],
   },
@@ -174,6 +175,14 @@ const SHORTCUTS: Array<{ group: string; rows: Array<[string, string[]]> }> = [
       ["Redo", ["mod", "⇧", "Z"]],
       ["Send a comment or reply", ["mod", "Enter"]],
       ["Keyboard shortcuts", ["?"]],
+    ],
+  },
+  {
+    group: "Page tree (on a page's grip)",
+    rows: [
+      ["Pick up / drop", ["Space"]],
+      ["Move", ["↑ / ↓"]],
+      ["Cancel", ["Esc"]],
     ],
   },
 ];
