@@ -152,6 +152,7 @@ input.dxe-tabbar__tab { cursor: text; min-width: 3ch; }
 .dxe-private__who select:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
 .dxe-private__head > :last-child { flex: 1; min-width: 160px; }
 .dxe-private__body { padding: 4px 16px 8px; }
+.dxe-private__body > :first-child { margin-top: 8px; }
 .dxe-content .dxe-details { margin: 8px 0; }
 .dxe-details__summary { display: flex; align-items: center; gap: 8px; padding: 12px 16px; font-size: 15px; line-height: 22px; font-weight: 600; }
 .dxe-details__toggle { display: inline-flex; padding: 2px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; }

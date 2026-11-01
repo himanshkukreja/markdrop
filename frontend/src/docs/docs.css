@@ -785,5 +785,7 @@ html.dx-modal-open { overflow: hidden; }
 .dx-private { margin: 24px 0; padding: 4px 16px 2px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
 .dx-private__tag { display: flex; align-items: center; gap: 6px; margin: 10px 0 4px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--accent-text); }
 .dx-private__tag svg { width: 13px; height: 13px; }
+.dx-private > .dx-private__tag + * { margin-top: 8px; }
+.dx-private > :last-child { margin-bottom: 12px; }
 .dx-private__label { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-secondary); }
 .dx-nav__lock { flex: none; width: 13px; height: 13px; margin-left: auto; color: var(--text-muted); }

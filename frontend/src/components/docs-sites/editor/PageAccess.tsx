@@ -36,7 +36,7 @@ export function PageAccess({ value, info, readOnly, isHome, onChange }: {
   const unknown = !!effective && !rule;
   const groupLabel = info.groupRule ? ruleLabel(byId(info.groupRule) ?? { kind: "people", name: info.groupRule }) : null;
   const options = [
-    { value: "", label: groupLabel ? `Inherit: ${groupLabel} (from ${info.group})` : info.guidePrivate ? "Inherit (the guide's readers)" : "Inherit: anyone (public)" },
+    { value: "", label: groupLabel ? `Inherit: ${groupLabel}` : info.guidePrivate ? "Inherit (the guide's readers)" : "Inherit: anyone (public)" },
     ...(info.guidePrivate ? [] : [{ value: "public", label: "Public: anyone" }]),
     ...info.rules.map((r) => ({ value: r.id, label: ruleLabel(r) })),
     ...(value && value !== "public" && !byId(value) ? [{ value, label: `${value} (not a rule on this guide)` }] : []),
@@ -61,7 +61,7 @@ export function PageAccess({ value, info, readOnly, isHome, onChange }: {
       ) : rule ? (
         <p className="flex flex-wrap items-center gap-1.5 text-[12px] text-text-muted">
           <Badge size="sm" icon="lock">{ruleLabel(rule)}</Badge>
-          {ruleWho(rule)} {rule.nav === "show" ? "Listed in the navigation with a lock." : "Hidden from the navigation."}
+          {!value && info.groupRule ? `From the ${info.group} group. ` : ""}{ruleWho(rule)} {rule.nav === "show" ? "Listed in the navigation with a lock." : "Hidden from the navigation."}
         </p>
       ) : (
         <p className="text-[12px] text-text-muted">Everyone who can read the guide. In search, llms.txt and Ask AI.</p>

@@ -219,7 +219,7 @@ export function lockText(rule) {
     case "members":
       return { title: "For the team", body: "Only this guide's team members can open this." };
     case "people":
-      return { title: `For ${rule.name}`, body: `Only people ${rule.name === "Specific people" ? "on this page's list" : `in ${rule.name}`} can open this. Sign in with your work email.` };
+      return { title: `For ${rule.name}`, body: `Only people ${rule.name === "Specific people" ? "on this page's list" : `at ${rule.name}`} can open this. Sign in with your work email.` };
     case "password":
       return { title: "Password protected", body: "Enter the password you were given to open this." };
     default:
