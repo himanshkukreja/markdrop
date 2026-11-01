@@ -239,7 +239,8 @@ export function DocsEditor({
     insertMarkdropFile() {
       const v = visualRef.current;
       if (modeRef.current === "visual" && v && !v.editor.isDestroyed) {
-        v.editor.chain().focus().insertContent({ type: "directiveLeaf", attrs: { name: "markdrop", attributes: {} } }).run();
+        // After the selection (never in place of a selected block), so a new block mounts and opens its picker.
+        v.editor.chain().focus().insertContentAt(v.editor.state.selection.to, { type: "directiveLeaf", attrs: { name: "markdrop", attributes: {} } }).run();
         return;
       }
       const md = valueRef.current;

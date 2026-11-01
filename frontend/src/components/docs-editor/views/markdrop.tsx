@@ -364,7 +364,7 @@ const SIZES = [
   { value: "custom", label: "Custom height" },
 ];
 
-export function MarkdropView({ node, updateAttributes, deleteNode, selected }: ReactNodeViewProps) {
+export function MarkdropView({ node, updateAttributes, deleteNode, selected, editor }: ReactNodeViewProps) {
   const host = useHost();
   const toast = useToast();
   const md = host.markdrop;
@@ -394,13 +394,27 @@ export function MarkdropView({ node, updateAttributes, deleteNode, selected }: R
     [a, updateAttributes],
   );
 
-  // A new, empty block opens the picker straight away (once).
+  // A block just inserted (it mounts empty while the editor has focus: the slash menu, the status
+  // bar's Embed button) opens the picker straight away, once. An empty block already on a page when
+  // it opens doesn't (the editor isn't focused yet), until it is selected while editing.
   useEffect(() => {
-    if (!src && selected && md && !ro && !opened.current) {
+    if (src || !md || ro || opened.current) return;
+    const open = () => {
+      if (opened.current || !editor.isFocused) return false;
+      opened.current = true;
+      setPicking(true);
+      return true;
+    };
+    if (open()) return;
+    const t = window.setTimeout(open, 60);
+    return () => window.clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- on mount only
+  useEffect(() => {
+    if (!src && selected && md && !ro && !opened.current && editor.isFocused) {
       opened.current = true;
       setPicking(true);
     }
-  }, [src, selected, md, ro]);
+  }, [src, selected, md, ro, editor]);
 
   useEffect(() => {
     if (!md || !slug) {

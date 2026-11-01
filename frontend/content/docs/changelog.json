@@ -24,6 +24,22 @@
   "next": [],
   "entries": [
     {
+      "id": "guides-embed-files",
+      "date": "2026-11-02",
+      "title": "Markdrop Guides: embed files that render",
+      "kind": "new",
+      "area": "Markdrop Guides",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Put an interactive HTML demo, a zipped site, a PDF or a video from Markdrop in a guide page as a live block that updates when you replace the file.",
+      "body": "- **Markdrop file** block in the editor (`/markdrop`): pick from your files or the guide's workspace, paste a link, or upload.\n- **Interactive HTML and zipped sites** run in the page in a locked sandbox on Markdrop's file domain; **PDFs** get page controls and zoom; **videos** play in the docs player with captions and chapters.\n- **Replace the file on Markdrop** and every guide shows the new one, no republish. Pin a version to keep one.\n- **Only files anyone with the link can open** show to readers; anything else is a notice that names nothing.\n- **Text version** for search, Ask AI, llms.txt and screen readers: your summary, a PDF's text, a video's transcript.\n- **Insights › Embedded files**: views, use, where viewers stop a video, the PDF page readers reach.",
+      "docs": [
+        "/guides/embed-files"
+      ]
+    },
+    {
       "id": "guides-reset-design",
       "date": "2026-11-02",
       "title": "Markdrop Guides: reset a guide's design",

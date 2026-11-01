@@ -292,6 +292,7 @@
       "tab": "guides",
       "pages": [
         "/guides/editor",
+        "/guides/embed-files",
         "/guides/pages-and-navigation",
         "/guides/history",
         "/guides/changelog"
