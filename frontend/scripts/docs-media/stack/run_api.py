@@ -516,6 +516,15 @@ docs_custom_domains._TRANSPORT = httpx.MockTransport(_fake_cloudflare)
 domain_connect._TXT = lambda name: []  # no Domain Connect discovery: no one-click link
 
 
+# Markdrop Guides ↔ GitHub: a fake GitHub (fake_gh.py) with the app set up and fictional acme
+# repositories. Imports run on this stack's worker, which downloads the tarball from this API.
+sys.path.insert(0, str(HERE))
+import fake_gh  # noqa: E402
+
+fake_gh.install(settings, API, DATA)
+app.include_router(fake_gh.router)
+
+
 # ── Sandbox routes ────────────────────────────────────────────────────────────
 
 sandbox = APIRouter(prefix="/__sandbox", include_in_schema=False)

@@ -1,0 +1,16 @@
+---
+title: API overview
+description: Automate projects, sources and dashboards with the Acme API.
+icon: code
+---
+
+The Acme API is a REST API at `https://api.acme.com/v2`. Every request needs an API key:
+
+```bash
+curl https://api.acme.com/v2/projects \
+  -H "Authorization: Bearer $ACME_API_KEY"
+```
+
+<Note>
+Create API keys under **Settings › API keys**. A key has the same access as the person who created it.
+</Note>

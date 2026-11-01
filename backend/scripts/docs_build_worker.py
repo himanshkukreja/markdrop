@@ -83,7 +83,8 @@ class Config:
         self.nice = env.get("MARKDROP_DOCS_NICE", "1") == "1"
         self.convert_gifs = env.get("MARKDROP_DOCS_LOCAL_CONVERT_GIFS", "0") == "1"
         self.passthrough = {k: env[k] for k in ("MARKDROP_DOCS_STORE_DIR", "MARKDROP_DOCS_IMPORT_CACHE_DIR",
-                                                  "MARKDROP_DOCS_ENGINE_ASSETS_DIR", "MARKDROP_DOCS_ASSET_CACHE") if env.get(k)}
+                                                  "MARKDROP_DOCS_ENGINE_ASSETS_DIR", "MARKDROP_DOCS_ASSET_CACHE",
+                                                  "MARKDROP_DOCS_GITHUB_CODELOAD") if env.get(k)}
 
 
 def mem_available_mb() -> int | None:

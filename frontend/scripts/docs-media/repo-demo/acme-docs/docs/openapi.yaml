@@ -1,0 +1,285 @@
+# The Acme API (fictional): the OpenAPI file the docs media upload to Acme Developers
+# (seed_extra_studio.py), for the Settings › API reference shots. One endpoint has no summary on
+# purpose, so the checks list one thing to fix.
+openapi: 3.1.0
+info:
+  title: Acme API
+  version: 2.4.0
+  description: Projects, data sources, dashboards and alerts in Acme, the dashboards your whole team can read.
+servers:
+  - url: https://api.acme.com/v2
+    description: Production
+  - url: https://sandbox.api.acme.com/v2
+    description: Sandbox
+security:
+  - bearerAuth: []
+tags:
+  - name: projects
+    x-displayName: Projects
+  - name: sources
+    x-displayName: Sources
+  - name: dashboards
+    x-displayName: Dashboards
+  - name: alerts
+    x-displayName: Alerts
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: An API key from Settings › API keys, sent as a bearer token.
+  schemas:
+    Project:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, example: prj_8f2k1 }
+        name: { type: string, example: Growth }
+        created_at: { type: string, format: date-time }
+    Source:
+      type: object
+      properties:
+        id: { type: string, example: src_41ab }
+        kind: { type: string, enum: [postgres, mysql, bigquery, csv], example: postgres }
+        status: { type: string, enum: [ok, failing, paused], example: ok }
+    Dashboard:
+      type: object
+      properties:
+        id: { type: string, example: dsh_77c0 }
+        title: { type: string, example: Weekly signups }
+        charts: { type: integer, example: 6 }
+        share_url: { type: string, example: https://acme.com/d/7Hq2 }
+    Alert:
+      type: object
+      properties:
+        id: { type: string, example: alr_19ef }
+        chart: { type: string, example: signups }
+        when: { type: string, example: below 100 for 2 checks }
+        notify: { type: string, example: "#growth" }
+        muted_until: { type: [string, "null"], format: date-time }
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: not_found }
+        message: { type: string, example: There's no project with that id. }
+  parameters:
+    ProjectId:
+      name: project_id
+      in: path
+      required: true
+      schema: { type: string, example: prj_8f2k1 }
+paths:
+  /projects:
+    get:
+      tags: [projects]
+      operationId: listProjects
+      summary: List projects
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: The projects you can see, newest first.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Project" } }
+    post:
+      tags: [projects]
+      operationId: createProject
+      summary: Create a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, example: Growth }
+      responses:
+        "201":
+          description: The new project.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+  /projects/{project_id}:
+    get:
+      tags: [projects]
+      operationId: getProject
+      summary: Get a project
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      responses:
+        "200":
+          description: The project.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "404":
+          description: No such project.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [projects]
+      operationId: deleteProject
+      summary: Delete a project
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      responses:
+        "204": { description: Deleted, with its sources, dashboards and alerts. }
+  /projects/{project_id}/sources:
+    get:
+      tags: [sources]
+      operationId: listSources
+      summary: List data sources
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      responses:
+        "200":
+          description: The project's data sources.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Source" } }
+    post:
+      tags: [sources]
+      operationId: addSource
+      summary: Add a data source
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, host, user]
+              properties:
+                kind: { type: string, enum: [postgres, mysql, bigquery], example: postgres }
+                host: { type: string, example: db.internal.example }
+                user: { type: string, example: acme_reader }
+                password: { type: string, format: password }
+      responses:
+        "201":
+          description: The source, checked once.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Source" }
+  /projects/{project_id}/sources/{source_id}/test:
+    post:
+      tags: [sources]
+      operationId: testSource
+      parameters:
+        - { $ref: "#/components/parameters/ProjectId" }
+        - name: source_id
+          in: path
+          required: true
+          schema: { type: string, example: src_41ab }
+      responses:
+        "200":
+          description: The tables Acme can read.
+          content:
+            application/json:
+              schema: { type: object, properties: { tables: { type: array, items: { type: string } } } }
+  /projects/{project_id}/dashboards:
+    get:
+      tags: [dashboards]
+      operationId: listDashboards
+      summary: List dashboards
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      responses:
+        "200":
+          description: The project's dashboards.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Dashboard" } }
+    post:
+      tags: [dashboards]
+      operationId: createDashboard
+      summary: Create a dashboard
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string, example: Weekly signups }
+      responses:
+        "201":
+          description: The new, empty dashboard.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+  /dashboards/{dashboard_id}/share:
+    post:
+      tags: [dashboards]
+      operationId: shareDashboard
+      summary: Share a dashboard
+      parameters:
+        - name: dashboard_id
+          in: path
+          required: true
+          schema: { type: string, example: dsh_77c0 }
+      responses:
+        "200":
+          description: The dashboard with its share link.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+  /projects/{project_id}/alerts:
+    get:
+      tags: [alerts]
+      operationId: listAlerts
+      summary: List alert rules
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      responses:
+        "200":
+          description: The project's alert rules.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Alert" } }
+    post:
+      tags: [alerts]
+      operationId: createAlert
+      summary: Create an alert rule
+      parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [chart, when, notify]
+              properties:
+                chart: { type: string, example: signups }
+                when: { type: string, example: below 100 for 2 checks }
+                notify: { type: string, example: "#growth" }
+      responses:
+        "201":
+          description: The new rule.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
+  /alerts/{alert_id}/mute:
+    patch:
+      tags: [alerts]
+      operationId: muteAlert
+      summary: Mute an alert rule
+      parameters:
+        - name: alert_id
+          in: path
+          required: true
+          schema: { type: string, example: alr_19ef }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                until: { type: string, format: date-time }
+      responses:
+        "200":
+          description: The rule, muted until then.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
