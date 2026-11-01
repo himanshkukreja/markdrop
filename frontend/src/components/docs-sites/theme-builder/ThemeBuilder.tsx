@@ -433,7 +433,7 @@ export default function ThemeBuilder({ siteName, theme, onChange, onClose, onSav
             ["bold", "Bold", "A heavier stroke that holds up on dense pages."],
             ["duotone", "Duotone", "Shapes washed with their own colour."],
           ] as const).map(([v, label, hint]) => {
-            const on = (c("icons") ?? "regular") === v && (v !== "regular" || c("icons") === "regular");
+            const on = c("icons") === v;
             return (
               <button
                 key={v}
