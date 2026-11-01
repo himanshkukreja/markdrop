@@ -165,6 +165,24 @@ def _theme(settings: dict) -> dict:
             out[k] = t[k]
     if t.get("custom_css"):
         out["customCss"] = t["custom_css"]
+    custom = _camel(t.get("custom"))
+    if custom:
+        out["custom"] = custom
+    return out
+
+
+def _camel(value):
+    """A custom theme for site.json: the engine's camelCase keys (code_bg → codeBg), unset values
+    (None) and empty groups left out, so an untouched custom block writes nothing."""
+    if not isinstance(value, dict):
+        return value
+    out = {}
+    for k, v in value.items():
+        v = _camel(v)
+        if v is None or v == {}:
+            continue
+        head, *rest = k.split("_")
+        out[head + "".join(w.capitalize() for w in rest)] = v
     return out
 
 

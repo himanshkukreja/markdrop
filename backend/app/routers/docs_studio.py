@@ -6,6 +6,9 @@ always admins and can't be changed here. Per-site overrides are under
 /api/v1/docs-sites/{site_id}/members (routers/docs_site_people.py). Every
 change is audited (docs_events docs_role_*), readable at …/history. Roles:
 services/docs_studio_roles.py. App-internal, like the docs-sites API.
+
+Also the workspace's saved designs, /api/v1/docs-studio/theme-templates (the Design panel's
+"Your templates"; services/docs_theme_templates.py).
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -15,8 +18,11 @@ from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import require_user
-from app.schemas.docs_site import StudioMembersUpdate, StudioRoleUpdate
+from app.schemas.docs_site import (
+    StudioMembersUpdate, StudioRoleUpdate, ThemeTemplateCreate, ThemeTemplateDuplicate, ThemeTemplateUpdate,
+)
 from app.services import docs_studio_roles as roles
+from app.services import docs_theme_templates as templates
 from app.services import workspace as ws_service
 
 router = APIRouter(prefix="/api/v1/docs-studio", tags=["docs-studio"])
@@ -98,3 +104,45 @@ async def history(request: Request, workspace_id: str, limit: int = Query(50, ge
     """Who gave whom which role, and when (workspace roles and every site's overrides), newest first."""
     await _require_studio_admin(db, workspace_id, user)
     return {"events": await roles.history(db, workspace_id=workspace_id, limit=limit)}
+
+
+# ── Theme templates ("Your templates" in the Design panel) ────────────────────
+# services/docs_theme_templates.py: a workspace's saved designs (or, with no workspace_id, the
+# caller's personal ones). Listing: anyone with Guides access there; changes: its Guides admins.
+
+
+@router.get("/theme-templates")
+@limiter.limit("120/minute")
+async def list_theme_templates(request: Request, workspace_id: str | None = Query(None, max_length=64),
+                               db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    return await templates.list_templates(db, workspace_id or None, user)
+
+
+@router.post("/theme-templates", status_code=201)
+@limiter.limit("30/minute")
+async def create_theme_template(request: Request, body: ThemeTemplateCreate,
+                                db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    return await templates.create(db, user, workspace_id=body.workspace_id or None, name=body.name, theme=body.theme)
+
+
+@router.patch("/theme-templates/{template_id}")
+@limiter.limit("60/minute")
+async def update_theme_template(request: Request, template_id: str, body: ThemeTemplateUpdate,
+                                db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """Rename it, or replace its design."""
+    return await templates.update(db, user, template_id, name=body.name, theme=body.theme)
+
+
+@router.post("/theme-templates/{template_id}/duplicate", status_code=201)
+@limiter.limit("30/minute")
+async def duplicate_theme_template(request: Request, template_id: str, body: ThemeTemplateDuplicate | None = None,
+                                   db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """A copy in the same place ("<name> copy" unless named)."""
+    return await templates.duplicate(db, user, template_id, name=body.name if body else None)
+
+
+@router.delete("/theme-templates/{template_id}")
+@limiter.limit("30/minute")
+async def delete_theme_template(request: Request, template_id: str,
+                                db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    return await templates.delete(db, user, template_id)

@@ -21,11 +21,44 @@ PRESETS = (
     "clean", "editorial", "technical", "minimal", "playful", "helpcenter",
     "midnight", "paper", "terminal", "corporate", "studio", "academic", "atlas", "pastel",
 )
-# Font ids the engine can serve (self-hosted or Google). None = the theme's own.
+# Font ids the engine serves (self-hosted: frontend/src/docs/theme.mjs FONTS, the same set; the
+# test keeps them equal). None = the theme's own.
 FONT_IDS = (
     "system", "inter", "manrope", "geist", "dmsans", "plex", "nunito", "source-sans-3",
     "newsreader", "source-serif-4", "lora", "jetbrains-mono", "plex-mono",
+    "geist-mono", "space-grotesk", "plus-jakarta-sans", "figtree", "fraunces", "crimson-pro",
+    "fira-code", "source-code-pro",
 )
+# The code faces (theme.fonts.mono; a heading may use one too, the body never does).
+MONO_FONT_IDS = ("jetbrains-mono", "plex-mono", "geist-mono", "fira-code", "source-code-pro")
+
+# A custom theme (theme.custom, the theme builder): the engine's theme.mjs CUSTOM_* lists with
+# snake_case keys (docs_snapshot turns them into the engine's camelCase). The test keeps them equal.
+CUSTOM_COLORS = (
+    "bg", "surface", "sidebar", "header", "text", "muted", "accent", "border",
+    "code_bg", "code_text", "note", "tip", "warning", "danger", "selection",
+)
+CUSTOM_OPTIONS: dict[str, tuple[str, ...]] = {
+    "radius": ("none", "small", "medium", "large", "xlarge"),
+    "buttons": ("square", "rounded", "pill"),
+    "cards": ("flat", "bordered", "raised"),
+    "header_align": ("left", "center"),
+    "header_style": ("solid", "transparent"),
+    "tab_style": ("pills", "underline"),
+    "sidebar_style": ("pills", "lines", "plain"),
+    "callouts": ("tinted", "bordered", "bar"),
+    "code_theme": ("auto", "light", "dark"),
+    "links": ("underline", "accent", "plain"),
+    "icons": ("regular", "light", "bold", "duotone"),
+}
+CUSTOM_BOOLS = ("section_tabs", "sidebar_icons")
+# (min, max, step)
+CUSTOM_RANGES: dict[str, tuple[float, float, float]] = {
+    "base_size": (14, 20, 0.5),
+    "line_height": (1.3, 2, 0.05),
+    "heading_weight": (400, 900, 100),
+    "content_width": (560, 1040, 10),
+}
 CUSTOM_CSS_MAX = 20 * 1024
 _HEX = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
@@ -353,6 +386,71 @@ class Brand(_Strict):
 class Fonts(_Strict):
     heading: Literal[FONT_IDS] | None = None  # type: ignore[valid-type]
     body: Literal[FONT_IDS] | None = None  # type: ignore[valid-type]
+    mono: Literal[MONO_FONT_IDS] | None = None  # type: ignore[valid-type]
+
+
+class CustomColors(_Strict):
+    """One theme's colours (light or dark) in a custom theme; None keeps the preset's."""
+    bg: str | None = None
+    surface: str | None = None
+    sidebar: str | None = None
+    header: str | None = None
+    text: str | None = None
+    muted: str | None = None
+    accent: str | None = None
+    border: str | None = None
+    code_bg: str | None = None
+    code_text: str | None = None
+    note: str | None = None
+    tip: str | None = None
+    warning: str | None = None
+    danger: str | None = None
+    selection: str | None = None
+
+    @field_validator("*")
+    @classmethod
+    def _hex(cls, v):
+        return None if v in (None, "") else normalize_hex(v)
+
+
+def _on_step(v: float, lo: float, hi: float, step: float) -> bool:
+    return lo <= v <= hi and abs(round((v - lo) / step) * step - (v - lo)) < 1e-6
+
+
+class Custom(_Strict):
+    """A custom theme: the preset, then these (frontend/src/docs/theme.mjs normalizeCustom has the
+    same rules). Every field is optional; None keeps the preset's."""
+    light: CustomColors | None = None
+    dark: CustomColors | None = None
+    base_size: float | None = None
+    line_height: float | None = None
+    heading_weight: int | None = None
+    content_width: int | None = None
+    radius: Literal[CUSTOM_OPTIONS["radius"]] | None = None  # type: ignore[valid-type]
+    buttons: Literal[CUSTOM_OPTIONS["buttons"]] | None = None  # type: ignore[valid-type]
+    cards: Literal[CUSTOM_OPTIONS["cards"]] | None = None  # type: ignore[valid-type]
+    header_align: Literal[CUSTOM_OPTIONS["header_align"]] | None = None  # type: ignore[valid-type]
+    header_style: Literal[CUSTOM_OPTIONS["header_style"]] | None = None  # type: ignore[valid-type]
+    tab_style: Literal[CUSTOM_OPTIONS["tab_style"]] | None = None  # type: ignore[valid-type]
+    sidebar_style: Literal[CUSTOM_OPTIONS["sidebar_style"]] | None = None  # type: ignore[valid-type]
+    callouts: Literal[CUSTOM_OPTIONS["callouts"]] | None = None  # type: ignore[valid-type]
+    code_theme: Literal[CUSTOM_OPTIONS["code_theme"]] | None = None  # type: ignore[valid-type]
+    links: Literal[CUSTOM_OPTIONS["links"]] | None = None  # type: ignore[valid-type]
+    icons: Literal[CUSTOM_OPTIONS["icons"]] | None = None  # type: ignore[valid-type]
+    section_tabs: bool | None = None
+    sidebar_icons: bool | None = None
+
+    @field_validator("base_size", "line_height", "heading_weight", "content_width")
+    @classmethod
+    def _range(cls, v, info):
+        if v is None:
+            return None
+        lo, hi, step = CUSTOM_RANGES[info.field_name]
+        if isinstance(v, bool) or not _on_step(float(v), lo, hi, step):
+            nice = {"base_size": "Text size", "line_height": "Line height", "heading_weight": "Heading weight",
+                    "content_width": "Content width"}[info.field_name]
+            raise ValueError(f"{nice} must be from {lo:g} to {hi:g} in steps of {step:g}.")
+        return v
 
 
 class Theme(_Strict):
@@ -362,6 +460,8 @@ class Theme(_Strict):
     mode: Literal["both", "light", "dark"] = "both"
     corners: Literal["sharp", "soft", "round"] | None = None
     custom_css: str | None = None
+    # A custom theme (the theme builder); None is the preset as designed.
+    custom: Custom | None = None
 
     @field_validator("custom_css")
     @classmethod
@@ -493,6 +593,27 @@ def validate(settings: dict) -> dict:
                 msg = msg[len("Value error, "):]
             errors.append({"loc": ["settings", *e.get("loc", ())], "msg": msg, "type": e.get("type")})
         raise SettingsError(errors) from None
+
+
+def validate_theme(theme: dict) -> dict:
+    """A design on its own (a saved theme template, services/docs_theme_templates.py): the same
+    rules as a site's ``settings.theme``, without the guide's brand (logo, brand colours), which a
+    template never carries. The validated theme without ``brand``, or :class:`SettingsError`."""
+    if not isinstance(theme, dict):
+        raise SettingsError([{"loc": ["theme"], "msg": "A design must be an object.", "type": "type_error"}])
+    raw = {k: v for k, v in theme.items() if k != "brand"}
+    try:
+        out = Theme.model_validate(raw).model_dump()
+    except ValidationError as exc:
+        errors = []
+        for e in exc.errors():
+            msg = e.get("msg", "Invalid value")
+            if msg.startswith("Value error, "):
+                msg = msg[len("Value error, "):]
+            errors.append({"loc": ["theme", *e.get("loc", ())], "msg": msg, "type": e.get("type")})
+        raise SettingsError(errors) from None
+    out.pop("brand", None)
+    return out
 
 
 def public_view(settings: dict) -> dict:
