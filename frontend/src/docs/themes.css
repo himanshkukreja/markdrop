@@ -257,7 +257,7 @@
 .dx-root[data-preset] .dx-callout--danger { background: var(--dx-danger-soft, var(--danger-soft)); color: var(--dx-danger, var(--danger)); }
 .dx-root[data-custom] ::selection { background: var(--dx-selection, var(--accent-soft)); color: var(--text); }
 @media (min-width: 900px) {
-  .dx-root.dx-root[data-sidebar-bg] .dx-layout__nav { background: var(--dx-sidebar-bg); border-right: 1px solid var(--border); margin-left: -24px; padding-left: 14px; padding-right: 10px; }
+  .dx-root.dx-root[data-sidebar-bg] .dx-layout__nav { min-height: calc(100dvh - var(--dx-header-h)); background: var(--dx-sidebar-bg); border-right: 1px solid var(--border); margin-left: -24px; padding-left: 14px; padding-right: 10px; }
 }
 
 /* Buttons and the search box: square, rounded or pill. */

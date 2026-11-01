@@ -120,6 +120,8 @@ export interface GuardRow {
   min: number;
   ok: boolean;
   fix: string | null;
+  /** The pair involves a colour the owner picked (the builder warns about those). */
+  set: boolean;
 }
 export declare const CUSTOM_COLORS: CustomColorKey[];
 export declare const CUSTOM_OPTIONS: { [K in keyof CustomOptions]: Array<CustomOptions[K]> };

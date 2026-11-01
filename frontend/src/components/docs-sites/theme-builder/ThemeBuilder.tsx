@@ -202,7 +202,7 @@ export default function ThemeBuilder({ siteName, theme, onChange, onClose, onSav
     const { theme: t, brand } = engineTheme(theme);
     return contrastGuard(t, brand);
   }, [theme]);
-  const failing = guard.filter((r) => !r.ok);
+  const failing = guard.filter((r) => !r.ok && r.set);
   const failingHere = failing.filter((r) => r.mode === mode);
   const cssProblem = customCssProblem(theme.custom_css ?? "");
   const type = presetType(theme.preset);

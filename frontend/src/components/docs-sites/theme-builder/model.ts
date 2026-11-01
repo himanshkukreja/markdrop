@@ -3,7 +3,7 @@
  * snake_case `settings.theme.custom`), what each setting is when the owner hasn't set it (the
  * preset's own), and the suggested palettes.
  */
-import { MARKDROP_BASE, mix, parseHex, resolveTheme, toHex, type Palette } from "@/docs/theme.mjs";
+import { MARKDROP_BASE, contrast, mix, parseHex, resolveTheme, toHex, type Palette } from "@/docs/theme.mjs";
 import type { SiteTheme, ThemePreset } from "@/lib/docsSites";
 import { COLOR_KEYS, engineTheme, fullCustom, type CustomColorApiKey, type CustomColorsSettings, type CustomThemeSettings } from "@/lib/guideThemes";
 
@@ -91,7 +91,18 @@ export function presetType(preset: ThemePreset) {
   return TYPE[preset] ?? { size: 16, line: 1.7, width: 760 };
 }
 
-/** A complete light and dark palette around one accent: tinted neutrals, readable text. */
+type RGB = [number, number, number];
+
+/** `c` moved toward `toward` until it reads at 4.6:1 on every ground. */
+function readable(c: RGB, grounds: RGB[], toward: RGB): RGB {
+  for (let i = 0; i <= 40; i++) {
+    const out = mix(c, toward, i / 40) as RGB;
+    if (grounds.every((g) => contrast(out, g) >= 4.6)) return out;
+  }
+  return toward;
+}
+
+/** A complete light and dark palette around one accent: tinted neutrals, text that passes AA. */
 export function paletteFrom(accentHex: string, opts: { warm?: boolean; tint?: number } = {}): Record<Mode, CustomColorsSettings> {
   const a = parseHex(accentHex) ?? [33, 80, 216];
   const tint = opts.tint ?? 0.035;
@@ -110,8 +121,8 @@ export function paletteFrom(accentHex: string, opts: { warm?: boolean; tint?: nu
       sidebar: toHex(mix(white, a, tint * 1.8)),
       header: toHex(mix(lbg, [255, 255, 255], 0.7)),
       text: toHex(lightText),
-      muted: toHex(mix(lightText, lbg, 0.42)),
-      accent: toHex(a),
+      muted: toHex(readable(mix(lightText, lbg, 0.4) as RGB, [lbg, mix(lbg, [255, 255, 255], 0.7) as RGB, mix(white, a, tint * 1.8) as RGB], [0, 0, 0])),
+      accent: toHex(readable(a, [lbg, mix(lbg, [255, 255, 255], 0.7) as RGB], [0, 0, 0])),
       border: toHex(mix(lbg, lightText, 0.12)),
     },
     dark: {
@@ -120,8 +131,8 @@ export function paletteFrom(accentHex: string, opts: { warm?: boolean; tint?: nu
       sidebar: toHex(mix(dbg, [255, 255, 255], 0.025)),
       header: toHex(dcard),
       text: toHex(darkText),
-      muted: toHex(mix(darkText, dbg, 0.38)),
-      accent: toHex(mix(a, [255, 255, 255], 0.35)),
+      muted: toHex(readable(mix(darkText, dbg, 0.36) as RGB, [dbg, dcard], [255, 255, 255])),
+      accent: toHex(readable(mix(a, [255, 255, 255], 0.35) as RGB, [dbg, dcard], [255, 255, 255])),
       border: toHex(mix(dbg, darkText, 0.14)),
     },
   };

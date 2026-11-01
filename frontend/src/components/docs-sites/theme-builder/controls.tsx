@@ -82,10 +82,8 @@ export function ColorField({ label, value, fallback, onChange, warning, disabled
         />
       </label>
       <div className="flex min-w-0 flex-1 flex-col">
-        <label htmlFor={id} className="flex items-center gap-1.5 text-[13px] font-medium text-text">
-          <span className="truncate">{label}</span>
-          {!value && <span className="text-[11px] font-normal text-text-muted">Theme default</span>}
-        </label>
+        <label htmlFor={id} className="truncate text-[13px] font-medium leading-[18px] text-text">{label}</label>
+        {!value && !warning && <span className="text-[11px] leading-[14px] text-text-muted">Theme default</span>}
         {warning && (
           <span className="flex items-center gap-1 text-[11.5px] text-warning">
             <Icon name="alert" size={12} /> {warning.ratio.toFixed(1)}:1, below 4.5:1

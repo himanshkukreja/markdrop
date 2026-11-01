@@ -68,7 +68,7 @@ export const LOOKS: Record<ThemePreset, PresetLook> = {
 
 /** The Google Fonts the preview needs (presets + the font picker), loaded once by the Design panel. */
 export const PREVIEW_FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@400;700;800&family=DM+Sans:wght@400;600;700;800&family=Geist:wght@400;600;700&family=Inter:wght@400;600;700&family=Lora:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap";
+  "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@400;700;800&family=DM+Sans:wght@400;600;700;800&family=Geist:wght@400;600;700&family=Inter:wght@400;600;700&family=Lora:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=Space+Grotesk:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600;800&family=Figtree:wght@400;600;800&family=Fraunces:wght@400;600;800&family=Crimson+Pro:wght@400;600&family=Fira+Code:wght@400;500&family=Source+Code+Pro:wght@400;500&display=swap";
 
 const CORNER_R: Record<Corners, string> = { sharp: "3px", soft: "8px", round: "16px" };
 

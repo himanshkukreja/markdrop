@@ -503,5 +503,14 @@ test("custom: the builder's contrast guard flags failing pairs and offers a pass
   assert.equal(theme.custom.light.text, "#9ca3af");
   // The untouched dark theme passes, and so does every preset as designed (links are derived from the accent).
   assert.ok(rows.filter((r) => r.mode === "dark").every((r) => r.ok || r.label === "Links"));
-  for (const p of Object.keys(PRESETS)) for (const r of contrastGuard({ preset: p })) assert.ok(r.ok || r.label === "Links", `${p} ${r.mode} ${r.label} ${r.ratio}`);
+  for (const p of Object.keys(PRESETS)) {
+    for (const r of contrastGuard({ preset: p })) {
+      assert.ok(r.ok || r.label === "Links", `${p} ${r.mode} ${r.label} ${r.ratio}`);
+      assert.equal(r.set, false, "a preset's own pairs aren't the owner's to fix");
+    }
+  }
+  // Rows say whether the owner picked a colour in them (the builder warns about those only).
+  assert.equal(get("light", "Body text").set, true);
+  assert.equal(rows.find((r) => r.mode === "dark" && r.label === "Body text").set, false);
+  assert.equal(rows.find((r) => r.mode === "dark" && r.label === "Links").set, true); // dark falls back to the light accent
 });

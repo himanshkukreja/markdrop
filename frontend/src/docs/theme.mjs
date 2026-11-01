@@ -527,7 +527,7 @@ export function paletteTokens(palette, theme) {
 function selectionFor(sel, text, bg) {
   for (let i = 0; i <= 50; i++) {
     const c = mix(sel, bg, i / 50);
-    if (contrast(text, c) >= 4.5) return c;
+    if (contrast(text, c) >= 4.6) return c;
   }
   return bg;
 }
@@ -757,7 +757,7 @@ export function contrastGuard(theme, brand) {
       const ratio = Math.min(...gs.map((g) => contrast(fg, g)));
       const worst = gs.reduce((a, g) => (contrast(fg, g) < contrast(fg, a) ? g : a));
       const ok = ratio >= min;
-      out.push({ mode, key, label, fg: toHex(fg), bg: toHex(worst), ratio: round(ratio), min, ok, fix: ok ? null : toHex(fixFn ? fixFn(fg, gs) : clampAgainst(fg, gs, awayFrom(worst), min)) });
+      out.push({ mode, key, label, fg: toHex(fg), bg: toHex(worst), ratio: round(ratio), min, ok, fix: ok ? null : toHex(fixFn ? fixFn(fg, gs) : clampAgainst(fg, gs, awayFrom(worst), min + 0.1)) });
     };
     pair("text", "Body text", p.text, ["bg", "card", "header", "sidebar"], 4.5);
     pair("muted", "Muted text", p.muted, ["bg", "card"], 4.5);
@@ -769,7 +769,7 @@ export function contrastGuard(theme, brand) {
       const on = contrast(WHITE, fill) >= contrast(INK, fill) ? WHITE : INK;
       const ratio = contrast(on, fill);
       let fixed = fill;
-      for (let i = 1; contrast(on, fixed) < 4.5 && i <= 60; i++) fixed = mix(fill, on === WHITE ? BLACK : WHITE, i / 100);
+      for (let i = 1; contrast(on, fixed) < 4.6 && i <= 60; i++) fixed = mix(fill, on === WHITE ? BLACK : WHITE, i / 100);
       out.push({ mode, key: "accent", label: "Button label", fg: toHex(on), bg: toHex(fill), ratio: round(ratio), min: 4.5, ok: ratio >= 4.5, fix: ratio >= 4.5 ? null : toHex(fixed) });
     }
     if (p.codeSet) pair("codeText", "Code", p.codeText, ["code"], 4.5);
@@ -797,6 +797,15 @@ export function contrastGuard(theme, brand) {
       const ratio = contrast(text, sel);
       out.push({ mode, key: "selection", label: "Selected text", fg: toHex(text), bg: toHex(sel), ratio: round(ratio), min: 4.5, ok: ratio >= 4.5, fix: ratio >= 4.5 ? null : toHex(selectionFor(sel, text, bg)) });
     }
+  }
+  // `set`: the pair involves a colour the owner picked (in that theme; dark's accent is the light
+  // one when dark has none). The builder warns about those; a preset's own pairs are as designed.
+  const INVOLVES = { text: ["text", "bg", "surface", "header", "sidebar"], muted: ["muted", "bg", "surface"], codeText: ["codeText", "codeBg"], selection: ["selection", "text"] };
+  const c = t?.custom ?? {};
+  const picked = (mode, k) => !!c[mode]?.[k] || (k === "accent" && mode === "dark" && !!c.light?.accent && !c.dark?.accent);
+  for (const r of out) {
+    const keys = r.label === "Links" ? ["accent", "bg", "surface"] : r.label === "Button label" ? ["accent"] : CALLOUT_KINDS.includes(r.key) ? [r.key, "bg"] : INVOLVES[r.key] ?? [r.key];
+    r.set = keys.some((k) => picked(r.mode, k));
   }
   return out;
 }

@@ -438,7 +438,11 @@ export default function DesignPanel() {
           onChange={setTheme}
           onClose={() => setBuilding(false)}
           onSave={async () => {
-            if (await save()) setBuilding(false);
+            if (await save()) {
+              setBuilding(false);
+              // The Design saved banner (and Publish now) sits at the top.
+              window.scrollTo({ top: 0 });
+            }
           }}
           saving={saving}
           dirty={dirty}
