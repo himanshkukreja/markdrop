@@ -147,6 +147,46 @@ export function createSite(origin, base = "") {
     }
   }
 
+  /**
+   * GitBook's own copy of an image: /~gitbook/image?url=<original>&sign=… on the site's origin, with
+   * the size parameters dropped (the full-size image; the signature covers the url only). This is
+   * how the site shows a logo or picture whose original lives on a host the importer doesn't read
+   * (a logo from Google's favicon service, an image on a customer CDN). null for anything else.
+   */
+  function proxyImageUrl(src) {
+    try {
+      const u = new URL(decodeEntities(src), origin);
+      if (u.origin !== origin || !u.pathname.includes("/~gitbook/image") || !u.searchParams.get("url") || !u.searchParams.get("sign")) return null;
+      for (const k of ["width", "height", "dpr", "quality", "format"]) u.searchParams.delete(k);
+      return u.href;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Every image GitBook proxies on a page: Map(original URL → full-size proxy URL on the site). */
+  function proxiedImages(html) {
+    const out = new Map();
+    for (const m of String(html ?? "").matchAll(/https?:\/\/[^"'\s,]*\/~gitbook\/image\?[^"'\s,]+/g)) {
+      const proxy = proxyImageUrl(m[0]);
+      const original = proxy && originalImageUrl(proxy);
+      if (original && !out.has(original)) out.set(original, proxy);
+    }
+    return out;
+  }
+
+  /**
+   * GitBook's look from a page's HTML: the <html> classes (`straight-corners`, `circular-corners`,
+   * `font-Inter`…) → { corners: "sharp"|"soft"|"round", font: GitBook's font name or null }.
+   */
+  function detectLook(html) {
+    const cls = /<html[^>]*class="([^"]*)"/.exec(String(html ?? ""))?.[1] ?? "";
+    const has = (c) => cls.split(/\s+/).includes(c);
+    const corners = has("straight-corners") ? "sharp" : has("circular-corners") ? "round" : "soft";
+    const font = /(?:^|\s)font-([A-Za-z][A-Za-z0-9]+)(?:\s|$)/.exec(cls)?.[1] ?? null;
+    return { corners, font };
+  }
+
   /** Site name, logo, favicon and theme colours from a page's HTML. */
   function detectBrand(html) {
     const at = html.indexOf("data-gb-site-header");
@@ -169,11 +209,15 @@ export function createSite(origin, base = "") {
     return {
       siteName: name || title.split(" | ").pop() || host,
       logo: img ? originalImageUrl(img) : null,
+      // GitBook's own copies (its image proxy on the site), for originals on hosts the importer doesn't read.
+      logoProxy: img ? proxyImageUrl(img) : null,
       // The dark theme's logo, only when it is a different image.
       logoDark: darkImg && img && originalImageUrl(darkImg) !== originalImageUrl(img) ? originalImageUrl(darkImg) : null,
+      logoDarkProxy: darkImg ? proxyImageUrl(darkImg) : null,
       logoAlt: decodeEntities(imgAlt ?? ""),
       wordmark: !!img && !name,
       favicon: icon ? originalImageUrl(icon) : null,
+      faviconProxy: icon ? proxyImageUrl(icon) : null,
       accent: primary ? rgbToHex(primary) : null,
       tint: tint ? rgbToHex(tint) : null,
       themeClass: /<html[^>]*class="([^"]*)"/.exec(html)?.[1] ?? "",
@@ -210,5 +254,38 @@ export function createSite(origin, base = "") {
     return out;
   }
 
-  return { abs, gbPathOf, parseLlms, parseSidebar, detectBrand, fileLinks, originalImageUrl, pageIcons };
+  /**
+   * The cards GitBook drew on a page, in order: [{ href, text }]. A card is clickable when GitBook
+   * wraps it in a link (its card target); href is null for one that isn't. `text` is the card's
+   * visible text, to check a card against the Markdown's row before borrowing its target.
+   */
+  function htmlCards(html) {
+    const s = String(html ?? "");
+    const main = s.indexOf("<main");
+    const m = main < 0 ? s : s.slice(main);
+    const out = [];
+    const re = /data-card=""/g;
+    let hit;
+    while ((hit = re.exec(m))) {
+      const before = m.slice(Math.max(0, hit.index - 4000), hit.index);
+      const tags = [...before.matchAll(/<(a|div)\b((?:[^>"]|"[^"]*")*)>/g)];
+      const own = tags[tags.length - 1];
+      const href = own && own[1] === "a" ? /\shref="([^"]*)"/.exec(own[2])?.[1] ?? null : null;
+      const next = m.indexOf('data-card=""', hit.index + 12);
+      const body = m.slice(hit.index, next < 0 ? hit.index + 6000 : Math.min(next, hit.index + 6000));
+      const text = decodeEntities(
+        body
+          .replace(/^[^>]*>/, "")
+          .replace(/<[^>]*$/, "")
+          .replace(/<(svg|script|style)\b[\s\S]*?<\/\1>/g, " ")
+          .replace(/<[^>]*>/g, " "),
+      )
+        .replace(/\s+/g, " ")
+        .trim();
+      out.push({ href: href ? decodeEntities(href) : null, text });
+    }
+    return out;
+  }
+
+  return { abs, gbPathOf, parseLlms, parseSidebar, detectBrand, detectLook, fileLinks, originalImageUrl, proxyImageUrl, proxiedImages, pageIcons, htmlCards };
 }

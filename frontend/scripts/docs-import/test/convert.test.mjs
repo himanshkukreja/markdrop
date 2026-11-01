@@ -207,10 +207,66 @@ test("card tables become cards with icons and targets; covers are reported", () 
     '<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-cover data-type="image">Cover</th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody>' +
     '<tr><td><i class="fa-bolt">:bolt:</i> <strong>Fast start</strong></td><td>Go in a minute</td><td><a href="https://cdn.example.com/c.svg">c.svg</a></td><td><a href="/guides/setup.md">Setup</a></td></tr>' +
     '<tr><td><a href="/guides/other.md"><strong>Other</strong></a></td><td>More</td><td></td><td></td></tr></tbody></table>';
-  const { out, issues } = convert(html);
-  assert.match(out, /::::cards\n:::card\[Fast start\]\{href="\/guides\/setup" icon="zap"\}\nGo in a minute\n:::\n:::card\[Other\]\{href="\/guides\/other"\}\nMore\n:::\n::::/);
-  assert.ok(issues.some((i) => /cover/.test(i.msg)));
+  const { out, images } = convert(html);
+  assert.match(out, /::::cards\n:::card\[Fast start\]\{href="\/guides\/setup" icon="zap" cover="\/docs-assets\/x\/1\.png"\}\nGo in a minute\n:::\n:::card\[Other\]\{href="\/guides\/other"\}\nMore\n:::\n::::/);
+  assert.equal(images[0].src, "https://cdn.example.com/c.svg");
   assert.equal(faIcon("fa-user-group"), "users");
+});
+
+/* Card tables as GitBook's Markdown export writes them for Northwind's fictional docs. */
+const NW_CARDS =
+  '<table data-view="cards"><thead><tr><th>Title</th><th data-card-target data-type="content-ref">Target</th></tr></thead><tbody>' +
+  '<tr><td>Billing</td><td><a href="broken://pages/a1b2c3d4e5f60718293a4b5c6d7e8f9012345678">Broken link</a></td></tr>' +
+  '<tr><td>Shipping</td><td><a href="/guides/shipping.md">Shipping</a></td></tr>' +
+  '<tr><td>Returns</td><td><a href="broken://pages/ffffeeeeddddccccbbbbaaaa9999888877776666">Broken link</a></td></tr></tbody></table>';
+
+test("cards: a broken:// card target takes the link GitBook's page gives the same card", () => {
+  let n = 0;
+  const html = { 0: "/guides/billing", 2: null }; // the page's third card isn't a link there either
+  const asked = [];
+  const broken = [];
+  const { out } = convert(NW_CARDS, {
+    nextCard: () => n++,
+    cardTarget: (i, title) => (asked.push([i, title]), html[i] ?? null),
+    link(href, opts) {
+      if (/^broken:/.test(href)) return broken.push({ href, card: opts?.card }), null;
+      return href.replace(/\.md$/, "");
+    },
+  });
+  assert.match(out, /:::card\[Billing\]\{href="\/guides\/billing"\}/);
+  assert.match(out, /:::card\[Shipping\]\{href="\/guides\/shipping"\}/);
+  assert.match(out, /:::card\[Returns\]\n/);
+  assert.deepEqual(asked, [[0, "Billing"], [2, "Returns"]]);
+  // Only the card nothing could resolve is reported, with its title.
+  assert.deepEqual(broken, [{ href: "broken://pages/ffffeeeeddddccccbbbbaaaa9999888877776666", card: "Returns" }]);
+  assert.doesNotMatch(out, /broken:/);
+});
+
+test("cards: a broken target falls back to the card title's own link; large cards sit two to a row", () => {
+  const html =
+    '<table data-card-size="large" data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody>' +
+    '<tr><td><a href="/guides/start.md"><strong>Start</strong></a></td><td>Begin here</td><td><a href="broken://pages/0123456789abcdef0123456789abcdef01234567">Broken link</a></td></tr>' +
+    '<tr><td><a href="/guides/api.md"><strong>API</strong></a></td><td>Reference</td><td><a href="/guides/api-overview.md">API overview</a></td></tr>' +
+    '<tr><td><strong>Later</strong></td><td>Soon</td><td></td></tr></tbody></table>';
+  const { out } = convert(html);
+  assert.match(out, /^::::cards\{cols="2"\}$/m);
+  assert.match(out, /:::card\[Start\]\{href="\/guides\/start"\}\nBegin here/);
+  // A target beats the title's link (GitBook links the whole card to its target).
+  assert.match(out, /:::card\[API\]\{href="\/guides\/api-overview"\}/);
+  assert.match(out, /:::card\[Later\]\nSoon/);
+  assertBalanced(out);
+});
+
+test("cards: covers keep their dark variant and need no alt text", () => {
+  const html =
+    '<table data-view="cards"><thead><tr><th></th><th data-hidden data-card-cover data-type="image">Cover</th><th data-hidden data-card-cover-dark data-type="image">Dark</th></tr></thead><tbody>' +
+    '<tr><td><strong>Acme</strong></td><td><a href="https://files.example.com/acme.png?a=1&amp;b=2">acme.png</a></td><td><a href="https://files.example.com/acme-dark.png">acme-dark.png</a></td></tr></tbody></table>';
+  const seen = [];
+  const { out } = convert(html, { image: (src, o) => (seen.push({ src, ...o }), { src: "/docs-assets/x/acme.png", alt: "" }) });
+  assert.match(out, /:::card\[Acme\]\{cover="\/docs-assets\/x\/acme\.png"\}/);
+  assert.equal(seen[0].src, "https://files.example.com/acme.png?a=1&b=2");
+  assert.equal(seen[0].darkSrc, "https://files.example.com/acme-dark.png");
+  assert.equal(seen[0].decorative, true);
 });
 
 test("HTML tables become GFM tables (pipes escaped, hidden columns dropped)", () => {
@@ -309,6 +365,43 @@ test("brand: GitBook's light and dark logos; one image for both means no dark lo
   const one = site.detectBrand(head("https://cdn.example.com/logo.png", "https://cdn.example.com/logo.png"));
   assert.equal(one.logo, "https://cdn.example.com/logo.png");
   assert.equal(one.logoDark, null);
+});
+
+test("brand: a logo on another host comes through GitBook's own proxy copy (full size, signature kept)", () => {
+  const site = createSite("https://docs.example.com");
+  const proxied = "https://docs.example.com/~gitbook/image?url=https%3A%2F%2Ficons.example.net%2Facme.png&amp;width=32&amp;dpr=3&amp;quality=100&amp;sign=abc123&amp;sv=3";
+  const html =
+    `<html class="straight-corners theme-gradient font-Inter"><head><link rel="icon" href="https://docs.example.com/~gitbook/image?url=https%3A%2F%2Ficons.example.net%2Facme.png&amp;width=48&amp;height=48&amp;sign=abc123&amp;sv=3" type="image/png"/></head>` +
+    `<header data-gb-site-header="true"><a href="/"><img alt="" src="${proxied}"/><div>Acme Docs</div></a></header></html>`;
+  const b = site.detectBrand(html);
+  assert.equal(b.logo, "https://icons.example.net/acme.png");
+  assert.equal(b.logoProxy, "https://docs.example.com/~gitbook/image?url=https%3A%2F%2Ficons.example.net%2Facme.png&sign=abc123&sv=3");
+  assert.equal(b.faviconProxy, b.logoProxy);
+  assert.deepEqual(site.detectLook(html), { corners: "sharp", font: "Inter" });
+  assert.deepEqual(site.detectLook('<html class="circular-corners">'), { corners: "round", font: null });
+  assert.deepEqual(site.detectLook(""), { corners: "soft", font: null });
+  // Any page's proxied images: original → proxy, for originals on hosts the import doesn't read.
+  const map = site.proxiedImages(`<img srcSet="${proxied} 32w, https://docs.example.com/~gitbook/image?url=https%3A%2F%2Fcdn.acme.test%2Fa.webp&amp;width=400&amp;sign=s2&amp;sv=3 400w"/>`);
+  assert.equal(map.get("https://icons.example.net/acme.png"), b.logoProxy);
+  assert.equal(map.get("https://cdn.acme.test/a.webp"), "https://docs.example.com/~gitbook/image?url=https%3A%2F%2Fcdn.acme.test%2Fa.webp&sign=s2&sv=3");
+  // No signature, or another origin: not a proxy URL.
+  assert.equal(site.proxyImageUrl("https://docs.example.com/~gitbook/image?url=https%3A%2F%2Fx.test%2Fa.png"), null);
+  assert.equal(site.proxyImageUrl("https://evil.test/~gitbook/image?url=https%3A%2F%2Fx.test%2Fa.png&sign=1"), null);
+});
+
+test("cards on GitBook's page: the link around each card (its target), or none", () => {
+  const site = createSite("https://docs.example.com");
+  const card = (title, href) =>
+    href
+      ? `<a class="elevate-link group grid" href="${href}"><div data-card="" class="grid"><div><h4>${title}</h4><p>About ${title}</p></div></div></a>`
+      : `<div class="group grid"><div data-card="" class="grid"><div><p>${title}</p><a href="#undefined">x</a></div></div></div>`;
+  const html = `<body><nav><a href="/elsewhere">Nav</a></nav><main><div class="grid">${card("Billing", "/guides/billing")}${card("Returns")}${card("Shipping &amp; delivery", "/guides/shipping")}</div></main></body>`;
+  assert.deepEqual(site.htmlCards(html), [
+    { href: "/guides/billing", text: "Billing About Billing" },
+    { href: null, text: "Returns x" },
+    { href: "/guides/shipping", text: "Shipping & delivery About Shipping & delivery" },
+  ]);
+  assert.deepEqual(site.htmlCards(""), []);
 });
 
 test("page icons from GitBook's sidebar data", () => {
