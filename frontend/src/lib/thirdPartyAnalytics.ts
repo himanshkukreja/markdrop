@@ -249,10 +249,15 @@ function loadPostHog(m: AnalyticsMode): Promise<PostHog | null> {
   if (loading) return loading;
   loading = import("posthog-js")
     .then(({ default: posthog }) => {
+      scrubStoredHashesBeforeInit();
       posthog.init(POSTHOG_KEY, {
         api_host: POSTHOG_PROXY,
         ui_host: POSTHOG_UI_HOST,
         defaults: "2026-05-30",
+        // Never keep the part of an address after # (an encrypted document's key, #k=…): without
+        // this, these defaults store the first page's full URL in PostHog's cookie and send it with
+        // every flags request (neither passes through before_send).
+        disable_capture_url_hashes: true,
         person_profiles: "always",
         // Page views are sent by onRoute, after the document's context is known.
         capture_pageview: false,
@@ -286,6 +291,7 @@ function loadPostHog(m: AnalyticsMode): Promise<PostHog | null> {
         before_send: beforeSend,
       });
       ph = posthog;
+      scrubStoredHashes(posthog);
       // Builds before this one registered doc context as super properties; clear any leftovers.
       for (const k of ["doc_ref", "doc_kind", "doc_access"]) posthog.unregister(k);
       if (m === "full" && !posthog.has_opted_in_capturing()) posthog.opt_in_capturing();
@@ -294,6 +300,71 @@ function loadPostHog(m: AnalyticsMode): Promise<PostHog | null> {
     })
     .catch(() => null);
   return loading;
+}
+
+/** Any URL-looking string with a # part (an encrypted document's key), minus that part. */
+function dropHashes(v: unknown): unknown {
+  if (typeof v === "string") return /^https?:\/\//.test(v) && v.includes("#") ? v.slice(0, v.indexOf("#")) : v;
+  if (Array.isArray(v)) return v.map(dropHashes);
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, dropHashes(x)]));
+  return v;
+}
+
+/**
+ * Browsers that visited before disable_capture_url_hashes kept their first page's full URL
+ * (`$initial_person_info`, the session's entry URL) in PostHog's storage and cookie: rewrite
+ * those without the # part.
+ */
+function scrubStoredHashes(posthog: PostHog) {
+  try {
+    const stores = posthog as unknown as Record<string, { props?: Record<string, unknown>; save?: () => void } | undefined>;
+    for (const name of ["persistence", "sessionPersistence"]) {
+      const store = stores[name];
+      if (!store?.props) continue;
+      let changed = false;
+      for (const [k, v] of Object.entries(store.props)) {
+        const clean = dropHashes(v);
+        if (JSON.stringify(clean) !== JSON.stringify(v)) {
+          store.props[k] = clean;
+          changed = true;
+        }
+      }
+      if (changed) store.save?.();
+    }
+  } catch {
+    /* analytics must never break the page */
+  }
+}
+
+/**
+ * The same, before PostHog starts (its first requests go out during init): the localStorage copy
+ * is rewritten without # parts, and a cookie holding one is deleted (PostHog rebuilds it from
+ * localStorage, which keeps the same ids).
+ */
+function scrubStoredHashesBeforeInit() {
+  const name = `ph_${POSTHOG_KEY}_posthog`;
+  try {
+    const raw = localStorage.getItem(name);
+    if (raw?.includes("#")) localStorage.setItem(name, JSON.stringify(dropHashes(JSON.parse(raw))));
+  } catch {
+    /* storage blocked or unreadable */
+  }
+  try {
+    const cookie = document.cookie.split("; ").find((c) => c.startsWith(`${name}=`));
+    if (cookie && decodeURIComponent(cookie.slice(name.length + 1)).includes("#")) {
+      const expire = `${name}=; path=/; max-age=0`;
+      document.cookie = expire;
+      const parts = window.location.hostname.split(".");
+      for (let i = 0; i < parts.length - 1; i++) document.cookie = `${expire}; domain=.${parts.slice(i).join(".")}`;
+    }
+  } catch {
+    /* cookies blocked */
+  }
+}
+
+/** The address carries an encrypted document's key (#k=…): no third-party script runs on it. */
+export function hasDocumentKey(hash: string): boolean {
+  return /(^#|&)k=/.test(hash);
 }
 
 function syncRecording() {
@@ -318,7 +389,11 @@ declare global {
 }
 
 /** Hit parameters that are the reader's or a document's own words: never sent. */
-const GA_DROP = new Set(["ep.link_text", "ep.file_name", "ep.search_term", "ep.form_name", "ep.form_id"]);
+// The link_* parameters of outbound clicks name where a link inside a document points.
+const GA_DROP = new Set([
+  "ep.link_text", "ep.file_name", "ep.search_term", "ep.form_name", "ep.form_id",
+  "ep.link_url", "ep.link_domain", "ep.link_id", "ep.link_classes", "ep.file_extension",
+]);
 const GA_TITLE = new Set(["dt", "ep.page_title"]);
 
 /** Clean one GA4 hit (a query string, or one line of a batched body). */
@@ -397,6 +472,9 @@ function enabled(): boolean {
 /** Start (or switch) analytics. Called by ThirdPartyAnalytics once consent is known. */
 export async function startThirdParty(m: AnalyticsMode) {
   if (!enabled()) return;
+  // An encrypted document opened from its link: PostHog and Google Analytics never load on this
+  // page, so no third-party code can read the key in the address or the decrypted text.
+  if (hasDocumentKey(window.location.hash)) return;
   const switching = mode !== null && mode !== m;
   mode = m;
   const posthog = await loadPostHog(m);
