@@ -34,6 +34,7 @@ import { guideEvents } from "@/lib/guidesEvents";
 import { num, plural, timeAgo } from "./format";
 import { barWidth, change, helpfulTone, missingNote, newPageHref, titleFromQuery, type Tone } from "./insightsModel";
 import SiteBar from "./SiteBar";
+import { EmbedInsights } from "./EmbedInsights";
 import { useSite } from "./SiteContext";
 
 type FbTab = "open" | "resolved";
@@ -381,6 +382,7 @@ export default function InsightsScreen() {
           fbTab={fbTab} setFbTab={(t) => { setPatched({}); setFbTab(t); }} patched={patched} busyId={busyId} onResolve={resolve}
           sourceTab={sourceTab} setSourceTab={setSourceTab} lookTab={lookTab} setLookTab={setLookTab}
         />
+        <EmbedInsights siteId={site.id} range={range} rangeWords={rangeWords} uid={uid} />
         {collection}
       </>
     );
