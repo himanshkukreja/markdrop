@@ -11,7 +11,8 @@ published into the stack's folder store and served at http://<slug>.guides.markd
                   Help Center only) and Omar Haddad (no access); Alex Chen is an Editor (Viewer on
                   the Developer Docs), Sam Lee a Viewer; Riya (owner) and Maya (admin) are admins
         sites     Acme (acme): product docs from the template, Clean + Acme's brand, Ask AI on, 4 publishes
-                  over two weeks, then Alex's unpublished edits (2 changed pages + 1 new page) and
+                  over two weeks (the 4th with a changelog: "What's new", 6 entries, 3 products,
+                  Coming next), then Alex's unpublished edits (2 changed pages + 1 new page) and
                   a hidden page; Acme Help Center (acme-help): Help center theme, reviews required,
                   Priya's open review; Acme Developers (acme-developers): a synthetic GitBook
                   import (https://acme.gitbook.io/developers) with its "needs a look" report, not
@@ -61,7 +62,7 @@ db, call, DATA = S.db, S.call, S.DATA
 STORE = DATA / "docs-store"
 DOCS = ("docs_sites", "docs_pages", "docs_page_versions", "docs_builds", "docs_snapshots", "docs_reviews",
         "docs_jobs", "docs_assets", "docs_events", "docs_studio_members", "docs_site_members", "docs_migrations",
-        "docs_api_specs")
+        "docs_api_specs", "docs_changelog_entries")
 DEMO_WORKER = "docs-media-demo"
 
 
@@ -193,6 +194,22 @@ def wait_build(token: str, sid: str, bid: str, timeout: float = 600) -> dict:
 def upload(token: str, sid: str, file: Path, name: str, mime: str) -> str:
     return call("POST", f"/api/v1/docs-sites/{sid}/assets", token,
                 files={"file": (name, file.read_bytes(), mime)})["url"]
+
+
+def seed_changelog(token: str, sid: str, now: datetime) -> None:
+    """Acme's changelog: settings, then the entries of studio_content.ACME_CHANGELOG (dated back
+    from demo now; an entry's image is uploaded to the guide, its related pages named by path)."""
+    call("PUT", f"/api/v1/docs-sites/{sid}/changelog/settings", token, json=C.ACME_CHANGELOG_SETTINGS)
+    have = pages_of(token, sid)
+    for e in C.ACME_CHANGELOG:
+        body = {k: v for k, v in e.items() if k not in ("days", "image", "alt", "docs")}
+        body["date"] = (now - timedelta(days=e["days"])).date().isoformat()
+        if e.get("image"):
+            url = upload(token, sid, S.FIX / e["image"], e["image"], "image/png")
+            body["media"] = {"image": url, "alt": e.get("alt") or ""}
+        body["docs"] = [have[p]["id"] for p in e.get("docs") or [] if p in have]
+        body["body"] = C.unwrap(e["body"].strip()) + "\n" if e.get("body") else ""
+        call("POST", f"/api/v1/docs-sites/{sid}/changelog/entries", token, json=body)
 
 
 INSIGHTS = ("guide_events", "guide_daily", "guide_feedback")
@@ -420,6 +437,8 @@ def seed() -> dict:
     clock.phase(timedelta(hours=5))
     t, d, i, md = C.ACME_DOCS_PAGES["/help/release-notes"]
     write_page(T["riya"], sid, "/help/release-notes", t, d, i, md)
+    # The changelog (Guide › Changelog): its settings and six entries, live with this publish.
+    seed_changelog(T["riya"], sid, now)
     publish(T["riya"], sid, "Release notes for 2.4")
 
     # Alex's work in progress: two edited pages and a new one (Publish shows 3 changes).

@@ -18,7 +18,8 @@ Every screen of a guide has the same bar under the header: the **Publish** tab s
 The **Publish** tab says **N changes ready to publish**, with what kind (new, edited and removed pages, a new design, redirects, the API reference) and the list:
 
 - pages that are **New**, **Edited** (who changed them and when) or **Removed**, each with **Compare** to see the change line by line
-- guide settings that changed, like **Design**, **Sidebar order**, **Ask AI** or **Redirects**, each with **Open**
+- [changelog entries](/guides/changelog) that are new, edited or removed, each with **Open**
+- guide settings that changed, like **Design**, **Sidebar order**, **Ask AI**, **Redirects** or the changelog's settings, each with **Open**
 
 On the right, **Readers see now** shows the address readers use (open it in a new tab, or copy it) and which publish they see. Before the first publish, every page shows as new.
 
@@ -51,7 +52,7 @@ If the guide [requires a review](/guides/reviews), editors and reviewers see **S
 
 ## Finish setting up
 
-Once the guide is live, the **Publish** tab lists what's left to set up: pages, a look, publishing, your own domain, your team and Insights. Each step that isn't done has a button that takes you there.
+Once the guide is live, the **Publish** tab lists what's left to set up: pages, a look, publishing, your own domain, your team, a changelog and Insights. Each step that isn't done has a button that takes you there.
 
 ![A guide with nothing waiting: Your guide is live, with its address, Copy and Open, the publish readers see and who published it, and Open the guide, Keep writing and Share; below, Finish setting up (2 of 5 done) with Design, Add domain and Insights buttons for the steps left, and the Publish history.](/docs-assets/guides/publishing/publish-live.webp)
 
@@ -67,7 +68,8 @@ There's a daily number of publishes per guide while Markdrop Guides is in beta. 
 
 - every page's current draft, including [hidden pages](/guides/pages-and-navigation#hidden-pages)
 - the sidebar order, theme and brand, Ask AI settings and redirects
-- the images and files the pages use
+- the [changelog](/guides/changelog): every entry as last saved, its settings and Coming next
+- the images and files the pages and entries use
 
 Deleted pages disappear from the guide. A publish takes each page's draft as last saved at the moment you choose **Publish**; edits saved after that wait for the next one.
 

@@ -8,7 +8,7 @@ keywords: [markdrop guides, guides, documentation site, help center, knowledge b
 
 ::video{id="guides-trailer" title="Markdrop Guides in two minutes" duration="2:15"}
 
-Markdrop Guides builds and hosts guides for your product: help centers, product guides, API references and handbooks. These pages explain how to use it. You write pages in the browser, pick a theme, and publish to an address like `acme.guides.markdrop.in`. Your readers get search, Ask AI and pages their AI tools can read.
+Markdrop Guides builds and hosts guides for your product: help centers, product guides, API references and handbooks. These pages explain how to use it. You write pages in the browser, pick a theme, and publish to an address like `acme.guides.markdrop.in`. Your readers get search, Ask AI, a changelog they can subscribe to, and pages their AI tools can read.
 
 :::note[Markdrop Guides or the Markdrop docs?]
 The site you're reading, docs.markdrop.in, is the Markdrop docs: Markdrop's own documentation. It's built with the same engine, but it isn't a guide you manage. The pages in this **Markdrop Guides** tab are about the product at [markdrop.in/guides](https://markdrop.in/guides), where you make guides for *your* product. Everything else on this site is about Markdrop itself.
@@ -43,6 +43,9 @@ Bring pages, images, navigation and old links across from a public GitBook site.
 :::card[Write in the editor]{href="/guides/editor" icon="edit"}
 A visual editor with a slash menu for callouts, steps, tabs and code, or plain Markdown.
 :::
+:::card[Keep a changelog]{href="/guides/changelog" icon="megaphone"}
+Write what shipped. Readers get a changelog page, RSS and JSON feeds, and entries in search and Ask AI.
+:::
 :::card[Pick a theme]{href="/guides/themes" icon="image"}
 Fourteen themes, your logo and colours, fonts, corners and custom CSS.
 :::
@@ -62,7 +65,7 @@ Views, searches with no results, Ask AI questions and page feedback. No cookies.
 1. **A guide lives in a workspace**, or is personal to you. Workspace guides are shared with the people who have a Guides role there. Workspaces themselves are Markdrop's: see [Create a workspace](/workspaces/create).
 2. **Every page is a draft** until you publish. Drafts save as you type, and every save is a version you can go back to.
 3. **Publishing builds the guide.** Readers keep seeing the last published version until the new one is live, a few seconds later. Every publish is numbered, and an admin can put an earlier one back.
-4. **Readers get a fast static site** with search, an AI assistant that answers from your pages, a Markdown copy of every page and `llms.txt`. Add an OpenAPI file and they get an [API reference](/guides/api-reference) with Try it too. See [What readers get](/guides/what-readers-get).
+4. **Readers get a fast static site** with search, an AI assistant that answers from your pages, a Markdown copy of every page and `llms.txt`. Write [changelog entries](/guides/changelog) and they get a changelog with feeds too. Add an OpenAPI file and they get an [API reference](/guides/api-reference) with Try it too. See [What readers get](/guides/what-readers-get).
 5. **Insights shows how it's read**: page views, top pages, searches that found nothing, Ask AI questions and page feedback, without cookies or personal data. See [Insights for your guide](/guides/insights).
 
 ## Before you start

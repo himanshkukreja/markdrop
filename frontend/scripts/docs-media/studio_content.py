@@ -542,3 +542,53 @@ def dev_import(brand_name: str = "Acme") -> dict:
         "assets": {"files": 10, "bytes": 1840213},
         "report": report,
     }
+
+
+# ── Acme's changelog (Guide › Changelog; published with publish #4) ─────────────
+# Dates are days before demo now. Fictional: the Acme product, its 2.3 and 2.4 releases (the
+# Release notes page tells the same story).
+
+ACME_CHANGELOG_SETTINGS = {
+    "title": "What's new",
+    "description": "New features, improvements and fixes to Acme, newest first.",
+    "products": [{"id": "web", "label": "Web app"}, {"id": "cli", "label": "CLI"}, {"id": "api", "label": "API"}],
+    "next": [
+        {"title": "Single sign-on with Okta", "area": "Teams", "body": "SAML sign-in for workspaces on the Business plan."},
+        {"title": "Alert digests by email", "area": "Alerts", "body": "One email a day instead of one per alert."},
+    ],
+}
+
+ACME_CHANGELOG = [
+    {"days": 1, "title": "Workflows (beta)", "kind": "new", "area": "Workflows", "products": ["web"], "versions": {"web": "2.4"},
+     "summary": "Run a Slack message, a webhook or an email when an alert fires, without writing code.",
+     "highlights": ["Slack, webhooks and email to start", "Runs for every alert rule, or the ones you pick"],
+     "image": "acme-architecture.png", "alt": "Acme's architecture: the Metrics API sends alerts to Slack, email and the new Workflows",
+     "try": {"label": "Read about alert rules", "href": "/guides/alert-rules"}, "docs": ["/guides/alert-rules"],
+     "body": """Workflows run when an alert fires. Each one has a trigger (the alert rules it listens to) and steps.
+
+## Add a workflow
+
+1. Open **Alerts**, then **Workflows**, and choose **New workflow**.
+2. Pick the alert rules that start it.
+3. Add a step: **Slack message**, **Webhook** or **Email**.
+
+:::note
+Workflows are in beta: up to five per project while we learn how you use them.
+:::
+"""},
+    {"days": 4, "title": "Compare any chart with last year", "kind": "new", "area": "Dashboards", "products": ["web"],
+     "versions": {"web": "2.4"}, "summary": "Every chart can show the same period last year as a dotted line beside this one.",
+     "body": "Open a chart's menu and choose **Compare › Same period last year**. The comparison follows the dashboard's date range."},
+    {"days": 9, "title": "acme alerts mute takes --until", "kind": "improved", "area": "CLI", "products": ["cli"],
+     "versions": {"cli": "1.9.0"}, "summary": "Mute an alert until a date and time, not only for a number of hours.",
+     "docs": ["/reference/cli"],
+     "body": "```bash\nacme alerts mute disk-usage --until \"2026-11-08 09:00\"\n```\n\n`--for 2h` still works."},
+    {"days": 30, "title": "Dashboards load twice as fast", "kind": "improved", "area": "Dashboards", "products": ["web"],
+     "versions": {"web": "2.3"}, "summary": "Dashboards with more than 20 charts open in half the time, and charts below the fold load as you scroll.",
+     "highlights": ["Charts load as you scroll", "Half the time to first chart"]},
+    {"days": 33, "title": "Read from a Postgres replica", "kind": "new", "area": "Data sources", "products": ["web", "api"],
+     "versions": {"web": "2.3", "api": "v3.2"}, "summary": "Point a Postgres source at a read replica so dashboards never load your primary.",
+     "docs": ["/guides/connect-postgres"]},
+    {"days": 38, "title": "Alert emails show your time zone", "kind": "fixed", "area": "Alerts", "products": ["web"],
+     "summary": "Alert emails showed times in UTC. They now use the time zone in your profile."},
+]

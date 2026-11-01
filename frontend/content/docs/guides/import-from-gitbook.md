@@ -2,7 +2,7 @@
 title: Import a guide from GitBook
 nav: Import from GitBook
 description: Copy a public GitBook site into Markdrop Guides with its pages, images, navigation and old links, then check the report before you publish.
-updated: 2026-10-31
+updated: 2026-11-01
 prerequisites: [/guides/create-a-site]
 keywords: [gitbook, import, migrate, move from gitbook, migration, redirects, alt text, broken links, needs a look]
 ---
@@ -51,7 +51,11 @@ When the import is done, the screen says **Your pages are here** and lists what 
 
 ![The finished import of Acme Developers: four completed steps (4 groups, 11 pages; 9 images, 1 file; 14 old links kept working) and Needs a look before you publish, with Links that were already broken open, listing two links and their pages.](/docs-assets/guides/import/import-report.webp)
 
-Rows with nothing in them aren't shown. To open the report again later, go to the guide's **Settings** and choose **Open the import report** under **Imported from GitBook**.
+Rows with nothing in them aren't shown.
+
+If the space had a page of release notes with a dated heading per release (a page called Changelog, Release notes or What's new, with headings like `## March 4, 2026`), the screen also offers **Turn into N entries**: each release becomes an entry of the guide's [changelog](/guides/changelog#turn-release-notes-into-entries), with a changelog page and RSS feed for readers. The page itself stays. A page without dates isn't offered, because a date can't be guessed.
+
+To open the report again later, go to the guide's **Settings** and choose **Open the import report** under **Imported from GitBook**.
 
 ## What comes across
 

@@ -24,6 +24,29 @@
   "next": [],
   "entries": [
     {
+      "id": "guides-changelog",
+      "date": "2026-11-01",
+      "title": "Markdrop Guides: a changelog for your guide",
+      "kind": "new",
+      "area": "Markdrop Guides",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Write what shipped as changelog entries in Markdrop Guides: your guide gets a changelog page, a page per release, RSS and JSON feeds, and entries in search and Ask AI.",
+      "body": "- **Changelog** is a new section of every guide, next to Pages. Write an entry with a title, a one-line summary and details in the same editor as your pages, and pick its date, kind (New, Improved or Fixed) and area.\n- **Products and versions:** name the products you ship and say which one an entry changed and the version it needs. Readers filter by product and see only what's new since their version.\n- **Media and links:** an image or a video from the guide's files, highlights, a Try it button and the pages the change touched.\n- **Coming next:** list what you're working on above the releases.\n- **Readers get** `/changelog` with a Changelog tab, a page per entry, RSS, JSON Feed and Markdown feeds, a link preview per entry, and entries in the guide's search and Ask AI, all in the guide's own theme.\n- **Entries publish with the guide:** new, edited and removed entries show on Publish and in What changed, and go through reviews when a guide requires them.\n- **Already have release notes?** A page called Changelog, Release notes or What's new with a dated heading per release turns into entries in one click, including after a GitBook import.",
+      "highlights": [
+        "A preview in your guide's saved design before you publish",
+        "RSS and JSON feeds on your guide's own address"
+      ],
+      "docs": [
+        "/guides/changelog",
+        "/guides/publishing",
+        "/guides/import-from-gitbook",
+        "/guides/what-readers-get"
+      ]
+    },
+    {
       "id": "encryption-passwords-and-recovery",
       "date": "2026-11-01",
       "title": "Encrypted documents: an optional password, recovery and a look under the hood",

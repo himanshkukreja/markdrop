@@ -779,6 +779,114 @@
     "bytes": 23260,
     "kind": "image"
   },
+  "/docs-assets/guides/changelog/changelog-editor.dark.webp": {
+    "w": 2880,
+    "h": 2000,
+    "bytes": 137178,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-editor.webp": {
+    "w": 2880,
+    "h": 2000,
+    "bytes": 138714,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-empty.dark.webp": {
+    "w": 2360,
+    "h": 1214,
+    "bytes": 101992,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-empty.webp": {
+    "w": 2360,
+    "h": 1214,
+    "bytes": 103446,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-list.dark.webp": {
+    "w": 2808,
+    "h": 2162,
+    "bytes": 174810,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-list.webp": {
+    "w": 2808,
+    "h": 2162,
+    "bytes": 181004,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-preview.dark.webp": {
+    "w": 2880,
+    "h": 1800,
+    "bytes": 111656,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-preview.webp": {
+    "w": 2880,
+    "h": 1800,
+    "bytes": 130972,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-reader-entry.dark.webp": {
+    "w": 2880,
+    "h": 2000,
+    "bytes": 86612,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-reader-entry.webp": {
+    "w": 2880,
+    "h": 2000,
+    "bytes": 89492,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-reader-subscribe.dark.webp": {
+    "w": 2880,
+    "h": 1280,
+    "bytes": 68780,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-reader-subscribe.webp": {
+    "w": 2880,
+    "h": 1280,
+    "bytes": 70632,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-reader.dark.webp": {
+    "w": 2880,
+    "h": 2960,
+    "bytes": 128276,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-reader.webp": {
+    "w": 2880,
+    "h": 2960,
+    "bytes": 131484,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-release-notes.dark.webp": {
+    "w": 2328,
+    "h": 274,
+    "bytes": 24208,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-release-notes.webp": {
+    "w": 2328,
+    "h": 274,
+    "bytes": 21642,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-settings.dark.webp": {
+    "w": 1040,
+    "h": 1800,
+    "bytes": 63402,
+    "kind": "image"
+  },
+  "/docs-assets/guides/changelog/changelog-settings.webp": {
+    "w": 1040,
+    "h": 1800,
+    "bytes": 65736,
+    "kind": "image"
+  },
   "/docs-assets/guides/create-a-site/new-site-address-taken.dark.webp": {
     "w": 1728,
     "h": 308,

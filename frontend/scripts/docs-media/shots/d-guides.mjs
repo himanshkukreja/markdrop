@@ -273,6 +273,26 @@ async function waitImport() {
 
 const P = (name) => `/guides/${name}`;
 
+/** A page of dated release notes (fictional: the Northwind API), which the changelog offers to turn into entries. */
+const NORTHWIND_RELEASE_NOTES = `Changes to the Northwind API, newest first.
+
+## October 20, 2026 · Webhooks v2
+
+Webhooks are signed with a timestamped HMAC, and a failed delivery is retried for 24 hours.
+
+## September 29, 2026 · Cursor pagination
+
+List endpoints take a \`cursor\` instead of \`page\`, so results don't shift while you page through them.
+
+## September 8, 2026 · Fixed rate limit headers
+
+\`X-RateLimit-Remaining\` counted down twice for batch requests. It counts once.
+
+## August 18, 2026 · Metrics query API
+
+Query any metric over a time range with \`POST /v3/metrics/query\`.
+`;
+
 export default [
   // ════════════════════════════════════════════════════════════════════════════
   // Overview
@@ -1660,6 +1680,141 @@ export default [
       const x = Math.max(0, Math.round(crumbs.x - 40), menu.x - 560);
       return { box: { x, y: 60, width: Math.min(1440 - x, Math.ceil(menu.x + menu.width + 24 - x)), height: menu.y + menu.height + 24 - 60 } };
     },
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Changelog (Acme's: "What's new", six entries live since publish #4)
+  // ════════════════════════════════════════════════════════════════════════════
+  {
+    id: "changelog-empty",
+    page: P("changelog"),
+    kind: "screenshot",
+    auth: "jordan",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(`/guides/${fxS().themes}/changelog`);
+      await h.loc({ role: "heading", name: "Tell readers what's new" }).waitFor();
+      await settle(h, 900);
+    },
+    crop: { selector: "main", pad: 0 },
+  },
+  {
+    id: "changelog-list",
+    page: P("changelog"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1120 },
+    prepare: async (h) => {
+      await h.goto(S(h, "/changelog"));
+      await h.loc({ role: "heading", name: "What's new", exact: true }).waitFor();
+      await settle(h, 900);
+    },
+    // The site bar (its tabs and the publish button) and the screen.
+    crop: { union: [{ css: 'nav[aria-label="Guide"]' }, { css: 'nav[aria-label="Guide"] ~ div' }, "main"], pad: 0 },
+  },
+  {
+    id: "changelog-editor",
+    page: P("changelog"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    viewport: { width: 1440, height: 1000 },
+    prepare: async (h) => {
+      const { entries } = await api(h, "GET", `/api/v1/docs-sites/${fxS().acme}/changelog`);
+      const e = entries.find((x) => x.slug === "workflows-beta");
+      await h.goto(S(h, `/changelog?entry=${e.id}`));
+      await h.loc('[aria-label="Details of this entry"]').waitFor({ timeout: 60_000 });
+      await settle(h, 1200);
+    },
+    crop: "viewport",
+  },
+  {
+    id: "changelog-settings",
+    page: P("changelog"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(S(h, "/changelog"));
+      await h.loc({ role: "heading", name: "What's new", exact: true }).waitFor();
+      await h.click({ role: "button", name: "Edit", nth: 0 }); // Coming next
+      await h.loc({ role: "heading", name: "Coming next", exact: true }).last().waitFor();
+      await settle(h, 900);
+    },
+    crop: { selector: ".md-drawer", pad: 0 },
+  },
+  {
+    id: "changelog-preview",
+    page: P("changelog"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      await h.goto(S(h, "/changelog"));
+      await h.loc({ role: "heading", name: "What's new", exact: true }).waitFor();
+      await h.click({ role: "button", name: "Preview" });
+      await h.loc('[data-testid="changelog-preview"]').waitFor();
+      await settle(h, 2200);
+    },
+    crop: "viewport",
+  },
+  {
+    id: "changelog-release-notes",
+    page: P("changelog"),
+    kind: "screenshot",
+    auth: "owner",
+    url: null,
+    prepare: async (h) => {
+      extra("--drop-sites", "Northwind");
+      const site = await api(h, "POST", "/api/v1/docs-sites", { workspace_id: northwind(h), name: "Northwind API", slug: "northwind-api", source: { kind: "blank" } });
+      await api(h, "POST", `/api/v1/docs-sites/${site.id}/pages`, { path: "/release-notes", title: "Release notes", markdown: NORTHWIND_RELEASE_NOTES });
+      await h.goto(`/guides/${site.id}/changelog`);
+      await h.loc({ role: "region", name: "Release notes found" }).waitFor({ timeout: 30_000 });
+      await settle(h, 900);
+    },
+    crop: { selector: 'section[aria-label="Release notes found"]', pad: 16 },
+    after: async () => extra("--drop-sites", "Northwind"),
+  },
+  {
+    id: "changelog-reader",
+    page: P("changelog"),
+    kind: "screenshot",
+    auth: "anon",
+    url: null,
+    viewport: { width: 1440, height: 1480 },
+    prepare: async (h) => {
+      await h.goto(h.studioSite("acme", "/changelog"), { settle: 1400 });
+      await h.page.mouse.move(5, 5);
+    },
+    crop: "viewport",
+  },
+  {
+    id: "changelog-reader-entry",
+    page: P("changelog"),
+    kind: "screenshot",
+    auth: "anon",
+    url: null,
+    viewport: { width: 1440, height: 1000 },
+    prepare: async (h) => {
+      await h.goto(h.studioSite("acme", "/changelog/workflows-beta"), { settle: 1400 });
+      await h.page.mouse.move(5, 5);
+    },
+    crop: "viewport",
+  },
+  {
+    id: "changelog-reader-subscribe",
+    page: P("changelog"),
+    kind: "screenshot",
+    auth: "anon",
+    url: null,
+    viewport: { width: 1440, height: 640 },
+    prepare: async (h) => {
+      await h.goto(h.studioSite("acme", "/changelog"), { settle: 1400 });
+      await h.click({ role: "button", name: "Subscribe" });
+      await h.sleep(500);
+    },
+    crop: "viewport",
   },
 
   // ════════════════════════════════════════════════════════════════════════════
