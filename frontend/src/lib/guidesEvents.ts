@@ -13,6 +13,7 @@
  *   guide_review_submitted / guide_review_approved / guide_review_changes_requested / guide_review_withdrawn
  *   guide_restored                (an earlier publish put live again)
  *   guide_design_saved            preset, mode, brand, css (custom CSS present, never its text)
+ *   guide_design_reset            source: import|created (the design back to the one the guide started with)
  *   guide_renamed / guide_address_changed
  *   guide_ask_ai_toggled          enabled
  *   guide_ask_ai_renamed / guide_ask_ai_questions (n)
@@ -76,6 +77,7 @@ export const guideEvents = {
   changesRequested: () => emit("guide_review_changes_requested"),
   reviewWithdrawn: () => emit("guide_review_withdrawn"),
   restored: () => emit("guide_restored"),
+  designReset: (source: "import" | "created") => emit("guide_design_reset", { source }),
   unpublished: () => emit("guide_unpublished"),
   deleted: () => emit("guide_deleted"),
   domainAdded: () => emit("guide_domain_added"),

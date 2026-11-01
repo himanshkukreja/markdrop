@@ -768,6 +768,32 @@ export function updateSite(id: string, patch: { name?: string; slug?: string; se
   return request<Site>(`/${enc(id)}`, { method: "PATCH", json: patch }).then(after(() => guideEvents.siteUpdated(patch)));
 }
 
+/** Reset design: the design a guide started with (after its import, or when it was created). */
+export interface DesignBaseline {
+  source: "import" | "created";
+  /** recorded (stored when it happened), unchanged (an older guide's never-saved design), rebuilt (exact),
+   *  reconstructed (an older import rebuilt from its record), default (nothing to rebuild from). */
+  how: "recorded" | "unchanged" | "rebuilt" | "reconstructed" | "default";
+  /** Said in the reset dialog when the baseline isn't exactly known. */
+  note: string | null;
+  recorded_at: string | null;
+  theme: SiteTheme;
+  /** What a reset would change, in the Design screen's order. */
+  changes: Array<{ field: string; label: string }>;
+  same: boolean;
+}
+
+/** Admins: what Reset design goes back to, and what it would change. */
+export function getDesignBaseline(siteId: string): Promise<DesignBaseline> {
+  return request<DesignBaseline>(`/${enc(siteId)}/design/baseline`);
+}
+
+/** Admins: the design back to its baseline, saved like "Save design" (nothing is published). */
+export function resetDesign(siteId: string): Promise<Site & { design: DesignBaseline }> {
+  return request<Site & { design: DesignBaseline }>(`/${enc(siteId)}/design/reset`, { method: "POST" })
+    .then(after((r) => guideEvents.designReset(r.design.source)));
+}
+
 /** Admins: soft delete (a job takes the published files down). */
 export function deleteSite(id: string): Promise<{ deleted: true; job: Job | null }> {
   return request<{ deleted: true; job: Job | null }>(`/${enc(id)}`, { method: "DELETE" }).then(after(guideEvents.deleted));

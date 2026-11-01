@@ -418,6 +418,7 @@ GUIDE_EVENTS = {
     "guide_review_withdrawn": ("form", "Guides: withdrew a review"),
     "guide_restored": ("publish", "Guides: put an earlier publish live"),
     "guide_design_saved": ("form", "Guides: saved the design"),
+    "guide_design_reset": ("form", "Guides: reset the design"),
     "guide_renamed": ("form", "Guides: renamed a site"),
     "guide_address_changed": ("form", "Guides: changed a site's address"),
     "guide_ask_ai_toggled": ("form", "Guides: turned Ask AI {enabled}"),
@@ -464,6 +465,8 @@ def describe_guide(event: str, p: dict, where: Any) -> dict:
     elif event == "guide_design_saved":
         bits = [p.get("preset"), f"{p['mode']} mode" if p.get("mode") else None,
                 "brand on" if truthy(p.get("brand")) else None, "custom CSS" if truthy(p.get("css")) else None]
+    elif event == "guide_design_reset":
+        bits = [{"import": "to the imported design", "created": "to the design it was created with"}.get(str(p.get("source") or ""))]
     elif event == "guide_access_changed":
         bits = [p.get("access")]
     elif event == "guide_member_role_changed":
