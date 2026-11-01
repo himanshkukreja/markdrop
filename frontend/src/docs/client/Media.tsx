@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Media islands for the docs: looping clips, the feature-video player and the image lightbox.
+ * Media islands for the docs: looping clips and the image lightbox (the feature-video player is Player.tsx).
  * Figures themselves are server HTML (render/DocsMarkdown.tsx); light/dark variants are both in the
  * page and CSS shows the one matching <html data-theme> (`.dx-themed-light` / `.dx-themed-dark`),
  * so there is no flash and no script involved in picking one.
@@ -111,87 +111,6 @@ export function ClipPlayer({ light, dark, w, h, cssW, alt, caption }: { light: C
         </button>
       </div>
       {caption && <figcaption className="dx-fig__cap">{caption}</figcaption>}
-    </figure>
-  );
-}
-
-/* ── Feature video ───────────────────────────────────────────────────────── */
-
-export interface Chapter {
-  start: number;
-  text: string;
-}
-
-function clock(sec: number): string {
-  const s = Math.max(0, Math.round(sec));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-
-/**
- * A `::video` slot filled from videos.json: the poster with a big Play button and the length, then
- * the native player (controls, chapters and captions tracks). Chapters are also listed under it.
- */
-export function VideoPlayer({ src, poster, w, h, title, duration, chapters, chaptersSrc, captionsSrc }: { src: string; poster?: string; w?: number; h?: number; title: string; duration?: string; chapters: Chapter[]; chaptersSrc?: string; captionsSrc?: string }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  const [started, setStarted] = useState(false);
-  const [current, setCurrent] = useState(-1);
-
-  const start = (at?: number) => {
-    const v = ref.current;
-    if (!v) return;
-    setStarted(true);
-    if (at !== undefined) v.currentTime = at;
-    v.play().catch(() => {});
-    v.focus({ preventScroll: true });
-  };
-
-  useEffect(() => {
-    const v = ref.current;
-    if (!v || !chapters.length) return;
-    const onTime = () => {
-      let i = -1;
-      chapters.forEach((c, k) => {
-        if (v.currentTime >= c.start) i = k;
-      });
-      setCurrent(i);
-    };
-    v.addEventListener("timeupdate", onTime);
-    return () => v.removeEventListener("timeupdate", onTime);
-  }, [chapters]);
-
-  return (
-    <figure className="dx-video dx-player not-prose">
-      <div className={cx("dx-video__frame dx-player__frame", started && "is-started")} style={w && h ? { aspectRatio: `${w} / ${h}` } : undefined}>
-        <video ref={ref} controls={started} preload="none" playsInline poster={poster} width={w} height={h} aria-label={title} onPlay={() => setStarted(true)}>
-          <source src={src} type="video/mp4" />
-          {chaptersSrc && <track kind="chapters" src={chaptersSrc} srcLang="en" label="Chapters" default />}
-          {captionsSrc && <track kind="captions" src={captionsSrc} srcLang="en" label="English" />}
-        </video>
-        {!started && (
-          <button type="button" className="dx-player__start" onClick={() => start()} aria-label={`Play video: ${title}${duration ? ` (${duration})` : ""}`}>
-            <span className="dx-video__play" aria-hidden>
-              <Icon name="play" />
-            </span>
-          </button>
-        )}
-        {!started && duration && <span className="dx-video__chip">{duration}</span>}
-      </div>
-      <figcaption className="dx-video__cap">
-        <span className="dx-video__title">{title}</span>
-        {duration && <span className="dx-video__len">{duration}</span>}
-      </figcaption>
-      {chapters.length > 0 && (
-        <ol className="dx-chapters" aria-label="Chapters">
-          {chapters.map((c, i) => (
-            <li key={i}>
-              <button type="button" className="dx-chapters__item" aria-current={i === current ? "true" : undefined} onClick={() => start(c.start)}>
-                <span className="dx-chapters__t">{clock(c.start)}</span>
-                <span>{c.text}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      )}
     </figure>
   );
 }

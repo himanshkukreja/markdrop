@@ -201,17 +201,7 @@
 .dx-apiop__head > .dx-apiop__path { color: var(--text); }
 .dx-apiop__summary { font-size: 14px; line-height: 22px; color: var(--text-secondary); }
 
-/* Video player (a filled ::video slot) */
-.dx-player__frame { display: block; background: #000; }
-.dx-player__frame video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
-.dx-player__frame video:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
-.dx-player__start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; background: linear-gradient(to top, rgb(0 0 0 / 0.28), transparent 45%); cursor: pointer; }
-.dx-player__start .dx-video__play { transition: transform var(--duration-fast) var(--ease-out); }
-.dx-player__start:hover .dx-video__play { transform: scale(1.06); }
-.dx-player__start:focus-visible { outline: none; }
-.dx-player__start:focus-visible .dx-video__play { outline: 3px solid var(--border-focus); outline-offset: 3px; }
-.dx-player .dx-video__chip { pointer-events: none; font-weight: 600; font-variant-numeric: tabular-nums; }
-.dx-player .dx-video__cap { display: flex; align-items: baseline; gap: 8px; }
+/* Video player (a filled ::video slot): player.css; its chapter list below. */
 .dx-video__title { font-weight: 600; color: var(--text-secondary); }
 .dx-video__len { font-variant-numeric: tabular-nums; }
 .dx-chapters { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
@@ -275,7 +265,7 @@ html.dx-modal-open { overflow: hidden; }
 @media print {
   .dx-themed-dark { display: none !important; }
   .dx-themed-light { display: block !important; }
-  .dx-fig__zoom, .dx-clip__toggle, .dx-clip__big, .dx-player__start { display: none !important; }
+  .dx-fig__zoom, .dx-clip__toggle, .dx-clip__big { display: none !important; }
 }
 
 /* Feedback + prev/next */
