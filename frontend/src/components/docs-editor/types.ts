@@ -88,6 +88,8 @@ export interface DocsEditorProps {
   showHeader?: boolean;
   /** The Visual / Markdown switch above the editor (default true; hide it when the host renders one). */
   showModeSwitch?: boolean;
+  /** The guide's private-page rules, for a private section's picker. */
+  accessRules?: Array<{ id: string; name: string; kind: string }>;
   /** Operations offered by the API endpoint block. */
   operations?: ApiOperationOption[];
   /**

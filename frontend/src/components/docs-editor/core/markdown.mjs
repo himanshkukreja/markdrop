@@ -39,7 +39,7 @@ export const CALLOUT_KINDS = ["note", "tip", "warning", "danger"];
 /** Leaf directives the editor renders as blocks (`api` is the OpenAPI operation placeholder). */
 export const LEAF_NAMES = ["video", "clip", "embed", "api"];
 /** Container node types that serialize as `:::name` directives. */
-const CONTAINER_TYPES = new Set(["callout", "steps", "tabs", "tab", "cards", "card", "details"]);
+const CONTAINER_TYPES = new Set(["callout", "steps", "tabs", "tab", "cards", "card", "details", "private"]);
 
 /** Attributes that carry meaning, per node / mark type (everything else, `md` included, is UI state). */
 const SEM = {
@@ -59,6 +59,7 @@ const SEM = {
   cards: ["label", "attributes"],
   card: ["label", "attributes"],
   details: ["label", "attributes"],
+  private: ["label", "attributes"],
   directiveLeaf: ["name", "label", "attributes"],
   rawBlock: ["value"],
   rawInline: ["value"],
@@ -329,7 +330,7 @@ function container(n, ctx, strip, src) {
   let node;
   const blocks = () => (body.length ? flow(body, ctx, strip) : [paragraph([])]);
   if (CALLOUT_KINDS.includes(n.name)) node = { type: "callout", attrs: { kind: n.name, ...base }, content: blocks() };
-  else if (n.name === "steps" || n.name === "details") node = { type: n.name, attrs: base, content: blocks() };
+  else if (n.name === "steps" || n.name === "details" || n.name === "private") node = { type: n.name, attrs: base, content: blocks() };
   else if (n.name === "tabs" || n.name === "cards") {
     const child = n.name === "tabs" ? "tab" : "card";
     if (!body.length || body.some((k) => k.type !== "containerDirective" || k.name !== child)) return raw(src);

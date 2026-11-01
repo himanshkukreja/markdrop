@@ -72,6 +72,7 @@ export const BLOCK_ITEMS: BlockItem[] = [
     }),
   },
   { id: "details", label: "Details", hint: "Collapsible section", icon: "chevronRight", keywords: "details collapse toggle accordion faq", run: insert({ type: "details", attrs: { label: "More details" }, content: [p()] }) },
+  { id: "private", label: "Private section", hint: "Only some readers see it", icon: "lock", keywords: "private section restricted members customers password lock access", run: insert({ type: "private", attrs: { label: null, attributes: { access: "members" } }, content: [p()] }) },
   { id: "image", label: "Image", hint: "Light and dark versions", icon: "image", keywords: "image picture screenshot figure photo", run: insert({ type: "figure", attrs: { src: "", alt: "", title: null } }) },
   { id: "video", label: "Video", hint: "Upload or Markdrop link", icon: "film", keywords: "video recording screencast", run: insert({ type: "directiveLeaf", attrs: { name: "video", attributes: {} } }) },
   { id: "clip", label: "Clip", hint: "Short silent loop", icon: "play", keywords: "clip loop gif animation", run: insert({ type: "directiveLeaf", attrs: { name: "clip", attributes: {} } }) },

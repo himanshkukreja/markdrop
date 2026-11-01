@@ -16,6 +16,8 @@ export interface EditorHost {
   assistLanguages?: string[];
   /** Comment in the format toolbar. */
   onComment?: (anchor: TextAnchor) => void;
+  /** The guide's private-page rules, for a private section's "who can see this" picker. */
+  accessRules?: Array<{ id: string; name: string; kind: string }>;
 }
 
 export const EditorHostContext = createContext<EditorHost>({ resolveAsset: (s) => s, operations: [], readOnly: false });

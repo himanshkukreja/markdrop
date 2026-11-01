@@ -8,7 +8,7 @@ import { ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
 import type { ComponentType } from "react";
 import { Placeholder } from "@tiptap/extensions";
 import { baseExtensions, withOverrides } from "./core/schema.mjs";
-import { CalloutView, CardView, CardsView, DetailsView, StepsView, TabsView } from "./views/containers";
+import { CalloutView, CardView, CardsView, DetailsView, PrivateView, StepsView, TabsView } from "./views/containers";
 import { FigureView, LeafView } from "./views/media";
 import { CodeBlockView, InlineMathView, MathBlockView, RawBlockView } from "./views/code";
 import { SlashCommand, type SlashStore } from "./menus/slash";
@@ -115,6 +115,7 @@ export function buildExtensions({ slash, listboxId, placeholder }: { slash: Slas
     cards: view(CardsView),
     card: view(CardView),
     details: view(DetailsView),
+    private: view(PrivateView),
     directiveLeaf: view(LeafView),
     figure: view(FigureView),
     rawBlock: view(RawBlockView),
