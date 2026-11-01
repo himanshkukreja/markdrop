@@ -674,7 +674,9 @@ export async function runGithubImport(spec, { store, cfg, progress = () => {}, l
     log(`github: ${unpacked.files} files unpacked (${(tarball.length / 1e6).toFixed(1)} MB download, ${unpacked.refused.length} refused) in ${Date.now() - td} ms`);
     progress({ step: "fetch", done: 1, total: 2, message: `${unpacked.files} files from ${owner}/${name}${commit ? ` at ${commit.slice(0, 7)}` : ""}` });
     const args = [path.join(cfg.engineDir, "scripts", "docs-import", "github.mjs"), "--dir", repoDir, "--path", folder, "--out", out, "--id", IMPORT_ASSET_ID,
-      "--format", format, "--repo", `${owner}/${name}`, "--ref", commit || String(imp.ref || imp.branch || "HEAD")];
+      "--format", format, "--repo", `${owner}/${name}`, "--ref", commit || String(imp.ref || imp.branch || "HEAD"),
+      // The output is this job's own folder (a work folder may sit inside a checkout, like the local stack's).
+      "--allow-repo"];
     if (imp.branch) args.push("--branch", String(imp.branch));
     const ti = Date.now();
     await runNode(args, {
