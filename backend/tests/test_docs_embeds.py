@@ -65,6 +65,14 @@ class PureTests(unittest.TestCase):
         self.assertIsNone(de.parse_beacon(b"x" * 3000))
         self.assertIsNone(de.parse_beacon(b"not json"))
 
+    def test_webvtt_captions_are_guide_assets(self):
+        from app.services import docs_site_assets as assets
+
+        self.assertEqual(assets.sniff(b"WEBVTT\n\n00:00.000 --> 00:02.000\nHello", "tour.en.vtt"), "vtt")
+        self.assertEqual(assets.TYPES["vtt"], "text/vtt; charset=utf-8")
+        with self.assertRaises(assets.AssetRejected):
+            assets.sniff(b"WEBVTT\n\xff\xfe", "bad.vtt")
+
     def test_channel(self):
         self.assertEqual(traffic.channel_for(None, "markdrop-guides", "embed"), "Guides")
 

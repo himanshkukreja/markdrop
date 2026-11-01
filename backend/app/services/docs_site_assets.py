@@ -44,6 +44,8 @@ TYPES = {
     "csv": "text/csv; charset=utf-8",
     "json": "application/json",
     "md": "text/markdown; charset=utf-8",
+    # WebVTT captions and chapters for a video (a ::markdrop video block's captions=/chapters=).
+    "vtt": "text/vtt; charset=utf-8",
 }
 _TEXT_EXTS = ("txt", "csv", "json", "md")
 
@@ -95,6 +97,12 @@ def _sniff(data: bytes, filename: str | None) -> str:
         return "zip"
     ext = (filename or "").rsplit(".", 1)[-1].lower() if "." in (filename or "") else ""
     stripped = data.lstrip(b"\xef\xbb\xbf \t\r\n")
+    if stripped.startswith(b"WEBVTT"):
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            raise AssetRejected("Caption files must be UTF-8.") from None
+        return "vtt"
     if ext == "svg" or stripped[:4].lower() == b"<svg" or stripped[:5] == b"<?xml":
         if b"<svg" not in data[:4096].lower():
             raise AssetRejected("That file type isn't supported.")
@@ -107,7 +115,7 @@ def _sniff(data: bytes, filename: str | None) -> str:
         return ext
     raise AssetRejected(
         "That file type isn't supported. Upload an image (PNG, JPEG, GIF, WebP, AVIF, SVG), a video "
-        "(MP4, WebM), a PDF, or a ZIP, CSV, JSON, Markdown or text file.")
+        "(MP4, WebM), a PDF, WebVTT captions, or a ZIP, CSV, JSON, Markdown or text file.")
 
 
 def sha256(data: bytes) -> str:

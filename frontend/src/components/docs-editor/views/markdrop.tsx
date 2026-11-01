@@ -16,7 +16,7 @@ import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { Alert, Badge, Button, Dialog, FileIcon, Icon, IconButton, Input, Progress, SegmentedControl, Select, Spinner, Tabs, Textarea, useToast } from "@/components/ui";
 import { MarkdropEmbed, type MarkdropEmbedConfig } from "@/docs/client/MarkdropEmbed";
 import { embedAttrs, formatBytes, parseMarkdropSrc } from "@/docs/embed.mjs";
-import { useHost } from "../host";
+import { uploadUrl, useHost } from "../host";
 import type { MarkdropFileInfo, MarkdropFilesHost, MarkdropLibraryItem, MarkdropLibraryType } from "../types";
 import { cx } from "./shared";
 
@@ -456,6 +456,29 @@ export function MarkdropView({ node, updateAttributes, deleteNode, selected }: R
     }
   };
 
+  // A video's captions / chapters: WebVTT files of the guide (its own uploads), for the player and
+  // the text version's transcript and chapter list.
+  const [vttBusy, setVttBusy] = useState<"captions" | "chapters" | null>(null);
+  const addVtt = (which: "captions" | "chapters") => {
+    if (!host.upload) return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".vtt,text/vtt";
+    input.onchange = async () => {
+      const f = input.files?.[0];
+      if (!f || !host.upload) return;
+      setVttBusy(which);
+      try {
+        set({ [which]: await uploadUrl(host.upload, f, { variant: "light" }) });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "The upload failed. Try again.");
+      } finally {
+        setVttBusy(null);
+      }
+    };
+    input.click();
+  };
+
   const config = useMemo<MarkdropEmbedConfig>(() => (md ? { ...md.config, files: md.config.files ?? null, track: false } : FALLBACK_CONFIG), [md]);
   const del = !ro && <IconButton icon="trash" label="Remove Markdrop file" size="sm" onClick={() => deleteNode()} />;
   const picker = md && <MarkdropPicker open={picking} onClose={() => setPicking(false)} onPick={pick} host={md} />;
@@ -578,6 +601,23 @@ export function MarkdropView({ node, updateAttributes, deleteNode, selected }: R
               </label>
             )}
           </div>
+          {info?.renderer === "video" && host.upload && (
+            <div className="dxe-mdblock__vtt">
+              {(["captions", "chapters"] as const).map((k) => (
+                <span key={k} className="dxe-mdblock__vttitem">
+                  <Button size="sm" variant="secondary" iconLeft={k === "captions" ? "type" : "list"} loading={vttBusy === k} onClick={() => addVtt(k)}>
+                    {a[k] ? `Replace ${k}` : k === "captions" ? "Add captions (.vtt)" : "Add chapters (.vtt)"}
+                  </Button>
+                  {a[k] && (
+                    <>
+                      <code className="dxe-mdblock__vttname" title={a[k]}>{a[k].split("/").pop()}</code>
+                      <IconButton icon="x" size="sm" label={`Remove ${k}`} onClick={() => set({ [k]: null })} />
+                    </>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="dxe-mdblock__text">
             <button type="button" className="dxe-mdblock__texttoggle" aria-expanded={showText} aria-controls={textId} onClick={() => setShowText(!showText)}>
               <Icon name={showText ? "chevronDown" : "chevronRight"} />
@@ -592,7 +632,7 @@ export function MarkdropView({ node, updateAttributes, deleteNode, selected }: R
                   placeholder={info?.renderer === "html" || info?.renderer === "bundle" ? "What the demo does and what readers can try: “Pick a plan and a number of seats; the monthly and yearly totals update.”" : "What it shows, in a sentence or two"}
                   aria-label="Text version"
                 />
-                <p className="dxe-mdblock__muted">Shown under the block and to readers without JavaScript, and read by search, Ask AI and AI agents (llms.txt){info?.renderer === "pdf" ? ". The PDF's own text is added when you publish" : info?.renderer === "video" ? ". Add captions to the video's block in Markdown (captions=\"/docs-assets/….vtt\") for a transcript" : ""}.</p>
+                <p className="dxe-mdblock__muted">Shown under the block and to readers without JavaScript, and read by search, Ask AI and AI agents (llms.txt){info?.renderer === "pdf" ? ". The PDF's own text is added when you publish" : info?.renderer === "video" ? ". A video's captions become its transcript, and its chapters a list" : ""}.</p>
               </div>
             )}
           </div>
