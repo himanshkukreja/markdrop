@@ -216,6 +216,14 @@ async def connect() -> None:
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] access-request / recent indexes skipped: {exc}")
 
+    # Private guide pages (services/docs_page_access.py): sign-in links, requests, audit.
+    try:
+        from app.services import docs_page_access as _page_access
+
+        await _page_access.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] private-page indexes skipped: {exc}")
+
     # Creator analytics (services/engage.py): engagement sessions, 395-day TTL.
     try:
         from app.services import engage as _engage

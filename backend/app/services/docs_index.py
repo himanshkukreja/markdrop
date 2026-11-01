@@ -483,9 +483,11 @@ class _Doc:
 
 
 class Index:
-    def __init__(self, root: Path, site_id: str = DEFAULT_SITE):
+    def __init__(self, root: Path, site_id: str = DEFAULT_SITE, reveal: frozenset = frozenset()):
         self.root = root
         self.site_id = site_id
+        # The private rules this index's readers may open (none: the public guide only).
+        self.reveal = frozenset(reveal)
         self.cfg = docs_sites.SiteConfig(site_id, root, {}, {})
         self.synonyms: dict[str, list[str]] = {}
         self.site: dict = {}
@@ -546,15 +548,27 @@ class Index:
     def _build(self, sources) -> "Index":
         self.site = self.cfg.site
         self.synonyms = self.cfg.synonyms
+        from app.services import docs_page_access
+
         groups: dict[str, str] = {}
+        group_access: dict[str, str] = {}
         for g in self.site.get("nav") or []:
             if isinstance(g, dict):
                 for p in g.get("pages") or []:
                     if isinstance(p, str):
                         groups.setdefault(p, str(g.get("group") or ""))
+                        if g.get("access") and p not in group_access:
+                            group_access[p] = str(g["access"])
+        reveal = self.reveal
         for rel, src in sources:
             data, body = parse_frontmatter(src)
             path = file_to_path(rel)
+            # Private pages and sections (docs_page_access.py): only what this index's readers may open.
+            rule = docs_page_access.page_rule(data.get("access"), group_access.get(path))
+            if rule and rule not in reveal:
+                continue
+            if docs_page_access.has_private(body):
+                body, _rules = docs_page_access.split_private(body, reveal)
             page = Page(
                 path=path, file=rel,
                 title=str(data.get("title") or "").strip() or _title_from_file(rel),
@@ -842,8 +856,12 @@ def get_index(site: str | None = DEFAULT_SITE, force: bool = False) -> Index:
 _studio_loads: dict[tuple, asyncio.Future] = {}
 
 
-async def aget_index(db, site: str | None = DEFAULT_SITE) -> Index:
+async def aget_index(db, site: str | None = DEFAULT_SITE, reveal: frozenset = frozenset()) -> Index:
     """get_index() that also serves live Markdrop Guides sites (services/docs_sites.py).
+
+    ``reveal``: the private rules the reader may open (an Ask AI request with a valid edge token,
+    docs_page_access.ai_rules). Each rule set gets its own index (its own LRU entry); without one,
+    the public guide only: protected pages and private sections are not in it at all.
 
     A studio site's index is its live build's snapshot, turned into the content
     folder the engine builds from (docs_snapshot.content_files) and indexed
@@ -858,17 +876,19 @@ async def aget_index(db, site: str | None = DEFAULT_SITE) -> Index:
         st = await docs_sites.studio_site(db, docs_sites.normalize_id(site))
         if st is None:
             raise
-    signature = ("docs-studio", st.live_build_id)
+    reveal = frozenset(reveal or ())
+    signature = ("docs-studio", st.live_build_id, tuple(sorted(reveal)))
+    entry_id = st.id if not reveal else f"{st.id}|{','.join(sorted(reveal))}"
     with _lock:
-        entry = _entries.get(st.id)
+        entry = _entries.get(entry_id)
         if entry is not None and entry.index.signature == signature:
-            _entries.move_to_end(st.id)
+            _entries.move_to_end(entry_id)
             entry.index.cfg.state = st  # the AI switch, name and suggestions, as read just now
             return entry.index
-    key = (db.name, st.id, st.live_build_id)
+    key = (db.name, entry_id, st.live_build_id)
     fut = _studio_loads.get(key)
     if fut is None:
-        fut = asyncio.ensure_future(_load_studio(db, st, signature))
+        fut = asyncio.ensure_future(_load_studio(db, st, signature, reveal, entry_id))
         _studio_loads[key] = fut
         fut.add_done_callback(lambda _f: _studio_loads.pop(key, None))
     index = await asyncio.shield(fut)
@@ -876,7 +896,7 @@ async def aget_index(db, site: str | None = DEFAULT_SITE) -> Index:
     return index
 
 
-async def _load_studio(db, st, signature: tuple) -> Index:
+async def _load_studio(db, st, signature: tuple, reveal: frozenset = frozenset(), entry_id: str | None = None) -> Index:
     from app.services import docs_snapshot
     from app.services.docs_site_store import SNAPSHOTS
 
@@ -888,14 +908,14 @@ async def _load_studio(db, st, signature: tuple) -> Index:
 
     def build() -> Index:
         site = _parse_json(files.get("site.json"))
-        return Index(Path("docs-studio") / st.id, st.id).load_files(
+        return Index(Path("docs-studio") / st.id, st.id, reveal).load_files(
             files, docs_sites.StudioSiteConfig(st, site), signature)
 
     index = await asyncio.to_thread(build)
     with _lock:
         # Last one in wins: a request that finds another build's index rebuilds it.
-        _entries[st.id] = _Entry(index=index, checked=time.monotonic())
-        _entries.move_to_end(st.id)
+        _entries[entry_id or st.id] = _Entry(index=index, checked=time.monotonic())
+        _entries.move_to_end(entry_id or st.id)
         while len(_entries) > max(1, get_settings().docs_sites_cache_size):
             _entries.popitem(last=False)
     return index

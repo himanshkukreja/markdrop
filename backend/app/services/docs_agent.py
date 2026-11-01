@@ -1109,6 +1109,8 @@ class AskRequest:
     user: Any                    # User or None (tenant tokens arrive as None)
     ip: str | None
     site: str = DEFAULT_SITE     # a registered docs site id (services/docs_sites.py)
+    # Private rules the reader may open (a valid edge token, docs_page_access.ai_rules): none = the public guide.
+    reveal: frozenset = frozenset()
 
 
 def _visitor(user, ip_hash: str | None) -> str:
@@ -1129,7 +1131,7 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
     global _inflight
     s = get_settings()
     try:
-        index = await docs_index_mod.aget_index(db, req.site)
+        index = await docs_index_mod.aget_index(db, req.site, req.reveal)
     except UnknownSite:
         yield "error", {"message": "Ask AI isn't set up for this guide.", "code": "unknown_site"}
         return

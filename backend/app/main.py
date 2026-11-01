@@ -27,6 +27,8 @@ from app.routers.artifacts import router as artifacts_router
 from app.routers.auth import router as auth_router
 from app.routers.auth import unsubscribe_alias_router
 from app.routers.docs_access import router as docs_access_router
+from app.routers.docs_page_access import router as docs_page_access_router
+from app.routers.docs_page_access import studio as docs_page_access_studio_router
 from app.routers.docs_ai import router as docs_ai_router
 from app.routers.docs_jobs_internal import router as docs_jobs_internal_router
 from app.routers.docs_sites import router as docs_sites_router
@@ -216,6 +218,8 @@ app.include_router(docs_studio_router, include_in_schema=False)
 app.include_router(docs_jobs_internal_router, include_in_schema=False)
 # Signing in to password and members-only docs sites (the docs edge's sign-in page, /auth/docs-access).
 app.include_router(docs_access_router, include_in_schema=False)
+app.include_router(docs_page_access_router, include_in_schema=False)
+app.include_router(docs_page_access_studio_router, include_in_schema=False)
 app.include_router(workspaces_router)
 app.include_router(domains_router)
 app.include_router(folders_router)

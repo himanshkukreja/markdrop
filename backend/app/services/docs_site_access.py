@@ -200,25 +200,47 @@ def gate_url(host: str, error: str, next_path: str) -> str:
 # ── the policy object (the docs bucket) ──────────────────────────────────────
 
 
+def full_policy(site: dict) -> dict:
+    """policy() plus the private pages' readers policy (services/docs_page_access.py), when the
+    guide has one: what the runner and the access job write."""
+    from app.services import docs_page_access
+
+    out = policy(site)
+    if docs_page_access.needs_readers(site):
+        out["readers"] = docs_page_access.readers_policy(site)
+    return out
+
+
 def write_policy(store: Any, site: dict) -> dict:
     """Write ``site``'s current policy to the bucket (synchronous; run in a thread). Never lowers
-    the version already there: a newer policy from another writer wins."""
+    a version already there: a newer policy from another writer wins, the site-wide part
+    (``policy_version``) and the private pages' part (``readers.version``) each on its own."""
     sid = str(site["_id"])
-    want = {"site": sid, **policy(site)}
+    want = {"site": sid, **full_policy(site)}
     raw = store.get_text(policy_key(sid))
+    cur = None
     if raw:
         try:
             cur = json.loads(raw)
         except ValueError:
             cur = None
-        if isinstance(cur, dict) and isinstance(cur.get("policy_version"), int):
-            if cur["policy_version"] > want["policy_version"]:
-                return {"written": False, "kept": {"level": cur.get("level"), "policy_version": cur["policy_version"]}}
-            if cur["policy_version"] == want["policy_version"] and cur.get("level") == want["level"]:
-                return {"written": False, **want}
-    doc = {**want, "updatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
+    out = dict(want)
+    if isinstance(cur, dict) and isinstance(cur.get("policy_version"), int):
+        if cur["policy_version"] > want["policy_version"]:
+            out.update({"level": cur.get("level"), "policy_version": cur["policy_version"]})
+        cur_r = cur.get("readers") if isinstance(cur.get("readers"), dict) else None
+        want_r = want.get("readers")
+        if cur_r is not None and (want_r is None or int(cur_r.get("version") or 0) > int(want_r.get("version") or 0)):
+            out["readers"] = cur_r
+        same = (cur.get("level") == out.get("level") and cur.get("policy_version") == out.get("policy_version")
+                and cur.get("readers") == out.get("readers"))
+        if same:
+            kept = out.get("policy_version") != want["policy_version"]
+            return {"written": False, **({"kept": {"level": cur.get("level"), "policy_version": cur["policy_version"]}} if kept
+                                         else {k: v for k, v in out.items() if k != "readers"})}
+    doc = {**out, "updatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
     store.put_text(policy_key(sid), json.dumps(doc, separators=(",", ":")))
-    return {"written": True, **want}
+    return {"written": True, **{k: v for k, v in out.items() if k != "readers"}}
 
 
 async def sync_policy(db: AsyncIOMotorDatabase, site_id: Any, *, store: Any = None) -> dict:
@@ -226,14 +248,24 @@ async def sync_policy(db: AsyncIOMotorDatabase, site_id: Any, *, store: Any = No
     from app.services import docs_build
     from app.services.docs_jobs import SITES, oid
 
-    site = await db[SITES].find_one({"_id": oid(site_id)}, {"settings.access.level": 1, "access_version": 1})
+    site = await db[SITES].find_one({"_id": oid(site_id)}, {"settings.access.level": 1, "access_version": 1, "page_access": 1})
     if site is None:
         raise docs_build.RestoreError("site not found")
     store = store or docs_build.default_store()
     res = await asyncio.to_thread(write_policy, store, site)
     # The edge now holds this version (or a newer one): enforced.
     await mark_synced(db, site["_id"], version_of(site))
+    await mark_readers_synced(db, site)
     return res
+
+
+async def mark_readers_synced(db: AsyncIOMotorDatabase, site: dict) -> None:
+    """The edge holds the guide's private-pages policy at its current version (never goes down)."""
+    from app.services import docs_page_access
+    from app.services.docs_jobs import SITES
+
+    if docs_page_access.needs_readers(site):
+        await db[SITES].update_one({"_id": site["_id"]}, {"$max": {"page_access_synced_version": docs_page_access.version_of(site)}})
 
 
 async def mark_synced(db: AsyncIOMotorDatabase, site_id: Any, version: int) -> None:
@@ -246,6 +278,10 @@ async def mark_synced(db: AsyncIOMotorDatabase, site_id: Any, version: int) -> N
 def enforced(site: dict) -> bool:
     """Whether the edge enforces the site's current policy (False while a change is still on its way:
     the access job writes it, and the sweeper retries until it does)."""
+    from app.services import docs_page_access
+
+    if not docs_page_access.enforced(site):
+        return False
     if not needs_policy(site):
         return True
     try:
@@ -270,8 +306,10 @@ async def requeue_unsynced(db: AsyncIOMotorDatabase) -> int:
     t = now()
     queued = 0
     rows = db[SITES].find({"deleted_at": None, "$or": [{"access_version": {"$gt": 0}},
-                                                      {"settings.access.level": {"$nin": ["public", None]}}]},
-                          {"settings.access.level": 1, "access_version": 1, "access_synced_version": 1})
+                                                      {"settings.access.level": {"$nin": ["public", None]}},
+                                                      {"page_access.version": {"$gt": 0}}]},
+                          {"settings.access.level": 1, "access_version": 1, "access_synced_version": 1,
+                           "page_access.version": 1, "page_access_synced_version": 1})
     async for site in rows:
         if enforced(site):
             continue

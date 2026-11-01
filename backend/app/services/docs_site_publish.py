@@ -143,6 +143,8 @@ async def _snapshot(db: AsyncIOMotorDatabase, site: dict, user: User) -> dict:
             "hash": pages.content_hash(r),
         } for r in rows],
         "settings": site.get("settings") or {},
+        # Each nav group's private-pages rule (services/docs_page_access.py), as published.
+        "page_access_groups": (site.get("page_access") or {}).get("groups") or {},
         # The changelog's entries and settings (services/docs_site_changelog.py): changelog.json.
         "changelog": await changelog.snapshot_part(db, site),
         "created_by": user.id,
@@ -178,6 +180,12 @@ async def publish(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, *
     # (when that fails) the last good one and a warning on the build.
     api_warning = await api_spec.refetch_for_publish(db, site, user.id)
     snap = await _snapshot(db, site, user)
+    # Private pages or sections in this publish on a guide whose edge has no readers policy yet:
+    # start one, so the runner writes it before the build goes live (docs_page_access.py).
+    from app.services import docs_page_access
+
+    if not docs_page_access.needs_readers(site) and docs_page_access.snapshot_uses_access(snap, site):
+        site = await docs_page_access.bump(db, site["_id"], reason="publish") or site
     seq = await db[SITES].find_one_and_update({"_id": site["_id"]}, {"$inc": {"build_seq": 1}},
                                               {"build_seq": 1}, return_document=ReturnDocument.AFTER)
     number = int((seq or {}).get("build_seq") or 1)
@@ -213,7 +221,7 @@ async def publish(db: AsyncIOMotorDatabase, site: dict, role: str, user: User, *
         "build_id": str(build["_id"]), "snapshot_id": str(snap["_id"]), "number": number})
     await db[BUILDS].update_one({"_id": build["_id"]}, {"$set": {"job_id": job["_id"]}})
     build["job_id"] = job["_id"]
-    if access.needs_policy(site):
+    if access.needs_policy(site) or (site.get("page_access") or {}).get("version"):
         # The runner writes the policy before the site goes live; this covers a runner from before it did.
         await access.queue_sync(db, site["_id"], "publish")
     # Its free address on Cloudflare, attached now so the certificate is ready when the build is.
