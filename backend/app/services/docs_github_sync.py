@@ -327,6 +327,11 @@ async def update_link(db: AsyncIOMotorDatabase, site: dict, body: dict) -> dict:
     if not isinstance(g, dict):
         raise HTTPException(status_code=409, detail="This guide isn't connected to GitHub.")
     sets: dict = {}
+    if body.get("installation_id") is not None:
+        iid = int(body["installation_id"])
+        repo = await check_repo_access(db, scope_of_site(site), g["owner"], g["name"], iid, False)
+        sets.update({"github.installation_id": iid, "github.public": False, "github.repo_id": repo.get("id")})
+        g = {**g, "installation_id": iid}
     if body.get("mode") is not None:
         if body["mode"] not in MODES:
             raise HTTPException(status_code=422, detail="Mode is drafts or publish.")

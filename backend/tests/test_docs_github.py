@@ -510,6 +510,14 @@ class Sync(GitHubCase):
         self.assertEqual(await self.db["docs_jobs"].count_documents({"site_id": ObjectId(site["id"]), "status": "queued"}), 0)
         await self.call("POST", f"/{site['id']}/github/sync", expect=409)
 
+    async def test_public_link_switches_to_the_app_to_sync(self):
+        site = await self.github_site("pub-gh", installation=False, sync_on=False)
+        await self.call("PATCH", f"/{site['id']}/github", json={"sync": True}, expect=422)
+        await self.call("PATCH", f"/{site['id']}/github", json={"installation_id": 99, "sync": True}, expect=404)
+        await self.link_installation()
+        g = await self.call("PATCH", f"/{site['id']}/github", json={"installation_id": 99, "sync": True})
+        self.assertEqual((g["link"]["installation_id"], g["link"]["public"], g["link"]["sync"]), (99, False, True))
+
     async def test_failed_run_shows_in_the_link(self):
         site = await self.github_site()
         job = (await docs_jobs.claim_job(self.db, site["job"]["id"], "runner-1"))[0]

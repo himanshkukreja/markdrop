@@ -132,6 +132,9 @@ class GitHubLinkPut(_Body):
 
 
 class GitHubLinkPatch(_Body):
+    # Read the repository through this installation of the app from now on (a guide imported as a
+    # public repository can then sync).
+    installation_id: int | None = Field(None, ge=1)
     mode: Literal["drafts", "publish"] | None = None
     sync: bool | None = None
     format: GitHubFormat | None = None
