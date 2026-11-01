@@ -17,8 +17,8 @@ test("rules read the way readers and admins say them", { skip: !mod }, () => {
   assert.equal(ruleLabel({ kind: "members", name: "anything" }), "Team members");
   assert.equal(ruleLabel({ kind: "password", name: "Partners" }), "Partners (password)");
   assert.equal(ruleLabel({ kind: "people", name: "Northwind" }), "Northwind");
-  assert.equal(ruleWho({ kind: "people", name: "N", domains_count: 1, domains: ["northwind.com"], emails_count: 2 }), "anyone at @northwind.com and 2 people, signing in with their email.");
-  assert.equal(ruleWho({ kind: "people", name: "N", domains_count: 2, emails_count: 1 }), "anyone at 2 domains and 1 person, signing in with their email.");
+  assert.equal(ruleWho({ kind: "people", name: "N", domains_count: 1, domains: ["northwind.com"], emails_count: 2 }), "Anyone at @northwind.com and 2 people, signing in with their email.");
+  assert.equal(ruleWho({ kind: "people", name: "N", domains_count: 2, emails_count: 1 }), "Anyone at 2 domains and 1 person, signing in with their email.");
   assert.equal(ruleWho({ kind: "people", name: "N" }), "Nobody yet: add people or a domain.");
   assert.equal(ruleWho({ kind: "password", name: "P", has_password: true }), "Anyone with the password.");
   assert.match(ruleWho({ kind: "members", name: "" }), /every other private page/);

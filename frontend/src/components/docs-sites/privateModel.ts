@@ -27,7 +27,8 @@ export function ruleWho(r: RuleLike): string {
   const parts: string[] = [];
   if (r.domains_count) parts.push(`anyone at ${r.domains?.length ? r.domains.map((d) => `@${d}`).join(", ") : `${r.domains_count} domain${r.domains_count === 1 ? "" : "s"}`}`);
   if (r.emails_count) parts.push(`${r.emails_count} ${r.emails_count === 1 ? "person" : "people"}`);
-  return parts.length ? `${parts.join(" and ")}, signing in with their email.` : "Nobody yet: add people or a domain.";
+  const s = parts.join(" and ");
+  return parts.length ? `${s.charAt(0).toUpperCase()}${s.slice(1)}, signing in with their email.` : "Nobody yet: add people or a domain.";
 }
 
 /** Emails and @domains typed into one box: "jane@x.com, @northwind.com" (a bare domain counts too). */

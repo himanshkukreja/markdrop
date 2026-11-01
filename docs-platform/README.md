@@ -70,8 +70,24 @@ objects/<sha256>              immutable (cached forever; never purged)
 manifests/<sha256>.json       immutable
 sites/<site>/current.json     the pointer {manifest, engine, publishedAt, previous}
 hosts/<hostname>.json         {site}: a publish maps a host only where none is (never another site's)
-sites/<site>/access.json      {site, level, policy_version}: password / members-only (no object = public)
+sites/<site>/access.json      {site, level, policy_version, readers?}: password / members-only (no object = public);
+                              readers = the private pages' rules and who they let in (edge/readers.mjs)
 ```
+
+### Private pages and sections
+
+A public guide can have private pages, groups and `:::private` sections (frontend/src/docs/access.mjs).
+The build marks what is protected, from the content (builder/access.mjs): a protected page's
+route, RSC payload, `.md` twin and OG card get `a: <rule>`; a page with private sections gets
+`sec: [rules]` and one `variant` route per combination of them (`x-access/<rules>/<page>`, never
+served at that address); a site file only private content uses gets `a: [rules]`. The MCP
+snapshot leaves private content out, and a **leak check** fails the build when text of a private
+page or section is in anything a signed-out reader can fetch (public routes, their payloads, the
+404 page, public text files, the MCP snapshot) or a protected address is listed in the sitemap,
+llms.txt, skill.md or the search index. Who each rule lets in is `readers` in the access policy,
+written by the API's access job and by the runner (so lists change without a rebuild); the edge
+reads the reader's `__Host-docs_reader` cookie (set from a reader grant the API mints) and serves
+the page, the variant or the lock page. A rule the policy doesn't have locks.
 
 A publish uploads only the objects the store lacks. Objects referenced by the site's current
 manifest are trusted; every other object gets one HEAD check. Then it writes the manifest, then
