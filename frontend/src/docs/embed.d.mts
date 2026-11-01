@@ -7,6 +7,7 @@ export interface EmbedAttrs {
   src: string | null;
   slug: string | null;
   title: string | null;
+  summary: string | null;
   height: number | null;
   aspect: string | null;
   mode: EmbedMode;
@@ -56,14 +57,17 @@ export type EmbedView =
   | (ViewBase & { type: "state"; state: EmbedState })
   | (ViewBase & { type: "frame"; src: string; sandbox: string; paper: boolean })
   | (ViewBase & { type: "video"; src: string; poster: string | null; w: number | null; h: number | null; duration: string | null })
-  | (ViewBase & { type: "audio"; src: string })
-  | (ViewBase & { type: "image"; src: string; w: number | null; h: number | null })
   | (ViewBase & { type: "card"; excerpt: string | null });
 
 export declare const MARKDROP_HOSTS: string[];
 export declare const EMBED_MODES: EmbedMode[];
 export declare const SLUG_RE: RegExp;
 export declare const SANDBOX: string;
+export declare const SANDBOX_VIEWER: string;
+export declare const FRAME_ALLOW: string;
+export declare const LIVE_RENDERERS: string[];
+export declare const SUMMARY_MAX: number;
+export declare const TEXT_MAX: number;
 export declare const MIN_HEIGHT: number;
 export declare const MAX_HEIGHT: number;
 export declare const DEFAULT_HEIGHT: Record<string, number>;
@@ -83,4 +87,8 @@ export declare function formatBytes(n: unknown): string;
 export declare function clock(sec: unknown): string;
 export declare function frameHeight(attrs: Pick<EmbedAttrs, "height" | "aspect"> | null | undefined, renderer: string, width: number): number;
 export declare function embedView(res: EmbedResolve | null, attrs: EmbedAttrs, opts?: { theme?: string | null; artifactOrigin?: string | null }): EmbedView;
+export declare function sandboxedUrl(url: string): string | null;
+export declare function embedIds(slugs: string[]): string[];
+export interface EmbedTextInfo { title?: string; type?: string; duration?: number; pages?: number; outline?: string[]; text?: string }
+export declare function embedTextLines(attrs: { src?: string; title?: string; label?: string; summary?: string | null }, info?: EmbedTextInfo | null, media?: { chapters?: Array<{ start: number; text: string }>; transcript?: string } | null): string[];
 export declare function embedPlainLine(attrs: { src?: string; title?: string; label?: string }): string | null;

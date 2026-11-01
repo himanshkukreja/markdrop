@@ -19,7 +19,7 @@ import { cx } from "../cx";
 import { CodeBlock } from "@/components/reading/CodeBlock";
 import { DiagramFrame } from "@/components/reading/DiagramFrame";
 import { ScrollBox } from "@/components/reading/ScrollBox";
-import { getApiReference, getMedia, getSite, getVideos } from "../content";
+import { getApiReference, getMedia, getSite, getVideos, markdropText } from "../content";
 import { markdropFilesConfig, videoLink } from "../brand";
 import { assetPath, clipVariants, imageVariants, readVttCues } from "../media";
 import { DocsTabs } from "../client/Tabs";
@@ -391,11 +391,14 @@ function Embed({ src, label }: P) {
  * a Markdrop file as a live block. The page carries only the link; the file is asked about when a
  * reader scrolls to it (client/MarkdropEmbed.tsx), so replacing it on Markdrop updates the page.
  */
-function MarkdropFile({ src, label, height, aspect, mode, version, captions, chapters }: P) {
+function MarkdropFile({ src, label, summary, eid, height, aspect, mode, version, captions, chapters }: P) {
   const s = (v: unknown) => (typeof v === "string" ? v : undefined);
-  const raw = { src: s(src), height: s(height), aspect: s(aspect), mode: s(mode), version: s(version), captions: s(captions), chapters: s(chapters) };
+  const raw = { src: s(src), summary: s(summary), height: s(height), aspect: s(aspect), mode: s(mode), version: s(version), captions: s(captions), chapters: s(chapters) };
   for (const k of Object.keys(raw) as Array<keyof typeof raw>) if (raw[k] === undefined) delete raw[k];
-  return <MarkdropEmbed raw={raw} label={s(label)} config={{ ...markdropFilesConfig(getSite()), track: true }} />;
+  // The text version (summary, the file's text from embeds.json, chapters, transcript), built here
+  // so it is in the page's HTML for readers without JavaScript, screen readers and crawlers.
+  const text = markdropText(raw, s(label));
+  return <MarkdropEmbed raw={raw} label={s(label)} eid={s(eid)} text={text} config={{ ...markdropFilesConfig(getSite()), track: true }} />;
 }
 
 /**

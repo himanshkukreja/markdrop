@@ -9,9 +9,12 @@
  *   cover the size of the file's frame, with its title and an "Open on Markdrop" link.
  * - Then the API says what the file is now (GET /api/v1/embeds/{slug}), so a file replaced on
  *   Markdrop shows its new version here without a rebuild, and a file made private stops showing.
- * - Pages, zipped sites, PDFs, sheets, Word and text files render in Markdrop's own viewers on the
- *   isolated artifact origin, in the sandbox markdrop.in/<slug> uses; a video plays in the docs'
- *   own player (client/Player.tsx); an image is an image; a Markdrop document is a card.
+ * - Interactive HTML (a page or a zipped site) renders on the isolated artifact origin in an opaque
+ *   sandbox (no same-origin, no storage, no top navigation; embed.mjs SANDBOX); a PDF in Markdrop's
+ *   own viewer there; a video plays in the docs' own player (client/Player.tsx). Anything else (a
+ *   spreadsheet, a Word file, an image, a Markdrop document) is a card that opens it on Markdrop.
+ * - The text version (the author's summary, a PDF's text, a video's chapters and transcript) is
+ *   under the block, server-rendered: what readers without JavaScript and screen readers get.
  * - Chrome: the kind, the title, size or length, a pinned version; Full screen (the element's
  *   fullscreen, or an expanded overlay where that isn't available, like iPhone Safari) and Open on
  *   Markdrop. The frame's height can be dragged (or set with the arrow keys on its handle), and a
@@ -23,10 +26,9 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Icon } from "@/components/ui";
 import { cx } from "../cx";
-import { MAX_HEIGHT, MIN_HEIGHT, STATES, embedAttrs, embedView, frameHeight, kindOf, parseAspect, type EmbedResolve, type EmbedView } from "../embed.mjs";
-import type { BridgeMessage } from "@/lib/engageCore";
+import { FRAME_ALLOW, MAX_HEIGHT, MIN_HEIGHT, STATES, embedAttrs, embedView, frameHeight, kindOf, parseAspect, type EmbedResolve, type EmbedView } from "../embed.mjs";
 import { VideoPlayer } from "./Player";
-import { embedBeacon, optedOut, startEmbedSession, watchVideo, type EmbedSession } from "./embedTrack";
+import { useEmbedAnalytics } from "./embedTrack";
 
 export interface MarkdropEmbedConfig {
   /** The Markdrop API (no trailing slash). */
@@ -40,6 +42,8 @@ export interface MarkdropEmbedConfig {
   guide: string;
   /** Report views and plays (published pages only, never the studio). */
   track: boolean;
+  /** The guide's Insights endpoint (site.json `insights`), when Insights is on. */
+  insights?: string | null;
   /** App hosts a `src` may name besides markdrop.in (a local stack). */
   extraHosts?: string[];
 }
@@ -51,8 +55,61 @@ export interface MarkdropEmbedProps {
   config: MarkdropEmbedConfig;
   /** Pin the theme (the studio's preview has its own); default: the page's. */
   theme?: "dark" | "light";
-  /** The studio: show what's wrong with the attributes instead of an empty block. */
   className?: string;
+  /** The block's stable id on its page (embed.mjs embedIds), for the guide's Insights. */
+  eid?: string;
+  /**
+   * The text version's lines (embed.mjs embedTextLines, built on the server: the summary, a PDF's
+   * text, a video's chapters and transcript). The first line (the link) is the chrome's own.
+   */
+  text?: string[];
+}
+
+/** The text version under the block: lists for "- " lines, a bold label for "Label: …" paragraphs. */
+function TextVersion({ lines, open }: { lines: string[]; open?: boolean }) {
+  const body = lines.slice(1).filter((l, i, a) => l.trim() || (i > 0 && a[i - 1].trim()));
+  if (!body.some((l) => l.trim())) return null;
+  const blocks: Array<{ kind: "p" | "ul"; items: string[] }> = [];
+  for (const l of body) {
+    if (!l.trim()) continue;
+    if (l.startsWith("- ")) {
+      const last = blocks[blocks.length - 1];
+      if (last?.kind === "ul") last.items.push(l.slice(2));
+      else blocks.push({ kind: "ul", items: [l.slice(2)] });
+    } else blocks.push({ kind: "p", items: [l] });
+  }
+  return (
+    <details className="dx-mde__text" open={open}>
+      <summary>
+        <Icon name="lines" />
+        Text version
+      </summary>
+      <div className="dx-mde__textbody">
+        {blocks.map((b, i) =>
+          b.kind === "ul" ? (
+            <ul key={i}>
+              {b.items.map((t, j) => (
+                <li key={j}>{t}</li>
+              ))}
+            </ul>
+          ) : (
+            <p key={i}>
+              {(() => {
+                const m = /^(Chapters|Contents|Transcript|Text):\s?(.*)$/.exec(b.items[0]);
+                return m ? (
+                  <>
+                    <strong>{m[1]}</strong> {m[2]}
+                  </>
+                ) : (
+                  b.items[0]
+                );
+              })()}
+            </p>
+          ),
+        )}
+      </div>
+    </details>
+  );
 }
 
 /* ── resolving ───────────────────────────────────────────────────────────── */
@@ -127,7 +184,7 @@ const fsElement = () => (document as FsDoc).fullscreenElement ?? (document as Fs
 
 /* ── component ───────────────────────────────────────────────────────────── */
 
-export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, className }: MarkdropEmbedProps) {
+export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, className, eid, text }: MarkdropEmbedProps) {
   const attrs = useMemo(() => embedAttrs(raw, { label, extraHosts: config.extraHosts }), [raw, label, config.extraHosts]);
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const figRef = useRef<HTMLElement>(null);
@@ -149,6 +206,7 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
   const [fs, setFs] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  const isOnScreen = useCallback(() => onScreen.current, []);
 
   /* near the screen → resolve; on screen → "seen" (the view beacon) */
   useEffect(() => {
@@ -242,73 +300,25 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
     };
   }, [expanded]);
 
-  /* ── analytics (published pages only) ── */
-  const trackCfg = useMemo(() => ({ api: config.api, site: config.site, guide: config.guide }), [config.api, config.site, config.guide]);
-  const ready = view.type === "frame" || view.type === "video" || view.type === "image" || view.type === "audio" || view.type === "card";
-  const sessionRef = useRef<EmbedSession | null>(null);
-  const viewSent = useRef(false);
-  const playSent = useRef(false);
+  /* ── analytics (published pages only; client/embedTrack.ts) ── */
+  const trackCfg = useMemo(() => ({ api: config.api, site: config.site, guide: config.guide, insights: config.insights ?? null }), [config.api, config.site, config.guide, config.insights]);
   const slug = attrs.slug;
-  const pinnedVersion = res?.pinned ? res.version ?? null : null;
-
-  useEffect(() => {
-    if (!config.track || !ready || !seen || viewSent.current || !slug) return;
-    viewSent.current = true;
-    embedBeacon(trackCfg, slug, "view", { v: pinnedVersion });
-  }, [config.track, ready, seen, slug, trackCfg, pinnedVersion]);
-
-  const kind = view.type === "video" ? "video" : view.type === "frame" && view.renderer === "pdf" ? "pdf" : view.type === "frame" || view.type === "image" ? "other" : null;
-  useEffect(() => {
-    if (!config.track || !kind || !slug || optedOut()) return;
-    const s = startEmbedSession(trackCfg, slug, kind, res?.version ?? null, () => onScreen.current);
-    sessionRef.current = s;
-    const flushWatch = () => {
-      const w = s.watched();
-      if (kind === "video" && w >= 1) embedBeacon(trackCfg, slug, "watch", { s: w }, true);
-    };
-    window.addEventListener("pagehide", flushWatch);
-    return () => {
-      window.removeEventListener("pagehide", flushWatch);
-      flushWatch();
-      s.stop();
-      sessionRef.current = null;
-    };
-  }, [config.track, kind, slug, trackCfg, res?.version]);
-
-  // The PDF viewer's page reports (its bridge), from our frame and the artifact origin only.
+  const kind = view.type === "video" ? "video" : view.type === "frame" ? (view.renderer === "pdf" ? "pdf" : "other") : view.type === "card" ? "card" : null;
   const frameOrigin = view.type === "frame" ? new URL(view.src).origin : null;
-  useEffect(() => {
-    if (!config.track || kind !== "pdf" || !frameOrigin) return;
-    const onMessage = (e: MessageEvent) => {
-      const f = iframeRef.current;
-      if (!f || e.source !== f.contentWindow || e.origin !== frameOrigin) return;
-      const m = e.data as BridgeMessage | null;
-      if (m && typeof m === "object" && m.md === 1 && (m.ev === "pdf" || m.ev === "page")) sessionRef.current?.pdf(m);
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [config.track, kind, frameOrigin]);
-
-  useEffect(() => {
-    if (!config.track || !video || !slug) return;
-    return watchVideo(video, (m) => {
-      sessionRef.current?.media(m);
-      if (m.e === "play" && !playSent.current) {
-        playSent.current = true;
-        embedBeacon(trackCfg, slug, "play");
-      }
-    });
-  }, [config.track, video, slug, trackCfg]);
-
-  // A click into the frame moves focus out of this window: the reader is using the file.
-  useEffect(() => {
-    if (view.type !== "frame") return;
-    const onBlur = () => window.setTimeout(() => {
-      if (iframeRef.current && document.activeElement === iframeRef.current) sessionRef.current?.activity();
-    }, 0);
-    window.addEventListener("blur", onBlur);
-    return () => window.removeEventListener("blur", onBlur);
-  }, [view.type]);
+  const analytics = useEmbedAnalytics({
+    cfg: trackCfg,
+    track: config.track,
+    slug,
+    eid: eid ?? slug,
+    kind,
+    version: res?.version ?? null,
+    pinned: !!res?.pinned,
+    seen,
+    onScreen: isOnScreen,
+    video,
+    frame: iframeRef,
+    frameOrigin,
+  });
 
   const toggleFullscreen = useCallback(() => {
     const el = figRef.current as FsEl | null;
@@ -322,7 +332,7 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
       setExpanded(false);
       return;
     }
-    if (config.track && slug) embedBeacon(trackCfg, slug, "fullscreen");
+    analytics.onFullscreen();
     const req = el.requestFullscreen?.bind(el) ?? el.webkitRequestFullscreen?.bind(el);
     if (!req) {
       setExpanded(true);
@@ -334,11 +344,9 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
     } catch {
       setExpanded(true);
     }
-  }, [expanded, config.track, slug, trackCfg]);
+  }, [expanded, analytics]);
 
-  const onOpen = useCallback(() => {
-    if (config.track && slug) embedBeacon(trackCfg, slug, "open");
-  }, [config.track, slug, trackCfg]);
+  const onOpen = analytics.onOpen;
 
   /* ── frame height ── */
   const renderer = view.renderer ?? "html";
@@ -375,7 +383,7 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
   const k = kindOf(view.renderer ?? "file");
   const title = view.title || attrs.title || (view.type === "state" ? STATES[view.state].title : "Markdrop file");
   const openUrl = view.open;
-  const canExpand = view.type === "frame" || view.type === "image";
+  const canExpand = view.type === "frame";
   const placeholderH = attrs.aspect && width ? frameHeight(attrs, "html", width) : attrs.height ?? (view.type === "loading" ? 420 : autoH);
 
   const chrome = (
@@ -472,19 +480,6 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
         />
       </div>
     );
-  } else if (view.type === "audio") {
-    body = (
-      <div className="dx-mde__audio">
-        <audio controls preload="metadata" src={view.src} aria-label={title} />
-      </div>
-    );
-  } else if (view.type === "image") {
-    body = (
-      <div className={cx("dx-mde__image", big && "dx-mde__image--big")}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={view.src} alt={title} loading="lazy" decoding="async" width={view.w ?? undefined} height={view.h ?? undefined} referrerPolicy="no-referrer" />
-      </div>
-    );
   } else {
     const aspectStyle: CSSProperties = big ? {} : { height: h };
     body = (
@@ -514,6 +509,7 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
               sandbox={view.sandbox}
               // No referrer: the artifact origin never needs to know which page framed it.
               referrerPolicy="no-referrer"
+              allow={FRAME_ALLOW}
               loading="lazy"
               onLoad={() => setFrameLoaded(true)}
               style={{ colorScheme: view.paper ? "light" : theme ?? undefined }}
@@ -538,6 +534,7 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
         ref={figRef}
         className={cx("dx-mde not-prose", `dx-mde--${view.type}`, big && "dx-mde--big", expanded && "dx-mde--expanded", className)}
         data-renderer={view.renderer}
+        data-embed={eid ?? slug ?? undefined}
         data-state={view.type === "state" ? view.state : undefined}
         data-ratio={ratio ? ratio.toFixed(3) : undefined}
         role={expanded ? "dialog" : undefined}
@@ -546,6 +543,7 @@ export function MarkdropEmbed({ raw, label, config, theme: pinnedTheme, classNam
       >
         {chrome}
         {body}
+        {text && text.length > 1 && view.type !== "state" && <TextVersion lines={text} />}
         {resizable && (
           <div
             className="dx-mde__handle"

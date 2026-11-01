@@ -61,13 +61,18 @@ test("renderer: ::markdrop becomes docs-markdrop with its whitelisted attributes
   const tree = hast('Intro.\n\n::markdrop{src="https://markdrop.in/acme-pricing" title="Pricing calculator" height=640 mode=preview version=3 onload="alert(1)" style="x"}\n\nAfter.');
   const [el] = find(tree, "docs-markdrop");
   assert.ok(el, "a docs-markdrop element");
-  assert.deepEqual(el.properties, { src: "https://markdrop.in/acme-pricing", label: "Pricing calculator", height: "640", mode: "preview", version: "3" });
+  assert.deepEqual(el.properties, { src: "https://markdrop.in/acme-pricing", label: "Pricing calculator", eid: "acme-pricing", height: "640", mode: "preview", version: "3" });
   assert.equal(el.children.length, 0);
 });
 
 test("renderer: the [label] is the title when there is no title attribute", { skip }, () => {
-  const [el] = find(hast('::markdrop[Price list]{src="https://markdrop.in/acme-prices" aspect="16:9" captions="/docs-assets/v/a.vtt"}'), "docs-markdrop");
-  assert.deepEqual(el.properties, { src: "https://markdrop.in/acme-prices", label: "Price list", aspect: "16:9", captions: "/docs-assets/v/a.vtt" });
+  const [el] = find(hast('::markdrop[Price list]{src="https://markdrop.in/acme-prices" aspect="16:9" captions="/docs-assets/v/a.vtt" summary="Plans and prices."}'), "docs-markdrop");
+  assert.deepEqual(el.properties, { src: "https://markdrop.in/acme-prices", label: "Price list", summary: "Plans and prices.", eid: "acme-prices", aspect: "16:9", captions: "/docs-assets/v/a.vtt" });
+});
+
+test("renderer: each block gets a stable id on its page (the same file twice: ~2)", { skip }, () => {
+  const tree = hast('::markdrop{src="https://markdrop.in/a"}\n\n::markdrop{src="https://markdrop.in/b"}\n\n:::note\n::markdrop{src="https://markdrop.in/a"}\n:::\n\n::markdrop{src="https://x.example/c"}');
+  assert.deepEqual(find(tree, "docs-markdrop").map((e) => e.properties.eid), ["a", "b", "a~2", "file"]);
 });
 
 test("renderer: inside containers, and code stays code", { skip }, () => {
@@ -77,11 +82,19 @@ test("renderer: inside containers, and code stays code", { skip }, () => {
   assert.equal(els[0].properties.src, "https://markdrop.in/a");
 });
 
-test("agent Markdown: a Markdrop file becomes a link", { skip }, () => {
+test("agent Markdown: a Markdrop file becomes its link and text version", { skip }, () => {
   assert.equal(md.toPlainMarkdown('See it:\n\n::markdrop{src="https://markdrop.in/acme" title="Pricing calculator"}'), "See it:\n\n[Markdrop file: Pricing calculator](https://markdrop.in/acme)");
   assert.equal(md.toPlainMarkdown("::markdrop[Tour]{src=https://markdrop.in/tour}"), "[Markdrop file: Tour](https://markdrop.in/tour)");
   assert.equal(md.toPlainMarkdown('::markdrop{src="https://evil.example/x"}'), "");
-  assert.equal(md.plainText('::markdrop{src="https://markdrop.in/acme" title="Pricing"}'), "Markdrop file: Pricing");
+  assert.equal(
+    md.toPlainMarkdown('::markdrop{src="https://markdrop.in/acme" title="Pricing" summary="Pick a plan and seats; the total updates."}\n\nAfter.'),
+    "[Markdrop file: Pricing](https://markdrop.in/acme)\n\nPick a plan and seats; the total updates.\n\nAfter.",
+  );
+  // The build's resolver (content.ts) adds what it knows of the file.
+  const out = md.toPlainMarkdown('::markdrop{src="https://markdrop.in/acme-prices"}', { markdrop: () => ["[PDF: Price list](https://markdrop.in/acme-prices) (3 pages)", "", "Text: Starter $9"] });
+  assert.equal(out, "[PDF: Price list](https://markdrop.in/acme-prices) (3 pages)\n\nText: Starter $9");
+  // Search reads the summary too.
+  assert.equal(md.plainText('::markdrop{src="https://markdrop.in/acme" title="Pricing" summary="Seats and plans."}'), "Markdrop file: Pricing Seats and plans.");
   assert.ok(md.LEAF_DIRECTIVES.includes("markdrop"));
 });
 

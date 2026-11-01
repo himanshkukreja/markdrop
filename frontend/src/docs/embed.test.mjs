@@ -5,11 +5,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  FRAME_ALLOW,
   SANDBOX,
+  SANDBOX_VIEWER,
   STATES,
   clock,
   embedAttrs,
+  embedIds,
   embedPlainLine,
+  embedTextLines,
   embedView,
   formatBytes,
   frameHeight,
@@ -61,6 +65,8 @@ test("attributes: valid values kept, bad ones dropped with a warning, a bad src 
   assert.equal(bad.version, null);
   assert.equal(bad.captions, null);
   assert.equal(bad.warnings.length, 6, bad.warnings.join("\n"));
+  assert.equal(embedAttrs({ src: "https://markdrop.in/a", summary: "  A calculator.  " }).summary, "A calculator.");
+  assert.match(embedAttrs({ src: "https://markdrop.in/a", summary: "x".repeat(2001) }).warnings[0], /keep it under 2000/);
   assert.match(embedAttrs({}).errors[0], /needs src=/);
   const both = embedAttrs({ src: "https://markdrop.in/a", height: "300", aspect: "9:16" });
   assert.equal(both.aspect, "9:16");
@@ -100,21 +106,40 @@ test("only the artifact origin is framed", () => {
 const attrs = (extra = {}) => embedAttrs({ src: "https://markdrop.in/acme", ...extra });
 const ok = (extra = {}) => ({ state: "ok", slug: "acme", title: "Acme pricing", size_bytes: 20480, type_label: "HTML page", ...extra });
 
+test("sandbox: author HTML gets an opaque origin; only Markdrop's viewer keeps its own", () => {
+  for (const flag of ["allow-same-origin", "allow-top-navigation", "allow-popups-to-escape-sandbox", "allow-storage-access-by-user-activation", "allow-top-navigation-by-user-activation"])
+    assert.ok(!SANDBOX.split(" ").includes(flag), flag);
+  assert.deepEqual(SANDBOX.split(" ").sort(), ["allow-downloads", "allow-forms", "allow-modals", "allow-popups", "allow-scripts"]);
+  assert.deepEqual(SANDBOX_VIEWER.split(" ").sort(), ["allow-downloads", "allow-same-origin", "allow-scripts"]);
+  for (const p of ["camera", "microphone", "geolocation", "payment", "usb", "display-capture"]) assert.match(FRAME_ALLOW, new RegExp(`${p} 'none'`));
+});
+
 test("view: each renderer draws its own way", () => {
   const html = embedView(ok({ renderer: "html", frame_url: `${ART}/r/art/u/k.html` }), attrs(), { theme: "dark", artifactOrigin: ART });
   assert.equal(html.type, "frame");
   assert.equal(html.sandbox, SANDBOX);
   assert.equal(html.paper, true);
-  assert.equal(html.src, `${ART}/r/art/u/k.html`);
+  // The Worker repeats the sandbox as a CSP header for ?sb=1; the theme isn't passed to author pages.
+  assert.equal(html.src, `${ART}/r/art/u/k.html?sb=1`);
   assert.equal(html.open, "https://markdrop.in/acme");
   assert.deepEqual(html.meta, ["20 KB"]);
 
   const pdf = embedView(ok({ renderer: "pdf", frame_url: `${ART}/v/pdf/art/u/k.pdf`, type_label: "PDF" }), attrs(), { theme: "light", artifactOrigin: ART });
   assert.equal(pdf.type, "frame");
   assert.equal(pdf.paper, false);
+  assert.equal(pdf.sandbox, SANDBOX_VIEWER);
   assert.equal(pdf.src, `${ART}/v/pdf/art/u/k.pdf?theme=light`);
 
-  for (const r of ["sheet", "docx", "bundle", "text"]) assert.equal(embedView(ok({ renderer: r, frame_url: `${ART}/v/${r}/art/u/k` }), attrs(), { artifactOrigin: ART }).type, "frame", r);
+  const site = embedView(ok({ renderer: "bundle", frame_url: `${ART}/r/art/u/t/index.html` }), attrs(), { artifactOrigin: ART });
+  assert.equal(site.type, "frame");
+  assert.equal(site.sandbox, SANDBOX);
+  assert.equal(site.src, `${ART}/r/art/u/t/index.html?sb=1`);
+  // Spreadsheets, Word, text, images and audio open on Markdrop: a card, never a frame.
+  for (const r of ["sheet", "docx", "text", "image", "audio", "file"]) {
+    const v = embedView(ok({ renderer: r, frame_url: `${ART}/v/${r}/art/u/k`, raw_url: `${ART}/r/art/u/k` }), attrs(), { artifactOrigin: ART });
+    assert.equal(v.type, "card", r);
+    assert.equal(v.open, "https://markdrop.in/acme", r);
+  }
 
   const video = embedView(ok({ renderer: "video", raw_url: `${ART}/r/art/u/v.mp4`, poster_url: `${ART}/r/art/u/v.poster.jpg`, media: { duration: 125.2, width: 1920, height: 1080 } }), attrs(), { artifactOrigin: ART });
   assert.equal(video.type, "video");
@@ -123,8 +148,6 @@ test("view: each renderer draws its own way", () => {
   assert.equal(video.duration, "2:05");
   assert.deepEqual(video.meta, ["2:05"]);
 
-  assert.equal(embedView(ok({ renderer: "audio", raw_url: `${ART}/r/art/u/a.mp3` }), attrs(), { artifactOrigin: ART }).type, "audio");
-  assert.equal(embedView(ok({ renderer: "image", raw_url: `${ART}/r/art/u/a.png` }), attrs(), { artifactOrigin: ART }).type, "image");
   const doc = embedView(ok({ renderer: "doc", excerpt: "Hello" }), attrs(), { artifactOrigin: ART });
   assert.equal(doc.type, "card");
   assert.equal(doc.excerpt, "Hello");
@@ -157,6 +180,27 @@ test("view: an address off the artifact origin is never framed", () => {
   assert.equal(v.state, "unsupported");
   const vid = embedView(ok({ renderer: "video", raw_url: "javascript:alert(1)" }), attrs(), { artifactOrigin: ART });
   assert.equal(vid.state, "unsupported");
+});
+
+test("embed ids: the slug, then ~2, ~3 for the same file again", () => {
+  assert.deepEqual(embedIds(["a", "b", "a", "a", "c"]), ["a", "b", "a~2", "a~3", "c"]);
+  assert.deepEqual(embedIds([]), []);
+});
+
+test("text version: link, summary, chapters, outline, transcript and text within the budget", () => {
+  const lines = embedTextLines(
+    { src: "https://markdrop.in/acme-tour", title: "Product tour", summary: "A two-minute\nwalkthrough." },
+    { type: "Video", duration: 125 },
+    { chapters: [{ start: 0, text: "Intro" }, { start: 42, text: "Invite your team" }], transcript: "Welcome to Acme. " + "word ".repeat(2000) },
+  );
+  assert.equal(lines[0], "[Video: Product tour](https://markdrop.in/acme-tour) (2:05)");
+  assert.equal(lines[2], "A two-minute walkthrough.");
+  assert.deepEqual(lines.slice(4, 7), ["Chapters:", "- 0:00 Intro", "- 0:42 Invite your team"]);
+  const t = lines.find((l) => l.startsWith("Transcript: "));
+  assert.ok(t.length < 6100 && t.endsWith("…"));
+  const pdf = embedTextLines({ src: "https://markdrop.in/acme-prices" }, { title: "Price list", type: "PDF", pages: 3, outline: ["Plans", "Add-ons"], text: "Starter $9" });
+  assert.deepEqual(pdf, ["[PDF: Price list](https://markdrop.in/acme-prices) (3 pages)", "", "Contents:", "- Plans", "- Add-ons", "", "Text: Starter $9"]);
+  assert.deepEqual(embedTextLines({ src: "https://evil.example/x" }), []);
 });
 
 test("plain Markdown twin and formatting", () => {

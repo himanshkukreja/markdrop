@@ -4,21 +4,37 @@
  * What a Markdrop file embedded in a docs page reports (MarkdropEmbed), and to whom. Cookieless,
  * no storage, no id that outlives the page load, nothing sent from the studio's previews.
  *
- * 1. The guide's Insights, through `POST /api/v1/embeds/{slug}/beacon` {site, p, a, s?}: the file
- *    was seen (`view`, once per page load), opened full screen, opened on Markdrop, its video
- *    played, and how many seconds of it were watched (`watch`, when the page is left). The API
- *    keeps daily counts per file and page, nothing per reader, and drops all of it for a browser
- *    that sends Do Not Track or Global Privacy Control.
- * 2. The file's own creator analytics: the same `view` beacon counts a view of the file, from the
- *    "Guides" channel with the guide's name as its campaign ("seen in <guide>"); and for a video,
- *    a PDF or a page, the engagement session the file's page on Markdrop would send
- *    (`/documents/{slug}/engage`, lib/engage.ts's wire format: watched ranges, pages read, active
- *    time), tagged the same way. Opted-out browsers (DNT, GPC) send no session at all.
+ * 1. The guide's Insights (and its Fix list), in the Insights beacon format: `POST <insights>/event`
+ *    (client/Insights.tsx sendInsight) with
+ *
+ *      {k: "embed", p: <page path>, e: <embed id>, s: <file slug>, a: <action>, …}
+ *
+ *    `e` is stable per page (embed.mjs embedIds: the slug, `<slug>~2` for the same file again) and
+ *    `p` is the page; actions, each at most once per page load unless noted:
+ *      view                      the block was on screen (≥ 25 % of it) with the file showing
+ *      interact                  the reader first used it (a click into the frame, a play, a page turn)
+ *      fullscreen | open         Full screen / Open on Markdrop (each time)
+ *      play                      the video's first play
+ *      quartile  q: 25|50|75|100 the furthest point watched crossed that share of the video
+ *      leave     t, w, d         the page was left after the video played: where it stopped (t, s),
+ *                                seconds watched (w) and its length (d): drop-off for the Fix list
+ *      pages     pg, n           the page was left after a PDF was read: furthest page, page count
+ *    The API keeps the page path, the device class, a daily-rotating visitor hash (none under Do Not
+ *    Track / Global Privacy Control), and nothing else about the reader (services/guide_insights.py).
+ * 2. The file's own creator analytics: `POST /api/v1/embeds/{slug}/beacon` {site, p, a: "view"}
+ *    counts a view of the file, from the "Guides" channel with the guide's name as its campaign
+ *    ("seen in <guide>"); and for a video or a PDF, the engagement session the file's page on
+ *    Markdrop would send (`/documents/{slug}/engage`, lib/engage.ts's wire format: watched ranges,
+ *    pages read, active time), tagged the same way. Opted-out browsers send no session at all.
  */
+import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { MediaAgg, PdfAgg, emptyDelta, type BridgeMessage, type EngageDelta, type EngagePos } from "@/lib/engageCore";
+import { sendInsight } from "./Insights";
 
 export interface EmbedTrackConfig {
   api: string;
+  /** The guide's Insights endpoint (site.json `insights`), when Insights is on. */
+  insights?: string | null;
   /** The docs site's id (a Markdrop Guides site's id, or "markdrop" for docs.markdrop.in). */
   site: string;
   /** The guide's name: the campaign the file's creator sees ("seen in Acme Docs"). */
@@ -212,5 +228,156 @@ export function watchVideo(v: HTMLVideoElement, onMessage: (m: BridgeMessage) =>
   return () => {
     for (const [n, h] of handlers) v.removeEventListener(n, h);
     document.removeEventListener("fullscreenchange", onFs);
+  };
+}
+
+
+/* ── the block's analytics, as one hook ──────────────────────────────────── */
+
+type InsightAction = "view" | "interact" | "fullscreen" | "open" | "play" | "quartile" | "leave" | "pages";
+
+export interface EmbedAnalyticsInput {
+  cfg: EmbedTrackConfig;
+  track: boolean;
+  slug: string | null;
+  eid: string | null;
+  /** What is showing: a video, a PDF, a page / site, a card, or nothing yet. */
+  kind: "video" | "pdf" | "other" | "card" | null;
+  version: number | null;
+  pinned: boolean;
+  seen: boolean;
+  onScreen: () => boolean;
+  video: HTMLVideoElement | null;
+  frame: RefObject<HTMLIFrameElement | null>;
+  frameOrigin: string | null;
+}
+
+/**
+ * Everything MarkdropEmbed reports (see the top of this file). Returns the chrome's callbacks
+ * (Full screen, Open on Markdrop) and `interact()` for a click into the frame.
+ */
+export function useEmbedAnalytics(i: EmbedAnalyticsInput) {
+  const { cfg, track, slug, eid, kind, version, pinned, seen, video, frame, frameOrigin } = i;
+  const onScreen = useRef(i.onScreen);
+  onScreen.current = i.onScreen;
+  const once = useRef(new Set<string>());
+  const session = useRef<EmbedSession | null>(null);
+  const media = useRef({ played: false, max: 0, last: 0, dur: 0 });
+  const pdf = useRef({ max: 0, n: 0 });
+
+  const insight = useCallback(
+    (a: InsightAction, extra: Record<string, unknown> = {}, onceKey?: string) => {
+      if (!track || !slug || !cfg.insights) return;
+      if (onceKey) {
+        if (once.current.has(onceKey)) return;
+        once.current.add(onceKey);
+      }
+      sendInsight(cfg.insights, { k: "embed", p: location.pathname, e: eid || slug, s: slug, a, ...extra });
+    },
+    [track, slug, eid, cfg.insights],
+  );
+  const interact = useCallback(() => {
+    session.current?.activity();
+    insight("interact", {}, "interact");
+  }, [insight]);
+
+  // Seen with the file showing: one view for the guide's Insights and one for the file's creator.
+  useEffect(() => {
+    if (!track || !slug || !seen || !kind || once.current.has("view")) return;
+    insight("view", {}, "view");
+    embedBeacon(cfg, slug, "view", { v: pinned ? version : null });
+  }, [track, slug, seen, kind, insight, cfg, pinned, version]);
+
+  // The creator's engagement session (video, PDF, page), unless the browser opted out.
+  const sessionKind = kind === "video" ? "video" : kind === "pdf" ? "pdf" : kind === "other" ? "other" : null;
+  useEffect(() => {
+    if (!track || !slug || !sessionKind || optedOut()) return;
+    const s = startEmbedSession(cfg, slug, sessionKind, version, () => onScreen.current());
+    session.current = s;
+    return () => {
+      s.stop();
+      session.current = null;
+    };
+  }, [track, slug, sessionKind, cfg, version]);
+
+  // Leaving the page: where the video stopped and how much of it was watched; the furthest PDF page.
+  useEffect(() => {
+    if (!track || !slug) return;
+    const flush = () => {
+      const m = media.current;
+      if (m.played && !once.current.has("leave")) {
+        once.current.add("leave");
+        const w = session.current?.watched() ?? 0;
+        insight("leave", { t: Math.round(m.last * 10) / 10, w: Math.round(w), d: Math.round(m.dur * 10) / 10 });
+      }
+      const p = pdf.current;
+      if (p.max > 0 && !once.current.has("pages")) {
+        once.current.add("pages");
+        insight("pages", { pg: p.max, n: p.n || undefined });
+      }
+    };
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [track, slug, insight]);
+
+  // The video: plays, quartiles of the furthest point reached, the position it stops at.
+  useEffect(() => {
+    if (!track || !video || !slug) return;
+    return watchVideo(video, (m) => {
+      session.current?.media(m);
+      const st = media.current;
+      if (typeof m.dur === "number" && m.dur > 0) st.dur = m.dur;
+      if (typeof m.t === "number") st.last = m.t;
+      if (m.e === "play") {
+        st.played = true;
+        insight("play", {}, "play");
+        interact();
+      }
+      if (st.played && st.dur > 0 && typeof m.t === "number" && m.e !== "seeking") {
+        st.max = Math.max(st.max, m.t);
+        const frac = m.e === "ended" ? 1 : st.max / st.dur;
+        for (const q of [25, 50, 75, 100]) if (frac >= q / 100 - (q === 100 ? 0.02 : 0)) insight("quartile", { q }, `q${q}`);
+      }
+    });
+  }, [track, video, slug, insight, interact]);
+
+  // The PDF viewer's page reports (its bridge), from our frame and the artifact origin only.
+  useEffect(() => {
+    if (!track || kind !== "pdf" || !frameOrigin) return;
+    const onMessage = (e: MessageEvent) => {
+      const f = frame.current;
+      if (!f || e.source !== f.contentWindow || e.origin !== frameOrigin) return;
+      const m = e.data as BridgeMessage | null;
+      if (!m || typeof m !== "object" || m.md !== 1) return;
+      if (m.ev === "pdf" && typeof m.n === "number") pdf.current.n = Math.floor(m.n);
+      if (m.ev === "page" && typeof m.p === "number") {
+        const p = Math.floor(m.p);
+        if (p > 1) interact();
+        pdf.current.max = Math.max(pdf.current.max, p);
+      }
+      if (m.ev === "pdf" || m.ev === "page") session.current?.pdf(m);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [track, kind, frameOrigin, frame, interact]);
+
+  // A click into the frame moves focus out of this window: the reader is using the file.
+  useEffect(() => {
+    if (!track || (kind !== "other" && kind !== "pdf")) return;
+    const onBlur = () =>
+      window.setTimeout(() => {
+        if (frame.current && document.activeElement === frame.current) interact();
+      }, 0);
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
+  }, [track, kind, frame, interact]);
+
+  return {
+    interact,
+    onFullscreen: useCallback(() => insight("fullscreen"), [insight]),
+    onOpen: useCallback(() => insight("open"), [insight]),
   };
 }

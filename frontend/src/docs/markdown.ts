@@ -7,7 +7,7 @@
  */
 import { createSlugger, headingSourceText, inlineText } from "@/components/reading/slug";
 import type { Heading, Section } from "./types";
-import { embedPlainLine } from "./embed.mjs";
+import { embedTextLines } from "./embed.mjs";
 
 /** Every directive name the renderer understands. `docs:check` flags anything else. */
 export const CONTAINER_DIRECTIVES = ["note", "tip", "warning", "danger", "steps", "tabs", "tab", "cards", "card", "details"] as const;
@@ -144,6 +144,11 @@ export interface PlainOptions {
   video?: (id: string) => { url: string; duration?: string } | undefined;
   /** Resolves a `::clip` src (no extension) to its file and length. */
   clip?: (src: string) => { url: string; duration?: string };
+  /**
+   * A `::markdrop` block's text version (embed.mjs embedTextLines with what the build knows of the
+   * file). Without it: the link and the author's summary.
+   */
+  markdrop?: (attrs: Record<string, string>, label?: string) => string[];
 }
 
 function absolutize(line: string, base?: string): string {
@@ -237,8 +242,12 @@ export function toPlainMarkdown(body: string, opts: PlainOptions = {}): string {
       } else if (name === "embed" && a.src) {
         emit(`[${a.title || label || a.src}](${a.src})`);
       } else if (name === "markdrop") {
-        const line = embedPlainLine({ src: a.src, title: a.title, label });
-        if (line) emit(line);
+        const lines = opts.markdrop ? opts.markdrop(a, label) : embedTextLines({ ...a, label });
+        if (lines.length) {
+          emit("");
+          for (const l of lines) emit(l);
+          emit("");
+        }
       } else if (name === "api" && a.op?.trim()) {
         emit(apiLine(a.op, label));
       }

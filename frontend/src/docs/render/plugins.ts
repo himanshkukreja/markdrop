@@ -17,6 +17,7 @@
 import { createSlugger, headingSourceText } from "@/components/reading/slug";
 import { CALLOUTS, CONTAINER_DIRECTIVES } from "../markdown";
 import { aliasNodes, aliasesByTarget, cardColumns, fixImageAlts, hasWrapFlag, parserOptions } from "./rules.mjs";
+import { embedIds, parseMarkdropSrc } from "../embed.mjs";
 
 /* ── mdast ───────────────────────────────────────────────────────────────── */
 
@@ -182,6 +183,8 @@ function transform(node: MdNode, parent: MdNode | null, index: number) {
       set(node, "docs-markdrop", {
         src: attr(node, "src"),
         label: attr(node, "title") || textOf(node).trim(),
+        summary: attr(node, "summary"),
+        eid: typeof node.data?.eid === "string" ? node.data.eid : undefined,
         height: attr(node, "height"),
         aspect: attr(node, "aspect"),
         mode: attr(node, "mode"),
@@ -210,6 +213,20 @@ function transform(node: MdNode, parent: MdNode | null, index: number) {
   if (kids) for (let i = 0; i < kids.length; i++) transform(kids[i], node, i);
 }
 
+/** Each ::markdrop block's stable id on its page (embed.mjs embedIds), kept on the node for transform. */
+function numberEmbeds(tree: MdNode) {
+  const found: MdNode[] = [];
+  const visit = (n: MdNode) => {
+    if (n.type === "leafDirective" && n.name === "markdrop") found.push(n);
+    n.children?.forEach(visit);
+  };
+  visit(tree);
+  const slugs = found.map((n) => parseMarkdropSrc(attr(n, "src")) ?? "file");
+  embedIds(slugs).forEach((id, i) => {
+    found[i].data = { ...(found[i].data ?? {}), eid: id };
+  });
+}
+
 /**
  * `this` is the processor (unified attachers run bound to it): its data holds the parser
  * extensions, read when the transformer runs so every plugin has registered its own.
@@ -219,6 +236,7 @@ export function remarkDocs(this: unknown) {
   return (tree: MdNode, file?: { value?: unknown }) => {
     const source = typeof file?.value === "string" ? file.value : null;
     if (source !== null) fixImageAlts(tree, source, parserOptions(typeof processor?.data === "function" ? processor.data() : undefined));
+    numberEmbeds(tree);
     transform(tree, null, 0);
   };
 }

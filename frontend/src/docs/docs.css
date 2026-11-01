@@ -235,12 +235,18 @@
 .dx-mde__excerpt { margin: 0; font-size: 14px; line-height: 22px; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .dx-mde__card .dx-mde__cta { height: 36px; }
 .dx-mde__video > * { margin: 0 !important; }
-.dx-mde__audio { padding: 16px; }
-.dx-mde__audio audio { width: 100%; }
-.dx-mde__image { display: flex; justify-content: center; background: var(--surface-inset); }
-.dx-mde__image img { display: block; max-width: 100%; height: auto; }
-.dx-mde__image--big { flex: 1; min-height: 0; align-items: center; }
-.dx-mde__image--big img { max-height: 100%; object-fit: contain; }
+/* The text version: what readers without JavaScript, screen readers, search and agents get. */
+.dx-mde__text { border-top: 1px solid var(--border); background: var(--surface); }
+.dx-mde__text > summary { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; list-style: none; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.dx-mde__text > summary::-webkit-details-marker { display: none; }
+.dx-mde__text > summary svg { width: 15px; height: 15px; color: var(--text-muted); }
+.dx-mde__text > summary:hover { color: var(--text); }
+.dx-mde__text > summary:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.dx-mde__textbody { max-height: 320px; overflow: auto; padding: 0 16px 14px; font-size: 14px; line-height: 22px; color: var(--text-secondary); }
+.dx-mde__textbody p { margin: 0 0 8px; }
+.dx-mde__textbody ul { margin: 0 0 8px; padding-left: 20px; }
+.dx-mde__textbody strong { color: var(--text); font-weight: 600; }
+.dx-mde--big .dx-mde__text { display: none; }
 .dx-mde__handle { display: flex; align-items: center; justify-content: center; height: 14px; border-top: 1px solid var(--border); background: var(--surface); cursor: ns-resize; touch-action: none; }
 .dx-mde__handle span { width: 36px; height: 4px; border-radius: var(--radius-full); background: var(--border-strong); }
 .dx-mde__handle:hover span, .dx-mde__handle:focus-visible span { background: var(--accent); }

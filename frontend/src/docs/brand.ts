@@ -203,6 +203,8 @@ export interface MarkdropFilesConfig {
   site: string;
   guide: string;
   extraHosts: string[];
+  /** The guide's Insights endpoint (site.json `insights`): the blocks' events go there. */
+  insights: string | null;
 }
 
 /**
@@ -227,6 +229,7 @@ export function markdropFilesConfig(site: SiteConfig): MarkdropFilesConfig {
     site: siteId(site),
     guide: site.name,
     extraHosts: appHost === "markdrop.in" ? [] : [appHost],
+    insights: typeof site.insights === "string" && /^https?:\/\//.test(site.insights) ? site.insights.replace(/\/+$/, "") : null,
   };
 }
 

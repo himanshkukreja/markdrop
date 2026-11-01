@@ -7,13 +7,21 @@
  *   ::markdrop{src="https://markdrop.in/acme-pricing" title="Pricing calculator" height=560}
  *   ::markdrop[Onboarding walkthrough]{src="https://markdrop.in/acme-tour" version=3}
  *   ::markdrop{src="https://markdrop.in/acme-handbook" mode=card}
+ *   ::markdrop{src="https://markdrop.in/acme-pricing" summary="Pick a plan and seats; the total updates."}
+ *
+ * What renders live: interactive HTML (a page, or a zipped static site), PDFs and videos. Anything
+ * else (a spreadsheet, a Word document, an image, a Markdrop document…) is a card that opens it on
+ * Markdrop.
  *
  * src       a Markdrop link (https://markdrop.in/<slug>). The page keeps only the link: what the
  *           file is, its current bytes and whether readers may see it are asked of the API when a
  *           reader scrolls to it, so "Replace file" on Markdrop updates every guide at once, and a
  *           file made private stops showing everywhere at once.
  * title     the block's title (else the file's own title). `[label]` works too.
- * height    the frame's height in px (160–2000) for pages, PDFs, sheets and documents.
+ * summary   the block's text version, written by the author: shown under the block (and to
+ *           readers without JavaScript), and what search, Ask AI, llms.txt and the page's Markdown
+ *           twin read instead of the file. A PDF's text and a video's captions are added to it.
+ * height    the frame's height in px (160–2000) for pages, sites and PDFs.
  * aspect    W:H instead of a height ("16:9", "9:16" for a phone prototype).
  * mode      live (default): the file itself · preview: a cover until the reader asks for it ·
  *           card: a link card (title, type, size, Open on Markdrop).
@@ -24,22 +32,38 @@
  * Security model (see the API's services/docs_embeds.py): the API answers only for files anyone
  * with the link may open (link access, no password, no sign-in-only workspace, not expired, not
  * end-to-end encrypted); everything else is a state with no title, no bytes and no address. Files
- * render on Markdrop's isolated artifact origin (workers.dev), never the docs origin, in the same
- * sandbox as markdrop.in/<slug>.
+ * render on Markdrop's isolated artifact origin (workers.dev, a separate registrable site), never
+ * the docs origin. Author HTML runs in a sandbox WITHOUT allow-same-origin (an opaque origin: no
+ * storage, no cookies, no access to any other file on the artifact origin or to the page around
+ * it, no top navigation), and the Worker repeats that sandbox as a CSP header (`?sb=1`), so one
+ * customer's page can never reach another's. Markdrop's own PDF viewer keeps its origin (it fetches
+ * the file), with nothing else allowed.
  */
 
 /** Hosts a `src` may name. A guide's own site config may add its app host (local stacks). */
 export const MARKDROP_HOSTS = ["markdrop.in", "www.markdrop.in"];
 export const EMBED_MODES = ["live", "preview", "card"];
 export const SLUG_RE = /^[A-Za-z0-9_-]{1,64}$/;
-/** The artifact iframe's sandbox: the one markdrop.in/<slug> uses (app/[slug]/ArtifactView.tsx). */
-export const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads";
+/**
+ * Author HTML (a page or a zipped site): scripts, forms, dialogs, popups (themselves sandboxed) and
+ * downloads, in an OPAQUE origin: never allow-same-origin, allow-top-navigation or
+ * allow-popups-to-escape-sandbox.
+ */
+export const SANDBOX = "allow-scripts allow-forms allow-popups allow-modals allow-downloads";
+/** Markdrop's own PDF viewer (trusted code that fetches the file from its origin). */
+export const SANDBOX_VIEWER = "allow-scripts allow-same-origin allow-downloads";
+/** Permissions no embedded file gets (most are off for cross-origin frames already; said anyway). */
+export const FRAME_ALLOW = "camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'; serial 'none'; hid 'none'; bluetooth 'none'; display-capture 'none'; clipboard-read 'none'";
+/** What renders live; every other renderer is a card. */
+export const LIVE_RENDERERS = ["html", "bundle", "pdf", "video"];
+/** The longest `summary` docs:check accepts without a warning. */
+export const SUMMARY_MAX = 2000;
 export const MIN_HEIGHT = 160;
 export const MAX_HEIGHT = 2000;
 /** A frame's height when the page names none, per renderer. */
 export const DEFAULT_HEIGHT = { html: 560, bundle: 560, pdf: 720, sheet: 520, docx: 720, text: 480, image: 0, video: 0, audio: 0, doc: 0 };
 /** The attributes the renderer carries over; anything else is dropped (and `docs:check` warns). */
-export const EMBED_ATTRS = ["src", "title", "height", "aspect", "mode", "version", "captions", "chapters"];
+export const EMBED_ATTRS = ["src", "title", "summary", "height", "aspect", "mode", "version", "captions", "chapters"];
 
 const RENDERERS = new Set(["html", "bundle", "pdf", "sheet", "docx", "text", "image", "video", "audio", "doc"]);
 
@@ -129,6 +153,8 @@ export function embedAttrs(raw = {}, { label, extraHosts } = {}) {
   if (!src) errors.push('::markdrop needs src="https://markdrop.in/<link>", the address of a Markdrop file');
   else if (!slug) errors.push(`::markdrop src "${src}" isn't a Markdrop link (https://markdrop.in/<link>)`);
   const title = (typeof a.title === "string" && a.title.trim()) || (typeof label === "string" && label.trim()) || null;
+  const summary = typeof a.summary === "string" && a.summary.trim() ? a.summary.trim() : null;
+  if (summary && summary.length > SUMMARY_MAX) warnings.push(`::markdrop summary is ${summary.length} characters; keep it under ${SUMMARY_MAX} (a few sentences)`);
   let height = null;
   if (a.height !== undefined && a.height !== null && a.height !== "") {
     height = intIn(a.height, MIN_HEIGHT, MAX_HEIGHT);
@@ -161,6 +187,7 @@ export function embedAttrs(raw = {}, { label, extraHosts } = {}) {
     src: slug ? src : null,
     slug,
     title,
+    summary,
     height,
     aspect,
     mode,
@@ -267,11 +294,10 @@ export function frameHeight(attrs, renderer, width) {
 /**
  * What to draw for an API answer (`res`, null while loading) and the page's attributes: one of
  *
- *   {type: "frame", src, sandbox, renderer, paper}   a page / zipped site (raw) or a viewer page
+ *   {type: "frame", src, sandbox, renderer, paper}   a page / zipped site (raw) or the PDF viewer
  *   {type: "video", src, poster, w, h, duration}     the docs' own player
- *   {type: "audio", src}
- *   {type: "image", src, w, h}
- *   {type: "card", renderer}                         mode=card, or a Markdrop (markdown) document
+ *   {type: "card", renderer}                         mode=card, or anything that doesn't render live
+ *                                                    (a sheet, a Word file, an image, a document…)
  *   {type: "state", state}                           why it can't be shown (STATES)
  *
  * plus the chrome's `title`, `typeLabel`, `meta` (size, length, version) and `open` (the link on
@@ -298,35 +324,99 @@ export function embedView(res, attrs, { theme, artifactOrigin } = {}) {
   } else if (typeof res.size_bytes === "number" && renderer !== "doc") meta.push(formatBytes(res.size_bytes));
   if (res.pinned && res.version) meta.push(`Version ${res.version}`);
   const out = { ...base, title, typeLabel: res.type_label || k.label, icon: k.icon, renderer, meta, open: openUrl, updatedAt: res.updated_at ?? null };
-  if (attrs.mode === "card" || renderer === "doc") return { ...out, type: "card", excerpt: typeof res.excerpt === "string" ? res.excerpt : null };
+  if (attrs.mode === "card" || !LIVE_RENDERERS.includes(renderer)) return { ...out, type: "card", excerpt: typeof res.excerpt === "string" ? res.excerpt : null };
   if (renderer === "video") {
     const src = safeFrameUrl(res.raw_url, artifactOrigin);
     if (!src) return { ...out, type: "state", state: "unsupported" };
     const poster = res.poster_url ? safeFrameUrl(res.poster_url, artifactOrigin) : null;
     return { ...out, type: "video", src, poster, w: res.media?.width ?? null, h: res.media?.height ?? null, duration: clock(res.media?.duration) || null };
   }
-  if (renderer === "audio") {
-    const src = safeFrameUrl(res.raw_url, artifactOrigin);
-    return src ? { ...out, type: "audio", src } : { ...out, type: "state", state: "unsupported" };
-  }
-  if (renderer === "image") {
-    const src = safeFrameUrl(res.raw_url, artifactOrigin);
-    return src ? { ...out, type: "image", src, w: res.media?.width ?? null, h: res.media?.height ?? null } : { ...out, type: "state", state: "unsupported" };
-  }
-  if (renderer === "file") return { ...out, type: "state", state: "unsupported" };
   const framed = safeFrameUrl(res.frame_url, artifactOrigin);
-  const src = framed ? themedFrameSrc(framed, theme) : null;
+  const author = renderer === "html" || renderer === "bundle";
+  const src = framed ? (author ? sandboxedUrl(framed) : themedFrameSrc(framed, theme)) : null;
   if (!src) return { ...out, type: "state", state: "unsupported" };
-  // User HTML is written for white paper; Markdrop's own viewers follow the page's theme.
-  return { ...out, type: "frame", src, sandbox: SANDBOX, paper: renderer === "html" || renderer === "bundle" };
+  // Author HTML is written for white paper; Markdrop's PDF viewer follows the page's theme.
+  return { ...out, type: "frame", src, sandbox: author ? SANDBOX : SANDBOX_VIEWER, paper: author };
+}
+
+/** An author page's address with `sb=1`: the artifact Worker then sends the sandbox as a CSP header too. */
+export function sandboxedUrl(url) {
+  try {
+    const u = new URL(url);
+    u.searchParams.set("sb", "1");
+    return u.toString();
+  } catch {
+    return null;
+  }
 }
 
 /**
- * The plain-Markdown twin (agents, llms-full.txt, search): `[PDF: Acme price list](https://markdrop.in/x)`.
+ * Stable ids for the blocks of one page, in order: the slug, and `<slug>~2`, `<slug>~3`… for the
+ * same file again. What a guide's Insights (and its Fix list) key a block by, with the page path.
+ */
+export function embedIds(slugs) {
+  const seen = new Map();
+  return slugs.map((s) => {
+    const n = (seen.get(s) ?? 0) + 1;
+    seen.set(s, n);
+    return n === 1 ? s : `${s}~${n}`;
+  });
+}
+
+/** One line of text without Markdown syntax that would change its meaning in a quote. */
+function oneLine(s) {
+  return String(s).replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The plain-Markdown twin (agents, llms-full.txt, search): `[Markdrop file: Acme price list](…)`.
  */
 export function embedPlainLine(attrs) {
   const slug = parseMarkdropSrc(attrs?.src ?? "");
   if (!slug) return null;
   const title = String(attrs.title || attrs.label || slug).replace(/[[\]]/g, "");
   return `[Markdrop file: ${title}](${markdropLink(slug)})`;
+}
+
+/** How much of a file's own text (a PDF's, a video's transcript) the text version carries. */
+export const TEXT_MAX = 6000;
+
+/**
+ * The block's text version, as Markdown lines: the link (with the kind, when known), the author's
+ * summary, then what the build knows of the file (`info`, from the content's embeds.json: a PDF's
+ * outline and text, a video's length), chapters and a transcript from the captions. What agents,
+ * search, Ask AI and readers without JavaScript get instead of the file.
+ *   info: { title?, type?, duration?, pages?, outline?: string[], text?: string }
+ *   media: { chapters?: [{start, text}], transcript?: string }
+ */
+export function embedTextLines(attrs, info = null, media = null) {
+  const slug = parseMarkdropSrc(attrs?.src ?? "");
+  if (!slug) return [];
+  const title = String(attrs.title || attrs.label || info?.title || slug).replace(/[[\]]/g, "");
+  const kind = info?.type ? `${info.type}: ` : "Markdrop file: ";
+  const facts = [];
+  if (info?.duration) facts.push(clock(info.duration));
+  if (info?.pages) facts.push(`${info.pages} ${info.pages === 1 ? "page" : "pages"}`);
+  const out = [`[${kind}${title}](${markdropLink(slug)})${facts.length ? ` (${facts.join(", ")})` : ""}`];
+  const summary = attrs.summary ? oneLine(attrs.summary) : "";
+  if (summary) out.push("", summary);
+  const chapters = Array.isArray(media?.chapters) ? media.chapters.filter((c) => c && typeof c.text === "string") : [];
+  if (chapters.length) {
+    out.push("", "Chapters:");
+    for (const c of chapters.slice(0, 50)) out.push(`- ${clock(c.start)} ${oneLine(c.text)}`);
+  }
+  const outline = Array.isArray(info?.outline) ? info.outline.filter((x) => typeof x === "string" && x.trim()) : [];
+  if (outline.length) {
+    out.push("", "Contents:");
+    for (const h of outline.slice(0, 40)) out.push(`- ${oneLine(h)}`);
+  }
+  let budget = TEXT_MAX;
+  for (const [label, body] of [["Transcript", media?.transcript], ["Text", info?.text]]) {
+    if (typeof body !== "string" || !body.trim() || budget <= 0) continue;
+    const t = oneLine(body);
+    const cut = t.length > budget ? `${t.slice(0, budget).replace(/\s+\S*$/, "")}…` : t;
+    budget -= cut.length;
+    out.push("", `${label}: ${cut}`);
+  }
+  return out;
 }
