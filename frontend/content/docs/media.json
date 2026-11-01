@@ -1972,6 +1972,19 @@
     "bytes": 49750,
     "kind": "poster"
   },
+  "/docs-assets/videos/guides-trailer.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 135.1,
+    "bytes": 17722603,
+    "kind": "video"
+  },
+  "/docs-assets/videos/guides-trailer.webp": {
+    "w": 1920,
+    "h": 1080,
+    "bytes": 73482,
+    "kind": "poster"
+  },
   "/docs-assets/videos/local-mcp-publish.mp4": {
     "w": 1920,
     "h": 1080,

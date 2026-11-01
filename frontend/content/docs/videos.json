@@ -58,6 +58,14 @@
     "title": "Import a GitBook site into Markdrop Guides",
     "chapters": "/docs-assets/videos/guides-import-video.vtt"
   },
+  "guides-trailer": {
+    "src": "/docs-assets/videos/guides-trailer.mp4",
+    "poster": "/docs-assets/videos/guides-trailer.webp",
+    "duration": "2:15",
+    "title": "Markdrop Guides in two minutes",
+    "chapters": "/docs-assets/videos/guides-trailer.vtt",
+    "captions": "/docs-assets/videos/guides-trailer.captions.vtt"
+  },
   "local-mcp-publish": {
     "src": "/docs-assets/videos/local-mcp-publish.mp4",
     "poster": "/docs-assets/videos/local-mcp-publish.webp",
