@@ -434,7 +434,7 @@ export function setFeedback(turnId: string, feedback: "up" | "down") {
 
 /** The site's Ask AI settings (AskRoot, from the docs layout). Until then nothing is asked. */
 export function configureAsk(siteUrl: string, ai: AiSettings, productName?: string) {
-  api = { api: ai.api, site: ai.site, appSession: ai.appSession };
+  api = { api: ai.api, site: ai.site, appSession: ai.appSession, privatePages: ai.privatePages };
   assistant = ai.name;
   product = productName;
   if (state.siteUrl !== siteUrl) set({ siteUrl });
