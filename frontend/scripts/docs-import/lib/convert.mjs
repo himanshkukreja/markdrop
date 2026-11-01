@@ -56,6 +56,9 @@ export const FA_ICONS = {
   "sitemap": "listTree", "diagram-project": "listTree", "github": "github", "google": "google", "palette": "palette", "droplet": "droplet",
   "music": "music", "print": "printer", "qrcode": "qr", "inbox": "inbox", "archive": "archive", "box-archive": "archive", "bug": "bug",
   "share": "share", "share-nodes": "share", "arrow-up-right-from-square": "external", "up-right-from-square": "external",
+  // Close stand-ins (no exact icon in the set).
+  "thumbs-up": "checkCircle", "landmark-dome": "shield", landmark: "shield", memory: "server", cloud: "server", "cloud-arrow-up": "upload",
+  slack: "message", zoom: "film", notion: "doc",
 };
 
 /** A Font Awesome name (`bolt`, `fa-bolt`, `fa-regular fa-bolt`) → a design-system icon, or undefined. */
