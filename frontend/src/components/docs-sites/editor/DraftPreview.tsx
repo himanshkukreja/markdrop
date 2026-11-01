@@ -11,7 +11,7 @@
  * Not the engine itself (that is a server renderer reading the published content): videos show as
  * their title, embeds as a link, and an ::api chip without the reference's lookup.
  */
-import { Children, isValidElement, useEffect, useMemo, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { Children, isValidElement, useEffect, useId, useMemo, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import Markdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -27,7 +27,7 @@ import { DocsTabs } from "@/docs/client/Tabs";
 import { rehypeDocs, remarkDocs } from "@/docs/render/plugins";
 import { cardColumns } from "@/docs/render/rules.mjs";
 import { presetName, type SiteTheme } from "@/lib/docsSites";
-import { guideThemeVars, resolvedGuideTheme } from "../guideTheme";
+import { guideLook } from "../guideTheme";
 import { previewLinkTarget } from "./pageChecks";
 import { PREVIEW_FONTS_HREF } from "../presets";
 
@@ -172,8 +172,9 @@ export interface DraftPreviewProps {
 }
 
 export function DraftPreview({ theme, title, description, markdown, dark, onDark, resolveAsset, onOpenPath }: DraftPreviewProps) {
-  const t = resolvedGuideTheme(theme);
-  const vars = useMemo(() => guideThemeVars(theme, dark), [theme, dark]);
+  // The root's own name: the theme's scoped rules (and custom CSS) reach this preview and nothing else.
+  const scopeId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const look = useMemo(() => guideLook(theme, dark, `[data-dx-preview="${scopeId}"]`), [theme, dark, scopeId]);
   const components = useMemo(() => makeComponents(resolveAsset), [resolveAsset]);
   const forced = theme.mode === "light" || theme.mode === "dark";
 
@@ -207,7 +208,7 @@ export function DraftPreview({ theme, title, description, markdown, dark, onDark
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2 text-[13px] text-text-muted">
-        <span className="min-w-0 flex-1">Your saved design: <strong className="text-text">{presetName(theme.preset)}</strong>. Unsaved changes in Design don&apos;t show here.</span>
+        <span className="min-w-0 flex-1">Your saved design: <strong className="text-text">{presetName(theme.preset)}{"data-custom" in look.attrs ? ", customised" : ""}</strong>. Unsaved changes in Design don&apos;t show here.</span>
         {!forced && (
           <SegmentedControl
             size="sm"
@@ -218,13 +219,19 @@ export function DraftPreview({ theme, title, description, markdown, dark, onDark
           />
         )}
       </div>
+      {/* data-theme on an ancestor too, as <html> carries it on a site, so the theme's [data-theme] rules match. */}
+      <div data-theme={dark ? "dark" : "light"} className="contents">
+      {look.css && <style dangerouslySetInnerHTML={{ __html: look.css }} />}
       <div
         // ph-no-capture: the customer's content stays out of session replays.
         className="dx-root ph-no-capture overflow-hidden rounded-xl border"
-        data-preset={t.preset}
+        // The published layout's root attributes (theme.mjs themeAttrs): data-preset, data-layout and
+        // one per custom-theme choice (cards, callouts, links, icons…), which themes.css styles.
+        {...look.attrs}
+        data-dx-preview={scopeId}
         data-theme={dark ? "dark" : "light"}
         data-testid="draft-preview"
-        style={{ ...(vars as CSSProperties), background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-sans)", borderColor: "var(--border)", padding: "28px 28px 36px" }}
+        style={{ ...(look.vars as CSSProperties), background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-sans)", borderColor: "var(--border)", padding: "28px 28px 36px" }}
         onClickCapture={onClickCapture}
       >
         <h1 className="dx-title" style={{ fontFamily: "var(--dx-font-heading)", fontWeight: "var(--dx-heading-weight)" as unknown as number, margin: 0 }}>{title || "Untitled"}</h1>
@@ -239,6 +246,7 @@ export function DraftPreview({ theme, title, description, markdown, dark, onDark
             {markdown}
           </Markdown>
         </div>
+      </div>
       </div>
     </div>
   );

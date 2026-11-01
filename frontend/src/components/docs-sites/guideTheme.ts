@@ -6,10 +6,10 @@
  * here, so neither can show another design than the one the guide will publish with.
  */
 import { accentTokens } from "@/components/tenant/branding";
-import { FONTS, FONT_STACKS, paletteTokens, resolveTheme, type ResolvedTheme } from "@/docs/theme.mjs";
+import { FONTS, FONT_STACKS, paletteTokens, resolveTheme, scopedThemeCss, themeAttrs, themeRootVars, type ResolvedTheme } from "@/docs/theme.mjs";
 import type { SiteTheme } from "@/lib/docsSites";
 
-type ThemeLike = Pick<SiteTheme, "preset" | "brand" | "fonts" | "corners"> & Partial<Pick<SiteTheme, "mode" | "custom">>;
+type ThemeLike = Pick<SiteTheme, "preset" | "brand" | "fonts" | "corners"> & Partial<Pick<SiteTheme, "mode" | "custom" | "custom_css">>;
 
 /**
  * A custom theme as site.json carries it: the engine's camelCase keys (code_bg → codeBg), unset values
@@ -54,27 +54,27 @@ export function resolvedGuideTheme(theme: ThemeLike): ResolvedTheme {
 }
 
 /** A font id → its CSS family, as the engine names it (the studio loads the same faces from Google Fonts). */
-const family = (id: string, fallback: string) => {
+const family = (id: string) => {
   const f = (FONTS as Record<string, { label: string; kind: "sans" | "serif" | "mono" }>)[id];
-  if (!f) return fallback;
-  return id === "system" ? FONT_STACKS.sans : `"${f.label}", ${FONT_STACKS[f.kind]}`;
+  if (!f) return "var(--font-sans)";
+  if (id === "system") return FONT_STACKS.sans;
+  // The app's own faces (root layout next/font variables), as the engine's THEME_FONT_FAMILIES has them.
+  if (id === "manrope") return `var(--font-manrope), ${FONT_STACKS.sans}`;
+  if (id === "jetbrains-mono") return `var(--font-jetbrains), ${FONT_STACKS.mono}`;
+  return `"${f.label}", ${FONT_STACKS[f.kind]}`;
 };
 
 /**
- * The CSS custom properties a page of the guide renders with, in light or dark: fonts, heading
- * weight, corner radii, and the colour tokens (the preset's palette, built with the brand colours;
- * for a preset without its own palette, Markdrop's tokens with the brand accent swapped in, like
- * the engine's accent stylesheet).
+ * The CSS custom properties a page of the guide renders with, in light or dark: the engine's root
+ * properties (theme.mjs themeRootVars: the three faces, heading weight, corner radii, a custom
+ * content width) and the colour tokens (the preset's palette, built with the brand colours and a
+ * custom theme's colours; for a preset without a palette, Markdrop's tokens with the brand accent
+ * swapped in, like the engine's accent stylesheet).
  */
 export function guideThemeVars(theme: ThemeLike, dark: boolean): Record<string, string> {
   const t = resolvedGuideTheme(theme);
   const mode = dark ? "dark" : "light";
-  const vars: Record<string, string> = {
-    "--font-sans": family(t.fonts.body, "var(--font-sans)"),
-    "--dx-font-heading": family(t.fonts.heading, "var(--font-sans)"),
-    "--dx-heading-weight": String(t.headingWeight),
-    ...Object.fromEntries(Object.entries(t.radius).map(([k, v]) => [`--radius-${k}`, `${v}px`])),
-  };
+  const vars: Record<string, string> = themeRootVars(t, family);
   if (t.palette) return { ...vars, ...paletteTokens(t.palette, mode) };
   const { brand } = engineInput(theme);
   const a = accentTokens(dark ? brand?.accentDark ?? brand?.accent : brand?.accent) ?? (dark ? accentTokens(brand?.accent) : null);
@@ -92,8 +92,33 @@ export function guideThemeVars(theme: ThemeLike, dark: boolean): Record<string, 
   return vars;
 }
 
+/** What the editor's Preview puts on its docs root to draw the guide as the published engine does. */
+export interface GuideLook {
+  /** The root's attributes (theme.mjs themeAttrs: data-preset, data-layout, one per custom choice). */
+  attrs: Record<string, string>;
+  /** The root's custom properties (guideThemeVars). */
+  vars: Record<string, string>;
+  /** The rest of the theme's stylesheet, scoped to the root (theme.mjs scopedThemeCss). */
+  css: string;
+}
+
+/**
+ * A guide's saved design on one docs root in the studio, from the engine's own functions: the
+ * attributes the published layout puts on .dx-root, the tokens, and the custom theme's code-block,
+ * type and width rules plus the custom CSS, scoped to `scope` (an attribute selector the root also
+ * carries, e.g. `[data-dx-preview="p1"]`).
+ */
+export function guideLook(theme: ThemeLike, dark: boolean, scope: string): GuideLook {
+  const t = resolvedGuideTheme(theme);
+  return {
+    attrs: themeAttrs(t),
+    vars: guideThemeVars(theme, dark),
+    css: scopedThemeCss(t, dark ? "dark" : "light", scope, theme.custom_css),
+  };
+}
+
 /** Whether the guide opens dark (a dark-only guide, or a dark-first preset left on "both"). */
-export function opensDark(theme: ThemeLike): boolean {
+export function opensDark(theme: Pick<ThemeLike, "preset" | "mode">): boolean {
   if (theme.mode === "dark") return true;
   if (theme.mode === "light") return false;
   return theme.preset === "midnight" || theme.preset === "terminal";

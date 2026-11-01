@@ -1121,6 +1121,23 @@ const decls = (o) =>
     .join(";");
 
 /**
+ * The docs root's custom properties for a resolved theme: the three faces (`fam`: font id → the
+ * CSS family stack to use), heading weight, the radius scale and a custom content width. The
+ * published stylesheet (themeCss) and the studio's previews (guideTheme.ts) both write these.
+ */
+export function themeRootVars(t, fam) {
+  const vars = {
+    "--font-sans": fam(t.fonts.body),
+    "--font-mono": fam(t.fonts.mono),
+    "--dx-font-heading": fam(t.fonts.heading),
+    "--dx-heading-weight": String(t.headingWeight),
+    ...Object.fromEntries(Object.entries(t.radius).map(([k, v]) => [`--radius-${k}`, `${v}px`])),
+  };
+  if (t.custom?.contentWidth) vars["--dx-measure"] = `${t.custom.contentWidth}px`;
+  return vars;
+}
+
+/**
  * The stylesheet for a resolved theme: fonts (`families`: font id → the CSS family next/font gave
  * it), the radius scale and the palette's tokens per theme, then the custom CSS. Specificity is
  * doubled like the accent stylesheet's (brand.ts), so it also wins in nested theme scopes.
@@ -1131,16 +1148,8 @@ export function themeCss(t, families) {
     const f = families[id];
     return f ? `${f}, ${FONT_STACKS[kind]}` : FONT_STACKS[kind];
   };
-  const rootVars = {
-    "--font-sans": fam(t.fonts.body),
-    "--font-mono": fam(t.fonts.mono),
-    "--dx-font-heading": fam(t.fonts.heading),
-    "--dx-heading-weight": String(t.headingWeight),
-    ...Object.fromEntries(Object.entries(t.radius).map(([k, v]) => [`--radius-${k}`, `${v}px`])),
-  };
   const c = t.custom;
-  if (c?.contentWidth) rootVars["--dx-measure"] = `${c.contentWidth}px`;
-  const out = [`html:root{${decls(rootVars)}}`];
+  const out = [`html:root{${decls(themeRootVars(t, fam))}}`];
   if (t.palette) {
     const themes = t.mode === "light" ? ["light"] : t.mode === "dark" ? ["dark"] : ["dark", "light"];
     for (const theme of themes) {
@@ -1158,12 +1167,33 @@ export function themeCss(t, families) {
 }
 
 /**
+ * The theme drawn inside one docs root in one mode (the studio's editor Preview): the rules of
+ * themeCss that the root's own custom properties can't carry — a custom theme's code blocks
+ * (codeTokens), its type and width (customRules) and the owner's custom CSS — scoped to that root.
+ * `scope` is an attribute selector naming the root (`[data-dx-preview="p1"]`); `customCss` is the
+ * raw CSS, sanitised here under the root so it can't reach the page around the preview. The root
+ * itself carries themeAttrs(t) and the palette's tokens; an ancestor carries data-theme, as <html>
+ * does on a published site.
+ */
+export function scopedThemeCss(t, mode, scope, customCss) {
+  const R = `.dx-root.dx-root${scope}`;
+  const out = [];
+  const code = t.palette ? codeTokens(t.palette, mode, t.custom?.codeTheme) : null;
+  if (code) out.push(`${R} .md-codeblock{${decls(code)}}`);
+  if (t.custom) out.push(...customRules(t.custom, `${R}[data-custom]`));
+  if (typeof customCss === "string" && customCss.trim()) {
+    const css = sanitizeCss(customCss, `.dx-root${scope}`).css;
+    if (css) out.push(css);
+  }
+  return out.join("\n");
+}
+
+/**
  * A custom theme's type and width as rules (doubled root specificity, like the palette, so they
  * beat every preset's own sizes in themes.css). Choices that are attributes (buttons, sidebar…)
- * are styled by themes.css itself.
+ * are styled by themes.css itself. `R`: the root's selector.
  */
-function customRules(c) {
-  const R = ".dx-root.dx-root[data-custom]";
+function customRules(c, R = ".dx-root.dx-root[data-custom]") {
   const out = [];
   const prose = {};
   if (c.baseSize) prose["font-size"] = `${c.baseSize}px`;

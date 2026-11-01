@@ -164,7 +164,9 @@ export interface ResolvedTheme {
 }
 
 export declare function resolveTheme(theme: unknown, brand?: { accent?: string | null; accentDark?: string | null; colors?: unknown }): ResolvedTheme | null;
+export declare function themeRootVars(t: ResolvedTheme, fam: (id: string) => string): Record<string, string>;
 export declare function themeCss(t: ResolvedTheme, families: Record<string, string>): string;
+export declare function scopedThemeCss(t: ResolvedTheme, mode: "light" | "dark", scope: string, customCss?: string | null): string;
 export declare function validateTheme(theme: unknown): Array<{ level: "error" | "warn"; msg: string }>;
 export declare function validateBrandColors(colors: unknown): string[];
 
