@@ -57,11 +57,9 @@ const SLUG_CHARS = /^[a-zA-Z0-9_-]*$/;
 const NEARLY_FULL = 1000;
 const fmt = (n: number) => n.toLocaleString("en-US");
 
-/** Length of the envelope `e2e.seal` would produce: `mdx1.` + b64url(12-byte IV) + `.` + b64url(cipher + 16-byte tag). */
+/** The longest envelope `e2e.seal` can produce for this text (v2, uncompressed, padded). Compression usually beats it. */
 function sealedLength(title: string, content: string): number {
-  const bytes = new TextEncoder().encode(JSON.stringify({ t: title.trim() || null, c: content })).length + 16;
-  const b64 = (n: number) => Math.floor(n / 3) * 4 + [0, 2, 3][n % 3]!;
-  return 5 + b64(12) + 1 + b64(bytes);
+  return e2e.maxSealedLength(title.trim() || null, content);
 }
 
 function slugProblem(slug: string): string | undefined {
@@ -265,9 +263,9 @@ export default function NewEditor() {
       if (useE2E) {
         setPhase("encrypting");
         announce("Encrypting in your browser…");
-        const key = await e2e.generateKey();
+        const key = e2e.generateKey();
         body = await e2e.seal(key, { title: title.trim() || null, content });
-        encodedKey = await e2e.exportKey(key);
+        encodedKey = e2e.exportKey(key);
         keyFragment = `#k=${encodedKey}`;
       }
       setPhase("publishing");

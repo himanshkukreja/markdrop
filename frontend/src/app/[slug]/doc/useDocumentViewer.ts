@@ -302,7 +302,7 @@ export function useDocumentViewer({
   // itself. Two effects: one turns the fragment into a CryptoKey, the other
   // opens whatever envelope is currently in hand — so a live update from another
   // tab or the editor re-decrypts on its own.
-  const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null);
+  const [cryptoKey, setCryptoKey] = useState<e2e.DocKey | null>(null);
   const [keyFragment, setKeyFragment] = useState<string | null>(null);
   const [keySource, setKeySource] = useState<"link" | "device" | null>(null);
   const [rotated, setRotated] = useState<string | null>(null);
@@ -331,10 +331,11 @@ export function useDocumentViewer({
     let cancelled = false;
     setKeyFragment(raw);
     setKeySource(fromLink ? "link" : "device");
-    e2e
-      .importKey(raw)
-      .then((key) => !cancelled && setCryptoKey(key))
-      .catch(() => !cancelled && setDecryptState("failed"));
+    try {
+      setCryptoKey(e2e.importKey(raw));
+    } catch {
+      setDecryptState("failed");
+    }
     return () => {
       cancelled = true;
     };
@@ -922,7 +923,7 @@ export function useDocumentViewer({
     setSaveError("");
     try {
       let body = editContent;
-      let nextKey: CryptoKey | null = null;
+      let nextKey: e2e.DocKey | null = null;
       let nextEncoded = "";
       if (encrypted) {
         if (!cryptoKey) {
@@ -936,8 +937,8 @@ export function useDocumentViewer({
           // Rotation issues a brand-new key. Because the ciphertext changes, the
           // old link stops opening the document — which is the point — though it
           // cannot un-read what someone already read.
-          nextKey = rotateKey ? await e2e.generateKey() : cryptoKey;
-          if (rotateKey) nextEncoded = await e2e.exportKey(nextKey);
+          nextKey = rotateKey ? e2e.generateKey() : cryptoKey;
+          if (rotateKey) nextEncoded = e2e.exportKey(nextKey);
           // Same key or new, always a fresh IV: reusing a nonce under one key
           // undoes AES-GCM entirely.
           body = await e2e.seal(nextKey, {

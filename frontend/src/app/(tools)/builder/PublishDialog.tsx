@@ -107,9 +107,9 @@ export default function PublishDialog({ open, onClose, title, onTitleChange, set
       let keyFragment = "";
       let encodedKey = "";
       if (settings.encrypt) {
-        const key = await e2e.generateKey();
+        const key = e2e.generateKey();
         body = await e2e.seal(key, { title: title.trim() || null, content: markdown });
-        encodedKey = await e2e.exportKey(key);
+        encodedKey = e2e.exportKey(key);
         keyFragment = `#k=${encodedKey}`;
       }
       const { expiresIn, customExpiresAt } = toApiExpiry(settings.expires);
