@@ -2,12 +2,14 @@
 title: Create your first guide
 nav: Create a guide
 description: Start a guide blank or from a template, choose where it lives, and pick its free address.
-updated: 2026-10-31
+updated: 2026-11-01
 prerequisites: [/guides/overview]
 keywords: [new guide, create guide, create site, template, product guide, api reference, help center, blank guide, address, slug, guides.markdrop.in]
 ---
 
 A new guide starts as drafts that only you and your team can see. Nothing is public until you publish.
+
+::video{id="guides-first-guide" title="Create and publish your first guide" duration="0:49"}
 
 ## Create the guide
 

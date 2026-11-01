@@ -2,9 +2,11 @@
 title: Markdrop Guides
 nav: Overview
 description: Markdrop Guides builds and hosts help centers, product guides and API references. What it does, how it differs from the Markdrop docs, and where to start.
-updated: 2026-10-31
+updated: 2026-11-01
 keywords: [markdrop guides, guides, documentation site, help center, knowledge base, product guide, gitbook alternative, hosted docs, beta]
 ---
+
+::video{id="guides-trailer" title="Markdrop Guides in two minutes" duration="2:15"}
 
 Markdrop Guides builds and hosts guides for your product: help centers, product guides, API references and handbooks. These pages explain how to use it. You write pages in the browser, pick a theme, and publish to an address like `acme.guides.markdrop.in`. Your readers get search, Ask AI and pages their AI tools can read.
 
@@ -62,10 +64,6 @@ Views, searches with no results, Ask AI questions and page feedback. No cookies.
 3. **Publishing builds the guide.** Readers keep seeing the last published version until the new one is live, a few seconds later. Every publish is numbered, and an admin can put an earlier one back.
 4. **Readers get a fast static site** with search, an AI assistant that answers from your pages, a Markdown copy of every page and `llms.txt`. Add an OpenAPI file and they get an [API reference](/guides/api-reference) with Try it too. See [What readers get](/guides/what-readers-get).
 5. **Insights shows how it's read**: page views, top pages, searches that found nothing, Ask AI questions and page feedback, without cookies or personal data. See [Insights for your guide](/guides/insights).
-
-## Watch it once
-
-::video{id="guides-first-guide" title="Create and publish your first guide" duration="0:49"}
 
 ## Before you start
 

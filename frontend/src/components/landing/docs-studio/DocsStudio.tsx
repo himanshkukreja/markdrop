@@ -3,6 +3,7 @@ import { docsUrl } from "@/components/shell/links";
 import { DOCS_PAGES } from "@/lib/docsLinks";
 import { Icon, StudioGlyph } from "../orbit/ds";
 import s from "./DocsStudio.module.css";
+import TrailerButton, { type Trailer } from "./TrailerButton";
 
 /**
  * Landing section: Markdrop Guides, the guide builder and host (the third thing Markdrop publishes,
@@ -11,10 +12,24 @@ import s from "./DocsStudio.module.css";
  * guide it builds), not screenshots. The theme picker above the picture is a real radio group that
  * re-skins the drawn site through CSS (:has), so it works before and without any script.
  * Nothing in it moves on its own, so reduced motion and the page's one-autoplay rule have nothing to stop.
+ * The one island is "Watch the 2-minute tour" (TrailerButton): the player and the video load only
+ * when it is clicked.
  */
 
 /** The docs.markdrop.in page that explains Markdrop Guides (docs:check checks DOCS_PAGES entries exist). */
 const SEE_IT_LIVE = docsUrl(DOCS_PAGES.guidesOverview);
+
+/** The Markdrop Guides trailer (public/docs-assets/videos; the same file the Guides overview plays). */
+const TRAILER: Trailer = {
+  src: "/docs-assets/videos/guides-trailer.mp4",
+  poster: "/docs-assets/videos/guides-trailer.webp",
+  title: "Markdrop Guides in two minutes",
+  duration: "2:15",
+  chaptersSrc: "/docs-assets/videos/guides-trailer.vtt",
+  captionsSrc: "/docs-assets/videos/guides-trailer.captions.vtt",
+  w: 1920,
+  h: 1080,
+};
 
 const THEMES: Array<{ id: string; label: string }> = [
   { id: "brand", label: "Your brand" },
@@ -148,6 +163,7 @@ export default function DocsStudio() {
             <a href={SEE_IT_LIVE} className="md-btn md-btn--secondary md-btn--lg" data-cta="guides_live">
               See it live
             </a>
+            <TrailerButton trailer={TRAILER} className={`md-btn md-btn--ghost md-btn--lg ${s.tour}`} label="Watch the 2-minute tour" />
           </div>
         </div>
 
