@@ -704,7 +704,7 @@ class ImportTests(DbCase):
         data["site"]["theme"] = {**look, "preset": "not-a-preset", "fonts": {"heading": "geist", "body": "comic-sans"}, "customCss": "x"}
         await docs_import_job.apply_import(self.db, job, "w1", data)
         t = (await self.db[SITES].find_one({"_id": s["_id"]}))["settings"]["theme"]
-        self.assertEqual((t["preset"], t["corners"], t["mode"], t["fonts"], t["custom_css"]), ("clean", "sharp", "both", {"heading": "geist", "body": None}, None))
+        self.assertEqual((t["preset"], t["corners"], t["mode"], t["fonts"], t["custom_css"]), ("clean", "sharp", "both", {"heading": "geist", "body": None, "mono": None}, None))
         self.assertEqual(t["brand"]["accent"], "#535061")
         # A guide someone already designed (Editorial): its design stays; the brand still comes across.
         s2 = await self.make_site("designed")
@@ -715,7 +715,7 @@ class ImportTests(DbCase):
         data["site"]["theme"] = look
         await docs_import_job.apply_import(self.db, job, "w1", data)
         t = (await self.db[SITES].find_one({"_id": s2["_id"]}))["settings"]["theme"]
-        self.assertEqual((t["preset"], t["corners"], t["fonts"]), ("editorial", None, {"heading": None, "body": None}))
+        self.assertEqual((t["preset"], t["corners"], t["fonts"]), ("editorial", None, {"heading": None, "body": None, "mono": None}))
         self.assertEqual(t["brand"]["logo_url"], "/docs-assets/import/brand/logo.png")
 
     def test_images_named_at_1x_are_kept(self):
