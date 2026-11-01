@@ -60,6 +60,10 @@
   .h2 { font-size: 48px; line-height: 1.06; letter-spacing: -0.035em; }
   .lead { font-size: 18px; }
 }
+.about { margin: 12px 0 0; }
+.about a { display: inline-flex; align-items: center; gap: 6px; font: 600 15px/1.4 var(--font-sans); color: var(--studio); text-decoration: underline; text-underline-offset: 3px; }
+.about a:hover { color: var(--accent-text-hover); }
+.about a:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: 4px; }
 .ctas { display: flex; flex-wrap: wrap; gap: 12px; }
 .primary { background: var(--studio-fill); color: #fff; box-shadow: 0 10px 24px -12px var(--studio-fill); }
 .primary:hover { background: color-mix(in srgb, var(--studio-fill) 88%, #000); color: #fff; }

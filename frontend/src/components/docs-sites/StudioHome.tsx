@@ -19,6 +19,7 @@ import { GUIDE_TABS, inTab, isLive, touched, type GuideTab } from "./home/model"
 import { StudioLoader, useStudioSession } from "./SiteContext";
 import { PERSONAL, STUDIO, studioHome, studioMembers, studioNew, type StudioScope } from "./routes";
 import { useStudio } from "./studio/StudioContext";
+import { GUIDES_ABOUT_HREF } from "@/components/guides-landing/view";
 
 const FREE_AI = 1000;
 const FREE_PAGES = 1000;
@@ -226,6 +227,8 @@ function Title({ actions }: { actions?: React.ReactNode }) {
         <p className="max-w-[620px] text-body text-text-secondary">
           Help centers, product guides and handbooks. Write in the editor, publish to your own address, with search and Ask AI built in.{" "}
           <ReadMore topic="guidesOverview">How guides work</ReadMore>
+          <span aria-hidden className="mx-1.5 text-text-subtle">·</span>
+          <Anchor href={GUIDES_ABOUT_HREF} className="md-focus rounded-sm text-accent-text underline-offset-2 hover:underline">About Markdrop Guides</Anchor>
         </p>
       </div>
       {actions}

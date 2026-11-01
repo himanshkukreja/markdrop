@@ -447,6 +447,10 @@ GUIDE_EVENTS = {
     # The changelog (routers/docs_site_changelog.py).
     "guide_changelog_entry_created": ("form", "Guides: wrote a changelog entry"),
     "guide_changelog_imported": ("form", "Guides: turned release notes into changelog entries"),
+    # The Markdrop Guides landing page (markdrop.in/guides, signed out).
+    "guide_landing_viewed": ("pageview", "Guides landing: viewed"),
+    "guide_landing_cta": ("cta", "Guides landing: clicked a call to action"),
+    "guide_landing_demo": ("play", "Guides landing: used a demo"),
 }
 _GUIDE_AI_ACTION = {"improve": "improve writing", "shorten": "shorten", "fix": "fix spelling and grammar",
                     "translate": "translate"}
@@ -461,7 +465,8 @@ def describe_guide(event: str, p: dict, where: Any) -> dict:
     bits: list[Any] = []
     if event == "guide_created":
         bits = [_GUIDE_SOURCE.get(str(p.get("source") or ""), p.get("source")), p.get("template"),
-                "in a workspace" if truthy(p.get("workspace")) else "personal"]
+                "in a workspace" if truthy(p.get("workspace")) else "personal",
+                f"after the landing page's {p['pillar']} button" if p.get("pillar") else None]
     elif event == "guide_design_saved":
         bits = [p.get("preset"), f"{p['mode']} mode" if p.get("mode") else None,
                 "brand on" if truthy(p.get("brand")) else None, "custom CSS" if truthy(p.get("css")) else None]
@@ -480,6 +485,10 @@ def describe_guide(event: str, p: dict, where: Any) -> dict:
         bits = ["with a note" if truthy(p.get("note")) else None]
     elif event == "guide_ai_assist":
         bits = [_GUIDE_AI_ACTION.get(str(p.get("action") or ""))]
+    elif event == "guide_landing_cta":
+        bits = [p.get("id"), f"for {p['pillar']}" if p.get("pillar") else None, f"in {p['section']}" if p.get("section") else None]
+    elif event == "guide_landing_demo":
+        bits = [p.get("step")]
     elif event == "guide_insights_write_page":
         bits = [{"search": "a search with no results", "ask": "an unanswered Ask AI question",
                  "both": "searched and asked"}.get(str(p.get("source") or ""))]

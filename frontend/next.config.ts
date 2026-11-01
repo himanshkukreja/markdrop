@@ -83,6 +83,21 @@ const nextConfig: NextConfig = {
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
         ],
       },
+      // The Markdrop Guides landing page's live demo (public/guides-demo, framed by /guides with
+      // sandbox="allow-scripts"). The header repeats that sandbox, as Markdrop's file server does
+      // for embeds, so the page runs in an opaque origin even when opened on its own: no cookies,
+      // no storage, no markdrop.in. It may fetch nothing, and only markdrop.in may frame it.
+      {
+        source: "/guides-demo/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'self'",
+          },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Cache-Control", value: "public, max-age=3600" },
+        ],
+      },
     ];
   },
   /**
@@ -102,6 +117,9 @@ const nextConfig: NextConfig = {
       { source: "/w/:wsId/docs", destination: "/guides?ws=:wsId", ...app },
       { source: "/w/:wsId/docs/new", destination: "/guides/new?ws=:wsId", ...app },
       { source: "/w/:wsId/docs/:siteId/:rest*", destination: "/guides/:siteId/:rest*", ...app },
+      // The Markdrop Guides landing page lives at /guides (canonical); signed-in people reach it
+      // with ?about=1 (components/guides-landing/view.ts). /guides/about is a friendlier alias.
+      { source: "/guides/about", destination: "/guides?about=1", ...app },
       ...nextRedirects(DOCS_CONTENT, DOCS_HOSTS),
     ];
   },

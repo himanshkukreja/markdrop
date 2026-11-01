@@ -14,7 +14,7 @@ Markdrop Guides builds and hosts guides for your product: help centers, product 
 The site you're reading, docs.markdrop.in, is the Markdrop docs: Markdrop's own documentation. It's built with the same engine, but it isn't a guide you manage. The pages in this **Markdrop Guides** tab are about the product at [markdrop.in/guides](https://markdrop.in/guides), where you make guides for *your* product. Everything else on this site is about Markdrop itself.
 :::
 
-Markdrop Guides is in beta, and free while it is.
+Markdrop Guides is in beta, and free while it is. For what it does and how it compares, with the prices planned after the beta, see [markdrop.in/guides](https://markdrop.in/guides).
 
 ![The Markdrop Guides home: Your guides, the last 7 days across them (live guides, readers, Ask AI answers, page feedback), the All, Live, In review and Drafts filters, and the Acme workspace's guides as cards: Acme (Live, with its views and how many found it helpful), Acme Help Center (In review, pages waiting for a reviewer) and Acme Developers (Draft, not published yet).](/docs-assets/guides/overview/studio-home.webp "The Markdrop Guides home: every guide you can open, each drawn in its own theme.")
 

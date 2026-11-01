@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acme pricing calculator</title>
+<style>
+  :root { --ink:#101828; --muted:#5b6474; --line:#e3e7ee; --soft:#f5f7fb; --accent:#2150d8; --accent-soft:#e8eefc; --ok:#0f7a4f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #fff; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 20px 28px; }
+  h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: -0.01em; }
+  .sub { margin: 0 0 20px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .plan { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 16px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; text-align: left; font: inherit; color: inherit; transition: border-color .15s, box-shadow .15s; }
+  .plan:hover { border-color: #b9c3d6; }
+  .plan[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .plan:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .plan strong { font-size: 16px; }
+  .price { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .price small { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .tag { position: absolute; top: 12px; right: 12px; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; }
+  .plan ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+  .controls { display: grid; grid-template-columns: 1fr auto; gap: 18px 24px; align-items: center; margin: 22px 0 18px; padding: 16px; border-radius: 12px; background: var(--soft); }
+  label { font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .seats { min-width: 92px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .switch { display: inline-flex; padding: 3px; border-radius: 99px; background: #fff; border: 1px solid var(--line); }
+  .switch button { border: 0; padding: 6px 14px; border-radius: 99px; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .switch button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .total { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; padding: 18px; border: 1.5px solid var(--line); border-radius: 12px; }
+  .total .big { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .save { color: var(--ok); font-weight: 600; font-size: 13px; }
+  .note { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } .controls { grid-template-columns: 1fr; } .seats { text-align: left; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Acme pricing calculator</h1>
+  <p class="sub">Pick a plan and your team size to see what Acme costs. Fictional prices, for the Markdrop docs.</p>
+  <div class="grid" role="radiogroup" aria-label="Plan">
+    <button class="plan" role="radio" aria-checked="false" data-plan="starter" data-price="9"><strong>Starter</strong><span class="price">$9 <small>/ seat / month</small></span><ul><li>3 projects</li><li>Email support</li></ul></button>
+    <button class="plan" role="radio" aria-checked="true" data-plan="team" data-price="19"><span class="tag">Popular</span><strong>Team</strong><span class="price">$19 <small>/ seat / month</small></span><ul><li>Unlimited projects</li><li>SSO and roles</li></ul></button>
+    <button class="plan" role="radio" aria-checked="false" data-plan="scale" data-price="39"><strong>Scale</strong><span class="price">$39 <small>/ seat / month</small></span><ul><li>Audit log</li><li>Priority support</li></ul></button>
+  </div>
+  <div class="controls">
+    <div>
+      <label for="seats">Seats</label>
+      <input id="seats" type="range" min="1" max="200" value="12" aria-describedby="seatsOut">
+    </div>
+    <div class="seats" id="seatsOut" aria-live="polite">12 seats</div>
+    <div><span style="font-weight:600">Billing</span></div>
+    <div class="switch" role="group" aria-label="Billing period">
+      <button type="button" data-cycle="month" aria-pressed="false">Monthly</button>
+      <button type="button" data-cycle="year" aria-pressed="true">Yearly (2 months free)</button>
+    </div>
+  </div>
+  <div class="total" aria-live="polite">
+    <div><div style="color:var(--muted);font-size:13px;font-weight:600" id="label">Team, 12 seats, billed yearly</div><div class="big" id="total">$190 / month</div></div>
+    <div><div class="save" id="save">You save $456 a year</div><div style="color:var(--muted);font-size:13px" id="year">$2,280 a year</div></div>
+  </div>
+  <p class="note">Taxes not included. Volume discounts from 100 seats: 10% off.</p>
+</main>
+<script>
+  (function () {
+    var plan = "team", price = 19, cycle = "year";
+    var seats = document.getElementById("seats");
+    var fmt = function (n) { return "$" + Math.round(n).toLocaleString("en-US"); };
+    function render() {
+      var n = +seats.value;
+      var discount = n >= 100 ? 0.9 : 1;
+      var monthly = price * n * discount;
+      var yearly = cycle === "year" ? monthly * 10 : monthly * 12;
+      var perMonth = yearly / 12;
+      document.getElementById("seatsOut").textContent = n + (n === 1 ? " seat" : " seats");
+      document.getElementById("label").textContent = plan.charAt(0).toUpperCase() + plan.slice(1) + ", " + n + (n === 1 ? " seat" : " seats") + ", billed " + (cycle === "year" ? "yearly" : "monthly");
+      document.getElementById("total").textContent = fmt(perMonth) + " / month";
+      document.getElementById("year").textContent = fmt(yearly) + " a year";
+      document.getElementById("save").textContent = cycle === "year" ? "You save " + fmt(monthly * 2) + " a year" : "Switch to yearly to save " + fmt(monthly * 2);
+    }
+    document.querySelectorAll(".plan").forEach(function (b) {
+      b.addEventListener("click", function () {
+        document.querySelectorAll(".plan").forEach(function (x) { x.setAttribute("aria-checked", x === b ? "true" : "false"); });
+        plan = b.dataset.plan; price = +b.dataset.price; render();
+      });
+    });
+    document.querySelectorAll(".switch button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        document.querySelectorAll(".switch button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+        cycle = b.dataset.cycle; render();
+      });
+    });
+    seats.addEventListener("input", render);
+    render();
+  })();
+</script>
+</body>
+</html>

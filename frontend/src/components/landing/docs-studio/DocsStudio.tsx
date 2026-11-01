@@ -154,6 +154,12 @@ export default function DocsStudio() {
               Markdrop Guides builds and hosts help centers, product guides, API references and handbooks. Write pages visually or
               in Markdown, publish them after review, and give readers answers that cite your pages.
             </p>
+            <p className={s.about}>
+              <Link href="/guides" data-cta="guides_about">
+                The Fix list, live demos, private pages and pricing
+                <Icon name="arrowRight" size={14} />
+              </Link>
+            </p>
           </header>
           <div className={s.ctas}>
             <Link href="/guides" className={`md-btn md-btn--lg ${s.primary}`} data-cta="guides_start">

@@ -50,6 +50,15 @@
  *   guide_fix_applied             type, how: editor|new_page (a drafted fix put in a page)
  *   guide_fix_demo_viewed         (the Fix list's sample, before a guide has readers)
  *
+ * The Markdrop Guides landing page (markdrop.in/guides signed out, components/guides-landing), for
+ * the landing test: which pillar people click for.
+ *   guide_landing_viewed          (the landing page shown; the denominator)
+ *   guide_landing_cta             id: start|tour|pillar|docs|compare|pricing, section: the <section> id,
+ *                                 pillar?: fix_list|private_pages|live_demos (a pillar card's own button)
+ *   guide_landing_demo            step: item|drafted|published (the hero's Fix list sample),
+ *                                 or step: used (the live calculator)
+ *   guide_created                 + pillar, when the guide came from a pillar button in this tab
+ *
  * What finishes on the server (a build going live or failing, an import finishing or failing) is
  * recorded there, in docs_events, and shown in the admin's Product health tab.
  */
@@ -58,6 +67,25 @@ import { ROLES, createdEvents, pick, sitePatchEvents, type Props, type SitePatch
 
 const FIX_TYPES = new Set(["drop", "search", "ask", "not_helpful", "video", "pdf", "broken", "stale", "heavy", "agent_unanswered", "agent_unfriendly"]);
 const fixType = (t: string) => pick(t, FIX_TYPES) ?? "other";
+
+/** The landing page's pillar buttons, and the guide that follows one (sessionStorage: this tab only). */
+const PILLARS = new Set(["fix_list", "private_pages", "live_demos"]);
+const LANDING_CTAS = new Set(["start", "tour", "pillar", "docs", "compare", "pricing"]);
+const PILLAR_KEY = "md_guides_pillar";
+function rememberLandingPillar(p: string) {
+  try {
+    sessionStorage.setItem(PILLAR_KEY, p);
+  } catch { /* storage off */ }
+}
+function takeLandingPillar(): string | undefined {
+  try {
+    const p = sessionStorage.getItem(PILLAR_KEY);
+    sessionStorage.removeItem(PILLAR_KEY);
+    return p && PILLARS.has(p) ? p : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /** track() itself stays silent on a customer's published guide (data-docs-trackers="off"). */
 function emit(name: string, props?: Props): void {
@@ -71,8 +99,16 @@ function emit(name: string, props?: Props): void {
 
 export const guideEvents = {
   created(input: Parameters<typeof createdEvents>[0]) {
-    for (const [n, p] of createdEvents(input)) emit(n, p);
+    const pillar = takeLandingPillar();
+    for (const [n, p] of createdEvents(input)) emit(n, pillar && n === "guide_created" ? { ...p, pillar } : p);
   },
+  landingViewed: () => emit("guide_landing_viewed"),
+  landingCta(id: string, section: string, pillar?: string | null) {
+    const p = pillar ? pick(pillar, PILLARS) : undefined;
+    if (p) rememberLandingPillar(p);
+    emit("guide_landing_cta", { id: pick(id, LANDING_CTAS) ?? "other", section: section.slice(0, 40), ...(p ? { pillar: p } : {}) });
+  },
+  landingDemo: (step: "item" | "drafted" | "published" | "used") => emit("guide_landing_demo", { step }),
   siteUpdated(patch: SitePatchLike) {
     for (const [n, p] of sitePatchEvents(patch)) emit(n, p);
   },
