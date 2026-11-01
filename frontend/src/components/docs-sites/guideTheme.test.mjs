@@ -67,3 +67,13 @@ test("the preview opens in the guide's own default mode", { skip }, () => {
   assert.equal(mod.opensDark(theme({ preset: "terminal", mode: "light" })), false);
   assert.equal(mod.opensDark(theme({ mode: "dark" })), true);
 });
+
+test("a custom theme from the theme builder reaches the preview (snake_case settings → the engine's keys)", { skip }, () => {
+  const saved = theme({ preset: "clean", custom: { light: { bg: "#fbfaf7", accent: "#0f766e", code_bg: null }, dark: {} } });
+  assert.deepEqual(mod.engineInput(saved).theme.custom, { light: { bg: "#fbfaf7", accent: "#0f766e" } });
+  const v = mod.guideThemeVars(saved, false);
+  assert.equal(v["--bg"], "#fbfaf7");
+  assert.notEqual(v["--accent"], mod.guideThemeVars(theme(), false)["--accent"]);
+  // Nothing set: no custom block at all, like the snapshot writer.
+  assert.equal(mod.engineInput(theme({ custom: { light: {}, dark: { bg: null } } })).theme.custom, undefined);
+});

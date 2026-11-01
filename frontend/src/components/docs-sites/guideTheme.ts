@@ -9,7 +9,23 @@ import { accentTokens } from "@/components/tenant/branding";
 import { FONTS, FONT_STACKS, paletteTokens, resolveTheme, type ResolvedTheme } from "@/docs/theme.mjs";
 import type { SiteTheme } from "@/lib/docsSites";
 
-type ThemeLike = Pick<SiteTheme, "preset" | "brand" | "fonts" | "corners"> & Partial<Pick<SiteTheme, "mode">>;
+type ThemeLike = Pick<SiteTheme, "preset" | "brand" | "fonts" | "corners"> & Partial<Pick<SiteTheme, "mode" | "custom">>;
+
+/**
+ * A custom theme as site.json carries it: the engine's camelCase keys (code_bg → codeBg), unset values
+ * and empty groups left out — the same as the snapshot writer's _camel (backend docs_snapshot.py).
+ */
+function camel(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [k, v0] of Object.entries(value as Record<string, unknown>)) {
+    const v = camel(v0);
+    if (v === null || v === undefined) continue;
+    if (typeof v === "object" && !Array.isArray(v) && Object.keys(v as object).length === 0) continue;
+    out[k.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase())] = v;
+  }
+  return out;
+}
 
 /** The site.json `theme` and `brand` colours the snapshot writer makes from these settings. */
 export function engineInput(theme: ThemeLike): { theme: Record<string, unknown>; brand?: { accent?: string; accentDark?: string; colors?: string[] } } {
@@ -18,6 +34,9 @@ export function engineInput(theme: ThemeLike): { theme: Record<string, unknown>;
   if (Object.keys(fonts).length) t.fonts = fonts;
   if (theme.mode) t.mode = theme.mode;
   if (theme.corners) t.corners = theme.corners;
+  // The theme builder's overrides: without them the preview would show the preset, not the design saved.
+  const custom = camel(theme.custom);
+  if (custom && typeof custom === "object" && Object.keys(custom).length) t.custom = custom;
   const b = theme.brand;
   if (!b?.enabled) return { theme: t };
   const colors = (b.colors ?? []).filter((c) => typeof c === "string");
