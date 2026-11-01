@@ -16,6 +16,13 @@
  * Private (password-protected) artifacts carry ?t=<HS256 JWT> minted by the API;
  * public ones are unguessable capability URLs and cache immutably at the edge.
  *
+ * Embedded in a docs page (a Markdrop Guides `::markdrop` block): the page frames an HTML file
+ * with `?sb=1` in an opaque sandbox (no allow-same-origin), and this origin repeats that sandbox
+ * as a CSP header (SANDBOX_CSP), so a customer's page can never reach another file on this origin
+ * (storage, DOM, service workers), even if something frames it without the attribute. Public
+ * bytes answer CORS `*` (no credentials) so such a page's own module scripts and fetches still
+ * load from its opaque origin; they are public by definition, guarded bytes keep app-only CORS.
+ *
  * Theme: viewer pages (and the "file isn't available" page) accept
  * ?theme=dark|light. The iframe cannot read the app's theme, so the app passes
  * it. Anything else (absent, misspelt, hostile) is ignored and the page follows
@@ -192,6 +199,13 @@ async function serveBranding(key, env, request) {
 // download without navigating here — a top-level visit to this domain trips
 // Chrome's lookalike-domain interstitial, and there's nothing for a user to
 // see at this origin anyway.
+/**
+ * The sandbox a docs page frames author HTML in (frontend/src/docs/embed.mjs SANDBOX), as a CSP
+ * header for `?sb=1`: scripts, forms, dialogs, popups and downloads in an opaque origin. Never
+ * allow-same-origin, allow-top-navigation or allow-popups-to-escape-sandbox.
+ */
+const SANDBOX_CSP = "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads";
+
 const APP_ORIGINS = new Set([
   "https://markdrop.in",
   "https://www.markdrop.in",
@@ -299,7 +313,10 @@ async function serveRaw(blobKey, url, env, request) {
   }
 
   const type = head.httpMetadata?.contentType || "application/octet-stream";
-  const headers = new Headers({ ...baseHeaders(), ...corsHeaders(request) });
+  // Public bytes are public by URL: any origin may read them, without credentials (an embedded
+  // page runs in an opaque origin, so its own module scripts and fetches send Origin: null).
+  const cors = isPublic && request.headers.get("Origin") ? { "access-control-allow-origin": "*" } : corsHeaders(request);
+  const headers = new Headers({ ...baseHeaders(), ...cors });
   headers.set("content-type", type);
   headers.set("etag", head.httpEtag);
   // Advertised unconditionally: a player checks for this before it will let
@@ -314,6 +331,10 @@ async function serveRaw(blobKey, url, env, request) {
     headers.set("content-disposition", attachmentDisposition(url.searchParams.get("fn")));
   } else if (INLINE_TYPES.has(type)) {
     headers.set("content-disposition", "inline");
+    // Framed by a docs page: the frame's sandbox, enforced here too (defence in depth).
+    if (url.searchParams.get("sb") === "1" && (type === "text/html" || type === "image/svg+xml")) {
+      headers.set("content-security-policy", SANDBOX_CSP);
+    }
   } else {
     // Unknown type: never render it, hand it over as a download.
     headers.set("content-disposition", "attachment");
