@@ -128,7 +128,7 @@ function StartTile({ scope, bar }: { scope: StudioScope | null; bar?: boolean })
       <span className="grid size-10 place-items-center rounded-lg bg-accent-soft text-accent-text" aria-hidden><Icon name="plus" size={20} /></span>
       <span className="flex flex-col gap-1">
         <Anchor href={studioNew(scope)} className="md-focus self-start rounded text-[16px] font-semibold leading-6 text-text no-underline hover:underline">Start a new guide</Anchor>
-        <span className="text-body text-text-secondary">Blank, from a template, from your GitBook, or an API reference from an OpenAPI file.</span>
+        <span className="text-body text-text-secondary">Blank, from a template, from GitBook or a GitHub repository, or an API reference from an OpenAPI file.</span>
       </span>
       <ul className="flex flex-wrap gap-1.5" aria-label="Ways to start">
         {STARTS.map((s) => (

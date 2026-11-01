@@ -10,6 +10,7 @@ export const STARTS: Array<{ start: NewGuideStart; icon: string; title: string; 
   { start: "blank", icon: "doc", title: "Blank guide", short: "Blank", note: "A home page and the editor. Add pages as you go." },
   { start: "template", icon: "builder", title: "From a template", short: "Template", note: "Help center, product guide or API reference, ready to fill in." },
   { start: "gitbook", icon: "download", title: "Import from GitBook", short: "GitBook", note: "Paste your docs address. Pages, images and old links come across." },
+  { start: "github", icon: "github", title: "Import from GitHub", short: "GitHub", note: "Markdown, Mintlify, Docusaurus, MkDocs or GitBook in a repo. Every push keeps it in sync." },
   { start: "openapi", icon: "code", title: "API reference", short: "OpenAPI", note: "The API reference template: add your OpenAPI file, and readers get every endpoint and Try it." },
 ];
 
@@ -80,7 +81,7 @@ export function EmptyBoard({ scope, noRole }: { scope: StudioScope | null; noRol
 
       <section aria-labelledby="first-start" className="flex flex-col gap-3.5">
         <h2 id="first-start" className="text-[18px] font-semibold leading-7 text-text">How do you want to start?</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {STARTS.map((s) => (
             <Anchor
               key={s.start}
