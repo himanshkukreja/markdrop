@@ -162,6 +162,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await docs_page_comments.ensure_indexes(db)
     await docs_presence.ensure_indexes(db)
     await docs_theme_templates.ensure_indexes(db)
+    from app.services import docs_github_sync
+
+    await docs_github_sync.ensure_indexes(db)
 
     await db[EVENTS].create_index([("kind", 1), ("ts", -1)])
     await db[EVENTS].create_index([("site_id", 1), ("ts", -1)])
@@ -333,19 +336,20 @@ def _over_today(what: str, limit: int, whose: str) -> HTTPException:
 
 
 async def check_new_site_quota(db: AsyncIOMotorDatabase, user_id: str, workspace_id: str | None, kind: str) -> None:
-    """Today's site creations (and imports, for a GitBook site), per person and per workspace.
+    """Today's site creations (and imports, for a GitBook or GitHub site), per person and per workspace.
     Counted from the site rows, deleted ones included: a site is never removed, only marked."""
     since = {"$gte": utc_midnight()}
     checks = [({"owner_id": user_id}, settings.docs_site_creations_per_user_per_day, "new guides", "person")]
     if workspace_id:
         checks.append(({"workspace_id": workspace_id}, settings.docs_site_creations_per_workspace_per_day,
                        "new guides", "workspace"))
-    if kind == "gitbook":
-        checks.append(({"owner_id": user_id, "source.kind": "gitbook"}, settings.docs_imports_per_user_per_day,
-                       "GitBook imports", "person"))
+    if kind in ("gitbook", "github"):
+        what = "GitBook imports" if kind == "gitbook" else "GitHub imports"
+        checks.append(({"owner_id": user_id, "source.kind": kind}, settings.docs_imports_per_user_per_day,
+                       what, "person"))
         if workspace_id:
-            checks.append(({"workspace_id": workspace_id, "source.kind": "gitbook"},
-                           settings.docs_imports_per_workspace_per_day, "GitBook imports", "workspace"))
+            checks.append(({"workspace_id": workspace_id, "source.kind": kind},
+                           settings.docs_imports_per_workspace_per_day, what, "workspace"))
     for q, limit, what, whose in checks:
         if await db[SITES].count_documents({**q, "created_at": since}) >= limit:
             raise _over_today(what, limit, whose)
@@ -575,6 +579,10 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_rol
         # its certificate is on its way); always True where addresses aren't managed there.
         "address_ready": docs_cf_hosts.address_ready(site),
     })
+    from app.services import docs_github_sync
+
+    # The GitHub repository it imports from / syncs with (services/docs_github_sync.py), or None.
+    out["github"] = await docs_github_sync.link_status(db, site)
     if job is not None:
         out["job"] = job_view(job, details=details)
     return out
@@ -822,9 +830,21 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
     elif kind == "gitbook":
         stored_source["url"] = source["url"]
     elif kind == "github":
-        stored_source["repo"] = source["repo"]
-        # No GitHub App yet: the connection waits until it exists.
-        stored_source["status"] = "pending"
+        # The repository as the guide reads it (checked against GitHub before anything is stored):
+        # through a connected installation of the app, or as a public repository.
+        from app.services import docs_github_sync as github
+
+        r = source["repo"]
+        repo = await github.check_repo_access(db, (workspace_id or None, None if workspace_id else user.id),
+                                              r["owner"], r["name"], source.get("installation_id"),
+                                              bool(source.get("sync")))
+        github_link = github.new_link(owner=repo["owner"] or r["owner"], name=repo["name"] or r["name"],
+                                      branch=r.get("branch") or repo["default_branch"], path=r.get("path") or "",
+                                      installation_id=source.get("installation_id"), fmt=source.get("format"),
+                                      mode=source.get("mode"), sync=bool(source.get("sync")), user_id=user.id,
+                                      repo_id=repo.get("id"))
+        stored_source["repo"] = {"owner": github_link["owner"], "name": github_link["name"],
+                                 "branch": github_link["branch"], "path": github_link["path"]}
 
     at = now()
     row = {
@@ -844,6 +864,8 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
         "updated_at": at,
         "deleted_at": None,
     }
+    if kind == "github":
+        row["github"] = github_link
     try:
         res = await db[SITES].insert_one(row)
     except DuplicateKeyError:
@@ -867,6 +889,12 @@ async def create_site(db: AsyncIOMotorDatabase, user: User, *, workspace_id: str
         row["last_import_job_id"] = job["_id"]
         # Usage counts only: the source's address stays on the site row, not in the event log.
         await log_event(db, "docs_imported", row, user.id, source="gitbook", job_id=str(job["_id"]))
+    elif kind == "github":
+        job = await github.start_job(db, row, trigger="import", user_id=user.id)
+        row["last_import_job_id"] = job["_id"]
+        row["github"]["last_job_id"] = job["_id"]
+        await log_event(db, "docs_imported", row, user.id, source="github", job_id=str(job["_id"]),
+                        sync=bool(github_link["sync"]), mode=github_link["mode"])
     await log_event(db, "docs_site_created", row, user.id, source=kind,
                     **({"template": source["template"]} if kind == "template" else {}))
     return row, role, job

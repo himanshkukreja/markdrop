@@ -514,6 +514,22 @@ class Settings(BaseSettings):
     docs_custom_domain_target: str = 'cname.guides.markdrop.in'
     docs_domain_connect_key: str = ''
     docs_domain_connect_key_host: str = '_dcpubkeyv1'
+    # ── Markdrop Guides: Import from GitHub + keep in sync (services/docs_github_app.py) ──
+    # The "Markdrop Guides" GitHub App (docs-platform/setup-github-app.md). The app counts as set up
+    # only when all six are set; until then public repositories still import (no sync), and private
+    # repositories and sync say "Not set up yet". The private key is the app's PEM (a one-line value
+    # with literal "\n" escapes is accepted).
+    docs_github_app_id: str = ''
+    docs_github_app_slug: str = ''
+    docs_github_app_private_key: str = ''
+    docs_github_webhook_secret: str = ''
+    docs_github_client_id: str = ''
+    docs_github_client_secret: str = ''
+    # GitHub's API and web addresses (tests and GitHub Enterprise; the defaults are github.com).
+    docs_github_api: str = 'https://api.github.com'
+    docs_github_web: str = 'https://github.com'
+    # Pushes a guide may sync per day (each is an import job on Actions).
+    docs_github_syncs_per_site_per_day: int = 50
 
     model_config = {"env_file": ".env", "env_prefix": "MARKDROP_"}
 

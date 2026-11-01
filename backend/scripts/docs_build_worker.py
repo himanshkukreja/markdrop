@@ -58,7 +58,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 ROOT = Path(__file__).resolve().parents[2]
 
 from app.config import get_settings  # noqa: E402
-from app.services import docs_build, docs_dispatch, docs_import_job, docs_jobs  # noqa: E402
+from app.services import docs_build, docs_dispatch, docs_github_sync, docs_import_job, docs_jobs  # noqa: E402
 from app.services.docs_jobs import JOBS, get_jobs_settings, now  # noqa: E402
 
 
@@ -345,7 +345,12 @@ class Worker:
                     stats=result.get("stats"), timings=result.get("timings"))
                 await docs_dispatch.kick(db, site_id=job["site_id"])
             elif job["kind"] == "import":
-                spec = docs_import_job.import_spec(job, keep_gifs=not self.cfg.convert_gifs)
+                try:
+                    spec = await docs_import_job.spec_for(db, job, keep_gifs=not self.cfg.convert_gifs)
+                except LookupError as e:
+                    await docs_jobs.fail(db, job["_id"], self.id, str(e))
+                    await docs_github_sync.job_failed(db, job, str(e))
+                    return
                 result = await self.run_runner(run, spec, heavy=False)
                 if run.abandon:
                     return
@@ -356,7 +361,9 @@ class Worker:
                         counts=(out.get("report") or {}).get("counts"), timings={**(result.get("import", {}).get("timings") or {}),
                                                                                   **(result.get("timings") or {})})
                 else:
-                    await docs_jobs.fail(db, job["_id"], self.id, str(result.get("error") or "the import failed"))
+                    err = str(result.get("error") or "the import failed")
+                    await docs_jobs.fail(db, job["_id"], self.id, err)
+                    await docs_github_sync.job_failed(db, job, err)
         except Exception as e:  # never leave a claimed job hanging
             log("job_error", level="error", job=job["_id"], error=f"{type(e).__name__}: {e}"[:500])
             if job["kind"] == "build":

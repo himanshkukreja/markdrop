@@ -84,11 +84,20 @@ class GitHubRepo(_Body):
         return v
 
 
+GitHubFormat = Literal["auto", "markdown", "gitbook", "mintlify", "docusaurus", "mkdocs"]
+
+
 class Source(_Body):
     kind: Literal["blank", "template", "gitbook", "github"] = "blank"
     template: Literal[TEMPLATES] | None = None  # type: ignore[valid-type]
     url: str | None = Field(None, max_length=2048)
     repo: GitHubRepo | None = None
+    # GitHub: through a connected installation of the Markdrop Guides app (private repositories,
+    # sync), or none (a public repository, imported once).
+    installation_id: int | None = Field(None, ge=1)
+    format: GitHubFormat = "auto"
+    mode: Literal["drafts", "publish"] = "drafts"
+    sync: bool = False
 
     @model_validator(mode="after")
     def _by_kind(self):
@@ -102,6 +111,54 @@ class Source(_Body):
         if self.kind == "github" and self.repo is None:
             raise ValueError("Choose a GitHub repository.")
         return self
+
+
+class GitHubLinkPut(_Body):
+    """PUT /docs-sites/{id}/github: connect an existing guide to a repository."""
+    installation_id: int | None = Field(None, ge=1)
+    owner: str = Field(..., min_length=1, max_length=100)
+    name: str = Field(..., min_length=1, max_length=100)
+    branch: str = Field("main", min_length=1, max_length=200)
+    path: str = Field("", max_length=300)
+    format: GitHubFormat = "auto"
+    mode: Literal["drafts", "publish"] = "drafts"
+    sync: bool = True
+
+    @model_validator(mode="after")
+    def _check(self):
+        GitHubRepo(owner=self.owner, name=self.name, branch=self.branch, path=self.path or "/")
+        self.path = self.path.strip().strip("/")
+        return self
+
+
+class GitHubLinkPatch(_Body):
+    mode: Literal["drafts", "publish"] | None = None
+    sync: bool | None = None
+    format: GitHubFormat | None = None
+    branch: str | None = Field(None, min_length=1, max_length=200)
+
+    @field_validator("branch")
+    @classmethod
+    def _branch(cls, v):
+        if v is not None and (not _GH_BRANCH.match(v) or ".." in v):
+            raise ValueError("Not a valid branch name.")
+        return v
+
+
+class GitHubConnect(_Body):
+    code: str = Field(..., min_length=1, max_length=200)
+    state: str = Field(..., min_length=1, max_length=2000)
+    installation_id: int | None = Field(None, ge=1)
+    setup_action: str | None = Field(None, max_length=40)
+
+
+class GitHubStart(_Body):
+    workspace_id: str | None = Field(None, max_length=40)
+    return_to: str = Field("/guides", max_length=500)
+
+
+class GitHubOpenApi(_Body):
+    path: str = Field(..., min_length=1, max_length=300)
 
 
 class SiteCreate(_Body):

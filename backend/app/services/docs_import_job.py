@@ -83,11 +83,22 @@ def source_of(job: dict) -> dict:
 
 
 def import_spec(job: dict, *, keep_gifs: bool = False) -> dict:
+    """A GitBook import's spec (a GitHub one needs GitHub's download link: :func:`spec_for`)."""
     src = source_of(job)
     return {
         "job": {"id": str(job["_id"]), "kind": "import", "site_id": str(job["site_id"]), "attempt": int(job.get("attempts") or 1)},
         "import": {"kind": src["kind"], "url": src["url"], "site_id": str(job["site_id"]), "keep_gifs": bool(keep_gifs)},
     }
+
+
+async def spec_for(db: AsyncIOMotorDatabase, job: dict, *, keep_gifs: bool = False) -> dict:
+    """The runner's spec for any import: GitBook (:func:`import_spec`) or a GitHub repository
+    (services/docs_github_sync.import_spec). LookupError when it can't run (GitHub refused)."""
+    if source_of(job).get("kind") == "github":
+        from app.services import docs_github_sync
+
+        return await docs_github_sync.import_spec(db, job)
+    return import_spec(job, keep_gifs=keep_gifs)
 
 
 def _s(v: Any, n: int) -> str:
@@ -379,6 +390,10 @@ async def apply_import(db: AsyncIOMotorDatabase, job: dict, worker: str | None, 
     from app.services import docs_site_settings as site_settings
     from app.services import docs_site_store as store
 
+    if source_of(job).get("kind") == "github":
+        from app.services import docs_github_sync
+
+        return await docs_github_sync.apply_github(db, job, worker, data)
     cfg = get_settings()
     site_id = job["site_id"]
     site = await db[SITES].find_one({"_id": site_id, "deleted_at": None})
