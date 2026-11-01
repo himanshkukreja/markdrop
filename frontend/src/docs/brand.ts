@@ -179,6 +179,57 @@ export function videoLink(ref: VideoRef | undefined, site: SiteConfig): string |
   return ref.markdrop || ref.url || undefined;
 }
 
+/* ── Markdrop files (::markdrop) ─────────────────────────────────────────── */
+
+const PROD_API = "https://api.markdrop.in";
+const PROD_APP = "https://markdrop.in";
+const PROD_FILES = "https://markdrop-artifacts.markdrop-in.workers.dev";
+
+function origin(u: string | undefined): string | null {
+  if (!u) return null;
+  try {
+    const x = new URL(u);
+    return x.protocol === "https:" || x.protocol === "http:" ? x.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+export interface MarkdropFilesConfig {
+  api: string;
+  app: string;
+  /** The artifact origin frames must come from; null: whatever the API names (https only). */
+  files: string | null;
+  site: string;
+  guide: string;
+  extraHosts: string[];
+}
+
+/**
+ * Where `::markdrop` blocks resolve their files. A Markdrop Guides site: its site.json `markdrop`
+ * (the API writes it at publish). Markdrop's own docs: NEXT_PUBLIC_API_URL / _APP_URL /
+ * _ARTIFACT_ORIGIN (a local stack's), else production. Anything else: production.
+ */
+export function markdropFilesConfig(site: SiteConfig): MarkdropFilesConfig {
+  const m = site.markdrop ?? {};
+  const app = markdropApp(site);
+  const envApi = app ? origin(process.env.NEXT_PUBLIC_API_URL) : null;
+  const api = origin(m.api) ?? envApi ?? PROD_API;
+  const appUrl = origin(m.app) ?? (app ? origin(process.env.NEXT_PUBLIC_APP_URL) : null) ?? (app && process.env.NEXT_PUBLIC_PRIMARY_HOST && envApi && envApi !== PROD_API ? `http://${process.env.NEXT_PUBLIC_PRIMARY_HOST}` : null) ?? PROD_APP;
+  // Frames come from the artifact origin the API names for this deployment; on a local stack
+  // (an API that isn't production's, with no origin configured) whatever it names.
+  const files = origin(m.files) ?? (app ? origin(process.env.NEXT_PUBLIC_ARTIFACT_ORIGIN) : null) ?? (api === PROD_API ? PROD_FILES : null);
+  const appHost = new URL(appUrl).host;
+  return {
+    api,
+    app: appUrl,
+    files,
+    site: siteId(site),
+    guide: site.name,
+    extraHosts: appHost === "markdrop.in" ? [] : [appHost],
+  };
+}
+
 /* ── what the client islands need ────────────────────────────────────────── */
 
 /** The settings the browser needs, built once on the server and handed to DocsSiteProvider. */

@@ -3,8 +3,8 @@
  *
  * remarkDocs (after remark-directive): turns the directive nodes into custom elements the
  * component map renders (`docs-callout`, `docs-steps`/`docs-step`, `docs-tabs`/`docs-tab`,
- * `docs-cards`/`docs-card`, `docs-details`, `docs-video`, `docs-clip`, `docs-embed`, `docs-api`,
- * `docs-kbd`), turns a paragraph that is just one image into a `docs-figure` (title → caption),
+ * `docs-cards`/`docs-card`, `docs-details`, `docs-video`, `docs-clip`, `docs-embed`, `docs-markdrop`,
+ * `docs-api`, `docs-kbd`), turns a paragraph that is just one image into a `docs-figure` (title → caption),
  * recomputes image alt text the directive syntax cut short ("0:15", see rules.mjs), and reads
  * code-fence meta (`title="…"`, `{2,4-5}`). Only whitelisted attributes are carried over; an
  * unknown directive keeps its content (containers) or reads as the literal text it was. Fence meta
@@ -175,6 +175,20 @@ function transform(node: MdNode, parent: MdNode | null, index: number) {
       node.children = [];
     } else if (node.name === "embed") {
       set(node, "docs-embed", { src: attr(node, "src"), label: attr(node, "title") || textOf(node).trim() });
+      node.children = [];
+    } else if (node.name === "markdrop") {
+      // ::markdrop[label]{src title height aspect mode version captions chapters}: a Markdrop file
+      // as a live block (client/MarkdropEmbed.tsx; the rules are docs/embed.mjs).
+      set(node, "docs-markdrop", {
+        src: attr(node, "src"),
+        label: attr(node, "title") || textOf(node).trim(),
+        height: attr(node, "height"),
+        aspect: attr(node, "aspect"),
+        mode: attr(node, "mode"),
+        version: attr(node, "version"),
+        captions: attr(node, "captions"),
+        chapters: attr(node, "chapters"),
+      });
       node.children = [];
     } else if (node.name === "api") {
       // ::api[label]{op="GET /v1/things/{id}"}: a card for that operation (DocsMarkdown ApiOp).

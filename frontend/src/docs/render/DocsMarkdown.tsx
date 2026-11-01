@@ -20,11 +20,12 @@ import { CodeBlock } from "@/components/reading/CodeBlock";
 import { DiagramFrame } from "@/components/reading/DiagramFrame";
 import { ScrollBox } from "@/components/reading/ScrollBox";
 import { getApiReference, getMedia, getSite, getVideos } from "../content";
-import { videoLink } from "../brand";
+import { markdropFilesConfig, videoLink } from "../brand";
 import { assetPath, clipVariants, imageVariants, readVttCues } from "../media";
 import { DocsTabs } from "../client/Tabs";
 import { ClipPlayer } from "../client/Media";
 import { VideoPlayer } from "../client/Player";
+import { MarkdropEmbed } from "../client/MarkdropEmbed";
 import { HeadingActions } from "../client/PageActions";
 import { rehypeDocs, remarkDocs } from "./plugins";
 import { cardColumns } from "./rules.mjs";
@@ -386,6 +387,18 @@ function Embed({ src, label }: P) {
 }
 
 /**
+ * `::markdrop{src="https://markdrop.in/<link>" title height aspect mode version captions chapters}`:
+ * a Markdrop file as a live block. The page carries only the link; the file is asked about when a
+ * reader scrolls to it (client/MarkdropEmbed.tsx), so replacing it on Markdrop updates the page.
+ */
+function MarkdropFile({ src, label, height, aspect, mode, version, captions, chapters }: P) {
+  const s = (v: unknown) => (typeof v === "string" ? v : undefined);
+  const raw = { src: s(src), height: s(height), aspect: s(aspect), mode: s(mode), version: s(version), captions: s(captions), chapters: s(chapters) };
+  for (const k of Object.keys(raw) as Array<keyof typeof raw>) if (raw[k] === undefined) delete raw[k];
+  return <MarkdropEmbed raw={raw} label={s(label)} config={{ ...markdropFilesConfig(getSite()), track: true }} />;
+}
+
+/**
  * `::api[label]{op="GET /v1/things/{id}"}`. With the site's OpenAPI reference holding that
  * operation (method matched in any case, path exactly), a card linking to its generated page:
  * method badge and title, the path, the summary. Otherwise the method and path, not a link.
@@ -452,6 +465,7 @@ const COMPONENTS = {
   "docs-figure": Figure,
   "docs-clip": Clip,
   "docs-embed": Embed,
+  "docs-markdrop": MarkdropFile,
   "docs-api": ApiOp,
   "docs-kbd": KbdC,
 } as unknown as Components;

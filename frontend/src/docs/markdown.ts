@@ -7,10 +7,11 @@
  */
 import { createSlugger, headingSourceText, inlineText } from "@/components/reading/slug";
 import type { Heading, Section } from "./types";
+import { embedPlainLine } from "./embed.mjs";
 
 /** Every directive name the renderer understands. `docs:check` flags anything else. */
 export const CONTAINER_DIRECTIVES = ["note", "tip", "warning", "danger", "steps", "tabs", "tab", "cards", "card", "details"] as const;
-export const LEAF_DIRECTIVES = ["video", "clip", "embed", "api"] as const;
+export const LEAF_DIRECTIVES = ["video", "clip", "embed", "markdrop", "api"] as const;
 export const TEXT_DIRECTIVES = ["kbd"] as const;
 export const CALLOUTS: Record<string, string> = { note: "Note", tip: "Tip", warning: "Warning", danger: "Danger" };
 
@@ -173,7 +174,7 @@ function apiLine(op: string, label?: string): string {
  * Directive syntax → plain GitHub Markdown, for agents, llms-full.txt, clipboard and search.
  * Callouts become blockquotes with a bold label, tabs/cards/details become bold labels, steps keep
  * their headings, videos and clips become `[Video: title (0:45)](url)` lines (an unfilled video slot
- * vanishes), embeds become links, an API operation becomes `` `GET /a/{id}` `` (after its label,
+ * vanishes), embeds become links, a Markdrop file becomes `[Markdrop file: title](https://markdrop.in/x)`, an API operation becomes `` `GET /a/{id}` `` (after its label,
  * if it has one), images keep their Markdown with absolute URLs.
  * Code is never touched. Unbalanced fences (a section cut out of a container) are tolerated.
  */
@@ -235,6 +236,9 @@ export function toPlainMarkdown(body: string, opts: PlainOptions = {}): string {
         emit("");
       } else if (name === "embed" && a.src) {
         emit(`[${a.title || label || a.src}](${a.src})`);
+      } else if (name === "markdrop") {
+        const line = embedPlainLine({ src: a.src, title: a.title, label });
+        if (line) emit(line);
       } else if (name === "api" && a.op?.trim()) {
         emit(apiLine(a.op, label));
       }
