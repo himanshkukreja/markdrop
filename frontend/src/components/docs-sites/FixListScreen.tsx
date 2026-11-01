@@ -178,15 +178,15 @@ function RetentionChart({ curve, length, at, uid }: { curve: number[]; length: n
         {[0, 50, 100].map((v) => (
           <g key={v}>
             <line x1={padL} x2={W - 6} y1={y(v)} y2={y(v)} stroke="var(--border)" strokeDasharray={v ? "3 3" : undefined} />
-            <text x={padL - 6} y={y(v) + 3.5} textAnchor="end" fontSize="9" fill="var(--text-muted)">{v}%</text>
+            <text x={padL - 6} y={y(v) + 3.5} textAnchor="end" fontSize="7.5" fill="var(--text-muted)">{v}%</text>
           </g>
         ))}
         <path d={area} fill="var(--accent)" opacity="0.12" />
         <path d={line} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
         <line x1={x(at)} x2={x(at)} y1={6} y2={y(0)} stroke="var(--danger)" strokeWidth="1.5" strokeDasharray="4 3" />
-        <text x={Math.min(W - 30, x(at) + 4)} y={16} fontSize="10" fontWeight="600" fill="var(--danger)">{clock(at)}</text>
-        <text x={padL} y={H - 4} fontSize="9" fill="var(--text-muted)">0:00</text>
-        <text x={W - 6} y={H - 4} textAnchor="end" fontSize="9" fill="var(--text-muted)">{clock(length)}</text>
+        <text x={Math.min(W - 30, x(at) + 4)} y={16} fontSize="8.5" fontWeight="600" fill="var(--danger)">{clock(at)}</text>
+        <text x={padL} y={H - 4} fontSize="7.5" fill="var(--text-muted)">0:00</text>
+        <text x={W - 6} y={H - 4} textAnchor="end" fontSize="7.5" fill="var(--text-muted)">{clock(length)}</text>
       </svg>
     </figure>
   );
