@@ -124,9 +124,9 @@ For now every published guide is public: **Anyone** can read it. **Anyone with t
 
 Under **People**, give someone a different role on this guide. See [Members and roles](/guides/members-and-roles#a-different-role-on-one-guide). If you aren't an admin, this card shows **Your role**.
 
-## GitHub sync
+## GitHub
 
-Marked **Coming soon**. See [GitHub sync](/guides/github-sync).
+**Settings › GitHub** connects the guide to a GitHub repository and keeps it in sync: the repository, branch and folder, what a push does (**Update drafts** or **Publish automatically**), **Sync now**, the sync history and **Disconnect**. See [Import from GitHub and keep in sync](/guides/import-from-github#the-github-settings).
 
 ## Imported from GitBook
 

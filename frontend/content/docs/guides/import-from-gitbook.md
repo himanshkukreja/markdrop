@@ -28,7 +28,7 @@ The import screen shows four steps: reading the navigation and page list, copyin
 ![The New guide form with Import from GitBook selected and https://northwind.gitbook.io/docs as the public address.](/docs-assets/guides/import/import-form.webp)
 
 :::warning[Private GitBook spaces]
-Markdrop Guides can only read a site anyone can open. A private GitBook space can't be imported this way.
+Markdrop Guides can only read a site anyone can open. For a private GitBook space, turn on GitBook's Git Sync to a GitHub repository, then [import from GitHub](/guides/import-from-github): Markdrop reads its `SUMMARY.md` and GitBook blocks, and can keep the guide in sync.
 :::
 
 ## Watch it once
