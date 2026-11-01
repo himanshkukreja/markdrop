@@ -466,3 +466,18 @@ test("front matter and the leading H1", () => {
   assert.deepEqual(leadingH1("Title\n=====\nbody"), { text: "Title", from: 0, to: 1 });
   assert.equal(leadingH1("Text first\n# Later"), null);
 });
+
+test("multi-line <img> tags are read like one-line ones; a dark-only twin is dropped; inline <svg> icons go", () => {
+  const seen = [];
+  const ctx = { image: (src, o) => (seen.push(src), { src: `/docs-assets/import/${src.replace(/^\//, "")}`, alt: o.alt }), count: () => {}, issue: () => {} };
+  const md = convertMdx('Intro.\n\n<img\n  alt="The dashboard."\n  className="block dark:hidden"\n  src="/images/a-light.png"\n/>\n<img\n  alt="The dashboard."\n  className="hidden dark:block"\n  src="/images/a-dark.png"\n/>\n', { flavor: "mintlify", ctx });
+  assert.ok(!md.includes("<img\n"), md);
+  assert.ok(!md.includes("a-dark.png"), md);
+  const svg = convertMdx('#### [Talk](https://example.com/talk) <svg viewBox="0 0 24 24"><title>Video</title><path d="M0 0h24"/></svg>\n\n<svg\n  width="10">\n<rect/>\n</svg>\n\nAfter.\n', { flavor: "docusaurus", ctx });
+  assert.ok(!svg.includes("svg"), svg);
+  assert.match(svg, /#### \[Talk\]\(https:\/\/example\.com\/talk\)\n/);
+  assert.match(svg, /After\./);
+  // Inside code, nothing changes.
+  const code = convertMdx('```html\n<img\n  src="x.png"\n/>\n<svg><path/></svg>\n```\n', { flavor: "mintlify", ctx });
+  assert.match(code, /<img\n {2}src="x\.png"\n\/>\n<svg><path\/><\/svg>/);
+});

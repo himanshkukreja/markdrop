@@ -703,6 +703,63 @@ function inlineSnippets(lines, imports, ctx, depth = 0) {
   return out;
 }
 
+/**
+ * A void tag written over several lines (`<img\n  alt="…"\n  src="…"\n/>`, common in Mintlify docs)
+ * → one line, so the image, iframe or video is converted like a one-line tag. Only outside code.
+ */
+function joinTags(lines) {
+  return outsideFences(lines, (run) => {
+    const out = [];
+    for (let i = 0; i < run.length; i++) {
+      const l = run[i];
+      const m = /^(\s*)<(img|iframe|video|source)\b(?:[^>"']|"[^"]*"|'[^']*')*$/i.exec(l);
+      if (!m) {
+        out.push(l);
+        continue;
+      }
+      let j = i;
+      let joined = l.trimEnd();
+      while (j + 1 < run.length && j - i < 40 && !/>\s*$/.test(joined)) joined += " " + run[++j].trim();
+      if (!/>\s*$/.test(joined)) {
+        out.push(l);
+        continue;
+      }
+      out.push(joined);
+      i = j;
+    }
+    return out;
+  });
+}
+
+/**
+ * Inline <svg> drawings (an icon after a link, a decorative mark): the guide never renders raw SVG,
+ * so they are dropped (counted), on one line or over several. Code is left alone.
+ */
+function dropInlineSvg(lines, ctx) {
+  return outsideFences(lines, (run) => {
+    const out = [];
+    for (let i = 0; i < run.length; i++) {
+      let l = run[i];
+      if (/<svg\b/i.test(l) && !/<\/svg>/i.test(l)) {
+        let j = i;
+        let joined = l;
+        while (j + 1 < run.length && j - i < 200 && !/<\/svg>/i.test(joined)) joined += "\n" + run[++j];
+        if (/<\/svg>/i.test(joined)) {
+          l = joined;
+          i = j;
+        }
+      }
+      const s2 = l.replace(/<svg\b[\s\S]*?<\/svg>/gi, () => {
+        ctx.count("inline <svg>", "dropped (a drawing in the page's HTML)");
+        return "";
+      });
+      if (s2 === l) out.push(l);
+      else if (s2.trim()) out.push(s2.replace(/[ \t]+$/, ""));
+    }
+    return out;
+  });
+}
+
 /** Dark-only images (`className="hidden dark:block"`): the light twin is the one imported. */
 function dropDarkOnly(lines, ctx) {
   return outsideFences(lines, (run) =>
@@ -729,8 +786,9 @@ export function convertMdx(src, { flavor = "mintlify", line0 = 0, ctx: given = {
     const mod = stripModuleLines(lines);
     lines = inlineSnippets(mod.lines, mod.imports, ctx);
     lines = outsideFences(lines, (run) => run.map((l) => l.replace(/\{\s*(["'])\s\1\s*\}/g, " ")));
-    lines = dropDarkOnly(lines, ctx);
+    lines = dropDarkOnly(joinTags(lines), ctx);
   }
+  lines = dropInlineSvg(lines, ctx);
   lines = githubAlertsToTags(lines, ctx.count);
   const state = { videos: 0 };
   const toNodes = (ls, at) => normalize(parseComponents(ls, { flavor, line0: at, issue: ctx.issue, count: ctx.count }).children, ctx, state);
