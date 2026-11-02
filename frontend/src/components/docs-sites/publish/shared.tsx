@@ -93,7 +93,7 @@ export function AddressRow({ host, note, own, from = "publish", securing }: { ho
     return (
       <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-inset py-2 pl-3 pr-2">
         <Icon name="lock" size={15} className="shrink-0 text-accent-text" />
-        <span className="ph-sensitive ph-mask min-w-0 flex-1 truncate font-mono text-[14px] font-semibold text-text" title={host}>{host}</span>
+        <span className="ph-sensitive ph-mask min-w-[min(100%,16rem)] flex-1 truncate font-mono text-[14px] font-semibold text-text" title={host}>{host}</span>
         <SecuringBadge />
         <CopyButton text={url} label="Copy" size="sm" variant="ghost" announceText="Address copied" onCopy={() => { guideEvents.addressCopied(own); toast.info(SECURING_COPIED); }} />
         <Button variant="secondary" size="sm" iconRight="external" href={url} disabled title={SECURING_TEXT}>
