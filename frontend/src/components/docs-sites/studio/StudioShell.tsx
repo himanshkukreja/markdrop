@@ -12,6 +12,8 @@ import { GuideMark, usePreviewDark } from "../home/GuidePreview";
 import { PERSONAL, scopeOf, siteBase, studioHome, studioMembers, studioNew } from "../routes";
 import { useMounted } from "@/components/shell/useLocation";
 import { appHref } from "@/lib/studioHost";
+import { docsUrl } from "@/components/shell/links";
+import { DOCS_PAGES } from "@/lib/docsLinks";
 import { GuideSearch } from "./GuideSearch";
 import { StudioProvider, useStudio, useWorkspaceName } from "./StudioContext";
 import { StudioSignInFailed, useHandoffStuck } from "./StudioSignIn";
@@ -106,42 +108,38 @@ function WorkspaceBadge() {
   );
 }
 
-/** Markdrop's own areas beside Guides (wide screens; the account menu has them everywhere): on markdrop.in. */
-const appNav = () => [
-  { label: "Documents", href: appHref("/dashboard?kind=document") },
-  { label: "Files", href: appHref("/dashboard?kind=artifact") },
-  { label: "Guides", href: studioHome(), current: true },
-];
-
-function AppNav({ className }: { className?: string }) {
+/**
+ * The header's one link: Markdrop Guides' documentation on docs.markdrop.in, in a new tab. Guides is
+ * its own product, so Markdrop's Documents and Files aren't here (the account menu keeps the way
+ * back to the Markdrop dashboard). From sm up the word with the external arrow; phones, an icon.
+ */
+function GuidesDocsLink() {
   return (
-    <nav aria-label="Markdrop" className={cx("items-center gap-0.5", className)}>
-      {appNav().map((l) => (
-        <Anchor
-          key={l.label}
-          href={l.href}
-          aria-current={l.current ? "page" : undefined}
-          className={cx(
-            "md-focus rounded-md px-2.5 py-1.5 text-body no-underline transition-colors",
-            l.current ? "bg-surface-active font-semibold text-text" : "text-text-secondary hover:bg-surface-hover hover:text-text",
-          )}
-        >
-          {l.label}
-        </Anchor>
-      ))}
-    </nav>
+    <a
+      href={docsUrl(DOCS_PAGES.guidesOverview)}
+      target="_blank"
+      rel="noopener"
+      title="Markdrop Guides documentation (opens in a new tab)"
+      aria-label="Docs: Markdrop Guides documentation (opens in a new tab)"
+      className="md-focus inline-flex h-9 shrink-0 items-center gap-1 rounded-md px-2.5 text-body text-text-secondary no-underline transition-colors hover:bg-surface-hover hover:text-text max-sm:size-11 max-sm:justify-center max-sm:px-0"
+    >
+      <Icon name="doc" size={18} className="sm:hidden" />
+      <span className="max-sm:hidden">Docs</span>
+      <Icon name="arrowUpRight" size={13} className="max-sm:hidden" />
+    </a>
   );
 }
 
-/**
- * Markdrop Guides' header, on every Guides screen: the Markdrop logo, a divider and "Guides"; on
- * a guide's screens its switcher, workspace and your role there; Markdrop's Documents / Files /
- * Guides; then the guide search (⌘K), the theme switch and the account menu. Phones: the mark with
- * "Guides" (the mark alone with a guide open), the search button and the account menu.
- */
 /** Where a screen portals its own bit of the studio header (see StudioHeader). */
 export const HEADER_SLOT_ID = "guides-header-slot";
 
+/**
+ * Markdrop Guides' header, on every Guides screen: the Markdrop logo, a divider and "Guides"; on
+ * a guide's screens its switcher, workspace and your role there; then the guide search (⌘K), Docs
+ * (Guides' documentation, new tab), the theme switch and the account menu (which keeps the way back
+ * to the Markdrop dashboard). Phones: the mark with "Guides" (the mark alone with a guide open), the
+ * search button, the Docs icon and the account menu.
+ */
 export function StudioHeader() {
   const { current } = useStudio();
   return (
@@ -157,13 +155,13 @@ export function StudioHeader() {
           <RoleBadge role={current.your_role} className="max-sm:hidden" title="Your Guides role on this guide" />
         </>
       )}
-      <AppNav className={cx("ml-2 hidden", current ? "2xl:flex" : "lg:flex")} />
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
         {/* A screen's own header content (the editor's "who else is here"), portalled in. */}
         <div id={HEADER_SLOT_ID} className="flex items-center empty:hidden" />
         <GuideSearch compact={!!current} />
+        <GuidesDocsLink />
         <ThemeToggle className="max-md:hidden" />
-        <HeaderAuthSlot />
+        <HeaderAuthSlot studio />
       </div>
     </header>
   );

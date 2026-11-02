@@ -10,7 +10,8 @@ import { LIGHT_ENABLED } from "@/lib/theme";
 import { appHref, isStudioHost, studioUrl } from "@/lib/studioHost";
 import { signOutOfStudio, studioSignInHref } from "@/lib/studioSession";
 import { resetIdentity } from "@/lib/thirdPartyAnalytics";
-import { DOCS_URL } from "./links";
+import { DOCS_PAGES } from "@/lib/docsLinks";
+import { DOCS_URL, docsUrl } from "./links";
 import { useMounted, useSignInHref } from "./useLocation";
 
 /** Initials for the avatar: two words → two letters, else the first letter of the name or email. */
@@ -42,8 +43,11 @@ export function UserAvatar({ user, size = "md", className }: { user: MeUser; siz
  * Dashboard, Guides (the Markdrop Guides studio, guides.markdrop.in), Workspaces & domains, API tokens, Connected apps, Account settings, a Theme row (System / Light /
  * Dark), Send feedback, and Sign out (neutral: signing out isn't destructive). Sign-out uses
  * AuthContext.logout() (server revoke, then the local token is cleared).
+ *
+ * `studio`: in the Markdrop Guides studio (its header has no Documents / Files): Dashboard reads
+ * "Markdrop dashboard", the way back to the rest of Markdrop, and Docs opens Guides' own docs.
  */
-export function AccountMenu({ user, align = "right" }: { user: MeUser; align?: "left" | "right" }) {
+export function AccountMenu({ user, align = "right", studio }: { user: MeUser; align?: "left" | "right"; studio?: boolean }) {
   const { signOut } = useAuth();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
@@ -56,13 +60,15 @@ export function AccountMenu({ user, align = "right" }: { user: MeUser; align?: "
         </span>
       ),
     },
-    { label: "Dashboard", href: appHref("/dashboard"), icon: "home", separated: true },
+    { label: studio ? "Markdrop dashboard" : "Dashboard", href: appHref("/dashboard"), icon: "home", separated: true },
     { label: "Guides", href: studioUrl("/"), icon: "layers" },
     { label: "Workspaces & domains", href: appHref("/settings/workspaces"), icon: "users" },
     { label: "API tokens", href: appHref("/settings/tokens"), icon: "key" },
     { label: "Connected apps", href: appHref("/settings/connections"), icon: "sparkle" },
     { label: "Account settings", href: appHref("/settings/account"), icon: "settings" },
-    { label: "Docs", href: DOCS_URL, icon: "doc" },
+    studio
+      ? { label: "Guides docs", href: docsUrl(DOCS_PAGES.guidesOverview), icon: "doc", external: true }
+      : { label: "Docs", href: DOCS_URL, icon: "doc" },
     ...(LIGHT_ENABLED
       ? [{
           custom: (
@@ -126,12 +132,12 @@ export function AccountMenu({ user, align = "right" }: { user: MeUser; align?: "
  * 32px skeleton circle; a user → AccountMenu; otherwise the "Sign in" link (ghost) to
  * /login?next=<this page>.
  */
-export function HeaderAuthSlot({ className, signInClassName }: { className?: string; signInClassName?: string }) {
+export function HeaderAuthSlot({ className, signInClassName, studio }: { className?: string; signInClassName?: string; studio?: boolean }) {
   const { user, loading } = useAuth();
   const mounted = useMounted();
   const signInHref = useSignInHref();
 
-  if (user) return <div className={className}><AccountMenu user={user} /></div>;
+  if (user) return <div className={className}><AccountMenu user={user} studio={studio} /></div>;
 
   if (mounted && loading && getToken()) {
     return (
