@@ -140,6 +140,12 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(S.validate(S.deep_merge(S.default_settings(), {"mcp": {"connect": False}}))["mcp"], {"connect": False})
         with self.assertRaises(S.SettingsError):
             S.validate({"mcp": {"connect": True, "url": "https://evil"}})
+        # Compare: a snapshot from before the switch counts as on, so only a real change shows.
+        from app.services import docs_site_compare as C
+
+        old = {"settings": {"ai": {"enabled": False}}}
+        self.assertEqual(C._settings_changed(old, {"settings": {"ai": {"enabled": False}, "mcp": {"connect": True}}}), [])
+        self.assertEqual(C._settings_changed(old, {"settings": {"ai": {"enabled": False}, "mcp": {"connect": False}}}), ["mcp"])
 
     def test_pasted_frontmatter_and_yaml_safety(self):
         text = docs_snapshot.page_text({"title": 'Say "hi": now', "description": "a: b # c", "markdown": "---\nnav: Short\n---\n\nBody"}, "2026-01-02")

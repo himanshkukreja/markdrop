@@ -6,12 +6,16 @@ import { ReadMore } from "@/components/ReadMore";
 import { num } from "../format";
 import { useSite } from "../SiteContext";
 import { LockedNote, SectionHeader, SettingsCard } from "./SettingsShell";
+import { McpServerCard } from "./McpServerCard";
 import { SECTIONS } from "./sections";
 import usePatch from "./usePatch";
 
 const MAX_SUGGESTIONS = 5;
 
-/** Settings › Ask AI: on or off, this month's answers, the name readers see, suggested questions. */
+/**
+ * Settings › Ask AI: on or off, this month's answers, the name readers see, suggested questions;
+ * then the guide's MCP server (McpServerCard).
+ */
 export default function AskAiSection() {
   const { site } = useSite();
   const { patch, saving, error, setError, locked } = usePatch();
@@ -79,6 +83,8 @@ export default function AskAiSection() {
         )}
         <p className="text-[13px] text-text-muted">At the limit, readers get links to ask Claude or ChatGPT with the page attached instead.</p>
       </SettingsCard>
+
+      <McpServerCard />
     </>
   );
 }

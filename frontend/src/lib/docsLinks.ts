@@ -83,6 +83,8 @@ export const DOCS_PAGES = {
   studioAccess: "/guides/site-settings#who-can-read-it",
   privatePages: "/guides/private-pages",
   studioAskAi: "/guides/ask-ai",
+  studioMcp: "/guides/mcp-server",
+  studioMcpConnect: "/guides/mcp-server#connect-your-ai-tools",
   studioInsights: "/guides/insights",
   studioInsightsOff: "/guides/insights#turn-it-off",
   studioFixList: "/guides/fix-list",

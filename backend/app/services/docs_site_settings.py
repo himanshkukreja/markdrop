@@ -495,6 +495,11 @@ class MCP(_Strict):
     connect: bool = True
 
 
+def mcp_connect(settings: dict | None) -> bool:
+    """settings.mcp.connect, on for settings (or a snapshot's) from before the switch."""
+    return bool(((settings or {}).get("mcp") or {}).get("connect", True))
+
+
 class Access(_Strict):
     level: Literal["public", "password", "members"] = "public"
     password_hash: str | None = None

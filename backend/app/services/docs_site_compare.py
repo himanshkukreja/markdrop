@@ -29,6 +29,7 @@ from app.config import get_settings
 from app.services import docs_api_spec as api_spec
 from app.services import docs_site_changelog as changelog
 from app.services import docs_site_pages as pages
+from app.services import docs_site_settings
 from app.services import docs_site_store as store
 from app.services.docs_site_store import BUILDS, JOBS, PAGES, SNAPSHOTS, aware, now
 
@@ -173,6 +174,9 @@ def _settings_changed(old: dict | None, new: dict | None) -> list[str]:
         return []
     o, n = old.get("settings") or {}, new.get("settings") or {}
     out = [k for k in SETTING_KEYS if o.get(k) != n.get(k)]
+    # Connect to AI on pages (one from before the switch: on).
+    if docs_site_settings.mcp_connect(o) != docs_site_settings.mcp_connect(n):
+        out.append("mcp")
     try:
         if api_spec.api_settings({"settings": o}) != api_spec.api_settings({"settings": n}):
             out.append("api")
