@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Alert, Badge, Button, CopyButton, Switch } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
-import { primaryAddress } from "@/lib/docsSites";
+import { addressSecuring, primaryAddress } from "@/lib/docsSites";
+import { SecuringNote } from "../AddressSecuring";
 import { CLAUDE_CONNECTORS_URL, mcpLinks, openAppLink } from "@/docs/mcpLinks";
 import { liveUrl } from "../PublishState";
 import { useSite } from "../SiteContext";
@@ -56,7 +57,9 @@ export function McpServerCard() {
   const isLive = site.status === "live";
   const host = primaryAddress(site);
   const links = mcpLinks(liveUrl(host), mcpInstallName(site.name));
-  const canTest = isLive && isPublic;
+  // A new guide's address for the minute or three after its first publish: the server can't answer there yet.
+  const securing = isLive && addressSecuring(site);
+  const canTest = isLive && isPublic && !securing;
   // Linked as …/settings/ask-ai#mcp (the Publish screen's "Set up"): the card renders after the
   // site loads, after the browser looked for the anchor.
   useEffect(() => {
@@ -113,6 +116,7 @@ export function McpServerCard() {
           <code className="ph-sensitive min-w-0 flex-[1_1_260px] select-all break-all rounded-lg border border-border bg-surface-inset px-3 py-2 font-mono text-[13px] leading-5 text-text">{links.server}</code>
           <CopyButton text={links.server} label="Copy URL" announceText="MCP server URL copied" />
         </div>
+        {securing && isPublic && <SecuringNote />}
         <p className="text-caption text-text-muted">
           {connect && isPublic
             ? "Readers find it under Connect to AI in each page's Copy page menu, with one-click installs."
@@ -138,7 +142,7 @@ export function McpServerCard() {
             Test it
           </Button>
           <span className="text-[13px] text-text-muted">
-            {canTest ? "Asks the live server for its tools, the way an AI app does." : "Available once the guide is live and public."}
+            {canTest ? "Asks the live server for its tools, the way an AI app does." : securing && isPublic ? "Available once the address is secured." : "Available once the guide is live and public."}
           </span>
         </div>
         <div aria-live="polite" className="min-w-0">

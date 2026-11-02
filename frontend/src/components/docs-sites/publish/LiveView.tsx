@@ -1,11 +1,12 @@
 "use client";
 
 import { useId } from "react";
-import { Anchor, Badge, Button, CopyButton, Icon, copyText, useToast } from "@/components/ui";
+import { Alert, Anchor, Badge, Button, CopyButton, Icon, copyText, useToast } from "@/components/ui";
 import { mcpServerUrl } from "@/docs/mcpLinks";
 import { settingsHref } from "../settings/sections";
 import { guideEvents } from "@/lib/guidesEvents";
-import { liveAddresses, primaryAddress, type Build, type SetupStatus, type SiteSummary } from "@/lib/docsSites";
+import { addressSecuring, liveAddresses, primaryAddress, type Build, type SetupStatus, type SiteSummary } from "@/lib/docsSites";
+import { SECURING_COPIED, SECURING_TEXT, SECURING_TITLE } from "../AddressSecuring";
 import { firstName, timeAgo } from "../format";
 import { GuidePreview } from "../home/GuidePreview";
 import { liveUrl, usePublishState } from "../PublishState";
@@ -33,6 +34,8 @@ export function LiveView({ live, builds, setup, restoring, onRestore }: {
   const uid = useId();
   const isLive = site.status === "live";
   const host = primaryAddress(site);
+  // A new guide's address for the minute or three after its first publish (AddressSecuring.tsx).
+  const securing = isLive && addressSecuring(site);
   const addresses = liveAddresses(site);
   const theme = site.settings.theme;
   // The thumbnail draws the saved design (the listing's theme can lag a save).
@@ -51,14 +54,15 @@ export function LiveView({ live, builds, setup, restoring, onRestore }: {
     const ok = await copyText(liveUrl(host));
     if (ok) {
       guideEvents.shareCopied();
-      toast.success(<>Link copied: <span className="ph-sensitive ph-mask">{host}</span></>);
+      if (securing) toast.info(SECURING_COPIED);
+      else toast.success(<>Link copied: <span className="ph-sensitive ph-mask">{host}</span></>);
     } else toast.error("Couldn't copy. Select the address and copy it instead.");
   };
 
   return (
     <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1120px] flex-col gap-6 px-4 pb-16 pt-6 outline-none sm:px-6 sm:pt-8">
       <section aria-labelledby={`${uid}-live`} className="flex flex-wrap gap-7 rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
-        {isLive ? (
+        {isLive && !securing ? (
           <a
             href={liveUrl(host)}
             target="_blank"
@@ -70,16 +74,26 @@ export function LiveView({ live, builds, setup, restoring, onRestore }: {
             <GuidePreview site={summary} height={196} />
           </a>
         ) : (
-          <div className="min-w-0 flex-[0_1_360px] rounded-xl bg-surface-inset px-3 pt-3 opacity-70 max-sm:hidden"><GuidePreview site={summary} height={196} /></div>
+          <div className={`min-w-0 flex-[0_1_360px] rounded-xl bg-surface-inset px-3 pt-3 max-sm:hidden ${securing ? "" : "opacity-70"}`}><GuidePreview site={summary} height={196} /></div>
         )}
         <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-3.5">
-          {isLive ? <Badge tone="success" dot className="self-start">Live</Badge> : <Badge className="self-start">{site.status === "unpublished" ? "Unpublished" : "Not published"}</Badge>}
+          {securing
+            ? <Badge tone="info" icon="lock" className="self-start">Securing the address</Badge>
+            : isLive ? <Badge tone="success" dot className="self-start">Live</Badge> : <Badge className="self-start">{site.status === "unpublished" ? "Unpublished" : "Not published"}</Badge>}
           <h1 id={`${uid}-live`} className="text-[26px] font-bold leading-8 tracking-[-0.02em] text-text">
-            {isLive ? "Your guide is live" : "Your guide is offline"}
+            {securing ? "Your guide is published" : isLive ? "Your guide is live" : "Your guide is offline"}
           </h1>
+          {securing && (
+            <Alert tone="info" icon="lock" live title={SECURING_TITLE}>
+              {SECURING_TEXT} This page updates by itself, and you&apos;ll see a notice when it opens.
+            </Alert>
+          )}
           {isLive ? (
             <div className="flex flex-col gap-2">
-              {addresses.map((a) => <AddressRow key={a.host} host={a.host} own={a.own} note={a.own ? "Your domain" : "Free address"} />)}
+              {addresses.map((a) => (
+                <AddressRow key={a.host} host={a.host} own={a.own} note={a.own ? "Your domain" : "Free address"}
+                  securing={!a.own && site.address_state === "securing"} />
+              ))}
             </div>
           ) : (
             <p className="text-text-secondary">Readers can&apos;t open it. Publish again to put it back at its address.</p>
@@ -97,9 +111,15 @@ export function LiveView({ live, builds, setup, restoring, onRestore }: {
           <div className="flex flex-wrap gap-2">
             {isLive ? (
               <>
-                <Button variant="primary" iconRight="external" href={liveUrl(host)} target="_blank" rel="noopener noreferrer" onClick={() => guideEvents.liveOpened("publish")}>
-                  Open the guide<span className="md-visually-hidden"> in a new tab</span>
-                </Button>
+                {securing ? (
+                  <Button variant="primary" iconRight="external" href={liveUrl(host)} disabled title={SECURING_TEXT}>
+                    Open the guide<span className="md-visually-hidden">: available once the address is secured</span>
+                  </Button>
+                ) : (
+                  <Button variant="primary" iconRight="external" href={liveUrl(host)} target="_blank" rel="noopener noreferrer" onClick={() => guideEvents.liveOpened("publish")}>
+                    Open the guide<span className="md-visually-hidden"> in a new tab</span>
+                  </Button>
+                )}
                 <Button variant="secondary" iconLeft="edit" href={base}>Keep writing</Button>
                 <Button variant="ghost" iconLeft="link" onClick={() => void share()}>Share</Button>
               </>

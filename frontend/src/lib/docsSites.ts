@@ -498,6 +498,25 @@ export interface SiteSummary {
   last_edited_at?: string | null;
   /** settings.insights.enabled */
   insights_enabled?: boolean;
+  /**
+   * The free address (`<slug>.guides.markdrop.in`): "ready" once it serves its certificate,
+   * "securing" for the minute or three after its first publish while Cloudflare issues it (opening
+   * it fails until then), "pending" before the first publish. Absent from older servers: ready.
+   */
+  address_state?: AddressState;
+  /** address_state === "ready". */
+  address_ready?: boolean;
+}
+
+export type AddressState = "ready" | "securing" | "pending";
+
+/**
+ * The free address's certificate is still being issued (address_state "securing"). `primary`: only
+ * when the free address is the one readers are sent to (no live own domain in front of it).
+ */
+export function addressSecuring(s: Pick<SiteSummary, "slug" | "url" | "domains" | "address_state">, primary = true): boolean {
+  if (s.address_state !== "securing") return false;
+  return !primary || primaryAddress(s) === siteHost(s);
 }
 
 /** A listing's theme: enough to draw the guide's card in its own look. */
@@ -616,8 +635,6 @@ export interface Site extends SiteSummary {
   access_enforced?: boolean;
   /** False while this server doesn't take password or members-only guides yet (they show "Coming soon"). */
   private_access?: boolean;
-  /** False while the site's free address isn't attached on Cloudflare yet (its certificate is on its way). */
-  address_ready?: boolean;
   /** POST /docs-sites (GitBook import, template seed) and POST …/unpublish: the job it started. */
   job?: Job | null;
   /** The GitHub repository the guide is linked to (null or absent: not linked). */

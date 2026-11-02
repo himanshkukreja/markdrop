@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Anchor, Badge, Button, Icon, Spinner, cx } from "@/components/ui";
 import { guideEvents } from "@/lib/guidesEvents";
 import { getFixCount } from "@/lib/guideFixes";
-import { assetPreviewUrl, primaryAddress, type SiteSummary, type SiteTheme } from "@/lib/docsSites";
+import { addressSecuring, assetPreviewUrl, primaryAddress, type SiteSummary, type SiteTheme } from "@/lib/docsSites";
+import { SECURING_TEXT, SECURING_TITLE } from "./AddressSecuring";
 import { plural } from "./format";
 import { opensDark } from "./guideTheme";
 import { previewTokens } from "./presets";
@@ -114,7 +115,18 @@ function PublishControls({ preview }: { preview: boolean }) {
   const live = site.status === "live";
   return (
     <>
-      {live ? (
+      {live && addressSecuring(site) ? (
+        // A new address whose certificate is on its way: opening it would fail, so no link yet.
+        <span
+          role="status"
+          className="inline-flex h-[30px] min-w-0 max-w-[340px] shrink items-center gap-1.5 rounded-full bg-accent-soft px-2.5 text-[12px] font-semibold text-accent-text"
+          title={`${SECURING_TITLE}: ${host}. ${SECURING_TEXT}`}
+        >
+          <Spinner size={12} />
+          <span className="min-w-0 truncate">Securing · <span className="ph-sensitive ph-mask">{host}</span></span>
+          <span className="md-visually-hidden">. {SECURING_TITLE}. {SECURING_TEXT}</span>
+        </span>
+      ) : live ? (
         <a
           href={liveUrl(host)}
           target="_blank"

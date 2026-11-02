@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert, Anchor, Badge, Button, ConfirmDialog, EmptyState, Icon, Meter, SegmentedControl, Select, Skeleton, Tabs, useToast,
@@ -15,7 +15,8 @@ import {
 import { num } from "./format";
 import { EmptyBoard, STARTS } from "./home/EmptyBoard";
 import { GuideCard, GuideCardSkeleton, GuideRow, type CardInsights } from "./home/GuideCard";
-import { GUIDE_TABS, inTab, isLive, touched, type GuideTab } from "./home/model";
+import { GUIDE_TABS, inTab, isLive, isSecuring, touched, type GuideTab } from "./home/model";
+import { openLive } from "./PublishState";
 import { StudioLoader, useStudioSession } from "./SiteContext";
 import { PERSONAL, studioHome, studioMembers, studioNew, type StudioScope } from "./routes";
 import { useStudio } from "./studio/StudioContext";
@@ -43,6 +44,41 @@ function useLayout(): [Layout, (l: Layout) => void] {
 }
 
 /** The 7-day numbers, loaded after the listing (and again when it changes: a guide created or deleted). */
+/**
+ * A guide whose new address is being secured (AddressSecuring.tsx): the listing again every 10 s
+ * (tab visible) until it opens, then "<name> is live at <address>" with Open.
+ */
+function useSecuringWatch(all: AllSitesResponse | null, reloadAll: () => Promise<void>) {
+  const toast = useToast();
+  const securing = all ? all.sites.filter(isSecuring).map((s) => s.id).join(",") : "";
+  useEffect(() => {
+    if (!securing) return;
+    const t = window.setInterval(() => {
+      if (document.visibilityState === "visible") void reloadAll();
+    }, 10_000);
+    return () => window.clearInterval(t);
+  }, [securing, reloadAll]);
+  const seen = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!all) return;
+    const now = new Set(all.sites.filter(isSecuring).map((s) => s.id));
+    for (const id of seen.current) {
+      const s = all.sites.find((x) => x.id === id);
+      if (!now.has(id) && s && isLive(s) && s.address_state === "ready") {
+        const host = primaryAddress(s);
+        toast.success(
+          <span className="flex flex-col">
+            <strong><span className="ph-sensitive ph-mask">{s.name}</span> is live at <span className="ph-sensitive ph-mask">{host}</span></strong>
+            <span className="text-[12px] opacity-80">The address is secured. It opens for everyone now.</span>
+          </span>,
+          { duration: 12_000, action: { label: "Open", onClick: () => openLive(host) } },
+        );
+      }
+    }
+    seen.current = now;
+  }, [all, toast]);
+}
+
 function useHomeInsights(all: AllSitesResponse | null): InsightsLoad {
   const [load, setLoad] = useState<InsightsLoad>({ state: "loading" });
   const key = all ? all.sites.map((s) => `${s.id}:${s.status}:${s.insights_enabled ? 1 : 0}`).join(",") : null;
@@ -278,6 +314,7 @@ export default function StudioHome() {
   const [layout, setLayout] = useLayout();
   const [deleting, setDeleting] = useState<SiteSummary | null>(null);
   const ins = useHomeInsights(all);
+  useSecuringWatch(all, reloadAll);
 
   const known = !filter || filter === PERSONAL || !!all?.workspaces.some((w) => w.id === filter);
   const scoped = useMemo(() => {

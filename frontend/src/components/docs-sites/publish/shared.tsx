@@ -1,9 +1,10 @@
 "use client";
 
-import { Badge, Button, CopyButton, Icon, type Tone } from "@/components/ui";
+import { Badge, Button, CopyButton, Icon, useToast, type Tone } from "@/components/ui";
 import { guideEvents } from "@/lib/guidesEvents";
 import type { Build, ChangeSummary } from "@/lib/docsSites";
 import { plural } from "../format";
+import { SECURING_COPIED, SECURING_TEXT, SecuringBadge } from "../AddressSecuring";
 import { liveUrl } from "../PublishState";
 
 /** Settings a publish carries besides pages: the change list's rows and the summary badges. */
@@ -81,10 +82,26 @@ export function seconds(ms: number | null | undefined): string {
 
 /**
  * One address readers use: the host (opens in a new tab), a note ("Your domain" / "Free address"),
- * Copy and Open. Every address the publishing screens show goes through this.
+ * Copy and Open. Every address the publishing screens show goes through this. `securing`: a new
+ * address whose certificate is on its way (AddressSecuring.tsx): no link and Open is off until it
+ * opens; Copy still works.
  */
-export function AddressRow({ host, note, own, from = "publish" }: { host: string; note?: string; own: boolean; from?: "publish" | "banner" }) {
+export function AddressRow({ host, note, own, from = "publish", securing }: { host: string; note?: string; own: boolean; from?: "publish" | "banner"; securing?: boolean }) {
   const url = liveUrl(host);
+  const toast = useToast();
+  if (securing) {
+    return (
+      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-inset py-2 pl-3 pr-2">
+        <Icon name="lock" size={15} className="shrink-0 text-accent-text" />
+        <span className="ph-sensitive ph-mask min-w-[min(100%,16rem)] flex-1 truncate font-mono text-[14px] font-semibold text-text" title={host}>{host}</span>
+        <SecuringBadge />
+        <CopyButton text={url} label="Copy" size="sm" variant="ghost" announceText="Address copied" onCopy={() => { guideEvents.addressCopied(own); toast.info(SECURING_COPIED); }} />
+        <Button variant="secondary" size="sm" iconRight="external" href={url} disabled title={SECURING_TEXT}>
+          Open<span className="md-visually-hidden"> {host}: available once the address is secured</span>
+        </Button>
+      </div>
+    );
+  }
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-surface-inset py-2 pl-3 pr-2">
       <Icon name="globe" size={15} className="shrink-0 text-text-muted" />

@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { Alert, Anchor, Badge, Button, ConfirmDialog, CopyButton, Dropdown, Icon, IconButton, type MenuEntry, useToast } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
-import { checkSiteDomain, docsErrorMessage, removeSiteDomain, siteHost, type SiteDomain } from "@/lib/docsSites";
+import { addressSecuring, checkSiteDomain, docsErrorMessage, removeSiteDomain, siteHost, type SiteDomain } from "@/lib/docsSites";
+import { SECURING_COPIED, SECURING_TEXT, SecuringBadge } from "../AddressSecuring";
 import { useSite } from "../SiteContext";
 import { DomainBadge, domainNote, ownDomains, useDomainRefresh } from "./domainStatus";
 import { LockedNote, SectionHeader, SettingsCard } from "./SettingsShell";
 import { SECTIONS, domainHref, settingsHref } from "./sections";
 
 /** One address as a row (Settings.dc.html): host and a note, its status, Copy, Open, and a menu. */
-function AddressRow({ host, href, note, badge, open, menu, cta }: {
+function AddressRow({ host, href, note, badge, open, menu, cta, securing }: {
   host: string;
   href?: string;
   note: string;
@@ -18,7 +19,10 @@ function AddressRow({ host, href, note, badge, open, menu, cta }: {
   open: boolean;
   menu: MenuEntry[];
   cta?: React.ReactNode;
+  /** The free address's certificate is on its way (AddressSecuring.tsx): Open is off, Copy says when it opens. */
+  securing?: boolean;
 }) {
+  const toast = useToast();
   return (
     <li className="flex min-w-0 flex-wrap items-center gap-2.5 rounded-lg border border-border bg-surface-inset py-3 pl-3.5 pr-2.5">
       <Icon name="globe" size={16} className="shrink-0 text-text-secondary" />
@@ -28,12 +32,14 @@ function AddressRow({ host, href, note, badge, open, menu, cta }: {
         ) : (
           <span className="ph-sensitive ph-mask font-mono text-[14px] font-semibold text-text [overflow-wrap:anywhere]">{host}</span>
         )}
-        <span className="text-caption text-text-muted">{note}</span>
+        <span className="text-caption text-text-muted" role={securing ? "status" : undefined}>{note}</span>
       </span>
       {badge}
       {cta}
-      <CopyButton text={`https://${host}`} label="Copy" size="sm" variant="ghost" announceText="Address copied" />
+      <CopyButton text={`https://${host}`} label="Copy" size="sm" variant="ghost" announceText="Address copied"
+        onCopy={securing ? () => toast.info(SECURING_COPIED) : undefined} />
       {open && <Button variant="secondary" size="sm" iconRight="external" href={`https://${host}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${host} in a new tab`}>Open</Button>}
+      {securing && <Button variant="secondary" size="sm" iconRight="external" href={`https://${host}`} disabled title={SECURING_TEXT} aria-label={`Open ${host}: available once the address is secured`}>Open</Button>}
       {menu.length > 0 && (
         <Dropdown align="right" aria-label={`More for ${host}`} items={menu}
           trigger={<IconButton icon="more" label={`More for ${host}`} variant="ghost" size="sm" />} />
@@ -57,6 +63,7 @@ export default function DomainsSection() {
   const max = own?.max ?? 1;
   const domains = ownDomains(site.domains);
   const free = siteHost(site);
+  const freeSecuring = site.status === "live" && addressSecuring(site, false);
   const [removing, setRemoving] = useState<SiteDomain | null>(null);
   const [busy, setBusy] = useState("");
   const canAdd = isAdmin && available && domains.length < max;
@@ -104,9 +111,12 @@ export default function DomainsSection() {
           ))}
           <AddressRow
             host={free}
-            note={domains.some((d) => d.status === "live") ? "Free address · always works" : "Free address · always works, even after you add your own domain"}
-            badge={site.status === "live" ? <Badge tone="success" size="sm" dot>Live</Badge> : <Badge size="sm">Not published</Badge>}
-            open={site.status === "live"}
+            note={freeSecuring
+              ? "Free address · its certificate is on its way: usually 1–3 minutes, and it opens as soon as it's ready"
+              : domains.some((d) => d.status === "live") ? "Free address · always works" : "Free address · always works, even after you add your own domain"}
+            badge={freeSecuring ? <SecuringBadge /> : site.status === "live" ? <Badge tone="success" size="sm" dot>Live</Badge> : <Badge size="sm">Not published</Badge>}
+            open={site.status === "live" && !freeSecuring}
+            securing={freeSecuring}
             menu={isAdmin ? [{ label: "Change the free address", href: `${settingsHref(base, "general")}#address`, icon: "edit" }] : []}
           />
         </ul>

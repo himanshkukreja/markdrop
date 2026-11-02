@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from tests import _email_env as env  # noqa: F401  (pins settings first)
 
+import asyncio
 import json
 import unittest
 from unittest import mock
@@ -80,6 +81,25 @@ class CfCase(DbCase):
         p = mock.patch.object(docs_cf_hosts, "_TRANSPORT", httpx.MockTransport(self.cf.handler))
         p.start()
         self.addCleanup(p.stop)
+        # The certificate probe: hosts in self.certs serve theirs; every probe is counted.
+        self.certs: set[str] = set()
+        self.probed: list[str] = []
+
+        async def fake_probe(host: str) -> bool:
+            self.probed.append(host)
+            return host in self.certs
+
+        p = mock.patch.object(docs_cf_hosts, "_PROBE", fake_probe)
+        p.start()
+        self.addCleanup(p.stop)
+        for d in (docs_cf_hosts._probes, docs_cf_hosts._probing):
+            p = mock.patch.dict(d, clear=True)
+            p.start()
+            self.addCleanup(p.stop)
+
+    def forget_probes(self) -> None:
+        """As if PROBE_EVERY had passed since the last probe."""
+        docs_cf_hosts._probes.clear()
 
     async def cf_jobs(self, status="queued") -> list[dict]:
         return await self.db[JOBS].find({"kind": "cf_host", "status": status}).to_list(50)
@@ -206,19 +226,155 @@ class LifecycleTests(CfCase):
         site = await self.site(s)
         self.assertEqual(site["cf_host_attached"], "acme.guides.markdrop.in")
         self.assertEqual(site["cf_hosts"], ["acme.guides.markdrop.in"])
-        self.assertTrue(docs_cf_hosts.address_ready(site))
+        self.assertIsNotNone(site["cf_host_attached_at"])
+        # Attached, but its certificate isn't confirmed yet.
+        self.assertFalse(docs_cf_hosts.address_ready(site))
+        self.assertEqual(docs_cf_hosts.address_state(site), "securing")
         # The next publish doesn't call Cloudflare again.
         await self.publish(s)
         self.assertEqual(await self.cf_jobs(), [])
         self.assertEqual(len(self.cf.writes()), 1)
+        # Nor does the job again: the attach time stays the first one.
+        await docs_cf_hosts.reconcile(self.db, s["_id"])
+        self.assertEqual((await self.site(s))["cf_host_attached_at"], site["cf_host_attached_at"])
 
     async def test_site_view_says_whether_the_address_is_ready(self):
         s = await self.make_site("acme")
         view = await docs_site_store.site_view(self.db, await self.site(s), "admin")
-        self.assertFalse(view["address_ready"])
+        self.assertEqual((view["address_state"], view["address_ready"]), ("pending", False))
+        # Attached before the attach time was recorded (rows from before this): ready, never probed.
         await self.db[SITES].update_one({"_id": s["_id"]}, {"$set": {"cf_host_attached": "acme.guides.markdrop.in"}})
         view = await docs_site_store.site_view(self.db, await self.site(s), "admin")
-        self.assertTrue(view["address_ready"])
+        self.assertEqual((view["address_state"], view["address_ready"]), ("ready", True))
+        self.assertEqual(self.probed, [])
+
+
+class CertificateTests(CfCase):
+    """address_state: pending → securing (attached, the certificate not served yet) → ready."""
+
+    async def first_publish(self, slug="acme") -> dict:
+        s = await self.make_site(slug)
+        await self.make_page(s, "/a")
+        await self.go_live(s)
+        await self.run_cf()
+        return s
+
+    async def state(self, s) -> str:
+        return await docs_cf_hosts.check_address(self.db, await self.site(s))
+
+    async def test_securing_until_the_certificate_is_served_then_recorded(self):
+        s = await self.make_site("acme")
+        await self.make_page(s, "/a")
+        self.assertEqual(await self.state(s), "pending")
+        await self.go_live(s)
+        # Live, the attach still queued: securing, and nothing to probe yet.
+        self.assertEqual(await self.state(s), "securing")
+        self.assertEqual(self.probed, [])
+        await self.run_cf()
+        host = "acme.guides.markdrop.in"
+        self.assertEqual(await self.state(s), "securing")
+        self.assertEqual(self.probed, [host])
+        # Asked again at once: the last answer, no second handshake.
+        self.assertEqual(await self.state(s), "securing")
+        self.assertEqual(self.probed, [host])
+        # The certificate is out, but the cached answer stands until PROBE_EVERY has passed.
+        self.certs.add(host)
+        self.assertEqual(await self.state(s), "securing")
+        self.forget_probes()
+        self.assertEqual(await self.state(s), "ready")
+        self.assertEqual(len(self.probed), 2)
+        site = await self.site(s)
+        self.assertEqual(site["cf_host_ready"], host)
+        self.assertIsNotNone(site["cf_host_ready_at"])
+        # Recorded: never probed again, even with the cache gone and the host failing now.
+        self.certs.clear()
+        self.forget_probes()
+        self.assertEqual(await self.state(s), "ready")
+        self.assertTrue(docs_cf_hosts.address_ready(await self.site(s)))
+        self.assertEqual(len(self.probed), 2)
+
+    async def test_site_view_and_listing_carry_the_state(self):
+        s = await self.first_publish()
+        view = await docs_site_store.site_view(self.db, await self.site(s), "admin")
+        self.assertEqual((view["address_state"], view["address_ready"]), ("securing", False))
+        rows = await docs_site_store._summaries(self.db, [await self.site(s)], lambda r: "admin")
+        self.assertEqual(rows[0][0]["address_state"], "securing")
+        self.certs.add("acme.guides.markdrop.in")
+        self.forget_probes()
+        view = await docs_site_store.site_view(self.db, await self.site(s), "admin")
+        self.assertEqual((view["address_state"], view["address_ready"]), ("ready", True))
+
+    async def test_a_take_down_and_a_new_attach_confirm_the_certificate_again(self):
+        s = await self.first_publish()
+        self.certs.add("acme.guides.markdrop.in")
+        self.assertEqual(await self.state(s), "ready")
+        await docs_site_store.unpublish_site(self.db, await self.site(s))
+        await self.run_cf()
+        site = await self.site(s)
+        for k in ("cf_host_attached", "cf_host_attached_at", "cf_host_ready", "cf_host_ready_at"):
+            self.assertNotIn(k, site)
+        self.assertEqual(await self.state(s), "pending")
+        # Published again: a new attach, a new certificate.
+        self.certs.clear()
+        self.forget_probes()
+        await self.go_live(s)
+        await self.run_cf()
+        self.assertEqual(await self.state(s), "securing")
+        self.certs.add("acme.guides.markdrop.in")
+        self.forget_probes()
+        self.assertEqual(await self.state(s), "ready")
+
+    async def test_a_new_slug_is_confirmed_on_its_own(self):
+        s = await self.first_publish("old-name")
+        self.certs.add("old-name.guides.markdrop.in")
+        self.assertEqual(await self.state(s), "ready")
+        await docs_site_store.update_site(self.db, await self.site(s), name=None, slug="new-name", settings_patch=None)
+        await self.run_cf()
+        self.assertEqual(await self.state(s), "securing")
+        self.assertEqual(self.probed[-1], "new-name.guides.markdrop.in")
+        self.certs.add("new-name.guides.markdrop.in")
+        self.forget_probes()
+        self.assertEqual(await self.state(s), "ready")
+
+    async def test_an_address_never_confirmed_counts_as_ready_after_a_while(self):
+        s = await self.first_publish()
+        self.assertEqual(await self.state(s), "securing")
+        await self.db[SITES].update_one({"_id": s["_id"]}, {"$set": {
+            "cf_host_attached_at": docs_jobs.now() - docs_cf_hosts.SECURING_GIVE_UP - docs_cf_hosts.timedelta(seconds=1)}})
+        self.forget_probes()
+        n = len(self.probed)
+        self.assertEqual(await self.state(s), "ready")
+        self.assertEqual(len(self.probed), n)
+
+    async def test_a_slow_probe_doesnt_hold_the_view(self):
+        s = await self.first_publish()
+        self.certs.add("acme.guides.markdrop.in")
+        gate = asyncio.Event()
+
+        async def slow(host: str) -> bool:
+            await gate.wait()
+            return True
+
+        with mock.patch.object(docs_cf_hosts, "_PROBE", slow), mock.patch.object(docs_cf_hosts, "PROBE_WAIT", 0.05):
+            self.assertEqual(await self.state(s), "securing")  # didn't answer in time
+            self.assertEqual(await self.state(s), "securing")  # the same probe, still running
+            self.assertEqual(len(docs_cf_hosts._probing), 1)
+            gate.set()
+            await asyncio.sleep(0.01)
+            self.assertEqual(await self.state(s), "ready")  # its answer, from the cache
+
+    async def test_off_without_cloudflare(self):
+        with mock.patch.object(JS, "docs_site_host_template", "preview.example.workers.dev"):
+            s = await self.make_site("acme")
+            self.assertEqual(await self.state(s), "ready")
+        self.assertEqual(self.probed, [])
+
+    async def test_the_handshake_fails_closed(self):
+        # Nothing leaves the machine: localhost (nothing there with a trusted certificate), a refused host.
+        with mock.patch.object(docs_cf_hosts, "PROBE_TIMEOUT", 2.0):
+            self.assertFalse(await docs_cf_hosts.tls_handshake("localhost"))
+        with self.assertRaises(docs_cf_hosts.CfHostRefused):
+            await docs_cf_hosts.probe("www.markdrop.in")
 
     async def test_drop_on_unpublish_and_delete(self):
         a = await self.make_site("acme")

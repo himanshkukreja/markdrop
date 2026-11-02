@@ -3,7 +3,8 @@
 import { useEffect, useId, useState } from "react";
 import { Alert, Anchor, Badge, Button, CopyButton, Field, Icon, Input } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
-import { DOCS_HOST_SUFFIX, assetPreviewUrl, siteHost, slugAvailable, slugProblem } from "@/lib/docsSites";
+import { DOCS_HOST_SUFFIX, addressSecuring, assetPreviewUrl, siteHost, slugAvailable, slugProblem } from "@/lib/docsSites";
+import { SECURING_TEXT, SecuringBadge, SecuringNote } from "../AddressSecuring";
 import { folderLabel } from "@/lib/docsGithub";
 import { timeAgo } from "../format";
 import { LinkStatusBadge } from "../github/syncCopy";
@@ -34,6 +35,7 @@ export default function GeneralSection() {
   const guard = useLeaveGuard(nameDirty || slugDirty, nameDirty ? "the name" : "the address");
 
   const host = siteHost(site);
+  const securing = site.status === "live" && addressSecuring(site, false);
   const gh = site.github ?? null;
   const brand = site.settings.theme.brand;
   const logo = brand?.enabled ? assetPreviewUrl(site.id, brand.logo_url) : null;
@@ -96,10 +98,14 @@ export default function GeneralSection() {
           <div className="flex flex-wrap items-center gap-2.5 rounded-lg border border-border bg-surface-inset py-2.5 pl-3.5 pr-2.5">
             <Icon name="globe" size={16} className="shrink-0 text-text-secondary" />
             <code className="ph-sensitive ph-mask min-w-0 flex-[1_1_220px] font-mono text-[14px] font-semibold text-text [overflow-wrap:anywhere]">{host}</code>
+            {securing && <SecuringBadge />}
             <CopyButton text={`https://${host}`} label="Copy" size="sm" variant="ghost" />
-            {site.status === "live" && <Button size="sm" variant="secondary" iconRight="external" href={`https://${host}`} target="_blank" rel="noopener noreferrer">Open</Button>}
+            {site.status === "live" && (securing
+              ? <Button size="sm" variant="secondary" iconRight="external" href={`https://${host}`} disabled title={SECURING_TEXT} aria-label={`Open ${host}: available once the address is secured`}>Open</Button>
+              : <Button size="sm" variant="secondary" iconRight="external" href={`https://${host}`} target="_blank" rel="noopener noreferrer">Open</Button>)}
           </div>
         )}
+        {securing && !editSlug && <SecuringNote />}
         <p className="text-[13px] text-text-muted">
           Want help.yourcompany.com instead? <Anchor className="text-accent-text underline-offset-2 hover:underline" href={settingsHref(base, "domains")}>Add your own domain</Anchor>. <ReadMore topic="studioAddress" />
         </p>
