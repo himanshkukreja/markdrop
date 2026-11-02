@@ -24,6 +24,26 @@
   "next": [],
   "entries": [
     {
+      "id": "guides-export-and-self-host",
+      "date": "2026-11-02",
+      "title": "Export a guide and run it on your own server",
+      "kind": "new",
+      "area": "Markdrop Guides",
+      "products": [
+        "web"
+      ],
+      "summary": "Download any guide as a folder of Markdown and files, and serve it yourself with the open-source engine and one Docker command. No lock-in.",
+      "body": "- **Settings › Export & self-host** downloads the guide as a zip: every page as Markdown, the sidebar, theme (your custom theme included), brand, redirects, changelog, API reference and the images and files the pages use. Export the live guide or the drafts. Guides admins only.\n- **Private pages and sections** are left out by default, or exported as public pages if you choose: a self-hosted guide has no reader sign-in.\n- **One command serves it:** `docker run -p 8080:8080 -v \"$PWD/my-guide:/site:ro\" ghcr.io/himanshkukreja/markdrop-guides`. The image is built for amd64 and arm64 and published with each release. It rebuilds when a file changes and keeps the last good build if one fails.\n- **What stays with Markdrop:** the editor, reviews, Ask AI, Insights and the Fix list, private-page sign-in and GitHub sync. The export turns them off in the folder, so nothing half-works.",
+      "highlights": [
+        "MIT-licensed engine",
+        "Export the live guide or the drafts",
+        "amd64 and arm64 image"
+      ],
+      "docs": [
+        "/guides/self-hosting"
+      ]
+    },
+    {
       "id": "guides-studio-address",
       "date": "2026-11-02",
       "title": "The Guides studio has its own address: guides.markdrop.in",
