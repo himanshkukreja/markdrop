@@ -243,7 +243,7 @@ export default function GuidesLanding() {
           <div className={p.split}>
             <div className={p.copy}>
               <p className={p.eyebrow}>Private pages, free</p>
-              <h2 id="private-title" className={p.h2}>Some pages are just for some readers. Free.</h2>
+              <h2 id="private-title" className={`${p.h2} ${s.h2c}`}>Some pages are just for some readers. Free.</h2>
               <p className={p.lede}>
                 Seal a page or one section for your team, an email domain or a single customer. Everyone else sees the public docs, and so
                 does every AI tool.
@@ -264,7 +264,15 @@ export default function GuidesLanding() {
                 <More href={docs("privatePages")}>How private pages work</More>
               </div>
             </div>
-            <div className={s.env} role="img" aria-label="A sealed page, Enterprise rollout plan, readable only by people at acme.com, people at Northwind (a customer), or anyone with the password">
+            <div className={s.env} role="img" aria-label="A public docs page, and behind a seal the Enterprise rollout plan, readable only by people at acme.com, people at Northwind (a customer), or anyone with the password">
+              <div className={s.pub} aria-hidden="true">
+                <small>help.acme.com · public</small>
+                <b>Rollout overview</b>
+                <i style={{ width: "88%" }} />
+                <i style={{ width: "70%" }} />
+                <i style={{ width: "80%" }} />
+                <i style={{ width: "54%" }} />
+              </div>
               <div className={s.seal} aria-hidden="true">
                 <span className={s.lock}>
                   <Icon name="lock" size={26} />
@@ -290,7 +298,7 @@ export default function GuidesLanding() {
               <div className={p.copy}>
                 <p className={p.eyebrow}>Recorded in the product</p>
                 <h2 id="proof-title" className={`${p.h2} ${s.h2c}`}>See it for real.</h2>
-                <p className={p.lede}>Short loops of the studio and a published guide, with fictional data.</p>
+                <p className={p.lede}>Short loops of the studio and a published guide.</p>
               </div>
             }
           />
@@ -361,7 +369,7 @@ export default function GuidesLanding() {
         </SnapSection>
 
         {/* ── 8. Pricing ──────────────────────────────────────────────── */}
-        <SnapSection id="pricing" labelledBy="pricing-title" className={`${s.sec} ${s.tall}`}>
+        <SnapSection id="pricing" labelledBy="pricing-title" className={s.sec}>
           <div className={s.headRow}>
             <Head
               eyebrow="Pricing"
@@ -424,7 +432,7 @@ export default function GuidesLanding() {
         <SnapSection id="start" labelledBy="start-title" className={s.sec}>
           <div className={s.close}>
             <h2 id="start-title" className={s.closeH}>
-              Fewer drop-offs, every week.
+              Fewer <span className={s.dropWord}>drop</span>-offs, every week.
             </h2>
             <p className={p.lede}>Bring your docs from GitBook, Mintlify, Docusaurus, MkDocs or GitHub. Free while in beta.</p>
             <div className={s.ctas}>

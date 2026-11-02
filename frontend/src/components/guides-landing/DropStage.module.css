@@ -209,6 +209,14 @@
   }
 }
 
+@media (max-width: 1023px) {
+  .sec {
+    height: auto;
+    min-height: 60px;
+    padding-block: 8px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .drop {
     animation: none;

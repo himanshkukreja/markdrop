@@ -120,7 +120,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px 24px;
+  gap: 12px 16px;
   margin-top: 24px;
 }
 
@@ -427,7 +427,7 @@
 
 @media (min-width: 1024px) {
   .grid {
-    grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
     gap: clamp(32px, 4vw, 72px);
     align-items: center;
   }
@@ -467,6 +467,7 @@
   .note {
     position: absolute;
     left: calc(var(--aw) - 230px);
+    top: var(--ny, 214px);
     width: 230px;
     margin: 0;
     z-index: 3;

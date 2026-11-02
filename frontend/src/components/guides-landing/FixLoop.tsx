@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { guideEvents } from "@/lib/guidesEvents";
 import f from "./FixLoop.module.css";
 
@@ -15,7 +15,7 @@ import f from "./FixLoop.module.css";
 
 const STEPS = [
   { title: "Readers leave here", body: "42% of 310 readers stop at one section" },
-  { title: "Guides drafts a fix", body: "Written from the evidence, offered as a suggestion" },
+  { title: "Guides drafts a fix", body: "Written from the evidence, as a suggestion" },
   { title: "You accept it", body: "Keep editing, or discard it" },
   { title: "Fixed on publish", body: "The item closes when the page goes live" },
 ];
@@ -164,7 +164,7 @@ export default function FixLoop({ actions }: { actions?: ReactNode }) {
               </div>
             </div>
 
-            <div key={step} className={f.note} style={{ top: note.y }} aria-live="polite">
+            <div key={step} className={f.note} style={{ "--ny": `${note.y}px` } as CSSProperties} aria-live="polite">
               <b>{note.title}</b>
               {note.body}
               <small>{note.meta}</small>

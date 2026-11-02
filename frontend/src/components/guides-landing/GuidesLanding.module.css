@@ -176,6 +176,11 @@
   border-radius: 28px;
   background: var(--logo-ground);
 }
+/* Dark: the devices keep an edge against the dark mat. */
+:global([data-theme="dark"]) .lid,
+:global([data-theme="dark"]) .phone {
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
 .phoneScreen {
   position: relative;
   display: flex;
@@ -308,9 +313,42 @@
   padding: 48px 20px;
   border-radius: 24px;
 }
+/* The public page everyone sees, behind the sealed one. */
+.pub {
+  position: absolute;
+  left: 6%;
+  top: 9%;
+  width: min(62%, 340px);
+  padding: 20px 22px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  opacity: 0.85;
+  transform: rotate(3deg);
+}
+.pub small {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.pub b {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+.pub i {
+  display: block;
+  height: 6px;
+  margin-top: 10px;
+  border-radius: 3px;
+  background: var(--surface-inset);
+}
 .seal {
   position: relative;
   width: min(100%, 380px);
+  margin: 44px auto 0;
   padding: 28px 26px 24px;
   border-radius: 6px;
   background: var(--surface-raised);
@@ -367,9 +405,29 @@
     min-height: min(440px, var(--snap-usable, 440px));
     border-radius: 32px;
   }
+  .pub {
+    left: 8%;
+    top: 14%;
+  }
   .seal {
-    width: 400px;
-    padding: 32px 30px 28px;
+    width: min(78%, 460px);
+    margin: 70px 0 0 18%;
+    padding: 34px 32px 30px;
+  }
+  .seal b {
+    font-size: 20px;
+  }
+  .seal i {
+    height: 8px;
+    margin-top: 13px;
+  }
+  .who span {
+    height: 30px;
+    font-size: 13.5px;
+  }
+  .lock {
+    width: 68px;
+    height: 68px;
   }
 }
 
@@ -464,6 +522,21 @@
   font-size: 0.9em;
   font-weight: 600;
   color: var(--text);
+}
+@media (max-width: 639px) {
+  .log {
+    font-size: 12.5px;
+  }
+  .log li {
+    grid-template-columns: 10ch minmax(0, 1fr);
+    gap: 0 8px;
+  }
+  .log li em {
+    grid-column: 2;
+  }
+  .log li span {
+    white-space: normal;
+  }
 }
 @media (min-width: 640px) {
   .ai {
@@ -902,6 +975,21 @@
   letter-spacing: -0.05em;
   color: var(--text);
   text-wrap: balance;
+}
+.dropWord {
+  position: relative;
+  color: var(--accent-text);
+}
+.dropWord::after {
+  content: "";
+  position: absolute;
+  right: 0.02em;
+  top: -0.12em;
+  width: 0.17em;
+  height: 0.17em;
+  border-radius: 50% 0 50% 50%;
+  background: var(--logo-dot);
+  transform: rotate(-45deg);
 }
 .close > p {
   margin: 0;
