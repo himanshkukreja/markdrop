@@ -4,9 +4,11 @@ import { SiteFooter } from "@/components/shell/SiteFooter";
 import FeedbackWidget from "@/components/FeedbackWidget";
 import { docsUrl } from "@/components/shell/links";
 import { DOCS_PAGES } from "@/lib/docsLinks";
-import { Icon, StudioGlyph } from "@/components/landing/orbit/ds";
+import { Icon } from "@/components/landing/orbit/ds";
 import TrailerButton, { type Trailer } from "@/components/landing/docs-studio/TrailerButton";
-import FixListDemo from "./FixListDemo";
+import GuidesHero from "./GuidesHero";
+import LoopVideo from "./LoopVideo";
+import { LOOPS } from "./loops";
 import LandingTracker from "./LandingTracker";
 import {
   BETA_PLAN, COMPARED_LABEL, COMPARED_ON, COMPARISON, COMPARISON_NOTES, FAQS, PLANNED_PLANS, PRICING_RULES,
@@ -18,9 +20,9 @@ import s from "./GuidesLanding.module.css";
 /**
  * The Markdrop Guides landing page: markdrop.in/guides, the same page for everyone, signed in or
  * not (the studio is on guides.markdrop.in). A server component with no request data, so the page is static: the copy,
- * the comparison, the pricing and the FAQ are server HTML. Islands: the hero's Fix list sample
- * (FixListDemo), the tour button (TrailerButton, the player loads on click) and the analytics
- * listener (LandingTracker). The live calculator is a sandboxed frame (public/guides-demo, with
+ * the comparison, the pricing and the FAQ are server HTML. Islands: the short looping product clips
+ * (LoopVideo: the hero's laptop and cards, and a few sections; GuidesHero has the hero), the tour
+ * button (TrailerButton, the player loads on click) and the analytics listener (LandingTracker). The live calculator is a sandboxed frame (public/guides-demo, with
  * the sandbox repeated as a response header in next.config.ts).
  *
  * Every "start" link goes to the studio (StartLink: a new guide on guides.markdrop.in, which signs
@@ -190,35 +192,15 @@ export default function GuidesLanding() {
         <SiteHeader variant="marketing" />
         <main id="main" tabIndex={-1} className={s.main}>
           {/* ── Hero ─────────────────────────────────────────────────── */}
-          <section id="hero" aria-labelledby="hero-title" className={s.hero}>
-            <div className={s.heroBg} aria-hidden="true" />
-            <div className={`${s.wrap} ${s.heroGrid}`}>
-              <div className={s.heroText}>
-                <p className={s.badge}><StudioGlyph size={14} />Markdrop Guides<span className={s.beta}>Free in beta</span></p>
-                <h1 id="hero-title" className={s.h1}>Docs that show you what to fix next.</h1>
-                <p className={s.sub}>
-                  Markdrop Guides builds and hosts your help center, product guides and API docs, free while in beta. It watches
-                  how people and AI agents read them, ranks what to fix, and drafts each fix for you to review.
-                </p>
-                <div className={s.ctas}>
-                  <StartLink cta="start" className={`md-btn md-btn--lg ${s.primary}`}>
-                    Start a guide free
-                    <Icon name="arrowRight" size={16} />
-                  </StartLink>
-                  <TrailerButton trailer={TRAILER} className={`md-btn md-btn--secondary md-btn--lg ${s.tour}`} label="Watch the 2-minute tour" />
-                </div>
-                <ul className={s.proof} aria-label="Also in Markdrop Guides">
-                  <li><Icon name="lock" size={15} /><a href="#private-pages">Private pages, free</a></li>
-                  <li><Icon name="play" size={15} /><a href="#live-demos">Live demos, video and PDFs in your docs</a></li>
-                  <li><Icon name="download" size={15} /><a href="#import">Import from GitBook, Mintlify or GitHub</a></li>
-                </ul>
-              </div>
-              <div className={s.heroDemo}>
-                <FixListDemo />
-                <p className={s.cap}>A working sample with fictional data. Choose an item, then Draft a fix.</p>
-              </div>
-            </div>
-          </section>
+          <GuidesHero
+            primary={
+              <StartLink cta="start" className={`md-btn md-btn--lg ${s.primary}`}>
+                Start a guide free
+                <Icon name="arrowRight" size={16} />
+              </StartLink>
+            }
+            secondary={<TrailerButton trailer={TRAILER} className={`md-btn md-btn--secondary md-btn--lg ${s.tour}`} label="Watch the 2-minute tour" />}
+          />
 
           {/* ── The Fix list ─────────────────────────────────────────── */}
           <section id="fix-list" aria-labelledby="fix-title" className={s.section}>
@@ -266,13 +248,8 @@ export default function GuidesLanding() {
               </ol>
               <div className={s.pair}>
                 <figure className={s.figure}>
-                  <Shot
-                    src="/docs-assets/guides/fix-list/fixlist-editor.webp"
-                    alt="The editor with a drafted fix offered as a suggestion over the Install the CLI section, with Accept and Discard."
-                    w={1592}
-                    h={1490}
-                  />
-                  <figcaption>A drafted fix opens in the editor as a suggestion.</figcaption>
+                  <LoopVideo {...LOOPS.editorFix} dark className={s.loopFrame} />
+                  <figcaption>A drafted fix opens in the editor as a suggestion: Accept, then publish.</figcaption>
                 </figure>
                 <figure className={s.figure}>
                   <Shot
@@ -391,23 +368,19 @@ export default function GuidesLanding() {
                     </span>
                   </li>
                 </ul>
-                <div className={s.lockDemo} aria-label="What readers see: a locked section and the same section for a Northwind reader" role="group">
-                  <div className={s.lockCard}>
-                    <span className={s.lockIco} aria-hidden><Icon name="lock" size={16} /></span>
-                    <span className={s.lockText}>
-                      <strong>Northwind tenant values</strong>
-                      <span>Only people at Northwind can open this. Sign in with your work email.</span>
-                    </span>
-                    <span className={s.lockBtn} aria-hidden="true"><Icon name="mail" size={13} />Sign in with email</span>
+                <figure className={s.figure}>
+                  <div className={s.window}>
+                    <div className={s.chrome} aria-hidden="true">
+                      <span className={s.dots}><i /><i /><i /></span>
+                      <span className={s.addr}><Icon name="lock" size={11} /><span><span className={s.mu}>help.acme.com/</span>single-sign-on</span></span>
+                    </div>
+                    <LoopVideo {...LOOPS.private} dark />
                   </div>
-                  <div className={s.lockArrow} aria-hidden="true"><Icon name="arrowDown" size={16} />jane@northwind.com signs in</div>
-                  <div className={s.openCard}>
-                    <span className={s.openEb}><Icon name="lock" size={12} />Only Northwind</span>
-                    <strong>Northwind tenant values</strong>
-                    <span>Use the entity id <code>urn:acme:northwind-prod-4471</code> and the reply address from your onboarding email.</span>
-                  </div>
-                  <p className={s.cap}>A drawing of the reader&apos;s view, with fictional data.</p>
-                </div>
+                  <figcaption>
+                    jane@northwind.com signs in with an emailed link, and the Northwind section of a public page opens for her. Recorded in a
+                    published guide, with fictional data.
+                  </figcaption>
+                </figure>
               </div>
               {PRIVATE_PAGES_LIVE && (
                 <figure className={`${s.figure} ${s.privShot}`}>
@@ -459,6 +432,17 @@ export default function GuidesLanding() {
                 title="Move from GitBook, Mintlify or GitHub in minutes."
                 lead="Bring your pages, sidebar, images and old links across, then check a report of anything that needs a look before you publish. Your old site isn't touched."
               />
+              <div className={s.moveGrid}>
+              <figure className={`${s.figure} ${s.moveFig}`}>
+                <div className={s.window}>
+                  <div className={s.chrome} aria-hidden="true">
+                    <span className={s.dots}><i /><i /><i /></span>
+                    <span className={s.addr}><Icon name="lock" size={11} /><span><span className={s.mu}>markdrop.in/</span>guides/new</span></span>
+                  </div>
+                  <LoopVideo {...LOOPS.import} />
+                </div>
+                <figcaption>A GitBook import: the navigation, pages and images come across as drafts, sped up.</figcaption>
+              </figure>
               <div className={s.moves}>
                 <article className={s.move}>
                   <h3 className={s.h3}>From GitBook</h3>
@@ -478,6 +462,7 @@ export default function GuidesLanding() {
                   <p>Upload an OpenAPI 3.0 or 3.1 file and every endpoint gets a page with code samples and Try it.</p>
                   <StartLink path={`${NEW_GUIDE}?start=openapi`} cta="start" className={s.moveLink}>Start an API reference<Icon name="arrowRight" size={14} /></StartLink>
                 </article>
+              </div>
               </div>
             </div>
           </section>
