@@ -1,0 +1,231 @@
+/*
+ * The hero's drop visual (DropStage.tsx). It fills DropHero's slot: from 1024px a fixed 812 × 486
+ * artboard area (DropHero scales the whole hero), under it a stacked column. Tokens only.
+ * Motion is CSS only; prefers-reduced-motion parks the drops (stayers along the lane, leavers in the
+ * puddle) and stills the puddle.
+ */
+
+.stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ── The page ───────────────────────────────────────────────────────── */
+
+.pageWrap {
+  position: relative;
+  padding-left: 44px;
+}
+.page {
+  position: relative;
+  padding: 18px 20px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  box-shadow: 0 22px 36px -16px color-mix(in srgb, var(--text) 30%, transparent);
+}
+.crumb {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.h {
+  margin: 4px 0 8px;
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.sec {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  gap: 12px;
+  align-items: center;
+  height: 60px;
+  padding: 0 12px;
+  border-radius: 8px;
+}
+.sec b {
+  display: block;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--text);
+}
+.sec small {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+.pct {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: right;
+  color: var(--text-secondary);
+}
+.hot {
+  background: var(--danger-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 35%, transparent);
+}
+.hot small,
+.hot .pct {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* ── The lane of drops ──────────────────────────────────────────────── */
+
+.lane {
+  position: absolute;
+  left: 10px;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+}
+.lane::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  margin-left: -1px;
+  background: repeating-linear-gradient(var(--border-strong) 0 6px, transparent 6px 12px);
+}
+.drop {
+  position: absolute;
+  left: calc(50% + var(--x));
+  top: 0;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  border-radius: 50% 0 50% 50%;
+  background: var(--accent);
+  rotate: -45deg;
+  opacity: 0;
+  animation: dropStay 5.4s linear var(--delay) infinite;
+}
+.leave {
+  background: var(--danger-fill);
+  animation-name: dropLeaveSm;
+}
+@keyframes dropStay {
+  0% { top: 4px; opacity: 0; }
+  6% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: calc(100% - 16px); opacity: 0; }
+}
+/* Phones: leavers turn away at the hot section and fade. */
+@keyframes dropLeaveSm {
+  0% { top: 4px; opacity: 0; translate: 0 0; }
+  6% { opacity: 1; }
+  33% { top: 166px; translate: 0 0; }
+  55% { top: 196px; translate: -30px 0; opacity: 0; }
+  100% { top: 196px; translate: -30px 0; opacity: 0; }
+}
+
+/* ── The puddle ─────────────────────────────────────────────────────── */
+
+.pool {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.puddle {
+  flex: none;
+  width: 120px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--danger-fill) 60%, transparent), color-mix(in srgb, var(--danger-fill) 12%, transparent));
+  animation: puddleRipple 2.6s ease-in-out infinite;
+}
+@keyframes puddleRipple {
+  50% { transform: scaleX(1.06); }
+}
+.poolLabel {
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 800;
+  color: var(--text);
+}
+.poolLabel small {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* ── From 1024px: the artboard (812 × 486, inside the scaled hero) ──── */
+
+@media (min-width: 1024px) {
+  .stage {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+  .pageWrap {
+    position: absolute;
+    right: 24px;
+    top: 22px;
+    width: 516px;
+    padding-left: 56px;
+  }
+  .lane {
+    left: 16px;
+  }
+  .leave {
+    animation-name: dropLeave;
+  }
+  /* Leavers fall to "Install the CLI" (170px down the page), then off to the puddle (162px left). */
+  @keyframes dropLeave {
+    0% { top: 4px; opacity: 0; translate: 0 0; }
+    6% { opacity: 1; }
+    33% { top: 166px; translate: 0 0; }
+    46% { top: 206px; translate: -44px 0; }
+    94% { top: 366px; translate: -162px 0; opacity: 1; }
+    100% { top: 369px; translate: -162px 0; opacity: 0; }
+  }
+  .pool {
+    position: absolute;
+    left: 28px;
+    bottom: 28px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .puddle {
+    width: 220px;
+    height: 34px;
+  }
+  .poolLabel {
+    max-width: 240px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drop {
+    animation: none;
+    opacity: 1;
+    top: var(--rest);
+  }
+  .leave {
+    display: none;
+  }
+  .puddle {
+    animation: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) and (min-width: 1024px) {
+  .leave {
+    display: block;
+    top: 365px;
+    translate: calc(-162px + var(--px)) 0;
+  }
+}

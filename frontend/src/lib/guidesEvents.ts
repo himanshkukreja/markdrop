@@ -56,8 +56,8 @@
  *   guide_landing_cta             id: start|open|tour|pillar|docs|compare|pricing (open: "Open your guides",
  *                                 signed in), section: the <section> id,
  *                                 pillar?: fix_list|private_pages|live_demos (a pillar card's own button)
- *   guide_landing_demo            step: item|drafted|published (the hero's Fix list sample),
- *                                 or step: used (the live calculator)
+ *   guide_landing_demo            step: item|drafted (the hero's Fix list sample: an item chosen,
+ *                                 Open in editor), published (the fix loop's "Fixed on publish")
  *   guide_created                 + pillar, when the guide came from a pillar button in this tab
  *
  * What finishes on the server (a build going live or failing, an import finishing or failing) is
@@ -109,7 +109,7 @@ export const guideEvents = {
     if (p) rememberLandingPillar(p);
     emit("guide_landing_cta", { id: pick(id, LANDING_CTAS) ?? "other", section: section.slice(0, 40), ...(p ? { pillar: p } : {}) });
   },
-  landingDemo: (step: "item" | "drafted" | "published" | "used") => emit("guide_landing_demo", { step }),
+  landingDemo: (step: "item" | "drafted" | "published") => emit("guide_landing_demo", { step }),
   siteUpdated(patch: SitePatchLike) {
     for (const [n, p] of sitePatchEvents(patch)) emit(n, p);
   },

@@ -98,6 +98,15 @@ export const COMPARISON: Row[] = [
   },
 ];
 
+/** The rows the landing shows before "Show all", in this order (labels from COMPARISON). */
+export const COMPARE_TOP = [
+  "What to fix next",
+  "Private pages for readers",
+  "Reader analytics",
+  "Uploaded video plays in the page",
+  "Paid plans",
+] as const;
+
 export const COMPARISON_NOTES: Array<{ text: string; href: string; label: string }> = [
   { text: "GitBook prices are per site per month on yearly billing; monthly billing is $79 / $299 per site and $15 per user.", href: SRC.gitbookPlans, label: "GitBook plans" },
   { text: "GitBook's AI and Mintlify's AI both run on monthly credits; GitBook pauses at the limit, Mintlify bills overage.", href: SRC.mintlifyPricing, label: "Mintlify pricing" },
@@ -181,16 +190,11 @@ export const PRICING_RULES = [
   "Join during the beta and your price won't change for 12 months after paid plans start.",
 ];
 
-/** Host it yourself (the compare section): the open-source engine and the published image (docs: guides/self-hosting). */
-export const SELF_HOST_REPO = "https://github.com/himanshkukreja/markdrop/tree/main/docs-platform";
-export const SELF_HOST_COMMAND = `docker run -p 8080:8080 \\
-  -v "$PWD/my-guide:/site:ro" \\
-  ghcr.io/himanshkukreja/markdrop-guides`;
-
 export type Faq = { q: string; a: string; links?: Array<{ label: string; href: string }> };
 
 const DOCS = "https://docs.markdrop.in";
 
+/** The landing's six questions (the full FAQ is docs.markdrop.in/guides/faq). */
 export const FAQS: Faq[] = [
   {
     q: "Is it really free? What happens after the beta?",
@@ -218,16 +222,6 @@ export const FAQS: Faq[] = [
     q: "Do I have to write Markdown or use Git?",
     a: "Neither. Write in a visual editor with a slash menu for callouts, steps, tabs and code, or switch a page to Markdown. If your docs already live in a GitHub repository, connect it and every push updates the guide.",
     links: [{ label: "The editor", href: `${DOCS}/guides/editor` }],
-  },
-  {
-    q: "Can I use my own domain?",
-    a: "Yes, free. Add a subdomain like help.yourcompany.com and one CNAME record; with Cloudflare and other supported providers, Connect adds the record in one click. The certificate is handled for you, and the free yourname.guides.markdrop.in address keeps working.",
-    links: [{ label: "Use your own domain", href: `${DOCS}/guides/custom-domain` }],
-  },
-  {
-    q: "Is a guide good for SEO, and can AI assistants read it?",
-    a: "Guides are fast static sites with a sitemap, a preview card for every page and a switch to keep a guide out of search engines. For AI tools every guide serves Markdown versions of its pages, llms.txt and an MCP server, and the Fix list shows which assistants read your docs and where they get stuck.",
-    links: [{ label: "What readers get", href: `${DOCS}/guides/what-readers-get` }],
   },
   {
     q: "Do you track my readers?",
