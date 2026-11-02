@@ -649,10 +649,13 @@ async function runShot(browser, shot, theme, fx, manifest, videosJson) {
     const u = new URL(route.request().url());
     // Only http(s) can reach the network; chrome-extension:// (the PDF viewer), blob: and data: stay.
     const studio = u.hostname.endsWith(SITES_SUFFIX) && u.port === String(PORTS.sites);
-    if (!/^https?:$/.test(u.protocol) || LOCAL_HOSTS.has(u.hostname) || studio || CDN.test(u.hostname)) return route.continue();
+    // *.localhost is always this machine (a guide served at <slug>.guides.localhost, a secure context for its reader sign-in).
+    const loopback = LOCAL_HOSTS.has(u.hostname) || u.hostname.endsWith(".localhost");
+    if (!/^https?:$/.test(u.protocol) || loopback || studio || CDN.test(u.hostname)) return route.continue();
     return route.abort("blockedbyclient");
   });
-  await context.clock.install({ time: new Date(fx.demo_now) });
+  // realClock: the browser keeps the real time (rows made after the seed, like a guide's embedded files).
+  if (!shot.realClock) await context.clock.install({ time: new Date(fx.demo_now) });
   await context.addInitScript(initScript, { token, theme, cursor: recording, scrub: shot.scrub !== false, ports: PORTS });
   const page = await context.newPage();
   page.on("pageerror", (e) => console.log(`  · page error: ${String(e.message).slice(0, 160)}`));

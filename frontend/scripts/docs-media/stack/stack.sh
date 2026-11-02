@@ -175,7 +175,11 @@ cmd_start() {
     fi
     [ -f "$PLATFORM/edge/dist/handler.mjs" ] || (cd "$PLATFORM" && node builder/cli.mjs bundle >"$LOGS/sites-bundle.log" 2>&1)
     mkdir -p "$DATA/docs-store"
-    start_bg sites "$LOGS/sites.log" node "$PLATFORM/server/server.mjs" serve --store "$DATA/docs-store" --port $SITES_PORT
+    # Private pages: the site server checks reader sign-ins with the API's secret (stack/.env
+    # MARKDROP_DOCS_ACCESS_SECRET; empty = private pages stay locked for everyone).
+    DOCS_ACCESS_SECRET="$(env_value MARKDROP_DOCS_ACCESS_SECRET)" MARKDROP_API_ORIGIN="http://127.0.0.1:$API_PORT" \
+      MARKDROP_APP_ORIGIN="http://localhost:$NEXT_PORT" \
+      start_bg sites "$LOGS/sites.log" node "$PLATFORM/server/server.mjs" serve --store "$DATA/docs-store" --port $SITES_PORT
     wait_port $SITES_PORT 20 "Markdrop Guides sites" && echo "  ✓ Markdrop Guides sites http://<slug>.guides.markdrop.in:$SITES_PORT (capture browser)"
   fi
 
