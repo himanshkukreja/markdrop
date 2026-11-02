@@ -1,11 +1,13 @@
 ---
 title: Send files peer to peer
 description: Send files of any size straight from your device to someone else's, encrypted, with nothing stored on Markdrop's servers. No account needed.
-updated: 2026-10-30
+updated: 2026-11-02
 keywords: [p2p, peer to peer, send file, transfer, webrtc, large file, airdrop, share link, qr code]
 ---
 
 Send lets you hand files straight to someone else's device. You drop files, share a link, and they stream from your device to theirs, encrypted, with no copy left on any server. Neither of you needs an account.
+
+::video{id="series-10-p2p-share" title="Send files straight to another device, with nothing stored on a server" duration="1:23"}
 
 It's different from [publishing a file](/get-started/first-file): a published file lives on Markdrop and anyone with access can open it later. A peer-to-peer transfer exists only while your tab is open.
 
@@ -76,7 +78,3 @@ Markdrop's server introduces the two devices to each other. It keeps the name, t
 :::note
 Files inside a folder you drop are sent as separate files. Between two browsers, the folder structure isn't kept. Between two CLIs, a folder arrives as a folder.
 :::
-
-## Watch it once
-
-::video{id="send-files-p2p" title="Send a file from a laptop to a phone" duration="0:31"}

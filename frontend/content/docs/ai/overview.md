@@ -2,11 +2,13 @@
 title: Use Markdrop from an AI app
 nav: Overview
 description: Connect Claude, ChatGPT, Cursor or VS Code to Markdrop so your assistant can publish, read and update documents and files as links.
-updated: 2026-10-30
+updated: 2026-11-02
 keywords: [ai, mcp, model context protocol, claude, chatgpt, cursor, copilot, assistant, agent, connector]
 ---
 
 Markdrop speaks the Model Context Protocol (MCP), the standard AI apps use to call outside tools. Once connected, you can say "turn these notes into a Markdrop doc and give me the link" and your assistant publishes it, or "make my Q3 report private" and it changes the access.
+
+::video{id="series-09-ai-apps-and-cli" title="Let your AI app publish to Markdrop, and use the CLI for big files" duration="1:29"}
 
 There are two Markdrop servers. Which one you add depends on where your AI app runs and what you want it to do.
 

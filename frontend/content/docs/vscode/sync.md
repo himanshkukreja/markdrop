@@ -2,14 +2,14 @@
 title: Publish and sync from VS Code
 nav: Publish and sync
 description: Install Markdrop Sync, publish a Markdown or HTML file from VS Code, and keep it in two-way sync with its markdrop.in link.
-updated: 2026-10-30
+updated: 2026-11-02
 prerequisites: [/get-started/accounts]
 keywords: [vs code, vscode, extension, markdrop sync, publish, push on save, two-way sync, markdown, html, .markdrop.json]
 ---
 
 The Markdrop Sync extension publishes the file you're editing in VS Code and keeps it in step with its link. Save the file and the link updates; edit it on markdrop.in and the change comes back into your file.
 
-::video{id="vscode-sync" title="Publish from VS Code and watch an edit come back" duration="0:40"}
+::video{id="series-08-vscode-sync" title="Publish from VS Code, and keep the page in sync both ways" duration="1:20"}
 
 ## Install the extension
 

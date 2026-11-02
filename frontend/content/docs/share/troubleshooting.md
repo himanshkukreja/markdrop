@@ -1,7 +1,7 @@
 ---
 title: Troubleshooting peer-to-peer transfers
 description: What each message means when a transfer doesn't start, stops partway or runs slowly, and what to try.
-updated: 2026-10-30
+updated: 2026-11-02
 prerequisites: [/share/send-files]
 keywords: [p2p, transfer failed, couldn't connect, vpn, firewall, relay, slow transfer, link not active, wifi]
 ---
@@ -64,6 +64,10 @@ There's no size limit, but a browser holds each incoming file in memory until it
 
 - On an iPhone, Markdrop warns you when the total is large: download a few files at a time.
 - To receive something really large, use the [Markdrop CLI](/cli/send-and-receive). It writes straight to disk, so it has no size limit.
+
+Here's a transfer to a phone from start to finish, including saving to Photos on an iPhone:
+
+::video{id="send-files-p2p" title="Send a file from a laptop to a phone" duration="0:31"}
 
 ## Before you share
 

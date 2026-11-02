@@ -1,12 +1,14 @@
 ---
 title: Supported file types
 description: Every file type Markdrop renders, from HTML pages and PDFs to spreadsheets, Word documents, images, video, audio and zipped sites.
-updated: 2026-10-30
+updated: 2026-11-02
 prerequisites: [/get-started/first-file]
 keywords: [file types, formats, pdf, xlsx, csv, docx, html, svg, mp4, mov, zip, artifacts]
 ---
 
 Each file you upload opens in a viewer made for its type, so readers see the content rather than a download prompt. This page lists what Markdrop accepts and what readers get for each.
+
+::video{id="series-03-files-that-render" title="Share HTML pages, PDFs, spreadsheets and video as links that open in the browser" duration="1:26"}
 
 ## The full list
 

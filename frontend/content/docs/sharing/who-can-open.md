@@ -1,13 +1,13 @@
 ---
 title: Who can open what
 description: Every document and file is open to anyone with the link, only people added, or a workspace team. Here is how each choice works with passwords and sign-in.
-updated: 2026-11-01
+updated: 2026-11-02
 keywords: [access, permissions, private, public, team, who can see, visibility, access level]
 ---
 
 Every document and file has one setting that decides who can open it: **Who can open it**. It has three choices. Passwords, encryption and named people work on top of that setting, and this page explains how they fit together.
 
-::video{id="who-can-open" title="Who can open what" duration="0:50"}
+::video{id="series-04-share-with-control" title="Choose exactly who can open a link: people, your team, passwords and expiry" duration="1:16"}
 
 ## The three choices
 

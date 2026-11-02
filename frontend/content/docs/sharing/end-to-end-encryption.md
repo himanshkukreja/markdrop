@@ -1,7 +1,7 @@
 ---
 title: End-to-end encryption
 description: Encrypt a document in your browser before it's published, with an optional password. Our servers store only the encrypted text and never receive the key.
-updated: 2026-11-01
+updated: 2026-11-02
 keywords: [e2e, encryption, encrypt, aes-gcm, aes-256, zero knowledge, key, fragment, password, pbkdf2, hkdf, privacy, recovery]
 anchors:
   edit-and-change-the-key: issue-a-new-key-or-change-the-password
@@ -11,7 +11,7 @@ Encrypted in your browser. Our servers store only the encrypted text and never r
 
 Turn on encryption and your browser encrypts the document's title and text before anything is sent. You can also require a password, so readers need the link *and* the password. Either way, the trade-off is plain: **the link is the key**. Share it like you'd share the document itself, and keep a copy.
 
-::video{id="encrypt-a-document" title="Encrypt a document in your browser" duration="0:49"}
+::video{id="series-05-end-to-end-encryption" title="Encrypt a document in your browser: the key never reaches our servers" duration="1:18"}
 
 ## Encrypt a document
 

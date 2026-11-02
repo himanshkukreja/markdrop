@@ -1,13 +1,15 @@
 ---
 title: Create a workspace
 description: A workspace holds your team, folders, domains and branding. Create one, add files and invite people.
-updated: 2026-10-30
+updated: 2026-11-02
 keywords: [workspace, team, organization, new workspace]
 ---
 
 A workspace is a shared home for a team's documents and files. It holds the people you invite, the folders you file things into, your own domains like `docs.acme.com`, and your logo and colours.
 
 Documents you publish outside a workspace keep working exactly as they do now. Nothing moves into a workspace until you put it there.
+
+::video{id="series-06-workspaces-and-domains" title="A shared library for your team, on your own domain" duration="1:16"}
 
 :::note[Before you start]
 You need a Markdrop account. You can own up to 10 workspaces, and be a member of others that people invite you to.

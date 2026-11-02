@@ -1,7 +1,7 @@
 ---
 title: Workspace privacy
 description: Choose Open, Team or Locked for a workspace, and check what someone else would see with Preview as.
-updated: 2026-10-30
+updated: 2026-11-02
 prerequisites: [/workspaces/create, /sharing/who-can-open]
 keywords: [privacy, open, team, locked, custom, sign in, require sign-in, default access, preview as]
 ---
@@ -35,6 +35,10 @@ In a Locked workspace, sign-in is enforced on every address an item has, includi
 - **Anyone with the link**: anyone who has the link, unless the workspace is Locked. A password, if the item has one, still applies.
 
 To change one item, choose the who-can-open button on its row in the workspace, the one that shows its current setting, like **Acme team**. On a phone, open the item's menu and choose **Who can open it**.
+
+This short explainer shows the three choices, what passwords and named people add, and how a Locked workspace asks for sign-in on every address an item has:
+
+::video{id="who-can-open" title="Who can open what" duration="0:50"}
 
 ## The switches behind the presets
 

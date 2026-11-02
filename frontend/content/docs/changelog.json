@@ -793,6 +793,9 @@
       ],
       "summary": "Encrypt a document in your browser so Markdrop stores only ciphertext and the key lives in the link.",
       "body": "Turn on encryption when you publish and the document is encrypted in your browser with AES-256-GCM before it is sent. The key is part of the link after `#k=`, which browsers never send to a server, so Markdrop can't read the document.\n\nAnyone with the full link can read it; anyone without the key part can't, including Markdrop and AI apps.",
+      "media": {
+        "video": "encrypt-a-document"
+      },
       "docs": [
         "/sharing/end-to-end-encryption",
         "/security/how-files-are-served"

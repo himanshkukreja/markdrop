@@ -1,11 +1,13 @@
 ---
 title: Write and format documents
 description: Markdrop renders GitHub-flavoured Markdown with tables, task lists, highlighted code, KaTeX math and Mermaid diagrams.
-updated: 2026-10-30
+updated: 2026-11-02
 keywords: [markdown, gfm, mermaid, katex, math, diagrams, tables, code, editor]
 ---
 
 A Markdrop document is Markdown. You write it at [markdrop.in/new](https://markdrop.in/new), paste it from an AI assistant, or publish it from VS Code, and readers get a formatted page. This page covers what the renderer supports and how the editor helps.
+
+::video{id="series-02-publish-documents" title="Publish a Markdown document as a link, in under a minute" duration="1:31"}
 
 ## What renders
 

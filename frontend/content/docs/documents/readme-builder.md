@@ -1,13 +1,13 @@
 ---
 title: Build a README
 description: Assemble a README from 49 ready-made sections, reorder them, see it render, then copy, download or publish it.
-updated: 2026-11-01
+updated: 2026-11-02
 keywords: [readme, builder, template, github profile, sections, readme.md]
 ---
 
 The README builder at [markdrop.in/builder](https://markdrop.in/builder) puts a README together from ready-made sections: a title, badges, installation steps, a feature list, a license. You fill in the blanks, drag the sections into order, and watch the result render. Then you copy the Markdown, download `README.md`, or publish it as a Markdrop link. No account needed.
 
-::video{id="readme-builder" title="Build a README" duration="0:39"}
+::video{id="series-11-readme-builder" title="Build a README from 49 ready-made sections, diagrams included" duration="1:12"}
 
 ## Build it
 

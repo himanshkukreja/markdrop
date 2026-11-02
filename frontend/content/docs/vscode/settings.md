@@ -2,7 +2,7 @@
 title: VS Code settings and commands
 nav: Settings and commands
 description: "Every Markdrop Sync command and setting, with defaults: push on save, automatic pull, how often it checks, and the server addresses."
-updated: 2026-10-30
+updated: 2026-11-02
 prerequisites: [/vscode/sync]
 keywords: [settings, pushOnSave, autoPull, pollSeconds, apiUrl, webUrl, commands, command palette, vs code]
 ---
@@ -34,6 +34,10 @@ A new `markdrop.pollSeconds` value takes effect after you reload the window (**D
 :::
 
 The extension only checks for web changes while VS Code is the focused window, and only for the file in the active editor. A longer interval means fewer requests; switching to a file or back to VS Code always checks at once.
+
+With the defaults, both directions are automatic: a save updates the link, and an edit made on markdrop.in comes back into the file.
+
+::video{id="vscode-sync" title="Publish from VS Code and watch an edit come back" duration="0:40"}
 
 ## Commands
 
