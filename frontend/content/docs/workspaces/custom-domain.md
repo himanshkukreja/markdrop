@@ -121,7 +121,7 @@ The response includes the records to add: `dns_record_name` and `dns_record_valu
 
 ## Watch it once
 
-::video{id="custom-domain" title="Put a workspace on docs.acme.com" duration="1:30"}
+::video{id="custom-domain" title="Put a workspace on docs.acme.com" duration="0:34"}
 
 ## It can take a while
 

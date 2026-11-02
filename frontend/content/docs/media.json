@@ -2326,8 +2326,8 @@
   "/docs-assets/videos/analytics-tour.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 51.83,
-    "bytes": 2972170,
+    "duration": 52.37,
+    "bytes": 3734274,
     "kind": "video"
   },
   "/docs-assets/videos/analytics-tour.webp": {
@@ -2340,7 +2340,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 56.33,
-    "bytes": 2399056,
+    "bytes": 3341841,
     "kind": "video"
   },
   "/docs-assets/videos/app-tour.webp": {
@@ -2352,8 +2352,8 @@
   "/docs-assets/videos/cli-send-receive.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 25,
-    "bytes": 780408,
+    "duration": 25.27,
+    "bytes": 1239359,
     "kind": "video"
   },
   "/docs-assets/videos/cli-send-receive.webp": {
@@ -2366,7 +2366,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 46,
-    "bytes": 1441852,
+    "bytes": 2214194,
     "kind": "video"
   },
   "/docs-assets/videos/cli-upload-replace.webp": {
@@ -2379,7 +2379,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 27,
-    "bytes": 951895,
+    "bytes": 1403181,
     "kind": "video"
   },
   "/docs-assets/videos/connect-claude.webp": {
@@ -2392,7 +2392,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 33.7,
-    "bytes": 1834372,
+    "bytes": 2399797,
     "kind": "video"
   },
   "/docs-assets/videos/custom-domain.webp": {
@@ -2404,8 +2404,8 @@
   "/docs-assets/videos/encrypt-a-document.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 49.03,
-    "bytes": 1544769,
+    "duration": 50.23,
+    "bytes": 2439829,
     "kind": "video"
   },
   "/docs-assets/videos/encrypt-a-document.webp": {
@@ -2417,8 +2417,8 @@
   "/docs-assets/videos/guides-first-guide.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 48.67,
-    "bytes": 1411079,
+    "duration": 49.6,
+    "bytes": 2280017,
     "kind": "video"
   },
   "/docs-assets/videos/guides-first-guide.webp": {
@@ -2431,7 +2431,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 45.03,
-    "bytes": 1342813,
+    "bytes": 2097096,
     "kind": "video"
   },
   "/docs-assets/videos/guides-import-video.webp": {
@@ -2457,7 +2457,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 44,
-    "bytes": 1800260,
+    "bytes": 2540637,
     "kind": "video"
   },
   "/docs-assets/videos/local-mcp-publish.webp": {
@@ -2469,8 +2469,8 @@
   "/docs-assets/videos/password-and-expiry.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 33.57,
-    "bytes": 1146458,
+    "duration": 33.87,
+    "bytes": 1745512,
     "kind": "video"
   },
   "/docs-assets/videos/password-and-expiry.webp": {
@@ -2483,7 +2483,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 31.97,
-    "bytes": 908677,
+    "bytes": 1444462,
     "kind": "video"
   },
   "/docs-assets/videos/publish-first-document.webp": {
@@ -2495,8 +2495,8 @@
   "/docs-assets/videos/publish-first-file.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 37.97,
-    "bytes": 1151409,
+    "duration": 38.57,
+    "bytes": 1865674,
     "kind": "video"
   },
   "/docs-assets/videos/publish-first-file.webp": {
@@ -2508,8 +2508,8 @@
   "/docs-assets/videos/publish-zipped-site.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 31.7,
-    "bytes": 835021,
+    "duration": 32.87,
+    "bytes": 1522723,
     "kind": "video"
   },
   "/docs-assets/videos/publish-zipped-site.webp": {
@@ -2522,7 +2522,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 38.77,
-    "bytes": 1206168,
+    "bytes": 1855519,
     "kind": "video"
   },
   "/docs-assets/videos/readme-builder.webp": {
@@ -2534,8 +2534,8 @@
   "/docs-assets/videos/replace-a-file.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 31.97,
-    "bytes": 920996,
+    "duration": 32.83,
+    "bytes": 1471158,
     "kind": "video"
   },
   "/docs-assets/videos/replace-a-file.webp": {
@@ -2548,7 +2548,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 37.43,
-    "bytes": 1001483,
+    "bytes": 1627294,
     "kind": "video"
   },
   "/docs-assets/videos/request-access.webp": {
@@ -2560,8 +2560,8 @@
   "/docs-assets/videos/send-files-p2p.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 30.57,
-    "bytes": 1386675,
+    "duration": 31.03,
+    "bytes": 1938339,
     "kind": "video"
   },
   "/docs-assets/videos/send-files-p2p.webp": {
@@ -2704,7 +2704,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 37.3,
-    "bytes": 1131293,
+    "bytes": 1756154,
     "kind": "video"
   },
   "/docs-assets/videos/share-with-people.webp": {
@@ -2717,7 +2717,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 45.13,
-    "bytes": 1108828,
+    "bytes": 1864140,
     "kind": "video"
   },
   "/docs-assets/videos/video-analytics.webp": {
@@ -2730,7 +2730,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 43.33,
-    "bytes": 2171135,
+    "bytes": 2900582,
     "kind": "video"
   },
   "/docs-assets/videos/video-player.webp": {
@@ -2742,8 +2742,8 @@
   "/docs-assets/videos/vscode-conflict.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 27,
-    "bytes": 1363087,
+    "duration": 28.7,
+    "bytes": 1934592,
     "kind": "video"
   },
   "/docs-assets/videos/vscode-conflict.webp": {
@@ -2755,8 +2755,8 @@
   "/docs-assets/videos/vscode-sync.mp4": {
     "w": 1920,
     "h": 1080,
-    "duration": 40,
-    "bytes": 1259846,
+    "duration": 40.27,
+    "bytes": 2002622,
     "kind": "video"
   },
   "/docs-assets/videos/vscode-sync.webp": {
@@ -2769,7 +2769,7 @@
     "w": 1920,
     "h": 1080,
     "duration": 50,
-    "bytes": 2462163,
+    "bytes": 3298425,
     "kind": "video"
   },
   "/docs-assets/videos/who-can-open.webp": {

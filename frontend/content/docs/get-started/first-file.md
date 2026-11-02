@@ -10,7 +10,7 @@ Upload a file and Markdrop gives you a link that opens it, rendered, in any brow
 
 Publishing a file needs a free Markdrop account. You can fill everything in first: signed out, the button reads **Sign in and publish**, and everything you entered is still there after you sign in.
 
-::video{id="publish-first-file" title="Publish your first file" duration="0:38"}
+::video{id="publish-first-file" title="Publish your first file" duration="0:39"}
 
 ## Upload it
 

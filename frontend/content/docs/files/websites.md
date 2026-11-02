@@ -8,7 +8,7 @@ keywords: [zip, static site, bundle, website, index.html, multi-page, export]
 
 Some pages don't fit in one file: a built docs site, a notebook export, a chart with its own CSS and JavaScript. Zip the folder and upload it, and Markdrop serves the whole thing as a site. It opens at its `index.html`, and links between its pages work.
 
-::video{id="publish-zipped-site" title="Publish a zipped website" duration="0:32"}
+::video{id="publish-zipped-site" title="Publish a zipped website" duration="0:33"}
 
 ## Publish it
 

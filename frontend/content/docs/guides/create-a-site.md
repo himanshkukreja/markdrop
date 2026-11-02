@@ -9,7 +9,7 @@ keywords: [new guide, create guide, create site, template, product guide, api re
 
 A new guide starts as drafts that only you and your team can see. Nothing is public until you publish.
 
-::video{id="guides-first-guide" title="Create and publish your first guide" duration="0:49"}
+::video{id="guides-first-guide" title="Create and publish your first guide" duration="0:50"}
 
 ## Create the guide
 

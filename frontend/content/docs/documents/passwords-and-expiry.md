@@ -7,7 +7,7 @@ keywords: [password, expiry, expire, ttl, self-destruct, X-Read-Password, encryp
 
 A password makes readers type something before a link opens. An expiry makes the link stop working at a time you choose. Both work on documents and files, and you can set them when you publish or change them later.
 
-::video{id="password-and-expiry" title="Add a password and an expiry" duration="0:35"}
+::video{id="password-and-expiry" title="Add a password and an expiry" duration="0:34"}
 
 ## Add a password
 

@@ -9,7 +9,7 @@ keywords: [conflict, merge, diff, keep my local version, use the web version, me
 
 A conflict happens when a linked file changed in VS Code and on markdrop.in since it last synced: for example, you edited the file locally while a teammate or an AI app edited the document on the web. The extension never overwrites either side on its own. It shows you both and asks.
 
-::video{id="vscode-conflict" title="Resolve a conflict between VS Code and the web" duration="0:27"}
+::video{id="vscode-conflict" title="Resolve a conflict between VS Code and the web" duration="0:29"}
 
 ## How the extension spots a conflict
 

@@ -8,7 +8,7 @@ keywords: [replace, update file, versions, restore, rollback, same link, history
 
 You shared `markdrop.in/q3-deck` and then found a typo on slide 4. Replace the file and the link stays the same: everyone who has it sees the new version, and people with the page open get it without reloading. The earlier file is kept, so you can put it back.
 
-::video{id="replace-a-file" title="Replace a file, keep the link" duration="0:32"}
+::video{id="replace-a-file" title="Replace a file, keep the link" duration="0:33"}
 
 ## What stays and what changes
 
