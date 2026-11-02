@@ -4,7 +4,7 @@
  *
  *   --land-hdr     the sticky marketing header (SiteHeader, h-14).
  *   --land-w       the content width: 1280 up to 1440-wide windows, wider on big screens (so a
- *                  2560 × 1440 desk is not a postage stamp), never past 1680.
+ *                  2560 × 1440 desk is not a postage stamp), never past 1840.
  *   --land-h       one section: the viewport under the header (never less than 600px, so a short
  *                  window gets taller sections and normal scrolling instead of squashed ones).
  *   --land-pad     a section's top and bottom padding; --land-usable is what is left inside.
@@ -18,7 +18,7 @@
 
 .root {
   --land-hdr: 56px;
-  --land-w: clamp(1280px, calc(70vw + 40px), 1680px);
+  --land-w: clamp(1280px, calc(70vw + 40px), 1840px);
   --land-gut: clamp(16px, 3vw, 24px);
   --land-h: max(600px, calc(100svh - var(--land-hdr)));
   --land-pad: clamp(24px, 5.5svh, 72px);

@@ -319,7 +319,7 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
   .pinShot {
-    height: clamp(88px, 17svh, 240px);
+    height: clamp(88px, 17svh, 300px);
   }
   .later {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -598,7 +598,7 @@
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     gap: clamp(16px, 3svh, 32px);
-    height: min(var(--land-usable), 820px);
+    height: min(var(--land-usable), 1000px);
   }
   .shareGrid {
     min-height: 0;
@@ -607,10 +607,10 @@
   .docPaper {
     display: flex;
     flex-direction: column;
-    height: calc(100% - 12px);
+    max-height: calc(100% - 12px);
   }
   .docShotBox {
-    flex: 1 1 0;
+    flex: 0 1 auto;
     min-height: 0;
     max-height: none;
   }
