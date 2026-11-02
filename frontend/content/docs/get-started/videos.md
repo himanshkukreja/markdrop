@@ -53,6 +53,6 @@ Docs for your product that show you what to fix next: GitHub sync, the Fix list,
 
 ## Shorter clips
 
-Many pages also have a short, silent clip that shows a single task, like [replacing a file](/files/replace-and-versions), [publishing a zipped website](/files/websites) or [resolving a conflict in VS Code](/vscode/conflicts). They play where the task is described. Here's the one for the [README builder](/documents/readme-builder): add sections, fill one in, drag it into place, and publish.
+Many pages also have a shorter narrated video that shows a single task, like [replacing a file](/files/replace-and-versions), [publishing a zipped website](/files/websites) or [resolving a conflict in VS Code](/vscode/conflicts). They play where the task is described. Here's the one for the [README builder](/documents/readme-builder): add sections, fill one in, drag it into place, and publish.
 
 ::video{id="readme-builder" title="Build a README" duration="0:39"}
