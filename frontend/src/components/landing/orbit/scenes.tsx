@@ -527,7 +527,7 @@ function DioDocs({ a }: DioProps) {
       <div className={an(a, "pub-btn", "ds-pub", "pop")} style={v({ left: 204, top: 166, "--d": ".3s" })}><StudioGlyph size={12} />Publish</div>
       <div className={an(a, "rider", "flyd")} style={{ offsetPath: "path('M 250 164 Q 274 124 306 146')" }}><DropSvg w={12} h={15} pathCls={k("drop-p")} /></div>
       <div className={an(a, "chip", "pop")} style={v({ left: 40, top: 216, "--d": "1.55s" })}>
-        <span className={k("ds-sw")}>{sw.map((c) => <i key={c} style={{ background: c }} />)}</span>Six themes or your brand
+        <span className={k("ds-sw")}>{sw.map((c) => <i key={c} style={{ background: c }} />)}</span>14 themes or your brand
       </div>
       <div className={an(a, "chip", "pop")} style={v({ left: 262, top: 216, "--d": "1.65s" })}><span style={{ display: "inline-flex", color: "var(--studio)" }}><Icon name="sparkle" size={12} /></span>Answers cite your pages</div>
     </div>

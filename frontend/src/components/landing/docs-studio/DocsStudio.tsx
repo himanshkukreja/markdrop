@@ -43,7 +43,7 @@ const THEMES: Array<{ id: string; label: string }> = [
 
 const FEATURES: Array<{ icon: string; title: string; line: string }> = [
   { icon: "edit", title: "Visual and Markdown editor", line: "Write in blocks with a slash menu, or switch the page to Markdown." },
-  { icon: "palette", title: "Six themes, or your brand", line: "Pick a theme, or add your logo and colours and the guide matches them." },
+  { icon: "palette", title: "14 themes, or your brand", line: "Pick a theme, or add your logo and colours and the guide matches them." },
   { icon: "sparkle", title: "Ask AI with citations", line: "Readers ask in their own words and get answers that link to your pages." },
   { icon: "code", title: "API reference pages", line: "Generated from your OpenAPI file: every endpoint with code samples and Try it." },
   { icon: "history", title: "Version history", line: "Every save is a version. Open an earlier one and bring it back." },

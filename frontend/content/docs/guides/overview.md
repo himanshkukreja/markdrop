@@ -77,11 +77,9 @@ You need a free Markdrop account: Markdrop Guides uses the same sign-in as the r
 
 To create a guide in a workspace you need to be a Guides admin there. Workspace owners and admins always are. Anyone can create a personal guide.
 
-## What isn't there yet
+## Private pages
 
-These are planned and marked **Coming soon** in the app:
-
-- **Password-protected and members-only guides.** For now every published guide is public. See [Guide settings](/guides/site-settings#who-can-read-it).
+A guide can be public with some pages, groups or sections only for your team, for listed people or email domains, or for anyone with a password, free on every guide. See [Private pages and sections](/guides/private-pages).
 
 ## Open Markdrop Guides
 
