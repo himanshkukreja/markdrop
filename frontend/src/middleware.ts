@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TENANT_HOST_HEADER, isPrimaryHost, normalizeHost } from "@/components/tenant/hosts";
 import { DOCS_INTERNAL, docsOrigin, docsRewritePath, isDocsHost } from "@/docs/host";
+import { STUDIO_ROBOTS, isStudioHost, studioRouting, type StudioRouting } from "@/lib/studioHost";
 
 /**
  * Route requests that arrived on a customer's own domain to the tenant renderer.
@@ -42,6 +43,32 @@ function notFound(): NextResponse {
   });
 }
 
+/**
+ * Markdrop Guides' studio host (guides.markdrop.in) and the studio's old /guides/* addresses
+ * (lib/studioHost studioRouting): rewrites onto the /guides route tree, redirects, robots.txt.
+ * Null to carry on. Everything on the studio host is an app screen: never indexed.
+ */
+function applyStudio(request: NextRequest, r: StudioRouting, studioHost: boolean): NextResponse | null {
+  let res: NextResponse | null = null;
+  if (r.kind === "robots") {
+    res = new NextResponse(STUDIO_ROBOTS, {
+      headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" },
+    });
+  } else if (r.kind === "not-found") {
+    res = notFound();
+  } else if (r.kind === "redirect") {
+    res = NextResponse.redirect(new URL(r.location, request.nextUrl), r.temporary ? 307 : 308);
+  } else if (r.kind === "rewrite") {
+    const url = request.nextUrl.clone();
+    url.pathname = r.path;
+    res = NextResponse.rewrite(url);
+  } else if (studioHost) {
+    res = NextResponse.next();
+  }
+  if (res && studioHost) res.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return res;
+}
+
 export function middleware(request: NextRequest) {
   const host = normalizeHost(request.headers.get("host"));
   const { pathname } = request.nextUrl;
@@ -59,6 +86,14 @@ export function middleware(request: NextRequest) {
     return res;
   }
 
+  // The studio host: every path is a studio screen (rewritten onto /guides/…), a public file, or
+  // the rest of Markdrop (redirected to the app's host). Never a tenant, never the docs tree.
+  if (isStudioHost(host)) {
+    if (pathname.startsWith("/h/") || pathname === DOCS_INTERNAL || pathname.startsWith(`${DOCS_INTERNAL}/`)) return notFound();
+    const r = studioRouting(host, pathname, request.nextUrl.search, request.nextUrl.port);
+    return applyStudio(request, r, true) ?? NextResponse.next();
+  }
+
   if (isPrimaryHost(host)) {
     // The tenant renderer is internal: reachable only through the rewrite below.
     // (`/h` alone is left to /[slug]: it is not the tenant renderer.)
@@ -69,7 +104,8 @@ export function middleware(request: NextRequest) {
       const rest = pathname.slice("/docs".length) || "/";
       return NextResponse.redirect(`${docsOrigin(host, request.nextUrl.port)}${rest}${request.nextUrl.search}`, 308);
     }
-    return NextResponse.next();
+    // markdrop.in/guides is the landing page; the studio's screens moved to the studio host.
+    return applyStudio(request, studioRouting(host, pathname, request.nextUrl.search), false) ?? NextResponse.next();
   }
 
   // Our own route handlers (geo, revalidate) answer on every host.

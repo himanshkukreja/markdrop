@@ -105,21 +105,17 @@ const nextConfig: NextConfig = {
    * before the middleware and any page. None for a site without one (Markdrop's has none).
    */
   async redirects() {
-    // Guides moved out of the workspace (/w/<ws>/docs…) into Markdrop Guides (/guides…), which was
-    // called Docs Studio (/docs-studio…) before. The query string carries over (?ws=, ?page=, ?job=,
-    // ?new=). Never on a docs host: a page there may legitimately live at /w/… or /docs-studio/…
-    // (docs.markdrop.in's own /docs-studio/* pages redirect through its redirects.json instead).
+    // Guides moved out of the workspace (/w/<ws>/docs…) into Markdrop Guides' studio. The query
+    // string carries over (?ws=, ?page=, ?job=, ?new=). Never on a docs host: a page there may
+    // legitimately live at /w/…. These land on the studio's app routes (/guides/home is its home);
+    // the middleware (lib/studioHost studioRouting) then sends markdrop.in's to the studio host
+    // (guides.markdrop.in), and also answers the old /docs-studio/… addresses and /guides/about.
     const notDocs = [{ type: "host" as const, value: hostPattern(DOCS_HOSTS) }];
     const app = { missing: notDocs, permanent: false };
     return [
-      { source: "/docs-studio", destination: "/guides", missing: notDocs, permanent: true },
-      { source: "/docs-studio/:path*", destination: "/guides/:path*", missing: notDocs, permanent: true },
-      { source: "/w/:wsId/docs", destination: "/guides?ws=:wsId", ...app },
+      { source: "/w/:wsId/docs", destination: "/guides/home?ws=:wsId", ...app },
       { source: "/w/:wsId/docs/new", destination: "/guides/new?ws=:wsId", ...app },
       { source: "/w/:wsId/docs/:siteId/:rest*", destination: "/guides/:siteId/:rest*", ...app },
-      // The Markdrop Guides landing page lives at /guides (canonical); signed-in people reach it
-      // with ?about=1 (components/guides-landing/view.ts). /guides/about is a friendlier alias.
-      { source: "/guides/about", destination: "/guides?about=1", ...app },
       ...nextRedirects(DOCS_CONTENT, DOCS_HOSTS),
     ];
   },

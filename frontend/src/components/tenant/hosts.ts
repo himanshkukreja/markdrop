@@ -1,8 +1,9 @@
 /**
  * "Is this host us, or a customer's domain?" — one answer for the middleware (edge), the tenant
  * layout (server) and the handoff consumer (browser). A plain module with no runtime imports, so
- * every one of those can use it.
+ * every one of those can use it (lib/studioHost has no imports either).
  */
+import { STUDIO_HOSTS } from "@/lib/studioHost";
 
 /** Hosts that are *us*. Everything else is a customer domain. */
 const PRIMARY_HOSTS = new Set(
@@ -29,6 +30,8 @@ export function isPrimaryHost(raw: string): boolean {
   const host = normalizeHost(raw);
   if (!host) return true;
   if (PRIMARY_HOSTS.has(host)) return true;
+  // Markdrop Guides' studio (guides.markdrop.in): ours, never a customer's domain.
+  if (STUDIO_HOSTS.has(host)) return true;
   // Vercel preview deployments get a generated hostname per build; treating
   // them as customer domains would make every preview 404.
   if (host.endsWith(".vercel.app")) return true;
