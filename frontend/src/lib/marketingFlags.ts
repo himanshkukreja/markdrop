@@ -39,7 +39,14 @@ export const SAMPLE_SLUGS = [
   "budget-2026",
 ] as const;
 
-export const SAMPLE_SLUGS_PUBLISHED: ReadonlySet<string> = new Set<string>([]);
+export const SAMPLE_SLUGS_PUBLISHED: ReadonlySet<string> = new Set<string>([
+  // The landing desk's five files, published on markdrop.in from Markdrop's account (2026-11-02).
+  "launch-notes",
+  "acme-pricing-calculator",
+  "acme-deck",
+  "product-demo",
+  "budget-2026",
+]);
 
 export function sampleHref(slug: string): string | null {
   return SAMPLE_SLUGS_PUBLISHED.has(slug) ? `/${slug}` : null;
