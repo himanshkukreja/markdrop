@@ -225,3 +225,19 @@
 @media (prefers-reduced-motion: reduce) {
   .qa summary > :global(.md-icon) { transition: none; }
 }
+
+/* ── One viewport per section (SnapPage / SnapSection, components/marketing/snap) ──
+   From 1024 × 640 the page snaps section by section: every section is at least one viewport under
+   the header, its content centred, with tighter padding so most of them fit in one. The longer ones
+   (the Fix list, live demos, private pages, the comparison) stay taller blocks that snap at their
+   start. The closing CTA isn't a snap point: it shows with the footer, the page's last stop. */
+@media (min-width: 1024px) and (min-height: 640px) {
+  .section { min-height: var(--snap-h); display: flex; flex-direction: column; justify-content: center; padding-block: clamp(32px, 6svh, 72px); }
+  .head { margin-bottom: clamp(20px, 3.2svh, 36px); }
+  .plan { padding: 18px 20px; gap: 8px; }
+  .planList { gap: 6px; }
+  .rulesList { margin-top: 18px; }
+  #pricing .pillarCta { margin-top: 20px; }
+  /* The private pages' second screen: the locked page, its caption, the comparison line and the CTA. */
+  .privShot { max-width: clamp(760px, calc((var(--snap-h) - 290px) * 1.488), 980px); }
+}

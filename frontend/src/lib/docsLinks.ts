@@ -50,6 +50,7 @@ export const DOCS_PAGES = {
   aiOverview: "/ai/overview",
   connectAiApp: "/ai/hosted-mcp",
   localMcp: "/ai/local-mcp",
+  aiTools: "/ai/tools",
   cliInstall: "/cli/install",
   vscode: "/vscode/sync",
   // Account

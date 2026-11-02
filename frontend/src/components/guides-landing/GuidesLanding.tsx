@@ -15,6 +15,7 @@ import {
   PRIVATE_PAGES_LIVE, SELF_HOST_COMMAND, SELF_HOST_REPO, type Cell, type Plan,
 } from "./content";
 import { studioUrl } from "@/lib/studioHost";
+import { SnapPage, SnapSection } from "@/components/marketing/snap/Snap";
 import s from "./GuidesLanding.module.css";
 
 /**
@@ -24,6 +25,9 @@ import s from "./GuidesLanding.module.css";
  * (LoopVideo: the hero's laptop and cards, and a few sections; GuidesHero has the hero), the tour
  * button (TrailerButton, the player loads on click) and the analytics listener (LandingTracker). The live calculator is a sandboxed frame (public/guides-demo, with
  * the sandbox repeated as a response header in next.config.ts).
+ *
+ * From 1024 × 640 the page snaps section by section (SnapPage / SnapSection, components/marketing/snap):
+ * each section is at least one viewport; the three longest have a second stop (data-snap-point).
  *
  * Every "start" link goes to the studio (StartLink: a new guide on guides.markdrop.in, which signs
  * a signed-out visitor in first). Pillar buttons carry data-pillar for the
@@ -94,40 +98,40 @@ function SectionHead({ eyebrow, id, title, lead, children }: { eyebrow?: string;
 }
 
 const WATCHES: Array<{ icon: string; t: string; d: string }> = [
-  { icon: "arrowDown", t: "Readers leave here", d: "The section where far more readers stop than anywhere else on the page." },
-  { icon: "search", t: "Searches with no results", d: "What readers look for and don't find, with the same wordings grouped." },
+  { icon: "arrowDown", t: "Readers leave here", d: "The section where far more readers stop than elsewhere." },
+  { icon: "search", t: "Searches with no results", d: "What readers look for and don't find." },
   { icon: "sparkle", t: "Ask AI couldn't answer", d: "Questions your pages have no answer for." },
-  { icon: "flag", t: "Marked not helpful", d: "Pages most voters said didn't help, with their comments." },
-  { icon: "film", t: "Video and PDF drop-off", d: "The moment a video loses its viewers, the page where PDF readers stop." },
-  { icon: "link", t: "Broken links", d: "Links to pages that don't exist, and addresses readers hit that don't." },
-  { icon: "terminal", t: "AI agents", d: "What assistants search for and don't find, and pages that are hard for them to use." },
-  { icon: "clock", t: "Stale and heavy pages", d: "Pages many people read that nobody has touched in six months." },
+  { icon: "flag", t: "Marked not helpful", d: "With the voters' comments." },
+  { icon: "film", t: "Video and PDF drop-off", d: "Where viewers and PDF readers stop." },
+  { icon: "link", t: "Broken links", d: "Links and addresses that go nowhere." },
+  { icon: "terminal", t: "AI agents", d: "What assistants can't find, and pages hard for them to use." },
+  { icon: "clock", t: "Stale and heavy pages", d: "Read often, untouched for six months." },
 ];
 
 const STEPS: Array<{ t: string; d: string }> = [
-  { t: "See the evidence", d: "How far readers got, section by section; the searches; the moment viewers stop." },
-  { t: "Draft a fix", d: "AI reads the evidence and the page and proposes a concrete edit, line by line." },
-  { t: "Review and publish", d: "The fix opens in the editor as a suggestion. Nothing goes live until you publish." },
-  { t: "Marked fixed", d: "Publishing closes the item. If readers keep struggling, it comes back." },
+  { t: "See the evidence", d: "How far readers got, the searches, where viewers stop." },
+  { t: "Draft a fix", d: "AI proposes a concrete edit from the evidence and the page." },
+  { t: "Review and publish", d: "It opens as a suggestion. Nothing goes live until you publish." },
+  { t: "Marked fixed", d: "Publishing closes it. If readers keep struggling, it comes back." },
 ];
 
 const FEATURES: Array<{ icon: string; t: string; d: string; href: string }> = [
-  { icon: "sparkle", t: "Ready for AI", d: "Every guide has its own MCP server: readers connect Claude, Cursor or VS Code in one click. Ask AI answers with links to your pages, every page is also Markdown and in llms.txt, and agent reads are counted apart.", href: docs("studioMcp") },
-  { icon: "github", t: "GitHub sync", d: "Import a repository (Markdown, GitBook, Mintlify, Docusaurus or MkDocs) and every push updates the guide.", href: docs("studioGithub") },
-  { icon: "megaphone", t: "Changelog", d: "A What's new page with RSS and JSON feeds. Turn existing release notes into entries.", href: docs("studioChangelog") },
-  { icon: "palette", t: "Themes and theme builder", d: "Fourteen themes or your brand, and a builder that keeps every colour pair readable.", href: docs("studioThemes") },
+  { icon: "sparkle", t: "Ready for AI", d: "Its own MCP server (Claude, Cursor or VS Code in one click), Ask AI with links to your pages, Markdown pages and llms.txt.", href: docs("studioMcp") },
+  { icon: "github", t: "GitHub sync", d: "Import a repository (Markdown, GitBook, Mintlify, Docusaurus, MkDocs); every push updates the guide.", href: docs("studioGithub") },
+  { icon: "megaphone", t: "Changelog", d: "A What's new page with RSS and JSON feeds, from your release notes.", href: docs("studioChangelog") },
+  { icon: "palette", t: "Themes and theme builder", d: "Fourteen themes or your brand; every colour pair stays readable.", href: docs("studioThemes") },
   { icon: "globe", t: "Your own domain", d: "Free. One CNAME record, or one click with Cloudflare and other supported providers.", href: docs("studioDomain") },
-  { icon: "chart", t: "Insights", d: "Views, top pages, searches with no results, Ask AI questions and page feedback. No cookies.", href: docs("studioInsights") },
-  { icon: "code", t: "API reference with Try it", d: "Upload an OpenAPI file: every endpoint gets a page, code samples and live requests.", href: docs("studioApiReference") },
-  { icon: "edit", t: "Editor, reviews, history", d: "Visual or Markdown with a slash menu. Reviews before publish, roles, and every save as a version.", href: docs("studioEditor") },
-  { icon: "server", t: "Open source engine", d: "The engine that builds guides is MIT-licensed. Host it yourself, or let Markdrop host it.", href: docs("studioSelfHost") },
+  { icon: "chart", t: "Insights", d: "Views, top pages, searches, Ask AI questions and feedback. No cookies.", href: docs("studioInsights") },
+  { icon: "code", t: "API reference with Try it", d: "Upload an OpenAPI file: every endpoint gets a page, samples and live requests.", href: docs("studioApiReference") },
+  { icon: "edit", t: "Editor, reviews, history", d: "Visual or Markdown, reviews before publish, roles, and every save kept.", href: docs("studioEditor") },
+  { icon: "server", t: "Open source engine", d: "MIT-licensed. Host it yourself, or let Markdrop host it.", href: docs("studioSelfHost") },
 ];
 
 const PRIVATE_RULES: Array<{ icon: string; t: string; d: string }> = [
   { icon: "users", t: "Your team", d: "Members of the guide's workspace." },
-  { icon: "mail", t: "People or an email domain", d: "jane@northwind.com, or everyone @northwind.com. Readers get an emailed link: no account." },
+  { icon: "mail", t: "People or an email domain", d: "jane@northwind.com or all of @northwind.com, by emailed link: no account." },
   { icon: "key", t: "A password", d: "One password for a page or a group of pages." },
-  { icon: "layers", t: "Per page, group or section", d: "Lock a whole page, a group in the sidebar, or one section inside a public page." },
+  { icon: "layers", t: "Per page, group or section", d: "Even one section inside a public page." },
 ];
 
 function CellView({ c, guides }: { c: Cell; guides?: boolean }) {
@@ -188,7 +192,7 @@ const JSON_LD = {
 export default function GuidesLanding() {
   return (
     <>
-      <div data-guides-landing className={s.root}>
+      <SnapPage data-guides-landing className={s.root}>
         <SiteHeader variant="marketing" />
         <main id="main" tabIndex={-1} className={s.main}>
           {/* ── Hero ─────────────────────────────────────────────────── */}
@@ -203,13 +207,13 @@ export default function GuidesLanding() {
           />
 
           {/* ── The Fix list ─────────────────────────────────────────── */}
-          <section id="fix-list" aria-labelledby="fix-title" className={s.section}>
+          <SnapSection id="fix-list" labelledBy="fix-title" bare className={s.section}>
             <div className={s.wrap}>
               <SectionHead
                 eyebrow="The Fix list"
                 id="fix-title"
                 title="One ranked list of what to fix next."
-                lead="Page views don't tell you what to change. The Fix list does: it ranks every problem by how many readers it affects, shows you the evidence, and drafts the fix."
+                lead="Page views don't tell you what to change. The Fix list ranks every problem by how many readers it affects, shows the evidence, and drafts the fix."
               />
               <div className={s.fixGrid}>
                 <figure className={s.figure}>
@@ -232,12 +236,11 @@ export default function GuidesLanding() {
                     ))}
                   </ul>
                   <p className={s.small}>
-                    Nothing is flagged on a handful of visits: every kind of item needs enough readers first. Cookieless, and nothing at all
-                    is sent from browsers that ask not to be tracked.
+                    Nothing is flagged on a handful of visits. Cookieless, and nothing is sent from browsers that ask not to be tracked.
                   </p>
                 </div>
               </div>
-              <ol className={s.steps}>
+              <ol className={s.steps} data-snap-point="">
                 {STEPS.map((st, i) => (
                   <li key={st.t}>
                     <span className={s.stepN} aria-hidden>{i + 1}</span>
@@ -269,16 +272,16 @@ export default function GuidesLanding() {
                 <a href={docs("studioFixList")} className={s.more} data-cta="docs">How the Fix list works</a>
               </div>
             </div>
-          </section>
+          </SnapSection>
 
           {/* ── Live demos, video and PDFs ──────────────────────────── */}
-          <section id="live-demos" aria-labelledby="demos-title" className={`${s.section} ${s.alt}`}>
+          <SnapSection id="live-demos" labelledBy="demos-title" bare className={`${s.section} ${s.alt}`}>
             <div className={s.wrap}>
               <SectionHead
                 eyebrow="Live demos, video and PDFs"
                 id="demos-title"
                 title="Docs where the demo actually runs."
-                lead="Embed an interactive HTML demo, a PDF or a video from Markdrop as a live block in any page. Replace the file once and every page that shows it updates. Try this one: it's running right here."
+                lead="Embed an HTML demo, a PDF or a video as a live block in any page. Replace the file once and every page updates. This one is running right here."
               />
               <div className={s.browser}>
                 <div className={s.chrome} aria-hidden="true">
@@ -310,27 +313,27 @@ export default function GuidesLanding() {
                   </div>
                 </div>
               </div>
-              <div className={s.tiles}>
+              <div className={s.tiles} data-snap-point="">
                 <figure className={s.tile}>
                   <Shot src="/docs-assets/guides/embed-files/pdf.webp" alt="A PDF embedded in a guide page: the Acme price list 2026, page 1 of 3, with zoom, Fit width and Download." w={1520} h={1652} />
-                  <figcaption><strong>PDFs</strong> page by page, with zoom and download, and the page where readers stop.</figcaption>
+                  <figcaption><strong>PDFs</strong> with zoom and download, and the page where readers stop.</figcaption>
                 </figure>
                 <figure className={s.tile}>
                   <Shot src="/docs-assets/guides/embed-files/insights.webp" alt="Embedded files in Insights: the pricing calculator (64 views, 66% used it), the product tour (41 views, 30 plays, where viewers stop) and the price list." w={1600} h={543} />
-                  <figcaption><strong>Video and per-embed analytics</strong>: chapters and captions, plays, where viewers stop, all fed into the Fix list.</figcaption>
+                  <figcaption><strong>Video and per-embed analytics</strong>: chapters, captions, plays and where viewers stop.</figcaption>
                 </figure>
                 <figure className={s.tile}>
                   <Shot src="/docs-assets/guides/embed-files/sandbox-probe.webp" alt="A test page embedded in a guide reports what it can reach: localStorage, cookies, the guide page, IndexedDB, a service worker and navigating the guide away are all blocked, and its origin is opaque." w={1520} h={972} />
-                  <figcaption><strong>Sandboxed</strong>: an embedded test page can't reach cookies, storage or the page around it.</figcaption>
+                  <figcaption><strong>Sandboxed</strong>: no cookies, storage or access to the page around it.</figcaption>
                 </figure>
               </div>
               <div className={s.security}>
                 <h3 className={s.h3}><Icon name="shield" size={18} />Someone else&apos;s code, kept in its box</h3>
                 <ul>
-                  <li><strong>A separate site.</strong> Embedded files render on Markdrop&apos;s own file domain, never on your guide&apos;s address or markdrop.in.</li>
-                  <li><strong>A locked sandbox.</strong> No cookies, no storage, no access to your page or any other customer&apos;s files, and no navigating your readers away. Scripts, forms and dialogs still work, so demos do too.</li>
-                  <li><strong>Twice over.</strong> The file server repeats the sandbox as a security header, so it holds even when the file is opened on its own. The demo above is served the same way.</li>
-                  <li><strong>Readable by AI.</strong> Every embed has a text version that goes to search, Ask AI, llms.txt and screen readers.</li>
+                  <li><strong>A separate site.</strong> Embeds render on Markdrop&apos;s file domain, never on your guide&apos;s address or markdrop.in.</li>
+                  <li><strong>A locked sandbox.</strong> No cookies, storage, access to your page or other files, or navigating readers away. Scripts and forms still work.</li>
+                  <li><strong>Twice over.</strong> The file server repeats the sandbox as a security header, even when the file is opened on its own.</li>
+                  <li><strong>Readable by AI.</strong> Every embed has a text version for search, Ask AI, llms.txt and screen readers.</li>
                 </ul>
               </div>
               <div className={s.pillarCta}>
@@ -341,16 +344,16 @@ export default function GuidesLanding() {
                 <a href={EMBED_DOCS} className={s.more} data-cta="docs">How embeds work</a>
               </div>
             </div>
-          </section>
+          </SnapSection>
 
           {/* ── Private pages ───────────────────────────────────────── */}
-          <section id="private-pages" aria-labelledby="private-title" className={s.section}>
+          <SnapSection id="private-pages" labelledBy="private-title" bare className={s.section}>
             <div className={s.wrap}>
               <SectionHead
                 eyebrow={PRIVATE_PAGES_LIVE ? "Private pages, free" : "Private pages, free · Coming in November"}
                 id="private-title"
                 title="One guide, with pages for each customer."
-                lead="Keep your public docs public, and lock the pages, groups or single sections that are only for your team, a customer, or anyone with the password. Free, where other tools ask for their top plans."
+                lead="Keep public docs public, and lock the pages, groups or single sections meant for your team, a customer, or anyone with the password. Free, where other tools ask for their top plans."
               />
               <div className={s.privGrid}>
                 <ul className={s.rules}>
@@ -363,8 +366,8 @@ export default function GuidesLanding() {
                   <li>
                     <span className={s.wIcon} aria-hidden><Icon name="eyeOff" size={15} /></span>
                     <span>
-                      <strong>Nothing private leaks.</strong> Private pages stay out of search, llms.txt, the sitemap, the MCP server and Ask AI
-                      for anyone who can&apos;t open them, and every publish checks it.
+                      <strong>Nothing private leaks.</strong> Out of search, llms.txt, the sitemap, the MCP server and Ask AI for anyone who
+                      can&apos;t open it; every publish checks.
                     </span>
                   </li>
                 </ul>
@@ -377,13 +380,12 @@ export default function GuidesLanding() {
                     <LoopVideo {...LOOPS.private} dark />
                   </div>
                   <figcaption>
-                    jane@northwind.com signs in with an emailed link, and the Northwind section of a public page opens for her. Recorded in a
-                    published guide, with fictional data.
+                    jane@northwind.com signs in with an emailed link and the Northwind section opens. Recorded with fictional data.
                   </figcaption>
                 </figure>
               </div>
               {PRIVATE_PAGES_LIVE && (
-                <figure className={`${s.figure} ${s.privShot}`}>
+                <figure className={`${s.figure} ${s.privShot}`} data-snap-point="">
                   <Shot
                     src="/docs-assets/guides/private-pages/reader-locked-sections.webp"
                     alt="Acme Docs' public Single sign-on page as a signed-out reader sees it: the Northwind tenant values section locked to people at Northwind with Sign in with email, a private section for the team with Sign in, and the Enterprise and Team pages marked with a lock in the sidebar."
@@ -405,10 +407,10 @@ export default function GuidesLanding() {
                 <a href={PRIVATE_PAGES_LIVE ? PRIVATE_DOCS : docs("guidesOverview")} className={s.more} data-cta="docs">How private pages work</a>
               </div>
             </div>
-          </section>
+          </SnapSection>
 
           {/* ── Everything else ─────────────────────────────────────── */}
-          <section id="features" aria-labelledby="features-title" className={`${s.section} ${s.alt}`}>
+          <SnapSection id="features" labelledBy="features-title" bare className={`${s.section} ${s.alt}`}>
             <div className={s.wrap}>
               <SectionHead eyebrow="And the rest" id="features-title" title="Everything a docs site needs, included." />
               <ul className={s.grid}>
@@ -421,16 +423,16 @@ export default function GuidesLanding() {
                 ))}
               </ul>
             </div>
-          </section>
+          </SnapSection>
 
           {/* ── Move in ─────────────────────────────────────────────── */}
-          <section id="import" aria-labelledby="import-title" className={s.section}>
+          <SnapSection id="import" labelledBy="import-title" bare className={s.section}>
             <div className={s.wrap}>
               <SectionHead
                 eyebrow="Move in"
                 id="import-title"
                 title="Move from GitBook, Mintlify or GitHub in minutes."
-                lead="Bring your pages, sidebar, images and old links across, then check a report of anything that needs a look before you publish. Your old site isn't touched."
+                lead="Pages, sidebar, images and old links come across, with a report of anything to check before you publish. Your old site isn't touched."
               />
               <div className={s.moveGrid}>
               <figure className={`${s.figure} ${s.moveFig}`}>
@@ -446,35 +448,35 @@ export default function GuidesLanding() {
               <div className={s.moves}>
                 <article className={s.move}>
                   <h3 className={s.h3}>From GitBook</h3>
-                  <p>Paste your public GitBook address. Pages (hidden ones too), groups and order, images, icons, logo and accent colour come across, and old addresses redirect.</p>
+                  <p>Paste your public GitBook address. Pages, groups, images, icons, logo and colour come across; old addresses redirect.</p>
                   <StartLink path={`${NEW_GUIDE}?start=gitbook`} cta="start" className={s.moveLink}>Import from GitBook<Icon name="arrowRight" size={14} /></StartLink>
                 </article>
                 <article className={s.move}>
                   <h3 className={s.h3}>From a GitHub repository</h3>
                   <p>
-                    Markdown, GitBook Git Sync, Mintlify (<code>docs.json</code>), Docusaurus or MkDocs. Their callouts, tabs, steps and cards become
-                    the guide&apos;s blocks, and <strong>Keep in sync</strong> updates the guide on every push.
+                    Markdown, GitBook Git Sync, Mintlify (<code>docs.json</code>), Docusaurus or MkDocs, blocks included.{" "}
+                    <strong>Keep in sync</strong> updates the guide on every push.
                   </p>
                   <StartLink path={`${NEW_GUIDE}?start=github`} cta="start" className={s.moveLink}>Import from GitHub<Icon name="arrowRight" size={14} /></StartLink>
                 </article>
                 <article className={s.move}>
                   <h3 className={s.h3}>From an OpenAPI file</h3>
-                  <p>Upload an OpenAPI 3.0 or 3.1 file and every endpoint gets a page with code samples and Try it.</p>
+                  <p>Upload OpenAPI 3.0 or 3.1: every endpoint gets a page, code samples and Try it.</p>
                   <StartLink path={`${NEW_GUIDE}?start=openapi`} cta="start" className={s.moveLink}>Start an API reference<Icon name="arrowRight" size={14} /></StartLink>
                 </article>
               </div>
               </div>
             </div>
-          </section>
+          </SnapSection>
 
           {/* ── Comparison ──────────────────────────────────────────── */}
-          <section id="compare" aria-labelledby="compare-title" className={`${s.section} ${s.alt}`}>
+          <SnapSection id="compare" labelledBy="compare-title" bare className={`${s.section} ${s.alt}`}>
             <div className={s.wrap}>
               <SectionHead
                 eyebrow="Compare"
                 id="compare-title"
                 title="Markdrop Guides, GitBook and Mintlify."
-                lead={<>What each includes and what it costs, {COMPARED_LABEL}. Every GitBook and Mintlify cell links to the page that says it; we checked them on <time dateTime={COMPARED_ON}>2 November 2026</time>. Prices change: check theirs before you decide.</>}
+                lead={<>What each includes and costs, {COMPARED_LABEL}. Every GitBook and Mintlify cell links to its source, checked on <time dateTime={COMPARED_ON}>2 November 2026</time>. Prices change: check theirs before you decide.</>}
               />
               <div className={s.tableWrap}>
                 <table className={s.table}>
@@ -513,8 +515,8 @@ export default function GuidesLanding() {
                 <div className={s.selfHostText}>
                   <h3 id="self-host-title" className={s.h3}><Icon name="server" size={18} />Host it yourself</h3>
                   <p>
-                    The engine behind Markdrop Guides is open source (MIT). Export any guide as a folder of Markdown and
-                    files whenever you like, and serve it on your own server with one command. No lock-in.
+                    The engine is open source (MIT). Export any guide as a folder of Markdown and files, and serve it on
+                    your own server with one command. No lock-in.
                   </p>
                   <p className={s.selfHostLinks}>
                     <a href={docs("studioSelfHost")} className={s.moveLink} data-cta="docs">Self-hosting steps<Icon name="arrowRight" size={14} /></a>
@@ -524,16 +526,16 @@ export default function GuidesLanding() {
                 <pre className={s.selfHostCmd}><code>{SELF_HOST_COMMAND}</code></pre>
               </section>
             </div>
-          </section>
+          </SnapSection>
 
           {/* ── Pricing ─────────────────────────────────────────────── */}
-          <section id="pricing" aria-labelledby="pricing-title" className={s.section}>
+          <SnapSection id="pricing" labelledBy="pricing-title" bare className={s.section}>
             <div className={s.wrap}>
               <SectionHead
                 eyebrow="Pricing"
                 id="pricing-title"
                 title="Free while in beta."
-                lead="Everything that's live is free today. Here's what we plan to charge after the beta, so you can decide with your eyes open. The plans aren't final; the rules below are."
+                lead="Everything that's live is free today. Below is what we plan to charge after the beta: the plans aren't final, the rules are."
               />
               <div className={s.plans}>
                 <PlanCard p={BETA_PLAN} />
@@ -551,10 +553,10 @@ export default function GuidesLanding() {
                 </StartLink>
               </div>
             </div>
-          </section>
+          </SnapSection>
 
           {/* ── FAQ ─────────────────────────────────────────────────── */}
-          <section id="faq" aria-labelledby="faq-title" className={`${s.section} ${s.alt}`}>
+          <SnapSection id="faq" labelledBy="faq-title" bare className={`${s.section} ${s.alt}`}>
             <div className={`${s.wrap} ${s.narrow}`}>
               <SectionHead eyebrow="Questions" id="faq-title" title="Before you switch." />
               <div className={s.faq}>
@@ -573,7 +575,7 @@ export default function GuidesLanding() {
                 ))}
               </div>
             </div>
-          </section>
+          </SnapSection>
 
           {/* ── Final CTA ───────────────────────────────────────────── */}
           <section id="start" aria-labelledby="start-title" className={s.final}>
@@ -594,7 +596,7 @@ export default function GuidesLanding() {
         <FeedbackWidget />
         <LandingTracker />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
-      </div>
+      </SnapPage>
     </>
   );
 }

@@ -4,6 +4,7 @@ import { DOCS_PAGES } from "@/lib/docsLinks";
 import { Icon } from "../ds";
 import s from "./Sections.module.css";
 import t from "./theme.module.css";
+import { SnapSection } from "@/components/marketing/snap/Snap";
 
 /** The Markdrop Guides trailer (public/docs-assets/videos; the same file the Guides overview plays). */
 const TRAILER: Trailer = {
@@ -32,7 +33,7 @@ const FLAGS = [
  */
 export default function Notebook() {
   return (
-    <section id="guides" aria-labelledby="guides-h" className={s.section}>
+    <SnapSection id="guides" labelledBy="guides-h">
       <div className={s.split}>
         <div className={s.copy}>
           <div className={s.copyTop}>
@@ -100,6 +101,6 @@ export default function Notebook() {
           </div>
         </div>
       </div>
-    </section>
+    </SnapSection>
   );
 }

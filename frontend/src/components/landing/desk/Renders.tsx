@@ -3,6 +3,7 @@ import { DOCS_PAGES } from "@/lib/docsLinks";
 import { Icon } from "../ds";
 import s from "./Sections.module.css";
 import t from "./theme.module.css";
+import { SnapSection } from "@/components/marketing/snap/Snap";
 
 /** One pinned card per kind of file; the picture is the desk sample, as Markdrop renders it. */
 const PINS = [
@@ -16,7 +17,7 @@ const PINS = [
 /** 2 · Documents and files: what renders. Five pinned cards and what happens later. Server HTML. */
 export default function Renders() {
   return (
-    <section id="renders" aria-labelledby="renders-h" className={s.section}>
+    <SnapSection id="renders" labelledBy="renders-h">
       <div className={s.headRow}>
         <div className={s.headCol}>
           <span className={s.eyebrow}>Documents and files</span>
@@ -65,6 +66,6 @@ export default function Renders() {
           </span>
         </li>
       </ul>
-    </section>
+    </SnapSection>
   );
 }

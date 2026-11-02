@@ -1,10 +1,11 @@
 import { ButtonLink, MarkdropMark } from "../ds";
 import s from "./Sections.module.css";
+import { SnapSection } from "@/components/marketing/snap/Snap";
 
-/** 7 · "Clear your desk." The closing CTA. Server HTML, no script. */
+/** 8 · "Clear your desk." The closing CTA. Server HTML, no script. */
 export default function ClearDesk() {
   return (
-    <section id="start" aria-labelledby="start-h" className={s.section}>
+    <SnapSection id="start" labelledBy="start-h">
       <div className={s.cta}>
         <span className={s.ctaSticky} aria-hidden="true">
           markdrop.in/
@@ -30,6 +31,6 @@ export default function ClearDesk() {
           </ButtonLink>
         </div>
       </div>
-    </section>
+    </SnapSection>
   );
 }

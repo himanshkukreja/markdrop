@@ -3,6 +3,7 @@ import { preload } from "react-dom";
 import { Icon, StudioGlyph } from "@/components/landing/ds";
 import LoopVideo from "./LoopVideo";
 import { LOOPS } from "./loops";
+import { SnapSection } from "@/components/marketing/snap/Snap";
 import s from "./GuidesHero.module.css";
 
 /**
@@ -19,7 +20,7 @@ export default function GuidesHero({ primary, secondary }: { primary: ReactNode;
   const hero = LOOPS.heroFix;
   preload(`${hero.src}.webp`, { as: "image", fetchPriority: "high" });
   return (
-    <section id="hero" aria-labelledby="hero-title" className={s.hero}>
+    <SnapSection id="hero" labelledBy="hero-title" bare className={s.hero}>
       <div className={s.bg} aria-hidden="true" />
       <div className={s.wrap}>
         <div className={s.intro}>
@@ -30,8 +31,8 @@ export default function GuidesHero({ primary, secondary }: { primary: ReactNode;
             Docs that show you <span className={s.em}>what to fix next.</span>
           </h1>
           <p className={s.sub}>
-            Markdrop Guides builds and hosts your help center, product guides and API docs, free while in beta. It watches how people
-            and AI agents read them, ranks what to fix, and drafts each fix for you to review.
+            Host your help center, product guides and API docs, free while in beta. Guides watches how people and AI agents read
+            them, ranks what to fix, and drafts each fix for you to review.
           </p>
           <div className={s.ctas}>
             {primary}
@@ -104,6 +105,6 @@ export default function GuidesHero({ primary, secondary }: { primary: ReactNode;
           <p className={s.trustFree}><Icon name="checkCircle" size={15} />Free while in beta</p>
         </div>
       </div>
-    </section>
+    </SnapSection>
   );
 }

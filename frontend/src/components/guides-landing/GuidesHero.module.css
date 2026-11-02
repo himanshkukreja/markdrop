@@ -107,6 +107,11 @@
   .cardDemo, .cardPrivate { width: 310px; }
 }
 
+/* One viewport at least, from 1024 × 640 (the page snaps section by section; SnapSection). */
+@media (min-width: 1024px) and (min-height: 640px) {
+  .hero { min-height: var(--snap-h); }
+}
+
 .note { margin: 22px 0 0; text-align: center; font: 400 12px/1.4 var(--font-sans); color: var(--text-muted); }
 
 /* ── Trust row ── */

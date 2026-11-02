@@ -1,0 +1,149 @@
+/* /mcp's own pieces (the rest is components/marketing/snap/parts.module.css). Tokens only. */
+
+/* The server URL under the hero's lede. */
+.url {
+  width: min(100%, 520px);
+}
+.url > p {
+  margin: 10px 0 0;
+  display: flex;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.url > p svg {
+  flex: none;
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+/* The connect steps (ConnectTabs) on the mat. */
+.connect {
+  width: 100%;
+  max-width: 640px;
+}
+
+/* The 26 tools, grouped, on the mat. */
+.tools {
+  padding: 18px 20px 20px;
+}
+.toolsHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.toolsHead b {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+}
+.toolsHead span {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.legend {
+  display: inline-flex;
+  gap: 10px;
+  font-family: var(--font-sans) !important;
+  font-size: 12px !important;
+  font-weight: 600;
+}
+.groups {
+  column-gap: 22px;
+}
+@media (min-width: 640px) {
+  .groups {
+    column-count: 2;
+  }
+}
+.group {
+  break-inside: avoid;
+  padding-bottom: 13px;
+}
+.group h3 {
+  margin: 0 0 7px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.group h3 svg {
+  font-size: 15px;
+  color: var(--accent-text);
+}
+.chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface-inset);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.chip[data-write] {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.key i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--surface-inset);
+}
+.key[data-write] i {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--accent-soft);
+}
+.local {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border-strong);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.local b {
+  color: var(--text);
+}
+
+/* The FAQ section: the questions, and the help column. */
+.help {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+}
+.mail {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}

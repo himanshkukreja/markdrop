@@ -122,13 +122,13 @@ export const BETA_PLAN: Plan = {
   note: "Everything on this page that's live, for every guide you make. No card.",
   current: true,
   points: [
-    "Your own domain, with the certificate handled",
+    "Your own domain, certificate handled",
     "The Fix list and Insights",
     `Ask AI: ${BETA_AI_ANSWERS} answers a month per guide`,
-    "Live demos, video and PDFs in your pages",
+    "Live demos, video and PDFs",
     "API reference with Try it, changelog, themes",
     "Import from GitBook, Mintlify or GitHub",
-    "Your whole team, with roles and reviews",
+    "Your whole team, roles and reviews",
   ],
 };
 

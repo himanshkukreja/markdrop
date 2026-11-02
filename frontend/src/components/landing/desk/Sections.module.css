@@ -3,27 +3,13 @@
  *
  * Every section explains one feature the same way: an eyebrow (the feature), a headline (what you
  * get), a sentence or two, three or four concrete points, and a link to the exact docs page; next to
- * it, the desk object that shows it. From 900px each section is one viewport under the header
+ * it, the desk object that shows it. Each section is a SnapSection (components/marketing/snap): from
+ * 900px one viewport under the header
  * (Landing.module.css --land-h / --land-usable) and its content is sized to fit inside it: copy at
  * reading size, visuals sized from the height they have (or, for the drawer, drawn at a fixed size
  * and scaled to fit, `.fitBox` / `.fitCanvas`).
  */
 
-.section {
-  max-width: calc(var(--land-w, 1280px) + 2 * var(--land-gut, 24px));
-  margin: 0 auto;
-  padding: 56px var(--land-gut, 16px);
-  box-sizing: border-box;
-}
-@media (min-width: 900px) {
-  .section {
-    min-height: var(--land-h);
-    padding-block: var(--land-pad);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
-}
 .eyebrow {
   font-size: 11px;
   line-height: 16px;

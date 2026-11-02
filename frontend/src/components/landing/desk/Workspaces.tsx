@@ -2,6 +2,7 @@ import { docsUrl } from "@/components/shell/links";
 import { DOCS_PAGES } from "@/lib/docsLinks";
 import { Icon } from "../ds";
 import s from "./Sections.module.css";
+import { SnapSection } from "@/components/marketing/snap/Snap";
 
 /** Acme's workspace, as a folder on the desk (fictional data, the same Acme as the desk samples). */
 const FOLDERS = [
@@ -24,7 +25,7 @@ const MEMBERS = [
  */
 export default function Workspaces() {
   return (
-    <section id="workspaces" aria-labelledby="workspaces-h" className={s.section}>
+    <SnapSection id="workspaces" labelledBy="workspaces-h">
       <div className={`${s.split} ${s.splitRev}`}>
         <div className={s.copy}>
           <span className={s.eyebrow}>Workspaces</span>
@@ -126,6 +127,6 @@ export default function Workspaces() {
           </span>
         </div>
       </div>
-    </section>
+    </SnapSection>
   );
 }
