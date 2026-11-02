@@ -302,7 +302,8 @@ export default [
     page: P("overview"),
     kind: "screenshot",
     auth: "owner",
-    url: "/guides",
+    // The studio home: guides.markdrop.in/ in production, /guides/home on the local stack (/guides is the landing page).
+    url: "/guides/home",
     viewport: { width: 1440, height: 1200 },
     prepare: async (h) => {
       await h.loc({ role: "heading", name: "Your guides" }).waitFor();
