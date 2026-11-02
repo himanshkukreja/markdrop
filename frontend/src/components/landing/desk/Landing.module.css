@@ -16,6 +16,19 @@
  * `auto` under prefers-reduced-motion.
  */
 
+/* A scale factor, as a number: computed where it is declared (container units resolve there) and
+   inherited by what is drawn inside (Sections .fitCanvas uses --land-k, the hero --hero-z). */
+@property --land-k {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+@property --hero-z {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
 .root {
   --land-hdr: 56px;
   --land-w: clamp(1280px, calc(70vw + 40px), 1840px);

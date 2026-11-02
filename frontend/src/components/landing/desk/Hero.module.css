@@ -1,0 +1,725 @@
+/*
+ * The landing hero, "Your desk, as links." (design canvas round 4, Hero C · Desk, simplified).
+ * Tokens only (light Mist default + dark).
+ *
+ * From 1024px the hero is drawn exactly as the 1280 × 720 artboard, in its own pixels: a 1280-wide
+ * canvas (copy 420 · gap 44 · mat 704, 56 at the sides) zoomed as a whole by --hero-z, the width or
+ * the height the viewport gives it, whichever is smaller (1 at 1280 × 720, 1.125 at 1440 × 900, 1.5 at
+ * 1920 × 1080). It never draws smaller than the artboard at the sizes it was made for; a taller window
+ * gives the extra height to the mat (--mat-h), the laptop's screen (--view-h) and the space under the
+ * laptop (--extra), as the 1440 artboard does.
+ * Under 1024px: the phone artboard, stacked, with the files as a swipeable row.
+ */
+
+/* ── Frame ──────────────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+  box-sizing: border-box;
+  padding: 22px var(--land-gut, 16px) 28px;
+}
+.canvas {
+  max-width: 560px;
+  margin: 0 auto;
+}
+.grid {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 26px;
+}
+
+@media (min-width: 1024px) {
+  .hero {
+    height: var(--land-h);
+    padding: 0;
+    container-type: inline-size;
+  }
+  .canvas {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 1280px;
+    max-width: none;
+    margin: 0;
+    --hero-z: min(tan(atan2(100cqw, 1280px)), tan(atan2(var(--land-h), 664px)));
+    --hd: calc(var(--land-h) / var(--hero-z));
+    --mat-h: calc(var(--hd) - 74px);
+    --extra: calc((var(--mat-h) - 590px) * 0.57);
+    --view-h: calc(268px + (var(--mat-h) - 590px) * 0.46);
+    height: var(--hd);
+    transform: translateX(-50%) scale(var(--hero-z));
+    transform-origin: 50% 0;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 420px minmax(0, 1fr);
+    gap: 44px;
+    align-items: center;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 0 56px 32px;
+  }
+}
+
+/* ── Copy ───────────────────────────────────────────────────────────── */
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.eyebrow {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.h1 {
+  margin: 12px 0 0;
+  font-size: 54px;
+  line-height: 0.92;
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  color: var(--text);
+}
+.sub {
+  margin: 16px 0 0;
+  max-width: 400px;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+.cap {
+  display: none;
+  margin-top: 16px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+@media (min-width: 1024px) {
+  .h1 {
+    margin-top: 18px;
+    font-size: 72px;
+  }
+  .sub {
+    margin-top: 22px;
+    font-size: 18px;
+  }
+  .ctas {
+    margin-top: 28px;
+  }
+  .cap {
+    display: block;
+  }
+}
+
+/* ── The mat ────────────────────────────────────────────────────────── */
+
+.mat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 28px 16px 16px;
+  border-radius: 24px;
+  background-color: var(--surface-inset);
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  border: 1px solid var(--border);
+}
+@media (min-width: 1024px) {
+  .mat {
+    display: block;
+    height: var(--mat-h);
+    padding: 0;
+    border-radius: 32px;
+    overflow: hidden;
+  }
+}
+
+/* A file on the desk (the phone and the paper note; the laptop's tag; the tray's chips). */
+.obj {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: grab;
+  touch-action: pan-y;
+  transform: rotate(var(--r));
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: drop-shadow(0 12px 16px rgb(17 26 44 / 0.18));
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.obj:hover,
+.obj:focus-visible {
+  transform: rotate(calc(var(--r) * 0.4)) translateY(-6px);
+  outline: none;
+  z-index: 4;
+}
+.obj:focus-visible .tag {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.obj[data-dragging],
+.chip[data-dragging] {
+  transition: none;
+  z-index: 20;
+  cursor: grabbing;
+}
+.tag {
+  position: absolute;
+  left: 16px;
+  top: -13px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: 9999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+[data-on] > .tag,
+.tag[data-on],
+.chip[data-on] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.hop {
+  animation: hop 0.45s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+@keyframes hop {
+  35% {
+    translate: 0 -10px;
+  }
+}
+
+/* The laptop: its screen shows whatever you drop. */
+.laptop {
+  position: relative;
+  min-width: 0;
+}
+.laptopTag {
+  display: none;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.laptopTag::before,
+.chip::before {
+  /* A 44px target around the 26px tag. */
+  content: "";
+  position: absolute;
+  inset: -9px -4px;
+}
+.laptopTag:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.lid {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border-radius: 16px 16px 6px 6px;
+  background: var(--logo-ground);
+}
+.screen {
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface-raised);
+}
+.url {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 4px 0 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.urlIcon {
+  flex: none;
+  display: inline-flex;
+  color: var(--accent-text);
+  font-size: 14px;
+}
+.urlText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.urlText b {
+  color: var(--text);
+  font-weight: 700;
+}
+.urlText a {
+  color: inherit;
+  text-decoration: none;
+}
+.urlText a:hover b {
+  text-decoration: underline;
+}
+.urlBtn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-text);
+  text-decoration: none;
+  cursor: pointer;
+}
+.urlBtn:hover {
+  background: var(--surface-hover);
+}
+.urlBtn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+.urlBtn[data-icon] {
+  padding: 0;
+  color: var(--text-muted);
+}
+.view {
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+  background: var(--surface);
+  outline: none;
+}
+.base {
+  display: block;
+  position: relative;
+  height: 14px;
+  margin: 0 -4%;
+  border-radius: 2px 2px 14px 14px;
+  background: var(--border-strong);
+}
+.base::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 70px;
+  height: 6px;
+  margin-left: -35px;
+  border-radius: 0 0 6px 6px;
+  background: var(--text-subtle);
+  opacity: 0.5;
+}
+
+/* What the screen shows: the render's poster, then the real render once a file is dropped. */
+.show {
+  position: absolute;
+  inset: 0;
+  animation: show 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes show {
+  from {
+    opacity: 0;
+    transform: scale(0.985) translateY(8px);
+  }
+}
+.show[data-rest] {
+  animation: none;
+}
+.show > * {
+  position: absolute;
+  inset: 0;
+}
+.poster {
+  transition: opacity 0.3s;
+}
+.poster[data-hidden] {
+  opacity: 0;
+  pointer-events: none;
+}
+.poster img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.live {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.live[data-ready] {
+  opacity: 1;
+}
+.frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+.doc {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 16px 18px 24px;
+  background: var(--surface-raised);
+}
+.loading {
+  position: absolute;
+  inset: auto 8px 8px auto;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (min-width: 1024px) {
+  .laptop {
+    position: absolute;
+    left: 24px;
+    top: 30px;
+    width: 480px;
+    transform: rotate(-1.5deg);
+    filter: drop-shadow(0 12px 16px rgb(17 26 44 / 0.18));
+  }
+  .laptopTag {
+    display: inline-flex;
+    position: absolute;
+  }
+  .lid {
+    padding: 12px;
+    border-radius: 18px 18px 6px 6px;
+  }
+  .view {
+    height: var(--view-h);
+  }
+  .base {
+    height: 16px;
+    margin: 0 -5%;
+  }
+}
+
+/* The phone (deck.pdf) and the paper note (notes.md). Desktop only. */
+.phoneObj,
+.paperObj {
+  display: none;
+}
+.phone {
+  display: block;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 9px;
+  border-radius: 30px;
+  background: var(--logo-ground);
+}
+.phoneScreen {
+  position: relative;
+  display: block;
+  height: 100%;
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.phoneScreen img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: auto;
+}
+.paper {
+  position: relative;
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.paper img {
+  position: absolute;
+  left: -8px;
+  top: -6px;
+  width: 400px;
+  height: auto;
+}
+@media (min-width: 1024px) {
+  .phoneObj,
+  .paperObj {
+    display: block;
+  }
+}
+
+/* The drop mark */
+.dock {
+  position: absolute;
+  right: 6px;
+  top: 4px;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+.ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+  border: 2px dashed var(--border-strong);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s, background-color 0.15s;
+}
+.dock[data-over] .ring {
+  transform: scale(1.1);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.mark {
+  position: relative;
+  display: inline-flex;
+  transform-origin: 50% 85%;
+  filter: drop-shadow(0 10px 14px rgb(17 26 44 / 0.28));
+  scale: 0.62;
+}
+.sqA {
+  animation: sqA 0.7s cubic-bezier(0.3, 1.5, 0.5, 1) 0.12s both;
+}
+.sqB {
+  animation: sqB 0.7s cubic-bezier(0.3, 1.5, 0.5, 1) 0.12s both;
+}
+@keyframes sqA {
+  22% { transform: scale(1.22, 0.76); }
+  50% { transform: scale(0.87, 1.15); }
+  75% { transform: scale(1.04, 0.96); }
+}
+@keyframes sqB {
+  22% { transform: scale(1.22, 0.76); }
+  50% { transform: scale(0.87, 1.15); }
+  75% { transform: scale(1.04, 0.96); }
+}
+.splash {
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--logo-drop);
+  opacity: 0;
+  pointer-events: none;
+}
+.spA {
+  animation: spA 0.8s ease-out 0.24s both;
+}
+.spB {
+  animation: spB 0.8s ease-out 0.24s both;
+}
+@keyframes spA {
+  0% { transform: scale(0.7); opacity: 0.9; }
+  100% { transform: scale(2); opacity: 0; }
+}
+@keyframes spB {
+  0% { transform: scale(0.7); opacity: 0.9; }
+  100% { transform: scale(2); opacity: 0; }
+}
+@media (min-width: 1024px) {
+  .dock {
+    right: auto;
+    left: 318px;
+    top: calc(404px + var(--extra));
+    width: 108px;
+    height: 108px;
+  }
+  .mark {
+    scale: 1;
+  }
+}
+
+/* The tray: the other files */
+.tray {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.trayLabel {
+  display: none;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.trayRow {
+  display: flex;
+  gap: 8px;
+  margin: -6px -16px;
+  padding: 6px 16px 8px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-padding: 16px;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.trayRow::-webkit-scrollbar {
+  display: none;
+}
+.chip {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  scroll-snap-align: start;
+  touch-action: pan-x;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+.chip:hover {
+  transform: translateY(-2px) rotate(-1deg);
+}
+.chip:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.phoneOnly {
+  display: inline-flex;
+}
+@media (min-width: 1024px) {
+  .tray {
+    position: absolute;
+    left: 36px;
+    top: calc(418px + var(--extra));
+  }
+  .trayLabel {
+    display: block;
+  }
+  .trayRow {
+    flex-wrap: wrap;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+  .chip {
+    height: 38px;
+    padding: 0 13px;
+    cursor: grab;
+    touch-action: pan-y;
+  }
+  .phoneOnly {
+    display: none;
+  }
+}
+
+/* The marker note */
+.note {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .note {
+    position: absolute;
+    left: 40px;
+    top: calc(520px + var(--extra));
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--accent-text);
+    font-size: 21px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    transform: rotate(-3deg);
+    pointer-events: none;
+    z-index: 4;
+  }
+}
+
+/* A click or key drop: a paper ghost flies from the file into the mark. */
+.ghost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 54px;
+  margin: -27px 0 0 -22px;
+  pointer-events: none;
+  z-index: 30;
+  filter: drop-shadow(0 8px 12px rgb(17 26 44 / 0.25));
+}
+.ghost path {
+  fill: var(--surface-raised);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sqA,
+  .sqB,
+  .spA,
+  .spB,
+  .hop,
+  .show {
+    animation: none;
+  }
+  .obj,
+  .ring,
+  .chip,
+  .poster,
+  .live {
+    transition: none;
+  }
+}

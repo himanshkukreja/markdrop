@@ -6,11 +6,11 @@ import t from "./theme.module.css";
 
 /** One pinned card per kind of file; the picture is the desk sample, as Markdrop renders it. */
 const PINS = [
-  { id: "md", ext: "MD", title: "Documents", line: "Tables, code, Mermaid diagrams and math. Edit it later at the same link.", r: "-1.5deg", dark: true },
-  { id: "html", ext: "HTML", title: "Interactive pages", line: "Scripts run in a sandbox, so buttons, charts and calculators work.", r: "1deg", dark: false },
-  { id: "pdf", ext: "PDF", title: "PDFs", line: "Page by page in the browser. Nothing to download.", r: "-0.5deg", dark: true },
-  { id: "sheet", ext: "XLSX", title: "Spreadsheets", line: "Every sheet as its own tab. CSV and .xls too.", r: "1.5deg", dark: true },
-  { id: "video", ext: "MP4", title: "Video and audio", line: "Up to 2 GB, and it plays in the browser.", r: "-1deg", dark: false },
+  { id: "md", ext: "MD", title: "Documents", line: "Tables, code, Mermaid diagrams and math. Edit it later at the same link.", r: "-1.5deg" },
+  { id: "html", ext: "HTML", title: "Interactive pages", line: "Scripts run in a sandbox, so charts, buttons and checklists work.", r: "1deg" },
+  { id: "pdf", ext: "PDF", title: "PDFs", line: "Page by page in the browser. Nothing to download.", r: "-0.5deg" },
+  { id: "sheet", ext: "XLSX", title: "Spreadsheets", line: "Every sheet as its own tab. CSV and .xls too.", r: "1.5deg" },
+  { id: "video", ext: "MP4", title: "Video and audio", line: "Up to 2 GB, and it plays in the browser.", r: "-1deg" },
 ];
 
 /** 2 · Documents and files: what renders. Five pinned cards and what happens later. Server HTML. */
@@ -36,8 +36,8 @@ export default function Renders() {
         {PINS.map((p) => (
           <li key={p.ext} className={s.pin} style={{ "--r": p.r } as React.CSSProperties}>
             <span className={s.pinShot} aria-hidden="true">
-              <img className={p.dark ? t.light : undefined} src={`/landing-desk/posters/${p.id}.webp`} alt="" width={838} height={662} loading="lazy" decoding="async" />
-              {p.dark && <img className={t.dark} src={`/landing-desk/posters/${p.id}.dark.webp`} alt="" width={838} height={662} loading="lazy" decoding="async" />}
+              <img className={t.light} src={`/landing-desk/hero/${p.id}.webp`} alt="" width={912} height={840} loading="lazy" decoding="async" />
+              <img className={t.dark} src={`/landing-desk/hero/${p.id}.dark.webp`} alt="" width={912} height={840} loading="lazy" decoding="async" />
             </span>
             <span className={s.ext}>{p.ext}</span>
             <h3 className={s.pinTitle}>{p.title}</h3>

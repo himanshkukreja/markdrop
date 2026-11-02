@@ -8,8 +8,8 @@
  * The PDF, spreadsheet and video viewers are not copies: each page is what the artifact Worker
  * (worker/src/index.js) answers for `/v/<renderer>/<key>?theme=…`, fetched from the Worker module
  * itself with an in-memory bucket (as worker/test does), with only the file's address swapped from
- * the Worker's `/r/<key>` to the copy under /landing-demo/files/. The HTML page is the calculator
- * file itself. next.config.ts serves /landing-demo/ with the same sandbox the guides demo has, and
+ * the Worker's `/r/<key>` to the copy under /landing-demo/files/. The HTML page is the launch
+ * dashboard file itself. next.config.ts serves /landing-demo/ with the same sandbox the guides demo has, and
  * the landing frames every page with sandbox="allow-scripts" (no allow-same-origin), like Markdrop's
  * embeds: an opaque origin with no cookies, storage or access to markdrop.in.
  *
@@ -55,8 +55,9 @@ for (const s of SAMPLES) {
   }
 }
 
-copyFileSync(path.join(HERE, "acme-pricing-calculator.html"), path.join(OUT, "acme-pricing-calculator.html"));
-console.log("wrote public/landing-demo/acme-pricing-calculator.html");
+// The HTML sample: the launch dashboard (the hero laptop's screen and the "what renders" card).
+copyFileSync(path.join(HERE, "launch-dashboard.html"), path.join(OUT, "launch-dashboard.html"));
+console.log("wrote public/landing-demo/launch-dashboard.html");
 // The Markdown sample: the landing fetches it and renders it with MarkdownPreview (no frame).
 copyFileSync(path.join(HERE, "launch-notes.md"), path.join(FILES, "launch-notes.md"));
 console.log("wrote public/landing-demo/files/launch-notes.md");
