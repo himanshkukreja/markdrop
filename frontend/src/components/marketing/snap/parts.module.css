@@ -1,0 +1,399 @@
+/*
+ * The pieces the snap pages (/mcp, /enterprise) build their sections from, in the landing's visual
+ * language (components/landing/desk/Sections.module.css): an eyebrow, a benefit headline, a sentence
+ * or two, three or four concrete points and a docs link, beside the real product on a dotted mat.
+ * Tokens only (Mist light + dark, one blue, Manrope / JetBrains Mono).
+ *
+ * Sizing (from 900px, inside a SnapSection): headlines from the viewport's width and height (56px at
+ * 1280 × 720, 63 at 1440 × 900, 84 at 1920 × 1080); a product frame as wide as its column allows and
+ * as tall as the section's usable height (--snap-usable), from its aspect ratio (--ar), so a section
+ * never outgrows one viewport and its screen never shrinks below what the height gives it.
+ */
+
+/* ── The layout: copy beside a visual ───────────────────────────────── */
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 36px;
+}
+@media (min-width: 900px) {
+  .split {
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+    gap: clamp(32px, 4.5vw, 96px);
+    align-items: center;
+    min-height: 0;
+  }
+  .rev {
+    grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr);
+  }
+  .rev > .copy {
+    order: 2;
+  }
+  .wideCopy {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* ── The copy ───────────────────────────────────────────────────────── */
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+  max-width: 600px;
+}
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.h1,
+.h2 {
+  margin: 0;
+  font-weight: 800;
+  color: var(--text);
+  text-wrap: balance;
+}
+.h1 {
+  font-size: clamp(40px, 10vw, 52px);
+  line-height: 0.98;
+  letter-spacing: -0.05em;
+}
+.h2 {
+  font-size: clamp(34px, 8vw, 42px);
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+.accent {
+  color: var(--accent-text);
+}
+.lede {
+  margin: 0;
+  max-width: 560px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.points {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.points li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.points li > svg {
+  margin-top: 2px;
+  font-size: 18px;
+  color: var(--accent-text);
+}
+.points b {
+  color: var(--text);
+  font-weight: 700;
+}
+.points code,
+.lede code,
+.code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  font-weight: 600;
+  color: var(--text);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-top: 6px;
+}
+.more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent-text);
+  text-decoration: none;
+}
+.more:hover {
+  color: var(--accent-text-hover);
+  text-decoration: underline;
+}
+.more:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.small {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+@media (min-width: 900px) {
+  .h1 {
+    font-size: clamp(44px, min(5.4vw, 10.4svh), 104px);
+  }
+  .h2 {
+    font-size: clamp(38px, min(4.4vw, 8.6svh), 84px);
+  }
+  .lede {
+    font-size: clamp(16px, min(1.3vw, 2.5svh), 21px);
+  }
+  .points {
+    font-size: clamp(15px, min(1.1vw, 2.1svh), 18px);
+    gap: clamp(8px, 1.4svh, 16px);
+  }
+  .copy {
+    gap: clamp(12px, 2svh, 22px);
+  }
+}
+
+/* ── The visual: the real product on the desk mat ───────────────────── */
+
+.visual {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.mat {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 28px 16px 20px;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background-color: var(--surface-inset);
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+}
+.caption {
+  margin: 0;
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* A window around a recording (or any product panel): a title bar, then the screen. */
+.frame {
+  --ar: 1.6;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 14px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-xl);
+}
+.frame > :last-child {
+  border-radius: 0 0 13px 13px;
+  overflow: hidden;
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 13px 13px 0 0;
+  background: var(--surface-inset);
+}
+.dots {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.addr {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.addr b {
+  color: var(--text);
+  font-weight: 700;
+}
+.tag {
+  position: absolute;
+  right: 18px;
+  top: -14px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  box-sizing: border-box;
+  border-radius: 9999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.tag svg {
+  font-size: 14px;
+  color: var(--accent-text);
+}
+.tag[data-on] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.tag[data-on] svg {
+  color: inherit;
+}
+
+@media (min-width: 900px) {
+  .visual {
+    max-height: var(--snap-usable);
+  }
+  .mat {
+    padding: clamp(28px, 4svh, 44px) clamp(20px, 2.4vw, 40px) clamp(20px, 3svh, 36px);
+    border-radius: 32px;
+  }
+  /* As wide as the column, and no taller than the section allows: (usable - mat padding - caption -
+     title bar) × the screen's aspect ratio. */
+  .frame {
+    width: min(100%, calc((var(--snap-usable) - var(--frame-room, 150px)) * var(--ar)));
+  }
+}
+
+/* A plain panel on the mat (lists, tool groups…). */
+.panel {
+  box-sizing: border-box;
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ── FAQ ────────────────────────────────────────────────────────────── */
+
+.faq {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  overflow: hidden;
+}
+.qa + .qa {
+  border-top: 1px solid var(--border);
+}
+.qa summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.qa summary::-webkit-details-marker {
+  display: none;
+}
+.qa summary svg {
+  flex: none;
+  color: var(--text-muted);
+  transition: transform var(--duration-fast, 0.15s);
+}
+.qa[open] summary svg {
+  transform: rotate(180deg);
+}
+.qa summary:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+.qa p {
+  margin: 0;
+  padding: 0 20px 16px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.qa p a {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+@media (min-width: 900px) {
+  .faq {
+    max-height: var(--snap-usable);
+    overflow-y: auto;
+  }
+}
+
+/* ── Closing band (a CTA inside the last section) ───────────────────── */
+
+.close {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 18px;
+  padding: clamp(40px, 6svh, 88px) 24px;
+  border-radius: 36px;
+  border: 1px solid var(--border);
+  background-color: var(--surface-inset);
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+}
+.close .lede {
+  text-align: center;
+}
+.close .actions {
+  justify-content: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qa summary svg {
+    transition: none;
+  }
+}
