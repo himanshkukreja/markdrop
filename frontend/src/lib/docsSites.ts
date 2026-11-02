@@ -896,6 +896,26 @@ export function unpublishSite(id: string): Promise<Site> {
   return request<Site>(`/${enc(id)}/unpublish`, { method: "POST" }).then(after(guideEvents.unpublished));
 }
 
+/** Settings › Export & self-host: what the download holds, and a five-minute link to the zip. */
+export interface GuideExport {
+  url: string;
+  filename: string;
+  expires_at: number;
+  source: "published" | "drafts";
+  private: "omit" | "public";
+  pages: number;
+  files: number;
+  bytes: number;
+  /** What's different from the guide on Markdrop (Ask AI off, private pages left out, …). */
+  notes: string[];
+  build_number?: number | null;
+}
+
+/** Admins: the guide as a self-hostable content folder (backend/app/routers/docs_site_export.py). */
+export function startGuideExport(id: string, body: { source: GuideExport["source"]; private: GuideExport["private"] }): Promise<GuideExport> {
+  return request<GuideExport>(`/${enc(id)}/export`, { method: "POST", json: body });
+}
+
 /** Admins: add an own domain (help.acme.com). The answer is the site, with the domain pending. */
 export function addSiteDomain(id: string, host: string): Promise<Site> {
   return request<Site>(`/${enc(id)}/domains`, { method: "POST", json: { host } }).then(after(guideEvents.domainAdded));
