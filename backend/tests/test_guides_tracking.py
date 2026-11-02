@@ -49,7 +49,9 @@ class GuidesShapes(unittest.TestCase):
     def test_journeys_titles_and_labels(self):
         self.assertEqual(journeys.app_title("/guides/[site]/publish"), "Guides · publish")
         self.assertEqual(journeys.app_title("/docs-studio/[site]"), "Guides · editor")
-        self.assertEqual(journeys.app_title("/guides"), "Guides · all sites")
+        # /guides is the landing page; the studio home is /guides/home (guides.markdrop.in/).
+        self.assertEqual(journeys.app_title("/guides"), "Guides · landing page")
+        self.assertEqual(journeys.app_title("/guides/home"), "Guides · all sites")
         page = {"title": "Guides · editor", "doc": None}
         d = journeys.describe("guide_created", {"source": "import", "workspace": True}, None, page)
         self.assertEqual((d["kind"], d["label"], d["detail"]), ("connect", "Guides: created a site", "imported from GitBook · in a workspace"))

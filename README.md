@@ -842,6 +842,7 @@ The artifact origin needs no DNS of its own while it runs on `workers.dev`.
 | `MARKDROP_RATE_LIMIT_CREATE` | Create/update/delete rate limit | `10/minute` |
 | `MARKDROP_RATE_LIMIT_READ` | Read rate limit | `60/minute` |
 | `MARKDROP_FRONTEND_URL` | Public frontend URL (OAuth/email redirects) | `http://localhost:3000` |
+| `MARKDROP_GUIDES_STUDIO_URL` | Markdrop Guides' studio (its emails' links, the GitHub App callback; its origin is always CORS-allowed) | blank: `https://guides.markdrop.in`, or `<frontend>/guides` for a local frontend |
 | `MARKDROP_API_BASE_URL` | Public API URL (diagram/math image links) | `http://localhost:8080` |
 | `MARKDROP_AUTH_SECRET` | JWT signing key for user sessions | — |
 | `MARKDROP_GOOGLE_CLIENT_ID` / `_SECRET` | Google OAuth (login + Docs) | — |

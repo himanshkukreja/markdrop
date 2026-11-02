@@ -185,7 +185,8 @@ class EmailTests(DbCase):
         self.assertIn("Acme Help", mail["html"])
         self.assertIn(f"https://{HOST}", mail["html"])
         self.assertTrue(await cd.notify(self.db, s["_id"], HOST, cd.FAILED))
-        self.assertIn(f"/guides/{s['_id']}/settings/domains/{HOST}", self.sent[-1]["html"])
+        # The studio, on its own host (settings.studio_link).
+        self.assertIn(f"https://guides.markdrop.in/{s['_id']}/settings/domains/{HOST}", self.sent[-1]["html"])
 
     async def test_suppressed_and_unknown_people_get_nothing(self):
         s = await self.make_site("acme")

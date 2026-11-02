@@ -689,10 +689,9 @@ async def notify(db: AsyncIOMotorDatabase, site_id: Any, host: str, state: str) 
         email = str((user or {}).get("email") or "").strip()
         if not email or await db["email_suppressions"].find_one({"_id": email.lower()}, {"_id": 1}):
             return False
-        base = (get_settings().frontend_url or "").rstrip("/")
         await mailer.send_guide_domain_email(
             to_email=email, host=host, guide_name=str(site.get("name") or "your guide"), live=state == LIVE,
-            settings_url=f"{base}/guides/{oid(site_id)}/settings/domains/{host}",
+            settings_url=get_settings().studio_link(f"/{oid(site_id)}/settings/domains/{host}"),
             message=entry.get("message") if state == FAILED else None)
         log.info("docs site %s: emailed that its domain is %s", site_id, state)
         return True

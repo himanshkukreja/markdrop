@@ -1,4 +1,4 @@
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -23,6 +23,12 @@ class Settings(BaseSettings):
 
     # Public URL of the frontend — used for OAuth/email redirect links.
     frontend_url: str = "http://localhost:3000"
+    # Where Markdrop Guides' studio lives (studio_url / studio_link below): its own host,
+    # https://guides.markdrop.in/<path> (the frontend's middleware serves it from the app's /guides
+    # routes). Blank: https://guides.markdrop.in, except when frontend_url is a local address
+    # (http://localhost:3000), where the studio stays under <frontend_url>/guides. Its origin is
+    # always allowed by CORS (cors_origins gets it added).
+    guides_studio_url: str = ""
     # Public URL of this backend API — used to build the email magic-link.
     api_base_url: str = "http://localhost:8080"
 
@@ -280,6 +286,47 @@ class Settings(BaseSettings):
         if self.mcp_resource_url:
             return _public_base(self.mcp_resource_url)
         return f"{self.oauth_issuer_url}/mcp"
+
+    @property
+    def studio_url(self) -> str:
+        """Markdrop Guides' studio base URL, no trailing slash (see guides_studio_url)."""
+        if self.guides_studio_url.strip():
+            return self.guides_studio_url.strip().rstrip("/")
+        from urllib.parse import urlsplit
+
+        front = self.frontend_url.rstrip("/")
+        if (urlsplit(front).hostname or "").lower() in _LOOPBACK_HOSTS:
+            return f"{front}/guides"
+        return "https://guides.markdrop.in"
+
+    def studio_link(self, path: str = "/") -> str:
+        """A studio screen's address, from its studio path ("/", "/new", "/<site>/settings/people").
+
+        On the studio host the path is the address; a studio under <app>/guides (local development)
+        has its home at /guides/home, since /guides itself is the landing page.
+        """
+        p = path if path.startswith("/") else f"/{path}"
+        base = self.studio_url
+        if base.endswith("/guides") and (p == "/" or p.startswith("/?") or p.startswith("/#")):
+            p = "/home" + p[1:]
+        return f"{base}{p}"
+
+    @property
+    def studio_origin(self) -> str:
+        """The studio's origin (scheme://host[:port]), for CORS."""
+        from urllib.parse import urlsplit
+
+        u = urlsplit(self.studio_url)
+        return f"{u.scheme}://{u.netloc}" if u.scheme and u.netloc else ""
+
+    @model_validator(mode="after")
+    def _studio_origin_is_allowed(self) -> "Settings":
+        # The studio host calls the API with the user's session, like markdrop.in does: it is one
+        # of the app's own origins, whatever MARKDROP_CORS_ORIGINS lists.
+        origin = self.studio_origin
+        if origin and origin not in self.cors_origins:
+            self.cors_origins = [*self.cors_origins, origin]
+        return self
 
     @property
     def posthog_configured(self) -> bool:

@@ -62,7 +62,9 @@ def _need_app() -> None:
 
 
 def _callback_url() -> str:
-    return f"{get_settings().frontend_url.rstrip('/')}/guides/github/installed"
+    # Markdrop Guides' studio host (guides.markdrop.in/github/installed): the GitHub App's callback
+    # and setup URL must name exactly this (docs-platform/setup-github-app.md).
+    return get_settings().studio_link("/github/installed")
 
 
 @router.get("/status")

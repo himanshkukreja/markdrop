@@ -363,6 +363,33 @@ async def mint_tenant_token(
     return {"token": token, "expires_at": exp, "host": domain.host}
 
 
+@router.post("/studio-token", include_in_schema=False)
+@limiter.limit("30/minute")
+async def mint_studio_token(request: Request, user: User = Depends(require_user)):
+    """A fresh session for Markdrop Guides' studio host (guides.markdrop.in), from this one.
+
+    Browsers keep storage per origin, so the session on markdrop.in can't be seen on the studio
+    host. markdrop.in/auth/handoff calls this and hands the result over in a URL fragment (the
+    frontend's lib/studioSession). The studio host is ours (the same app, on Vercel), not a
+    customer's domain, so this is an ordinary session, unlike a tenant token.
+
+    Only a full session may make one: not a custom domain's tenant token (it would turn a token
+    scoped to one workspace's documents into the whole account) and not an API token (it would
+    outlive the API token's revocation).
+    """
+    raw = _bearer_token(request) or ""
+    full = False
+    if not raw.startswith(api_token.TOKEN_PREFIX) and not is_tenant_request(request):
+        try:
+            full = decode_access_token(raw).get("typ") == "access"
+        except jwt.InvalidTokenError:
+            full = False
+    if not full:
+        raise HTTPException(status_code=403, detail="Sign in on markdrop.in to open Markdrop Guides.")
+    token, exp = create_access_token(user.id, user.email)
+    return {"token": token, "expires_at": exp}
+
+
 @router.post("/logout")
 async def logout(_: User = Depends(require_user)):
     # Sessions are stateless JWTs; the client discards the token.

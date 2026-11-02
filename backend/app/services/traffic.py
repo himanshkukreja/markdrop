@@ -71,7 +71,8 @@ APP_ROUTES = {
 # Markdrop Guides (/guides, and its old address /docs-studio): literal screens, then a site id and
 # the site's screens. Site ids aren't secrets, but each would be a row of its own.
 _GUIDES_ROOTS = {"guides", "docs-studio"}
-_GUIDES_SCREENS = {"new", "members"}
+# home: the studio home (guides.markdrop.in/, the app route /guides/home; /guides is the landing page).
+_GUIDES_SCREENS = {"home", "new", "members"}
 _GUIDES_SITE_SCREENS = {"changelog", "design", "import", "insights", "publish", "settings"}
 _GUIDES_SETTINGS = {"general", "domains", "access", "ask-ai", "api-reference", "redirects", "people", "danger"}
 
@@ -181,7 +182,10 @@ def parse_ua(ua: str) -> dict:
 def _own_host(host: str) -> bool:
     own = (urlsplit(settings.frontend_url).hostname or "").lower().removeprefix("www.")
     host = host.lower().removeprefix("www.")
-    return host == own or host in ("localhost", "127.0.0.1")
+    # Markdrop Guides' studio host (guides.markdrop.in) is the app too; it reports its pages as the
+    # app routes they are (/guides/[site]/…).
+    studio = (urlsplit(settings.studio_url).hostname or "").lower()
+    return host == own or host == studio or host in ("localhost", "127.0.0.1", "guides.localhost")
 
 
 def clean_path(path: str, host: str) -> str | None:

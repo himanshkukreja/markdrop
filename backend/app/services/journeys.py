@@ -95,7 +95,8 @@ APP_TITLES = {
 
 # Markdrop Guides: /guides/… and its old address /docs-studio/… (frontend lib/analyticsPath).
 GUIDES_TITLES = {
-    "": "Guides · all sites",
+    "": "Guides · landing page",
+    "/home": "Guides · all sites",
     "/new": "Guides · new site",
     "/members": "Guides · members",
     "/[site]": "Guides · editor",

@@ -260,7 +260,8 @@ class Connect(GitHubCase):
     async def test_authorize_links_every_reachable_installation(self):
         out = await self.gh("POST", "/authorize", json={"workspace_id": "personal", "return_to": "/guides"})
         self.assertIn("/login/oauth/authorize?", out["url"])
-        self.assertIn("redirect_uri=https%3A%2F%2Fmarkdrop.in%2Fguides%2Fgithub%2Finstalled", out["url"])
+        # The studio host (settings.studio_link): the app's callback URL is registered there.
+        self.assertIn("redirect_uri=https%3A%2F%2Fguides.markdrop.in%2Fgithub%2Finstalled", out["url"])
         from urllib.parse import parse_qs, urlsplit
 
         state = parse_qs(urlsplit(out["url"]).query)["state"][0]

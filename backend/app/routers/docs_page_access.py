@@ -213,7 +213,7 @@ async def _notify_admins(db: AsyncIOMotorDatabase, site: dict, email: str, r: di
         to = [p["email"] for p in people if p.get("email") and p.get("effective_role") in ("admin", "owner")]
         if not to:
             return
-        url = f"{get_settings().frontend_url.rstrip('/')}/guides/{site['_id']}/settings/private#requests"
+        url = get_settings().studio_link(f"/{site['_id']}/settings/private#requests")
         await pa.send_request_email(to=to, guide=site.get("name") or "your guide", email=email, rule_name=r.get("name") or r["id"],
                                     note=note, url=url)
     except Exception:

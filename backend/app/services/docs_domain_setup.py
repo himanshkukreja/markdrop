@@ -99,6 +99,9 @@ async def setup_view(site: dict, raw_host: Any, *, fresh: bool = False, user_id:
     zone = hint.get("zone") or dns_provider.zone_of(host)
     one_click = None
     if entry.get("status") not in (domains.LIVE, domains.REMOVING):
+        # Deliberately markdrop.in/guides/…, not the studio host: the Domain Connect template's
+        # syncRedirectDomain is markdrop.in (docs-platform/domain-connect), and the app redirects
+        # it to guides.markdrop.in/… with its query.
         back = f"{get_settings().frontend_url.rstrip('/')}/guides/{quote(str(site['_id']), safe='')}/settings/domains/{quote(host, safe='')}?connected=1"
         one_click = await domain_connect.one_click(host, zone, redirect_uri=back)
     return {
