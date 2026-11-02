@@ -356,8 +356,10 @@ function loadPostHog(m: AnalyticsMode): Promise<PostHog | null> {
           // `ph-no-capture` (the default blockClass) blocks content; an encrypted document's page
           // (its data-md-e2e marker) is blocked whole, even in the instant before replay stops;
           // and so is the scratch element Mermaid renders a diagram's labels into on <body>
-          // (reading/DiagramFrame: render id mmd-…, Mermaid's element d<id>, its sandbox i<id>).
-          blockSelector: '[data-md-e2e], [id^="dmmd-"], [id^="immd-"]',
+          // (reading/DiagramFrame: render id mmd-…, Mermaid's element d<id>, its sandbox i<id>);
+          // and Next's route announcer, which reads out the previous page's title (a document's
+          // title, or its slug) after every client-side navigation.
+          blockSelector: '[data-md-e2e], [id^="dmmd-"], [id^="immd-"], next-route-announcer, #__next-route-announcer__',
           // Uncompressed, so before_send can scrub link attributes in snapshots (scrubSnapshot).
           // Requests are still gzipped on the wire.
           compress_events: false,
