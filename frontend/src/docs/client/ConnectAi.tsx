@@ -15,7 +15,7 @@ export function ConnectAiDialog({ open, onClose }: { open: boolean; onClose: () 
   const { url, name, mcpName } = useDocsSite();
   const site = url || (typeof window !== "undefined" ? window.location.origin : "");
   const links = mcpLinks(site, mcpName);
-  const docs = name ? `${name}'s docs` : "these docs";
+  const docs = name ? `the ${name} docs` : "these docs";
   return (
     <Dialog
       open={open}
