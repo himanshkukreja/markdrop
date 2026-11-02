@@ -207,7 +207,7 @@ export const FAQS: Faq[] = [
   {
     q: "Can I use my own domain?",
     a: "Yes, free. Add a subdomain like help.yourcompany.com and one CNAME record; with Cloudflare and other supported providers, Connect adds the record in one click. The certificate is handled for you, and the free yourname.guides.markdrop.in address keeps working.",
-    links: [{ label: "Use your own domain", href: `${DOCS}/guides/site-settings#your-own-domain` }],
+    links: [{ label: "Use your own domain", href: `${DOCS}/guides/custom-domain` }],
   },
   {
     q: "Is a guide good for SEO, and can AI assistants read it?",

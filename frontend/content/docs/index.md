@@ -1,7 +1,7 @@
 ---
 title: Markdrop Docs
 description: Publish documents and files, share them safely, run workspaces on your own domain, and use Markdrop from your editor, terminal and AI assistant.
-updated: 2026-10-30
+updated: 2026-11-02
 ---
 
 Markdrop turns what you drop into a link that renders in any browser: Markdown documents, and files like PDFs, videos, spreadsheets, Word documents, HTML and zipped websites. These docs cover every part of it.
@@ -23,6 +23,7 @@ Markdrop turns what you drop into a link that renders in any browser: Markdown d
 - CLI: [Install](/cli/install), [Upload and replace](/cli/upload-and-replace), [Send and receive](/cli/send-and-receive)
 - VS Code: [Sync a file](/vscode/sync), [Conflicts](/vscode/conflicts)
 - AI and MCP: [Hosted MCP server](/ai/hosted-mcp), [Local MCP server](/ai/local-mcp), [Tools](/ai/tools)
+- Markdrop Guides, docs for your product: [Overview](/guides/overview), [Create a guide](/guides/create-a-site), [Fix list](/guides/fix-list), [Private pages](/guides/private-pages)
 
 ## Install the CLI
 

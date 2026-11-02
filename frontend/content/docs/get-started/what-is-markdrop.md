@@ -1,7 +1,7 @@
 ---
 title: What is Markdrop
 description: Markdrop turns documents and files into links that open rendered in any browser. Here is what it does and where to start.
-updated: 2026-11-01
+updated: 2026-11-02
 keywords: [overview, introduction, markdown, artifacts, files, links]
 ---
 
@@ -43,6 +43,10 @@ You stay in control of the link after you share it:
 A workspace gives a team shared folders, roles and its own domain, so a link reads `docs.acme.com/guides/setup` instead of `markdrop.in/…`, with your logo on it. See [Create a workspace](/workspaces/create).
 
 You can also publish from where you already work: the [CLI](/cli/install), the [VS Code extension](/vscode/sync), and AI assistants like Claude through [MCP](/ai/overview).
+
+## Docs for your product
+
+[Markdrop Guides](/guides/overview) builds and hosts a whole docs site for your product, like a help center or an API reference, at [guides.markdrop.in](https://guides.markdrop.in). Its Fix list shows you which page to fix next, and Markdrop files you publish can run inside its pages as live demos, PDFs and videos. See [markdrop.in/guides](https://markdrop.in/guides).
 
 ## Start here
 

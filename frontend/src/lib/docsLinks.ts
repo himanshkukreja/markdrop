@@ -79,7 +79,7 @@ export const DOCS_PAGES = {
   studioRoles: "/guides/members-and-roles",
   studioSiteRoles: "/guides/members-and-roles#a-different-role-on-one-guide",
   studioSettings: "/guides/site-settings",
-  studioDomain: "/guides/site-settings#your-own-domain",
+  studioDomain: "/guides/custom-domain",
   studioAccess: "/guides/site-settings#who-can-read-it",
   privatePages: "/guides/private-pages",
   studioAskAi: "/guides/ask-ai",

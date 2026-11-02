@@ -275,7 +275,7 @@
       ]
     },
     {
-      "group": "Start here",
+      "group": "Start",
       "icon": "layers",
       "tab": "guides",
       "new": true,
@@ -283,7 +283,8 @@
         "/guides/overview",
         "/guides/create-a-site",
         "/guides/import-from-gitbook",
-        "/guides/import-from-github"
+        "/guides/import-from-github",
+        "/guides/api-reference"
       ]
     },
     {
@@ -294,12 +295,12 @@
         "/guides/editor",
         "/guides/embed-files",
         "/guides/pages-and-navigation",
-        "/guides/history",
-        "/guides/changelog"
+        "/guides/changelog",
+        "/guides/history"
       ]
     },
     {
-      "group": "Design",
+      "group": "Look",
       "icon": "image",
       "tab": "guides",
       "pages": [
@@ -308,42 +309,44 @@
       ]
     },
     {
-      "group": "Publish",
+      "group": "Publish and share",
       "icon": "send",
       "tab": "guides",
       "pages": [
         "/guides/publishing",
-        "/guides/reviews"
-      ]
-    },
-    {
-      "group": "Team and settings",
-      "icon": "users",
-      "tab": "guides",
-      "pages": [
-        "/guides/members-and-roles",
-        "/guides/site-settings",
+        "/guides/reviews",
+        "/guides/custom-domain",
         "/guides/private-pages",
-        "/guides/ask-ai",
-        "/guides/insights",
-        "/guides/fix-list",
-        "/guides/api-reference"
+        "/guides/what-readers-get"
       ]
     },
     {
-      "group": "Readers and hosting",
-      "icon": "globe",
+      "group": "Improve",
+      "icon": "flag",
       "tab": "guides",
       "pages": [
-        "/guides/what-readers-get",
-        "/guides/self-hosting"
+        "/guides/fix-list",
+        "/guides/insights"
       ]
     },
     {
-      "group": "Help",
+      "group": "For AI",
+      "icon": "zap",
+      "tab": "guides",
+      "pages": [
+        "/guides/ask-ai",
+        "/guides/ai-ready"
+      ]
+    },
+    {
+      "group": "Reference",
       "icon": "info",
       "tab": "guides",
       "pages": [
+        "/guides/site-settings",
+        "/guides/members-and-roles",
+        "/guides/limits",
+        "/guides/self-hosting",
         "/guides/faq"
       ]
     }
