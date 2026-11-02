@@ -8,7 +8,7 @@ keywords: [readers, published guide, published site, search, llms.txt, markdown,
 
 A published guide is a fast, static website at its address, built by the same engine as docs.markdrop.in. You don't set any of this up: every guide has it.
 
-![Acme's published Quickstart page in the Clean theme with Acme's teal brand: the sidebar, the page with a note and tabs, and on the right On this page, Copy page and Ask Acme.](/docs-assets/guides/what-readers-get/reader-page.webp)
+![Acme's published Quickstart page in the Clean theme with Acme's teal brand: the header with the Docs and What's new tabs, search, Ask Acme and the light/dark switch; the sidebar, the page with a note and tabs, and on the right On this page, the page actions and Ask about this page.](/docs-assets/guides/what-readers-get/reader-page.webp)
 
 ## For people
 

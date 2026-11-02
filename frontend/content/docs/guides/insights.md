@@ -15,7 +15,7 @@ Insights is privacy-first: no cookies, nothing stored in readers' browsers, no p
 
 Choose **7 days**, **30 days** or **90 days** at the top right. Everything on the tab covers that period.
 
-![Acme's Insights for 7 days: 602 readers and 971 page views (both up 32% on the previous 7 days), 18 Ask AI answers with 4 unanswered, 79% found it helpful from 33 votes, and the Readers per day line from Oct 25 to Oct 31, its last day (today) dashed.](/docs-assets/guides/insights/insights-overview.webp)
+![Acme's Insights for 7 days: 602 readers and 971 page views (both up 32% on the previous 7 days), 15 Ask AI answers with 11 unanswered, 80% found it helpful from 30 votes, and the Readers per day line from Oct 27 to Nov 2, its last day (today) dashed.](/docs-assets/guides/insights/insights-overview.webp)
 
 - **Four numbers at the top**: readers, page views, Ask AI answers (and how many it couldn't answer), and the share of votes that said a page helped. Each shows its change from the period before, once Insights was collecting then. A number that can't be counted yet shows as **—**.
 - **Readers per day**. Hover a day, or use the arrow keys, to see its readers and page views. A reader is counted once per day: someone who reads on Monday and Tuesday counts as two. Today is still counting, so its part of the line is dashed and marked **today so far**.
@@ -23,7 +23,7 @@ Choose **7 days**, **30 days** or **90 days** at the top right. Everything on th
 - **What readers couldn't find**: searches with no results and questions [Ask AI](/guides/ask-ai) couldn't answer from your pages, in one list, the most frequent first. The same words searched and asked are one row. Choose **Write a page** to open **New page** in the editor with a title already filled in from what readers typed.
 - **Reader feedback**: comments and "not helpful" votes to work through (see [Page feedback](#page-feedback)).
 
-![Top pages with views and helpful share, Quickstart first at 50% in red, and What readers couldn't find: searches with no results ("sso", "csv export", "snowflake", "rate limit") and questions Ask AI had no answer for, like "Do you support SSO with Okta?", each with Write a page.](/docs-assets/guides/insights/insights-pages.webp)
+![Top pages with views and helpful share, Quickstart first at 60% in red, and What readers couldn't find: searches with no results ("sso", "csv export", "snowflake", "rate limit") and questions Ask AI had no answer for, like "Is there a Terraform provider?" and "Do you support SSO with Okta?", each with Write a page.](/docs-assets/guides/insights/insights-pages.webp)
 - **Where readers come from**: the sites that link to your guide, like `google.com` or `github.com`, their countries, and their devices (computer, phone or tablet). Visits typed in, bookmarked or from apps that hide where they came from aren't listed under sites.
 - **What readers look for**: what they type in the search box most, and the questions they ask Ask AI most.
 - **Embedded files**, when pages [embed Markdrop files](/guides/embed-files#see-how-readers-use-them): each block's views and use, a video's plays and where viewers stop, a PDF's furthest page.
@@ -46,7 +46,7 @@ Every page of a guide ends with **Did this page help?** Readers answer **Yes** o
 
 Comments and "not helpful" votes appear under **Reader feedback** as **Open**, with the page they're about and when they came in. **Open page** opens that page in the editor. When you've dealt with one, choose **Resolve**; it moves to **Resolved**, and **Reopen** puts it back.
 
-![Reader feedback, 79% found pages helpful, Open 6 and Resolved 2: comments on Quickstart, Connect Postgres and API keys, one via an AI app (MCP) on the CLI reference, a helpful comment on Alert rules and a "not helpful" vote without a comment, each with Open page and Resolve.](/docs-assets/guides/insights/insights-feedback.webp)
+![Reader feedback, 80% found pages helpful, Open 5 and Resolved 2: comments on Quickstart, Connect Postgres and API keys, one via an AI app (MCP) on the CLI reference, and a helpful comment on Alert rules, each with Open page and Resolve.](/docs-assets/guides/insights/insights-feedback.webp)
 
 ## Who can see it
 

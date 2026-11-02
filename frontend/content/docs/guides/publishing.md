@@ -11,7 +11,7 @@ Drafts are private. Publishing takes every page's current draft and the guide's 
 
 Every screen of a guide has the same bar under the header, with the guide's tabs (**Pages**, **Fix list**, **Changelog**, **Design**, **Publish**, **Insights** and **Settings**): the **Publish** tab shows how many changes are waiting, **Live ·** and the guide's address opens the live guide in a new tab, and **Publish N changes** publishes from wherever you are. When there's nothing to publish it says **Up to date**.
 
-![The guide's bar on Acme's Insights tab: the tabs Pages, Design, Publish with a 4, Insights and Settings, then Live · acme.guides.markdrop.in, Preview and Publish 4 changes. Above it, the header with the guide switcher (Acme), its workspace and the Admin badge.](/docs-assets/guides/publishing/site-bar.webp)
+![The guide's bar on Acme's Insights tab: the tabs Pages, Fix list with a 14, Changelog, Design, Publish with a 4, Insights and Settings, then Live · acme.guides.markdrop.in, Preview and Publish 4 changes. Above it, the header with the guide switcher (Acme), its workspace and the Admin badge.](/docs-assets/guides/publishing/site-bar.webp)
 
 ## See what changed
 
@@ -52,9 +52,9 @@ If the guide [requires a review](/guides/reviews), editors and reviewers see **S
 
 ## Finish setting up
 
-Once the guide is live, the **Publish** tab lists what's left to set up: pages, a look, publishing, your own domain, your team, a changelog and Insights. Each step that isn't done has a button that takes you there.
+Once the guide is live, the **Publish** tab lists what's left to set up: pages, a look, publishing, your own domain, your team (for a guide in a workspace), a changelog and Insights. Each step that isn't done has a button that takes you there.
 
-![A guide with nothing waiting: Your guide is live, with its address, Copy and Open, the publish readers see and who published it, and Open the guide, Keep writing and Share; below, Finish setting up (2 of 5 done) with Design, Add domain and Insights buttons for the steps left, and the Publish history.](/docs-assets/guides/publishing/publish-live.webp)
+![A guide with nothing waiting: Your guide is live, with its address, Copy and Open, the publish readers see and who published it, and Open the guide, Keep writing and Share; below, Finish setting up (3 of 6 done) with Add domain, Write (start a changelog) and Insights buttons for the steps left, and the Publish history with the live publish and Restore on earlier ones.](/docs-assets/guides/publishing/publish-live.webp)
 
 Publishing while a build is running is fine: changes that come in meanwhile go into the next publish, and a publish that hasn't started yet is replaced by the newer one (it's listed as replaced, not built).
 
