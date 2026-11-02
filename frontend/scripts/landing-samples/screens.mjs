@@ -136,6 +136,12 @@ if (doPosters) {
       const card = page.locator('section[aria-label^="Link card"]').first();
       await card.locator("[data-ready]").waitFor({ timeout: 30000 });
       await page.waitForTimeout(id === "pdf" ? 1500 : 900);
+      // Straighten the card (it lies tilted on the desk) so the capture is the render alone.
+      await card.evaluate((el) => {
+        el.style.transform = "none";
+        el.style.animation = "none";
+      });
+      await page.waitForTimeout(200);
       const body = card.locator(":scope > div").nth(1);
       const png = path.join(TMP, `poster-${id}.png`);
       await body.screenshot({ path: png });

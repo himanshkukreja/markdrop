@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import TrailerButton, { type Trailer } from "../docs-studio/TrailerButton";
-import { Icon } from "../orbit/ds";
+import TrailerButton, { type Trailer } from "../TrailerButton";
+import { Icon } from "../ds";
 import s from "./Sections.module.css";
 import t from "./theme.module.css";
 

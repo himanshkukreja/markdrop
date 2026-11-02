@@ -1,6 +1,6 @@
 import { docsUrl } from "@/components/shell/links";
 import { DOCS_PAGES } from "@/lib/docsLinks";
-import { Icon } from "../orbit/ds";
+import { Icon } from "../ds";
 import s from "./Sections.module.css";
 
 const PINS = [

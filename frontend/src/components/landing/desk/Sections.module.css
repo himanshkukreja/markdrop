@@ -80,8 +80,8 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
-  gap: 28px 20px;
+  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  gap: 28px 16px;
 }
 .pin {
   position: relative;
@@ -271,6 +271,7 @@
   width: 100%;
   height: auto;
   border-top: 1px solid var(--border);
+  margin-bottom: 8px;
 }
 .docNote {
   margin: 0;
@@ -649,7 +650,7 @@
 }
 .tray {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 24px;
   padding: 28px;
   background-color: var(--surface-inset);

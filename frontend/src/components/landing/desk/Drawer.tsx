@@ -5,7 +5,7 @@ import LoopVideo from "@/components/guides-landing/LoopVideo";
 import { docsUrl } from "@/components/shell/links";
 import { DOCS_PAGES } from "@/lib/docsLinks";
 import { track } from "@/lib/track";
-import { Icon, VSCodeIcon } from "../orbit/ds";
+import { Icon, VSCodeIcon } from "../ds";
 import s from "./Sections.module.css";
 
 const VSCODE_URL = "https://marketplace.visualstudio.com/items?itemName=HimanshuKukreja.markdrop";

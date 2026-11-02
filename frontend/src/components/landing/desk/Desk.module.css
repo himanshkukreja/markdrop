@@ -754,8 +754,16 @@
   }
   .sticky,
   .note,
-  .deco {
+  .deco,
+  .paperTable,
+  .paperUrl {
     display: none;
+  }
+  .paper {
+    padding: 20px 18px;
+  }
+  .posterImg {
+    object-position: left top;
   }
 }
 

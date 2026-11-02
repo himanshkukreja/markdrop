@@ -1,4 +1,4 @@
-import { ButtonLink, MarkdropMark } from "../orbit/ds";
+import { ButtonLink, MarkdropMark } from "../ds";
 import s from "./Sections.module.css";
 
 /** 6 · "Clear your desk." The closing CTA. Server HTML, no script. */

@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/lib/theme";
 import { sampleHref } from "@/lib/marketingFlags";
-import { Icon } from "../orbit/ds";
+import { Icon } from "../ds";
 import type { DeskFile } from "./samples";
 import s from "./Desk.module.css";
 import t from "./theme.module.css";
@@ -111,8 +111,8 @@ export default function LinkCard({
       </div>
       <div className={s.cardBody}>
         <div className={s.poster} data-hidden={ready ? "" : undefined} aria-hidden={ready || undefined}>
-          <img className={`${s.posterImg} ${file.posterDark ? t.light : ""}`} src={`${posterBase}.webp`} alt={`${file.name}, rendered by Markdrop`} width={840} height={760} decoding="async" loading={initial ? "lazy" : "eager"} />
-          {file.posterDark && <img className={`${s.posterImg} ${t.dark}`} src={`${posterBase}.dark.webp`} alt={`${file.name}, rendered by Markdrop`} width={840} height={760} decoding="async" loading="lazy" />}
+          <img className={`${s.posterImg} ${file.posterDark ? t.light : ""}`} src={`${posterBase}.webp`} alt={`${file.name}, rendered by Markdrop`} width={838} height={662} decoding="async" loading={initial ? "lazy" : "eager"} />
+          {file.posterDark && <img className={`${s.posterImg} ${t.dark}`} src={`${posterBase}.dark.webp`} alt={`${file.name}, rendered by Markdrop`} width={838} height={662} decoding="async" loading="lazy" />}
         </div>
         {live && (
           <div className={s.live} data-ready={ready ? "" : undefined}>

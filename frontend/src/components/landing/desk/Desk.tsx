@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { track } from "@/lib/track";
-import { MarkdropMark } from "../orbit/ds";
+import { MarkdropMark } from "../ds";
 import LinkCard from "./LinkCard";
 import { DESK_FILES, fileById, type FileId } from "./samples";
 import s from "./Desk.module.css";

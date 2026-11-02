@@ -5,7 +5,7 @@ import LoopVideo from "@/components/guides-landing/LoopVideo";
 import { docsUrl } from "@/components/shell/links";
 import { DOCS_PAGES } from "@/lib/docsLinks";
 import { track } from "@/lib/track";
-import { Badge, Icon } from "../orbit/ds";
+import { Badge, Icon } from "../ds";
 import s from "./Sections.module.css";
 import t from "./theme.module.css";
 
@@ -121,7 +121,6 @@ export default function Stamps() {
           </span>
           <img className={`${s.docShot} ${t.light}`} src="/landing-desk/screens/launch-notes-doc.webp" alt="The Launch notes document as Markdrop renders it: a Mermaid diagram, a table and code." width={1120} height={1488} loading="lazy" decoding="async" />
           <img className={`${s.docShot} ${t.dark}`} src="/landing-desk/screens/launch-notes-doc.dark.webp" alt="The Launch notes document as Markdrop renders it: a Mermaid diagram, a table and code." width={1120} height={1488} loading="lazy" decoding="async" />
-          <p className={s.docNote}>A document. Files get a password or an access level instead of end-to-end.</p>
           {(Object.keys(IMPRINT) as StampId[]).map((id) =>
             on[id] ? (
               <span key={`${id}-${presses[id]}`} className={s.imp} style={IMPRINT[id].style} aria-hidden="true">

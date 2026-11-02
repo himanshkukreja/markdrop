@@ -1,4 +1,4 @@
-import { ButtonLink } from "../orbit/ds";
+import { ButtonLink } from "../ds";
 import Desk from "./Desk";
 import s from "./Desk.module.css";
 
