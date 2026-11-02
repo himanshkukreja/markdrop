@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * /guides/github/installed: where github.com sends the browser back after installing the Markdrop
+ * guides.markdrop.in/github/installed (the app route /guides/github/installed): where github.com sends the browser back after installing the Markdrop
  * Guides app (its setup URL) or after GitHub sign-in to link an installation that already exists
  * (its callback). Reads `code`, `state`, `installation_id` and `setup_action`, finishes linking
  * (POST /github/connect: the code is single-use, so it's sent once), says which accounts are
- * connected, then goes back to where it started: the API's `return_to`, only when it's a same-origin
- * /guides address (else /guides).
+ * connected, then goes back to where it started: the API's `return_to`, only when it's a studio
+ * screen (else the studio home).
  *
  * The query holds a one-time code: session replay never records this page (lib/analyticsPath:
  * `code`/`state` aren't Guides query keys), and the address is cleaned once it has been read.
@@ -17,21 +17,21 @@ import { Avatar, Button, Icon, Spinner } from "@/components/ui";
 import { useLocationSearch, useMounted } from "@/components/shell/useLocation";
 import { connectGithub, githubError, isGithubRedirect, startGithubAuthorize, type GithubInstallation } from "@/lib/docsGithub";
 import { StudioLoader, useStudioSession } from "../SiteContext";
-import { STUDIO, STUDIO_GITHUB_INSTALLED, studioNew } from "../routes";
+import { STUDIO_GITHUB_INSTALLED_PATH, studioGithubInstalled, studioHome, studioNew } from "../routes";
+import { studioHref, studioPathOf, toStudioRoute } from "@/lib/studioHost";
 import { NOT_SET_UP, recallConnect } from "./GithubNotes";
 
-/** A same-origin /guides address (path, query, hash), else null. */
+/**
+ * Where to go back to, as an address on this host: a studio screen (the API's `return_to` is its
+ * app route, /guides/…; this tab's note has the address it started from), never this page, never
+ * another site. Else null.
+ */
 function safeGuidesPath(v: unknown): string | null {
   if (typeof v !== "string" || !v.startsWith("/") || v.startsWith("//") || v.includes("\\")) return null;
-  try {
-    const u = new URL(v, window.location.origin);
-    if (u.origin !== window.location.origin) return null;
-    if (u.pathname !== STUDIO && !u.pathname.startsWith(`${STUDIO}/`)) return null;
-    if (u.pathname.startsWith(STUDIO_GITHUB_INSTALLED)) return null;
-    return `${u.pathname}${u.search}${u.hash}`;
-  } catch {
-    return null;
-  }
+  const route = toStudioRoute(v);
+  const path = route === null ? null : studioPathOf(route);
+  if (path === null || path.startsWith(STUDIO_GITHUB_INSTALLED_PATH)) return null;
+  return studioHref(path);
 }
 
 type View =
@@ -45,7 +45,7 @@ let sentFor: string | null = null;
 export default function GithubInstalled() {
   const mounted = useMounted();
   const search = useLocationSearch();
-  const { ready } = useStudioSession(`${STUDIO_GITHUB_INSTALLED}${search}`);
+  const { ready } = useStudioSession(`${studioGithubInstalled()}${search}`);
   const router = useRouter();
   const [view, setView] = useState<View>({ kind: "working" });
   const [retrying, setRetrying] = useState(false);
@@ -67,7 +67,7 @@ export default function GithubInstalled() {
     }
     // An organization member asked its owners to install the app: nothing to link until they approve.
     if (setup === "request" && !code) {
-      setView({ kind: "done", accounts: [], to: safeGuidesPath(started?.returnTo) ?? STUDIO, requested: true });
+      setView({ kind: "done", accounts: [], to: safeGuidesPath(started?.returnTo) ?? studioHome(), requested: true });
       return;
     }
     if (!state || !code) {
@@ -84,13 +84,13 @@ export default function GithubInstalled() {
     if (sentFor === once) return;
     sentFor = once;
     // The code is single-use: take it out of the address (and the history entry) once read.
-    window.history.replaceState(window.history.state, "", STUDIO_GITHUB_INSTALLED);
+    window.history.replaceState(window.history.state, "", studioGithubInstalled());
     const installation_id = instRaw && /^\d+$/.test(instRaw) ? Number(instRaw) : null;
     connectGithub({ code, state, installation_id, setup_action: setup })
       .then((r) => {
         const linked = new Set(r.linked ?? []);
         const accounts = (r.installations ?? []).filter((i) => !linked.size || linked.has(i.installation_id));
-        const to = safeGuidesPath(r.return_to) ?? safeGuidesPath(started?.returnTo) ?? STUDIO;
+        const to = safeGuidesPath(r.return_to) ?? safeGuidesPath(started?.returnTo) ?? studioHome();
         setView({ kind: "done", accounts, to, requested: setup === "request" && !linked.size });
       })
       .catch((e) => {
@@ -120,7 +120,7 @@ export default function GithubInstalled() {
 
   if (!ready) return <StudioLoader />;
 
-  const back = safeGuidesPath(started?.returnTo) ?? STUDIO;
+  const back = safeGuidesPath(started?.returnTo) ?? studioHome();
 
   async function retry() {
     const s = started;

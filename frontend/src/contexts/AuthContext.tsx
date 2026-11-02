@@ -6,6 +6,7 @@ import AuthModal from "@/components/AuthModal";
 import { track } from "@/lib/track";
 import { identifyUser, resetIdentity } from "@/lib/thirdPartyAnalytics";
 import { forgetAllKeys, rememberedKeyCount } from "@/lib/e2e";
+import { clearStudioSession } from "@/lib/studioSession";
 import { Checkbox, ConfirmDialog } from "@/components/ui";
 
 interface AuthModalOptions {
@@ -91,6 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearToken();
     setUser(null);
     resetIdentity();
+    // Markdrop Guides' studio host keeps its own copy of the session (lib/studioSession): it goes too.
+    await clearStudioSession();
   }, []);
 
   // Sign out, offering to forget the encryption keys this browser kept (they never left it, but a

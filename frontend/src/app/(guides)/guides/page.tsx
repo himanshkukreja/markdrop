@@ -16,9 +16,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * /guides. The static HTML is the Markdrop Guides landing page (what search engines and signed-out
- * visitors get, canonical for /guides?about=1 too); a signed-in visitor gets the studio home in its
- * place (the layout's GuidesFrame). No request data here, so the page stays static.
+ * markdrop.in/guides: the Markdrop Guides landing page, for everyone (signed in, its start button
+ * says "Open your guides" and goes to the studio, guides.markdrop.in). Canonical and indexed; the
+ * old /guides?about=1 and /guides/about redirect here (middleware). No request data, so it's static.
  */
 export default function Page() {
   return <GuidesLanding />;

@@ -11,6 +11,11 @@
  */
 import { DocsApiError, docsRequest, type GithubFormat, type GithubFormatChoice, type GithubLink, type GithubSyncMode, type Job } from "@/lib/docsSites";
 import type { ApiReferenceStatus } from "@/lib/docsApiReference";
+import { STUDIO_HOME_ROUTE, toStudioRoute } from "@/lib/studioHost";
+
+/** The API keeps where to come back to as the studio's app route (/guides/…, which it checks): whatever
+ *  address the studio gave on this host, as that route. */
+const returnRoute = (returnTo: string) => toStudioRoute(returnTo) ?? STUDIO_HOME_ROUTE;
 
 export { parseGithubUrl, repoLabel } from "./githubUrl.mjs";
 export type { ParsedGithubRepo } from "./githubUrl.mjs";
@@ -222,15 +227,15 @@ export function getGithubStatus(workspace: string, signal?: AbortSignal): Promis
 
 /** Install the app on a GitHub account: the address to send the browser to. 503 when the app isn't set up. */
 export function startGithubInstall(workspace: string, returnTo: string): Promise<{ url: string }> {
-  return docsRequest("/install", { method: "POST", json: { workspace_id: workspace, return_to: returnTo } }, GH);
+  return docsRequest("/install", { method: "POST", json: { workspace_id: workspace, return_to: returnRoute(returnTo) } }, GH);
 }
 
 /** Link an installation that already exists (GitHub sign-in): the address to send the browser to. */
 export function startGithubAuthorize(workspace: string, returnTo: string): Promise<{ url: string }> {
-  return docsRequest("/authorize", { method: "POST", json: { workspace_id: workspace, return_to: returnTo } }, GH);
+  return docsRequest("/authorize", { method: "POST", json: { workspace_id: workspace, return_to: returnRoute(returnTo) } }, GH);
 }
 
-/** Back from github.com (/guides/github/installed): finish linking. */
+/** Back from github.com (guides.markdrop.in/github/installed): finish linking. */
 export function connectGithub(input: { code: string; state: string; installation_id?: number | null; setup_action?: string | null }): Promise<GithubConnectResult> {
   return docsRequest("/connect", { method: "POST", json: input }, GH);
 }

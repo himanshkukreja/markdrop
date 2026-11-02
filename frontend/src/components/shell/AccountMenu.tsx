@@ -7,6 +7,9 @@ import { FeedbackDialog, openFeedback } from "@/components/FeedbackWidget";
 import { useAuth } from "@/contexts/AuthContext";
 import { getToken, type MeUser } from "@/lib/api";
 import { LIGHT_ENABLED } from "@/lib/theme";
+import { appHref, isStudioHost, studioUrl } from "@/lib/studioHost";
+import { signOutOfStudio, studioSignInHref } from "@/lib/studioSession";
+import { resetIdentity } from "@/lib/thirdPartyAnalytics";
 import { DOCS_URL } from "./links";
 import { useMounted, useSignInHref } from "./useLocation";
 
@@ -36,7 +39,7 @@ export function UserAvatar({ user, size = "md", className }: { user: MeUser; siz
 
 /**
  * Account menu (REVAMP_PLAN 4.2): an avatar trigger → WAI-ARIA menu with the identity header,
- * Dashboard, Guides (Markdrop Guides, /guides), Workspaces & domains, API tokens, Connected apps, Account settings, a Theme row (System / Light /
+ * Dashboard, Guides (the Markdrop Guides studio, guides.markdrop.in), Workspaces & domains, API tokens, Connected apps, Account settings, a Theme row (System / Light /
  * Dark), Send feedback, and Sign out (neutral: signing out isn't destructive). Sign-out uses
  * AuthContext.logout() (server revoke, then the local token is cleared).
  */
@@ -53,12 +56,12 @@ export function AccountMenu({ user, align = "right" }: { user: MeUser; align?: "
         </span>
       ),
     },
-    { label: "Dashboard", href: "/dashboard", icon: "home", separated: true },
-    { label: "Guides", href: "/guides", icon: "layers" },
-    { label: "Workspaces & domains", href: "/settings/workspaces", icon: "users" },
-    { label: "API tokens", href: "/settings/tokens", icon: "key" },
-    { label: "Connected apps", href: "/settings/connections", icon: "sparkle" },
-    { label: "Account settings", href: "/settings/account", icon: "settings" },
+    { label: "Dashboard", href: appHref("/dashboard"), icon: "home", separated: true },
+    { label: "Guides", href: studioUrl("/"), icon: "layers" },
+    { label: "Workspaces & domains", href: appHref("/settings/workspaces"), icon: "users" },
+    { label: "API tokens", href: appHref("/settings/tokens"), icon: "key" },
+    { label: "Connected apps", href: appHref("/settings/connections"), icon: "sparkle" },
+    { label: "Account settings", href: appHref("/settings/account"), icon: "settings" },
     { label: "Docs", href: DOCS_URL, icon: "doc" },
     ...(LIGHT_ENABLED
       ? [{
@@ -79,7 +82,18 @@ export function AccountMenu({ user, align = "right" }: { user: MeUser; align?: "
         if (!openFeedback()) setFeedbackOpen(true);
       },
     },
-    { label: "Sign out", icon: "logOut", separated: true, onClick: () => void signOut() },
+    {
+      label: "Sign out",
+      icon: "logOut",
+      separated: true,
+      // On the studio host (guides.markdrop.in) only that host's session is here: it goes, then
+      // markdrop.in offers to sign out there too (lib/studioSession).
+      onClick: () => {
+        if (!isStudioHost(window.location.hostname)) return void signOut();
+        resetIdentity();
+        signOutOfStudio();
+      },
+    },
   ];
 
   return (
@@ -127,11 +141,17 @@ export function HeaderAuthSlot({ className, signInClassName }: { className?: str
     );
   }
 
+  // On the studio host, sign-in happens on markdrop.in (lib/studioSession). Keyed on `mounted` so the
+  // prerendered address (which can't know the host) never outlives hydration.
+  const href = mounted && isStudioHost(window.location.hostname)
+    ? studioSignInHref(window.location.pathname + window.location.search)
+    : signInHref;
   return (
     <div className={className}>
       <Button
+        key={mounted ? "client" : "server"}
         variant="ghost"
-        href={signInHref}
+        href={href}
         className={cx(!mounted && "[.js_&]:invisible", "max-md:h-11", signInClassName)}
       >
         Sign in

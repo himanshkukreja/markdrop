@@ -1,14 +1,7 @@
-/* The Markdrop Guides landing page (markdrop.in/guides, signed out). The landing's visual language:
+/* The Markdrop Guides landing page (markdrop.in/guides, for everyone). The landing's visual language:
    light by default and dark, Markdrop blue, Manrope, raised cards on a soft dotted ground, tokens
    only. Nothing moves on its own; the only motion is hover/focus transitions and the Fix list
    sample's fade, both off under reduced motion. Phones: one column, no horizontal page scroll. */
-
-/* ── The /guides switch (view.ts): a signed-in browser hides this page until the studio loads ── */
-.boot { display: none; }
-:global(html[data-guides-view="studio"]) .root { display: none; }
-:global(html[data-guides-view="studio"]) .boot { display: flex; min-height: 70dvh; align-items: center; justify-content: center; }
-.spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
 
 .root {
   --gl-sh: 0 30px 60px -30px #000000cc, 0 0 0 1px var(--border);
@@ -250,6 +243,5 @@
 .finalIn .ctas { justify-content: center; }
 
 @media (prefers-reduced-motion: reduce) {
-  .spinner { animation-duration: 3s; }
   .qa summary > :global(.md-icon) { transition: none; }
 }

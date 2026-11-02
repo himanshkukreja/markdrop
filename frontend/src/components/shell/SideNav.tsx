@@ -4,6 +4,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 import { Anchor, Icon, cx } from "@/components/ui";
 import VSCodeIcon from "@/components/VSCodeIcon";
 import { DOCS_URL } from "./links";
+import { studioUrl } from "@/lib/studioHost";
 import { TreeView, type TreeNode } from "@/components/workspace/FolderTree";
 import { useUploads } from "@/components/workspace/uploads/UploadProvider";
 import { can, type TreeFolder, type Workspace } from "@/lib/workspaces";
@@ -192,7 +193,7 @@ function workspaceNode(
     // header); this link opens it filtered to the workspace.
     children = [
       ...(kids.get(null) ?? []).map(build),
-      { key: wsDocsKey(ws.id), label: "Guides", icon: <Icon name="layers" size={16} />, href: `/guides?ws=${encodeURIComponent(ws.id)}`, leaf: true },
+      { key: wsDocsKey(ws.id), label: "Guides", icon: <Icon name="layers" size={16} />, href: studioUrl(`/?ws=${encodeURIComponent(ws.id)}`), leaf: true },
     ];
     total = tree.unfiled_count + (kids.get(null) ?? []).reduce((n, f) => n + f.total_count, 0);
   }

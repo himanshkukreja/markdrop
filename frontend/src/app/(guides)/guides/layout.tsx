@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import GuidesFrame from "@/components/guides-landing/GuidesFrame";
+import { STUDIO_BOOT_SCRIPT } from "@/lib/studioSession";
 
 export const metadata: Metadata = {
   title: { default: "Markdrop Guides", template: "%s · Markdrop Guides" },
@@ -9,14 +10,22 @@ export const metadata: Metadata = {
 };
 
 /**
- * Markdrop Guides (/guides/**): its own area of the app, not a workspace page. Full-window screens
- * under the studio's header (the Markdrop mark + "Guides", the guide switcher, the account
- * menu) and its styles (studio.css). Each screen renders <main id="main">.
+ * The /guides route tree: the Markdrop Guides landing page (/guides, on markdrop.in) and the
+ * studio's screens (everything below it), which are served on the studio's own host,
+ * guides.markdrop.in (the middleware rewrites guides.markdrop.in/<path> to /guides/<path>, and
+ * "/" to /guides/home; lib/studioHost). GuidesFrame wraps the studio's screens in its shell (the
+ * Markdrop mark + "Guides", the guide switcher, the account menu) and its styles (studio.css).
+ * Each screen renders <main id="main">.
  *
- * /guides itself is the Markdrop Guides landing page for signed-out visitors and the studio home
- * for signed-in ones: GuidesFrame (components/guides-landing) decides, and wraps every other
- * screen in the studio's shell as before.
+ * The boot script runs first, before anything renders: on the studio host it takes a sign-in
+ * handed over from markdrop.in, or goes to get one (lib/studioSession). Anywhere else it does
+ * nothing.
  */
 export default function DocsStudioLayout({ children }: { children: React.ReactNode }) {
-  return <GuidesFrame>{children}</GuidesFrame>;
+  return (
+    <>
+      <script dangerouslySetInnerHTML={{ __html: STUDIO_BOOT_SCRIPT }} />
+      <GuidesFrame>{children}</GuidesFrame>
+    </>
+  );
 }

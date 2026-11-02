@@ -50,10 +50,11 @@
  *   guide_fix_applied             type, how: editor|new_page (a drafted fix put in a page)
  *   guide_fix_demo_viewed         (the Fix list's sample, before a guide has readers)
  *
- * The Markdrop Guides landing page (markdrop.in/guides signed out, components/guides-landing), for
+ * The Markdrop Guides landing page (markdrop.in/guides, components/guides-landing), for
  * the landing test: which pillar people click for.
  *   guide_landing_viewed          (the landing page shown; the denominator)
- *   guide_landing_cta             id: start|tour|pillar|docs|compare|pricing, section: the <section> id,
+ *   guide_landing_cta             id: start|open|tour|pillar|docs|compare|pricing (open: "Open your guides",
+ *                                 signed in), section: the <section> id,
  *                                 pillar?: fix_list|private_pages|live_demos (a pillar card's own button)
  *   guide_landing_demo            step: item|drafted|published (the hero's Fix list sample),
  *                                 or step: used (the live calculator)
@@ -70,7 +71,7 @@ const fixType = (t: string) => pick(t, FIX_TYPES) ?? "other";
 
 /** The landing page's pillar buttons, and the guide that follows one (sessionStorage: this tab only). */
 const PILLARS = new Set(["fix_list", "private_pages", "live_demos"]);
-const LANDING_CTAS = new Set(["start", "tour", "pillar", "docs", "compare", "pricing"]);
+const LANDING_CTAS = new Set(["start", "open", "tour", "pillar", "docs", "compare", "pricing"]);
 const PILLAR_KEY = "md_guides_pillar";
 function rememberLandingPillar(p: string) {
   try {

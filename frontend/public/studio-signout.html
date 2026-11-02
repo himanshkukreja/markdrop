@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>Markdrop</title>
+<!--
+  Signing out on markdrop.in clears Markdrop Guides' session on guides.markdrop.in too
+  (lib/studioSession clearStudioSession): markdrop.in opens this page in a hidden frame and asks.
+  It acts only on the studio host, and only for a message from the studio host's own app
+  (https://markdrop.in, https://www.markdrop.in; http://localhost:<port> for guides.localhost).
+  The worst anyone else can do is nothing: a message from any other page is ignored.
+-->
+<script>
+(function () {
+  var host = location.hostname;
+  if (!/^guides\.(markdrop\.in|localhost)$/.test(host)) return;
+  var parentHost = host.replace(/^guides\./, "");
+  var allowed = host === "guides.localhost"
+    ? ["http://localhost" + (location.port ? ":" + location.port : "")]
+    : ["https://" + parentHost, "https://www." + parentHost];
+  window.addEventListener("message", function (e) {
+    if (allowed.indexOf(e.origin) < 0 || e.data !== "markdrop:signout") return;
+    try { localStorage.removeItem("markdrop_token"); } catch (err) { /* storage off: nothing kept */ }
+    e.source.postMessage("markdrop:studio-signed-out", e.origin);
+  });
+  if (window.parent !== window) window.parent.postMessage("markdrop:studio-ready", "*");
+})();
+</script>
+</head>
+<body></body>
+</html>

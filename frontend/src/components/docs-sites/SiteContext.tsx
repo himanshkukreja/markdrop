@@ -5,15 +5,29 @@ import { useRouter } from "next/navigation";
 import { Button, EmptyState, MarkdropLoader } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { canEditRole, canReviewRole, docsErrorMessage, docsErrorStatus, getSite, isAdminRole, type DocsRole, type Site } from "@/lib/docsSites";
+import { isStudioHost } from "@/lib/studioHost";
+import { startStudioHandoff, studioSignedIn } from "@/lib/studioSession";
 import { scopeOf, siteBase, studioHome } from "./routes";
 import { useStudio } from "./studio/StudioContext";
 
-/** Studio pages need a session: wait for auth, else go to /login and come back. */
+/**
+ * Studio pages need a session: wait for auth, else sign in and come back. On the studio host
+ * (guides.markdrop.in) that is the hand-off from markdrop.in (lib/studioSession), which comes back
+ * to this very address; elsewhere (localhost, previews) /login?next=`next`.
+ */
 export function useStudioSession(next: string) {
   const { user, loading } = useAuth();
   const router = useRouter();
   useEffect(() => {
-    if (loading || user) return;
+    if (loading) return;
+    if (user) {
+      if (isStudioHost(window.location.hostname)) studioSignedIn();
+      return;
+    }
+    if (isStudioHost(window.location.hostname)) {
+      startStudioHandoff();
+      return;
+    }
     router.replace(`/login?next=${encodeURIComponent(next)}`);
   }, [loading, user, router, next]);
   return { user, ready: !loading && !!user };

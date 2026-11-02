@@ -12,24 +12,25 @@ import {
   BETA_PLAN, COMPARED_LABEL, COMPARED_ON, COMPARISON, COMPARISON_NOTES, FAQS, PLANNED_PLANS, PRICING_RULES,
   PRIVATE_PAGES_LIVE, type Cell, type Plan,
 } from "./content";
-import { GUIDES_VIEW_SCRIPT } from "./view";
+import { studioUrl } from "@/lib/studioHost";
 import s from "./GuidesLanding.module.css";
 
 /**
- * The Markdrop Guides landing page: what markdrop.in/guides shows a signed-out visitor (and anyone
- * at /guides?about=1). A server component with no request data, so the page is static: the copy,
+ * The Markdrop Guides landing page: markdrop.in/guides, the same page for everyone, signed in or
+ * not (the studio is on guides.markdrop.in). A server component with no request data, so the page is static: the copy,
  * the comparison, the pricing and the FAQ are server HTML. Islands: the hero's Fix list sample
  * (FixListDemo), the tour button (TrailerButton, the player loads on click) and the analytics
  * listener (LandingTracker). The live calculator is a sandboxed frame (public/guides-demo, with
  * the sandbox repeated as a response header in next.config.ts).
  *
- * Every "start" link goes to sign-in, then a new guide; LandingTracker points them straight at the
- * new guide when the visitor is already signed in. Pillar buttons carry data-pillar for the
+ * Every "start" link goes to the studio (StartLink: a new guide on guides.markdrop.in, which signs
+ * a signed-out visitor in first). Pillar buttons carry data-pillar for the
  * per-pillar interest count (lib/guidesEvents guide_landing_cta).
  */
 
-const NEW_GUIDE = "/guides/new";
-const signIn = (next: string) => `/login?next=${encodeURIComponent(next)}`;
+/** Studio paths (lib/studioHost): the studio is on guides.markdrop.in. */
+const NEW_GUIDE = "/new";
+const SIGNED_IN_LABEL = "Open your guides";
 const docs = (topic: keyof typeof DOCS_PAGES) => docsUrl(DOCS_PAGES[topic]);
 const PRIVATE_DOCS = docs("privatePages");
 const EMBED_DOCS = docs("studioEmbedFiles");
@@ -49,12 +50,20 @@ const TRAILER: Trailer = {
 const CALC_SUMMARY =
   "Pick a plan (Starter 9, Team 19 or Scale 39 dollars per seat a month), set the number of seats and choose monthly or yearly billing; the monthly and yearly totals update as you go. Fictional prices.";
 
-/** A "start" link: sign in first, or straight to `path` once LandingTracker knows you're signed in. */
+/**
+ * A "start" link: `path` in the studio (guides.markdrop.in/new…), which signs a signed-out visitor
+ * in on markdrop.in first and comes back. `data-start` is the studio path: LandingTracker re-points
+ * it on hosts where the studio is elsewhere (localhost: /guides/new). The plain "Start a guide"
+ * buttons (`cta="start"` to a new guide) become "Open your guides" (the studio home) for a visitor
+ * who is signed in.
+ */
 function StartLink({ path = NEW_GUIDE, cta, pillar, className, children }: {
   path?: string; cta: string; pillar?: string; className?: string; children: ReactNode;
 }) {
+  const open = cta === "start" && path === NEW_GUIDE;
   return (
-    <a href={signIn(path)} data-start={path} data-cta={cta} data-pillar={pillar} className={className}>
+    <a href={studioUrl(path)} data-start={path} data-signed-in-label={open ? SIGNED_IN_LABEL : undefined}
+      data-cta={cta} data-pillar={pillar} className={className}>
       {children}
     </a>
   );
@@ -177,9 +186,6 @@ const JSON_LD = {
 export default function GuidesLanding() {
   return (
     <>
-      {/* Before any of the page paints: a signed-in browser hides it until the studio takes over. */}
-      <script dangerouslySetInnerHTML={{ __html: GUIDES_VIEW_SCRIPT }} />
-      <div className={s.boot} aria-hidden="true"><span className={s.spinner} /></div>
       <div data-guides-landing className={s.root}>
         <SiteHeader variant="marketing" />
         <main id="main" tabIndex={-1} className={s.main}>

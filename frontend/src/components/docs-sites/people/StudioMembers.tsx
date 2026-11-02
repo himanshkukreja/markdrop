@@ -14,6 +14,7 @@ import {
 import { firstName, plural, timeAgo } from "../format";
 import { StudioLoader, useStudioSession } from "../SiteContext";
 import { siteBase, studioHome, studioMembers } from "../routes";
+import { appHref } from "@/lib/studioHost";
 import { useStudio } from "../studio/StudioContext";
 import { aRole, LockedAdmin, RoleBadge, RoleHistory, RoleSelect, RolesExplainer } from "./roles";
 
@@ -67,7 +68,7 @@ function MemberRow({ m, you, busy, onChange }: { m: StudioMember; you: boolean; 
  * only; anyone else is told who to ask.
  */
 export default function StudioMembers() {
-  const { ready, user } = useStudioSession("/guides/members");
+  const { ready, user } = useStudioSession(studioMembers());
   const { all } = useStudio();
   const router = useRouter();
   const toast = useToast();
@@ -148,7 +149,7 @@ export default function StudioMembers() {
             />
           )}
           {wsId && (
-            <Button variant="secondary" iconLeft="userPlus" href={`/settings/workspaces/${encodeURIComponent(wsId)}?tab=people`}>
+            <Button variant="secondary" iconLeft="userPlus" href={appHref(`/settings/workspaces/${encodeURIComponent(wsId)}?tab=people`)}>
               Invite to the workspace
             </Button>
           )}

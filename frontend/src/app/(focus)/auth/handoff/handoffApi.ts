@@ -58,3 +58,21 @@ export async function mintHandoffToken(host: string, consent: boolean, remember:
   if (!data.token) throw new HandoffError(500, "mint");
   return data.token;
 }
+
+/**
+ * A fresh session for Markdrop Guides' studio host (guides.markdrop.in), from this one. Our own
+ * origin, so a full session; the API refuses to make one from a custom domain's scoped token or
+ * an API token.
+ */
+export async function mintStudioToken(): Promise<string> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/v1/auth/studio-token`, { method: "POST", headers: auth() });
+  } catch {
+    throw new HandoffError(0, "network");
+  }
+  if (!res.ok) throw new HandoffError(res.status, "mint");
+  const data = (await res.json()) as { token?: string };
+  if (!data.token) throw new HandoffError(500, "mint");
+  return data.token;
+}

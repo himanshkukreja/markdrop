@@ -4,7 +4,7 @@ import { Anchor, Badge, Button, Icon } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
 import { useTheme } from "@/lib/theme";
 import { studioNew, type NewGuideStart, type StudioScope } from "../routes";
-import { GUIDES_ABOUT_HREF } from "@/components/guides-landing/view";
+import { guidesAboutHref } from "@/components/guides-landing/view";
 import { previewTokens } from "../presets";
 
 export const STARTS: Array<{ start: NewGuideStart; icon: string; title: string; short: string; note: string }> = [
@@ -71,7 +71,7 @@ export function EmptyBoard({ scope, noRole }: { scope: StudioScope | null; noRol
           <h1 id="first-title" className="text-[30px] font-extrabold leading-9 tracking-[-0.03em] text-text sm:text-[36px] sm:leading-[44px]">Publish your first guide</h1>
           <p className="max-w-[520px] text-[16px] leading-[26px] text-text-secondary">
             A help center, product guide or handbook your readers can search and ask questions of. Write it in the editor, pick a look, and it goes live at its own address in about a minute.{" "}
-            <Anchor href={GUIDES_ABOUT_HREF} className="md-focus rounded-sm text-accent-text underline-offset-2 hover:underline">About Markdrop Guides</Anchor>
+            <Anchor href={guidesAboutHref()} className="md-focus rounded-sm text-accent-text underline-offset-2 hover:underline">About Markdrop Guides</Anchor>
           </p>
           <div className="mt-1.5 flex flex-wrap gap-2">
             <Button variant="primary" size="lg" iconLeft="plus" href={studioNew(scope)} className="max-sm:w-full">New guide</Button>

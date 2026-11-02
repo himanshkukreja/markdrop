@@ -10,8 +10,11 @@ import { RoleBadge } from "../people/roles";
 import { SiteTile } from "../SiteBar";
 import { GuideMark, usePreviewDark } from "../home/GuidePreview";
 import { PERSONAL, scopeOf, siteBase, studioHome, studioMembers, studioNew } from "../routes";
+import { useMounted } from "@/components/shell/useLocation";
+import { appHref } from "@/lib/studioHost";
 import { GuideSearch } from "./GuideSearch";
 import { StudioProvider, useStudio, useWorkspaceName } from "./StudioContext";
+import { StudioSignInFailed, useHandoffStuck } from "./StudioSignIn";
 
 /**
  * "Guides" in the accent (Markdrop Guides' name), linking to its home. Phones put the Markdrop
@@ -103,17 +106,17 @@ function WorkspaceBadge() {
   );
 }
 
-/** Markdrop's own areas beside Guides (wide screens; the account menu has them everywhere). */
-const APP_NAV = [
-  { label: "Documents", href: "/dashboard?kind=document" },
-  { label: "Files", href: "/dashboard?kind=artifact" },
+/** Markdrop's own areas beside Guides (wide screens; the account menu has them everywhere): on markdrop.in. */
+const appNav = () => [
+  { label: "Documents", href: appHref("/dashboard?kind=document") },
+  { label: "Files", href: appHref("/dashboard?kind=artifact") },
   { label: "Guides", href: studioHome(), current: true },
 ];
 
 function AppNav({ className }: { className?: string }) {
   return (
     <nav aria-label="Markdrop" className={cx("items-center gap-0.5", className)}>
-      {APP_NAV.map((l) => (
+      {appNav().map((l) => (
         <Anchor
           key={l.label}
           href={l.href}
@@ -143,7 +146,7 @@ export function StudioHeader() {
   const { current } = useStudio();
   return (
     <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-surface px-3 sm:gap-3 sm:px-5">
-      <MarkdropLogo size={26} wordmark={!current} href="/" className="md-focus shrink-0 max-sm:hidden" />
+      <MarkdropLogo size={26} wordmark={!current} href={appHref("/")} className="md-focus shrink-0 max-sm:hidden" />
       <span aria-hidden className="h-[22px] w-px shrink-0 bg-border-strong max-sm:hidden" />
       <StudioWordmark compact={!!current} />
       {current && (
@@ -176,11 +179,16 @@ export function StudioShell({ children }: { children: React.ReactNode }) {
     html.setAttribute("data-studio", "docs");
     return () => html.removeAttribute("data-studio");
   }, []);
+  // The header's addresses depend on the host (lib/studioHost: bare paths on guides.markdrop.in,
+  // /guides/… locally, markdrop.in links from the studio host), which the prerendered HTML can't
+  // know. Remounted once in the browser, so no server-rendered address outlives hydration.
+  const mounted = useMounted();
+  const stuck = useHandoffStuck();
   return (
     <StudioProvider>
       <div className="docs-studio flex min-h-dvh w-full min-w-0 flex-1 flex-col bg-bg text-text">
-        <StudioHeader />
-        {children}
+        <StudioHeader key={mounted ? "client" : "server"} />
+        {stuck ? <StudioSignInFailed /> : children}
       </div>
     </StudioProvider>
   );

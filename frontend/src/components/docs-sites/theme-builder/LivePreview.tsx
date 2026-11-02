@@ -5,6 +5,7 @@ import { Spinner, cx } from "@/components/ui";
 import { engineTheme } from "@/lib/guideThemes";
 import type { SiteTheme } from "@/lib/docsSites";
 import { PREVIEW_PATH, isPreviewReady, type PreviewPage, type PreviewState } from "./protocol";
+import { studioHref } from "@/lib/studioHost";
 
 /**
  * The builder's live preview: /guides/theme-preview in a same-origin iframe, sent the design on
@@ -61,7 +62,7 @@ export function LivePreview({ theme, name, logo, dark, page, device, className }
         )}
         <iframe
           ref={frame}
-          src={PREVIEW_PATH}
+          src={studioHref(PREVIEW_PATH)}
           title={`Live preview of ${name}, ${page === "home" ? "home page" : "an article"}, ${dark ? "dark" : "light"}`}
           className="ph-no-capture block h-full min-h-[480px] w-full flex-1 border-0"
           // Same origin (the preview reads nothing of the studio's): scripts for the engine's islands only.

@@ -6,6 +6,7 @@ import { Button, Checkbox, MarkdropLoader, VisuallyHidden } from "@/components/u
 import { FocusState } from "@/components/auth/FocusState";
 import { HANDOFF_FRAGMENT, HANDOFF_NONE_FRAGMENT } from "@/lib/hosts";
 import { getHandoffConsent, HandoffError, mintHandoffToken, type HandoffConsent } from "./handoffApi";
+import StudioHandoff from "./StudioHandoff";
 
 /**
  * Carry a signed-in reader from markdrop.in onto a workspace's own domain.
@@ -49,7 +50,17 @@ function loginUrl(host: string, next: string): string {
   return `/login?next=${encodeURIComponent(here)}`;
 }
 
+/**
+ * One page, two hand-offs: a workspace's own domain (?host=, below), or Markdrop Guides' studio
+ * host (?studio=1, and ?signout=studio on the way out; StudioHandoff).
+ */
 export default function HandoffClient() {
+  const params = useSearchParams();
+  if (params.get("studio") === "1" || params.get("signout") === "studio") return <StudioHandoff />;
+  return <TenantHandoff />;
+}
+
+function TenantHandoff() {
   const params = useSearchParams();
   const [error, setError] = useState<Failure | null>(null);
   const [signingIn, setSigningIn] = useState(false);
