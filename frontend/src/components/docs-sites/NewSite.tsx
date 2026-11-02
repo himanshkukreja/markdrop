@@ -10,6 +10,7 @@ import {
   type SourceKind, type TemplateId,
 } from "@/lib/docsSites";
 import RepoPicker, { type RepoPickerState } from "./github/RepoPicker";
+import { slugBaseFor, suggestGuideName } from "./github/guideName";
 import { StudioLoader, useStudioSession } from "./SiteContext";
 import { PERSONAL, siteBase, studioHome, studioNew } from "./routes";
 import { useStudio } from "./studio/StudioContext";
@@ -20,18 +21,6 @@ const SOURCES: Array<{ id: SourceKind; icon: string; title: string; body: string
   { id: "gitbook", icon: "download", title: "Import from GitBook", body: "Paste your GitBook address. Pages, images, navigation and old links come across." },
   { id: "github", icon: "github", title: "Import from GitHub", body: "Markdown, GitBook, Mintlify, Docusaurus or MkDocs from a repo. Keep it in sync on every push." },
 ];
-
-/** Repository names that say nothing about the product ("docs") → the owner's name instead. */
-const GENERIC_REPOS = new Set(["docs", "doc", "documentation", "website", "site", "guides", "guide", "help", "handbook", "manual", "wiki"]);
-const titleCase = (s: string) => s.replace(/[-_.]+/g, " ").trim().replace(/\s+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-
-/** A guide name for a repository: "acme/docs" → "Acme Docs", "acme/widget-docs" → "Widget Docs". */
-function nameFromRepo(owner: string, name: string): string {
-  const base = name.toLowerCase().replace(/\.git$/, "");
-  if (GENERIC_REPOS.has(base)) return `${titleCase(owner)} Docs`.slice(0, 80);
-  const t = titleCase(base);
-  return (/\b(docs?|documentation|guides?|help|handbook)\b/i.test(t) ? t : `${t} Docs`).slice(0, 80);
-}
 
 const TEMPLATES: Array<{ id: TemplateId; title: string; body: string }> = [
   { id: "product", title: "Product guide", body: "Get started, how-tos, FAQ and release notes." },
@@ -131,15 +120,18 @@ export default function NewSite() {
     else if (start === "openapi") { setSource("template"); setTemplate("api"); }
   }, [start]);
 
-  // Suggest a name and address from the repository ("acme/docs" → "Acme Docs", acme-docs), until
-  // the person types their own.
+  // Suggest a name and address until the person types their own: the name the docs' config gives
+  // the site (docs.json "name", site_name, title) once the folder's preview is read, else one from
+  // the repository ("acme/docs" → "Acme Docs", acme-docs). The config's name only counts while the
+  // preview is the current repository's (choice is set only then).
   const ghRepo = gh.repo ? `${gh.repo.owner}/${gh.repo.name}` : "";
+  const ghSiteName = gh.choice ? gh.inspect?.selected.site_name ?? null : null;
   useEffect(() => {
     if (source !== "github" || !gh.repo || nameEdited.current) return;
-    const n = nameFromRepo(gh.repo.owner, gh.repo.name);
+    const n = suggestGuideName(gh.repo, ghSiteName);
     setName(n);
-    if (!slugEdited.current) setSlug(slugFrom(n.replace(/\s+Docs$/, "")));
-  }, [source, ghRepo]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!slugEdited.current) setSlug(slugFrom(slugBaseFor(n, !!ghSiteName?.trim())));
+  }, [source, ghRepo, ghSiteName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Suggest a name and address from the GitBook address (docs.acme.com → "acme").
   useEffect(() => {

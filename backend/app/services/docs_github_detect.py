@@ -14,6 +14,10 @@ Detection for a folder F, first match wins (the same rules as the converter's li
                    statically in the config).
 5. ``markdown``    anything else; content root F.
 
+The preview also carries ``site_name``: the name the docs' config gives the site (Mintlify ``name``,
+MkDocs ``site_name``, Docusaurus ``title``, GitBook book.json ``title``), which the new-guide form
+prefers over a name made from the repository's.
+
 Paths are repo-relative without leading or trailing slashes; "" is the repository's root.
 """
 
@@ -206,6 +210,41 @@ def content_root_for(fmt: str, folder: str, detected: dict) -> str:
     if fmt == "docusaurus":
         return join(folder, "docs")
     return folder
+
+
+# ── The site's own name ───────────────────────────────────────────────────────
+
+SITE_NAME_MAX = 80
+
+
+def _clean_name(v) -> str | None:
+    """A config's title as a guide name: one line, at most SITE_NAME_MAX characters, or None."""
+    if not isinstance(v, str):
+        return None
+    v = re.sub(r"\s+", " ", v).strip()
+    return v[:SITE_NAME_MAX].strip() or None
+
+
+async def site_name(paths: list[str], folder: str, det: dict, read: Reader) -> str | None:
+    """The name the docs give themselves, so a new guide is named after the product rather than the
+    repository: Mintlify docs.json / mint.json ``name``, MkDocs ``site_name``, Docusaurus ``title``
+    (the config's first top-level-looking ``title:``, as the converter reads it) and, for GitBook,
+    a legacy book.json ``title``. None when the config has none (the caller falls back to the repo)."""
+    fmt = det.get("format")
+    if fmt == "mintlify" and det.get("config"):
+        return _clean_name(_json(await read(det["config"])).get("name"))
+    if fmt == "mkdocs":
+        return _clean_name((det.get("mkdocs") or {}).get("site_name"))
+    if fmt == "docusaurus" and det.get("config"):
+        text = (await read(det["config"]) or b"").decode("utf-8", "replace")
+        m = re.search(r"^[ \t]*title\s*:\s*(['\"`])((?:(?!\1)[^\n\\])+)\1", text, re.M)
+        return _clean_name(m.group(2)) if m else None
+    if fmt == "gitbook":
+        names = set(paths)
+        for p in dict.fromkeys((join(folder, "book.json"), join(det.get("content_root") or folder, "book.json"))):
+            if p in names:
+                return _clean_name(_json(await read(p)).get("title"))
+    return None
 
 
 # ── Preview groups ─────────────────────────────────────────────────────────────
@@ -406,8 +445,13 @@ async def preview(paths: list[str], folder: str, read: Reader, fmt: str | None =
     for p in paths:
         if under(p, folder) and usable(p) and OPENAPI_NAME.search(p) and p not in openapi:
             openapi.append(p)
+    try:
+        name = await site_name(paths, folder, det, read)
+    except Exception:  # noqa: BLE001 - a name is a suggestion; the preview never fails over it
+        name = None
     return {
         "path": folder,
+        "site_name": name,
         "format": chosen,
         "detected_format": det["format"],
         "content_root": root,

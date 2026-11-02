@@ -352,6 +352,39 @@ class Detect(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             detect.norm_folder("a/../b")
 
+    async def test_site_name_from_the_config(self):
+        """The preview names the guide after the docs' own config, not the repository."""
+        async def preview(paths, files, folder="", fmt=None):
+            async def r(p):
+                return files.get(p)
+            return await detect.preview(paths, folder, r, fmt)
+
+        cases = [
+            (["docs.json", "intro.mdx"], {"docs.json": b'{"name": "Acme Rockets", "navigation": {"groups": []}}'}, "", "Acme Rockets"),
+            (["docs/mint.json", "docs/a.mdx"], {"docs/mint.json": b'{"name": "  Acme\\n  Mint  "}'}, "docs", "Acme Mint"),
+            (["mkdocs.yml", "docs/index.md"], {"mkdocs.yml": b"site_name: Acme MkDocs\n"}, "", "Acme MkDocs"),
+            (["website/docusaurus.config.js", "website/docs/a.md"],
+             {"website/docusaurus.config.js": b"const config = {\n  title: \"Acme's Site\",\n  tagline: 'x',\n"
+                                              b"  themeConfig: { navbar: { title: 'Navbar' } },\n};\n"}, "website", "Acme's Site"),
+            (["book.json", "SUMMARY.md", "README.md"], {"book.json": b'{"title": "Acme Book"}'}, "", "Acme Book"),
+            # No name in the config, or no config: None (the form falls back to the repository's name).
+            (["docs.json", "intro.mdx"], {"docs.json": b'{"navigation": {"groups": []}}'}, "", None),
+            (["docs.json", "intro.mdx"], {"docs.json": b'{"name": 42, "navigation": {"groups": []}}'}, "", None),
+            (["docs.json", "intro.mdx"], {"docs.json": b'{"name": "   ", "navigation": {"groups": []}}'}, "", None),
+            (["mkdocs.yml", "docs/index.md"], {"mkdocs.yml": b"docs_dir: docs\n"}, "", None),
+            (["docusaurus.config.ts", "docs/a.md"], {"docusaurus.config.ts": b"export default {}"}, "", None),
+            ([".gitbook.yaml", "README.md", "SUMMARY.md"], {".gitbook.yaml": b"root: ./\n"}, "", None),
+            (["README.md", "a.md"], {}, "", None),
+        ]
+        for paths, files, folder, want in cases:
+            got = await preview(paths, files, folder)
+            self.assertEqual(got["site_name"], want, paths)
+        long = await preview(["docs.json", "a.mdx"], {"docs.json": json.dumps({"name": "N" * 300, "navigation": {}}).encode()})
+        self.assertEqual(long["site_name"], "N" * detect.SITE_NAME_MAX)
+        # A format override keeps the name the folder's config gives.
+        over = await preview(["docs.json", "a.mdx"], {"docs.json": b'{"name": "Acme Rockets", "navigation": {}}'}, fmt="markdown")
+        self.assertEqual((over["format"], over["site_name"]), ("markdown", "Acme Rockets"))
+
 
 # ── Guides from a repository, and syncing ─────────────────────────────────────
 
