@@ -67,7 +67,7 @@ The **Changelog** screen lists every entry by month, newest first, with its kind
 
 Search the entries, or filter them by kind, or to the ones that aren't published yet. Each entry's **⋯** menu has **Edit**, **Preview**, **Open on the guide** (once it's published), **Duplicate** and **Delete**. A deleted entry stays on the live guide until the next publish.
 
-![The Changelog screen for Acme: What's new, 6 entries, all published; search and the kind and status filters; entries grouped by month (October and September 2026), each with its date, kind, area, products and versions, title, summary and Published; on the right Where readers find it (the changelog page, RSS feed and JSON Feed with Copy), Coming next and Products.](/docs-assets/guides/changelog/changelog-list.webp)
+![The Changelog screen for Acme: What's new, 6 entries, all published; search and the kind and status filters; entries grouped by month (November, October and September 2026), each with its date, kind, area, products and versions, title, summary and Published; on the right Where readers find it (the changelog page, RSS feed and JSON Feed with Copy), Coming next and Products.](/docs-assets/guides/changelog/changelog-list.webp)
 
 **Preview** shows the changelog, or one entry's page, as the next publish would, in your guide's saved design, in light or dark.
 
