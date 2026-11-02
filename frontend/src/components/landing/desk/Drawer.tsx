@@ -99,7 +99,7 @@ export default function Drawer() {
               </div>
               <div className={`${s.tool} ${s.toolWide}`} style={{ "--r": "0.3deg" } as React.CSSProperties}>
                 <div className={s.toolShot}>
-                  <LoopVideo src="/landing-desk/terminal" w={1600} h={388} label="The markdrop CLI: markdrop upload demo.mp4 publishes it at markdrop.in/demo; markdrop replace demo demo-v2.mp4 makes version 2 on the same link." />
+                  <LoopVideo src="/landing-desk/terminal" w={1600} h={370} label="The markdrop CLI: markdrop upload demo.mp4 publishes it at markdrop.in/demo; markdrop replace demo demo-v2.mp4 makes version 2 on the same link." />
                 </div>
                 <span className={s.toolHead}>
                   <Icon name="terminal" />
