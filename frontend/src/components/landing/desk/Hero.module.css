@@ -131,7 +131,7 @@
   display: flex;
   flex-direction: column;
   gap: 22px;
-  padding: 28px 16px 16px;
+  padding: 92px 16px 16px;
   border-radius: 24px;
   background-color: var(--surface-inset);
   background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.4px);
@@ -483,8 +483,8 @@
 .paper img {
   position: absolute;
   left: -8px;
-  top: -6px;
-  width: 400px;
+  top: 8px;
+  width: 456px;
   height: auto;
 }
 @media (min-width: 1024px) {
@@ -497,8 +497,8 @@
 /* The drop mark */
 .dock {
   position: absolute;
-  right: 6px;
-  top: 4px;
+  right: 14px;
+  top: 12px;
   width: 64px;
   height: 64px;
   display: flex;
@@ -574,6 +574,23 @@
   }
   .mark {
     scale: 1;
+  }
+}
+
+/* Phones: what to do, beside the mark. */
+.matHint {
+  position: absolute;
+  left: 18px;
+  right: 96px;
+  top: 22px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+@media (min-width: 1024px) {
+  .matHint {
+    display: none;
   }
 }
 

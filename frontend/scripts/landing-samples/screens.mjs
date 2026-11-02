@@ -8,9 +8,10 @@
  *
  * hero      hero/<id>(.phone)(.dark).webp  the hero laptop's screen with each file's live render, at
  *                                 the screen's own size (desktop 456 wide, phone 306), light and dark:
- *                                 what the laptop shows until the real renderer is ready, the phone
- *                                 and the paper note on the desk, and the "what renders" cards
- * screens   launch-notes-doc(.dark)  the stamped document (Sharing): notes.md through MarkdownPreview,
+ *                                 what the laptop shows until the real renderer is ready, the paper
+ *                                 note on the desk (md), and the "what renders" cards
+ * screens   deck-phone(.dark)     the phone on the hero desk: the PDF viewer on the deck, phone-wide
+ *           launch-notes-doc(.dark)  the stamped document (Sharing): notes.md through MarkdownPreview,
  *                                 laid out whole in a 560px column
  *
  * PNG screenshots are converted to WebP with ffmpeg (libwebp). Nothing here touches the API.
@@ -65,6 +66,18 @@ async function context(theme, viewport, scale) {
 if (doScreens) {
   for (const theme of ["light", "dark"]) {
     const suffix = theme === "dark" ? ".dark" : "";
+    // The phone on the hero desk: the PDF viewer on the deck at a phone's width.
+    {
+      const ctx = await context(theme, { width: 360, height: 720 }, 1);
+      const page = await ctx.newPage();
+      await page.goto(`${BASE}/landing-demo/pdf.${theme}.html`, { waitUntil: "networkidle" });
+      await page.waitForFunction(() => document.querySelectorAll(".page canvas").length >= 2, null, { timeout: 30000 });
+      await page.waitForTimeout(600);
+      const png = path.join(TMP, `deck${suffix}.png`);
+      await page.screenshot({ path: png });
+      webp(png, path.join(OUT, `screens/deck-phone${suffix}.webp`));
+      await ctx.close();
+    }
     // The stamped document: notes.md dropped on the hero, its render lifted out into a plain 560px
     // column, so it is captured whole.
     const ctx = await context(theme, { width: 1280, height: 1400 }, 2);

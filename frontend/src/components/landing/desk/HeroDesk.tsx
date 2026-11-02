@@ -238,8 +238,8 @@ export default function HeroDesk() {
         </span>
         <span className={s.phone} aria-hidden="true">
           <span className={s.phoneScreen}>
-            <img className={t.light} src="/landing-desk/hero/pdf.phone.webp" alt="" width={918} height={900} decoding="async" />
-            <img className={t.dark} src="/landing-desk/hero/pdf.phone.dark.webp" alt="" width={918} height={900} decoding="async" loading="lazy" />
+            <img className={t.light} src="/landing-desk/screens/deck-phone.webp" alt="" width={360} height={720} decoding="async" />
+            <img className={t.dark} src="/landing-desk/screens/deck-phone.dark.webp" alt="" width={360} height={720} decoding="async" loading="lazy" />
           </span>
         </span>
       </button>
@@ -259,6 +259,10 @@ export default function HeroDesk() {
           <img className={t.dark} src="/landing-desk/hero/md.dark.webp" alt="" width={912} height={840} decoding="async" loading="lazy" />
         </span>
       </button>
+
+      <span className={s.matHint} aria-hidden="true">
+        Tap a file to drop it on the mark.
+      </span>
 
       {/* The mark */}
       <div ref={markRef} className={s.dock} data-drop-target="" data-over={over ? "" : undefined}>
