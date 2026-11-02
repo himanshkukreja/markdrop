@@ -48,6 +48,7 @@ export const SAMPLE_SLUGS_PUBLISHED: ReadonlySet<string> = new Set<string>([
   "acme-deck",
   "product-demo",
   "budget-2026",
+  "workflows-launch",
 ]);
 
 export function sampleHref(slug: string): string | null {
