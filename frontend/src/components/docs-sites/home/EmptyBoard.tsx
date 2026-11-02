@@ -18,7 +18,7 @@ export const STARTS: Array<{ start: NewGuideStart; icon: string; title: string; 
 const GETS: Array<{ icon: string; title: string; note: string }> = [
   { icon: "search", title: "Search and Ask AI", note: "Answers from your pages, with a link to the exact section." },
   { icon: "globe", title: "Its own address", note: "name.guides.markdrop.in, or your domain with one DNS record." },
-  { icon: "sun", title: "Themes and your brand", note: "Six looks, or Match my brand from your logo and colour." },
+  { icon: "sun", title: "Themes and your brand", note: "Fourteen themes, a theme builder, or Match my brand from your logo and colour." },
   { icon: "eye", title: "Insights", note: "Top pages, searches with no results, page feedback. No cookies." },
   { icon: "check", title: "Drafts and review", note: "Nothing goes live until you publish, or a reviewer approves." },
   { icon: "zap", title: "Ready for AI tools", note: "Markdown copies, llms.txt and an MCP server for every guide." },

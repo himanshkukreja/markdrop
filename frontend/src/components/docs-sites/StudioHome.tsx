@@ -119,7 +119,7 @@ function StartTile({ scope, bar }: { scope: StudioScope | null; bar?: boolean })
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-text" aria-hidden><Icon name="plus" size={18} /></span>
         <span className="flex min-w-0 flex-col">
           <strong className="font-semibold">Start a new guide</strong>
-          <span className="text-[12px] text-text-muted">Blank, template, GitBook or OpenAPI</span>
+          <span className="text-[12px] text-text-muted">Blank, template, GitBook, GitHub or OpenAPI</span>
         </span>
       </Anchor>
     );
