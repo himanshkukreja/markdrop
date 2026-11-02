@@ -85,6 +85,10 @@ export interface GithubInspect {
   folders: GithubFolder[];
   selected: {
     path: string;
+    /** The name the docs' config gives the site (Mintlify docs.json `name`, MkDocs `site_name`,
+     *  Docusaurus `title`, GitBook book.json `title`); null without one. The new-guide form prefers it
+     *  over a name made from the repository's. */
+    site_name?: string | null;
     /** The format the import will use (the override, else the detected one). */
     format: GithubFormat;
     detected_format: GithubFormat;

@@ -7,7 +7,7 @@
 import { contrast, parseHex } from "@/components/tenant/branding";
 import { CORNERS, PRESETS as ENGINE } from "@/docs/theme.mjs";
 import { FONTS, type Corners, type SiteBrand, type SiteSummary, type SiteTheme, type ThemePreset } from "@/lib/docsSites";
-import { guideThemeVars } from "./guideTheme";
+import { guideCode, guideThemeVars } from "./guideTheme";
 
 export interface Palette { bg: string; header: string; card: string; text: string; muted: string; line: string; code: string; codeText: string }
 
@@ -177,7 +177,10 @@ export function previewTokens(theme: ThemeInput, dark: boolean): PreviewTokens {
     calloutBorder: theme.preset === "technical" ? `1px solid ${pal.line}` : "0",
     ...(v["--dx-sidebar-bg"] ? { sidebarBg: v["--dx-sidebar-bg"] } : {}),
   };
-  return engine ? { ...out, ...engine } : out;
+  // A custom theme's code blocks (a forced light or dark code theme, or its own code colours).
+  const code = guideCode({ ...theme, mode: undefined }, dark);
+  const drawn = engine ? { ...out, ...engine } : out;
+  return code ? { ...drawn, code: code.bg, codeText: code.text } : drawn;
 }
 
 /**

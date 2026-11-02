@@ -7,13 +7,16 @@
  * with `a: [rules]`. Who each rule lets in is the site's access policy (sites/<site>/access.json,
  * written by the API's access job and by the runner before it flips the pointer):
  *
- *   readers: {version, rv, rules: {<id>: {kind: "members"|"people"|"password", emails, domains, pv}}}
+ *   readers: {version, rv, mv, rules: {<id>: {kind: "members"|"people"|"password", emails, domains, pv}}}
  *
  * A rule the policy doesn't have (or doesn't understand) lets nobody in: fail closed.
  *
  * Who the reader is: the `__Host-docs_reader` cookie, signed by this Worker for this site and the
- * policy's `rv` (bumped by "Sign out every reader"): {e: verified email, m: team member, pw:
- * [[rule, pv]] the passwords given, exp}. It is set from a *reader grant* the API mints (the same
+ * policy's `rv` (bumped by "Sign out every reader"): {e: verified email, m: team member, mv, pw:
+ * [[rule, pv]] the passwords given, exp}. `m` holds only while the cookie's `mv` is the policy's
+ * (the API moves `mv` on when someone loses their Guides role on the guide: every team member's
+ * cookie stops counting as a member's and they sign in again, which the removed one can't; their
+ * verified email and passwords still count, so people and password rules are untouched). It is set from a *reader grant* the API mints (the same
  * token format and secret as the site-wide sign-in, access.mjs), in the fragment of
  * /_access/callback: after "Sign in with Markdrop" (the reader's account: email + whether they're
  * on the guide's team), after a correct page password (that rule, at its password version), or
@@ -22,7 +25,8 @@
  *
  * A team member opens everything. `people`: the email is listed, or its domain is. `password`: the
  * reader gave that rule's current password. Lists are read live from the policy, so removing
- * someone takes effect within seconds; a new password (pv) closes that rule to everyone.
+ * someone takes effect within seconds; a new password (pv) closes that rule to everyone; removing a
+ * team member (mv) ends every member session.
  */
 import { b64url, cookie, newState, parseCookies, readToken, safeNext, signToken, stateHash, validState, brandFiles } from "./access.mjs";
 
@@ -37,9 +41,9 @@ const EMAIL = /^[^\s@]{1,64}@[a-z0-9.-]{1,253}$/;
 
 const now = () => Math.floor(Date.now() / 1000);
 
-/** access.json `readers` → {version, rv, rules: Map}. Junk → no rules (every protected thing locked). */
+/** access.json `readers` → {version, rv, mv, rules: Map}. Junk → no rules (every protected thing locked). */
 export function parseReaders(raw) {
-  const out = { version: 0, rv: 0, rules: new Map() };
+  const out = { version: 0, rv: 0, mv: 0, rules: new Map() };
   let p;
   try {
     p = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -50,6 +54,7 @@ export function parseReaders(raw) {
   if (!r || typeof r !== "object") return out;
   out.version = Number.isSafeInteger(r.version) ? r.version : 0;
   out.rv = Number.isSafeInteger(r.rv) && r.rv >= 0 ? r.rv : 0;
+  out.mv = Number.isSafeInteger(r.mv) && r.mv >= 0 ? r.mv : 0;
   for (const [id, rule] of Object.entries(r.rules && typeof r.rules === "object" ? r.rules : {})) {
     if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(id) || !rule || !KINDS.has(rule.kind)) continue;
     const list = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => x.trim().toLowerCase()).filter(Boolean) : []);
@@ -65,6 +70,9 @@ export function parseReaders(raw) {
   return out;
 }
 
+/** A token's members version (none: 0, what every policy starts at). */
+const mvOf = (p) => (Number.isSafeInteger(p.mv) && p.mv >= 0 ? p.mv : 0);
+
 /** The reader behind a request: {e, m, pw: Map<rule, pv>} (empty when signed out or the cookie is stale). */
 export async function readerOf(secret, req, site, readers) {
   const none = { e: null, m: false, pw: new Map(), signedIn: false };
@@ -77,12 +85,14 @@ export async function readerOf(secret, req, site, readers) {
   const pw = new Map();
   for (const x of Array.isArray(p.pw) ? p.pw : []) if (Array.isArray(x) && typeof x[0] === "string" && Number.isSafeInteger(x[1])) pw.set(x[0], x[1]);
   const e = typeof p.e === "string" && EMAIL.test(p.e) ? p.e : null;
-  return { e, m: p.m === true, pw, signedIn: !!(e || p.m || pw.size) };
+  // A member's cookie from before the team changed (mv) is no longer a member's.
+  const m = p.m === true && mvOf(p) === readers.mv;
+  return { e, m, pw, signedIn: !!(e || m || pw.size) };
 }
 
 export function mintReader(secret, site, readers, reader) {
   const pw = [...reader.pw].slice(0, 32);
-  return signToken(secret, READER_SESSION, { s: site, rv: readers.rv, ...(reader.e ? { e: reader.e } : {}), ...(reader.m ? { m: true } : {}), ...(pw.length ? { pw } : {}), exp: now() + READER_TTL });
+  return signToken(secret, READER_SESSION, { s: site, rv: readers.rv, ...(reader.e ? { e: reader.e } : {}), ...(reader.m ? { m: true, mv: readers.mv } : {}), ...(pw.length ? { pw } : {}), exp: now() + READER_TTL });
 }
 
 /** Whether the reader may open what `ruleId` protects. */
@@ -116,6 +126,8 @@ export async function readerGrant(secret, token, { site, host, readers, state })
   if (!Number.isSafeInteger(g.exp) || g.exp <= t || g.exp > t + 900) return { problem: "expired" };
   if (g.s !== site || g.h !== host) return { problem: "invalid" };
   if (g.rv !== readers.rv) return { problem: "changed" };
+  // A member grant minted before the team changed (or before the edge has the change) says nothing.
+  if (g.m === true && mvOf(g) !== readers.mv) return { problem: "changed" };
   if (g.x === "email") {
     if (g.exp > t + 180) return { problem: "invalid" };
   } else if (!validState(state) || g.sh !== (await stateHash(state))) return { problem: "cookies" };
