@@ -278,7 +278,6 @@
       "group": "Start",
       "icon": "layers",
       "tab": "guides",
-      "new": true,
       "pages": [
         "/guides/overview",
         "/guides/create-a-site",
@@ -324,6 +323,7 @@
       "group": "Improve",
       "icon": "flag",
       "tab": "guides",
+      "new": true,
       "pages": [
         "/guides/fix-list",
         "/guides/insights"

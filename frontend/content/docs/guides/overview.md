@@ -48,15 +48,13 @@ Plus your own domain with one-click DNS, fourteen themes and a theme builder, an
 
 These pages follow the order you'll need them in.
 
-| Section | Pages |
-| --- | --- |
-| **Start** | [Create a guide](/guides/create-a-site), [Import from GitBook](/guides/import-from-gitbook), [Import from GitHub](/guides/import-from-github), [API reference from OpenAPI](/guides/api-reference) |
-| **Write** | [The editor](/guides/editor), [Embed files](/guides/embed-files), [Pages and navigation](/guides/pages-and-navigation), [Changelog](/guides/changelog), [History](/guides/history) |
-| **Look** | [Themes, the theme builder and resetting a design](/guides/themes), [Brand and style](/guides/brand-and-style) |
-| **Publish and share** | [Publishing](/guides/publishing), [Reviews](/guides/reviews), [Your own domain](/guides/custom-domain), [Private pages](/guides/private-pages), [What readers get](/guides/what-readers-get) |
-| **Improve** | [Fix list](/guides/fix-list), [Insights](/guides/insights) |
-| **For AI** | [Ask AI](/guides/ask-ai), [llms.txt, MCP and agents](/guides/ai-ready) |
-| **Reference** | [Guide settings](/guides/site-settings), [Members and roles](/guides/members-and-roles), [Limits](/guides/limits), [Self-hosting](/guides/self-hosting), [FAQ and troubleshooting](/guides/faq) |
+- **Start**: [Create a guide](/guides/create-a-site), [Import from GitBook](/guides/import-from-gitbook), [Import from GitHub](/guides/import-from-github), [API reference from OpenAPI](/guides/api-reference)
+- **Write**: [The editor](/guides/editor), [Embed files](/guides/embed-files), [Pages and navigation](/guides/pages-and-navigation), [Changelog](/guides/changelog), [History](/guides/history)
+- **Look**: [Themes, the theme builder and resetting a design](/guides/themes), [Brand and style](/guides/brand-and-style)
+- **Publish and share**: [Publishing](/guides/publishing), [Reviews](/guides/reviews), [Your own domain](/guides/custom-domain), [Private pages](/guides/private-pages), [What readers get](/guides/what-readers-get)
+- **Improve**: [Fix list](/guides/fix-list), [Insights](/guides/insights)
+- **For AI**: [Ask AI](/guides/ask-ai), [llms.txt, MCP and agents](/guides/ai-ready)
+- **Reference**: [Guide settings](/guides/site-settings), [Members and roles](/guides/members-and-roles), [Limits](/guides/limits), [Self-hosting](/guides/self-hosting), [FAQ and troubleshooting](/guides/faq)
 
 ## How it works
 

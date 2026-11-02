@@ -12,11 +12,11 @@ Markdrop Guides is **free while it's in beta**: everything that's live, for ever
 
 After the beta, the plans planned are:
 
-| Plan | Price | For | Includes |
-| --- | --- | --- | --- |
-| **Free** | $0 per guide | Small teams and side projects | Your own domain, 3 editors, Insights and the Fix list, Ask AI with a monthly cap, basic private pages |
-| **Pro** | $39–49 per site a month | A flat price, whatever the size of your team | Everything in Free, unlimited editors, more Ask AI and AI-drafted fixes with a cap you set, private pages for email domains and each customer |
-| **Business** | about $199 per site a month | Companies with more guides and stricter sign-in | Everything in Pro, single sign-on for readers and editors, higher AI limits, priority support |
+- **Free**, $0 per guide, for small teams and side projects: your own domain, 3 editors, Insights and the Fix list, Ask AI with a monthly cap, basic private pages.
+- **Pro**, $39–49 per site a month, a flat price whatever the size of your team: everything in Free, unlimited editors, more Ask AI and AI-drafted fixes with a cap you set, private pages for email domains and each customer.
+- **Business**, about $199 per site a month, for companies with more guides and stricter sign-in: everything in Pro, single sign-on for readers and editors, higher AI limits, priority support.
+
+How pricing works:
 
 - AI is the only thing metered, always with a hard cap: no surprise bills.
 - Never priced per editor or per reader.
