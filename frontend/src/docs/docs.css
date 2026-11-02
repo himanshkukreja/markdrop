@@ -514,6 +514,8 @@ html.dx-modal-open { overflow: hidden; }
 
 .dx-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px 32px; padding: 24px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-muted); }
 .dx-footer a { text-decoration: none; }
+.dx-footer__choices { padding: 0; border: 0; background: none; font: inherit; color: var(--accent-text); cursor: pointer; }
+.dx-footer__choices:hover { color: var(--accent-text-hover); }
 
 .dx-notfound { flex: 1; width: 100%; max-width: 640px; margin: 0 auto; padding: 96px 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; }
 .dx-notfound__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }

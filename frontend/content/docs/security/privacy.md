@@ -1,7 +1,7 @@
 ---
 title: Privacy at Markdrop
 description: What Markdrop keeps about you and your readers, what it measures, what it never records, and how to opt out.
-updated: 2026-11-01
+updated: 2026-11-02
 keywords: [privacy, gdpr, cookies, consent, analytics, posthog, google analytics, global privacy control, delete account, data]
 ---
 
@@ -32,7 +32,7 @@ Reading and watching sessions are deleted after 395 days. [What gets counted](/a
 Markdrop uses three kinds of analytics to understand how the product is used and what to fix:
 
 - **Its own analytics**: page views, time on page, where visits come from, and product events such as "published". No cookies: a random id in your browser's storage. Your IP address is used once to look up your country and city and isn't stored. Each visit is kept for about 13 months. The record of the random id itself goes about 13 months after its last visit.
-- **PostHog**: product analytics and session recordings. When you sign in, your visits are linked to your account's email.
+- **PostHog**: product analytics and session recordings: pages, clicks and scrolling, and a replay of how each page was used. When you sign in, your visits are linked to your account's email.
 - **Google Analytics**: aggregate traffic reports.
 
 PostHog and Google Analytics never receive:
@@ -40,10 +40,11 @@ PostHog and Google Analytics never receive:
 - document and file links (a document is reported as an anonymous reference, never its address),
 - anything after `#` in a link, including encryption keys and sign-in or invite tokens,
 - anything at all from an encrypted document's page: they don't run there,
-- what you write: editors, previews, document pages and lists of your documents aren't recorded, and every text field is masked,
+- what you write or publish: a replay shows the page around a document or file, never its content. Documents, files, editors, previews and lists of your documents are blanked out, titles, names and email addresses are hidden, and every text field is masked,
+- a replay of a sign-in link or of Markdrop's admin pages: those are never recorded,
 - the contents or names of files you send peer to peer.
 
-PostHog and Google Analytics run on markdrop.in only, never on a workspace's own domain.
+PostHog and Google Analytics run on markdrop.in, guides.markdrop.in and docs.markdrop.in only, never on a workspace's own domain or on a published guide.
 
 ## Cookies and your choices
 
