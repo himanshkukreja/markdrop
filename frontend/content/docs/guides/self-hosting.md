@@ -17,15 +17,24 @@ Self-hosting is new. The image is published from the repository with each releas
 
 ## What works on your own server
 
-| On your server | Stays with Markdrop |
-|---|---|
-| Every page, the sidebar, tabs and redirects | The [editor](/guides/editor), [reviews](/guides/reviews) and roles: you edit the Markdown files |
-| [Themes](/guides/themes), the theme builder's custom theme, fonts and your logo | [Ask AI](/guides/ask-ai): it runs on Markdrop's API, which answers only a guide's own Markdrop addresses |
-| Search, link previews, light and dark mode | [Insights](/guides/insights), the [Fix list](/guides/fix-list) and "Did this page help?": they report to Markdrop |
-| The [changelog](/guides/changelog) with its RSS feed | [Private pages](/guides/private-pages), passwords and members-only sign-in |
-| The [API reference](/guides/api-reference), Try it included | [GitHub sync](/guides/import-from-github) and one-click publishing |
-| Videos, and the [Markdrop files your pages embed](/guides/embed-files) | Your own domain's certificate: point the domain at your server and use a reverse proxy |
-| `llms.txt`, a Markdown copy of each page, and the `/mcp` server | |
+**On your server:**
+
+- Every page, the sidebar, tabs and redirects
+- [Themes](/guides/themes), including a custom theme from the theme builder, fonts and your logo
+- Search, link previews, light and dark mode
+- The [changelog](/guides/changelog) with its RSS feed
+- The [API reference](/guides/api-reference), Try it included
+- Videos, and the [Markdrop files your pages embed](/guides/embed-files)
+- `llms.txt`, a Markdown copy of each page, and the `/mcp` server
+
+**Stays with Markdrop:**
+
+- The [editor](/guides/editor), [reviews](/guides/reviews) and roles. You edit the Markdown files.
+- [Ask AI](/guides/ask-ai). It runs on Markdrop's API, which answers only a guide's own Markdrop addresses.
+- [Insights](/guides/insights), the [Fix list](/guides/fix-list) and "Did this page help?". They report to Markdrop.
+- [Private pages](/guides/private-pages), passwords and members-only sign-in.
+- [GitHub sync](/guides/import-from-github) and one-click publishing.
+- The HTTPS certificate for your domain. Point the domain at your server and put a [reverse proxy](#behind-a-reverse-proxy) in front.
 
 A self-hosted guide sends nothing to Markdrop or to any analytics service. The one exception is a `::markdrop` block: it loads that file from Markdrop, as it does on any site.
 
@@ -133,13 +142,11 @@ node server/server.mjs start --content ../my-guide --data ../my-guide-data --por
 
 ## Configuration
 
-| Setting | What it does |
-|---|---|
-| `-p 8080:8080`, or `PORT` | The port the server listens on (`--port` with Node). Default `8080`. |
-| `/site` (`--content`) | The content folder. Mount it read-only. |
-| `/data` (`--data`) | Builds, the published files and the engine's build cache. One server per data folder. |
-| `MARKDROP_DOCS_BUILD_CPUS` | How many processes Next uses to render pages. Set `1` on a machine with 1 to 2 GB of memory. |
-| `MARKDROP_DOCS_BUILD_PORT` | A local port the build uses while it renders the pages. Default `3591`; change it if something else uses it. |
+- **Port:** `-p 8080:8080` maps it; inside the container it's `PORT` (default `8080`). With Node, `--port`.
+- **`/site`** (`--content`): the content folder. Mount it read-only.
+- **`/data`** (`--data`): builds, the published files and the engine's build cache. One server per data folder.
+- **`MARKDROP_DOCS_BUILD_CPUS`**: how many processes render pages during a build. Set `1` on a machine with 1 to 2 GB of memory (`-e MARKDROP_DOCS_BUILD_CPUS=1`).
+- **`MARKDROP_DOCS_BUILD_PORT`**: a local port each build uses while it renders the pages. Default `3591`; change it if something else uses it.
 
 There's no setting for an AI key: Ask AI isn't available on a self-hosted guide yet. There's nothing to turn off for analytics either: a self-hosted guide doesn't collect any.
 
