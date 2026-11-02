@@ -1,0 +1,209 @@
+{
+ "_doc": "Narration for the docs' short how-to videos. One spoken line per on-screen caption, in order; `say` only where the spoken words differ from the caption (respellings, symbols). Kokoro af_heart.",
+ "analytics-tour": {
+  "kind": "capture",
+  "say": {
+   "1": "Pick the period: 7, 30 or 90 days, or all time"
+  }
+ },
+ "app-tour": {
+  "kind": "capture",
+  "say": {
+   "0": "Create: a document, an artifact, a read me, or send a file",
+   "7": "Command K searches everything"
+  }
+ },
+ "custom-domain": {
+  "kind": "capture",
+  "say": {
+   "0": "Look and domain, then Add a domain",
+   "2": "Records added at your DNS provider, then Check DNS",
+   "3": "Live: readers can open docs dot acme dot com"
+  }
+ },
+ "encrypt-a-document": {
+  "kind": "capture",
+  "say": {
+   "1": "Encryption, then Encrypt in this browser",
+   "3": "Published: the key is in the link, after hash, K equals",
+   "4": "Copied: the whole link, key included",
+   "6": "The same link without the hash, K equals, part: nobody can read it, not even Mark drop"
+  }
+ },
+ "guides-first-guide": {
+  "kind": "capture",
+  "say": {
+   "1": "Start blank, from a template, or import from Git Book",
+   "6": "Live at northwind help dot guides dot mark drop dot in"
+  }
+ },
+ "guides-import-video": {
+  "kind": "capture",
+  "say": {
+   "0": "Import from Git Book: paste its public address"
+  }
+ },
+ "password-and-expiry": {
+  "kind": "capture",
+  "say": {}
+ },
+ "publish-first-document": {
+  "kind": "capture",
+  "say": {
+   "2": "Publish. Command Enter works too"
+  }
+ },
+ "publish-first-file": {
+  "kind": "capture",
+  "say": {
+   "0": "Drop or choose a file at mark drop dot in slash upload",
+   "5": "It opens at mark drop dot in slash Q 3 board deck",
+   "6": "Escape brings back its bar: Copy link, Download, More artifact actions"
+  }
+ },
+ "publish-zipped-site": {
+  "kind": "capture",
+  "say": {
+   "0": "A site folder, zipped as site dot zip",
+   "1": "Drop site dot zip on mark drop dot in slash upload",
+   "4": "Publish: Mark drop unpacks it and opens index dot html"
+  }
+ },
+ "readme-builder": {
+  "kind": "capture",
+  "say": {
+   "0": "Name your read me",
+   "5": "Publish makes it a Mark drop link",
+   "6": "Your read me, live at its own link"
+  }
+ },
+ "replace-a-file": {
+  "kind": "capture",
+  "say": {
+   "1": "More artifact actions, then Settings"
+  }
+ },
+ "request-access": {
+  "kind": "capture",
+  "say": {
+   "2": "Riya, the owner: Shared with me, then Access requests"
+  }
+ },
+ "send-files-p2p": {
+  "kind": "capture",
+  "say": {
+   "0": "Drop files on mark drop dot in slash share. No account needed"
+  }
+ },
+ "share-with-people": {
+  "kind": "capture",
+  "say": {
+   "0": "A private document: Share, then People with access",
+   "5": "Alex signs in with alex at acme dot com: it's under Shared with me"
+  }
+ },
+ "video-analytics": {
+  "kind": "capture",
+  "say": {}
+ },
+ "video-player": {
+  "kind": "capture",
+  "say": {
+   "0": "Upload a screen recording at mark drop dot in slash upload"
+  }
+ },
+ "cli-send-receive": {
+  "kind": "scene",
+  "say": {
+   "0": "mark drop send prints a link, a room I D and a Q R code",
+   "1": "On the other computer: mark drop get, with the room I D",
+   "3": "The folder arrives as a folder; nothing was stored on a server"
+  }
+ },
+ "cli-upload-replace": {
+  "kind": "scene",
+  "say": {
+   "0": "mark drop upload: hashed, sent in parts, verified",
+   "2": "mark drop replace: a new file behind the same link",
+   "4": "mark drop versions: the previous file is kept"
+  }
+ },
+ "connect-claude": {
+  "kind": "scene",
+  "say": {
+   "0": "Add Mark drop's server URL to your AI app",
+   "1": "Sign in to Mark drop and approve: which app, which account, what it can do",
+   "3": "Ask in plain words: the app calls publish underscore document"
+  }
+ },
+ "local-mcp-publish": {
+  "kind": "scene",
+  "say": {
+   "0": "Register the local server once: mark drop M C P",
+   "1": "Ask for a file on your disk: upload file sends it, with progress",
+   "3": "replace file swaps the video behind the same link"
+  }
+ },
+ "vscode-conflict": {
+  "kind": "scene",
+  "say": {
+   "1": "You add a line in the editor",
+   "2": "while someone edits the same document on mark drop dot in",
+   "4": "Compare web, on the left, with your file, on the right, then choose",
+   "6": "Your merged file is now the web version: Mark drop: synced"
+  }
+ },
+ "vscode-sync": {
+  "kind": "scene",
+  "say": {
+   "1": "Command Palette, then Mark drop: Publish or link current file",
+   "3": "The link opens the rendered document on mark drop dot in",
+   "4": "Someone edits it on mark drop dot in and saves",
+   "5": "Back in the editor, the change arrives in the file: Mark drop: synced"
+  }
+ },
+ "who-can-open": {
+  "kind": "scene",
+  "cues": [
+   {
+    "t0": 0.45,
+    "text": "Every document has one setting: Who can open it"
+   },
+   {
+    "t0": 6.0,
+    "text": "Only people added: you and the people you add"
+   },
+   {
+    "t0": 10.0,
+    "text": "Acme team: everyone in the workspace, signed in"
+   },
+   {
+    "t0": 14.0,
+    "text": "Anyone with the link: no sign-in needed"
+   },
+   {
+    "t0": 18.0,
+    "text": "People added by email always get in"
+   },
+   {
+    "t0": 23.0,
+    "text": "A password is only for Anyone with the link, and strangers"
+   },
+   {
+    "t0": 28.0,
+    "text": "A workspace can require sign-in for everything"
+   },
+   {
+    "t0": 33.0,
+    "text": "Encrypted documents also need the #k= key"
+   },
+   {
+    "t0": 38.0,
+    "text": "One setting covers every address"
+   }
+  ],
+  "say": {
+   "7": "Encrypted documents also need the hash, K equals, key"
+  }
+ }
+}
