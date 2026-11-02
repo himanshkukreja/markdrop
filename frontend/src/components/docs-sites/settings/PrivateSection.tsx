@@ -459,7 +459,7 @@ export default function PrivateSection() {
                 return (
                   <li key={i} className="flex flex-wrap gap-1.5 text-text-secondary">
                     <span className="text-text-muted">{fmtDate(e.at)}</span>
-                    <strong className="text-text">{e.actor_name ?? "Someone"}</strong>
+                    <strong className="text-text">{e.actor_name ?? (e.action === "members_signed_out" ? "Markdrop" : "Someone")}</strong>
                     <span>{ACTIONS[e.action] ?? e.action}</span>
                     {e.rule && <Badge size="sm">{ruleLabel(state.rules.find((r) => r.id === e.rule) ?? { kind: "people", name: e.rule })}</Badge>}
                     {who && <span className="ph-no-capture">{who}</span>}

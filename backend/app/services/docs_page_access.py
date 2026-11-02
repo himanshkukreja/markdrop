@@ -25,7 +25,11 @@ email and whether they are on the team), after a page password (``pw: [[rule, pv
 emailed link (``x: "email"``: a single-use link stored hashed here, opened with a POST so mail
 scanners can't use it up, valid 15 minutes; the grant then lives two minutes and isn't tied to a
 browser, so it works from a phone's mail app). ``rv`` (``page_access.rv``) is in every grant and
-reader cookie: "Sign out every reader" moves it on.
+reader cookie: "Sign out every reader" moves it on. ``mv`` (``page_access.mv``, the members version)
+is in every grant and in a team member's reader cookie: it moves on when someone loses their Guides
+role on the guide (:func:`revoke_members`, called by docs_studio_roles.revoke_lost), and the edge
+then stops treating any older cookie as a team member's (their email and page passwords still
+count; the others sign in again with one click, the removed member can't).
 
 Access requests (``docs_access_requests``) come from the lock page; the guide's admins get an
 email; approving one adds the email to a people rule. Every change of who may read lands in
@@ -106,6 +110,14 @@ def rv_of(site: dict) -> int:
         return 0
 
 
+def mv_of(site: dict) -> int:
+    """The members version: team-member reader sessions of an older one are not a member's."""
+    try:
+        return max(0, int(state(site).get("mv") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 def members_rule() -> dict:
     return {"id": MEMBERS, "kind": "members", "name": "Team members", "nav": "show", "emails": [], "domains": [], "pv": 0}
 
@@ -135,6 +147,7 @@ def readers_policy(site: dict) -> dict:
     return {
         "version": version_of(site),
         "rv": rv_of(site),
+        "mv": mv_of(site),
         "rules": {r["id"]: {
             "kind": r["kind"], "name": str(r.get("name") or "")[:60],
             **({"emails": sorted(set(r.get("emails") or [])), "domains": sorted(set(r.get("domains") or []))} if r["kind"] == "people" else {}),
@@ -341,7 +354,7 @@ def mint_reader_grant(site: dict, host: str, *, sh: str | None = None, email: st
                       member: bool = False, pw: list | None = None, via: str) -> str:
     """A reader grant for the edge (readers.mjs readerGrant). Browser-bound (``sh``) unless it comes
     from an emailed link (``via="email"``: two minutes, single-use at the link)."""
-    payload: dict = {"s": str(site["_id"]), "h": host, "rv": rv_of(site), "n": secrets.token_urlsafe(9)}
+    payload: dict = {"s": str(site["_id"]), "h": host, "rv": rv_of(site), "mv": mv_of(site), "n": secrets.token_urlsafe(9)}
     if via == "email":
         payload.update({"x": "email", "exp": int(time.time()) + 120})
     else:
@@ -510,6 +523,26 @@ async def bump(db: AsyncIOMotorDatabase, site_id: Any, sets: dict | None = None,
                                               return_document=True)
     if row is not None:
         await access.queue_sync(db, row["_id"], reason)
+    return row
+
+
+async def revoke_members(db: AsyncIOMotorDatabase, site_id: Any, reason: str, *, target_user_id: str | None = None) -> dict | None:
+    """Someone lost their Guides role on this guide: end every team member's reader session at the
+    edge (``mv`` moves on with the policy version, and the access job writes it within seconds), so
+    their up-to-7-day reader cookie stops opening team pages. Only the member claim goes: readers
+    signed in by email or password keep what those rules give them, which is live anyway. None when
+    the guide has no readers policy (nothing private was ever set up: no reader sessions to end)."""
+    from app.services.docs_jobs import SITES, oid
+
+    row = await db[SITES].find_one_and_update(
+        {"_id": oid(site_id), "deleted_at": None, "page_access.version": {"$gt": 0}},
+        {"$inc": {"page_access.version": 1, "page_access.mv": 1}, "$set": {"updated_at": now()}},
+        return_document=True)
+    if row is None:
+        return None
+    await access.queue_sync(db, row["_id"], reason)
+    await audit(db, row, None, "members_signed_out", reason=reason,
+                **({"target_user_id": target_user_id} if target_user_id else {}))
     return row
 
 

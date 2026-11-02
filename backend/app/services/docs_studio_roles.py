@@ -375,19 +375,25 @@ async def check_target(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str
     return ws_role
 
 
-# ── Members-only sites: a reader who loses access is signed out ───────────────
+# ── Readers by team role: someone who loses access is signed out ──────────────
 #
-# A members-only site's reader holds a 12-hour edge session, minted when their role was checked.
-# When someone's effective role on such a site drops to none (they left the workspace, their studio
-# role went, a site override hides it, a workspace admin was demoted), the site's policy version is
-# bumped (docs_site_access.revoke_sessions): every session of the old version stops working and the
-# others sign in again, while this person no longer can.
+# Two kinds of guide have readers signed in as team members, with sessions minted when their role
+# was checked: a members-only site (a 12-hour edge session) and a guide with private pages (a reader
+# cookie of up to 7 days that says "team member", docs_page_access). When someone's effective role
+# on such a guide drops to none (they left the workspace, their studio role went, a site override
+# hides it, a workspace admin was demoted), the guide's sessions are ended: the members-only
+# policy version is bumped (docs_site_access.revoke_sessions) and the private pages' members version
+# moves on (docs_page_access.revoke_members). Every session of the old version stops counting and
+# the others sign in again, while this person no longer can.
+
+# A guide whose readers may be team members: members-only, or with a private pages policy.
+_READER_SITES = {"$or": [{"settings.access.level": "members"}, {"page_access.version": {"$gt": 0}}]}
 
 
-async def members_sites(db: AsyncIOMotorDatabase, workspace_id: str) -> list[dict]:
-    """The workspace's members-only docs sites (the only level whose readers are workspace members)."""
+async def reader_sites(db: AsyncIOMotorDatabase, workspace_id: str) -> list[dict]:
+    """The workspace's docs sites with team-member readers (members-only, or with private pages)."""
     return await db["docs_sites"].find(
-        {"workspace_id": workspace_id, "deleted_at": None, "settings.access.level": "members"},
+        {"workspace_id": workspace_id, "deleted_at": None, **_READER_SITES},
         {"workspace_id": 1, "owner_id": 1}).to_list(length=None)
 
 
@@ -397,13 +403,15 @@ async def readable(db: AsyncIOMotorDatabase, sites: list[dict], user_id: str) ->
 
 
 async def revoke_lost(db: AsyncIOMotorDatabase, sites: list[dict], before: set, user_id: str, reason: str) -> list:
-    """Sign readers out of every site in ``before`` this person can't read any more."""
-    from app.services import docs_site_access
+    """Sign team-member readers out of every site in ``before`` this person can't read any more
+    (each call below is a no-op on a site it doesn't apply to)."""
+    from app.services import docs_page_access, docs_site_access
 
     after = await readable(db, sites, user_id)
     lost = [s["_id"] for s in sites if s["_id"] in before and s["_id"] not in after]
     for sid in lost:
         await docs_site_access.revoke_sessions(db, sid, reason)
+        await docs_page_access.revoke_members(db, sid, reason, target_user_id=user_id)
     return lost
 
 
@@ -412,7 +420,7 @@ async def set_workspace_role(db: AsyncIOMotorDatabase, workspace_id: str, user_i
     """Give a workspace member a studio role ("none" removes it). Audited when it changes."""
     _check_role(role)
     await check_target(db, workspace_id, user_id, actor_id)
-    sites = await members_sites(db, workspace_id)
+    sites = await reader_sites(db, workspace_id)
     before = await readable(db, sites, user_id)
     await _set_workspace_role(db, workspace_id, user_id, role, actor_id)
     await revoke_lost(db, sites, before, user_id, "role_changed")
@@ -456,12 +464,12 @@ async def set_site_override(db: AsyncIOMotorDatabase, site: dict, user_id: str, 
     if before is not None and previous == role:
         return
     await _set_site_override(db, site, wid, user_id, role, actor_id, before, previous)
-    await revoke_lost(db, await _members_only(db, site), could_read, user_id, "role_changed")
+    await revoke_lost(db, await _reader_site(db, site), could_read, user_id, "role_changed")
 
 
-async def _members_only(db: AsyncIOMotorDatabase, site: dict) -> list[dict]:
-    """[site] when it is a members-only site (read fresh), else []."""
-    row = await db["docs_sites"].find_one({"_id": site["_id"], "deleted_at": None, "settings.access.level": "members"},
+async def _reader_site(db: AsyncIOMotorDatabase, site: dict) -> list[dict]:
+    """[site] when it has team-member readers (members-only or private pages; read fresh), else []."""
+    row = await db["docs_sites"].find_one({"_id": site["_id"], "deleted_at": None, **_READER_SITES},
                                           {"workspace_id": 1, "owner_id": 1})
     return [row] if row else []
 
@@ -491,7 +499,7 @@ async def remove_site_override(db: AsyncIOMotorDatabase, site: dict, user_id: st
     if before is not None:
         await _event(db, EV_REMOVED, actor_id=actor_id, workspace_id=wid, site_id=site["_id"],
                      target_user_id=user_id, role=None, previous=before.get("role"), scope="site")
-        await revoke_lost(db, await _members_only(db, site), could_read, user_id, "role_changed")
+        await revoke_lost(db, await _reader_site(db, site), could_read, user_id, "role_changed")
 
 
 # ── History ───────────────────────────────────────────────────────────────────
@@ -537,9 +545,9 @@ async def member_left(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str,
                       actor_id: str | None = None, *, could_read: set | None = None) -> int:
     """Someone left (or was removed from) the workspace: all their studio access there goes.
     (Read time already ignores their rows; this deletes them, audited.) Every members-only site
-    they could read signs its readers out (``could_read``: those site ids, taken before the
-    membership went; None: every members-only site of the workspace)."""
-    sites = await members_sites(db, workspace_id)
+    they could read signs its team-member readers out (``could_read``: those site ids, taken before
+    the membership went; None: every such site of the workspace, :func:`reader_sites`)."""
+    sites = await reader_sites(db, workspace_id)
     before = could_read if could_read is not None else {s["_id"] for s in sites}
     removed = await _drop_member_rows(db, workspace_id, user_id, actor_id)
     await revoke_lost(db, sites, before, user_id, "member_left")

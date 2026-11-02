@@ -237,9 +237,9 @@ async def set_member_role(
         raise HTTPException(status_code=403, detail="Only the workspace owner can change an admin's role.")
     from app.services import docs_studio_roles
 
-    # A demoted workspace admin is no longer a studio admin everywhere: members-only docs sites
-    # they can't read any more sign their readers out.
-    docs_sites = await docs_studio_roles.members_sites(db, workspace_id)
+    # A demoted workspace admin is no longer a studio admin everywhere: docs sites with team-member
+    # readers (members-only, private pages) they can't read any more sign those readers out.
+    docs_sites = await docs_studio_roles.reader_sites(db, workspace_id)
     could_read = await docs_studio_roles.readable(db, docs_sites, user_id)
     result = await db["memberships"].update_one(
         {"workspace_id": workspace_id, "user_id": user_id, "role": current}, {"$set": {"role": role}}
@@ -269,8 +269,9 @@ async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
             raise HTTPException(status_code=403, detail="Only the workspace owner can remove an admin.")
     from app.services import docs_studio_roles
 
-    # The members-only docs sites they can read, while they still can (their sessions there end).
-    could_read = await docs_studio_roles.readable(db, await docs_studio_roles.members_sites(db, workspace_id), user_id)
+    # The docs sites with team-member readers they can read, while they still can (their sessions
+    # there end).
+    could_read = await docs_studio_roles.readable(db, await docs_studio_roles.reader_sites(db, workspace_id), user_id)
     res = await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id})
     if res.deleted_count:
         await lifecycle.member_left(db, workspace_id, user_id)

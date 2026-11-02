@@ -62,8 +62,8 @@ const RULES = {
   northwind: { kind: "people", name: "Northwind", emails: ["jane@partner.io"], domains: ["northwind.com"] },
   partners: { kind: "password", name: "Partners", pv: 1 },
 };
-function setPolicy({ level = "public", v = 0, rv = 0, rules = RULES } = {}) {
-  texts.set("sites/acme/access.json", JSON.stringify({ site: "acme", level, policy_version: v, readers: { version: 1, rv, rules } }));
+function setPolicy({ level = "public", v = 0, rv = 0, mv, rules = RULES } = {}) {
+  texts.set("sites/acme/access.json", JSON.stringify({ site: "acme", level, policy_version: v, readers: { version: 1, rv, ...(mv === undefined ? {} : { mv }), rules } }));
 }
 const store = {
   async getText(k) {
@@ -213,6 +213,46 @@ test("a team member opens everything; signing everyone out (rv) ends every reade
   assert.equal(late.cookie, "");
 });
 
+test("removing a team member (mv) ends every member session, and only that", async () => {
+  setPolicy();
+  // A member who is also on a people rule, and has given a page password.
+  const pw = await signIn({ pw: [["partners", 1]] }, { next: "/partners/pricing" });
+  const { cookie } = await signIn({ m: true, e: "ana@northwind.com" }, { cookie: pw.cookie, next: "/team/runbook" });
+  for (const p of ["/team/runbook", "/enterprise/sso", "/partners/pricing"]) assert.equal((await page(p, { cookie })).status, 200, p);
+  // A cookie from before members versions existed (no mv) still counts while the policy has none.
+  const legacy = await signToken(SECRET, READER_SESSION, { s: "acme", rv: 0, m: true, exp: now() + 3600 });
+  assert.equal((await page("/team/runbook", { cookie: `${READER_COOKIE}=${legacy}` })).status, 200);
+  setPolicy({ mv: 0 });
+  assert.equal((await page("/team/runbook", { cookie })).status, 200);
+
+  // Someone leaves the team: the API moves mv on.
+  setPolicy({ mv: 1 });
+  assert.equal((await page("/team/runbook", { cookie })).status, 401);
+  assert.equal((await page("/team/runbook", { cookie: `${READER_COOKIE}=${legacy}` })).status, 401);
+  assert.equal((await page("/team/runbook", { rsc: "1", accept: "*/*", cookie })).status, 401);
+  const me = await (await go("/_access/me", { cookie })).json();
+  assert.equal(me.member, false);
+  assert.deepEqual(me.rules.sort(), ["northwind", "partners"]);
+  // Their verified email and their password still count (people and password rules are live anyway).
+  assert.equal((await page("/enterprise/sso", { cookie })).status, 200);
+  assert.equal((await page("/partners/pricing", { cookie })).status, 200);
+  // A member grant minted for the old team is refused; one for the current team signs in again.
+  const old = await signIn({ m: true, e: "dev@acme.test" }, { next: "/team/runbook" });
+  assert.equal(old.res.status, 403);
+  assert.equal(old.cookie, "");
+  const fresh = await signIn({ m: true, e: "dev@acme.test", mv: 1 }, { next: "/team/runbook" });
+  assert.equal((await page("/team/runbook", { cookie: fresh.cookie })).status, 200);
+  const minted = await readToken(SECRET, READER_SESSION, valueOf(fresh.cookie));
+  assert.equal(minted.mv, 1);
+  // A grant without m doesn't need the members version.
+  const email = await signIn({ e: "ana@northwind.com", x: "email" });
+  assert.equal((await page("/enterprise/sso", { cookie: email.cookie })).status, 200);
+  // A forged mv ahead of the policy is no member either.
+  const ahead = await signToken(SECRET, READER_SESSION, { s: "acme", rv: 0, m: true, mv: 2, exp: now() + 3600 });
+  assert.equal((await page("/team/runbook", { cookie: `${READER_COOKIE}=${ahead}` })).status, 401);
+  setPolicy();
+});
+
 test("fail closed: a rule the policy doesn't have, a missing policy, a bad policy", async () => {
   setPolicy();
   const { cookie } = await signIn({ m: true });
@@ -293,6 +333,8 @@ test("a members-only guide: the site gate first, then the page's rule", async ()
 });
 
 test("readers.mjs: rule parsing and merging", () => {
+  assert.equal(parseReaders(JSON.stringify({ readers: { mv: 3, rules: {} } })).mv, 3);
+  for (const mv of [-1, "2", 1.5, null]) assert.equal(parseReaders(JSON.stringify({ readers: { mv, rules: {} } })).mv, 0, String(mv));
   const rs = parseReaders(JSON.stringify({ readers: { rv: 2, rules: { a: { kind: "people", emails: [" X@Y.com "], domains: ["@Acme.com"] }, "B!": { kind: "people" }, c: { kind: "nope" } } } }));
   assert.equal(rs.rv, 2);
   assert.deepEqual([...rs.rules.keys()], ["a"]);

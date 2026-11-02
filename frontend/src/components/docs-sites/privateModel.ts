@@ -54,4 +54,5 @@ export const ACTIONS: Record<string, string> = {
   request_approved: "approved a request",
   request_declined: "declined a request",
   readers_signed_out: "signed every reader out",
+  members_signed_out: "signed team members out: someone lost access to the guide",
 };
