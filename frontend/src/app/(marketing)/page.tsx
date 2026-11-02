@@ -4,6 +4,7 @@ import Stamps from "@/components/landing/desk/Stamps";
 import Workspaces from "@/components/landing/desk/Workspaces";
 import Notebook from "@/components/landing/desk/Notebook";
 import Drawer from "@/components/landing/desk/Drawer";
+import Send from "@/components/landing/desk/Send";
 import ClearDesk from "@/components/landing/desk/ClearDesk";
 import CtaTracker from "@/components/landing/CtaTracker";
 import { SnapPage } from "@/components/marketing/snap/Snap";
@@ -13,7 +14,7 @@ import l from "@/components/landing/desk/Landing.module.css";
  * The landing page, "Drop it on the desk" (design canvas round 2 E's desk hero with round 3 H's drop
  * interaction and sections). One feature per section, each explained the same way (what it is, what
  * you can do, a docs link) beside the desk object that shows it: the desk hero, documents and files,
- * sharing and access, workspaces, Markdrop Guides, your tools (the drawer), the closing CTA.
+ * sharing and access, workspaces, Markdrop Guides, your tools (the drawer), sending files peer to peer, the closing CTA.
  *
  * From 1024 × 640 every section is one viewport and the page snaps section by section
  * (SnapPage / SnapSection, components/marketing/snap). A server component that reads no cookies,
@@ -30,6 +31,7 @@ export default function LandingPage() {
       <Workspaces />
       <Notebook />
       <Drawer />
+      <Send />
       <ClearDesk />
       <CtaTracker />
     </SnapPage>

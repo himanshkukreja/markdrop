@@ -1,0 +1,221 @@
+/*
+ * 7 · Send, peer to peer: the desk object. A mat (the hero's) with the sender's laptop and the
+ * receiver's iPhone, the path between them, the two routes and a note. From 900px it is drawn at
+ * 760 × 600 and scaled to fit its box (Sections .fitBox / .fitCanvas); phones get the laptop, then
+ * the phone, stacked. Tokens only, light and dark (the recorded screens are the app's light theme).
+ */
+
+.mat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 40px 16px 24px;
+  border-radius: 24px;
+  background-color: var(--surface-inset);
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  border: 1px solid var(--border);
+}
+
+.tag {
+  position: absolute;
+  left: 16px;
+  top: -14px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  box-sizing: border-box;
+  border-radius: 9999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.tag svg {
+  font-size: 14px;
+  color: var(--accent-text);
+}
+
+/* The laptop */
+.laptop {
+  position: relative;
+  width: min(100%, 440px);
+  filter: drop-shadow(0 14px 18px rgb(17 26 44 / 0.2));
+}
+.lid {
+  padding: 10px;
+  border-radius: 16px 16px 6px 6px;
+  background: var(--logo-ground);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+.screen {
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface-raised);
+}
+.base {
+  display: block;
+  position: relative;
+  height: 14px;
+  margin: 0 -5%;
+  border-radius: 2px 2px 14px 14px;
+  background: var(--border-strong);
+}
+.base::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 70px;
+  height: 6px;
+  margin-left: -35px;
+  border-radius: 0 0 6px 6px;
+  background: var(--text-subtle);
+  opacity: 0.5;
+}
+
+/* The phone */
+.phone {
+  position: relative;
+  width: 210px;
+  transform: rotate(2deg);
+  filter: drop-shadow(0 16px 20px rgb(17 26 44 / 0.24));
+}
+.phone .tag {
+  left: 50%;
+  translate: -50% 0;
+  transform: rotate(-2deg);
+}
+.phoneBody {
+  padding: 9px;
+  border-radius: 30px;
+  background: var(--logo-ground);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+.phoneScreen {
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+/* The path between them (desktop): dashes flowing from the laptop to the phone. */
+.path {
+  display: none;
+}
+
+/* The two routes */
+.legend {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.route {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-raised);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.route i {
+  width: 18px;
+  height: 0;
+  border-top: 2px dashed var(--text-muted);
+}
+.route[data-on] {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: var(--text);
+}
+.route[data-on] i {
+  border-top: 3px solid var(--accent);
+  border-radius: 2px;
+}
+
+.note {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .mat {
+    display: block;
+    width: 760px;
+    height: 600px;
+    padding: 0;
+    border-radius: 32px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .laptop {
+    position: absolute;
+    left: 28px;
+    top: 72px;
+    width: 424px;
+  }
+  .phone {
+    position: absolute;
+    left: 522px;
+    top: 128px;
+  }
+  .path {
+    display: block;
+    position: absolute;
+    inset: 0;
+    width: 760px;
+    height: 600px;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .path path {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 2 9;
+    animation: flow 0.9s linear infinite;
+  }
+  .legend {
+    position: absolute;
+    left: 40px;
+    top: 368px;
+  }
+  .note {
+    display: block;
+    position: absolute;
+    left: 44px;
+    top: 478px;
+    transform: rotate(-4deg);
+    color: var(--accent-text);
+    font-size: 22px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+}
+
+@keyframes flow {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .path path {
+    animation: none;
+  }
+}

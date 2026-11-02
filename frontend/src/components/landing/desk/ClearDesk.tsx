@@ -2,7 +2,7 @@ import { ButtonLink, MarkdropMark } from "../ds";
 import s from "./Sections.module.css";
 import { SnapSection } from "@/components/marketing/snap/Snap";
 
-/** 7 · "Clear your desk." The closing CTA. Server HTML, no script. */
+/** 8 · "Clear your desk." The closing CTA. Server HTML, no script. */
 export default function ClearDesk() {
   return (
     <SnapSection id="start" labelledBy="start-h">
