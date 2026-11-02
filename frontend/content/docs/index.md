@@ -12,6 +12,7 @@ Markdrop turns what you drop into a link that renders in any browser: Markdown d
 - [Publish your first document](/get-started/first-document): paste Markdown and get a link. No account needed.
 - [Share your first file](/get-started/first-file): upload a file that opens in the browser.
 - [Connect an AI assistant](/ai/overview): let Claude, ChatGPT or Cursor publish and update links for you.
+- [Watch the videos](/get-started/videos): a short video for each part of Markdrop, with chapters and captions.
 
 ## Browse by area
 
