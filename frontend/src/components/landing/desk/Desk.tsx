@@ -36,6 +36,12 @@ function reducedMotion(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+/** The mat's on-screen scale (from 900px it is drawn at 1280 × 690 and scaled to fit; 1 on phones). */
+function scaleOf(el: HTMLElement | null): number {
+  if (!el || !el.offsetWidth) return 1;
+  return el.getBoundingClientRect().width / el.offsetWidth || 1;
+}
+
 export default function Desk() {
   // The card's file; `dropped` = the visitor dropped something (until then the card is the phone
   // layout's resting card only).
@@ -52,7 +58,8 @@ export default function Desk() {
   const markRef = useRef<HTMLDivElement>(null);
   const ghost = useRef<HTMLDivElement>(null);
   const objs = useRef<Partial<Record<FileId, HTMLButtonElement | null>>>({});
-  const drag = useRef<{ id: FileId; x: number; y: number; dx: number; dy: number; on: boolean; pointer: number } | null>(null);
+  // dx / dy in mat pixels (the pointer's movement divided by the mat's scale k).
+  const drag = useRef<{ id: FileId; x: number; y: number; dx: number; dy: number; k: number; on: boolean; pointer: number } | null>(null);
   const swallowClick = useRef(false);
   const timer = useRef<number | undefined>(undefined);
 
@@ -97,8 +104,10 @@ export default function Desk() {
     const R = root.getBoundingClientRect();
     const a = el.getBoundingClientRect();
     const b = m.getBoundingClientRect();
-    const from = [a.left + a.width / 2 - R.left, a.top + a.height / 2 - R.top];
-    const to = [b.left + b.width / 2 - R.left, b.top + b.height / 2 - R.top];
+    // Screen pixels to mat pixels: the ghost is drawn inside the (scaled) mat.
+    const k = scaleOf(root);
+    const from = [(a.left + a.width / 2 - R.left) / k, (a.top + a.height / 2 - R.top) / k];
+    const to = [(b.left + b.width / 2 - R.left) / k, (b.top + b.height / 2 - R.top) / k];
     g.animate(
       [
         { transform: `translate(${from[0]}px, ${from[1]}px) rotate(-14deg) scale(1)`, opacity: 1 },
@@ -111,17 +120,17 @@ export default function Desk() {
 
   const onPointerDown = (id: FileId) => (e: ReactPointerEvent<HTMLButtonElement>) => {
     if (e.pointerType === "touch" || e.button !== 0) return;
-    drag.current = { id, x: e.clientX, y: e.clientY, dx: 0, dy: 0, on: false, pointer: e.pointerId };
+    drag.current = { id, x: e.clientX, y: e.clientY, dx: 0, dy: 0, k: scaleOf(mat.current), on: false, pointer: e.pointerId };
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
     const d = drag.current;
     if (!d || e.pointerId !== d.pointer) return;
-    d.dx = e.clientX - d.x;
-    d.dy = e.clientY - d.y;
+    d.dx = (e.clientX - d.x) / d.k;
+    d.dy = (e.clientY - d.y) / d.k;
     const el = objs.current[d.id];
     if (!el) return;
     if (!d.on) {
-      if (Math.hypot(d.dx, d.dy) < 6) return;
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
       d.on = true;
       el.setPointerCapture?.(e.pointerId);
       el.setAttribute("data-dragging", "");
@@ -150,8 +159,8 @@ export default function Desk() {
       // Into the mark, then back on the desk where it was.
       const m = markRef.current!.getBoundingClientRect();
       const r = el.getBoundingClientRect();
-      const tx = d.dx + (m.left + m.width / 2 - (r.left + r.width / 2));
-      const ty = d.dy + (m.top + m.height / 2 - (r.top + r.height / 2));
+      const tx = d.dx + (m.left + m.width / 2 - (r.left + r.width / 2)) / d.k;
+      const ty = d.dy + (m.top + m.height / 2 - (r.top + r.height / 2)) / d.k;
       el.animate(
         [
           { transform: from, opacity: 1 },
@@ -198,7 +207,8 @@ export default function Desk() {
   const showCard = dropped ? cardOpen && phase === "done" : true;
 
   return (
-    <>
+    <div className={s.desk}>
+      <div className={s.stage}>
       <div ref={mat} className={s.mat} onDragOver={onNativeOver} onDrop={onNativeDrop}>
         {/* Coffee ring and pencil (decoration). */}
         <span className={s.deco} aria-hidden="true" style={{ left: "60%", top: "43%", width: 128, height: 128, borderRadius: "50%", border: "7px solid color-mix(in srgb, var(--text) 7%, transparent)", borderRightColor: "transparent", transform: "rotate(30deg)" }} />
@@ -314,11 +324,12 @@ export default function Desk() {
           />
         )}
       </div>
-      <p className={s.hint}>Drag a file onto the mark, or click or tap it. Every link here opens on any screen.</p>
+      </div>
+      <p className={s.hint}>Try it: drag a file onto the mark, or click or tap one. Each comes back as a link that opens on any screen.</p>
       <p className="md-visually-hidden" aria-live="polite" role="status">
         {say}
       </p>
-    </>
+    </div>
   );
 }
 
