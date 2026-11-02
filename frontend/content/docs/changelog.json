@@ -24,6 +24,25 @@
   "next": [],
   "entries": [
     {
+      "id": "guides-mcp-connect",
+      "date": "2026-11-02",
+      "title": "Connect AI tools to any guide's MCP server in one click",
+      "kind": "new",
+      "area": "Markdrop Guides",
+      "products": [
+        "web"
+      ],
+      "summary": "Every published guide has its own MCP server. Its pages now have Connect to AI: readers add the guide to Cursor or VS Code in one click, or connect Claude, Claude Code or ChatGPT with the steps shown.",
+      "body": "- **Connect to AI** in every page's **Copy page** menu (behind **More** on a phone): copy the MCP server URL, **Add to Cursor**, **Add to VS Code**, or the steps for Claude, Claude Code, ChatGPT and other MCP apps.\n- **Your guide's MCP server** in Settings › Ask AI: its URL (your own domain when you have one), install buttons, and **Test it**, which lists the tools the live server offers.\n- **Your choice:** admins can hide Connect to AI on pages. It's on by default.\n- **Public pages only:** private pages and sections never reach the server, and guides that ask readers to sign in don't offer it.\n- The **Publish** screen shows the server's URL once the guide is live.",
+      "highlights": [
+        "Add to Cursor and VS Code in one click",
+        "Private pages never reach it"
+      ],
+      "docs": [
+        "/guides/mcp-server"
+      ]
+    },
+    {
       "id": "guides-studio-address",
       "date": "2026-11-02",
       "title": "The Guides studio has its own address: guides.markdrop.in",

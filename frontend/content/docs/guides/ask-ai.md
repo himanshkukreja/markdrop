@@ -37,6 +37,8 @@ Readers get the assistant after the next [publish](/guides/publishing). Turning 
 - Answers come only from your published pages. Each claim has a numbered source that opens the section it came from.
 - On a page, they can ask about that page or one section of it.
 
+Readers who'd rather use their own assistant can connect it to your guide's MCP server in one click. See [Give AI tools your docs: the MCP server](/guides/mcp-server).
+
 ## Answers each month
 
 Each guide has a monthly number of Ask AI answers while Markdrop Guides is in beta. The **Ask AI** card shows how many have been used this month. At the limit, readers get links to ask Claude or ChatGPT with the page attached instead.
