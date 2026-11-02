@@ -57,7 +57,10 @@ function applyStudio(request: NextRequest, r: StudioRouting, studioHost: boolean
   } else if (r.kind === "not-found") {
     res = notFound();
   } else if (r.kind === "redirect") {
-    res = NextResponse.redirect(new URL(r.location, request.nextUrl), r.temporary ? 307 : 308);
+    // A relative location is on the host the visitor asked (its Host header: when self-hosted,
+    // request.nextUrl names the server's own address instead).
+    const here = `${request.nextUrl.protocol}//${request.headers.get("host") || request.nextUrl.host}`;
+    res = NextResponse.redirect(new URL(r.location, here), r.temporary ? 307 : 308);
   } else if (r.kind === "rewrite") {
     const url = request.nextUrl.clone();
     url.pathname = r.path;
