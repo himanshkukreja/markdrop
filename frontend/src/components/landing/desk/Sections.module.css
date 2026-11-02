@@ -1,10 +1,28 @@
-/* The landing sections after the hero (design canvas "H · Drop it on the desk"). Tokens only. */
+/*
+ * The landing sections after the hero (design canvas "H · Drop it on the desk"). Tokens only.
+ *
+ * Every section explains one feature the same way: an eyebrow (the feature), a headline (what you
+ * get), a sentence or two, three or four concrete points, and a link to the exact docs page; next to
+ * it, the desk object that shows it. From 900px each section is one viewport under the header
+ * (Landing.module.css --land-h / --land-usable) and its content is sized to fit inside it: copy at
+ * reading size, visuals sized from the height they have (or, for the drawer, drawn at a fixed size
+ * and scaled to fit, `.fitBox` / `.fitCanvas`).
+ */
 
 .section {
-  max-width: 1328px;
+  max-width: calc(var(--land-w, 1280px) + 2 * var(--land-gut, 24px));
   margin: 0 auto;
-  padding: 0 clamp(16px, 3vw, 24px) clamp(96px, 11vw, 160px);
+  padding: 56px var(--land-gut, 16px);
   box-sizing: border-box;
+}
+@media (min-width: 900px) {
+  .section {
+    min-height: var(--land-h);
+    padding-block: var(--land-pad);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
 }
 .eyebrow {
   font-size: 11px;
@@ -16,8 +34,8 @@
 }
 .h2 {
   margin: 0;
-  font-size: clamp(36px, 4.6vw, 64px);
-  line-height: 0.98;
+  font-size: clamp(34px, 8vw, 44px);
+  line-height: 1;
   font-weight: 800;
   letter-spacing: -0.045em;
   color: var(--text);
@@ -25,10 +43,19 @@
 }
 .lede {
   margin: 0;
-  max-width: 470px;
-  font-size: 17px;
+  max-width: 520px;
+  font-size: 16px;
   line-height: 1.6;
   color: var(--text-secondary);
+  text-wrap: pretty;
+}
+@media (min-width: 900px) {
+  .h2 {
+    font-size: clamp(36px, min(3.9vw, 6.6svh), 76px);
+  }
+  .lede {
+    font-size: clamp(15px, min(1.2vw, 2.15svh), 19px);
+  }
 }
 .small {
   margin: 0;
@@ -49,19 +76,31 @@
   color: var(--accent-text-hover);
   text-decoration: underline;
 }
+.more:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 .headRow {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px 48px;
-  margin-bottom: 44px;
+  align-items: center;
+  gap: 20px 48px;
+  margin-bottom: clamp(28px, 4.4svh, 56px);
 }
 .headCol {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 640px;
+  max-width: 680px;
+}
+.headSide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 460px;
 }
 .vh {
   position: absolute !important;
@@ -73,6 +112,109 @@
   white-space: nowrap;
 }
 
+/* ── The explaining column, beside its visual ───────────────────────── */
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+}
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+  max-width: 560px;
+}
+.copyTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.points {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.points li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.points li > svg,
+.pointIcon {
+  margin-top: 2px;
+  font-size: 18px;
+  color: var(--accent-text);
+}
+.points b {
+  color: var(--text);
+  font-weight: 700;
+}
+.points code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  color: var(--text);
+}
+.points .more {
+  display: inline;
+  font-size: inherit;
+  white-space: nowrap;
+}
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  margin-top: 4px;
+}
+@media (min-width: 900px) {
+  .split {
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+    gap: clamp(32px, 4.5vw, 96px);
+    align-items: center;
+  }
+  /* The visual on the left, the copy on the right. */
+  .splitRev {
+    grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr);
+  }
+  .splitRev > .copy {
+    order: 2;
+  }
+  .points {
+    font-size: clamp(14px, min(1.05vw, 1.9svh), 17px);
+    gap: clamp(8px, 1.3svh, 14px);
+  }
+}
+
+/* A visual drawn at a fixed size (--cw × --ch) and scaled to fit its box. Phones: in flow. */
+@media (min-width: 900px) {
+  .fitBox {
+    position: relative;
+    min-width: 0;
+    height: min(var(--land-usable), var(--fit-max-h, 100vh));
+    container-type: size;
+  }
+  .fitCanvas {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: var(--cw);
+    height: var(--ch);
+    box-sizing: border-box;
+    --land-k: min(tan(atan2(100cqw, var(--cw))), tan(atan2(100cqh, var(--ch))), var(--land-kmax, 1.5));
+    transform: translate(-50%, -50%) scale(var(--land-k));
+  }
+}
+
 /* ── 2 · What renders: pinned cards ─────────────────────────────────── */
 
 .pins {
@@ -80,15 +222,15 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 28px 16px;
 }
 .pin {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 26px 20px 20px;
+  gap: 6px;
+  padding: 14px 14px 18px;
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -110,6 +252,23 @@
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 3px 4px rgb(17 26 44 / 0.3), inset -3px -3px 0 rgb(0 0 0 / 0.18);
+  z-index: 1;
+}
+.pinShot {
+  display: block;
+  height: 150px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--surface-inset);
+}
+.pinShot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: left top;
 }
 .ext {
   font-family: var(--font-mono);
@@ -130,21 +289,58 @@
   line-height: 1.5;
   color: var(--text-secondary);
 }
-.foot {
-  margin: 28px 0 0;
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--text-muted);
+.later {
+  list-style: none;
+  margin: 36px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 14px 40px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.later li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.later svg {
+  margin-top: 2px;
+  font-size: 18px;
+  color: var(--accent-text);
+}
+.later b {
+  color: var(--text);
+}
+@media (min-width: 900px) {
+  .pins {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .pinShot {
+    height: clamp(88px, 17svh, 240px);
+  }
+  .later {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: clamp(24px, 4.4svh, 56px);
+    font-size: clamp(14px, min(1.05vw, 1.9svh), 17px);
+  }
 }
 
 /* ── 3 · Stamp it, then send it ─────────────────────────────────────── */
 
+.shareVisual {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+}
 .stamps {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px 16px;
-  flex: 1 1 520px;
-  max-width: 580px;
+  max-width: 560px;
 }
 .stamp {
   display: flex;
@@ -236,8 +432,8 @@
 }
 .shareGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
-  gap: 40px 56px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
+  gap: 28px 32px;
   align-items: start;
 }
 .docPaper {
@@ -266,12 +462,16 @@
   font-style: normal;
   color: var(--accent-text);
 }
+.docShotBox {
+  display: block;
+  max-height: 420px;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+}
 .docShot {
   display: block;
   width: 100%;
   height: auto;
-  border-top: 1px solid var(--border);
-  margin-bottom: 8px;
 }
 .docNote {
   margin: 0;
@@ -303,12 +503,6 @@
     transform: rotate(var(--r)) scale(1.7);
     opacity: 0;
   }
-}
-.whoCol {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  min-width: 0;
 }
 .panel {
   border: 1px solid var(--border);
@@ -391,47 +585,270 @@
   color: var(--text-muted);
 }
 .panelFoot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-  padding: 14px 18px;
-  border-top: 1px solid var(--border);
-}
-.figure {
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.figure figcaption {
-  font-size: 13px;
-  line-height: 18px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 17px;
   color: var(--text-muted);
 }
-.screen {
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
-  background: var(--surface-raised);
+/* One viewport: the stamps on top, the document and "Who gets in" share the height that is left. */
+@media (min-width: 900px) {
+  .shareVisual {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: clamp(16px, 3svh, 32px);
+    height: min(var(--land-usable), 820px);
+  }
+  .shareGrid {
+    min-height: 0;
+    height: 100%;
+  }
+  .docPaper {
+    display: flex;
+    flex-direction: column;
+    height: calc(100% - 12px);
+  }
+  .docShotBox {
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: none;
+  }
 }
 
-/* ── 4 · Guides: notebook ───────────────────────────────────────────── */
+/* ── 4 · Workspaces: Acme's folder ──────────────────────────────────── */
 
-.guidesGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 48px 80px;
+.wsVisual {
+  --folder: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+  position: relative;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: 20px;
+  padding-top: 36px;
+  min-width: 0;
 }
+.folder {
+  position: relative;
+  width: min(540px, 100%);
+  transform: rotate(-1.2deg);
+}
+.folderTab {
+  position: absolute;
+  top: -35px;
+  left: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-strong);
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  background: var(--folder);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.folderBody {
+  padding: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px 16px 16px 16px;
+  background: var(--folder);
+  box-shadow: var(--shadow-xl);
+}
+.folderHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.folderHead > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+.folderHead b {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+}
+.folderHead > span:last-child > span {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.brandMark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 800;
+}
+.brandMark[data-big] {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 20px;
+}
+.tree,
+.tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tree ul {
+  margin: 8px 0 0 20px;
+  padding-left: 14px;
+  border-left: 2px dashed var(--border-strong);
+}
+.treeRow,
+.treeFile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  font-size: 14px;
+  color: var(--text);
+}
+.treeRow svg,
+.treeFile svg {
+  flex: none;
+  font-size: 17px;
+  color: var(--accent-text);
+}
+.treeRow > span {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.treeFile {
+  box-shadow: var(--shadow-sm);
+}
+.treeFile > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.treeFile > span > span {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.treeFile em {
+  flex: none;
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--surface-inset);
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.roster {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(270px, 100%);
+  padding: 14px 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+  transform: rotate(2.5deg);
+}
+.rosterHead {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.member {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text);
+}
+.member .avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 11px;
+}
+.member em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.wsNote {
+  display: none;
+}
+@media (min-width: 900px) {
+  .wsVisual {
+    display: block;
+    width: min(100%, 640px);
+    justify-self: center;
+    padding: 36px 0 104px;
+  }
+  .folder {
+    width: min(540px, calc(100% - 60px));
+  }
+  .roster {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+  }
+  .wsNote {
+    display: block;
+    position: absolute;
+    left: -8px;
+    bottom: 6px;
+    transform: rotate(-4deg);
+    color: var(--accent-text);
+    font-size: 19px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* ── 5 · Guides: notebook ───────────────────────────────────────────── */
+
 .nb {
   position: relative;
   max-width: 500px;
   width: 100%;
-  margin-right: 170px;
   justify-self: center;
+}
+@media (min-width: 900px) {
+  /* As wide as the viewport's height allows (the page is square), with room for the flags. */
+  .nb {
+    max-width: none;
+    width: min(540px, calc(100% - 190px), calc(var(--land-usable) - 40px));
+    margin-right: 190px;
+  }
 }
 .nbPage {
   position: relative;
@@ -484,11 +901,6 @@
   transform: translateX(100%) translateX(-22px);
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s, color 0.2s;
 }
-.flag[data-hi] {
-  transform: translateX(100%) translateX(-4px);
-  background: var(--accent);
-  color: var(--on-accent);
-}
 .dot {
   position: relative;
   flex: none;
@@ -513,113 +925,6 @@
   0% { transform: scale(1); opacity: 0.7; }
   100% { transform: scale(3.4); opacity: 0; }
 }
-.guidesCopy {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  align-items: flex-start;
-  min-width: 0;
-}
-.fixList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  max-width: 540px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.fix {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  width: 100%;
-  padding: 14px 16px;
-  box-sizing: border-box;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: default;
-  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
-}
-.fix:hover,
-.fix:focus-visible,
-.fix[data-hi] {
-  background: var(--surface-raised);
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
-  outline: none;
-}
-.fix:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: 2px;
-}
-.fixIcon {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--danger-soft);
-  color: var(--danger);
-  font-size: 16px;
-}
-.fixIcon[data-level="medium"] {
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-.fixText {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.fixKind {
-  font-size: 11px;
-  line-height: 16px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.fixTitle {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-}
-.fixLine {
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--text-secondary);
-}
-.fixSide {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-.level {
-  padding: 1px 8px;
-  border-radius: 9999px;
-  background: var(--danger-soft);
-  color: var(--danger);
-  font-size: 12px;
-  font-weight: 700;
-}
-.level[data-level="medium"] {
-  background: var(--warning-soft);
-  color: var(--warning);
-}
 .btnRow {
   display: flex;
   flex-wrap: wrap;
@@ -627,14 +932,32 @@
   gap: 12px;
 }
 
-/* ── 5 · The drawer ─────────────────────────────────────────────────── */
+/* ── 6 · The drawer ─────────────────────────────────────────────────── */
 
 .drawerBox {
   border-radius: 24px;
   border: 1px solid var(--border-strong);
   background: var(--surface);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
+}
+.drawerFront {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px 12px 24px;
+}
+.handle {
+  display: block;
+  width: 120px;
+  height: 12px;
+  border-radius: 9999px;
+  background: var(--border-strong);
+  box-shadow: inset 0 2px 0 rgb(0 0 0 / 0.12);
+}
+.handle span {
+  display: none;
 }
 .drawer {
   display: grid;
@@ -651,18 +974,18 @@
 .tray {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 24px;
-  padding: 28px;
+  gap: 16px;
+  padding: 20px;
   background-color: var(--surface-inset);
   background-image: radial-gradient(color-mix(in srgb, var(--text) 8%, transparent) 1px, transparent 1.4px);
   background-size: 18px 18px;
-  border-bottom: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-strong);
 }
 .tool {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 12px;
   border-radius: 14px;
   background: var(--surface-raised);
   box-shadow: var(--shadow-md);
@@ -671,64 +994,25 @@
 }
 .toolWide {
   grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
-  column-gap: 24px;
-  align-items: start;
-}
-.toolWide .toolShot {
-  grid-row: 1 / span 2;
-  grid-column: 1;
-}
-.toolWide .toolHead {
-  grid-column: 2;
-  padding-top: 4px;
-}
-.toolWide .toolText {
-  grid-column: 2;
 }
 .toolHead {
   display: flex;
   align-items: center;
   gap: 10px;
+  font-size: 15px;
   font-weight: 800;
   color: var(--text);
 }
 .toolHead svg {
   flex: none;
 }
-.toolText {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-}
-.toolText code {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  color: var(--text);
-}
 .toolShot {
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--border);
 }
-.handle {
-  display: flex;
-  justify-content: center;
-  padding: 18px;
-}
-.handle span {
-  display: block;
-  width: 120px;
-  height: 12px;
-  border-radius: 9999px;
-  background: var(--border-strong);
-  box-shadow: inset 0 2px 0 rgb(0 0 0 / 0.12);
-}
 
-/* ── 6 · Clear your desk ────────────────────────────────────────────── */
+/* ── 7 · Clear your desk ────────────────────────────────────────────── */
 
 .cta {
   position: relative;
@@ -737,7 +1021,7 @@
   align-items: center;
   text-align: center;
   gap: 20px;
-  padding: clamp(56px, 8vw, 104px) 24px;
+  padding: clamp(48px, 7svh, 104px) 24px;
   border-radius: 36px;
   background-color: var(--surface-inset);
   background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.4px);
@@ -802,18 +1086,12 @@
 @media (max-width: 899px) {
   .stamps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    flex-basis: 100%;
   }
   .shareGrid,
-  .guidesGrid,
   .tray {
     grid-template-columns: minmax(0, 1fr);
   }
-  .nb {
-    margin-right: 0;
-  }
-  .flag,
-  .flag[data-hi] {
+  .flag {
     position: static;
     transform: none;
     border-radius: 8px;
@@ -830,22 +1108,13 @@
   .tray {
     padding: 16px;
   }
-  .toolWide {
-    display: flex;
-  }
-}
-@media (max-width: 480px) {
-  .fixSide {
-    display: none;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pin,
   .stampBody,
   .flag,
-  .drawer,
-  .fix {
+  .drawer {
     transition: none;
   }
   .pressA .stampBody,

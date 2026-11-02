@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import LoopVideo from "@/components/guides-landing/LoopVideo";
 import { docsUrl } from "@/components/shell/links";
 import { DOCS_PAGES } from "@/lib/docsLinks";
 import { track } from "@/lib/track";
@@ -36,11 +35,12 @@ interface Row {
 }
 
 /**
- * 3 · "Stamp it, then send it." Press a stamp onto the document (a real screenshot of the sample
- * rendered by Markdrop) and "Who gets in" follows, in the real Share dialog's words and states:
- * Only people added / Anyone with the link, a password that is only for people without access, an
- * expiry date, end-to-end encryption (documents only: the key stays in the link). Next to it, the real
- * Share dialog, recorded on the sandbox stack.
+ * 3 · Sharing and access. The copy says what you can set (access level, password, expiry, requests,
+ * end-to-end encryption, analytics); the desk shows it: press a stamp onto the document (a real
+ * screenshot of the sample rendered by Markdrop) and "Who gets in" follows, in the real Share
+ * dialog's words and states: Only people added / Anyone with the link, a password that is only for
+ * people without access, an expiry date, end-to-end encryption (documents only: the key stays in the
+ * link).
  */
 export default function Stamps() {
   const [on, setOn] = useState<Record<StampId, boolean>>({ people: true, password: false, expiry: false, e2e: false });
@@ -84,95 +84,122 @@ export default function Stamps() {
           </filter>
         </defs>
       </svg>
-      <div className={s.headRow}>
-        <div className={s.headCol} style={{ maxWidth: 560 }}>
-          <span className={s.eyebrow}>Who can open it</span>
+      <div className={s.split}>
+        <div className={s.copy}>
+          <span className={s.eyebrow}>Sharing and access</span>
           <h2 id="sharing-h" className={s.h2}>
-            Stamp it, then send it.
+            Choose who gets in, then send the link.
           </h2>
-          <p className={s.lede}>Press a stamp and watch who gets in change. Press it again to lift it off.</p>
-        </div>
-        <div className={s.stamps} role="group" aria-label="Access stamps">
-          {STAMPS.map((st) => (
-            <button
-              key={st.id}
-              type="button"
-              className={`${s.stamp} ${presses[st.id] ? (presses[st.id] % 2 ? s.pressA : s.pressB) : ""}`}
-              aria-pressed={on[st.id]}
-              onClick={() => press(st.id)}
-            >
-              <span className={s.stampBody} aria-hidden="true">
-                <span className={s.knob} />
-                <span className={s.neck} />
-                <span className={s.block} />
-                <span className={s.rubber}>{st.short}</span>
+          <p className={s.lede}>Every link has an access level. Change it any time and the link stays the same. Press a stamp to see who gets in.</p>
+          <ul className={s.points}>
+            <li>
+              <Icon name="users" />
+              <span>
+                <b>Anyone with the link, your team, or only people you add</b> by email, who can view or edit.
               </span>
-              <span className={s.stampLabel}>{st.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className={s.shareGrid}>
-        <div className={s.docPaper}>
-          <span className={s.docUrl}>
-            markdrop.in/<strong>launch-notes</strong>
-            {on.e2e && <em>#k=Vq7mT2xL</em>}
-          </span>
-          <img className={`${s.docShot} ${t.light}`} src="/landing-desk/screens/launch-notes-doc.webp" alt="The Launch notes document as Markdrop renders it: a Mermaid diagram, a table and code." width={1120} height={1488} loading="lazy" decoding="async" />
-          <img className={`${s.docShot} ${t.dark}`} src="/landing-desk/screens/launch-notes-doc.dark.webp" alt="The Launch notes document as Markdrop renders it: a Mermaid diagram, a table and code." width={1120} height={1488} loading="lazy" decoding="async" />
-          {(Object.keys(IMPRINT) as StampId[]).map((id) =>
-            on[id] ? (
-              <span key={`${id}-${presses[id]}`} className={s.imp} style={IMPRINT[id].style} aria-hidden="true">
-                {IMPRINT[id].text}
+            </li>
+            <li>
+              <Icon name="lock" />
+              <span>
+                <b>A password or an expiry date.</b> People without access can ask you for it.
               </span>
-            ) : null,
-          )}
+            </li>
+            <li>
+              <Icon name="key" />
+              <span>
+                <b>End-to-end encryption for documents.</b> The key stays in the link, so Markdrop can&apos;t read it.
+              </span>
+            </li>
+            <li>
+              <Icon name="chart" />
+              <span>
+                <b>See how it&apos;s read:</b> views, how far people got, which PDF pages they reached, where a video lost them.
+              </span>
+            </li>
+          </ul>
+          <div className={s.links}>
+            <a className={s.more} href={docsUrl(DOCS_PAGES.whoCanOpen)} data-cta="sharing_docs">
+              How sharing works
+              <Icon name="arrowRight" />
+            </a>
+            <a className={s.more} href={docsUrl(DOCS_PAGES.analytics)} data-cta="sharing_analytics">
+              What analytics shows
+              <Icon name="arrowRight" />
+            </a>
+          </div>
         </div>
 
-        <div className={s.whoCol}>
-          <div className={s.panel}>
-            <div className={s.panelHead}>
-              <strong>Who gets in</strong>
-              <span>{level}</span>
-              {on.expiry && <span>It stops opening on Friday.</span>}
+        <div className={s.shareVisual}>
+          <div className={s.stamps} role="group" aria-label="Access stamps">
+            {STAMPS.map((st) => (
+              <button
+                key={st.id}
+                type="button"
+                className={`${s.stamp} ${presses[st.id] ? (presses[st.id] % 2 ? s.pressA : s.pressB) : ""}`}
+                aria-pressed={on[st.id]}
+                onClick={() => press(st.id)}
+              >
+                <span className={s.stampBody} aria-hidden="true">
+                  <span className={s.knob} />
+                  <span className={s.neck} />
+                  <span className={s.block} />
+                  <span className={s.rubber}>{st.short}</span>
+                </span>
+                <span className={s.stampLabel}>{st.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className={s.shareGrid}>
+            <div className={s.docPaper}>
+              <span className={s.docUrl}>
+                markdrop.in/<strong>launch-notes</strong>
+                {on.e2e && <em>#k=Vq7mT2xL</em>}
+              </span>
+              <span className={s.docShotBox}>
+                <img className={`${s.docShot} ${t.light}`} src="/landing-desk/screens/launch-notes-doc.webp" alt="The Launch notes document as Markdrop renders it: a Mermaid diagram, a table and code." width={1120} height={1488} loading="lazy" decoding="async" />
+                <img className={`${s.docShot} ${t.dark}`} src="/landing-desk/screens/launch-notes-doc.dark.webp" alt="The Launch notes document as Markdrop renders it: a Mermaid diagram, a table and code." width={1120} height={1488} loading="lazy" decoding="async" />
+              </span>
+              {(Object.keys(IMPRINT) as StampId[]).map((id) =>
+                on[id] ? (
+                  <span key={`${id}-${presses[id]}`} className={s.imp} style={IMPRINT[id].style} aria-hidden="true">
+                    {IMPRINT[id].text}
+                  </span>
+                ) : null,
+              )}
             </div>
-            {on.e2e && (
-              <p className={s.alert}>
-                <b>The link is the key.</b> Anyone you share with needs the full link, including everything after the #.
-              </p>
-            )}
-            <ul className={s.people} aria-live="polite" aria-label="Who gets in">
-              {rows.map((r) => (
-                <li key={r.name} className={s.person}>
-                  <span className={s.avatar} data-neutral={r.neutral ? "" : undefined} aria-hidden="true">
-                    {r.initials}
-                  </span>
-                  <span className={s.who}>
-                    <b>{r.name}</b>
-                    <span>{r.role}</span>
-                  </span>
-                  <Badge tone={r.status[1]} icon={r.status[2]}>
-                    {r.status[0]}
-                    {on.expiry && r.status[1] === "success" ? " · until Friday" : ""}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-            <div className={s.panelFoot}>
-              <span className={s.small}>End-to-end is for documents. Files get a password or an access level.</span>
-              <a className={s.more} href={docsUrl(DOCS_PAGES.whoCanOpen)} data-cta="sharing_docs">
-                How sharing works
-                <Icon name="arrowRight" />
-              </a>
+
+            <div className={s.panel}>
+              <div className={s.panelHead}>
+                <strong>Who gets in</strong>
+                <span>{level}</span>
+                {on.expiry && <span>It stops opening on Friday.</span>}
+              </div>
+              {on.e2e && (
+                <p className={s.alert}>
+                  <b>The link is the key.</b> Anyone you share with needs the full link, including everything after the #.
+                </p>
+              )}
+              <ul className={s.people} aria-live="polite" aria-label="Who gets in">
+                {rows.map((r) => (
+                  <li key={r.name} className={s.person}>
+                    <span className={s.avatar} data-neutral={r.neutral ? "" : undefined} aria-hidden="true">
+                      {r.initials}
+                    </span>
+                    <span className={s.who}>
+                      <b>{r.name}</b>
+                      <span>{r.role}</span>
+                    </span>
+                    <Badge tone={r.status[1]} icon={r.status[2]}>
+                      {r.status[0]}
+                      {on.expiry && r.status[1] === "success" ? " · until Friday" : ""}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+              <p className={s.panelFoot}>End-to-end encryption is for documents. Files get a password or an access level.</p>
             </div>
           </div>
-          <figure className={s.figure}>
-            <div className={s.screen}>
-              <LoopVideo src="/landing-desk/share-dialog" w={880} h={874} label="The Share dialog in Markdrop: Who can open it, set to Only people added; Acme team and Anyone with the link are the other choices." />
-            </div>
-            <figcaption>The Share dialog in Markdrop, where these settings live.</figcaption>
-          </figure>
         </div>
       </div>
     </section>
