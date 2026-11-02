@@ -83,6 +83,15 @@ const nextConfig: NextConfig = {
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
         ],
       },
+      // Signing out on markdrop.in clears the Guides studio host's session through this page in a
+      // hidden frame (lib/studioSession clearStudioSession): only the app may frame it.
+      {
+        source: "/studio-signout.html",
+        headers: [
+          { key: "Content-Security-Policy", value: "frame-ancestors https://markdrop.in https://www.markdrop.in http://localhost:*" },
+          { key: "Cache-Control", value: "public, max-age=3600" },
+        ],
+      },
       // The Markdrop Guides landing page's live demo (public/guides-demo, framed by /guides with
       // sandbox="allow-scripts"). The header repeats that sandbox, as Markdrop's file server does
       // for embeds, so the page runs in an opaque origin even when opened on its own: no cookies,
