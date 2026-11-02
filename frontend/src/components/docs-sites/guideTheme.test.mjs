@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { register } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { CORNERS, CUSTOM_RADIUS, paletteTokens, resolveTheme, themeAttrs, themeCss } from "../../docs/theme.mjs";
+import { CORNERS, CUSTOM_RADIUS, codeTokens, paletteTokens, resolveTheme, themeAttrs, themeCss } from "../../docs/theme.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let mod = null;
@@ -180,4 +180,45 @@ test("Match my brand on a card uses every brand colour, like the published palet
   const engine = paletteTokens(resolveTheme({ preset: "paper", mode: "both" }, { colors: ["#d9480f", "#111111"] }).palette, "light");
   assert.equal(card.text, engine["--text"]);
   assert.equal(card.accent, engine["--accent"]);
+});
+
+test("the Design panel's drawing gets the theme builder's layout choices through the engine (guideLayout)", { skip }, () => {
+  const L = mod.guideLayout(theme({ preset: "paper", custom: { ...LAYOUT, header_align: "center", header_style: "transparent" } }));
+  assert.deepEqual(L, {
+    layout: "sidebar", sectionTabs: false, headerAlign: "center", headerStyle: "transparent", tabStyle: "underline",
+    sidebarStyle: "lines", sidebarIcons: false, buttons: "pill", cards: "flat", callouts: "bar", links: "plain", icons: "duotone",
+    codeTheme: "dark", contentWidth: 900, baseSize: 17, lineHeight: 1.8,
+  });
+  // Exactly what the engine resolves from the same site.json (the Preview's path).
+  const t = resolveTheme({ preset: "paper", mode: "both", custom: { ...LAYOUT_ENGINE, headerAlign: "center", headerStyle: "transparent" } });
+  for (const k of ["sidebarStyle", "tabStyle", "buttons", "cards", "callouts", "links", "contentWidth", "baseSize", "lineHeight", "headerAlign", "headerStyle"]) assert.equal(L[k], t.custom[k], k);
+  // A preset as designed: the preset's own look, nothing chosen.
+  assert.deepEqual(mod.guideLayout(theme({ preset: "editorial" })), {
+    layout: "top", sectionTabs: false, headerAlign: "left", headerStyle: "solid", tabStyle: null, sidebarStyle: null, sidebarIcons: true,
+    buttons: null, cards: null, callouts: null, links: null, icons: null, codeTheme: null, contentWidth: null, baseSize: null, lineHeight: null,
+  });
+  // Section tabs: the preset's (Atlas has them) unless the builder turns them on or off.
+  assert.equal(mod.guideLayout(theme({ preset: "atlas" })).sectionTabs, true);
+  assert.equal(mod.guideLayout(theme({ preset: "atlas", custom: { section_tabs: false } })).sectionTabs, false);
+  assert.equal(mod.guideLayout(theme({ preset: "clean", custom: { section_tabs: true } })).sectionTabs, true);
+  // Values the engine refuses are the preset's here too (never drawn as something it won't publish).
+  const bad = mod.guideLayout(theme({ custom: { sidebar_style: "zigzag", content_width: 5000, base_size: 15.3, header_align: "right" } }));
+  assert.deepEqual([bad.sidebarStyle, bad.contentWidth, bad.baseSize, bad.headerAlign], [null, null, null, "left"]);
+});
+
+test("the drawing's code block follows a custom code theme (codeTokens), else the palette", { skip }, () => {
+  const custom = { light: { bg: "#fbfaf7" }, code_theme: "dark" };
+  const forced = mod.guideCode(theme({ preset: "paper", custom }), false);
+  const engine = codeTokens(resolveTheme({ preset: "paper", custom: { light: { bg: "#fbfaf7" }, codeTheme: "dark" } }).palette, "light", "dark");
+  assert.deepEqual(forced, { bg: engine["--code-bg"], text: engine["--text"] });
+  assert.equal(forced.bg, "#0d1117");
+  // The palette's code colours: a preset as designed, or (as the engine has it) a code theme on a
+  // custom theme that sets no colour.
+  assert.equal(mod.guideCode(theme({ preset: "paper" }), false), null);
+  assert.equal(mod.guideCode(theme({ preset: "paper", custom: { code_theme: "dark" } }), false), null);
+  if (presets) {
+    const p = presets.previewTokens(theme({ preset: "paper", custom }), false);
+    assert.equal(p.code, forced.bg);
+    assert.equal(p.codeText, forced.text);
+  }
 });

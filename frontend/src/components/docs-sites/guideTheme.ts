@@ -6,7 +6,7 @@
  * here, so neither can show another design than the one the guide will publish with.
  */
 import { accentTokens } from "@/components/tenant/branding";
-import { FONTS, FONT_STACKS, paletteTokens, resolveTheme, scopedThemeCss, themeAttrs, themeRootVars, type ResolvedTheme } from "@/docs/theme.mjs";
+import { FONTS, FONT_STACKS, codeTokens, paletteTokens, resolveTheme, scopedThemeCss, themeAttrs, themeRootVars, type CustomOptions, type ResolvedTheme } from "@/docs/theme.mjs";
 import type { SiteTheme } from "@/lib/docsSites";
 
 type ThemeLike = Pick<SiteTheme, "preset" | "brand" | "fonts" | "corners"> & Partial<Pick<SiteTheme, "mode" | "custom" | "custom_css">>;
@@ -115,6 +115,70 @@ export function guideLook(theme: ThemeLike, dark: boolean, scope: string): Guide
     vars: guideThemeVars(theme, dark),
     css: scopedThemeCss(t, dark ? "dark" : "light", scope, theme.custom_css),
   };
+}
+
+/**
+ * The layout choices a guide's design makes, as the engine resolves them from the saved settings
+ * (engineInput → resolveTheme: the theme builder's snake_case keys camelCased, invalid values
+ * dropped, section tabs falling back to the preset's). null: the preset's own look (themes.css adds
+ * nothing for it). For drawings of the guide that aren't the engine itself (the Design panel's
+ * ThemePreview), so they show what the theme builder set: header, tabs, sidebar, search box,
+ * cards, callouts, links, reading size and the content column's width.
+ */
+export interface GuideLayout {
+  /** The engine's layout for the preset: a sidebar, links under the header, or a help center. */
+  layout: ResolvedTheme["layout"];
+  /** The header shows the nav groups as tabs (theme.mjs headerTabs). */
+  sectionTabs: boolean;
+  headerAlign: CustomOptions["headerAlign"];
+  headerStyle: CustomOptions["headerStyle"];
+  tabStyle: CustomOptions["tabStyle"] | null;
+  sidebarStyle: CustomOptions["sidebarStyle"] | null;
+  sidebarIcons: boolean;
+  buttons: CustomOptions["buttons"] | null;
+  cards: CustomOptions["cards"] | null;
+  callouts: CustomOptions["callouts"] | null;
+  links: CustomOptions["links"] | null;
+  icons: CustomOptions["icons"] | null;
+  codeTheme: CustomOptions["codeTheme"] | null;
+  /** The article column, px (themeRootVars --dx-measure); null: the preset's. */
+  contentWidth: number | null;
+  /** Reading size, px, and line height (customRules); null: the preset's. */
+  baseSize: number | null;
+  lineHeight: number | null;
+}
+
+export function guideLayout(theme: ThemeLike): GuideLayout {
+  const t = resolvedGuideTheme(theme);
+  const c = t.custom ?? {};
+  return {
+    layout: t.layout,
+    sectionTabs: t.sectionTabs,
+    headerAlign: c.headerAlign ?? "left",
+    headerStyle: c.headerStyle ?? "solid",
+    tabStyle: c.tabStyle ?? null,
+    sidebarStyle: c.sidebarStyle ?? null,
+    sidebarIcons: c.sidebarIcons !== false,
+    buttons: c.buttons ?? null,
+    cards: c.cards ?? null,
+    callouts: c.callouts ?? null,
+    links: c.links ?? null,
+    icons: c.icons ?? null,
+    codeTheme: c.codeTheme ?? null,
+    contentWidth: c.contentWidth ?? null,
+    baseSize: c.baseSize ?? null,
+    lineHeight: c.lineHeight ?? null,
+  };
+}
+
+/**
+ * A custom theme's code block colours in light or dark (theme.mjs codeTokens: a forced light or
+ * dark code theme, or the owner's code colours), or null when code blocks follow the palette.
+ */
+export function guideCode(theme: ThemeLike, dark: boolean): { bg: string; text: string } | null {
+  const t = resolvedGuideTheme(theme);
+  const code = t.palette ? codeTokens(t.palette, dark ? "dark" : "light", t.custom?.codeTheme) : null;
+  return code ? { bg: code["--code-bg"], text: code["--text"] } : null;
 }
 
 /** Whether the guide opens dark (a dark-only guide, or a dark-first preset left on "both"). */
