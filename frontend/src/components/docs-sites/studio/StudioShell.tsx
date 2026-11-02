@@ -78,10 +78,13 @@ function SiteSwitcher() {
       align="left"
       minWidth={260}
       aria-label="Switch guide"
+      // Shrinks (the name truncates) so the header's search, Docs and account buttons always fit,
+      // down to a 320px phone: an inline-block that can't shrink pushed the account button off screen.
+      className="min-w-0"
       trigger={
         <button
           type="button"
-          className="ph-no-capture md-focus flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-text hover:bg-surface-hover"
+          className="ph-no-capture md-focus flex min-w-0 max-w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-text hover:bg-surface-hover"
           aria-label={`${current.name}: switch guide`}
         >
           {listed ? <SwitcherMark site={listed} size={22} /> : <SiteTile site={current} size={22} />}
