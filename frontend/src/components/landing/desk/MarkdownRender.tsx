@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import { MARKDOWN_SRC } from "./samples";
-import s from "./Desk.module.css";
+import s from "./Hero.module.css";
 
 /**
  * notes.md, rendered by the same component that renders every Markdrop document (MarkdownPreview:

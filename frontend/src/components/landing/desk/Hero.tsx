@@ -1,41 +1,45 @@
 import { preload } from "react-dom";
 import { ButtonLink } from "../ds";
-import Desk from "./Desk";
-import s from "./Desk.module.css";
+import HeroDesk from "./HeroDesk";
+import s from "./Hero.module.css";
 
 /**
- * The landing hero: "Drop it. It renders." over the desk. Server HTML for the copy and CTAs; the desk
- * is a client component rendered on the server in its resting state (see Desk).
+ * The landing hero, "Your desk, as links." (design canvas round 4, Hero C · Desk, simplified): the
+ * copy on the left, vertically centred with the desk mat on the right. Server HTML for the copy and
+ * CTAs; the desk is a client component rendered on the server at rest (see HeroDesk).
+ *
+ * From 1024px the hero is one viewport under the header, drawn at the artboard's 1280 × 720 and
+ * zoomed to the window (Hero.module.css .canvas); phones get the stacked phone artboard.
  */
 export default function Hero() {
-  // The laptop's screen (the sample page, rendered) is the hero's largest image: fetch it first.
-  preload("/landing-desk/screens/calculator.webp", { as: "image", fetchPriority: "high" });
+  // The laptop's screen at rest (launch.html's render, as its poster) is the hero's LCP image.
+  preload("/landing-desk/hero/html.webp", { as: "image", fetchPriority: "high", media: "(min-width: 600px)" });
+  preload("/landing-desk/hero/html.phone.webp", { as: "image", fetchPriority: "high", media: "(max-width: 599px)" });
   return (
-    <section id="hero" aria-labelledby="hero-h1" className={s.wrap}>
-      <div className={s.head}>
-        <div className={s.title}>
-          <span className={s.eyebrow}>Docs and files as links that render</span>
-          <h1 id="hero-h1" className={s.h1}>
-            Drop it.
-            <br />
-            It renders.
-          </h1>
-        </div>
-        <div className={s.side}>
-          <p className={s.sub}>
-            Notes, pages, decks, sheets and video. Drop one on Markdrop and you get a link anyone opens in a browser, exactly as you made it.
-          </p>
-          <div className={s.ctas}>
-            <ButtonLink href="/new" variant="primary" iconRight="arrowRight" data-cta="hero_start">
-              Start writing
-            </ButtonLink>
-            <ButtonLink href="/upload" variant="secondary" iconLeft="upload" data-cta="hero_upload">
-              Upload a file
-            </ButtonLink>
+    <section id="hero" aria-labelledby="hero-h1" className={s.hero}>
+      <div className={s.canvas}>
+        <div className={s.grid}>
+          <div className={s.copy}>
+            <span className={s.eyebrow}>Docs and files as links that render</span>
+            <h1 id="hero-h1" className={s.h1}>
+              Your desk,
+              <br />
+              as links.
+            </h1>
+            <p className={s.sub}>Notes, pages, decks, sheets and video. Drop one on Markdrop and anyone opens it in a browser, exactly as you made it.</p>
+            <div className={s.ctas}>
+              <ButtonLink href="/new" variant="primary" iconRight="arrowRight" data-cta="hero_start">
+                Start writing
+              </ButtonLink>
+              <ButtonLink href="/upload" variant="secondary" iconLeft="upload" data-cta="hero_upload">
+                Upload a file
+              </ButtonLink>
+            </div>
+            <span className={s.cap}>Documents need no account. Files need a free one.</span>
           </div>
+          <HeroDesk />
         </div>
       </div>
-      <Desk />
     </section>
   );
 }

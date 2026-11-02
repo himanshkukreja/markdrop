@@ -1,7 +1,6 @@
-"use client";
-
-import { useState } from "react";
 import TrailerButton, { type Trailer } from "../TrailerButton";
+import { docsUrl } from "@/components/shell/links";
+import { DOCS_PAGES } from "@/lib/docsLinks";
 import { Icon } from "../ds";
 import s from "./Sections.module.css";
 import t from "./theme.module.css";
@@ -18,26 +17,70 @@ const TRAILER: Trailer = {
   h: 1080,
 };
 
-/**
- * Fix list items in the studio's own words (components/docs-sites/fixesModel TYPE_META, LEVEL_META),
- * on the page in the notebook: `top` is where the item's section sits on that page.
- */
-const FIXES = [
-  { kind: "Readers leave here", icon: "arrowDown", level: "high", title: "Readers leave at “Install the CLI”", line: "42% of readers stop here on “Quickstart”.", count: "131 readers left here", flag: "Readers stop here", top: "58.6%" },
-  { kind: "Marked not helpful", icon: "flag", level: "high", title: "“Quickstart” marked not helpful", line: "4 of 10 readers said it didn’t help.", count: "110 readers affected", flag: "Marked not helpful", top: "8.4%" },
-  { kind: "Ask AI couldn’t answer", icon: "sparkle", level: "medium", title: "“Can I sign in with SSO?”", line: "Asked on “Quickstart”; the docs don’t say.", count: "9 unanswered questions", flag: "Ask AI had no answer", top: "93%" },
-] as const;
+/** The flags on the notebook: where readers gave up on this page (the Fix list's own words). */
+const FLAGS = [
+  { flag: "Marked not helpful", top: "8.4%" },
+  { flag: "Readers stop here", top: "58.6%" },
+  { flag: "Ask AI had no answer", top: "93%" },
+];
 
 /**
- * 4 · Markdrop Guides. A spiral notebook holding a real guide page (help.acme.com's Quickstart,
- * recorded on the sandbox stack), with sticky flags pulsing where readers gave up. Hover a Fix list
- * row and its flag lifts (the flags carry the same words, so nothing is hover-only).
+ * 5 · Markdrop Guides. The copy says what Guides is and does; the desk shows a spiral notebook
+ * holding a real guide page (help.acme.com's Quickstart, recorded on the sandbox stack), with sticky
+ * flags pulsing where readers gave up, the way the Fix list marks them. Server HTML; the trailer
+ * button is the only island.
  */
 export default function Notebook() {
-  const [hi, setHi] = useState(-1);
   return (
     <section id="guides" aria-labelledby="guides-h" className={s.section}>
-      <div className={s.guidesGrid}>
+      <div className={s.split}>
+        <div className={s.copy}>
+          <div className={s.copyTop}>
+            <span className={s.eyebrow}>Markdrop Guides</span>
+            <span className="md-badge md-badge--info">Free in beta</span>
+          </div>
+          <h2 id="guides-h" className={s.h2}>
+            Docs that show you what to fix next.
+          </h2>
+          <p className={s.lede}>Host your help center, product guides or API reference on Markdrop. Guides sees where readers give up and ranks what to fix first.</p>
+          <ul className={s.points}>
+            <li>
+              <Icon name="flag" />
+              <span>
+                <b>A Fix list</b> ranks where readers leave, searches that found nothing and questions Ask AI couldn&apos;t answer. AI drafts the fix.
+              </span>
+            </li>
+            <li>
+              <Icon name="github" />
+              <span>
+                <b>Import from GitBook or GitHub.</b> A GitHub repo can keep the guide in sync on every push.
+              </span>
+            </li>
+            <li>
+              <Icon name="sparkle" />
+              <span>
+                <b>Ask AI</b> answers from your pages, with sources. Agents get an MCP server and llms.txt.
+              </span>
+            </li>
+            <li>
+              <Icon name="film" />
+              <span>
+                <b>Live demos, videos and PDFs</b> inside the page. Private pages and your own domain.
+              </span>
+            </li>
+          </ul>
+          <div className={s.btnRow}>
+            <a className="md-btn md-btn--secondary md-btn--lg" href="/guides" data-cta="guides_explore">
+              Explore Guides
+              <Icon name="arrowRight" />
+            </a>
+            <TrailerButton trailer={TRAILER} className="md-btn md-btn--ghost md-btn--lg" label="Watch the 2-minute tour" />
+          </div>
+          <a className={s.more} href={docsUrl(DOCS_PAGES.guidesOverview)} data-cta="guides_docs">
+            How Guides works
+            <Icon name="arrowRight" />
+          </a>
+        </div>
         <div className={s.nb}>
           <div className={s.nbPage}>
             <span className={s.rings} aria-hidden="true" />
@@ -46,59 +89,14 @@ export default function Notebook() {
               <img className={`${s.nbShot} ${t.light}`} src="/landing-desk/screens/guide-page.webp" alt="Acme's Quickstart page in Markdrop Guides: Before you start, Install the CLI, Create a project." width={900} height={892} loading="lazy" decoding="async" />
               <img className={`${s.nbShot} ${t.dark}`} src="/landing-desk/screens/guide-page.dark.webp" alt="Acme's Quickstart page in Markdrop Guides: Before you start, Install the CLI, Create a project." width={900} height={892} loading="lazy" decoding="async" />
               <div className={s.flags}>
-                {FIXES.map((f, i) => (
-                  <span key={f.flag} className={s.flag} data-hi={hi === i ? "" : undefined} style={{ top: `calc(${f.top} - 17px)`, right: -40 }}>
+                {FLAGS.map((f) => (
+                  <span key={f.flag} className={s.flag} style={{ top: `calc(${f.top} - 17px)`, right: -40 }}>
                     <span className={s.dot} aria-hidden="true" />
                     {f.flag}
                   </span>
                 ))}
               </div>
             </div>
-          </div>
-        </div>
-        <div className={s.guidesCopy}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span className={s.eyebrow}>Markdrop Guides</span>
-            <span className="md-badge md-badge--info">Free in beta</span>
-          </div>
-          <h2 id="guides-h" className={s.h2}>
-            Docs that show you what to fix next.
-          </h2>
-          <p className={s.lede}>Host your help center. Every flag is a place readers gave up, ranked, with a drafted fix.</p>
-          <ul className={s.fixList} aria-label="Fix list">
-            {FIXES.map((f, i) => (
-              <li key={f.title}>
-                <div
-                  className={s.fix}
-                  data-hi={hi === i ? "" : undefined}
-                  onMouseEnter={() => setHi(i)}
-                  onMouseLeave={() => setHi(-1)}
-                >
-                  <span className={s.fixIcon} data-level={f.level} aria-hidden="true">
-                    <Icon name={f.icon} />
-                  </span>
-                  <span className={s.fixText}>
-                    <span className={s.fixKind}>{f.kind}</span>
-                    <span className={s.fixTitle}>{f.title}</span>
-                    <span className={s.fixLine}>{f.line}</span>
-                  </span>
-                  <span className={s.fixSide}>
-                    <span className={s.level} data-level={f.level}>
-                      {f.level === "high" ? "High impact" : "Medium"}
-                    </span>
-                    {f.count}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-          <p className={s.small}>Private pages free. Live demos inside the page. GitHub sync.</p>
-          <div className={s.btnRow}>
-            <a className="md-btn md-btn--secondary md-btn--lg" href="/guides" data-cta="guides_explore">
-              Explore Guides
-              <Icon name="arrowRight" />
-            </a>
-            <TrailerButton trailer={TRAILER} className="md-btn md-btn--ghost md-btn--lg" label="Watch the 2-minute tour" />
           </div>
         </div>
       </div>

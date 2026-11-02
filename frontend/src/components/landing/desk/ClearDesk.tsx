@@ -1,7 +1,7 @@
 import { ButtonLink, MarkdropMark } from "../ds";
 import s from "./Sections.module.css";
 
-/** 6 · "Clear your desk." The closing CTA. Server HTML, no script. */
+/** 7 · "Clear your desk." The closing CTA. Server HTML, no script. */
 export default function ClearDesk() {
   return (
     <section id="start" aria-labelledby="start-h" className={s.section}>
@@ -20,7 +20,7 @@ export default function ClearDesk() {
         <h2 id="start-h" className={s.ctaH}>
           Clear your desk.
         </h2>
-        <p className={s.lede}>Start with a document. It needs no account. Files need a free one.</p>
+        <p className={s.lede} style={{ textAlign: "center" }}>Write a document now, no account needed. Files need a free account: sign in with Google or an email code.</p>
         <div className={s.btnRow} style={{ justifyContent: "center", marginTop: 8 }}>
           <ButtonLink href="/new" variant="primary" iconRight="arrowRight" data-cta="start_write">
             Start writing

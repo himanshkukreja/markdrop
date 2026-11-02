@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 /**
- * The landing desk's screenshots (public/landing-desk/screens and posters): every one is a capture of
+ * The landing page's screenshots (public/landing-desk/hero and screens): every one is a capture of
  * Markdrop's REAL render of a sample file, taken from a running app (next dev or next start of this
- * checkout, with build-demo.mjs run first):
+ * checkout, with NEXT_PUBLIC_LIGHT_THEME=true and build-demo.mjs run first):
  *
- *   BASE=http://localhost:3456 node frontend/scripts/landing-samples/screens.mjs [screens] [posters]
+ *   BASE=http://localhost:3456 node frontend/scripts/landing-samples/screens.mjs [hero] [screens]
  *
- * screens   calculator.webp       the laptop's screen: the HTML sample, as its frame renders it
- *           deck-phone(.dark)     the phone's screen: the PDF viewer (artifact Worker) on the deck
- *           launch-notes-doc(.dark)  the stamped document: notes.md through MarkdownPreview
- * posters   <id>(.dark).webp      each link card's live render on the desk, once it is ready: what
- *                                 the card shows before (and while) the real renderer loads
+ * hero      hero/<id>(.phone)(.dark).webp  the hero laptop's screen with each file's live render, at
+ *                                 the screen's own size (desktop 456 wide, phone 306), light and dark:
+ *                                 what the laptop shows until the real renderer is ready, the paper
+ *                                 note on the desk (md), and the "what renders" cards
+ * screens   deck-phone(.dark)     the phone on the hero desk: the PDF viewer on the deck, phone-wide
+ *           launch-notes-doc(.dark)  the stamped document (Sharing): notes.md through MarkdownPreview,
+ *                                 laid out whole in a 560px column
  *
  * PNG screenshots are converted to WebP with ffmpeg (libwebp). Nothing here touches the API.
  */
@@ -28,11 +30,10 @@ const FFMPEG = process.env.FFMPEG || (existsSync("/opt/homebrew/bin/ffmpeg") ? "
 const TMP = path.join(os.tmpdir(), `landing-screens-${process.pid}`);
 mkdirSync(TMP, { recursive: true });
 mkdirSync(path.join(OUT, "screens"), { recursive: true });
-mkdirSync(path.join(OUT, "posters"), { recursive: true });
 
 const want = process.argv.slice(2);
 const doScreens = !want.length || want.includes("screens");
-const doPosters = !want.length || want.includes("posters");
+const doHero = !want.length || want.includes("hero");
 
 function webp(png, out, quality = 80) {
   execFileSync(FFMPEG, ["-v", "error", "-y", "-i", png, "-c:v", "libwebp", "-quality", String(quality), "-compression_level", "6", out]);
@@ -63,20 +64,9 @@ async function context(theme, viewport, scale) {
 }
 
 if (doScreens) {
-  // The laptop: the calculator at a desktop-ish width (it is white paper in both themes).
-  {
-    const ctx = await context("light", { width: 800, height: 500 }, 1.2);
-    const page = await ctx.newPage();
-    await page.goto(`${BASE}/landing-demo/acme-pricing-calculator.html`, { waitUntil: "networkidle" });
-    await page.waitForTimeout(300);
-    const png = path.join(TMP, "calc.png");
-    await page.screenshot({ path: png });
-    webp(png, path.join(OUT, "screens/calculator.webp"));
-    await ctx.close();
-  }
   for (const theme of ["light", "dark"]) {
     const suffix = theme === "dark" ? ".dark" : "";
-    // The phone: the PDF viewer on the deck at a phone's width.
+    // The phone on the hero desk: the PDF viewer on the deck at a phone's width.
     {
       const ctx = await context(theme, { width: 360, height: 720 }, 1);
       const page = await ctx.newPage();
@@ -88,66 +78,73 @@ if (doScreens) {
       webp(png, path.join(OUT, `screens/deck-phone${suffix}.webp`));
       await ctx.close();
     }
-    // The stamped document: the phone layout's first card (notes.md), its render laid out in full.
-    {
-      const ctx = await context(theme, { width: 594, height: 1400 }, 2);
-      const page = await ctx.newPage();
-      await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
-      const card = page.locator('section[aria-label^="Link card"]').first();
-      await card.scrollIntoViewIfNeeded();
-      await card.locator("[data-ready]").waitFor({ timeout: 30000 });
-      await page.waitForTimeout(800);
-      // The render, lifted out of the card into a plain 560px column, so it is captured whole.
-      await card.locator("[data-ready] > div").first().evaluate((el) => {
-        const holder = document.createElement("div");
-        holder.id = "capture";
-        holder.style.cssText = "position:absolute;left:0;top:0;width:560px;z-index:2147483646;background:var(--surface-raised)";
-        const clone = el.cloneNode(true);
-        clone.style.cssText = "position:static;overflow:visible;height:auto;inset:auto";
-        holder.appendChild(clone);
-        document.body.appendChild(holder);
-        window.scrollTo(0, 0);
-      });
-      await page.waitForTimeout(300);
-      const doc = page.locator("#capture");
-      const png = path.join(TMP, `doc${suffix}.png`);
-      await doc.screenshot({ path: png });
-      webp(png, path.join(OUT, `screens/launch-notes-doc${suffix}.webp`));
-      await ctx.close();
-    }
+    // The stamped document: notes.md dropped on the hero, its render lifted out into a plain 560px
+    // column, so it is captured whole.
+    const ctx = await context(theme, { width: 1280, height: 1400 }, 2);
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    await page.locator('#hero [data-file="md"]:visible').first().click();
+    const live = page.locator("#hero [data-screen] [data-ready]");
+    await live.waitFor({ timeout: 30000 });
+    await page.waitForTimeout(800);
+    await live.locator(":scope > div").first().evaluate((el) => {
+      const holder = document.createElement("div");
+      holder.id = "capture";
+      holder.style.cssText = "position:absolute;left:0;top:0;width:560px;z-index:2147483646;background:var(--surface-raised)";
+      const clone = el.cloneNode(true);
+      clone.style.cssText = "position:static;overflow:visible;height:auto;inset:auto";
+      holder.appendChild(clone);
+      document.body.appendChild(holder);
+      window.scrollTo(0, 0);
+    });
+    await page.waitForTimeout(300);
+    const png = path.join(TMP, `doc${suffix}.png`);
+    await page.locator("#capture").screenshot({ path: png });
+    webp(png, path.join(OUT, `screens/launch-notes-doc${suffix}.webp`));
+    await ctx.close();
   }
 }
 
-if (doPosters) {
-  const FILES = [
-    ["md", true],
-    ["html", false],
-    ["pdf", true],
-    ["video", false],
-    ["sheet", true],
+if (doHero) {
+  mkdirSync(path.join(OUT, "hero"), { recursive: true });
+  const IDS = ["html", "md", "pdf", "video", "sheet"];
+  const LAYOUTS = [
+    // The desktop artboard at 1280 × 720 draws the hero at its own pixels; the screen is 456 wide.
+    { name: "", viewport: { width: 1280, height: 720 }, scale: 2, h: 420 },
+    // The phone artboard: the screen is 306 wide.
+    { name: ".phone", viewport: { width: 390, height: 844 }, scale: 3, h: 300 },
   ];
-  for (const theme of ["light", "dark"]) {
-    const ctx = await context(theme, { width: 1440, height: 1000 }, 2);
-    const page = await ctx.newPage();
-    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
-    for (const [id, dark] of FILES) {
-      if (theme === "dark" && !dark) continue;
-      await page.locator(`button[data-file="${id}"]`).click();
-      const card = page.locator('section[aria-label^="Link card"]').first();
-      await card.locator("[data-ready]").waitFor({ timeout: 30000 });
-      await page.waitForTimeout(id === "pdf" ? 1500 : 900);
-      // Straighten the card (it lies tilted on the desk) so the capture is the render alone.
-      await card.evaluate((el) => {
-        el.style.transform = "none";
-        el.style.animation = "none";
-      });
-      await page.waitForTimeout(200);
-      const body = card.locator(":scope > div").nth(1);
-      const png = path.join(TMP, `poster-${id}.png`);
-      await body.screenshot({ path: png });
-      webp(png, path.join(OUT, `posters/${id}${theme === "dark" ? ".dark" : ""}.webp`), 78);
+  for (const L of LAYOUTS) {
+    for (const theme of ["light", "dark"]) {
+      const ctx = await context(theme, L.viewport, L.scale);
+      for (const id of IDS) {
+        const page = await ctx.newPage();
+        await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+        // Drop the file with its visible button (the desk object or, on a phone, its chip).
+        await page.locator(`#hero [data-file="${id}"]:visible`).first().click();
+        const view = page.locator("#hero [data-screen]");
+        await view.locator("[data-ready]").waitFor({ timeout: 30000 });
+        // The screen alone: taller (the poster is cropped to the screen's height), the laptop
+        // straightened, and nothing else on the desk drawn over it.
+        await view.evaluate((el, h) => {
+          el.style.height = `${h}px`;
+          const laptop = el.parentElement?.parentElement?.parentElement;
+          if (laptop) {
+            laptop.style.transform = "none";
+            laptop.style.filter = "none";
+          }
+          const st = document.createElement("style");
+          st.textContent = "#hero *{visibility:hidden!important} #hero [data-screen], #hero [data-screen] *{visibility:visible!important} #hero [data-screen] [role=status]{display:none!important}";
+          document.head.appendChild(st);
+        }, L.h);
+        await page.waitForTimeout(id === "pdf" ? 1800 : 1000);
+        const png = path.join(TMP, `hero-${id}${L.name}-${theme}.png`);
+        await view.screenshot({ path: png });
+        webp(png, path.join(OUT, `hero/${id}${L.name}${theme === "dark" ? ".dark" : ""}.webp`), 80);
+        await page.close();
+      }
+      await ctx.close();
     }
-    await ctx.close();
   }
 }
 
