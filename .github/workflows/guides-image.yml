@@ -1,0 +1,213 @@
+name: Guides image
+
+# The self-host image for Markdrop Guides (docs-platform/docker/Dockerfile), published to
+# ghcr.io/himanshkukreja/markdrop-guides for linux/amd64 and linux/arm64, each built natively on
+# its own runner (no QEMU) and pushed by digest, then joined into one multi-arch tag.
+#
+#   a tag guides-vX.Y.Z   →  :X.Y.Z, :X.Y and :latest   (a pre-release, guides-vX.Y.Z-rc.1: only :X.Y.Z-rc.1)
+#   main, engine changes  →  :edge and :sha-<short>      (path filter below: the engine and the platform)
+#   Run workflow (manual) →  :sha-<short>, and :edge on main
+#
+# Each platform's image is started on its runner and must build and serve the example guide (a cold
+# build, up to 5 minutes) before any tag
+# moves. Layers are cached in the Actions cache per platform, so a change to docs-platform/ alone
+# doesn't reinstall the frontend's dependencies.
+
+on:
+  push:
+    tags: ["guides-v*"]
+    branches: [main]
+    # Path filters apply to branch pushes only; a tag push always builds.
+    paths:
+      - "docs-platform/**"
+      - "!docs-platform/**/*.md"
+      - "frontend/src/docs/**"
+      - "frontend/src/app/docs-site/**"
+      - "frontend/src/app/layout.tsx"
+      - "frontend/src/app/globals.css"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/next.config.ts"
+      - ".github/workflows/guides-image.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: guides-image-${{ github.ref }}
+  # A newer push to main supersedes a running build; a release tag always finishes.
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/himanshkukreja/markdrop-guides
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    if: github.repository == 'himanshkukreja/markdrop'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Platform pair
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: echo "PAIR=${PLATFORM//\//-}" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docs-platform/docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          provenance: false
+          cache-from: type=gha,scope=guides-${{ env.PAIR }}
+          cache-to: type=gha,scope=guides-${{ env.PAIR }},mode=max
+
+      - name: Smoke test (serve the example guide)
+        env:
+          REF: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+        run: |
+          docker run -d --name guides -p 8080:8080 \
+            -v "$PWD/docs-platform/examples/minimal:/site:ro" "$REF"
+          ok=""
+          for _ in $(seq 1 150); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8080/guide/start; then ok=1; break; fi
+            sleep 2
+          done
+          docker logs guides 2>&1 | tail -n 40
+          [ -n "$ok" ] || { echo "::error::the image didn't serve the example guide"; exit 1; }
+          curl -fsS http://127.0.0.1:8080/guide/start | grep -qi "<html"
+          curl -fsS http://127.0.0.1:8080/guide/start.md | grep -q "^# \|^---\|title"
+          curl -fsS http://127.0.0.1:8080/llms.txt | grep -q "/guide/publish"
+          docker rm -f guides
+
+      - name: Record digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ env.PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Tag the multi-arch image
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Release or pre-release
+        id: rel
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          if [ "$REF_TYPE" = "tag" ] && [[ "$REF_NAME" =~ ^guides-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "stable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stable=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=match,pattern=^guides-v(\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?)$,group=1
+            type=match,pattern=^guides-v(\d+\.\d+)\.\d+$,group=1
+            type=raw,value=latest,enable=${{ steps.rel.outputs.stable == 'true' }}
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-,format=short
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create the manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf "$IMAGE@sha256:%s " *)
+
+      - name: Summary (tags and sizes)
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          first="$(head -n1 <<< "$TAGS")"
+          index="$(docker buildx imagetools inspect "$first" --raw)"
+          {
+            echo "### $IMAGE"
+            echo
+            echo "Tags:"
+            sed 's/^/- `/; s/$/`/' <<< "$TAGS"
+            echo
+            echo "| Platform | Compressed size |"
+            echo "|---|---|"
+            for d in $(jq -r '.manifests[].digest' <<< "$index"); do
+              plat="$(jq -r --arg d "$d" '.manifests[] | select(.digest == $d) | "\(.platform.os)/\(.platform.architecture)"' <<< "$index")"
+              bytes="$(docker buildx imagetools inspect "$IMAGE@$d" --raw | jq '[.layers[].size] | add')"
+              echo "| $plat | $(numfmt --to=iec --suffix=B "$bytes") |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

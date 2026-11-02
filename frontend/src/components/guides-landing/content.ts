@@ -172,6 +172,12 @@ export const PRICING_RULES = [
   "Join during the beta and your price won't change for 12 months after paid plans start.",
 ];
 
+/** Host it yourself (the compare section): the open-source engine and the published image (docs: guides/self-hosting). */
+export const SELF_HOST_REPO = "https://github.com/himanshkukreja/markdrop/tree/main/docs-platform";
+export const SELF_HOST_COMMAND = `docker run -p 8080:8080 \\
+  -v "$PWD/my-guide:/site:ro" \\
+  ghcr.io/himanshkukreja/markdrop-guides`;
+
 export type Faq = { q: string; a: string; links?: Array<{ label: string; href: string }> };
 
 const DOCS = "https://docs.markdrop.in";
@@ -183,10 +189,10 @@ export const FAQS: Faq[] = [
   },
   {
     q: "Can I take my docs with me?",
-    a: "Yes. Every published page is plain Markdown at its address plus .md, and the whole guide is in /llms-full.txt. With GitHub sync your repository stays the source of truth. The engine that builds guides is open source (MIT), so you can even host it yourself.",
+    a: "Yes, any time. Settings › Export & self-host downloads the whole guide as a folder of Markdown and files: pages, sidebar, theme, images, redirects, changelog and API reference. The engine that builds guides is open source (MIT), so that folder runs on your own server with one Docker command. With GitHub sync your repository stays the source of truth, and every published page is also plain Markdown at its address plus .md.",
     links: [
-      { label: "Import from GitHub", href: `${DOCS}/guides/import-from-github` },
       { label: "Self-hosting", href: `${DOCS}/guides/self-hosting` },
+      { label: "Import from GitHub", href: `${DOCS}/guides/import-from-github` },
     ],
   },
   {

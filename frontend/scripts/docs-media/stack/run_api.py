@@ -343,8 +343,24 @@ def _docs_put(key, data, content_type, cache_control=None):
     return True
 
 
+def _docs_list(prefix):
+    root = _docs_file(prefix.rstrip("/") + "/_").parent
+    if not root.is_dir():
+        return []
+    return [{"key": f.relative_to(DOCS_STORE).as_posix(), "size": f.stat().st_size}
+            for f in sorted(root.rglob("*")) if f.is_file()]
+
+
+def _docs_get(key):
+    f = _docs_file(key)
+    return f.read_bytes() if f.is_file() else None
+
+
 docs_site_assets.is_configured = lambda: True
 docs_site_assets.put_bytes = _docs_put
+# Settings › Export & self-host reads the guide's files back (services/docs_site_export.py).
+docs_site_assets.list_objects = _docs_list
+docs_site_assets.get_bytes = _docs_get
 docs_site_assets.presign_get = lambda key, expires_in=3600: f"{API}/__docsstore/{quote(key)}"
 docs_site_assets._client = _no_boto
 

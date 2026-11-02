@@ -159,6 +159,15 @@
 .cell[data-tone="part"] .mark { background: var(--warning-soft); color: var(--warning); }
 .src { font-size: 12px; font-weight: 600; color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
 .notes { margin: 18px 0 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 6px; font: 400 13px/1.5 var(--font-sans); color: var(--text-muted); }
+
+/* ── Host it yourself (under the comparison) ── */
+.selfHost { margin-top: 40px; display: grid; gap: 20px; align-items: center; padding: 22px; border-radius: var(--radius-xl); border: 1px solid var(--border-strong); background: var(--surface); box-shadow: var(--gl-card); scroll-margin-top: 96px; }
+@media (min-width: 900px) { .selfHost { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 32px; padding: 26px 28px; } }
+.selfHostText { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.selfHostText p { margin: 0; max-width: 560px; font: 400 14.5px/1.6 var(--font-sans); color: var(--text-secondary); }
+.selfHostLinks { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.selfHostCmd { margin: 0; min-width: 0; overflow-x: auto; padding: 16px 18px; border-radius: var(--radius-lg, 12px); border: 1px solid var(--border); background: var(--surface-inset); font: 500 13px/1.65 var(--font-mono); color: var(--text); white-space: pre; }
+@media (max-width: 480px) { .selfHost { padding: 18px; } .selfHostCmd { padding: 12px; font-size: 11.5px; } }
 /* Phones: each row becomes a compact card: the feature as its title, then one line per product with
    the product's name in a narrow column on the left (from data-col). Markdrop Guides first, tinted. */
 @media (max-width: 767px) {

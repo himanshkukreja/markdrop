@@ -475,9 +475,10 @@ node test/verify.mjs --manifest <dist>/manifest.json --next <next-start port> --
 node test/pageview.mjs --origin http://<host>.localhost:3563 --path /some/page   # Miniflare (counts chunks too)
 node test/pageview.mjs --live --origin https://<worker>.workers.dev --path /some/page  # a deployed Worker
 
-# Docker (not built here: no Docker on the dev machine; the Node server above is what it runs)
-docker build -f docs-platform/docker/Dockerfile -t markdrop-docs .
-docker run --rm -p 8080:8080 -v "$PWD/my-docs:/site:ro" -v markdrop-docs-data:/data markdrop-docs
+# Docker: the published image (.github/workflows/guides-image.yml: amd64 + arm64, on guides-v* tags
+# and engine changes on main), or build it yourself from the repo root
+docker run --rm -p 8080:8080 -v "$PWD/my-guide:/site:ro" -v markdrop-guides-data:/data ghcr.io/himanshkukreja/markdrop-guides
+docker build -f docs-platform/docker/Dockerfile -t markdrop-guides .
 ```
 
 ## Layout
@@ -494,8 +495,9 @@ edge/     handler.mjs (the fetch handler) · access.mjs (private sites: policy, 
           mcp-entry.mjs + shims/ (fs, path, next/server for the bundled MCP route) ·
           assets/ (git-ignored: the shared engine files, deployed as Static Assets)
 server/   server.mjs (Node: serve a store, or build + serve + watch a folder)
-docker/   Dockerfile (+ .dockerignore; context = repo root)
-examples/ minimal/ (a 2-page site; also warms the Docker image's build cache)
+docker/   Dockerfile (+ .dockerignore; context = repo root; two stages: the image has no npm cache,
+          Worker tooling or musl binaries)
+examples/ minimal/ (a 2-page site; the image workflow smoke-tests with it)
 test/     edge.test.mjs · access.test.mjs · assets.test.mjs · runner.test.mjs · verify.mjs · miniflare.mjs ·
           pageview.mjs
 ```
@@ -518,7 +520,7 @@ test/     edge.test.mjs · access.test.mjs · assets.test.mjs · runner.test.mjs
 5. **Hostname map.** Today it's R2 objects (`hosts/<host>.json`, cached 60 s per isolate), for free
    addresses and own domains alike ("Own domains"). KV or D1 would be the next step if the number of
    hosts or lookups grows.
-6. **Self-host scope.** Ask AI needs the backend (BYO key or off). Also undecided: whether the
+6. **Self-host scope.** Ask AI needs the backend (off in a studio export: services/docs_site_export.py). Also undecided: whether the
    self-host image should also accept prebuilt dists (`serve --store`) so it can run without the
    engine's `node_modules` (an image of about 1 GB vs about 100 MB).
 7. **Markdrop's own docs on this path.** The static output still references `/_vercel/insights`

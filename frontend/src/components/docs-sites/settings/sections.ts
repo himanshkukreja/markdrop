@@ -10,12 +10,13 @@
  *   github         the repository it's imported from and kept in sync with, sync history
  *   redirects      old addresses → their pages
  *   people         roles on this guide, required reviews
+ *   export         download the guide as a content folder, run it on your own server
  *   danger         unpublish, delete
  *
  * The old one-page Settings used #anchors (/settings#people, #redirects, #review…), which Publishes,
  * Members and shared links still use: /settings reads the hash and goes to the section (ANCHORS).
  */
-export type SettingsSection = "general" | "domains" | "access" | "private" | "ask-ai" | "api-reference" | "github" | "redirects" | "people" | "danger";
+export type SettingsSection = "general" | "domains" | "access" | "private" | "ask-ai" | "api-reference" | "github" | "redirects" | "people" | "export" | "danger";
 
 export const SECTIONS: ReadonlyArray<{ id: SettingsSection; label: string; icon: string; blurb: string }> = [
   { id: "general", label: "General", icon: "settings", blurb: "The guide's name, its address and where it started." },
@@ -27,6 +28,7 @@ export const SECTIONS: ReadonlyArray<{ id: SettingsSection; label: string; icon:
   { id: "github", label: "GitHub", icon: "github", blurb: "Import a repository's docs and keep them in sync: each push to the branch updates the guide." },
   { id: "redirects", label: "Redirects", icon: "link", blurb: "Old addresses that send readers to the right page. Moving a page adds one for you." },
   { id: "people", label: "People and reviews", icon: "user", blurb: "Who can write, review and publish this guide." },
+  { id: "export", label: "Export & self-host", icon: "download", blurb: "Download the guide as a folder of Markdown and files, and run it on your own server with the open-source engine. No lock-in." },
   { id: "danger", label: "Take it down", icon: "trash", blurb: "Unpublish the guide, or delete it for good." },
 ];
 
@@ -57,6 +59,8 @@ export const ANCHORS: Record<string, SettingsSection> = {
   people: "people",
   review: "people",
   reviews: "people",
+  export: "export",
+  "self-host": "export",
   danger: "danger",
 };
 
