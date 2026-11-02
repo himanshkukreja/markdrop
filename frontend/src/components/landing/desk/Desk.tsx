@@ -232,7 +232,10 @@ export default function Desk() {
                 onDragStart={(e) => e.preventDefault()}
               >
                 <span className={s.face}>
-                  <Face id={f.id} />
+                  {/* The drawing is decoration: the file is named by its tag. */}
+                  <span aria-hidden="true" style={{ display: "contents" }}>
+                    <Face id={f.id} />
+                  </span>
                   <span className={s.tag} id={`desk-${f.id}-name`}>
                     {f.name}
                   </span>

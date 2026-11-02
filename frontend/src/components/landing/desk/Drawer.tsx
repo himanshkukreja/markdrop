@@ -98,15 +98,15 @@ export default function Drawer() {
                 </p>
               </div>
               <div className={`${s.tool} ${s.toolWide}`} style={{ "--r": "0.3deg" } as React.CSSProperties}>
+                <div className={s.toolShot}>
+                  <LoopVideo src="/landing-desk/terminal" w={1600} h={388} label="The markdrop CLI: markdrop upload demo.mp4 publishes it at markdrop.in/demo; markdrop replace demo demo-v2.mp4 makes version 2 on the same link." />
+                </div>
                 <span className={s.toolHead}>
                   <Icon name="terminal" />
                   Terminal
                 </span>
-                <div className={s.toolShot}>
-                  <LoopVideo src="/landing-desk/terminal" w={1600} h={388} label="The markdrop CLI: markdrop upload demo.mp4 publishes it at markdrop.in/demo; markdrop replace demo demo-v2.mp4 makes version 2 on the same link." />
-                </div>
                 <p className={s.toolText}>
-                  <code>markdrop upload</code> gives you a link, <code>markdrop replace</code> keeps it, <code>markdrop send</code> goes straight to their device.{" "}
+                  <code>markdrop upload</code> gives you a link. <code>markdrop replace</code> keeps it and adds a version. <code>markdrop send</code> goes straight to their device.{" "}
                   <a className={s.more} href={docsUrl(DOCS_PAGES.cliInstall)} data-cta="tools_cli">
                     Install the CLI
                   </a>

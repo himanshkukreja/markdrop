@@ -671,6 +671,22 @@
 }
 .toolWide {
   grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  column-gap: 24px;
+  align-items: start;
+}
+.toolWide .toolShot {
+  grid-row: 1 / span 2;
+  grid-column: 1;
+}
+.toolWide .toolHead {
+  grid-column: 2;
+  padding-top: 4px;
+}
+.toolWide .toolText {
+  grid-column: 2;
 }
 .toolHead {
   display: flex;
@@ -813,6 +829,9 @@
   }
   .tray {
     padding: 16px;
+  }
+  .toolWide {
+    display: flex;
   }
 }
 @media (max-width: 480px) {

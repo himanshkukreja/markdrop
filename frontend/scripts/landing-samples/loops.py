@@ -36,11 +36,11 @@ LOOPS = [
     {"name": "ai-chat", "segs": [("09-ai-apps-and-cli/clips/s-publish", 1.0, 8.9)],
      "speed": 1.0, "crop": [1640, 1600, 460, 0], "width": 760, "hold": 2.0, "fade": 0.4, "poster": 8.4, "crf": [30, 44]},
     # The Markdrop CLI: markdrop upload, then markdrop replace on the same link.
-    {"name": "terminal", "segs": [("09-ai-apps-and-cli/clips/t-upload", 0.0, 23.2)],
-     "speed": 1.5, "crop": [2480, 600, 0, 0], "width": 1600, "hold": 2.2, "fade": 0.4, "poster": 15.4, "crf": [30, 44]},
+    {"name": "terminal", "segs": [("09-ai-apps-and-cli/clips/t-upload", 0.0, 21.9)],
+     "speed": 1.5, "crop": [2480, 600, 0, 0], "width": 1600, "hold": 2.4, "fade": 0.4, "poster": 14.4, "crf": [30, 44]},
     # The real Share dialog: Who can open it → Only people added.
     {"name": "share-dialog", "segs": [("04-share-with-control/clips/l1-access", 3.2, 17.8)],
-     "speed": 1.25, "crop": [1176, 1168, 692, 216], "width": 880, "hold": 1.0, "fade": 0.4, "poster": 9.4, "crf": [30, 44]},
+     "speed": 1.25, "crop": [1136, 1128, 712, 236], "width": 880, "hold": 1.0, "fade": 0.4, "poster": 9.4, "crf": [30, 44]},
 ]
 
 
