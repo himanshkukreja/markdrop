@@ -14,6 +14,7 @@ export const SETTING_LABEL: Record<string, { title: string; meta: string; badge:
   api: { title: "API reference", meta: "Your OpenAPI file and its settings", badge: "API", icon: "code", href: "/settings#api" },
   changelog: { title: "Changelog settings", meta: "Title, products, Coming next", badge: "Changelog", icon: "megaphone", href: "/changelog" },
   ai: { title: "Ask AI", meta: "Guide settings", badge: "Settings", icon: "sparkle", href: "/settings#ai" },
+  mcp: { title: "Connect to AI", meta: "The MCP server's menu on pages", badge: "Settings", icon: "sparkle", href: "/settings#mcp" },
   seo: { title: "Search indexing", meta: "Guide settings", badge: "Settings", icon: "search", href: "/settings#access" },
   access: { title: "Who can read it", meta: "Guide settings", badge: "Settings", icon: "lock", href: "/settings#access" },
   name: { title: "Guide name", meta: "Guide settings", badge: "Settings", icon: "settings", href: "/settings" },

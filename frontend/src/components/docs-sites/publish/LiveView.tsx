@@ -1,7 +1,9 @@
 "use client";
 
 import { useId } from "react";
-import { Badge, Button, copyText, useToast } from "@/components/ui";
+import { Anchor, Badge, Button, CopyButton, Icon, copyText, useToast } from "@/components/ui";
+import { mcpServerUrl } from "@/docs/mcpLinks";
+import { settingsHref } from "../settings/sections";
 import { guideEvents } from "@/lib/guidesEvents";
 import { liveAddresses, primaryAddress, type Build, type SetupStatus, type SiteSummary } from "@/lib/docsSites";
 import { firstName, timeAgo } from "../format";
@@ -83,6 +85,15 @@ export function LiveView({ live, builds, setup, restoring, onRestore }: {
             <p className="text-text-secondary">Readers can&apos;t open it. Publish again to put it back at its address.</p>
           )}
           {isLive && meta && <p className="text-text-secondary">{meta}</p>}
+          {isLive && site.settings.access.level === "public" && (
+            <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] leading-5 text-text-secondary">
+              <Icon name="sparkle" size={14} className="shrink-0 text-accent-text" />
+              <span>AI tools can connect to it too:</span>
+              <code className="ph-sensitive ph-mask min-w-0 break-all font-mono text-[12.5px] text-text">{mcpServerUrl(liveUrl(host))}</code>
+              <CopyButton text={mcpServerUrl(liveUrl(host))} label="Copy the MCP server URL" iconOnly size="sm" announceText="MCP server URL copied" />
+              <Anchor href={settingsHref(base, "ask-ai") + "#mcp"} className="md-focus rounded font-semibold text-accent-text no-underline hover:underline">Set up</Anchor>
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {isLive ? (
               <>

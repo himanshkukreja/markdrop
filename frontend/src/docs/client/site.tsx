@@ -9,7 +9,7 @@ import { createContext, useContext } from "react";
 import type { DocsClientSite } from "../brand";
 import { DocsLinkProvider } from "./Link";
 
-const NEUTRAL: DocsClientSite = { url: "", ai: null, mcpName: "docs", tryIt: { tokenEnv: "API_TOKEN", tokenPrefix: "" } };
+const NEUTRAL: DocsClientSite = { url: "", ai: null, mcpName: "docs", mcpConnect: false, tryIt: { tokenEnv: "API_TOKEN", tokenPrefix: "" } };
 
 const Ctx = createContext<DocsClientSite>(NEUTRAL);
 

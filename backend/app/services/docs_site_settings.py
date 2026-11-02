@@ -488,6 +488,18 @@ class AI(_Strict):
         return out
 
 
+class MCP(_Strict):
+    """The guide's MCP server (``<guide>/mcp``, served for every public guide: search_docs, read_page…).
+    ``connect``: published pages offer readers the "Connect to AI" actions (copy the server's URL,
+    add it to Cursor / VS Code, connect Claude or ChatGPT). The server itself answers either way."""
+    connect: bool = True
+
+
+def mcp_connect(settings: dict | None) -> bool:
+    """settings.mcp.connect, on for settings (or a snapshot's) from before the switch."""
+    return bool(((settings or {}).get("mcp") or {}).get("connect", True))
+
+
 class Access(_Strict):
     level: Literal["public", "password", "members"] = "public"
     password_hash: str | None = None
@@ -539,6 +551,7 @@ class ApiReference(_Strict):
 class SiteSettings(_Strict):
     theme: Theme = Field(default_factory=Theme)
     ai: AI = Field(default_factory=AI)
+    mcp: MCP = Field(default_factory=MCP)
     access: Access = Field(default_factory=Access)
     seo: SEO = Field(default_factory=SEO)
     review: Review = Field(default_factory=Review)
@@ -624,5 +637,7 @@ def public_view(settings: dict) -> dict:
     out["access"] = access
     # A site from before the API reference: its defaults.
     out["api"] = {**ApiReference().model_dump(), **(out.get("api") or {})}
+    # A site from before the Connect to AI switch: on.
+    out["mcp"] = {**MCP().model_dump(), **(out.get("mcp") or {})}
     return out
 

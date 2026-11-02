@@ -47,20 +47,6 @@ export const OPEN_IN = [
   { id: "perplexity", label: "Open in Perplexity", hint: "Searches with this page as context", base: "https://www.perplexity.ai/search?q=" },
 ] as const;
 
-/**
- * One-click installs of the docs MCP server (`<docs origin>/mcp`) in editors that support them,
- * under the site's MCP name (site.json `mcp.name`).
- */
-export function mcpInstallLinks(pageUrl: string, mcpName: string): { cursor: string; vscode: string; server: string } {
-  const server = `${new URL(pageUrl).origin}/mcp`;
-  const name = encodeURIComponent(mcpName);
-  return {
-    server,
-    cursor: `cursor://anysphere.cursor-deeplink/mcp/install?name=${name}&config=${btoa(JSON.stringify({ url: server }))}`,
-    vscode: `https://vscode.dev/redirect/mcp/install?name=${name}&config=${encodeURIComponent(JSON.stringify({ type: "http", url: server }))}`,
-  };
-}
-
 export function assistantPrompt(mdUrl: string): string {
   return `Read ${mdUrl} and answer my questions about it.`;
 }

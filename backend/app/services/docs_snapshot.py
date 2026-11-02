@@ -186,6 +186,16 @@ def _camel(value):
     return out
 
 
+def mcp_name(name: str) -> str:
+    """The name AI tools install the guide's MCP server under (Cursor's ``name=``, VS Code's, the
+    server's serverInfo.name): the guide's name as a slug, ending in "docs" ("Acme Rockets" →
+    "acme-rockets-docs", "Acme Docs" → "acme-docs"); "docs" when nothing is left."""
+    slug = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")[:40].strip("-")
+    if not slug:
+        return "docs"
+    return slug if slug == "docs" or slug.endswith("-docs") else f"{slug}-docs"
+
+
 def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[dict], *, url: str, ai_api: str,
               public: bool = True, insights: bool = False) -> dict:
     home = dict(extra.get("home") or {})
@@ -231,6 +241,10 @@ def site_json(site_id: str, name: str, settings: dict, extra: dict, nav: list[di
         {"enabled": True, "api": ai_api, "site": site_id, "assistantName": ai.get("name") or "Ask AI"}
         if ai.get("enabled") and public else {"enabled": False}
     )
+    # The MCP server (<url>/mcp) answers from the public pages only; `connect` shows readers the
+    # Connect to AI actions (Settings › Ask AI). A password or members-only guide's server is behind
+    # the edge's sign-in, which AI tools can't pass, so it offers none.
+    out["mcp"] = {"name": mcp_name(name), "connect": bool((settings.get("mcp") or {}).get("connect", True)) and public}
     out["seo"] = {"index": bool((settings.get("seo") or {}).get("index", True)) and public}
     out["integrations"] = {"markdropApp": False}
     # `::markdrop{src=…}` blocks ask the API about their file when a reader scrolls to them

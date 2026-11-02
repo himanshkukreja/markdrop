@@ -245,6 +245,8 @@ export interface Redirect {
 export interface SiteSettings {
   theme: SiteTheme;
   ai: { enabled: boolean; name?: string | null; suggestions?: string[] };
+  /** The guide's MCP server (<address>/mcp): `connect` shows readers Connect to AI on pages. Default on (absent from an older API). */
+  mcp?: { connect: boolean };
   /** `password` is write-only (6–200 chars); the API only says `has_password`. */
   access: { level: AccessLevel; has_password?: boolean };
   seo: { index: boolean };
@@ -847,6 +849,7 @@ export function getSite(id: string): Promise<Site> {
 export interface SettingsPatch {
   theme?: Partial<Omit<SiteTheme, "brand">> & { brand?: Partial<SiteBrand> };
   ai?: Partial<SiteSettings["ai"]>;
+  mcp?: { connect?: boolean };
   access?: { level?: AccessLevel; password?: string };
   seo?: Partial<SiteSettings["seo"]>;
   review?: Partial<SiteSettings["review"]>;

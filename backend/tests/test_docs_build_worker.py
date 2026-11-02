@@ -117,6 +117,36 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(sj["home"]["chips"], ["How do I launch?", "Fuel?"])
         self.assertEqual(sj["brand"], {"name": "Acme Rockets", "label": "Docs"})
 
+    def test_mcp_connect_menu(self):
+        site = _site()
+        build = lambda: json.loads(docs_snapshot.content_files(site, {"pages": [], "settings": site["settings"]},  # noqa: E731
+                                                               url="https://u", ai_api="https://a")[0]["site.json"])
+        # A password site: its /mcp is behind the edge's sign-in, so pages offer no Connect to AI.
+        self.assertEqual(build()["mcp"], {"name": "acme-rockets-docs", "connect": False})
+        site["settings"]["access"] = {"level": "public", "password_hash": None}
+        self.assertEqual(build()["mcp"], {"name": "acme-rockets-docs", "connect": True})
+        site["settings"].pop("mcp")
+        self.assertTrue(build()["mcp"]["connect"])  # a guide from before the switch: on
+        site["settings"]["mcp"] = {"connect": False}
+        self.assertFalse(build()["mcp"]["connect"])
+        for name, want in (("Acme Docs", "acme-docs"), ("Docs", "docs"), ("Ünïcode ✨", "n-code-docs"), ("✨", "docs"), ("a" * 60, "a" * 40 + "-docs")):
+            self.assertEqual(docs_snapshot.mcp_name(name), want, name)
+
+    def test_mcp_setting_defaults_and_validates(self):
+        from app.services import docs_site_settings as S
+
+        self.assertEqual(S.default_settings()["mcp"], {"connect": True})
+        self.assertEqual(S.public_view({"access": {}})["mcp"], {"connect": True})  # a guide from before the switch
+        self.assertEqual(S.validate(S.deep_merge(S.default_settings(), {"mcp": {"connect": False}}))["mcp"], {"connect": False})
+        with self.assertRaises(S.SettingsError):
+            S.validate({"mcp": {"connect": True, "url": "https://evil"}})
+        # Compare: a snapshot from before the switch counts as on, so only a real change shows.
+        from app.services import docs_site_compare as C
+
+        old = {"settings": {"ai": {"enabled": False}}}
+        self.assertEqual(C._settings_changed(old, {"settings": {"ai": {"enabled": False}, "mcp": {"connect": True}}}), [])
+        self.assertEqual(C._settings_changed(old, {"settings": {"ai": {"enabled": False}, "mcp": {"connect": False}}}), ["mcp"])
+
     def test_pasted_frontmatter_and_yaml_safety(self):
         text = docs_snapshot.page_text({"title": 'Say "hi": now', "description": "a: b # c", "markdown": "---\nnav: Short\n---\n\nBody"}, "2026-01-02")
         self.assertIn('title: "Say \\"hi\\": now"', text)

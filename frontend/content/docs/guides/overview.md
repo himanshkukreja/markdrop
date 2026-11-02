@@ -38,7 +38,7 @@ Embed an interactive HTML demo, a PDF or a video from Markdrop, sandboxed on a s
 Keep docs in a repository and every push updates the guide. Or import from GitBook, Mintlify, Docusaurus or MkDocs.
 :::
 :::card[Ready for AI]{href="/guides/ai-ready" icon="zap"}
-Ask AI for your readers, and Markdown pages, llms.txt and an MCP server for their assistants, with agent reads counted apart.
+Ask AI for your readers, and Markdown pages, llms.txt and an MCP server for their assistants, with agent reads counted apart. Readers connect Claude, Cursor or VS Code to your guide's [MCP server](/guides/mcp-server) in one click.
 :::
 ::::
 
@@ -53,7 +53,7 @@ These pages follow the order you'll need them in.
 - **Look**: [Themes, the theme builder and resetting a design](/guides/themes), [Brand and style](/guides/brand-and-style)
 - **Publish and share**: [Publishing](/guides/publishing), [Reviews](/guides/reviews), [Your own domain](/guides/custom-domain), [Private pages](/guides/private-pages), [What readers get](/guides/what-readers-get)
 - **Improve**: [Fix list](/guides/fix-list), [Insights](/guides/insights)
-- **For AI**: [Ask AI](/guides/ask-ai), [llms.txt, MCP and agents](/guides/ai-ready)
+- **For AI**: [Ask AI](/guides/ask-ai), [The MCP server](/guides/mcp-server), [llms.txt, MCP and agents](/guides/ai-ready)
 - **Reference**: [Guide settings](/guides/site-settings), [Members and roles](/guides/members-and-roles), [Limits](/guides/limits), [Self-hosting](/guides/self-hosting), [FAQ and troubleshooting](/guides/faq)
 
 ## How it works
@@ -66,7 +66,7 @@ These pages follow the order you'll need them in.
 
 ## Open Markdrop Guides
 
-The studio, where you make and manage guides, is at [guides.markdrop.in](https://guides.markdrop.in). It uses your Markdrop account: if you're signed in on markdrop.in, you're signed in there too, with no second sign-in; if not, Markdrop asks you to sign in first and brings you back. From inside Markdrop you can also get there from your account menu (**Guides**), from a workspace's **Guides** link in the sidebar, with **Guide** in the create menu, and with **Open your guides** on [markdrop.in/guides](https://markdrop.in/guides) when you're signed in. Inside Markdrop Guides, **Documents** and **Files** in the header (or **Dashboard** in your account menu) go back to the rest of Markdrop.
+The studio, where you make and manage guides, is at [guides.markdrop.in](https://guides.markdrop.in). It uses your Markdrop account: if you're signed in on markdrop.in, you're signed in there too, with no second sign-in; if not, Markdrop asks you to sign in first and brings you back. From inside Markdrop you can also get there from your account menu (**Guides**), from a workspace's **Guides** link in the sidebar, with **Guide** in the create menu, and with **Open your guides** on [markdrop.in/guides](https://markdrop.in/guides) when you're signed in. Inside Markdrop Guides, **Docs** in the header opens this documentation, and **Markdrop dashboard** in your account menu goes back to the rest of Markdrop.
 
 **Sign out** in Markdrop Guides signs you out of guides.markdrop.in, then asks whether to sign out of Markdrop too. Signing out on markdrop.in signs you out of both. Old links to markdrop.in/guides/… (in emails or bookmarks) still work: they open the same screen on guides.markdrop.in.
 

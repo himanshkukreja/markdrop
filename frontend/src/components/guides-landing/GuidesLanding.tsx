@@ -112,7 +112,7 @@ const STEPS: Array<{ t: string; d: string }> = [
 ];
 
 const FEATURES: Array<{ icon: string; t: string; d: string; href: string }> = [
-  { icon: "sparkle", t: "Ready for AI", d: "Ask AI answers readers with links to your pages. Every page is also Markdown, in llms.txt and behind an MCP server, and agent reads are counted apart.", href: docs("studioAskAi") },
+  { icon: "sparkle", t: "Ready for AI", d: "Every guide has its own MCP server: readers connect Claude, Cursor or VS Code in one click. Ask AI answers with links to your pages, every page is also Markdown and in llms.txt, and agent reads are counted apart.", href: docs("studioMcp") },
   { icon: "github", t: "GitHub sync", d: "Import a repository (Markdown, GitBook, Mintlify, Docusaurus or MkDocs) and every push updates the guide.", href: docs("studioGithub") },
   { icon: "megaphone", t: "Changelog", d: "A What's new page with RSS and JSON feeds. Turn existing release notes into entries.", href: docs("studioChangelog") },
   { icon: "palette", t: "Themes and theme builder", d: "Fourteen themes or your brand, and a builder that keeps every colour pair readable.", href: docs("studioThemes") },

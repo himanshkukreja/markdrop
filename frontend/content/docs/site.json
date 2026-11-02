@@ -335,6 +335,7 @@
       "tab": "guides",
       "pages": [
         "/guides/ask-ai",
+        "/guides/mcp-server",
         "/guides/ai-ready"
       ]
     },

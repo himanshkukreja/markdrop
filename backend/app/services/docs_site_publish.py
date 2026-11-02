@@ -33,6 +33,7 @@ from app.services import docs_site_access as access
 from app.services import docs_site_assets as assets
 from app.services import docs_site_changelog as changelog
 from app.services import docs_site_compare as compare
+from app.services import docs_site_settings
 from app.services import docs_site_pages as pages
 from app.services import docs_site_store as store
 from app.services.docs_site_jobs import enqueue_job
@@ -101,6 +102,9 @@ async def changes(db: AsyncIOMotorDatabase, site: dict, *, lines: bool = True) -
     # The API reference (a site from before it has none stored: the defaults).
     if snap is not None and api_spec.api_settings({"settings": current}) != api_spec.api_settings({"settings": before}):
         settings_changed.append("api")
+    # Connect to AI on pages (a snapshot from before the switch: on).
+    if snap is not None and docs_site_settings.mcp_connect(current) != docs_site_settings.mcp_connect(before):
+        settings_changed.append("mcp")
     site_meta = (snap or {}).get("site") or {}
     if snap is not None and site_meta.get("name") != site.get("name"):
         settings_changed.append("name")
