@@ -13,8 +13,8 @@ import s from "./Hero.module.css";
  */
 export default function Hero() {
   // The laptop's screen at rest (launch.html's render, as its poster) is the hero's LCP image.
-  preload("/landing-desk/hero/html.webp", { as: "image", fetchPriority: "high", media: "(min-width: 1024px)" });
-  preload("/landing-desk/hero/html.phone.webp", { as: "image", fetchPriority: "high", media: "(max-width: 1023px)" });
+  preload("/landing-desk/hero/html.webp", { as: "image", fetchPriority: "high", media: "(min-width: 600px)" });
+  preload("/landing-desk/hero/html.phone.webp", { as: "image", fetchPriority: "high", media: "(max-width: 599px)" });
   return (
     <section id="hero" aria-labelledby="hero-h1" className={s.hero}>
       <div className={s.canvas}>

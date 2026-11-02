@@ -370,11 +370,11 @@ function Screen({ file, live, rest }: { file: DeskFile; live: boolean; rest: boo
     <div className={s.show} data-rest={rest ? "" : undefined}>
       <div className={s.poster} data-hidden={ready ? "" : undefined} aria-hidden={ready || undefined}>
         <picture className={t.light}>
-          <source media="(max-width: 1023px)" srcSet={`${base}.phone.webp`} />
+          <source media="(max-width: 599px)" srcSet={`${base}.phone.webp`} />
           <img src={`${base}.webp`} alt={`${file.name}, rendered by Markdrop`} width={912} height={840} decoding="async" fetchPriority={first ? "high" : undefined} />
         </picture>
         <picture className={t.dark}>
-          <source media="(max-width: 1023px)" srcSet={`${base}.phone.dark.webp`} />
+          <source media="(max-width: 599px)" srcSet={`${base}.phone.dark.webp`} />
           <img src={`${base}.dark.webp`} alt={`${file.name}, rendered by Markdrop`} width={912} height={840} decoding="async" loading="lazy" />
         </picture>
       </div>

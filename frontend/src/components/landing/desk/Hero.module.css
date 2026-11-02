@@ -485,6 +485,7 @@
   left: -8px;
   top: 8px;
   width: 456px;
+  max-width: none;
   height: auto;
 }
 @media (min-width: 1024px) {
