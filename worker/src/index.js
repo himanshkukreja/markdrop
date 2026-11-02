@@ -21,7 +21,14 @@
  * as a CSP header (SANDBOX_CSP), so a customer's page can never reach another file on this origin
  * (storage, DOM, service workers), even if something frames it without the attribute. Public
  * bytes answer CORS `*` (no credentials) so such a page's own module scripts and fetches still
- * load from its opaque origin; they are public by definition, guarded bytes keep app-only CORS.
+ * load from its opaque origin; they are public by definition. Guarded bytes answer the app and
+ * opaque origins (`null`), and still need their token.
+ *
+ * Everywhere else (markdrop.in's own viewer, a workspace domain, a link opened on its own) author
+ * HTML and SVG get the same opaque sandbox as a header too (RAW_SANDBOX_CSP), so no customer's file
+ * ever runs with this shared origin, whatever framed it. An HTML page load gets an in-memory
+ * localStorage / sessionStorage / cookie stand-in (STORAGE_SHIM) so a page that saves state keeps
+ * working there. Viewer pages opened on their own are sandboxed as well (VIEWER_SANDBOX_CSP).
  *
  * Theme: viewer pages (and the "file isn't available" page) accept
  * ?theme=dark|light. The iframe cannot read the app's theme, so the app passes
@@ -114,7 +121,7 @@ export default {
         headers: {
           ...corsHeaders(request),
           "access-control-allow-methods": "GET, HEAD, OPTIONS",
-          "access-control-allow-headers": "content-type",
+          "access-control-allow-headers": "content-type, range",
           "access-control-max-age": "3600",
         },
       });
@@ -130,7 +137,7 @@ export default {
       const renderer = parts[1];
       // A viewer URL is always a page, so it always gets the page.
       if (!VIEWERS.has(renderer)) return unavailablePage(readTheme(url), 404);
-      return serveViewer(renderer, parts.slice(2).join("/"), url, env);
+      return serveViewer(renderer, parts.slice(2).join("/"), url, env, request);
     }
     if (parts[0] === "b") return serveBranding(parts.slice(1).join("/"), env, request);
     if (url.pathname === "/" || url.pathname === "/robots.txt") {
@@ -206,19 +213,116 @@ async function serveBranding(key, env, request) {
  */
 const SANDBOX_CSP = "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads";
 
+/**
+ * Every other author HTML / SVG response (markdrop.in's own viewer, a workspace domain, a link
+ * opened on its own): the same opaque sandbox, always, whatever framed it or didn't. Every
+ * customer's file shares this one origin, so a file that kept it could read and write the storage,
+ * cookies and IndexedDB of every other file, and script any window of this origin it can reach.
+ * The one difference from SANDBOX_CSP: a new tab the page opens (a plain target=_blank link to
+ * another site) is a normal page there, not a sandboxed one. A new tab of this origin is
+ * sandboxed again by this header, so that never hands a file this origin back.
+ */
+const RAW_SANDBOX_CSP = `${SANDBOX_CSP} allow-popups-to-escape-sandbox`;
+
+/**
+ * A viewer page opened as a page of its own (Sec-Fetch-Dest: document): an opaque sandbox too, so a
+ * bug in a file parser it runs (PDF.js, SheetJS, mammoth) on a hostile file never has this origin.
+ * In a frame the frame's own sandbox applies (markdrop.in: no allow-same-origin), and the header is
+ * left off there so a docs page built before that still reads its PDF viewer's messages.
+ */
+const VIEWER_SANDBOX_CSP = "sandbox allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox";
+
 const APP_ORIGINS = new Set([
   "https://markdrop.in",
   "https://www.markdrop.in",
   "http://localhost:3000",
 ]);
 
+/**
+ * Response headers a cross-origin reader may see: PDF.js reads Accept-Ranges to fetch a PDF in
+ * ranges rather than whole, and a 206's Content-Range.
+ */
+const EXPOSE = "accept-ranges, content-range, content-length, etag";
+
+/**
+ * CORS for guarded bytes (and preflights): the app's origins, and opaque origins (`Origin: null`),
+ * which is what Markdrop's own sandboxed viewer frames are. Guarded bytes still need the signed
+ * token in their URL, and that token is the capability: CORS was never what kept them private
+ * (anyone holding the URL can read it), so a sandboxed page holding the URL may read it too.
+ */
 function corsHeaders(request) {
   const origin = request.headers.get("Origin");
-  if (!origin || !APP_ORIGINS.has(origin)) return {};
+  if (!origin || !(APP_ORIGINS.has(origin) || origin === "null")) return {};
   return {
     "access-control-allow-origin": origin,
+    "access-control-expose-headers": EXPOSE,
     "vary": "Origin",
   };
+}
+
+/**
+ * A tiny stand-in for localStorage, sessionStorage and document.cookie, run before an HTML file's
+ * first script. In the opaque sandbox above, the browser throws a SecurityError on any of them,
+ * and a page that reads saved state on load without try/catch would stop dead. This keeps such a
+ * page working with in-memory storage: state lasts while the page is open and starts empty on
+ * every load (nothing persists, and nothing is shared with any other file). Only where reading the
+ * real one throws, so a browser that ever allows it keeps the real one.
+ */
+const STORAGE_SHIM = `<script>(function(){var w=window;function S(){var d=new Map();return{get length(){return d.size},key:function(i){var k=Array.from(d.keys());return i>=0&&i<k.length?k[i]:null},getItem:function(k){k=String(k);return d.has(k)?d.get(k):null},setItem:function(k,v){d.set(String(k),String(v))},removeItem:function(k){d.delete(String(k))},clear:function(){d.clear()}}}["localStorage","sessionStorage"].forEach(function(n){try{w[n].length}catch(e){try{Object.defineProperty(w,n,{value:S(),configurable:true})}catch(_){}}});try{document.cookie}catch(e){var j=new Map();try{Object.defineProperty(document,"cookie",{configurable:true,get:function(){return Array.from(j,function(p){return p[0]+"="+p[1]}).join("; ")},set:function(v){var p=String(v).split(";"),kv=p[0],i=kv.indexOf("="),k=(i<0?"":kv.slice(0,i)).trim(),x=i<0?kv.trim():kv.slice(i+1).trim(),gone=p.slice(1).some(function(a){a=a.trim().toLowerCase();return/^max-age=\\s*(-|0+$)/.test(a)||(a.indexOf("expires=")===0&&Date.parse(a.slice(8))<Date.now())});if(gone)j.delete(k);else j.set(k,x)}})}catch(_){}}})()</script>`;
+
+const SHIM_BYTES = new TextEncoder().encode(STORAGE_SHIM);
+const SCRIPT_TAG = new TextEncoder().encode("<script");
+
+/** Index of the first `<script` (ASCII, any case) in `bytes`, or -1. */
+function findScriptTag(bytes) {
+  outer: for (let i = 0; i <= bytes.length - SCRIPT_TAG.length; i++) {
+    for (let k = 0; k < SCRIPT_TAG.length; k++) {
+      const b = bytes[i + k];
+      // A-Z → a-z; "<" has no case.
+      if ((b >= 65 && b <= 90 ? b + 32 : b) !== SCRIPT_TAG[k]) continue outer;
+    }
+    return i;
+  }
+  return -1;
+}
+
+/**
+ * The HTML body with STORAGE_SHIM inserted just before its first `<script` tag, streamed. Before
+ * the first script so it runs before any of the page's own code; there and not at the top so the
+ * page's doctype and `<meta charset>` keep their place in its first bytes. A page with no script
+ * tag is passed through unchanged. Byte-level, so it never re-encodes the page (any ASCII-compatible
+ * charset).
+ */
+function withStorageShim(body) {
+  let done = false;
+  let carry = new Uint8Array(0);
+  const keep = SCRIPT_TAG.length - 1;
+  return body.pipeThrough(
+    new TransformStream({
+      transform(chunk, ctl) {
+        if (done) return ctl.enqueue(chunk);
+        const buf = new Uint8Array(carry.length + chunk.length);
+        buf.set(carry);
+        buf.set(chunk, carry.length);
+        const at = findScriptTag(buf);
+        if (at >= 0) {
+          done = true;
+          carry = new Uint8Array(0);
+          if (at > 0) ctl.enqueue(buf.subarray(0, at));
+          ctl.enqueue(SHIM_BYTES);
+          ctl.enqueue(buf.subarray(at));
+          return;
+        }
+        // Keep the tail: a `<script` may straddle this chunk and the next.
+        const cut = Math.max(0, buf.length - keep);
+        if (cut > 0) ctl.enqueue(buf.subarray(0, cut));
+        carry = buf.slice(cut);
+      },
+      flush(ctl) {
+        if (carry.length) ctl.enqueue(carry);
+      },
+    }),
+  );
 }
 
 function baseHeaders() {
@@ -315,7 +419,9 @@ async function serveRaw(blobKey, url, env, request) {
   const type = head.httpMetadata?.contentType || "application/octet-stream";
   // Public bytes are public by URL: any origin may read them, without credentials (an embedded
   // page runs in an opaque origin, so its own module scripts and fetches send Origin: null).
-  const cors = isPublic && request.headers.get("Origin") ? { "access-control-allow-origin": "*" } : corsHeaders(request);
+  const cors = isPublic && request.headers.get("Origin")
+    ? { "access-control-allow-origin": "*", "access-control-expose-headers": EXPOSE }
+    : corsHeaders(request);
   const headers = new Headers({ ...baseHeaders(), ...cors });
   headers.set("content-type", type);
   headers.set("etag", head.httpEtag);
@@ -323,6 +429,8 @@ async function serveRaw(blobKey, url, env, request) {
   // anyone drag the scrubber, whatever the current request asked for.
   headers.set("accept-ranges", "bytes");
 
+  // An HTML file loaded as a page (not fetched, not ranged, not a download) gets STORAGE_SHIM.
+  let shim = false;
   if (url.searchParams.get("dl") === "1") {
     // A download link (no fetch): on a workspace's own domain the app can't
     // read these bytes cross-origin (CORS here lists only the app's origins),
@@ -331,9 +439,14 @@ async function serveRaw(blobKey, url, env, request) {
     headers.set("content-disposition", attachmentDisposition(url.searchParams.get("fn")));
   } else if (INLINE_TYPES.has(type)) {
     headers.set("content-disposition", "inline");
-    // Framed by a docs page: the frame's sandbox, enforced here too (defence in depth).
-    if (url.searchParams.get("sb") === "1" && (type === "text/html" || type === "image/svg+xml")) {
-      headers.set("content-security-policy", SANDBOX_CSP);
+    if (type === "text/html" || type === "image/svg+xml") {
+      // Author content never runs with this origin: framed by a docs page (`?sb=1`, the frame's
+      // own sandbox repeated), or anywhere else (RAW_SANDBOX_CSP).
+      headers.set("content-security-policy", url.searchParams.get("sb") === "1" ? SANDBOX_CSP : RAW_SANDBOX_CSP);
+      shim = type === "text/html" && request.method === "GET" && !request.headers.get("range") && wantsPage(request);
+      // The bytes differ by how they're asked for (a page gets the shim, a fetch the file as
+      // stored), so a cache must never hand one the other's.
+      headers.set("vary", [headers.get("vary"), "Sec-Fetch-Dest", "Accept"].filter(Boolean).join(", "));
     }
   } else {
     // Unknown type: never render it, hand it over as a download.
@@ -381,11 +494,16 @@ async function serveRaw(blobKey, url, env, request) {
 
   const obj = await env.ARTIFACTS.get(blobKey);
   if (!obj) return notFound();
+  if (shim) {
+    // Not the stored bytes: its own validator, and the length is the stream's.
+    headers.set("etag", head.httpEtag.replace(/"$/, '-s"'));
+    return new Response(withStorageShim(obj.body), { headers });
+  }
   headers.set("content-length", String(head.size));
   return new Response(obj.body, { headers });
 }
 
-function serveViewer(renderer, blobKey, url, env) {
+function serveViewer(renderer, blobKey, url, env, request) {
   const theme = readTheme(url);
   if (!blobKey.startsWith("art/")) return unavailablePage(theme, 404);
   // Only `t` is forwarded to /r/. `theme` styles this page and goes no further.
@@ -405,13 +523,14 @@ function serveViewer(renderer, blobKey, url, env) {
     : renderer === "video" ? videoViewer(src, poster)
     : renderer === "audio" ? audioViewer(src, theme)
     : textViewer(src, theme);
-  return new Response(html, {
-    headers: {
-      ...baseHeaders(),
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "public, max-age=600",
-    },
-  });
+  const headers = {
+    ...baseHeaders(),
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "public, max-age=600",
+    "vary": "Sec-Fetch-Dest",
+  };
+  if (request.headers.get("sec-fetch-dest") === "document") headers["content-security-policy"] = VIEWER_SANDBOX_CSP;
+  return new Response(html, { headers });
 }
 
 /*
@@ -602,6 +721,40 @@ const MEDIA_BRIDGE = `<script>
   }catch(_){}
 })();
 </script>`;
+
+// Shared by the sheet and Word viewers: markup a file parser built, made safe before it touches the
+// page. Neither library promises safe output for a hostile file: SheetJS 0.18.5 writes a cell's raw
+// value into its data-v attribute unescaped (a CSV cell `"><img src=x onerror=…>` runs script),
+// and mammoth keeps a link's href as the document has it (javascript: included). The markup is
+// parsed inert in a <template>; script-capable elements go with their content, anything else
+// unknown is unwrapped, attributes are an allowlist, and href / src must be http(s), mailto, an
+// in-page anchor, or (an image's src) a data: image.
+const SAFE_HTML_SCRIPT = `
+var SAFE_TAGS = new Set('A B BLOCKQUOTE BR CAPTION CODE COL COLGROUP DD DEL DIV DL DT EM FIGCAPTION FIGURE H1 H2 H3 H4 H5 H6 HR I IMG INS LI MARK OL P PRE S SMALL SPAN STRONG SUB SUP TABLE TBODY TD TFOOT TH THEAD TR U UL'.split(' '));
+var DROP_TAGS = new Set('SCRIPT STYLE IFRAME FRAME FRAMESET OBJECT EMBED APPLET LINK META BASE FORM INPUT BUTTON SELECT TEXTAREA TEMPLATE NOSCRIPT svg math'.split(' '));
+var SAFE_ATTRS = new Set('href src alt title colspan rowspan id class data-t data-v scope start type align valign width height'.split(' '));
+function safeUrl(v, img) {
+  v = String(v).trim();
+  return /^(https?:|mailto:|#)/i.test(v) || (img && /^data:image\\/(png|jpe?g|gif|webp|bmp|x-emf|x-wmf);/i.test(v));
+}
+function safeFragment(html) {
+  var t = document.createElement('template');
+  t.innerHTML = html;
+  var all = Array.from(t.content.querySelectorAll('*'));
+  for (var i = 0; i < all.length; i++) {
+    var el = all[i];
+    // Inside something already dropped.
+    if (!t.content.contains(el)) continue;
+    if (DROP_TAGS.has(el.tagName) || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') { el.remove(); continue; }
+    if (!SAFE_TAGS.has(el.tagName)) { el.replaceWith.apply(el, Array.from(el.childNodes)); continue; }
+    Array.from(el.attributes).forEach(function (a) {
+      var n = a.name.toLowerCase();
+      var url = n === 'href' || n === 'src';
+      if (!SAFE_ATTRS.has(n) || (url && !safeUrl(a.value, n === 'src' && el.tagName === 'IMG'))) el.removeAttribute(a.name);
+    });
+  }
+  return t.content;
+}`;
 
 // Shared by the viewers: swap the whole page for the unavailable state.
 const NA_SCRIPT = `
@@ -893,6 +1046,31 @@ function sheetViewer(src, theme) {
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 ${NA_SCRIPT}
+${SAFE_HTML_SCRIPT}
+// SheetJS 0.18.5's sheet_to_html writes a cell's value (data-v), number format (data-z), link
+// target and rich-text markup into the HTML as they are. A copy of the sheet with those escaped
+// (and a link kept only when it is http(s) or mailto), so the table comes out right as well as
+// safe; the displayed text is the cell's own formatted text, which SheetJS escapes itself.
+function escapedSheet(ws) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const out = {};
+  for (const k of Object.keys(ws)) {
+    const c = ws[k];
+    if (k[0] === '!' || !c || typeof c !== 'object') { out[k] = c; continue; }
+    const s = Object.assign({}, c);
+    if (s.w == null && s.v != null) { try { s.w = XLSX.utils.format_cell(c); } catch (_) { s.w = String(s.v); } }
+    if (s.v != null) s.v = esc(s.v);
+    if (s.z != null) s.z = esc(s.z);
+    delete s.h;
+    if (s.l) {
+      const t = String(s.l.Target || '');
+      if (/^(https?:|mailto:)/i.test(t)) s.l = Object.assign({}, s.l, { Target: esc(t) });
+      else delete s.l;
+    }
+    out[k] = s;
+  }
+  return out;
+}
 (async () => {
   const $ = (id) => document.getElementById(id);
   const out = $('out'), tabsEl = $('tabs'), status = $('status'), scroller = $('scroller'), live = $('live');
@@ -917,7 +1095,7 @@ ${NA_SCRIPT}
       } else {
         const r = XLSX.utils.decode_range(ref);
         const holder = document.createElement('div');
-        holder.innerHTML = XLSX.utils.sheet_to_html(ws, { header: '', footer: '' });
+        holder.appendChild(safeFragment(XLSX.utils.sheet_to_html(escapedSheet(ws), { header: '', footer: '' })));
         const table = holder.querySelector('table');
         if (table) {
           table.className = 'grid';
@@ -1033,6 +1211,7 @@ function docxViewer(src, theme) {
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 ${NA_SCRIPT}
+${SAFE_HTML_SCRIPT}
 (async () => {
   const out = document.getElementById('out');
   try {
@@ -1040,9 +1219,10 @@ ${NA_SCRIPT}
     if (res.status === 403 || res.status === 404) return showUnavailable();
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const { value, messages } = await mammoth.convertToHtml({ arrayBuffer: await res.arrayBuffer() });
-    // mammoth's output is generated from the docx, not raw user HTML, but this
-    // page is sandboxed and cross-origin from the app regardless.
-    out.innerHTML = value || '<p class="msg">This document appears to be empty.</p>';
+    // mammoth's output is generated from the docx but not sanitised (a link keeps whatever href
+    // the document gave it): safeFragment.
+    if (value) out.replaceChildren(safeFragment(value));
+    else out.innerHTML = '<p class="msg">This document appears to be empty.</p>';
     if (messages?.length) console.info('mammoth:', messages);
   } catch (e) {
     out.innerHTML = '';

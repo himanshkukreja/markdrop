@@ -1,7 +1,7 @@
 ---
 title: Publish an HTML page
 description: Turn HTML you have as text, like a page an AI assistant wrote, into a live link. Save it as a file, ask your assistant, or send it to the API.
-updated: 2026-10-30
+updated: 2026-11-02
 keywords: [html, paste html, ai generated page, claude artifact, publish html, single file]
 ---
 
@@ -58,6 +58,8 @@ A Markdrop document is Markdown, and Markdrop drops HTML tags from documents, so
 The page runs with its scripts, styles and web fonts, and can load scripts and images from other sites, such as a charting library from a CDN. Forms, pop-ups and downloads work.
 
 It runs inside a sandbox on a separate domain, never on markdrop.in. It can't read Markdrop's cookies or storage, or the reader's Markdrop session. See [How files are served](/security/how-files-are-served).
+
+The page is also kept apart from every other file on Markdrop, so it can't read another page's saved data and no other page can read its. Browser storage works for one visit: `localStorage`, `sessionStorage` and cookies keep what the page saves while it's open, and start empty the next time it loads. IndexedDB isn't available. To keep data between visits, save it somewhere the page can fetch it from, such as your own API.
 
 ## Update the page
 

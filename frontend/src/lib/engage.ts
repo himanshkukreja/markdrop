@@ -24,6 +24,7 @@ import {
   addTo,
   copyKey,
   emptyDelta,
+  fromFrameOrigin,
   linkKey,
   spyIndex,
   type BridgeMessage,
@@ -368,7 +369,8 @@ export function useDocEngagement(
 
 /**
  * Engagement for an artifact. pdf / video / audio listen to the Worker viewer's bridge (§1c):
- * a message is taken only from the frame we mounted (`source`) and the origin we pointed it at.
+ * a message is taken only from the frame we mounted (`source`), from its opaque origin ("null": the
+ * frame is sandboxed without allow-same-origin) or the origin we pointed it at.
  * Every other kind reports active time only. Opt-out is checked here; `enabled` must already
  * exclude the owner and a locked file.
  */
@@ -423,7 +425,7 @@ export function useArtifactEngagement(
 
     const onMessage = (e: MessageEvent) => {
       const f = frame.current;
-      if (!f || !origin || e.source !== f.contentWindow || e.origin !== origin) return;
+      if (!f || !origin || e.source !== f.contentWindow || !fromFrameOrigin(e.origin, origin)) return;
       const m = e.data as BridgeMessage | null;
       if (!m || typeof m !== "object" || m.md !== 1) return;
       if (pdf && (m.ev === "pdf" || m.ev === "page")) {

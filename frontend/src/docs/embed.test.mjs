@@ -106,11 +106,14 @@ test("only the artifact origin is framed", () => {
 const attrs = (extra = {}) => embedAttrs({ src: "https://markdrop.in/acme", ...extra });
 const ok = (extra = {}) => ({ state: "ok", slug: "acme", title: "Acme pricing", size_bytes: 20480, type_label: "HTML page", ...extra });
 
-test("sandbox: author HTML gets an opaque origin; only Markdrop's viewer keeps its own", () => {
-  for (const flag of ["allow-same-origin", "allow-top-navigation", "allow-popups-to-escape-sandbox", "allow-storage-access-by-user-activation", "allow-top-navigation-by-user-activation"])
+test("sandbox: author HTML and Markdrop's own PDF viewer both get an opaque origin", () => {
+  for (const flag of ["allow-same-origin", "allow-top-navigation", "allow-popups-to-escape-sandbox", "allow-storage-access-by-user-activation", "allow-top-navigation-by-user-activation"]) {
     assert.ok(!SANDBOX.split(" ").includes(flag), flag);
+    // The viewer parses an untrusted PDF on the origin every customer shares.
+    assert.ok(!SANDBOX_VIEWER.split(" ").includes(flag), flag);
+  }
   assert.deepEqual(SANDBOX.split(" ").sort(), ["allow-downloads", "allow-forms", "allow-modals", "allow-popups", "allow-scripts"]);
-  assert.deepEqual(SANDBOX_VIEWER.split(" ").sort(), ["allow-downloads", "allow-same-origin", "allow-scripts"]);
+  assert.deepEqual(SANDBOX_VIEWER.split(" ").sort(), ["allow-downloads", "allow-scripts"]);
   for (const p of ["camera", "microphone", "geolocation", "payment", "usb", "display-capture"]) assert.match(FRAME_ALLOW, new RegExp(`${p} 'none'`));
 });
 

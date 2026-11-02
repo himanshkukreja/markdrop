@@ -71,6 +71,16 @@ const fin = (x: unknown): x is number => typeof x === "number" && Number.isFinit
 const r1 = (x: number) => Math.round(x * 10) / 10;
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
+/**
+ * Whether a viewer-bridge message's `origin` fits the artifact frame it came from (the caller also
+ * checks `e.source` is that frame's window). The frame is sandboxed without allow-same-origin, so
+ * its document is an opaque origin and its messages say "null"; the artifact origin itself is
+ * still accepted (a docs page built before that, or the Worker's viewer framed with its origin).
+ */
+export function fromFrameOrigin(messageOrigin: string, frameOrigin: string): boolean {
+  return messageOrigin === frameOrigin || messageOrigin === "null";
+}
+
 export function addTo(map: Record<string, number>, key: string, n = 1): void {
   map[key] = (map[key] ?? 0) + n;
 }

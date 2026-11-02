@@ -35,7 +35,7 @@
  *    pages read, active time), tagged the same way. Opted-out browsers send no session at all.
  */
 import { useCallback, useEffect, useRef, type RefObject } from "react";
-import { MediaAgg, PdfAgg, emptyDelta, type BridgeMessage, type EngageDelta, type EngagePos } from "@/lib/engageCore";
+import { MediaAgg, PdfAgg, emptyDelta, fromFrameOrigin, type BridgeMessage, type EngageDelta, type EngagePos } from "@/lib/engageCore";
 import { sendInsight } from "./Insights";
 import { EMBED_EVENT } from "../signals.mjs";
 
@@ -382,12 +382,12 @@ export function useEmbedAnalytics(i: EmbedAnalyticsInput) {
     });
   }, [track, video, slug, insight, interact, signal]);
 
-  // The PDF viewer's page reports (its bridge), from our frame and the artifact origin only.
+  // The PDF viewer's page reports (its bridge), from our frame only (its opaque origin, or the artifact origin).
   useEffect(() => {
     if (!track || kind !== "pdf" || !frameOrigin) return;
     const onMessage = (e: MessageEvent) => {
       const f = frame.current;
-      if (!f || e.source !== f.contentWindow || e.origin !== frameOrigin) return;
+      if (!f || e.source !== f.contentWindow || !fromFrameOrigin(e.origin, frameOrigin)) return;
       const m = e.data as BridgeMessage | null;
       if (!m || typeof m !== "object" || m.md !== 1) return;
       if (m.ev === "pdf" && typeof m.n === "number") pdf.current.n = Math.floor(m.n);

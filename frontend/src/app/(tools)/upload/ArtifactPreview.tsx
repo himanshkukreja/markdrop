@@ -132,9 +132,16 @@ export default function ArtifactPreview({
   const wbRef = useRef<unknown>(null);
 
   // Object URLs are only ever used for types that cannot script our origin
-  // (PDF, images) — never for HTML. Revoked when the file changes.
+  // (PDF, images) — never for HTML. Revoked when the file changes. The PDF's
+  // blob is typed application/pdf here rather than trusting the File's own type:
+  // `kind` comes from the file NAME, and a blob: URL framed unsandboxed is a page
+  // of markdrop.in, so a ".pdf" whose type said text/html must never render as one.
+  // (An <img> never runs script, whatever its type.)
   const objectUrl = useMemo(
-    () => (file && (kind === "pdf" || kind === "image") ? URL.createObjectURL(file) : null),
+    () =>
+      file && (kind === "pdf" || kind === "image")
+        ? URL.createObjectURL(kind === "pdf" ? new Blob([file], { type: "application/pdf" }) : file)
+        : null,
     [file, kind]
   );
   useEffect(() => () => { if (objectUrl) URL.revokeObjectURL(objectUrl); }, [objectUrl]);

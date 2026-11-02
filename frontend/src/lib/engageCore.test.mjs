@@ -2,7 +2,15 @@
 // (Node >= 22.18 strips the types from engageCore.ts; it has no imports.)
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MediaAgg, PdfAgg, copyKey, fnv1a32, linkKey, mediaErr, spyIndex, utmFrom } from "./engageCore.ts";
+import { MediaAgg, PdfAgg, copyKey, fnv1a32, fromFrameOrigin, linkKey, mediaErr, spyIndex, utmFrom } from "./engageCore.ts";
+
+test("fromFrameOrigin: the sandboxed frame's opaque origin, or the artifact origin itself", () => {
+  const art = "https://markdrop-artifacts.markdrop-in.workers.dev";
+  assert.equal(fromFrameOrigin("null", art), true);
+  assert.equal(fromFrameOrigin(art, art), true);
+  assert.equal(fromFrameOrigin("https://evil.example", art), false);
+  assert.equal(fromFrameOrigin("https://markdrop.in", art), false);
+});
 
 test("fnv1a32 matches the reference vectors, over UTF-8", () => {
   assert.equal(fnv1a32(""), "811c9dc5");

@@ -122,6 +122,56 @@
 function showUnavailable(){
   document.body.innerHTML = '<main class="na-body">' + "<div class=\"na\" role=\"status\">\n<span class=\"na-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"/><path d=\"M14 3v5h5\"/><path d=\"m10 12 4 4m0-4-4 4\"/></svg></span>\n<h1>This file isn't available</h1>\n<p>It may have expired or been deleted.</p>\n<p class=\"na-host\">markdrop.in</p>\n</div>" + '</main>';
 }
+
+var SAFE_TAGS = new Set('A B BLOCKQUOTE BR CAPTION CODE COL COLGROUP DD DEL DIV DL DT EM FIGCAPTION FIGURE H1 H2 H3 H4 H5 H6 HR I IMG INS LI MARK OL P PRE S SMALL SPAN STRONG SUB SUP TABLE TBODY TD TFOOT TH THEAD TR U UL'.split(' '));
+var DROP_TAGS = new Set('SCRIPT STYLE IFRAME FRAME FRAMESET OBJECT EMBED APPLET LINK META BASE FORM INPUT BUTTON SELECT TEXTAREA TEMPLATE NOSCRIPT svg math'.split(' '));
+var SAFE_ATTRS = new Set('href src alt title colspan rowspan id class data-t data-v scope start type align valign width height'.split(' '));
+function safeUrl(v, img) {
+  v = String(v).trim();
+  return /^(https?:|mailto:|#)/i.test(v) || (img && /^data:image\/(png|jpe?g|gif|webp|bmp|x-emf|x-wmf);/i.test(v));
+}
+function safeFragment(html) {
+  var t = document.createElement('template');
+  t.innerHTML = html;
+  var all = Array.from(t.content.querySelectorAll('*'));
+  for (var i = 0; i < all.length; i++) {
+    var el = all[i];
+    // Inside something already dropped.
+    if (!t.content.contains(el)) continue;
+    if (DROP_TAGS.has(el.tagName) || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') { el.remove(); continue; }
+    if (!SAFE_TAGS.has(el.tagName)) { el.replaceWith.apply(el, Array.from(el.childNodes)); continue; }
+    Array.from(el.attributes).forEach(function (a) {
+      var n = a.name.toLowerCase();
+      var url = n === 'href' || n === 'src';
+      if (!SAFE_ATTRS.has(n) || (url && !safeUrl(a.value, n === 'src' && el.tagName === 'IMG'))) el.removeAttribute(a.name);
+    });
+  }
+  return t.content;
+}
+// SheetJS 0.18.5's sheet_to_html writes a cell's value (data-v), number format (data-z), link
+// target and rich-text markup into the HTML as they are. A copy of the sheet with those escaped
+// (and a link kept only when it is http(s) or mailto), so the table comes out right as well as
+// safe; the displayed text is the cell's own formatted text, which SheetJS escapes itself.
+function escapedSheet(ws) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const out = {};
+  for (const k of Object.keys(ws)) {
+    const c = ws[k];
+    if (k[0] === '!' || !c || typeof c !== 'object') { out[k] = c; continue; }
+    const s = Object.assign({}, c);
+    if (s.w == null && s.v != null) { try { s.w = XLSX.utils.format_cell(c); } catch (_) { s.w = String(s.v); } }
+    if (s.v != null) s.v = esc(s.v);
+    if (s.z != null) s.z = esc(s.z);
+    delete s.h;
+    if (s.l) {
+      const t = String(s.l.Target || '');
+      if (/^(https?:|mailto:)/i.test(t)) s.l = Object.assign({}, s.l, { Target: esc(t) });
+      else delete s.l;
+    }
+    out[k] = s;
+  }
+  return out;
+}
 (async () => {
   const $ = (id) => document.getElementById(id);
   const out = $('out'), tabsEl = $('tabs'), status = $('status'), scroller = $('scroller'), live = $('live');
@@ -146,7 +196,7 @@ function showUnavailable(){
       } else {
         const r = XLSX.utils.decode_range(ref);
         const holder = document.createElement('div');
-        holder.innerHTML = XLSX.utils.sheet_to_html(ws, { header: '', footer: '' });
+        holder.appendChild(safeFragment(XLSX.utils.sheet_to_html(escapedSheet(ws), { header: '', footer: '' })));
         const table = holder.querySelector('table');
         if (table) {
           table.className = 'grid';

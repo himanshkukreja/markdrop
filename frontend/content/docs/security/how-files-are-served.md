@@ -1,7 +1,7 @@
 ---
 title: How files are served
 description: Why uploaded files open from a separate site, how protected files use short-lived links, and what Markdrop stores for passwords and keys.
-updated: 2026-11-01
+updated: 2026-11-02
 keywords: [security, isolation, sandbox, origin, signed url, html, xss, passwords, edit key, encryption]
 ---
 
@@ -14,6 +14,12 @@ Documents render on markdrop.in. Uploaded files don't: they're served from a sep
 That separation is the main protection. Your browser keeps your Markdrop sign-in, and the edit keys and passwords you've used, in storage that belongs to markdrop.in. A script in an uploaded HTML page runs on the other site, so it can't read any of that.
 
 The frame is sandboxed, and the file site adds protective headers to every response: browsers must not guess file types, links don't pass on the page's address, and search engines are asked not to index files.
+
+## Each file is kept apart from the others
+
+Every uploaded file is served from the same file site, so the sandbox also keeps files apart from each other. A file runs without a site of its own (an opaque origin): it can't read another file's storage or cookies, and it can't reach another file's window. The file site sends the same sandbox as a header, so this holds even when someone opens a file on its own, outside Markdrop.
+
+Markdrop's own PDF, spreadsheet and Word viewers run the same way, and they clean what they read from a file before showing it, so a booby-trapped spreadsheet cell or a `javascript:` link in a Word file can't run anything.
 
 ## Only safe types open in the page
 
