@@ -9,7 +9,7 @@ keywords: [editor, visual editor, markdown, slash menu, blocks, drag and drop, r
 
 Open a guide and its **Pages** tab is the editor: the page tree on the left, the page in the middle, and the page panel on the right (**Checks**, **Page**, **Comments** and **History**). On a phone, **Pages** and **Page** in the bar open the tree and the panel.
 
-![The Markdrop Guides editor on Acme's Quickstart page: the page tree with groups Getting started, Guides, Reference and Help, the page with its place in the guide, title, description, a note callout and tabs, and on the right the page panel on Checks (Headings and links look good, then On this page). Under the page, the word count, Find and replace and Shortcuts.](/docs-assets/guides/editor/editor-overview.webp)
+![The Markdrop Guides editor on Acme's Quickstart page: the guide's bar (Pages, Fix list 14, Changelog, Design, Publish 4, Insights, Settings, Saved, Visual and Markdown, Preview, Live and Publish 4 changes), the page tree with groups Getting started, Guides, Reference and Help and the Hidden pages, the page with its place in the guide, title, description, a note callout and tabs, and on the right the page panel on Checks (Headings and links look good, then On this page). Under the page, the word count, Embed a Markdrop file, Find and replace and Shortcuts.](/docs-assets/guides/editor/editor-overview.webp)
 
 Only people with the Editor, Reviewer or Admin role can edit. Viewers see the same screen with **View only** in the bar. See [Members and roles](/guides/members-and-roles).
 
@@ -154,7 +154,7 @@ The menu also lists **Embed**, a page from another site, which shows as a link c
 
 Press `?` (when you're not typing) or **Shortcuts** in the status bar for the list. On Windows and Linux, use Ctrl for ⌘ and Alt for ⌥.
 
-![The Keyboard shortcuts sheet: Text (bold, italic, strikethrough, inline code, link, keyboard key), Page (find and replace, next and previous match, undo, redo, send a comment, this sheet) and Blocks (block menu, headings, lists, quote, code block, move a block, line break).](/docs-assets/guides/editor/editor-shortcuts.webp)
+![The Keyboard shortcuts sheet: Text (bold, italic, strikethrough, inline code, link, keyboard key), Page (find and replace, next and previous match, undo, redo, send a comment, this sheet) and Blocks (block menu, headings, lists, quote, code block, move a block, move a card, line break), and Page tree (on a page's grip: pick up or drop, move, cancel).](/docs-assets/guides/editor/editor-shortcuts.webp)
 
 | Shortcut | Does |
 | --- | --- |

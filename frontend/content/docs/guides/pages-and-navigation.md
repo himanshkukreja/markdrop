@@ -36,7 +36,7 @@ With the keyboard, focus a page's grip, press Space to pick it up, ↑ or ↓ to
 
 Each page in the tree also has a menu (**…**) with **Move up**, **Move down**, **Move to** another group, and **Delete page**. The new order is saved straight away and reaches readers at the next publish. Pages that come from a connected GitHub repository take their place in the sidebar from the repository: see [Import from GitHub and keep in sync](/guides/import-from-github#keep-it-in-sync).
 
-![The page tree with the menu of Alert rules open: Move up, Move down, Move to Getting started, Move to Reference, Move to Help and Delete page.](/docs-assets/guides/pages-and-navigation/page-tree.webp)
+![The page tree with Alert rules pointed at, its drag grip on the left, and its menu open: Move up, Move down, Move to Getting started, Move to Reference, Move to Help and Delete page. Hidden pages, with Legacy connectors, at the bottom.](/docs-assets/guides/pages-and-navigation/page-tree.webp)
 
 Deleting a page asks first. If it's on the published guide, it disappears at the next publish and old links to it stop working, so [add a redirect](#redirects) if people link to it. You can't delete the home page, or a page someone else is editing.
 
@@ -52,7 +52,7 @@ The **Page** tab of the panel on the right of the editor (**Page** in the bar on
 
 The page's saves are in the **History** tab. See [History and versions](/guides/history).
 
-![The Page tab of Quickstart: Address /getting-started/quickstart, Icon (a lightning bolt) with Remove, the Description with its length, and Show in the sidebar on.](/docs-assets/guides/pages-and-navigation/page-settings.webp)
+![The Page tab of Quickstart: Address /getting-started/quickstart, Icon (a lightning bolt) with Remove, the Description with its length, Show in the sidebar on, and Who can open this page set to Inherit: anyone (public), with Preview as and Manage rules.](/docs-assets/guides/pages-and-navigation/page-settings.webp)
 
 ## Page addresses
 

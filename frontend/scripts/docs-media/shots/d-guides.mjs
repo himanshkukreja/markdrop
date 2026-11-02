@@ -751,8 +751,8 @@ export default [
       await h.loc({ label: "Address" }).waitFor();
       await settle(h);
     },
-    // The panel from its tabs down to Show in the sidebar (not the empty space under it).
-    crop: async (h) => panelCrop(h, { text: "Show in the sidebar", exact: true }),
+    // The panel from its tabs down to Who can open this page (not the empty space under it).
+    crop: async (h) => panelCrop(h, "[data-testid=page-access]"),
   },
   {
     id: "redirects",
