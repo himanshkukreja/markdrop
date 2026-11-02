@@ -10,6 +10,9 @@ import s from "./snap.module.css";
  *   </SnapPage>                    one viewport under the header and snaps to its start; the footer
  *                                  snaps to the page's end. Phones scroll normally.
  *
+ * A section that can't fit one viewport stays a taller block that snaps at its start; mark the
+ * start of its second screen with `data-snap-point=""` to add a stop there.
+ *
  * Server components (no script). See snap.module.css for the rules.
  */
 

@@ -60,6 +60,11 @@
   .page [data-snap-section] {
     scroll-snap-align: start;
   }
+  /* A stop inside a section taller than the viewport (SnapPoint): its second screen. */
+  .page [data-snap-point] {
+    scroll-snap-align: start;
+    scroll-margin-top: clamp(20px, 3.5svh, 40px);
+  }
   :global(html):has(.page) :global(main ~ footer) {
     scroll-snap-align: end;
   }
