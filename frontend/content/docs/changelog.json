@@ -24,6 +24,25 @@
   "next": [],
   "entries": [
     {
+      "id": "guides-studio-address",
+      "date": "2026-11-02",
+      "title": "The Guides studio has its own address: guides.markdrop.in",
+      "kind": "improved",
+      "area": "Markdrop Guides",
+      "products": [
+        "web"
+      ],
+      "summary": "Markdrop Guides, where you write and publish your guides, now opens at guides.markdrop.in. markdrop.in/guides is the page about Markdrop Guides, for everyone.",
+      "body": "- **guides.markdrop.in** is the studio: your guides, the editor, Insights, the Fix list and every guide's settings.\n- **No second sign-in:** signed in on markdrop.in, you're signed in on guides.markdrop.in too. Signed out, Markdrop asks you to sign in once and brings you back.\n- **markdrop.in/guides** is the page about Markdrop Guides for everyone. Signed in, its button says **Open your guides**.\n- **Old links keep working:** a markdrop.in/guides/… address (an email, a bookmark) opens the same screen on guides.markdrop.in.\n- **Signing out** of Markdrop Guides asks whether to sign out of Markdrop too; signing out on markdrop.in signs you out of both.",
+      "highlights": [
+        "No second sign-in",
+        "Old markdrop.in/guides links still work"
+      ],
+      "docs": [
+        "/guides/overview"
+      ]
+    },
+    {
       "id": "guides-import-from-github",
       "date": "2026-11-02",
       "title": "Markdrop Guides: import from GitHub and keep in sync",

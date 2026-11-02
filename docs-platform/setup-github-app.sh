@@ -380,4 +380,4 @@ print("sha256=" + hmac.new(os.environ["GH_WEBHOOK_SECRET"].encode(), sys.stdin.b
     *) warn "the webhook answered $code; check the app's Advanced › Recent Deliveries after a real push" ;;
   esac
 fi
-echo "Done. Next: https://www.markdrop.in/guides/new?start=github › Connect GitHub (setup-github-app.md › Verify)"
+echo "Done. Next: https://guides.markdrop.in/new?start=github › Connect GitHub (setup-github-app.md › Verify)"

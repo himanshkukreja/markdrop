@@ -9,7 +9,7 @@ keywords: [faq, troubleshooting, publish failed, build failed, import failed, no
 ## About Markdrop Guides
 
 :::details[What's the difference between Markdrop Guides and the Markdrop docs?]
-Markdrop Guides, at [markdrop.in/guides](https://markdrop.in/guides), is where you build guides for your own product. The Markdrop docs, at docs.markdrop.in, are Markdrop's own documentation: the site you're reading. The pages in its Markdrop Guides tab explain the product; everything else here is about Markdrop's documents, files, sharing and workspaces.
+Markdrop Guides, at [guides.markdrop.in](https://guides.markdrop.in), is where you build guides for your own product ([markdrop.in/guides](https://markdrop.in/guides) says what it does). The Markdrop docs, at docs.markdrop.in, are Markdrop's own documentation: the site you're reading. The pages in its Markdrop Guides tab explain the product; everything else here is about Markdrop's documents, files, sharing and workspaces.
 :::
 
 :::details[What does it cost?]

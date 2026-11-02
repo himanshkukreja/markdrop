@@ -11,7 +11,7 @@ keywords: [markdrop guides, guides, documentation site, help center, knowledge b
 Markdrop Guides builds and hosts guides for your product: help centers, product guides, API references and handbooks. These pages explain how to use it. You write pages in the browser, pick a theme, and publish to an address like `acme.guides.markdrop.in`. Your readers get search, Ask AI, a changelog they can subscribe to, and pages their AI tools can read.
 
 :::note[Markdrop Guides or the Markdrop docs?]
-The site you're reading, docs.markdrop.in, is the Markdrop docs: Markdrop's own documentation. It's built with the same engine, but it isn't a guide you manage. The pages in this **Markdrop Guides** tab are about the product at [markdrop.in/guides](https://markdrop.in/guides), where you make guides for *your* product. Everything else on this site is about Markdrop itself.
+The site you're reading, docs.markdrop.in, is the Markdrop docs: Markdrop's own documentation. It's built with the same engine, but it isn't a guide you manage. The pages in this **Markdrop Guides** tab are about the product at [markdrop.in/guides](https://markdrop.in/guides): you make guides for *your* product at [guides.markdrop.in](https://guides.markdrop.in). Everything else on this site is about Markdrop itself.
 :::
 
 Markdrop Guides is in beta, and free while it is. For what it does and how it compares, with the prices planned after the beta, see [markdrop.in/guides](https://markdrop.in/guides).
@@ -83,4 +83,6 @@ A guide can be public with some pages, groups or sections only for your team, fo
 
 ## Open Markdrop Guides
 
-Go to [markdrop.in/guides](https://markdrop.in/guides). From inside Markdrop you can also get there from your account menu (**Guides**), from a workspace's **Guides** link in the sidebar, or with **Guide** in the create menu. Inside Markdrop Guides, **Documents** and **Files** in the header (or **Dashboard** in your account menu) go back to the rest of Markdrop.
+Go to [guides.markdrop.in](https://guides.markdrop.in). It uses your Markdrop account: if you're signed in on markdrop.in, you're signed in there too, with no second sign-in; if not, Markdrop asks you to sign in first and brings you back. From inside Markdrop you can also get there from your account menu (**Guides**), from a workspace's **Guides** link in the sidebar, or with **Guide** in the create menu, and on [markdrop.in/guides](https://markdrop.in/guides) signed in, with **Open your guides**. Inside Markdrop Guides, **Documents** and **Files** in the header (or **Dashboard** in your account menu) go back to the rest of Markdrop.
+
+**Sign out** in Markdrop Guides signs you out of guides.markdrop.in, then asks whether to sign out of Markdrop too. Signing out on markdrop.in signs you out of both. Old links to markdrop.in/guides/… (in emails or bookmarks) still work: they open the same screen on guides.markdrop.in.

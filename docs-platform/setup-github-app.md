@@ -47,8 +47,11 @@ name is taken, pick another (for example "Markdrop Guides App") and note the slu
 
 ### Identifying and authorizing users
 
-1. **Callback URL:** `https://www.markdrop.in/guides/github/installed`
-   (exactly this, https, no trailing slash; one callback URL is enough).
+1. **Callback URL:** `https://guides.markdrop.in/github/installed` (Markdrop Guides' studio host)
+   (exactly this, https, no trailing slash; one callback URL is enough). An app made before the studio
+   moved there has `https://www.markdrop.in/guides/github/installed`: **add** the new one with **Add
+   Callback URL** (GitHub allows several) before deploying the API that names it, then remove the old
+   one. The API sends whatever `MARKDROP_GUIDES_STUDIO_URL` gives (`/github/installed` on it).
 2. **Expire user authorization tokens:** leave it **checked**. Markdrop uses the user token once, right
    after install, and never stores it.
 3. **Request user authorization (OAuth) during installation:** **check it.** This is how Markdrop proves
@@ -180,11 +183,11 @@ The six settings it writes (all `MARKDROP_` settings of the API):
 Use a test repository you own, for example a private `markdrop-guides-test` with a `README.md` and a
 `docs/` folder holding two or three Markdown pages.
 
-1. Open https://www.markdrop.in/guides/new?start=github while signed in to Markdrop.
+1. Open https://guides.markdrop.in/new?start=github while signed in to Markdrop.
 2. Under **Your repositories**, click **Connect GitHub**.
 3. On GitHub: pick your account, choose **Only select repositories**, select the test repository, then
    **Install & Authorize**.
-4. GitHub sends you to `/guides/github/installed`, which says "GitHub is connected: <account>" and takes
+4. GitHub sends you to `guides.markdrop.in/github/installed`, which says "GitHub is connected: <account>" and takes
    you back to the import screen.
 5. Pick the repository, the branch and the folder. Check the preview (page count, groups), turn on
    **Keep in sync**, leave **Update drafts**, name the guide and click **Import**. Wait for it to finish.
@@ -233,7 +236,7 @@ server: `timedatectl status` should say `System clock synchronized: yes`; if not
 set-ntp true`.
 
 **After installing, GitHub doesn't come back to Markdrop, or shows a redirect_uri error.** The Callback URL
-must be exactly `https://www.markdrop.in/guides/github/installed`, and "Request user authorization (OAuth)
+must be exactly `https://guides.markdrop.in/github/installed`, and "Request user authorization (OAuth)
 during installation" must be checked.
 
 **Markdrop can't link an installation on an organization (403).** The person who authorizes must have
