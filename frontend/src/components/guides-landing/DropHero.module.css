@@ -1,0 +1,148 @@
+/*
+ * The Guides landing hero (DropHero.tsx; the demo itself is HeroDemo.module.css). Tokens only.
+ *
+ * From 1024px: one artboard (.canvas, 664 tall; 1200 wide from 1240px, 1120 below), drawn in its own
+ * pixels and scaled as a whole by --k, the smaller of the width / artboard width and the height under
+ * the header / 664, centred in the section. Under 1024px: stacked, the page scrolls.
+ */
+
+.hero {
+  position: relative;
+  box-sizing: border-box;
+  padding: 28px 16px 40px;
+}
+.canvas {
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* ── Copy ───────────────────────────────────────────────────────────── */
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  margin: 0;
+  padding: 0 12px;
+  border-radius: 9999px;
+  background: var(--accent-soft);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.h1 {
+  margin: 18px 0 0;
+  font-size: clamp(42px, 12vw, 60px);
+  line-height: 0.95;
+  font-weight: 800;
+  letter-spacing: -0.058em;
+  color: var(--text);
+  text-wrap: balance;
+}
+.accent {
+  color: var(--accent-text);
+}
+.sub {
+  margin: 18px 0 0;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin-top: 24px;
+}
+@media (max-width: 479px) {
+  .ctas > * {
+    width: 100%;
+  }
+}
+.tour {
+  margin-top: 14px;
+}
+
+/* ── The demo column ────────────────────────────────────────────────── */
+
+.stage {
+  min-width: 0;
+}
+.sample {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* ── From 1024px: the artboard ──────────────────────────────────────── */
+
+@media (min-width: 1024px) {
+  .hero {
+    --hero-vh: calc(100svh - var(--snap-hdr, 56px));
+    height: var(--snap-h, calc(100svh - 56px));
+    padding: 0;
+    container-type: inline-size;
+    overflow: hidden;
+  }
+  .canvas {
+    --aw: 1120px;
+    /* The width less a side gutter (16px at 1024 wide, about 37 a side at 1440, 61 at 1920). */
+    --k: min(tan(atan2(calc(100cqw - clamp(16px, 10cqw - 70px, 240px)), var(--aw))), tan(atan2(var(--hero-vh), 664px)));
+    position: absolute;
+    left: 50%;
+    top: max(0px, calc((var(--hero-vh) - 664px * var(--k)) / 2));
+    display: grid;
+    grid-template-columns: 330px 752px;
+    gap: 24px;
+    align-items: center;
+    width: var(--aw);
+    max-width: none;
+    height: 664px;
+    margin: 0;
+    padding: 0 7px;
+    box-sizing: border-box;
+    transform: translateX(-50%) scale(var(--k));
+    transform-origin: 50% 0;
+  }
+  .copy {
+    padding-bottom: 24px;
+  }
+  .h1 {
+    font-size: 60px;
+  }
+  .sub {
+    font-size: 16.5px;
+  }
+}
+@media (min-width: 1240px) {
+  .ctas {
+    flex-wrap: nowrap;
+  }
+  .canvas {
+    --aw: 1200px;
+    grid-template-columns: 400px 752px;
+    gap: 32px;
+    padding: 0 8px;
+  }
+  .h1 {
+    font-size: 72px;
+  }
+  .sub {
+    font-size: 18px;
+  }
+}
+

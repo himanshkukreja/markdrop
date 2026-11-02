@@ -21,8 +21,6 @@ function labelNode(a: HTMLAnchorElement): Text | null {
  *   - guide_landing_cta {id, section, pillar?} for every [data-cta] click (server HTML included, so
  *     clicks count before any island loads). A pillar card's button carries data-pillar: that is
  *     the landing test's per-pillar interest count;
- *   - guide_landing_demo {step: "used"} the first time focus moves into the live calculator (its
- *     frame is sandboxed, so this is all the page can know about it, by design);
  *   - every start link (a[data-start], a studio path) points at the studio on this host (the static
  *     HTML has guides.markdrop.in's; locally it is /guides/…). Signed in, the "Start a guide"
  *     buttons ([data-signed-in-label]) become "Open your guides", to the studio home.
@@ -55,23 +53,8 @@ export default function LandingTracker() {
       const section = el.closest("section[id]")?.id || "page";
       guideEvents.landingCta(id, section, el.getAttribute("data-pillar"));
     };
-    let used = false;
-    const onBlur = () => {
-      if (used) return;
-      // Focus left the page for a frame: was it the live demo?
-      window.setTimeout(() => {
-        if (document.activeElement?.matches?.("iframe[data-live-demo]")) {
-          used = true;
-          guideEvents.landingDemo("used");
-        }
-      }, 0);
-    };
     document.addEventListener("click", onClick, true);
-    window.addEventListener("blur", onBlur);
-    return () => {
-      document.removeEventListener("click", onClick, true);
-      window.removeEventListener("blur", onBlur);
-    };
+    return () => document.removeEventListener("click", onClick, true);
   }, []);
   return null;
 }
