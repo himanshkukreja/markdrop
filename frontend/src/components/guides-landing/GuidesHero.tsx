@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { preload } from "react-dom";
-import { Icon, StudioGlyph } from "@/components/landing/orbit/ds";
+import { Icon, StudioGlyph } from "@/components/landing/ds";
 import LoopVideo from "./LoopVideo";
 import { LOOPS } from "./loops";
 import s from "./GuidesHero.module.css";

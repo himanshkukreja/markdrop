@@ -1,0 +1,230 @@
+<!doctype html><html lang="en" data-theme="light"><head><meta charset="utf-8">
+<title>Spreadsheet</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root,[data-theme=dark]{color-scheme:dark;
+  --bg:#030712;--surface:#101828;--surface-raised:#1e2939;--surface-hover:#1e2939;
+  --surface-active:#364153;--surface-inset:#0b1220;--border:#1e2939;--border-strong:#364153;
+  --border-focus:#2b7fff;--text:#f3f4f6;--text-secondary:#d1d5dc;--text-muted:#99a1af;
+  --accent:#155dfc;--accent-hover:#2b7fff;--accent-text:#51a2ff;--accent-soft:#2b7fff26;
+  --on-accent:#ffffff;--danger:#ff6467;--code-bg:#0d1117;--code-inline-bg:#1e2939;--code-inline:#fda5d5;
+  --shadow-page:0 4px 8px -2px rgb(0 0 0 / .5),0 2px 4px -2px rgb(0 0 0 / .4);}
+  @media (prefers-color-scheme:light){:root:not([data-theme]){color-scheme:light;
+  --bg:#E3E7ED;--surface:#EBEEF2;--surface-raised:#F2F4F7;--surface-hover:#E3E7EC;
+  --surface-active:#D4DAE2;--surface-inset:#D9DEE6;--border:#CDD4DE;--border-strong:#B2BCCA;
+  --border-focus:#2F6FEB;--text:#111A2C;--text-secondary:#2B3546;--text-muted:#4A5567;
+  --accent:#2150D8;--accent-hover:#1C46C0;--accent-text:#1C46C0;--accent-soft:#2150D81F;
+  --on-accent:#ffffff;--danger:#B41C1C;--code-bg:#E6EAEF;--code-inline-bg:#D9DEE6;--code-inline:#A3114F;
+  --shadow-page:0 6px 16px -6px rgb(17 26 44 / .16),0 2px 4px -2px rgb(17 26 44 / .08);}}
+  [data-theme=light]{color-scheme:light;
+  --bg:#E3E7ED;--surface:#EBEEF2;--surface-raised:#F2F4F7;--surface-hover:#E3E7EC;
+  --surface-active:#D4DAE2;--surface-inset:#D9DEE6;--border:#CDD4DE;--border-strong:#B2BCCA;
+  --border-focus:#2F6FEB;--text:#111A2C;--text-secondary:#2B3546;--text-muted:#4A5567;
+  --accent:#2150D8;--accent-hover:#1C46C0;--accent-text:#1C46C0;--accent-soft:#2150D81F;
+  --on-accent:#ffffff;--danger:#B41C1C;--code-bg:#E6EAEF;--code-inline-bg:#D9DEE6;--code-inline:#A3114F;
+  --shadow-page:0 6px 16px -6px rgb(17 26 44 / .16),0 2px 4px -2px rgb(17 26 44 / .08);}
+  :root{
+    /* Paper is paper: a PDF page is white in either theme. */
+    --paper:#ffffff;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --r-md:6px;--r-lg:8px;--r-xl:12px;--r-full:9999px;
+    --ease-out:cubic-bezier(.16,1,.3,1);--fast:150ms;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{display:flex;flex-direction:column;background:var(--surface);color:var(--text);
+    font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  :focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+  .wrap{flex:1;min-height:0;overflow:auto;position:relative}
+  .msg{margin:0;padding:24px;color:var(--text-muted)}
+  .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+  /* Toolbar */
+  .bar{flex:none;display:flex;align-items:center;gap:4px;min-height:48px;padding:4px 8px 4px 16px;
+    background:var(--surface);border-bottom:1px solid var(--border);position:relative;z-index:20}
+  .grow{flex:1;min-width:8px}
+  .status{min-width:0;font-size:13px;line-height:20px;color:var(--text-secondary);
+    font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .group{display:flex;align-items:center}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;min-width:40px;
+    padding:0 10px;border:0;border-radius:var(--r-md);background:transparent;color:var(--text-secondary);
+    font:600 13px/1 var(--sans);text-decoration:none;white-space:nowrap;cursor:pointer;
+    transition:background-color var(--fast) var(--ease-out),color var(--fast) var(--ease-out)}
+  .btn svg{flex:none;width:18px;height:18px}
+  .btn.icon{width:40px;padding:0}
+  .btn:hover{background:var(--surface-hover);color:var(--text)}
+  .btn:active{background:var(--surface-active)}
+  .btn[aria-pressed=true]{background:var(--accent-soft);color:var(--accent-text)}
+  .btn:disabled{opacity:.45;cursor:default;background:transparent;color:var(--text-secondary)}
+  .pct{width:44px;text-align:center;font-size:13px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+  @media (pointer:coarse),(max-width:600px){
+    .btn{height:44px;min-width:44px}.btn.icon{width:44px}
+  }
+  @media (max-width:520px){
+    .lbl{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+    .btn.has-lbl{width:44px;padding:0}
+    .bar{padding-left:12px}
+  }
+  @media (max-width:359px){ .pct{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)} }
+
+  /* "This file isn't available" — server-rendered, and swapped in by a viewer
+     whose /r/ fetch answers 403 or 404. */
+  .na-body{flex:1;display:flex;align-items:center;justify-content:center;padding:32px 16px;background:var(--surface)}
+  .na{max-width:480px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px}
+  .na-icon{display:grid;place-items:center;width:48px;height:48px;margin-bottom:8px;border-radius:var(--r-xl);
+    background:var(--surface-inset);border:1px solid var(--border);color:var(--text-muted)}
+  .na-icon svg{width:24px;height:24px}
+  .na h1{margin:0;font-size:20px;line-height:28px;font-weight:700;letter-spacing:-.01em;color:var(--text)}
+  .na p{margin:0;font-size:15px;line-height:24px;color:var(--text-secondary)}
+  .na .na-host{margin-top:16px;font-size:12px;line-height:16px;font-weight:600;letter-spacing:.02em;color:var(--text-muted)}
+
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+
+  .bar{gap:8px}
+  .pills{display:flex;align-items:center;gap:2px;min-width:0;overflow-x:auto;scrollbar-width:thin}
+  .pill{flex:none;height:40px;padding:0 2px;border:0;background:none;color:var(--text-secondary);
+    font:500 13px/1 var(--sans);cursor:pointer;border-radius:var(--r-full)}
+  .pill span{display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:var(--r-full);
+    transition:background-color var(--fast) var(--ease-out),color var(--fast) var(--ease-out)}
+  .pill:hover span{background:var(--surface-hover);color:var(--text)}
+  .pill[aria-selected=true]{color:var(--accent-text);font-weight:600}
+  .pill[aria-selected=true] span{background:var(--accent-soft);color:var(--accent-text)}
+  .pill:focus-visible{outline:none}
+  .pill:focus-visible span{outline:2px solid var(--border-focus);outline-offset:1px}
+  @media (pointer:coarse),(max-width:600px){.pill{height:44px}}
+  .bar .status{flex:none}
+  @media (max-width:520px){.bar.has-tabs .status{display:none}}
+  table.grid{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:13px}
+  .grid td,.grid th{height:26px;padding:3px 10px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+    white-space:pre;vertical-align:middle;font-variant-numeric:tabular-nums;text-align:left}
+  .grid td{color:var(--text-secondary);background:var(--surface)}
+  .grid td[data-t=n]{text-align:right}
+  .grid tbody tr:hover td{background:var(--surface-raised)}
+  .grid thead th{position:sticky;top:0;z-index:2;height:24px;padding:0 10px;background:var(--surface-inset);
+    color:var(--text-muted);font-size:11px;font-weight:600;letter-spacing:.02em}
+  .grid th.rn{position:sticky;left:0;z-index:1;min-width:44px;padding:0 8px;text-align:center;
+    background:var(--surface-inset);color:var(--text-muted);font-size:11px;font-weight:500}
+  .grid thead th.rn{z-index:3}</style></head><body>
+<header class="bar" id="bar">
+<div id="tabs" class="pills" role="tablist" aria-label="Sheets" hidden></div>
+<span class="grow"></span>
+<span id="status" class="status">Loading spreadsheet…</span>
+</header>
+<main class="wrap" id="scroller"><div id="out" role="tabpanel"><p class="msg">Loading…</p></div></main>
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
+        integrity="sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+
+function showUnavailable(){
+  document.body.innerHTML = '<main class="na-body">' + "<div class=\"na\" role=\"status\">\n<span class=\"na-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"/><path d=\"M14 3v5h5\"/><path d=\"m10 12 4 4m0-4-4 4\"/></svg></span>\n<h1>This file isn't available</h1>\n<p>It may have expired or been deleted.</p>\n<p class=\"na-host\">markdrop.in</p>\n</div>" + '</main>';
+}
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const out = $('out'), tabsEl = $('tabs'), status = $('status'), scroller = $('scroller'), live = $('live');
+  try {
+    const res = await fetch("/landing-demo/files/budget-2026.xlsx");
+    if (res.status === 403 || res.status === 404) return showUnavailable();
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const wb = XLSX.read(await res.arrayBuffer(), { type: 'array' });
+    const names = wb.SheetNames, tabs = [];
+    const plural = (n, one, many) => n.toLocaleString() + ' ' + (n === 1 ? one : many);
+
+    const render = (i) => {
+      const ws = wb.Sheets[names[i]];
+      const ref = ws && ws['!ref'];
+      out.replaceChildren();
+      let summary = 'Empty sheet';
+      if (!ref) {
+        const p = document.createElement('p');
+        p.className = 'msg';
+        p.textContent = 'This sheet is empty.';
+        out.appendChild(p);
+      } else {
+        const r = XLSX.utils.decode_range(ref);
+        const holder = document.createElement('div');
+        holder.innerHTML = XLSX.utils.sheet_to_html(ws, { header: '', footer: '' });
+        const table = holder.querySelector('table');
+        if (table) {
+          table.className = 'grid';
+          // Row-number gutter: SheetJS emits one <tr> per row of the range.
+          [...table.rows].forEach((tr, k) => {
+            const th = document.createElement('th');
+            th.scope = 'row';
+            th.className = 'rn';
+            th.textContent = String(r.s.r + k + 1);
+            tr.insertBefore(th, tr.firstChild);
+          });
+          // Column letters.
+          const hr = table.createTHead().insertRow();
+          const corner = document.createElement('th');
+          corner.className = 'rn';
+          corner.setAttribute('aria-hidden', 'true');
+          hr.appendChild(corner);
+          for (let c = r.s.c; c <= r.e.c; c++) {
+            const th = document.createElement('th');
+            th.scope = 'col';
+            th.textContent = XLSX.utils.encode_col(c);
+            hr.appendChild(th);
+          }
+          out.appendChild(table);
+        }
+        summary = plural(r.e.r - r.s.r + 1, 'row', 'rows') + ' · ' + plural(r.e.c - r.s.c + 1, 'column', 'columns');
+      }
+      status.textContent = summary;
+      tabs.forEach((b, j) => {
+        b.setAttribute('aria-selected', String(j === i));
+        b.tabIndex = j === i ? 0 : -1;
+      });
+      if (tabs[i]) out.setAttribute('aria-labelledby', tabs[i].id);
+      scroller.scrollTo(0, 0);
+      return summary;
+    };
+
+    if (names.length > 1) {
+      tabsEl.hidden = false;
+      $('bar').classList.add('has-tabs');
+      names.forEach((n, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'pill';
+        b.id = 'tab-' + i;
+        b.setAttribute('role', 'tab');
+        b.setAttribute('aria-controls', 'out');
+        const s = document.createElement('span');
+        s.textContent = n;
+        b.appendChild(s);
+        b.onclick = () => { live.textContent = n + ', ' + render(i); };
+        tabsEl.appendChild(b);
+        tabs.push(b);
+      });
+      // Arrow keys move between sheets (roving tabindex).
+      tabsEl.addEventListener('keydown', (e) => {
+        const i = tabs.indexOf(document.activeElement);
+        if (i < 0) return;
+        const to = e.key === 'ArrowRight' ? (i + 1) % tabs.length
+          : e.key === 'ArrowLeft' ? (i - 1 + tabs.length) % tabs.length
+          : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -1;
+        if (to < 0) return;
+        e.preventDefault();
+        tabs[to].focus();
+        tabs[to].click();
+      });
+    } else {
+      out.removeAttribute('role');
+    }
+    render(0);
+  } catch (e) {
+    status.textContent = 'Could not render';
+    out.replaceChildren();
+    const p = document.createElement('p');
+    p.className = 'msg';
+    p.textContent = 'Could not render this spreadsheet: ' + e.message;
+    out.appendChild(p);
+  }
+})();
+</script>
+</body></html>

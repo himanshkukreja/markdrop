@@ -1,0 +1,12 @@
+/* Light / dark twins of a screenshot: the site theme (html[data-theme]) shows one. */
+.light {
+}
+.dark {
+  display: none !important;
+}
+:global(html[data-theme="dark"]) .light {
+  display: none !important;
+}
+:global(html[data-theme="dark"]) .dark {
+  display: block !important;
+}

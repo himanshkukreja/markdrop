@@ -1,0 +1,787 @@
+/*
+ * The landing hero: "Drop it. It renders." over a top-down desk (design canvas, round 2 "E · Desk"
+ * hero with round 3 "H · Drop it on the desk"'s drop interaction). Every object on the mat is a file;
+ * the Markdrop mark is the drop target; a dropped file becomes a link card with its live render.
+ * Tokens only (light Mist default + dark). Desktop ≥ 900px: an absolutely laid out mat. Phone: a
+ * swipeable strip of files, the mark, then the card, in flow.
+ */
+
+.wrap {
+  max-width: 1328px;
+  margin: 0 auto;
+  padding: clamp(40px, 6vw, 88px) clamp(16px, 3vw, 24px) clamp(80px, 9vw, 128px);
+  box-sizing: border-box;
+}
+
+/* ── Copy ───────────────────────────────────────────────────────────── */
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px 64px;
+  margin-bottom: clamp(28px, 4vw, 48px);
+}
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.eyebrow {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.h1 {
+  margin: 0;
+  font-size: clamp(50px, 7.6vw, 112px);
+  line-height: 0.92;
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  color: var(--text);
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 440px;
+  padding-bottom: 6px;
+}
+.sub {
+  margin: 0;
+  font-size: clamp(16px, 1.35vw, 18px);
+  line-height: 1.55;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.hint {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+
+/* ── The mat ────────────────────────────────────────────────────────── */
+
+.mat {
+  position: relative;
+  height: 690px;
+  border-radius: 36px;
+  background-color: var(--surface-inset);
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  /* The objects are drawn in mat pixels: the mat is 1280 wide at full size. */
+  container-type: inline-size;
+}
+.files {
+  display: contents;
+}
+.deco {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* A file on the desk */
+.obj {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: grab;
+  touch-action: pan-y;
+  transform: rotate(var(--r));
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s;
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.obj:hover,
+.obj:focus-visible {
+  transform: rotate(calc(var(--r) * 0.4)) translateY(-8px) scale(1.02);
+  z-index: 4;
+  outline: none;
+}
+.obj:focus-visible .face {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 6px;
+  border-radius: 10px;
+}
+.obj[data-dragging] {
+  transition: none;
+  z-index: 20;
+  cursor: grabbing;
+}
+.obj[data-dragging] .face {
+  filter: drop-shadow(0 30px 34px rgb(17 26 44 / 0.3));
+}
+.face {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 10px 14px rgb(17 26 44 / 0.16));
+  transition: filter 0.35s;
+}
+.obj:hover .face {
+  filter: drop-shadow(0 22px 26px rgb(17 26 44 / 0.22));
+}
+.tag {
+  position: absolute;
+  left: 50%;
+  bottom: -13px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  z-index: 2;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+.obj[data-current] .tag {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Paper note: notes.md */
+.paper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 26px 24px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.paperUrl {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.paperTitle {
+  font-size: 24px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.paperText {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.flow span {
+  padding: 5px 9px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+}
+.flow span:last-child {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.paperTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.paperTable td {
+  padding: 4px 0;
+  vertical-align: middle;
+  line-height: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.paperTable td:last-child {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.circled {
+  position: relative;
+  display: inline-block;
+  align-self: flex-start;
+  margin-top: auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.circled svg {
+  position: absolute;
+  left: -14px;
+  top: -10px;
+  overflow: visible;
+}
+
+/* Laptop: launch.html */
+.laptop {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.lid {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 12px;
+  border-radius: 16px 16px 4px 4px;
+  background: var(--logo-ground);
+}
+.screen {
+  position: relative;
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+.screen img,
+.phoneScreen img,
+.photo img,
+.posterImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+.base {
+  display: block;
+  height: 18px;
+  margin: 0 -4%;
+  border-radius: 2px 2px 12px 12px;
+  background: var(--border-strong);
+}
+
+/* Phone: deck.pdf */
+.phone {
+  display: block;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border-radius: 32px;
+  background: var(--logo-ground);
+}
+.phoneScreen {
+  position: relative;
+  display: block;
+  height: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  background: var(--surface-inset);
+}
+
+/* Instant photo: demo.mp4 */
+.photo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 10px 10px 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.photoImg {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--logo-ground);
+}
+.play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  background: rgb(15 23 42 / 0.55);
+  display: grid;
+  place-items: center;
+}
+.play::after {
+  content: "";
+  margin-left: 4px;
+  border-left: 14px solid #f1f5f9;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+}
+.photoCap {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* Printout: budget.xlsx */
+.printout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 14px 14px 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.printout > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.printout > span:first-child {
+  border-bottom: 1.5px solid var(--text-muted);
+  font-weight: 800;
+  color: var(--text);
+}
+.printout > span:last-child {
+  border-bottom: 0;
+  font-weight: 800;
+  color: var(--accent-text);
+}
+
+/* Desk things */
+.sticky {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--w);
+  transform: rotate(var(--r));
+  padding: 16px;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-raised));
+  box-shadow: 0 10px 14px -6px rgb(17 26 44 / 0.25);
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: var(--text);
+  z-index: 2;
+  pointer-events: none;
+}
+.note {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  transform: rotate(var(--r));
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--accent-text);
+  font-size: 19px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+.note svg {
+  overflow: visible;
+  flex: none;
+}
+
+/* ── The drop target ────────────────────────────────────────────────── */
+
+.drop {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: 200px;
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+.ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px dashed var(--border-strong);
+  background: color-mix(in srgb, var(--surface-raised) 55%, transparent);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s, background-color 0.15s;
+  animation: spin 40s linear infinite;
+}
+.drop[data-over] .ring {
+  transform: scale(1.1);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+.mark {
+  position: relative;
+  display: inline-flex;
+  filter: drop-shadow(0 16px 22px rgb(17 26 44 / 0.3));
+  transform-origin: 50% 85%;
+}
+.squashA {
+  animation: squashA 0.7s cubic-bezier(0.3, 1.5, 0.5, 1) 0.18s both;
+}
+.squashB {
+  animation: squashB 0.7s cubic-bezier(0.3, 1.5, 0.5, 1) 0.18s both;
+}
+@keyframes squashA {
+  0% { transform: scale(1, 1); }
+  22% { transform: scale(1.22, 0.76); }
+  50% { transform: scale(0.87, 1.15); }
+  75% { transform: scale(1.04, 0.96); }
+  100% { transform: scale(1, 1); }
+}
+@keyframes squashB {
+  0% { transform: scale(1, 1); }
+  22% { transform: scale(1.22, 0.76); }
+  50% { transform: scale(0.87, 1.15); }
+  75% { transform: scale(1.04, 0.96); }
+  100% { transform: scale(1, 1); }
+}
+.splash {
+  position: absolute;
+  inset: 24%;
+  border-radius: 50%;
+  border: 2px solid var(--logo-drop);
+  opacity: 0;
+  pointer-events: none;
+}
+.splashA {
+  animation: splashA 0.8s ease-out 0.3s both;
+}
+.splashB {
+  animation: splashB 0.8s ease-out 0.3s both;
+}
+@keyframes splashA {
+  0% { transform: scale(0.7); opacity: 0.85; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+@keyframes splashB {
+  0% { transform: scale(0.7); opacity: 0.85; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+.dropLabel {
+  position: absolute;
+  bottom: 30px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.ghost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 54px;
+  margin: -27px 0 0 -22px;
+  pointer-events: none;
+  z-index: 30;
+  filter: drop-shadow(0 8px 12px rgb(17 26 44 / 0.25));
+}
+.ghost path {
+  fill: var(--surface-raised);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+/* ── The link card ──────────────────────────────────────────────────── */
+
+.card {
+  position: absolute;
+  top: 2.5%;
+  width: min(420px, 34%);
+  height: 424px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  transform: rotate(1deg);
+  z-index: 8;
+}
+.card[data-slot="left"] {
+  left: 2.5%;
+  transform: rotate(-1deg);
+}
+.card[data-slot="center"] {
+  left: 31%;
+  width: min(540px, 42%);
+}
+.card[data-slot="right"] {
+  right: 2.5%;
+}
+/* The phone layout shows a first card from the start; the desktop desk waits for a drop. */
+.card[data-initial] {
+  display: none;
+}
+.pop {
+  animation: pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.92) rotate(-3deg);
+  }
+}
+.cardBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.cardUrl {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.cardUrl b {
+  color: var(--text);
+  font-weight: 700;
+}
+.cardUrl a {
+  color: inherit;
+  text-decoration: none;
+}
+.cardUrl a:hover b {
+  text-decoration: underline;
+}
+.cardIcon {
+  display: inline-flex;
+  color: var(--accent-text);
+  font-size: 16px;
+}
+.iconBtn {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.iconBtn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.iconBtn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+.cardBody {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--surface-inset);
+  overflow: hidden;
+}
+.cardBody > * {
+  position: absolute;
+  inset: 0;
+}
+.poster {
+  transition: opacity 0.3s;
+}
+.poster[data-hidden] {
+  opacity: 0;
+  pointer-events: none;
+}
+.live {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.live[data-ready] {
+  opacity: 1;
+}
+.frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+.scaled {
+  transform-origin: 0 0;
+}
+.doc {
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 18px 20px 24px;
+  background: var(--surface-raised);
+}
+.cardFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+.loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: none;
+  font-size: 12px;
+}
+.copied {
+  color: var(--success);
+}
+
+/* ── Phone: a strip of files, the mark, the card ────────────────────── */
+
+@media (max-width: 899px) {
+  .mat {
+    height: auto;
+    padding: 12px 0 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    border-radius: 24px;
+  }
+  .files {
+    display: flex;
+    gap: 22px;
+    overflow-x: auto;
+    padding: 18px 20px 30px;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 20px;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .files::-webkit-scrollbar {
+    display: none;
+  }
+  .obj {
+    position: relative;
+    left: auto;
+    top: auto;
+    flex: 0 0 auto;
+    width: var(--mw);
+    height: var(--mh);
+    transform: rotate(calc(var(--r) * 0.4));
+    scroll-snap-align: start;
+    touch-action: manipulation;
+    cursor: pointer;
+  }
+  .drop {
+    position: relative;
+    left: auto;
+    top: auto;
+    width: 168px;
+    height: 168px;
+    margin: 0 auto;
+  }
+  .card,
+  .card[data-slot] {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    width: auto;
+    height: 480px;
+    margin: 12px 16px 0;
+    transform: none;
+  }
+  .card[data-initial] {
+    display: flex;
+  }
+  .sticky,
+  .note,
+  .deco,
+  .paperTable,
+  .paperUrl {
+    display: none;
+  }
+  .paper {
+    padding: 20px 18px;
+  }
+  .posterImg {
+    object-position: left top;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring {
+    animation: none;
+  }
+  .squashA,
+  .squashB,
+  .splashA,
+  .splashB,
+  .pop {
+    animation: none;
+  }
+  .obj,
+  .face,
+  .poster,
+  .live {
+    transition: none;
+  }
+}

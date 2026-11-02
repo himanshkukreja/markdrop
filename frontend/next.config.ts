@@ -107,6 +107,33 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "public, max-age=3600" },
         ],
       },
+      // The landing page's live renders (public/landing-demo, built by scripts/landing-samples/
+      // build-demo.mjs): Markdrop's own PDF / spreadsheet / video viewers and the sample HTML page,
+      // framed by / with sandbox="allow-scripts". Same rule as the guides demo: the header repeats
+      // the sandbox, so each page runs in an opaque origin even when opened on its own. The viewers
+      // load pdf.js / SheetJS from cdnjs (as on the file origin) and read only the sample files.
+      {
+        source: "/landing-demo/:page([a-z.-]+\\.html)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value:
+              "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src blob:; img-src 'self' data: blob:; media-src 'self'; style-src 'unsafe-inline'; font-src data:; frame-ancestors 'self'",
+          },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Cache-Control", value: "public, max-age=3600" },
+        ],
+      },
+      // The sample files those pages read. Their frames are opaque origins, so the reads are
+      // cross-origin: public bytes, CORS * without credentials (as the file origin answers).
+      {
+        source: "/landing-demo/files/:file*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Cache-Control", value: "public, max-age=86400" },
+        ],
+      },
     ];
   },
   /**
