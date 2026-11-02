@@ -10,12 +10,13 @@
 #   docker build -f docs-platform/docker/Dockerfile -t markdrop-guides .        (from the repo root)
 #
 # /site   the content folder (site.json, pages, public/docs-assets, redirects.json), read-only
-# /data   the build output and the object store (keep it on a volume: rebuilds stay incremental)
+# /data   the build output, the object store and the engine's build cache (keep it on a volume:
+#         rebuilds stay incremental and warm)
 #
 # The container rebuilds when /site changes (--watch) and switches to the new build atomically;
 # a failed build keeps serving the last good one. Published by .github/workflows/guides-image.yml.
 #
-# Two stages: everything is installed, bundled and warmed in `build`; the image is a fresh base plus
+# Two stages: everything is installed and bundled in `build`; the image is a fresh base plus
 # /opt/markdrop from it, so npm's cache, the Worker tooling (wrangler, workerd, esbuild) and the
 # prebuilt binaries for other C libraries never reach a layer.
 
@@ -39,12 +40,9 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked cd docs-platform && npm 
 COPY docs-platform/ docs-platform/
 RUN cd docs-platform && node builder/cli.mjs bundle
 
-# Warm the engine once: the stage and Next's webpack cache are baked into the image, so a
-# container's first build is a warm one (~20 s for ~100 pages) instead of a cold compile.
-ENV MARKDROP_DOCS_WORK=/opt/markdrop/work
-RUN node docs-platform/builder/cli.mjs build docs-platform/examples/minimal \
-      --out /tmp/warm/dist --work "$MARKDROP_DOCS_WORK" --quiet \
- && rm -rf /tmp/warm "$MARKDROP_DOCS_WORK/stage/.next/server" "$MARKDROP_DOCS_WORK/stage/.next/static"
+# No baked build cache: the engine stage and Next's webpack cache (~400 MB) live on the /data volume
+# (<data>/work, server.mjs), so the image stays smaller and a restarted container keeps its warm
+# cache. The first build on a new volume is a cold one (~20-60 s, by machine); later ones are warm.
 
 # What a site build never runs: the Worker tooling (wrangler, workerd, esbuild), the browser test
 # runner, and prebuilt binaries for musl (this image is glibc; Next, sharp, lightningcss and
@@ -61,7 +59,6 @@ LABEL org.opencontainers.image.title="Markdrop Guides" \
       org.opencontainers.image.documentation="https://docs.markdrop.in/guides/self-hosting" \
       org.opencontainers.image.licenses="MIT"
 ENV NEXT_TELEMETRY_DISABLED=1 \
-    MARKDROP_DOCS_WORK=/opt/markdrop/work \
     PORT=8080 \
     NODE_ENV=production
 WORKDIR /opt/markdrop

@@ -8,7 +8,8 @@ name: Guides image
 #   main, engine changes  →  :edge and :sha-<short>      (path filter below: the engine and the platform)
 #   Run workflow (manual) →  :sha-<short>, and :edge on main
 #
-# Each platform's image is started on its runner and must serve the example guide before any tag
+# Each platform's image is started on its runner and must build and serve the example guide (a cold
+# build, up to 5 minutes) before any tag
 # moves. Layers are cached in the Actions cache per platform, so a change to docs-platform/ alone
 # doesn't reinstall the frontend's dependencies.
 
@@ -105,7 +106,7 @@ jobs:
           docker run -d --name guides -p 8080:8080 \
             -v "$PWD/docs-platform/examples/minimal:/site:ro" "$REF"
           ok=""
-          for _ in $(seq 1 90); do
+          for _ in $(seq 1 150); do
             if curl -fsS -o /dev/null http://127.0.0.1:8080/guide/start; then ok=1; break; fi
             sleep 2
           done

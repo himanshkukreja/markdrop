@@ -497,7 +497,7 @@ edge/     handler.mjs (the fetch handler) · access.mjs (private sites: policy, 
 server/   server.mjs (Node: serve a store, or build + serve + watch a folder)
 docker/   Dockerfile (+ .dockerignore; context = repo root; two stages: the image has no npm cache,
           Worker tooling or musl binaries)
-examples/ minimal/ (a 2-page site; also warms the Docker image's build cache)
+examples/ minimal/ (a 2-page site; the image workflow smoke-tests with it)
 test/     edge.test.mjs · access.test.mjs · assets.test.mjs · runner.test.mjs · verify.mjs · miniflare.mjs ·
           pageview.mjs
 ```
