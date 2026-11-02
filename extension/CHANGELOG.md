@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2
+
+**The conflict view shows both sides again.**
+
+- When a document changed both on Markdrop and locally, the side-by-side view
+  opened with an empty web (left) side. It now shows the web version, so you
+  can compare before choosing Keep mine, Use the web version or Merge.
+
 ## 0.3.1
 
 **Large HTML files publish again, and failures say why.**

@@ -50,7 +50,9 @@ const remoteCache = new Map<string, string>(); // docId -> remote content
 const remoteEmitter = new vscode.EventEmitter<vscode.Uri>();
 const remoteProvider: vscode.TextDocumentContentProvider = {
   onDidChange: remoteEmitter.event,
-  provideTextDocumentContent: (uri) => remoteCache.get(uri.path.replace(/^\//, "")) ?? "",
+  // remoteUri() is `markdrop-remote:/<docId>/<slug>.md (Markdrop web)`: the cache is keyed by the
+  // document id, the path's first segment (looking up the whole path left the web side empty).
+  provideTextDocumentContent: (uri) => remoteCache.get(uri.path.replace(/^\//, "").split("/")[0]) ?? "",
 };
 function remoteUri(link: Link): vscode.Uri {
   return vscode.Uri.parse(
