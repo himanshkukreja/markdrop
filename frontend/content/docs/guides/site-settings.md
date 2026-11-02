@@ -10,10 +10,10 @@ anchors:
   root-domains: your-own-domain
   remove-a-domain: your-own-domain
   when-a-domain-doesnt-go-live: your-own-domain
-keywords: [settings, address, slug, custom domain, own domain, ask ai, password, members only, private pages, search engines, noindex, github, redirects, reviews, unpublish, delete guide, delete site]
+keywords: [settings, export, self-host, download, address, slug, custom domain, own domain, ask ai, password, members only, private pages, search engines, noindex, github, redirects, reviews, unpublish, delete guide, delete site]
 ---
 
-Open a guide and choose **Settings** in the bar at the top. The sections are listed on the left (a menu at the top on a phone): **General**, **Domains**, **Readers and access**, **Private pages**, **Ask AI**, **API reference**, **GitHub**, **Redirects**, **People and reviews** and **Take it down**. Only Guides admins can change them; everyone else sees how the guide is set up. Each setting saves as soon as you change it, says so, and reaches readers at the next [publish](/guides/publishing) (the people a private-page rule lets in change within a minute, without one).
+Open a guide and choose **Settings** in the bar at the top. The sections are listed on the left (a menu at the top on a phone): **General**, **Domains**, **Readers and access**, **Private pages**, **Ask AI**, **API reference**, **GitHub**, **Redirects**, **People and reviews**, **Export & self-host** and **Take it down**. Only Guides admins can change them; everyone else sees how the guide is set up. Each setting saves as soon as you change it, says so, and reaches readers at the next [publish](/guides/publishing) (the people a private-page rule lets in change within a minute, without one).
 
 ![Acme's Settings › General: the sections on the left (General, Domains, Readers and access, Private pages, Ask AI, API reference, GitHub, Redirects, People and reviews, Take it down), and the Name, Free address (acme.guides.markdrop.in with Copy, Open and Add your own domain), Logo and favicon, GitHub (Not connected, with Open GitHub settings) and Started from (Template) cards.](/docs-assets/guides/site-settings/settings-general.webp)
 
@@ -74,6 +74,10 @@ For an imported guide: where it came from, and **Open the import report**. See [
 ## Redirects
 
 Send old addresses to their new pages. Each row says why it's there: **Page moved** (Markdrop added it when you moved a published page) or **Added in Settings**. An imported guide also lists the old GitBook addresses the import found, under **From the GitBook import**. See [Redirects](/guides/pages-and-navigation#redirects).
+
+## Export and self-host
+
+**Settings › Export & self-host** downloads the guide as a folder of Markdown and files (a `.zip`), the published version or the current drafts, ready to run on your own server with the open-source engine. Private pages are left out unless you choose to export them as public. See [Self-hosting](/guides/self-hosting#export-a-guide-from-the-studio).
 
 ## Unpublish or delete
 
