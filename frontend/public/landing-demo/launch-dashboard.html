@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workflows launch dashboard</title>
+<!--
+  Workflows launch · live dashboard. A fictional Acme page, the kind of single HTML file people share
+  as a link: Workflows ships to every Acme workspace on Friday (the same story as launch-notes.md and
+  acme-deck.pdf, with the deck's numbers). One self-contained file: inline CSS and JS, no network
+  requests, system fonts. Light and dark follow the system, or ?theme=light|dark.
+  The dates are a fixed demo week (Wed 4 Nov 2026, two days before release), not the real clock.
+-->
+<style>
+:root {
+  color-scheme: light;
+  --bg: #E3E7ED; --card: #F2F4F7; --inset: #EBEEF2; --line: #CDD4DE; --line-strong: #B2BCCA;
+  --ink: #111A2C; --ink-2: #2B3546; --muted: #4A5567;
+  --accent: #2150D8; --accent-text: #1C46C0; --accent-soft: rgb(33 80 216 / 0.12);
+  --good: #05674C; --good-soft: rgb(5 103 76 / 0.12); --warn: #8C4100;
+  --shadow: 0 1px 2px rgb(17 26 44 / 0.06), 0 4px 12px rgb(17 26 44 / 0.06);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #030712; --card: #111827; --inset: #0b1220; --line: #1f2937; --line-strong: #374151;
+  --ink: #f3f4f6; --ink-2: #d1d5db; --muted: #9ca3af;
+  --accent: #2563eb; --accent-text: #60a5fa; --accent-soft: rgb(43 127 255 / 0.16);
+  --good: #34d399; --good-soft: rgb(52 211 153 / 0.14); --warn: #fbbf24;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #030712; --card: #111827; --inset: #0b1220; --line: #1f2937; --line-strong: #374151;
+    --ink: #f3f4f6; --ink-2: #d1d5db; --muted: #9ca3af;
+    --accent: #2563eb; --accent-text: #60a5fa; --accent-soft: rgb(43 127 255 / 0.16);
+    --good: #34d399; --good-soft: rgb(52 211 153 / 0.14); --warn: #fbbf24;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body { font-size: 13px; line-height: 1.4; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 14px 14px 20px; display: grid; gap: 10px; }
+
+/* Header */
+.top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.logo { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 800; font-size: 14px; }
+.title { display: flex; flex-direction: column; min-width: 0; }
+.title h1 { margin: 0; font-size: 16px; line-height: 1.2; letter-spacing: -0.01em; }
+.title span { font-size: 11.5px; color: var(--muted); }
+.pill { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); font-weight: 700; font-size: 12px; white-space: nowrap; }
+.pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 var(--accent); animation: ping 2s ease-out infinite; }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 rgb(33 80 216 / 0.45); } 100% { box-shadow: 0 0 0 7px rgb(33 80 216 / 0); } }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.kpi { padding: 9px 10px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: var(--shadow); min-width: 0; }
+.kpi span { display: block; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi b { display: block; margin-top: 2px; font-size: 19px; line-height: 1.15; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.kpi em { display: block; margin-top: 1px; font-style: normal; font-size: 11px; font-weight: 600; color: var(--good); white-space: nowrap; }
+
+/* Cards */
+.card { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 10px 12px 12px; min-width: 0; }
+.card-h { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.card-h h2 { margin: 0; font-size: 13px; }
+.card-h small { font-size: 11px; color: var(--muted); }
+.seg { margin-left: auto; display: inline-flex; padding: 2px; border-radius: 8px; background: var(--inset); border: 1px solid var(--line); }
+.seg button { font: inherit; font-size: 11.5px; font-weight: 700; color: var(--muted); border: 0; background: none; padding: 3px 9px; border-radius: 6px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+.seg button:focus-visible, .check input:focus-visible + span, .bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Chart */
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: 132px; overflow: visible; }
+.chart .grid line { stroke: var(--line); stroke-width: 1; }
+.chart .axis text { fill: var(--muted); font-size: 10.5px; }
+.bar { fill: var(--accent); opacity: 0.85; cursor: pointer; transition: opacity 0.15s; }
+.bar.dim { opacity: 0.35; }
+.bar:hover, .bar.on { opacity: 1; }
+.tip { position: absolute; pointer-events: none; transform: translate(-50%, -100%); margin-top: -8px; padding: 5px 8px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 11.5px; font-weight: 600; white-space: nowrap; opacity: 0; transition: opacity 0.12s; }
+.tip.on { opacity: 1; }
+.tip small { display: block; font-weight: 500; opacity: 0.75; font-size: 11px; }
+
+/* Bottom row */
+.row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; }
+.progress { height: 6px; border-radius: 99px; background: var(--inset); border: 1px solid var(--line); overflow: hidden; margin: 2px 0 8px; }
+.progress span { display: block; height: 100%; background: var(--good); transition: width 0.3s ease; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12.5px; color: var(--ink-2); }
+.check input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.check span { flex: none; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 5px; border: 1.5px solid var(--line-strong); background: var(--card); }
+.check input:checked + span { background: var(--good); border-color: var(--good); }
+.check input:checked + span::after { content: ""; width: 8px; height: 4px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px, -1px); }
+.check input:checked ~ b { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); font-weight: 500; }
+.check b { font-weight: 600; }
+.people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.person { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.av { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 10.5px; font-weight: 800; }
+.person em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--muted); }
+.ready { font-size: 11px; font-weight: 700; color: var(--good); margin-left: auto; }
+
+/* A small frame (a laptop's screen on a desk, a phone): the four numbers stay on one row. */
+@media (max-width: 560px) {
+  .kpi em { display: none; }
+  .kpi b { font-size: 18px; }
+}
+@media (max-width: 360px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .row { grid-template-columns: minmax(0, 1fr); }
+  .pill { margin-left: 0; }
+}
+@media (min-width: 760px) {
+  body { font-size: 14px; }
+  .wrap { padding: 28px 24px 40px; gap: 14px; }
+  .title h1 { font-size: 22px; }
+  .kpi b { font-size: 26px; }
+  .chart svg { height: 200px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill i { animation: none; }
+  .progress span, .bar, .tip { transition: none; }
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <span class="logo" aria-hidden="true">A</span>
+    <div class="title">
+      <h1>Workflows launch</h1>
+      <span>Acme · all workspaces</span>
+    </div>
+    <span class="pill"><i aria-hidden="true"></i>Ships Fri 10:00 · T-2 days</span>
+  </header>
+
+  <section class="kpis" aria-label="Beta numbers">
+    <div class="kpi"><span>Workspaces</span><b>412</b><em>in beta, +38 this week</em></div>
+    <div class="kpi"><span>Runs a day</span><b>9,800</b><em id="day-up">–</em></div>
+    <div class="kpi"><span>Runs, 7 days</span><b id="week">–</b><em id="week-up">–</em></div>
+    <div class="kpi"><span>On schedule</span><b>97.6%</b><em>of every run</em></div>
+  </section>
+
+  <section class="card" aria-labelledby="chart-h">
+    <div class="card-h">
+      <h2 id="chart-h">Runs per day</h2>
+      <small id="chart-sub">Last 14 days</small>
+      <div class="seg" role="group" aria-label="Range">
+        <button type="button" data-range="daily" aria-pressed="true">Daily</button>
+        <button type="button" data-range="weekly" aria-pressed="false">Weekly</button>
+      </div>
+    </div>
+    <div class="chart">
+      <svg id="svg" viewBox="0 0 440 132" role="img" aria-labelledby="chart-h chart-sub"></svg>
+      <div class="tip" id="tip" role="status" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <div class="row">
+    <section class="card" aria-labelledby="check-h">
+      <div class="card-h"><h2 id="check-h">Launch checklist</h2><span class="ready" id="ready"></span></div>
+      <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+      <ul class="checks">
+        <li><label class="check"><input type="checkbox" checked><span></span><b>Docs updated</b></label></li>
+        <li><label class="check"><input type="checkbox" checked><span></span><b>Pricing page live</b></label></li>
+        <li><label class="check"><input type="checkbox"><span></span><b>Announcement email</b></label></li>
+        <li><label class="check"><input type="checkbox"><span></span><b>Status page</b></label></li>
+      </ul>
+    </section>
+    <section class="card" aria-labelledby="call-h">
+      <div class="card-h"><h2 id="call-h">On call Friday</h2></div>
+      <ul class="people">
+        <li class="person"><span class="av" aria-hidden="true">RI</span>Riya<em>Docs</em></li>
+        <li class="person"><span class="av" aria-hidden="true">AL</span>Alex<em>Review</em></li>
+        <li class="person"><span class="av" aria-hidden="true">SA</span>Sam<em>Review</em></li>
+        <li class="person"><span class="av" aria-hidden="true">MA</span>Maya<em>Release</em></li>
+      </ul>
+    </section>
+  </div>
+</main>
+<script>
+(function () {
+  var t = new URLSearchParams(location.search).get("theme");
+  if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+
+  // A fixed demo fortnight ending Tue 3 Nov 2026 (weekends dip), and the six beta weeks from the deck.
+  var DAYS = ["Wed 21", "Thu 22", "Fri 23", "Sat 24", "Sun 25", "Mon 26", "Tue 27", "Wed 28", "Thu 29", "Fri 30", "Sat 31", "Sun 1", "Mon 2", "Tue 3"];
+  var DAILY = [7420, 7610, 7880, 5240, 4980, 7950, 8130, 8390, 8620, 8810, 6050, 5710, 9340, 9800];
+  var WEEKS = ["W1", "W2", "W3", "W4", "W5", "W6"];
+  var WEEKLY = [1800, 2900, 4400, 6100, 7900, 9800];
+  var data = { daily: { labels: DAYS, values: DAILY, sub: "Last 14 days", unit: "Oct" }, weekly: { labels: WEEKS, values: WEEKLY, sub: "Beta, average a day", unit: "" } };
+
+  var sum = function (a) { return a.reduce(function (x, y) { return x + y; }, 0); };
+  var week = sum(DAILY.slice(7)), before = sum(DAILY.slice(0, 7));
+  document.getElementById("week").textContent = (week / 1000).toFixed(1) + "k";
+  document.getElementById("week-up").textContent = "+" + Math.round((week / before - 1) * 100) + "% on the week before";
+  document.getElementById("day-up").textContent = "+" + Math.round((DAILY[13] / DAILY[6] - 1) * 100) + "% on last Tuesday";
+
+  var svg = document.getElementById("svg");
+  var tip = document.getElementById("tip");
+  var NS = "http://www.w3.org/2000/svg";
+  var W = 440, H = 132, L = 30, B = 18, T = 6;
+  var range = "daily";
+  var fmt = function (n) { return n.toLocaleString("en-US"); };
+
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(NS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function draw() {
+    var d = data[range];
+    document.getElementById("chart-sub").textContent = d.sub;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    // Drawn in the chart's own pixels, so the labels never stretch.
+    W = Math.max(240, Math.round(svg.getBoundingClientRect().width)) || 440;
+    H = Math.round(svg.getBoundingClientRect().height) || 132;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    var max = 10000, plotH = H - B - T, plotW = W - L;
+    var grid = el("g", { class: "grid" }, svg), axis = el("g", { class: "axis" }, svg);
+    [0, 5000, 10000].forEach(function (v) {
+      var y = T + plotH - (v / max) * plotH;
+      el("line", { x1: L, x2: W, y1: y, y2: y }, grid);
+      el("text", { x: L - 6, y: y + 3.5, "text-anchor": "end" }, axis).textContent = v ? v / 1000 + "k" : "0";
+    });
+    var n = d.values.length, slot = plotW / n, bw = Math.min(26, slot * 0.62);
+    var bars = el("g", {}, svg);
+    d.values.forEach(function (v, i) {
+      var h = (v / max) * plotH, x = L + i * slot + (slot - bw) / 2, y = T + plotH - h;
+      var r = el("rect", { class: "bar", x: x, y: y, width: bw, height: h, rx: 3, tabindex: 0, role: "img", "aria-label": d.labels[i] + ": " + fmt(v) + " runs" }, bars);
+      var show = function () {
+        bars.querySelectorAll(".bar").forEach(function (b) { b.classList.toggle("dim", b !== r); b.classList.toggle("on", b === r); });
+        var box = svg.getBoundingClientRect();
+        tip.style.left = ((x + bw / 2) / W) * box.width + "px";
+        tip.style.top = (y / H) * box.height + "px";
+        tip.innerHTML = fmt(v) + " runs<small>" + (range === "daily" ? d.labels[i] + (i >= 11 ? " Nov" : " Oct") : d.labels[i] + " of the beta") + "</small>";
+        tip.classList.add("on");
+      };
+      var hide = function () {
+        bars.querySelectorAll(".bar").forEach(function (b) { b.classList.remove("dim", "on"); });
+        tip.classList.remove("on");
+      };
+      r.addEventListener("pointerenter", show);
+      r.addEventListener("pointerdown", show);
+      r.addEventListener("focus", show);
+      r.addEventListener("pointerleave", hide);
+      r.addEventListener("blur", hide);
+      if (range === "weekly" || i % 2 === 1 || i === n - 1) el("text", { x: x + bw / 2, y: H - 4, "text-anchor": "middle" }, axis).textContent = d.labels[i];
+    });
+  }
+  document.querySelectorAll(".seg button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      range = b.getAttribute("data-range");
+      document.querySelectorAll(".seg button").forEach(function (o) { o.setAttribute("aria-pressed", String(o === b)); });
+      draw();
+    });
+  });
+  draw();
+  var rt;
+  window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(draw, 80); });
+
+  var boxes = document.querySelectorAll(".check input");
+  function count() {
+    var done = 0;
+    boxes.forEach(function (c) { if (c.checked) done++; });
+    document.getElementById("ready").textContent = done + " of " + boxes.length + " ready";
+    document.getElementById("bar").style.width = (done / boxes.length) * 100 + "%";
+  }
+  boxes.forEach(function (c) { c.addEventListener("change", count); });
+  count();
+})();
+</script>
+</body>
+</html>

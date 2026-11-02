@@ -37,6 +37,8 @@ export const SAMPLE_SLUGS = [
   "acme-pricing-calculator",
   "acme-deck",
   "budget-2026",
+  // The hero's HTML sample (scripts/landing-samples/launch-dashboard.html), to be published.
+  "workflows-launch",
 ] as const;
 
 export const SAMPLE_SLUGS_PUBLISHED: ReadonlySet<string> = new Set<string>([
