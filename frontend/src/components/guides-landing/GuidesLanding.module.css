@@ -94,10 +94,14 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 820px;
+  max-width: 1040px;
 }
 .head > p:last-child {
   max-width: 900px;
+}
+.headRow > header {
+  flex: 1 1 520px;
+  min-width: 0;
 }
 .headRow {
   display: flex;

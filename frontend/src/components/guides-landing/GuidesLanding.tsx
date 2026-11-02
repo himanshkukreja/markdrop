@@ -220,7 +220,7 @@ export default function GuidesLanding() {
                     <div className={s.phoneScreen} aria-hidden="true">
                       <span className={s.play}><Icon name="play" size={18} /></span>
                       <b>Product tour</b>
-                      <small>1:40 · chapters</small>
+                      <small>1:40</small>
                       <span className={s.scrub}><i /></span>
                     </div>
                   </div>
