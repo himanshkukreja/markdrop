@@ -69,7 +69,13 @@ node server/server.mjs start --content ../my-guide --data /tmp/my-guide-data --p
 - **No editor, roles or reviews.** You edit the files; your Git workflow is your review.
 - **Ask AI** needs Markdrop's backend. Leave it off in `site.json`.
 - **Page feedback** needs a URL of your own to receive it.
-- **No password or members-only access.** Put the server behind your own sign-in if you need that.
+- **No password or members-only access, and no private pages.** Put the server behind your own sign-in if you need that.
+- **No Insights or Fix list.** They need Markdrop's backend to count readers.
 - **One build at a time** per data folder.
 
 Want the Markdown in Git *and* hosted guides with the Markdrop Guides editor? [Import from GitHub](/guides/import-from-github) and keep the guide in sync with every push.
+
+## Related
+
+- [Import from GitHub](/guides/import-from-github): Markdown in Git, hosted by Markdrop.
+- [What readers get](/guides/what-readers-get): what a hosted guide adds.

@@ -182,3 +182,9 @@ The reset is saved like **Save design**: readers see it after you [publish](/gui
 ## Make it yours
 
 On top of a theme you can add your logo and colours, change the fonts, colour mode and corners, and add custom CSS. See [Brand and style](/guides/brand-and-style). For everything else, [customize the theme](#customize-a-theme).
+
+## Related
+
+- [Brand and style](/guides/brand-and-style): logo, colours, fonts and custom CSS.
+- [Publish your guide](/guides/publishing): a new design goes live with a publish.
+- [What readers get](/guides/what-readers-get): light and dark for readers.

@@ -1,9 +1,9 @@
 ---
 title: Pages and navigation
-description: Add pages, group and order them in the sidebar, hide pages, choose their addresses, and redirect old addresses in a guide.
-updated: 2026-10-31
+description: Add pages, drag them into groups and order in the sidebar, hide pages or make them private, choose their addresses, and redirect old addresses in a guide.
+updated: 2026-11-02
 prerequisites: [/guides/editor]
-keywords: [page tree, sidebar, navigation, groups, new page, hidden pages, page address, url, path, redirects, move page, delete page]
+keywords: [page tree, sidebar, navigation, groups, new page, drag and drop, reorder pages, hidden pages, private pages, page address, url, path, redirects, move page, delete page]
 ---
 
 The page tree on the left of the editor is the guide's sidebar: its groups and pages in the order readers see them.
@@ -30,7 +30,11 @@ Choose **Create page**. It starts as a draft: readers see it after the next publ
 
 ## Move, reorder and delete
 
-Each page in the tree has a menu (**…**) with **Move up**, **Move down**, **Move to** another group, and **Delete page**. The new order is saved straight away and reaches readers at the next publish.
+Drag a page by the grip beside it (it shows when you point at the page): up or down in its group, or into another group. A line shows where it lands, and a folded or empty group lights up when you're over it. Drag a group's header the same way to reorder the groups, or a [hidden page](#hidden-pages) into a group to put it back in the sidebar. A message says what moved, with **Undo**.
+
+With the keyboard, focus a page's grip, press Space to pick it up, ↑ or ↓ to move it, and Space to drop it (Esc cancels).
+
+Each page in the tree also has a menu (**…**) with **Move up**, **Move down**, **Move to** another group, and **Delete page**. The new order is saved straight away and reaches readers at the next publish. Pages that come from a connected GitHub repository take their place in the sidebar from the repository: see [Import from GitHub and keep in sync](/guides/import-from-github#keep-it-in-sync).
 
 ![The page tree with the menu of Alert rules open: Move up, Move down, Move to Getting started, Move to Reference, Move to Help and Delete page.](/docs-assets/guides/pages-and-navigation/page-tree.webp)
 
@@ -44,6 +48,7 @@ The **Page** tab of the panel on the right of the editor (**Page** in the bar on
 - **Icon**: shown beside the page in the sidebar. **Remove** takes it away.
 - **Description**: one sentence under the title, in search results and link previews.
 - **Show in the sidebar**: turn it off to [hide the page](#hidden-pages).
+- **Who can open this page**: **Inherit** (its group's rule), **Public**, or one of the guide's private-page rules. See [Private pages and sections](/guides/private-pages#make-a-page-private).
 
 The page's saves are in the **History** tab. See [History and versions](/guides/history).
 
@@ -68,7 +73,9 @@ When you change the address of a page that's on the published guide, Markdrop Gu
 
 ## Hidden pages
 
-Turn off **Show in the sidebar** to hide a page. It moves to **Hidden pages** at the bottom of the tree. A hidden page is still published and opens at its address: it's only left out of the sidebar. Use it for pages you link to from elsewhere, or for old pages you keep for existing links. Turn it back on to put the page at the end of the last group.
+Turn off **Show in the sidebar** to hide a page. It moves to **Hidden pages** at the bottom of the tree. A hidden page is still published and opens at its address: it's only left out of the sidebar. Use it for pages you link to from elsewhere, or for old pages you keep for existing links. Turn it back on to put the page at the end of the last group, or drag it into a group.
+
+A hidden page isn't private: anyone with its address can open it. To keep a page for some readers only, make it [private](/guides/private-pages).
 
 ## Redirects
 
@@ -90,3 +97,9 @@ Choose **Save** (it says how many). Redirects go live at the next publish.
 A row is refused when it would break something: an old address that's still a page of the guide, the home page, one of the guide's own addresses like `/llms.txt`, a page that doesn't exist, a redirect to itself, the same old address twice, or a chain (an address that redirects again). Readers get a permanent redirect, and only when no page or file of the site is at that address.
 
 Pages imported from GitBook keep their old addresses working without rows here, alongside the ones you add. See [Import from GitBook](/guides/import-from-gitbook#what-comes-across).
+
+## Related
+
+- [Write in the editor](/guides/editor): the page itself.
+- [Private pages and sections](/guides/private-pages): pages for some readers only.
+- [History and versions](/guides/history): every save.

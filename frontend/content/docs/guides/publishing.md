@@ -2,14 +2,14 @@
 title: Publish your guide
 nav: Publishing
 description: See what changed, publish a guide, follow the build until it's live, and put an earlier publish back.
-updated: 2026-11-01
+updated: 2026-11-02
 prerequisites: [/guides/editor]
 keywords: [publish, go live, build, changes, release, restore, rollback, unpublish, publish history, building, compare, diff, what changed]
 ---
 
 Drafts are private. Publishing takes every page's current draft and the guide's settings, builds the guide, and puts it live at its address. Readers keep seeing the previous version until the new one is ready, a few seconds later.
 
-Every screen of a guide has the same bar under the header: the **Publish** tab shows how many changes are waiting, **Live ·** and the guide's address opens the live guide in a new tab, and **Publish N changes** publishes from wherever you are. When there's nothing to publish it says **Up to date**.
+Every screen of a guide has the same bar under the header, with the guide's tabs (**Pages**, **Fix list**, **Changelog**, **Design**, **Publish**, **Insights** and **Settings**): the **Publish** tab shows how many changes are waiting, **Live ·** and the guide's address opens the live guide in a new tab, and **Publish N changes** publishes from wherever you are. When there's nothing to publish it says **Up to date**.
 
 ![The guide's bar on Acme's Insights tab: the tabs Pages, Design, Publish with a 4, Insights and Settings, then Live · acme.guides.markdrop.in, Preview and Publish 4 changes. Above it, the header with the guide switcher (Acme), its workspace and the Admin badge.](/docs-assets/guides/publishing/site-bar.webp)
 
@@ -69,9 +69,12 @@ There's a daily number of publishes per guide while Markdrop Guides is in beta. 
 - every page's current draft, including [hidden pages](/guides/pages-and-navigation#hidden-pages)
 - the sidebar order, theme and brand, Ask AI settings and redirects
 - the [changelog](/guides/changelog): every entry as last saved, its settings and Coming next
+- which pages, groups and sections are [private](/guides/private-pages), and the text versions of [embedded Markdrop files](/guides/embed-files) (a PDF's text is read again at each publish)
 - the images and files the pages and entries use
 
-Deleted pages disappear from the guide. A publish takes each page's draft as last saved at the moment you choose **Publish**; edits saved after that wait for the next one.
+Deleted pages disappear from the guide. A publish takes each page's draft as last saved at the moment you choose **Publish**; edits saved after that wait for the next one. The people a private-page rule lets in, and the file an embed shows, change without a publish.
+
+Every publish checks that no text from a private page or section reaches anything a signed-out reader can fetch, and stops if it would. A publish that changes a page with an accepted [Fix list](/guides/fix-list) fix marks that item **Fixed**.
 
 ## Restore an earlier publish
 
@@ -87,3 +90,9 @@ It takes a few seconds and doesn't rebuild anything. Your drafts don't change, s
 ## Take a guide down
 
 **Unpublish** in [Guide settings](/guides/site-settings#unpublish-or-delete) takes the guide offline and keeps everything; publishing again puts it back.
+
+## Next
+
+- [Put your guide on your own domain](/guides/custom-domain)
+- [Make some pages private](/guides/private-pages)
+- [See what to fix next](/guides/fix-list)

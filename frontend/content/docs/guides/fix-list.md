@@ -24,8 +24,8 @@ Open a guide and choose **Fix list** in the bar at the top. The number beside it
 | **Video drop-off** | The moment a video loses most of its viewers: "loses most viewers at 0:42". |
 | **PDF drop-off** | The page of an embedded PDF where most readers stop. |
 | **Broken links** | Links in your pages to a page that doesn't exist, and addresses in your guide readers hit that don't exist. |
-| **Agents find nothing** | What AI assistants search your docs for through its [MCP server](/guides/what-readers-get#for-ai-tools) and find nothing. |
-| **Hard for agents** | A page AI agents read a lot that is hard for them to use: long with no headings, mostly images or video, or hidden from llms.txt. |
+| **Agents find nothing** | What AI assistants search your docs for through its [MCP server](/guides/ai-ready#the-mcp-server) and find nothing. |
+| **Hard for agents** | A page AI agents read a lot that is hard for them to use: long with no headings, mostly images or video, or hidden from llms.txt. See [llms.txt, MCP and agents](/guides/ai-ready#make-pages-easy-for-agents). |
 | **Stale pages** | A page many readers open that nobody has edited in six months. |
 | **Long, heavy pages** | A very long or image-heavy page that people read. |
 
@@ -62,7 +62,7 @@ You see it as a change, line by line. Choose **Open in editor**: the page opens 
 
 Nothing is published until you publish. Once you accept a fix, the item is **In progress**; the next publish that changes that page marks it **Fixed**.
 
-Each draft uses one of the guide's monthly AI uses, shared with Ask AI and the editor's AI help ([limits](/account/limits)). A link fix and a hidden page's advice don't use any. A draft stays on the item, so opening it again costs nothing; **Draft again** asks for a new one.
+Each draft uses one of the guide's monthly AI uses, shared with Ask AI and the editor's AI help ([limits](/guides/limits#ai)). A link fix and a hidden page's advice don't use any. A draft stays on the item, so opening it again costs nothing; **Draft again** asks for a new one.
 
 ## Work through the list
 
@@ -105,3 +105,10 @@ The Fix list follows the same rules as [Insights](/guides/insights#whats-collect
 | AI agents' reads (page, how, which assistant) and their MCP searches that found nothing | Agents' addresses or full user agents |
 
 When a reader's browser sends **Do Not Track** or **Global Privacy Control**, none of this is sent at all. A page view sends one small request, when the reader leaves the page. Turning Insights off stops it, and deleting Insights' data deletes the Fix list too.
+
+## Related
+
+- [Insights](/guides/insights): the numbers behind the list.
+- [Embed files that render](/guides/embed-files): videos and PDFs whose drop-off the list watches.
+- [llms.txt, MCP and agents](/guides/ai-ready): what AI agents read.
+- [Ask AI](/guides/ask-ai): the questions it couldn't answer become items here.

@@ -1,12 +1,12 @@
 ---
 title: Members and roles
 description: Markdrop Guides' own roles (Admin, Reviewer, Editor, Viewer, No access), who gets which by default, per-guide roles, and the history of changes.
-updated: 2026-10-31
+updated: 2026-11-02
 prerequisites: [/guides/overview, /workspaces/members-and-roles]
 keywords: [roles, permissions, members, admin, reviewer, editor, viewer, no access, guide roles, site roles, override, team, access]
 ---
 
-guides in a workspace are shared with the workspace's people, but Markdrop Guides has **its own roles**, separate from the [workspace roles](/workspaces/members-and-roles) that decide who can see documents and files. Being a workspace member doesn't, on its own, give anyone access to its guides.
+Guides in a workspace are shared with the workspace's people, but Markdrop Guides has **its own roles**, separate from the [workspace roles](/workspaces/members-and-roles) that decide who can see documents and files. Being a workspace member doesn't, on its own, give anyone access to its guides.
 
 ## The roles
 
@@ -21,6 +21,20 @@ guides in a workspace are shared with the workspace's people, but Markdrop Guide
 | Restore, unpublish, delete | ✓ | | | |
 
 **No access** means the workspace's guides don't show up for that person at all.
+
+The newer parts of a guide follow the same roles:
+
+| | Admin | Reviewer | Editor | Viewer |
+| --- | --- | --- | --- | --- |
+| See the [Fix list](/guides/fix-list) and [Insights](/guides/insights) | ✓ | ✓ | ✓ | ✓ |
+| Draft fixes, work through the Fix list, resolve feedback | ✓ | ✓ | ✓ | |
+| Write [changelog](/guides/changelog) entries | ✓ | ✓ | ✓ | |
+| Embed [Markdrop files](/guides/embed-files), add private sections to pages | ✓ | ✓ | ✓ | |
+| [Private page](/guides/private-pages) rules, access requests, Sign out every reader | ✓ | | | |
+| [GitHub](/guides/import-from-github): Sync now | ✓ | ✓ | ✓ | |
+| GitHub: connect, change or disconnect | ✓ | | | |
+
+Everyone with a Guides role on a guide can open its [private pages](/guides/private-pages) on the published guide, with **Sign in with Markdrop**.
 
 Admins can also take over a page someone else is editing, and create new guides in the workspace. When a guide [requires reviews](/guides/reviews), editors and reviewers submit their changes; admins can always publish.
 
@@ -75,3 +89,9 @@ Every change is recorded: who gave whom which role, when, and on which guide. Se
 ## Your own role
 
 Your role on the open guide is shown as a badge in the header, beside the guide's name. On the home page, each workspace shows your role there, and a guide's card shows **on this guide** when your role on that guide is different.
+
+## Related
+
+- [Reviews](/guides/reviews): require approval before a publish.
+- [Private pages and sections](/guides/private-pages): pages for the team only.
+- [Workspace roles](/workspaces/members-and-roles): who is in the workspace.

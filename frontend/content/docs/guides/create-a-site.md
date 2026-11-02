@@ -2,7 +2,7 @@
 title: Create your first guide
 nav: Create a guide
 description: Start a guide blank or from a template, choose where it lives, and pick its free address.
-updated: 2026-11-01
+updated: 2026-11-02
 prerequisites: [/guides/overview]
 keywords: [new guide, create guide, create site, template, product guide, api reference, help center, blank guide, address, slug, guides.markdrop.in]
 ---
@@ -15,13 +15,13 @@ A new guide starts as drafts that only you and your team can see. Nothing is pub
 
 ::::steps
 ### Open New guide
-In [Markdrop Guides](https://guides.markdrop.in), choose **New guide**. With a workspace picked under **Workspace**, the new guide starts in that workspace. **Start a new guide**, at the end of your guides, also opens the form with **Blank**, **Template**, **GitBook** or **OpenAPI** (the API reference template) already chosen.
+In [Markdrop Guides](https://guides.markdrop.in), choose **New guide**. With a workspace picked under **Workspace**, the new guide starts in that workspace. **Start a new guide**, at the end of your guides, also opens the form with **Blank**, **Template**, **GitBook**, **GitHub** or **OpenAPI** (the API reference template) already chosen.
 
 ### Choose where it lives
 Under **Where it lives**, pick a **Workspace**, or **Personal (only you)**. Workspaces you aren't a Guides admin of are listed with "(Guides admins only)" and can't be picked.
 
 ### Choose how to start
-Under **How do you want to start?**, pick **Blank guide** or **From a template**. **Import from GitBook** and **Import from GitHub** have their own pages: [Import from GitBook](/guides/import-from-gitbook) and [Import from GitHub](/guides/import-from-github).
+Under **How do you want to start?**, pick **Blank guide** or **From a template**. **Import from GitBook** and **Import from GitHub** have their own pages: [Import from GitBook](/guides/import-from-gitbook) and [Import from GitHub](/guides/import-from-github) (Markdown, GitBook Git Sync, Mintlify, Docusaurus or MkDocs, kept in sync on every push).
 
 ### Name it and pick its address
 Type the **Guide name**. It's shown in the guide's header and in link previews. The **Address** fills in from the name and is checked as you type.
@@ -67,10 +67,12 @@ You can change the address later in [Guide settings](/guides/site-settings#addre
 - **In a workspace:** Guides admins of that workspace. Workspace owners and admins always are. See [Members and roles](/guides/members-and-roles).
 - **Personal:** anyone. A personal guide is yours alone: no one else can open or edit it.
 
-While Markdrop Guides is in beta, a workspace can have a limited number of guides. When it has its most, the form says so: delete a guide in its [settings](/guides/site-settings#unpublish-or-delete) to make room, or choose another workspace.
+While Markdrop Guides is in beta, a workspace can have 3 guides, and you can have 3 personal ones ([limits](/guides/limits)). When it has its most, the form says so: delete a guide in its [settings](/guides/site-settings#unpublish-or-delete) to make room, or choose another workspace.
 
 ## Next
 
 - [Write in the editor](/guides/editor)
 - [Pick a theme](/guides/themes)
 - [Publish](/guides/publishing)
+- [Put it on your own domain](/guides/custom-domain)
+- [See what to fix next](/guides/fix-list), once readers arrive

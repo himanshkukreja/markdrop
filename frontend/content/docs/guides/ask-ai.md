@@ -2,7 +2,7 @@
 title: Ask AI on your guide
 nav: Ask AI
 description: Give your readers an assistant that answers from your published pages, with links to the sections it used. Turn it on, name it and suggest questions.
-updated: 2026-10-31
+updated: 2026-11-02
 prerequisites: [/guides/publishing]
 keywords: [ask ai, ai assistant, chatbot, answers, citations, suggested questions, docs search, ai search]
 ---
@@ -39,10 +39,21 @@ Readers get the assistant after the next [publish](/guides/publishing). Turning 
 
 ## Answers each month
 
-Each guide has a monthly number of Ask AI answers while Markdrop Guides is in beta. The **Ask AI** card shows how many have been used this month. At the limit, readers get links to ask Claude or ChatGPT with the page attached instead.
+Each guide has 1,000 AI answers a month while Markdrop Guides is in beta, shared with the editor's [AI help](/guides/editor#ask-ai) and the [Fix list's](/guides/fix-list#draft-a-fix) drafted fixes. The **Ask AI** card shows how many have been used this month. At the limit, readers get links to ask Claude or ChatGPT with the page attached instead, and nobody is billed. The count starts again on the 1st (UTC). See [Limits](/guides/limits#ai).
 
 Better pages make better answers: clear headings, one topic per section, and the words your readers use. See [Write in the editor](/guides/editor).
 
-## Guides that aren't public
+## Questions it couldn't answer
 
-Ask AI is for public guides. On a password-protected or members-only guide it stays off, whatever the switch says. Those guides are [coming soon](/guides/site-settings#who-can-read-it), so today every published guide can have it.
+The questions Ask AI couldn't answer show in [Insights](/guides/insights) and become items on the [Fix list](/guides/fix-list) (**Ask AI couldn't answer**), so you know which page to write next.
+
+## Private pages and private guides
+
+On a guide with [private pages or sections](/guides/private-pages), a signed-out reader's questions are answered from the public pages only. A reader who has signed in to read private pages gets answers from the private pages and sections they can open too, and never from the ones they can't.
+
+On a password-protected or members-only guide (set under [Who can read it](/guides/site-settings#who-can-read-it)), Ask AI stays off, whatever the switch says.
+
+## Related
+
+- [llms.txt, MCP and agents](/guides/ai-ready): what your readers' own assistants get from the guide.
+- [Fix list](/guides/fix-list): the questions Ask AI couldn't answer, ranked with everything else to fix.

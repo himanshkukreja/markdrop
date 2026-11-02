@@ -136,3 +136,10 @@ The Markdown version of a page with private sections (`.md`, Copy page) has a "P
 ## A password or members-only guide
 
 [Readers and access](/guides/site-settings#who-can-read-it) still decides who can read the guide at all. In a password or members-only guide, private pages add a second rule on top: a reader needs both. A page can't be made public in a private guide.
+
+## Related
+
+- [Who can read it](/guides/site-settings#who-can-read-it): password and members-only guides.
+- [Embed files that render](/guides/embed-files#who-can-see-it): files embedded in private content stay private.
+- [Ask AI](/guides/ask-ai#private-pages-and-private-guides): answers for signed-in readers.
+- [Members and roles](/guides/members-and-roles): who counts as the team.

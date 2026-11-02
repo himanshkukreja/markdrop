@@ -2,7 +2,7 @@
 title: History and versions
 nav: History and versions
 description: Every save of a Markdrop Guides page is a version you can view and restore, and every publish is kept so an admin can put it live again.
-updated: 2026-10-31
+updated: 2026-11-02
 prerequisites: [/guides/editor]
 keywords: [history, versions, restore, undo, page versions, publish history, rollback, revert]
 ---
@@ -16,7 +16,7 @@ Every save of a page is a version: who saved it and when. The editor saves as yo
 The **History** tab of the editor's page panel lists them, newest first (**Version history** under the panel opens it too):
 
 - **Edited**: a save from the editor.
-- **Imported**: the page as it came from [GitBook](/guides/import-from-gitbook).
+- **Imported**: the page as it came from [GitBook](/guides/import-from-gitbook), or from [GitHub](/guides/import-from-github) at an import or a sync.
 - **Restored an earlier version**: a restore, below.
 
 ![The History tab of Quickstart: four saves, the current one by Alex Chen today and earlier ones by Maya Patel and Riya Sharma, each with View.](/docs-assets/guides/history/versions-drawer.webp)
@@ -42,3 +42,8 @@ An admin can put an earlier publish live again with **Restore**. It takes a few 
 ## Who changed roles
 
 Role changes have their own history: **Recent changes** on the Members page and **History** in a guide's People settings. See [Members and roles](/guides/members-and-roles#history).
+
+## Related
+
+- [Publish your guide](/guides/publishing#restore-an-earlier-publish): restore an earlier publish.
+- [Reviews](/guides/reviews): approve changes before they go live.

@@ -124,3 +124,9 @@ Publishing follows the guide's usual rules. See [Members and roles](/guides/memb
 - 500 entries per guide.
 - A title is up to 120 characters, a summary up to 280, an entry's details up to 50,000.
 - Up to 12 products and 12 Coming next items.
+
+## Related
+
+- [What readers get](/guides/what-readers-get): the changelog page and feeds.
+- [llms.txt, MCP and agents](/guides/ai-ready): changelog.md and the whats_changed tool.
+- [Publish your guide](/guides/publishing): entries go live with a publish.

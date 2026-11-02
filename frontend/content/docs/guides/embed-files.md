@@ -116,3 +116,10 @@ The block is one line. Everything but `src` is optional:
 | `mode` | `live` (default), `preview` (loads on click) or `card` |
 | `version` | Pin a kept version |
 | `captions`, `chapters` | WebVTT files of the guide, for a video |
+
+## Related
+
+- [Write in the editor](/guides/editor#blocks): the other blocks.
+- [Fix list](/guides/fix-list): video and PDF drop-off, ranked.
+- [Private pages and sections](/guides/private-pages): embeds in private content stay private.
+- [Files on Markdrop](/files/supported-types): what you can publish and embed.

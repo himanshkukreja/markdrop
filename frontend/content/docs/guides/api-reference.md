@@ -103,3 +103,9 @@ Every file you upload or fetch is kept. **Versions** lists them, and **Restore**
 - **Up to 5 MB** and **1,000 endpoints**.
 - **One file.** References to other files (`$ref: other.yaml#/…`) aren't followed: bundle the description into one file first.
 - GET, POST, PUT, PATCH and DELETE endpoints get pages; HEAD, OPTIONS and TRACE don't.
+
+## Related
+
+- [Import from GitHub](/guides/import-from-github): an OpenAPI file from a repository, kept in sync.
+- [What readers get](/guides/what-readers-get): the rest of the published guide.
+- [Limits](/guides/limits): the rest of the beta limits.

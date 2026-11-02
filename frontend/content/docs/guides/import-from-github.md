@@ -139,3 +139,10 @@ A public repository can be imported once without installing anything. It can't s
 | **Sync failed** | Open **Settings › GitHub**: the sync history says why. Fix it in the repository and push, or choose **Sync now**. |
 | **The app is suspended on this account** | Someone suspended the Markdrop Guides app on GitHub. Unsuspend it there and syncing resumes with the next push. |
 | A push didn't update the guide | Check that it was to the connected branch, changed a file inside the folder, and that **Keep in sync** is on. |
+
+## Related
+
+- [Import from GitBook](/guides/import-from-gitbook): a public GitBook site, without Git.
+- [API reference from an OpenAPI file](/guides/api-reference): the OpenAPI file a repository has.
+- [Pages and navigation](/guides/pages-and-navigation): pages you add beside the synced ones.
+- [Limits](/guides/limits#imports-and-sync): imports and syncs a day.

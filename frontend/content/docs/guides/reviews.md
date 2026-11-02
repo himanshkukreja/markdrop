@@ -59,3 +59,8 @@ A reviewer can't approve their own changes: someone else has to. An admin can ap
 | **Viewer** | No | No | No |
 
 See [Members and roles](/guides/members-and-roles).
+
+## Related
+
+- [Members and roles](/guides/members-and-roles): who reviews.
+- [Publish your guide](/guides/publishing): what happens after approval.

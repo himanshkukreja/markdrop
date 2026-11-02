@@ -2,7 +2,7 @@
 title: Insights for your guide
 nav: Insights
 description: How readers use your published guide. Views, top pages, searches with no results, Ask AI questions and page feedback, with no cookies or personal data.
-updated: 2026-11-01
+updated: 2026-11-02
 prerequisites: [/guides/publishing]
 keywords: [insights, analytics, page views, visitors, top pages, referrers, searches, no results, feedback, was this helpful, ask ai questions, privacy, cookies, gdpr, do not track]
 ---
@@ -26,12 +26,13 @@ Choose **7 days**, **30 days** or **90 days** at the top right. Everything on th
 ![Top pages with views and helpful share, Quickstart first at 50% in red, and What readers couldn't find: searches with no results ("sso", "csv export", "snowflake", "rate limit") and questions Ask AI had no answer for, like "Do you support SSO with Okta?", each with Write a page.](/docs-assets/guides/insights/insights-pages.webp)
 - **Where readers come from**: the sites that link to your guide, like `google.com` or `github.com`, their countries, and their devices (computer, phone or tablet). Visits typed in, bookmarked or from apps that hide where they came from aren't listed under sites.
 - **What readers look for**: what they type in the search box most, and the questions they ask Ask AI most.
+- **Embedded files**, when pages [embed Markdrop files](/guides/embed-files#see-how-readers-use-them): each block's views and use, a video's plays and where viewers stop, a PDF's furthest page.
 
 ![Where readers come from, on Sites: google.com, github.com, news.ycombinator.com, bing.com, linkedin.com and duckduckgo.com with their counts, and What readers look for, on Searches: postgres, api key, alerts, invite, slack and more.](/docs-assets/guides/insights/insights-sources.webp)
 
 New page views usually show within a minute.
 
-The [Fix list](/guides/fix-list) turns all of this into one ranked list of what to fix next, with an AI-drafted fix for each item.
+The [Fix list](/guides/fix-list) turns all of this into one ranked list of what to fix next, with an AI-drafted fix for each item, and counts AI agents' reads apart from readers ([AI agents](/guides/fix-list#ai-agents)).
 
 Before there's anything to show, the tab says why. A guide that isn't published yet links to **Publish**. A live guide with no readers yet shows its address to copy or open, and what will show up. A guide with Insights off explains what it does, and an admin can turn it on from there.
 
@@ -41,7 +42,7 @@ The [Markdrop Guides home](/guides/overview#your-guides) adds up the last 7 days
 
 ## Page feedback
 
-Every page of a guide ends with **Did this page help?** Readers answer **Yes** or **Not quite**, and can add a comment of up to 1,000 characters. AI apps that read your guide through its [MCP server](/guides/what-readers-get#for-ai-tools) can report a problem with a page too; those show as **via an AI app (MCP)**.
+Every page of a guide ends with **Did this page help?** Readers answer **Yes** or **Not quite**, and can add a comment of up to 1,000 characters. AI apps that read your guide through its [MCP server](/guides/ai-ready#the-mcp-server) can report a problem with a page too; those show as **via an AI app (MCP)**.
 
 Comments and "not helpful" votes appear under **Reader feedback** as **Open**, with the page they're about and when they came in. **Open page** opens that page in the editor. When you've dealt with one, choose **Resolve**; it moves to **Resolved**, and **Reopen** puts it back.
 
@@ -103,3 +104,9 @@ The next [publish](/guides/publishing) takes **Did this page help?** off the gui
 ::::
 
 What was already collected stays until it expires. To delete it now, choose **Delete collected data**. Turning Insights back on starts counting again from that moment.
+
+## Related
+
+- [Fix list](/guides/fix-list): what to fix next, from the same signals.
+- [Ask AI](/guides/ask-ai): the questions behind the numbers.
+- [Embed files that render](/guides/embed-files#see-how-readers-use-them): how readers use embedded files.

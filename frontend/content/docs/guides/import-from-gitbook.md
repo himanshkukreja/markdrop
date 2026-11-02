@@ -73,3 +73,10 @@ The redirects from an import aren't listed in **Settings › Redirects**. Reader
 ## If the import fails
 
 The screen says **The import stopped** and shows the reason. Nothing was published and your GitBook site wasn't changed. Choose **Start again** to try a new import. See [Troubleshooting](/guides/faq#an-import-failed).
+
+## Related
+
+- [Import from GitHub](/guides/import-from-github): a repository, kept in sync.
+- [Reset the design](/guides/themes#reset-the-design): back to the look the import brought.
+- [Redirects](/guides/pages-and-navigation#redirects): old addresses.
+- [Publish your guide](/guides/publishing): when the report is clear.

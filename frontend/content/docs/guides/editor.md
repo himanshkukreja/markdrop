@@ -1,10 +1,10 @@
 ---
 title: Write in the editor
 nav: The editor
-description: Markdrop Guides' page editor. Blocks and the slash menu, AI help on a selection, find and replace, page checks, review comments, shortcuts, autosave and locks.
-updated: 2026-11-01
+description: "The page editor: blocks and the slash menu, drag and drop, Markdrop files and private sections, AI help, find and replace, checks, comments and locks."
+updated: 2026-11-02
 prerequisites: [/guides/create-a-site]
-keywords: [editor, visual editor, markdown, slash menu, blocks, callout, steps, tabs, cards, code block, image, dark mode image, ai, ask ai, rewrite, translate, find and replace, checks, broken links, alt text, comments, review, shortcuts, autosave, lock, conflict, preview]
+keywords: [editor, visual editor, markdown, slash menu, blocks, drag and drop, reorder cards, markdrop file, embed, private section, video, callout, steps, tabs, cards, code block, image, dark mode image, ai, ask ai, rewrite, translate, find and replace, checks, broken links, alt text, comments, review, shortcuts, autosave, lock, conflict, preview]
 ---
 
 Open a guide and its **Pages** tab is the editor: the page tree on the left, the page in the middle, and the page panel on the right (**Checks**, **Page**, **Comments** and **History**). On a phone, **Pages** and **Page** in the bar open the tree and the panel.
@@ -15,9 +15,9 @@ Only people with the Editor, Reviewer or Admin role can edit. Viewers see the sa
 
 ## The page tree
 
-The tree lists the guide's groups and pages in sidebar order, each page with its icon. **Search pages** filters it by title or address, **+** adds a page, and a group's name folds it away (the tree remembers which, in this browser). A page's **⋯** menu moves it up, down or to another group, or deletes it.
+The tree lists the guide's groups and pages in sidebar order, each page with its icon. **Search pages** filters it by title or address, **+** adds a page, and a group's name folds it away (the tree remembers which, in this browser). Drag a page or a group by the grip beside it to move it, or use a page's **⋯** menu to move it up, down or to another group, or delete it. See [Pages and navigation](/guides/pages-and-navigation#move-reorder-and-delete).
 
-One small dot beside a page means it's new or changed since the last publish. Point at it to see which. A lock with a name means someone else is editing that page, and a speech bubble with a number counts its open review comments.
+One small dot beside a page means it's new or changed since the last publish. Point at it to see which. A lock with a name means someone else is editing that page, a speech bubble with a number counts its open review comments, a padlock marks a [private page](/guides/private-pages), and a GitHub mark a page that [comes from GitHub](/guides/import-from-github#editing-in-the-editor).
 
 ## The page header
 
@@ -40,6 +40,8 @@ Type `/` on a new line, or after a space, to insert a block. An empty line says 
 ::clip{src="/docs-assets/guides/editor/editor-slash-callout" alt="In the Invite your team page, a new line, typing /tip, choosing Tip callout, and typing a sentence into the new tip."}
 
 You can also use the **+** in the margin: beside the empty line you're on, or beside any block you point at (**Add a block below**). Drag the grip beside a block to move it, or click it for **Move up**, **Move down**, **Duplicate** and **Delete**. Alt + Shift + ↑ or ↓ moves the block with the keyboard.
+
+Cards have a grip of their own: drag a card to reorder it in its grid or move it into another grid, and a line shows where it lands (Esc cancels). Click the grip for **Move left**, **Move right** (**Move up** and **Move down** in a one-column grid) and **Delete**, or press Alt + ← or → on it. The Markdown of the cards is kept exactly as written.
 
 ## Formatting
 
@@ -140,8 +142,13 @@ Add an **Image** block, then **Upload an image**, drop one onto it, or paste an 
 | **Bulleted list**, **Numbered list**, **Checklist** | Lists. |
 | **Quote**, **Divider**, **Keyboard key** | A quotation, a horizontal line, and keys like Ctrl K. |
 | **Math** | A LaTeX formula, previewed as you type. |
+| **Private section** | Part of a public page that only some readers see: your team, a customer's people or partners with a password. See [Private pages and sections](/guides/private-pages#a-private-section-in-a-public-page). |
+| **Markdrop file** | An interactive HTML demo, a zipped site, a PDF or a video from Markdrop, live in the page, with a text version for search and AI. See [Embed files that render](/guides/embed-files). |
+| **Video** | A video you upload, or a Markdrop video link, in the docs player. Add WebVTT captions and chapters from the block. |
+| **Clip** | A short silent loop, like a GIF but lighter. |
+| **API endpoint** | A card with the method and path you type. With an [API reference](/guides/api-reference), the block offers your file's endpoints, and the card links to the endpoint's page. |
 
-The menu also lists **Video**, **Clip**, **Embed** and **API endpoint**. They come from the engine Markdrop's own docs use. On a guide, an embedded page shows as a link card, and an API endpoint shows as a card with the method and path you type. With an [API reference](/guides/api-reference), the block offers your file's endpoints, and the card links to the endpoint's page.
+The menu also lists **Embed**, a page from another site, which shows as a link card on a guide. To put a live demo in a page, publish it on Markdrop and use **Markdrop file**: the status bar under the page has **Embed a Markdrop file** too.
 
 ## Keyboard shortcuts
 
@@ -163,6 +170,8 @@ Press `?` (when you're not typing) or **Shortcuts** in the status bar for the li
 | :kbd[⌘ F] | Find and replace |
 | :kbd[⌘ Z], :kbd[⌘ ⇧ Z] | Undo, redo |
 | :kbd[⌘ Enter] | Send a comment or reply |
+| :kbd[Alt ←], :kbd[Alt →] | Move a card (on its grip) |
+| :kbd[Space], then :kbd[↑] :kbd[↓], :kbd[Space] | Pick up, move and drop a page in the tree (on its grip); :kbd[Esc] cancels |
 
 Markdown shortcuts work as you type: `## ` for a heading, `- ` for a list, `> ` for a quote, three backticks for code.
 
@@ -187,3 +196,10 @@ If the page was saved by someone else since you opened it, Markdrop Guides stops
 - **Keep mine** saves your text as the newest version. Theirs stays in the history.
 - **Use their version** drops your unsaved changes.
 - **Copy my text** puts your text on the clipboard first.
+
+## Related
+
+- [Pages and navigation](/guides/pages-and-navigation): the page tree and addresses.
+- [Embed files that render](/guides/embed-files): the Markdrop file block.
+- [Private pages and sections](/guides/private-pages): the Private section block.
+- [History and versions](/guides/history): every save.
