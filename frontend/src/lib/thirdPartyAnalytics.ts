@@ -38,6 +38,7 @@
 import type { CaptureResult, PostHog } from "posthog-js";
 import { GA_ID, POSTHOG_KEY, POSTHOG_PROXY, POSTHOG_UI_HOST, thirdPartyAnalyticsHost } from "@/lib/analyticsConfig";
 import { isRecordable, redactPath } from "@/lib/analyticsPath";
+import { analyticsRoute, isStudioHost, studioPathOf } from "@/lib/studioHost";
 import type { AnalyticsMode } from "@/lib/consent";
 import { trackingDisabled } from "@/lib/track";
 
@@ -79,10 +80,13 @@ function origin(): string {
   return typeof window === "undefined" ? "" : window.location.origin;
 }
 
-/** A path as reported: its route shape. */
-export function cleanPath(pathname: string): string {
+/**
+ * A path as reported: its route shape. On the studio host (guides.markdrop.in, whose paths have no
+ * /guides; `host` defaults to this page's) it is the app route it stands for: /guides/[site]/fixes.
+ */
+export function cleanPath(pathname: string, host?: string): string {
   try {
-    return redactPath(pathname.split(/[?#]/)[0] || "/");
+    return redactPath(analyticsRoute(pathname.split(/[?#]/)[0] || "/", host));
   } catch {
     return "/";
   }
@@ -102,7 +106,8 @@ export function cleanUrl(raw: unknown): unknown {
   // By hostname: GA reports the page without its port.
   const here = typeof window === "undefined" ? "" : window.location.hostname;
   const own = url.hostname === here || /(^|\.)markdrop\.in$/.test(url.hostname);
-  if (own) url.pathname = cleanPath(url.pathname);
+  // A studio-host URL keeps its own (unprefixed) shape: guides.markdrop.in/[site]/fixes.
+  if (own) url.pathname = isStudioHost(url.hostname) ? (studioPathOf(cleanPath(url.pathname, url.hostname)) ?? "/") : cleanPath(url.pathname, url.hostname);
   url.search = "";
   url.hash = "";
   // A relative input (an href attribute) stays relative.
@@ -121,7 +126,7 @@ export function urlIsClean(href: string): boolean {
   try {
     const u = new URL(href);
     if (u.hash && u.hash !== "#") return false;
-    return isRecordable(u.pathname, u.searchParams.keys()) && !u.pathname.startsWith("/admin");
+    return isRecordable(analyticsRoute(u.pathname, u.hostname), u.searchParams.keys()) && !u.pathname.startsWith("/admin");
   } catch {
     return false;
   }
@@ -135,7 +140,7 @@ export function scrubText(text: string): string {
   return text.replace(URL_IN_TEXT, (whole: string, path?: string) => {
     if (!path) return whole;
     const host = whole.slice(0, whole.length - path.length);
-    return host + cleanPath(path);
+    return host + cleanPath(path, "markdrop.in"); // markdrop.in or localhost: never the studio host
   });
 }
 
@@ -240,7 +245,8 @@ function beforeSend(cr: CaptureResult | null): CaptureResult | null {
   // An encrypted document's page sends nothing at all, not even sanitised.
   if (encryptedPause || onEncryptedPage()) return null;
   // Document titles are the documents' own words; only app pages keep theirs.
-  const titleSafe = cleanPath(path) === path;
+  const route = analyticsRoute(path);
+  const titleSafe = cleanPath(route) === route;
   cleanProps(props, titleSafe);
   // The open document, per event: a registered super property would persist across page loads.
   if (doc && cr.event !== "$snapshot") {
@@ -446,7 +452,8 @@ const GA_TITLE = new Set(["dt", "ep.page_title"]);
 function cleanGaParams(qs: string): string {
   const params = new URLSearchParams(qs);
   const loc = params.get("dl");
-  const dirty = loc ? cleanUrl(loc) !== loc.split(/[?#]/)[0] : cleanPath(window.location.pathname) !== window.location.pathname;
+  const here = analyticsRoute(window.location.pathname);
+  const dirty = loc ? cleanUrl(loc) !== loc.split(/[?#]/)[0] : cleanPath(here) !== here;
   for (const [k, v] of [...params.entries()]) {
     if (GA_DROP.has(k)) params.delete(k);
     else if (GA_TITLE.has(k) && dirty) params.set(k, "Markdrop");
@@ -538,7 +545,7 @@ export async function startThirdParty(m: AnalyticsMode) {
   else if (gaLoaded) (window as unknown as Record<string, unknown>)[`ga-disable-${GA_ID}`] = true;
   syncRecording();
   if (pendingUser) identifyUser(pendingUser);
-  if (currentPath === null) onRoute(window.location.pathname);
+  if (currentPath === null) onRoute(analyticsRoute(window.location.pathname));
 }
 
 function pageview() {

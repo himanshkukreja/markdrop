@@ -7,6 +7,7 @@ import { thirdPartyAnalyticsHost } from "@/lib/analyticsConfig";
 import { CONSENT_OPEN_EVENT, resolveConsent, setConsent } from "@/lib/consent";
 import { onRoute, pauseRecordingFor, startThirdParty } from "@/lib/thirdPartyAnalytics";
 import { trackingDisabled } from "@/lib/track";
+import { analyticsRoute } from "@/lib/studioHost";
 
 const ConsentBanner = dynamic(() => import("./ConsentBanner"), { ssr: false });
 
@@ -43,11 +44,11 @@ export default function ThirdPartyAnalytics() {
   }, []);
 
   useLayoutEffect(() => {
-    if (active && pathname) pauseRecordingFor(pathname);
+    if (active && pathname) pauseRecordingFor(analyticsRoute(pathname));
   }, [active, pathname]);
 
   useEffect(() => {
-    if (active && pathname) onRoute(pathname);
+    if (active && pathname) onRoute(analyticsRoute(pathname));
   }, [active, pathname]);
 
   const choose = useCallback((granted: boolean) => {

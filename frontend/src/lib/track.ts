@@ -13,6 +13,7 @@
  * URL is its capability. The server redacts again, so this is belt and braces.
  */
 import { redactPath } from "@/lib/analyticsPath";
+import { analyticsRoute, isStudioHost } from "@/lib/studioHost";
 import { getToken } from "@/lib/api";
 import { captureThirdParty } from "@/lib/thirdPartyAnalytics";
 
@@ -116,12 +117,13 @@ function entryInfo(): Record<string, string> {
 
 function isPrimaryHost(): boolean {
   const h = location.hostname;
-  return h === "localhost" || h === "127.0.0.1" || h === "markdrop.in" || h.endsWith(".markdrop.in") || h.endsWith(".vercel.app");
+  return h === "localhost" || h === "127.0.0.1" || h === "markdrop.in" || h.endsWith(".markdrop.in") || h.endsWith(".vercel.app") || isStudioHost(h);
 }
 
 function shape(pathname: string): string {
   if (!isPrimaryHost()) return pathname === "/" ? "/" : "/[workspace-doc]";
-  return redactPath(pathname);
+  // The studio host's paths have no /guides: reported as the app routes they are (lib/studioHost).
+  return redactPath(analyticsRoute(pathname));
 }
 
 function flush(final = false) {

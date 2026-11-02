@@ -2,7 +2,22 @@
 
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { redactUrl } from "@/lib/analyticsPath";
+import { redactPath, redactUrl } from "@/lib/analyticsPath";
+import { analyticsRoute, isStudioHost, studioPathOf } from "@/lib/studioHost";
+
+/** redactUrl, and on the studio host (guides.markdrop.in/<site>/…, no /guides) the same shapes: /[site]/…. */
+function redact(raw: string): string | null {
+  try {
+    const u = new URL(raw);
+    if (!isStudioHost(u.hostname)) return redactUrl(raw);
+    u.pathname = studioPathOf(redactPath(analyticsRoute(u.pathname, u.hostname))) ?? "/";
+    u.search = "";
+    u.hash = "";
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Vercel Web Analytics + Speed Insights, with document URLs redacted.
@@ -22,13 +37,13 @@ export default function VercelInsights() {
     <>
       <Analytics
         beforeSend={(event) => {
-          const url = redactUrl(event.url);
+          const url = redact(event.url);
           return url ? { ...event, url } : null;
         }}
       />
       <SpeedInsights
         beforeSend={(event) => {
-          const url = redactUrl(event.url);
+          const url = redact(event.url);
           // `route` is already the Next route shape (/[slug]), so it needs no
           // redaction — but drop the event entirely if the URL looked wrong.
           return url ? { ...event, url } : null;

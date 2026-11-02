@@ -20,6 +20,7 @@ test("Guides screens are app routes, not documents", () => {
     assert.equal(redactPath(`/${root}`), `/${root}`);
     assert.equal(redactPath(`/${root}/new`), `/${root}/new`);
     assert.equal(redactPath(`/${root}/members`), `/${root}/members`);
+    assert.equal(redactPath(`/${root}/home`), `/${root}/home`);
     assert.equal(redactPath(`/${root}/${SITE}`), `/${root}/[site]`);
     for (const s of ["design", "publish", "settings", "import"]) assert.equal(redactPath(`/${root}/${SITE}/${s}`), `/${root}/[site]/${s}`);
     assert.equal(redactPath(`/${root}/${SITE}/whatever`), `/${root}/[site]/[other]`);

@@ -47,7 +47,8 @@ const APP_ROUTES = new Set([
  * screens under it; any other second segment is a site id.
  */
 const GUIDES_ROOTS = new Set(["guides", "docs-studio"]);
-const GUIDES_SCREENS = new Set(["new", "members"]);
+// home: the studio home (guides.markdrop.in/, the app route /guides/home; /guides is the landing page).
+const GUIDES_SCREENS = new Set(["home", "new", "members"]);
 /** A site's screens below /guides/<site> (the [siteId] route's children). */
 const GUIDES_SITE_SCREENS = new Set(["changelog", "design", "import", "insights", "publish", "settings"]);
 /** The sections of a site's Settings (/guides/<site>/settings/<section>). */
