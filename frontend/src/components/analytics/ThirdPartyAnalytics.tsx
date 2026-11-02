@@ -5,9 +5,8 @@ import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { thirdPartyAnalyticsHost } from "@/lib/analyticsConfig";
 import { CONSENT_OPEN_EVENT, resolveConsent, setConsent } from "@/lib/consent";
-import { onRoute, pauseRecordingFor, startThirdParty } from "@/lib/thirdPartyAnalytics";
+import { onRoute, pageRoute, pauseRecordingFor, startThirdParty } from "@/lib/thirdPartyAnalytics";
 import { trackingDisabled } from "@/lib/track";
-import { analyticsRoute } from "@/lib/studioHost";
 
 const ConsentBanner = dynamic(() => import("./ConsentBanner"), { ssr: false });
 
@@ -44,11 +43,11 @@ export default function ThirdPartyAnalytics() {
   }, []);
 
   useLayoutEffect(() => {
-    if (active && pathname) pauseRecordingFor(analyticsRoute(pathname));
+    if (active && pathname) pauseRecordingFor(pageRoute(pathname));
   }, [active, pathname]);
 
   useEffect(() => {
-    if (active && pathname) onRoute(analyticsRoute(pathname));
+    if (active && pathname) onRoute(pageRoute(pathname));
   }, [active, pathname]);
 
   const choose = useCallback((granted: boolean) => {

@@ -8,26 +8,31 @@
  *    Journeys tab resolves it from our own database.
  *  - URL fragments (E2E keys `#k=`, tenant hand-off tokens) and query strings (signed tokens).
  *    UTM tags are read by PostHog separately, before this layer, so campaigns still attribute.
- *  - What people write. Editors, previews and lists of a person's own documents carry
- *    `ph-no-capture` (not recorded, clicks not autocaptured) or `ph-sensitive ph-mask` (text masked).
- *    Every input is masked in replays.
- *  - Anything at all on /admin, on a workspace's custom domain, or with `md_notrack` set.
+ *  - What people write. Documents, artifacts, files, editors, previews and lists of a person's own
+ *    documents carry `ph-no-capture` (not recorded, clicks not autocaptured); titles, names and
+ *    emails in the page around them carry `ph-sensitive ph-mask` (text masked). Every input is
+ *    masked in replays, and so is every naming attribute (title, aria-label, alt: maskAttributeFn).
+ *  - Anything at all on /admin, on a workspace's custom domain or a published guide, or with
+ *    `md_notrack` set.
  *  - Anything at all on an end-to-end encrypted document's page — with or without its #k= key in
  *    the address. PostHog and GA never load when the page opens on one (the server-rendered
  *    `data-md-e2e` marker, read before anything loads); arriving at one later by client-side
- *    navigation drops every event, stops replay and turns GA off until the reader leaves it.
+ *    navigation drops every event, stops replay and turns GA off until the reader leaves it. The
+ *    recorder also blocks any `[data-md-e2e]` element, for the instant before replay stops.
  *
- * Session replay runs only while the current URL is "clean": nothing in it needed redacting, so no
- * document page, invite, share room or sign-in link is ever recorded. On those pages events (clicks,
- * scroll depth, reading time) still flow, sanitised. The Meta events inside recordings carry the
- * page URL too, so `$snapshot` batches are sanitised as well, as a second line of defence.
+ * Session replay records every page of markdrop.in, guides.markdrop.in and docs.markdrop.in
+ * (lib/analyticsPath isRecordable), except /admin, the sign-in hand-offs (/auth/*), an address
+ * whose query or fragment carries a value that can be a secret (?token=, #k=, #token=), and an
+ * encrypted document's page. A document, share room or invite is recorded as page chrome around
+ * blocked content. The Meta events inside recordings carry the page URL, so `$snapshot` batches
+ * are sanitised as well: every URL in them is its route shape, without query or fragment.
  *
- * The one exception is a Guides screen (/guides/<site>…, lib/analyticsPath isRecordable): a site
- * id isn't a secret, so that dashboard is recorded, reported as its route shape, with the
- * customer's words in it blocked or masked (`ph-no-capture` on the editor, previews and lists of
- * pages, sites, redirects and questions; `ph-sensitive ph-mask` on names and addresses). Readers
- * of a published guide meet none of this: those sites run none of Markdrop's trackers
- * (docs/client/AppTrackers).
+ * A Guides screen (/guides/<site>…) is reported as its route shape, with the customer's words in
+ * it blocked or masked (`ph-no-capture` on the editor, previews and lists of pages, sites,
+ * redirects and questions; `ph-sensitive ph-mask` on names and addresses). Readers of a published
+ * guide meet none of this: those sites run none of Markdrop's trackers (docs/client/AppTrackers).
+ * Markdrop's own docs (docs.markdrop.in) are public pages, reported as /docs-site/<path> (the
+ * route they are served from) with their real address in $current_url.
  *
  * Consent (lib/consent): "full" = cookies + replay + GA; "limited" = PostHog in cookieless mode
  * (counted, never linked across visits, never recorded) and no GA.
@@ -37,8 +42,9 @@
  */
 import type { CaptureResult, PostHog } from "posthog-js";
 import { GA_ID, POSTHOG_KEY, POSTHOG_PROXY, POSTHOG_UI_HOST, thirdPartyAnalyticsHost } from "@/lib/analyticsConfig";
-import { isRecordable, redactPath } from "@/lib/analyticsPath";
-import { analyticsRoute, isStudioHost, studioPathOf } from "@/lib/studioHost";
+import { docsRoute, hashIsRecordable, isDocumentRoute, isRecordable, redactPath } from "@/lib/analyticsPath";
+import { analyticsRoute, cleanHost, isStudioHost, studioPathOf } from "@/lib/studioHost";
+import { isDocsHost } from "@/docs/host";
 import type { AnalyticsMode } from "@/lib/consent";
 import { trackingDisabled } from "@/lib/track";
 
@@ -81,15 +87,32 @@ function origin(): string {
 }
 
 /**
- * A path as reported: its route shape. On the studio host (guides.markdrop.in, whose paths have no
- * /guides; `host` defaults to this page's) it is the app route it stands for: /guides/[site]/fixes.
+ * The route a page path stands for (`host` defaults to this page's): on the studio host
+ * (guides.markdrop.in, whose paths have no /guides) its app route, /guides/<site>/fixes; on the
+ * docs host (docs.markdrop.in) its docs route, /docs-site/<path>; elsewhere the path itself.
  */
+export function pageRoute(pathname: string, host?: string): string {
+  const h = cleanHost(host ?? (typeof window === "undefined" ? "" : window.location.hostname));
+  return isDocsHost(h) ? docsRoute(pathname) : analyticsRoute(pathname, h);
+}
+
+/** A path as reported: the route shape of pageRoute (/guides/[site]/fixes, /[slug], /docs-site/x). */
 export function cleanPath(pathname: string, host?: string): string {
   try {
-    return redactPath(analyticsRoute(pathname.split(/[?#]/)[0] || "/", host));
+    return redactPath(pageRoute(pathname.split(/[?#]/)[0] || "/", host));
   } catch {
     return "/";
   }
+}
+
+/**
+ * A path as shown on its own host, cleaned: guides.markdrop.in/[site]/fixes (no /guides),
+ * docs.markdrop.in/<path> as it is (public pages), anything else its route shape.
+ */
+function cleanHostPath(pathname: string, host: string): string {
+  if (isDocsHost(cleanHost(host))) return pathname.split(/[?#]/)[0] || "/";
+  if (isStudioHost(host)) return studioPathOf(cleanPath(pathname, host)) ?? "/";
+  return cleanPath(pathname, host);
 }
 
 /** A URL as reported: same-origin URLs lose the slug, query and fragment; others keep origin + path. */
@@ -106,8 +129,7 @@ export function cleanUrl(raw: unknown): unknown {
   // By hostname: GA reports the page without its port.
   const here = typeof window === "undefined" ? "" : window.location.hostname;
   const own = url.hostname === here || /(^|\.)markdrop\.in$/.test(url.hostname);
-  // A studio-host URL keeps its own (unprefixed) shape: guides.markdrop.in/[site]/fixes.
-  if (own) url.pathname = isStudioHost(url.hostname) ? (studioPathOf(cleanPath(url.pathname, url.hostname)) ?? "/") : cleanPath(url.pathname, url.hostname);
+  if (own) url.pathname = cleanHostPath(url.pathname, url.hostname);
   url.search = "";
   url.hash = "";
   // A relative input (an href attribute) stays relative.
@@ -119,34 +141,51 @@ const PATH_KEY = /pathname$/i;
 const TITLE_KEY = /^(\$?title|page_title)$/;
 
 /**
- * Whether this URL needs nothing redacted (or only a Guides site id, lib/analyticsPath
- * isRecordable): the only kind replay may see.
+ * Whether replay may record the page at this URL (lib/analyticsPath isRecordable, hashIsRecordable):
+ * every page but /admin, the sign-in hand-offs, and an address carrying a secret in its query or
+ * fragment. An encrypted document's page is checked separately (onEncryptedPage).
  */
-export function urlIsClean(href: string): boolean {
+export function recordableUrl(href: string): boolean {
   try {
     const u = new URL(href);
-    if (u.hash && u.hash !== "#") return false;
-    return isRecordable(analyticsRoute(u.pathname, u.hostname), u.searchParams.keys()) && !u.pathname.startsWith("/admin");
+    return hashIsRecordable(u.hash) && isRecordable(pageRoute(u.pathname, u.hostname), u.searchParams.keys());
   } catch {
     return false;
   }
 }
 
-/** A markdrop URL written out in text (`markdrop.in/AbC123`), with or without a scheme. */
-const URL_IN_TEXT = /(?:https?:\/\/)?(?:www\.)?(?:markdrop\.in|localhost(?::\d+)?|127\.0\.0\.1(?::\d+)?)(\/[^\s"'<>)]*)?/g;
+/**
+ * A Markdrop URL written out in text (`markdrop.in/AbC123`, `guides.markdrop.in/<site>`,
+ * `localhost:3000/AbC123`), with or without a scheme.
+ */
+const URL_IN_TEXT = /(?:https?:\/\/)?((?:[a-z0-9-]+\.)*markdrop\.in|(?:[a-z0-9-]+\.)?localhost(?::\d+)?|127\.0\.0\.1(?::\d+)?)(\/[^\s"'<>)]*)?/gi;
 
 export function scrubText(text: string): string {
-  if (!text || !/markdrop\.in|localhost|127\.0\.0\.1/.test(text)) return text;
-  return text.replace(URL_IN_TEXT, (whole: string, path?: string) => {
+  if (!text || !/markdrop\.in|localhost|127\.0\.0\.1/i.test(text)) return text;
+  return text.replace(URL_IN_TEXT, (whole: string, host: string, path?: string) => {
     if (!path) return whole;
-    const host = whole.slice(0, whole.length - path.length);
-    return host + cleanPath(path, "markdrop.in"); // markdrop.in or localhost: never the studio host
+    return whole.slice(0, whole.length - path.length) + cleanHostPath(path, cleanHost(host));
   });
 }
 
 function maskTextFn(text: string, element?: HTMLElement | null): string {
   if (element?.closest?.(".ph-mask, title")) return text.replace(/\S/g, "*");
   return scrubText(text);
+}
+
+/**
+ * Attributes that name things: a document's title in a tooltip, a person in an aria-label, a file
+ * name to download as. Replays never show them, so they are masked on every page. Placeholders
+ * (visible) are masked inside `.ph-mask` only.
+ */
+const NAMING_ATTRS = new Set(["title", "alt", "aria-label", "aria-description", "aria-valuetext", "download"]);
+
+function maskAttributeFn(name: string, value: string, element?: Element): string {
+  if (NAMING_ATTRS.has(name)) return value.replace(/\S/g, "*");
+  if (name === "placeholder" && element?.closest?.(".ph-mask")) return value.replace(/\S/g, "*");
+  // maskAllInputs leaves hidden inputs alone, and one holds a sign-in code (kit/OtpInput).
+  if (name === "value" && element instanceof HTMLInputElement && element.type === "hidden") return value.replace(/\S/g, "*");
+  return value;
 }
 
 const ATTR_URL = new Set(["href", "src", "action", "data-href", "srcset", "poster"]);
@@ -187,7 +226,7 @@ function cleanNested(v: unknown, titleSafe: boolean, depth: number): void {
   const o = v as Props;
   for (const [k, x] of Object.entries(o)) {
     if (typeof x === "string") {
-      if (PATH_KEY.test(k)) o[k] = cleanPath(x);
+      if (PATH_KEY.test(k)) o[k] = cleanPath(x, hostOfPath(o, k));
       else if (URL_KEY.test(k)) o[k] = cleanUrl(x);
       else if (TITLE_KEY.test(k) && !titleSafe) o[k] = "Markdrop";
     } else if (x && typeof x === "object") {
@@ -196,11 +235,32 @@ function cleanNested(v: unknown, titleSafe: boolean, depth: number): void {
   }
 }
 
+/**
+ * The host a path property was recorded on, from its URL twin ($pathname ↔ $current_url,
+ * $initial_pathname ↔ $initial_current_url, $session_entry_pathname ↔ $session_entry_url).
+ * PostHog keeps the first ones in a cookie shared by every *.markdrop.in host, so a path first
+ * seen on markdrop.in (a document's slug) can be sent from docs.markdrop.in: it is cleaned by the
+ * rules of the host it came from. Without a twin: this page's host.
+ */
+function hostOfPath(props: Props, key: string): string | undefined {
+  const base = key.replace(PATH_KEY, "");
+  for (const twin of [`${base}current_url`, `${base}url`]) {
+    const v = props[twin];
+    if (typeof v !== "string") continue;
+    try {
+      return new URL(v).hostname;
+    } catch {
+      /* not a URL */
+    }
+  }
+  return undefined;
+}
+
 function cleanProps(props: Props | undefined, titleSafe: boolean): void {
   if (!props) return;
   for (const [k, v] of Object.entries(props)) {
     if (typeof v === "string") {
-      if (PATH_KEY.test(k)) props[k] = cleanPath(v);
+      if (PATH_KEY.test(k)) props[k] = cleanPath(v, hostOfPath(props, k));
       else if (URL_KEY.test(k)) props[k] = cleanUrl(v);
       else if (TITLE_KEY.test(k) && !titleSafe) props[k] = "Markdrop";
     } else if (v && typeof v === "object" && !NESTED_SKIP.has(k)) {
@@ -240,13 +300,12 @@ function cleanProps(props: Props | undefined, titleSafe: boolean): void {
 function beforeSend(cr: CaptureResult | null): CaptureResult | null {
   if (!cr) return cr;
   const props = cr.properties as Props;
-  const path = typeof window !== "undefined" ? window.location.pathname : "/";
-  if (path.startsWith("/admin") || trackingDisabled()) return null;
+  const route = pageRoute(typeof window !== "undefined" ? window.location.pathname : "/");
+  if (route.startsWith("/admin") || trackingDisabled()) return null;
   // An encrypted document's page sends nothing at all, not even sanitised.
   if (encryptedPause || onEncryptedPage()) return null;
-  // Document titles are the documents' own words; only app pages keep theirs.
-  const route = analyticsRoute(path);
-  const titleSafe = cleanPath(route) === route;
+  // Document titles are the documents' own words; only app pages (and the docs) keep theirs.
+  const titleSafe = redactPath(route) === route;
   cleanProps(props, titleSafe);
   // The open document, per event: a registered super property would persist across page loads.
   if (doc && cr.event !== "$snapshot") {
@@ -284,7 +343,7 @@ function loadPostHog(m: AnalyticsMode): Promise<PostHog | null> {
         // Undecided (EU) and declined visitors: counted without cookies or storage.
         cookieless_mode: "on_reject",
         opt_out_capturing_by_default: m === "limited",
-        // Replay starts only on clean URLs, with consent (syncRecording).
+        // Replay starts only on recordable pages, with consent (syncRecording).
         disable_session_recording: true,
         session_recording: {
           maskAllInputs: true,
@@ -292,6 +351,11 @@ function loadPostHog(m: AnalyticsMode): Promise<PostHog | null> {
           // and page titles and .ph-mask text are masked outright.
           maskTextSelector: "*",
           maskTextFn,
+          // Naming attributes (title, aria-label, alt…) are masked everywhere.
+          maskAttributeFn,
+          // `ph-no-capture` (the default blockClass) blocks content; an encrypted document's page
+          // (its data-md-e2e marker) is blocked whole, even in the instant before replay stops.
+          blockSelector: "[data-md-e2e]",
           // Uncompressed, so before_send can scrub link attributes in snapshots (scrubSnapshot).
           // Requests are still gzipped on the wire.
           compress_events: false,
@@ -421,7 +485,7 @@ function applyEncryptedPause() {
 
 function syncRecording() {
   if (!ph) return;
-  const on = mode === "full" && urlIsClean(window.location.href) && !onEncryptedPage();
+  const on = mode === "full" && recordableUrl(window.location.href) && !onEncryptedPage();
   try {
     if (on && !ph.sessionRecordingStarted()) ph.startSessionRecording();
     else if (!on && ph.sessionRecordingStarted()) ph.stopSessionRecording();
@@ -452,7 +516,7 @@ const GA_TITLE = new Set(["dt", "ep.page_title"]);
 function cleanGaParams(qs: string): string {
   const params = new URLSearchParams(qs);
   const loc = params.get("dl");
-  const here = analyticsRoute(window.location.pathname);
+  const here = pageRoute(window.location.pathname);
   const dirty = loc ? cleanUrl(loc) !== loc.split(/[?#]/)[0] : cleanPath(here) !== here;
   for (const [k, v] of [...params.entries()]) {
     if (GA_DROP.has(k)) params.delete(k);
@@ -545,7 +609,7 @@ export async function startThirdParty(m: AnalyticsMode) {
   else if (gaLoaded) (window as unknown as Record<string, unknown>)[`ga-disable-${GA_ID}`] = true;
   syncRecording();
   if (pendingUser) identifyUser(pendingUser);
-  if (currentPath === null) onRoute(analyticsRoute(window.location.pathname));
+  if (currentPath === null) onRoute(pageRoute(window.location.pathname));
 }
 
 function pageview() {
@@ -558,12 +622,14 @@ function pageview() {
 
 /**
  * Called from a layout effect on every route change, before the recorder's MutationObserver
- * delivers the new page's DOM: a page that isn't clean stops recording first, so none of it is
- * captured. (onRoute, in a passive effect, would be too late.)
+ * delivers the new page's DOM: a page that may not be recorded (/admin, a sign-in hand-off, an
+ * encrypted document: its server-rendered data-md-e2e marker is already in the DOM here) stops
+ * recording first, so none of it is captured. (onRoute, in a passive effect, would be too late.)
+ * `route` is a pageRoute.
  */
-export function pauseRecordingFor(pathname: string) {
+export function pauseRecordingFor(route: string) {
   if (!ph || mode === null) return;
-  if (isRecordable(pathname) && !pathname.startsWith("/admin")) return;
+  if (isRecordable(route) && !onEncryptedPage()) return;
   try {
     if (ph.sessionRecordingStarted()) ph.stopSessionRecording();
   } catch {
@@ -571,7 +637,7 @@ export function pauseRecordingFor(pathname: string) {
   }
 }
 
-/** Every route change (ThirdPartyAnalytics calls it with usePathname). */
+/** Every route change (ThirdPartyAnalytics calls it with the pageRoute of usePathname). */
 export function onRoute(pathname: string) {
   if (!enabled()) return;
   if (mode === null) {
@@ -586,7 +652,7 @@ export function onRoute(pathname: string) {
   syncRecording();
   if (pathname.startsWith("/admin")) return;
   // On a document, wait briefly for the viewer to say which document it is.
-  if (!isRecordable(pathname) && !doc) pendingDocView = setTimeout(pageview, 2500);
+  if (isDocumentRoute(pathname) && !doc) pendingDocView = setTimeout(pageview, 2500);
   else pageview();
 }
 
