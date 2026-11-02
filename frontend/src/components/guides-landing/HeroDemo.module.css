@@ -1,0 +1,601 @@
+/*
+ * The hero's live demo (HeroDemo.tsx; canvas hero F3). A 752 × 552 browser window and the four steps
+ * under it, drawn in the hero artboard's own pixels (DropHero.module.css scales the whole hero), so
+ * every size here is the 1280 × 720 design. The smallest text is 12.5px, which stays at 11px or more
+ * at the smallest scale (0.88, 1024 × 640). Under 1024px the window takes the column's width and the
+ * Fix list shows as an overlay while it is being ranked. Tokens only.
+ */
+
+.demo {
+  min-width: 0;
+}
+.win {
+  position: relative;
+  width: 100%;
+  height: 552px;
+  border-radius: 14px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.5) inset,
+    0 40px 80px -36px color-mix(in srgb, var(--text) 45%, transparent),
+    0 12px 24px -12px color-mix(in srgb, var(--text) 18%, transparent);
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Browser bar and app bar */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.dots {
+  display: flex;
+  gap: 6px;
+}
+.dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.url {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface-inset);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.barEnd {
+  width: 42px;
+}
+.app {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+.logo {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #b42318;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.app b {
+  font-size: 13.5px;
+  color: var(--text);
+}
+.app small {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.grow {
+  flex: 1;
+}
+.ins {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.ins i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.pub,
+.draft,
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  font-weight: 700;
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+.pub {
+  width: 84px;
+  height: 26px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12.5px;
+}
+[data-press].pub,
+[data-press].draft,
+[data-press].btn {
+  transform: scale(0.93);
+  box-shadow: 0 0 0 5px var(--accent-ring);
+}
+
+/* The page */
+.body {
+  position: relative;
+  display: flex;
+  height: 474px;
+}
+.page {
+  position: relative;
+  flex: none;
+  width: 100%;
+  height: 100%;
+  padding: 20px 24px 0 44px;
+  overflow: hidden;
+  transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.crumb {
+  height: 17px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.title {
+  margin-top: 4px;
+  height: 36px;
+  font-size: 26px;
+  line-height: 36px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.s {
+  position: relative;
+  height: 76px;
+  margin-left: -12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  transition: background-color 0.4s, height 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.title + .s {
+  margin-top: 12px;
+}
+.s > b {
+  display: block;
+  height: 20px;
+  font-size: 14.5px;
+  line-height: 20px;
+  color: var(--text);
+}
+.s em {
+  display: block;
+  height: 7px;
+  margin-top: 9px;
+  border-radius: 4px;
+  background: var(--surface-inset);
+}
+.s[data-hot] {
+  background: var(--danger-soft);
+}
+.s[data-open] {
+  height: 156px;
+}
+.s[data-fixed] {
+  background: var(--success-soft);
+}
+.pct {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.pct[data-on] {
+  opacity: 1;
+}
+.s[data-hot] .pct {
+  color: var(--danger);
+}
+.gut {
+  position: absolute;
+  left: -30px;
+  top: 12px;
+  width: 6px;
+  height: 52px;
+  border-radius: 3px;
+  background: var(--surface-inset);
+  overflow: hidden;
+}
+.gut i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 0;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: height 0.5s ease-out, background-color 0.4s;
+}
+.gut[data-on] i {
+  height: var(--g);
+}
+.s[data-hot] .gut i {
+  background: var(--danger-fill);
+}
+.s[data-fixed] .gut i {
+  background: var(--success-fill);
+}
+.call {
+  position: absolute;
+  left: 150px;
+  top: -14px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 9999px;
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: var(--shadow-lg);
+  animation: pop 0.4s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.call b {
+  color: #fca5a5;
+}
+:global([data-theme="light"]) .call b {
+  color: #fecaca;
+}
+@keyframes pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+.diff {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 19px;
+}
+.diff div {
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* Solid tints (not stacked washes), so the text keeps 4.5:1 on the hot section. */
+.del {
+  color: var(--danger);
+  text-decoration: line-through;
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface-raised));
+}
+.add {
+  margin-top: 2px;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, var(--surface-raised));
+}
+.acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  margin-top: 8px;
+}
+.btn {
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  font-size: 12.5px;
+  color: var(--text);
+}
+.primary {
+  min-width: 72px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.note {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--success);
+}
+.stamp {
+  position: absolute;
+  right: 14px;
+  top: 32px;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  background: #047857;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transform: rotate(-4deg);
+  animation: stamp 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes stamp {
+  from { opacity: 0; transform: rotate(-4deg) scale(1.6); }
+  to { opacity: 1; transform: rotate(-4deg) scale(1); }
+}
+
+/* The Fix list panel */
+.panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 280px;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  transform: translateX(101%);
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.win[data-panel] .panel {
+  transform: none;
+}
+.win[data-panel] .page {
+  width: 472px;
+}
+.ph {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text);
+}
+.ph span {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.it {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  height: 64px;
+  padding: 0 12px 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+.it i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ic);
+}
+.it b {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.3;
+  color: var(--text);
+}
+.it small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.it u {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  text-decoration: none;
+  font-size: 12.5px;
+  font-weight: 800;
+  background: color-mix(in srgb, var(--tag-fg) 8%, var(--surface-raised));
+  color: var(--tag-fg);
+}
+.it[data-on] {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.ev {
+  padding: 10px 14px;
+}
+.ev p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 30px;
+  margin-top: 8px;
+}
+.bars i {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+}
+.bars i[data-hot] {
+  background: var(--danger-fill);
+}
+.draft {
+  width: 104px;
+  height: 28px;
+  margin-top: 10px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12.5px;
+}
+
+/* The cursor and its click ring */
+.cur {
+  position: absolute;
+  z-index: 10;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  transition: left 0.9s cubic-bezier(0.45, 0, 0.2, 1), top 0.9s cubic-bezier(0.45, 0, 0.2, 1), opacity 0.3s;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.3));
+}
+.ring {
+  position: absolute;
+  z-index: 9;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  pointer-events: none;
+  animation: ring 0.5s ease-out forwards;
+}
+@keyframes ring {
+  from { transform: scale(0.3); opacity: 1; }
+  to { transform: scale(1.4); opacity: 0; }
+}
+
+/* The steps: a four-part progress bar, each part a button */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 0 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.step::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+.step i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 3px;
+  width: var(--p);
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.1s linear;
+}
+.step b {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+.step small {
+  font-size: 12.5px;
+  line-height: 1.3;
+}
+.step[data-on] b {
+  color: var(--text);
+}
+.step[data-on] {
+  color: var(--text-secondary);
+}
+.step:hover b {
+  color: var(--accent-text);
+}
+.step:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Phones and tablets: the page keeps the full width; the Fix list is an overlay while it ranks. */
+@media (max-width: 1023px) {
+  .win[data-panel] .page {
+    width: 100%;
+  }
+  .panel {
+    z-index: 4;
+    width: min(88%, 300px);
+    box-shadow: var(--shadow-xl);
+  }
+  .app {
+    white-space: nowrap;
+  }
+  .win[data-diff] .panel {
+    transform: translateX(101%);
+  }
+  .call {
+    left: auto;
+    right: 54px;
+  }
+  .steps {
+    gap: 8px;
+  }
+  .step small {
+    display: none;
+  }
+}
+@media (max-width: 479px) {
+  .ins,
+  .app small {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .s,
+  .gut i,
+  .panel,
+  .cur,
+  .step i {
+    transition: none;
+  }
+  .call,
+  .stamp,
+  .ring {
+    animation: none;
+  }
+}

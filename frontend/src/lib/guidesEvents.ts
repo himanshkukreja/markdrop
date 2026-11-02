@@ -56,8 +56,8 @@
  *   guide_landing_cta             id: start|open|tour|pillar|docs|compare|pricing (open: "Open your guides",
  *                                 signed in), section: the <section> id,
  *                                 pillar?: fix_list|private_pages|live_demos (a pillar card's own button)
- *   guide_landing_demo            step: item|drafted (the hero's Fix list sample: an item chosen,
- *                                 Open in editor), published (the fix loop's "Fixed on publish")
+ *   guide_landing_demo            step: item|drafted|published (the hero's live demo: its Rank,
+ *                                 Draft and Fix steps chosen)
  *   guide_created                 + pillar, when the guide came from a pillar button in this tab
  *
  * What finishes on the server (a build going live or failing, an import finishing or failing) is

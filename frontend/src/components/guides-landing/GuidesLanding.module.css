@@ -2,7 +2,7 @@
  * The Markdrop Guides landing page (markdrop.in/guides). The site's marketing language: Mist light
  * (default) and dark, one blue, Manrope / JetBrains Mono, the dotted desk mat, tokens only. The copy
  * columns use the snap pages' parts (components/marketing/snap/parts.module.css); the hero is
- * DropHero.module.css, the fix loop FixLoop.module.css, the recordings Proof.module.css.
+ * DropHero.module.css and HeroDemo.module.css, the recordings Proof.module.css.
  * From 1024 × 640 each section is one viewport (SnapSection); phones scroll normally.
  */
 
@@ -48,8 +48,20 @@
   color: var(--on-accent);
 }
 .tour {
-  gap: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
   color: var(--text);
+  cursor: pointer;
+}
+.tour:hover {
+  color: var(--accent-text);
 }
 .tour svg {
   box-sizing: content-box;
@@ -109,6 +121,130 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 20px 32px;
+}
+
+.shotLight {
+  display: none !important;
+}
+:global([data-theme="light"]) .shotLight {
+  display: block !important;
+}
+:global([data-theme="light"]) .shotDark {
+  display: none !important;
+}
+
+/* ── Every item comes with its evidence ────────────────────────────── */
+
+.kinds {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.kinds li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.kinds b {
+  color: var(--text);
+  font-weight: 700;
+}
+.kIcon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.evFig {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.evFig figcaption {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  text-align: center;
+}
+/* Short windows: the kinds tighten and the lede gives way, so the copy fits beside the drawer. */
+@media (min-width: 1024px) and (max-height: 760px) {
+  .evCopy > p:nth-of-type(2) {
+    display: none;
+  }
+  .kinds {
+    gap: 6px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+}
+/* The drawer on the dotted mat, cut at the mat's foot (it's a tall panel: 1120 × 2600). */
+.evMat {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 28px 20px 0;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background-color: var(--surface-inset);
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  overflow: hidden;
+}
+.evShot {
+  position: relative;
+  width: min(100%, 440px);
+  height: 420px;
+  overflow: hidden;
+  border-radius: 14px 14px 0 0;
+  border: 1px solid var(--border-strong);
+  border-bottom: 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-xl);
+}
+.evShot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.evShot::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 56px;
+  background: linear-gradient(transparent, var(--surface-inset));
+  pointer-events: none;
+}
+@media (min-width: 1024px) {
+  .kinds {
+    font-size: clamp(14.5px, min(1.05vw, 2svh), 17px);
+    gap: clamp(8px, 1.3svh, 14px);
+  }
+  .evMat {
+    padding: clamp(24px, 4svh, 44px) 32px 0;
+    border-radius: 32px;
+  }
+  /* As tall as the section allows (mat padding and caption aside); the width follows the panel's
+     proportions so the top of the drawer, its evidence and the bars, is what shows. */
+  .evShot {
+    height: calc(var(--snap-usable, 600px) - 76px);
+    width: min(100%, calc((var(--snap-usable, 600px) - 76px) * 0.78));
+  }
 }
 
 /* The dotted desk mat */

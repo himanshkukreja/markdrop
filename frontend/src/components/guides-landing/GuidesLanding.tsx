@@ -10,7 +10,6 @@ import { studioUrl } from "@/lib/studioHost";
 import { SnapPage, SnapSection } from "@/components/marketing/snap/Snap";
 import { parts as p } from "@/components/marketing/snap/Parts";
 import DropHero from "./DropHero";
-import FixLoop from "./FixLoop";
 import Proof from "./Proof";
 import Compare from "./Compare";
 import LoopVideo from "./LoopVideo";
@@ -22,14 +21,14 @@ import s from "./GuidesLanding.module.css";
 /**
  * The Markdrop Guides landing page: markdrop.in/guides, the same page for everyone, signed in or not
  * (the studio is on guides.markdrop.in). A server component with no request data, so the page is
- * static: the copy, the comparison, the pricing and the FAQ are server HTML. Islands: the hero's Fix
- * list card (HeroFixList), the fix loop (FixLoop), the recordings (Proof, LoopVideo), the comparison's
+ * static: the copy, the comparison, the pricing and the FAQ are server HTML. Islands: the hero's live
+ * demo (HeroDemo), the recordings (Proof, LoopVideo), the comparison's
  * "Show all" (Compare), the tour button (TrailerButton: the player loads on click) and the analytics
  * listener (LandingTracker).
  *
  * Sections, one viewport each from 1024 × 640 (SnapPage / SnapSection, components/marketing/snap; the
  * comparison and the FAQ may run longer and snap at their start):
- *   hero (DropHero) · fix-loop · live-demos · private-pages · proof · ai · compare · pricing · faq · start
+ *   hero (DropHero) · evidence · live-demos · private-pages · proof · ai · compare · pricing · faq · start
  *
  * Every number shown as data is the fictional Acme sample of the docs (guides/fix-list), and says so.
  * Every "start" link goes to the studio (StartLink); pillar buttons carry data-pillar for the
@@ -111,6 +110,16 @@ const AGENT_LOG: Array<{ who: string; what: string; out?: string; tone?: "ok" | 
   { who: "", what: "→ Fix list · Hard for agents: long, no headings", tone: "fix" },
 ];
 
+/** What the Fix list finds (docs: guides/fix-list "What it finds"). */
+const FIX_KINDS: Array<{ icon: string; t: string; d: string }> = [
+  { icon: "arrowDown", t: "Readers leave here.", d: "Many more readers stop at one section of a page than at the rest of it." },
+  { icon: "search", t: "Searches with no results.", d: "What readers type in the search box and find nothing for." },
+  { icon: "sparkle", t: "Ask AI couldn't answer.", d: "Questions Ask AI had no answer for in your pages." },
+  { icon: "terminal", t: "Agents find nothing.", d: "What AI assistants search your docs for through its MCP server and find nothing." },
+  { icon: "film", t: "Video drop-off.", d: "The moment a video loses most of its viewers." },
+  { icon: "clock", t: "Stale pages.", d: "A page many readers open that nobody has edited in six months." },
+];
+
 const PRIVATE_POINTS: Array<{ icon: string; t: string; d: string }> = [
   { icon: "users", t: "Your team, a customer, or a password.", d: "Members, people or a whole email domain by emailed link (no account), or one password." },
   { icon: "layers", t: "A page, a group, or one section.", d: "Even a single section inside a public page." },
@@ -166,24 +175,62 @@ export default function GuidesLanding() {
               <StartLink cta="start" path={IMPORT_GUIDE} className={SECONDARY}>
                 Import your docs
               </StartLink>
-              <TrailerButton trailer={TRAILER} className={`md-btn md-btn--ghost md-btn--lg ${s.tour}`} label="Watch the 2-minute tour" />
             </>
           }
+          tour={<TrailerButton trailer={TRAILER} className={s.tour} label="Watch the 2-minute tour" />}
         />
 
-        {/* ── 2. Then fix it, right in the page ────────────────────────── */}
-        <SnapSection id="fix-loop" labelledBy="fix-loop-title" className={s.sec}>
-          <FixLoop
-            actions={
-              <>
+        {/* ── 2. Every item comes with its evidence ─────────────────────── */}
+        <SnapSection id="evidence" labelledBy="evidence-title" className={s.sec}>
+          <div className={p.split}>
+            <div className={`${p.copy} ${s.evCopy}`}>
+              <p className={p.eyebrow}>The Fix list</p>
+              <h2 id="evidence-title" className={`${p.h2} ${s.h2c}`}>Every item comes with its evidence.</h2>
+              <p className={p.lede}>
+                One list, ranked by how many readers each problem affects. Open an item to see why it&apos;s there, then draft the fix.
+              </p>
+              <ul className={s.kinds}>
+                {FIX_KINDS.map((k) => (
+                  <li key={k.t}>
+                    <span className={s.kIcon} aria-hidden="true"><Icon name={k.icon} size={15} /></span>
+                    <span><b>{k.t}</b> {k.d}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className={p.actions}>
                 <StartLink cta="pillar" pillar="fix_list" className={PRIMARY}>
                   Try the Fix list
                   <Icon name="arrowRight" size={16} />
                 </StartLink>
                 <More href={docs("studioFixList")}>How the Fix list works</More>
-              </>
-            }
-          />
+              </div>
+            </div>
+            <figure className={s.evFig}>
+              <div className={s.evMat}>
+                <div className={s.evShot}>
+                  <img
+                    className={s.shotLight}
+                    src="/docs-assets/guides/fix-list/fixlist-drawer.webp"
+                    alt="The drawer for Readers leave at Install the CLI: High impact, Open, Confident; 42% of 310 measured readers stopped there against about 4% per section elsewhere; a bar per section from the introduction to the end of the page with Install the CLI in red; then the suggested fix, with Open in editor."
+                    width={1120}
+                    height={2600}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <img
+                    className={s.shotDark}
+                    src="/docs-assets/guides/fix-list/fixlist-drawer.dark.webp"
+                    alt="The drawer for Readers leave at Install the CLI: High impact, Open, Confident; 42% of 310 measured readers stopped there against about 4% per section elsewhere; a bar per section from the introduction to the end of the page with Install the CLI in red; then the suggested fix, with Open in editor."
+                    width={1120}
+                    height={2600}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+              </div>
+              <figcaption>An item&apos;s evidence in the studio, with fictional data.</figcaption>
+            </figure>
+          </div>
         </SnapSection>
 
         {/* ── 3. Put the real thing in the page ────────────────────────── */}
