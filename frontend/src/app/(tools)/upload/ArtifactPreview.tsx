@@ -88,7 +88,7 @@ function parseCsv(text: string, maxRows = 200): string[][] {
 }
 
 function Frame({ children }: { children: React.ReactNode }) {
-  return <div className="h-[26rem] overflow-hidden rounded-xl border border-border bg-bg">{children}</div>;
+  return <div className="ph-no-capture h-[26rem] overflow-hidden rounded-xl border border-border bg-bg">{children}</div>;
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
@@ -324,7 +324,8 @@ export default function ArtifactPreview({
     return <Centered>No preview available for this file type.</Centered>;
   })();
 
-  if (bare) return <div className="h-full">{body}</div>;
+  // ph-no-capture: the file (and a pasted page's HTML in the srcdoc) is never recorded.
+  if (bare) return <div className="ph-no-capture h-full">{body}</div>;
 
   return (
     <div>

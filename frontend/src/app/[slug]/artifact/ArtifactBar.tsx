@@ -48,7 +48,7 @@ export function ArtifactBar(p: ArtifactBarProps) {
     <h1
       dir="auto"
       className={cx(
-        "m-0 min-w-0 truncate text-h4 text-text",
+        "ph-sensitive ph-mask m-0 min-w-0 truncate text-h4 text-text",
         !name && "font-mono",
       )}
     >
@@ -76,7 +76,7 @@ export function ArtifactBar(p: ArtifactBarProps) {
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex min-w-0 items-center gap-2">
-            {name.length > 40 ? <Tooltip className="flex min-w-0" content={name}>{heading}</Tooltip> : heading}
+            {name.length > 40 ? <Tooltip className="flex min-w-0" content={<span className="ph-sensitive ph-mask">{name}</span>}>{heading}</Tooltip> : heading}
             <ArtifactBadge renderer={p.renderer} label={p.typeLabel} />
           </div>
           <span className="truncate text-caption tabular-nums text-text-muted">{caption}</span>

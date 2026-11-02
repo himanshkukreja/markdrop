@@ -123,7 +123,7 @@ export default async function SlugPage({ params }: Props) {
   // rather than as markdown, so they get their own viewer entirely.
   if (doc?.kind === "artifact") {
     return (
-      <div className="ph-no-capture contents">
+      <div className="contents">
       <Suspense fallback={<ViewerFallback />}>
       <ArtifactView
         slug={slug}
@@ -152,12 +152,14 @@ export default async function SlugPage({ params }: Props) {
   // A protected document 401s on the anonymous SSR fetch, so we can't yet tell
   // markdown from artifact. DocumentView handles the gate and re-renders once
   // it knows — see its `kind` check after unlock.
-  // ph-no-capture (display: contents, so layout is untouched): nothing on a document page is ever
-  // part of a session recording, even in the instant before recording pauses on navigation.
+  // The page chrome (bar, gates, buttons) is part of a session recording; the document's own
+  // content is blocked inside the views (ph-no-capture on the body, outline and lists,
+  // ph-sensitive ph-mask on the title and names).
   // data-md-e2e: rendered by the server, so third-party analytics can see before loading anything
-  // that this page is an encrypted document — even when it was opened without its #k= key.
+  // that this page is an encrypted document — even when it was opened without its #k= key — and an
+  // encrypted document's page is blocked wholesale and never recorded.
   return (
-    <div className="ph-no-capture contents" data-md-e2e={doc?.encrypted ? "" : undefined}>
+    <div className="contents" data-md-e2e={doc?.encrypted ? "" : undefined}>
     <Suspense fallback={<ViewerFallback />}>
     <DocumentView
       slug={slug}

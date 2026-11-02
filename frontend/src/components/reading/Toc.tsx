@@ -37,7 +37,8 @@ export function Toc({ headings, activeId, encrypted, title = "Contents", variant
   return (
     <nav aria-labelledby={titleId} className={["md-toc", `md-toc--${variant}`, "no-print", className].filter(Boolean).join(" ")}>
       <p id={titleId} className="md-toc__title">{title}</p>
-      <ol className="md-toc__list">
+      {/* ph-no-capture: the entries are the document's own headings, never recorded. */}
+      <ol className="ph-no-capture md-toc__list">
         {entries.map((h) => {
           const current = h.id === active;
           return (

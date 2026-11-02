@@ -354,8 +354,10 @@ function loadPostHog(m: AnalyticsMode): Promise<PostHog | null> {
           // Naming attributes (title, aria-label, alt…) are masked everywhere.
           maskAttributeFn,
           // `ph-no-capture` (the default blockClass) blocks content; an encrypted document's page
-          // (its data-md-e2e marker) is blocked whole, even in the instant before replay stops.
-          blockSelector: "[data-md-e2e]",
+          // (its data-md-e2e marker) is blocked whole, even in the instant before replay stops;
+          // and so is the scratch element Mermaid renders a diagram's labels into on <body>
+          // (reading/DiagramFrame: render id mmd-…, Mermaid's element d<id>, its sandbox i<id>).
+          blockSelector: '[data-md-e2e], [id^="dmmd-"], [id^="immd-"]',
           // Uncompressed, so before_send can scrub link attributes in snapshots (scrubSnapshot).
           // Requests are still gzipped on the wire.
           compress_events: false,

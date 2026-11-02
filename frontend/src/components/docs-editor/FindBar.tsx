@@ -31,6 +31,8 @@ export function scrollToY(top: number, covered: number) {
 export function textareaOffsetTop(ta: HTMLTextAreaElement, at: number): number {
   const cs = getComputedStyle(ta);
   const div = document.createElement("div");
+  // A copy of the text, added and removed at once; blocked anyway should a recorder see it.
+  div.className = "ph-no-capture";
   for (const p of ["fontFamily", "fontSize", "fontWeight", "lineHeight", "letterSpacing", "paddingTop", "paddingLeft", "paddingRight", "borderTopWidth", "borderLeftWidth", "borderRightWidth", "boxSizing", "tabSize"] as const) {
     (div.style as unknown as Record<string, string>)[p] = cs[p] as string;
   }

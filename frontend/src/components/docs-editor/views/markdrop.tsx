@@ -169,7 +169,7 @@ export function MarkdropPicker({ open, onClose, onPick, host }: { open: boolean;
       const after = await host.share(gate.src);
       infoCache.set(after.src, Promise.resolve(after));
       host.onEvent?.("shared", { renderer: after.renderer });
-      toast.success(`Anyone with the link can now view “${after.title}”.`);
+      toast.success(<>Anyone with the link can now view “<span className="ph-sensitive ph-mask">{after.title}</span>”.</>);
       onPick(after);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't change who can view it.");
@@ -195,7 +195,7 @@ export function MarkdropPicker({ open, onClose, onPick, host }: { open: boolean;
 
   const tabs = [
     { value: "mine", label: "Your files", icon: "user" },
-    ...(host.workspaceName ? [{ value: "workspace", label: host.workspaceName, icon: "users" }] : []),
+    ...(host.workspaceName ? [{ value: "workspace", label: <span className="ph-sensitive ph-mask">{host.workspaceName}</span>, icon: "users" }] : []),
     { value: "link", label: "Paste a link", icon: "link" },
     ...(host.upload ? [{ value: "upload", label: "Upload", icon: "upload" }] : []),
   ];
@@ -214,7 +214,7 @@ export function MarkdropPicker({ open, onClose, onPick, host }: { open: boolean;
         <div className="dxe-mdpick__gate">
           <div className="dxe-mdpick__file">
             <KindIcon renderer={gate.renderer} size={22} />
-            <span className="dxe-mdpick__filename">{gate.title}</span>
+            <span className="ph-sensitive ph-mask dxe-mdpick__filename">{gate.title}</span>
             <Badge tone="warning" size="sm" icon="lock">{REASON_SHORT[gate.reason ?? ""] ?? "Not public"}</Badge>
           </div>
           <Alert tone="warning" title="Your guide's readers will see a notice instead of the file">
@@ -264,7 +264,7 @@ export function MarkdropPicker({ open, onClose, onPick, host }: { open: boolean;
                   {host.upload && <Button size="sm" variant="secondary" iconLeft="upload" onClick={() => setTab("upload")}>Upload one</Button>}
                 </div>
               ) : (
-                <ul className="dxe-mdpick__list" aria-label="Files" aria-busy={loading || undefined}>
+                <ul className="ph-no-capture dxe-mdpick__list" aria-label="Files" aria-busy={loading || undefined}>
                   {items.map((it) => (
                     <li key={it.slug}>
                       <button type="button" className="dxe-mdpick__item" onClick={() => void choose(it.src)} disabled={!!busy || !it.embeddable} aria-describedby={`${it.slug}-meta`}>

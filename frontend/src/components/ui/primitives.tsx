@@ -994,7 +994,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             onFocus={() => pause(t.id)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null) && !e.currentTarget.matches(":hover")) resume(t.id); }}>
             <Icon name={TOAST_ICON[t.kind]} />
             <div className="md-toast__msg">
-              {t.message}
+              {/* Masked in replays: toasts name titles, slugs, people and workspaces. */}
+              <span className="ph-sensitive ph-mask">{t.message}</span>
               {t.action && <button type="button" className="md-toast__action" onClick={() => { t.action!.onClick(); dismiss(t.id); }}>{t.action.label}</button>}
             </div>
             <IconButton className="md-toast__x" icon="x" label="Dismiss" size="sm" onClick={() => dismiss(t.id)} />

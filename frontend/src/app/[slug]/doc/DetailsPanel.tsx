@@ -105,7 +105,7 @@ export function DetailsPanel(p: DetailsPanelProps) {
           <div className="flex items-center justify-between gap-2">
             <h2 id="md-details-access" className="text-eyebrow text-text-muted">Access</h2>
             {p.access && (
-              <AvatarGroup>
+              <AvatarGroup className="ph-sensitive ph-mask">
                 <Avatar name={p.access.owner_name || p.access.owner_email || "Owner"} size="sm" />
                 {grants.slice(0, 2).map((g) => <Avatar key={g.email} name={g.email.split("@")[0] || g.email} size="sm" neutral />)}
               </AvatarGroup>

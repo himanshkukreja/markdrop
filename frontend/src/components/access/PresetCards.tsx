@@ -18,6 +18,8 @@ export interface PresetOption<V extends string = string> {
   disabled?: boolean;
   /** Shown instead of the hint when disabled ("Add it to a workspace first"). */
   disabledReason?: string;
+  /** The label and hint name a workspace or team: masked in session recordings (ph-sensitive ph-mask). */
+  sensitive?: boolean;
 }
 
 export function PresetCards<V extends string = string>({
@@ -63,6 +65,7 @@ export function PresetCards<V extends string = string>({
           const off = disabled || o.disabled || locked;
           const hintId = `${uid}-${o.value}-hint`;
           const hint = o.disabled && o.disabledReason ? o.disabledReason : o.hint;
+          const mask = o.sensitive ? "ph-sensitive ph-mask " : "";
           return (
             <label
               key={o.value}
@@ -88,8 +91,8 @@ export function PresetCards<V extends string = string>({
                   />
                   {o.icon && <span aria-hidden className="mt-px flex shrink-0 text-text-secondary"><Icon name={o.icon} size={18} /></span>}
                   <span className="flex min-w-0 flex-col">
-                    <strong className="text-body-strong text-text">{o.label}</strong>
-                    {hint && <span id={hintId} className="text-caption text-text-muted">{hint}</span>}
+                    <strong className={`${mask}text-body-strong text-text`}>{o.label}</strong>
+                    {hint && <span id={hintId} className={`${mask}text-caption text-text-muted`}>{hint}</span>}
                   </span>
                 </>
               ) : (
@@ -109,11 +112,11 @@ export function PresetCards<V extends string = string>({
                     {o.icon ? (
                       <span aria-hidden className="flex text-text-secondary"><Icon name={o.icon} size={18} /></span>
                     ) : (
-                      <strong className="text-body-strong text-text">{o.label}</strong>
+                      <strong className={`${mask}text-body-strong text-text`}>{o.label}</strong>
                     )}
                   </span>
-                  {o.icon && <strong className="text-[13px] leading-5 font-semibold text-text">{o.label}</strong>}
-                  {hint && <span id={hintId} className="text-caption text-text-muted">{hint}</span>}
+                  {o.icon && <strong className={`${mask}text-[13px] leading-5 font-semibold text-text`}>{o.label}</strong>}
+                  {hint && <span id={hintId} className={`${mask}text-caption text-text-muted`}>{hint}</span>}
                 </>
               )}
             </label>

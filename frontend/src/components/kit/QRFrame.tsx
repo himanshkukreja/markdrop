@@ -37,8 +37,9 @@ function Code({ value, size, ariaLabel, fluid }: { value: string; size: number; 
   const pad = Math.max(6, Math.round(size * 0.05));
   // fluid: never wider than its container (the 320px dialog code on a 320px-wide phone).
   const box = fluid ? { width: `min(${size}px, 100%)`, padding: pad } : { width: size, height: size, padding: pad };
+  // ph-no-capture: a recorded QR code could be scanned back into the link (and its #k= key).
   return (
-    <div role="img" aria-label={ariaLabel} className={styles.tile} data-fluid={fluid || undefined} style={box}>
+    <div role="img" aria-label={ariaLabel} className={`ph-no-capture ${styles.tile}`} data-fluid={fluid || undefined} style={box}>
       <QRCodeSVG
         value={value}
         size={size - pad * 2}
@@ -72,7 +73,7 @@ export function QRFrame({ value, size = 152, label, caption, ariaLabel, expandab
         </div>
       )}
       {expandable && (
-        <Dialog open={open} onClose={() => setOpen(false)} title={label ?? "Scan to open"} description={pretty(value)} size="xl">
+        <Dialog open={open} onClose={() => setOpen(false)} title={label ?? "Scan to open"} description={<span className="ph-sensitive ph-mask">{pretty(value)}</span>} size="xl">
           <div className={styles.full}>
             <div className={styles.fullBox}>
               <Code value={value} size={320} ariaLabel={name} fluid />

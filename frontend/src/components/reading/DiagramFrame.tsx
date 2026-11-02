@@ -338,7 +338,8 @@ export function DiagramFrame({ code, caption, className }: DiagramFrameProps) {
           {showSource && <CodeBlock code={code} language="mermaid" />}
         </div>
       </figure>
-      <Dialog open={large} onClose={() => setLarge(false)} title={title ?? kind} size="xl" bodyClassName="md-diagram-dialog">
+      {/* A portal, outside the blocked document body: the diagram is blocked and its title masked. */}
+      <Dialog open={large} onClose={() => setLarge(false)} title={<span className="ph-sensitive ph-mask">{title ?? kind}</span>} size="xl" bodyClassName="ph-no-capture md-diagram-dialog">
         {largeSvg ? (
           <div className="md-diagram__canvas md-diagram__canvas--large" dangerouslySetInnerHTML={{ __html: largeSvg }} />
         ) : (

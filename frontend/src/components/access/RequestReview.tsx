@@ -124,21 +124,21 @@ export default function RequestReview({ id }: { id: string }) {
     <div className="flex min-w-0 flex-col gap-5">
       <div>
         <p className="text-eyebrow uppercase text-text-muted">Access request</p>
-        <h1 className="mt-1 text-h2 text-text [overflow-wrap:anywhere]" dir="auto">{who} asked to open “{title}”</h1>
+        <h1 className="mt-1 text-h2 text-text [overflow-wrap:anywhere]" dir="auto"><span className="ph-sensitive ph-mask">{who}</span> asked to open “<span className="ph-sensitive ph-mask">{title}</span>”</h1>
       </div>
 
       <section aria-label="The request" className="flex min-w-0 flex-col gap-4 rounded-2xl border border-border bg-surface p-6 shadow-sm">
         <div className="flex min-w-0 items-center gap-3">
-          <Avatar name={who} size="lg" />
+          <Avatar name={who} size="lg" className="ph-sensitive ph-mask" />
           <div className="min-w-0">
-            <div className="truncate text-body-strong text-text" dir="auto">{who}</div>
-            <div className="text-caption text-text-muted">
+            <div className="ph-sensitive ph-mask truncate text-body-strong text-text" dir="auto">{who}</div>
+            <div className="ph-sensitive ph-mask text-caption text-text-muted">
               {[req.requester.name ? req.requester.email : null, relativeTime(req.created_at)].filter(Boolean).join(" · ")}
             </div>
           </div>
         </div>
         {req.message ? (
-          <blockquote className="m-0 rounded-lg bg-surface-inset px-3.5 py-2.5 text-body text-text-secondary [overflow-wrap:anywhere]" dir="auto">{req.message}</blockquote>
+          <blockquote className="ph-no-capture m-0 rounded-lg bg-surface-inset px-3.5 py-2.5 text-body text-text-secondary [overflow-wrap:anywhere]" dir="auto">{req.message}</blockquote>
         ) : (
           <p className="text-caption text-text-muted">No message.</p>
         )}
@@ -147,12 +147,12 @@ export default function RequestReview({ id }: { id: string }) {
           <div ref={resultRef} tabIndex={-1} role="status" className="flex flex-col gap-3 outline-none">
             <p className="flex items-start gap-2 text-body text-text">
               <Icon name={req.status === "declined" ? "x" : "checkCircle"} size={18} className={req.status === "declined" ? "mt-0.5 text-text-muted" : "mt-0.5 text-success"} />
-              <span>
+              <span className="ph-sensitive ph-mask">
                 {done ? outcome : req.status === "declined" ? `You declined this ${req.decided_at ? relativeTime(req.decided_at) : ""}.` : `You let ${first} ${req.role_granted === "editor" ? "edit" : "view"} it ${req.decided_at ? relativeTime(req.decided_at) : ""}.`}
               </span>
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" href={`/${encodeURIComponent(req.document.slug)}`} iconLeft="external">Open “{title}”</Button>
+              <Button variant="secondary" href={`/${encodeURIComponent(req.document.slug)}`} iconLeft="external">Open “<span className="ph-sensitive ph-mask">{title}</span>”</Button>
               <Button variant="ghost" href="/shared">Other requests</Button>
             </div>
           </div>
@@ -169,7 +169,7 @@ export default function RequestReview({ id }: { id: string }) {
               <Button ref={action === "decline" ? chosenRef : undefined} variant={action === "decline" ? "secondary" : "ghost"} loading={busy === "decline"} disabled={!!busy && busy !== "decline"} onClick={() => void decide("decline")}>Decline</Button>
             </div>
             <p className="text-caption text-text-muted">
-              This shares only this item with {first}. It doesn&apos;t add them to a workspace.
+              This shares only this item with <span className="ph-sensitive ph-mask">{first}</span>. It doesn&apos;t add them to a workspace.
             </p>
           </>
         )}

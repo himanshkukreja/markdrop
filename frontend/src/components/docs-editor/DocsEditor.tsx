@@ -77,7 +77,8 @@ function MarkdownSource({ value, onChange, readOnly, placeholder, label, taRef, 
   }
   return (
     <div className="dxe-source">
-      <div className="dxe-source__box" data-marks={backdrop ? "" : undefined}>
+      {/* ph-no-capture: the Markdown (and Find's copy of it behind the text) is never recorded. */}
+      <div className="ph-no-capture dxe-source__box" data-marks={backdrop ? "" : undefined}>
         {backdrop}
         <textarea
           ref={ref}

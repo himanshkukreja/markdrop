@@ -512,7 +512,7 @@ export default function NewEditor() {
         aria-label="Markdown"
         maxLength={MAX_CHARS}
         spellCheck
-        className="block h-full w-full resize-none bg-transparent p-4 font-mono text-code text-text caret-accent-text outline-none"
+        className="ph-no-capture block h-full w-full resize-none bg-transparent p-4 font-mono text-code text-text caret-accent-text outline-none"
       />
       {emptyOverlay}
     </div>
@@ -577,8 +577,9 @@ export default function NewEditor() {
       className="flex h-[calc(100dvh-5.5rem)] min-h-[420px] min-w-0 flex-col gap-3 sm:min-h-[560px]"
       style={isPhone && barHeight ? { paddingBottom: barHeight + 4 } : undefined}
     >
-      {/* Print: the title and the rendered document only. */}
-      <div className="print-only hidden">
+      {/* Print: the title and the rendered document only. Hidden on screen, but still in the DOM:
+          ph-no-capture keeps the title out of session recordings too. */}
+      <div className="ph-no-capture print-only hidden">
         {title && <h1 className="mb-4 text-h1">{title}</h1>}
         <MarkdownPreview content={content} />
       </div>
@@ -589,7 +590,7 @@ export default function NewEditor() {
         <h1 className="md-visually-hidden">New document</h1>
         <div className="flex min-w-0 items-center gap-2 text-caption text-text-muted max-sm:hidden">
           <Badge size="sm" dot>Draft</Badge>
-          <span className="truncate">{workspaceName ?? "Personal"} · not published yet</span>
+          <span className="truncate"><span className={workspaceName ? "ph-sensitive ph-mask" : undefined}>{workspaceName ?? "Personal"}</span> · not published yet</span>
         </div>
         <div className="flex min-w-0 items-center gap-3">
           <input
@@ -691,7 +692,7 @@ export default function NewEditor() {
       {/* "No login required" is only true for someone who isn't signed in; nothing until we know. */}
       <p className="no-print shrink-0 text-caption text-text-muted max-sm:hidden" aria-hidden={authLoading || undefined}>
         {authLoading ? "\u00a0" : signedIn
-          ? `It's saved to ${workspaceName ?? "your files"} and gets a shareable link instantly.`
+          ? <>It&apos;s saved to {workspaceName ? <span className="ph-sensitive ph-mask">{workspaceName}</span> : "your files"} and gets a shareable link instantly.</>
           : "No login required. Your document gets a shareable link instantly."}
         {!authLoading && <>{" "}<ReadMore topic="writing">Formatting guide</ReadMore></>}
       </p>
@@ -706,7 +707,7 @@ export default function NewEditor() {
           {busy && <Progress indeterminate size="sm" aria-label={publishLabel} valueText={publishLabel} className="mb-2" />}
           <p className="mb-2 flex min-w-0 items-center gap-1.5 text-caption text-text-secondary">
             <Icon name={settings.access === "private" ? "lock" : settings.access === "workspace" ? "users" : "globe"} size={14} className="shrink-0" />
-            <span className="truncate">{summary.text}</span>
+            <span className={cx("truncate", workspaceName && "ph-sensitive ph-mask")}>{summary.text}</span>
           </p>
           {publishButton(true, "lg")}
           {showStrip && (
@@ -732,7 +733,7 @@ export default function NewEditor() {
           footer={publishButton(true, "lg")}
         >
           <div className="flex flex-col gap-4">
-            <p ref={sheetIntroRef} tabIndex={-1} className="text-caption text-text-secondary outline-none">{summary.text}</p>
+            <p ref={sheetIntroRef} tabIndex={-1} className={cx("text-caption text-text-secondary outline-none", workspaceName && "ph-sensitive ph-mask")}>{summary.text}</p>
             {failureAlert}
             <PublishSettings
               value={settings}

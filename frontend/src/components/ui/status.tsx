@@ -22,7 +22,7 @@ function fallbackRegion(): HTMLElement | null {
     el.setAttribute("aria-live", "polite");
     el.setAttribute("aria-atomic", "true");
     el.setAttribute("data-md-status-region", "");
-    el.className = "md-visually-hidden";
+    el.className = "ph-no-capture md-visually-hidden";
     document.body.appendChild(el);
   }
   return el;
@@ -46,7 +46,8 @@ export function StatusRegion() {
     region = el;
     return () => { if (region === el) region = null; };
   }, []);
-  return <div ref={ref} role="status" aria-live="polite" aria-atomic="true" className="md-visually-hidden" data-md-status-region="" />;
+  // ph-no-capture: announcements can name people ("Added ann@…"); never part of a replay.
+  return <div ref={ref} role="status" aria-live="polite" aria-atomic="true" className="ph-no-capture md-visually-hidden" data-md-status-region="" />;
 }
 
 export interface VisuallyHiddenProps extends React.HTMLAttributes<HTMLElement> { as?: React.ElementType; children?: React.ReactNode; }
