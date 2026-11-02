@@ -1,19 +1,12 @@
 /*
- * The landing page's frame: one viewport per section on laptops and desktops, and scroll snapping
- * between them. Scoped to the landing root (`.root`): nothing here applies to any other page.
+ * The landing page's frame. The one-viewport sections and the scroll snapping between them come from
+ * the shared SnapPage / SnapSection (components/marketing/snap); this file only names its sizes the
+ * way the landing's own styles use them:
  *
  *   --land-hdr     the sticky marketing header (SiteHeader, h-14).
- *   --land-w       the content width: 1280 up to 1440-wide windows, wider on big screens (so a
- *                  2560 × 1440 desk is not a postage stamp), never past 1840.
- *   --land-h       one section: the viewport under the header (never less than 600px, so a short
- *                  window gets taller sections and normal scrolling instead of squashed ones).
+ *   --land-w       the content width: 1280 up to 1440-wide windows, wider on big screens, never past 1840.
+ *   --land-h       one section: the viewport under the header (never less than 600px).
  *   --land-pad     a section's top and bottom padding; --land-usable is what is left inside.
- *
- * Snapping (CSS only, no scroll-jacking): from 1024 × 640, `scroll-snap-type: y mandatory` on the
- * root element (the viewport's scroller in Chrome, Safari and Firefox; body would not propagate),
- * every section snaps to its start under the header, and the footer snaps to the page's end. Phones,
- * tablets in portrait and short windows scroll normally. Smooth scrolling for anchors and keys,
- * `auto` under prefers-reduced-motion.
  */
 
 /* A scale factor, as a number: computed where it is declared (container units resolve there) and
@@ -30,40 +23,10 @@
 }
 
 .root {
-  --land-hdr: 56px;
-  --land-w: clamp(1280px, calc(70vw + 40px), 1840px);
-  --land-gut: clamp(16px, 3vw, 24px);
-  --land-h: max(600px, calc(100svh - var(--land-hdr)));
-  --land-pad: clamp(24px, 5.5svh, 72px);
-  --land-usable: calc(var(--land-h) - 2 * var(--land-pad));
-  width: 100%;
-  min-width: 0;
-  overflow-x: clip;
-}
-
-:global(html):has(.root) {
-  scroll-padding-top: var(--land-hdr, 56px);
-}
-/* The header offset comes from scroll-padding above: not also the site-wide `[id]` scroll-margin
-   (globals.css), which would put every snap point 72px short of its section. */
-.root > section {
-  scroll-margin-top: 0;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  :global(html):has(.root) {
-    scroll-behavior: smooth;
-  }
-}
-
-@media (min-width: 1024px) and (min-height: 640px) {
-  :global(html):has(.root) {
-    scroll-snap-type: y mandatory;
-  }
-  .root > section {
-    scroll-snap-align: start;
-  }
-  :global(html):has(.root) :global(main ~ footer) {
-    scroll-snap-align: end;
-  }
+  --land-hdr: var(--snap-hdr);
+  --land-w: var(--snap-w);
+  --land-gut: var(--snap-gut);
+  --land-h: var(--snap-h);
+  --land-pad: var(--snap-pad);
+  --land-usable: var(--snap-usable);
 }

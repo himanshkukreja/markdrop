@@ -7,6 +7,7 @@ import { DOCS_PAGES } from "@/lib/docsLinks";
 import { track } from "@/lib/track";
 import { Icon, VSCodeIcon } from "../ds";
 import s from "./Sections.module.css";
+import { SnapSection } from "@/components/marketing/snap/Snap";
 
 const VSCODE_URL = "https://marketplace.visualstudio.com/items?itemName=HimanshuKukreja.markdrop";
 
@@ -51,7 +52,7 @@ export default function Drawer() {
   };
 
   return (
-    <section id="tools" ref={ref} aria-labelledby="tools-h" className={s.section}>
+    <SnapSection id="tools" ref={ref} labelledBy="tools-h">
       <div className={`${s.split} ${s.splitRev}`}>
         <div className={s.copy}>
           <span className={s.eyebrow}>Editor, terminal, AI</span>
@@ -150,6 +151,6 @@ export default function Drawer() {
           </div>
         </div>
       </div>
-    </section>
+    </SnapSection>
   );
 }

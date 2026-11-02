@@ -1,0 +1,85 @@
+/*
+ * One viewport per section, and scroll snapping between them: the frame shared by the marketing
+ * pages that read section by section (/, /guides, /mcp, /enterprise). Scoped to the page's root
+ * (`.page`, SnapPage): nothing here applies to any other page.
+ *
+ *   --snap-hdr     the sticky marketing header (SiteHeader, h-14).
+ *   --snap-w       the content width: 1280 up to 1440-wide windows, wider on big screens (so a
+ *                  2560 × 1440 window is not a postage stamp), never past 1840.
+ *   --snap-gut     the side gutter.
+ *   --snap-h       one section: the viewport under the header (never less than 600px, so a short
+ *                  window gets taller sections and normal scrolling instead of squashed ones).
+ *   --snap-pad     a section's top and bottom padding; --snap-usable is what is left inside.
+ *
+ * Snapping (CSS only, no scroll-jacking): from 1024 × 640, `scroll-snap-type: y mandatory` on the
+ * root element (the viewport's scroller in Chrome, Safari and Firefox; body would not propagate),
+ * every section (SnapSection, [data-snap-section]) snaps to its start under the header, and the
+ * footer snaps to the page's end. Phones, tablets in portrait and short windows scroll normally.
+ * Smooth scrolling for anchors and keys, `auto` under prefers-reduced-motion.
+ */
+
+/* A scale factor, as a number: computed where it is declared (container units resolve there) and
+   inherited by what is drawn inside (parts.module.css .fitCanvas). */
+@property --snap-k {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+.page {
+  --snap-hdr: 56px;
+  --snap-w: clamp(1280px, calc(70vw + 40px), 1840px);
+  --snap-gut: clamp(16px, 3vw, 24px);
+  --snap-h: max(600px, calc(100svh - var(--snap-hdr)));
+  --snap-pad: clamp(24px, 5.5svh, 72px);
+  --snap-usable: calc(var(--snap-h) - 2 * var(--snap-pad));
+  width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+:global(html):has(.page) {
+  scroll-padding-top: 56px;
+}
+/* The header offset comes from scroll-padding above: not also the site-wide `[id]` scroll-margin
+   (globals.css), which would put every snap point 72px short of its section. */
+.page [data-snap-section] {
+  scroll-margin-top: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :global(html):has(.page) {
+    scroll-behavior: smooth;
+  }
+}
+
+@media (min-width: 1024px) and (min-height: 640px) {
+  :global(html):has(.page) {
+    scroll-snap-type: y mandatory;
+  }
+  .page [data-snap-section] {
+    scroll-snap-align: start;
+  }
+  :global(html):has(.page) :global(main ~ footer) {
+    scroll-snap-align: end;
+  }
+}
+
+/* ── A section's box ────────────────────────────────────────────────── */
+
+/* The content width plus gutters; from 900px one viewport tall, its content centred vertically. */
+.section {
+  max-width: calc(var(--snap-w, 1280px) + 2 * var(--snap-gut, 24px));
+  margin: 0 auto;
+  padding: 56px var(--snap-gut, 16px);
+  box-sizing: border-box;
+}
+@media (min-width: 900px) {
+  .section {
+    min-height: var(--snap-h);
+    padding-block: var(--snap-pad);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}

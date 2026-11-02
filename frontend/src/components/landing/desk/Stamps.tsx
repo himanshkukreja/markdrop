@@ -7,6 +7,7 @@ import { track } from "@/lib/track";
 import { Badge, Icon } from "../ds";
 import s from "./Sections.module.css";
 import t from "./theme.module.css";
+import { SnapSection } from "@/components/marketing/snap/Snap";
 
 type StampId = "people" | "password" | "expiry" | "e2e";
 
@@ -75,7 +76,7 @@ export default function Stamps() {
     : `Anyone with the link · ${on.password ? "No sign-in. They're asked for the password." : "No sign-in needed."}`;
 
   return (
-    <section id="sharing" aria-labelledby="sharing-h" className={s.section}>
+    <SnapSection id="sharing" labelledBy="sharing-h">
       <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
         <defs>
           <filter id="desk-ink">
@@ -202,6 +203,6 @@ export default function Stamps() {
           </div>
         </div>
       </div>
-    </section>
+    </SnapSection>
   );
 }
