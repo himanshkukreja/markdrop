@@ -220,3 +220,29 @@ def presign_get(key: str, expires_in: int = 3600) -> str:
     """A short-lived read link (local HMAC, no network), for the editor's preview."""
     return _client().generate_presigned_url(
         "get_object", Params={"Bucket": settings.docs_r2_bucket, "Key": key}, ExpiresIn=expires_in)
+
+
+def list_objects(prefix: str) -> list[dict]:
+    """Every object under ``prefix`` as ``{key, size}`` (a guide's export lists its files)."""
+    out: list[dict] = []
+    token = None
+    while True:
+        kw = {"Bucket": settings.docs_r2_bucket, "Prefix": prefix, "MaxKeys": 1000}
+        if token:
+            kw["ContinuationToken"] = token
+        page = _client().list_objects_v2(**kw)
+        out += [{"key": o["Key"], "size": int(o.get("Size") or 0)} for o in page.get("Contents") or []]
+        if not page.get("IsTruncated"):
+            return out
+        token = page.get("NextContinuationToken")
+
+
+def get_bytes(key: str) -> bytes | None:
+    """One object's bytes, or None when it isn't there."""
+    try:
+        return _client().get_object(Bucket=settings.docs_r2_bucket, Key=key)["Body"].read()
+    except Exception as exc:  # botocore's ClientError: NoSuchKey / 404 → None; anything else raises
+        code = str(((getattr(exc, "response", None) or {}).get("Error") or {}).get("Code") or "")
+        if code in ("NoSuchKey", "404", "NotFound"):
+            return None
+        raise

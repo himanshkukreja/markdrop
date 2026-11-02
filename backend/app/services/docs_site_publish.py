@@ -121,12 +121,15 @@ async def changes(db: AsyncIOMotorDatabase, site: dict, *, lines: bool = True) -
 # ── Snapshot + build ──────────────────────────────────────────────────────────
 
 
-async def _snapshot(db: AsyncIOMotorDatabase, site: dict, user: User) -> dict:
+async def draft_snapshot(db: AsyncIOMotorDatabase, site: dict, user_id: str) -> dict | None:
+    """What a publish would freeze now (every page's draft, the settings, the changelog), not
+    stored; None when the guide has no pages. A publish stores it; an export of the drafts
+    (services/docs_site_export.py) writes it out."""
     rows = await db[PAGES].find({"site_id": site["_id"], "deleted_at": None}).sort("path", 1).to_list(
         length=settings.docs_pages_per_site + 50)
     if not rows:
-        raise HTTPException(status_code=422, detail="Add a page before publishing.")
-    snap = {
+        return None
+    return {
         "site_id": site["_id"],
         "site": {"name": site.get("name"), "slug": site.get("slug"), "url": store.site_url(site.get("slug")),
                  "workspace_id": site.get("workspace_id")},
@@ -147,9 +150,15 @@ async def _snapshot(db: AsyncIOMotorDatabase, site: dict, user: User) -> dict:
         "page_access_groups": (site.get("page_access") or {}).get("groups") or {},
         # The changelog's entries and settings (services/docs_site_changelog.py): changelog.json.
         "changelog": await changelog.snapshot_part(db, site),
-        "created_by": user.id,
+        "created_by": user_id,
         "created_at": now(),
     }
+
+
+async def _snapshot(db: AsyncIOMotorDatabase, site: dict, user: User) -> dict:
+    snap = await draft_snapshot(db, site, user.id)
+    if snap is None:
+        raise HTTPException(status_code=422, detail="Add a page before publishing.")
     if len(bson.encode(snap)) > SNAPSHOT_MAX_BYTES:
         raise HTTPException(status_code=413, detail="This guide is too large to publish in one snapshot.")
     res = await db[SNAPSHOTS].insert_one(snap)

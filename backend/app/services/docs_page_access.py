@@ -244,12 +244,19 @@ def section_rule(attrs: str | None) -> str:
     return v if RULE_ID.match(v) else "invalid"
 
 
-def split_private(body: str, reveal: set[str] | frozenset | None = None) -> tuple[str, list[str]]:
+def split_private(body: str, reveal: set[str] | frozenset | None = None, *,
+                  placeholder: bool = True, unwrap: bool = False) -> tuple[str, list[str]]:
     """A port of access.mjs splitPrivate (the same cuts, so Ask AI reads what the page shows): hidden
-    sections become one "Private section" line; revealed ones keep their text. → (body, rules)."""
+    sections become one "Private section" line; revealed ones keep their text. → (body, rules).
+
+    For a guide's export (services/docs_site_export.py): ``placeholder=False`` leaves nothing where a
+    hidden section was; ``unwrap=True`` drops a revealed section's closing fence too, so its text
+    stands as ordinary Markdown."""
     out: list[str] = []
     found: list[str] = []
     stack: list[int] = []
+    # The containers a revealed section opened (their depth in ``stack``), whose fence unwrap drops.
+    opened: set[int] = set()
     skip_at = -1
     fence: tuple[str, int] | None = None
     math = False
@@ -293,9 +300,12 @@ def split_private(body: str, reveal: set[str] | frozenset | None = None) -> tupl
                 if skipping:
                     continue
                 if reveal and r in reveal:
+                    if unwrap:
+                        opened.add(len(stack))
                     continue  # the container line itself: its content follows
                 label = re.sub(r"\s+", " ", o.group(4) or "").strip()
-                out.append(f"_Private section{': ' + label if label else ''}._")
+                if placeholder:
+                    out.append(f"_Private section{': ' + label if label else ''}._")
                 skip_at = len(stack)
                 continue
             stack.append(colons)
@@ -304,9 +314,13 @@ def split_private(body: str, reveal: set[str] | frozenset | None = None) -> tupl
             continue
         c = _CLOSE.match(core)
         if c and stack and stack[-1] <= len(c.group(1)):
+            depth = len(stack)
             stack.pop()
             if skipping and len(stack) < skip_at:
                 skip_at = -1
+                continue
+            if depth in opened:
+                opened.discard(depth)
                 continue
             if not skipping:
                 out.append(raw)

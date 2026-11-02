@@ -21,6 +21,7 @@ from app.models.user import User
 from app.routers.auth import require_user
 from app.routers.docs_site_domains import router as domains_router
 from app.routers.docs_site_editor import router as editor_router
+from app.routers.docs_site_export import router as export_router
 from app.routers.docs_site_api import router as api_router
 from app.routers.docs_site_changelog import router as changelog_router
 from app.routers.guide_fixes import router as fixes_router
@@ -342,3 +343,5 @@ router.include_router(changelog_router)
 router.include_router(fixes_router)
 # The guide's GitHub repository: link, sync, history (routers/docs_site_github.py).
 router.include_router(github_router)
+# Export & self-host: the guide as a content folder (routers/docs_site_export.py).
+router.include_router(export_router)
